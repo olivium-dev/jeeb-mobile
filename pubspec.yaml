@@ -17,6 +17,14 @@ dependencies:
   omds:
     path: ../omds-flutter/omds_library
 
+  # Olivium Flutter Library — geo capture (`ofl_geo_capture`, AKA
+  # geocapture-flutter in JEEB-BOUNDARIES.md / REUSE-MAP.md). The location
+  # picker delegates GPS + map-pin to this package. The dep is added once the
+  # package is published to pub.fds-4.site; until then a local pubspec_overrides
+  # entry handles the path. The feature itself sits behind a port
+  # (`MapPickerLauncher`) so the cubit and screen don't import the package
+  # directly — the DI container provides the geocapture-backed adapter.
+
   # State management
   flutter_bloc: ^9.0.0
   equatable: ^2.0.5

@@ -842,6 +842,31 @@ class AppLocalizations {
   String get trackingGpsLostRetry => _get('trackingGpsLostRetry');
   String get trackingGpsStaleTitle => _get('trackingGpsStaleTitle');
   String get trackingGpsStaleBody => _get('trackingGpsStaleBody');
+
+  String get locationPickupTitle => _get('locationPickupTitle');
+  String get locationDropoffTitle => _get('locationDropoffTitle');
+  String get locationConfirmedTitle => _get('locationConfirmedTitle');
+  String get locationStepPickup => _get('locationStepPickup');
+  String get locationStepDropoff => _get('locationStepDropoff');
+  String get locationStepDone => _get('locationStepDone');
+  String get locationSearchEmpty => _get('locationSearchEmpty');
+  String get locationUseCurrentGps => _get('locationUseCurrentGps');
+  String get locationOpenMap => _get('locationOpenMap');
+  String get locationSelectedPreviewLabel => _get('locationSelectedPreviewLabel');
+  String get locationNoSelectionYet => _get('locationNoSelectionYet');
+  String get locationDetectingGps => _get('locationDetectingGps');
+  String get locationResolvingAddress => _get('locationResolvingAddress');
+  String locationCoordinatesFallback(String lat, String lng) => _get('locationCoordinatesFallback')
+      .replaceFirst('{lat}', lat)
+      .replaceFirst('{lng}', lng);
+  String get locationContinueToDropoff => _get('locationContinueToDropoff');
+  String get locationConfirmAndSave => _get('locationConfirmAndSave');
+  String get locationSavingCta => _get('locationSavingCta');
+  String get locationErrorPermissionDenied => _get('locationErrorPermissionDenied');
+  String get locationErrorGpsUnavailable => _get('locationErrorGpsUnavailable');
+  String get locationErrorSearchFailed => _get('locationErrorSearchFailed');
+  String get locationErrorGeocodingFailed => _get('locationErrorGeocodingFailed');
+  String get locationErrorSaveFailed => _get('locationErrorSaveFailed');
 }
 
 class _AppLocalizationsDelegate
