@@ -567,5 +567,17 @@
   "trackingGpsLostBody": "لا يمكننا رؤية الجيبر حالياً. ستُحدّث الخريطة ووقت الوصول عند عودة الإشارة.",
   "trackingGpsLostRetry": "تحديث الآن",
   "trackingGpsStaleTitle": "إشارة GPS ضعيفة",
-  "trackingGpsStaleBody": "قد تتأخر الخريطة قليلاً في عرض موقع الجيبر الحالي."
+  "trackingGpsStaleBody": "قد تتأخر الخريطة قليلاً في عرض موقع الجيبر الحالي.",
+
+  "backgroundGpsPermissionTitle": "السماح بالموقع في الخلفية",
+  "backgroundGpsPermissionBody": "يحتاج جيب إلى صلاحية الموقع \"دائمًا\" لإرسال موقعك إلى العميل أثناء التوصيل، حتى عندما يكون التطبيق في الخلفية.",
+  "backgroundGpsPermissionGrant": "السماح دائمًا",
+  "backgroundGpsPermissionDeniedTitle": "تم حظر الوصول إلى الموقع",
+  "backgroundGpsPermissionDeniedBody": "افتح إعدادات النظام وامنح صلاحية الموقع \"دائمًا\" حتى نتمكن من مشاركة موقعك المباشر مع العميل.",
+  "backgroundGpsPermissionDeniedSettings": "فتح الإعدادات",
+  "backgroundGpsTrackingStatus": "تتم مشاركة موقعك المباشر",
+  "backgroundGpsStationaryStatus": "متوقف مؤقتًا — لم تتحرك منذ فترة",
+  "backgroundGpsOfflineTitle": "تعذر الاتصال بجيب",
+  "backgroundGpsOfflineBody": "حفظنا آخر موقع لك. سيستأنف التتبع حالما يعود الاتصال.",
+  "backgroundGpsOfflineRetry": "إعادة المحاولة"
 }

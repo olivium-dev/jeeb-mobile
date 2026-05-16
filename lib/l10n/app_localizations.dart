@@ -842,6 +842,29 @@ class AppLocalizations {
   String get trackingGpsLostRetry => _get('trackingGpsLostRetry');
   String get trackingGpsStaleTitle => _get('trackingGpsStaleTitle');
   String get trackingGpsStaleBody => _get('trackingGpsStaleBody');
+
+  String get backgroundGpsPermissionTitle =>
+      _get('backgroundGpsPermissionTitle');
+  String get backgroundGpsPermissionBody =>
+      _get('backgroundGpsPermissionBody');
+  String get backgroundGpsPermissionGrant =>
+      _get('backgroundGpsPermissionGrant');
+  String get backgroundGpsPermissionDeniedTitle =>
+      _get('backgroundGpsPermissionDeniedTitle');
+  String get backgroundGpsPermissionDeniedBody =>
+      _get('backgroundGpsPermissionDeniedBody');
+  String get backgroundGpsPermissionDeniedSettings =>
+      _get('backgroundGpsPermissionDeniedSettings');
+  String get backgroundGpsTrackingStatus =>
+      _get('backgroundGpsTrackingStatus');
+  String get backgroundGpsStationaryStatus =>
+      _get('backgroundGpsStationaryStatus');
+  String get backgroundGpsOfflineTitle =>
+      _get('backgroundGpsOfflineTitle');
+  String get backgroundGpsOfflineBody =>
+      _get('backgroundGpsOfflineBody');
+  String get backgroundGpsOfflineRetry =>
+      _get('backgroundGpsOfflineRetry');
 }
 
 class _AppLocalizationsDelegate
