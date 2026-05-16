@@ -4,7 +4,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/network/dio_client.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../auth/social/social_auth_cubit.dart';
+import '../../auth/social/social_auth_service.dart';
+import '../../auth/social/social_auth_token_store.dart';
+import '../../auth/social/social_sign_in_section.dart';
 import '../application/registration_cubit.dart';
 import '../application/registration_state.dart';
 import '../data/fake_otp_service.dart';
@@ -19,38 +24,76 @@ import 'otp_verification_screen.dart';
 /// [BlocProvider.value] so countdown and attempt state survives the
 /// transition.
 class RegistrationScreen extends StatelessWidget {
-  const RegistrationScreen({super.key, this.cubit, this.onVerified});
+  const RegistrationScreen({
+    super.key,
+    this.cubit,
+    this.socialAuthCubit,
+    this.onVerified,
+    this.onSocialAuthenticated,
+  });
 
   /// Optional injected cubit. Tests pass a pre-wired one; production
   /// instantiates a default with the dev [FakeOtpService] (until the real
   /// auth-service client lands).
   final RegistrationCubit? cubit;
 
+  /// Optional injected social auth cubit. Tests inject one with a fake
+  /// [SocialAuthService]; production wires the real Dio-backed
+  /// [DefaultSocialAuthService] + secure token store.
+  final SocialAuthCubit? socialAuthCubit;
+
   /// Called when the cubit reports a verified phone. Defaults to
   /// `context.go('/')` (home) in production; tests inject their own
   /// callback so the screen doesn't need a full GoRouter in scope.
   final VoidCallback? onVerified;
 
+  /// Called when a social sign-in completes successfully. Defaults to the
+  /// same handler as [onVerified] — first-time users will land in the
+  /// link-phone follow-up once that ticket lands (JEEB-58).
+  final VoidCallback? onSocialAuthenticated;
+
   @override
   Widget build(BuildContext context) {
-    final view = _RegistrationView(onVerified: onVerified);
-    if (cubit != null) {
-      return BlocProvider<RegistrationCubit>.value(
-        value: cubit!,
-        child: view,
+    final view = _RegistrationView(
+      onVerified: onVerified,
+      onSocialAuthenticated: onSocialAuthenticated,
+    );
+
+    Widget withRegistration(Widget child) {
+      if (cubit != null) {
+        return BlocProvider<RegistrationCubit>.value(value: cubit!, child: child);
+      }
+      return BlocProvider<RegistrationCubit>(
+        create: (_) => RegistrationCubit(otpService: const FakeOtpService()),
+        child: child,
       );
     }
-    return BlocProvider<RegistrationCubit>(
-      create: (_) => RegistrationCubit(otpService: const FakeOtpService()),
-      child: view,
-    );
+
+    Widget withSocial(Widget child) {
+      if (socialAuthCubit != null) {
+        return BlocProvider<SocialAuthCubit>.value(
+          value: socialAuthCubit!,
+          child: child,
+        );
+      }
+      return BlocProvider<SocialAuthCubit>(
+        create: (_) => SocialAuthCubit(
+          service: DefaultSocialAuthService(dio: DioClient.createDio()),
+          tokenStore: SecureSocialAuthTokenStore(),
+        ),
+        child: child,
+      );
+    }
+
+    return withRegistration(withSocial(view));
   }
 }
 
 class _RegistrationView extends StatefulWidget {
-  const _RegistrationView({this.onVerified});
+  const _RegistrationView({this.onVerified, this.onSocialAuthenticated});
 
   final VoidCallback? onVerified;
+  final VoidCallback? onSocialAuthenticated;
 
   @override
   State<_RegistrationView> createState() => _RegistrationViewState();
@@ -132,6 +175,18 @@ class _RegistrationViewState extends State<_RegistrationView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  SocialSignInSection(
+                    onAuthenticated: (_) {
+                      final cb =
+                          widget.onSocialAuthenticated ?? widget.onVerified;
+                      if (cb != null) {
+                        cb();
+                      } else {
+                        context.go('/');
+                      }
+                    },
+                  ),
+                  const SizedBox(height: Spacing.large),
                   Text(
                     l10n.registrationPhoneTitle,
                     style: Theme.of(context).textTheme.headlineSmall,

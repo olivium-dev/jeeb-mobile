@@ -63,6 +63,11 @@ dependencies:
   sign_in_with_apple: ^6.1.0
   google_sign_in: ^6.2.1
 
+  # Secure persistence for the JWT minted by jeeb-gateway after a social
+  # sign-in (T-mobile-003). Backed by Keychain on iOS and EncryptedSharedPreferences
+  # on Android.
+  flutter_secure_storage: ^9.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

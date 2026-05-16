@@ -286,6 +286,10 @@
   "registrationContinueWithApple": "المتابعة بحساب Apple",
   "registrationContinueWithGoogle": "المتابعة بحساب Google",
   "registrationSocialDivider": "أو",
+  "registrationSocialErrorNetwork": "تعذّر الاتصال بـ Jeeb. تحقّق من اتصالك وحاول مجددًا.",
+  "registrationSocialErrorInvalidToken": "تعذّر التحقّق من حسابك. حاول مرة أخرى.",
+  "registrationSocialErrorAccountDisabled": "هذا الحساب غير مسموح له بالدخول. يرجى التواصل مع الدعم.",
+  "registrationSocialErrorGeneric": "حدث خطأ ما. حاول مرة أخرى.",
   "registrationLinkPhoneTitle": "اربط رقم هاتفك",
   "registrationLinkPhoneSubtitle": "أضف رقم هاتف ليتمكن الجِيبر من التواصل معك.",
 
