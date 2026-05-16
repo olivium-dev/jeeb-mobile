@@ -1,0 +1,402 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:omds/omds.dart';
+
+import '../../../core/network/dio_client.dart';
+import '../../../l10n/app_localizations.dart';
+import '../cubit/voice_recording_cubit.dart';
+import '../cubit/voice_recording_state.dart';
+import '../data/voice_recording_repository.dart';
+import '../domain/voice_player.dart';
+import '../domain/voice_recorder.dart';
+import 'widgets/animated_mic_button.dart';
+
+/// Screen that lets the user record a voice request, preview it, and send it
+/// to the gateway (JEEB-60 / T-mobile-007).
+///
+/// The screen hosts a [VoiceRecordingCubit] and wires the press-and-hold mic
+/// button, recording timer, playback row, discard/send actions, and the
+/// post-send confirmation. Production callers route here via `/voice-request`
+/// (see `lib/core/router/app_router.dart`); tests inject a pre-wired cubit
+/// via the [cubit] parameter so they can drive state transitions without the
+/// real platform recorder.
+class VoiceRecordingScreen extends StatelessWidget {
+  const VoiceRecordingScreen({
+    super.key,
+    this.cubit,
+    this.onSent,
+  });
+
+  /// Optional injected cubit. Tests pass a pre-wired one; production builds a
+  /// default with the in-memory recorder/player and HTTP repository.
+  final VoiceRecordingCubit? cubit;
+
+  /// Callback fired once the cubit transitions to `sent`. Defaults to a
+  /// no-op so the screen can also be used as a standalone surface.
+  final ValueChanged<String>? onSent;
+
+  @override
+  Widget build(BuildContext context) {
+    final view = _VoiceRecordingView(onSent: onSent);
+    if (cubit != null) {
+      return BlocProvider<VoiceRecordingCubit>.value(
+        value: cubit!,
+        child: view,
+      );
+    }
+    return BlocProvider<VoiceRecordingCubit>(
+      create: (_) => VoiceRecordingCubit(
+        recorder: FakeVoiceRecorder(),
+        player: FakeVoicePlayer(),
+        repository: HttpVoiceRecordingRepository(dio: DioClient.createDio()),
+      ),
+      child: view,
+    );
+  }
+}
+
+class _VoiceRecordingView extends StatelessWidget {
+  const _VoiceRecordingView({this.onSent});
+
+  final ValueChanged<String>? onSent;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.voiceRecordingTitle)),
+      body: SafeArea(
+        child: BlocConsumer<VoiceRecordingCubit, VoiceRecordingState>(
+          listenWhen: (prev, curr) =>
+              prev.phase != curr.phase || prev.error != curr.error,
+          listener: (context, state) {
+            if (state.phase == VoiceRecordingPhase.sent &&
+                state.result != null) {
+              onSent?.call(state.result!.id);
+            }
+            final error = state.error;
+            if (error != null) {
+              ScaffoldMessenger.of(context)
+                ..clearSnackBars()
+                ..showSnackBar(
+                  SnackBar(
+                    content: Text(_errorCopy(l10n, error)),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              context.read<VoiceRecordingCubit>().acknowledgeError();
+            }
+          },
+          builder: (context, state) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
+              child: Column(
+                children: [
+                  const SizedBox(height: Spacing.large),
+                  Text(
+                    l10n.voiceRecordingSubtitle,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: Spacing.large),
+                  _TimerLabel(state: state),
+                  const Spacer(),
+                  _PrimarySurface(state: state),
+                  const Spacer(),
+                  _ActionRow(state: state),
+                  const SizedBox(height: Spacing.large),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  String _errorCopy(AppLocalizations l10n, VoiceRecordingError error) {
+    switch (error) {
+      case VoiceRecordingError.permissionDenied:
+        return l10n.voiceRecordingErrorPermission;
+      case VoiceRecordingError.recorderUnavailable:
+        return l10n.voiceRecordingErrorUnavailable;
+      case VoiceRecordingError.recorderFailed:
+        return l10n.voiceRecordingErrorRecorderFailed;
+      case VoiceRecordingError.tooShort:
+        return l10n.voiceRecordingErrorTooShort;
+      case VoiceRecordingError.maxDurationReached:
+        return l10n.voiceRecordingErrorMaxReached;
+      case VoiceRecordingError.uploadNetwork:
+        return l10n.voiceRecordingErrorUploadNetwork;
+      case VoiceRecordingError.uploadServer:
+        return l10n.voiceRecordingErrorUploadServer;
+      case VoiceRecordingError.uploadUnknown:
+        return l10n.voiceRecordingErrorUploadGeneric;
+    }
+  }
+}
+
+class _TimerLabel extends StatelessWidget {
+  const _TimerLabel({required this.state});
+  final VoiceRecordingState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final textTheme = Theme.of(context).textTheme;
+    final duration = state.isRecording
+        ? state.elapsed
+        : (state.clip?.duration ?? Duration.zero);
+    final shouldShow = state.isRecording ||
+        state.hasClip ||
+        state.phase == VoiceRecordingPhase.sending;
+    if (!shouldShow) {
+      return Text(
+        '00:00',
+        style: textTheme.displaySmall?.copyWith(
+          fontFeatures: const [FontFeature.tabularFigures()],
+          color: Theme.of(context).colorScheme.outline,
+        ),
+      );
+    }
+    return Column(
+      children: [
+        Text(
+          _formatDuration(duration),
+          style: textTheme.displaySmall?.copyWith(
+            fontFeatures: const [FontFeature.tabularFigures()],
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: Spacing.xSmall),
+        Text(
+          l10n.voiceRecordingTimerLabel(_formatDuration(duration)),
+          style: textTheme.labelMedium,
+        ),
+      ],
+    );
+  }
+}
+
+class _PrimarySurface extends StatelessWidget {
+  const _PrimarySurface({required this.state});
+  final VoiceRecordingState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cubit = context.read<VoiceRecordingCubit>();
+    switch (state.phase) {
+      case VoiceRecordingPhase.idle:
+      case VoiceRecordingPhase.recording:
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedMicButton(
+              isRecording: state.isRecording,
+              enabled: true,
+              onPressStart: cubit.startRecording,
+              onPressEnd: cubit.stopRecording,
+              semanticLabel: l10n.voiceRecordingMicSemantic,
+            ),
+            const SizedBox(height: Spacing.medium),
+            Text(
+              state.isRecording
+                  ? l10n.voiceRecordingReleaseToStop
+                  : l10n.voiceRecordingHoldToRecord,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        );
+      case VoiceRecordingPhase.recorded:
+      case VoiceRecordingPhase.playing:
+      case VoiceRecordingPhase.sending:
+        return _PlaybackPreview(state: state);
+      case VoiceRecordingPhase.sent:
+        return _SentConfirmation();
+    }
+  }
+}
+
+class _PlaybackPreview extends StatelessWidget {
+  const _PlaybackPreview({required this.state});
+  final VoiceRecordingState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cubit = context.read<VoiceRecordingCubit>();
+    final colorScheme = Theme.of(context).colorScheme;
+    final clip = state.clip;
+    final total = clip?.duration ?? Duration.zero;
+    final position = state.playbackPosition;
+    final progress = total.inMilliseconds == 0
+        ? 0.0
+        : (position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.medium,
+        vertical: Spacing.medium,
+      ),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(Spacing.medium),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Semantics(
+                button: true,
+                label: state.isPlaying
+                    ? l10n.voiceRecordingPause
+                    : l10n.voiceRecordingPlay,
+                child: IconButton.filled(
+                  iconSize: 40,
+                  onPressed:
+                      state.isSending ? null : () => cubit.togglePlayback(),
+                  icon: Icon(
+                    state.isPlaying
+                        ? Icons.pause_circle_filled
+                        : Icons.play_circle_filled,
+                  ),
+                ),
+              ),
+              const SizedBox(width: Spacing.medium),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 6,
+                        backgroundColor:
+                            colorScheme.outline.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    const SizedBox(height: Spacing.xSmall),
+                    Text(
+                      '${_formatDuration(position)} / '
+                      '${_formatDuration(total)}',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SentConfirmation extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 96,
+          height: 96,
+          decoration: BoxDecoration(
+            color: colorScheme.primary.withValues(alpha: 0.12),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.check_circle,
+            size: 56,
+            color: colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: Spacing.medium),
+        Text(
+          l10n.voiceRecordingSentTitle,
+          style: textTheme.titleLarge,
+        ),
+        const SizedBox(height: Spacing.xSmall),
+        Text(
+          l10n.voiceRecordingSentBody,
+          textAlign: TextAlign.center,
+          style: textTheme.bodyMedium,
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionRow extends StatelessWidget {
+  const _ActionRow({required this.state});
+  final VoiceRecordingState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cubit = context.read<VoiceRecordingCubit>();
+    switch (state.phase) {
+      case VoiceRecordingPhase.idle:
+        return const SizedBox.shrink();
+      case VoiceRecordingPhase.recording:
+        return SizedBox(
+          width: double.infinity,
+          child: OMDSOutlinedButton(
+            text: l10n.voiceRecordingCancel,
+            onTap: () => cubit.cancelRecording(),
+          ),
+        );
+      case VoiceRecordingPhase.recorded:
+      case VoiceRecordingPhase.playing:
+        return Row(
+          children: [
+            Expanded(
+              child: OMDSOutlinedButton(
+                text: l10n.voiceRecordingDiscard,
+                onTap: () => cubit.discardClip(),
+              ),
+            ),
+            const SizedBox(width: Spacing.medium),
+            Expanded(
+              child: OmdsPrimaryButton(
+                text: l10n.voiceRecordingSend,
+                onTap: () => cubit.send(),
+                isEnabled: state.canSend,
+              ),
+            ),
+          ],
+        );
+      case VoiceRecordingPhase.sending:
+        return SizedBox(
+          width: double.infinity,
+          child: OmdsLoadingButton(
+            text: l10n.voiceRecordingSending,
+            isLoading: true,
+            onTap: () {},
+          ),
+        );
+      case VoiceRecordingPhase.sent:
+        return SizedBox(
+          width: double.infinity,
+          child: OmdsPrimaryButton(
+            text: l10n.voiceRecordingRecordAnother,
+            onTap: () => cubit.reset(),
+          ),
+        );
+    }
+  }
+}
+
+String _formatDuration(Duration duration) {
+  final clamped = duration.isNegative ? Duration.zero : duration;
+  final minutes = clamped.inMinutes.remainder(60).toString().padLeft(2, '0');
+  final seconds = clamped.inSeconds.remainder(60).toString().padLeft(2, '0');
+  return '$minutes:$seconds';
+}
