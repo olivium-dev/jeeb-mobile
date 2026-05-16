@@ -886,6 +886,35 @@
   "offersAcceptedBannerBody": "Opening chat with your Jeeber…",
   "@offersAcceptedBannerBody": { "description": "Sub-headline under the accepted banner while routing to the chat thread" },
 
+  "offersScreenTitle": "Choose a Jeeber",
+  "@offersScreenTitle": { "description": "AppBar title of the client-facing offer cards screen (T-mobile-015)" },
+  "offersSortLabel": "Sort",
+  "@offersSortLabel": { "description": "Label above the sort chips that switch between price and rating ordering" },
+  "offersSortByPrice": "Lowest price",
+  "@offersSortByPrice": { "description": "Sort chip — price asc (default sort)" },
+  "offersSortByRating": "Top rated",
+  "@offersSortByRating": { "description": "Sort chip — rating desc" },
+  "offersWindowRemaining": "Window: {time} left",
+  "@offersWindowRemaining": {
+    "description": "Countdown shown above the offer cards (T-mobile-015 AC: timer showing remaining offer window). {time} is already formatted m:ss.",
+    "placeholders": { "time": { "type": "String" } }
+  },
+  "offersWindowExpired": "Offer window expired",
+  "@offersWindowExpired": { "description": "Shown in place of the countdown once the deadline passes" },
+  "offersEmptyTitle": "Waiting for offers",
+  "@offersEmptyTitle": { "description": "Empty-state headline shown while no Jeebers have bid yet" },
+  "offersEmptyBody": "Jeebers nearby are reviewing your request. We'll show their offers here as they come in.",
+  "@offersEmptyBody": { "description": "Empty-state body matching the empty title" },
+  "offersRetryAction": "Retry",
+  "@offersRetryAction": { "description": "Retry CTA shown when the initial load fails" },
+  "offersRequestClosedTitle": "Request closed",
+  "@offersRequestClosedTitle": { "description": "Banner shown once the gateway tells us the request is no longer open" },
+  "offersRatingCount": "{count}",
+  "@offersRatingCount": {
+    "description": "Suffix beside the star rating showing how many ratings the average is computed from. OMDS wraps this in parentheses.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+
   "offerSubmissionTitle": "Send your offer",
   "@offerSubmissionTitle": { "description": "App bar title for the Jeeber offer-submission screen" },
   "offerSubmissionIntro": "Quote a fair fee and an honest pickup ETA. The client picks one offer; the rest are released.",
