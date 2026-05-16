@@ -1,117 +1,64 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:omds/omds.dart';
 
-/// OMDS-aligned theme tokens for the Jeeb app.
+import 'jeeb_tier_colors.dart';
+
+/// Jeeb app theme — thin wrapper around [OmdsTheme] with the Jeeb brand seed
+/// and the [JeebTierColors] extension layered on.
 ///
-/// Colors, typography, spacing, and border radius follow the Olivium Material
-/// Design System (OMDS) conventions. Replace these seed values with the actual
-/// OMDS package tokens once `omds_flutter` is integrated.
+/// All theming flows through `package:omds` so raw Material widget defaults
+/// stay outside the app and any future OMDS-wide token change reaches Jeeb
+/// automatically.
+///
+/// Source-of-truth for color decisions: `docs/design/03-color-token-mapping.md`.
+/// Source-of-truth for typography: `docs/design/04-typography-validation.md`.
 class AppTheme {
   AppTheme._();
 
-  // ─── Color Seeds ───────────────────────────────────────────────────────────
-  static const Color _primarySeed = Color(0xFF1B6B4E); // Jeeb green
+  // ─── Brand seed (see 03-color-token-mapping.md §1) ─────────────────────────
+  static const Color _primarySeed = Color(0xFF1B6B4E);
   static const Color _secondarySeed = Color(0xFF4A6741);
   static const Color _tertiarySeed = Color(0xFF3D6373);
 
-  // ─── Spacing Tokens ────────────────────────────────────────────────────────
-  static const double spacingXs = 4;
-  static const double spacingSm = 8;
-  static const double spacingMd = 16;
-  static const double spacingLg = 24;
-  static const double spacingXl = 32;
-  static const double spacingXxl = 48;
+  static ThemeData light() => _build(Brightness.light);
+  static ThemeData dark() => _build(Brightness.dark);
 
-  // ─── Border Radius Tokens ──────────────────────────────────────────────────
-  static const double radiusSm = 4;
-  static const double radiusMd = 8;
-  static const double radiusLg = 12;
-  static const double radiusXl = 16;
-  static const double radiusFull = 999;
-
-  // ─── Light Theme ───────────────────────────────────────────────────────────
-  static ThemeData light() {
+  static ThemeData _build(Brightness brightness) {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: _primarySeed,
       secondary: _secondarySeed,
       tertiary: _tertiarySeed,
-      brightness: Brightness.light,
+      brightness: brightness,
     );
 
-    return ThemeData(
-      useMaterial3: true,
-      colorScheme: colorScheme,
-      textTheme: GoogleFonts.interTextTheme(),
-      appBarTheme: AppBarTheme(
-        centerTitle: true,
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
-        elevation: 0,
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(
-            horizontal: spacingLg,
-            vertical: spacingMd,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(radiusMd),
-          ),
-        ),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(radiusMd),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: spacingMd,
-          vertical: spacingSm,
-        ),
-      ),
-    );
-  }
+    final baseTextTheme = brightness == Brightness.dark
+        ? GoogleFonts.interTextTheme(
+            ThemeData(brightness: Brightness.dark).textTheme,
+          )
+        : GoogleFonts.interTextTheme();
 
-  // ─── Dark Theme ────────────────────────────────────────────────────────────
-  static ThemeData dark() {
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: _primarySeed,
-      secondary: _secondarySeed,
-      tertiary: _tertiarySeed,
-      brightness: Brightness.dark,
-    );
+    final omds = OmdsTheme(baseTextTheme);
+    final base = brightness == Brightness.dark
+        ? omds.darkWithScheme(colorScheme)
+        : omds.lightWithScheme(colorScheme);
 
-    return ThemeData(
-      useMaterial3: true,
-      colorScheme: colorScheme,
-      textTheme: GoogleFonts.interTextTheme(
-        ThemeData(brightness: Brightness.dark).textTheme,
-      ),
-      appBarTheme: AppBarTheme(
-        centerTitle: true,
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
-        elevation: 0,
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(
-            horizontal: spacingLg,
-            vertical: spacingMd,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(radiusMd),
-          ),
-        ),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(radiusMd),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: spacingMd,
-          vertical: spacingSm,
-        ),
-      ),
+    // Type-erase the iterable before passing to copyWith. `copyWith` takes
+    // `Iterable<ThemeExtension<dynamic>>`, but Dart's stricter generic
+    // inference around `ThemeExtension<T extends ThemeExtension<T>>` causes
+    // the unparameterised `<ThemeExtension<dynamic>>[...]` literal to coerce
+    // into `ThemeExtension<ThemeExtension<dynamic>>` at runtime, which then
+    // rejects `_CompactValuesIterable<ThemeExtension<dynamic>>` (the type of
+    // `base.extensions.values`). Materialising into an explicit
+    // `List<ThemeExtension<dynamic>>` via `<dynamic>[].cast<...>()` keeps the
+    // outer parameter open and lets the framework's internal cast widen.
+    final List<ThemeExtension<dynamic>> extensions = <dynamic>[
+      JeebTierColors.standard(),
+      ...base.extensions.values,
+    ].cast<ThemeExtension<dynamic>>();
+    return base.copyWith(
+      appBarTheme: base.appBarTheme.copyWith(centerTitle: true),
+      extensions: extensions,
     );
   }
 }
