@@ -168,6 +168,12 @@
   "accountDeleteConfirm": "حذف الحساب",
   "accountDeleteSubmitted": "تم طلب الحذف. سنؤكد ذلك عبر البريد الإلكتروني.",
 
+  "appBarSignOut": "تسجيل الخروج",
+  "signOutDialogTitle": "هل تريد تسجيل الخروج من جيب؟",
+  "signOutDialogBody": "ستحتاج إلى تسجيل الدخول مرة أخرى لإنشاء أو قبول التوصيلات.",
+  "signOutCompleted": "تم تسجيل خروجك.",
+  "settingsNetworkError": "حدث خطأ ما. حاول مرة أخرى.",
+
   "actionSave": "حفظ",
   "actionDelete": "حذف",
 

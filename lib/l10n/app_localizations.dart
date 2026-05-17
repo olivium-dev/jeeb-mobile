@@ -248,6 +248,12 @@ class AppLocalizations {
   String get accountDeleteConfirm => _get('accountDeleteConfirm');
   String get accountDeleteSubmitted => _get('accountDeleteSubmitted');
 
+  String get appBarSignOut => _get('appBarSignOut');
+  String get signOutDialogTitle => _get('signOutDialogTitle');
+  String get signOutDialogBody => _get('signOutDialogBody');
+  String get signOutCompleted => _get('signOutCompleted');
+  String get settingsNetworkError => _get('settingsNetworkError');
+
   String get actionSave => _get('actionSave');
   String get actionDelete => _get('actionDelete');
 

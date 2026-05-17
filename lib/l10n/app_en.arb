@@ -230,6 +230,17 @@
   "accountDeleteConfirm": "Delete account",
   "accountDeleteSubmitted": "Deletion requested. We'll confirm by email.",
 
+  "appBarSignOut": "Sign out",
+  "@appBarSignOut": { "description": "Sign-out row in the settings account section" },
+  "signOutDialogTitle": "Sign out of Jeeb?",
+  "@signOutDialogTitle": { "description": "Title of the confirmation dialog shown before signing out" },
+  "signOutDialogBody": "You'll need to sign in again to place or accept deliveries.",
+  "@signOutDialogBody": { "description": "Body of the sign-out confirmation dialog" },
+  "signOutCompleted": "You've been signed out.",
+  "@signOutCompleted": { "description": "Snackbar shown after a successful sign-out" },
+  "settingsNetworkError": "Something went wrong. Please try again.",
+  "@settingsNetworkError": { "description": "Generic settings-screen network-error feedback banner" },
+
   "actionSave": "Save",
   "actionDelete": "Delete",
 
