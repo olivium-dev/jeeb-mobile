@@ -567,5 +567,56 @@
   "trackingGpsLostBody": "لا يمكننا رؤية الجيبر حالياً. ستُحدّث الخريطة ووقت الوصول عند عودة الإشارة.",
   "trackingGpsLostRetry": "تحديث الآن",
   "trackingGpsStaleTitle": "إشارة GPS ضعيفة",
-  "trackingGpsStaleBody": "قد تتأخر الخريطة قليلاً في عرض موقع الجيبر الحالي."
+  "trackingGpsStaleBody": "قد تتأخر الخريطة قليلاً في عرض موقع الجيبر الحالي.",
+
+  "deliveryStatusTitle": "حالة التوصيل",
+  "deliveryStatusIdSubtitle": "توصيلة رقم {id}",
+  "deliveryStatusLoading": "جارٍ تحميل التوصيلة…",
+  "deliveryStatusErrorTitle": "انقطع الاتصال",
+  "deliveryStatusErrorBody": "تعذّر الوصول إلى خدمة الحالة. اضغط إعادة المحاولة للاتصال من جديد.",
+  "deliveryStatusRetry": "إعادة المحاولة",
+
+  "deliveryStageMatched": "تم الإسناد",
+  "deliveryStagePickedUp": "تم الاستلام",
+  "deliveryStageInTransit": "في الطريق",
+  "deliveryStageDelivered": "تم التسليم",
+  "deliveryStageCancelled": "تم الإلغاء",
+
+  "deliveryStageTimestampPending": "بانتظار…",
+  "deliveryStageReachedAt": "الساعة {time}",
+
+  "deliveryDetailsTitle": "تفاصيل التوصيلة",
+  "deliveryPickupLabel": "الاستلام",
+  "deliveryDropoffLabel": "التسليم",
+  "deliveryTierLabel": "الفئة",
+
+  "deliveryTierBike": "دراجة هوائية",
+  "deliveryTierScooter": "دراجة نارية",
+  "deliveryTierCar": "سيارة",
+  "deliveryTierPickup": "بيك أب",
+
+  "deliveryJeeberCardTitle": "الجيبر الخاص بك",
+  "deliveryJeeberWaiting": "نبحث عن جيبر…",
+  "deliveryJeeberRating": "{rating} ★",
+
+  "deliveryEtaLabel": "الوصول",
+  "deliveryEtaMinutes": "{minutes} د",
+  "deliveryEtaArriving": "يصل الآن",
+
+  "deliveryActionCancel": "إلغاء التوصيلة",
+  "deliveryActionContact": "تواصل مع الجيبر",
+  "deliveryActionCancellingLabel": "جارٍ الإلغاء…",
+
+  "deliveryCancelDialogTitle": "إلغاء هذه التوصيلة؟",
+  "deliveryCancelDialogBody": "سيتم إبلاغ الجيبر. قد تُطبَّق رسوم إلغاء حسب مصفوفة الإلغاء.",
+  "deliveryCancelDialogConfirm": "نعم، ألغِ",
+  "deliveryCancelDialogDismiss": "إبقاء التوصيلة",
+
+  "deliveryErrorCancelTooLate": "فات وقت الإلغاء — استلم الجيبر الطرد بالفعل.",
+  "deliveryErrorCancelNetwork": "تعذّر الوصول إلى الخادم. حاول بعد قليل.",
+  "deliveryErrorContactUnavailable": "التواصل غير متاح بعد لهذه التوصيلة.",
+  "deliveryErrorStreamLost": "جارٍ إعادة الاتصال بحالة التوصيلة…",
+
+  "deliveryCompletedBanner": "تم التسليم بنجاح",
+  "deliveryCancelledBanner": "تم إلغاء التوصيلة"
 }
