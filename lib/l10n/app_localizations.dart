@@ -74,22 +74,6 @@ class AppLocalizations {
   String get ordersEmpty => _get('ordersEmpty');
   String get chatTitle => _get('chatTitle');
   String get chatEmpty => _get('chatEmpty');
-  String get chatActiveDeliveryTitle => _get('chatActiveDeliveryTitle');
-  String get chatActiveDeliverySubtitle => _get('chatActiveDeliverySubtitle');
-  String get chatPlaceholderCounterpartName =>
-      _get('chatPlaceholderCounterpartName');
-  String get chatEmptyThreadTitle => _get('chatEmptyThreadTitle');
-  String get chatEmptyThreadSubtitle => _get('chatEmptyThreadSubtitle');
-  String get chatComposerHint => _get('chatComposerHint');
-  String get chatSendTooltip => _get('chatSendTooltip');
-  String get chatAttachTooltip => _get('chatAttachTooltip');
-  String get chatAttachmentSheetTitle => _get('chatAttachmentSheetTitle');
-  String get chatAttachmentCamera => _get('chatAttachmentCamera');
-  String get chatAttachmentGallery => _get('chatAttachmentGallery');
-  String get chatAttachmentCancel => _get('chatAttachmentCancel');
-  String get chatErrorPermissionDenied => _get('chatErrorPermissionDenied');
-  String get chatErrorPickUnavailable => _get('chatErrorPickUnavailable');
-  String get chatErrorSendFailed => _get('chatErrorSendFailed');
   String get profileTitle => _get('profileTitle');
   String get dashboardTitle => _get('dashboardTitle');
   String get earningsTitle => _get('earningsTitle');
@@ -859,39 +843,36 @@ class AppLocalizations {
   String get trackingGpsStaleTitle => _get('trackingGpsStaleTitle');
   String get trackingGpsStaleBody => _get('trackingGpsStaleBody');
 
-  String get voiceRecordingTitle => _get('voiceRecordingTitle');
-  String get voiceRecordingSubtitle => _get('voiceRecordingSubtitle');
-  String get voiceRecordingHoldToRecord => _get('voiceRecordingHoldToRecord');
-  String get voiceRecordingReleaseToStop => _get('voiceRecordingReleaseToStop');
-  String get voiceRecordingMicSemantic => _get('voiceRecordingMicSemantic');
-  String voiceRecordingTimerLabel(String duration) =>
-      _get('voiceRecordingTimerLabel').replaceFirst('{duration}', duration);
-  String get voiceRecordingPlay => _get('voiceRecordingPlay');
-  String get voiceRecordingPause => _get('voiceRecordingPause');
-  String get voiceRecordingDiscard => _get('voiceRecordingDiscard');
-  String get voiceRecordingCancel => _get('voiceRecordingCancel');
-  String get voiceRecordingSend => _get('voiceRecordingSend');
-  String get voiceRecordingSending => _get('voiceRecordingSending');
-  String get voiceRecordingSentTitle => _get('voiceRecordingSentTitle');
-  String get voiceRecordingSentBody => _get('voiceRecordingSentBody');
-  String get voiceRecordingRecordAnother =>
-      _get('voiceRecordingRecordAnother');
-  String get voiceRecordingErrorPermission =>
-      _get('voiceRecordingErrorPermission');
-  String get voiceRecordingErrorUnavailable =>
-      _get('voiceRecordingErrorUnavailable');
-  String get voiceRecordingErrorRecorderFailed =>
-      _get('voiceRecordingErrorRecorderFailed');
-  String get voiceRecordingErrorTooShort =>
-      _get('voiceRecordingErrorTooShort');
-  String get voiceRecordingErrorMaxReached =>
-      _get('voiceRecordingErrorMaxReached');
-  String get voiceRecordingErrorUploadNetwork =>
-      _get('voiceRecordingErrorUploadNetwork');
-  String get voiceRecordingErrorUploadServer =>
-      _get('voiceRecordingErrorUploadServer');
-  String get voiceRecordingErrorUploadGeneric =>
-      _get('voiceRecordingErrorUploadGeneric');
+  String get orderHistoryTabActive => _get('orderHistoryTabActive');
+  String get orderHistoryTabCompleted => _get('orderHistoryTabCompleted');
+  String get orderHistoryTabCancelled => _get('orderHistoryTabCancelled');
+  String get orderHistoryEmptyTitle => _get('orderHistoryEmptyTitle');
+  String get orderHistoryEmptyActive => _get('orderHistoryEmptyActive');
+  String get orderHistoryEmptyCompleted => _get('orderHistoryEmptyCompleted');
+  String get orderHistoryEmptyCancelled => _get('orderHistoryEmptyCancelled');
+  String get orderHistoryErrorTitle => _get('orderHistoryErrorTitle');
+  String get orderHistoryErrorNetwork => _get('orderHistoryErrorNetwork');
+  String get orderHistoryErrorServer => _get('orderHistoryErrorServer');
+  String get orderHistoryErrorRetry => _get('orderHistoryErrorRetry');
+  String get orderHistoryFilterCta => _get('orderHistoryFilterCta');
+  String get orderHistoryFilterActive => _get('orderHistoryFilterActive');
+  String get orderHistoryFilterTitle => _get('orderHistoryFilterTitle');
+  String get orderHistoryFilterFrom => _get('orderHistoryFilterFrom');
+  String get orderHistoryFilterTo => _get('orderHistoryFilterTo');
+  String get orderHistoryFilterAnyDate => _get('orderHistoryFilterAnyDate');
+  String get orderHistoryFilterApply => _get('orderHistoryFilterApply');
+  String get orderHistoryFilterClear => _get('orderHistoryFilterClear');
+  String get orderHistoryAddressMissing => _get('orderHistoryAddressMissing');
+  String orderHistoryCardSemanticLabel(String id) =>
+      _get('orderHistoryCardSemanticLabel').replaceFirst('{id}', id);
+  String get orderHistoryStatusPending => _get('orderHistoryStatusPending');
+  String get orderHistoryStatusMatched => _get('orderHistoryStatusMatched');
+  String get orderHistoryStatusPickedUp => _get('orderHistoryStatusPickedUp');
+  String get orderHistoryStatusEnRoute => _get('orderHistoryStatusEnRoute');
+  String get orderHistoryStatusDelivered => _get('orderHistoryStatusDelivered');
+  String get orderHistoryStatusCancelled => _get('orderHistoryStatusCancelled');
+  String get orderHistoryStatusDisputed => _get('orderHistoryStatusDisputed');
+  String get orderHistoryStatusUnknown => _get('orderHistoryStatusUnknown');
 }
 
 class _AppLocalizationsDelegate
