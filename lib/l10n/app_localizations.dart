@@ -843,30 +843,39 @@ class AppLocalizations {
   String get trackingGpsStaleTitle => _get('trackingGpsStaleTitle');
   String get trackingGpsStaleBody => _get('trackingGpsStaleBody');
 
-  String get locationPickupTitle => _get('locationPickupTitle');
-  String get locationDropoffTitle => _get('locationDropoffTitle');
-  String get locationConfirmedTitle => _get('locationConfirmedTitle');
-  String get locationStepPickup => _get('locationStepPickup');
-  String get locationStepDropoff => _get('locationStepDropoff');
-  String get locationStepDone => _get('locationStepDone');
-  String get locationSearchEmpty => _get('locationSearchEmpty');
-  String get locationUseCurrentGps => _get('locationUseCurrentGps');
-  String get locationOpenMap => _get('locationOpenMap');
-  String get locationSelectedPreviewLabel => _get('locationSelectedPreviewLabel');
-  String get locationNoSelectionYet => _get('locationNoSelectionYet');
-  String get locationDetectingGps => _get('locationDetectingGps');
-  String get locationResolvingAddress => _get('locationResolvingAddress');
-  String locationCoordinatesFallback(String lat, String lng) => _get('locationCoordinatesFallback')
-      .replaceFirst('{lat}', lat)
-      .replaceFirst('{lng}', lng);
-  String get locationContinueToDropoff => _get('locationContinueToDropoff');
-  String get locationConfirmAndSave => _get('locationConfirmAndSave');
-  String get locationSavingCta => _get('locationSavingCta');
-  String get locationErrorPermissionDenied => _get('locationErrorPermissionDenied');
-  String get locationErrorGpsUnavailable => _get('locationErrorGpsUnavailable');
-  String get locationErrorSearchFailed => _get('locationErrorSearchFailed');
-  String get locationErrorGeocodingFailed => _get('locationErrorGeocodingFailed');
-  String get locationErrorSaveFailed => _get('locationErrorSaveFailed');
+  String get voiceRecordingTitle => _get('voiceRecordingTitle');
+  String get voiceRecordingSubtitle => _get('voiceRecordingSubtitle');
+  String get voiceRecordingHoldToRecord => _get('voiceRecordingHoldToRecord');
+  String get voiceRecordingReleaseToStop => _get('voiceRecordingReleaseToStop');
+  String get voiceRecordingMicSemantic => _get('voiceRecordingMicSemantic');
+  String voiceRecordingTimerLabel(String duration) =>
+      _get('voiceRecordingTimerLabel').replaceFirst('{duration}', duration);
+  String get voiceRecordingPlay => _get('voiceRecordingPlay');
+  String get voiceRecordingPause => _get('voiceRecordingPause');
+  String get voiceRecordingDiscard => _get('voiceRecordingDiscard');
+  String get voiceRecordingCancel => _get('voiceRecordingCancel');
+  String get voiceRecordingSend => _get('voiceRecordingSend');
+  String get voiceRecordingSending => _get('voiceRecordingSending');
+  String get voiceRecordingSentTitle => _get('voiceRecordingSentTitle');
+  String get voiceRecordingSentBody => _get('voiceRecordingSentBody');
+  String get voiceRecordingRecordAnother =>
+      _get('voiceRecordingRecordAnother');
+  String get voiceRecordingErrorPermission =>
+      _get('voiceRecordingErrorPermission');
+  String get voiceRecordingErrorUnavailable =>
+      _get('voiceRecordingErrorUnavailable');
+  String get voiceRecordingErrorRecorderFailed =>
+      _get('voiceRecordingErrorRecorderFailed');
+  String get voiceRecordingErrorTooShort =>
+      _get('voiceRecordingErrorTooShort');
+  String get voiceRecordingErrorMaxReached =>
+      _get('voiceRecordingErrorMaxReached');
+  String get voiceRecordingErrorUploadNetwork =>
+      _get('voiceRecordingErrorUploadNetwork');
+  String get voiceRecordingErrorUploadServer =>
+      _get('voiceRecordingErrorUploadServer');
+  String get voiceRecordingErrorUploadGeneric =>
+      _get('voiceRecordingErrorUploadGeneric');
 }
 
 class _AppLocalizationsDelegate
