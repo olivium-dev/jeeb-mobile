@@ -390,6 +390,14 @@ class AppLocalizations {
   String get registrationContinueWithGoogle =>
       _get('registrationContinueWithGoogle');
   String get registrationSocialDivider => _get('registrationSocialDivider');
+  String get registrationSocialErrorNetwork =>
+      _get('registrationSocialErrorNetwork');
+  String get registrationSocialErrorInvalidToken =>
+      _get('registrationSocialErrorInvalidToken');
+  String get registrationSocialErrorAccountDisabled =>
+      _get('registrationSocialErrorAccountDisabled');
+  String get registrationSocialErrorGeneric =>
+      _get('registrationSocialErrorGeneric');
   String get registrationLinkPhoneTitle => _get('registrationLinkPhoneTitle');
   String get registrationLinkPhoneSubtitle =>
       _get('registrationLinkPhoneSubtitle');
