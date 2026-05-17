@@ -843,36 +843,28 @@ class AppLocalizations {
   String get trackingGpsStaleTitle => _get('trackingGpsStaleTitle');
   String get trackingGpsStaleBody => _get('trackingGpsStaleBody');
 
-  String get orderHistoryTabActive => _get('orderHistoryTabActive');
-  String get orderHistoryTabCompleted => _get('orderHistoryTabCompleted');
-  String get orderHistoryTabCancelled => _get('orderHistoryTabCancelled');
-  String get orderHistoryEmptyTitle => _get('orderHistoryEmptyTitle');
-  String get orderHistoryEmptyActive => _get('orderHistoryEmptyActive');
-  String get orderHistoryEmptyCompleted => _get('orderHistoryEmptyCompleted');
-  String get orderHistoryEmptyCancelled => _get('orderHistoryEmptyCancelled');
-  String get orderHistoryErrorTitle => _get('orderHistoryErrorTitle');
-  String get orderHistoryErrorNetwork => _get('orderHistoryErrorNetwork');
-  String get orderHistoryErrorServer => _get('orderHistoryErrorServer');
-  String get orderHistoryErrorRetry => _get('orderHistoryErrorRetry');
-  String get orderHistoryFilterCta => _get('orderHistoryFilterCta');
-  String get orderHistoryFilterActive => _get('orderHistoryFilterActive');
-  String get orderHistoryFilterTitle => _get('orderHistoryFilterTitle');
-  String get orderHistoryFilterFrom => _get('orderHistoryFilterFrom');
-  String get orderHistoryFilterTo => _get('orderHistoryFilterTo');
-  String get orderHistoryFilterAnyDate => _get('orderHistoryFilterAnyDate');
-  String get orderHistoryFilterApply => _get('orderHistoryFilterApply');
-  String get orderHistoryFilterClear => _get('orderHistoryFilterClear');
-  String get orderHistoryAddressMissing => _get('orderHistoryAddressMissing');
-  String orderHistoryCardSemanticLabel(String id) =>
-      _get('orderHistoryCardSemanticLabel').replaceFirst('{id}', id);
-  String get orderHistoryStatusPending => _get('orderHistoryStatusPending');
-  String get orderHistoryStatusMatched => _get('orderHistoryStatusMatched');
-  String get orderHistoryStatusPickedUp => _get('orderHistoryStatusPickedUp');
-  String get orderHistoryStatusEnRoute => _get('orderHistoryStatusEnRoute');
-  String get orderHistoryStatusDelivered => _get('orderHistoryStatusDelivered');
-  String get orderHistoryStatusCancelled => _get('orderHistoryStatusCancelled');
-  String get orderHistoryStatusDisputed => _get('orderHistoryStatusDisputed');
-  String get orderHistoryStatusUnknown => _get('orderHistoryStatusUnknown');
+  String get backgroundGpsPermissionTitle =>
+      _get('backgroundGpsPermissionTitle');
+  String get backgroundGpsPermissionBody =>
+      _get('backgroundGpsPermissionBody');
+  String get backgroundGpsPermissionGrant =>
+      _get('backgroundGpsPermissionGrant');
+  String get backgroundGpsPermissionDeniedTitle =>
+      _get('backgroundGpsPermissionDeniedTitle');
+  String get backgroundGpsPermissionDeniedBody =>
+      _get('backgroundGpsPermissionDeniedBody');
+  String get backgroundGpsPermissionDeniedSettings =>
+      _get('backgroundGpsPermissionDeniedSettings');
+  String get backgroundGpsTrackingStatus =>
+      _get('backgroundGpsTrackingStatus');
+  String get backgroundGpsStationaryStatus =>
+      _get('backgroundGpsStationaryStatus');
+  String get backgroundGpsOfflineTitle =>
+      _get('backgroundGpsOfflineTitle');
+  String get backgroundGpsOfflineBody =>
+      _get('backgroundGpsOfflineBody');
+  String get backgroundGpsOfflineRetry =>
+      _get('backgroundGpsOfflineRetry');
 }
 
 class _AppLocalizationsDelegate
