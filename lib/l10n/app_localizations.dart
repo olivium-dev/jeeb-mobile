@@ -63,24 +63,6 @@ class AppLocalizations {
   String get homeReorderAction => _get('homeReorderAction');
   String homeRequestEtaMinutes(int minutes) =>
       _get('homeRequestEtaMinutes').replaceFirst('{minutes}', '$minutes');
-  String homeGreetingNamed(String name) =>
-      _get('homeGreetingNamed').replaceFirst('{name}', name);
-  String get homeGreetingFallback => _get('homeGreetingFallback');
-  String get homeGreetingSubtitle => _get('homeGreetingSubtitle');
-  String get homeRecordVoiceRequest => _get('homeRecordVoiceRequest');
-  String homeRequestJeeberAssigned(String name) =>
-      _get('homeRequestJeeberAssigned').replaceFirst('{name}', name);
-  String get homeRequestEtaUnknown => _get('homeRequestEtaUnknown');
-  String get homeLoadFailedTitle => _get('homeLoadFailedTitle');
-  String get homeLoadFailedBody => _get('homeLoadFailedBody');
-  String get homeLoadFailedRetry => _get('homeLoadFailedRetry');
-  String homeRequestCardSemanticLabel({
-    required String title,
-    required String status,
-  }) =>
-      _get('homeRequestCardSemanticLabel')
-          .replaceFirst('{title}', title)
-          .replaceFirst('{status}', status);
 
   String get requestStatusSearching => _get('requestStatusSearching');
   String get requestStatusOffers => _get('requestStatusOffers');
@@ -92,14 +74,6 @@ class AppLocalizations {
   String get ordersEmpty => _get('ordersEmpty');
   String get chatTitle => _get('chatTitle');
   String get chatEmpty => _get('chatEmpty');
-  String get chatStatusConnected => _get('chatStatusConnected');
-  String get chatStatusConnecting => _get('chatStatusConnecting');
-  String get chatStatusReconnecting => _get('chatStatusReconnecting');
-  String get chatStatusOffline => _get('chatStatusOffline');
-  String chatPendingMessages(int count) {
-    if (count == 1) return _get('chatPendingMessagesOne');
-    return _get('chatPendingMessagesOther').replaceFirst('{count}', '$count');
-  }
   String get profileTitle => _get('profileTitle');
   String get dashboardTitle => _get('dashboardTitle');
   String get earningsTitle => _get('earningsTitle');
@@ -160,23 +134,6 @@ class AppLocalizations {
       _get('availabilityAutoOfflineGoOnline');
   String get availabilityPermissionDeniedHint =>
       _get('availabilityPermissionDeniedHint');
-  String get availabilityHomeTitle => _get('availabilityHomeTitle');
-  String availabilityActiveDeliveries(int count) {
-    if (count == 0) return _get('availabilityActiveDeliveriesZero');
-    if (count == 1) return _get('availabilityActiveDeliveriesOne');
-    return _get('availabilityActiveDeliveriesOther')
-        .replaceFirst('{count}', '$count');
-  }
-  String get availabilityInactivityWarningTitle =>
-      _get('availabilityInactivityWarningTitle');
-  String get availabilityInactivityWarningBody =>
-      _get('availabilityInactivityWarningBody');
-  String get availabilityInactivityWarningCta =>
-      _get('availabilityInactivityWarningCta');
-  String get availabilityToggleErrorBody =>
-      _get('availabilityToggleErrorBody');
-  String get availabilityLoadError => _get('availabilityLoadError');
-  String get availabilityLoadRetry => _get('availabilityLoadRetry');
 
   String get settingsLanguage => _get('settingsLanguage');
   String get settingsRole => _get('settingsRole');
@@ -290,12 +247,6 @@ class AppLocalizations {
   String get accountDeleteDialogBody => _get('accountDeleteDialogBody');
   String get accountDeleteConfirm => _get('accountDeleteConfirm');
   String get accountDeleteSubmitted => _get('accountDeleteSubmitted');
-
-  String get appBarSignOut => _get('appBarSignOut');
-  String get signOutDialogTitle => _get('signOutDialogTitle');
-  String get signOutDialogBody => _get('signOutDialogBody');
-  String get signOutCompleted => _get('signOutCompleted');
-  String get settingsNetworkError => _get('settingsNetworkError');
 
   String get actionSave => _get('actionSave');
   String get actionDelete => _get('actionDelete');
@@ -439,14 +390,6 @@ class AppLocalizations {
   String get registrationContinueWithGoogle =>
       _get('registrationContinueWithGoogle');
   String get registrationSocialDivider => _get('registrationSocialDivider');
-  String get registrationSocialErrorNetwork =>
-      _get('registrationSocialErrorNetwork');
-  String get registrationSocialErrorInvalidToken =>
-      _get('registrationSocialErrorInvalidToken');
-  String get registrationSocialErrorAccountDisabled =>
-      _get('registrationSocialErrorAccountDisabled');
-  String get registrationSocialErrorGeneric =>
-      _get('registrationSocialErrorGeneric');
   String get registrationLinkPhoneTitle => _get('registrationLinkPhoneTitle');
   String get registrationLinkPhoneSubtitle =>
       _get('registrationLinkPhoneSubtitle');
@@ -807,19 +750,6 @@ class AppLocalizations {
   String get offersErrorGeneric => _get('offersErrorGeneric');
   String get offersAcceptedBannerTitle => _get('offersAcceptedBannerTitle');
   String get offersAcceptedBannerBody => _get('offersAcceptedBannerBody');
-  String get offersScreenTitle => _get('offersScreenTitle');
-  String get offersSortLabel => _get('offersSortLabel');
-  String get offersSortByPrice => _get('offersSortByPrice');
-  String get offersSortByRating => _get('offersSortByRating');
-  String offersWindowRemaining(String time) =>
-      _get('offersWindowRemaining').replaceFirst('{time}', time);
-  String get offersWindowExpired => _get('offersWindowExpired');
-  String get offersEmptyTitle => _get('offersEmptyTitle');
-  String get offersEmptyBody => _get('offersEmptyBody');
-  String get offersRetryAction => _get('offersRetryAction');
-  String get offersRequestClosedTitle => _get('offersRequestClosedTitle');
-  String offersRatingCount(int count) =>
-      _get('offersRatingCount').replaceFirst('{count}', '$count');
 
   String get offerSubmissionTitle => _get('offerSubmissionTitle');
   String get offerSubmissionIntro => _get('offerSubmissionIntro');
@@ -913,39 +843,30 @@ class AppLocalizations {
   String get trackingGpsStaleTitle => _get('trackingGpsStaleTitle');
   String get trackingGpsStaleBody => _get('trackingGpsStaleBody');
 
-  String get requestFeedTitle => _get('requestFeedTitle');
-  String get requestFeedEmptyTitle => _get('requestFeedEmptyTitle');
-  String get requestFeedEmptySubtitle => _get('requestFeedEmptySubtitle');
-  String get requestFeedErrorTitle => _get('requestFeedErrorTitle');
-  String get requestFeedErrorRetry => _get('requestFeedErrorRetry');
-  String get requestFeedErrorLoad => _get('requestFeedErrorLoad');
-  String get requestFeedReconnecting => _get('requestFeedReconnecting');
-  String get requestFeedAccept => _get('requestFeedAccept');
-  String get requestFeedDecline => _get('requestFeedDecline');
-  String get requestFeedAccepting => _get('requestFeedAccepting');
-  String get requestFeedDeclining => _get('requestFeedDeclining');
-  String get requestFeedPickupLabel => _get('requestFeedPickupLabel');
-  String get requestFeedDropoffLabel => _get('requestFeedDropoffLabel');
-  String requestFeedDistance(String distance) =>
-      _get('requestFeedDistance').replaceFirst('{distance}', distance);
-  String requestFeedEarnings(String amount, String currency) => _get(
-        'requestFeedEarnings',
-      ).replaceFirst('{amount}', amount).replaceFirst('{currency}', currency);
-  String requestFeedExpiresIn(int seconds) =>
-      _get('requestFeedExpiresIn').replaceFirst('{seconds}', '$seconds');
-  String get requestFeedTierLight => _get('requestFeedTierLight');
-  String get requestFeedTierStandard => _get('requestFeedTierStandard');
-  String get requestFeedTierBulk => _get('requestFeedTierBulk');
-  String get requestFeedActionAcceptedSnack =>
-      _get('requestFeedActionAcceptedSnack');
-  String get requestFeedActionDeclinedSnack =>
-      _get('requestFeedActionDeclinedSnack');
-  String get requestFeedActionTakenSnack =>
-      _get('requestFeedActionTakenSnack');
-  String get requestFeedActionExpiredSnack =>
-      _get('requestFeedActionExpiredSnack');
-  String get requestFeedActionNetworkSnack =>
-      _get('requestFeedActionNetworkSnack');
+  String get locationPickupTitle => _get('locationPickupTitle');
+  String get locationDropoffTitle => _get('locationDropoffTitle');
+  String get locationConfirmedTitle => _get('locationConfirmedTitle');
+  String get locationStepPickup => _get('locationStepPickup');
+  String get locationStepDropoff => _get('locationStepDropoff');
+  String get locationStepDone => _get('locationStepDone');
+  String get locationSearchEmpty => _get('locationSearchEmpty');
+  String get locationUseCurrentGps => _get('locationUseCurrentGps');
+  String get locationOpenMap => _get('locationOpenMap');
+  String get locationSelectedPreviewLabel => _get('locationSelectedPreviewLabel');
+  String get locationNoSelectionYet => _get('locationNoSelectionYet');
+  String get locationDetectingGps => _get('locationDetectingGps');
+  String get locationResolvingAddress => _get('locationResolvingAddress');
+  String locationCoordinatesFallback(String lat, String lng) => _get('locationCoordinatesFallback')
+      .replaceFirst('{lat}', lat)
+      .replaceFirst('{lng}', lng);
+  String get locationContinueToDropoff => _get('locationContinueToDropoff');
+  String get locationConfirmAndSave => _get('locationConfirmAndSave');
+  String get locationSavingCta => _get('locationSavingCta');
+  String get locationErrorPermissionDenied => _get('locationErrorPermissionDenied');
+  String get locationErrorGpsUnavailable => _get('locationErrorGpsUnavailable');
+  String get locationErrorSearchFailed => _get('locationErrorSearchFailed');
+  String get locationErrorGeocodingFailed => _get('locationErrorGeocodingFailed');
+  String get locationErrorSaveFailed => _get('locationErrorSaveFailed');
 }
 
 class _AppLocalizationsDelegate
