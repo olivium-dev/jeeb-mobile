@@ -31,6 +31,11 @@ dependencies:
   # Networking
   dio: ^5.4.0
 
+  # WebSocket transport for the chat realtime channel (T-mobile-017). Wraps
+  # `dart:io` `WebSocket` + `dart:html` `WebSocket` behind a single Stream/Sink
+  # interface so the same cubit code works on mobile and web targets.
+  web_socket_channel: ^3.0.1
+
   # Routing
   go_router: ^13.0.0
 

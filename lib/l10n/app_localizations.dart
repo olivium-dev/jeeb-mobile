@@ -74,6 +74,14 @@ class AppLocalizations {
   String get ordersEmpty => _get('ordersEmpty');
   String get chatTitle => _get('chatTitle');
   String get chatEmpty => _get('chatEmpty');
+  String get chatStatusConnected => _get('chatStatusConnected');
+  String get chatStatusConnecting => _get('chatStatusConnecting');
+  String get chatStatusReconnecting => _get('chatStatusReconnecting');
+  String get chatStatusOffline => _get('chatStatusOffline');
+  String chatPendingMessages(int count) {
+    if (count == 1) return _get('chatPendingMessagesOne');
+    return _get('chatPendingMessagesOther').replaceFirst('{count}', '$count');
+  }
   String get profileTitle => _get('profileTitle');
   String get dashboardTitle => _get('dashboardTitle');
   String get earningsTitle => _get('earningsTitle');
