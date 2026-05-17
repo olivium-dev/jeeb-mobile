@@ -72,6 +72,19 @@
   "availabilityAutoOfflineDismiss": "إغلاق",
   "availabilityAutoOfflineGoOnline": "العودة للاتصال",
   "availabilityPermissionDeniedHint": "يجب منح إذن الموقع للاتصال. فعّل خيار \"السماح دائمًا\" من إعدادات النظام.",
+  "availabilityHomeTitle": "شاشة الجِيبر الرئيسية",
+  "availabilityActiveDeliveriesZero": "لا توجد توصيلات نشطة",
+  "availabilityActiveDeliveriesOne": "توصيلة نشطة واحدة",
+  "availabilityActiveDeliveriesOther": "{count} توصيلات نشطة",
+  "@availabilityActiveDeliveriesOther": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "availabilityInactivityWarningTitle": "هل ما زلت موجودًا؟",
+  "availabilityInactivityWarningBody": "سيتم تحويلك إلى وضع غير متصل خلال 30 دقيقة إذا بقيت غير نشط. اضغط أدناه للاستمرار في استقبال الطلبات.",
+  "availabilityInactivityWarningCta": "ما زلت هنا",
+  "availabilityToggleErrorBody": "تعذّر تحديث حالتك. تحقق من الاتصال وأعد المحاولة.",
+  "availabilityLoadError": "تعذّر تحميل حالتك.",
+  "availabilityLoadRetry": "إعادة المحاولة",
 
   "settingsLanguage": "اللغة",
   "settingsRole": "الدور",
