@@ -1,0 +1,61 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        T-mobile-032: Push notifications.
+        - POST_NOTIFICATIONS is required on Android 13+; the actual prompt
+          is triggered from Dart via FirebaseMessaging.requestPermission().
+        - WAKE_LOCK + RECEIVE_BOOT_COMPLETED come from firebase_messaging
+          and are listed here so the merge gives the lint a stable picture.
+        - The default channel id ("jeeb_default") must match
+          `jeebDefaultChannel.id` in firebase_messaging_transport.dart so
+          notifications sent by jeeb-gateway with `android_channel_id` route
+          to the channel we register at runtime.
+    -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
+    <application
+        android:label="@string/app_name"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!--
+                Tapping an FCM notification dispatches this intent so the OS
+                routes it to MainActivity; the Dart side resolves the deep
+                link from the payload via deepLinkForMessage().
+            -->
+            <intent-filter>
+                <action android:name="FLUTTER_NOTIFICATION_CLICK"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+        </activity>
+
+        <!--
+            Default channel id for FCM. Lets the FCM SDK display
+            notifications even before the Dart side has created the channel
+            (cold push before bootstrap completes).
+        -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="jeeb_default"/>
+
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2"/>
+    </application>
+</manifest>

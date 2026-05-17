@@ -24,6 +24,7 @@ android/captures/
 android/gradlew
 android/gradlew.bat
 android/gradle/
+android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
 
 # iOS
 ios/Pods/
