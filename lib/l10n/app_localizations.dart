@@ -63,6 +63,24 @@ class AppLocalizations {
   String get homeReorderAction => _get('homeReorderAction');
   String homeRequestEtaMinutes(int minutes) =>
       _get('homeRequestEtaMinutes').replaceFirst('{minutes}', '$minutes');
+  String homeGreetingNamed(String name) =>
+      _get('homeGreetingNamed').replaceFirst('{name}', name);
+  String get homeGreetingFallback => _get('homeGreetingFallback');
+  String get homeGreetingSubtitle => _get('homeGreetingSubtitle');
+  String get homeRecordVoiceRequest => _get('homeRecordVoiceRequest');
+  String homeRequestJeeberAssigned(String name) =>
+      _get('homeRequestJeeberAssigned').replaceFirst('{name}', name);
+  String get homeRequestEtaUnknown => _get('homeRequestEtaUnknown');
+  String get homeLoadFailedTitle => _get('homeLoadFailedTitle');
+  String get homeLoadFailedBody => _get('homeLoadFailedBody');
+  String get homeLoadFailedRetry => _get('homeLoadFailedRetry');
+  String homeRequestCardSemanticLabel({
+    required String title,
+    required String status,
+  }) =>
+      _get('homeRequestCardSemanticLabel')
+          .replaceFirst('{title}', title)
+          .replaceFirst('{status}', status);
 
   String get requestStatusSearching => _get('requestStatusSearching');
   String get requestStatusOffers => _get('requestStatusOffers');

@@ -32,6 +32,38 @@
   "@homeRequestEtaMinutes": {
     "placeholders": { "minutes": { "type": "int" } }
   },
+  "homeGreetingNamed": "Hi, {name}",
+  "@homeGreetingNamed": {
+    "description": "Greeting line on the client home tab when we know the user's first name.",
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "homeGreetingFallback": "Welcome back",
+  "@homeGreetingFallback": { "description": "Greeting line when no user name is on file." },
+  "homeGreetingSubtitle": "Where should we take it?",
+  "@homeGreetingSubtitle": { "description": "Subtitle under the greeting line on the client home tab." },
+  "homeRecordVoiceRequest": "Record a request",
+  "@homeRecordVoiceRequest": { "description": "Quick-action button label that opens the voice request recorder." },
+  "homeRequestJeeberAssigned": "with {name}",
+  "@homeRequestJeeberAssigned": {
+    "description": "Caption under an active request card naming the assigned Jeeber.",
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "homeRequestEtaUnknown": "ETA pending",
+  "@homeRequestEtaUnknown": { "description": "Placeholder for an active request that has no ETA yet (e.g. still searching)." },
+  "homeLoadFailedTitle": "Couldn't load your home",
+  "@homeLoadFailedTitle": { "description": "Title for the error state when the home summary fails to load." },
+  "homeLoadFailedBody": "Check your connection and try again.",
+  "@homeLoadFailedBody": { "description": "Body for the home load-failed error state." },
+  "homeLoadFailedRetry": "Retry",
+  "@homeLoadFailedRetry": { "description": "CTA on the home load-failed error state." },
+  "homeRequestCardSemanticLabel": "Active delivery {title}, status {status}",
+  "@homeRequestCardSemanticLabel": {
+    "description": "Accessibility label for an active request card.",
+    "placeholders": {
+      "title": { "type": "String" },
+      "status": { "type": "String" }
+    }
+  },
 
   "requestStatusSearching": "Finding a Jeeber",
   "requestStatusOffers": "Offers received",
