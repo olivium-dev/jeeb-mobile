@@ -843,28 +843,63 @@ class AppLocalizations {
   String get trackingGpsStaleTitle => _get('trackingGpsStaleTitle');
   String get trackingGpsStaleBody => _get('trackingGpsStaleBody');
 
-  String get backgroundGpsPermissionTitle =>
-      _get('backgroundGpsPermissionTitle');
-  String get backgroundGpsPermissionBody =>
-      _get('backgroundGpsPermissionBody');
-  String get backgroundGpsPermissionGrant =>
-      _get('backgroundGpsPermissionGrant');
-  String get backgroundGpsPermissionDeniedTitle =>
-      _get('backgroundGpsPermissionDeniedTitle');
-  String get backgroundGpsPermissionDeniedBody =>
-      _get('backgroundGpsPermissionDeniedBody');
-  String get backgroundGpsPermissionDeniedSettings =>
-      _get('backgroundGpsPermissionDeniedSettings');
-  String get backgroundGpsTrackingStatus =>
-      _get('backgroundGpsTrackingStatus');
-  String get backgroundGpsStationaryStatus =>
-      _get('backgroundGpsStationaryStatus');
-  String get backgroundGpsOfflineTitle =>
-      _get('backgroundGpsOfflineTitle');
-  String get backgroundGpsOfflineBody =>
-      _get('backgroundGpsOfflineBody');
-  String get backgroundGpsOfflineRetry =>
-      _get('backgroundGpsOfflineRetry');
+  String get deliveryStatusTitle => _get('deliveryStatusTitle');
+  String deliveryStatusIdSubtitle(String id) =>
+      _get('deliveryStatusIdSubtitle').replaceFirst('{id}', id);
+  String get deliveryStatusLoading => _get('deliveryStatusLoading');
+  String get deliveryStatusErrorTitle => _get('deliveryStatusErrorTitle');
+  String get deliveryStatusErrorBody => _get('deliveryStatusErrorBody');
+  String get deliveryStatusRetry => _get('deliveryStatusRetry');
+
+  String get deliveryStageMatched => _get('deliveryStageMatched');
+  String get deliveryStagePickedUp => _get('deliveryStagePickedUp');
+  String get deliveryStageInTransit => _get('deliveryStageInTransit');
+  String get deliveryStageDelivered => _get('deliveryStageDelivered');
+  String get deliveryStageCancelled => _get('deliveryStageCancelled');
+
+  String get deliveryStageTimestampPending =>
+      _get('deliveryStageTimestampPending');
+  String deliveryStageReachedAt(String time) =>
+      _get('deliveryStageReachedAt').replaceFirst('{time}', time);
+
+  String get deliveryDetailsTitle => _get('deliveryDetailsTitle');
+  String get deliveryPickupLabel => _get('deliveryPickupLabel');
+  String get deliveryDropoffLabel => _get('deliveryDropoffLabel');
+  String get deliveryTierLabel => _get('deliveryTierLabel');
+
+  String get deliveryTierBike => _get('deliveryTierBike');
+  String get deliveryTierScooter => _get('deliveryTierScooter');
+  String get deliveryTierCar => _get('deliveryTierCar');
+  String get deliveryTierPickup => _get('deliveryTierPickup');
+
+  String get deliveryJeeberCardTitle => _get('deliveryJeeberCardTitle');
+  String get deliveryJeeberWaiting => _get('deliveryJeeberWaiting');
+  String deliveryJeeberRating(String rating) =>
+      _get('deliveryJeeberRating').replaceFirst('{rating}', rating);
+
+  String get deliveryEtaLabel => _get('deliveryEtaLabel');
+  String deliveryEtaMinutes(int minutes) =>
+      _get('deliveryEtaMinutes').replaceFirst('{minutes}', '$minutes');
+  String get deliveryEtaArriving => _get('deliveryEtaArriving');
+
+  String get deliveryActionCancel => _get('deliveryActionCancel');
+  String get deliveryActionContact => _get('deliveryActionContact');
+  String get deliveryActionCancellingLabel =>
+      _get('deliveryActionCancellingLabel');
+
+  String get deliveryCancelDialogTitle => _get('deliveryCancelDialogTitle');
+  String get deliveryCancelDialogBody => _get('deliveryCancelDialogBody');
+  String get deliveryCancelDialogConfirm => _get('deliveryCancelDialogConfirm');
+  String get deliveryCancelDialogDismiss => _get('deliveryCancelDialogDismiss');
+
+  String get deliveryErrorCancelTooLate => _get('deliveryErrorCancelTooLate');
+  String get deliveryErrorCancelNetwork => _get('deliveryErrorCancelNetwork');
+  String get deliveryErrorContactUnavailable =>
+      _get('deliveryErrorContactUnavailable');
+  String get deliveryErrorStreamLost => _get('deliveryErrorStreamLost');
+
+  String get deliveryCompletedBanner => _get('deliveryCompletedBanner');
+  String get deliveryCancelledBanner => _get('deliveryCancelledBanner');
 }
 
 class _AppLocalizationsDelegate
