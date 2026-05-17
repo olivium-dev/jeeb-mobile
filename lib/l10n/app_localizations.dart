@@ -142,6 +142,23 @@ class AppLocalizations {
       _get('availabilityAutoOfflineGoOnline');
   String get availabilityPermissionDeniedHint =>
       _get('availabilityPermissionDeniedHint');
+  String get availabilityHomeTitle => _get('availabilityHomeTitle');
+  String availabilityActiveDeliveries(int count) {
+    if (count == 0) return _get('availabilityActiveDeliveriesZero');
+    if (count == 1) return _get('availabilityActiveDeliveriesOne');
+    return _get('availabilityActiveDeliveriesOther')
+        .replaceFirst('{count}', '$count');
+  }
+  String get availabilityInactivityWarningTitle =>
+      _get('availabilityInactivityWarningTitle');
+  String get availabilityInactivityWarningBody =>
+      _get('availabilityInactivityWarningBody');
+  String get availabilityInactivityWarningCta =>
+      _get('availabilityInactivityWarningCta');
+  String get availabilityToggleErrorBody =>
+      _get('availabilityToggleErrorBody');
+  String get availabilityLoadError => _get('availabilityLoadError');
+  String get availabilityLoadRetry => _get('availabilityLoadRetry');
 
   String get settingsLanguage => _get('settingsLanguage');
   String get settingsRole => _get('settingsRole');
