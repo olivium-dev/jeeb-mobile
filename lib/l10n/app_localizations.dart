@@ -766,6 +766,19 @@ class AppLocalizations {
   String get offersErrorGeneric => _get('offersErrorGeneric');
   String get offersAcceptedBannerTitle => _get('offersAcceptedBannerTitle');
   String get offersAcceptedBannerBody => _get('offersAcceptedBannerBody');
+  String get offersScreenTitle => _get('offersScreenTitle');
+  String get offersSortLabel => _get('offersSortLabel');
+  String get offersSortByPrice => _get('offersSortByPrice');
+  String get offersSortByRating => _get('offersSortByRating');
+  String offersWindowRemaining(String time) =>
+      _get('offersWindowRemaining').replaceFirst('{time}', time);
+  String get offersWindowExpired => _get('offersWindowExpired');
+  String get offersEmptyTitle => _get('offersEmptyTitle');
+  String get offersEmptyBody => _get('offersEmptyBody');
+  String get offersRetryAction => _get('offersRetryAction');
+  String get offersRequestClosedTitle => _get('offersRequestClosedTitle');
+  String offersRatingCount(int count) =>
+      _get('offersRatingCount').replaceFirst('{count}', '$count');
 
   String get offerSubmissionTitle => _get('offerSubmissionTitle');
   String get offerSubmissionIntro => _get('offerSubmissionIntro');

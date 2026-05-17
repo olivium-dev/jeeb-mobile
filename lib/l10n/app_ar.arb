@@ -527,6 +527,18 @@
   "offersAcceptedBannerTitle": "تم قبول العرض",
   "offersAcceptedBannerBody": "جاري فتح المحادثة مع جِيبرك…",
 
+  "offersScreenTitle": "اختر جِيبرًا",
+  "offersSortLabel": "ترتيب",
+  "offersSortByPrice": "الأقل سعرًا",
+  "offersSortByRating": "الأعلى تقييمًا",
+  "offersWindowRemaining": "المهلة: تبقى {time}",
+  "offersWindowExpired": "انتهت مهلة العروض",
+  "offersEmptyTitle": "بانتظار العروض",
+  "offersEmptyBody": "الجِيبرز القريبون يراجعون طلبك. ستظهر عروضهم هنا فور وصولها.",
+  "offersRetryAction": "إعادة المحاولة",
+  "offersRequestClosedTitle": "تم إغلاق الطلب",
+  "offersRatingCount": "{count}",
+
   "offerSubmissionTitle": "أرسل عرضك",
   "offerSubmissionIntro": "اقترح سعرًا منصفًا ووقت وصول واقعيًا. سيختار العميل عرضًا واحدًا، وتُحرَّر بقية العروض.",
   "offerSubmissionFeeLabel": "أجرة التوصيل",
