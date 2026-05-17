@@ -1,0 +1,14 @@
+# Files explicitly EXCLUDED from placeholder-discipline checks.
+# Authored by LEAD (JEB-136) on 2026-05-17 (Jira comment id 14747 §5).
+# These four files were in the original 15-file Type-A list but were dropped
+# from the refactor scope because they either contain real working logic or
+# are re-export shims. Touching them would strip functionality, not add it.
+#
+# Format: one repo-relative path per line. Lines starting with '#' are
+# comments. The placeholder-discipline.sh walker reads this file and skips
+# any matching path.
+
+lib/features/jeeber_request_detail/presentation/jeeber_request_unavailable_screen.dart
+lib/features/offers/presentation/offer_submission_screen.dart
+lib/features/onboarding/onboarding_screen.dart
+lib/features/request_summary/presentation/request_summary_screen.dart
