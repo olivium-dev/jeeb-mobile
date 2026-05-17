@@ -1,106 +1,116 @@
+import 'dart:typed_data';
+
 import 'package:equatable/equatable.dart';
 
-/// Per-message delivery state owned by the client.
-///
-/// `pending` — sitting in the offline outbox, not yet acked by the gateway.
-/// `sent` — the gateway accepted the envelope (server-issued ack).
-/// `delivered` — the recipient's device acknowledged receipt.
-/// `read` — the recipient opened the conversation.
-/// `failed` — gateway rejected, or the outbox gave up after max retries.
-enum ChatMessageStatus { pending, sent, delivered, read, failed }
+import '../../photo_attachment/domain/photo_attachment.dart';
 
-ChatMessageStatus _statusFromWire(String? wire) {
-  switch (wire) {
-    case 'sent':
-      return ChatMessageStatus.sent;
-    case 'delivered':
-      return ChatMessageStatus.delivered;
-    case 'read':
-      return ChatMessageStatus.read;
-    case 'failed':
-      return ChatMessageStatus.failed;
-    case 'pending':
-    default:
-      return ChatMessageStatus.pending;
-  }
-}
+/// Who composed the message. The chat is always a 1:1 between the local user
+/// and the counterpart for an active delivery; we keep the role enum on the
+/// message so the bubble layout can flip without re-deriving authorship from
+/// an id comparison at render time.
+enum ChatAuthor { me, them }
 
-String _statusToWire(ChatMessageStatus s) => s.name;
+/// Lifecycle status of an outgoing message. WhatsApp-style: a single tick once
+/// the server has acknowledged delivery, double ticks once the counterpart's
+/// device has confirmed read. Incoming messages carry [delivered] from the
+/// moment they enter the cubit — the sender's status is what's rendered.
+enum MessageStatus { sending, sent, delivered, read, failed }
 
-/// A single chat message. The `clientId` is a UUID-like opaque token minted
-/// by the device so the gateway can de-duplicate retries; once the server
-/// assigns a permanent id the cubit folds it into [serverId].
+/// Content kind. Photo messages keep their bytes in-memory (the picker output)
+/// so the bubble can render them through a [MemoryImage] without a round trip
+/// to the network during the MVP. A real backend run would upload the bytes
+/// and swap in a CDN URL; the cubit's gateway hook lives for that swap.
+enum MessageKind { text, photo }
+
+/// Immutable record of a single chat message.
 class ChatMessage extends Equatable {
-  const ChatMessage({
-    required this.clientId,
-    required this.conversationId,
-    required this.senderId,
-    required this.body,
-    required this.createdAt,
-    this.serverId,
-    this.status = ChatMessageStatus.pending,
-    this.attempts = 0,
+  const ChatMessage._({
+    required this.id,
+    required this.author,
+    required this.sentAt,
+    required this.status,
+    required this.kind,
+    this.text = '',
+    this.photoBytes,
+    this.photoSource,
   });
 
-  /// Client-side id used to correlate retries and acks. Always non-null,
-  /// even after the server assigns [serverId].
-  final String clientId;
-  final String conversationId;
-  final String senderId;
-  final String body;
-  final DateTime createdAt;
+  factory ChatMessage.text({
+    required String id,
+    required ChatAuthor author,
+    required DateTime sentAt,
+    required MessageStatus status,
+    required String text,
+  }) => ChatMessage._(
+    id: id,
+    author: author,
+    sentAt: sentAt,
+    status: status,
+    kind: MessageKind.text,
+    text: text,
+  );
 
-  /// Server-assigned id. Null until the gateway acks the send.
-  final String? serverId;
+  factory ChatMessage.photo({
+    required String id,
+    required ChatAuthor author,
+    required DateTime sentAt,
+    required MessageStatus status,
+    required Uint8List bytes,
+    required PhotoSource source,
+    String caption = '',
+  }) => ChatMessage._(
+    id: id,
+    author: author,
+    sentAt: sentAt,
+    status: status,
+    kind: MessageKind.photo,
+    text: caption,
+    photoBytes: bytes,
+    photoSource: source,
+  );
 
-  final ChatMessageStatus status;
+  final String id;
+  final ChatAuthor author;
+  final DateTime sentAt;
+  final MessageStatus status;
+  final MessageKind kind;
 
-  /// Send attempts so far. The outbox uses this to give up after a ceiling
-  /// rather than spinning forever on a poison-pill payload.
-  final int attempts;
+  /// Text body for text messages; photo caption (optional) for photo messages.
+  final String text;
 
-  ChatMessage copyWith({
-    String? serverId,
-    ChatMessageStatus? status,
-    int? attempts,
-  }) {
-    return ChatMessage(
-      clientId: clientId,
-      conversationId: conversationId,
-      senderId: senderId,
-      body: body,
-      createdAt: createdAt,
-      serverId: serverId ?? this.serverId,
+  /// Compressed JPEG bytes for photo messages. Null for text messages.
+  final Uint8List? photoBytes;
+
+  /// Source the photo came from. Mainly retained for analytics; the bubble
+  /// renders the same regardless of camera vs gallery.
+  final PhotoSource? photoSource;
+
+  bool get isMine => author == ChatAuthor.me;
+  bool get isPhoto => kind == MessageKind.photo;
+  bool get isText => kind == MessageKind.text;
+
+  ChatMessage copyWith({MessageStatus? status}) {
+    return ChatMessage._(
+      id: id,
+      author: author,
+      sentAt: sentAt,
       status: status ?? this.status,
-      attempts: attempts ?? this.attempts,
-    );
-  }
-
-  Map<String, Object?> toJson() => {
-        'clientId': clientId,
-        'conversationId': conversationId,
-        'senderId': senderId,
-        'body': body,
-        'createdAt': createdAt.toUtc().toIso8601String(),
-        'serverId': serverId,
-        'status': _statusToWire(status),
-        'attempts': attempts,
-      };
-
-  static ChatMessage fromJson(Map<String, Object?> json) {
-    return ChatMessage(
-      clientId: json['clientId']! as String,
-      conversationId: json['conversationId']! as String,
-      senderId: json['senderId']! as String,
-      body: json['body']! as String,
-      createdAt: DateTime.parse(json['createdAt']! as String),
-      serverId: json['serverId'] as String?,
-      status: _statusFromWire(json['status'] as String?),
-      attempts: (json['attempts'] as int?) ?? 0,
+      kind: kind,
+      text: text,
+      photoBytes: photoBytes,
+      photoSource: photoSource,
     );
   }
 
   @override
-  List<Object?> get props =>
-      [clientId, conversationId, senderId, body, createdAt, serverId, status, attempts];
+  List<Object?> get props => [
+    id,
+    author,
+    sentAt,
+    status,
+    kind,
+    text,
+    photoBytes?.length,
+    photoSource,
+  ];
 }

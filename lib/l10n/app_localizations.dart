@@ -74,6 +74,22 @@ class AppLocalizations {
   String get ordersEmpty => _get('ordersEmpty');
   String get chatTitle => _get('chatTitle');
   String get chatEmpty => _get('chatEmpty');
+  String get chatActiveDeliveryTitle => _get('chatActiveDeliveryTitle');
+  String get chatActiveDeliverySubtitle => _get('chatActiveDeliverySubtitle');
+  String get chatPlaceholderCounterpartName =>
+      _get('chatPlaceholderCounterpartName');
+  String get chatEmptyThreadTitle => _get('chatEmptyThreadTitle');
+  String get chatEmptyThreadSubtitle => _get('chatEmptyThreadSubtitle');
+  String get chatComposerHint => _get('chatComposerHint');
+  String get chatSendTooltip => _get('chatSendTooltip');
+  String get chatAttachTooltip => _get('chatAttachTooltip');
+  String get chatAttachmentSheetTitle => _get('chatAttachmentSheetTitle');
+  String get chatAttachmentCamera => _get('chatAttachmentCamera');
+  String get chatAttachmentGallery => _get('chatAttachmentGallery');
+  String get chatAttachmentCancel => _get('chatAttachmentCancel');
+  String get chatErrorPermissionDenied => _get('chatErrorPermissionDenied');
+  String get chatErrorPickUnavailable => _get('chatErrorPickUnavailable');
+  String get chatErrorSendFailed => _get('chatErrorSendFailed');
   String get profileTitle => _get('profileTitle');
   String get dashboardTitle => _get('dashboardTitle');
   String get earningsTitle => _get('earningsTitle');
