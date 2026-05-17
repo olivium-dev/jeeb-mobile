@@ -1047,5 +1047,66 @@
   "trackingGpsStaleTitle": "Weak GPS signal",
   "@trackingGpsStaleTitle": { "description": "Banner title shown when GPS samples are arriving slower than expected" },
   "trackingGpsStaleBody": "The map may take a moment to catch up to your Jeeber's current location.",
-  "@trackingGpsStaleBody": { "description": "Banner body for the stale (but not lost) GPS state" }
+  "@trackingGpsStaleBody": { "description": "Banner body for the stale (but not lost) GPS state" },
+
+  "requestFeedTitle": "Incoming requests",
+  "@requestFeedTitle": { "description": "App-bar title on the Jeeber request feed screen (T-mobile-013)" },
+  "requestFeedEmptyTitle": "No requests right now",
+  "@requestFeedEmptyTitle": { "description": "Empty-state title shown when the feed has no pending requests" },
+  "requestFeedEmptySubtitle": "Pull down to refresh, or stay online and new requests will arrive automatically.",
+  "@requestFeedEmptySubtitle": { "description": "Empty-state body explaining the realtime + pull-to-refresh affordances" },
+  "requestFeedErrorTitle": "Couldn't load requests",
+  "@requestFeedErrorTitle": { "description": "Error-state title when the initial feed fetch fails" },
+  "requestFeedErrorRetry": "Try again",
+  "@requestFeedErrorRetry": { "description": "Action on the error state to re-trigger the snapshot fetch" },
+  "requestFeedErrorLoad": "Couldn't reach Jeeb. Check your connection and try again.",
+  "@requestFeedErrorLoad": { "description": "Inline error banner copy for snapshot load failures" },
+  "requestFeedReconnecting": "Reconnecting — falling back to polling",
+  "@requestFeedReconnecting": { "description": "Banner caption when the realtime socket dropped and the repository is polling instead" },
+  "requestFeedAccept": "Accept",
+  "@requestFeedAccept": { "description": "Primary action label on each request card" },
+  "requestFeedDecline": "Decline",
+  "@requestFeedDecline": { "description": "Secondary action label on each request card" },
+  "requestFeedAccepting": "Accepting…",
+  "@requestFeedAccepting": { "description": "Primary action label while the accept call is in-flight" },
+  "requestFeedDeclining": "Declining…",
+  "@requestFeedDeclining": { "description": "Secondary action label while the decline call is in-flight" },
+  "requestFeedPickupLabel": "Pickup",
+  "@requestFeedPickupLabel": { "description": "Row label above the pickup address on the card" },
+  "requestFeedDropoffLabel": "Dropoff",
+  "@requestFeedDropoffLabel": { "description": "Row label above the dropoff address on the card" },
+  "requestFeedDistance": "{distance} km",
+  "@requestFeedDistance": {
+    "description": "Formatted estimated distance for the card metadata row",
+    "placeholders": { "distance": { "type": "String" } }
+  },
+  "requestFeedEarnings": "≈ {amount} {currency}",
+  "@requestFeedEarnings": {
+    "description": "Formatted potential earnings for the card metadata row",
+    "placeholders": {
+      "amount": { "type": "String" },
+      "currency": { "type": "String" }
+    }
+  },
+  "requestFeedExpiresIn": "Expires in {seconds}s",
+  "@requestFeedExpiresIn": {
+    "description": "Countdown caption shown on the card while the request is still actionable",
+    "placeholders": { "seconds": { "type": "int" } }
+  },
+  "requestFeedTierLight": "Light",
+  "@requestFeedTierLight": { "description": "Tier chip label — small envelope tier" },
+  "requestFeedTierStandard": "Standard",
+  "@requestFeedTierStandard": { "description": "Tier chip label — standard parcel tier" },
+  "requestFeedTierBulk": "Bulk",
+  "@requestFeedTierBulk": { "description": "Tier chip label — bulk delivery tier" },
+  "requestFeedActionAcceptedSnack": "Request accepted",
+  "@requestFeedActionAcceptedSnack": { "description": "Snackbar shown after a successful accept" },
+  "requestFeedActionDeclinedSnack": "Request declined",
+  "@requestFeedActionDeclinedSnack": { "description": "Snackbar shown after a successful decline" },
+  "requestFeedActionTakenSnack": "Another Jeeber already took this one",
+  "@requestFeedActionTakenSnack": { "description": "Snackbar shown when the action returned alreadyTaken" },
+  "requestFeedActionExpiredSnack": "That request expired before we could send it",
+  "@requestFeedActionExpiredSnack": { "description": "Snackbar shown when the action returned expired" },
+  "requestFeedActionNetworkSnack": "Network error — please try again",
+  "@requestFeedActionNetworkSnack": { "description": "Snackbar shown when the accept/decline call failed on the network" }
 }

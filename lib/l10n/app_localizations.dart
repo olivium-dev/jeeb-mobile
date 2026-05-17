@@ -850,6 +850,40 @@ class AppLocalizations {
   String get trackingGpsLostRetry => _get('trackingGpsLostRetry');
   String get trackingGpsStaleTitle => _get('trackingGpsStaleTitle');
   String get trackingGpsStaleBody => _get('trackingGpsStaleBody');
+
+  String get requestFeedTitle => _get('requestFeedTitle');
+  String get requestFeedEmptyTitle => _get('requestFeedEmptyTitle');
+  String get requestFeedEmptySubtitle => _get('requestFeedEmptySubtitle');
+  String get requestFeedErrorTitle => _get('requestFeedErrorTitle');
+  String get requestFeedErrorRetry => _get('requestFeedErrorRetry');
+  String get requestFeedErrorLoad => _get('requestFeedErrorLoad');
+  String get requestFeedReconnecting => _get('requestFeedReconnecting');
+  String get requestFeedAccept => _get('requestFeedAccept');
+  String get requestFeedDecline => _get('requestFeedDecline');
+  String get requestFeedAccepting => _get('requestFeedAccepting');
+  String get requestFeedDeclining => _get('requestFeedDeclining');
+  String get requestFeedPickupLabel => _get('requestFeedPickupLabel');
+  String get requestFeedDropoffLabel => _get('requestFeedDropoffLabel');
+  String requestFeedDistance(String distance) =>
+      _get('requestFeedDistance').replaceFirst('{distance}', distance);
+  String requestFeedEarnings(String amount, String currency) => _get(
+        'requestFeedEarnings',
+      ).replaceFirst('{amount}', amount).replaceFirst('{currency}', currency);
+  String requestFeedExpiresIn(int seconds) =>
+      _get('requestFeedExpiresIn').replaceFirst('{seconds}', '$seconds');
+  String get requestFeedTierLight => _get('requestFeedTierLight');
+  String get requestFeedTierStandard => _get('requestFeedTierStandard');
+  String get requestFeedTierBulk => _get('requestFeedTierBulk');
+  String get requestFeedActionAcceptedSnack =>
+      _get('requestFeedActionAcceptedSnack');
+  String get requestFeedActionDeclinedSnack =>
+      _get('requestFeedActionDeclinedSnack');
+  String get requestFeedActionTakenSnack =>
+      _get('requestFeedActionTakenSnack');
+  String get requestFeedActionExpiredSnack =>
+      _get('requestFeedActionExpiredSnack');
+  String get requestFeedActionNetworkSnack =>
+      _get('requestFeedActionNetworkSnack');
 }
 
 class _AppLocalizationsDelegate
