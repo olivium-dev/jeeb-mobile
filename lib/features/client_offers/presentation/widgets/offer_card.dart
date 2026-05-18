@@ -88,7 +88,8 @@ class OfferCard extends StatelessWidget {
                           averageRating: offer.rating,
                           totalReviews: offer.ratingCount,
                           starSize: 14,
-                          reviewsLabelBuilder: l10n.offersRatingCount,
+                          reviewsLabelBuilder: (count) =>
+                              l10n.offersRatingCount.replaceAll('{count}', count.toString()),
                         ),
                       ],
                     ),
