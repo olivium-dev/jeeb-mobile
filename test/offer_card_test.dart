@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/client_offers/domain/jeeber_vehicle.dart';
 import 'package:jeeb_mobile/features/client_offers/presentation/widgets/offer_card.dart';
+import 'package:omds/omds.dart';
 
 import 'support/offers_fixtures.dart';
 import 'support/sync_app_localizations.dart';
@@ -46,7 +47,12 @@ void main() {
     await tester.pump();
 
     expect(find.text('Accepting…'), findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    // OfferCard uses `OmdsButtonLoading` as the in-flight icon (OMDS sweep
+    // replaced the raw `CircularProgressIndicator`). `OmdsButtonLoading`
+    // still wraps a `CircularProgressIndicator` internally, but assert on
+    // the OMDS type so the test fails loudly if the design system swaps
+    // implementations.
+    expect(find.byType(OmdsButtonLoading), findsOneWidget);
   });
 
   testWidgets('OfferCard accept tap fires onAccept', (tester) async {

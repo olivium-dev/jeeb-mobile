@@ -16,10 +16,16 @@ import '../../features/jeeber_home/domain/services/request_feed_service.dart';
 import '../../features/jeeber_request_detail/domain/services/prohibited_item_report_service.dart';
 import '../../features/jeeber_request_detail/presentation/jeeber_request_detail_screen.dart';
 import '../../features/jeeber_request_detail/presentation/jeeber_request_unavailable_screen.dart';
+import '../../features/live_tracking/application/live_tracking_cubit.dart';
+import '../../features/live_tracking/domain/live_tracking_repository.dart';
+import '../../features/live_tracking/presentation/live_tracking_screen.dart';
 import '../../features/location/presentation/screens/location_picker_screen.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
 import '../../features/offers/presentation/offer_submission_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
+import '../../features/otp_handover/application/otp_handover_cubit.dart';
+import '../../features/otp_handover/domain/otp_handover_repository.dart';
+import '../../features/otp_handover/presentation/otp_handover_screen.dart';
 import '../../features/registration/presentation/registration_screen.dart';
 import '../../features/request_summary/application/request_summary_cubit.dart';
 import '../../features/request_summary/domain/request_draft.dart';
@@ -253,6 +259,39 @@ class AppRouter {
             return BlocProvider<RequestSummaryCubit>(
               create: (_) => RequestSummaryCubit()..setDraft(extra),
               child: const RequestSummaryScreen(),
+            );
+          },
+        ),
+        GoRoute(
+          path: '/orders/:id/tracking',
+          name: 'live-tracking',
+          builder: (context, state) {
+            final deliveryId = state.pathParameters['id'] ?? '';
+            return BlocProvider<LiveTrackingCubit>(
+              create: (_) => LiveTrackingCubit(
+                repository: sl<LiveTrackingRepository>(),
+                deliveryId: deliveryId,
+              ),
+              child: LiveTrackingScreen(deliveryId: deliveryId),
+            );
+          },
+        ),
+        GoRoute(
+          path: '/orders/:id/otp',
+          name: 'otp-handover',
+          builder: (context, state) {
+            final deliveryId = state.pathParameters['id'] ?? '';
+            final isClient = state.uri.queryParameters['mode'] != 'jeeber';
+            return BlocProvider<OtpHandoverCubit>(
+              create: (_) => OtpHandoverCubit(
+                repository: sl<OtpHandoverRepository>(),
+                deliveryId: deliveryId,
+                isClient: isClient,
+              ),
+              child: OtpHandoverScreen(
+                deliveryId: deliveryId,
+                isClient: isClient,
+              ),
             );
           },
         ),

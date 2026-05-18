@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:omds/omds.dart';
 
 class ProhibitedItemReportScreen extends StatefulWidget {
   final String requestId;
   const ProhibitedItemReportScreen({super.key, required this.requestId});
 
   @override
-  State<ProhibitedItemReportScreen> createState() => _ProhibitedItemReportScreenState();
+  State<ProhibitedItemReportScreen> createState() =>
+      _ProhibitedItemReportScreenState();
 }
 
-class _ProhibitedItemReportScreenState extends State<ProhibitedItemReportScreen> {
+class _ProhibitedItemReportScreenState
+    extends State<ProhibitedItemReportScreen> {
   final _descriptionController = TextEditingController();
 
   @override
@@ -20,43 +23,61 @@ class _ProhibitedItemReportScreenState extends State<ProhibitedItemReportScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Report Prohibited Item')),
+      appBar: const OMDSAppBar(title: 'Report Prohibited Item'),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(Spacing.medium),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Card(
-              color: Theme.of(context).colorScheme.errorContainer,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(children: [
-                  Icon(Icons.warning, color: Theme.of(context).colorScheme.error),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(
-                    'If the Client requested delivery of a prohibited item, report it here.',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  )),
-                ]),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
+            const _WarningCard(),
+            const SizedBox(height: Spacing.medium),
+            OmdsTextField(
               controller: _descriptionController,
+              labelText: 'Describe the prohibited item',
               maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: 'Describe the prohibited item',
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
+              onChanged: (_) => setState(() {}),
             ),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.camera_alt), label: const Text('Attach Photo')),
+            const SizedBox(height: Spacing.medium),
+            OmdsPrimaryButton(
+              text: 'Attach Photo',
+              variant: OmdsButtonVariant.outlined,
+              icon: const Icon(Icons.camera_alt),
+              onTap: () {},
+            ),
             const Spacer(),
-            FilledButton(
-              onPressed: _descriptionController.text.isEmpty ? null : () => Navigator.of(context).pop(true),
-              style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
-              child: const Text('Report Item'),
+            OmdsPrimaryButton(
+              text: 'Report Item',
+              isEnabled: _descriptionController.text.isNotEmpty,
+              backgroundColor: Theme.of(context).colorScheme.error,
+              onTap: () => Navigator.of(context).pop(true),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WarningCard extends StatelessWidget {
+  const _WarningCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      color: theme.colorScheme.errorContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(Spacing.medium),
+        child: Row(
+          children: [
+            Icon(Icons.warning, color: theme.colorScheme.error),
+            const SizedBox(width: Spacing.small),
+            Expanded(
+              child: Text(
+                'If the Client requested delivery of a prohibited item, '
+                'report it here.',
+                style: theme.textTheme.bodyMedium,
+              ),
             ),
           ],
         ),

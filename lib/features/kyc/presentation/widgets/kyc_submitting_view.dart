@@ -67,15 +67,15 @@ class _SubmittingIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Container(
-        width: 88,
-        height: 88,
+        width: Sizes.nineXLarge,
+        height: Sizes.nineXLarge,
         decoration: BoxDecoration(
           color: scheme.primaryContainer,
           shape: BoxShape.circle,
         ),
         child: Icon(
           Icons.cloud_upload_outlined,
-          size: 44,
+          size: Sizes.fourXLarge,
           color: scheme.onPrimaryContainer,
         ),
       ),
@@ -128,9 +128,12 @@ class _SubmittingSpinner extends StatelessWidget {
     return const Center(
       child: SizedBox(
         key: KycSubmittingView.spinnerKey,
-        width: 28,
-        height: 28,
-        child: CircularProgressIndicator(strokeWidth: 3),
+        width: Sizes.xLarge,
+        height: Sizes.xLarge,
+        child: OmdsLoadingState(
+          size: Sizes.xLarge,
+          padding: EdgeInsets.zero,
+        ),
       ),
     );
   }

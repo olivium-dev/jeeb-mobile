@@ -24,7 +24,7 @@ class ProfileTab extends StatelessWidget {
 
     return ListView(
       key: const Key('profile-tab-root'),
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: Spacing.xSmall),
       children: [
         OmdsSettingsSection(
           title: l10n.settingsLanguage,

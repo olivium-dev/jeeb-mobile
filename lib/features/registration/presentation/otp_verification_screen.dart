@@ -52,9 +52,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       },
       builder: (context, state) {
         return Scaffold(
-          appBar: AppBar(
-            title: Text(l10n.registrationOtpTitle),
+          appBar: OMDSAppBar(
+            title: l10n.registrationOtpTitle,
+            centerTitle: false,
             leading: IconButton(
+              key: const Key('registration.otpBack'),
               icon: const Icon(Icons.arrow_back),
               onPressed: () =>
                   context.read<RegistrationCubit>().changePhone(),
@@ -126,11 +128,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       secondsRemaining: state.resendSecondsRemaining,
                     ),
                     const SizedBox(height: Spacing.small),
-                    TextButton(
+                    OmdsPrimaryButton(
                       key: const Key('registration.changePhone'),
-                      onPressed: () =>
+                      text: l10n.registrationChangePhone,
+                      variant: OmdsButtonVariant.text,
+                      onTap: () =>
                           context.read<RegistrationCubit>().changePhone(),
-                      child: Text(l10n.registrationChangePhone),
                     ),
                   ],
                 ],
@@ -205,11 +208,11 @@ class _ResendRow extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         if (canResend)
-          TextButton(
+          OmdsPrimaryButton(
             key: const Key('registration.resend'),
-            onPressed: () =>
-                context.read<RegistrationCubit>().resendCode(),
-            child: Text(l10n.registrationOtpResend),
+            text: l10n.registrationOtpResend,
+            variant: OmdsButtonVariant.text,
+            onTap: () => context.read<RegistrationCubit>().resendCode(),
           )
         else
           Text(

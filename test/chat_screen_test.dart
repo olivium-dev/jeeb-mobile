@@ -12,7 +12,7 @@ import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_composer.dar
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
-class _StubChatGateway implements ChatGateway {
+class _StubChatGateway extends ChatGateway {
   @override
   Future<List<DeliveryChatMessage>> loadHistory(String deliveryId) async =>
       const <DeliveryChatMessage>[];

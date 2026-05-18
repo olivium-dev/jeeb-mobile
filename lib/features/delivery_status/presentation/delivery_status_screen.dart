@@ -168,14 +168,7 @@ class _LoadingView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       key: rootKey,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: Spacing.medium),
-          Text(l10n.deliveryStatusLoading),
-        ],
-      ),
+      child: OmdsLoadingState(message: l10n.deliveryStatusLoading),
     );
   }
 }

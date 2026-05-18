@@ -1,63 +1,148 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:omds/omds.dart';
 
+import 'jeeb_semantic_colors.dart';
 import 'jeeb_tier_colors.dart';
 
-/// Jeeb app theme — thin wrapper around [OmdsTheme] with the Jeeb brand seed
-/// and the [JeebTierColors] extension layered on.
+/// Jeeb app theme derived from the Figma design (ZOi3kKtw7sd42ssSVX3Kn4).
 ///
-/// All theming flows through `package:omds` so raw Material widget defaults
-/// stay outside the app and any future OMDS-wide token change reaches Jeeb
-/// automatically.
+/// Brand palette extracted from Figma node 56535:1525:
+///   - Primary / secondary-container: deep navy `#0B1351`
+///   - Primary-container / progress bars: vibrant orange `#D73B00`
+///   - On-secondary-container (muted text): `#777FC0`
+///   - Outline (chip borders): warm brown `#916F66`
+///   - On-surface-variant (subtitle text): `#5C4038`
+///   - Surface-container-high (search bg): `#EAE7EB`
+///   - On-primary: `#FFFFFF`
 ///
-/// Source-of-truth for color decisions: `docs/design/03-color-token-mapping.md`.
-/// Source-of-truth for typography: `docs/design/04-typography-validation.md`.
+/// Typography note: the Figma calls for Roboto (body) and Urbanist (nav
+/// labels), but we override to **Inter** per OMDS standard (audit doc §5.1).
+/// Inter ships with `google_fonts` and matches the OMDS theme entry point in
+/// `OmdsTheme(GoogleFonts.interTextTheme())` — see
+/// `flutter-material3-colorscheme-discipline` skill.
+///
+/// This file is the **single source of truth** for the Jeeb palette. The
+/// brand seeds are intentionally `private` (`_jeebNavy` etc.) so feature
+/// code cannot reach in and bypass the `ColorScheme` / `OmdsColorTokens` /
+/// `JeebSemanticColors` boundary. If you need a brand color in a feature,
+/// resolve it via:
+///
+///   1. `Theme.of(context).colorScheme.<role>` (M3 roles)
+///   2. `context.omdsColorTokens.<token>` (semantic OMDS tokens)
+///   3. `Theme.of(context).extension<JeebSemanticColors>()!.<role>`
+///   4. `Theme.of(context).extension<JeebTierColors>()!.<tier>`
 class AppTheme {
   AppTheme._();
 
-  // ─── Brand seed (see 03-color-token-mapping.md §1) ─────────────────────────
-  static const Color _primarySeed = Color(0xFF1B6B4E);
-  static const Color _secondarySeed = Color(0xFF4A6741);
-  static const Color _tertiarySeed = Color(0xFF3D6373);
+  // ───────────────────────────────────────────────────────────────────────
+  // Private brand seeds — only consumed by the ColorScheme below.
+  // Never exposed publicly; do not promote without architectural review.
+  // ───────────────────────────────────────────────────────────────────────
+
+  static const Color _jeebNavy = Color(0xFF0B1351);
+  static const Color _jeebOrange = Color(0xFFD73B00);
+  static const Color _jeebMutedPurple = Color(0xFF777FC0);
+  static const Color _jeebWarmBrown = Color(0xFF916F66);
+  static const Color _jeebSubtitle = Color(0xFF5C4038);
+  static const Color _jeebSurfaceHigh = Color(0xFFEAE7EB);
+  static const Color _jeebSurfaceHighest = Color(0xFFE5E1E5);
+
+  /// On-surface ink for body text in the light Jeeb scheme. Deep blue tuned
+  /// to read against the warm white surface; not the same as `_jeebNavy`.
+  static const Color _jeebOnSurface = Color(0xFF0B0E53);
 
   static ThemeData light() => _build(Brightness.light);
   static ThemeData dark() => _build(Brightness.dark);
 
   static ThemeData _build(Brightness brightness) {
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: _primarySeed,
-      secondary: _secondarySeed,
-      tertiary: _tertiarySeed,
-      brightness: brightness,
+    final isLight = brightness == Brightness.light;
+
+    final colorScheme = isLight
+        ? const ColorScheme.light(
+            primary: _jeebNavy,
+            onPrimary: Colors.white,
+            primaryContainer: _jeebOrange,
+            onPrimaryContainer: Colors.white,
+            secondary: _jeebNavy,
+            onSecondary: Colors.white,
+            secondaryContainer: _jeebNavy,
+            onSecondaryContainer: _jeebMutedPurple,
+            tertiary: _jeebOrange,
+            onTertiary: Colors.white,
+            surface: Colors.white,
+            onSurface: _jeebOnSurface,
+            onSurfaceVariant: _jeebSubtitle,
+            outline: _jeebWarmBrown,
+            outlineVariant: _jeebSurfaceHighest,
+            surfaceContainerHighest: _jeebSurfaceHighest,
+            surfaceContainerHigh: _jeebSurfaceHigh,
+          )
+        : ColorScheme.fromSeed(
+            seedColor: _jeebNavy,
+            brightness: Brightness.dark,
+          );
+
+    final baseTextTheme = GoogleFonts.interTextTheme(
+      isLight ? ThemeData.light().textTheme : ThemeData.dark().textTheme,
     );
 
-    final baseTextTheme = brightness == Brightness.dark
-        ? GoogleFonts.interTextTheme(
-            ThemeData(brightness: Brightness.dark).textTheme,
-          )
-        : GoogleFonts.interTextTheme();
-
     final omds = OmdsTheme(baseTextTheme);
-    final base = brightness == Brightness.dark
-        ? omds.darkWithScheme(colorScheme)
-        : omds.lightWithScheme(colorScheme);
+    final base = isLight
+        ? omds.lightWithScheme(colorScheme)
+        : omds.darkWithScheme(colorScheme);
 
-    // Type-erase the iterable before passing to copyWith. `copyWith` takes
-    // `Iterable<ThemeExtension<dynamic>>`, but Dart's stricter generic
-    // inference around `ThemeExtension<T extends ThemeExtension<T>>` causes
-    // the unparameterised `<ThemeExtension<dynamic>>[...]` literal to coerce
-    // into `ThemeExtension<ThemeExtension<dynamic>>` at runtime, which then
-    // rejects `_CompactValuesIterable<ThemeExtension<dynamic>>` (the type of
-    // `base.extensions.values`). Materialising into an explicit
-    // `List<ThemeExtension<dynamic>>` via `<dynamic>[].cast<...>()` keeps the
-    // outer parameter open and lets the framework's internal cast widen.
     final List<ThemeExtension<dynamic>> extensions = <dynamic>[
       JeebTierColors.standard(),
+      isLight ? JeebSemanticColors.light() : JeebSemanticColors.dark(),
       ...base.extensions.values,
     ].cast<ThemeExtension<dynamic>>();
+
     return base.copyWith(
-      appBarTheme: base.appBarTheme.copyWith(centerTitle: true),
+      appBarTheme: base.appBarTheme.copyWith(
+        centerTitle: false,
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.primary,
+        elevation: 0,
+        systemOverlayStyle: isLight
+            ? SystemUiOverlayStyle.dark.copyWith(
+                statusBarColor: Colors.transparent,
+                systemNavigationBarColor: Colors.transparent,
+              )
+            : SystemUiOverlayStyle.light.copyWith(
+                statusBarColor: Colors.transparent,
+                systemNavigationBarColor: Colors.transparent,
+              ),
+      ),
+      scaffoldBackgroundColor: isLight ? colorScheme.surface : null,
+      chipTheme: ChipThemeData(
+        selectedColor: colorScheme.primary,
+        labelStyle: baseTextTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w500,
+        ),
+        shape: const RoundedRectangleBorder(
+          borderRadius: OmdsBorderRadius.xSmall,
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: colorScheme.primary,
+        foregroundColor: colorScheme.onPrimary,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: colorScheme.surface,
+        // Allowed: `Colors.transparent` is the documented exemption for
+        // hit-testing / overlay intent that has no semantic equivalent.
+        indicatorColor: Colors.transparent,
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final isSelected = states.contains(WidgetState.selected);
+          return baseTextTheme.labelSmall?.copyWith(
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            letterSpacing: 0.2,
+            color: isSelected ? colorScheme.primary : colorScheme.outline,
+          );
+        }),
+      ),
       extensions: extensions,
     );
   }

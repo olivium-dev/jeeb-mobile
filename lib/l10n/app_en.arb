@@ -28,12 +28,58 @@
   "@navEarnings": {
     "description": "Jeeber tab: Earnings"
   },
+  "navRequests": "Requests",
+  "@navRequests": {
+    "description": "Client bottom tab: Requests"
+  },
+  "navDelivery": "DELIVERY",
+  "@navDelivery": {
+    "description": "Client bottom tab: Delivery"
+  },
   "homeTitle": "Welcome to Jeeb",
   "homeEmptyTitle": "What do you need?",
   "homeEmptySubtitle": "Tap the mic and tell us — we'll find a Jeeber for you.",
   "homeEmptyCta": "Create your first request",
   "homeActiveSectionTitle": "Active requests",
   "homeRecentSectionTitle": "Order again",
+  "homeTabInProgress": "In Progress",
+  "homeTabPendingRequests": "Pending Requests",
+  "homeTabReplies": "Replies",
+  "homeInProgressEmpty": "No active deliveries yet.",
+  "homePendingEmpty": "No pending requests — broadcast a new one to get offers.",
+  "homeRepliesEmpty": "No replies yet — pending requests with offers will appear here.",
+  "homeRepliesCheckOffersCta": "Check Offers",
+  "chatOfferAccept": "Accept Offer",
+  "chatOfferAccepting": "Accepting…",
+  "chatOfferEtaMinutes": "ETA {minutes} min",
+  "@chatOfferEtaMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "chatSystemOfferAcceptedGeneric": "Offer accepted",
+  "chatSystemOfferAcceptedNamed": "{name}'s offer was accepted",
+  "@chatSystemOfferAcceptedNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatSystemOfferRejectedGeneric": "Offer was withdrawn",
+  "chatSystemOfferRejectedNamed": "{name}'s offer was withdrawn",
+  "@chatSystemOfferRejectedNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chatBroadcastingTitle": "Waiting for Jeebers…",
+  "chatBroadcastingSubtitle": "Pick the offer that works best for you.",
+  "chatBroadcastingEmpty": "No offers yet — sit tight.",
   "homeMicLabel": "Hold to speak",
   "homeRefreshHint": "Pull to refresh",
   "homeReorderAction": "Re-order",
@@ -347,6 +393,8 @@
     "description": "Onboarding slide 3 — live order tracking"
   },
   "onboardingSlide3Body": "Follow your Jeeber on the map from pickup to drop-off in real time.",
+  "onboardingNext": "Next",
+  "onboardingGetStarted": "Get Started",
   "deliveryDetailTitle": "Delivery {id}",
   "@deliveryDetailTitle": {
     "description": "Title of the delivery-detail screen reached from a push tap",
@@ -1847,8 +1895,8 @@
   "chatStatusOffline": "You're offline. Messages will send when you reconnect.",
   "chatStatusReconnecting": "Reconnecting…",
   "homeGreetingFallback": "Welcome back",
-  "homeGreetingNamed": "Hi, {name}",
-  "homeGreetingSubtitle": "Where should we take it?",
+  "homeGreetingNamed": "Hello, {name}",
+  "homeGreetingSubtitle": "Everything, One Place",
   "homeLoadFailedBody": "Check your connection and try again.",
   "homeLoadFailedRetry": "Retry",
   "homeLoadFailedTitle": "Couldn't load your home",
@@ -1998,5 +2046,7 @@
   "requestSummaryFindingNotifiedFew": "Notified {count} nearby Jeebers",
   "requestSummaryFindingNotifiedOther": "Notified {count} nearby Jeebers",
   "availabilityActiveDeliveries": "Active deliveries",
-  "chatPendingMessages": "Pending messages"
+  "chatPendingMessages": "Pending messages",
+  "chatNoConversationTitle": "No conversation yet",
+  "chatNoConversationSubtitle": "This delivery doesn't have a chat thread. Check back once a Jeeber is assigned."
 }

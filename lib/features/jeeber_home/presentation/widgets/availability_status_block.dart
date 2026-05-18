@@ -19,45 +19,65 @@ class AvailabilityStatusBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    final headline = view.isToggleInFlight
-        ? l10n.availabilityTransitioning
-        : switch (view.status.state) {
-            AvailabilityState.online => l10n.availabilityStatusOnline,
-            AvailabilityState.offline => l10n.availabilityStatusOffline,
-            AvailabilityState.autoOffline =>
-              l10n.availabilityStatusAutoOffline,
-          };
-
     return Column(
       key: rootKey,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          headline,
-          textAlign: TextAlign.center,
-          style: textTheme.titleMedium?.copyWith(
-            color: colorScheme.onSurface,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        _StatusHeadline(view: view),
         if (view.status.isOnline) ...[
           const SizedBox(height: Spacing.xSmall),
-          Text(
-            l10n.availabilityActiveDeliveries(
-              view.status.activeDeliveryCount,
-            ),
-            key: activeDeliveriesKey,
-            textAlign: TextAlign.center,
-            style: textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
+          _ActiveDeliveriesLine(count: view.status.activeDeliveryCount),
         ],
       ],
+    );
+  }
+}
+
+class _StatusHeadline extends StatelessWidget {
+  const _StatusHeadline({required this.view});
+
+  final AvailabilityViewState view;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Text(
+      _headline(context),
+      textAlign: TextAlign.center,
+      style: theme.textTheme.titleMedium?.copyWith(
+        color: theme.colorScheme.onSurface,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+
+  String _headline(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    if (view.isToggleInFlight) return l10n.availabilityTransitioning;
+    return switch (view.status.state) {
+      AvailabilityState.online => l10n.availabilityStatusOnline,
+      AvailabilityState.offline => l10n.availabilityStatusOffline,
+      AvailabilityState.autoOffline => l10n.availabilityStatusAutoOffline,
+    };
+  }
+}
+
+class _ActiveDeliveriesLine extends StatelessWidget {
+  const _ActiveDeliveriesLine({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    return Text(
+      l10n.availabilityActiveDeliveries(count),
+      key: AvailabilityStatusBlock.activeDeliveriesKey,
+      textAlign: TextAlign.center,
+      style: theme.textTheme.bodyMedium?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
     );
   }
 }

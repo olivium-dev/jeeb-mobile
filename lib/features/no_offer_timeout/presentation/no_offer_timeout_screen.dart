@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:omds/omds.dart';
 
 class NoOfferTimeoutScreen extends StatelessWidget {
   final String requestId;
@@ -7,34 +8,66 @@ class NoOfferTimeoutScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('No Offers Yet')),
+      appBar: const OMDSAppBar(title: 'No Offers Yet'),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(Spacing.medium),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Icon(Icons.hourglass_empty, size: 80, color: Theme.of(context).colorScheme.tertiary),
-            const SizedBox(height: 24),
-            Text('No offers received yet', style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            Text(
-              'Your request has been waiting for a while. You can upgrade to a higher tier for faster matching.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge,
+            const _Header(),
+            const SizedBox(height: Spacing.twoXLarge),
+            OmdsPrimaryButton(
+              text: 'Upgrade Tier',
+              onTap: () => Navigator.of(context).pop('upgrade'),
             ),
-            const SizedBox(height: 32),
-            FilledButton(onPressed: () => Navigator.of(context).pop('upgrade'), child: const Text('Upgrade Tier')),
-            const SizedBox(height: 12),
-            OutlinedButton(onPressed: () => Navigator.of(context).pop('wait'), child: const Text('Keep Waiting')),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop('cancel'),
-              child: Text('Cancel Request', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            const SizedBox(height: Spacing.small),
+            OmdsPrimaryButton(
+              text: 'Keep Waiting',
+              variant: OmdsButtonVariant.outlined,
+              onTap: () => Navigator.of(context).pop('wait'),
+            ),
+            const SizedBox(height: Spacing.small),
+            OmdsPrimaryButton(
+              text: 'Cancel Request',
+              variant: OmdsButtonVariant.text,
+              textColor: Theme.of(context).colorScheme.error,
+              onTap: () => Navigator.of(context).pop('cancel'),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        Icon(
+          Icons.hourglass_empty,
+          size: Sizes.eightXLarge,
+          color: theme.colorScheme.tertiary,
+        ),
+        const SizedBox(height: Spacing.xLarge),
+        Text(
+          'No offers received yet',
+          style: theme.textTheme.headlineSmall,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: Spacing.small),
+        Text(
+          'Your request has been waiting for a while. You can upgrade to a '
+          'higher tier for faster matching.',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyLarge,
+        ),
+      ],
     );
   }
 }

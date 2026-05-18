@@ -82,14 +82,15 @@ void main() {
   });
 
   group('App shell integration', () {
-    testWidgets('renders NavigationBar with four destinations',
+    testWidgets('renders bottom bar with three client-role destinations',
         (tester) async {
       final prefs = await SharedPreferences.getInstance();
       await tester.pumpWidget(_shellHarness(prefs));
       await tester.pumpAndSettle();
 
-      expect(find.byType(NavigationBar), findsOneWidget);
-      expect(find.byType(NavigationDestination), findsNWidgets(4));
+      expect(find.text('Requests'), findsWidgets);
+      expect(find.text('DELIVERY'), findsWidgets);
+      expect(find.text('Profile'), findsWidgets);
     });
 
     testWidgets('OMDS light theme has useMaterial3 enabled', (_) async {
@@ -120,16 +121,17 @@ void main() {
       expect(codes, contains('ar'));
     });
 
-    testWidgets('client role shows Home/Orders/Chat/Profile labels',
+    testWidgets('client role shows Requests/DELIVERY/Profile labels',
         (tester) async {
       final prefs = await SharedPreferences.getInstance();
       await tester.pumpWidget(_shellHarness(prefs));
       await tester.pumpAndSettle();
 
-      expect(find.text('Home'), findsWidgets);
-      expect(find.text('Orders'), findsWidgets);
-      expect(find.text('Chat'), findsWidgets);
+      expect(find.text('Requests'), findsWidgets);
+      expect(find.text('DELIVERY'), findsWidgets);
       expect(find.text('Profile'), findsWidgets);
+      expect(find.text('Dashboard'), findsNothing);
+      expect(find.text('Earnings'), findsNothing);
     });
 
     testWidgets('Arabic locale renders RTL with Arabic labels',
@@ -165,8 +167,11 @@ void main() {
       await tester.pumpWidget(widget);
       await tester.pumpAndSettle();
 
-      expect(find.text('الرئيسية'), findsWidgets);
-      final ctx = tester.element(find.byType(NavigationBar));
+      expect(find.text('الطلبات'), findsWidgets);
+      expect(find.text('التوصيل'), findsWidgets);
+      expect(find.text('حسابي'), findsWidgets);
+
+      final ctx = tester.element(find.byType(ShellScreen));
       expect(Directionality.of(ctx), TextDirection.rtl);
     });
 

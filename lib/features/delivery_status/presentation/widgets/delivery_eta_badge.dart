@@ -26,7 +26,7 @@ class DeliveryEtaBadge extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(Spacing.large),
+        borderRadius: OmdsBorderRadius.large,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

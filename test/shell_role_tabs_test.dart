@@ -4,15 +4,34 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:jeeb_mobile/core/di/injection_container.dart';
 import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_eligibility_cubit.dart';
 import 'package:jeeb_mobile/core/role/user_role.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/features/earnings/domain/earnings_repository.dart';
+import 'package:jeeb_mobile/features/earnings/domain/earnings_summary.dart';
+import 'package:jeeb_mobile/features/jeeber_home/application/availability_cubit.dart';
+import 'package:jeeb_mobile/features/jeeber_home/domain/services/availability_gateway.dart';
 import 'package:jeeb_mobile/features/shell/shell_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
+
+class _StubEarningsRepository implements EarningsRepository {
+  @override
+  Future<EarningsSummary> fetchEarnings({required String jeeberId}) async =>
+      const EarningsSummary(
+        totalEarnings: 0,
+        currency: 'LBP',
+        deliveryCount: 0,
+        commission: 0,
+        netPayout: 0,
+        periodLabel: 'today',
+      );
+}
 
 class _SyncAppLocalizationsDelegate
     extends LocalizationsDelegate<AppLocalizations> {
@@ -57,6 +76,11 @@ Widget _harness({
       ),
       BlocProvider(create: (_) => RoleCubit(prefs: prefs)),
       BlocProvider(create: (_) => RoleEligibilityCubit()),
+      BlocProvider(
+        create: (_) => AvailabilityCubit(
+          gateway: InMemoryAvailabilityGateway(),
+        ),
+      ),
     ],
     child: BlocBuilder<LocaleCubit, Locale>(
       builder: (context, l) => MaterialApp(
@@ -80,25 +104,28 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
+    sl.registerFactory<EarningsRepository>(() => _StubEarningsRepository());
   });
 
-  testWidgets('Client role shows Home/Orders/Chat/Profile tabs',
+  tearDown(() async {
+    await sl.reset();
+  });
+
+  testWidgets('Client role shows Requests/DELIVERY/Profile tabs',
       (tester) async {
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(_harness(prefs: prefs));
     await tester.pumpAndSettle();
 
-    expect(find.byType(NavigationBar), findsOneWidget);
-    expect(find.text('Home'), findsWidgets);
-    expect(find.text('Orders'), findsWidgets);
-    expect(find.text('Chat'), findsWidgets);
+    expect(find.text('Requests'), findsWidgets);
+    expect(find.text('DELIVERY'), findsWidgets);
     expect(find.text('Profile'), findsWidgets);
     // Jeeber-only tabs must NOT be present.
     expect(find.text('Dashboard'), findsNothing);
     expect(find.text('Earnings'), findsNothing);
   });
 
-  testWidgets('Switching to jeeber swaps to Dashboard/Earnings/Chat/Profile',
+  testWidgets('Switching to jeeber swaps to Dashboard/Earnings/Profile',
       (tester) async {
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(_harness(prefs: prefs));
@@ -110,10 +137,9 @@ void main() {
 
     expect(find.text('Dashboard'), findsWidgets);
     expect(find.text('Earnings'), findsWidgets);
-    expect(find.text('Chat'), findsWidgets);
     expect(find.text('Profile'), findsWidgets);
-    expect(find.text('Home'), findsNothing);
-    expect(find.text('Orders'), findsNothing);
+    expect(find.text('Requests'), findsNothing);
+    expect(find.text('DELIVERY'), findsNothing);
   });
 
   testWidgets('Arabic locale renders RTL bottom-nav labels in Arabic',
@@ -122,12 +148,11 @@ void main() {
     await tester.pumpWidget(_harness(prefs: prefs, locale: const Locale('ar')));
     await tester.pumpAndSettle();
 
-    expect(find.text('الرئيسية'), findsWidgets);
-    expect(find.text('طلباتي'), findsWidgets);
-    expect(find.text('المحادثات'), findsWidgets);
+    expect(find.text('الطلبات'), findsWidgets);
+    expect(find.text('التوصيل'), findsWidgets);
     expect(find.text('حسابي'), findsWidgets);
 
-    final BuildContext ctx = tester.element(find.byType(NavigationBar));
+    final BuildContext ctx = tester.element(find.byType(ShellScreen));
     expect(Directionality.of(ctx), TextDirection.rtl);
   });
 
@@ -137,10 +162,9 @@ void main() {
     await tester.pumpWidget(_harness(prefs: prefs));
     await tester.pumpAndSettle();
 
-    // Tap the Orders destination (client-only, index 1).
-    await tester.tap(find.text('Orders').last);
+    // Tap the DELIVERY destination (client-only, index 1).
+    await tester.tap(find.text('DELIVERY').last);
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('orders-tab-empty')), findsOneWidget);
 
     final BuildContext ctx = tester.element(find.byType(ShellScreen));
     await ctx.read<RoleCubit>().setRole(UserRole.jeeber);
@@ -148,6 +172,5 @@ void main() {
 
     // After switching to jeeber, tab 0 (Dashboard) should be active.
     expect(find.byKey(const Key('dashboard-tab-root')), findsOneWidget);
-    expect(find.byKey(const Key('earnings-tab-empty')), findsNothing);
   });
 }

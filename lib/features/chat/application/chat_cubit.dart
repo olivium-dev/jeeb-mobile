@@ -47,17 +47,64 @@ class ChatCubit extends Cubit<ChatState> {
   int _outboxCounter = 0;
 
   /// Cold-load entry point. Pulls any historical messages from the gateway
-  /// and starts listening for inbound events.
+  /// and starts listening for inbound events. Also fetches the conversation
+  /// phase so the composer/offer-card UI renders correctly on first paint.
   Future<void> load() async {
     emit(state.copyWith(isLoadingHistory: true, clearError: true));
-    final history = await _gateway.loadHistory(_deliveryId);
-    emit(
-      state.copyWith(
-        messages: List.unmodifiable(history),
+    try {
+      final results = await Future.wait([
+        _gateway.loadHistory(_deliveryId),
+        _gateway.loadPhase(_deliveryId),
+      ]);
+      final history = results[0] as List<DeliveryChatMessage>;
+      final phase = results[1] as ConversationPhase;
+      emit(
+        state.copyWith(
+          messages: List.unmodifiable(history),
+          phase: phase,
+          isLoadingHistory: false,
+        ),
+      );
+      _subscription ??= _gateway.subscribe(_deliveryId).listen(_handleEvent);
+    } catch (_) {
+      emit(state.copyWith(
+        messages: const [],
+        phase: ConversationPhase.unknown,
         isLoadingHistory: false,
-      ),
-    );
-    _subscription ??= _gateway.subscribe(_deliveryId).listen(_handleEvent);
+      ));
+    }
+  }
+
+  /// Accept the Jeeber whose offer card is identified by [offerId]. Flips
+  /// the conversation to [ConversationPhase.accepted], drops losing offer
+  /// cards out of the visible list, and re-fetches history so the server's
+  /// system message is visible.
+  Future<void> acceptOffer(String offerId) async {
+    if (state.acceptingOfferId != null) return;
+    emit(state.copyWith(acceptingOfferId: offerId, clearError: true));
+    try {
+      await _gateway.acceptOffer(_deliveryId, offerId);
+      final results = await Future.wait([
+        _gateway.loadHistory(_deliveryId),
+        _gateway.loadPhase(_deliveryId),
+      ]);
+      final history = results[0] as List<DeliveryChatMessage>;
+      final phase = results[1] as ConversationPhase;
+      emit(
+        state.copyWith(
+          messages: List.unmodifiable(history),
+          phase: phase,
+          clearAcceptingOfferId: true,
+        ),
+      );
+    } catch (_) {
+      emit(
+        state.copyWith(
+          clearAcceptingOfferId: true,
+          error: ChatError.sendFailed,
+        ),
+      );
+    }
   }
 
   /// Bind the composer field to the cubit. Cleared automatically after a
@@ -162,6 +209,8 @@ class ChatCubit extends Cubit<ChatState> {
         _promoteAtLeast(id, MessageStatus.delivered);
       case ReadReceipt(throughMessageId: final id):
         _promoteThroughRead(id);
+      case PhaseChanged(phase: final phase):
+        emit(state.copyWith(phase: phase));
     }
   }
 

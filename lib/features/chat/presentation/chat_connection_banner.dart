@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:omds/omds.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../application/chat_connection_state.dart';
@@ -19,27 +20,34 @@ class ChatConnectionBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     final (label, bg, fg, icon) = _decoration(state.status, scheme, l10n);
     return Container(
       key: const Key('chat-connection-banner'),
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.medium,
+        vertical: Spacing.xSmall,
+      ),
       color: bg,
       child: Row(
         children: [
-          Icon(icon, size: 16, color: fg),
-          const SizedBox(width: 8),
+          Icon(icon, size: Sizes.medium, color: fg),
+          const SizedBox(width: Spacing.xSmall),
           Expanded(
             child: Text(
               label,
-              style: TextStyle(color: fg, fontWeight: FontWeight.w600),
+              style: textTheme.labelLarge?.copyWith(
+                color: fg,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           if (state.pendingCount > 0)
             Text(
               l10n.chatPendingMessages(state.pendingCount),
               key: const Key('chat-pending-badge'),
-              style: TextStyle(color: fg),
+              style: textTheme.labelMedium?.copyWith(color: fg),
             ),
         ],
       ),

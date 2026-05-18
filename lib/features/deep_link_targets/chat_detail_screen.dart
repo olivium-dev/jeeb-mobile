@@ -1,11 +1,20 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
+import 'package:get_it/get_it.dart';
 
-/// Placeholder restored under T-MOB-FIX-001 (AC1+AC4+AC5). Real implementation
-/// arrives in the per-feature follow-up ticket. Do NOT add behavior here.
-// Deviation note: router call-site passes a `chatId` (deep-link route param);
-// the field is retained but unused so the import-graph stays green.
+import '../chat/data/dio_chat_gateway.dart';
+import '../chat/data/in_memory_chat_gateway.dart';
+import '../chat/domain/chat_gateway.dart';
+import '../chat/presentation/chat_screen.dart';
+import '../photo_attachment/data/stub_photo_picker_service.dart';
+
+/// Deep-link entry point for `/chat/:id`.
+///
+/// The route param can be a conversation id **or** a delivery/request id.
+/// When given a delivery id (e.g. from the In Progress tab), the screen
+/// resolves the linked conversation via the `by-request` endpoint before
+/// constructing the gateway.
 class ChatDetailScreen extends StatefulWidget {
   const ChatDetailScreen({super.key, required this.chatId});
 
@@ -16,25 +25,126 @@ class ChatDetailScreen extends StatefulWidget {
 }
 
 class _ChatDetailScreenState extends State<ChatDetailScreen> {
-  static const _featureId = 'chat-detail';
+  String _resolvedConversationId = '';
+  String _counterpartName = '';
+  ChatGateway? _gateway;
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    debugPrint('[placeholder] $_featureId opened');
+    _resolveAndBuild();
+  }
+
+  @override
+  void dispose() {
+    final gateway = _gateway;
+    if (gateway is DioChatGateway) {
+      gateway.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _resolveAndBuild() async {
+    final getIt = GetIt.instance;
+    if (!getIt.isRegistered<Dio>()) {
+      debugPrint(
+        '[chat-detail] Dio not registered — falling back to in-memory',
+      );
+      _finalize(widget.chatId, InMemoryChatGateway(), '');
+      return;
+    }
+
+    final dio = getIt<Dio>();
+    var conversationId = widget.chatId;
+    Map<String, dynamic>? conversationData;
+
+    // Try the id as a conversation id first.
+    try {
+      final resp = await dio.get<Map<String, dynamic>>(
+        '/v1/chat/jeeb/conversations/$conversationId',
+      );
+      conversationData = resp.data;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        // Not a conversation id — try as a request/delivery id.
+        try {
+          final byReq = await dio.get<Map<String, dynamic>>(
+            '/v1/chat/jeeb/conversations/by-request/${widget.chatId}',
+          );
+          conversationData = byReq.data;
+          conversationId = conversationData?['id'] as String? ?? widget.chatId;
+        } on DioException {
+          // Neither worked — proceed with the original id.
+        }
+      }
+    }
+
+    final title = await _resolveTitle(dio, conversationData);
+    final gateway = DioChatGateway(
+      dio: dio,
+      currentUserId: 'user-client-001',
+    );
+    if (!mounted) return;
+    _finalize(conversationId, gateway, title);
+  }
+
+  Future<String> _resolveTitle(
+    Dio dio,
+    Map<String, dynamic>? conversationData,
+  ) async {
+    if (conversationData == null) return '';
+
+    // Try the request title.
+    final requestId = conversationData['requestId'] as String?;
+    if (requestId != null && requestId.isNotEmpty) {
+      try {
+        final resp = await dio.get<Map<String, dynamic>>(
+          '/v1/requests/$requestId',
+        );
+        final title = resp.data?['title'] as String?;
+        if (title != null && title.isNotEmpty) return title;
+      } on DioException {
+        // Fall through.
+      }
+    }
+
+    // Fall back to the winner jeeber name.
+    final winnerId = conversationData['winnerJeeberId'] as String?;
+    if (winnerId != null && winnerId.isNotEmpty) {
+      try {
+        final resp = await dio.get<Map<String, dynamic>>(
+          '/users/$winnerId',
+        );
+        return resp.data?['name'] as String? ?? '';
+      } on DioException {
+        // Fall through.
+      }
+    }
+
+    return '';
+  }
+
+  void _finalize(String conversationId, ChatGateway gateway, String title) {
+    if (!mounted) return;
+    setState(() {
+      _resolvedConversationId = conversationId;
+      _gateway = gateway;
+      _counterpartName = title;
+      _loading = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      container: true,
-      label: 'Chat Detail coming soon. This screen is not yet available.',
-      child: const OmdsEmptyStatePage(
-        appBar: null,
-        icon: Icons.construction_outlined,
-        title: 'Chat Detail coming soon',
-        subtitle: 'This screen is not yet available.',
-      ),
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    return ChatScreen(
+      deliveryId: _resolvedConversationId,
+      counterpartName: _counterpartName,
+      gateway: _gateway!,
+      pickerService: StubPhotoPickerService(),
     );
   }
 }

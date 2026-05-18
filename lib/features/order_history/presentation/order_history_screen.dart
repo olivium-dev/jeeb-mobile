@@ -137,14 +137,19 @@ class _FilterBar extends StatelessWidget {
         ? l10n.orderHistoryFilterCta
         : l10n.orderHistoryFilterActive;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.medium,
+        Spacing.small,
+        Spacing.medium,
+        Spacing.twoXSmall,
+      ),
       child: Row(
         children: [
           Expanded(
             child: OmdsChip(
               key: const Key('order-history-filter-chip'),
               label: label,
-              icon: const Icon(Icons.tune, size: 16),
+              icon: const Icon(Icons.tune, size: Sizes.medium),
               isSelected: !range.isEmpty,
               onTap: onTap,
             ),
@@ -208,7 +213,7 @@ class _OrderTabViewState extends State<_OrderTabView>
         if (tabState.status == OrderTabStatus.loadingFirstPage) {
           return const Center(
             key: Key('order-history-loading'),
-            child: CircularProgressIndicator.adaptive(),
+            child: OmdsLoadingState(),
           );
         }
         if (tabState.status == OrderTabStatus.error) {
@@ -228,7 +233,9 @@ class _OrderTabViewState extends State<_OrderTabView>
             child: ListView(
               children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 64),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: Sizes.sixXLarge,
+                  ),
                   child: OmdsEmptyState(
                     key: Key('order-history-empty-${widget.tab.name}'),
                     icon: Icons.receipt_long_outlined,
@@ -246,17 +253,17 @@ class _OrderTabViewState extends State<_OrderTabView>
           child: ListView.separated(
             key: Key('order-history-list-${widget.tab.name}'),
             controller: _scrollController,
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: Spacing.xSmall),
             itemCount: tabState.orders.length + (tabState.hasMore ? 1 : 0),
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {
               if (index >= tabState.orders.length) {
                 return Padding(
                   key: const Key('order-history-loading-more'),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  padding: const EdgeInsets.symmetric(vertical: Spacing.medium),
                   child: Center(
                     child: tabState.status == OrderTabStatus.loadingNextPage
-                        ? const CircularProgressIndicator.adaptive()
+                        ? const OmdsLoadingState()
                         : const SizedBox.shrink(),
                   ),
                 );

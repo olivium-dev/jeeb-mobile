@@ -20,6 +20,8 @@ class ChatState extends Equatable {
     this.composerText = '',
     this.isLoadingHistory = false,
     this.isAttaching = false,
+    this.phase = ConversationPhase.accepted,
+    this.acceptingOfferId,
     this.error,
   });
 
@@ -38,9 +40,31 @@ class ChatState extends Equatable {
   /// button so a second tap can't race with the first.
   final bool isAttaching;
 
+  /// Phase the underlying conversation is in. Defaults to `accepted` so
+  /// legacy 1:1 photo-chat call sites (which don't know about phases) keep
+  /// the composer visible without any code change.
+  final ConversationPhase phase;
+
+  /// Offer id currently being accepted via [ChatCubit.acceptOffer]. The
+  /// view disables every offer card and renders a spinner on the in-flight
+  /// one so the user can't race two accepts.
+  final String? acceptingOfferId;
+
   final ChatError? error;
 
   bool get canSendText => composerText.trim().isNotEmpty;
+
+  /// Composer is hidden during the broadcasting phase (the Figma rule —
+  /// every "send" must go via tapping an offer card, not a free-text reply).
+  /// Also hidden in `closed` since the conversation is read-only.
+  bool get isComposerVisible =>
+      phase == ConversationPhase.accepted ||
+      phase == ConversationPhase.unknown;
+
+  /// Offer cards currently sitting in the message list. Used by the
+  /// broadcasting screen to render the stacked offer panel.
+  List<DeliveryChatMessage> get offerCards =>
+      messages.where((m) => m.isOfferCard).toList(growable: false);
 
   DeliveryChatMessage? get latestMessage => messages.isEmpty ? null : messages.last;
 
@@ -49,6 +73,9 @@ class ChatState extends Equatable {
     String? composerText,
     bool? isLoadingHistory,
     bool? isAttaching,
+    ConversationPhase? phase,
+    String? acceptingOfferId,
+    bool clearAcceptingOfferId = false,
     ChatError? error,
     bool clearError = false,
   }) {
@@ -57,6 +84,10 @@ class ChatState extends Equatable {
       composerText: composerText ?? this.composerText,
       isLoadingHistory: isLoadingHistory ?? this.isLoadingHistory,
       isAttaching: isAttaching ?? this.isAttaching,
+      phase: phase ?? this.phase,
+      acceptingOfferId: clearAcceptingOfferId
+          ? null
+          : (acceptingOfferId ?? this.acceptingOfferId),
       error: clearError ? null : (error ?? this.error),
     );
   }
@@ -67,6 +98,8 @@ class ChatState extends Equatable {
     composerText,
     isLoadingHistory,
     isAttaching,
+    phase,
+    acceptingOfferId,
     error,
   ];
 }

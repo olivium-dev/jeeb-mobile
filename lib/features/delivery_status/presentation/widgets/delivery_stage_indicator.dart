@@ -102,7 +102,7 @@ class _StageRow extends StatelessWidget {
                   fontWeight: _isActive ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: Sizes.threeXSmall),
               Text(
                 caption,
                 style: theme.textTheme.bodySmall?.copyWith(

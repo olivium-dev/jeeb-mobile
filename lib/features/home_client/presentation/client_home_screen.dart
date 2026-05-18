@@ -6,50 +6,35 @@ import '../../../l10n/app_localizations.dart';
 import '../application/client_home_cubit.dart';
 import '../application/client_home_state.dart';
 import '../domain/client_home_request.dart';
-import '../domain/recent_delivery_summary.dart';
 import 'widgets/active_request_card.dart';
 import 'widgets/client_home_greeting.dart';
-import 'widgets/client_home_voice_cta.dart';
-import 'widgets/recent_delivery_card.dart';
+import 'widgets/replies_card.dart';
 
-/// Client-role home tab. Shows greeting + voice CTA, then either a list of
-/// active delivery requests or an empty-state with a "create your first
-/// request" call to action, plus a "Order again" strip when a recent
-/// completed delivery exists.
+/// Client home screen matching the Figma design (node 56535:1525).
 ///
-/// Drives all state off [ClientHomeCubit]; callbacks for navigation are
-/// injected so the screen can be reused outside the shell (e.g. deep links)
-/// without taking a hard dependency on `go_router`.
+/// Layout top-to-bottom:
+/// 1. Greeting header with avatar, "Hello, {name}", "Everything, One Place", and "+" button
+/// 2. Pill-shaped search bar (`OmdsSearchBar`)
+/// 3. Tab chips row: In Progress | Pending Requests | Replies (`OmdsChip`)
+/// 4. Order cards (`ActiveOrderCard`) with avatar, name + tier badge,
+///    destination, progress bar (Ordered → Picked → In Transit), and an
+///    `OmdsPrimaryButton` "Track my order" CTA when actionable.
 class ClientHomeScreen extends StatefulWidget {
-  const ClientHomeScreen({
-    super.key,
-    this.onOpenRequest,
-    this.onCreateRequest,
-    this.onReorder,
-  });
+  const ClientHomeScreen({super.key, this.onOpenRequest, this.onCreateRequest});
 
-  /// Tap on an active-request card. The shell wires this to the tracking
-  /// screen; the screen itself doesn't care which route the host uses.
   final void Function(ClientHomeRequest request)? onOpenRequest;
-
-  /// Tap on either the voice CTA or the empty-state "Create your first
-  /// request" button. Both route to the same recorder.
   final VoidCallback? onCreateRequest;
-
-  /// Tap on the "Re-order" button on the recent-delivery card.
-  final void Function(RecentDeliverySummary summary)? onReorder;
 
   @override
   State<ClientHomeScreen> createState() => _ClientHomeScreenState();
 }
 
 class _ClientHomeScreenState extends State<ClientHomeScreen> {
+  ClientHomeTab _selectedTab = ClientHomeTab.inProgress;
+
   @override
   void initState() {
     super.initState();
-    // Fire the initial load; the cubit guards against re-entry so the
-    // post-frame schedule is just here to avoid running it while the
-    // build phase is in flight.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final cubit = context.read<ClientHomeCubit>();
@@ -65,199 +50,371 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       builder: (context, state) {
         return OmdsPullToRefresh(
           onRefresh: () => context.read<ClientHomeCubit>().refresh(),
-          child: _bodyForState(state),
+          child: _ClientHomeBody(
+            state: state,
+            selectedTab: _selectedTab,
+            onTabSelected: (tab) => setState(() => _selectedTab = tab),
+            onCreateRequest: widget.onCreateRequest,
+            onOpenRequest: widget.onOpenRequest,
+          ),
         );
       },
     );
   }
+}
 
-  Widget _bodyForState(ClientHomeState state) {
+class _ClientHomeBody extends StatelessWidget {
+  const _ClientHomeBody({
+    required this.state,
+    required this.selectedTab,
+    required this.onTabSelected,
+    required this.onCreateRequest,
+    required this.onOpenRequest,
+  });
+
+  final ClientHomeState state;
+  final ClientHomeTab selectedTab;
+  final ValueChanged<ClientHomeTab> onTabSelected;
+  final VoidCallback? onCreateRequest;
+  final void Function(ClientHomeRequest)? onOpenRequest;
+
+  @override
+  Widget build(BuildContext context) {
     switch (state.status) {
       case ClientHomeStatus.initial:
       case ClientHomeStatus.loading:
-        return const _LoadingView();
+        return _LoadingLayout(onCreateRequest: onCreateRequest);
       case ClientHomeStatus.failed:
-        return _FailedView(
-          onRetry: () => context.read<ClientHomeCubit>().load(),
+        return _FailedLayout(
+          name: state.greetingName,
+          onCreateRequest: onCreateRequest,
         );
       case ClientHomeStatus.ready:
-        return _ReadyView(
+        return _ReadyLayout(
           state: state,
-          onOpenRequest: widget.onOpenRequest,
-          onCreateRequest: widget.onCreateRequest,
-          onReorder: widget.onReorder,
+          selectedTab: selectedTab,
+          onTabSelected: onTabSelected,
+          onCreateRequest: onCreateRequest,
+          onOpenRequest: onOpenRequest,
         );
     }
   }
 }
 
-class _LoadingView extends StatelessWidget {
-  const _LoadingView();
+class _LoadingLayout extends StatelessWidget {
+  const _LoadingLayout({required this.onCreateRequest});
+
+  final VoidCallback? onCreateRequest;
 
   @override
   Widget build(BuildContext context) {
-    // ListView so pull-to-refresh still works while we have no content.
     return ListView(
-      key: const Key('client-home-loading'),
       physics: const AlwaysScrollableScrollPhysics(),
-      children: const [
-        SizedBox(height: Spacing.fourXLarge),
-        Center(child: CircularProgressIndicator()),
+      children: [
+        ClientHomeGreeting(name: null, onAddPressed: onCreateRequest),
+        const _ClientHomeSearchBar(),
+        const SizedBox(height: Spacing.large),
+        const Center(child: OmdsLoadingState()),
       ],
     );
   }
 }
 
-class _FailedView extends StatelessWidget {
-  const _FailedView({required this.onRetry});
+class _FailedLayout extends StatelessWidget {
+  const _FailedLayout({required this.name, required this.onCreateRequest});
 
-  final VoidCallback onRetry;
+  final String? name;
+  final VoidCallback? onCreateRequest;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return ListView(
-      key: const Key('client-home-failed'),
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
+        ClientHomeGreeting(name: name, onAddPressed: onCreateRequest),
+        const _ClientHomeSearchBar(),
         const SizedBox(height: Spacing.xLarge),
         OmdsErrorState(
           icon: Icons.cloud_off_outlined,
           title: l10n.homeLoadFailedTitle,
           message: l10n.homeLoadFailedBody,
           retryLabel: l10n.homeLoadFailedRetry,
-          onRetry: onRetry,
+          onRetry: () => context.read<ClientHomeCubit>().load(),
         ),
       ],
     );
   }
 }
 
-class _ReadyView extends StatelessWidget {
-  const _ReadyView({
+class _ReadyLayout extends StatelessWidget {
+  const _ReadyLayout({
     required this.state,
-    required this.onOpenRequest,
+    required this.selectedTab,
+    required this.onTabSelected,
     required this.onCreateRequest,
-    required this.onReorder,
+    required this.onOpenRequest,
   });
 
   final ClientHomeState state;
-  final void Function(ClientHomeRequest request)? onOpenRequest;
+  final ClientHomeTab selectedTab;
+  final ValueChanged<ClientHomeTab> onTabSelected;
   final VoidCallback? onCreateRequest;
-  final void Function(RecentDeliverySummary summary)? onReorder;
+  final void Function(ClientHomeRequest)? onOpenRequest;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final scheme = Theme.of(context).colorScheme;
-    final hasRecent = state.recentDeliveries.isNotEmpty;
     return ListView(
-      key: const Key('client-home-ready'),
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.only(bottom: Spacing.twoXLarge),
-      children: [
-        ClientHomeGreeting(name: state.greetingName),
-        ClientHomeVoiceCta(
-          onPressed: () => onCreateRequest?.call(),
-        ),
-        if (state.isEmpty)
-          _EmptyState(onCreateRequest: onCreateRequest)
-        else
-          _ActiveSection(
-            requests: state.activeRequests,
-            onOpenRequest: onOpenRequest,
-          ),
-        if (hasRecent) ...[
-          const SizedBox(height: Spacing.large),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
-            child: Text(
-              l10n.homeRecentSectionTitle,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: scheme.onSurface,
-                  ),
-            ),
-          ),
-          const SizedBox(height: Spacing.small),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
-            child: RecentDeliveryCard(
-              summary: state.recentDeliveries.first,
-              onReorder: () => onReorder?.call(state.recentDeliveries.first),
-            ),
-          ),
-        ],
-      ],
+      children: _scrollChildren(),
     );
+  }
+
+  List<Widget> _scrollChildren() {
+    return <Widget>[
+      ClientHomeGreeting(
+        name: state.greetingName,
+        onAddPressed: onCreateRequest,
+      ),
+      const _ClientHomeSearchBar(),
+      const SizedBox(height: Spacing.large),
+      _ClientHomeTabBar(selectedTab: selectedTab, onSelected: onTabSelected),
+      const SizedBox(height: Spacing.large),
+      _ReadyContent(
+        state: state,
+        selectedTab: selectedTab,
+        onCreateRequest: onCreateRequest,
+        onOpenRequest: onOpenRequest,
+      ),
+    ];
   }
 }
 
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.onCreateRequest});
+class _ReadyContent extends StatelessWidget {
+  const _ReadyContent({
+    required this.state,
+    required this.selectedTab,
+    required this.onCreateRequest,
+    required this.onOpenRequest,
+  });
 
+  final ClientHomeState state;
+  final ClientHomeTab selectedTab;
   final VoidCallback? onCreateRequest;
+  final void Function(ClientHomeRequest)? onOpenRequest;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final items = state.listFor(selectedTab);
+    if (items.isEmpty) {
+      return _TabEmptyState(
+        selectedTab: selectedTab,
+        l10n: l10n,
+        onCreateRequest: onCreateRequest,
+      );
+    }
+    switch (selectedTab) {
+      case ClientHomeTab.inProgress:
+      case ClientHomeTab.pendingRequests:
+        return _ActiveRequestList(
+          requests: items,
+          onOpenRequest: onOpenRequest,
+        );
+      case ClientHomeTab.replies:
+        return _RepliesList(
+          requests: items,
+          onOpenRequest: onOpenRequest,
+        );
+    }
+  }
+}
+
+/// Pill-shaped read-only search placeholder backed by [OmdsSearchBar].
+///
+/// The home tab uses the search bar as a navigation affordance, not as a
+/// live filter — tapping is suppressed by [IgnorePointer] until the search
+/// destination ships in a future wave.
+class _ClientHomeSearchBar extends StatelessWidget {
+  const _ClientHomeSearchBar();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
-      key: const Key('client-home-empty-state'),
-      padding: const EdgeInsets.symmetric(vertical: Spacing.large),
-      child: OmdsEmptyState(
-        icon: Icons.local_shipping_outlined,
-        title: l10n.homeEmptyTitle,
-        subtitle: l10n.homeEmptySubtitle,
-        buttonText: l10n.homeEmptyCta,
-        onButtonTap: onCreateRequest,
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
+      child: IgnorePointer(
+        child: OmdsSearchBar(
+          key: const Key('client-home-search-bar'),
+          hintText: 'Search...',
+          fillColor: colorScheme.surfaceContainerHigh,
+          borderRadius: UIConstants.borderRadiusPill,
+          height: Sizes.fiveXLarge,
+        ),
       ),
     );
   }
 }
 
-class _ActiveSection extends StatelessWidget {
-  const _ActiveSection({
+class _ClientHomeTabBar extends StatelessWidget {
+  const _ClientHomeTabBar({
+    required this.selectedTab,
+    required this.onSelected,
+  });
+
+  final ClientHomeTab selectedTab;
+  final ValueChanged<ClientHomeTab> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final tabs = <_TabSpec>[
+      _TabSpec(ClientHomeTab.inProgress, l10n.homeTabInProgress),
+      _TabSpec(ClientHomeTab.pendingRequests, l10n.homeTabPendingRequests),
+      _TabSpec(ClientHomeTab.replies, l10n.homeTabReplies),
+    ];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
+      child: Row(
+        children: [
+          for (var i = 0; i < tabs.length; i++) ...[
+            if (i > 0) const SizedBox(width: Spacing.xSmall),
+            _ClientHomeTabChip(
+              label: tabs[i].label,
+              isSelected: tabs[i].tab == selectedTab,
+              onTap: () => onSelected(tabs[i].tab),
+              keySuffix: tabs[i].tab.name,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TabSpec {
+  const _TabSpec(this.tab, this.label);
+
+  final ClientHomeTab tab;
+  final String label;
+}
+
+class _ClientHomeTabChip extends StatelessWidget {
+  const _ClientHomeTabChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+    required this.keySuffix,
+  });
+
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final String keySuffix;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return OmdsChip(
+      key: Key('client-home-tab-$keySuffix'),
+      label: label,
+      isSelected: isSelected,
+      onTap: onTap,
+      selectedColor: colorScheme.primary,
+      unselectedColor: Colors.transparent,
+      selectedTextColor: colorScheme.onPrimary,
+      unselectedTextColor: colorScheme.onSurfaceVariant,
+      borderColor: isSelected ? colorScheme.primary : colorScheme.outline,
+      borderRadius: OmdsBorderRadius.xSmall,
+    );
+  }
+}
+
+class _ActiveRequestList extends StatelessWidget {
+  const _ActiveRequestList({
     required this.requests,
     required this.onOpenRequest,
   });
 
   final List<ClientHomeRequest> requests;
-  final void Function(ClientHomeRequest request)? onOpenRequest;
+  final void Function(ClientHomeRequest)? onOpenRequest;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final scheme = Theme.of(context).colorScheme;
     return Column(
-      key: const Key('client-home-active-section'),
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: Spacing.large),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
-          child: Text(
-            l10n.homeActiveSectionTitle,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: scheme.onSurface,
-                ),
-          ),
-        ),
-        const SizedBox(height: Spacing.small),
         for (final r in requests)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              Spacing.medium,
-              0,
-              Spacing.medium,
-              Spacing.small,
-            ),
-            child: ActiveRequestCard(
-              request: r,
-              onTap: () => onOpenRequest?.call(r),
-            ),
-          ),
+          ActiveOrderCard(request: r, onTap: () => onOpenRequest?.call(r)),
       ],
     );
+  }
+}
+
+class _RepliesList extends StatelessWidget {
+  const _RepliesList({
+    required this.requests,
+    required this.onOpenRequest,
+  });
+
+  final List<ClientHomeRequest> requests;
+  final void Function(ClientHomeRequest)? onOpenRequest;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (final r in requests)
+          RepliesCard(request: r, onCheckOffers: () => onOpenRequest?.call(r)),
+      ],
+    );
+  }
+}
+
+class _TabEmptyState extends StatelessWidget {
+  const _TabEmptyState({
+    required this.selectedTab,
+    required this.l10n,
+    required this.onCreateRequest,
+  });
+
+  final ClientHomeTab selectedTab;
+  final AppLocalizations l10n;
+  final VoidCallback? onCreateRequest;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: Spacing.large),
+      child: OmdsEmptyState(
+        icon: _iconFor(selectedTab),
+        title: l10n.homeEmptyTitle,
+        subtitle: _subtitleFor(selectedTab),
+        buttonText: l10n.homeEmptyCta,
+        onButtonTap: onCreateRequest,
+      ),
+    );
+  }
+
+  IconData _iconFor(ClientHomeTab tab) {
+    switch (tab) {
+      case ClientHomeTab.inProgress:
+        return Icons.local_shipping_outlined;
+      case ClientHomeTab.pendingRequests:
+        return Icons.hourglass_empty_rounded;
+      case ClientHomeTab.replies:
+        return Icons.mark_chat_unread_outlined;
+    }
+  }
+
+  String _subtitleFor(ClientHomeTab tab) {
+    switch (tab) {
+      case ClientHomeTab.inProgress:
+        return l10n.homeInProgressEmpty;
+      case ClientHomeTab.pendingRequests:
+        return l10n.homePendingEmpty;
+      case ClientHomeTab.replies:
+        return l10n.homeRepliesEmpty;
+    }
   }
 }

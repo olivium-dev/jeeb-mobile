@@ -64,7 +64,10 @@ class _VoiceRecordingView extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.voiceRecordingTitle)),
+      appBar: OMDSAppBar(
+        title: l10n.voiceRecordingTitle,
+        centerTitle: false,
+      ),
       body: SafeArea(
         child: BlocConsumer<VoiceRecordingCubit, VoiceRecordingState>(
           listenWhen: (prev, curr) =>
@@ -240,7 +243,7 @@ class _PlaybackPreview extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(Spacing.medium),
+        borderRadius: OmdsBorderRadius.medium,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -269,7 +272,7 @@ class _PlaybackPreview extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: OmdsBorderRadius.twoXSmall,
                       child: LinearProgressIndicator(
                         value: progress,
                         minHeight: 6,
@@ -306,15 +309,15 @@ class _SentConfirmation extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 96,
-          height: 96,
+          width: Sizes.tenXLarge,
+          height: Sizes.tenXLarge,
           decoration: BoxDecoration(
             color: colorScheme.primary.withValues(alpha: 0.12),
             shape: BoxShape.circle,
           ),
           child: Icon(
             Icons.check_circle,
-            size: 56,
+            size: Sizes.fiveXLarge,
             color: colorScheme.primary,
           ),
         ),

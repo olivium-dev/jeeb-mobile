@@ -12,12 +12,14 @@ import 'package:jeeb_mobile/features/jeeber_home/presentation/jeeber_home_screen
 import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/availability_status_block.dart';
 import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/availability_toggle.dart';
 import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/inactivity_warning_banner.dart';
+import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import 'support/sync_app_localizations.dart';
 
 Widget _host(AvailabilityCubit cubit) {
   return MaterialApp(
+    theme: AppTheme.light(),
     locale: const Locale('en'),
     supportedLocales: AppLocalizations.supportedLocales,
     localizationsDelegates: const [

@@ -10,7 +10,6 @@ import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.d
 import 'package:jeeb_mobile/features/home_client/data/in_memory_client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_request.dart';
-import 'package:jeeb_mobile/features/home_client/domain/recent_delivery_summary.dart';
 import 'package:jeeb_mobile/features/home_client/presentation/client_home_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
@@ -47,7 +46,6 @@ Widget _harness({
   String? greetingName,
   void Function(ClientHomeRequest)? onOpenRequest,
   VoidCallback? onCreateRequest,
-  void Function(RecentDeliverySummary)? onReorder,
   Locale locale = const Locale('en'),
 }) {
   return MaterialApp(
@@ -69,7 +67,6 @@ Widget _harness({
         child: ClientHomeScreen(
           onOpenRequest: onOpenRequest,
           onCreateRequest: onCreateRequest,
-          onReorder: onReorder,
         ),
       ),
     ),
@@ -93,14 +90,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Hi, Layla'), findsOneWidget);
-      expect(find.text('Record a request'), findsOneWidget);
-      expect(find.byKey(const Key('client-home-empty-state')), findsOneWidget);
+      expect(find.text('Hello, Layla'), findsOneWidget);
       expect(find.text('Create your first request'), findsOneWidget);
-      expect(
-        find.byKey(const Key('client-home-active-section')),
-        findsNothing,
-      );
     });
 
     testWidgets('falls back to generic greeting when no name is provided',
@@ -127,7 +118,7 @@ void main() {
       expect(taps, 1);
     });
 
-    testWidgets('voice CTA invokes onCreateRequest', (tester) async {
+    testWidgets('greeting add button invokes onCreateRequest', (tester) async {
       var taps = 0;
       final repo = InMemoryClientHomeRepository(latency: Duration.zero);
       await tester.pumpWidget(_harness(
@@ -136,7 +127,7 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('client-home-voice-cta')));
+      await tester.tap(find.byKey(const Key('client-home-greeting-add')));
       await tester.pumpAndSettle();
 
       expect(taps, 1);
@@ -145,7 +136,7 @@ void main() {
 
   group('ClientHomeScreen populated state', () {
     testWidgets(
-        'renders an active request card with status, ETA, and Jeeber name',
+        'renders an active request card with title, destination, and progress labels',
         (tester) async {
       final repo = InMemoryClientHomeRepository(
         latency: Duration.zero,
@@ -168,16 +159,13 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Pharmacy run'), findsOneWidget);
-      expect(find.text('On the way'), findsOneWidget);
-      expect(find.text('8 min away'), findsOneWidget);
-      expect(find.text('with Karim'), findsOneWidget);
-      expect(
-        find.byKey(const Key('client-home-empty-state')),
-        findsNothing,
-      );
+      expect(find.text('Ashrafieh, Beirut'), findsOneWidget);
+      expect(find.text('Ordered'), findsOneWidget);
+      expect(find.text('Picked'), findsOneWidget);
+      expect(find.text('In Transit'), findsOneWidget);
     });
 
-    testWidgets('tapping an active card invokes onOpenRequest with that request',
+    testWidgets('tapping "Track my order" invokes onOpenRequest with that request',
         (tester) async {
       ClientHomeRequest? opened;
       final repo = InMemoryClientHomeRepository(
@@ -197,58 +185,15 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('active-request-card-r-1')));
+      await tester.tap(find.text('Track my order'));
       await tester.pumpAndSettle();
 
       expect(opened?.id, 'r-1');
     });
 
-    testWidgets('renders "Order again" with the most recent completed delivery',
-        (tester) async {
-      final repo = InMemoryClientHomeRepository(
-        latency: Duration.zero,
-        seedRecent: [
-          RecentDeliverySummary(
-            id: 'd-1',
-            title: 'Sushi from Caspar',
-            destinationLabel: 'Mar Mikhael',
-            completedAt: DateTime.utc(2026, 5, 16),
-          ),
-        ],
-      );
-      await tester.pumpWidget(_harness(repo: repo));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Order again'), findsOneWidget);
-      expect(find.text('Sushi from Caspar'), findsOneWidget);
-      expect(find.text('Re-order'), findsOneWidget);
-    });
-
-    testWidgets('Re-order tap invokes onReorder with the right summary',
-        (tester) async {
-      RecentDeliverySummary? reordered;
-      final repo = InMemoryClientHomeRepository(
-        latency: Duration.zero,
-        seedRecent: [
-          RecentDeliverySummary(
-            id: 'd-9',
-            title: 'Late-night water',
-            destinationLabel: 'Achrafieh',
-            completedAt: DateTime.utc(2026, 5, 16),
-          ),
-        ],
-      );
-      await tester.pumpWidget(_harness(
-        repo: repo,
-        onReorder: (s) => reordered = s,
-      ));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byKey(const Key('recent-delivery-reorder-d-9')));
-      await tester.pumpAndSettle();
-
-      expect(reordered?.id, 'd-9');
-    });
+    // Recent deliveries section ("Order again" / "Re-order") was removed in
+    // the tabbed redesign. The home screen now shows In Progress / Pending
+    // Requests / Replies tabs instead.
   });
 
   group('ClientHomeScreen i18n', () {
@@ -257,11 +202,12 @@ void main() {
       await tester.pumpWidget(_harness(
         repo: repo,
         locale: const Locale('ar'),
+        onCreateRequest: () {},
       ));
       await tester.pumpAndSettle();
 
       expect(find.text('ماذا تحتاج؟'), findsOneWidget);
-      expect(find.text('سجّل طلبًا'), findsOneWidget);
+      expect(find.text('أنشئ أول طلب لك'), findsOneWidget);
     });
   });
 }

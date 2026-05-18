@@ -37,7 +37,7 @@ class KycLivenessPromptCard extends StatelessWidget {
       padding: const EdgeInsets.all(Spacing.medium),
       decoration: BoxDecoration(
         color: scheme.primaryContainer.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(Spacing.small),
+        borderRadius: OmdsBorderRadius.small,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

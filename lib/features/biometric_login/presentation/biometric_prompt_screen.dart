@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:omds/omds.dart';
 import '../application/biometric_cubit.dart';
 
 class BiometricPromptScreen extends StatelessWidget {
@@ -9,49 +10,92 @@ class BiometricPromptScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => BiometricCubit()..checkAvailability(),
-      child: BlocBuilder<BiometricCubit, BiometricState>(
-        builder: (context, state) {
-          return Scaffold(
-            body: SafeArea(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.fingerprint,
-                      size: 80,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Use Biometrics',
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Sign in quickly with your fingerprint or face',
-                      style: Theme.of(context).textTheme.bodyLarge,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 48),
-                    if (state == BiometricState.available)
-                      FilledButton.icon(
-                        onPressed: () =>
-                            context.read<BiometricCubit>().authenticate(),
-                        icon: const Icon(Icons.fingerprint),
-                        label: const Text('Authenticate'),
-                      ),
-                    if (state == BiometricState.checking)
-                      const CircularProgressIndicator(),
-                    if (state == BiometricState.unavailable)
-                      const Text('Biometric authentication not available'),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
+      child: const _BiometricPromptScaffold(),
     );
+  }
+}
+
+class _BiometricPromptScaffold extends StatelessWidget {
+  const _BiometricPromptScaffold();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<BiometricCubit, BiometricState>(
+      builder: (context, state) {
+        return Scaffold(
+          body: SafeArea(
+            child: Center(
+              child: _PromptColumn(state: state),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PromptColumn extends StatelessWidget {
+  const _PromptColumn({required this.state});
+  final BiometricState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const _PromptHeader(),
+        const SizedBox(height: Spacing.fourXLarge),
+        _PromptAction(state: state),
+      ],
+    );
+  }
+}
+
+class _PromptHeader extends StatelessWidget {
+  const _PromptHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        Icon(
+          Icons.fingerprint,
+          size: Sizes.eightXLarge,
+          color: theme.colorScheme.primary,
+        ),
+        const SizedBox(height: Spacing.xLarge),
+        Text('Use Biometrics', style: theme.textTheme.headlineMedium),
+        const SizedBox(height: Spacing.small),
+        Text(
+          'Sign in quickly with your fingerprint or face',
+          style: theme.textTheme.bodyLarge,
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+}
+
+class _PromptAction extends StatelessWidget {
+  const _PromptAction({required this.state});
+  final BiometricState state;
+
+  @override
+  Widget build(BuildContext context) {
+    if (state == BiometricState.available) {
+      return OmdsPrimaryButton(
+        text: 'Authenticate',
+        icon: const Icon(Icons.fingerprint),
+        onTap: () => context.read<BiometricCubit>().authenticate(),
+      );
+    }
+    if (state == BiometricState.checking) {
+      return const OmdsLoadingState();
+    }
+    if (state == BiometricState.unavailable) {
+      return const Text('Biometric authentication not available');
+    }
+    return const SizedBox.shrink();
   }
 }

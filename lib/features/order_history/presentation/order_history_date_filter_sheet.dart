@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:omds/omds.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../domain/order_summary.dart';
@@ -43,11 +44,11 @@ class _OrderHistoryDateFilterSheetState
     final earliest = DateTime(now.year - 5);
 
     return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 8,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      padding: EdgeInsetsDirectional.only(
+        start: Spacing.medium,
+        end: Spacing.medium,
+        top: Spacing.xSmall,
+        bottom: MediaQuery.of(context).viewInsets.bottom + Spacing.xLarge,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -57,7 +58,7 @@ class _OrderHistoryDateFilterSheetState
             l10n.orderHistoryFilterTitle,
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: Spacing.medium),
           _DateRow(
             key: const Key('order-history-filter-from'),
             label: l10n.orderHistoryFilterFrom,
@@ -75,7 +76,7 @@ class _OrderHistoryDateFilterSheetState
             },
             onClear: _from == null ? null : () => setState(() => _from = null),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: Spacing.xSmall),
           _DateRow(
             key: const Key('order-history-filter-to'),
             label: l10n.orderHistoryFilterTo,
@@ -93,28 +94,28 @@ class _OrderHistoryDateFilterSheetState
             },
             onClear: _to == null ? null : () => setState(() => _to = null),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: Spacing.xLarge),
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
+                child: OMDSOutlinedButton(
                   key: const Key('order-history-filter-clear'),
-                  onPressed: () {
+                  text: l10n.orderHistoryFilterClear,
+                  onTap: () {
                     Navigator.of(context).pop(const OrderDateRange());
                   },
-                  child: Text(l10n.orderHistoryFilterClear),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: Spacing.small),
               Expanded(
-                child: FilledButton(
+                child: OmdsPrimaryButton(
                   key: const Key('order-history-filter-apply'),
-                  onPressed: () {
+                  text: l10n.orderHistoryFilterApply,
+                  onTap: () {
                     Navigator.of(context).pop(
                       OrderDateRange(from: _from, to: _to),
                     );
                   },
-                  child: Text(l10n.orderHistoryFilterApply),
                 ),
               ),
             ],
@@ -149,18 +150,13 @@ class _DateRow extends StatelessWidget {
     return Row(
       children: [
         SizedBox(
-          width: 64,
+          width: Sizes.sixXLarge,
           child: Text(label, style: theme.textTheme.bodyMedium),
         ),
         Expanded(
-          child: OutlinedButton(
-            onPressed: onTap,
-            child: Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: Text(
-                value == null ? placeholder : formatter.format(value!),
-              ),
-            ),
+          child: OMDSOutlinedButton(
+            text: value == null ? placeholder : formatter.format(value!),
+            onTap: onTap,
           ),
         ),
         IconButton(

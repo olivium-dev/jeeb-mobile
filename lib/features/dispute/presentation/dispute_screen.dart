@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:omds/omds.dart';
 
 class DisputeScreen extends StatefulWidget {
   final String deliveryId;
@@ -31,37 +32,45 @@ class _DisputeScreenState extends State<DisputeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Report Issue')),
+      appBar: const OMDSAppBar(title: 'Report Issue'),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(Spacing.medium),
         children: [
-          Text('What went wrong?', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 12),
+          Text(
+            'What went wrong?',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: Spacing.small),
           DropdownButtonFormField<String>(
-            decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
-            items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+            decoration: const InputDecoration(
+              labelText: 'Category',
+              border: OutlineInputBorder(),
+            ),
+            items: _categories
+                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                .toList(),
             onChanged: (v) => setState(() => _category = v),
           ),
-          const SizedBox(height: 16),
-          TextField(
+          const SizedBox(height: Spacing.medium),
+          OmdsTextField(
             controller: _descriptionController,
+            labelText: 'Describe the issue',
             maxLines: 5,
-            decoration: const InputDecoration(
-              labelText: 'Describe the issue',
-              border: OutlineInputBorder(),
-              alignLabelWithHint: true,
+          ),
+          const SizedBox(height: Spacing.medium),
+          OMDSOutlinedButton(
+            text: 'Add Photo (${_photoUrls.length})',
+            icon: const Icon(Icons.camera_alt),
+            onTap: () => setState(
+              () => _photoUrls.add('photo_${_photoUrls.length + 1}'),
             ),
           ),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: () => setState(() => _photoUrls.add('photo_${_photoUrls.length + 1}')),
-            icon: const Icon(Icons.camera_alt),
-            label: Text('Add Photo (${_photoUrls.length})'),
-          ),
-          const SizedBox(height: 24),
-          FilledButton(
-            onPressed: _category == null || _descriptionController.text.isEmpty ? null : () => Navigator.of(context).pop(true),
-            child: const Text('Submit Dispute'),
+          const SizedBox(height: Spacing.xLarge),
+          OmdsPrimaryButton(
+            text: 'Submit Dispute',
+            isEnabled:
+                _category != null && _descriptionController.text.isNotEmpty,
+            onTap: () => Navigator.of(context).pop(true),
           ),
         ],
       ),

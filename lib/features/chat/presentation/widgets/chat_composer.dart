@@ -90,10 +90,9 @@ class _ChatComposerState extends State<ChatComposer> {
                   return IconButton(
                     key: ChatComposer.attachButtonKey,
                     icon: state.isAttaching
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2.0),
+                        ? const OmdsButtonLoading(
+                            size: Sizes.large,
+                            strokeWidth: UIConstants.strokeWidthNormal,
                           )
                         : const Icon(Icons.attach_file),
                     tooltip: l10n.chatAttachTooltip,
@@ -102,7 +101,7 @@ class _ChatComposerState extends State<ChatComposer> {
                 },
               ),
               Expanded(
-                child: TextField(
+                child: OmdsTextField(
                   key: ChatComposer.textFieldKey,
                   controller: _controller,
                   focusNode: _focusNode,
@@ -110,30 +109,10 @@ class _ChatComposerState extends State<ChatComposer> {
                   maxLines: 5,
                   textInputAction: TextInputAction.newline,
                   textCapitalization: TextCapitalization.sentences,
+                  hintText: l10n.chatComposerHint,
+                  borderRadius: UIConstants.borderRadiusXLarge,
                   onChanged: (v) =>
                       context.read<ChatCubit>().composerChanged(v),
-                  decoration: InputDecoration(
-                    hintText: l10n.chatComposerHint,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide(color: colorScheme.outline),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide(color: colorScheme.outline),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide(
-                        color: colorScheme.primary,
-                        width: 1.5,
-                      ),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: Spacing.medium,
-                      vertical: Spacing.small,
-                    ),
-                  ),
                 ),
               ),
               BlocBuilder<ChatCubit, ChatState>(
@@ -173,21 +152,20 @@ class _AttachmentSheet extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: Spacing.medium),
         decoration: BoxDecoration(
           color: colorScheme.surface,
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
+          borderRadius: OmdsBorderRadius.topXLarge,
         ),
         padding: const EdgeInsets.all(Spacing.large),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 40,
-              height: 4,
+              width: Spacing.threeXLarge,
+              height: Spacing.twoXSmall,
               decoration: BoxDecoration(
                 color: colorScheme.outline,
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: const BorderRadius.all(
+                  Radius.circular(Sizes.threeXSmall),
+                ),
               ),
             ),
             const SizedBox(height: Spacing.large),
@@ -216,9 +194,10 @@ class _AttachmentSheet extends StatelessWidget {
               ],
             ),
             const SizedBox(height: Spacing.medium),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(l10n.chatAttachmentCancel),
+            OmdsPrimaryButton(
+              text: l10n.chatAttachmentCancel,
+              variant: OmdsButtonVariant.text,
+              onTap: () => Navigator.of(context).pop(),
             ),
           ],
         ),
@@ -245,7 +224,7 @@ class _AttachmentOption extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(Spacing.medium),
+      borderRadius: OmdsBorderRadius.medium,
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: Spacing.large,
@@ -255,8 +234,8 @@ class _AttachmentOption extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 56,
-              height: 56,
+              width: Sizes.fiveXLarge,
+              height: Sizes.fiveXLarge,
               decoration: BoxDecoration(
                 color: colorScheme.primary,
                 shape: BoxShape.circle,

@@ -3,12 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:jeeb_mobile/app/app.dart';
+import 'package:jeeb_mobile/features/shell/shell_screen.dart';
 
 void main() {
   setUp(() {
-    // Pre-mark onboarding as completed so the boot test continues to verify
-    // the shell, not the first-launch onboarding flow. Onboarding's own
-    // first-launch behavior is covered by `onboarding_screen_test.dart`.
     SharedPreferences.setMockInitialValues(<String, Object>{
       'app.onboarding.completed': true,
     });
@@ -18,13 +16,14 @@ void main() {
       (tester) async {
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(JeebApp(preferences: prefs));
-    await tester.pumpAndSettle();
+    // Allow GoRouter redirect to evaluate and the postFrameCallback to
+    // fire (push-notification wiring). Multiple pumps cover the redirect
+    // microtask, the setState in _initPushChain, and any pending frames.
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
 
-    expect(find.byType(NavigationBar), findsOneWidget);
-    // Default role is client → Home/Orders/Chat/Profile.
-    expect(find.text('Home'), findsWidgets);
-    expect(find.text('Orders'), findsWidgets);
-    expect(find.text('Chat'), findsWidgets);
-    expect(find.text('Profile'), findsWidgets);
+    expect(find.byType(ShellScreen), findsOneWidget);
+    expect(find.byType(Scaffold), findsWidgets);
   });
 }

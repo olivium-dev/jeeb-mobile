@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:omds/omds.dart';
 
 import '../../../../l10n/app_localizations.dart';
 
@@ -32,20 +33,23 @@ class OfferWindowTimer extends StatelessWidget {
             : colors.surfaceContainerHighest;
     return Container(
       key: const Key('offer-window-timer'),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.small,
+        vertical: Spacing.xSmall,
+      ),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: OmdsBorderRadius.small,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
             expired ? Icons.timer_off_outlined : Icons.timer_outlined,
-            size: 16,
+            size: Sizes.medium,
             color: foreground,
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: Spacing.xSmall),
           Text(
             expired
                 ? l10n.offersWindowExpired

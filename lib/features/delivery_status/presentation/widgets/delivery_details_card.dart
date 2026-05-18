@@ -114,7 +114,7 @@ class _DetailRow extends StatelessWidget {
                   color: colorScheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: Sizes.threeXSmall),
               Text(
                 primary,
                 style: theme.textTheme.bodyLarge?.copyWith(
@@ -123,7 +123,7 @@ class _DetailRow extends StatelessWidget {
                 ),
               ),
               if (secondary != null && secondary!.isNotEmpty) ...[
-                const SizedBox(height: 2),
+                const SizedBox(height: Sizes.threeXSmall),
                 Text(
                   secondary!,
                   style: theme.textTheme.bodySmall?.copyWith(

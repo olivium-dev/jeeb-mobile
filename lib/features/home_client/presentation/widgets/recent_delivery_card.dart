@@ -5,6 +5,11 @@ import '../../../../l10n/app_localizations.dart';
 import '../../domain/recent_delivery_summary.dart';
 
 /// One-tap "order again" card for the most recent completed delivery.
+///
+/// Composed entirely from OMDS primitives — [OmdsPrimaryButton] for the
+/// reorder CTA, and tokenized layout containers (`Spacing`, `Sizes`,
+/// `OmdsBorderRadius`, `colorScheme.*`) elsewhere. No raw `TextButton`,
+/// no hardcoded colors, no magic dimensions.
 class RecentDeliveryCard extends StatelessWidget {
   const RecentDeliveryCard({
     super.key,
@@ -17,64 +22,119 @@ class RecentDeliveryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(Spacing.medium),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(Spacing.medium),
+        borderRadius: OmdsBorderRadius.medium,
       ),
-      child: Row(
-        children: [
-          Container(
-            width: Sizes.xLarge,
-            height: Sizes.xLarge,
-            decoration: BoxDecoration(
-              color: scheme.primaryContainer,
-              borderRadius: BorderRadius.circular(Spacing.small),
-            ),
-            child: Icon(
-              Icons.replay_outlined,
-              color: scheme.onPrimaryContainer,
-              size: Sizes.large,
-            ),
-          ),
-          const SizedBox(width: Spacing.small),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  summary.title,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: scheme.onSurface,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: Spacing.twoXSmall),
-                Text(
-                  summary.destinationLabel,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: Spacing.small),
-          TextButton(
-            key: Key('recent-delivery-reorder-${summary.id}'),
-            onPressed: onReorder,
-            child: Text(l10n.homeReorderAction),
-          ),
-        ],
+      child: _RecentDeliveryRow(summary: summary, onReorder: onReorder),
+    );
+  }
+}
+
+class _RecentDeliveryRow extends StatelessWidget {
+  const _RecentDeliveryRow({required this.summary, required this.onReorder});
+
+  final RecentDeliverySummary summary;
+  final VoidCallback onReorder;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Row(
+      children: [
+        const _RecentDeliveryIcon(),
+        const SizedBox(width: Spacing.small),
+        Expanded(child: _RecentDeliveryText(summary: summary)),
+        const SizedBox(width: Spacing.small),
+        OmdsPrimaryButton(
+          key: Key('recent-delivery-reorder-${summary.id}'),
+          variant: OmdsButtonVariant.text,
+          text: l10n.homeReorderAction,
+          onTap: onReorder,
+        ),
+      ],
+    );
+  }
+}
+
+class _RecentDeliveryIcon extends StatelessWidget {
+  const _RecentDeliveryIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: Sizes.xLarge,
+      height: Sizes.xLarge,
+      decoration: BoxDecoration(
+        color: scheme.primaryContainer,
+        borderRadius: OmdsBorderRadius.small,
       ),
+      child: Icon(
+        Icons.replay_outlined,
+        color: scheme.onPrimaryContainer,
+        size: Sizes.large,
+      ),
+    );
+  }
+}
+
+class _RecentDeliveryText extends StatelessWidget {
+  const _RecentDeliveryText({required this.summary});
+
+  final RecentDeliverySummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _RecentDeliveryTitle(text: summary.title),
+        const SizedBox(height: Spacing.twoXSmall),
+        _RecentDeliverySubtitle(text: summary.destinationLabel),
+      ],
+    );
+  }
+}
+
+class _RecentDeliveryTitle extends StatelessWidget {
+  const _RecentDeliveryTitle({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Text(
+      text,
+      style: theme.textTheme.titleSmall?.copyWith(
+        fontWeight: FontWeight.w600,
+        color: theme.colorScheme.onSurface,
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
+class _RecentDeliverySubtitle extends StatelessWidget {
+  const _RecentDeliverySubtitle({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Text(
+      text,
+      style: theme.textTheme.bodySmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }

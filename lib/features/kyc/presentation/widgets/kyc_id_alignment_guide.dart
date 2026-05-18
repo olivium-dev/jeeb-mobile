@@ -64,7 +64,7 @@ class _AlignmentFrame extends StatelessWidget {
         key: KycIdAlignmentGuide.frameKey,
         decoration: BoxDecoration(
           color: scheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(Spacing.small),
+          borderRadius: OmdsBorderRadius.small,
           border: Border.all(color: scheme.outlineVariant),
         ),
         child: Stack(

@@ -1,11 +1,16 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-/// Placeholder restored under T-MOB-FIX-001 (AC1+AC4+AC5). Real implementation
-/// arrives in the per-feature follow-up ticket. Do NOT add behavior here.
-// Deviation note: router call-site passes a `deliveryId` (deep-link route
-// param); the field is retained but unused so the import-graph stays green.
+/// Placeholder governed by `qa/t-mob-fix-001/placeholder-discipline.sh`
+/// (Type-A list, JEB-137). The full Jeeber-profile-with-reviews UI for this
+/// route is the deliverable of `T-MOB-RATING-001` and ships only after the
+/// CI gate is lifted (this file removed from `TYPE_A_FILES`). Until then,
+/// every rule asserted by that script holds on every PR; do NOT add
+/// behavior, action buttons, loading indicators, dialogs, snackbars, or
+/// l10n hooks here, and keep the AC5 logger inside `initState`.
+///
+/// The router call-site passes a `deliveryId` (deep-link route param); the
+/// field is retained but unused so the import-graph stays green.
 class RatingPromptScreen extends StatefulWidget {
   const RatingPromptScreen({super.key, required this.deliveryId});
 
@@ -16,7 +21,7 @@ class RatingPromptScreen extends StatefulWidget {
 }
 
 class _RatingPromptScreenState extends State<RatingPromptScreen> {
-  static const _featureId = 'rating-prompt';
+  static const String _featureId = 'rating-prompt';
 
   @override
   void initState() {
@@ -30,7 +35,7 @@ class _RatingPromptScreenState extends State<RatingPromptScreen> {
       container: true,
       label: 'Rating Prompt coming soon. This screen is not yet available.',
       child: const OmdsEmptyStatePage(
-        appBar: null,
+        appBar: OMDSAppBar(title: 'Rate your Jeeber', showBackButton: true),
         icon: Icons.construction_outlined,
         title: 'Rating Prompt coming soon',
         subtitle: 'This screen is not yet available.',

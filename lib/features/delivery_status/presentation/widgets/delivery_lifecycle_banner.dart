@@ -43,7 +43,7 @@ class DeliveryLifecycleBanner extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(Spacing.small),
+        borderRadius: OmdsBorderRadius.small,
       ),
       child: Row(
         children: [

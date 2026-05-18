@@ -9,8 +9,10 @@ import '../application/chat_cubit.dart';
 import '../application/chat_state.dart';
 import '../data/in_memory_chat_gateway.dart';
 import '../domain/chat_gateway.dart';
+import '../domain/delivery_chat_message.dart';
 import 'widgets/chat_composer.dart';
 import 'widgets/chat_message_bubble.dart';
+import 'widgets/offer_card_bubble.dart';
 
 /// WhatsApp-style 1:1 chat between the client and the Jeeber for an active
 /// delivery (T-mobile-016 / JEEB-69).
@@ -96,7 +98,7 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
       if (!mounted || !_scrollController.hasClients) return;
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 220),
+        duration: UIConstants.animationFast,
         curve: Curves.easeOut,
       );
     });
@@ -136,8 +138,10 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
             return Column(
               children: [
                 Expanded(child: _buildMessages(context, state, l10n)),
-                const Divider(height: 1),
-                const ChatComposer(),
+                if (state.isComposerVisible) ...[
+                  const Divider(height: 1),
+                  const ChatComposer(),
+                ],
               ],
             );
           },
@@ -152,15 +156,27 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
     AppLocalizations l10n,
   ) {
     if (state.isLoadingHistory) {
-      return const Center(child: CircularProgressIndicator());
+      return const _ChatHistoryShimmer();
     }
     if (state.messages.isEmpty) {
+      final String title;
+      final String subtitle;
+      if (state.phase == ConversationPhase.unknown) {
+        title = l10n.chatNoConversationTitle;
+        subtitle = l10n.chatNoConversationSubtitle;
+      } else if (state.phase == ConversationPhase.broadcasting) {
+        title = l10n.chatBroadcastingTitle;
+        subtitle = l10n.chatBroadcastingEmpty;
+      } else {
+        title = l10n.chatEmptyThreadTitle;
+        subtitle = l10n.chatEmptyThreadSubtitle;
+      }
       return Center(
         child: OmdsEmptyState(
           key: ChatScreen.emptyStateKey,
           icon: Icons.chat_bubble_outline,
-          title: l10n.chatEmptyThreadTitle,
-          subtitle: l10n.chatEmptyThreadSubtitle,
+          title: title,
+          subtitle: subtitle,
         ),
       );
     }
@@ -169,8 +185,22 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
       controller: _scrollController,
       padding: const EdgeInsets.symmetric(vertical: Spacing.small),
       itemCount: state.messages.length,
-      itemBuilder: (context, index) =>
-          ChatMessageBubble(message: state.messages[index]),
+      itemBuilder: (context, index) {
+        final message = state.messages[index];
+        if (message.isOfferCard) {
+          final isAccepting =
+              state.acceptingOfferId == message.offerPayload?.offerId;
+          final disabled = state.acceptingOfferId != null && !isAccepting;
+          return OfferCardBubble(
+            message: message,
+            onAccept: (offerId) =>
+                context.read<ChatCubit>().acceptOffer(offerId),
+            isAccepting: isAccepting,
+            acceptDisabled: disabled,
+          );
+        }
+        return ChatMessageBubble(message: message);
+      },
     );
   }
 
@@ -185,5 +215,29 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
       case ChatError.sendFailed:
         return l10n.chatErrorSendFailed;
     }
+  }
+}
+
+/// Skeleton placeholder shown while the chat history is loading.
+///
+/// Uses [OmdsListItemShimmer] (the canonical OMDS list-loading primitive) to
+/// hint at the upcoming message bubble layout — leading avatar circle plus a
+/// title-and-subtitle text pair — instead of a content-free spinner.
+class _ChatHistoryShimmer extends StatelessWidget {
+  const _ChatHistoryShimmer();
+
+  static const int _placeholderCount = 6;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      key: const Key('chat-screen-history-shimmer'),
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.medium,
+        vertical: Spacing.small,
+      ),
+      itemCount: _placeholderCount,
+      itemBuilder: (_, __) => const OmdsListItemShimmer(),
+    );
   }
 }

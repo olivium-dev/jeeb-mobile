@@ -56,7 +56,7 @@ void main() {
       build: () => build(name: 'Layla'),
       setUp: () => when(() => repo.loadSnapshot()).thenAnswer(
         (_) async => ClientHomeSnapshot(
-          activeRequests: [_req('r-1', ClientRequestStatus.searching)],
+          inProgress: [_req('r-1', ClientRequestStatus.searching)],
           recentDeliveries: [_recent('o-1')],
         ),
       ),
@@ -82,7 +82,6 @@ void main() {
       build: () => build(),
       setUp: () => when(() => repo.loadSnapshot()).thenAnswer(
         (_) async => ClientHomeSnapshot(
-          activeRequests: const [],
           recentDeliveries: [
             _recent('o-1'),
             _recent('o-2'),
@@ -119,10 +118,7 @@ void main() {
     test('isEmpty reflects an empty active list after a successful load',
         () async {
       when(() => repo.loadSnapshot()).thenAnswer(
-        (_) async => const ClientHomeSnapshot(
-          activeRequests: [],
-          recentDeliveries: [],
-        ),
+        (_) async => const ClientHomeSnapshot(),
       );
       final cubit = build(name: 'Tarek');
       await cubit.load();
@@ -137,8 +133,7 @@ void main() {
     test('keeps prior data visible while re-fetching', () async {
       when(() => repo.loadSnapshot()).thenAnswer(
         (_) async => ClientHomeSnapshot(
-          activeRequests: [_req('r-1', ClientRequestStatus.enRoute, eta: 8)],
-          recentDeliveries: const [],
+          inProgress: [_req('r-1', ClientRequestStatus.enRoute, eta: 8)],
         ),
       );
       final cubit = build();
@@ -147,11 +142,10 @@ void main() {
 
       when(() => repo.loadSnapshot()).thenAnswer(
         (_) async => ClientHomeSnapshot(
-          activeRequests: [
+          inProgress: [
             _req('r-1', ClientRequestStatus.enRoute, eta: 5),
             _req('r-2', ClientRequestStatus.searching),
           ],
-          recentDeliveries: const [],
         ),
       );
       await cubit.refresh();
@@ -165,10 +159,7 @@ void main() {
       when(() => repo.loadSnapshot()).thenAnswer((_) async {
         calls += 1;
         await Future<void>.delayed(const Duration(milliseconds: 20));
-        return const ClientHomeSnapshot(
-          activeRequests: [],
-          recentDeliveries: [],
-        );
+        return const ClientHomeSnapshot();
       });
       final cubit = build();
       final first = cubit.load();

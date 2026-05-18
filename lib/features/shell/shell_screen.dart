@@ -4,22 +4,24 @@ import 'package:omds/omds.dart';
 
 import '../../core/role/role_cubit.dart';
 import '../../core/role/user_role.dart';
-import '../../core/role/widgets/role_toggle.dart';
 import '../../l10n/app_localizations.dart';
-import 'tabs/chat_tab.dart';
 import 'tabs/dashboard_tab.dart';
 import 'tabs/earnings_tab.dart';
 import 'tabs/home_tab.dart';
 import 'tabs/orders_tab.dart';
 import 'tabs/profile_tab.dart';
 
-/// Role-aware bottom-nav shell.
+/// Role-aware bottom-nav shell matching the Figma design (node 56535:2151).
 ///
-/// - [UserRole.client]: Home / Orders / Chat / Profile
-/// - [UserRole.jeeber]: Dashboard / Earnings / Chat / Profile
+/// Figma shows 3 tabs:
+/// - [UserRole.client]: Requests / Delivery / Profile
+/// - [UserRole.jeeber]: Dashboard / Earnings / Profile
 ///
-/// The selected tab is local state; switching roles via Profile clamps the
-/// index to 0 so we never land on a tab that just disappeared.
+/// The bottom bar uses a white background with backdrop blur,
+/// Urbanist font for labels, and the Jeeb navy/brown color scheme.
+///
+/// Reuses Salehly's role-toggle pattern: mode is session-local state
+/// toggled from the Profile tab, resetting to tab 0 on switch.
 class ShellScreen extends StatefulWidget {
   const ShellScreen({super.key});
 
@@ -32,65 +34,46 @@ class _ShellScreenState extends State<ShellScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     return BlocConsumer<RoleCubit, UserRole>(
       listenWhen: (prev, curr) => prev != curr,
       listener: (_, __) => setState(() => _index = 0),
       builder: (context, role) {
-        final tabs = _tabsForRole(role, l10n);
+        final tabs = _tabsForRole(role);
         final safeIndex = _index.clamp(0, tabs.length - 1);
         return Scaffold(
-          appBar: OMDSAppBar(title: tabs[safeIndex].label),
-          body: Column(
-            children: [
-              if (safeIndex == 0) const RoleToggle(),
-              Expanded(
-                child: IndexedStack(
-                  index: safeIndex,
-                  children: tabs.map((t) => t.page).toList(growable: false),
-                ),
-              ),
-            ],
+          body: SafeArea(
+            bottom: false,
+            child: IndexedStack(
+              index: safeIndex,
+              children: tabs.map((t) => t.page).toList(growable: false),
+            ),
           ),
-          bottomNavigationBar: NavigationBar(
+          bottomNavigationBar: _JeebBottomBar(
+            tabs: tabs,
             selectedIndex: safeIndex,
-            onDestinationSelected: (i) => setState(() => _index = i),
-            destinations: [
-              for (final tab in tabs)
-                NavigationDestination(
-                  icon: Icon(tab.icon),
-                  selectedIcon: Icon(tab.selectedIcon),
-                  label: tab.label,
-                  tooltip: tab.label,
-                ),
-            ],
+            onTap: (i) => setState(() => _index = i),
           ),
         );
       },
     );
   }
 
-  List<_Tab> _tabsForRole(UserRole role, AppLocalizations l10n) {
+  List<_Tab> _tabsForRole(UserRole role) {
+    final l10n = AppLocalizations.of(context);
     switch (role) {
       case UserRole.client:
         return [
           _Tab(
-            label: l10n.navHome,
-            icon: Icons.home_outlined,
-            selectedIcon: Icons.home,
+            label: l10n.navRequests,
+            icon: Icons.star_outline,
+            selectedIcon: Icons.star,
             page: const HomeTab(),
           ),
           _Tab(
-            label: l10n.navOrders,
-            icon: Icons.receipt_long_outlined,
-            selectedIcon: Icons.receipt_long,
-            page: const OrdersTab(),
-          ),
-          _Tab(
-            label: l10n.navChat,
+            label: l10n.navDelivery,
             icon: Icons.chat_bubble_outline,
             selectedIcon: Icons.chat_bubble,
-            page: const ChatTab(),
+            page: const OrdersTab(),
           ),
           _Tab(
             label: l10n.navProfile,
@@ -114,12 +97,6 @@ class _ShellScreenState extends State<ShellScreen> {
             page: const EarningsTab(),
           ),
           _Tab(
-            label: l10n.navChat,
-            icon: Icons.chat_bubble_outline,
-            selectedIcon: Icons.chat_bubble,
-            page: const ChatTab(),
-          ),
-          _Tab(
             label: l10n.navProfile,
             icon: Icons.person_outline,
             selectedIcon: Icons.person,
@@ -127,6 +104,94 @@ class _ShellScreenState extends State<ShellScreen> {
           ),
         ];
     }
+  }
+}
+
+class _JeebBottomBar extends StatelessWidget {
+  const _JeebBottomBar({
+    required this.tabs,
+    required this.selectedIndex,
+    required this.onTap,
+  });
+
+  final List<_Tab> tabs;
+  final int selectedIndex;
+  final void Function(int) onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withAlpha(13),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: Sizes.fiveXLarge,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              for (var i = 0; i < tabs.length; i++)
+                _BarItem(
+                  tab: tabs[i],
+                  isSelected: i == selectedIndex,
+                  onTap: () => onTap(i),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BarItem extends StatelessWidget {
+  const _BarItem({
+    required this.tab,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final _Tab tab;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+    final color = isSelected ? colorScheme.primary : colorScheme.outline;
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isSelected ? tab.selectedIcon : tab.icon,
+            size: Sizes.xLarge,
+            color: color,
+          ),
+          const SizedBox(height: Sizes.threeXSmall),
+          Text(
+            tab.label,
+            style: textTheme.labelSmall?.copyWith(
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              letterSpacing: 0.2,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

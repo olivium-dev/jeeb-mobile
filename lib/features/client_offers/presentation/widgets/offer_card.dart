@@ -54,14 +54,14 @@ class OfferCard extends StatelessWidget {
       label: semanticLabel,
       child: Card(
         key: Key('offer-card-${offer.id}'),
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        elevation: 0,
+        margin: const EdgeInsets.symmetric(vertical: Spacing.xSmall),
+        elevation: UIConstants.elevationNone,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: OmdsBorderRadius.medium,
           side: BorderSide(color: colors.outlineVariant),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(Spacing.medium),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -70,9 +70,9 @@ class OfferCard extends StatelessWidget {
                   OmdsProfileAvatar(
                     initial: _initial(offer.jeeberName),
                     profilePicUrl: offer.avatarUrl,
-                    size: 48,
+                    size: Sizes.fourXLarge,
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: Spacing.small),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -83,12 +83,12 @@ class OfferCard extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: Spacing.twoXSmall),
                         OmdsStarRatingDisplay(
                           averageRating: offer.rating,
                           totalReviews: offer.ratingCount,
-                          starSize: 14,
-                          reviewsLabelBuilder: l10n.offersRatingCount,
+                          starSize: Sizes.medium,
+                          reviewsLabelBuilder: (count) => '$count',
                         ),
                       ],
                     ),
@@ -99,21 +99,21 @@ class OfferCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: Spacing.small),
               Row(
                 children: [
                   _MetaChip(
                     icon: Icons.access_time,
                     label: l10n.offersCardEtaMinutes(offer.etaMinutes),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: Spacing.xSmall),
                   _MetaChip(
                     icon: _vehicleIcon(offer.vehicle),
                     label: vehicleLabel,
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: Spacing.medium),
               SizedBox(
                 width: double.infinity,
                 child: OmdsPrimaryButton(
@@ -123,13 +123,7 @@ class OfferCard extends StatelessWidget {
                       : l10n.offersCardAccept,
                   isEnabled: !acceptDisabled && !isAccepting,
                   onTap: onAccept,
-                  icon: isAccepting
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : null,
+                  icon: isAccepting ? const OmdsButtonLoading() : null,
                 ),
               ),
             ],
@@ -191,10 +185,13 @@ class _FeePill extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.small,
+        vertical: Spacing.xSmall,
+      ),
       decoration: BoxDecoration(
         color: colors.primaryContainer,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: OmdsBorderRadius.small,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -209,7 +206,9 @@ class _FeePill extends StatelessWidget {
           Text(
             currency,
             style: theme.textTheme.labelSmall?.copyWith(
-              color: colors.onPrimaryContainer.withValues(alpha: 0.8),
+              color: colors.onPrimaryContainer.withValues(
+                alpha: UIConstants.opacityHigh,
+              ),
             ),
           ),
         ],
@@ -229,16 +228,19 @@ class _MetaChip extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.small,
+        vertical: Spacing.xSmall,
+      ),
       decoration: BoxDecoration(
         color: colors.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: OmdsBorderRadius.small,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: colors.onSurfaceVariant),
-          const SizedBox(width: 6),
+          Icon(icon, size: Sizes.medium, color: colors.onSurfaceVariant),
+          const SizedBox(width: Spacing.xSmall),
           Text(
             label,
             style: theme.textTheme.labelMedium?.copyWith(

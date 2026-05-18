@@ -13,9 +13,9 @@ class InMemoryClientHomeRepository implements ClientHomeRepository {
     List<ClientHomeRequest>? seedActive,
     List<RecentDeliverySummary>? seedRecent,
     Duration latency = const Duration(milliseconds: 150),
-  })  : _active = seedActive ?? const [],
-        _recent = seedRecent ?? const [],
-        _latency = latency;
+  }) : _active = seedActive ?? const [],
+       _recent = seedRecent ?? const [],
+       _latency = latency;
 
   final List<ClientHomeRequest> _active;
   final List<RecentDeliverySummary> _recent;
@@ -25,7 +25,7 @@ class InMemoryClientHomeRepository implements ClientHomeRepository {
   Future<ClientHomeSnapshot> loadSnapshot() async {
     await Future<void>.delayed(_latency);
     return ClientHomeSnapshot(
-      activeRequests: List.unmodifiable(_active),
+      inProgress: List.unmodifiable(_active),
       recentDeliveries: List.unmodifiable(_recent),
     );
   }

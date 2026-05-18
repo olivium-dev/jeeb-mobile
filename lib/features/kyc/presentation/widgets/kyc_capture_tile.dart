@@ -46,14 +46,14 @@ class KycCaptureTile extends StatelessWidget {
       label: captureCtaSemantic ?? label,
       child: InkWell(
         onTap: isProcessing ? null : onTap,
-        borderRadius: BorderRadius.circular(Spacing.small),
+        borderRadius: OmdsBorderRadius.small,
         child: Container(
           height: tileHeight,
           decoration: BoxDecoration(
             color: hasPhoto
                 ? colorScheme.surfaceContainerHighest
                 : colorScheme.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(Spacing.small),
+            borderRadius: OmdsBorderRadius.small,
             border: Border.all(
               color: hasPhoto
                   ? colorScheme.outline
@@ -62,7 +62,7 @@ class KycCaptureTile extends StatelessWidget {
             ),
           ),
           child: isProcessing
-              ? const Center(child: CircularProgressIndicator())
+              ? const Center(child: OmdsLoadingState())
               : hasPhoto
                   ? _PreviewBody(label: label, photo: photo!)
                   : _PlaceholderBody(label: label),
@@ -87,7 +87,7 @@ class _PlaceholderBody extends StatelessWidget {
         Icon(
           Icons.photo_camera_outlined,
           color: colorScheme.primary,
-          size: 32,
+          size: Sizes.twoXLarge,
         ),
         const SizedBox(height: Spacing.xSmall),
         Text(
@@ -113,7 +113,7 @@ class _PreviewBody extends StatelessWidget {
       children: [
         Positioned.fill(
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(Spacing.small),
+            borderRadius: OmdsBorderRadius.small,
             child: Image.memory(
               photo.bytes,
               fit: BoxFit.cover,
@@ -138,11 +138,11 @@ class _PreviewBody extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(
               horizontal: Spacing.small,
-              vertical: 2,
+              vertical: Sizes.threeXSmall,
             ),
             decoration: BoxDecoration(
               color: colorScheme.surface.withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(999),
+              borderRadius: OmdsBorderRadius.pill,
             ),
             child: Text(
               label,

@@ -3,6 +3,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
+import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/accessibility/accessibility.dart';
@@ -152,39 +153,47 @@ class _JeebAppState extends State<JeebApp> {
       ],
       child: BlocBuilder<LocaleCubit, Locale>(
         builder: (context, locale) {
-          return MaterialApp.router(
-            title: 'Jeeb',
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.light(),
-            darkTheme: AppTheme.dark(),
-            themeMode: ThemeMode.system,
-            locale: locale,
-            supportedLocales: AppLocalizations.supportedLocales,
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-            ],
-            routerConfig: _router,
-            builder: (context, child) {
-              final content = child ?? const SizedBox.shrink();
-              final handler = _pushHandler;
-              // Until the push chain finishes initializing post-first-frame,
-              // render the router content directly — no banner host. Once
-              // [_initPushChain] runs, this rebuilds with the banner overlay.
-              final wrapped = handler == null
-                  ? content
-                  : PushBannerHost(
-                      handler: handler,
-                      onBannerTap: (message) {
-                        final path = deepLinkForMessage(message);
-                        if (path != null) _router.go(path);
-                      },
-                      child: content,
-                    );
-              return jeebA11yBuilder(context, wrapped);
-            },
+          // OmdsColorTokensProvider exposes `context.omdsColorTokens` to the
+          // entire widget tree below MaterialApp. We use the default token
+          // set — Jeeb has no brand-specific overrides for grey-scale,
+          // shimmer, or semantic success/warning/info today. If that
+          // changes, override here, not per-feature.
+          return OmdsColorTokensProvider(
+            tokens: const OmdsColorTokens(),
+            child: MaterialApp.router(
+              title: 'Jeeb',
+              debugShowCheckedModeBanner: false,
+              theme: AppTheme.light(),
+              darkTheme: AppTheme.dark(),
+              themeMode: ThemeMode.system,
+              locale: locale,
+              supportedLocales: AppLocalizations.supportedLocales,
+              localizationsDelegates: const [
+                AppLocalizations.delegate,
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              routerConfig: _router,
+              builder: (context, child) {
+                final content = child ?? const SizedBox.shrink();
+                final handler = _pushHandler;
+                // Until the push chain finishes initializing post-first-frame,
+                // render the router content directly — no banner host. Once
+                // [_initPushChain] runs, this rebuilds with the banner overlay.
+                final wrapped = handler == null
+                    ? content
+                    : PushBannerHost(
+                        handler: handler,
+                        onBannerTap: (message) {
+                          final path = deepLinkForMessage(message);
+                          if (path != null) _router.go(path);
+                        },
+                        child: content,
+                      );
+                return jeebA11yBuilder(context, wrapped);
+              },
+            ),
           );
         },
       ),

@@ -5,11 +5,17 @@ import '../domain/recent_delivery_summary.dart';
 
 enum ClientHomeStatus { initial, loading, ready, failed }
 
+/// Which chip in the home-tab segmented control is selected. The three
+/// values mirror the Figma copy verbatim.
+enum ClientHomeTab { inProgress, pendingRequests, replies }
+
 class ClientHomeState extends Equatable {
   const ClientHomeState({
     this.status = ClientHomeStatus.initial,
     this.greetingName,
-    this.activeRequests = const [],
+    this.inProgress = const [],
+    this.pending = const [],
+    this.replies = const [],
     this.recentDeliveries = const [],
   });
 
@@ -21,19 +27,49 @@ class ClientHomeState extends Equatable {
   /// "Welcome" string instead.
   final String? greetingName;
 
-  /// Active delivery requests, newest first. Empty when the user has none.
-  final List<ClientHomeRequest> activeRequests;
+  /// Active delivery requests (the In Progress tab).
+  final List<ClientHomeRequest> inProgress;
+
+  /// Submitted requests still waiting for any offer (the Pending Requests tab).
+  final List<ClientHomeRequest> pending;
+
+  /// Requests that have at least one offer and are awaiting client acceptance
+  /// (the Replies tab — the +6 avatar stack lives here).
+  final List<ClientHomeRequest> replies;
 
   /// Recent completed deliveries for the "Order again" strip. The home tab
   /// shows at most one — the cubit caps this on emit.
   final List<RecentDeliverySummary> recentDeliveries;
 
-  bool get isEmpty => activeRequests.isEmpty;
+  /// Backward-compat alias — older tests read `activeRequests`.
+  List<ClientHomeRequest> get activeRequests => inProgress;
+
+  bool get isInProgressEmpty => inProgress.isEmpty;
+  bool get isPendingEmpty => pending.isEmpty;
+  bool get isRepliesEmpty => replies.isEmpty;
+
+  /// Returns the list backing the supplied tab.
+  List<ClientHomeRequest> listFor(ClientHomeTab tab) {
+    switch (tab) {
+      case ClientHomeTab.inProgress:
+        return inProgress;
+      case ClientHomeTab.pendingRequests:
+        return pending;
+      case ClientHomeTab.replies:
+        return replies;
+    }
+  }
+
+  /// Legacy alias used by older callers — true when the In Progress list is
+  /// empty.
+  bool get isEmpty => isInProgressEmpty;
 
   ClientHomeState copyWith({
     ClientHomeStatus? status,
     Object? greetingName = _sentinel,
-    List<ClientHomeRequest>? activeRequests,
+    List<ClientHomeRequest>? inProgress,
+    List<ClientHomeRequest>? pending,
+    List<ClientHomeRequest>? replies,
     List<RecentDeliverySummary>? recentDeliveries,
   }) {
     return ClientHomeState(
@@ -41,7 +77,9 @@ class ClientHomeState extends Equatable {
       greetingName: identical(greetingName, _sentinel)
           ? this.greetingName
           : greetingName as String?,
-      activeRequests: activeRequests ?? this.activeRequests,
+      inProgress: inProgress ?? this.inProgress,
+      pending: pending ?? this.pending,
+      replies: replies ?? this.replies,
       recentDeliveries: recentDeliveries ?? this.recentDeliveries,
     );
   }
@@ -50,7 +88,9 @@ class ClientHomeState extends Equatable {
   List<Object?> get props => [
         status,
         greetingName,
-        activeRequests,
+        inProgress,
+        pending,
+        replies,
         recentDeliveries,
       ];
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:omds/omds.dart';
 import '../application/offline_cubit.dart';
 
 class OfflineBanner extends StatelessWidget {
@@ -12,24 +13,36 @@ class OfflineBanner extends StatelessWidget {
         if (state.status == ConnectivityStatus.online) {
           return const SizedBox.shrink();
         }
-        return MaterialBanner(
-          content: Text(
-            'You are offline. Changes will sync when connection is restored.',
-            style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
-          ),
-          leading: Icon(
-            Icons.cloud_off,
-            color: Theme.of(context).colorScheme.onErrorContainer,
-          ),
-          backgroundColor: Theme.of(context).colorScheme.errorContainer,
-          actions: [
-            TextButton(
-              onPressed: () {},
-              child: const Text('DISMISS'),
-            ),
-          ],
-        );
+        return const _OfflineMaterialBanner();
       },
+    );
+  }
+}
+
+class _OfflineMaterialBanner extends StatelessWidget {
+  const _OfflineMaterialBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return MaterialBanner(
+      content: Text(
+        'You are offline. Changes will sync when connection is restored.',
+        style: TextStyle(color: theme.colorScheme.onErrorContainer),
+      ),
+      leading: Icon(
+        Icons.cloud_off,
+        color: theme.colorScheme.onErrorContainer,
+      ),
+      backgroundColor: theme.colorScheme.errorContainer,
+      actions: [
+        OmdsPrimaryButton(
+          text: 'DISMISS',
+          variant: OmdsButtonVariant.text,
+          textColor: theme.colorScheme.onErrorContainer,
+          onTap: () {},
+        ),
+      ],
     );
   }
 }
