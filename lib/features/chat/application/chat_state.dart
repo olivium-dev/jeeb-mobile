@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-import '../domain/chat_message.dart';
+import '../domain/delivery_chat_message.dart';
 
 /// Transient error surfaces the cubit can publish. One-shot — the view
 /// renders the corresponding copy and calls
@@ -16,7 +16,7 @@ enum ChatError {
 
 class ChatState extends Equatable {
   const ChatState({
-    this.messages = const <ChatMessage>[],
+    this.messages = const <DeliveryChatMessage>[],
     this.composerText = '',
     this.isLoadingHistory = false,
     this.isAttaching = false,
@@ -25,7 +25,7 @@ class ChatState extends Equatable {
 
   /// Oldest message first. The list view renders this with `reverse: true`
   /// flipped off, then auto-scrolls the controller down on every change.
-  final List<ChatMessage> messages;
+  final List<DeliveryChatMessage> messages;
 
   /// Live text in the composer. The view binds its controller to this value
   /// so a programmatic clear (post-send) propagates back to the field.
@@ -42,10 +42,10 @@ class ChatState extends Equatable {
 
   bool get canSendText => composerText.trim().isNotEmpty;
 
-  ChatMessage? get latestMessage => messages.isEmpty ? null : messages.last;
+  DeliveryChatMessage? get latestMessage => messages.isEmpty ? null : messages.last;
 
   ChatState copyWith({
-    List<ChatMessage>? messages,
+    List<DeliveryChatMessage>? messages,
     String? composerText,
     bool? isLoadingHistory,
     bool? isAttaching,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-import '../../domain/chat_message.dart';
+import '../../domain/delivery_chat_message.dart';
 import 'auto_direction_text.dart';
 
 /// Single message row.
@@ -15,7 +15,7 @@ import 'auto_direction_text.dart';
 class ChatMessageBubble extends StatelessWidget {
   const ChatMessageBubble({super.key, required this.message});
 
-  final ChatMessage message;
+  final DeliveryChatMessage message;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +34,7 @@ class ChatMessageBubble extends StatelessWidget {
 class _TextBubble extends StatelessWidget {
   const _TextBubble({required this.message});
 
-  final ChatMessage message;
+  final DeliveryChatMessage message;
 
   @override
   Widget build(BuildContext context) {
@@ -98,7 +98,7 @@ class _TextBubble extends StatelessWidget {
 class _PhotoBubble extends StatelessWidget {
   const _PhotoBubble({required this.message});
 
-  final ChatMessage message;
+  final DeliveryChatMessage message;
 
   @override
   Widget build(BuildContext context) {
@@ -181,7 +181,7 @@ class _BubbleFooter extends StatelessWidget {
     required this.isSender,
   });
 
-  final ChatMessage message;
+  final DeliveryChatMessage message;
   final Color color;
   final bool isSender;
 
