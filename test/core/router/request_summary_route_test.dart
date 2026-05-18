@@ -15,11 +15,15 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
 import 'package:jeeb_mobile/core/onboarding/onboarding_cubit.dart';
+import 'package:jeeb_mobile/core/role/role_cubit.dart';
+import 'package:jeeb_mobile/core/role/role_eligibility_cubit.dart';
 import 'package:jeeb_mobile/core/router/app_router.dart';
 import 'package:jeeb_mobile/features/biometric_auth/application/biometric_lock_cubit.dart';
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
@@ -27,9 +31,18 @@ import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_reposi
 import 'package:jeeb_mobile/features/request_summary/application/request_summary_cubit.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/request_draft.dart';
 import 'package:jeeb_mobile/features/settings/data/repositories/biometric_preference_repository_impl.dart';
+import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
-Future<({GoRouter router, OnboardingCubit onboarding, BiometricLockCubit lock})>
-    _buildRouter() async {
+import '../../support/sync_app_localizations.dart';
+
+Future<({
+  GoRouter router,
+  OnboardingCubit onboarding,
+  BiometricLockCubit lock,
+  RoleCubit role,
+  RoleEligibilityCubit roleEligibility,
+  LocaleCubit locale,
+})> _buildRouter() async {
   SharedPreferences.setMockInitialValues(<String, Object>{
     'app.onboarding.completed': true,
   });
@@ -41,14 +54,51 @@ Future<({GoRouter router, OnboardingCubit onboarding, BiometricLockCubit lock})>
     gateway: const UnavailableBiometricGateway(),
     pinRepository: SharedPrefsPinRepository(prefs: prefs),
   );
+  final role = RoleCubit(prefs: prefs);
+  final roleEligibility = RoleEligibilityCubit();
+  final locale = LocaleCubit(prefs: prefs);
 
   final router = AppRouter.create(onboarding: onboarding, biometricLock: lock);
-  return (router: router, onboarding: onboarding, lock: lock);
+  return (
+    router: router,
+    onboarding: onboarding,
+    lock: lock,
+    role: role,
+    roleEligibility: roleEligibility,
+    locale: locale,
+  );
 }
 
-Widget _harness(GoRouter router) {
-  return MaterialApp.router(
-    routerConfig: router,
+Widget _harness(
+  GoRouter router,
+  RoleCubit role,
+  RoleEligibilityCubit roleEligibility,
+  LocaleCubit locale,
+) {
+  // Shell renders on `/` before the test navigates to `/request-summary`, so
+  // it needs the cubits it (and its tabs in IndexedStack) read. Production
+  // wires the same cubits via [JeebApp]'s MultiBlocProvider; the harness
+  // mirrors it minimally here.
+  return MultiBlocProvider(
+    providers: [
+      BlocProvider<RoleCubit>.value(value: role),
+      BlocProvider<RoleEligibilityCubit>.value(value: roleEligibility),
+      BlocProvider<LocaleCubit>.value(value: locale),
+    ],
+    child: MaterialApp.router(
+      routerConfig: router,
+      // Use the sync test delegate — the production delegate's
+      // rootBundle.loadString does not complete inside `flutter test` so
+      // pumpAndSettle returns with the Localizations placeholder still up.
+      // See test/support/sync_app_localizations.dart.
+      localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+        SyncAppLocalizationsDelegate(),
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+    ),
   );
 }
 
@@ -66,10 +116,10 @@ void main() {
       'draft fields and an enabled Submit button injected via BlocProvider',
       (tester) async {
         final built = await _buildRouter();
-        await tester.pumpWidget(_harness(built.router));
-        await tester.pumpAndSettle();
-
+        // Navigate before mount so the shell at `/` (which depends on cubits
+        // outside this test's scope) never renders.
         built.router.go('/request-summary', extra: _draft);
+        await tester.pumpWidget(_harness(built.router, built.role, built.roleEligibility, built.locale));
         await tester.pumpAndSettle();
 
         // Cubit is in the tree (BlocProvider wires it up at the route).
@@ -104,12 +154,11 @@ void main() {
       '(no CastError, no Submit button, recovery UI rendered)',
       (tester) async {
         final built = await _buildRouter();
-        await tester.pumpWidget(_harness(built.router));
-        await tester.pumpAndSettle();
-
         // Simulates the cold `jeeb://` deep-link case the existing
-        // `state.extra as RequestDraft` cast would crash on.
+        // `state.extra as RequestDraft` cast would crash on. Navigate before
+        // mount so the shell at `/` never renders.
         built.router.go('/request-summary');
+        await tester.pumpWidget(_harness(built.router, built.role, built.roleEligibility, built.locale));
         await tester.pumpAndSettle();
 
         expect(
@@ -140,13 +189,12 @@ void main() {
       '(no _TypeError, no Submit button, recovery UI rendered)',
       (tester) async {
         final built = await _buildRouter();
-        await tester.pumpWidget(_harness(built.router));
-        await tester.pumpAndSettle();
-
         // The existing builder does `state.extra as RequestDraft` which
         // throws `_TypeError` when extra is anything else. After fix the
-        // builder must `is RequestDraft`-guard before downcasting.
+        // builder must `is RequestDraft`-guard before downcasting. Navigate
+        // before mount so the shell at `/` never renders.
         built.router.go('/request-summary', extra: 'not-a-request-draft');
+        await tester.pumpWidget(_harness(built.router, built.role, built.roleEligibility, built.locale));
         await tester.pumpAndSettle();
 
         expect(
