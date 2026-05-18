@@ -1,3 +1,10 @@
+// QA-PRE for JEB-1423 (T-MOB-FIX-005). Binds the wire-shape `ChatMessage`
+// ctor contract per the LEAD pin (comment #14900): every call to the ctor in
+// this file uses the named params `clientId`, `conversationId`, `senderId`,
+// `body`, `createdAt`, (optional `status`, `attempts`, `serverId`). The LEAD
+// pin marks this file as part of the binding contract — ENG (JEB-1425) must
+// make the ctor green, not edit these call sites.
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -74,6 +81,38 @@ void main() {
       final outbox = SharedPrefsChatOutbox(prefs: prefs);
       expect(await outbox.load(), isEmpty);
       expect(prefs.getString('chat.outbox.v1'), isNull);
+    });
+
+    test('markFailed default impl flips status without removing entry',
+        () async {
+      // Sanity-check that the default `markFailed` (declared on the abstract
+      // ChatOutbox, inherited by SharedPrefsChatOutbox) preserves the entry
+      // and only toggles status. Full state-machine coverage lives in
+      // test/chat_message_status_test.dart; this is the persistence-layer
+      // smoke that the inherited impl works against the real store.
+      final prefs = await SharedPreferences.getInstance();
+      final outbox = SharedPrefsChatOutbox(prefs: prefs);
+      await outbox.enqueue(_msg('a'));
+      await outbox.enqueue(_msg('b'));
+      await outbox.markFailed('a');
+      final loaded = await outbox.load();
+      expect(loaded.length, 2);
+      expect(loaded.firstWhere((m) => m.clientId == 'a').status,
+          ChatMessageStatus.failed);
+      expect(loaded.firstWhere((m) => m.clientId == 'b').status,
+          ChatMessageStatus.pending);
+    });
+
+    test('survives reload after markFailed (status persists to disk)',
+        () async {
+      final prefs = await SharedPreferences.getInstance();
+      final outbox = SharedPrefsChatOutbox(prefs: prefs);
+      await outbox.enqueue(_msg('a'));
+      await outbox.markFailed('a');
+
+      final reload = SharedPrefsChatOutbox(prefs: prefs);
+      final loaded = await reload.load();
+      expect(loaded.single.status, ChatMessageStatus.failed);
     });
   });
 }
