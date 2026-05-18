@@ -21,9 +21,8 @@ import '../../features/offers/domain/offer_submission_service.dart';
 import '../../features/offers/presentation/offer_submission_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/registration/presentation/registration_screen.dart';
-import '../../features/request_summary/domain/prohibited_acknowledgment_repository.dart';
+import '../../features/request_summary/application/request_summary_cubit.dart';
 import '../../features/request_summary/domain/request_draft.dart';
-import '../../features/request_summary/domain/request_submission_service.dart';
 import '../../features/request_summary/presentation/request_summary_screen.dart';
 import '../../features/settings/presentation/screens/notification_preferences_screen.dart';
 import '../../features/settings/presentation/screens/profile_edit_screen.dart';
@@ -238,13 +237,24 @@ class AppRouter {
           name: 'request-summary',
           // The aggregated draft is handed over via `extra` from the upstream
           // step that owns the full request-creation flow (T-mobile-012).
-          // Hitting the route cold without a draft is unrecoverable — the
-          // errorBuilder surfaces the missing-extra case via the cast.
-          builder: (context, state) => RequestSummaryScreen(
-            draft: state.extra as RequestDraft,
-            submissionService: sl<RequestSubmissionService>(),
-            acknowledgmentRepository: sl<ProhibitedAcknowledgmentRepository>(),
-          ),
+          // A cold deep-link can land here without a draft (or with a
+          // wrong-typed payload) — defensively type-check and fall back to a
+          // graceful empty-state scaffold instead of crashing on the cast.
+          builder: (context, state) {
+            final extra = state.extra;
+            if (extra is! RequestDraft) {
+              return Scaffold(
+                appBar: AppBar(title: const Text('Review Request')),
+                body: const Center(
+                  child: Text('No request draft available.'),
+                ),
+              );
+            }
+            return BlocProvider<RequestSummaryCubit>(
+              create: (_) => RequestSummaryCubit()..setDraft(extra),
+              child: const RequestSummaryScreen(),
+            );
+          },
         ),
       ],
       errorBuilder: (context, state) => Scaffold(
