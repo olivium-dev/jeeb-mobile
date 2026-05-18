@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -7,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/chat/application/chat_cubit.dart';
 import 'package:jeeb_mobile/features/chat/domain/chat_gateway.dart';
-import 'package:jeeb_mobile/features/chat/domain/chat_message.dart';
+import 'package:jeeb_mobile/features/chat/domain/delivery_chat_message.dart';
 import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_composer.dart';
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
@@ -15,11 +14,11 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 class _StubChatGateway implements ChatGateway {
   @override
-  Future<List<ChatMessage>> loadHistory(String deliveryId) async =>
-      const <ChatMessage>[];
+  Future<List<DeliveryChatMessage>> loadHistory(String deliveryId) async =>
+      const <DeliveryChatMessage>[];
 
   @override
-  Future<ChatMessage> send(String deliveryId, ChatMessage message) async {
+  Future<DeliveryChatMessage> send(String deliveryId, DeliveryChatMessage message) async {
     return message.copyWith(status: MessageStatus.sent);
   }
 

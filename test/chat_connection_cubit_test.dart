@@ -1,3 +1,10 @@
+// QA-PRE for JEB-1423 (T-MOB-FIX-005). Binds the wire-shape `ChatMessage`
+// ctor + ChatMessageStatus enum surface per the LEAD pin (comment #14900).
+// Every ChatMessage call in this file uses the named-param ctor
+// (clientId/conversationId/senderId/body/createdAt + optional
+// status/attempts/serverId). ENG (JEB-1425) must make this file compile by
+// implementing the ctor — they may NOT edit these call sites.
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/chat/application/chat_connection_cubit.dart';
@@ -292,8 +299,14 @@ void main() {
 
       socket.sent.clear();
       await cubit.retry('c-1');
-      // After retry: status pending, attempts reset, re-flushed once.
+      // After retry: status pending, attempts reset to 0, re-flushed once.
+      // Per LEAD pin (comment #14900) Decision 2 / retry-semantics contract.
       expect(cubit.state.pending.single.status, ChatMessageStatus.pending);
+      // _flushOutbox bumps attempts on the resend (0 → 1). The reset itself
+      // is verified at the markFailed/copyWith layer in
+      // test/chat_message_status_test.dart; here we assert the resend
+      // happened (length == 1) which only fires after the reset.
+      expect(cubit.state.pending.single.attempts, 1);
       expect(socket.sent.length, 1);
       await cubit.close();
     });

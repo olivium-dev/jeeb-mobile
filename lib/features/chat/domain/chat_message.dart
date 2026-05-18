@@ -1,116 +1,118 @@
-import 'dart:typed_data';
-
 import 'package:equatable/equatable.dart';
 
-import '../../photo_attachment/domain/photo_attachment.dart';
+/// Lifecycle status of an outbound chat message on the wire.
+///
+/// LEAD pin (JEB-1423 comment #14900) — the canonical set is five values in
+/// this order. The historical AC list cited `{queued, sending, ...}`; that
+/// wording is superseded — `pending` is the post-enqueue / pre-ack state.
+enum ChatMessageStatus { pending, sent, delivered, read, failed }
 
-/// Who composed the message. The chat is always a 1:1 between the local user
-/// and the counterpart for an active delivery; we keep the role enum on the
-/// message so the bubble layout can flip without re-deriving authorship from
-/// an id comparison at render time.
-enum ChatAuthor { me, them }
-
-/// Lifecycle status of an outgoing message. WhatsApp-style: a single tick once
-/// the server has acknowledged delivery, double ticks once the counterpart's
-/// device has confirmed read. Incoming messages carry [delivered] from the
-/// moment they enter the cubit — the sender's status is what's rendered.
-enum MessageStatus { sending, sent, delivered, read, failed }
-
-/// Content kind. Photo messages keep their bytes in-memory (the picker output)
-/// so the bubble can render them through a [MemoryImage] without a round trip
-/// to the network during the MVP. A real backend run would upload the bytes
-/// and swap in a CDN URL; the cubit's gateway hook lives for that swap.
-enum MessageKind { text, photo }
-
-/// Immutable record of a single chat message.
+/// Canonical wire-shape chat message exchanged with the chat-service.
+///
+/// Eight fields per the LEAD pin: `clientId`, `serverId`, `conversationId`,
+/// `senderId`, `body`, `createdAt`, `attempts`, `status`. The codec is
+/// hand-written (Option A — no build_runner) so the JSON keys and the enum
+/// lowercase names are the contract.
 class ChatMessage extends Equatable {
-  const ChatMessage._({
-    required this.id,
-    required this.author,
-    required this.sentAt,
-    required this.status,
-    required this.kind,
-    this.text = '',
-    this.photoBytes,
-    this.photoSource,
+  const ChatMessage({
+    required this.clientId,
+    required this.conversationId,
+    required this.senderId,
+    required this.body,
+    required this.createdAt,
+    this.serverId,
+    this.status = ChatMessageStatus.pending,
+    this.attempts = 0,
   });
 
-  factory ChatMessage.text({
-    required String id,
-    required ChatAuthor author,
-    required DateTime sentAt,
-    required MessageStatus status,
-    required String text,
-  }) => ChatMessage._(
-    id: id,
-    author: author,
-    sentAt: sentAt,
-    status: status,
-    kind: MessageKind.text,
-    text: text,
-  );
-
-  factory ChatMessage.photo({
-    required String id,
-    required ChatAuthor author,
-    required DateTime sentAt,
-    required MessageStatus status,
-    required Uint8List bytes,
-    required PhotoSource source,
-    String caption = '',
-  }) => ChatMessage._(
-    id: id,
-    author: author,
-    sentAt: sentAt,
-    status: status,
-    kind: MessageKind.photo,
-    text: caption,
-    photoBytes: bytes,
-    photoSource: source,
-  );
-
-  final String id;
-  final ChatAuthor author;
-  final DateTime sentAt;
-  final MessageStatus status;
-  final MessageKind kind;
-
-  /// Text body for text messages; photo caption (optional) for photo messages.
-  final String text;
-
-  /// Compressed JPEG bytes for photo messages. Null for text messages.
-  final Uint8List? photoBytes;
-
-  /// Source the photo came from. Mainly retained for analytics; the bubble
-  /// renders the same regardless of camera vs gallery.
-  final PhotoSource? photoSource;
-
-  bool get isMine => author == ChatAuthor.me;
-  bool get isPhoto => kind == MessageKind.photo;
-  bool get isText => kind == MessageKind.text;
-
-  ChatMessage copyWith({MessageStatus? status}) {
-    return ChatMessage._(
-      id: id,
-      author: author,
-      sentAt: sentAt,
-      status: status ?? this.status,
-      kind: kind,
-      text: text,
-      photoBytes: photoBytes,
-      photoSource: photoSource,
+  factory ChatMessage.fromJson(Map<String, Object?> json) {
+    return ChatMessage(
+      clientId: json['clientId']! as String,
+      serverId: json['serverId'] as String?,
+      conversationId: json['conversationId']! as String,
+      senderId: json['senderId']! as String,
+      body: json['body']! as String,
+      createdAt: DateTime.parse(json['createdAt']! as String),
+      attempts: (json['attempts'] as int?) ?? 0,
+      status: _statusFromName(json['status'] as String?),
     );
+  }
+
+  /// Locally-generated id assigned when the cubit enqueues the message.
+  /// Pairs with [serverId] once the server has accepted the send.
+  final String clientId;
+
+  /// Server-assigned id, present once the message has been acked. Null while
+  /// the message is still pending or has failed.
+  final String? serverId;
+
+  final String conversationId;
+  final String senderId;
+  final String body;
+
+  /// Wall-clock at enqueue time. Always serialized as UTC ISO-8601.
+  final DateTime createdAt;
+
+  /// Number of transport attempts made so far. Bumped by the flush path;
+  /// reset to 0 by the retry path.
+  final int attempts;
+
+  final ChatMessageStatus status;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        'clientId': clientId,
+        'serverId': serverId,
+        'conversationId': conversationId,
+        'senderId': senderId,
+        'body': body,
+        'createdAt': createdAt.toUtc().toIso8601String(),
+        'attempts': attempts,
+        'status': status.name,
+      };
+
+  ChatMessage copyWith({
+    String? clientId,
+    Object? serverId = _sentinel,
+    String? conversationId,
+    String? senderId,
+    String? body,
+    DateTime? createdAt,
+    int? attempts,
+    ChatMessageStatus? status,
+  }) {
+    return ChatMessage(
+      clientId: clientId ?? this.clientId,
+      serverId: identical(serverId, _sentinel)
+          ? this.serverId
+          : serverId as String?,
+      conversationId: conversationId ?? this.conversationId,
+      senderId: senderId ?? this.senderId,
+      body: body ?? this.body,
+      createdAt: createdAt ?? this.createdAt,
+      attempts: attempts ?? this.attempts,
+      status: status ?? this.status,
+    );
+  }
+
+  static ChatMessageStatus _statusFromName(String? raw) {
+    if (raw == null) return ChatMessageStatus.pending;
+    for (final s in ChatMessageStatus.values) {
+      if (s.name == raw) return s;
+    }
+    return ChatMessageStatus.pending;
   }
 
   @override
   List<Object?> get props => [
-    id,
-    author,
-    sentAt,
-    status,
-    kind,
-    text,
-    photoBytes?.length,
-    photoSource,
-  ];
+        clientId,
+        serverId,
+        conversationId,
+        senderId,
+        body,
+        createdAt,
+        attempts,
+        status,
+      ];
 }
+
+const Object _sentinel = Object();

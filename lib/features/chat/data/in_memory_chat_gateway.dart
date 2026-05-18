@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import '../domain/chat_gateway.dart';
-import '../domain/chat_message.dart';
+import '../domain/delivery_chat_message.dart';
 
 /// MVP gateway with no backend.
 ///
@@ -44,14 +44,17 @@ class InMemoryChatGateway implements ChatGateway {
   int _replyCounter = 0;
 
   @override
-  Future<List<ChatMessage>> loadHistory(String deliveryId) async {
+  Future<List<DeliveryChatMessage>> loadHistory(String deliveryId) async {
     // No persistence in the MVP — the cubit starts each session with an empty
     // thread, exactly like a freshly created delivery.
-    return const <ChatMessage>[];
+    return const <DeliveryChatMessage>[];
   }
 
   @override
-  Future<ChatMessage> send(String deliveryId, ChatMessage message) async {
+  Future<DeliveryChatMessage> send(
+    String deliveryId,
+    DeliveryChatMessage message,
+  ) async {
     await Future<void>.delayed(sendDelay);
     final sent = message.copyWith(status: MessageStatus.sent);
     // Schedule the delivered / read transitions independently so the
@@ -67,7 +70,7 @@ class InMemoryChatGateway implements ChatGateway {
     if (echoEnabled) {
       Future<void>.delayed(deliveryDelay + echoDelay, () {
         if (_controller.isClosed) return;
-        final reply = ChatMessage.text(
+        final reply = DeliveryChatMessage.text(
           id: 'echo-${_replyCounter++}',
           author: ChatAuthor.them,
           sentAt: DateTime.now(),
@@ -85,7 +88,7 @@ class InMemoryChatGateway implements ChatGateway {
 
   Future<void> dispose() => _controller.close();
 
-  String _replyFor(ChatMessage message) {
+  String _replyFor(DeliveryChatMessage message) {
     if (message.isPhoto) return 'Got the photo, thanks!';
     return 'Got it — on my way.';
   }

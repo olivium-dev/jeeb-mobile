@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/chat/application/chat_cubit.dart';
 import 'package:jeeb_mobile/features/chat/application/chat_state.dart';
 import 'package:jeeb_mobile/features/chat/domain/chat_gateway.dart';
-import 'package:jeeb_mobile/features/chat/domain/chat_message.dart';
+import 'package:jeeb_mobile/features/chat/domain/delivery_chat_message.dart';
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 import 'package:jeeb_mobile/features/photo_attachment/domain/photo_attachment.dart';
 import 'package:jeeb_mobile/features/photo_attachment/domain/photo_compressor.dart';
@@ -18,22 +18,22 @@ import 'package:jeeb_mobile/features/photo_attachment/domain/photo_picker_servic
 /// control over event timing.
 class _TestChatGateway implements ChatGateway {
   _TestChatGateway({
-    this.history = const <ChatMessage>[],
+    this.history = const <DeliveryChatMessage>[],
     this.failSend = false,
   });
 
-  final List<ChatMessage> history;
+  final List<DeliveryChatMessage> history;
   bool failSend;
 
   final _controller = StreamController<ChatEvent>.broadcast();
-  final List<ChatMessage> sentMessages = [];
+  final List<DeliveryChatMessage> sentMessages = [];
 
   @override
-  Future<List<ChatMessage>> loadHistory(String deliveryId) async =>
-      List<ChatMessage>.from(history);
+  Future<List<DeliveryChatMessage>> loadHistory(String deliveryId) async =>
+      List<DeliveryChatMessage>.from(history);
 
   @override
-  Future<ChatMessage> send(String deliveryId, ChatMessage message) async {
+  Future<DeliveryChatMessage> send(String deliveryId, DeliveryChatMessage message) async {
     sentMessages.add(message);
     if (failSend) {
       throw StateError('send failed');
@@ -176,7 +176,7 @@ void main() {
       await cubit.load();
       // Inbound message from the counterpart — should not be promoted by a
       // read receipt destined for the local outgoing queue.
-      final inbound = ChatMessage.text(
+      final inbound = DeliveryChatMessage.text(
         id: 'in-1',
         author: ChatAuthor.them,
         sentAt: DateTime(2026, 5, 17, 10, 25),
@@ -212,7 +212,7 @@ void main() {
         await cubit.load();
         cubit.composerChanged('draft in flight');
 
-        final inbound = ChatMessage.text(
+        final inbound = DeliveryChatMessage.text(
           id: 'in-99',
           author: ChatAuthor.them,
           sentAt: DateTime(2026, 5, 17, 10, 31),
@@ -243,7 +243,7 @@ void main() {
       // Counterpart replies in English.
       gateway.push(
         IncomingMessage(
-          ChatMessage.text(
+          DeliveryChatMessage.text(
             id: 'in-200',
             author: ChatAuthor.them,
             sentAt: DateTime(2026, 5, 17, 10, 32),
@@ -335,7 +335,7 @@ void main() {
   group('ChatCubit — lifecycle', () {
     test('load surfaces history from the gateway', () async {
       final history = [
-        ChatMessage.text(
+        DeliveryChatMessage.text(
           id: 'h1',
           author: ChatAuthor.them,
           sentAt: DateTime(2026, 5, 17, 10, 0),
