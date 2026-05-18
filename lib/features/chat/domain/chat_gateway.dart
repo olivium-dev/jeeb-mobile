@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'chat_message.dart';
+import 'delivery_chat_message.dart';
 
 /// Outbound contract for chat transport. The cubit handles optimistic UI
 /// (every outgoing message lands as [MessageStatus.sending] immediately and
@@ -14,13 +14,16 @@ import 'chat_message.dart';
 abstract class ChatGateway {
   /// History of messages previously exchanged on this thread. Returned newest
   /// last so the cubit can append without sorting.
-  Future<List<ChatMessage>> loadHistory(String deliveryId);
+  Future<List<DeliveryChatMessage>> loadHistory(String deliveryId);
 
   /// Push an outgoing message. Returns the same message with its status
   /// promoted to at-least [MessageStatus.sent]; the caller swaps the optimistic
   /// entry for this one. Throwing surfaces as [MessageStatus.failed] on the
   /// optimistic entry.
-  Future<ChatMessage> send(String deliveryId, ChatMessage message);
+  Future<DeliveryChatMessage> send(
+    String deliveryId,
+    DeliveryChatMessage message,
+  );
 
   /// Stream of inbound events for this thread — incoming messages from the
   /// counterpart, delivered receipts, and read receipts.
@@ -37,7 +40,7 @@ sealed class ChatEvent {
 /// A new message arrived from the counterpart.
 class IncomingMessage extends ChatEvent {
   const IncomingMessage(this.message);
-  final ChatMessage message;
+  final DeliveryChatMessage message;
 }
 
 /// The counterpart's device confirmed delivery for [messageId].

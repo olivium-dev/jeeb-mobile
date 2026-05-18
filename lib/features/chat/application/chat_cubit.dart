@@ -2,11 +2,10 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../photo_attachment/domain/photo_attachment.dart';
 import '../../photo_attachment/domain/photo_compressor.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
 import '../domain/chat_gateway.dart';
-import '../domain/chat_message.dart';
+import '../domain/delivery_chat_message.dart';
 import 'chat_state.dart';
 
 /// Drives the 1:1 chat between the local user and the delivery counterpart.
@@ -73,7 +72,7 @@ class ChatCubit extends Cubit<ChatState> {
   Future<void> sendText() async {
     final trimmed = state.composerText.trim();
     if (trimmed.isEmpty) return;
-    final draft = ChatMessage.text(
+    final draft = DeliveryChatMessage.text(
       id: _nextId(),
       author: ChatAuthor.me,
       sentAt: _clock(),
@@ -117,7 +116,7 @@ class ChatCubit extends Cubit<ChatState> {
           ? await _pickerService.pickFromCamera()
           : await _pickerService.pickFromGallery();
       final compressed = await _compressor.compress(raw.bytes);
-      final draft = ChatMessage.photo(
+      final draft = DeliveryChatMessage.photo(
         id: _nextId(),
         author: ChatAuthor.me,
         sentAt: _clock(),
@@ -143,7 +142,7 @@ class ChatCubit extends Cubit<ChatState> {
     }
   }
 
-  Future<void> _dispatch(ChatMessage draft) async {
+  Future<void> _dispatch(DeliveryChatMessage draft) async {
     try {
       final ack = await _gateway.send(_deliveryId, draft);
       _updateMessage(draft.id, ack.status);
@@ -196,7 +195,7 @@ class ChatCubit extends Cubit<ChatState> {
     final order = _statusOrder;
     final target = order[MessageStatus.read]!;
     var hit = false;
-    final updated = <ChatMessage>[];
+    final updated = <DeliveryChatMessage>[];
     for (final m in state.messages) {
       if (hit || !m.isMine) {
         updated.add(m);
