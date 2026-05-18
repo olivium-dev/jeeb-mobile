@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:omds/omds.dart';
 
 import '../domain/offer_submission_service.dart';
 
@@ -22,8 +23,8 @@ class OfferSubmissionScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Submit offer — $requestId'),
+      appBar: OMDSAppBar(
+        title: 'Submit offer — $requestId',
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: onWithdrawn,

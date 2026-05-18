@@ -75,35 +75,69 @@ class _RequestFeedViewState extends State<_RequestFeedView> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.requestFeedTitle)),
+      appBar: OMDSAppBar(title: l10n.requestFeedTitle, centerTitle: false),
       body: SafeArea(
         child: BlocConsumer<RequestFeedCubit, RequestFeedState>(
           listenWhen: (prev, curr) => prev.lastEffect != curr.lastEffect,
-          listener: (context, state) {
-            final effect = state.lastEffect;
-            if (effect == null) return;
-            _showEffectSnackBar(context, effect, l10n);
-            context.read<RequestFeedCubit>().clearEffect();
-          },
-          builder: (context, state) {
-            return Column(
-              children: [
-                if (state.transport == FeedTransport.polling)
-                  _ReconnectingBanner(message: l10n.requestFeedReconnecting),
-                Expanded(child: _buildBody(context, state, l10n)),
-              ],
-            );
-          },
+          listener: _onEffect,
+          builder: (context, state) => _FeedColumn(state: state, now: _now),
         ),
       ),
     );
   }
 
-  Widget _buildBody(
-    BuildContext context,
-    RequestFeedState state,
-    AppLocalizations l10n,
-  ) {
+  void _onEffect(BuildContext context, RequestFeedState state) {
+    final effect = state.lastEffect;
+    if (effect == null) return;
+    final l10n = AppLocalizations.of(context);
+    showOmdsSnackbar(context, message: _effectMessage(effect, l10n));
+    context.read<RequestFeedCubit>().clearEffect();
+  }
+
+  String _effectMessage(RequestActionEffect effect, AppLocalizations l10n) {
+    return switch (effect.outcome) {
+      RequestActionOutcome.accepted => l10n.requestFeedActionAcceptedSnack,
+      RequestActionOutcome.declined => l10n.requestFeedActionDeclinedSnack,
+      RequestActionOutcome.alreadyTaken => l10n.requestFeedActionTakenSnack,
+      RequestActionOutcome.expired => l10n.requestFeedActionExpiredSnack,
+      RequestActionOutcome.networkError =>
+        l10n.requestFeedActionNetworkSnack,
+    };
+  }
+}
+
+class _FeedColumn extends StatelessWidget {
+  const _FeedColumn({required this.state, required this.now});
+
+  final RequestFeedState state;
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Column(
+      children: [
+        if (state.transport == FeedTransport.polling)
+          _ReconnectingBanner(message: l10n.requestFeedReconnecting),
+        Expanded(child: _FeedBody(state: state, now: now, l10n: l10n)),
+      ],
+    );
+  }
+}
+
+class _FeedBody extends StatelessWidget {
+  const _FeedBody({
+    required this.state,
+    required this.now,
+    required this.l10n,
+  });
+
+  final RequestFeedState state;
+  final DateTime now;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
     if (state.status == RequestFeedStatus.loading && state.requests.isEmpty) {
       return const Center(child: OmdsLoadingState());
     }
@@ -115,49 +149,85 @@ class _RequestFeedViewState extends State<_RequestFeedView> {
         onRetry: () => context.read<RequestFeedCubit>().refresh(),
       );
     }
+    return _FeedListOrEmpty(state: state, now: now, l10n: l10n);
+  }
+}
+
+class _FeedListOrEmpty extends StatelessWidget {
+  const _FeedListOrEmpty({
+    required this.state,
+    required this.now,
+    required this.l10n,
+  });
+
+  final RequestFeedState state;
+  final DateTime now;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
     return OmdsPullToRefresh(
       onRefresh: () => context.read<RequestFeedCubit>().refresh(),
       child: state.requests.isEmpty
           ? _EmptyFeed(l10n: l10n)
-          : ListView.builder(
-              key: const Key('requestFeed.list'),
-              padding: const EdgeInsets.symmetric(vertical: Spacing.small),
-              itemCount: state.requests.length,
-              itemBuilder: (_, index) {
-                final request = state.requests[index];
-                return RequestCard(
-                  request: request,
-                  actionStatus: state.actionStatusFor(request.id),
-                  secondsRemaining: _secondsLeft(request),
-                  onAccept: () =>
-                      context.read<RequestFeedCubit>().accept(request.id),
-                  onDecline: () =>
-                      context.read<RequestFeedCubit>().decline(request.id),
-                );
-              },
-            ),
+          : _FeedList(state: state, now: now),
+    );
+  }
+}
+
+class _FeedList extends StatelessWidget {
+  const _FeedList({required this.state, required this.now});
+
+  final RequestFeedState state;
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context) {
+    final cubit = context.read<RequestFeedCubit>();
+    return ListView.builder(
+      key: const Key('requestFeed.list'),
+      padding: const EdgeInsets.symmetric(vertical: Spacing.small),
+      itemCount: state.requests.length,
+      itemBuilder: (_, index) => _FeedListRow(
+        request: state.requests[index],
+        actionStatus: state.actionStatusFor(state.requests[index].id),
+        now: now,
+        onAccept: () => cubit.accept(state.requests[index].id),
+        onDecline: () => cubit.decline(state.requests[index].id),
+      ),
+    );
+  }
+}
+
+class _FeedListRow extends StatelessWidget {
+  const _FeedListRow({
+    required this.request,
+    required this.actionStatus,
+    required this.now,
+    required this.onAccept,
+    required this.onDecline,
+  });
+
+  final DeliveryRequest request;
+  final RequestActionStatus actionStatus;
+  final DateTime now;
+  final VoidCallback onAccept;
+  final VoidCallback onDecline;
+
+  @override
+  Widget build(BuildContext context) {
+    return RequestCard(
+      request: request,
+      actionStatus: actionStatus,
+      secondsRemaining: _secondsLeft(),
+      onAccept: onAccept,
+      onDecline: onDecline,
     );
   }
 
-  int _secondsLeft(DeliveryRequest request) {
-    final diff = request.expiresAt.difference(_now).inSeconds;
+  int _secondsLeft() {
+    final diff = request.expiresAt.difference(now).inSeconds;
     return diff.clamp(0, 1 << 31);
-  }
-
-  void _showEffectSnackBar(
-    BuildContext context,
-    RequestActionEffect effect,
-    AppLocalizations l10n,
-  ) {
-    final message = switch (effect.outcome) {
-      RequestActionOutcome.accepted => l10n.requestFeedActionAcceptedSnack,
-      RequestActionOutcome.declined => l10n.requestFeedActionDeclinedSnack,
-      RequestActionOutcome.alreadyTaken => l10n.requestFeedActionTakenSnack,
-      RequestActionOutcome.expired => l10n.requestFeedActionExpiredSnack,
-      RequestActionOutcome.networkError =>
-        l10n.requestFeedActionNetworkSnack,
-    };
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -168,8 +238,7 @@ class _ReconnectingBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
     return Container(
       key: const Key('requestFeed.reconnectingBanner'),
       width: double.infinity,
@@ -177,25 +246,37 @@ class _ReconnectingBanner extends StatelessWidget {
         horizontal: Spacing.medium,
         vertical: Spacing.xSmall,
       ),
-      color: colorScheme.tertiaryContainer,
-      child: Row(
-        children: [
-          Icon(
-            Icons.wifi_off_outlined,
-            size: Sizes.medium,
-            color: colorScheme.onTertiaryContainer,
-          ),
-          const SizedBox(width: Spacing.xSmall),
-          Expanded(
-            child: Text(
-              message,
-              style: textTheme.bodySmall?.copyWith(
-                color: colorScheme.onTertiaryContainer,
-              ),
+      color: theme.colorScheme.tertiaryContainer,
+      child: _ReconnectingRow(message: message),
+    );
+  }
+}
+
+class _ReconnectingRow extends StatelessWidget {
+  const _ReconnectingRow({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Icon(
+          Icons.wifi_off_outlined,
+          size: Sizes.medium,
+          color: theme.colorScheme.onTertiaryContainer,
+        ),
+        const SizedBox(width: Spacing.xSmall),
+        Expanded(
+          child: Text(
+            message,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onTertiaryContainer,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

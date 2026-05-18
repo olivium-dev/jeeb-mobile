@@ -86,7 +86,7 @@ class _ClientOffersView extends StatelessWidget {
           switch (state.status) {
             case OffersScreenStatus.initial:
             case OffersScreenStatus.loading:
-              return const Center(child: CircularProgressIndicator());
+              return const OmdsLoadingState();
             case OffersScreenStatus.failed:
               return OmdsErrorState(
                 key: const Key('offer-load-error'),
@@ -146,11 +146,16 @@ class _LoadedBody extends StatelessWidget {
         state.acceptStatus == AcceptStatus.succeeded ||
         state.windowExpired ||
         !state.requestIsOpen;
-    return RefreshIndicator(
+    return OmdsPullToRefresh(
       onRefresh: onRefresh,
       child: ListView(
         key: const Key('offer-list'),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          Spacing.medium,
+          Spacing.medium,
+          Spacing.medium,
+          Spacing.xLarge,
+        ),
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           OfferWindowTimer(
@@ -158,7 +163,7 @@ class _LoadedBody extends StatelessWidget {
             expired: state.windowExpired,
           ),
           if (!state.requestIsOpen) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: Spacing.small),
             _Banner(
               key: const Key('offer-request-closed-banner'),
               icon: Icons.lock_outline,
@@ -166,7 +171,7 @@ class _LoadedBody extends StatelessWidget {
             ),
           ],
           if (state.acceptStatus == AcceptStatus.succeeded) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: Spacing.small),
             _Banner(
               key: const Key('offer-accepted-banner'),
               icon: Icons.check_circle_outline,
@@ -176,24 +181,24 @@ class _LoadedBody extends StatelessWidget {
             ),
           ],
           if (state.error != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: Spacing.small),
             _ErrorBanner(
               message: _errorCopyFor(l10n, state.error!),
               onDismiss: () =>
                   context.read<ClientOffersCubit>().acknowledgeError(),
             ),
           ],
-          const SizedBox(height: 16),
+          const SizedBox(height: Spacing.medium),
           Text(
             l10n.offersPanelHeader,
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: Spacing.small),
           OfferSortBar(mode: state.sortMode, onChanged: onSortChanged),
-          const SizedBox(height: 8),
+          const SizedBox(height: Spacing.xSmall),
           if (!state.hasOffers)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
+              padding: const EdgeInsets.symmetric(vertical: Spacing.xLarge),
               child: OmdsEmptyState(
                 key: const Key('offer-empty-state'),
                 icon: Icons.hourglass_top_outlined,
@@ -255,15 +260,15 @@ class _Banner extends StatelessWidget {
         ? colors.onTertiaryContainer
         : colors.onSurface;
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(Spacing.small),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: OmdsBorderRadius.small,
       ),
       child: Row(
         children: [
           Icon(icon, color: foreground),
-          const SizedBox(width: 12),
+          const SizedBox(width: Spacing.small),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -275,7 +280,7 @@ class _Banner extends StatelessWidget {
                       ?.copyWith(color: foreground),
                 ),
                 if (body != null) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: Spacing.twoXSmall),
                   Text(
                     body!,
                     style: theme.textTheme.bodySmall
@@ -303,15 +308,18 @@ class _ErrorBanner extends StatelessWidget {
     final colors = theme.colorScheme;
     return Container(
       key: const Key('offer-error-banner'),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.small,
+        vertical: Spacing.small,
+      ),
       decoration: BoxDecoration(
         color: colors.errorContainer,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: OmdsBorderRadius.small,
       ),
       child: Row(
         children: [
           Icon(Icons.error_outline, color: colors.onErrorContainer),
-          const SizedBox(width: 12),
+          const SizedBox(width: Spacing.small),
           Expanded(
             child: Text(
               message,

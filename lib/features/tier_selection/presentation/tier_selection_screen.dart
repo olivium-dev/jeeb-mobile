@@ -84,7 +84,10 @@ class _Scaffold extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       key: TierSelectionScreen.rootKey,
-      appBar: AppBar(title: Text(l10n.tierSelectionTitle)),
+      appBar: OMDSAppBar(
+        title: l10n.tierSelectionTitle,
+        centerTitle: false,
+      ),
       body: SafeArea(
         child: BlocConsumer<TierSelectionCubit, TierSelectionState>(
           listenWhen: (prev, curr) =>

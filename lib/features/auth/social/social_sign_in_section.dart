@@ -31,9 +31,12 @@ class SocialSignInSection extends StatelessWidget {
       listener: (context, state) {
         if (state.status == SocialAuthStatus.failed && state.error != null) {
           final message = _errorCopy(state.error!, l10n);
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(SnackBar(content: Text(message)));
+          // EXEMPT(omds-snackbar): OMDS ships `showOmdsErrorSnackbar` for
+          // display but does not expose a hide-current helper. We dedupe
+          // back-to-back failures here before delegating to OMDS for the
+          // actual presentation. Tracked under JEEB-58.
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          showOmdsErrorSnackbar(context, message: message);
           context.read<SocialAuthCubit>().clearError();
         }
         if (state.status == SocialAuthStatus.authenticated) {

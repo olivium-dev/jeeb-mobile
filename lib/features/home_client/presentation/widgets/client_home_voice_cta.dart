@@ -7,10 +7,7 @@ import '../../../../l10n/app_localizations.dart';
 /// the greeting on the home tab — large, tappable, mic-iconed — so the
 /// dominant CTA is "make a new request" even when the user has active ones.
 class ClientHomeVoiceCta extends StatelessWidget {
-  const ClientHomeVoiceCta({
-    super.key,
-    required this.onPressed,
-  });
+  const ClientHomeVoiceCta({super.key, required this.onPressed});
 
   final VoidCallback onPressed;
 

@@ -12,7 +12,7 @@ class ProfileAvatar extends StatelessWidget {
     super.key,
     required this.name,
     required this.photoUrl,
-    this.diameter = 96,
+    this.diameter = Sizes.tenXLarge,
   });
 
   final String? name;

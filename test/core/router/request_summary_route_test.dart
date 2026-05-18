@@ -18,6 +18,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
@@ -138,12 +139,18 @@ void main() {
         expect(find.text('88 Verdun Ave, Beirut'), findsOneWidget);
 
         // Submit button is present and enabled (not isSubmitting).
-        final submit = find.widgetWithText(FilledButton, 'Submit Request');
+        // RequestSummaryScreen renders an `OmdsLoadingButton` (OMDS sweep
+        // replaced the raw FilledButton). The button is "enabled" when
+        // `isLoading == false` and `isEnabled == true`.
+        final submit = find.widgetWithText(OmdsLoadingButton, 'Submit Request');
         expect(submit, findsOneWidget);
-        expect(tester.widget<FilledButton>(submit).onPressed, isNotNull);
+        final submitButton = tester.widget<OmdsLoadingButton>(submit);
+        expect(submitButton.isLoading, isFalse);
+        expect(submitButton.isEnabled, isTrue);
 
-        // No CircularProgressIndicator (the "draft == null" placeholder).
-        expect(find.byType(CircularProgressIndicator), findsNothing);
+        // No OmdsLoadingState (the "draft == null" placeholder rendered by
+        // RequestSummaryScreen — replaces the previous CircularProgressIndicator).
+        expect(find.byType(OmdsLoadingState), findsNothing);
 
         expect(tester.takeException(), isNull);
       },
@@ -172,7 +179,7 @@ void main() {
         // Submit button should not be present in the fallback path — there
         // is no draft to submit.
         expect(
-          find.widgetWithText(FilledButton, 'Submit Request'),
+          find.widgetWithText(OmdsLoadingButton, 'Submit Request'),
           findsNothing,
           reason: 'Fallback path must not render the populated summary '
               'screen with a Submit button.',
@@ -205,7 +212,7 @@ void main() {
         );
 
         expect(
-          find.widgetWithText(FilledButton, 'Submit Request'),
+          find.widgetWithText(OmdsLoadingButton, 'Submit Request'),
           findsNothing,
         );
 

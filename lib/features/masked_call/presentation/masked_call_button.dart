@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:omds/omds.dart';
 import '../application/masked_call_cubit.dart';
 
 class MaskedCallButton extends StatelessWidget {
@@ -11,30 +12,32 @@ class MaskedCallButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => MaskedCallCubit(),
-      child: BlocConsumer<MaskedCallCubit, MaskedCallState>(
-        listener: (context, state) {
-          if (state.error != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.error!)),
-            );
-          }
-        },
-        builder: (context, state) {
-          return FilledButton.icon(
-            onPressed: state.isLoading
-                ? null
-                : () => context.read<MaskedCallCubit>().initiateCall(orderId),
-            icon: state.isLoading
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.phone),
-            label: const Text('Call'),
-          );
-        },
+      child: _MaskedCallButtonView(orderId: orderId),
+    );
+  }
+}
+
+class _MaskedCallButtonView extends StatelessWidget {
+  const _MaskedCallButtonView({required this.orderId});
+  final String orderId;
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<MaskedCallCubit, MaskedCallState>(
+      listener: _onState,
+      builder: (context, state) => OmdsLoadingButton(
+        text: 'Call',
+        isLoading: state.isLoading,
+        onTap: () => context.read<MaskedCallCubit>().initiateCall(orderId),
       ),
     );
+  }
+
+  void _onState(BuildContext context, MaskedCallState state) {
+    if (state.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(state.error!)),
+      );
+    }
   }
 }

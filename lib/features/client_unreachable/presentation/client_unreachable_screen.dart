@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:omds/omds.dart';
 
 class ClientUnreachableScreen extends StatelessWidget {
   final String deliveryId;
@@ -7,39 +8,69 @@ class ClientUnreachableScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Client Unreachable')),
+      appBar: const OMDSAppBar(title: 'Client Unreachable'),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(Spacing.medium),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Card(
-              color: Theme.of(context).colorScheme.errorContainer,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(children: [
-                  Icon(Icons.phone_disabled, size: 48, color: Theme.of(context).colorScheme.error),
-                  const SizedBox(height: 12),
-                  Text('Cannot reach the Client', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  Text(
-                    'If the Client is not responding, you can flag them as unreachable. '
-                    'They will have 15 minutes to respond before the delivery is escalated.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ]),
-              ),
+            const _UnreachableNoticeCard(),
+            const SizedBox(height: Spacing.xLarge),
+            OmdsPrimaryButton(
+              text: 'Try Calling Again',
+              variant: OmdsButtonVariant.outlined,
+              icon: const Icon(Icons.phone),
+              onTap: () {},
             ),
-            const SizedBox(height: 24),
-            OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.phone), label: const Text('Try Calling Again')),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.chat), label: const Text('Send Chat Message')),
+            const SizedBox(height: Spacing.small),
+            OmdsPrimaryButton(
+              text: 'Send Chat Message',
+              variant: OmdsButtonVariant.outlined,
+              icon: const Icon(Icons.chat),
+              onTap: () {},
+            ),
             const Spacer(),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
-              child: const Text('Flag as Unreachable'),
+            OmdsPrimaryButton(
+              text: 'Flag as Unreachable',
+              backgroundColor: Theme.of(context).colorScheme.error,
+              onTap: () => Navigator.of(context).pop(true),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UnreachableNoticeCard extends StatelessWidget {
+  const _UnreachableNoticeCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      color: theme.colorScheme.errorContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(Spacing.medium),
+        child: Column(
+          children: [
+            Icon(
+              Icons.phone_disabled,
+              size: Sizes.fourXLarge,
+              color: theme.colorScheme.error,
+            ),
+            const SizedBox(height: Spacing.small),
+            Text(
+              'Cannot reach the Client',
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: Spacing.xSmall),
+            Text(
+              'If the Client is not responding, you can flag them as '
+              'unreachable. They will have 15 minutes to respond before the '
+              'delivery is escalated.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium,
             ),
           ],
         ),

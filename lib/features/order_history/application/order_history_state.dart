@@ -58,7 +58,7 @@ enum OrderTabStatus {
   loadingFirstPage,
 
   /// Pull-to-refresh in flight; UI keeps the list visible and the spinner
-  /// is owned by [RefreshIndicator].
+  /// is owned by `OmdsPullToRefresh` (Material `RefreshIndicator` under the hood).
   refreshing,
 
   /// Next-page in flight; UI shows a footer spinner under the list.

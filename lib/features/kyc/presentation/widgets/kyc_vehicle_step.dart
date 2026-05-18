@@ -182,9 +182,9 @@ class _VehicleSelectionCard extends StatelessWidget {
       label: label,
       child: Material(
         color: background,
-        borderRadius: BorderRadius.circular(Spacing.small),
+        borderRadius: OmdsBorderRadius.small,
         child: InkWell(
-          borderRadius: BorderRadius.circular(Spacing.small),
+          borderRadius: OmdsBorderRadius.small,
           onTap: onTap,
           child: Container(
             padding: const EdgeInsets.symmetric(
@@ -192,7 +192,7 @@ class _VehicleSelectionCard extends StatelessWidget {
               vertical: Spacing.small,
             ),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(Spacing.small),
+              borderRadius: OmdsBorderRadius.small,
               border: Border.all(
                 color: borderColor,
                 width: selected ? 2 : 1,

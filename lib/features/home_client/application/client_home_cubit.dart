@@ -18,9 +18,9 @@ class ClientHomeCubit extends Cubit<ClientHomeState> {
   ClientHomeCubit({
     required ClientHomeRepository repository,
     required String? Function() greetingNameProvider,
-  })  : _repository = repository,
-        _greetingNameProvider = greetingNameProvider,
-        super(const ClientHomeState());
+  }) : _repository = repository,
+       _greetingNameProvider = greetingNameProvider,
+       super(const ClientHomeState());
 
   final ClientHomeRepository _repository;
   final String? Function() _greetingNameProvider;
@@ -29,10 +29,12 @@ class ClientHomeCubit extends Cubit<ClientHomeState> {
   /// a load is in flight are dropped on the floor.
   Future<void> load() async {
     if (state.status == ClientHomeStatus.loading) return;
-    emit(state.copyWith(
-      status: ClientHomeStatus.loading,
-      greetingName: _greetingNameProvider(),
-    ));
+    emit(
+      state.copyWith(
+        status: ClientHomeStatus.loading,
+        greetingName: _greetingNameProvider(),
+      ),
+    );
     await _fetch();
   }
 
@@ -48,13 +50,17 @@ class ClientHomeCubit extends Cubit<ClientHomeState> {
   Future<void> _fetch() async {
     try {
       final snapshot = await _repository.loadSnapshot();
-      emit(state.copyWith(
-        status: ClientHomeStatus.ready,
-        activeRequests: snapshot.activeRequests,
-        // Cap the "Order again" strip at one entry — anything more belongs
-        // on the Orders tab, not the home summary.
-        recentDeliveries: snapshot.recentDeliveries.take(1).toList(),
-      ));
+      emit(
+        state.copyWith(
+          status: ClientHomeStatus.ready,
+          inProgress: snapshot.inProgress,
+          pending: snapshot.pending,
+          replies: snapshot.replies,
+          // Cap the "Order again" strip at one entry — anything more belongs
+          // on the Orders tab, not the home summary.
+          recentDeliveries: snapshot.recentDeliveries.take(1).toList(),
+        ),
+      );
     } catch (_) {
       emit(state.copyWith(status: ClientHomeStatus.failed));
     }

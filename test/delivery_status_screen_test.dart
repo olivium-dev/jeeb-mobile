@@ -17,6 +17,8 @@ import 'package:jeeb_mobile/features/delivery_status/presentation/widgets/delive
 import 'package:jeeb_mobile/features/delivery_status/presentation/widgets/delivery_stage_indicator.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
+import 'support/sync_app_localizations.dart';
+
 DeliverySnapshot _snapshot({
   String id = 'd-1',
   DeliveryStage stage = DeliveryStage.matched,
@@ -55,7 +57,7 @@ Future<void> _pumpScreen(
   await tester.pumpWidget(
     MaterialApp(
       localizationsDelegates: const [
-        AppLocalizations.delegate,
+        SyncAppLocalizationsDelegate(),
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
@@ -68,7 +70,9 @@ Future<void> _pumpScreen(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  // The active-stage pulsing dot uses a repeating AnimationController,
+  // so pumpAndSettle never returns. Pump a single frame instead.
+  await tester.pump();
 }
 
 void main() {

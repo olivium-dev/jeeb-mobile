@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:omds/omds.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../domain/order_summary.dart';
@@ -41,9 +42,12 @@ class OrderHistoryCard extends StatelessWidget {
       child: InkWell(
         key: Key('order-history-card-${order.id}'),
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: OmdsBorderRadius.medium,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsetsDirectional.symmetric(
+            horizontal: Spacing.medium,
+            vertical: Spacing.small,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -51,7 +55,7 @@ class OrderHistoryCard extends StatelessWidget {
                 dateLabel: dateLabel,
                 status: order.status,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: Spacing.xSmall),
               _AddressLine(
                 icon: Icons.trip_origin,
                 iconColor: scheme.primary,
@@ -59,7 +63,7 @@ class OrderHistoryCard extends StatelessWidget {
                     ? l10n.orderHistoryAddressMissing
                     : order.pickupAddress,
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: Spacing.twoXSmall),
               _AddressLine(
                 icon: Icons.location_on_outlined,
                 iconColor: scheme.error,
@@ -67,7 +71,7 @@ class OrderHistoryCard extends StatelessWidget {
                     ? l10n.orderHistoryAddressMissing
                     : order.dropoffAddress,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: Spacing.xSmall),
               _Footer(tier: order.tier, amountLabel: amountLabel),
             ],
           ),
@@ -118,8 +122,8 @@ class _AddressLine extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 16, color: iconColor),
-        const SizedBox(width: 8),
+        Icon(icon, size: Sizes.medium, color: iconColor),
+        const SizedBox(width: Spacing.xSmall),
         Expanded(
           child: Text(
             label,
@@ -146,7 +150,7 @@ class _Footer extends StatelessWidget {
     return Row(
       children: [
         _TierBadge(tier: tier),
-        const SizedBox(width: 8),
+        const SizedBox(width: Spacing.xSmall),
         Expanded(
           child: Text(
             _tierLabel(tier, l10n),
@@ -190,15 +194,15 @@ class _TierBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      width: 28,
-      height: 28,
+      width: Sizes.twoXLarge,
+      height: Sizes.twoXLarge,
       decoration: BoxDecoration(
         color: scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: OmdsBorderRadius.xSmall,
       ),
       child: Icon(
         _iconFor(tier),
-        size: 16,
+        size: Sizes.medium,
         color: scheme.onSecondaryContainer,
       ),
     );

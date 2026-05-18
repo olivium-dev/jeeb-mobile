@@ -38,13 +38,6 @@ class RequestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final l10n = AppLocalizations.of(context);
-    final isAccepting = actionStatus == RequestActionStatus.accepting;
-    final isDeclining = actionStatus == RequestActionStatus.declining;
-    final actionsLocked =
-        actionStatus != RequestActionStatus.idle || secondsRemaining <= 0;
-
     return Container(
       key: Key('requestFeed.card.${request.id}'),
       margin: const EdgeInsets.symmetric(
@@ -52,67 +45,213 @@ class RequestCard extends StatelessWidget {
         vertical: Spacing.xSmall,
       ),
       padding: const EdgeInsets.all(Spacing.medium),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: OmdsBorderRadius.medium,
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+      decoration: _decoration(colorScheme),
+      child: _CardBody(
+        request: request,
+        actionStatus: actionStatus,
+        secondsRemaining: secondsRemaining,
+        onAccept: onAccept,
+        onDecline: onDecline,
+      ),
+    );
+  }
+
+  BoxDecoration _decoration(ColorScheme colorScheme) {
+    return BoxDecoration(
+      color: colorScheme.surface,
+      borderRadius: OmdsBorderRadius.medium,
+      border: Border.all(
+        color: colorScheme.outlineVariant.withValues(
+          alpha: UIConstants.opacityDisabled,
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _Header(
-            tier: request.tier,
-            secondsRemaining: secondsRemaining,
-            colorScheme: colorScheme,
-            textTheme: textTheme,
-            l10n: l10n,
-          ),
-          const SizedBox(height: Spacing.medium),
-          _LocationRow(
-            icon: Icons.adjust,
-            label: l10n.requestFeedPickupLabel,
-            value: request.pickup.label,
-            colorScheme: colorScheme,
-            textTheme: textTheme,
-          ),
-          const SizedBox(height: Spacing.xSmall),
-          _LocationRow(
-            icon: Icons.location_on_outlined,
-            label: l10n.requestFeedDropoffLabel,
-            value: request.dropoff.label,
-            colorScheme: colorScheme,
-            textTheme: textTheme,
-          ),
-          const SizedBox(height: Spacing.medium),
-          _MetadataRow(
-            distanceLabel: l10n.requestFeedDistance(
-              request.estimatedDistanceKm.toStringAsFixed(1),
-            ),
-            earningsLabel: l10n.requestFeedEarnings(
-              request.potentialEarnings.toStringAsFixed(2),
-              request.currency,
-            ),
-            colorScheme: colorScheme,
-            textTheme: textTheme,
-          ),
-          const SizedBox(height: Spacing.medium),
-          _Actions(
-            acceptLabel: isAccepting
-                ? l10n.requestFeedAccepting
-                : l10n.requestFeedAccept,
-            declineLabel: isDeclining
-                ? l10n.requestFeedDeclining
-                : l10n.requestFeedDecline,
-            onAccept: actionsLocked ? () {} : onAccept,
-            onDecline: actionsLocked ? () {} : onDecline,
-            acceptEnabled: !actionsLocked,
-            declineEnabled: !actionsLocked,
-            requestId: request.id,
-          ),
-        ],
+    );
+  }
+}
+
+class _CardBody extends StatelessWidget {
+  const _CardBody({
+    required this.request,
+    required this.actionStatus,
+    required this.secondsRemaining,
+    required this.onAccept,
+    required this.onDecline,
+  });
+
+  final DeliveryRequest request;
+  final RequestActionStatus actionStatus;
+  final int secondsRemaining;
+  final VoidCallback onAccept;
+  final VoidCallback onDecline;
+
+  bool get _actionsLocked =>
+      actionStatus != RequestActionStatus.idle || secondsRemaining <= 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _CardHeader(tier: request.tier, secondsRemaining: secondsRemaining),
+        const SizedBox(height: Spacing.medium),
+        _CardSections(
+          request: request,
+          actionStatus: actionStatus,
+          enabled: !_actionsLocked,
+          onAccept: _actionsLocked ? () {} : onAccept,
+          onDecline: _actionsLocked ? () {} : onDecline,
+        ),
+      ],
+    );
+  }
+}
+
+class _CardHeader extends StatelessWidget {
+  const _CardHeader({required this.tier, required this.secondsRemaining});
+
+  final JeeberRequestTier tier;
+  final int secondsRemaining;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context);
+    return _Header(
+      tier: tier,
+      secondsRemaining: secondsRemaining,
+      colorScheme: colorScheme,
+      textTheme: textTheme,
+      l10n: l10n,
+    );
+  }
+}
+
+class _CardSections extends StatelessWidget {
+  const _CardSections({
+    required this.request,
+    required this.actionStatus,
+    required this.enabled,
+    required this.onAccept,
+    required this.onDecline,
+  });
+
+  final DeliveryRequest request;
+  final RequestActionStatus actionStatus;
+  final bool enabled;
+  final VoidCallback onAccept;
+  final VoidCallback onDecline;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _Locations(request: request, l10n: l10n),
+        const SizedBox(height: Spacing.medium),
+        _Metadata(request: request, l10n: l10n),
+        const SizedBox(height: Spacing.medium),
+        _CardActions(
+          request: request,
+          actionStatus: actionStatus,
+          onAccept: onAccept,
+          onDecline: onDecline,
+          enabled: enabled,
+          l10n: l10n,
+        ),
+      ],
+    );
+  }
+}
+
+class _Locations extends StatelessWidget {
+  const _Locations({required this.request, required this.l10n});
+
+  final DeliveryRequest request;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _LocationRow(
+          icon: Icons.adjust,
+          label: l10n.requestFeedPickupLabel,
+          value: request.pickup.label,
+          colorScheme: colorScheme,
+          textTheme: textTheme,
+        ),
+        const SizedBox(height: Spacing.xSmall),
+        _LocationRow(
+          icon: Icons.location_on_outlined,
+          label: l10n.requestFeedDropoffLabel,
+          value: request.dropoff.label,
+          colorScheme: colorScheme,
+          textTheme: textTheme,
+        ),
+      ],
+    );
+  }
+}
+
+class _Metadata extends StatelessWidget {
+  const _Metadata({required this.request, required this.l10n});
+
+  final DeliveryRequest request;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return _MetadataRow(
+      distanceLabel: l10n.requestFeedDistance(
+        request.estimatedDistanceKm.toStringAsFixed(1),
       ),
+      earningsLabel: l10n.requestFeedEarnings(
+        request.potentialEarnings.toStringAsFixed(2),
+        request.currency,
+      ),
+      colorScheme: colorScheme,
+      textTheme: textTheme,
+    );
+  }
+}
+
+class _CardActions extends StatelessWidget {
+  const _CardActions({
+    required this.request,
+    required this.actionStatus,
+    required this.onAccept,
+    required this.onDecline,
+    required this.enabled,
+    required this.l10n,
+  });
+
+  final DeliveryRequest request;
+  final RequestActionStatus actionStatus;
+  final VoidCallback onAccept;
+  final VoidCallback onDecline;
+  final bool enabled;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    final isAccepting = actionStatus == RequestActionStatus.accepting;
+    final isDeclining = actionStatus == RequestActionStatus.declining;
+    return _Actions(
+      acceptLabel: isAccepting ? l10n.requestFeedAccepting : l10n.requestFeedAccept,
+      declineLabel:
+          isDeclining ? l10n.requestFeedDeclining : l10n.requestFeedDecline,
+      onAccept: onAccept,
+      onDecline: onDecline,
+      acceptEnabled: enabled,
+      declineEnabled: enabled,
+      requestId: request.id,
     );
   }
 }
@@ -134,43 +273,93 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tierLabel = switch (tier) {
-      JeeberRequestTier.light => l10n.requestFeedTierLight,
-      JeeberRequestTier.standard => l10n.requestFeedTierStandard,
-      JeeberRequestTier.bulk => l10n.requestFeedTierBulk,
-    };
-    final tierBackground = switch (tier) {
-      JeeberRequestTier.light => colorScheme.tertiaryContainer,
-      JeeberRequestTier.standard => colorScheme.secondaryContainer,
-      JeeberRequestTier.bulk => colorScheme.primaryContainer,
-    };
-    final tierForeground = switch (tier) {
-      JeeberRequestTier.light => colorScheme.onTertiaryContainer,
-      JeeberRequestTier.standard => colorScheme.onSecondaryContainer,
-      JeeberRequestTier.bulk => colorScheme.onPrimaryContainer,
-    };
-
     return Row(
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Spacing.small,
-            vertical: Spacing.twoXSmall,
-          ),
-          decoration: BoxDecoration(
-            color: tierBackground,
-            borderRadius: OmdsBorderRadius.small,
-          ),
-          child: Text(
-            tierLabel,
-            key: const Key('requestFeed.card.tierChip'),
-            style: textTheme.labelMedium?.copyWith(
-              color: tierForeground,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
+        _TierChip(tier: tier, colorScheme: colorScheme, textTheme: textTheme, l10n: l10n),
         const Spacer(),
+        _CountdownBadge(
+          secondsRemaining: secondsRemaining,
+          colorScheme: colorScheme,
+          textTheme: textTheme,
+          l10n: l10n,
+        ),
+      ],
+    );
+  }
+}
+
+class _TierChip extends StatelessWidget {
+  const _TierChip({
+    required this.tier,
+    required this.colorScheme,
+    required this.textTheme,
+    required this.l10n,
+  });
+
+  final JeeberRequestTier tier;
+  final ColorScheme colorScheme;
+  final TextTheme textTheme;
+  final AppLocalizations l10n;
+
+  String _label() => switch (tier) {
+        JeeberRequestTier.light => l10n.requestFeedTierLight,
+        JeeberRequestTier.standard => l10n.requestFeedTierStandard,
+        JeeberRequestTier.bulk => l10n.requestFeedTierBulk,
+      };
+
+  Color _background() => switch (tier) {
+        JeeberRequestTier.light => colorScheme.tertiaryContainer,
+        JeeberRequestTier.standard => colorScheme.secondaryContainer,
+        JeeberRequestTier.bulk => colorScheme.primaryContainer,
+      };
+
+  Color _foreground() => switch (tier) {
+        JeeberRequestTier.light => colorScheme.onTertiaryContainer,
+        JeeberRequestTier.standard => colorScheme.onSecondaryContainer,
+        JeeberRequestTier.bulk => colorScheme.onPrimaryContainer,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.small,
+        vertical: Spacing.twoXSmall,
+      ),
+      decoration: BoxDecoration(
+        color: _background(),
+        borderRadius: OmdsBorderRadius.small,
+      ),
+      child: Text(
+        _label(),
+        key: const Key('requestFeed.card.tierChip'),
+        style: textTheme.labelMedium?.copyWith(
+          color: _foreground(),
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _CountdownBadge extends StatelessWidget {
+  const _CountdownBadge({
+    required this.secondsRemaining,
+    required this.colorScheme,
+    required this.textTheme,
+    required this.l10n,
+  });
+
+  final int secondsRemaining;
+  final ColorScheme colorScheme;
+  final TextTheme textTheme;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
         Icon(
           Icons.timer_outlined,
           size: Sizes.medium,
@@ -211,25 +400,47 @@ class _LocationRow extends StatelessWidget {
         Icon(icon, size: Sizes.large, color: colorScheme.primary),
         const SizedBox(width: Spacing.small),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: textTheme.labelSmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              Text(
-                value,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurface,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+          child: _LocationText(
+            label: label,
+            value: value,
+            colorScheme: colorScheme,
+            textTheme: textTheme,
           ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LocationText extends StatelessWidget {
+  const _LocationText({
+    required this.label,
+    required this.value,
+    required this.colorScheme,
+    required this.textTheme,
+  });
+
+  final String label;
+  final String value;
+  final ColorScheme colorScheme;
+  final TextTheme textTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: textTheme.labelSmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+        Text(
+          value,
+          style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );
@@ -253,6 +464,38 @@ class _MetadataRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
+        _DistanceBadge(
+          label: distanceLabel,
+          colorScheme: colorScheme,
+          textTheme: textTheme,
+        ),
+        const SizedBox(width: Spacing.medium),
+        _EarningsBadge(
+          label: earningsLabel,
+          colorScheme: colorScheme,
+          textTheme: textTheme,
+        ),
+      ],
+    );
+  }
+}
+
+class _DistanceBadge extends StatelessWidget {
+  const _DistanceBadge({
+    required this.label,
+    required this.colorScheme,
+    required this.textTheme,
+  });
+
+  final String label;
+  final ColorScheme colorScheme;
+  final TextTheme textTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
         Icon(
           Icons.route_outlined,
           size: Sizes.medium,
@@ -260,14 +503,34 @@ class _MetadataRow extends StatelessWidget {
         ),
         const SizedBox(width: Spacing.twoXSmall),
         Text(
-          distanceLabel,
+          label,
           key: const Key('requestFeed.card.distance'),
           style: textTheme.bodyMedium?.copyWith(
             color: colorScheme.onSurface,
             fontWeight: FontWeight.w500,
           ),
         ),
-        const SizedBox(width: Spacing.medium),
+      ],
+    );
+  }
+}
+
+class _EarningsBadge extends StatelessWidget {
+  const _EarningsBadge({
+    required this.label,
+    required this.colorScheme,
+    required this.textTheme,
+  });
+
+  final String label;
+  final ColorScheme colorScheme;
+  final TextTheme textTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
         Icon(
           Icons.payments_outlined,
           size: Sizes.medium,
@@ -275,7 +538,7 @@ class _MetadataRow extends StatelessWidget {
         ),
         const SizedBox(width: Spacing.twoXSmall),
         Text(
-          earningsLabel,
+          label,
           key: const Key('requestFeed.card.earnings'),
           style: textTheme.bodyMedium?.copyWith(
             color: colorScheme.primary,
@@ -311,24 +574,74 @@ class _Actions extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: OmdsPrimaryButton(
-            key: Key('requestFeed.card.decline.$requestId'),
-            text: declineLabel,
-            variant: OmdsButtonVariant.outlined,
-            isEnabled: declineEnabled,
+          child: _DeclineButton(
+            label: declineLabel,
+            enabled: declineEnabled,
             onTap: onDecline,
+            requestId: requestId,
           ),
         ),
         const SizedBox(width: Spacing.small),
         Expanded(
-          child: OmdsPrimaryButton(
-            key: Key('requestFeed.card.accept.$requestId'),
-            text: acceptLabel,
-            isEnabled: acceptEnabled,
+          child: _AcceptButton(
+            label: acceptLabel,
+            enabled: acceptEnabled,
             onTap: onAccept,
+            requestId: requestId,
           ),
         ),
       ],
     );
   }
 }
+
+class _DeclineButton extends StatelessWidget {
+  const _DeclineButton({
+    required this.label,
+    required this.enabled,
+    required this.onTap,
+    required this.requestId,
+  });
+
+  final String label;
+  final bool enabled;
+  final VoidCallback onTap;
+  final String requestId;
+
+  @override
+  Widget build(BuildContext context) {
+    return OmdsPrimaryButton(
+      key: Key('requestFeed.card.decline.$requestId'),
+      text: label,
+      variant: OmdsButtonVariant.outlined,
+      isEnabled: enabled,
+      onTap: onTap,
+    );
+  }
+}
+
+class _AcceptButton extends StatelessWidget {
+  const _AcceptButton({
+    required this.label,
+    required this.enabled,
+    required this.onTap,
+    required this.requestId,
+  });
+
+  final String label;
+  final bool enabled;
+  final VoidCallback onTap;
+  final String requestId;
+
+  @override
+  Widget build(BuildContext context) {
+    return OmdsPrimaryButton(
+      key: Key('requestFeed.card.accept.$requestId'),
+      text: label,
+      isEnabled: enabled,
+      onTap: onTap,
+    );
+  }
+}
+
+

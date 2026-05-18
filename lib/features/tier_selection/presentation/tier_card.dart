@@ -69,14 +69,14 @@ class TierCard extends StatelessWidget {
 
     final cardChild = Material(
       color: background,
-      borderRadius: BorderRadius.circular(Spacing.medium),
+      borderRadius: OmdsBorderRadius.medium,
       child: InkWell(
-        borderRadius: BorderRadius.circular(Spacing.medium),
+        borderRadius: OmdsBorderRadius.medium,
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.all(Spacing.medium),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Spacing.medium),
+            borderRadius: OmdsBorderRadius.medium,
             border: Border.all(
               color: borderColor,
               width: selected ? 2 : 1,
@@ -184,7 +184,7 @@ class _Header extends StatelessWidget {
             ),
             decoration: BoxDecoration(
               color: badgeBackground,
-              borderRadius: BorderRadius.circular(Spacing.large),
+              borderRadius: OmdsBorderRadius.large,
             ),
             child: Text(
               badge,

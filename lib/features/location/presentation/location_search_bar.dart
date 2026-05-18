@@ -65,7 +65,7 @@ class LocationSearchBar extends StatelessWidget {
             child: Material(
               color: colorScheme.surfaceContainerLowest,
               elevation: 1,
-              borderRadius: BorderRadius.circular(UIConstants.borderRadiusMedium),
+              borderRadius: OmdsBorderRadius.uiMedium,
               child: _ResultsList(
                 results: results,
                 emptyLabel: emptyResultsLabel,

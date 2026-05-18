@@ -4,7 +4,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
-import '../../../core/network/dio_client.dart';
+import '../../../core/di/injection_container.dart';
+import '../../../core/network/auth_token_store.dart';
+import '../../../core/network/mock_gateway_client.dart';
+import '../../../core/onboarding/onboarding_cubit.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../auth/social/social_auth_cubit.dart';
 import '../../auth/social/social_auth_service.dart';
@@ -12,8 +15,8 @@ import '../../auth/social/social_auth_token_store.dart';
 import '../../auth/social/social_sign_in_section.dart';
 import '../application/registration_cubit.dart';
 import '../application/registration_state.dart';
-import '../data/fake_otp_service.dart';
 import '../domain/lebanon_phone.dart';
+import '../domain/otp_service.dart';
 import 'otp_verification_screen.dart';
 
 /// Entry point for the phone+OTP registration flow (T-mobile-002).
@@ -64,7 +67,7 @@ class RegistrationScreen extends StatelessWidget {
         return BlocProvider<RegistrationCubit>.value(value: cubit!, child: child);
       }
       return BlocProvider<RegistrationCubit>(
-        create: (_) => RegistrationCubit(otpService: const FakeOtpService()),
+        create: (_) => RegistrationCubit(otpService: sl<OtpService>()),
         child: child,
       );
     }
@@ -78,7 +81,9 @@ class RegistrationScreen extends StatelessWidget {
       }
       return BlocProvider<SocialAuthCubit>(
         create: (_) => SocialAuthCubit(
-          service: DefaultSocialAuthService(dio: DioClient.createDio()),
+          service: DefaultSocialAuthService(
+            dio: MockGatewayClient.createDio(),
+          ),
           tokenStore: SecureSocialAuthTokenStore(),
         ),
         child: child,
@@ -168,7 +173,10 @@ class _RegistrationViewState extends State<_RegistrationView> {
       },
       builder: (context, state) {
         return Scaffold(
-          appBar: AppBar(title: Text(l10n.registrationPhoneTitle)),
+          appBar: OMDSAppBar(
+            title: l10n.registrationPhoneTitle,
+            centerTitle: false,
+          ),
           body: SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(Spacing.medium),
@@ -216,6 +224,23 @@ class _RegistrationViewState extends State<_RegistrationView> {
                     isEnabled: state.isPhoneReady && !state.isSendingCode,
                     onTap: () => context.read<RegistrationCubit>().sendCode(),
                   ),
+                  const SizedBox(height: Spacing.twoXLarge),
+                  Center(
+                    child: GestureDetector(
+                      key: const Key('registration.superLogin'),
+                      onTap: () => _superLogin(context),
+                      child: Text(
+                        'Super User Login',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withValues(alpha: UIConstants.opacityMedium),
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -224,14 +249,46 @@ class _RegistrationViewState extends State<_RegistrationView> {
       },
     );
   }
+
+  Future<void> _superLogin(BuildContext context) async {
+    final tokenStore = sl<AuthTokenStore>();
+    await tokenStore.save(
+      accessToken: 'mock-jwt-access-super-user',
+      refreshToken: 'mock-jwt-refresh-super-user',
+      userId: 'super-user-001',
+    );
+
+    if (!context.mounted) return;
+
+    // Mark onboarding as done via the cubit so the router redirect sees the
+    // state change and lets us through to the shell.
+    await context.read<OnboardingCubit>().complete();
+
+    if (!context.mounted) return;
+
+    final onVerified = widget.onVerified;
+    if (onVerified != null) {
+      onVerified();
+    } else {
+      context.go('/');
+    }
+  }
 }
 
 /// Phone-number text field with the Lebanese +961 prefix permanently
 /// pinned to the left. The TextField only ever receives the 8 national
-/// digits; the prefix is decorative. We don't use [OmdsPhoneInput] here
-/// because the product spec calls for a fixed +961 with no picker — see
-/// JEEB-55. The styling still flows through the OMDS theme via the
-/// surrounding [InputDecoration].
+/// digits; the prefix is decorative.
+///
+/// EXEMPT(flutter-omds-design-system-usage): raw [TextField] retained.
+/// - [OmdsPhoneInput] ships a country-picker UX; the product spec calls
+///   for a fixed +961 with no picker (JEEB-55).
+/// - [OmdsTextField] does not expose `prefixIconConstraints`, so a tight
+///   inline "+961" glyph would inflate to the default 48dp prefix gutter
+///   and break the digit-alignment design.
+/// All styling still flows through the OMDS theme: `fillColor`,
+/// `border`, `contentPadding`, and typography pull from
+/// `colorScheme.surfaceContainerHighest`, [OmdsBorderRadius.medium], and
+/// [Spacing]. Promotion to OMDS tracked under JEEB-57.
 class _PhoneField extends StatelessWidget {
   const _PhoneField({
     required this.controller,

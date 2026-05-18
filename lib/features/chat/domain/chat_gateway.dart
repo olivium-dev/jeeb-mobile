@@ -9,25 +9,45 @@ import 'delivery_chat_message.dart';
 ///
 /// The MVP build wires this to [InMemoryChatGateway] which echoes a single
 /// canned reply per outgoing message so the chat screen can be demoed end to
-/// end without any real backend. A future task swaps the binding to a real
-/// `chat-service` client through `jeeb-gateway` (see JEEB-BOUNDARIES.md §5).
+/// end without any real backend. The Dio-backed [DioChatGateway] points the
+/// same interface at the mock backend (or, in prod, `jeeb-gateway`) via the
+/// chat-service + offer-service routes.
+///
+/// The first positional argument is named [conversationId] in the new chat
+/// flow; it stays compatible with the older photo-chat call sites that pass
+/// a delivery id because both ids are opaque strings to the gateway.
 abstract class ChatGateway {
   /// History of messages previously exchanged on this thread. Returned newest
   /// last so the cubit can append without sorting.
-  Future<List<DeliveryChatMessage>> loadHistory(String deliveryId);
+  Future<List<DeliveryChatMessage>> loadHistory(String conversationId);
+
+  /// Conversation phase ([ConversationPhase.broadcasting] / `accepted` /
+  /// `closed`) the cubit needs to render the right UI shell (composer on/off,
+  /// offer-card list vs 1:1 timeline). Optional — gateways that don't carry
+  /// a phase (the MVP in-memory echo) can return [ConversationPhase.accepted]
+  /// to retain the existing 1:1 behaviour.
+  Future<ConversationPhase> loadPhase(String conversationId) async =>
+      ConversationPhase.accepted;
 
   /// Push an outgoing message. Returns the same message with its status
   /// promoted to at-least [MessageStatus.sent]; the caller swaps the optimistic
   /// entry for this one. Throwing surfaces as [MessageStatus.failed] on the
   /// optimistic entry.
   Future<DeliveryChatMessage> send(
-    String deliveryId,
+    String conversationId,
     DeliveryChatMessage message,
   );
 
   /// Stream of inbound events for this thread — incoming messages from the
-  /// counterpart, delivered receipts, and read receipts.
-  Stream<ChatEvent> subscribe(String deliveryId);
+  /// counterpart, delivered receipts, read receipts, and (post-accept) phase
+  /// transitions.
+  Stream<ChatEvent> subscribe(String conversationId);
+
+  /// Accept a Jeeber's offer from inside the broadcasting chat. Drives the
+  /// offer-service saga (winning offer accepted, losers superseded, phase
+  /// flipped, system message appended). The gateway is responsible for the
+  /// HTTP call; the cubit re-fetches history + phase once this resolves.
+  Future<void> acceptOffer(String conversationId, String offerId) async {}
 }
 
 /// Closed union of inbound chat events. Kept as a sealed-style hierarchy so
@@ -56,4 +76,12 @@ class DeliveryReceipt extends ChatEvent {
 class ReadReceipt extends ChatEvent {
   const ReadReceipt(this.throughMessageId);
   final String throughMessageId;
+}
+
+/// The conversation flipped phase (e.g. `broadcasting → accepted` after the
+/// client accepted an offer). The cubit re-derives composer visibility and
+/// re-fetches history so the system message is visible.
+class PhaseChanged extends ChatEvent {
+  const PhaseChanged(this.phase);
+  final ConversationPhase phase;
 }

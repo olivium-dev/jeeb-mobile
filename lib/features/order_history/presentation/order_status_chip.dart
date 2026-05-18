@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:omds/omds.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../domain/order_summary.dart';
@@ -16,10 +17,13 @@ class OrderStatusChip extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final palette = _paletteFor(status, colorScheme);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: Spacing.small,
+        vertical: Spacing.twoXSmall,
+      ),
       decoration: BoxDecoration(
         color: palette.background,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: OmdsBorderRadius.small,
       ),
       child: Text(
         _labelFor(status, AppLocalizations.of(context)),

@@ -33,13 +33,9 @@ class _Waiting extends StatelessWidget {
     final theme = Theme.of(context);
     return Row(
       children: [
-        SizedBox(
-          width: Sizes.xLarge,
-          height: Sizes.xLarge,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: theme.colorScheme.primary,
-          ),
+        const OmdsLoadingState(
+          size: Sizes.xLarge,
+          padding: EdgeInsets.zero,
         ),
         const SizedBox(width: Spacing.medium),
         Expanded(
@@ -116,7 +112,7 @@ class _JeeberRow extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: Sizes.threeXSmall),
               Text(
                 jeeber.vehicleLabel,
                 style: theme.textTheme.bodySmall?.copyWith(
@@ -130,11 +126,11 @@ class _JeeberRow extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(
               horizontal: Spacing.small,
-              vertical: 4,
+              vertical: Spacing.twoXSmall,
             ),
             decoration: BoxDecoration(
               color: colorScheme.tertiaryContainer,
-              borderRadius: BorderRadius.circular(Spacing.small),
+              borderRadius: OmdsBorderRadius.small,
             ),
             child: Text(
               l10n.deliveryJeeberRating(jeeber.rating!.toStringAsFixed(1)),

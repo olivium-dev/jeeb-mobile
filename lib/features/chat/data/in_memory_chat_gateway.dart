@@ -12,7 +12,7 @@ import '../domain/delivery_chat_message.dart';
 /// and in widget tests that want to exercise the receiver path.
 ///
 /// Tests inject their own gateway via the cubit's constructor.
-class InMemoryChatGateway implements ChatGateway {
+class InMemoryChatGateway extends ChatGateway {
   InMemoryChatGateway({
     this.sendDelay = const Duration(milliseconds: 80),
     this.deliveryDelay = const Duration(milliseconds: 160),

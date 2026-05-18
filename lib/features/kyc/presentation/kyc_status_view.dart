@@ -33,7 +33,7 @@ class KycStatusView extends StatelessWidget {
       builder: (context, state) {
         final cubit = context.read<KycWizardCubit>();
         if (state.isLoadingStatus) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(child: OmdsLoadingState());
         }
         switch (state.submission.status) {
           case KycStatus.notSubmitted:
@@ -114,7 +114,7 @@ class _StatusBody extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: Spacing.xLarge),
-          Icon(icon, size: 64, color: theme.colorScheme.primary),
+          Icon(icon, size: Sizes.sixXLarge, color: theme.colorScheme.primary),
           const SizedBox(height: Spacing.large),
           Text(
             title,
@@ -176,7 +176,7 @@ class _RejectionReasonNotice extends StatelessWidget {
       padding: const EdgeInsets.all(Spacing.medium),
       decoration: BoxDecoration(
         color: theme.colorScheme.errorContainer.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(Spacing.small),
+        borderRadius: OmdsBorderRadius.small,
       ),
       child: Row(
         children: [

@@ -16,7 +16,7 @@ import 'package:jeeb_mobile/features/photo_attachment/domain/photo_picker_servic
 /// push inbound events from outside the cubit. The InMemory variant ships
 /// real timers and is great for screens; for cubit unit tests we want full
 /// control over event timing.
-class _TestChatGateway implements ChatGateway {
+class _TestChatGateway extends ChatGateway {
   _TestChatGateway({
     this.history = const <DeliveryChatMessage>[],
     this.failSend = false,

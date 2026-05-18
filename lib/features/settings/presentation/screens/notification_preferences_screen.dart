@@ -1,39 +1,21 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
-/// Placeholder restored under T-MOB-FIX-001 (AC1+AC4+AC5). Real implementation
-/// arrives in the per-feature follow-up ticket. Do NOT add behavior here.
-class NotificationPreferencesScreen extends StatefulWidget {
+import '../../../../core/di/injection_container.dart';
+import '../../../notification_prefs/application/notification_prefs_cubit.dart';
+import '../../../notification_prefs/data/notification_prefs_store.dart';
+import '../../../notification_prefs/presentation/notification_prefs_screen.dart';
+
+class NotificationPreferencesScreen extends StatelessWidget {
   const NotificationPreferencesScreen({super.key});
 
   @override
-  State<NotificationPreferencesScreen> createState() =>
-      _NotificationPreferencesScreenState();
-}
-
-class _NotificationPreferencesScreenState
-    extends State<NotificationPreferencesScreen> {
-  static const _featureId = 'notification-preferences';
-
-  @override
-  void initState() {
-    super.initState();
-    debugPrint('[placeholder] $_featureId opened');
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Semantics(
-      container: true,
-      label:
-          'Notification Preferences coming soon. This screen is not yet available.',
-      child: const OmdsEmptyStatePage(
-        appBar: null,
-        icon: Icons.construction_outlined,
-        title: 'Notification Preferences coming soon',
-        subtitle: 'This screen is not yet available.',
+    return BlocProvider<NotificationPrefsCubit>(
+      create: (_) => NotificationPrefsCubit(
+        store: sl<NotificationPrefsStore>(),
       ),
+      child: const NotificationPrefsScreen(),
     );
   }
 }

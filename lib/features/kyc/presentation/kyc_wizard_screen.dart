@@ -87,8 +87,9 @@ class _WizardScaffold extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       key: KycWizardScreen.rootKey,
-      appBar: AppBar(
-        title: Text(l10n.kycWizardTitle),
+      appBar: OMDSAppBar(
+        title: l10n.kycWizardTitle,
+        centerTitle: false,
         leading: BlocBuilder<KycWizardCubit, KycWizardState>(
           buildWhen: (prev, curr) => prev.step != curr.step,
           builder: (context, state) {

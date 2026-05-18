@@ -66,6 +66,8 @@ class AppLocalizations {
   String get navProfile => _get('navProfile');
   String get navDashboard => _get('navDashboard');
   String get navEarnings => _get('navEarnings');
+  String get navRequests => _get('navRequests');
+  String get navDelivery => _get('navDelivery');
 
   String get homeTitle => _get('homeTitle');
   String get homeEmptyTitle => _get('homeEmptyTitle');
@@ -73,6 +75,28 @@ class AppLocalizations {
   String get homeEmptyCta => _get('homeEmptyCta');
   String get homeActiveSectionTitle => _get('homeActiveSectionTitle');
   String get homeRecentSectionTitle => _get('homeRecentSectionTitle');
+  String get homeTabInProgress => _get('homeTabInProgress');
+  String get homeTabPendingRequests => _get('homeTabPendingRequests');
+  String get homeTabReplies => _get('homeTabReplies');
+  String get homeInProgressEmpty => _get('homeInProgressEmpty');
+  String get homePendingEmpty => _get('homePendingEmpty');
+  String get homeRepliesEmpty => _get('homeRepliesEmpty');
+  String get homeRepliesCheckOffersCta => _get('homeRepliesCheckOffersCta');
+  String get chatOfferAccept => _get('chatOfferAccept');
+  String get chatOfferAccepting => _get('chatOfferAccepting');
+  String chatOfferEtaMinutes(int minutes) =>
+      _get('chatOfferEtaMinutes').replaceFirst('{minutes}', '$minutes');
+  String get chatSystemOfferAcceptedGeneric =>
+      _get('chatSystemOfferAcceptedGeneric');
+  String chatSystemOfferAcceptedNamed(String name) =>
+      _get('chatSystemOfferAcceptedNamed').replaceFirst('{name}', name);
+  String get chatSystemOfferRejectedGeneric =>
+      _get('chatSystemOfferRejectedGeneric');
+  String chatSystemOfferRejectedNamed(String name) =>
+      _get('chatSystemOfferRejectedNamed').replaceFirst('{name}', name);
+  String get chatBroadcastingTitle => _get('chatBroadcastingTitle');
+  String get chatBroadcastingSubtitle => _get('chatBroadcastingSubtitle');
+  String get chatBroadcastingEmpty => _get('chatBroadcastingEmpty');
   String get homeMicLabel => _get('homeMicLabel');
   String get homeRefreshHint => _get('homeRefreshHint');
   String get homeReorderAction => _get('homeReorderAction');
@@ -288,6 +312,8 @@ class AppLocalizations {
   String get onboardingSlide2Body => _get('onboardingSlide2Body');
   String get onboardingSlide3Title => _get('onboardingSlide3Title');
   String get onboardingSlide3Body => _get('onboardingSlide3Body');
+  String get onboardingNext => _get('onboardingNext');
+  String get onboardingGetStarted => _get('onboardingGetStarted');
 
   String deliveryDetailTitle(String id) =>
       _get('deliveryDetailTitle').replaceFirst('{id}', id);
@@ -1035,6 +1061,8 @@ extension AppLocalizationsRestored on AppLocalizations {
     return _get('chatPendingMessagesOther').replaceFirst('{count}', '$count');
   }
   String get chatPendingMessagesLabel => _get('chatPendingMessages');
+  String get chatNoConversationTitle => _get('chatNoConversationTitle');
+  String get chatNoConversationSubtitle => _get('chatNoConversationSubtitle');
   String get chatPlaceholderCounterpartName => _get('chatPlaceholderCounterpartName');
   String get chatSendTooltip => _get('chatSendTooltip');
   String get chatStatusConnected => _get('chatStatusConnected');

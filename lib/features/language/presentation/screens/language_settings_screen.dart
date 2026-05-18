@@ -29,7 +29,7 @@ class LanguageSettingsScreen extends StatelessWidget {
       ),
       body: ListView(
         key: const Key('language-settings-list'),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
         children: [
           OmdsSettingsSection(
             title: l10n.settingsLanguage,

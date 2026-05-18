@@ -107,11 +107,9 @@ class _LocationPickerViewState extends State<_LocationPickerView> {
               next.step == LocationPickerStep.done),
       listener: (context, state) {
         if (state.error != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_errorCopy(l10n, state.error!)),
-              backgroundColor: colorScheme.error,
-            ),
+          showOmdsErrorSnackbar(
+            context,
+            message: _errorCopy(l10n, state.error!),
           );
           context.read<LocationPickerCubit>().acknowledgeError();
         }
@@ -281,7 +279,7 @@ class _StepBadge extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(UIConstants.borderRadiusLarge),
+        borderRadius: OmdsBorderRadius.uiLarge,
       ),
       child: Text(
         label,
@@ -310,7 +308,7 @@ class _DraftPreviewCard extends StatelessWidget {
       padding: const EdgeInsets.all(Spacing.medium),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(UIConstants.borderRadiusMedium),
+        borderRadius: OmdsBorderRadius.uiMedium,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

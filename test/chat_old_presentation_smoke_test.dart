@@ -124,10 +124,25 @@ void main() {
       });
     });
 
-    test('MessageKind has text and photo', () {
+    test('MessageKind keeps text + photo and adds the new chat kinds', () {
+      // Legacy invariant — the MVP photo chat still relies on these two.
+      expect(
+        MessageKind.values.toSet(),
+        containsAll(<MessageKind>{MessageKind.text, MessageKind.photo}),
+      );
+      // The unified jeeb chat (parity with Al Rahma's chat-service) extends
+      // the enum with seven new kinds. Pinning the full set guards against
+      // an accidental rename or removal in the wire-shape mapping.
       expect(MessageKind.values.toSet(), <MessageKind>{
         MessageKind.text,
         MessageKind.photo,
+        MessageKind.voice,
+        MessageKind.image,
+        MessageKind.location,
+        MessageKind.system,
+        MessageKind.offerCard,
+        MessageKind.offerAccepted,
+        MessageKind.offerRejected,
       });
     });
   });

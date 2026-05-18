@@ -24,7 +24,7 @@ class OfferSortBar extends StatelessWidget {
     return Row(
       children: [
         Padding(
-          padding: const EdgeInsets.only(right: 12),
+          padding: const EdgeInsetsDirectional.only(end: Spacing.small),
           child: Text(
             l10n.offersSortLabel,
             style: theme.textTheme.labelLarge,
@@ -36,7 +36,7 @@ class OfferSortBar extends StatelessWidget {
           isSelected: mode == OfferSortMode.byPrice,
           onTap: () => onChanged(OfferSortMode.byPrice),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: Spacing.xSmall),
         OmdsChip(
           key: const Key('offer-sort-rating'),
           label: l10n.offersSortByRating,

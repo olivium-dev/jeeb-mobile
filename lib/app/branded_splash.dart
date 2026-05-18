@@ -1,21 +1,14 @@
 import 'package:flutter/material.dart';
 
-/// Jeeb branded splash shown during cold-start bootstrap.
+/// Jeeb branded splash — matches the Figma design (node 56572:1711).
 ///
-/// Rendered the moment the Flutter engine hands off from the native splash,
-/// so the user never sees a white frame while [Bootstrap.minimal] is running.
-/// The logo mark fades + scales in once per launch; the indicator is a thin
-/// circular spinner sitting under the wordmark.
-///
-/// This widget is intentionally dependency-free (no DI, no OMDS theme lookup,
-/// no GoogleFonts) so it can render with zero async work and zero allocations
-/// from the design system. Brand color matches `AppTheme._primarySeed` —
-/// duplicated as a const here to keep the splash off the cold-start critical
-/// path of `AppTheme.light()`.
+/// Full navy background with the "Jeeb" wordmark centered and
+/// "Delivery App" at the bottom. Dependency-free so it renders instantly.
 class BrandedSplash extends StatefulWidget {
   const BrandedSplash({super.key});
 
-  static const Color _brand = Color(0xFF1B6B4E);
+  static const Color _navy = Color(0xFF0B1351);
+  static const Color _orange = Color(0xFFD73B00);
 
   @override
   State<BrandedSplash> createState() => _BrandedSplashState();
@@ -25,7 +18,7 @@ class _BrandedSplashState extends State<BrandedSplash>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 600),
+    duration: const Duration(milliseconds: 800),
   )..forward();
 
   @override
@@ -37,29 +30,33 @@ class _BrandedSplashState extends State<BrandedSplash>
   @override
   Widget build(BuildContext context) {
     final fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    final scale = Tween<double>(begin: 0.92, end: 1.0).animate(fade);
+    final scale = Tween<double>(begin: 0.85, end: 1.0).animate(fade);
     return Directionality(
       textDirection: TextDirection.ltr,
       child: ColoredBox(
-        color: Colors.white,
-        child: Center(
+        color: BrandedSplash._navy,
+        child: SafeArea(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             children: [
+              const Spacer(),
               FadeTransition(
                 opacity: fade,
                 child: ScaleTransition(
                   scale: scale,
-                  child: const _JeebMark(),
+                  child: const _JeebWordmark(),
                 ),
               ),
-              const SizedBox(height: 32),
-              const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation(BrandedSplash._brand),
+              const Spacer(),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 56),
+                child: Text(
+                  'Delivery App',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
             ],
@@ -70,28 +67,35 @@ class _BrandedSplashState extends State<BrandedSplash>
   }
 }
 
-class _JeebMark extends StatelessWidget {
-  const _JeebMark();
+class _JeebWordmark extends StatelessWidget {
+  const _JeebWordmark();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 96,
-      height: 96,
-      decoration: const BoxDecoration(
-        color: BrandedSplash._brand,
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: const Text(
-        'J',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 48,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -1,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        const Text(
+          'Jee',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 64,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -1,
+          ),
         ),
-      ),
+        Text(
+          'b',
+          style: TextStyle(
+            color: BrandedSplash._orange,
+            fontSize: 64,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -1,
+          ),
+        ),
+      ],
     );
   }
 }

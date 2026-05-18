@@ -114,18 +114,20 @@ class _ProfileAvatarBlock extends StatelessWidget {
           photoUrl: state.profile.photoUrl,
         ),
         const SizedBox(height: Spacing.small),
-        TextButton(
+        OmdsPrimaryButton(
           key: const Key('profile-edit-change-avatar'),
-          onPressed: state.isSavingProfile ? null : () {},
-          child: Text(l10n.profileAvatarChange),
+          text: l10n.profileAvatarChange,
+          variant: OmdsButtonVariant.text,
+          isEnabled: !state.isSavingProfile,
+          onTap: () {},
         ),
         if (state.profile.photoUrl != null)
-          TextButton(
+          OmdsPrimaryButton(
             key: const Key('profile-edit-remove-avatar'),
-            onPressed: state.isSavingProfile
-                ? null
-                : () => context.read<SettingsCubit>().removePhoto(),
-            child: Text(l10n.profileAvatarRemove),
+            text: l10n.profileAvatarRemove,
+            variant: OmdsButtonVariant.text,
+            isEnabled: !state.isSavingProfile,
+            onTap: () => context.read<SettingsCubit>().removePhoto(),
           ),
       ],
     );
