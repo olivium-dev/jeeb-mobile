@@ -1,0 +1,90 @@
+name: Mobile CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * *'  # nightly UTC
+
+concurrency:
+  group: mobile-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.38.9'
+
+jobs:
+  l10n-parity:
+    name: L10n parity gate (T-MOB-FIX-002)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout omds-flutter sibling for path dep
+        uses: actions/checkout@v4
+        continue-on-error: true
+        id: checkout_omds
+        with:
+          repository: olivium-dev/omds-flutter
+          path: __omds_checkout
+          token: ${{ secrets.OMDS_FLUTTER_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Move omds-flutter into expected sibling path
+        if: steps.checkout_omds.outcome == 'success'
+        run: |
+          mv "$GITHUB_WORKSPACE/__omds_checkout" "$(dirname "$GITHUB_WORKSPACE")/omds-flutter"
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Install Flutter dependencies (optional — needed only for runtime tests)
+        id: pub_get
+        continue-on-error: true
+        run: flutter pub get
+
+      - name: Static 4-set parity (AC1, AC3, AC5) — static only when pub get unavailable
+        env:
+          OUT_DIR: ${{ github.workspace }}/_artifacts/l10n
+        run: |
+          mkdir -p "$OUT_DIR"
+          if [ "${{ steps.pub_get.outcome }}" = "success" ]; then
+            bash qa/t-mob-fix-002/l10n_parity_check.sh --analyze
+          else
+            echo "::warning::flutter pub get failed (omds path dep unavailable in CI) — running static parity only, skipping flutter analyze"
+            bash qa/t-mob-fix-002/l10n_parity_check.sh
+          fi
+
+      - name: AR CLDR plural forms (AC6 — ARB side)
+        env:
+          OUT_DIR: ${{ github.workspace }}/_artifacts/l10n
+        run: bash qa/t-mob-fix-002/ar_plurals_check.sh
+
+      - name: Runtime parity + plural unit tests (AC1 d/e + AC6 runtime) — requires omds
+        if: steps.pub_get.outcome == 'success'
+        run: flutter test test/l10n/ --reporter=expanded
+
+      - name: Skipped runtime parity notice
+        if: steps.pub_get.outcome != 'success'
+        run: |
+          echo "::warning::Runtime parity test (flutter test test/l10n/) skipped because flutter pub get failed."
+          echo "Root cause: omds path dep at ../omds-flutter/omds_library is unavailable in CI."
+          echo "Static ARB-side gates (AC1+AC3+AC5+AC6 ARB) still ran and gate the PR."
+
+      - name: Upload parity artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: l10n-parity-artifacts
+          path: |
+            _artifacts/l10n/
+          if-no-files-found: ignore
+          retention-days: 14
