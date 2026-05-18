@@ -40,8 +40,23 @@ class AppLocalizations {
   String _get(String key) {
     final value = _strings[key];
     assert(value != null, 'Missing ARB key: $key for ${locale.toLanguageTag()}');
+    assert(
+      value != key,
+      'ARB value equals key for "$key" in ${locale.toLanguageTag()} — '
+      'this is a sentinel stub that was never translated.',
+    );
     return value ?? key;
   }
+
+  /// Test-only accessor over the loaded ARB map. Used by
+  /// `test/l10n/runtime_parity_test.dart` (JEB-2 LEAD §3) to assert that no
+  /// rendered value equals its key. Returns `null` for unknown keys.
+  @visibleForTesting
+  String? byKey(String key) => _strings[key];
+
+  /// Test-only snapshot of the loaded ARB map.
+  @visibleForTesting
+  Map<String, String> get allStrings => Map.unmodifiable(_strings);
 
   String get appTitle => _get('appTitle');
 
@@ -89,6 +104,14 @@ class AppLocalizations {
   String earningsSummaryCompleted(int count) {
     if (count == 0) return _get('earningsSummaryCompletedZero');
     if (count == 1) return _get('earningsSummaryCompletedOne');
+    if (count == 2) return _get('earningsSummaryCompletedTwo');
+    final mod = count % 100;
+    if (mod >= 3 && mod <= 10) {
+      return _get('earningsSummaryCompletedFew').replaceFirst('{count}', '$count');
+    }
+    if (mod >= 11 && mod <= 99) {
+      return _get('earningsSummaryCompletedMany').replaceFirst('{count}', '$count');
+    }
     return _get('earningsSummaryCompletedOther').replaceFirst('{count}', '$count');
   }
   String earningsSummaryTips(String amount) =>
@@ -563,8 +586,15 @@ class AppLocalizations {
   String dashboardTodayEarningsCompleted(int count) {
     if (count == 0) return _get('dashboardTodayEarningsCompletedZero');
     if (count == 1) return _get('dashboardTodayEarningsCompletedOne');
-    return _get('dashboardTodayEarningsCompletedMany')
-        .replaceFirst('{count}', '$count');
+    if (count == 2) return _get('dashboardTodayEarningsCompletedTwo');
+    final mod = count % 100;
+    if (mod >= 3 && mod <= 10) {
+      return _get('dashboardTodayEarningsCompletedFew').replaceFirst('{count}', '$count');
+    }
+    if (mod >= 11 && mod <= 99) {
+      return _get('dashboardTodayEarningsCompletedMany').replaceFirst('{count}', '$count');
+    }
+    return _get('dashboardTodayEarningsCompletedOther').replaceFirst('{count}', '$count');
   }
 
   String get dashboardActiveDeliveryTitle =>
@@ -592,7 +622,15 @@ class AppLocalizations {
   String dashboardNearbyRequestsCount(int count) {
     if (count == 0) return _get('dashboardNearbyRequestsZero');
     if (count == 1) return _get('dashboardNearbyRequestsOne');
-    return _get('dashboardNearbyRequestsMany').replaceFirst('{count}', '$count');
+    if (count == 2) return _get('dashboardNearbyRequestsTwo');
+    final mod = count % 100;
+    if (mod >= 3 && mod <= 10) {
+      return _get('dashboardNearbyRequestsFew').replaceFirst('{count}', '$count');
+    }
+    if (mod >= 11 && mod <= 99) {
+      return _get('dashboardNearbyRequestsMany').replaceFirst('{count}', '$count');
+    }
+    return _get('dashboardNearbyRequestsOther').replaceFirst('{count}', '$count');
   }
 
   String get dashboardNearbyRequestsOfflineHint =>
@@ -652,8 +690,15 @@ class AppLocalizations {
   String requestSummaryFindingNotifiedCount(int count) {
     if (count == 0) return _get('requestSummaryFindingNotifiedZero');
     if (count == 1) return _get('requestSummaryFindingNotifiedOne');
-    return _get('requestSummaryFindingNotifiedMany')
-        .replaceFirst('{count}', '$count');
+    if (count == 2) return _get('requestSummaryFindingNotifiedTwo');
+    final mod = count % 100;
+    if (mod >= 3 && mod <= 10) {
+      return _get('requestSummaryFindingNotifiedFew').replaceFirst('{count}', '$count');
+    }
+    if (mod >= 11 && mod <= 99) {
+      return _get('requestSummaryFindingNotifiedMany').replaceFirst('{count}', '$count');
+    }
+    return _get('requestSummaryFindingNotifiedOther').replaceFirst('{count}', '$count');
   }
   String get requestSummaryFindingHint => _get('requestSummaryFindingHint');
 
@@ -942,4 +987,185 @@ AppLocalizations debugLoadAppLocalizationsSync(
         entry.key: entry.value as String,
   };
   return AppLocalizations(locale, strings);
+}
+
+/// Compat extension restoring 156 ARB getters dropped during the wave-2-4
+/// merge. Reuses the same `_get(...)` runtime loader as the main class so
+/// the parity script in `qa/t-mob-fix-002/l10n_parity_check.sh` sees all
+/// getters as single-line literals. JEB-2 LEAD comment 14782 §1+§6.
+extension AppLocalizationsRestored on AppLocalizations {
+  String get appBarSignOut => _get('appBarSignOut');
+  String availabilityActiveDeliveries(int count) {
+    if (count == 0) return _get('availabilityActiveDeliveriesZero');
+    if (count == 1) return _get('availabilityActiveDeliveriesOne');
+    if (count == 2) return _get('availabilityActiveDeliveriesTwo');
+    final mod = count % 100;
+    if (mod >= 3 && mod <= 10) return _get('availabilityActiveDeliveriesFew').replaceFirst('{count}', '$count');
+    if (mod >= 11 && mod <= 99) return _get('availabilityActiveDeliveriesMany').replaceFirst('{count}', '$count');
+    return _get('availabilityActiveDeliveriesOther').replaceFirst('{count}', '$count');
+  }
+  String get availabilityActiveDeliveriesLabel => _get('availabilityActiveDeliveries');
+  String get availabilityHomeTitle => _get('availabilityHomeTitle');
+  String get availabilityInactivityWarningBody => _get('availabilityInactivityWarningBody');
+  String get availabilityInactivityWarningCta => _get('availabilityInactivityWarningCta');
+  String get availabilityInactivityWarningTitle => _get('availabilityInactivityWarningTitle');
+  String get availabilityLoadError => _get('availabilityLoadError');
+  String get availabilityLoadRetry => _get('availabilityLoadRetry');
+  String get availabilityToggleErrorBody => _get('availabilityToggleErrorBody');
+  String get chatActiveDeliverySubtitle => _get('chatActiveDeliverySubtitle');
+  String get chatActiveDeliveryTitle => _get('chatActiveDeliveryTitle');
+  String get chatAttachTooltip => _get('chatAttachTooltip');
+  String get chatAttachmentCamera => _get('chatAttachmentCamera');
+  String get chatAttachmentCancel => _get('chatAttachmentCancel');
+  String get chatAttachmentGallery => _get('chatAttachmentGallery');
+  String get chatAttachmentSheetTitle => _get('chatAttachmentSheetTitle');
+  String get chatComposerHint => _get('chatComposerHint');
+  String get chatEmptyThreadSubtitle => _get('chatEmptyThreadSubtitle');
+  String get chatEmptyThreadTitle => _get('chatEmptyThreadTitle');
+  String get chatErrorPermissionDenied => _get('chatErrorPermissionDenied');
+  String get chatErrorPickUnavailable => _get('chatErrorPickUnavailable');
+  String get chatErrorSendFailed => _get('chatErrorSendFailed');
+  String chatPendingMessages(int count) {
+    if (count == 0) return _get('chatPendingMessagesZero');
+    if (count == 1) return _get('chatPendingMessagesOne');
+    if (count == 2) return _get('chatPendingMessagesTwo');
+    final mod = count % 100;
+    if (mod >= 3 && mod <= 10) return _get('chatPendingMessagesFew').replaceFirst('{count}', '$count');
+    if (mod >= 11 && mod <= 99) return _get('chatPendingMessagesMany').replaceFirst('{count}', '$count');
+    return _get('chatPendingMessagesOther').replaceFirst('{count}', '$count');
+  }
+  String get chatPendingMessagesLabel => _get('chatPendingMessages');
+  String get chatPlaceholderCounterpartName => _get('chatPlaceholderCounterpartName');
+  String get chatSendTooltip => _get('chatSendTooltip');
+  String get chatStatusConnected => _get('chatStatusConnected');
+  String get chatStatusConnecting => _get('chatStatusConnecting');
+  String get chatStatusOffline => _get('chatStatusOffline');
+  String get chatStatusReconnecting => _get('chatStatusReconnecting');
+  String get homeGreetingFallback => _get('homeGreetingFallback');
+  String homeGreetingNamed(String name) => _get('homeGreetingNamed').replaceFirst('{name}', name);
+  String get homeGreetingSubtitle => _get('homeGreetingSubtitle');
+  String get homeLoadFailedBody => _get('homeLoadFailedBody');
+  String get homeLoadFailedRetry => _get('homeLoadFailedRetry');
+  String get homeLoadFailedTitle => _get('homeLoadFailedTitle');
+  String get homeRecordVoiceRequest => _get('homeRecordVoiceRequest');
+  String homeRequestCardSemanticLabel({required String title, required String status}) => _get('homeRequestCardSemanticLabel').replaceFirst('{title}', title).replaceFirst('{status}', status);
+  String get homeRequestEtaUnknown => _get('homeRequestEtaUnknown');
+  String homeRequestJeeberAssigned(String name) => _get('homeRequestJeeberAssigned').replaceFirst('{name}', name);
+  String get locationConfirmAndSave => _get('locationConfirmAndSave');
+  String get locationConfirmedTitle => _get('locationConfirmedTitle');
+  String get locationContinueToDropoff => _get('locationContinueToDropoff');
+  String locationCoordinatesFallback(String lat, String lng) => _get('locationCoordinatesFallback').replaceFirst('{lat}', lat).replaceFirst('{lng}', lng);
+  String get locationDetectingGps => _get('locationDetectingGps');
+  String get locationDropoffTitle => _get('locationDropoffTitle');
+  String get locationErrorGeocodingFailed => _get('locationErrorGeocodingFailed');
+  String get locationErrorGpsUnavailable => _get('locationErrorGpsUnavailable');
+  String get locationErrorPermissionDenied => _get('locationErrorPermissionDenied');
+  String get locationErrorSaveFailed => _get('locationErrorSaveFailed');
+  String get locationErrorSearchFailed => _get('locationErrorSearchFailed');
+  String get locationNoSelectionYet => _get('locationNoSelectionYet');
+  String get locationOpenMap => _get('locationOpenMap');
+  String get locationPickupTitle => _get('locationPickupTitle');
+  String get locationResolvingAddress => _get('locationResolvingAddress');
+  String get locationSavingCta => _get('locationSavingCta');
+  String get locationSearchEmpty => _get('locationSearchEmpty');
+  String get locationSelectedPreviewLabel => _get('locationSelectedPreviewLabel');
+  String get locationStepDone => _get('locationStepDone');
+  String get locationStepDropoff => _get('locationStepDropoff');
+  String get locationStepPickup => _get('locationStepPickup');
+  String get locationUseCurrentGps => _get('locationUseCurrentGps');
+  String get offersEmptyBody => _get('offersEmptyBody');
+  String get offersEmptyTitle => _get('offersEmptyTitle');
+  String get offersRatingCount => _get('offersRatingCount');
+  String get offersRequestClosedTitle => _get('offersRequestClosedTitle');
+  String get offersRetryAction => _get('offersRetryAction');
+  String get offersScreenTitle => _get('offersScreenTitle');
+  String get offersSortByPrice => _get('offersSortByPrice');
+  String get offersSortByRating => _get('offersSortByRating');
+  String get offersSortLabel => _get('offersSortLabel');
+  String get offersWindowExpired => _get('offersWindowExpired');
+  String offersWindowRemaining(String time) => _get('offersWindowRemaining').replaceFirst('{time}', time);
+  String get orderHistoryAddressMissing => _get('orderHistoryAddressMissing');
+  String orderHistoryCardSemanticLabel(String id) => _get('orderHistoryCardSemanticLabel').replaceFirst('{id}', id);
+  String get orderHistoryEmptyActive => _get('orderHistoryEmptyActive');
+  String get orderHistoryEmptyCancelled => _get('orderHistoryEmptyCancelled');
+  String get orderHistoryEmptyCompleted => _get('orderHistoryEmptyCompleted');
+  String get orderHistoryEmptyTitle => _get('orderHistoryEmptyTitle');
+  String get orderHistoryErrorNetwork => _get('orderHistoryErrorNetwork');
+  String get orderHistoryErrorRetry => _get('orderHistoryErrorRetry');
+  String get orderHistoryErrorServer => _get('orderHistoryErrorServer');
+  String get orderHistoryErrorTitle => _get('orderHistoryErrorTitle');
+  String get orderHistoryFilterActive => _get('orderHistoryFilterActive');
+  String get orderHistoryFilterAnyDate => _get('orderHistoryFilterAnyDate');
+  String get orderHistoryFilterApply => _get('orderHistoryFilterApply');
+  String get orderHistoryFilterClear => _get('orderHistoryFilterClear');
+  String get orderHistoryFilterCta => _get('orderHistoryFilterCta');
+  String get orderHistoryFilterFrom => _get('orderHistoryFilterFrom');
+  String get orderHistoryFilterTitle => _get('orderHistoryFilterTitle');
+  String get orderHistoryFilterTo => _get('orderHistoryFilterTo');
+  String get orderHistoryStatusCancelled => _get('orderHistoryStatusCancelled');
+  String get orderHistoryStatusDelivered => _get('orderHistoryStatusDelivered');
+  String get orderHistoryStatusDisputed => _get('orderHistoryStatusDisputed');
+  String get orderHistoryStatusEnRoute => _get('orderHistoryStatusEnRoute');
+  String get orderHistoryStatusMatched => _get('orderHistoryStatusMatched');
+  String get orderHistoryStatusPending => _get('orderHistoryStatusPending');
+  String get orderHistoryStatusPickedUp => _get('orderHistoryStatusPickedUp');
+  String get orderHistoryStatusUnknown => _get('orderHistoryStatusUnknown');
+  String get orderHistoryTabActive => _get('orderHistoryTabActive');
+  String get orderHistoryTabCancelled => _get('orderHistoryTabCancelled');
+  String get orderHistoryTabCompleted => _get('orderHistoryTabCompleted');
+  String get registrationSocialErrorAccountDisabled => _get('registrationSocialErrorAccountDisabled');
+  String get registrationSocialErrorGeneric => _get('registrationSocialErrorGeneric');
+  String get registrationSocialErrorInvalidToken => _get('registrationSocialErrorInvalidToken');
+  String get registrationSocialErrorNetwork => _get('registrationSocialErrorNetwork');
+  String get requestFeedAccept => _get('requestFeedAccept');
+  String get requestFeedAccepting => _get('requestFeedAccepting');
+  String get requestFeedActionAcceptedSnack => _get('requestFeedActionAcceptedSnack');
+  String get requestFeedActionDeclinedSnack => _get('requestFeedActionDeclinedSnack');
+  String get requestFeedActionExpiredSnack => _get('requestFeedActionExpiredSnack');
+  String get requestFeedActionNetworkSnack => _get('requestFeedActionNetworkSnack');
+  String get requestFeedActionTakenSnack => _get('requestFeedActionTakenSnack');
+  String get requestFeedDecline => _get('requestFeedDecline');
+  String get requestFeedDeclining => _get('requestFeedDeclining');
+  String requestFeedDistance(String distance) => _get('requestFeedDistance').replaceFirst('{distance}', distance);
+  String get requestFeedDropoffLabel => _get('requestFeedDropoffLabel');
+  String requestFeedEarnings(String amount, String currency) => _get('requestFeedEarnings').replaceFirst('{amount}', amount).replaceFirst('{currency}', currency);
+  String get requestFeedEmptySubtitle => _get('requestFeedEmptySubtitle');
+  String get requestFeedEmptyTitle => _get('requestFeedEmptyTitle');
+  String get requestFeedErrorLoad => _get('requestFeedErrorLoad');
+  String get requestFeedErrorRetry => _get('requestFeedErrorRetry');
+  String get requestFeedErrorTitle => _get('requestFeedErrorTitle');
+  String requestFeedExpiresIn(int seconds) => _get('requestFeedExpiresIn').replaceFirst('{seconds}', '$seconds');
+  String get requestFeedPickupLabel => _get('requestFeedPickupLabel');
+  String get requestFeedReconnecting => _get('requestFeedReconnecting');
+  String get requestFeedTierBulk => _get('requestFeedTierBulk');
+  String get requestFeedTierLight => _get('requestFeedTierLight');
+  String get requestFeedTierStandard => _get('requestFeedTierStandard');
+  String get requestFeedTitle => _get('requestFeedTitle');
+  String get settingsNetworkError => _get('settingsNetworkError');
+  String get signOutCompleted => _get('signOutCompleted');
+  String get signOutDialogBody => _get('signOutDialogBody');
+  String get signOutDialogTitle => _get('signOutDialogTitle');
+  String get voiceRecordingCancel => _get('voiceRecordingCancel');
+  String get voiceRecordingDiscard => _get('voiceRecordingDiscard');
+  String get voiceRecordingErrorMaxReached => _get('voiceRecordingErrorMaxReached');
+  String get voiceRecordingErrorPermission => _get('voiceRecordingErrorPermission');
+  String get voiceRecordingErrorRecorderFailed => _get('voiceRecordingErrorRecorderFailed');
+  String get voiceRecordingErrorTooShort => _get('voiceRecordingErrorTooShort');
+  String get voiceRecordingErrorUnavailable => _get('voiceRecordingErrorUnavailable');
+  String get voiceRecordingErrorUploadGeneric => _get('voiceRecordingErrorUploadGeneric');
+  String get voiceRecordingErrorUploadNetwork => _get('voiceRecordingErrorUploadNetwork');
+  String get voiceRecordingErrorUploadServer => _get('voiceRecordingErrorUploadServer');
+  String get voiceRecordingHoldToRecord => _get('voiceRecordingHoldToRecord');
+  String get voiceRecordingMicSemantic => _get('voiceRecordingMicSemantic');
+  String get voiceRecordingPause => _get('voiceRecordingPause');
+  String get voiceRecordingPlay => _get('voiceRecordingPlay');
+  String get voiceRecordingRecordAnother => _get('voiceRecordingRecordAnother');
+  String get voiceRecordingReleaseToStop => _get('voiceRecordingReleaseToStop');
+  String get voiceRecordingSend => _get('voiceRecordingSend');
+  String get voiceRecordingSending => _get('voiceRecordingSending');
+  String get voiceRecordingSentBody => _get('voiceRecordingSentBody');
+  String get voiceRecordingSentTitle => _get('voiceRecordingSentTitle');
+  String get voiceRecordingSubtitle => _get('voiceRecordingSubtitle');
+  String voiceRecordingTimerLabel(String duration) => _get('voiceRecordingTimerLabel').replaceFirst('{duration}', duration);
+  String get voiceRecordingTitle => _get('voiceRecordingTitle');
 }

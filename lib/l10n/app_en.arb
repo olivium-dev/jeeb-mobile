@@ -1,24 +1,33 @@
 {
   "@@locale": "en",
-
   "appTitle": "Jeeb",
   "@appTitle": {
     "description": "App display name"
   },
-
   "navHome": "Home",
-  "@navHome": { "description": "Client tab: Home" },
+  "@navHome": {
+    "description": "Client tab: Home"
+  },
   "navOrders": "Orders",
-  "@navOrders": { "description": "Client tab: Orders" },
+  "@navOrders": {
+    "description": "Client tab: Orders"
+  },
   "navChat": "Chat",
-  "@navChat": { "description": "Shared tab: Chat" },
+  "@navChat": {
+    "description": "Shared tab: Chat"
+  },
   "navProfile": "Profile",
-  "@navProfile": { "description": "Shared tab: Profile" },
+  "@navProfile": {
+    "description": "Shared tab: Profile"
+  },
   "navDashboard": "Dashboard",
-  "@navDashboard": { "description": "Jeeber tab: Dashboard" },
+  "@navDashboard": {
+    "description": "Jeeber tab: Dashboard"
+  },
   "navEarnings": "Earnings",
-  "@navEarnings": { "description": "Jeeber tab: Earnings" },
-
+  "@navEarnings": {
+    "description": "Jeeber tab: Earnings"
+  },
   "homeTitle": "Welcome to Jeeb",
   "homeEmptyTitle": "What do you need?",
   "homeEmptySubtitle": "Tap the mic and tell us — we'll find a Jeeber for you.",
@@ -30,15 +39,17 @@
   "homeReorderAction": "Re-order",
   "homeRequestEtaMinutes": "{minutes} min away",
   "@homeRequestEtaMinutes": {
-    "placeholders": { "minutes": { "type": "int" } }
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
   },
-
   "requestStatusSearching": "Finding a Jeeber",
   "requestStatusOffers": "Offers received",
   "requestStatusAccepted": "Accepted",
   "requestStatusPickup": "At pickup",
   "requestStatusEnRoute": "On the way",
-
   "ordersTitle": "Your Orders",
   "ordersEmpty": "No orders yet — order a delivery to get started.",
   "chatTitle": "Conversations",
@@ -58,81 +69,126 @@
   "earningsSummaryCompletedOne": "1 delivery",
   "earningsSummaryCompletedOther": "{count} deliveries",
   "@earningsSummaryCompletedOther": {
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "earningsSummaryTips": "Tips: {amount}",
   "@earningsSummaryTips": {
-    "placeholders": { "amount": { "type": "String" } }
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
   },
   "earningsSummaryAverage": "Avg {amount}/delivery",
   "@earningsSummaryAverage": {
-    "placeholders": { "amount": { "type": "String" } }
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
   },
   "earningsBreakdownTitle": "Per delivery",
   "earningsBreakdownEmpty": "Completed deliveries for this period will appear here.",
   "earningsBreakdownTipSuffix": "incl. {amount} tip",
   "@earningsBreakdownTipSuffix": {
-    "placeholders": { "amount": { "type": "String" } }
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
   },
   "earningsLoadFailed": "Couldn't load earnings.",
   "earningsLoadRetry": "Retry",
-
   "availabilityCardTitle": "Availability",
-  "@availabilityCardTitle": { "description": "Header above the online/offline toggle on the Jeeber home screen" },
+  "@availabilityCardTitle": {
+    "description": "Header above the online/offline toggle on the Jeeber home screen"
+  },
   "availabilityToggleOnline": "Online",
-  "@availabilityToggleOnline": { "description": "Label on the toggle when the Jeeber is accepting offers" },
+  "@availabilityToggleOnline": {
+    "description": "Label on the toggle when the Jeeber is accepting offers"
+  },
   "availabilityToggleOffline": "Offline",
-  "@availabilityToggleOffline": { "description": "Label on the toggle when the Jeeber is not accepting offers" },
+  "@availabilityToggleOffline": {
+    "description": "Label on the toggle when the Jeeber is not accepting offers"
+  },
   "availabilityStatusOnline": "You're online — accepting offers",
-  "@availabilityStatusOnline": { "description": "Subtitle / status copy shown while online" },
+  "@availabilityStatusOnline": {
+    "description": "Subtitle / status copy shown while online"
+  },
   "availabilityStatusOffline": "You're offline",
-  "@availabilityStatusOffline": { "description": "Subtitle / status copy shown while offline" },
+  "@availabilityStatusOffline": {
+    "description": "Subtitle / status copy shown while offline"
+  },
   "availabilityStatusAutoOffline": "Automatically taken offline",
-  "@availabilityStatusAutoOffline": { "description": "Subtitle shown when the system flipped the Jeeber offline" },
+  "@availabilityStatusAutoOffline": {
+    "description": "Subtitle shown when the system flipped the Jeeber offline"
+  },
   "availabilityTransitioning": "Updating…",
-  "@availabilityTransitioning": { "description": "Subtitle shown while the toggle is mid-transition" },
+  "@availabilityTransitioning": {
+    "description": "Subtitle shown while the toggle is mid-transition"
+  },
   "availabilityIndicatorSemanticOnline": "Online",
   "availabilityIndicatorSemanticOffline": "Offline",
   "availabilityIndicatorSemanticAutoOffline": "Auto offline",
   "availabilityAutoOfflineBannerTitle": "We took you offline",
-  "@availabilityAutoOfflineBannerTitle": { "description": "Title of the auto-offline notification banner" },
+  "@availabilityAutoOfflineBannerTitle": {
+    "description": "Title of the auto-offline notification banner"
+  },
   "availabilityAutoOfflineReasonPermission": "Location permission was changed. Re-enable Always access to go back online.",
   "availabilityAutoOfflineReasonNetwork": "We lost connection long enough to stop tracking you. Check your network, then tap Online.",
   "availabilityAutoOfflineReasonBattery": "Battery optimization is throttling background tracking. Allow-list Jeeb in system settings before going online.",
   "availabilityAutoOfflineReasonIdle": "You've been idle for a while, so we paused new offers. Tap Online when you're ready.",
   "availabilityAutoOfflineReasonServer": "We paused new offers from our side. Check your account, then tap Online.",
   "availabilityAutoOfflineDismiss": "Dismiss",
-  "@availabilityAutoOfflineDismiss": { "description": "Dismiss button on the auto-offline banner" },
+  "@availabilityAutoOfflineDismiss": {
+    "description": "Dismiss button on the auto-offline banner"
+  },
   "availabilityAutoOfflineGoOnline": "Go online",
-  "@availabilityAutoOfflineGoOnline": { "description": "Primary CTA on the auto-offline banner that retries going online" },
+  "@availabilityAutoOfflineGoOnline": {
+    "description": "Primary CTA on the auto-offline banner that retries going online"
+  },
   "availabilityPermissionDeniedHint": "Location permission is required to go online. Grant Always access from system settings.",
-  "@availabilityPermissionDeniedHint": { "description": "Helper text shown beneath the toggle when permission is missing" },
-
+  "@availabilityPermissionDeniedHint": {
+    "description": "Helper text shown beneath the toggle when permission is missing"
+  },
   "settingsLanguage": "Language",
   "settingsRole": "Role",
   "settingsLanguageEnglish": "English",
   "settingsLanguageArabic": "العربية",
   "settingsRoleClient": "Client",
   "settingsRoleJeeber": "Jeeber",
-
   "roleToggleSemanticLabel": "Switch active role",
-  "@roleToggleSemanticLabel": { "description": "Screen-reader label for the Client/Jeeber role toggle in the home header" },
+  "@roleToggleSemanticLabel": {
+    "description": "Screen-reader label for the Client/Jeeber role toggle in the home header"
+  },
   "roleToggleKycLockedTitle": "Complete your Jeeber profile",
-  "@roleToggleKycLockedTitle": { "description": "Title of the dialog shown when an unapproved Jeeber taps the Jeeber side of the role toggle" },
+  "@roleToggleKycLockedTitle": {
+    "description": "Title of the dialog shown when an unapproved Jeeber taps the Jeeber side of the role toggle"
+  },
   "roleToggleKycLockedBody": "Verify your identity to start delivering with Jeeb.",
-  "@roleToggleKycLockedBody": { "description": "Body of the KYC-locked dialog" },
+  "@roleToggleKycLockedBody": {
+    "description": "Body of the KYC-locked dialog"
+  },
   "roleToggleKycLockedCta": "Start verification",
-  "@roleToggleKycLockedCta": { "description": "Primary CTA on the KYC-locked dialog — routes to the KYC status screen" },
+  "@roleToggleKycLockedCta": {
+    "description": "Primary CTA on the KYC-locked dialog — routes to the KYC status screen"
+  },
   "roleToggleKycLockedDismiss": "Not now",
-  "@roleToggleKycLockedDismiss": { "description": "Secondary CTA on the KYC-locked dialog — closes the prompt" },
+  "@roleToggleKycLockedDismiss": {
+    "description": "Secondary CTA on the KYC-locked dialog — closes the prompt"
+  },
   "roleToggleActiveDeliveryBlocked": "Finish your active delivery before switching roles.",
-  "@roleToggleActiveDeliveryBlocked": { "description": "Snackbar shown when the user taps the role toggle while a delivery is active" },
-
+  "@roleToggleActiveDeliveryBlocked": {
+    "description": "Snackbar shown when the user taps the role toggle while a delivery is active"
+  },
   "settingsTheme": "Theme",
   "settingsThemeSystem": "System",
   "settingsThemeLight": "Light",
   "settingsThemeDark": "Dark",
-
   "settingsTitle": "Settings",
   "settingsOpenSubtitle": "Profile, notifications, addresses, and more",
   "settingsProfileSection": "Profile",
@@ -142,7 +198,6 @@
   "settingsAccountSection": "Account",
   "settingsAboutSection": "About",
   "settingsAppVersion": "App version",
-
   "profileNamePlaceholder": "Add your name",
   "profileEditTitle": "Edit profile",
   "profileEditSubtitle": "Update your name and avatar",
@@ -154,21 +209,34 @@
   "profileSave": "Save",
   "profileSaving": "Saving…",
   "profileSaved": "Profile saved.",
-
   "notificationPreferencesTitle": "Notifications",
-  "@notificationPreferencesTitle": { "description": "App bar title for the dedicated notification preferences screen (T-mobile-043)" },
+  "@notificationPreferencesTitle": {
+    "description": "App bar title for the dedicated notification preferences screen (T-mobile-043)"
+  },
   "notificationPreferencesRowSubtitle": "Manage what you get notified about",
-  "@notificationPreferencesRowSubtitle": { "description": "Subtitle on the settings hub row that opens notification preferences" },
+  "@notificationPreferencesRowSubtitle": {
+    "description": "Subtitle on the settings hub row that opens notification preferences"
+  },
   "notificationPreferencesCategoriesSection": "Categories",
-  "@notificationPreferencesCategoriesSection": { "description": "Section header above the toggleable notification categories" },
+  "@notificationPreferencesCategoriesSection": {
+    "description": "Section header above the toggleable notification categories"
+  },
   "notificationPreferencesSecuritySection": "Security",
-  "@notificationPreferencesSecuritySection": { "description": "Section header above the always-on OTP row" },
+  "@notificationPreferencesSecuritySection": {
+    "description": "Section header above the always-on OTP row"
+  },
   "notificationPreferencesDisableOffersTitle": "Stop offer notifications?",
-  "@notificationPreferencesDisableOffersTitle": { "description": "Title of the confirmation dialog shown when the user turns the offers toggle off" },
+  "@notificationPreferencesDisableOffersTitle": {
+    "description": "Title of the confirmation dialog shown when the user turns the offers toggle off"
+  },
   "notificationPreferencesDisableOffersBody": "You'll miss discounts and seasonal promotions until you turn this back on.",
-  "@notificationPreferencesDisableOffersBody": { "description": "Body of the disable-offers confirmation dialog" },
+  "@notificationPreferencesDisableOffersBody": {
+    "description": "Body of the disable-offers confirmation dialog"
+  },
   "notificationPreferencesDisableOffersConfirm": "Turn off",
-  "@notificationPreferencesDisableOffersConfirm": { "description": "Confirm CTA on the disable-offers dialog" },
+  "@notificationPreferencesDisableOffersConfirm": {
+    "description": "Confirm CTA on the disable-offers dialog"
+  },
   "notificationCategoryOffers": "Offers",
   "notificationCategoryOffersSubtitle": "Discounts and seasonal promotions",
   "notificationCategoryChat": "Chat messages",
@@ -179,7 +247,6 @@
   "notificationCategoryRatingRemindersSubtitle": "Reminders to rate completed deliveries",
   "notificationCategoryOtp": "Security codes",
   "notificationCategoryOtpAlwaysOn": "Always on so you can sign in",
-
   "savedAddressesTitle": "Saved addresses",
   "savedAddressesSubtitle": "Quick access for re-order",
   "savedAddressesEmptyTitle": "No saved addresses yet",
@@ -194,34 +261,58 @@
   "savedAddressDeleteConfirmTitle": "Delete saved address?",
   "savedAddressDeleteConfirmBody": "{label} will be removed from your saved list.",
   "@savedAddressDeleteConfirmBody": {
-    "placeholders": { "label": { "type": "String" } }
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
   },
-
   "biometricRowTitle": "Sign in with biometrics",
   "biometricRowSubtitle": "Use Face ID or fingerprint when available",
   "biometricLockTitle": "Unlock Jeeb",
-  "@biometricLockTitle": { "description": "Title shown on the launch-time biometric lock screen" },
+  "@biometricLockTitle": {
+    "description": "Title shown on the launch-time biometric lock screen"
+  },
   "biometricLockBody": "Authenticate with Face ID or fingerprint to continue.",
-  "@biometricLockBody": { "description": "Body copy on the lock screen explaining the biometric prompt" },
+  "@biometricLockBody": {
+    "description": "Body copy on the lock screen explaining the biometric prompt"
+  },
   "biometricLockRetry": "Try biometrics again",
-  "@biometricLockRetry": { "description": "Primary CTA that re-invokes the OS biometric prompt" },
+  "@biometricLockRetry": {
+    "description": "Primary CTA that re-invokes the OS biometric prompt"
+  },
   "biometricLockPrompting": "Waiting for biometrics…",
-  "@biometricLockPrompting": { "description": "Disabled-button label while the OS prompt is on screen" },
+  "@biometricLockPrompting": {
+    "description": "Disabled-button label while the OS prompt is on screen"
+  },
   "biometricLockFailure": "Biometric check failed. Try again or use your PIN.",
-  "@biometricLockFailure": { "description": "Inline error after a failed biometric attempt" },
+  "@biometricLockFailure": {
+    "description": "Inline error after a failed biometric attempt"
+  },
   "biometricLockUsePin": "Use PIN instead",
-  "@biometricLockUsePin": { "description": "Secondary CTA on the lock screen that opens the PIN fallback" },
+  "@biometricLockUsePin": {
+    "description": "Secondary CTA on the lock screen that opens the PIN fallback"
+  },
   "biometricPromptReason": "Confirm it's you to open Jeeb",
-  "@biometricPromptReason": { "description": "Reason string passed to the OS biometric prompt" },
+  "@biometricPromptReason": {
+    "description": "Reason string passed to the OS biometric prompt"
+  },
   "biometricPromptSemanticLabel": "Biometric icon",
-  "@biometricPromptSemanticLabel": { "description": "Screen-reader label for the fingerprint icon on the lock screen" },
+  "@biometricPromptSemanticLabel": {
+    "description": "Screen-reader label for the fingerprint icon on the lock screen"
+  },
   "biometricPinTitle": "Enter your PIN",
-  "@biometricPinTitle": { "description": "Title of the PIN-fallback view on the lock screen" },
+  "@biometricPinTitle": {
+    "description": "Title of the PIN-fallback view on the lock screen"
+  },
   "biometricPinSubtitle": "Enter the 4-digit PIN you set up for Jeeb.",
-  "@biometricPinSubtitle": { "description": "Subtitle on the PIN-fallback view" },
+  "@biometricPinSubtitle": {
+    "description": "Subtitle on the PIN-fallback view"
+  },
   "biometricPinIncorrect": "Incorrect PIN. Try again.",
-  "@biometricPinIncorrect": { "description": "Inline error after a wrong PIN entry" },
-
+  "@biometricPinIncorrect": {
+    "description": "Inline error after a wrong PIN entry"
+  },
   "accountDeleteRow": "Delete account",
   "accountDeleteSubtitle": "Permanently remove your Jeeb account",
   "accountDeletePending": "Deletion requested. We'll be in touch.",
@@ -229,42 +320,51 @@
   "accountDeleteDialogBody": "This will queue your account for deletion. Active orders must be completed before your data is removed.",
   "accountDeleteConfirm": "Delete account",
   "accountDeleteSubmitted": "Deletion requested. We'll confirm by email.",
-
   "actionSave": "Save",
   "actionDelete": "Delete",
-
   "actionContinue": "Continue",
   "actionCancel": "Cancel",
   "actionNext": "Next",
   "actionGetStarted": "Get Started",
   "actionSkip": "Skip",
   "actionSignUp": "Sign Up",
-
   "onboardingChooseLanguage": "Choose your language",
-  "@onboardingChooseLanguage": { "description": "Header above the language toggle on the onboarding screen" },
-
+  "@onboardingChooseLanguage": {
+    "description": "Header above the language toggle on the onboarding screen"
+  },
   "onboardingSlide1Title": "Voice-first deliveries",
-  "@onboardingSlide1Title": { "description": "Onboarding slide 1 — voice-first delivery requests" },
+  "@onboardingSlide1Title": {
+    "description": "Onboarding slide 1 — voice-first delivery requests"
+  },
   "onboardingSlide1Body": "Tap to talk. Tell Jeeb what you need in your own voice and we'll handle the rest.",
-
   "onboardingSlide2Title": "Trusted Jeebers, every time",
-  "@onboardingSlide2Title": { "description": "Onboarding slide 2 — vetted delivery partners" },
+  "@onboardingSlide2Title": {
+    "description": "Onboarding slide 2 — vetted delivery partners"
+  },
   "onboardingSlide2Body": "Every Jeeber is vetted, rated, and accountable so your deliveries stay in safe hands.",
-
   "onboardingSlide3Title": "Live tracking, end to end",
-  "@onboardingSlide3Title": { "description": "Onboarding slide 3 — live order tracking" },
+  "@onboardingSlide3Title": {
+    "description": "Onboarding slide 3 — live order tracking"
+  },
   "onboardingSlide3Body": "Follow your Jeeber on the map from pickup to drop-off in real time.",
-
   "deliveryDetailTitle": "Delivery {id}",
   "@deliveryDetailTitle": {
     "description": "Title of the delivery-detail screen reached from a push tap",
-    "placeholders": { "id": { "type": "String" } }
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
   },
   "deliveryDetailPlaceholder": "Delivery details will appear here.",
   "chatDetailTitle": "Conversation {id}",
   "@chatDetailTitle": {
     "description": "Title of the chat-detail screen reached from a push tap",
-    "placeholders": { "id": { "type": "String" } }
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
   },
   "chatDetailPlaceholder": "Messages will appear here.",
   "kycStatusTitle": "KYC status",
@@ -272,7 +372,11 @@
   "ratingPromptTitle": "Rate your delivery",
   "ratingPromptPlaceholder": "Rate delivery {id} once it's completed.",
   "@ratingPromptPlaceholder": {
-    "placeholders": { "id": { "type": "String" } }
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
   },
   "ratingPromptHeadlineJeeber": "How was your Jeeber?",
   "ratingPromptHeadlineClient": "How was your client?",
@@ -292,31 +396,49 @@
   "ratingSubmitFailedBody": "Couldn't submit your rating. Try again in a moment.",
   "ratingRevealBlindTitle": "{name} already rated you",
   "@ratingRevealBlindTitle": {
-    "placeholders": { "name": { "type": "String" } }
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "ratingRevealBlindBody": "Submit your rating to see theirs.",
   "ratingRevealPendingTitle": "{name} hasn't rated yet",
   "@ratingRevealPendingTitle": {
-    "placeholders": { "name": { "type": "String" } }
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "ratingRevealPendingBody": "Your rating is saved. We'll show {name}'s rating once they submit.",
   "@ratingRevealPendingBody": {
-    "placeholders": { "name": { "type": "String" } }
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "ratingRevealRevealedTitle": "{name} rated you",
   "@ratingRevealRevealedTitle": {
-    "placeholders": { "name": { "type": "String" } }
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
-
   "pushBannerDeliveryCategory": "Delivery update",
   "pushBannerChatCategory": "New message",
   "pushBannerKycCategory": "Verification update",
   "pushBannerRatingCategory": "Rate your delivery",
   "pushBannerJeeberMatchCategory": "New request",
-  "@pushBannerJeeberMatchCategory": { "description": "In-app banner category label for incoming Jeeber match offers (T-mobile-013)" },
-
+  "@pushBannerJeeberMatchCategory": {
+    "description": "In-app banner category label for incoming Jeeber match offers (T-mobile-013)"
+  },
   "locationPickerTitle": "Choose location",
-  "@locationPickerTitle": { "description": "App bar title for the location picker screen" },
+  "@locationPickerTitle": {
+    "description": "App bar title for the location picker screen"
+  },
   "locationModeGps": "GPS",
   "locationModeSearch": "Search",
   "locationModeMapPin": "Map pin",
@@ -333,208 +455,377 @@
   "locationUnknownError": "Couldn't get your location",
   "locationFallbackHint": "Try search or place a pin on the map instead.",
   "locationMapPinSemanticLabel": "Map. Drag to position the delivery pin.",
-  "@locationMapPinSemanticLabel": { "description": "Screen-reader label for the draggable map canvas in the location picker" },
+  "@locationMapPinSemanticLabel": {
+    "description": "Screen-reader label for the draggable map canvas in the location picker"
+  },
   "locationRemoveSavedAddress": "Remove {label}",
   "@locationRemoveSavedAddress": {
     "description": "Tooltip / a11y label for the delete button next to a saved address",
-    "placeholders": { "label": { "type": "String" } }
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
   },
-
   "voiceRequestTitle": "New voice request",
-  "@voiceRequestTitle": { "description": "App bar title for the voice request screen" },
+  "@voiceRequestTitle": {
+    "description": "App bar title for the voice request screen"
+  },
   "voiceRequestHoldToSpeak": "Hold to speak",
-  "@voiceRequestHoldToSpeak": { "description": "Idle prompt on the mic button before recording starts" },
+  "@voiceRequestHoldToSpeak": {
+    "description": "Idle prompt on the mic button before recording starts"
+  },
   "voiceRequestReleaseToStop": "Release to stop",
-  "@voiceRequestReleaseToStop": { "description": "Hint shown while the mic is being held and recording" },
+  "@voiceRequestReleaseToStop": {
+    "description": "Hint shown while the mic is being held and recording"
+  },
   "voiceRequestTapToRecord": "Tap and hold the mic to record. Release when you're done.",
-  "@voiceRequestTapToRecord": { "description": "Instructional copy above the mic button on first entry" },
+  "@voiceRequestTapToRecord": {
+    "description": "Instructional copy above the mic button on first entry"
+  },
   "voiceRequestRecording": "Recording…",
-  "@voiceRequestRecording": { "description": "Live status label while recording is in progress" },
+  "@voiceRequestRecording": {
+    "description": "Live status label while recording is in progress"
+  },
   "voiceRequestRecorded": "Recording ready",
-  "@voiceRequestRecorded": { "description": "Status label once a recording has been captured and is ready for preview" },
+  "@voiceRequestRecorded": {
+    "description": "Status label once a recording has been captured and is ready for preview"
+  },
   "voiceRequestSubmit": "Send to Jeeb",
-  "@voiceRequestSubmit": { "description": "Primary CTA that submits the recorded voice request" },
+  "@voiceRequestSubmit": {
+    "description": "Primary CTA that submits the recorded voice request"
+  },
   "voiceRequestPlay": "Play preview",
-  "@voiceRequestPlay": { "description": "Label for the button that plays back the recorded clip" },
+  "@voiceRequestPlay": {
+    "description": "Label for the button that plays back the recorded clip"
+  },
   "voiceRequestPause": "Pause preview",
-  "@voiceRequestPause": { "description": "Label for the pause button while preview is playing" },
+  "@voiceRequestPause": {
+    "description": "Label for the pause button while preview is playing"
+  },
   "voiceRequestDiscard": "Discard and re-record",
-  "@voiceRequestDiscard": { "description": "Label for the action that throws away the current recording" },
+  "@voiceRequestDiscard": {
+    "description": "Label for the action that throws away the current recording"
+  },
   "voiceRequestMaxDurationToast": "Maximum length reached (120 seconds). Recording stopped.",
-  "@voiceRequestMaxDurationToast": { "description": "Toast shown when the 120 s ceiling fires and recording auto-stops" },
+  "@voiceRequestMaxDurationToast": {
+    "description": "Toast shown when the 120 s ceiling fires and recording auto-stops"
+  },
   "voiceRequestMicButtonLabel": "Voice request microphone",
-  "@voiceRequestMicButtonLabel": { "description": "Screen-reader label for the large mic button" },
+  "@voiceRequestMicButtonLabel": {
+    "description": "Screen-reader label for the large mic button"
+  },
   "voiceRequestProcessing": "Sending your request…",
-  "@voiceRequestProcessing": { "description": "Status label shown while the recording is being uploaded / processed after Submit" },
+  "@voiceRequestProcessing": {
+    "description": "Status label shown while the recording is being uploaded / processed after Submit"
+  },
   "voiceRequestMicProcessingSemanticLabel": "Sending voice request, please wait",
-  "@voiceRequestMicProcessingSemanticLabel": { "description": "Screen-reader label for the mic button while in the processing state (button disabled, spinner showing)" },
-
+  "@voiceRequestMicProcessingSemanticLabel": {
+    "description": "Screen-reader label for the mic button while in the processing state (button disabled, spinner showing)"
+  },
   "transcriptionTitle": "Review your request",
-  "@transcriptionTitle": { "description": "App bar title for the transcription review screen" },
+  "@transcriptionTitle": {
+    "description": "App bar title for the transcription review screen"
+  },
   "transcriptionHeader": "We turned your voice into text",
-  "@transcriptionHeader": { "description": "Headline above the transcribed text field" },
+  "@transcriptionHeader": {
+    "description": "Headline above the transcribed text field"
+  },
   "transcriptionSubtitle": "Edit the text below if anything's off. The original recording is saved.",
-  "@transcriptionSubtitle": { "description": "Subtitle explaining the user can edit the transcription and that audio is retained" },
+  "@transcriptionSubtitle": {
+    "description": "Subtitle explaining the user can edit the transcription and that audio is retained"
+  },
   "transcriptionFieldLabel": "Transcription",
-  "@transcriptionFieldLabel": { "description": "Label above the editable transcription text field" },
+  "@transcriptionFieldLabel": {
+    "description": "Label above the editable transcription text field"
+  },
   "transcriptionFieldHint": "Type your request here",
-  "@transcriptionFieldHint": { "description": "Empty-field hint for the transcription text field, used in the fallback states" },
+  "@transcriptionFieldHint": {
+    "description": "Empty-field hint for the transcription text field, used in the fallback states"
+  },
   "transcriptionPlayAudio": "Play original",
-  "@transcriptionPlayAudio": { "description": "Label for the audio playback button when paused" },
+  "@transcriptionPlayAudio": {
+    "description": "Label for the audio playback button when paused"
+  },
   "transcriptionPauseAudio": "Pause",
-  "@transcriptionPauseAudio": { "description": "Label for the audio playback button while playing" },
+  "@transcriptionPauseAudio": {
+    "description": "Label for the audio playback button while playing"
+  },
   "transcriptionSubmit": "Send to Jeeb",
-  "@transcriptionSubmit": { "description": "Primary CTA on the transcription review screen" },
+  "@transcriptionSubmit": {
+    "description": "Primary CTA on the transcription review screen"
+  },
   "transcriptionRetry": "Retry",
-  "@transcriptionRetry": { "description": "Retry CTA shown in the failed-transcription banner" },
+  "@transcriptionRetry": {
+    "description": "Retry CTA shown in the failed-transcription banner"
+  },
   "transcriptionQueuedTitle": "Transcription is queued",
-  "@transcriptionQueuedTitle": { "description": "Banner title shown when the backend persisted the audio but Whisper was unavailable (202)" },
+  "@transcriptionQueuedTitle": {
+    "description": "Banner title shown when the backend persisted the audio but Whisper was unavailable (202)"
+  },
   "transcriptionQueuedBody": "Your audio is saved and we'll transcribe it shortly. You can type your request now to keep moving.",
-  "@transcriptionQueuedBody": { "description": "Banner body explaining the queued fallback path" },
+  "@transcriptionQueuedBody": {
+    "description": "Banner body explaining the queued fallback path"
+  },
   "transcriptionFailedTitle": "Transcription unavailable",
-  "@transcriptionFailedTitle": { "description": "Banner title shown when the transcription call failed outright" },
+  "@transcriptionFailedTitle": {
+    "description": "Banner title shown when the transcription call failed outright"
+  },
   "transcriptionFailedNetwork": "We couldn't reach the server. Type your request below or retry.",
-  "@transcriptionFailedNetwork": { "description": "Banner body for the network-failure branch" },
+  "@transcriptionFailedNetwork": {
+    "description": "Banner body for the network-failure branch"
+  },
   "transcriptionFailedPayloadTooLarge": "The recording is too long. Type your request below or record a shorter clip.",
-  "@transcriptionFailedPayloadTooLarge": { "description": "Banner body for the 413 payload-too-large branch" },
+  "@transcriptionFailedPayloadTooLarge": {
+    "description": "Banner body for the 413 payload-too-large branch"
+  },
   "transcriptionFailedGeneric": "Something went wrong. Type your request below or retry.",
-  "@transcriptionFailedGeneric": { "description": "Banner body for the generic-failure branch" },
-
+  "@transcriptionFailedGeneric": {
+    "description": "Banner body for the generic-failure branch"
+  },
   "photoAttachmentTitle": "Photos ({count}/{max})",
   "@photoAttachmentTitle": {
     "description": "Header above the attachment strip showing how many photos have been added vs the cap",
     "placeholders": {
-      "count": { "type": "int" },
-      "max": { "type": "int" }
+      "count": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
     }
   },
   "photoAttachmentAddLabel": "Add photo",
-  "@photoAttachmentAddLabel": { "description": "Label on the add-photo tile and its screen-reader announcement" },
+  "@photoAttachmentAddLabel": {
+    "description": "Label on the add-photo tile and its screen-reader announcement"
+  },
   "photoAttachmentRemoveLabel": "Remove photo {position}",
   "@photoAttachmentRemoveLabel": {
     "description": "Screen-reader label for the X button on a thumbnail",
-    "placeholders": { "position": { "type": "int" } }
+    "placeholders": {
+      "position": {
+        "type": "int"
+      }
+    }
   },
   "photoAttachmentMaxReached": "Maximum {max} photos. Remove one to add another.",
   "@photoAttachmentMaxReached": {
     "description": "Message shown when the user tries to add a 6th photo or has hit the cap",
-    "placeholders": { "max": { "type": "int" } }
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
   },
   "photoAttachmentPermissionDenied": "Permission denied. Enable camera or photo access in Settings.",
-  "@photoAttachmentPermissionDenied": { "description": "Toast when the OS denies camera/gallery access" },
+  "@photoAttachmentPermissionDenied": {
+    "description": "Toast when the OS denies camera/gallery access"
+  },
   "photoAttachmentUnavailable": "Couldn't open the camera or gallery. Try again.",
-  "@photoAttachmentUnavailable": { "description": "Toast for hardware or IO failures" },
+  "@photoAttachmentUnavailable": {
+    "description": "Toast for hardware or IO failures"
+  },
   "photoAttachmentCompressionFailed": "That photo is too large to attach.",
-  "@photoAttachmentCompressionFailed": { "description": "Toast when compression can't shrink the photo below 2 MB" },
+  "@photoAttachmentCompressionFailed": {
+    "description": "Toast when compression can't shrink the photo below 2 MB"
+  },
   "photoAttachmentSourceTitle": "Add a photo",
-  "@photoAttachmentSourceTitle": { "description": "Title of the bottom sheet that offers camera vs gallery" },
+  "@photoAttachmentSourceTitle": {
+    "description": "Title of the bottom sheet that offers camera vs gallery"
+  },
   "photoAttachmentSourceCamera": "Take a photo",
-  "@photoAttachmentSourceCamera": { "description": "Option in the source sheet that opens the camera" },
+  "@photoAttachmentSourceCamera": {
+    "description": "Option in the source sheet that opens the camera"
+  },
   "photoAttachmentSourceGallery": "Choose from gallery",
-  "@photoAttachmentSourceGallery": { "description": "Option in the source sheet that opens the gallery" },
-
+  "@photoAttachmentSourceGallery": {
+    "description": "Option in the source sheet that opens the gallery"
+  },
   "registrationContinueWithApple": "Continue with Apple",
-  "@registrationContinueWithApple": { "description": "Apple Sign In CTA on the registration entry screen" },
+  "@registrationContinueWithApple": {
+    "description": "Apple Sign In CTA on the registration entry screen"
+  },
   "registrationContinueWithGoogle": "Continue with Google",
-  "@registrationContinueWithGoogle": { "description": "Google Sign In CTA on the registration entry screen" },
+  "@registrationContinueWithGoogle": {
+    "description": "Google Sign In CTA on the registration entry screen"
+  },
   "registrationSocialDivider": "or",
-  "@registrationSocialDivider": { "description": "Divider label between the social sign-in buttons and the phone entry section" },
+  "@registrationSocialDivider": {
+    "description": "Divider label between the social sign-in buttons and the phone entry section"
+  },
   "registrationLinkPhoneTitle": "Link your phone",
-  "@registrationLinkPhoneTitle": { "description": "Title shown above phone entry after a first-time social sign-in" },
+  "@registrationLinkPhoneTitle": {
+    "description": "Title shown above phone entry after a first-time social sign-in"
+  },
   "registrationLinkPhoneSubtitle": "Add a phone number so your Jeeber can reach you.",
-  "@registrationLinkPhoneSubtitle": { "description": "Subtitle explaining why a first-time social sign-in user still needs to provide a phone" },
-
+  "@registrationLinkPhoneSubtitle": {
+    "description": "Subtitle explaining why a first-time social sign-in user still needs to provide a phone"
+  },
   "registrationPhoneTitle": "Enter your phone",
-  "@registrationPhoneTitle": { "description": "Title of the phone-entry step in registration" },
+  "@registrationPhoneTitle": {
+    "description": "Title of the phone-entry step in registration"
+  },
   "registrationPhoneSubtitle": "We'll send a 6-digit code to verify it's you.",
-  "@registrationPhoneSubtitle": { "description": "Helper subtitle under the phone-entry title" },
+  "@registrationPhoneSubtitle": {
+    "description": "Helper subtitle under the phone-entry title"
+  },
   "registrationPhoneHint": "Phone number",
-  "@registrationPhoneHint": { "description": "Hint inside the phone number text field" },
+  "@registrationPhoneHint": {
+    "description": "Hint inside the phone number text field"
+  },
   "registrationPhoneInvalid": "Enter an 8-digit Lebanese phone number.",
-  "@registrationPhoneInvalid": { "description": "Inline error when phone digit count is wrong" },
+  "@registrationPhoneInvalid": {
+    "description": "Inline error when phone digit count is wrong"
+  },
   "registrationSendCode": "Send code",
-  "@registrationSendCode": { "description": "CTA that triggers OTP send on phone-entry step" },
+  "@registrationSendCode": {
+    "description": "CTA that triggers OTP send on phone-entry step"
+  },
   "registrationSending": "Sending…",
-  "@registrationSending": { "description": "Pending label on the send-code button" },
-
+  "@registrationSending": {
+    "description": "Pending label on the send-code button"
+  },
   "registrationOtpTitle": "Enter the code",
-  "@registrationOtpTitle": { "description": "Title of the OTP-entry step" },
+  "@registrationOtpTitle": {
+    "description": "Title of the OTP-entry step"
+  },
   "registrationOtpSubtitle": "We sent a 6-digit code to {phone}.",
   "@registrationOtpSubtitle": {
     "description": "Helper subtitle showing the destination phone number",
-    "placeholders": { "phone": { "type": "String" } }
+    "placeholders": {
+      "phone": {
+        "type": "String"
+      }
+    }
   },
   "registrationOtpVerify": "Verify",
-  "@registrationOtpVerify": { "description": "CTA on the OTP step that submits the entered code" },
+  "@registrationOtpVerify": {
+    "description": "CTA on the OTP step that submits the entered code"
+  },
   "registrationOtpVerifying": "Verifying…",
-  "@registrationOtpVerifying": { "description": "Pending label on the verify button" },
+  "@registrationOtpVerifying": {
+    "description": "Pending label on the verify button"
+  },
   "registrationOtpExpired": "The code expired. Tap resend to get a new one.",
-  "@registrationOtpExpired": { "description": "Inline message when the 60s countdown reaches zero" },
+  "@registrationOtpExpired": {
+    "description": "Inline message when the 60s countdown reaches zero"
+  },
   "registrationOtpInvalid": "Wrong code. Try again.",
-  "@registrationOtpInvalid": { "description": "Inline error after a failed verification attempt" },
+  "@registrationOtpInvalid": {
+    "description": "Inline error after a failed verification attempt"
+  },
   "registrationOtpResend": "Resend code",
-  "@registrationOtpResend": { "description": "Button to request a fresh OTP after expiry" },
+  "@registrationOtpResend": {
+    "description": "Button to request a fresh OTP after expiry"
+  },
   "registrationOtpResendIn": "Resend in {seconds}s",
   "@registrationOtpResendIn": {
     "description": "Disabled-button label showing how many seconds remain on the OTP timer",
-    "placeholders": { "seconds": { "type": "int" } }
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
   },
   "registrationOtpAttemptsRemaining": "{remaining} attempts remaining",
   "@registrationOtpAttemptsRemaining": {
     "description": "Warning shown after the first failed attempt",
-    "placeholders": { "remaining": { "type": "int" } }
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      }
+    }
   },
   "registrationLockoutTitle": "Too many attempts",
-  "@registrationLockoutTitle": { "description": "Title of the lockout banner shown after 3 failed OTPs" },
+  "@registrationLockoutTitle": {
+    "description": "Title of the lockout banner shown after 3 failed OTPs"
+  },
   "registrationLockoutBody": "Try again in {minutes}:{seconds}.",
   "@registrationLockoutBody": {
     "description": "Body of the lockout banner showing remaining mm:ss",
     "placeholders": {
-      "minutes": { "type": "String" },
-      "seconds": { "type": "String" }
+      "minutes": {
+        "type": "String"
+      },
+      "seconds": {
+        "type": "String"
+      }
     }
   },
   "registrationChangePhone": "Change phone number",
-  "@registrationChangePhone": { "description": "Secondary CTA on the OTP step that returns to phone entry" },
-
+  "@registrationChangePhone": {
+    "description": "Secondary CTA on the OTP step that returns to phone entry"
+  },
   "tierSelectionTitle": "Choose speed",
-  "@tierSelectionTitle": { "description": "App bar / header title for the tier selection screen" },
+  "@tierSelectionTitle": {
+    "description": "App bar / header title for the tier selection screen"
+  },
   "tierSelectionSubtitle": "Price varies by Jeeber",
-  "@tierSelectionSubtitle": { "description": "Subhead clarifying that price ranges are indicative" },
+  "@tierSelectionSubtitle": {
+    "description": "Subhead clarifying that price ranges are indicative"
+  },
   "tierSelectionConfirm": "Confirm",
-  "@tierSelectionConfirm": { "description": "Primary CTA that locks in the selected tier" },
+  "@tierSelectionConfirm": {
+    "description": "Primary CTA that locks in the selected tier"
+  },
   "tierSelectionWhatDifference": "What's the difference?",
-  "@tierSelectionWhatDifference": { "description": "Inline link that opens the tier comparison sheet" },
+  "@tierSelectionWhatDifference": {
+    "description": "Inline link that opens the tier comparison sheet"
+  },
   "tierSelectionRecommendedBadge": "Recommended",
-  "@tierSelectionRecommendedBadge": { "description": "Pill on the recommended tier card (Express)" },
+  "@tierSelectionRecommendedBadge": {
+    "description": "Pill on the recommended tier card (Express)"
+  },
   "tierSelectionLocked": "Tier already locked. Cancel the active offer to change.",
-  "@tierSelectionLocked": { "description": "Snackbar shown when the user tries to change a tier after an offer was accepted" },
+  "@tierSelectionLocked": {
+    "description": "Snackbar shown when the user tries to change a tier after an offer was accepted"
+  },
   "tierSelectionPriceLabel": "Indicative",
-  "@tierSelectionPriceLabel": { "description": "Label above the indicative price range on each tier card" },
+  "@tierSelectionPriceLabel": {
+    "description": "Label above the indicative price range on each tier card"
+  },
   "tierSelectionPriceRange": "{low} – {high}",
   "@tierSelectionPriceRange": {
     "description": "Formatted USD price range for a tier",
     "placeholders": {
-      "low": { "type": "String" },
-      "high": { "type": "String" }
+      "low": {
+        "type": "String"
+      },
+      "high": {
+        "type": "String"
+      }
     }
   },
   "tierSelectionSlaMinutes": "≤ {minutes} min",
   "@tierSelectionSlaMinutes": {
     "description": "SLA copy in minutes (Flash, Express)",
-    "placeholders": { "minutes": { "type": "int" } }
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
   },
   "tierSelectionSlaHours": "≤ {hours} hr",
   "@tierSelectionSlaHours": {
     "description": "SLA copy in hours (Standard, Eco)",
-    "placeholders": { "hours": { "type": "int" } }
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
   },
   "tierSelectionSlaNone": "No SLA",
-  "@tierSelectionSlaNone": { "description": "SLA copy for On-the-way tier (opportunistic match)" },
+  "@tierSelectionSlaNone": {
+    "description": "SLA copy for On-the-way tier (opportunistic match)"
+  },
   "tierSelectionRadiusKm": "Within {km} km",
   "@tierSelectionRadiusKm": {
     "description": "Service radius copy",
-    "placeholders": { "km": { "type": "int" } }
+    "placeholders": {
+      "km": {
+        "type": "int"
+      }
+    }
   },
   "tierSelectionTierFlash": "Flash",
   "tierSelectionTierExpress": "Express",
@@ -552,27 +843,42 @@
   "tierSelectionFooterOnTheWay": "Cheapest, opportunistic match",
   "tierSelectionFooterEco": "Best price, plan ahead",
   "tierSelectionOnTheWayMvpNote": "Smart route matching coming soon — matched like Standard for now.",
-  "@tierSelectionOnTheWayMvpNote": { "description": "Info note on the On-the-way tier card explaining the MVP Standard-fallback behavior (T-mobile-042)" },
+  "@tierSelectionOnTheWayMvpNote": {
+    "description": "Info note on the On-the-way tier card explaining the MVP Standard-fallback behavior (T-mobile-042)"
+  },
   "tierSelectionCardSemanticLabel": "{name} tier. {sla}, {radius}, indicative price {price}.",
   "@tierSelectionCardSemanticLabel": {
     "description": "Screen-reader summary for a tier card",
     "placeholders": {
-      "name": { "type": "String" },
-      "sla": { "type": "String" },
-      "radius": { "type": "String" },
-      "price": { "type": "String" }
+      "name": {
+        "type": "String"
+      },
+      "sla": {
+        "type": "String"
+      },
+      "radius": {
+        "type": "String"
+      },
+      "price": {
+        "type": "String"
+      }
     }
   },
   "tierSelectionCardSelectedHint": "Selected",
-
   "kycWizardTitle": "Verify your identity",
-  "@kycWizardTitle": { "description": "App bar title for the KYC wizard host" },
+  "@kycWizardTitle": {
+    "description": "App bar title for the KYC wizard host"
+  },
   "kycWizardProgressLabel": "Step {current} of {total}",
   "@kycWizardProgressLabel": {
     "description": "Progress indicator label above the stepper",
     "placeholders": {
-      "current": { "type": "int" },
-      "total": { "type": "int" }
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
     }
   },
   "kycWizardStepIdLabel": "ID",
@@ -584,7 +890,6 @@
   "kycWizardSubmitting": "Submitting…",
   "kycSubmittingTitle": "Submitting your documents",
   "kycSubmittingBody": "Hang tight — we're uploading your ID, selfie, and vehicle details. This usually takes a few seconds.",
-
   "kycIdStepTitle": "Upload your national ID",
   "kycIdStepSubtitle": "We need a clear photo of both sides. Make sure the text is legible and the corners are visible.",
   "kycIdAlignmentGuideTitle": "Align your ID inside the frame",
@@ -593,7 +898,6 @@
   "kycIdBackLabel": "Back side",
   "kycIdRetake": "Retake",
   "kycIdCaptureCta": "Take photo",
-
   "kycSelfieStepTitle": "Take a selfie",
   "kycSelfieStepSubtitle": "Hold your phone at eye level. Make sure your face is well-lit and not covered.",
   "kycSelfieLivenessPrompt": "Quick liveness check",
@@ -601,7 +905,6 @@
   "kycSelfieLivenessSmile": "Smile gently right after the blink",
   "kycSelfieRetake": "Retake selfie",
   "kycSelfieCaptureCta": "Capture selfie",
-
   "kycVehicleStepTitle": "Tell us about your vehicle",
   "kycVehicleStepSubtitle": "Pick the vehicle you'll deliver with and enter its registration or plate number.",
   "kycVehicleTypeScooter": "Scooter",
@@ -611,7 +914,6 @@
   "kycVehicleRegistrationLabel": "Registration / plate number",
   "kycVehicleRegistrationHint": "e.g. 123456",
   "kycVehicleRegistrationRequired": "Enter a registration or plate number to continue.",
-
   "kycStatusPendingTitle": "Submission received",
   "kycStatusPendingBody": "Our team is reviewing your documents. This usually takes up to 24 hours — we'll notify you here when there's an update.",
   "kycStatusApprovedTitle": "You're approved",
@@ -620,18 +922,15 @@
   "kycStatusRejectedBody": "Your submission was rejected for the reason below. Retake the affected step and resubmit.",
   "kycStatusResubmitCta": "Resubmit verification",
   "kycStatusBackToProfileCta": "Back to profile",
-
   "kycRejectionReasonIdUnreadable": "We couldn't read the ID photos. Make sure both sides are sharp and well-lit.",
   "kycRejectionReasonSelfieMismatch": "Your selfie didn't match the ID photo. Retake the selfie in better lighting.",
   "kycRejectionReasonVehicleDocumentMissing": "We need a clearer vehicle registration / plate number.",
   "kycRejectionReasonExpired": "Your ID looks expired. Submit a current document.",
   "kycRejectionReasonOther": "Please review your details and resubmit.",
-
   "kycErrorPermissionDenied": "Camera permission denied. Enable it in Settings.",
   "kycErrorUnavailable": "Couldn't open the camera. Try again.",
   "kycErrorCompressionFailed": "That photo is too large. Try retaking it.",
   "kycErrorSubmitFailed": "We couldn't submit your verification. Check your connection and try again.",
-
   "profileKycSectionTitle": "Verification",
   "profileKycStatusNotSubmitted": "Not started",
   "profileKycStatusPending": "Pending review",
@@ -639,25 +938,38 @@
   "profileKycStatusRejected": "Action needed",
   "profileKycStartCta": "Start verification",
   "profileKycViewCta": "View status",
-
   "dashboardTodayEarningsTitle": "Today's earnings",
-  "@dashboardTodayEarningsTitle": { "description": "Card title above today's running earnings total on the Jeeber dashboard" },
+  "@dashboardTodayEarningsTitle": {
+    "description": "Card title above today's running earnings total on the Jeeber dashboard"
+  },
   "dashboardTodayEarningsEmpty": "No deliveries yet today",
-  "@dashboardTodayEarningsEmpty": { "description": "Subtitle shown when today's earnings summary is empty" },
+  "@dashboardTodayEarningsEmpty": {
+    "description": "Subtitle shown when today's earnings summary is empty"
+  },
   "dashboardTodayEarningsTips": "Tips: {amount}",
   "@dashboardTodayEarningsTips": {
     "description": "Inline tips breakdown shown under today's earnings amount",
-    "placeholders": { "amount": { "type": "String" } }
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
   },
   "dashboardTodayEarningsCompletedZero": "No deliveries",
   "dashboardTodayEarningsCompletedOne": "1 delivery",
   "dashboardTodayEarningsCompletedMany": "{count} deliveries",
   "@dashboardTodayEarningsCompletedMany": {
     "description": "Count of completed deliveries today, plural branch",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "dashboardActiveDeliveryTitle": "Active delivery",
-  "@dashboardActiveDeliveryTitle": { "description": "Card title for the in-flight delivery on the dashboard" },
+  "@dashboardActiveDeliveryTitle": {
+    "description": "Card title for the in-flight delivery on the dashboard"
+  },
   "dashboardActiveDeliveryStageEnRoutePickup": "Heading to pickup",
   "dashboardActiveDeliveryStageAtPickup": "At pickup",
   "dashboardActiveDeliveryStageEnRouteDropoff": "On the way",
@@ -665,176 +977,315 @@
   "dashboardActiveDeliveryEta": "{minutes} min away",
   "@dashboardActiveDeliveryEta": {
     "description": "ETA chip on the active delivery card",
-    "placeholders": { "minutes": { "type": "int" } }
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
   },
   "dashboardActiveDeliveryOpen": "Open delivery",
-  "@dashboardActiveDeliveryOpen": { "description": "Primary action that jumps to the live delivery detail screen" },
+  "@dashboardActiveDeliveryOpen": {
+    "description": "Primary action that jumps to the live delivery detail screen"
+  },
   "dashboardActiveDeliveryMessage": "Message client",
-  "@dashboardActiveDeliveryMessage": { "description": "Secondary action that opens the client chat thread" },
+  "@dashboardActiveDeliveryMessage": {
+    "description": "Secondary action that opens the client chat thread"
+  },
   "dashboardRecentCompletionsTitle": "Recent completions",
-  "@dashboardRecentCompletionsTitle": { "description": "Section header above the recent-deliveries list" },
+  "@dashboardRecentCompletionsTitle": {
+    "description": "Section header above the recent-deliveries list"
+  },
   "dashboardRecentCompletionsEmpty": "Completed deliveries will appear here.",
-  "@dashboardRecentCompletionsEmpty": { "description": "Empty-state subtitle for recent completions" },
+  "@dashboardRecentCompletionsEmpty": {
+    "description": "Empty-state subtitle for recent completions"
+  },
   "dashboardNearbyRequestsZero": "No nearby requests",
   "dashboardNearbyRequestsOne": "1 nearby request",
   "dashboardNearbyRequestsMany": "{count} nearby requests",
   "@dashboardNearbyRequestsMany": {
     "description": "Nearby-request counter shown while online, plural branch",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "dashboardNearbyRequestsOfflineHint": "Go online to see nearby requests",
-  "@dashboardNearbyRequestsOfflineHint": { "description": "Hint shown in place of the nearby counter when offline" },
-
+  "@dashboardNearbyRequestsOfflineHint": {
+    "description": "Hint shown in place of the nearby counter when offline"
+  },
   "jeeberFeedSectionTitle": "Available requests",
-  "@jeeberFeedSectionTitle": { "description": "Section header above the Jeeber's live request feed on the dashboard" },
+  "@jeeberFeedSectionTitle": {
+    "description": "Section header above the Jeeber's live request feed on the dashboard"
+  },
   "jeeberFeedEmpty": "No requests in range right now. We'll surface new ones as they come in.",
-  "@jeeberFeedEmpty": { "description": "Empty state shown when the matching engine has no candidate requests for this Jeeber" },
+  "@jeeberFeedEmpty": {
+    "description": "Empty state shown when the matching engine has no candidate requests for this Jeeber"
+  },
   "jeeberFeedDistance": "{distance}",
   "@jeeberFeedDistance": {
     "description": "Distance label shown on each feed card (already formatted with unit)",
-    "placeholders": { "distance": { "type": "String" } }
+    "placeholders": {
+      "distance": {
+        "type": "String"
+      }
+    }
   },
   "jeeberFeedClientRatingReviews": "{count} deliveries",
   "@jeeberFeedClientRatingReviews": {
     "description": "Trailing label on the client rating row showing how many completed deliveries the client has",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "jeeberIncomingMatchTitle": "New request",
-  "@jeeberIncomingMatchTitle": { "description": "Header on the foreground prompt shown when the matching engine nominates this Jeeber for a specific request" },
+  "@jeeberIncomingMatchTitle": {
+    "description": "Header on the foreground prompt shown when the matching engine nominates this Jeeber for a specific request"
+  },
   "jeeberIncomingMatchAccept": "Accept",
-  "@jeeberIncomingMatchAccept": { "description": "Primary CTA on the incoming-match banner" },
+  "@jeeberIncomingMatchAccept": {
+    "description": "Primary CTA on the incoming-match banner"
+  },
   "jeeberIncomingMatchDecline": "Pass",
-  "@jeeberIncomingMatchDecline": { "description": "Secondary CTA on the incoming-match banner" },
+  "@jeeberIncomingMatchDecline": {
+    "description": "Secondary CTA on the incoming-match banner"
+  },
   "jeeberIncomingMatchCountdown": "{seconds}s",
   "@jeeberIncomingMatchCountdown": {
     "description": "Seconds-remaining badge on the incoming-match banner (60s response window)",
-    "placeholders": { "seconds": { "type": "int" } }
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
   },
-
   "requestSummaryTitle": "Review & submit",
-  "@requestSummaryTitle": { "description": "App bar title for the request summary screen" },
+  "@requestSummaryTitle": {
+    "description": "App bar title for the request summary screen"
+  },
   "requestSummarySectionDescription": "Description",
-  "@requestSummarySectionDescription": { "description": "Card title for the transcription/description section on the summary screen" },
+  "@requestSummarySectionDescription": {
+    "description": "Card title for the transcription/description section on the summary screen"
+  },
   "requestSummarySectionPhotos": "Photos",
-  "@requestSummarySectionPhotos": { "description": "Card title for the attached-photos section on the summary screen" },
+  "@requestSummarySectionPhotos": {
+    "description": "Card title for the attached-photos section on the summary screen"
+  },
   "requestSummarySectionTier": "Speed",
-  "@requestSummarySectionTier": { "description": "Card title for the chosen delivery tier on the summary screen" },
+  "@requestSummarySectionTier": {
+    "description": "Card title for the chosen delivery tier on the summary screen"
+  },
   "requestSummarySectionPickup": "Pickup",
-  "@requestSummarySectionPickup": { "description": "Card title for the pickup address on the summary screen" },
+  "@requestSummarySectionPickup": {
+    "description": "Card title for the pickup address on the summary screen"
+  },
   "requestSummarySectionDropoff": "Drop-off",
-  "@requestSummarySectionDropoff": { "description": "Card title for the drop-off address on the summary screen" },
+  "@requestSummarySectionDropoff": {
+    "description": "Card title for the drop-off address on the summary screen"
+  },
   "requestSummaryDescriptionEmpty": "No description provided",
-  "@requestSummaryDescriptionEmpty": { "description": "Placeholder body shown when the description is empty on the summary screen" },
+  "@requestSummaryDescriptionEmpty": {
+    "description": "Placeholder body shown when the description is empty on the summary screen"
+  },
   "requestSummaryPhotosEmpty": "No photos attached",
-  "@requestSummaryPhotosEmpty": { "description": "Placeholder body shown when no photos were attached" },
+  "@requestSummaryPhotosEmpty": {
+    "description": "Placeholder body shown when no photos were attached"
+  },
   "requestSummarySubmit": "Send request",
-  "@requestSummarySubmit": { "description": "Primary submit CTA on the summary screen" },
+  "@requestSummarySubmit": {
+    "description": "Primary submit CTA on the summary screen"
+  },
   "requestSummaryRetry": "Try again",
-  "@requestSummaryRetry": { "description": "Retry CTA shown after a submit failure" },
+  "@requestSummaryRetry": {
+    "description": "Retry CTA shown after a submit failure"
+  },
   "requestSummaryErrorNetwork": "Couldn't reach Jeeb. Check your connection and try again.",
-  "@requestSummaryErrorNetwork": { "description": "Error banner copy for network failures during submit" },
+  "@requestSummaryErrorNetwork": {
+    "description": "Error banner copy for network failures during submit"
+  },
   "requestSummaryErrorGeneric": "Something went wrong. Please try again.",
-  "@requestSummaryErrorGeneric": { "description": "Error banner copy for generic submit failures" },
-
+  "@requestSummaryErrorGeneric": {
+    "description": "Error banner copy for generic submit failures"
+  },
   "requestSummaryProhibitedTitle": "Before you send",
-  "@requestSummaryProhibitedTitle": { "description": "Title of the prohibited-items acknowledgment modal shown before the first submission" },
+  "@requestSummaryProhibitedTitle": {
+    "description": "Title of the prohibited-items acknowledgment modal shown before the first submission"
+  },
   "requestSummaryProhibitedIntro": "For everyone's safety, Jeeb deliveries can't include any of the following:",
-  "@requestSummaryProhibitedIntro": { "description": "Intro copy above the prohibited-items list" },
+  "@requestSummaryProhibitedIntro": {
+    "description": "Intro copy above the prohibited-items list"
+  },
   "requestSummaryProhibitedItemWeapons": "Weapons, ammunition, or explosives",
   "requestSummaryProhibitedItemDrugs": "Illegal drugs or controlled substances",
   "requestSummaryProhibitedItemHazardous": "Hazardous, flammable, or toxic materials",
   "requestSummaryProhibitedItemLiveAnimals": "Live animals",
   "requestSummaryProhibitedItemCash": "Large amounts of cash or unsealed valuables",
   "requestSummaryProhibitedAcknowledge": "I confirm my package does not include any of these items.",
-  "@requestSummaryProhibitedAcknowledge": { "description": "Checkbox label the user must tick to enable the acknowledgment confirm button" },
+  "@requestSummaryProhibitedAcknowledge": {
+    "description": "Checkbox label the user must tick to enable the acknowledgment confirm button"
+  },
   "requestSummaryProhibitedConfirm": "I understand",
-  "@requestSummaryProhibitedConfirm": { "description": "Confirm CTA on the prohibited-items modal" },
-
+  "@requestSummaryProhibitedConfirm": {
+    "description": "Confirm CTA on the prohibited-items modal"
+  },
   "requestSummaryFindingTitle": "Finding Jeebers",
-  "@requestSummaryFindingTitle": { "description": "Headline shown after submit while the matching service fans the request out" },
+  "@requestSummaryFindingTitle": {
+    "description": "Headline shown after submit while the matching service fans the request out"
+  },
   "requestSummaryFindingNotifiedZero": "No Jeebers nearby yet",
   "requestSummaryFindingNotifiedOne": "1 Jeeber notified",
   "requestSummaryFindingNotifiedMany": "{count} Jeebers notified",
   "@requestSummaryFindingNotifiedMany": {
     "description": "Count of nearby Jeebers notified by the matching service, plural branch",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "requestSummaryFindingHint": "We'll let you know as offers come in.",
-  "@requestSummaryFindingHint": { "description": "Sub-headline under the Finding Jeebers panel" },
-
+  "@requestSummaryFindingHint": {
+    "description": "Sub-headline under the Finding Jeebers panel"
+  },
   "requestSummaryNoOffersTitle": "No offers yet",
-  "@requestSummaryNoOffersTitle": { "description": "Headline shown after the 10-minute no-offer wait threshold (T-mobile-035)" },
+  "@requestSummaryNoOffersTitle": {
+    "description": "Headline shown after the 10-minute no-offer wait threshold (T-mobile-035)"
+  },
   "requestSummaryNoOffersBody": "Jeebers in your area aren't biting. Expanding the search pulls in more drivers — usually with a slightly later ETA.",
-  "@requestSummaryNoOffersBody": { "description": "Body copy shown under the No offers yet headline explaining the tier-expand CTA" },
+  "@requestSummaryNoOffersBody": {
+    "description": "Body copy shown under the No offers yet headline explaining the tier-expand CTA"
+  },
   "requestSummaryExpandToTier": "Expand to {tier}",
   "@requestSummaryExpandToTier": {
     "description": "Primary CTA on the no-offer timeout banner; one-tap upgrade to the next-broader tier (T-mobile-035)",
-    "placeholders": { "tier": { "type": "String" } }
+    "placeholders": {
+      "tier": {
+        "type": "String"
+      }
+    }
   },
   "requestSummaryExpiredTitle": "Request expired",
-  "@requestSummaryExpiredTitle": { "description": "Headline shown after the 30-minute hard-expiry threshold (T-mobile-035)" },
+  "@requestSummaryExpiredTitle": {
+    "description": "Headline shown after the 30-minute hard-expiry threshold (T-mobile-035)"
+  },
   "requestSummaryExpiredBody": "We couldn't match you with a Jeeber in 30 minutes. Send the same request again, or head back to tweak it first.",
-  "@requestSummaryExpiredBody": { "description": "Body copy shown under the Request expired headline explaining the re-request CTA" },
+  "@requestSummaryExpiredBody": {
+    "description": "Body copy shown under the Request expired headline explaining the re-request CTA"
+  },
   "requestSummaryReRequest": "Re-send request",
-  "@requestSummaryReRequest": { "description": "Primary CTA on the expired-request banner that re-runs the submission with the same draft (T-mobile-035)" },
-
+  "@requestSummaryReRequest": {
+    "description": "Primary CTA on the expired-request banner that re-runs the submission with the same draft (T-mobile-035)"
+  },
   "jeeberRequestDetailTitle": "Request details",
-  "@jeeberRequestDetailTitle": { "description": "App bar title for the Jeeber request-detail screen" },
+  "@jeeberRequestDetailTitle": {
+    "description": "App bar title for the Jeeber request-detail screen"
+  },
   "jeeberRequestDetailSectionPickup": "Pickup",
-  "@jeeberRequestDetailSectionPickup": { "description": "Section title for the pickup address on the Jeeber request-detail screen" },
+  "@jeeberRequestDetailSectionPickup": {
+    "description": "Section title for the pickup address on the Jeeber request-detail screen"
+  },
   "jeeberRequestDetailSectionDropoff": "Drop-off",
-  "@jeeberRequestDetailSectionDropoff": { "description": "Section title for the drop-off address on the Jeeber request-detail screen" },
+  "@jeeberRequestDetailSectionDropoff": {
+    "description": "Section title for the drop-off address on the Jeeber request-detail screen"
+  },
   "jeeberRequestDetailSectionDescription": "What the client says",
-  "@jeeberRequestDetailSectionDescription": { "description": "Section title for the request description on the Jeeber request-detail screen" },
+  "@jeeberRequestDetailSectionDescription": {
+    "description": "Section title for the request description on the Jeeber request-detail screen"
+  },
   "jeeberRequestDetailDistance": "{distance} away",
   "@jeeberRequestDetailDistance": {
     "description": "Distance label shown next to the pickup point (already formatted with unit)",
-    "placeholders": { "distance": { "type": "String" } }
+    "placeholders": {
+      "distance": {
+        "type": "String"
+      }
+    }
   },
   "jeeberRequestDetailReportButton": "Report — Prohibited item",
-  "@jeeberRequestDetailReportButton": { "description": "Primary report CTA on the Jeeber request-detail screen" },
+  "@jeeberRequestDetailReportButton": {
+    "description": "Primary report CTA on the Jeeber request-detail screen"
+  },
   "jeeberRequestDetailReportHint": "Spotted weapons, drugs, hazardous goods, or other prohibited items? Flag the request for admin review.",
-  "@jeeberRequestDetailReportHint": { "description": "Helper copy beneath the report button explaining when to use it" },
+  "@jeeberRequestDetailReportHint": {
+    "description": "Helper copy beneath the report button explaining when to use it"
+  },
   "jeeberRequestDetailDeclineButton": "Decline request",
-  "@jeeberRequestDetailDeclineButton": { "description": "Secondary CTA that lets the Jeeber pass on the request" },
+  "@jeeberRequestDetailDeclineButton": {
+    "description": "Secondary CTA that lets the Jeeber pass on the request"
+  },
   "jeeberRequestDetailDeclineWithoutPenaltyButton": "Decline without penalty",
-  "@jeeberRequestDetailDeclineWithoutPenaltyButton": { "description": "Decline CTA shown once the Jeeber has filed a prohibited-item report" },
+  "@jeeberRequestDetailDeclineWithoutPenaltyButton": {
+    "description": "Decline CTA shown once the Jeeber has filed a prohibited-item report"
+  },
   "jeeberRequestDetailReportConfirmTitle": "Flag this request?",
-  "@jeeberRequestDetailReportConfirmTitle": { "description": "Title of the confirmation dialog shown before submitting a prohibited-item report" },
+  "@jeeberRequestDetailReportConfirmTitle": {
+    "description": "Title of the confirmation dialog shown before submitting a prohibited-item report"
+  },
   "jeeberRequestDetailReportConfirmBody": "We'll send this request to admin for review. You can decline it without penalty.",
-  "@jeeberRequestDetailReportConfirmBody": { "description": "Body copy of the confirmation dialog explaining what happens on submit" },
+  "@jeeberRequestDetailReportConfirmBody": {
+    "description": "Body copy of the confirmation dialog explaining what happens on submit"
+  },
   "jeeberRequestDetailReportConfirmAction": "Send report",
-  "@jeeberRequestDetailReportConfirmAction": { "description": "Confirm CTA on the prohibited-item report dialog" },
+  "@jeeberRequestDetailReportConfirmAction": {
+    "description": "Confirm CTA on the prohibited-item report dialog"
+  },
   "jeeberRequestDetailReportedTitle": "Request flagged for admin review",
-  "@jeeberRequestDetailReportedTitle": { "description": "Banner title shown after a successful prohibited-item report" },
+  "@jeeberRequestDetailReportedTitle": {
+    "description": "Banner title shown after a successful prohibited-item report"
+  },
   "jeeberRequestDetailReportedBody": "Thanks — our team will look into it. You can decline this request without affecting your acceptance rate.",
-  "@jeeberRequestDetailReportedBody": { "description": "Banner body shown after a successful prohibited-item report" },
+  "@jeeberRequestDetailReportedBody": {
+    "description": "Banner body shown after a successful prohibited-item report"
+  },
   "jeeberRequestDetailReportErrorNetwork": "Couldn't send the report. Check your connection and try again.",
-  "@jeeberRequestDetailReportErrorNetwork": { "description": "Error banner copy when the report call fails on the network" },
+  "@jeeberRequestDetailReportErrorNetwork": {
+    "description": "Error banner copy when the report call fails on the network"
+  },
   "jeeberRequestDetailReportErrorGeneric": "Something went wrong. Please try again.",
-  "@jeeberRequestDetailReportErrorGeneric": { "description": "Error banner copy when the report call fails for a generic reason" },
+  "@jeeberRequestDetailReportErrorGeneric": {
+    "description": "Error banner copy when the report call fails for a generic reason"
+  },
   "jeeberRequestUnavailableTitle": "This request is no longer available",
-  "@jeeberRequestUnavailableTitle": { "description": "Headline shown when a push-notification deep link opens a request that has since been matched, cancelled, or expired (T-mobile-013)" },
+  "@jeeberRequestUnavailableTitle": {
+    "description": "Headline shown when a push-notification deep link opens a request that has since been matched, cancelled, or expired (T-mobile-013)"
+  },
   "jeeberRequestUnavailableBody": "Another Jeeber may have already accepted it, or the client cancelled. New requests will appear on your dashboard.",
-  "@jeeberRequestUnavailableBody": { "description": "Body copy under the unavailable headline explaining likely reasons" },
+  "@jeeberRequestUnavailableBody": {
+    "description": "Body copy under the unavailable headline explaining likely reasons"
+  },
   "jeeberRequestUnavailableBackToFeed": "Back to dashboard",
-  "@jeeberRequestUnavailableBackToFeed": { "description": "CTA that returns the Jeeber to the dashboard from the unavailable screen" },
-
+  "@jeeberRequestUnavailableBackToFeed": {
+    "description": "CTA that returns the Jeeber to the dashboard from the unavailable screen"
+  },
   "offersPanelHeader": "Offers from Jeebers",
-  "@offersPanelHeader": { "description": "Section header above the inline offer cards in the request thread" },
+  "@offersPanelHeader": {
+    "description": "Section header above the inline offer cards in the request thread"
+  },
   "offersPanelStillSearching": "Still finding Jeebers — first offers usually arrive within a minute.",
-  "@offersPanelStillSearching": { "description": "Helper line under the panel header while waiting for the first offer card" },
+  "@offersPanelStillSearching": {
+    "description": "Helper line under the panel header while waiting for the first offer card"
+  },
   "offersCardEtaMinutes": "{minutes} min ETA",
   "@offersCardEtaMinutes": {
     "description": "ETA label inside an offer card (already-formatted minutes)",
-    "placeholders": { "minutes": { "type": "int" } }
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
   },
   "offersCardFee": "{amount} {currency}",
   "@offersCardFee": {
     "description": "Fee label inside an offer card. {amount} is already formatted to 2dp.",
     "placeholders": {
-      "amount": { "type": "String" },
-      "currency": { "type": "String" }
+      "amount": {
+        "type": "String"
+      },
+      "currency": {
+        "type": "String"
+      }
     }
   },
   "offersCardVehicleCar": "Car",
@@ -844,303 +1295,708 @@
   "offersCardVehicleWalker": "On foot",
   "offersCardVehicleVan": "Van",
   "offersCardAccept": "Accept",
-  "@offersCardAccept": { "description": "Accept CTA on each offer card" },
+  "@offersCardAccept": {
+    "description": "Accept CTA on each offer card"
+  },
   "offersCardAccepting": "Accepting…",
-  "@offersCardAccepting": { "description": "Inline loading label shown on the Accept button while the call is in flight" },
+  "@offersCardAccepting": {
+    "description": "Inline loading label shown on the Accept button while the call is in flight"
+  },
   "offersCardSemanticLabel": "Offer from {name}, rated {rating} stars, {vehicle}, {fee} {currency}, {minutes} minute ETA",
   "@offersCardSemanticLabel": {
     "description": "Screen-reader label that flattens the offer card content into a single utterance",
     "placeholders": {
-      "name": { "type": "String" },
-      "rating": { "type": "String" },
-      "vehicle": { "type": "String" },
-      "fee": { "type": "String" },
-      "currency": { "type": "String" },
-      "minutes": { "type": "int" }
+      "name": {
+        "type": "String"
+      },
+      "rating": {
+        "type": "String"
+      },
+      "vehicle": {
+        "type": "String"
+      },
+      "fee": {
+        "type": "String"
+      },
+      "currency": {
+        "type": "String"
+      },
+      "minutes": {
+        "type": "int"
+      }
     }
   },
   "offersHighFeeDialogTitle": "Confirm this fee?",
-  "@offersHighFeeDialogTitle": { "description": "Title of the high-fee confirmation dialog (> $50)" },
+  "@offersHighFeeDialogTitle": {
+    "description": "Title of the high-fee confirmation dialog (> $50)"
+  },
   "offersHighFeeDialogBody": "This Jeeber is asking {amount} {currency}, which is above our usual range. Do you want to accept anyway?",
   "@offersHighFeeDialogBody": {
     "description": "Body of the high-fee confirmation dialog showing the actual quoted fee",
     "placeholders": {
-      "amount": { "type": "String" },
-      "currency": { "type": "String" }
+      "amount": {
+        "type": "String"
+      },
+      "currency": {
+        "type": "String"
+      }
     }
   },
   "offersHighFeeDialogConfirm": "Yes, accept",
-  "@offersHighFeeDialogConfirm": { "description": "Confirm CTA on the high-fee dialog" },
+  "@offersHighFeeDialogConfirm": {
+    "description": "Confirm CTA on the high-fee dialog"
+  },
   "offersHighFeeDialogCancel": "No, wait",
-  "@offersHighFeeDialogCancel": { "description": "Cancel CTA on the high-fee dialog" },
+  "@offersHighFeeDialogCancel": {
+    "description": "Cancel CTA on the high-fee dialog"
+  },
   "offersErrorNetwork": "Couldn't reach Jeeb. Check your connection and try again.",
-  "@offersErrorNetwork": { "description": "Inline error banner copy when the accept call fails on the network" },
+  "@offersErrorNetwork": {
+    "description": "Inline error banner copy when the accept call fails on the network"
+  },
   "offersErrorRequestNotOpen": "This request is no longer open.",
-  "@offersErrorRequestNotOpen": { "description": "Inline error banner copy when the request was closed (cancelled or another offer won the race)" },
+  "@offersErrorRequestNotOpen": {
+    "description": "Inline error banner copy when the request was closed (cancelled or another offer won the race)"
+  },
   "offersErrorOfferNotPending": "This offer is no longer available.",
-  "@offersErrorOfferNotPending": { "description": "Inline error banner copy when the chosen offer was withdrawn or already accepted" },
+  "@offersErrorOfferNotPending": {
+    "description": "Inline error banner copy when the chosen offer was withdrawn or already accepted"
+  },
   "offersErrorGeneric": "Something went wrong accepting this offer. Please try again.",
-  "@offersErrorGeneric": { "description": "Inline error banner copy for unclassified acceptance failures" },
+  "@offersErrorGeneric": {
+    "description": "Inline error banner copy for unclassified acceptance failures"
+  },
   "offersAcceptedBannerTitle": "Offer accepted",
-  "@offersAcceptedBannerTitle": { "description": "Headline shown after a successful accept while the host route navigates away" },
+  "@offersAcceptedBannerTitle": {
+    "description": "Headline shown after a successful accept while the host route navigates away"
+  },
   "offersAcceptedBannerBody": "Opening chat with your Jeeber…",
-  "@offersAcceptedBannerBody": { "description": "Sub-headline under the accepted banner while routing to the chat thread" },
-
+  "@offersAcceptedBannerBody": {
+    "description": "Sub-headline under the accepted banner while routing to the chat thread"
+  },
   "offerSubmissionTitle": "Send your offer",
-  "@offerSubmissionTitle": { "description": "App bar title for the Jeeber offer-submission screen" },
+  "@offerSubmissionTitle": {
+    "description": "App bar title for the Jeeber offer-submission screen"
+  },
   "offerSubmissionIntro": "Quote a fair fee and an honest pickup ETA. The client picks one offer; the rest are released.",
-  "@offerSubmissionIntro": { "description": "One-line context above the offer form" },
+  "@offerSubmissionIntro": {
+    "description": "One-line context above the offer form"
+  },
   "offerSubmissionFeeLabel": "Delivery fee",
-  "@offerSubmissionFeeLabel": { "description": "Label above the delivery-fee input" },
+  "@offerSubmissionFeeLabel": {
+    "description": "Label above the delivery-fee input"
+  },
   "offerSubmissionFeeHint": "e.g. 4.50",
-  "@offerSubmissionFeeHint": { "description": "Placeholder shown inside the empty fee input" },
+  "@offerSubmissionFeeHint": {
+    "description": "Placeholder shown inside the empty fee input"
+  },
   "offerSubmissionFeeHelper": "Minimum {minimum} {currency}.",
   "@offerSubmissionFeeHelper": {
     "description": "Helper text below the fee input — already-formatted minimum amount + ISO currency",
     "placeholders": {
-      "minimum": { "type": "String" },
-      "currency": { "type": "String" }
+      "minimum": {
+        "type": "String"
+      },
+      "currency": {
+        "type": "String"
+      }
     }
   },
   "offerSubmissionFeeErrorRequired": "Enter how much you'll charge.",
-  "@offerSubmissionFeeErrorRequired": { "description": "Validation error when the fee field is left empty on submit" },
+  "@offerSubmissionFeeErrorRequired": {
+    "description": "Validation error when the fee field is left empty on submit"
+  },
   "offerSubmissionFeeErrorBelowMinimum": "Minimum fee is {minimum} {currency}.",
   "@offerSubmissionFeeErrorBelowMinimum": {
     "description": "Validation error when the fee is below $1",
     "placeholders": {
-      "minimum": { "type": "String" },
-      "currency": { "type": "String" }
+      "minimum": {
+        "type": "String"
+      },
+      "currency": {
+        "type": "String"
+      }
     }
   },
   "offerSubmissionFeeErrorAboveMaximum": "Fee can't exceed {maximum} {currency}.",
   "@offerSubmissionFeeErrorAboveMaximum": {
     "description": "Validation error when the fee exceeds the per-offer ceiling",
     "placeholders": {
-      "maximum": { "type": "String" },
-      "currency": { "type": "String" }
+      "maximum": {
+        "type": "String"
+      },
+      "currency": {
+        "type": "String"
+      }
     }
   },
   "offerSubmissionEtaLabel": "Pickup ETA",
-  "@offerSubmissionEtaLabel": { "description": "Label above the ETA input" },
+  "@offerSubmissionEtaLabel": {
+    "description": "Label above the ETA input"
+  },
   "offerSubmissionEtaHint": "e.g. 12",
-  "@offerSubmissionEtaHint": { "description": "Placeholder shown inside the empty ETA input" },
+  "@offerSubmissionEtaHint": {
+    "description": "Placeholder shown inside the empty ETA input"
+  },
   "offerSubmissionEtaSuffix": "min",
-  "@offerSubmissionEtaSuffix": { "description": "Suffix shown inside the ETA input — minutes unit" },
+  "@offerSubmissionEtaSuffix": {
+    "description": "Suffix shown inside the ETA input — minutes unit"
+  },
   "offerSubmissionEtaHelper": "Whole minutes — between {min} and {max}.",
   "@offerSubmissionEtaHelper": {
     "description": "Helper text below the ETA input",
     "placeholders": {
-      "min": { "type": "int" },
-      "max": { "type": "int" }
+      "min": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
     }
   },
   "offerSubmissionEtaErrorRequired": "Enter how soon you can be at pickup.",
-  "@offerSubmissionEtaErrorRequired": { "description": "Validation error when the ETA field is left empty on submit" },
+  "@offerSubmissionEtaErrorRequired": {
+    "description": "Validation error when the ETA field is left empty on submit"
+  },
   "offerSubmissionEtaErrorBelowMinimum": "ETA must be at least {min} minute(s).",
   "@offerSubmissionEtaErrorBelowMinimum": {
     "description": "Validation error when the ETA is below the minimum",
     "placeholders": {
-      "min": { "type": "int" }
+      "min": {
+        "type": "int"
+      }
     }
   },
   "offerSubmissionEtaErrorAboveMaximum": "ETA can't exceed {max} minute(s).",
   "@offerSubmissionEtaErrorAboveMaximum": {
     "description": "Validation error when the ETA exceeds the maximum",
     "placeholders": {
-      "max": { "type": "int" }
+      "max": {
+        "type": "int"
+      }
     }
   },
   "offerSubmissionNoteLabel": "Note (optional)",
-  "@offerSubmissionNoteLabel": { "description": "Label above the optional note input" },
+  "@offerSubmissionNoteLabel": {
+    "description": "Label above the optional note input"
+  },
   "offerSubmissionNoteHint": "Add a short note for the client — e.g. 'Two minutes out'.",
-  "@offerSubmissionNoteHint": { "description": "Placeholder shown inside the empty note input" },
+  "@offerSubmissionNoteHint": {
+    "description": "Placeholder shown inside the empty note input"
+  },
   "offerSubmissionNoteErrorTooLong": "Keep your note under {max} characters.",
   "@offerSubmissionNoteErrorTooLong": {
     "description": "Validation error when the optional note exceeds the length cap",
     "placeholders": {
-      "max": { "type": "int" }
+      "max": {
+        "type": "int"
+      }
     }
   },
   "offerSubmissionSubmitButton": "Send offer",
-  "@offerSubmissionSubmitButton": { "description": "Primary CTA on the offer form" },
+  "@offerSubmissionSubmitButton": {
+    "description": "Primary CTA on the offer form"
+  },
   "offerSubmissionSubmittingButton": "Sending…",
-  "@offerSubmissionSubmittingButton": { "description": "Inline label shown on the submit button while the call is in flight" },
+  "@offerSubmissionSubmittingButton": {
+    "description": "Inline label shown on the submit button while the call is in flight"
+  },
   "offerSubmissionRetryButton": "Try again",
-  "@offerSubmissionRetryButton": { "description": "Submit CTA shown after a failed submission" },
+  "@offerSubmissionRetryButton": {
+    "description": "Submit CTA shown after a failed submission"
+  },
   "offerSubmissionConfirmedTitle": "Offer sent",
-  "@offerSubmissionConfirmedTitle": { "description": "Title of the confirmation panel shown after a successful submission" },
+  "@offerSubmissionConfirmedTitle": {
+    "description": "Title of the confirmation panel shown after a successful submission"
+  },
   "offerSubmissionConfirmedBody": "We're sharing it with the client. You'll get a chat thread and an OTP if they accept.",
-  "@offerSubmissionConfirmedBody": { "description": "Sub-headline under the confirmation panel explaining what happens next" },
+  "@offerSubmissionConfirmedBody": {
+    "description": "Sub-headline under the confirmation panel explaining what happens next"
+  },
   "offerSubmissionConfirmedFee": "Quoted fee: {amount} {currency}",
   "@offerSubmissionConfirmedFee": {
     "description": "Fee echo shown on the confirmation panel",
     "placeholders": {
-      "amount": { "type": "String" },
-      "currency": { "type": "String" }
+      "amount": {
+        "type": "String"
+      },
+      "currency": {
+        "type": "String"
+      }
     }
   },
   "offerSubmissionConfirmedEta": "ETA: {minutes} min",
   "@offerSubmissionConfirmedEta": {
     "description": "ETA echo shown on the confirmation panel",
     "placeholders": {
-      "minutes": { "type": "int" }
+      "minutes": {
+        "type": "int"
+      }
     }
   },
   "offerSubmissionWithdrawButton": "Withdraw offer",
-  "@offerSubmissionWithdrawButton": { "description": "CTA that retracts the open offer after submission" },
+  "@offerSubmissionWithdrawButton": {
+    "description": "CTA that retracts the open offer after submission"
+  },
   "offerSubmissionWithdrawingButton": "Withdrawing…",
-  "@offerSubmissionWithdrawingButton": { "description": "Inline label on the withdraw button while the call is in flight" },
+  "@offerSubmissionWithdrawingButton": {
+    "description": "Inline label on the withdraw button while the call is in flight"
+  },
   "offerSubmissionWithdrawnTitle": "Offer withdrawn",
-  "@offerSubmissionWithdrawnTitle": { "description": "Title shown after the offer has been retracted" },
+  "@offerSubmissionWithdrawnTitle": {
+    "description": "Title shown after the offer has been retracted"
+  },
   "offerSubmissionWithdrawnBody": "The client won't see your bid anymore. You can return to the feed.",
-  "@offerSubmissionWithdrawnBody": { "description": "Body shown after withdrawal — directs the Jeeber back to the feed" },
+  "@offerSubmissionWithdrawnBody": {
+    "description": "Body shown after withdrawal — directs the Jeeber back to the feed"
+  },
   "offerSubmissionErrorNetwork": "Couldn't reach Jeeb. Check your connection and try again.",
-  "@offerSubmissionErrorNetwork": { "description": "Error banner copy when the submit call fails on the network" },
+  "@offerSubmissionErrorNetwork": {
+    "description": "Error banner copy when the submit call fails on the network"
+  },
   "offerSubmissionErrorRequestNotOpen": "This request is no longer open.",
-  "@offerSubmissionErrorRequestNotOpen": { "description": "Error banner copy when the request closed before the offer reached the server" },
+  "@offerSubmissionErrorRequestNotOpen": {
+    "description": "Error banner copy when the request closed before the offer reached the server"
+  },
   "offerSubmissionErrorDuplicate": "You already have an open offer on this request.",
-  "@offerSubmissionErrorDuplicate": { "description": "Error banner copy when the Jeeber tries to submit a second offer on the same request" },
+  "@offerSubmissionErrorDuplicate": {
+    "description": "Error banner copy when the Jeeber tries to submit a second offer on the same request"
+  },
   "offerSubmissionErrorGeneric": "Something went wrong sending your offer. Please try again.",
-  "@offerSubmissionErrorGeneric": { "description": "Error banner copy for unclassified submit failures" },
+  "@offerSubmissionErrorGeneric": {
+    "description": "Error banner copy for unclassified submit failures"
+  },
   "offerSubmissionWithdrawErrorNetwork": "Couldn't withdraw. Check your connection and try again.",
-  "@offerSubmissionWithdrawErrorNetwork": { "description": "Error banner copy when the withdraw call fails on the network" },
+  "@offerSubmissionWithdrawErrorNetwork": {
+    "description": "Error banner copy when the withdraw call fails on the network"
+  },
   "offerSubmissionWithdrawErrorGeneric": "Couldn't withdraw your offer. Please try again.",
-  "@offerSubmissionWithdrawErrorGeneric": { "description": "Error banner copy for unclassified withdraw failures" },
-
+  "@offerSubmissionWithdrawErrorGeneric": {
+    "description": "Error banner copy for unclassified withdraw failures"
+  },
   "trackingTitle": "Live tracking",
-  "@trackingTitle": { "description": "App-bar title on the delivery tracking screen" },
+  "@trackingTitle": {
+    "description": "App-bar title on the delivery tracking screen"
+  },
   "trackingStepAccepted": "Accepted",
-  "@trackingStepAccepted": { "description": "Label for step 1 of the delivery progress indicator" },
+  "@trackingStepAccepted": {
+    "description": "Label for step 1 of the delivery progress indicator"
+  },
   "trackingStepPickedUp": "Picked up",
-  "@trackingStepPickedUp": { "description": "Label for step 2 of the delivery progress indicator" },
+  "@trackingStepPickedUp": {
+    "description": "Label for step 2 of the delivery progress indicator"
+  },
   "trackingStepHeadingOff": "On the way",
-  "@trackingStepHeadingOff": { "description": "Label for step 3 of the delivery progress indicator" },
+  "@trackingStepHeadingOff": {
+    "description": "Label for step 3 of the delivery progress indicator"
+  },
   "trackingStepCompleted": "Delivered",
-  "@trackingStepCompleted": { "description": "Label for step 4 of the delivery progress indicator" },
+  "@trackingStepCompleted": {
+    "description": "Label for step 4 of the delivery progress indicator"
+  },
   "trackingEtaLabel": "ETA",
-  "@trackingEtaLabel": { "description": "Caption above the ETA value on the badge" },
+  "@trackingEtaLabel": {
+    "description": "Caption above the ETA value on the badge"
+  },
   "trackingEtaPaused": "ETA paused",
-  "@trackingEtaPaused": { "description": "Caption shown on the ETA badge while the GPS signal is lost" },
+  "@trackingEtaPaused": {
+    "description": "Caption shown on the ETA badge while the GPS signal is lost"
+  },
   "trackingEtaMinutes": "{minutes} min",
   "@trackingEtaMinutes": {
     "description": "Formatted ETA value in minutes",
-    "placeholders": { "minutes": { "type": "int" } }
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
   },
   "trackingEtaArriving": "Arriving now",
-  "@trackingEtaArriving": { "description": "Replaces the ETA value when the Jeeber is one minute or less away" },
+  "@trackingEtaArriving": {
+    "description": "Replaces the ETA value when the Jeeber is one minute or less away"
+  },
   "trackingEtaUnavailable": "Unavailable",
-  "@trackingEtaUnavailable": { "description": "Shown on the ETA badge when no estimate is available" },
+  "@trackingEtaUnavailable": {
+    "description": "Shown on the ETA badge when no estimate is available"
+  },
   "trackingGpsLostTitle": "GPS signal lost",
-  "@trackingGpsLostTitle": { "description": "Banner title shown when the Jeeber's GPS samples stopped arriving" },
+  "@trackingGpsLostTitle": {
+    "description": "Banner title shown when the Jeeber's GPS samples stopped arriving"
+  },
   "trackingGpsLostBody": "We can't see your Jeeber right now. The map and ETA will refresh once the signal returns.",
-  "@trackingGpsLostBody": { "description": "Banner body explaining what the GPS-lost state means for the client" },
+  "@trackingGpsLostBody": {
+    "description": "Banner body explaining what the GPS-lost state means for the client"
+  },
   "trackingGpsLostRetry": "Refresh now",
-  "@trackingGpsLostRetry": { "description": "Action on the GPS-lost banner that asks the cubit to re-poll" },
+  "@trackingGpsLostRetry": {
+    "description": "Action on the GPS-lost banner that asks the cubit to re-poll"
+  },
   "trackingGpsStaleTitle": "Weak GPS signal",
-  "@trackingGpsStaleTitle": { "description": "Banner title shown when GPS samples are arriving slower than expected" },
+  "@trackingGpsStaleTitle": {
+    "description": "Banner title shown when GPS samples are arriving slower than expected"
+  },
   "trackingGpsStaleBody": "The map may take a moment to catch up to your Jeeber's current location.",
-  "@trackingGpsStaleBody": { "description": "Banner body for the stale (but not lost) GPS state" },
-
+  "@trackingGpsStaleBody": {
+    "description": "Banner body for the stale (but not lost) GPS state"
+  },
   "deliveryStatusTitle": "Delivery status",
-  "@deliveryStatusTitle": { "description": "App-bar title on the delivery status screen (T-mobile-018)" },
+  "@deliveryStatusTitle": {
+    "description": "App-bar title on the delivery status screen (T-mobile-018)"
+  },
   "deliveryStatusIdSubtitle": "Delivery #{id}",
   "@deliveryStatusIdSubtitle": {
     "description": "Subtitle under the app-bar title — shows the short delivery id",
-    "placeholders": { "id": { "type": "String" } }
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
   },
   "deliveryStatusLoading": "Loading delivery…",
-  "@deliveryStatusLoading": { "description": "Body copy while the cubit waits for its first snapshot" },
+  "@deliveryStatusLoading": {
+    "description": "Body copy while the cubit waits for its first snapshot"
+  },
   "deliveryStatusErrorTitle": "Connection lost",
-  "@deliveryStatusErrorTitle": { "description": "Title shown when the live status stream fails" },
+  "@deliveryStatusErrorTitle": {
+    "description": "Title shown when the live status stream fails"
+  },
   "deliveryStatusErrorBody": "We can't reach the status service right now. Tap retry to reconnect.",
-  "@deliveryStatusErrorBody": { "description": "Body copy on the error empty state" },
+  "@deliveryStatusErrorBody": {
+    "description": "Body copy on the error empty state"
+  },
   "deliveryStatusRetry": "Retry",
-  "@deliveryStatusRetry": { "description": "CTA on the error empty state to re-subscribe to the gateway" },
-
+  "@deliveryStatusRetry": {
+    "description": "CTA on the error empty state to re-subscribe to the gateway"
+  },
   "deliveryStageMatched": "Matched",
-  "@deliveryStageMatched": { "description": "Step 1 label — a Jeeber has accepted the request" },
+  "@deliveryStageMatched": {
+    "description": "Step 1 label — a Jeeber has accepted the request"
+  },
   "deliveryStagePickedUp": "Picked up",
-  "@deliveryStagePickedUp": { "description": "Step 2 label — the parcel is in the Jeeber's hands" },
+  "@deliveryStagePickedUp": {
+    "description": "Step 2 label — the parcel is in the Jeeber's hands"
+  },
   "deliveryStageInTransit": "In transit",
-  "@deliveryStageInTransit": { "description": "Step 3 label — the Jeeber is on the way to drop-off" },
+  "@deliveryStageInTransit": {
+    "description": "Step 3 label — the Jeeber is on the way to drop-off"
+  },
   "deliveryStageDelivered": "Delivered",
-  "@deliveryStageDelivered": { "description": "Step 4 label — the parcel was handed over" },
+  "@deliveryStageDelivered": {
+    "description": "Step 4 label — the parcel was handed over"
+  },
   "deliveryStageCancelled": "Cancelled",
-  "@deliveryStageCancelled": { "description": "Terminal label shown when the delivery was cancelled" },
-
+  "@deliveryStageCancelled": {
+    "description": "Terminal label shown when the delivery was cancelled"
+  },
   "deliveryStageTimestampPending": "Waiting…",
-  "@deliveryStageTimestampPending": { "description": "Placeholder under a step the delivery hasn't reached yet" },
+  "@deliveryStageTimestampPending": {
+    "description": "Placeholder under a step the delivery hasn't reached yet"
+  },
   "deliveryStageReachedAt": "at {time}",
   "@deliveryStageReachedAt": {
     "description": "Caption under a completed step showing the reached-at time",
-    "placeholders": { "time": { "type": "String" } }
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
   },
-
   "deliveryDetailsTitle": "Delivery details",
-  "@deliveryDetailsTitle": { "description": "Section header for pickup/drop-off + tier" },
+  "@deliveryDetailsTitle": {
+    "description": "Section header for pickup/drop-off + tier"
+  },
   "deliveryPickupLabel": "Pickup",
-  "@deliveryPickupLabel": { "description": "Label for the pickup address row" },
+  "@deliveryPickupLabel": {
+    "description": "Label for the pickup address row"
+  },
   "deliveryDropoffLabel": "Drop-off",
-  "@deliveryDropoffLabel": { "description": "Label for the drop-off address row" },
+  "@deliveryDropoffLabel": {
+    "description": "Label for the drop-off address row"
+  },
   "deliveryTierLabel": "Tier",
-  "@deliveryTierLabel": { "description": "Label for the vehicle tier row" },
-
+  "@deliveryTierLabel": {
+    "description": "Label for the vehicle tier row"
+  },
   "deliveryTierBike": "Bike",
-  "@deliveryTierBike": { "description": "Tier label — bicycle courier" },
+  "@deliveryTierBike": {
+    "description": "Tier label — bicycle courier"
+  },
   "deliveryTierScooter": "Scooter",
-  "@deliveryTierScooter": { "description": "Tier label — motorcycle / scooter" },
+  "@deliveryTierScooter": {
+    "description": "Tier label — motorcycle / scooter"
+  },
   "deliveryTierCar": "Car",
-  "@deliveryTierCar": { "description": "Tier label — passenger car" },
+  "@deliveryTierCar": {
+    "description": "Tier label — passenger car"
+  },
   "deliveryTierPickup": "Pickup truck",
-  "@deliveryTierPickup": { "description": "Tier label — pickup truck" },
-
+  "@deliveryTierPickup": {
+    "description": "Tier label — pickup truck"
+  },
   "deliveryJeeberCardTitle": "Your Jeeber",
-  "@deliveryJeeberCardTitle": { "description": "Section header for the matched-Jeeber card" },
+  "@deliveryJeeberCardTitle": {
+    "description": "Section header for the matched-Jeeber card"
+  },
   "deliveryJeeberWaiting": "Looking for a Jeeber…",
-  "@deliveryJeeberWaiting": { "description": "Placeholder while no Jeeber is matched yet" },
+  "@deliveryJeeberWaiting": {
+    "description": "Placeholder while no Jeeber is matched yet"
+  },
   "deliveryJeeberRating": "{rating} ★",
   "@deliveryJeeberRating": {
     "description": "Compact rating display next to the Jeeber's name",
-    "placeholders": { "rating": { "type": "String" } }
+    "placeholders": {
+      "rating": {
+        "type": "String"
+      }
+    }
   },
-
   "deliveryEtaLabel": "ETA",
-  "@deliveryEtaLabel": { "description": "Caption above the ETA value on the status badge" },
+  "@deliveryEtaLabel": {
+    "description": "Caption above the ETA value on the status badge"
+  },
   "deliveryEtaMinutes": "{minutes} min",
   "@deliveryEtaMinutes": {
     "description": "ETA badge value — minutes remaining",
-    "placeholders": { "minutes": { "type": "int" } }
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
   },
   "deliveryEtaArriving": "Arriving now",
-  "@deliveryEtaArriving": { "description": "Replaces the ETA value when 1 minute or less is left" },
-
+  "@deliveryEtaArriving": {
+    "description": "Replaces the ETA value when 1 minute or less is left"
+  },
   "deliveryActionCancel": "Cancel delivery",
-  "@deliveryActionCancel": { "description": "Destructive CTA — sender abandons the request before pickup" },
+  "@deliveryActionCancel": {
+    "description": "Destructive CTA — sender abandons the request before pickup"
+  },
   "deliveryActionContact": "Contact Jeeber",
-  "@deliveryActionContact": { "description": "Primary CTA — opens the dialer with the Jeeber's number" },
+  "@deliveryActionContact": {
+    "description": "Primary CTA — opens the dialer with the Jeeber's number"
+  },
   "deliveryActionCancellingLabel": "Cancelling…",
-  "@deliveryActionCancellingLabel": { "description": "Label shown on the cancel CTA while the gateway request is in flight" },
-
+  "@deliveryActionCancellingLabel": {
+    "description": "Label shown on the cancel CTA while the gateway request is in flight"
+  },
   "deliveryCancelDialogTitle": "Cancel this delivery?",
-  "@deliveryCancelDialogTitle": { "description": "Confirmation dialog title before cancelling" },
+  "@deliveryCancelDialogTitle": {
+    "description": "Confirmation dialog title before cancelling"
+  },
   "deliveryCancelDialogBody": "Your Jeeber will be notified. Cancellation fees may apply per the cancellation matrix.",
-  "@deliveryCancelDialogBody": { "description": "Confirmation dialog body — references BR-4 fee rules" },
+  "@deliveryCancelDialogBody": {
+    "description": "Confirmation dialog body — references BR-4 fee rules"
+  },
   "deliveryCancelDialogConfirm": "Yes, cancel",
-  "@deliveryCancelDialogConfirm": { "description": "Confirm button on the cancel dialog" },
+  "@deliveryCancelDialogConfirm": {
+    "description": "Confirm button on the cancel dialog"
+  },
   "deliveryCancelDialogDismiss": "Keep delivery",
-  "@deliveryCancelDialogDismiss": { "description": "Dismiss button on the cancel dialog" },
-
+  "@deliveryCancelDialogDismiss": {
+    "description": "Dismiss button on the cancel dialog"
+  },
   "deliveryErrorCancelTooLate": "Too late to cancel — your Jeeber already picked up.",
-  "@deliveryErrorCancelTooLate": { "description": "Toast shown after a cancel race with the picked-up transition" },
+  "@deliveryErrorCancelTooLate": {
+    "description": "Toast shown after a cancel race with the picked-up transition"
+  },
   "deliveryErrorCancelNetwork": "Couldn't reach the gateway. Try again in a moment.",
-  "@deliveryErrorCancelNetwork": { "description": "Toast shown after a network failure on cancel" },
+  "@deliveryErrorCancelNetwork": {
+    "description": "Toast shown after a network failure on cancel"
+  },
   "deliveryErrorContactUnavailable": "Contact isn't available yet for this delivery.",
-  "@deliveryErrorContactUnavailable": { "description": "Toast shown when contact is tapped before the gateway exposed the phone number" },
+  "@deliveryErrorContactUnavailable": {
+    "description": "Toast shown when contact is tapped before the gateway exposed the phone number"
+  },
   "deliveryErrorStreamLost": "Live status reconnecting…",
-  "@deliveryErrorStreamLost": { "description": "Toast shown when the live snapshot stream dies but is being retried" },
-
+  "@deliveryErrorStreamLost": {
+    "description": "Toast shown when the live snapshot stream dies but is being retried"
+  },
   "deliveryCompletedBanner": "Delivered successfully",
-  "@deliveryCompletedBanner": { "description": "Banner shown above the details once delivery completes" },
+  "@deliveryCompletedBanner": {
+    "description": "Banner shown above the details once delivery completes"
+  },
   "deliveryCancelledBanner": "Delivery cancelled",
-  "@deliveryCancelledBanner": { "description": "Banner shown above the details once delivery is cancelled" }
+  "@deliveryCancelledBanner": {
+    "description": "Banner shown above the details once delivery is cancelled"
+  },
+  "appBarSignOut": "Sign out",
+  "availabilityHomeTitle": "Jeeber Home",
+  "availabilityInactivityWarningBody": "You'll be taken offline in about 30 minutes if you stay idle. Tap below to keep accepting offers.",
+  "availabilityInactivityWarningCta": "I'm still here",
+  "availabilityInactivityWarningTitle": "Still there?",
+  "availabilityLoadError": "Couldn't load your availability.",
+  "availabilityLoadRetry": "Retry",
+  "availabilityToggleErrorBody": "Couldn't update your availability. Check your connection and try again.",
+  "chatActiveDeliverySubtitle": "Chat with your Jeeber",
+  "chatActiveDeliveryTitle": "Active delivery",
+  "chatAttachTooltip": "Attach photo",
+  "chatAttachmentCamera": "Camera",
+  "chatAttachmentCancel": "Cancel",
+  "chatAttachmentGallery": "Gallery",
+  "chatAttachmentSheetTitle": "Add a photo",
+  "chatComposerHint": "Type a message",
+  "chatEmptyThreadSubtitle": "Start the conversation by sending a message or photo.",
+  "chatEmptyThreadTitle": "Say hello",
+  "chatErrorPermissionDenied": "We need camera or gallery permission to attach a photo. Enable it from system settings.",
+  "chatErrorPickUnavailable": "We couldn't open the camera or gallery. Try again.",
+  "chatErrorSendFailed": "Message didn't send. Tap the bubble to retry.",
+  "chatPlaceholderCounterpartName": "Jeeber",
+  "chatSendTooltip": "Send",
+  "chatStatusConnected": "Connected",
+  "chatStatusConnecting": "Connecting…",
+  "chatStatusOffline": "You're offline. Messages will send when you reconnect.",
+  "chatStatusReconnecting": "Reconnecting…",
+  "homeGreetingFallback": "Welcome back",
+  "homeGreetingNamed": "Hi, {name}",
+  "homeGreetingSubtitle": "Where should we take it?",
+  "homeLoadFailedBody": "Check your connection and try again.",
+  "homeLoadFailedRetry": "Retry",
+  "homeLoadFailedTitle": "Couldn't load your home",
+  "homeRecordVoiceRequest": "Record a request",
+  "homeRequestCardSemanticLabel": "Active delivery {title}, status {status}",
+  "homeRequestEtaUnknown": "ETA pending",
+  "homeRequestJeeberAssigned": "with {name}",
+  "locationConfirmAndSave": "Confirm & save",
+  "locationConfirmedTitle": "Locations confirmed",
+  "locationContinueToDropoff": "Continue to dropoff",
+  "locationCoordinatesFallback": "{lat}, {lng}",
+  "locationDetectingGps": "Detecting your location…",
+  "locationDropoffTitle": "Dropoff location",
+  "locationErrorGeocodingFailed": "Could not resolve the address for this pin.",
+  "locationErrorGpsUnavailable": "GPS is unavailable right now. Try again or pin on the map.",
+  "locationErrorPermissionDenied": "Location permission was denied. Allow it in Settings to use GPS.",
+  "locationErrorSaveFailed": "Could not save your locations. Try again.",
+  "locationErrorSearchFailed": "Address search failed. Check your connection and try again.",
+  "locationNoSelectionYet": "No location selected yet",
+  "locationOpenMap": "Pin on map",
+  "locationPickupTitle": "Pickup location",
+  "locationResolvingAddress": "Resolving address…",
+  "locationSavingCta": "Saving…",
+  "locationSearchEmpty": "No matching addresses",
+  "locationSelectedPreviewLabel": "Selected location",
+  "locationStepDone": "Both locations saved",
+  "locationStepDropoff": "Step 2 of 2 — choose dropoff",
+  "locationStepPickup": "Step 1 of 2 — choose pickup",
+  "locationUseCurrentGps": "Use current GPS",
+  "offersEmptyBody": "Jeebers nearby are reviewing your request. We'll show their offers here as they come in.",
+  "offersEmptyTitle": "Waiting for offers",
+  "offersRatingCount": "{count}",
+  "offersRequestClosedTitle": "Request closed",
+  "offersRetryAction": "Retry",
+  "offersScreenTitle": "Choose a Jeeber",
+  "offersSortByPrice": "Lowest price",
+  "offersSortByRating": "Top rated",
+  "offersSortLabel": "Sort",
+  "offersWindowExpired": "Offer window expired",
+  "offersWindowRemaining": "Window: {time} left",
+  "orderHistoryAddressMissing": "Address unavailable",
+  "orderHistoryCardSemanticLabel": "Order {id}",
+  "orderHistoryEmptyActive": "Active deliveries will show up here.",
+  "orderHistoryEmptyCancelled": "Cancelled or disputed deliveries will appear here.",
+  "orderHistoryEmptyCompleted": "Finished deliveries will appear here once you complete one.",
+  "orderHistoryEmptyTitle": "No orders yet",
+  "orderHistoryErrorNetwork": "You appear to be offline. Check your connection and try again.",
+  "orderHistoryErrorRetry": "Try again",
+  "orderHistoryErrorServer": "Something went wrong on our end. Please try again.",
+  "orderHistoryErrorTitle": "Couldn't load orders",
+  "orderHistoryFilterActive": "Date filter applied",
+  "orderHistoryFilterAnyDate": "Any date",
+  "orderHistoryFilterApply": "Apply",
+  "orderHistoryFilterClear": "Clear",
+  "orderHistoryFilterCta": "Filter by date",
+  "orderHistoryFilterFrom": "From",
+  "orderHistoryFilterTitle": "Filter by date",
+  "orderHistoryFilterTo": "To",
+  "orderHistoryStatusCancelled": "Cancelled",
+  "orderHistoryStatusDelivered": "Delivered",
+  "orderHistoryStatusDisputed": "Disputed",
+  "orderHistoryStatusEnRoute": "En route",
+  "orderHistoryStatusMatched": "Matched",
+  "orderHistoryStatusPending": "Pending",
+  "orderHistoryStatusPickedUp": "Picked up",
+  "orderHistoryStatusUnknown": "In progress",
+  "orderHistoryTabActive": "Active",
+  "orderHistoryTabCancelled": "Cancelled",
+  "orderHistoryTabCompleted": "Completed",
+  "registrationSocialErrorAccountDisabled": "This account isn't allowed to sign in. Contact support.",
+  "registrationSocialErrorGeneric": "Something went wrong. Please try again.",
+  "registrationSocialErrorInvalidToken": "We couldn't verify your account. Please try again.",
+  "registrationSocialErrorNetwork": "Couldn't reach Jeeb. Check your connection and try again.",
+  "requestFeedAccept": "Accept",
+  "requestFeedAccepting": "Accepting…",
+  "requestFeedActionAcceptedSnack": "Request accepted",
+  "requestFeedActionDeclinedSnack": "Request declined",
+  "requestFeedActionExpiredSnack": "That request expired before we could send it",
+  "requestFeedActionNetworkSnack": "Network error — please try again",
+  "requestFeedActionTakenSnack": "Another Jeeber already took this one",
+  "requestFeedDecline": "Decline",
+  "requestFeedDeclining": "Declining…",
+  "requestFeedDistance": "{distance} km",
+  "requestFeedDropoffLabel": "Dropoff",
+  "requestFeedEarnings": "≈ {amount} {currency}",
+  "requestFeedEmptySubtitle": "Pull down to refresh, or stay online and new requests will arrive automatically.",
+  "requestFeedEmptyTitle": "No requests right now",
+  "requestFeedErrorLoad": "Couldn't reach Jeeb. Check your connection and try again.",
+  "requestFeedErrorRetry": "Try again",
+  "requestFeedErrorTitle": "Couldn't load requests",
+  "requestFeedExpiresIn": "Expires in {seconds}s",
+  "requestFeedPickupLabel": "Pickup",
+  "requestFeedReconnecting": "Reconnecting — falling back to polling",
+  "requestFeedTierBulk": "Bulk",
+  "requestFeedTierLight": "Light",
+  "requestFeedTierStandard": "Standard",
+  "requestFeedTitle": "Incoming requests",
+  "settingsNetworkError": "Something went wrong. Please try again.",
+  "signOutCompleted": "You've been signed out.",
+  "signOutDialogBody": "You'll need to sign in again to place or accept deliveries.",
+  "signOutDialogTitle": "Sign out of Jeeb?",
+  "voiceRecordingCancel": "Cancel",
+  "voiceRecordingDiscard": "Re-record",
+  "voiceRecordingErrorMaxReached": "Recording stopped — 60 second maximum.",
+  "voiceRecordingErrorPermission": "Microphone access is required to record.",
+  "voiceRecordingErrorRecorderFailed": "Recording failed. Please try again.",
+  "voiceRecordingErrorTooShort": "Hold the button for at least a second.",
+  "voiceRecordingErrorUnavailable": "The microphone isn't available right now.",
+  "voiceRecordingErrorUploadGeneric": "Something went wrong. Please try again.",
+  "voiceRecordingErrorUploadNetwork": "Couldn't reach the server. Check your connection and try again.",
+  "voiceRecordingErrorUploadServer": "We couldn't process the recording. Please try again.",
+  "voiceRecordingHoldToRecord": "Hold to record",
+  "voiceRecordingMicSemantic": "Record voice request. Press and hold to record, release to stop.",
+  "voiceRecordingPause": "Pause",
+  "voiceRecordingPlay": "Play",
+  "voiceRecordingRecordAnother": "Record another",
+  "voiceRecordingReleaseToStop": "Release to stop",
+  "voiceRecordingSend": "Send",
+  "voiceRecordingSending": "Sending…",
+  "voiceRecordingSentBody": "Your voice request was received. We'll find a Jeeber for you shortly.",
+  "voiceRecordingSentTitle": "Sent",
+  "voiceRecordingSubtitle": "Press and hold the mic. Release to stop.",
+  "voiceRecordingTimerLabel": "{duration} recorded",
+  "voiceRecordingTitle": "Record your request",
+  "availabilityActiveDeliveriesZero": "No active deliveries",
+  "availabilityActiveDeliveriesOne": "1 active delivery",
+  "availabilityActiveDeliveriesTwo": "2 active deliveries",
+  "availabilityActiveDeliveriesFew": "{count} active deliveries",
+  "availabilityActiveDeliveriesMany": "{count} active deliveries",
+  "availabilityActiveDeliveriesOther": "{count} active deliveries",
+  "chatPendingMessagesZero": "No pending messages",
+  "chatPendingMessagesOne": "1 pending message",
+  "chatPendingMessagesTwo": "2 pending messages",
+  "chatPendingMessagesFew": "{count} pending messages",
+  "chatPendingMessagesMany": "{count} pending messages",
+  "chatPendingMessagesOther": "{count} pending messages",
+  "dashboardNearbyRequestsTwo": "2 nearby requests",
+  "dashboardNearbyRequestsFew": "{count} nearby requests",
+  "dashboardNearbyRequestsOther": "{count} nearby requests",
+  "dashboardTodayEarningsCompletedTwo": "2 deliveries today",
+  "dashboardTodayEarningsCompletedFew": "{count} deliveries today",
+  "dashboardTodayEarningsCompletedOther": "{count} deliveries today",
+  "earningsSummaryCompletedTwo": "2 completed",
+  "earningsSummaryCompletedFew": "{count} completed",
+  "earningsSummaryCompletedMany": "{count} completed",
+  "requestSummaryFindingNotifiedTwo": "Notified 2 nearby Jeebers",
+  "requestSummaryFindingNotifiedFew": "Notified {count} nearby Jeebers",
+  "requestSummaryFindingNotifiedOther": "Notified {count} nearby Jeebers",
+  "availabilityActiveDeliveries": "Active deliveries",
+  "chatPendingMessages": "Pending messages"
 }
