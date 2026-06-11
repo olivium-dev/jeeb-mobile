@@ -1278,4 +1278,66 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get voiceRecordingTitle => _get('voiceRecordingTitle');
   String get splashTagline => _get('splashTagline');
   String get splashLogoSemantic => _get('splashLogoSemantic');
+
+  // Screen 19 — Delivery tab upsell for an unregistered jeeber (closes JEEB-66).
+  String get jeeberRegisterTitle => _get('jeeberRegisterTitle');
+  String get jeeberRegisterSubtitle => _get('jeeberRegisterSubtitle');
+  String get jeeberRegisterCta => _get('jeeberRegisterCta');
+  String get jeeberRegisterHeroSemantic => _get('jeeberRegisterHeroSemantic');
+
+  // Screens 20-22 — Delivery-man onboarding wizard.
+  String get dmOnboardingPhotoStepTitle => _get('dmOnboardingPhotoStepTitle');
+  String get dmOnboardingPhotoUploadTitle =>
+      _get('dmOnboardingPhotoUploadTitle');
+  String get dmOnboardingPhotoUploadSubtitle =>
+      _get('dmOnboardingPhotoUploadSubtitle');
+  String get dmOnboardingPhotoUploadHint =>
+      _get('dmOnboardingPhotoUploadHint');
+  String get dmOnboardingPersonalDetailsTitle =>
+      _get('dmOnboardingPersonalDetailsTitle');
+  String get dmOnboardingAddressStateLabel =>
+      _get('dmOnboardingAddressStateLabel');
+  String get dmOnboardingAddressStateHint =>
+      _get('dmOnboardingAddressStateHint');
+  String get dmOnboardingAddressCountryLabel =>
+      _get('dmOnboardingAddressCountryLabel');
+  String get dmOnboardingAddressCountryHint =>
+      _get('dmOnboardingAddressCountryHint');
+  String get dmOnboardingAddressStreetLabel =>
+      _get('dmOnboardingAddressStreetLabel');
+  String get dmOnboardingAddressStreetHint =>
+      _get('dmOnboardingAddressStreetHint');
+  String get dmOnboardingAddressVehicleNumberLabel =>
+      _get('dmOnboardingAddressVehicleNumberLabel');
+  String get dmOnboardingAddressVehicleNumberHint =>
+      _get('dmOnboardingAddressVehicleNumberHint');
+  String get dmOnboardingAddressAddressLabel =>
+      _get('dmOnboardingAddressAddressLabel');
+  String get dmOnboardingAddressAddressHint =>
+      _get('dmOnboardingAddressAddressHint');
+  String get dmOnboardingServiceAreaTitle =>
+      _get('dmOnboardingServiceAreaTitle');
+  String get dmOnboardingServiceAreaHeading =>
+      _get('dmOnboardingServiceAreaHeading');
+  String get dmOnboardingServiceAreaSubtitle =>
+      _get('dmOnboardingServiceAreaSubtitle');
+  String get dmOnboardingServiceAreaPrimaryLocationLabel =>
+      _get('dmOnboardingServiceAreaPrimaryLocationLabel');
+  String get dmOnboardingServiceAreaLocationFieldLabel =>
+      _get('dmOnboardingServiceAreaLocationFieldLabel');
+  String get dmOnboardingServiceAreaLocationPlaceholder =>
+      _get('dmOnboardingServiceAreaLocationPlaceholder');
+  String get dmOnboardingServiceAreaDistanceLabel =>
+      _get('dmOnboardingServiceAreaDistanceLabel');
+  String dmOnboardingServiceAreaDistanceValue(int distance) =>
+      _get('dmOnboardingServiceAreaDistanceValue')
+          .replaceFirst('{distance}', '$distance');
+  String get dmOnboardingContinue => _get('dmOnboardingContinue');
+  String dmOnboardingStepProgressLabel({
+    required int current,
+    required int total,
+  }) =>
+      _get('dmOnboardingStepProgressLabel')
+          .replaceFirst('{current}', '$current')
+          .replaceFirst('{total}', '$total');
 }

@@ -2277,5 +2277,128 @@
   "splashLogoSemantic": "Jeeb",
   "@splashLogoSemantic": {
     "description": "Accessibility label announced for the Jeeb brand wordmark artwork on the splash screen. Brand name; identical in every locale."
+  },
+  "jeeberRegisterTitle": "Register as a delivery man",
+  "@jeeberRegisterTitle": {
+    "description": "Headline of the Delivery tab upsell for a client not yet registered as a jeeber (Figma 56614:18933, closes JEEB-66)."
+  },
+  "jeeberRegisterSubtitle": "Start earning money",
+  "@jeeberRegisterSubtitle": {
+    "description": "Supporting line under the register-as-delivery-man headline (Figma 56614:18934, closes JEEB-66)."
+  },
+  "jeeberRegisterCta": "Register now",
+  "@jeeberRegisterCta": {
+    "description": "Primary CTA that opens the delivery-man onboarding wizard (Figma 56618:2618, closes JEEB-66)."
+  },
+  "jeeberRegisterHeroSemantic": "Delivery scooter bursting out of a phone",
+  "@jeeberRegisterHeroSemantic": {
+    "description": "Accessibility label for the decorative register-as-delivery-man hero illustration (Figma 56614:19012)."
+  },
+  "dmOnboardingPhotoStepTitle": "Image",
+  "@dmOnboardingPhotoStepTitle": {
+    "description": "Navbar title of the photo-upload step of delivery-man onboarding (Figma 56591:5560)."
+  },
+  "dmOnboardingPhotoUploadTitle": "Upload a clear photo for you",
+  "@dmOnboardingPhotoUploadTitle": {
+    "description": "Heading of the photo-upload step of delivery-man onboarding (Figma 56591:5331)."
+  },
+  "dmOnboardingPhotoUploadSubtitle": "For more credibility",
+  "@dmOnboardingPhotoUploadSubtitle": {
+    "description": "Supporting line under the photo-upload heading (Figma 56591:5332)."
+  },
+  "dmOnboardingPhotoUploadHint": "Tap to add a photo",
+  "@dmOnboardingPhotoUploadHint": {
+    "description": "Accessibility hint on the empty photo-upload drop area (Figma 56591:5334)."
+  },
+  "dmOnboardingPersonalDetailsTitle": "Personal Details",
+  "@dmOnboardingPersonalDetailsTitle": {
+    "description": "Navbar title of the address/vehicle step of delivery-man onboarding (Figma 56591:4263)."
+  },
+  "dmOnboardingAddressStateLabel": "State",
+  "@dmOnboardingAddressStateLabel": {
+    "description": "Field label for the state input on the DM onboarding address step (Figma 56591:4133)."
+  },
+  "dmOnboardingAddressStateHint": "Iklim el kharoub",
+  "@dmOnboardingAddressStateHint": {
+    "description": "Placeholder for the state input on the DM onboarding address step (Figma 56591:4135)."
+  },
+  "dmOnboardingAddressCountryLabel": "Country",
+  "@dmOnboardingAddressCountryLabel": {
+    "description": "Field label for the country input on the DM onboarding address step (Figma 56591:4125)."
+  },
+  "dmOnboardingAddressCountryHint": "Daraya",
+  "@dmOnboardingAddressCountryHint": {
+    "description": "Placeholder for the country input on the DM onboarding address step (Figma 56591:4127)."
+  },
+  "dmOnboardingAddressStreetLabel": "Street",
+  "@dmOnboardingAddressStreetLabel": {
+    "description": "Field label for the street input on the DM onboarding address step (Figma 56591:4129)."
+  },
+  "dmOnboardingAddressStreetHint": "main street",
+  "@dmOnboardingAddressStreetHint": {
+    "description": "Placeholder for the street input on the DM onboarding address step (Figma 56591:4131)."
+  },
+  "dmOnboardingAddressVehicleNumberLabel": "Vehicle number",
+  "@dmOnboardingAddressVehicleNumberLabel": {
+    "description": "Field label for the vehicle-number input on the DM onboarding address step (Figma 56591:4137)."
+  },
+  "dmOnboardingAddressVehicleNumberHint": "G279424",
+  "@dmOnboardingAddressVehicleNumberHint": {
+    "description": "Placeholder for the vehicle-number input on the DM onboarding address step (Figma 56591:4139)."
+  },
+  "dmOnboardingAddressAddressLabel": "Address",
+  "@dmOnboardingAddressAddressLabel": {
+    "description": "Field label for the full-address input on the DM onboarding address step (Figma 56591:4145)."
+  },
+  "dmOnboardingAddressAddressHint": "Jasmine Tower, Apartment 12B",
+  "@dmOnboardingAddressAddressHint": {
+    "description": "Placeholder for the full-address input on the DM onboarding address step (Figma 56591:4147)."
+  },
+  "dmOnboardingServiceAreaTitle": "Service Area",
+  "@dmOnboardingServiceAreaTitle": {
+    "description": "Navbar title of the service-area step of delivery-man onboarding (Figma 56591:5337)."
+  },
+  "dmOnboardingServiceAreaHeading": "Select the working area",
+  "@dmOnboardingServiceAreaHeading": {
+    "description": "Heading of the service-area step of delivery-man onboarding (Figma 56591:5337 content)."
+  },
+  "dmOnboardingServiceAreaSubtitle": "Where do you want to offer your services?",
+  "@dmOnboardingServiceAreaSubtitle": {
+    "description": "Supporting line under the service-area heading (Figma 56591:5337 content)."
+  },
+  "dmOnboardingServiceAreaPrimaryLocationLabel": "Your Primary Location",
+  "@dmOnboardingServiceAreaPrimaryLocationLabel": {
+    "description": "Section label above the primary-location selector on the service-area step."
+  },
+  "dmOnboardingServiceAreaLocationFieldLabel": "Location",
+  "@dmOnboardingServiceAreaLocationFieldLabel": {
+    "description": "Leading label of the primary-location selector row on the service-area step."
+  },
+  "dmOnboardingServiceAreaLocationPlaceholder": "Select",
+  "@dmOnboardingServiceAreaLocationPlaceholder": {
+    "description": "Placeholder shown in the primary-location selector while no location is chosen."
+  },
+  "dmOnboardingServiceAreaDistanceLabel": "Distance Preference",
+  "@dmOnboardingServiceAreaDistanceLabel": {
+    "description": "Label above the distance slider on the service-area step. Figma layer has a typo 'Distance Preferencce'; corrected here (flag F-22-1)."
+  },
+  "dmOnboardingServiceAreaDistanceValue": "{distance} km",
+  "@dmOnboardingServiceAreaDistanceValue": {
+    "description": "Distance value shown next to the slider on the service-area step (Figma 56591:5337 content).",
+    "placeholders": {
+      "distance": { "type": "int", "example": "80" }
+    }
+  },
+  "dmOnboardingContinue": "Continue",
+  "@dmOnboardingContinue": {
+    "description": "Primary CTA on every delivery-man onboarding wizard step (Figma 56611:19420 / 56611:19416)."
+  },
+  "dmOnboardingStepProgressLabel": "Step {current} of {total}",
+  "@dmOnboardingStepProgressLabel": {
+    "description": "Screen-reader value for the delivery-man onboarding wizard progress bar.",
+    "placeholders": {
+      "current": { "type": "int", "example": "1" },
+      "total": { "type": "int", "example": "3" }
+    }
   }
 }
