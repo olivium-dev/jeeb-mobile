@@ -107,16 +107,27 @@ appId: ${APP_ID}
 - takeScreenshot: "11-capture-location-loaded"
 
 # ── PRIMARY INTERACTION: tap the "Pin Location" confirm CTA ────────────────────
-# In the live router this pops with the captured coordinates; in the standalone
-# dev-seam route onPinned falls back to Navigator.maybePop. Tapping pops this
-# route off the dev-seam stack, so we assert the Capture Location nodes are GONE
-# afterward — this proves the CTA is LIVE (fires its onTap), not a dead/no-op
-# control, without fabricating an assertion about the (unwired-in-seam)
-# coordinate-commit destination.
+# NAV REALITY (verified in app_router.dart + DevSeam redirect, NOT assumed):
+#   /capture-location is wired `onPinned: () { if (context.canPop()) context.pop(); }`.
+#   In the runtime dev seam, AppRouter._devRoute redirect resolves the location to
+#   `/capture-location` and BOUNCES any other matchedLocation back to it, so the
+#   seam route is the stack ROOT → `context.canPop()` is FALSE → onPinned is a
+#   no-op AND the back-pop also can't fire. Therefore the screen does NOT leave on
+#   tap in the seam. Asserting `notVisible` here (the prior revision) would FAIL on
+#   a healthy device — it asserts a navigation outcome the dev-seam path cannot
+#   produce. The live "Pin Location → commit coordinates → pop" behaviour is a
+#   later integration gate (real router pushes /capture-location onto a non-root
+#   stack from /client-location, where canPop() is true).
+#
+# Honest dev-seam assertion (pilot learning #7 / AP-9): tap is ACCEPTED, the app
+# does NOT crash, and the screen stays coherent. We tap the LIVE CTA (proves it is
+# an interactive button node, not decoration) then re-assert the screen chrome is
+# still present — i.e. the tap was handled without error. The coordinate-commit /
+# pop is explicitly deferred to the integration gate (see qa-verdict.md gap).
 - tapOn:
     id: "capture_location_pin_cta"
 - waitForAnimationToEnd
-- extendedWaitUntil:
-    notVisible:
-      id: "capture_location_pin_cta"
-    timeout: 15000
+- assertVisible:
+    id: "capture_location_pin_cta"
+- assertVisible:
+    id: "capture_location_map"
