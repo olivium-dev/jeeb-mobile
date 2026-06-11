@@ -1,0 +1,104 @@
+# Maestro flow — Order tracking (screen 16)
+#
+# Figma node 56560:1772 (file ZOi3kKtw7sd42ssSVX3Kn4) — PROVISIONAL/DRAFT frame:
+#   a full-bleed live map fills the area under the "Tracking" navbar, above a
+#   centred bottom status panel that carries a thin orange 3-stage progress bar
+#   (Ordered / Picked / In transit), a courier distance line ("3km away from
+#   you") and an ETA line ("Estimated time: 20 mins"). Built screen:
+#   LiveTrackingScreen at route /orders/:id/tracking
+#   (lib/features/live_tracking/presentation/live_tracking_screen.dart + widgets/
+#   delivery_tracking_panel.dart, tracking_map_surface.dart).
+#
+# NAV — RUNTIME DEV SEAM (dev-seam-runtime.md): reached via the runtime dev seam,
+#   NOT a dart-define rebuild. `launchApp.arguments` are delivered to Android as
+#   String intent extras (MainActivity.kt `readSeamExtras()`, seam priority 1) →
+#   DevSeam routes straight to /orders/d-1/tracking, skipping onboarding +
+#   biometric gates. One dev APK renders any screen/state/locale.
+#     Equivalent adb one-liner (the flow does it via launchApp):
+#       adb -s <device> shell am start -S \
+#         -n app.jeeb.mobile.dev/app.jeeb.mobile.MainActivity \
+#         -e jeeb.route /orders/d-1/tracking -e jeeb.locale en
+#     RTL variant: append `-e jeeb.locale ar`.
+#
+# BACKEND: DemoLiveTrackingRepository (debug-only). The router selects it under
+#   kDebugMode + an active /tracking seam route, so the screen renders its READY
+#   state offline (in-transit, distance "3 km", ETA 20 min). The map raster +
+#   polyline + markers are map-SDK overlays / a Figma mock (never bundled,
+#   UI-GUARDRAILS §0) — TrackingMapSurface stands in like CaptureMapViewport.
+#   A PASS here certifies VISUAL UI PARITY of the panel + map chrome ONLY, not
+#   end-to-end map-tile / live-GPS integration (UI-GUARDRAILS §6).
+#
+# SYNTAX: Maestro 2.0.5 — extendedWaitUntil for timeouts (inline `timeout:` is
+#   1.x syntax, REJECTED by 2.0.5 — pilot learning #3); waitForAnimationToEnd
+#   before every takeScreenshot (pilot learning #4); assertVisible by Semantics
+#   identifier only — no coordinate taps, no sleeps, no localized-text matching
+#   (the navbar title + step labels are localized; an AR run would break a text
+#   matcher — ids are locale-invariant).
+#
+# IDS asserted — verified present in source (grep of lib/features/live_tracking):
+#   tracking_map             (tracking_map_surface.dart — Semantics(identifier,
+#                            image:true, label) wrapping the map surface)
+#   tracking_status_panel    (delivery_tracking_panel.dart — Semantics container
+#                            wrapping the whole bottom panel)
+#   tracking_progress_stepper(delivery_tracking_panel.dart — the OMDS stepper)
+#   tracking_distance_label  (delivery_tracking_panel.dart — liveRegion distance)
+#   tracking_eta_label       (delivery_tracking_panel.dart — liveRegion ETA)
+#
+# READ-ONLY SCREEN (no primary CTA): tracking is informational — the only
+#   interactive node is the app-bar back chevron (a raw OMDSAppBar IconButton
+#   with no identifier, so not targeted). There is therefore no tap-to-exercise
+#   primary action; the flow proves the screen RENDERS its live state correctly
+#   (map + panel + stepper + distance + ETA all present) and captures it. This is
+#   the correct, honest scope for a read-only screen (not an AP-9 no-op CTA gap).
+
+appId: ${APP_ID}
+---
+# ── LAUNCH (EN) via runtime dev seam (intent extras → DevSeam priority-1) ──────
+- launchApp:
+    stopApp: true
+    arguments:
+      jeeb.route: "/orders/d-1/tracking"
+      jeeb.locale: "en"
+
+# ── STATE RENDERS: the map surface is on screen (proves the ready frame painted,
+#    not a blank first-frame / launcher fallthrough). 40s absorbs slow first
+#    frames on a loaded AVD (legit wait, not a sleep). ───────────────────────────
+- extendedWaitUntil:
+    visible:
+      id: "tracking_map"
+    timeout: 40000
+- waitForAnimationToEnd
+
+# ── PANEL: the bottom status panel + its stepper + distance + ETA are present ──
+- assertVisible:
+    id: "tracking_status_panel"
+- assertVisible:
+    id: "tracking_progress_stepper"
+- assertVisible:
+    id: "tracking_distance_label"
+- assertVisible:
+    id: "tracking_eta_label"
+
+# ── CAPTURE (EN/LTR): the loaded tracking frame ────────────────────────────────
+- waitForAnimationToEnd
+- takeScreenshot: "16-order-tracking-en"
+
+# ── RELAUNCH (AR/RTL): same seam, forced Arabic locale → real RTL mirror ───────
+- launchApp:
+    stopApp: true
+    arguments:
+      jeeb.route: "/orders/d-1/tracking"
+      jeeb.locale: "ar"
+- extendedWaitUntil:
+    visible:
+      id: "tracking_map"
+    timeout: 40000
+- waitForAnimationToEnd
+- assertVisible:
+    id: "tracking_status_panel"
+- assertVisible:
+    id: "tracking_distance_label"
+
+# ── CAPTURE (AR/RTL) ───────────────────────────────────────────────────────────
+- waitForAnimationToEnd
+- takeScreenshot: "16-order-tracking-ar"
