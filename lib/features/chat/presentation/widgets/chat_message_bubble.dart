@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../l10n/app_localizations.dart';
 import '../../domain/delivery_chat_message.dart';
 import 'auto_direction_text.dart';
+import 'chat_bubble_timestamp.dart';
 import 'system_message_bubble.dart';
 
 /// Single message row.
@@ -32,12 +34,15 @@ class ChatMessageBubble extends StatelessWidget {
     if (message.isSystemNotice) {
       return SystemMessageBubble(message: message);
     }
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.medium,
-        vertical: Spacing.twoXSmall,
+    return Semantics(
+      identifier: 'chat_detail_message_${message.id}',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: Spacing.medium,
+          vertical: Spacing.twoXSmall,
+        ),
+        child: _bodyFor(message),
       ),
-      child: _bodyFor(message),
     );
   }
 
@@ -452,18 +457,15 @@ class _BubbleFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     return Directionality(
       textDirection: TextDirection.ltr,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          Text(
-            _formatTime(message.sentAt),
-            style: textTheme.labelSmall?.copyWith(
-              color: color.withValues(alpha: UIConstants.opacityHigh),
-            ),
+          ChatBubbleTimestamp(
+            sentAt: message.sentAt,
+            color: color.withValues(alpha: UIConstants.opacityHigh),
           ),
           if (isSender) ...[
             const SizedBox(width: Spacing.twoXSmall),
@@ -476,13 +478,6 @@ class _BubbleFooter extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _formatTime(DateTime sentAt) {
-    final h = sentAt.hour % 12 == 0 ? 12 : sentAt.hour % 12;
-    final m = sentAt.minute.toString().padLeft(2, '0');
-    final period = sentAt.hour < 12 ? 'AM' : 'PM';
-    return '$h:$m $period';
   }
 }
 
@@ -504,23 +499,27 @@ class _StatusIcon extends StatelessWidget {
       case MessageStatus.sending:
         return Icon(
           Icons.access_time,
-          size: 14,
+          size: Sizes.medium,
           color: color.withValues(alpha: UIConstants.opacityMedium),
         );
       case MessageStatus.sent:
-        return Icon(Icons.done, size: 14, color: color);
+        return Icon(Icons.done, size: Sizes.medium, color: color);
       case MessageStatus.delivered:
-        return Icon(Icons.done_all, size: 14, color: color);
+        return Icon(Icons.done_all, size: Sizes.medium, color: color);
       case MessageStatus.read:
-        return Icon(
-          Icons.done_all,
-          size: 14,
-          color: context.omdsColorTokens.infoColor,
+        return Semantics(
+          identifier: 'chat_detail_message_read',
+          label: AppLocalizations.of(context).chatMessageReadA11y,
+          child: Icon(
+            Icons.done_all,
+            size: Sizes.medium,
+            color: context.omdsColorTokens.infoColor,
+          ),
         );
       case MessageStatus.failed:
         return Icon(
           Icons.error_outline,
-          size: 14,
+          size: Sizes.medium,
           color: Theme.of(context).colorScheme.error,
         );
     }

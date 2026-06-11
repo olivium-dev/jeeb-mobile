@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../../features/biometric_auth/application/biometric_lock_state.dart';
 import '../../features/biometric_auth/presentation/biometric_lock_screen.dart';
+import '../../features/chat/presentation/dev_chat_preview_screen.dart';
 import '../../features/deep_link_targets/chat_detail_screen.dart';
 import '../../features/deep_link_targets/delivery_detail_screen.dart';
 import '../../features/deep_link_targets/kyc_status_screen.dart';
@@ -65,6 +66,14 @@ class AppRouter {
   static const bool _kDevHome =
       kDebugMode && bool.fromEnvironment('JEEB_DEV_HOME');
 
+  /// Debug-only chat-capture seam (`--dart-define=JEEB_DEV_CHAT=broadcasting`
+  /// or `=accepted`). When set in a debug build the router lands directly on
+  /// the full-screen [DevChatPreviewScreen] for the requested state, bypassing
+  /// onboarding/biometric gates, so the two Figma chat frames can be captured
+  /// deterministically. Empty / no-op in release builds.
+  static const String _kDevChat =
+      kDebugMode ? String.fromEnvironment('JEEB_DEV_CHAT') : '';
+
   static GoRouter create({
     required OnboardingCubit onboarding,
     required BiometricLockCubit biometricLock,
@@ -76,6 +85,10 @@ class AppRouter {
         _CubitRefreshListenable<BiometricLockState>(biometricLock),
       ]),
       redirect: (context, state) {
+        // Debug capture aid: drop straight onto the fixtures-backed chat.
+        if (_kDevChat.isNotEmpty) {
+          return state.matchedLocation == '/dev-chat' ? null : '/dev-chat';
+        }
         // Debug capture aid: drop straight onto the production shell.
         if (_kDevHome) {
           return state.matchedLocation == '/' ? null : '/';
@@ -139,6 +152,14 @@ class AppRouter {
           builder: (context, state) => ChatDetailScreen(
             chatId: state.pathParameters['id'] ?? '',
           ),
+        ),
+        // Debug-only chat-capture seam; gated by [_kDevChat] in the redirect
+        // above so it is unreachable in release builds.
+        GoRoute(
+          path: '/dev-chat',
+          name: 'dev-chat',
+          builder: (context, state) =>
+              const DevChatPreviewScreen(selector: _kDevChat),
         ),
         GoRoute(
           path: '/profile/kyc',

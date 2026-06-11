@@ -9,6 +9,7 @@ import 'package:jeeb_mobile/features/chat/domain/chat_gateway.dart';
 import 'package:jeeb_mobile/features/chat/domain/delivery_chat_message.dart';
 import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_composer.dart';
+import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_composer_icon_button.dart';
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
@@ -115,14 +116,14 @@ void main() {
     await tester.pumpWidget(_host(cubit));
     await tester.pumpAndSettle();
 
-    final sendButton = tester.widget<IconButton>(
+    final sendButton = tester.widget<ChatComposerIconButton>(
       find.byKey(ChatComposer.sendButtonKey),
     );
     expect(sendButton.onPressed, isNull);
 
     await tester.enterText(find.byKey(ChatComposer.textFieldKey), 'x');
     await tester.pump();
-    final enabled = tester.widget<IconButton>(
+    final enabled = tester.widget<ChatComposerIconButton>(
       find.byKey(ChatComposer.sendButtonKey),
     );
     expect(enabled.onPressed, isNotNull);

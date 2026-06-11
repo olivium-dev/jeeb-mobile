@@ -97,6 +97,15 @@ class AppLocalizations {
   String get chatBroadcastingTitle => _get('chatBroadcastingTitle');
   String get chatBroadcastingSubtitle => _get('chatBroadcastingSubtitle');
   String get chatBroadcastingEmpty => _get('chatBroadcastingEmpty');
+  String get chatDateChipToday => _get('chatDateChipToday');
+  String get chatDateChipYesterday => _get('chatDateChipYesterday');
+  String get chatOfferAcceptOnlyOne => _get('chatOfferAcceptOnlyOne');
+  String get chatBackA11y => _get('chatBackA11y');
+  String get chatAvatarA11y => _get('chatAvatarA11y');
+  String get chatAttachA11y => _get('chatAttachA11y');
+  String get chatVoiceA11y => _get('chatVoiceA11y');
+  String get chatSendA11y => _get('chatSendA11y');
+  String get chatMessageReadA11y => _get('chatMessageReadA11y');
   String get homeMicLabel => _get('homeMicLabel');
   String get homeRefreshHint => _get('homeRefreshHint');
   String get homeReorderAction => _get('homeReorderAction');
