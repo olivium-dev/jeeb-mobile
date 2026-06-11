@@ -115,3 +115,23 @@ flutter:
     # Client-home zero-orders hero illustration ("shop (1) 1", Figma node
     # 56611:18663, aspect 743/756). Exported from the Figma Dev Mode MCP.
     - assets/illustrations/empty_orders.png
+
+  # Inter, bundled locally (OFL-1.1). This is a SINGLE variable font that
+  # covers the whole weight axis; we map the discrete weights Material 3 asks
+  # for (400/500/600/700) to the same file so Flutter selects the right axis
+  # instance per `fontWeight`. Bundling Inter (rather than fetching it at
+  # runtime via google_fonts) is what makes every branded screen render on a
+  # no-egress device — google_fonts' runtime fetch throws a HandshakeException
+  # on devices with no path to fonts.gstatic.com, which previously crashed the
+  # theme build on first frame. See AppTheme + Bootstrap.minimal.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Variable.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-Variable.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-Variable.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Variable.ttf
+          weight: 700

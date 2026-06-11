@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -41,6 +42,12 @@ class Bootstrap {
   }) async {
     developer.Timeline.startSync('Bootstrap.minimal');
     try {
+      // Fonts are bundled locally (assets/fonts/Inter-Variable.ttf). Disable
+      // google_fonts' runtime fetch so nothing in the tree can hit
+      // fonts.gstatic.com — a no-egress device throws a HandshakeException
+      // there, which previously crashed the theme build on first frame.
+      // Defence-in-depth: AppTheme already uses the bundled family directly.
+      GoogleFonts.config.allowRuntimeFetching = false;
       // Debug-only: resolve the runtime dev seam (intent extras / device file /
       // dart-define) so a single dev APK can render any screen-state-locale via
       // adb. No-op + release-inert (DevSeam.resolve short-circuits when
