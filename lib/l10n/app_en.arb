@@ -899,6 +899,139 @@
   "tierSelectionFooterStandard": "Most coverage, lower cost",
   "tierSelectionFooterOnTheWay": "Cheapest, opportunistic match",
   "tierSelectionFooterEco": "Best price, plan ahead",
+  "requestTypeTitle": "Request",
+  "@requestTypeTitle": {
+    "description": "Navbar title on the Request type screen (Figma 56535:2392)"
+  },
+  "requestTypeChooseHeading": "Choose your request",
+  "@requestTypeChooseHeading": {
+    "description": "Section heading above the tier list on the Request type screen"
+  },
+  "requestTypeLocationHeading": "Location",
+  "@requestTypeLocationHeading": {
+    "description": "Location section heading on the Request type screen"
+  },
+  "requestTypeCurrentLocation": "Current Location",
+  "@requestTypeCurrentLocation": {
+    "description": "Label for the current-location row on the Request type screen"
+  },
+  "requestTypeChangeLocation": "Change Location",
+  "@requestTypeChangeLocation": {
+    "description": "Text action to change the pickup location on the Request type screen"
+  },
+  "tierFlashTitle": "⚡ Flash",
+  "@tierFlashTitle": {
+    "description": "Emoji tier title on the Request type screen — Flash"
+  },
+  "tierFlashSpeed": "Delivered in less than 1 hour.",
+  "@tierFlashSpeed": {
+    "description": "Speed line for the Flash tier"
+  },
+  "tierFlashValue": "Highest price • Priority pickup",
+  "@tierFlashValue": {
+    "description": "Price/value line for the Flash tier"
+  },
+  "tierExpressTitle": "🚀 Express",
+  "@tierExpressTitle": {
+    "description": "Emoji tier title — Express"
+  },
+  "tierExpressSpeed": "Arrives within 2-3 hours.",
+  "@tierExpressSpeed": {
+    "description": "Speed line for the Express tier"
+  },
+  "tierExpressValue": "High price • Fast service",
+  "@tierExpressValue": {
+    "description": "Price/value line for the Express tier"
+  },
+  "tierStandardTitle": "⚖️ Standard",
+  "@tierStandardTitle": {
+    "description": "Emoji tier title — Standard"
+  },
+  "tierStandardSpeed": "Delivered later today at a balanced rate.",
+  "@tierStandardSpeed": {
+    "description": "Speed line for the Standard tier"
+  },
+  "tierStandardValue": "Mid price • Best value",
+  "@tierStandardValue": {
+    "description": "Price/value line for the Standard tier"
+  },
+  "tierOnTheWayTitle": "🤝 On-the-Way",
+  "@tierOnTheWayTitle": {
+    "description": "Emoji tier title — On-the-Way"
+  },
+  "tierOnTheWaySpeed": "Matched with someone already heading there.",
+  "@tierOnTheWaySpeed": {
+    "description": "Speed line for the On-the-Way tier"
+  },
+  "tierOnTheWayValue": "Lower price • Flexible timing",
+  "@tierOnTheWayValue": {
+    "description": "Price/value line for the On-the-Way tier"
+  },
+  "tierEcoTitle": "🌿 Eco",
+  "@tierEcoTitle": {
+    "description": "Emoji tier title — Eco"
+  },
+  "tierEcoSpeed": "Delivered within 24–48 hours.",
+  "@tierEcoSpeed": {
+    "description": "Speed line for the Eco tier (24–48 uses an en dash)"
+  },
+  "tierEcoValue": "Lowest price • Flexible & affordable",
+  "@tierEcoValue": {
+    "description": "Price/value line for the Eco tier"
+  },
+  "requestTypeTierSemanticLabel": "{title}. {speed}. {value}.",
+  "@requestTypeTierSemanticLabel": {
+    "description": "Screen-reader summary for a Request type tier card",
+    "placeholders": {
+      "title": { "type": "String" },
+      "speed": { "type": "String" },
+      "value": { "type": "String" }
+    }
+  },
+  "requestTypeTierSelectedHint": "Selected",
+  "@requestTypeTierSelectedHint": {
+    "description": "Accessibility hint announced when a Request type tier card is selected"
+  },
+  "clientLocationTitle": "Location",
+  "@clientLocationTitle": {
+    "description": "Navbar title on the Client Location screen (Figma 56539:1444)"
+  },
+  "clientLocationHeading": "Choose your location",
+  "@clientLocationHeading": {
+    "description": "Section heading on the Client Location screen"
+  },
+  "clientLocationCurrentOption": "Current Location",
+  "@clientLocationCurrentOption": {
+    "description": "Label for the selected current-location card on the Client Location screen"
+  },
+  "clientLocationNewOption": "New Location",
+  "@clientLocationNewOption": {
+    "description": "Label for the add-new-location row on the Client Location screen"
+  },
+  "clientLocationAddSemantic": "Add a new location",
+  "@clientLocationAddSemantic": {
+    "description": "Accessibility label for the circular add-location button"
+  },
+  "captureLocationTitle": "Location",
+  "@captureLocationTitle": {
+    "description": "Navbar title on the Capture Location map screen (Figma 56546:2303)"
+  },
+  "captureLocationPinCta": "Pin Location",
+  "@captureLocationPinCta": {
+    "description": "Primary confirm CTA on the Capture Location map screen"
+  },
+  "captureLocationMapSemantic": "Map, pan to position the pin over your location",
+  "@captureLocationMapSemantic": {
+    "description": "Accessibility label for the map viewport on the Capture Location screen"
+  },
+  "captureLocationPinSemantic": "Selected location pin",
+  "@captureLocationPinSemantic": {
+    "description": "Accessibility label for the centered location pin marker"
+  },
+  "captureLocationMapPreview": "Map preview",
+  "@captureLocationMapPreview": {
+    "description": "Placeholder caption shown on the Capture Location map surface until live tiles load"
+  },
   "tierSelectionOnTheWayMvpNote": "Smart route matching coming soon — matched like Standard for now.",
   "@tierSelectionOnTheWayMvpNote": {
     "description": "Info note on the On-the-way tier card explaining the MVP Standard-fallback behavior (T-mobile-042)"

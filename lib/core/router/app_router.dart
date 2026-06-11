@@ -22,6 +22,8 @@ import '../../features/jeeber_request_detail/presentation/jeeber_request_unavail
 import '../../features/live_tracking/application/live_tracking_cubit.dart';
 import '../../features/live_tracking/domain/live_tracking_repository.dart';
 import '../../features/live_tracking/presentation/live_tracking_screen.dart';
+import '../../features/location/presentation/capture_location_screen.dart';
+import '../../features/location/presentation/client_location_screen.dart';
 import '../../features/location/presentation/screens/location_picker_screen.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
 import '../../features/offers/presentation/offer_submission_screen.dart';
@@ -37,6 +39,7 @@ import '../../features/settings/presentation/screens/notification_preferences_sc
 import '../../features/settings/presentation/screens/profile_edit_screen.dart';
 import '../../features/settings/presentation/screens/saved_addresses_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
+import '../../features/request_type/presentation/request_type_screen.dart';
 import '../../features/shell/shell_screen.dart';
 import '../../features/tier_selection/presentation/tier_selection_screen.dart';
 import '../../features/transcription/domain/voice_clip.dart';
@@ -203,6 +206,30 @@ class AppRouter {
           path: '/tier-selection',
           name: 'tier-selection',
           builder: (context, state) => const TierSelectionScreen(),
+        ),
+        // Delivery-create flow (Figma 56535:2392 → 56539:1444 → 56546:2303).
+        GoRoute(
+          path: '/request-type',
+          name: 'request-type',
+          builder: (context, state) => RequestTypeScreen(
+            onChangeLocation: () => context.push('/client-location'),
+          ),
+        ),
+        GoRoute(
+          path: '/client-location',
+          name: 'client-location',
+          builder: (context, state) => ClientLocationScreen(
+            onAddLocation: () => context.push('/capture-location'),
+          ),
+        ),
+        GoRoute(
+          path: '/capture-location',
+          name: 'capture-location',
+          builder: (context, state) => CaptureLocationScreen(
+            onPinned: () {
+              if (context.canPop()) context.pop();
+            },
+          ),
         ),
         GoRoute(
           path: '/voice-request/transcription',
