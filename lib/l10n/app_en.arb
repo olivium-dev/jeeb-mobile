@@ -1897,6 +1897,25 @@
   "homeGreetingFallback": "Welcome back",
   "homeGreetingNamed": "Hello, {name}",
   "homeGreetingSubtitle": "Everything, One Place",
+  "homeAvatarA11yLabel": "Profile photo of {name}",
+  "@homeAvatarA11yLabel": {
+    "description": "Accessibility label for the client home greeting avatar (Figma 56535:1517).",
+    "placeholders": {
+      "name": { "type": "String", "example": "Sami" }
+    }
+  },
+  "homeEmptyOrdersTitle": "No orders yet",
+  "@homeEmptyOrdersTitle": {
+    "description": "Title of the zero-orders hero empty state on the client home (Figma 56535:1520)."
+  },
+  "homeEmptyOrdersBody": "Everything you order shows up here.",
+  "@homeEmptyOrdersBody": {
+    "description": "Body copy of the zero-orders hero empty state on the client home (Figma 56535:1523)."
+  },
+  "homeNewOrderCta": "New Order",
+  "@homeNewOrderCta": {
+    "description": "Primary CTA on the client home zero-orders empty state that starts a new order (Figma 56611:18659)."
+  },
   "homeLoadFailedBody": "Check your connection and try again.",
   "homeLoadFailedRetry": "Retry",
   "homeLoadFailedTitle": "Couldn't load your home",

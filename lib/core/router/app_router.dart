@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -55,6 +56,15 @@ class AppRouter {
   static const Set<String> _preAuthRoutes = {'/onboarding', '/register'};
   static const String _lockRoute = '/lock';
 
+  /// Debug-only navigation aid (`--dart-define=JEEB_DEV_HOME=true`). When set in
+  /// a debug build, the onboarding + biometric-lock redirects are skipped so
+  /// the router lands directly on `/` — rendering the *production* [ShellScreen]
+  /// under the production theme + l10n, backed by the in-memory dev repository.
+  /// Used to capture authenticated shell screens deterministically on the
+  /// emulator without a live OTP/auth roundtrip. No-op in release builds.
+  static const bool _kDevHome =
+      kDebugMode && bool.fromEnvironment('JEEB_DEV_HOME');
+
   static GoRouter create({
     required OnboardingCubit onboarding,
     required BiometricLockCubit biometricLock,
@@ -66,6 +76,10 @@ class AppRouter {
         _CubitRefreshListenable<BiometricLockState>(biometricLock),
       ]),
       redirect: (context, state) {
+        // Debug capture aid: drop straight onto the production shell.
+        if (_kDevHome) {
+          return state.matchedLocation == '/' ? null : '/';
+        }
         final completed = onboarding.state;
         final loc = state.matchedLocation;
         final atPreAuth = _preAuthRoutes.contains(loc);

@@ -7,6 +7,7 @@ import '../application/client_home_cubit.dart';
 import '../application/client_home_state.dart';
 import '../domain/client_home_request.dart';
 import 'widgets/active_request_card.dart';
+import 'widgets/client_home_empty_view.dart';
 import 'widgets/client_home_greeting.dart';
 import 'widgets/replies_card.dart';
 
@@ -90,6 +91,12 @@ class _ClientHomeBody extends StatelessWidget {
           onCreateRequest: onCreateRequest,
         );
       case ClientHomeStatus.ready:
+        if (_hasNoRequests(state)) {
+          return ClientHomeEmptyView(
+            name: state.greetingName,
+            onNewOrder: onCreateRequest,
+          );
+        }
         return _ReadyLayout(
           state: state,
           selectedTab: selectedTab,
@@ -99,6 +106,13 @@ class _ClientHomeBody extends StatelessWidget {
         );
     }
   }
+
+  /// True when the client has zero requests across every tab — the
+  /// "No orders yet" hero empty state (Figma 56535:1514) applies.
+  bool _hasNoRequests(ClientHomeState state) =>
+      state.inProgress.isEmpty &&
+      state.pending.isEmpty &&
+      state.replies.isEmpty;
 }
 
 class _LoadingLayout extends StatelessWidget {

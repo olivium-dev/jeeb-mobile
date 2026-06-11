@@ -31,10 +31,21 @@ class LocaleCubit extends Cubit<Locale> {
   static Locale _defaultDeviceLocaleProvider() =>
       PlatformDispatcher.instance.locale;
 
+  /// Debug-only locale override (`--dart-define=JEEB_FORCE_LOCALE=ar`), matching
+  /// the splash-host override in `jeeb_bootstrap.dart`. Lets the running app
+  /// (not just the pre-bootstrap splash) be captured in a fixed locale on an
+  /// emulator that can't change its system locale. No-op in release builds and
+  /// when unset; the normal prefs → device → English resolution is untouched.
+  static const String _kForcedLocale =
+      kDebugMode ? String.fromEnvironment('JEEB_FORCE_LOCALE') : '';
+
   static Locale _resolveInitial(
     SharedPreferences prefs,
     Locale Function()? deviceLocaleProvider,
   ) {
+    if (_kForcedLocale.isNotEmpty && _isSupported(_kForcedLocale)) {
+      return Locale(_kForcedLocale);
+    }
     final saved = prefs.getString(_kLocalePrefKey);
     if (saved != null && _isSupported(saved)) {
       return Locale(saved);

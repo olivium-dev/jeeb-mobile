@@ -76,10 +76,31 @@ Widget _harness({
 void main() {
   setUpAll(_loadArbs);
 
-  group('ClientHomeScreen empty state', () {
+  // Zero-orders hero empty state (Figma node 56535:1514). When the client has
+  // no requests across every tab, the screen swaps the populated layout for
+  // the [ClientHomeEmptyView] hero: greeting (no add button), illustration,
+  // "No orders yet" + body, and a full-width "New Order" CTA.
+  group('ClientHomeScreen empty state (Figma 56535:1514)', () {
+    // The hero pins its CTA near the bottom of a full-height column, so the
+    // default 800x600 test surface clips it. Use a phone-sized window
+    // (logical 440x956, matching the Figma frame) for on-screen hit testing.
+    setUp(() {
+      final view = TestWidgetsFlutterBinding.instance.platformDispatcher
+          .implicitView!;
+      view.physicalSize = const Size(440 * 3, 956 * 3);
+      view.devicePixelRatio = 3.0;
+    });
+
+    tearDown(() {
+      final view = TestWidgetsFlutterBinding.instance.platformDispatcher
+          .implicitView!;
+      view.resetPhysicalSize();
+      view.resetDevicePixelRatio();
+    });
+
     testWidgets(
-        'renders greeting, voice CTA, and "create your first request" CTA '
-        'when no active deliveries exist', (tester) async {
+        'renders greeting, "No orders yet", body, and "New Order" CTA '
+        'when no requests exist', (tester) async {
       final repo = InMemoryClientHomeRepository(latency: Duration.zero);
       await tester.pumpWidget(
         _harness(
@@ -91,7 +112,24 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Hello, Layla'), findsOneWidget);
-      expect(find.text('Create your first request'), findsOneWidget);
+      expect(find.text('Everything, One Place'), findsOneWidget);
+      expect(find.text('No orders yet'), findsOneWidget);
+      expect(find.text('Everything you order shows up here.'), findsOneWidget);
+      expect(find.text('New Order'), findsOneWidget);
+    });
+
+    testWidgets('exposes a stable Semantics identifier on the New Order CTA',
+        (tester) async {
+      final repo = InMemoryClientHomeRepository(latency: Duration.zero);
+      await tester.pumpWidget(_harness(repo: repo, onCreateRequest: () {}));
+      await tester.pumpAndSettle();
+
+      final handle = tester.ensureSemantics();
+      expect(
+        find.bySemanticsIdentifier('_request_empty_state_new_order_button'),
+        findsOneWidget,
+      );
+      handle.dispose();
     });
 
     testWidgets('falls back to generic greeting when no name is provided',
@@ -103,7 +141,7 @@ void main() {
       expect(find.text('Welcome back'), findsOneWidget);
     });
 
-    testWidgets('empty-state CTA invokes onCreateRequest', (tester) async {
+    testWidgets('"New Order" CTA invokes onCreateRequest', (tester) async {
       var taps = 0;
       final repo = InMemoryClientHomeRepository(latency: Duration.zero);
       await tester.pumpWidget(_harness(
@@ -112,22 +150,7 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Create your first request'));
-      await tester.pumpAndSettle();
-
-      expect(taps, 1);
-    });
-
-    testWidgets('greeting add button invokes onCreateRequest', (tester) async {
-      var taps = 0;
-      final repo = InMemoryClientHomeRepository(latency: Duration.zero);
-      await tester.pumpWidget(_harness(
-        repo: repo,
-        onCreateRequest: () => taps += 1,
-      ));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byKey(const Key('client-home-greeting-add')));
+      await tester.tap(find.text('New Order'));
       await tester.pumpAndSettle();
 
       expect(taps, 1);
@@ -197,7 +220,8 @@ void main() {
   });
 
   group('ClientHomeScreen i18n', () {
-    testWidgets('renders Arabic strings under ar locale', (tester) async {
+    testWidgets('renders Arabic empty-state strings under ar locale',
+        (tester) async {
       final repo = InMemoryClientHomeRepository(latency: Duration.zero);
       await tester.pumpWidget(_harness(
         repo: repo,
@@ -206,8 +230,9 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      expect(find.text('ماذا تحتاج؟'), findsOneWidget);
-      expect(find.text('أنشئ أول طلب لك'), findsOneWidget);
+      expect(find.text('لا توجد طلبات بعد'), findsOneWidget);
+      expect(find.text('كل ما تطلبه يظهر هنا.'), findsOneWidget);
+      expect(find.text('طلب جديد'), findsOneWidget);
     });
   });
 }
