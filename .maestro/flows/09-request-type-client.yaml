@@ -1,0 +1,135 @@
+# Maestro flow — Request type [Client] (screen 09)
+#
+# Figma node 56535:2392 (file ZOi3kKtw7sd42ssSVX3Kn4): the first step of the
+#   client delivery-create flow — pick a delivery tier (5 emoji radio cards,
+#   Flash recommended/selected by default) and confirm the pickup Location
+#   (Current Location label + Change Location action). Built screen:
+#   RequestTypeScreen at route /request-type (lib/features/request_type/...).
+#
+# NAV — RUNTIME DEV SEAM (dev-seam-runtime.md): the screen is reached by the
+#   runtime dev seam, NOT a dart-define rebuild. `launchApp.arguments` are
+#   delivered to Android as String intent extras, which MainActivity.kt
+#   `readSeamExtras()` reads (seam source priority 1) → DevSeam routes straight
+#   to /request-type, skipping onboarding + biometric gates. The same one APK
+#   renders any screen/state/locale; only the extras change.
+#     Equivalent adb one-liner (documented; the flow does it via launchApp):
+#       adb -s emulator-5556 shell am start -S \
+#         -n app.jeeb.mobile.dev/app.jeeb.mobile.MainActivity \
+#         -e jeeb.route /request-type -e jeeb.locale en
+#     RTL variant: append `-e jeeb.locale ar`.
+#   Sticky alternative (seam source priority 2), if a launcher forwards no
+#   extras: push the device file before launchApp —
+#       printf '{"jeeb.route":"/request-type","jeeb.locale":"en"}' \
+#         > /tmp/jeeb-dev-seam.json
+#       adb -s emulator-5556 push /tmp/jeeb-dev-seam.json \
+#         /data/local/tmp/jeeb-dev-seam.json
+#
+# BACKEND: FakeTierRepository — the in-memory tier catalog dev seam
+#   (UI-GUARDRAILS §6 / pilot learning #2). A PASS here certifies VISUAL +
+#   BEHAVIORAL UI PARITY ONLY, not end-to-end gateway integration. The tier
+#   list, default selection, and select-tier interaction are all real cubit
+#   behavior over the fake repo; only the network source is faked.
+#
+# SYNTAX: Maestro 2.0.5 — extendedWaitUntil for timeouts (inline assertVisible
+#   `timeout:` is 1.x syntax and is REJECTED by 2.0.5, pilot learning #3);
+#   waitForAnimationToEnd before every takeScreenshot (pilot learning #4);
+#   tapOn/assertVisible by Semantics identifier only — no coordinate taps, no
+#   sleeps, no localized-text matching (the 5 tier titles are localized + the
+#   AR run would break a text matcher; ids are locale-invariant).
+#
+# IDS asserted — verified present in source (grep of lib/features/request_type):
+#   request_type_tier_flash            (request_type_screen.dart _TierEntry →
+#                                        RequestTierCard semanticIdentifier,
+#                                        'request_type_tier_${tier.id.name}')
+#   request_type_tier_express          (TierId.express)
+#   request_type_tier_standard         (TierId.standard)
+#   request_type_tier_onTheWay         (TierId.onTheWay — camelCase enum .name)
+#   request_type_tier_eco              (TierId.eco)
+#   request_type_current_location_label   (request_location_row.dart _CurrentLabel)
+#   request_type_change_location_button   (request_location_row.dart _ChangeAction)
+#
+# SELECTOR GAP (documented, semantics-merging trap — same family as flows 04/07):
+#   Each RequestTierCard wraps its content in ExcludeSemantics under a single
+#   merged Semantics node (identifier + inMutuallyExclusiveGroup + checked +
+#   button). Consequences:
+#     (a) the tier title/speed/value Text and the SelectableRadioGlyph are NOT
+#         independently queryable — they live behind the card's merged a11y
+#         node. We therefore assert/tap the CARD id, never the inner glyph/text.
+#     (b) Maestro 2.0.5 cannot assert the semantics `checked` boolean directly,
+#         so the "which tier is selected" state is proven two ways: visually by
+#         the UX verdict (navy-filled selected card in emulator_en/ar.png), and
+#         behaviorally here by tapping a non-default tier and confirming the tap
+#         is accepted and the screen survives (cubit.selectTier dispatched, no
+#         crash). The selection-moved fill change is a VISUAL assertion (UX).
+
+appId: ${APP_ID}
+---
+# ── LAUNCH via runtime dev seam (intent extras → DevSeam priority-1 source) ────
+- launchApp:
+    stopApp: true
+    arguments:
+      jeeb.route: "/request-type"
+      jeeb.locale: "en"
+
+# ── STATE RENDERS: the recommended-default (Flash) tier card is on screen ──────
+# Flash is the back-office `recommended` tier, selected by default on load
+# (FakeTierRepository.defaultCatalog → Flash; tier cubit asserts Flash). Its
+# card being visible proves the loaded state rendered (not loading/error).
+- extendedWaitUntil:
+    visible:
+      id: "request_type_tier_flash"
+    timeout: 30000
+- waitForAnimationToEnd
+
+# ── TIER LIST: all five Figma tiers are present, in order ─────────────────────
+- assertVisible:
+    id: "request_type_tier_express"
+- assertVisible:
+    id: "request_type_tier_standard"
+- assertVisible:
+    id: "request_type_tier_onTheWay"
+- assertVisible:
+    id: "request_type_tier_eco"
+
+# ── LOCATION SECTION: current-location label + change-location action ──────────
+- assertVisible:
+    id: "request_type_current_location_label"
+- assertVisible:
+    id: "request_type_change_location_button"
+
+# ── CAPTURE: the loaded request-type frame (Flash selected) as rendered ────────
+- waitForAnimationToEnd
+- takeScreenshot: "09-request-type-loaded"
+
+# ── PRIMARY INTERACTION: select a non-default tier ────────────────────────────
+# The screen's primary interaction is choosing a tier. Tapping a non-default
+# card (Standard) dispatches TierSelectionCubit.selectTier(standard); the card
+# is the whole tap target (the inner radio is decorative, merged). Because the
+# `checked` trait is not assertable in 2.0.5 (selector gap above), we prove the
+# interaction by: tap accepted → screen survives → the list of cards is still
+# present and re-queryable (no crash, no nav-away). The selected→navy-fill move
+# is validated visually by the UX verdict.
+- tapOn:
+    id: "request_type_tier_standard"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "request_type_tier_standard"
+- assertVisible:
+    id: "request_type_tier_flash"
+- waitForAnimationToEnd
+- takeScreenshot: "09-request-type-standard-selected"
+
+# ── SECONDARY INTERACTION: Change Location is tappable and navigates ───────────
+# `request_type_change_location_button` is wired to context.push('/client-location')
+# (app_router.dart). Tapping it should leave the request-type screen and land on
+# the client-location screen. We prove the navigation by the request-type tier
+# cards no longer being visible after the tap (we cannot assume the next screen's
+# ids in this flow's scope — screen 10 owns those). This asserts the CTA is live,
+# not a no-op.
+- tapOn:
+    id: "request_type_change_location_button"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    notVisible:
+      id: "request_type_tier_flash"
+    timeout: 15000
