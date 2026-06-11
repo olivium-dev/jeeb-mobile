@@ -39,6 +39,17 @@ void main() {
       expect(config.isEmpty, isFalse);
     });
 
+    test('maps jeeb.feed onto feed and flags hasFeed', () {
+      final config = DevSeamConfig.fromMap({
+        'jeeb.route': '/',
+        'jeeb.feed': '  pending ',
+      });
+
+      expect(config.feed, 'pending');
+      expect(config.hasFeed, isTrue);
+      expect(config.isEmpty, isFalse);
+    });
+
     test('accepts 1/yes as truthy hold_splash, everything else false', () {
       expect(DevSeamConfig.fromMap({'jeeb.hold_splash': '1'}).holdSplash, isTrue);
       expect(

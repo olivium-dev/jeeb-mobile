@@ -17,6 +17,7 @@ class MainActivity : FlutterActivity() {
         "jeeb.state",
         "jeeb.locale",
         "jeeb.home_tab",
+        "jeeb.feed",
         "jeeb.hold_splash",
     )
 
