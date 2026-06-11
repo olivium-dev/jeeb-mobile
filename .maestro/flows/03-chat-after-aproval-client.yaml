@@ -1,0 +1,200 @@
+# Jeeb mobile — 03 Chat after aproval [Client] (Figma node 56546:2382) parity flow.
+#
+# WHAT THIS PROVES
+#   The client's POST-APPROVAL 1:1 chat with the accepted Jeeber ("Kamal Hajj")
+#   renders, and its key elements are present + visible in the LIVE view
+#   hierarchy, targeted BY SEMANTIC ID (never by localized text — AP-5; never by
+#   coordinates — AP-1). This is the SAME `ChatScreen` as state 02 but in
+#   `ConversationPhase.accepted`, so two things differ from the broadcasting flow
+#   and are the focus of this verification:
+#
+#     1. AVATAR HEADER (post-approval only). In the accepted phase the
+#        `ChatAppBar` renders `showAvatar:true`, which swaps the OMDSAppBar
+#        built-in back button for the custom `_ChatHeaderLeading` row carrying
+#        TWO new ids that do NOT surface in state 02:
+#            chat_detail_back_button   — back chevron (its own Semantics node)
+#            chat_detail_avatar        — counterpart avatar (OmdsProfileAvatar)
+#        Both were confirmed to surface as Android resource-id values via
+#        `maestro hierarchy` against this exact accepted build BEFORE this flow
+#        was written (not assumed). In state 02 these ids are absent (the
+#        broadcasting header is title-only) — so asserting them here proves the
+#        state-03-specific header, which 02 could not.
+#
+#     2. ACCEPTED MESSAGE THREAD (no offer cards). The accepted fixture seeds a
+#        3-message text thread (verified in dev_chat_fixture_gateway.dart
+#        _acceptedThread()):
+#            chat_detail_message_dev-a-out-1  — outgoing request (navy, read tick)
+#            chat_detail_message_dev-a-in-1   — incoming Jeeber reply (grey)
+#            chat_detail_message_dev-a-out-2  — outgoing follow-up (navy, read tick)
+#        There are NO offer cards and NO "accept only one offer" note in this
+#        phase (those are broadcasting-only). Asserting their ABSENCE would be
+#        over-reach; we assert the three text bubbles that ARE designed here.
+#
+#   The shared composer (field + attach + voice + send) is also present, same
+#   ids as state 02.
+#
+#   SEMANTICS MERGING — confirmed empirically (not assumed):
+#     • chat_detail_message_read — the read-receipt tick Semantics merges into
+#       the outgoing bubble node and does NOT surface as a separate resource-id
+#       (`maestro hierarchy` count = 0 on this build). We therefore assert the
+#       outgoing BUBBLE (which carries the read state), never a tick id — exactly
+#       as state 02 documented. This is a finding, not a faked assertion.
+#
+# PRIMARY INTERACTION (as far as the sanctioned dev backend allows — UI-GUARDRAILS §6)
+#   COMPOSER SEND (fully satisfiable). The send pill is disabled while the field
+#   is empty (verified via `maestro hierarchy`: send button enabled=false on a
+#   blank composer — Figma "Disabled=True") and enables once text is present. We
+#   type a message, tap send BY ID, and assert the NEW outgoing bubble appended
+#   by ChatCubit.sendText renders. The cubit ids outgoing messages
+#   `msg-$deliveryId-$counter`; deliveryId is 'dev-chat' and _outboxCounter starts
+#   at 0, so the first send produces id `msg-dev-chat-0` (verified in
+#   chat_cubit.dart _nextId) → resource-id `chat_detail_message_msg-dev-chat-0`.
+#   We assert that NEW BUBBLE BY ID — more robust than matching its text (Flutter
+#   does not surface the bubble text as its own a11y node). This proves the
+#   composer → send → optimistic-append path end-to-end against the dev fixture.
+#
+#   There is NO "accept offer" action in the accepted phase (the offer was
+#   already approved — that interaction belongs to state 02). The post-approval
+#   thread has exactly one user action (send a message), which this flow fully
+#   exercises. No assertion is fabricated for a path the dev backend can't satisfy
+#   (maestro-anti-patterns AP-9).
+#
+# BACKEND
+#   mock/dev seam only — DevChatFixtureGateway(phase: accepted) (in-memory,
+#   deterministic 3-message accepted thread). NO live gateway (comparison.md).
+#   Certifies visual + behavioural UI parity, NOT end-to-end integration
+#   (UI-GUARDRAILS §6). Production path is DioChatGateway → chat-service via
+#   jeeb-gateway, unchanged by this work.
+#
+# BUILD DEPENDENCY (sanctioned prerequisite — read before running)
+#   The post-approval chat lives behind the authenticated shell (onboarding +
+#   biometric router redirects). The installed dev APK MUST be built with the
+#   debug-only, release-inert flag --dart-define=JEEB_DEV_CHAT=accepted
+#   (kDebugMode-gated, no-op in release — lib/core/router/app_router.dart), which
+#   redirects the router straight to /dev-chat → DevChatPreviewScreen →
+#   ChatScreen(accepted) without a live OTP roundtrip. This EXTENDS the sanctioned
+#   JEEB_DEV_HOME / JEEB_DEV_CHAT dart-define pattern (pilot learning #1).
+#   dart-defines are compile-time baked into the APK, so launchApp/clearState
+#   cannot toggle them — clearState relaunches the SAME installed APK and the
+#   accepted fixture is the deterministic code path for this build, so it stays
+#   reachable. This flow is valid only against a JEEB_DEV_CHAT=accepted build;
+#   documented as a known constraint (same posture as 01-splash / 02-chat).
+#
+#   Build / install / run:
+#     flutter build apk --debug --flavor dev --target-platform android-arm64 \
+#       --dart-define=JEEB_DEV_CHAT=accepted
+#     adb install -r build/app/outputs/flutter-apk/app-dev-debug.apk
+#     maestro test -e APP_ID=app.jeeb.mobile.dev \
+#       --format JUNIT --output <evidence>/03-chat-after-aproval-client/maestro/junit.xml \
+#       .maestro/flows/03-chat-after-aproval-client.yaml
+#
+# MAESTRO VERSION NOTE (2.0.5)
+#   In Maestro 2.x `assertVisible` does NOT accept an inline `timeout:` (1.x only;
+#   pilot learning #3). Timed waits go through `extendedWaitUntil` (waits up to
+#   `timeout` AND asserts). Every timing-sensitive check uses extendedWaitUntil —
+#   NEVER a fixed sleep (AP-1). Bare `assertVisible` is used only to re-confirm an
+#   element already proven present in the same run.
+#
+# RUNTIME EXPECTATION
+#   ~18-25 s wall-clock (cold launch + dev-chat route + ~12 id assertions + 1
+#   composer send round-trip). Under the 60 s refactor flag. Single screen; no
+#   subflow warranted (one screen, no reused page object).
+appId: ${APP_ID}
+---
+- launchApp:
+    clearState: true            # AP-4: no auth/state bleed between runs
+
+# Message timeline root — the scrollable accepted thread. extendedWaitUntil (not
+# a fixed sleep — AP-1) absorbs cold-start + dev-chat route variance up to 25 s,
+# AND asserts. Generous headroom: cold launch THROUGH the router redirect.
+- extendedWaitUntil:
+    visible:
+      id: "chat_detail_message_list"
+    timeout: 25000              # AP-3: cold-start + router redirect headroom
+
+# Let the screen + list entrance settle before screenshotting, so the evidence
+# frame is the settled render, not a mid-transition blend (pilot learning #4).
+# AP-7 (waitForAnimationToEnd after a transition), NOT a fixed sleep.
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Evidence frame of the settled post-approval chat.
+- takeScreenshot: 03_chat_after_approval_rendered
+
+# ── STATE-03-SPECIFIC HEADER — avatar + back, present only post-approval ──────
+
+# Back chevron — custom-id node that surfaces ONLY in the accepted (avatar)
+# header (absent in state 02). Confirmed via `maestro hierarchy`.
+- extendedWaitUntil:
+    visible:
+      id: "chat_detail_back_button"
+    timeout: 10000
+
+# Counterpart avatar (OmdsProfileAvatar, "Kamal Hajj" initial / CDN url).
+- assertVisible:
+    id: "chat_detail_avatar"
+
+# ── STATE RENDERS — key thread elements present, all targeted by id ──────────
+
+# Date chip ("Today"). Waited+asserted by id (i18n-safe — AP-5).
+- extendedWaitUntil:
+    visible:
+      id: "chat_detail_date_separator"
+    timeout: 10000
+
+# Outgoing request bubble #1 (navy, right). The read-receipt tick Semantics
+# merges into this node (see SEMANTICS MERGING header note), so the bubble —
+# which carries the read state — is the assertable host, not a tick id.
+- extendedWaitUntil:
+    visible:
+      id: "chat_detail_message_dev-a-out-1"
+    timeout: 10000
+
+# Incoming Jeeber reply bubble (grey, left, timestamp only — no ticks).
+- assertVisible:
+    id: "chat_detail_message_dev-a-in-1"
+
+# Outgoing follow-up bubble #2 (navy, right, read tick).
+- assertVisible:
+    id: "chat_detail_message_dev-a-out-2"
+
+# Composer affordances: field + attach (+) + mic + send pill.
+- assertVisible:
+    id: "chat_detail_message_input"
+- assertVisible:
+    id: "chat_detail_attach_button"
+- assertVisible:
+    id: "chat_detail_voice_button"
+- assertVisible:
+    id: "chat_detail_send_button"
+
+# ── PRIMARY INTERACTION — COMPOSER SEND (fully satisfiable) ───────────────────
+# Tap the field by id (NOT coordinate — AP-1), type a message, then tap send by
+# id. The send pill is disabled while the field is empty (verified: send button
+# enabled=false on a blank composer) and becomes enabled once text is present.
+# ChatCubit optimistically appends a NEW outgoing bubble with the deterministic
+# id msg-dev-chat-0 (first send: _outboxCounter starts at 0, deliveryId='dev-chat'
+# — verified in chat_cubit.dart), rendered as resource-id
+# chat_detail_message_msg-dev-chat-0. We assert that NEW BUBBLE BY ID — far more
+# robust than matching the bubble's text (Flutter does not surface the bubble
+# text as its own a11y node, so a text assertion would false-fail). This proves
+# the composer → send → append path end-to-end against the dev fixture.
+- tapOn:
+    id: "chat_detail_message_input"
+- inputText: "QA parity check 03"
+- hideKeyboard               # keep the keyboard from occluding the send pill
+- tapOn:
+    id: "chat_detail_send_button"
+- waitForAnimationToEnd:
+    timeout: 5000
+# The new outgoing bubble appended by the send is now in the timeline.
+- extendedWaitUntil:
+    visible:
+      id: "chat_detail_message_msg-dev-chat-0"
+    timeout: 10000
+
+# Re-confirm the timeline is still the visible host (the send did not crash,
+# dismiss, or navigate away). Element already proven present, so a bare
+# assertVisible (no wait) is correct here.
+- assertVisible:
+    id: "chat_detail_message_list"
