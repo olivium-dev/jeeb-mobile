@@ -5,29 +5,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import '../core/dev_seam/dev_seam.dart';
 import '../core/theme/app_theme.dart';
 import '../l10n/app_localizations.dart';
 import 'app.dart';
 import 'bootstrap.dart';
 import 'branded_splash.dart';
 
-/// Debug-only flag (`--dart-define=JEEB_HOLD_SPLASH=true`) that keeps the
-/// branded splash on screen after bootstrap resolves, so the screen can be
-/// captured deterministically on the emulator. It renders the *production*
-/// [BrandedSplash] under the production theme + l10n — it never changes what
-/// ships. No-op in release builds.
-const bool _kHoldSplash =
-    bool.fromEnvironment('JEEB_HOLD_SPLASH') && kDebugMode;
+/// Debug-only flag that keeps the branded splash on screen after bootstrap
+/// resolves, resolved at RUNTIME from [DevSeam] (replaces the compile-time
+/// `JEEB_HOLD_SPLASH`; the dart-define still feeds it via the seam fallback).
+/// Renders the *production* [BrandedSplash] under the production theme + l10n —
+/// it never changes what ships. No-op in release builds.
+bool get _holdSplash => kDebugMode && DevSeam.current.holdSplash;
 
-/// Debug-only locale override (`--dart-define=JEEB_FORCE_LOCALE=ar`) used to
-/// capture the RTL splash deterministically on an emulator that can't have its
-/// system locale changed without root. Honored only in debug builds; the
-/// production locale resolution (device locale → prefs) is untouched.
-///
-/// Must be a `const String.fromEnvironment` so `--dart-define` injects at
-/// compile time — wrapping it in a runtime ternary would discard the value.
-const String _kForcedLocaleDefine = String.fromEnvironment('JEEB_FORCE_LOCALE');
-const String _kForcedLocale = kDebugMode ? _kForcedLocaleDefine : '';
+/// Debug-only locale override, resolved at RUNTIME from [DevSeam] (replaces the
+/// compile-time `JEEB_FORCE_LOCALE`). Used to capture the RTL splash on an
+/// emulator that can't change its system locale without root. Honored only in
+/// debug builds; the production locale resolution is untouched.
+String get _forcedLocale => kDebugMode ? DevSeam.current.forcedLocale : '';
 
 /// Cold-start host (T-mobile-047).
 ///
@@ -72,7 +68,7 @@ class _JeebBootstrapState extends State<JeebBootstrap> {
     return FutureBuilder<BootstrapResult>(
       future: _bootstrap,
       builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done || _kHoldSplash) {
+        if (snapshot.connectionState != ConnectionState.done || _holdSplash) {
           return const _SplashApp();
         }
         if (snapshot.hasError) {
@@ -100,8 +96,9 @@ class _SplashApp extends StatelessWidget {
   const _SplashApp();
 
   static Locale _initialLocale() {
-    final candidate = _kForcedLocale.isNotEmpty
-        ? _kForcedLocale
+    final forced = _forcedLocale;
+    final candidate = forced.isNotEmpty
+        ? forced
         : PlatformDispatcher.instance.locale.languageCode;
     final supported =
         AppLocalizations.supportedLocales.any((l) => l.languageCode == candidate);
