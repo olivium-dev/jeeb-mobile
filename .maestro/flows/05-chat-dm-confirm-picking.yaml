@@ -1,0 +1,96 @@
+# Maestro flow — Chat (DM): Confirm Picking the order sheet (screen 05)
+#
+# Figma node 56618:2751 (file ZOi3kKtw7sd42ssSVX3Kn4): the delivery-man chat
+# thread dimmed under a navy scrim with the "Confirm Picking the order"
+# confirmation bottom sheet on top.
+#
+# Built screen: existing ChatScreen (delivery-man variant) + net-new
+#   ConfirmDeliveryActionSheet(kind: picking), rendered via the debug-only
+#   JEEB_DEV_CHAT seam (AppRouter redirect -> /dev-chat ->
+#   DevChatPreviewScreen(selector:'dm-confirm-picking')). The preview opens the
+#   sheet from a post-frame callback so the frame is captured WITHOUT a tap.
+#   kDebugMode-gated; inert in release.
+#
+# BACKEND: DevChatFixtureGateway(deliveryMan: true) — the workspace-sanctioned
+#   in-memory dev seam (UI-GUARDRAILS §6 / pilot learning #2). A PASS here
+#   certifies VISUAL UI PARITY ONLY, not end-to-end gateway integration.
+#
+# PREREQUISITE (sanctioned, documented in qa-verdict.md): the app must be built
+#   and installed with the dart-define that activates this capture seam:
+#     flutter build apk --debug --flavor dev --target-platform android-arm64 \
+#       --dart-define=JEEB_DEV_CHAT=dm-confirm-picking
+#   The flow does NOT set the dart-define (Maestro cannot inject Flutter
+#   compile-time defines); the build step is the seam. clearState is intentionally
+#   NOT used — the seam redirect + post-frame sheet open fire deterministically on
+#   every cold launch of this build.
+#
+# Syntax: Maestro 2.0.5 — extendedWaitUntil for timeouts (inline assertVisible
+#   timeout is 1.x syntax and is REJECTED by 2.0.5); waitForAnimationToEnd before
+#   every takeScreenshot; assert by Semantics identifier only — no coordinate
+#   taps, no sleeps, no localized-text matching (this screen ships en + ar).
+#
+# ── SEMANTICS-MERGING TRAP (verified via `maestro hierarchy`, 2026-06-11) ─────
+# With the sheet open, the ONLY jeeb id Maestro's Android a11y view hierarchy
+# exposes is `confirm_delivery_action_sheet`. Flutter's semantics compositor
+# MERGES the leaf children — the drag handle (confirm_delivery_drag_handle), the
+# title (confirm_delivery_title) and the Confirm CTA
+# (confirm_delivery_confirm_button) — into that single sheet node; their text is
+# concatenated into the parent node's accessibilityText, and the individual
+# identifiers are NOT independently selectable. The underlying dimmed DM chat
+# (chat_detail_message_list / chat_dm_fee_banner) is filtered out entirely by the
+# modal barrier. This flow therefore asserts only the genuinely-exposed sheet
+# node, and validates the sheet's interior (handle / illustration / title /
+# subtitle / CTA) + the dimmed chat behind it via the UX visual-parity verdict on
+# emulator_en.png / emulator_ar.png. See qa-verdict.md "Blocking findings".
+
+appId: ${APP_ID}
+---
+- launchApp:
+    stopApp: true
+
+# --- State renders: the confirm-picking sheet is on screen over the chat ------
+# The sheet node is the deterministic landing element; the dev preview's
+# post-frame callback opens it. We wait for it (cold start + redirect + sheet
+# present + scrim fade) rather than asserting a fixed-time sleep.
+- extendedWaitUntil:
+    visible:
+      id: "confirm_delivery_action_sheet"
+    timeout: 20000
+- waitForAnimationToEnd
+
+# --- Capture the rendered confirm-picking sheet over the dimmed chat ----------
+# This screenshot is the visual-parity artifact the UX seat verifies against the
+# Figma frame: drag handle, navy parcel+clock+pin illustration, navy title
+# "Confirm Picking the order", periwinkle subtitle, full-width navy Confirm CTA,
+# all over the dimmed DM thread + fee banner.
+- waitForAnimationToEnd
+- takeScreenshot: "05-confirm-picking-sheet"
+
+# --- PRIMARY INTERACTION — BLOCKED by the semantics-merge trap above ----------
+# The Confirm CTA is the screen's primary action. It has NO independently
+# id-addressable node (it is merged into confirm_delivery_action_sheet), and a
+# tapOn the merged sheet node does NOT trigger the button's onTap (verified: the
+# sheet does not dismiss). Driving the tap would require a coordinate/point tap,
+# which is a banned Maestro anti-pattern (AP-1). Per UI-GUARDRAILS §8 instant-fail
+# #12, a flow must NOT be made to "pass" without actually exercising the primary
+# action, so the tap is intentionally NOT faked here.
+#
+# FIX (engineer — handed to the CTO loop): give the Confirm CTA its own semantics
+# boundary so it is an independent, tappable node — e.g. wrap the OmdsLoadingButton
+# in Semantics(container: true, button: true, identifier:
+# 'confirm_delivery_confirm_button') / MergeSemantics, the same way the chat
+# composer buttons are exposed. Once the button is independently selectable, append:
+#
+#   - tapOn:
+#       id: "confirm_delivery_confirm_button"
+#   - waitForAnimationToEnd
+#   - extendedWaitUntil:
+#       notVisible:
+#         id: "confirm_delivery_action_sheet"
+#       timeout: 10000
+#   - assertVisible:
+#       id: "chat_detail_message_list"   # sheet dismissed -> dimmed chat revealed
+#
+# (Note: even with the id fix, the dev-seam onConfirm is a NO-OP that only pops
+#  the sheet; the real pick-confirmation backend advance is a later integration
+#  gate, not this UI-parity run — pilot learning #7.)
