@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/dev_seam/dev_seam.dart';
 import '../core/di/injection_container.dart';
 import '../core/observability/crash_reporter.dart';
 import '../core/observability/crash_reporting_initializer.dart';
@@ -40,6 +41,11 @@ class Bootstrap {
   }) async {
     developer.Timeline.startSync('Bootstrap.minimal');
     try {
+      // Debug-only: resolve the runtime dev seam (intent extras / device file /
+      // dart-define) so a single dev APK can render any screen-state-locale via
+      // adb. No-op + release-inert (DevSeam.resolve short-circuits when
+      // !kDebugMode). Must run before the router/locale read DevSeam.current.
+      await DevSeam.resolve();
       final preferences = await SharedPreferences.getInstance();
       final reporter =
           await (crashReporterFactory ?? _defaultCrashReporterFactory)();
