@@ -484,6 +484,37 @@
       }
     }
   },
+  "feedbackScreenTitle": "We appreciate your feedback",
+  "@feedbackScreenTitle": {
+    "description": "Feedback screen heading, both audiences (Figma 56614:20132)"
+  },
+  "feedbackScreenSubtitleJeeber": "We are always looking for ways to improve your experience. Please take a moment to evaluate the delivery man.",
+  "@feedbackScreenSubtitleJeeber": {
+    "description": "Feedback subtitle when a client rates the delivery man (Figma 56614:20132)"
+  },
+  "feedbackScreenSubtitleClient": "We are always looking for ways to improve your experience. Please take a moment to evaluate the client.",
+  "@feedbackScreenSubtitleClient": {
+    "description": "Feedback subtitle when the delivery man rates the client (Figma 56614:20132)"
+  },
+  "feedbackCommentHint": "Leave your feedback here...",
+  "@feedbackCommentHint": {
+    "description": "Placeholder for the optional feedback comment field (Figma 56614:20132)"
+  },
+  "feedbackRateName": "Rate {name}",
+  "@feedbackRateName": {
+    "description": "Heading above the star row, naming the person being rated (Figma 56614:20132)",
+    "placeholders": {
+      "name": { "type": "String", "example": "Sami" }
+    }
+  },
+  "feedbackSubmit": "Submit feedback",
+  "@feedbackSubmit": {
+    "description": "Primary CTA on the feedback screen (Figma 56614:20132)"
+  },
+  "feedbackCloseLabel": "Close",
+  "@feedbackCloseLabel": {
+    "description": "Accessibility label for the feedback screen close (X) button"
+  },
   "pushBannerDeliveryCategory": "Delivery update",
   "pushBannerChatCategory": "New message",
   "pushBannerKycCategory": "Verification update",
@@ -1766,7 +1797,45 @@
   },
   "trackingTitle": "Live tracking",
   "@trackingTitle": {
-    "description": "App-bar title on the delivery tracking screen"
+    "description": "App-bar title on the delivery tracking screen (Figma node 56560:1772 shows 'Traking' — a typo; shipped corrected)"
+  },
+  "trackingStepOrdered": "Ordered",
+  "@trackingStepOrdered": {
+    "description": "Tracking panel stepper — stage 1 label (Figma 56560:1772)"
+  },
+  "trackingStepPicked": "Picked",
+  "@trackingStepPicked": {
+    "description": "Tracking panel stepper — stage 2 label (Figma 56560:1772)"
+  },
+  "trackingStepInTransit": "In transit",
+  "@trackingStepInTransit": {
+    "description": "Tracking panel stepper — stage 3 label (Figma 56560:1772)"
+  },
+  "trackingDistanceAway": "{distance} away from you",
+  "@trackingDistanceAway": {
+    "description": "Tracking panel — courier distance line (Figma 56560:1772)",
+    "placeholders": {
+      "distance": { "type": "String", "example": "3 km" }
+    }
+  },
+  "trackingEstimatedTime": "Estimated time: {minutes} min",
+  "@trackingEstimatedTime": {
+    "description": "Tracking panel — estimated arrival line (Figma 56560:1772)",
+    "placeholders": {
+      "minutes": { "type": "int", "example": "20" }
+    }
+  },
+  "trackingDistanceUnknown": "Distance updating…",
+  "@trackingDistanceUnknown": {
+    "description": "Tracking panel — placeholder when no GPS fix yet"
+  },
+  "trackingEtaUnknown": "Estimated time: —",
+  "@trackingEtaUnknown": {
+    "description": "Tracking panel — placeholder when ETA is not yet known"
+  },
+  "trackingMapSemanticLabel": "Live delivery map",
+  "@trackingMapSemanticLabel": {
+    "description": "Accessibility label for the tracking map surface (Figma 56560:1772)"
   },
   "trackingStepAccepted": "Accepted",
   "@trackingStepAccepted": {

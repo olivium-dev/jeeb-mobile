@@ -362,6 +362,17 @@ class AppLocalizations {
   String ratingRevealRevealedTitle(String name) =>
       _get('ratingRevealRevealedTitle').replaceFirst('{name}', name);
 
+  String get feedbackScreenTitle => _get('feedbackScreenTitle');
+  String get feedbackScreenSubtitleJeeber =>
+      _get('feedbackScreenSubtitleJeeber');
+  String get feedbackScreenSubtitleClient =>
+      _get('feedbackScreenSubtitleClient');
+  String get feedbackCommentHint => _get('feedbackCommentHint');
+  String feedbackRateName(String name) =>
+      _get('feedbackRateName').replaceFirst('{name}', name);
+  String get feedbackSubmit => _get('feedbackSubmit');
+  String get feedbackCloseLabel => _get('feedbackCloseLabel');
+
   String get pushBannerDeliveryCategory => _get('pushBannerDeliveryCategory');
   String get pushBannerChatCategory => _get('pushBannerChatCategory');
   String get pushBannerKycCategory => _get('pushBannerKycCategory');
@@ -956,6 +967,16 @@ class AppLocalizations {
       _get('offerSubmissionWithdrawErrorGeneric');
 
   String get trackingTitle => _get('trackingTitle');
+  String get trackingStepOrdered => _get('trackingStepOrdered');
+  String get trackingStepPicked => _get('trackingStepPicked');
+  String get trackingStepInTransit => _get('trackingStepInTransit');
+  String trackingDistanceAway(String distance) =>
+      _get('trackingDistanceAway').replaceFirst('{distance}', distance);
+  String trackingEstimatedTime(int minutes) =>
+      _get('trackingEstimatedTime').replaceFirst('{minutes}', '$minutes');
+  String get trackingDistanceUnknown => _get('trackingDistanceUnknown');
+  String get trackingEtaUnknown => _get('trackingEtaUnknown');
+  String get trackingMapSemanticLabel => _get('trackingMapSemanticLabel');
   String get trackingStepAccepted => _get('trackingStepAccepted');
   String get trackingStepPickedUp => _get('trackingStepPickedUp');
   String get trackingStepHeadingOff => _get('trackingStepHeadingOff');

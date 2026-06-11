@@ -27,11 +27,9 @@ class DeliveryTrackingInfo extends Equatable {
     required this.deliveryId,
     required this.currentStage,
     required this.stageTimestamps,
+    this.distanceLabel,
+    this.etaMinutes,
   });
-
-  final String deliveryId;
-  final TrackingStage currentStage;
-  final Map<TrackingStage, DateTime> stageTimestamps;
 
   factory DeliveryTrackingInfo.fromJson(
     String deliveryId,
@@ -66,8 +64,22 @@ class DeliveryTrackingInfo extends Equatable {
       deliveryId: deliveryId,
       currentStage: currentStage,
       stageTimestamps: timestamps,
+      distanceLabel: json['distanceLabel'] as String?,
+      etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
     );
   }
+
+  final String deliveryId;
+  final TrackingStage currentStage;
+  final Map<TrackingStage, DateTime> stageTimestamps;
+
+  /// Pre-formatted, unit-localized distance string from the gateway (e.g.
+  /// "3 km"). Null until the first GPS fix arrives — the panel shows a
+  /// placeholder rather than a stale "0 km" (Figma 56560:1772 §8).
+  final String? distanceLabel;
+
+  /// Estimated minutes to arrival from the gateway. Null when unknown.
+  final int? etaMinutes;
 
   static TrackingStage _parseStage(String status) {
     switch (status.toLowerCase()) {
@@ -94,6 +106,23 @@ class DeliveryTrackingInfo extends Equatable {
     }
   }
 
+  /// Maps the 5-stage internal lifecycle onto the 3-stage Figma stepper
+  /// (Ordered / Picked / In transit). `atDoor` and `delivered` both land on
+  /// the third stage so the panel reads "In transit" through arrival.
+  int get trackingStepIndex {
+    switch (currentStage) {
+      case TrackingStage.ordered:
+        return 0;
+      case TrackingStage.picked:
+        return 1;
+      case TrackingStage.inTransit:
+      case TrackingStage.atDoor:
+      case TrackingStage.delivered:
+        return 2;
+    }
+  }
+
   @override
-  List<Object?> get props => [deliveryId, currentStage, stageTimestamps];
+  List<Object?> get props =>
+      [deliveryId, currentStage, stageTimestamps, distanceLabel, etaMinutes];
 }
