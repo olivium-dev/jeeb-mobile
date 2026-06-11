@@ -1,0 +1,139 @@
+# Jeeb mobile — 08 Request Empty State [User] (App Shell / Home).
+# Figma node 56535:1514 ("No orders yet" zero-orders hero on the client home).
+#
+# WHAT THIS PROVES
+#   The authenticated client shell renders the zero-orders empty state, and its
+#   key elements are present + visible in the LIVE view hierarchy, targeted BY
+#   SEMANTIC ID (never by localized text — AP-5; never by coordinates — AP-1):
+#     _request_empty_state_root               — scrollable empty-state container (root)
+#     _request_empty_state_avatar             — greeting avatar (header)
+#     _request_empty_state_new_order_button   — primary "New Order" CTA
+#     _request_empty_state_nav_requests       — bottom-nav: Requests (active tab)
+#     _request_empty_state_nav_delivery       — bottom-nav: Delivery
+#     _request_empty_state_nav_profile        — bottom-nav: Profile
+#   All six ids were independently confirmed by QA via `maestro hierarchy` as
+#   Android resource-id values BEFORE this flow was written (not assumed).
+#
+# PRIMARY INTERACTION (as far as the sanctioned backend allows — UI-GUARDRAILS §6)
+#   The screen's single user action is the "New Order" CTA. In the dev shell the
+#   tab wires ClientHomeScreen with onOpenRequest but NOT onCreateRequest
+#   (lib/features/shell/tabs/home_tab.dart) and the in-memory repo seeds zero
+#   orders, so the CTA's onTap resolves to null — it is intentionally a no-op
+#   until the jeeb-gateway create-request flow lands. We therefore exercise the
+#   real, sanctioned behaviour: the CTA is present, visible, and TAPPABLE, and
+#   tapping it does NOT crash — the empty-state host stays mounted afterwards.
+#   We do NOT assert a downstream navigation/destination, because none exists on
+#   this build; asserting one would be a fabricated pass (maestro-anti-patterns,
+#   AP-9 — no optimistic assertion of a path the backend can't satisfy).
+#   We also exercise bottom-nav navigation (Delivery -> back to Requests) to
+#   prove the shell is interactive and the empty state is re-reachable.
+#
+# BACKEND
+#   mock/dev seam only — default InMemoryClientHomeRepository (zero-orders seed),
+#   NO live gateway (comparison.md). Certifies visual + behavioural UI parity,
+#   NOT end-to-end integration (UI-GUARDRAILS §6).
+#
+# BUILD DEPENDENCY (honest caveat — read before running)
+#   The empty state lives behind the authenticated shell (onboarding + biometric
+#   router redirects). The installed dev APK was built with the debug-only,
+#   release-inert flag --dart-define=JEEB_DEV_HOME=true (kDebugMode-gated, no-op
+#   in release — lib/core/router/app_router.dart) so the shell is reachable
+#   without a live OTP roundtrip. dart-defines are compile-time baked into the
+#   APK, so launchApp/clearState cannot toggle them: clearState relaunches the
+#   SAME installed APK and the zero-orders empty state is the default code path,
+#   so it remains deterministically reachable. This flow is valid only against a
+#   JEEB_DEV_HOME build; documented as a known constraint (same posture as
+#   01-splash.yaml's JEEB_HOLD_SPLASH).
+#
+# MAESTRO VERSION NOTE (2.0.5)
+#   In Maestro 2.x `assertVisible` does NOT accept an inline `timeout:` (1.x only).
+#   Timed waits go through `extendedWaitUntil` (waits up to `timeout` AND asserts).
+#   Every timing-sensitive check uses extendedWaitUntil — NEVER a fixed sleep
+#   (AP-1). Bare `assertVisible` is used only to re-confirm an element already
+#   proven present.
+#
+# RUNTIME EXPECTATION
+#   ~10-15 s wall-clock (cold launch + shell route + 6 id assertions + 1 CTA tap +
+#   2 nav taps). Comfortably under the 60 s refactor flag. Single screen; the nav
+#   re-reach is inline (no subflow warranted for 2 taps).
+#
+# Run:
+#   maestro test -e APP_ID=app.jeeb.mobile.dev \
+#     --format JUNIT --output <evidence>/maestro/junit.xml \
+#     .maestro/flows/08-request-empty-state.yaml
+appId: ${APP_ID}
+---
+- launchApp:
+    clearState: true            # AP-4: no auth/state bleed between runs
+
+# Empty-state container — the scrollable zero-orders host. extendedWaitUntil
+# (not a fixed sleep — AP-1) absorbs cold-start + shell-route variance up to 25 s,
+# AND asserts. Generous headroom: this is cold launch THROUGH the authed shell.
+- extendedWaitUntil:
+    visible:
+      id: "_request_empty_state_root"
+    timeout: 25000              # AP-3: cold-start + router redirect headroom
+
+# Let the shell + empty-state entrance settle before screenshotting, so the
+# evidence frame is the settled render, not a mid-transition blend.
+# AP-7 (waitForAnimationToEnd after a transition), NOT a fixed sleep.
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Evidence frame of the settled empty state.
+- takeScreenshot: 08_request_empty_state_rendered
+
+# Key element 1 — greeting avatar in the header. Waited+asserted by id (i18n-safe).
+- extendedWaitUntil:
+    visible:
+      id: "_request_empty_state_avatar"
+    timeout: 10000
+
+# Key element 2 — the primary "New Order" CTA. Waited+asserted by id.
+- extendedWaitUntil:
+    visible:
+      id: "_request_empty_state_new_order_button"
+    timeout: 10000
+
+# Bottom-nav: all three client tabs present (active Requests + Delivery + Profile).
+- assertVisible:
+    id: "_request_empty_state_nav_requests"
+- assertVisible:
+    id: "_request_empty_state_nav_delivery"
+- assertVisible:
+    id: "_request_empty_state_nav_profile"
+
+# ── PRIMARY INTERACTION — "New Order" CTA ────────────────────────────────────
+# Tap the CTA by id (NOT by coordinate — AP-1; NOT by localized label — AP-5).
+# On this dev build onCreateRequest is unwired (no-op); the sanctioned assertion
+# is that the tap is accepted and does NOT crash — the empty-state host survives.
+- tapOn:
+    id: "_request_empty_state_new_order_button"
+- waitForAnimationToEnd:
+    timeout: 5000
+# Re-confirm the empty-state root is still the visible host (the no-op CTA tap
+# did not crash, dismiss, or silently navigate the screen away). Element already
+# proven present, so a bare assertVisible (no wait) is correct here.
+- assertVisible:
+    id: "_request_empty_state_root"
+
+# ── SHELL NAVIGATION — prove the empty state is re-reachable ──────────────────
+# Tap Delivery, then back to Requests, to prove the shell is interactive and the
+# zero-orders empty state re-renders (not a one-shot frame). All by id.
+- tapOn:
+    id: "_request_empty_state_nav_delivery"
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    id: "_request_empty_state_nav_requests"
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Final re-confirmation: the empty-state container + CTA are back on screen after
+# the nav round-trip. Waited (re-mount of the home tab cubit), then asserted.
+- extendedWaitUntil:
+    visible:
+      id: "_request_empty_state_root"
+    timeout: 10000
+- assertVisible:
+    id: "_request_empty_state_new_order_button"
