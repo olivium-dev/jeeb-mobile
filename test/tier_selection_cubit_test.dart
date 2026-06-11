@@ -24,9 +24,9 @@ void main() {
           (s) =>
               s.status == TierSelectionStatus.loaded &&
               s.tiers.length == FakeTierRepository.defaultCatalog.length &&
-              s.selectedTierId == TierId.express &&
+              s.selectedTierId == TierId.flash &&
               s.failure == null,
-          'lands on loaded with Express pre-selected',
+          'lands on loaded with Flash (recommended) pre-selected',
         ),
       ],
     );
@@ -140,7 +140,7 @@ void main() {
       addTearDown(cubit.close);
       await cubit.load();
       cubit.confirm();
-      expect(cubit.state.confirmedTierId, TierId.express);
+      expect(cubit.state.confirmedTierId, TierId.flash);
 
       cubit.selectTier(TierId.standard);
       expect(cubit.state.confirmedTierId, isNull,

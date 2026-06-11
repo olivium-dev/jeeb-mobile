@@ -540,6 +540,55 @@ class AppLocalizations {
   String get tierSelectionOnTheWayMvpNote =>
       _get('tierSelectionOnTheWayMvpNote');
 
+  // Request type screen (Figma 56535:2392)
+  String get requestTypeTitle => _get('requestTypeTitle');
+  String get requestTypeChooseHeading => _get('requestTypeChooseHeading');
+  String get requestTypeLocationHeading => _get('requestTypeLocationHeading');
+  String get requestTypeCurrentLocation => _get('requestTypeCurrentLocation');
+  String get requestTypeChangeLocation => _get('requestTypeChangeLocation');
+  String get tierFlashTitle => _get('tierFlashTitle');
+  String get tierFlashSpeed => _get('tierFlashSpeed');
+  String get tierFlashValue => _get('tierFlashValue');
+  String get tierExpressTitle => _get('tierExpressTitle');
+  String get tierExpressSpeed => _get('tierExpressSpeed');
+  String get tierExpressValue => _get('tierExpressValue');
+  String get tierStandardTitle => _get('tierStandardTitle');
+  String get tierStandardSpeed => _get('tierStandardSpeed');
+  String get tierStandardValue => _get('tierStandardValue');
+  String get tierOnTheWayTitle => _get('tierOnTheWayTitle');
+  String get tierOnTheWaySpeed => _get('tierOnTheWaySpeed');
+  String get tierOnTheWayValue => _get('tierOnTheWayValue');
+  String get tierEcoTitle => _get('tierEcoTitle');
+  String get tierEcoSpeed => _get('tierEcoSpeed');
+  String get tierEcoValue => _get('tierEcoValue');
+  String requestTypeTierSemanticLabel({
+    required String title,
+    required String speed,
+    required String value,
+  }) =>
+      _get('requestTypeTierSemanticLabel')
+          .replaceFirst('{title}', title)
+          .replaceFirst('{speed}', speed)
+          .replaceFirst('{value}', value);
+  String get requestTypeTierSelectedHint =>
+      _get('requestTypeTierSelectedHint');
+
+  // Client Location screen (Figma 56539:1444)
+  String get clientLocationTitle => _get('clientLocationTitle');
+  String get clientLocationHeading => _get('clientLocationHeading');
+  String get clientLocationCurrentOption =>
+      _get('clientLocationCurrentOption');
+  String get clientLocationNewOption => _get('clientLocationNewOption');
+  String get clientLocationAddSemantic => _get('clientLocationAddSemantic');
+
+  // Capture Location screen (Figma 56546:2303)
+  String get captureLocationTitle => _get('captureLocationTitle');
+  String get captureLocationPinCta => _get('captureLocationPinCta');
+  String get captureLocationMapSemantic =>
+      _get('captureLocationMapSemantic');
+  String get captureLocationPinSemantic => _get('captureLocationPinSemantic');
+  String get captureLocationMapPreview => _get('captureLocationMapPreview');
+
   // KYC wizard
   String get kycWizardTitle => _get('kycWizardTitle');
   String kycWizardProgressLabel({required int current, required int total}) =>
