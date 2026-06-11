@@ -17,11 +17,15 @@
 #
 # PRIMARY INTERACTION
 #   The pending row is tappable (opens request detail in the full product). On
-#   the dev seam the tap is wired to onOpenRequest -> chat route
-#   (home_tab.dart:50,95). We assert the tap is accepted and the screen does not
-#   crash, then return — we do NOT assert a downstream destination the dev
-#   backend can't guarantee (maestro-anti-patterns AP-9: no optional: true on a
-#   primary assertion; we simply don't over-assert an unguaranteed nav target).
+#   the dev seam the tap is wired through the shell:
+#     shell/tabs/home_tab.dart:50  onOpenRequest: (r) => _openChat(context, r)
+#     shell/tabs/home_tab.dart:95  _openChat -> GoRouter.pushNamed('chat-detail')
+#   That route renders the chat detail screen whose message list carries the
+#   stable id chat_detail_message_list (chat/presentation/chat_screen.dart:318).
+#   So the tap has a DETERMINISTIC, assertible navigation effect on the dev seam
+#   — we assert that id post-tap. This is a real liveness + nav-effect check
+#   (the screen rendered, the tap was honoured, the app did not crash), not an
+#   over-assertion of an unguaranteed target (the seam guarantees it).
 #
 # BACKEND / SEAM
 #   Dev seam: jeeb.route=/ + jeeb.home_tab=pending → shell home tab seeded with
@@ -72,14 +76,18 @@ appId: ${APP_ID}
     timeout: 10000
 
 # ── PRIMARY INTERACTION — open a pending request ─────────────────────────────
-# Tap the row by id (not coordinate/label). The dev seam wires onOpenRequest to
-# the chat route; we assert the tap is accepted and the app does not crash.
+# Tap the row by id (not coordinate/label). The shell seam wires the tap to
+# GoRouter.pushNamed('chat-detail'); we then assert the deterministic landing id.
 - tapOn:
     id: "pending_requests_item_pen-1"
 - waitForAnimationToEnd:
     timeout: 5000
 
-# Sanity: the app is still alive after the tap (no crash). The chip we waited on
-# at launch is no longer asserted (we may have navigated); instead confirm the
-# process did not die by re-reading any rendered element from the resulting view.
-# We do NOT assert a specific chat destination (dev-backend cannot guarantee it).
+# Liveness + navigation-effect: the chat detail screen rendered (its message list
+# id is present), proving the tap was honoured and the app did not crash. This is
+# a guaranteed dev-seam destination, asserted by id (no optional:, no label match).
+- extendedWaitUntil:
+    visible:
+      id: "chat_detail_message_list"
+    timeout: 15000
+- takeScreenshot: 13_request_pending_requests_after_tap
