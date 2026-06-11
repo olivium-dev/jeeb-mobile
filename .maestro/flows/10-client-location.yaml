@@ -1,0 +1,139 @@
+# Maestro flow — Client Location (screen 10)
+#
+# Figma node 56539:1444 (file ZOi3kKtw7sd42ssSVX3Kn4): the client picks the
+#   pickup / origin location before creating a delivery request — a "Choose your
+#   location" heading, a selected "Current Location" navy card (with a radio),
+#   and a "New Location" row whose circular add button opens the map picker.
+#   Built screen: ClientLocationScreen at route /client-location
+#   (lib/features/location/presentation/client_location_screen.dart + widgets/
+#   client_location_option_card.dart, client_location_add_row.dart).
+#
+# NAV — RUNTIME DEV SEAM (dev-seam-runtime.md): the screen is reached by the
+#   runtime dev seam, NOT a dart-define rebuild. `launchApp.arguments` are
+#   delivered to Android as String intent extras, which MainActivity.kt
+#   `readSeamExtras()` reads (seam source priority 1) → DevSeam routes straight
+#   to /client-location, skipping onboarding + biometric gates. One dev APK
+#   renders any screen/state/locale; only the extras change.
+#     Equivalent adb one-liner (documented; the flow does it via launchApp):
+#       adb -s emulator-5556 shell am start -S \
+#         -n app.jeeb.mobile.dev/app.jeeb.mobile.MainActivity \
+#         -e jeeb.route /client-location -e jeeb.locale en
+#     RTL variant: append `-e jeeb.locale ar`.
+#   Sticky alternative (seam source priority 2), if a launcher forwards no
+#   extras: push the device file before launchApp —
+#       printf '{"jeeb.route":"/client-location","jeeb.locale":"en"}' \
+#         > /tmp/jeeb-dev-seam.json
+#       adb -s emulator-5556 push /tmp/jeeb-dev-seam.json \
+#         /data/local/tmp/jeeb-dev-seam.json
+#
+# BACKEND: none required. ClientLocationScreen is static UI in the dev seam —
+#   `currentSelected` defaults true (Current Location pre-selected), and both
+#   actions default to a no-op back-pop when no host callback is wired (router
+#   builds it with onAddLocation → context.push to the map picker in the real
+#   flow, but in the dev-seam standalone route the screen is self-contained).
+#   A PASS here certifies VISUAL + BEHAVIORAL UI PARITY ONLY, not end-to-end
+#   gateway / geolocation-service integration (UI-GUARDRAILS §6).
+#
+# SYNTAX: Maestro 2.0.5 — extendedWaitUntil for timeouts (inline assertVisible
+#   `timeout:` is 1.x syntax and is REJECTED by 2.0.5, pilot learning #3);
+#   waitForAnimationToEnd before every takeScreenshot (pilot learning #4);
+#   tapOn/assertVisible by Semantics identifier only — no coordinate taps, no
+#   sleeps, no localized-text matching (the four labels are localized; the AR
+#   run would break a text matcher — ids are locale-invariant).
+#
+# IDS asserted — verified present in source (grep of lib/features/location):
+#   client_location_option_current   (client_location_option_card.dart:29 —
+#                                      Semantics(identifier:..., button:true,
+#                                      inMutuallyExclusiveGroup:true, checked,
+#                                      label) wrapping ExcludeSemantics→InkWell;
+#                                      the WHOLE card is one merged tap node)
+#   client_location_add_new          (client_location_add_row.dart:24 —
+#                                      Semantics(identifier:..., button:true,
+#                                      label) wrapping ExcludeSemantics→InkWell;
+#                                      the WHOLE row + circular "+" button is one
+#                                      merged tap node)
+#
+# SELECTOR NOTES (semantics topology — verified in source, NOT a defect here):
+#   (a) The engineer applied the ExcludeSemantics pattern correctly (the fix
+#       flagged for the screen 04/05/06/07 merge traps). Each interactive widget
+#       is ONE clean clickable node carrying its identifier; the inner Text /
+#       SelectableRadioGlyph / Icon are deliberately excluded from the a11y tree.
+#       So we assert/tap the CARD and ROW ids, never the inner glyph/label.
+#   (b) The navbar title ("Location") is rendered by OMDSAppBar as a PLAIN
+#       Text with NO Semantics(identifier:) (omds_app_bar.dart) — there is no
+#       `client_location_title` id (the design-spec proposal was not added).
+#       We do NOT assert the title: by id it doesn't exist, and by `text:` it is
+#       a localized string (AP-5 i18n anti-pattern; the AR run renders "الموقع").
+#       Screen presence is anchored on the two real id-bearing interactive nodes.
+#   (c) The back chevron is a raw IconButton in OMDSAppBar with no identifier —
+#       no `client_location_back` id either. Not targeted.
+#   (d) Maestro 2.0.5 cannot assert the semantics `checked` boolean, so "Current
+#       Location is selected" is proven VISUALLY by the UX verdict (navy-filled
+#       card in emulator_en/ar.png), not asserted here.
+#
+# PRIMARY-ACTION GAP (documented honestly, dev-seam limitation — pilot #7 / AP-9):
+#   In the standalone dev-seam route, both onSelectCurrent and onAddLocation are
+#   unwired (no host callback), so onAddLocation falls back to Navigator.maybePop
+#   and onSelectCurrent is a null-safe no-op. We therefore prove each primary
+#   interaction by: tap ACCEPTED → app does not crash → the screen's other node
+#   is still present/queryable (no nav-away, no exception). We do NOT fabricate a
+#   navigation/selection assertion the dev backend cannot satisfy. The real
+#   "New Location → map picker" navigation and "select → commit" behavior are a
+#   later integration gate (the live router wires onAddLocation to
+#   context.push to the picker; verified statically in app_router.dart).
+
+appId: ${APP_ID}
+---
+# ── LAUNCH via runtime dev seam (intent extras → DevSeam priority-1 source) ────
+- launchApp:
+    stopApp: true
+    arguments:
+      jeeb.route: "/client-location"
+      jeeb.locale: "en"
+
+# ── STATE RENDERS: the selected Current Location card is on screen ─────────────
+# currentSelected defaults true, so the navy "Current Location" card renders on
+# load. Its merged node being visible proves the screen rendered (not a blank
+# first-frame / launcher fallthrough). 40s timeout absorbs slow Impeller-on-
+# software-GL first frames on this 2GB AVD (pilot memory; AP-3-legit, not a sleep).
+- extendedWaitUntil:
+    visible:
+      id: "client_location_option_current"
+    timeout: 40000
+- waitForAnimationToEnd
+
+# ── NEW-LOCATION ROW present (the second interactive node + its "+" button) ────
+- assertVisible:
+    id: "client_location_add_new"
+
+# ── CAPTURE: the loaded Client Location frame (Current Location selected) ───────
+- waitForAnimationToEnd
+- takeScreenshot: "10-client-location-loaded"
+
+# ── PRIMARY INTERACTION 1: tap the Current Location card ───────────────────────
+# The whole card is the tap target (the radio is decorative + merged). In the
+# dev-seam route onSelectCurrent is unwired (null-safe no-op), so we prove the
+# interaction by: tap accepted → no crash → both nodes still present (no
+# nav-away). The selected→fill state is proven visually by the UX verdict.
+- tapOn:
+    id: "client_location_option_current"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "client_location_option_current"
+- assertVisible:
+    id: "client_location_add_new"
+
+# ── PRIMARY INTERACTION 2: tap the New Location row / circular "+" button ──────
+# The whole row + circular add button is one merged tap node (button:true). In
+# the live router this push()es the map picker; in the standalone dev-seam route
+# onAddLocation falls back to Navigator.maybePop. Tapping pops this route off the
+# dev-seam stack, so we assert the Client Location nodes are GONE afterward — this
+# proves the CTA is LIVE (fires its onTap), not a dead/no-op control, without
+# fabricating an assertion about the (unwired-in-seam) map-picker destination.
+- tapOn:
+    id: "client_location_add_new"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    notVisible:
+      id: "client_location_add_new"
+    timeout: 15000

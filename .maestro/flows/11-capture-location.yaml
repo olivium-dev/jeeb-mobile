@@ -1,0 +1,122 @@
+# Maestro flow — Capture Location (screen 11)
+#
+# Figma node 56546:2303 (file ZOi3kKtw7sd42ssSVX3Kn4): the full-screen map
+#   picker — a map fills the area between the navbar ("Location") and the bottom
+#   "Pin Location" navy CTA, with a fixed red teardrop pin centred over the map
+#   (the map pans underneath; the pin tip is the chosen anchor). Built screen:
+#   CaptureLocationScreen at route /capture-location
+#   (lib/features/location/presentation/capture_location_screen.dart + widgets/
+#   capture_location_pin.dart, capture_map_viewport.dart).
+#
+# NAV — RUNTIME DEV SEAM (dev-seam-runtime.md): the screen is reached by the
+#   runtime dev seam, NOT a dart-define rebuild. `launchApp.arguments` are
+#   delivered to Android as String intent extras, which MainActivity.kt
+#   `readSeamExtras()` reads (seam source priority 1) → DevSeam routes straight
+#   to /capture-location, skipping onboarding + biometric gates. One dev APK
+#   renders any screen/state/locale; only the extras change.
+#     Equivalent adb one-liner (documented; the flow does it via launchApp):
+#       adb -s emulator-5556 shell am start -S \
+#         -n app.jeeb.mobile.dev/app.jeeb.mobile.MainActivity \
+#         -e jeeb.route /capture-location -e jeeb.locale en
+#     RTL variant: append `-e jeeb.locale ar`.
+#   Sticky alternative (seam source priority 2), if a launcher forwards no
+#   extras: push the device file before launchApp —
+#       printf '{"jeeb.route":"/capture-location","jeeb.locale":"en"}' \
+#         > /tmp/jeeb-dev-seam.json
+#       adb -s emulator-5556 push /tmp/jeeb-dev-seam.json \
+#         /data/local/tmp/jeeb-dev-seam.json
+#
+# BACKEND: none required. In the dev seam / offline path, CaptureLocationScreen
+#   renders the navbar + fixed centre pin + "Pin Location" CTA over the neutral
+#   `CaptureMapViewport` placeholder (live tiles come from the `ofl-geo-capture`
+#   wrap, injected via `mapBuilder` in production — comparison.md honest
+#   deferral). A PASS here certifies VISUAL + BEHAVIORAL UI CHROME PARITY ONLY
+#   (navbar + pin + CTA over placeholder), NOT end-to-end map-tile / geolocation
+#   integration (UI-GUARDRAILS §6).
+#
+# SYNTAX: Maestro 2.0.5 — extendedWaitUntil for timeouts (inline assertVisible
+#   `timeout:` is 1.x syntax and is REJECTED by 2.0.5, pilot learning #3);
+#   waitForAnimationToEnd before every takeScreenshot (pilot learning #4);
+#   tapOn/assertVisible by Semantics identifier only — no coordinate taps, no
+#   sleeps, no localized-text matching (the navbar title + CTA label are
+#   localized; the AR run would break a text matcher — ids are locale-invariant).
+#
+# IDS asserted — verified present in source (grep of lib/features/location):
+#   capture_location_map       (capture_location_screen.dart:134 — Semantics(
+#                               identifier:..., label) wrapping the map viewport
+#                               / CaptureMapViewport placeholder)
+#   capture_location_pin       (capture_location_pin.dart:20 — the fixed centre
+#                               teardrop; sits in an IgnorePointer overlay so it
+#                               is a NON-INTERACTIVE marker node, asserted-only)
+#   capture_location_pin_cta   (capture_location_screen.dart:99 — Semantics(
+#                               identifier:..., button:true) wrapping the bottom
+#                               OmdsPrimaryButton confirm CTA; the tap target)
+#
+# SELECTOR NOTES (semantics topology — verified in source, NOT a defect here):
+#   (a) The centre pin (`capture_location_pin`) is wrapped in IgnorePointer (it
+#       never moves — the map pans under it), so it is a presence marker we
+#       ASSERT, never a tap target. Tapping it would be meaningless; the map's
+#       pan gesture is owned by the map SDK, not exercised in the offline seam.
+#   (b) The navbar title ("Location") is rendered by OMDSAppBar as a PLAIN Text
+#       with NO Semantics(identifier:) (omds_app_bar.dart) — there is no
+#       `capture_location_title` id. We do NOT assert it: by id it doesn't exist,
+#       and by `text:` it is a localized string (AP-5 i18n anti-pattern; the AR
+#       run renders "الموقع"). Screen presence is anchored on the map + pin +
+#       CTA id-bearing nodes.
+#   (c) The back chevron is a raw IconButton in OMDSAppBar with no identifier —
+#       no `capture_location_back` id. Not targeted.
+#
+# PRIMARY-ACTION GAP (documented honestly, dev-seam limitation — pilot #7 / AP-9):
+#   In the standalone dev-seam route, onPinned is unwired (no host callback), so
+#   _onPin falls back to Navigator.maybePop. Tapping "Pin Location" pops this
+#   route off the dev-seam stack, so we assert the Capture Location nodes are
+#   GONE afterward — this proves the CTA is LIVE (fires its onTap), not a
+#   dead/no-op control, without fabricating an assertion about the (unwired-in-
+#   seam) "return coordinates to delivery-create" destination. The real
+#   "Pin Location → commit coordinates" behaviour is a later integration gate
+#   (the live router wires onPinned to context.pop with the captured point;
+#   verified statically in app_router.dart).
+
+appId: ${APP_ID}
+---
+# ── LAUNCH via runtime dev seam (intent extras → DevSeam priority-1 source) ────
+- launchApp:
+    stopApp: true
+    arguments:
+      jeeb.route: "/capture-location"
+      jeeb.locale: "en"
+
+# ── STATE RENDERS: the map viewport (or its neutral placeholder) is on screen ──
+# The map Semantics node being visible proves the screen rendered (not a blank
+# first-frame / launcher fallthrough). 40s timeout absorbs slow Impeller-on-
+# software-GL first frames on this 2GB AVD (pilot memory; AP-3-legit, not a sleep).
+- extendedWaitUntil:
+    visible:
+      id: "capture_location_map"
+    timeout: 40000
+- waitForAnimationToEnd
+
+# ── CHROME: the fixed centre pin + the bottom "Pin Location" CTA are present ───
+- assertVisible:
+    id: "capture_location_pin"
+- assertVisible:
+    id: "capture_location_pin_cta"
+
+# ── CAPTURE: the loaded Capture Location frame (pin centred over the map) ───────
+- waitForAnimationToEnd
+- takeScreenshot: "11-capture-location-loaded"
+
+# ── PRIMARY INTERACTION: tap the "Pin Location" confirm CTA ────────────────────
+# In the live router this pops with the captured coordinates; in the standalone
+# dev-seam route onPinned falls back to Navigator.maybePop. Tapping pops this
+# route off the dev-seam stack, so we assert the Capture Location nodes are GONE
+# afterward — this proves the CTA is LIVE (fires its onTap), not a dead/no-op
+# control, without fabricating an assertion about the (unwired-in-seam)
+# coordinate-commit destination.
+- tapOn:
+    id: "capture_location_pin_cta"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    notVisible:
+      id: "capture_location_pin_cta"
+    timeout: 15000
