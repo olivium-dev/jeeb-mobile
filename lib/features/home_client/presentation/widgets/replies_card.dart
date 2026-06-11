@@ -30,19 +30,28 @@ class RepliesCard extends StatelessWidget {
         horizontal: Spacing.medium,
         vertical: Spacing.small,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _RepliesHeader(request: request),
-          const SizedBox(height: Spacing.twoXSmall),
-          _RepliesSummary(text: request.summaryLine),
-          const SizedBox(height: Spacing.small),
-          _RepliesCheckOffersButton(request: request, onTap: onCheckOffers),
-          Padding(
-            padding: const EdgeInsetsDirectional.only(top: Spacing.small),
-            child: Divider(height: 1, color: colorScheme.outlineVariant),
-          ),
-        ],
+      // `explicitChildNodes` makes the card a Semantics *boundary*: without it
+      // the column auto-merges the avatar-stack node
+      // (`orders_replies_avatar_stack_<id>`, nested in the header) and the
+      // Check-Offers button node (`orders_replies_check_offers_<id>`) into one,
+      // so only the avatar-stack id survives. The boundary keeps BOTH ids as
+      // their own queryable nodes for Maestro and screen readers.
+      child: Semantics(
+        explicitChildNodes: true,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _RepliesHeader(request: request),
+            const SizedBox(height: Spacing.twoXSmall),
+            _RepliesSummary(text: request.summaryLine),
+            const SizedBox(height: Spacing.small),
+            _RepliesCheckOffersButton(request: request, onTap: onCheckOffers),
+            Padding(
+              padding: const EdgeInsetsDirectional.only(top: Spacing.small),
+              child: Divider(height: 1, color: colorScheme.outlineVariant),
+            ),
+          ],
+        ),
       ),
     );
   }

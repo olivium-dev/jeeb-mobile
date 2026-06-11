@@ -19,13 +19,21 @@ class RequestLocationRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Flexible(child: _CurrentLabel(text: currentLabel)),
-        const SizedBox(width: Spacing.medium),
-        _ChangeAction(label: changeLabel, onTap: onChange),
-      ],
+    // `explicitChildNodes` makes this row a Semantics *boundary*: without it the
+    // ambient merge folds the label's `request_type_current_location_label` and
+    // the action's `request_type_change_location_button` into one node and the
+    // button identifier is swallowed (Maestro/screen-reader can't address it).
+    // The boundary keeps both inner identifiers as their own queryable nodes.
+    return Semantics(
+      explicitChildNodes: true,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Flexible(child: _CurrentLabel(text: currentLabel)),
+          const SizedBox(width: Spacing.medium),
+          _ChangeAction(label: changeLabel, onTap: onChange),
+        ],
+      ),
     );
   }
 }

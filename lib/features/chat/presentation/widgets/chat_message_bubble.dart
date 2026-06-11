@@ -38,8 +38,17 @@ class ChatMessageBubble extends StatelessWidget {
     if (message.isSystemNotice) {
       return SystemMessageBubble(message: message);
     }
+    // `container: true` + `explicitChildNodes: true` make the per-message
+    // wrapper a Semantics *boundary*. Without it the outer
+    // `chat_detail_message_<id>` node auto-merges its descendants and swallows
+    // the read double-tick's `chat_detail_message_read` identifier, so neither
+    // Maestro nor a screen reader can address the read-receipt independently.
+    // The boundary keeps the per-message id AND surfaces the inner read id as
+    // its own queryable node.
     return Semantics(
       identifier: 'chat_detail_message_${message.id}',
+      container: true,
+      explicitChildNodes: true,
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: Spacing.medium,

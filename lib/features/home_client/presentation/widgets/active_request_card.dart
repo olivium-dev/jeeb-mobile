@@ -27,8 +27,16 @@ class ActiveOrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    // `container: true` + `explicitChildNodes: true` make the card a Semantics
+    // *boundary*. Without it the outer `orders_active_card_<id>` node
+    // auto-merges its descendants and swallows the Track CTA's
+    // `orders_track_order_button_<id>` identifier, so Maestro/screen readers
+    // can't address the Track button. The boundary keeps the card id AND
+    // surfaces the Track-button id as its own queryable node.
     return Semantics(
       identifier: 'orders_active_card_${request.id}',
+      container: true,
+      explicitChildNodes: true,
       child: Padding(
         key: Key('active-request-card-${request.id}'),
         padding: const EdgeInsetsDirectional.symmetric(
