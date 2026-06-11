@@ -16,6 +16,8 @@ import '../../features/deep_link_targets/kyc_status_screen.dart';
 import '../../features/deep_link_targets/rating_prompt_screen.dart';
 import '../../features/jeeber_home/domain/entities/feed_request.dart';
 import '../../features/jeeber_home/domain/services/request_feed_service.dart';
+import '../../features/jeeber_onboarding/application/dm_onboarding_state.dart';
+import '../../features/jeeber_onboarding/presentation/dm_onboarding_screen.dart';
 import '../../features/jeeber_request_detail/domain/services/prohibited_item_report_service.dart';
 import '../../features/jeeber_request_detail/presentation/jeeber_request_detail_screen.dart';
 import '../../features/jeeber_request_detail/presentation/jeeber_request_unavailable_screen.dart';
@@ -168,6 +170,26 @@ class AppRouter {
           path: '/profile/kyc',
           name: 'kyc-status',
           builder: (context, state) => const KycStatusScreen(),
+        ),
+        // Delivery-man onboarding wizard (Figma 56591:5323 → 56591:4109 →
+        // 56591:5337). Entered from the Delivery-tab upsell (screen 19). A
+        // `step` query param (address|service-area) lets the dev seam / a deep
+        // link land directly on a later step for deterministic capture.
+        GoRoute(
+          path: '/jeeber/onboarding',
+          name: 'jeeber-onboarding',
+          builder: (context, state) => DmOnboardingScreen(
+            initialStep: DmOnboardingStep.fromSlug(
+              state.uri.queryParameters['step'],
+            ),
+            onCompleted: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/');
+              }
+            },
+          ),
         ),
         GoRoute(
           path: '/location',

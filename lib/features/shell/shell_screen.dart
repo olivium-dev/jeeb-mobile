@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../core/dev_seam/dev_seam.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/role/user_role.dart';
 import '../../l10n/app_localizations.dart';
@@ -36,9 +38,9 @@ class _ShellScreenState extends State<ShellScreen> {
   Widget build(BuildContext context) {
     return BlocConsumer<RoleCubit, UserRole>(
       listenWhen: (prev, curr) => prev != curr,
-      listener: (_, __) => setState(() => _index = 0),
+      listener: (_, _) => setState(() => _index = 0),
       builder: (context, role) {
-        final tabs = _tabsForRole(role);
+        final tabs = _tabsForRole(_effectiveRole(role));
         final safeIndex = _index.clamp(0, tabs.length - 1);
         return Scaffold(
           body: SafeArea(
@@ -56,6 +58,16 @@ class _ShellScreenState extends State<ShellScreen> {
         );
       },
     );
+  }
+
+  /// Debug-only: the dev seam can force the jeeber role so the Delivery-tab
+  /// upsell (screen 19, hosted by [DashboardTab]) renders deterministically for
+  /// capture without a UI role toggle. Always the cubit's role in release.
+  UserRole _effectiveRole(UserRole role) {
+    if (kDebugMode && DevSeam.current.homeTab == 'unregistered') {
+      return UserRole.jeeber;
+    }
+    return role;
   }
 
   List<_Tab> _tabsForRole(UserRole role) {
