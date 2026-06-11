@@ -48,15 +48,7 @@ class _DeliveryManProfileBody extends StatelessWidget {
       key: DeliveryManProfileScreen.rootKey,
       padding: const EdgeInsetsDirectional.only(bottom: Spacing.large),
       children: [
-        DeliveryManProfileHeader(
-          name: data.name,
-          avatarUrl: data.avatarUrl,
-          isVerified: data.isVerified,
-          rating: data.rating,
-          reviewCount: data.reviewCount,
-          location: data.location,
-          isAvailable: data.isAvailable,
-        ),
+        _Header(data: data),
         const SizedBox(height: Spacing.large),
         DeliveryReviewsHeader(reviewCount: data.reviewCount, onViewAll: () {}),
         DeliveryReviewsList(
@@ -65,6 +57,25 @@ class _DeliveryManProfileBody extends StatelessWidget {
           onReply: (_) {},
         ),
       ],
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header({required this.data});
+
+  final DeliveryManProfileViewData data;
+
+  @override
+  Widget build(BuildContext context) {
+    return DeliveryManProfileHeader(
+      name: data.name,
+      avatarUrl: data.avatarUrl,
+      isVerified: data.isVerified,
+      rating: data.rating,
+      reviewCount: data.reviewCount,
+      location: data.location,
+      isAvailable: data.isAvailable,
     );
   }
 }

@@ -95,27 +95,45 @@ class _NameRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Flexible(
-          child: AutoDirectionText(
-            name ?? '',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: theme.colorScheme.secondaryContainer,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
+        Flexible(child: _NameText(name: name)),
         if (verified) ...[
           const SizedBox(width: Spacing.xSmall),
-          JeebVerifiedBadge(
-            semanticsLabel:
-                AppLocalizations.of(context).customerProfileVerifiedBadgeLabel,
-          ),
+          const _NameBadge(),
         ],
       ],
+    );
+  }
+}
+
+class _NameText extends StatelessWidget {
+  const _NameText({required this.name});
+
+  final String? name;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AutoDirectionText(
+      name ?? '',
+      style: theme.textTheme.headlineSmall?.copyWith(
+        color: theme.colorScheme.secondaryContainer,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+}
+
+class _NameBadge extends StatelessWidget {
+  const _NameBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return JeebVerifiedBadge(
+      semanticsLabel:
+          AppLocalizations.of(context).customerProfileVerifiedBadgeLabel,
     );
   }
 }

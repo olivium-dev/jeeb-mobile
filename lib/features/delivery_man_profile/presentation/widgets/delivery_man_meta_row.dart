@@ -27,17 +27,27 @@ class DeliveryManMetaRow extends StatelessWidget {
         children: [
           Icon(icon, size: Sizes.medium, color: theme.colorScheme.primary),
           const SizedBox(width: Spacing.xSmall),
-          Flexible(
-            child: Text(
-              text,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSecondaryContainer,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
+          Flexible(child: _MetaText(text: text)),
         ],
       ),
+    );
+  }
+}
+
+class _MetaText extends StatelessWidget {
+  const _MetaText({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Text(
+      text,
+      style: theme.textTheme.bodyMedium?.copyWith(
+        color: theme.colorScheme.onSecondaryContainer,
+      ),
+      overflow: TextOverflow.ellipsis,
     );
   }
 }

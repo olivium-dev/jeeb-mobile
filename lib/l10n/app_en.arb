@@ -2260,10 +2260,6 @@
   "@customerProfileVerifiedBadgeLabel": {
     "description": "Accessibility label for the verified-account seal badge next to the customer name."
   },
-  "customerProfileBackLabel": "Back",
-  "@customerProfileBackLabel": {
-    "description": "Accessibility label for the customer profile back button."
-  },
   "deliveryManProfileCloseLabel": "Close",
   "@deliveryManProfileCloseLabel": {
     "description": "Accessibility label for the close (X) button on the delivery-man public profile (Figma 56580:2697)."

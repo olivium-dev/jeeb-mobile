@@ -20,8 +20,6 @@ class DeliveryReviewsHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsetsDirectional.symmetric(
         horizontal: Spacing.large,
@@ -29,16 +27,27 @@ class DeliveryReviewsHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            l10n.deliveryManProfileReviewsTitle,
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: theme.colorScheme.secondaryContainer,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          const _ReviewsTitle(),
           const SizedBox(height: Spacing.xSmall),
           _CountAndViewAll(reviewCount: reviewCount, onViewAll: onViewAll),
         ],
+      ),
+    );
+  }
+}
+
+class _ReviewsTitle extends StatelessWidget {
+  const _ReviewsTitle();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return Text(
+      l10n.deliveryManProfileReviewsTitle,
+      style: theme.textTheme.titleMedium?.copyWith(
+        color: theme.colorScheme.secondaryContainer,
+        fontWeight: FontWeight.w700,
       ),
     );
   }

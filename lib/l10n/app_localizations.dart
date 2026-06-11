@@ -1274,7 +1274,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get customerProfileRateApp => _get('customerProfileRateApp');
   String get customerProfileVerifiedBadgeLabel =>
       _get('customerProfileVerifiedBadgeLabel');
-  String get customerProfileBackLabel => _get('customerProfileBackLabel');
 
   // --- Delivery Man public Profile (Figma 56580:2697, screen 27) ---
   String get deliveryManProfileCloseLabel =>
