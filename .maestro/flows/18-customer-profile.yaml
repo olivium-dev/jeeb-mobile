@@ -1,0 +1,75 @@
+# Jeeb mobile — 18 Customer Profile.
+# Figma node 56581:1910 (file ZOi3kKtw7sd42ssSVX3Kn4, flow profile-settings).
+#
+# WHAT THIS PROVES
+#   The customer profile renders (navbar "Profile" → avatar+name+email header →
+#   Account section [Register-as-delivery + Register pill, Password & security,
+#   Notification, Reset my location] → Support section [Contact us, Rate the
+#   app]) with every interactive element targeted BY SEMANTIC ID (verified in
+#   source on feat/jeeb-ui-parity-lane-b4):
+#     customer_profile_register_delivery_row  — CustomerProfileRow (Account)
+#     customer_profile_register_button        — CustomerRegisterPill (OmdsPrimaryButton)
+#     customer_profile_password_security_row  — CustomerProfileRow
+#     customer_profile_notification_row       — CustomerProfileRow
+#     customer_profile_reset_location_row     — CustomerProfileRow
+#     customer_profile_contact_us_row         — CustomerProfileRow (Support)
+#     customer_profile_rate_app_row           — CustomerProfileRow (Support)
+#
+# PRIMARY INTERACTION
+#   The "Register" pill is the screen's primary affordance: it starts
+#   delivery-man registration (route /register). On the dev seam the row is
+#   present + tappable; tapping navigates away from the profile, so the
+#   deterministic, assertible effect is: the pill is visible, tappable, and the
+#   profile root is no longer shown afterwards (honest nav-effect check, not an
+#   over-assertion of a gateway round-trip — pilot-learning #7).
+#
+# BACKEND / SEAM
+#   Dev seam: jeeb.route=/profile/customer → AppRouter lands directly on
+#   CustomerProfileScreen with the deterministic DevCustomerProfileFixtures
+#   (Sami Fawaz, verified, not-yet-jeeber). No live gateway. UI parity only
+#   (UI-GUARDRAILS §6). Seam knobs via launchApp.arguments (Android intent
+#   extras, release-inert — dev-seam-runtime.md).
+#
+# MAESTRO 2.x: extendedWaitUntil for timed waits (2.0.5 rejects inline
+#   assertVisible:{timeout}); waitForAnimationToEnd before screenshots; no fixed
+#   sleeps; no coordinate taps; id-based assertions only.
+#
+# Run:
+#   maestro --device NONE-DEVICE-FREE test -e APP_ID=app.jeeb.mobile.dev \
+#     --format JUNIT --output <evidence>/maestro/junit.xml \
+#     .maestro/flows/18-customer-profile.yaml
+appId: ${APP_ID}
+---
+- launchApp:
+    arguments:
+      jeeb.route: "/profile/customer"
+
+# Header + section rows — waited+asserted by id (cold launch).
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_register_delivery_row"
+    timeout: 25000
+- assertVisible:
+    id: "customer_profile_register_button"
+- assertVisible:
+    id: "customer_profile_password_security_row"
+- assertVisible:
+    id: "customer_profile_notification_row"
+- assertVisible:
+    id: "customer_profile_reset_location_row"
+- assertVisible:
+    id: "customer_profile_contact_us_row"
+- assertVisible:
+    id: "customer_profile_rate_app_row"
+
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 18_customer_profile
+
+# PRIMARY INTERACTION: tap Register; assert it navigates off the profile.
+- tapOn:
+    id: "customer_profile_register_button"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertNotVisible:
+    id: "customer_profile_register_delivery_row"
