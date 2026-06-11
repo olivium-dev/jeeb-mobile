@@ -1,0 +1,123 @@
+# Maestro flow — Chat (DM): "Confirm Heading off" sheet (screen 06)
+#
+# Figma node 56618:2852 (file ZOi3kKtw7sd42ssSVX3Kn4): the delivery-man chat
+# thread dimmed under a navy-tinted scrim with the "Confirm Heading off"
+# confirmation bottom sheet on top. Same sheet SHELL as state 05
+# (ConfirmDeliveryActionSheet) — only the title/subtitle copy differs
+# (confirmHeadingOffSheetTitle / confirmHeadingOffSheetSubtitle).
+#
+# Built screen: existing ChatScreen (delivery-man variant) + the shared
+#   ConfirmDeliveryActionSheet(kind: headingOff), rendered via the debug-only
+#   JEEB_DEV_CHAT seam (AppRouter redirect -> /dev-chat ->
+#   DevChatPreviewScreen(selector:'dm-confirm-heading-off')). The preview opens
+#   the sheet from a post-frame callback so the frame is captured WITHOUT a tap.
+#   kDebugMode-gated; inert in release (lib/core/router/app_router.dart).
+#
+# BACKEND: DevChatFixtureGateway(deliveryMan: true) — the workspace-sanctioned
+#   in-memory dev seam (UI-GUARDRAILS §6 / pilot learning #2). A PASS here
+#   certifies VISUAL UI PARITY ONLY, not end-to-end gateway integration. The
+#   dev-seam onConfirm is a NO-OP (() async {}); the real heading-off backend
+#   advance to live-tracking is a later integration gate (pilot learning #7).
+#
+# PREREQUISITE (sanctioned, documented in qa-verdict.md): the app must be built
+#   and installed with the dart-define that activates this capture seam:
+#     flutter build apk --debug --flavor dev --target-platform android-arm64 \
+#       --dart-define=JEEB_DEV_CHAT=dm-confirm-heading-off
+#   The flow does NOT set the dart-define (Maestro cannot inject Flutter
+#   compile-time defines); the build step IS the seam. clearState is intentionally
+#   NOT used — the seam redirect + post-frame sheet open fire deterministically on
+#   every cold launch of this build.
+#
+# Syntax: Maestro 2.0.5 — extendedWaitUntil for timeouts (inline assertVisible
+#   timeout is 1.x syntax and is REJECTED by 2.0.5); waitForAnimationToEnd before
+#   every takeScreenshot; assert by Semantics identifier only — no coordinate
+#   taps, no sleeps, no localized-text matching (this screen ships en + ar).
+#
+# ── SEMANTICS-MERGING TRAP (re-verified for screen 06 via `maestro hierarchy`,
+#    2026-06-11) ───────────────────────────────────────────────────────────────
+# With the sheet open, the ONLY jeeb id Maestro's Android a11y view hierarchy
+# exposes is `confirm_delivery_action_sheet`. Flutter's semantics compositor
+# MERGES the leaf children — drag handle (confirm_delivery_drag_handle), title
+# (confirm_delivery_title) and the Confirm CTA (confirm_delivery_confirm_button,
+# which IS wrapped in Semantics(button:true)+Key in source) — into that single
+# sheet node; their text is concatenated into the parent's accessibilityText and
+# the individual identifiers are NOT independently selectable (verified: grep of
+# `maestro hierarchy` returns 1× confirm_delivery_action_sheet, 0× each child id).
+# The dimmed DM chat behind it (chat_detail_message_list / chat_dm_fee_banner) is
+# filtered out entirely by the modal barrier (0× in the hierarchy).
+#
+# PRIMARY-ACTION GAP (re-verified 2026-06-11): a `tapOn: id:
+# confirm_delivery_action_sheet` does NOT trigger the Confirm CTA's onTap — the
+# sheet does NOT dismiss (probe run: notVisible assertion FAILED after the tap).
+# Driving the Confirm tap would require a coordinate/point tap, a banned Maestro
+# anti-pattern (AP-1), and UI-GUARDRAILS §8 instant-fail #12 forbids making a flow
+# "pass" without genuinely exercising the primary action. The tap is therefore
+# intentionally NOT faked. This flow asserts the genuinely-exposed sheet node and
+# validates the sheet interior (handle / illustration / heading-off title /
+# subtitle / Confirm CTA) + the dimmed chat behind it via the UX visual-parity
+# verdict on emulator_en.png / emulator_ar.png. See qa-verdict.md "Blocking
+# findings" — the engineer fix (independent semantics boundary on the CTA) is the
+# same one tracked for screen 05.
+
+appId: ${APP_ID}
+---
+- launchApp:
+    stopApp: true
+
+# --- State renders: the confirm-heading-off sheet is on screen over the chat --
+# The sheet node is the deterministic landing element; the dev preview's
+# post-frame callback opens it on cold launch. We wait for it (cold start +
+# redirect + sheet present + scrim fade) rather than asserting a fixed-time sleep.
+# Timeout is a generous 40s to absorb this AVD's slow Flutter first-frame
+# (2 GB / Impeller-on-software-GL ~15-25s first-frame), per AP-3 (generous async
+# timeouts) — NOT a fixed sleep.
+- extendedWaitUntil:
+    visible:
+      id: "confirm_delivery_action_sheet"
+    timeout: 40000
+- waitForAnimationToEnd
+
+# --- Key elements visible: the merged sheet node carries the heading-off copy --
+# Because Flutter merges the sheet's leaves, the title/subtitle/CTA text is
+# concatenated onto the sheet node's accessibilityText. Asserting the node is
+# present is the strongest id-based assertion the exposed hierarchy allows.
+# (The title/subtitle CONTENT — "Confirm Heading off" vs "Confirm Picking the
+# order" — is what distinguishes 06 from 05; it is verified visually by the UX
+# seat on the screenshots below, since the per-leaf ids are not addressable and
+# the copy is localized en/ar.)
+- assertVisible:
+    id: "confirm_delivery_action_sheet"
+
+# --- Capture the rendered confirm-heading-off sheet over the dimmed chat -------
+# This screenshot is the visual-parity artifact the UX seat verifies against the
+# Figma frame 56618:2852: drag handle, navy parcel+clock+pin illustration, navy
+# title "Confirm Heading off", periwinkle subtitle "Help user track the order",
+# full-width navy Confirm CTA, all over the dimmed DM thread + fee banner.
+- waitForAnimationToEnd
+- takeScreenshot: "06-confirm-heading-off-sheet"
+
+# --- PRIMARY INTERACTION — BLOCKED by the semantics-merge trap (see header) ----
+# The Confirm CTA is the screen's primary action (confirm heading-off -> dismiss
+# sheet -> live-tracking phase). It has NO independently id-addressable node and a
+# tapOn the merged sheet node does NOT fire its onTap (probe-verified: sheet does
+# not dismiss). A coordinate tap is banned (AP-1) and faking a pass is banned
+# (§8 #12), so the tap is intentionally omitted here, NOT silently passed.
+#
+# FIX (engineer — handed to the CTO loop, shared with screen 05): give the Confirm
+# CTA an independent semantics boundary so it is a separately selectable, tappable
+# node — e.g. set `explicitChildNodes: true` on the sheet-root Semantics, or wrap
+# the OmdsLoadingButton in Semantics(container: true) / MergeSemantics, the way the
+# chat composer icon buttons are exposed. Once the button is independently
+# selectable, append:
+#
+#   - tapOn:
+#       id: "confirm_delivery_confirm_button"
+#   - waitForAnimationToEnd
+#   - extendedWaitUntil:
+#       notVisible:
+#         id: "confirm_delivery_action_sheet"
+#       timeout: 10000
+#
+# (Even with the id fix, the dev-seam onConfirm is a NO-OP that only pops the
+#  sheet; the real heading-off backend advance is a later integration gate, not
+#  this UI-parity run — pilot learning #7.)
