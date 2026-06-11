@@ -1253,4 +1253,65 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get voiceRecordingTitle => _get('voiceRecordingTitle');
   String get splashTagline => _get('splashTagline');
   String get splashLogoSemantic => _get('splashLogoSemantic');
+
+  // --- Customer Profile (Figma 56581:1910, screen 18) ---
+  String get customerProfileTitle => _get('customerProfileTitle');
+  String get customerProfileSectionAccount =>
+      _get('customerProfileSectionAccount');
+  String get customerProfileRegisterAsDelivery =>
+      _get('customerProfileRegisterAsDelivery');
+  String get customerProfileRegisterCta =>
+      _get('customerProfileRegisterCta');
+  String get customerProfilePasswordSecurity =>
+      _get('customerProfilePasswordSecurity');
+  String get customerProfileNotification =>
+      _get('customerProfileNotification');
+  String get customerProfileResetLocation =>
+      _get('customerProfileResetLocation');
+  String get customerProfileSectionSupport =>
+      _get('customerProfileSectionSupport');
+  String get customerProfileContactUs => _get('customerProfileContactUs');
+  String get customerProfileRateApp => _get('customerProfileRateApp');
+  String get customerProfileVerifiedBadgeLabel =>
+      _get('customerProfileVerifiedBadgeLabel');
+  String get customerProfileBackLabel => _get('customerProfileBackLabel');
+
+  // --- Delivery Man public Profile (Figma 56580:2697, screen 27) ---
+  String get deliveryManProfileCloseLabel =>
+      _get('deliveryManProfileCloseLabel');
+  String get deliveryManProfileVerifiedBadgeLabel =>
+      _get('deliveryManProfileVerifiedBadgeLabel');
+  String get deliveryManProfileAvailable =>
+      _get('deliveryManProfileAvailable');
+  String get deliveryManProfileUnavailable =>
+      _get('deliveryManProfileUnavailable');
+  String deliveryManProfileRatingSummary(String rating, int count) =>
+      _get('deliveryManProfileRatingSummary')
+          .replaceFirst('{rating}', rating)
+          .replaceFirst('{count}', '$count');
+  String deliveryManProfileLocationAvailability(
+    String location,
+    String availability,
+  ) =>
+      _get('deliveryManProfileLocationAvailability')
+          .replaceFirst('{location}', location)
+          .replaceFirst('{availability}', availability);
+  String get deliveryManProfileReviewsTitle =>
+      _get('deliveryManProfileReviewsTitle');
+  String deliveryManProfileReviewsCount(int count) =>
+      _get('deliveryManProfileReviewsCount').replaceFirst('{count}', '$count');
+  String get deliveryManProfileViewAllReviews =>
+      _get('deliveryManProfileViewAllReviews');
+  String deliveryManProfileRatingStarsLabel(String rating) =>
+      _get('deliveryManProfileRatingStarsLabel')
+          .replaceFirst('{rating}', rating);
+  String get deliveryManProfileEmptyReviewsTitle =>
+      _get('deliveryManProfileEmptyReviewsTitle');
+  String get deliveryManProfileEmptyReviewsSubtitle =>
+      _get('deliveryManProfileEmptyReviewsSubtitle');
+  String get reviewerVerifiedBadge => _get('reviewerVerifiedBadge');
+  String get reviewHelpfulAction => _get('reviewHelpfulAction');
+  String get reviewReplyAction => _get('reviewReplyAction');
+  String reviewRelativeDaysAgo(int count) =>
+      _get('reviewRelativeDaysAgo').replaceFirst('{count}', '$count');
 }

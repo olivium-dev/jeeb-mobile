@@ -2215,5 +2215,134 @@
   "splashLogoSemantic": "Jeeb",
   "@splashLogoSemantic": {
     "description": "Accessibility label announced for the Jeeb brand wordmark artwork on the splash screen. Brand name; identical in every locale."
+  },
+  "customerProfileTitle": "Profile",
+  "@customerProfileTitle": {
+    "description": "Customer Profile screen navbar title (Figma 56581:1910)."
+  },
+  "customerProfileSectionAccount": "Account",
+  "@customerProfileSectionAccount": {
+    "description": "Account section header on the customer profile screen."
+  },
+  "customerProfileRegisterAsDelivery": "Register as a delivery",
+  "@customerProfileRegisterAsDelivery": {
+    "description": "Row that lets a customer start delivery-man (Jeeber) registration."
+  },
+  "customerProfileRegisterCta": "Register",
+  "@customerProfileRegisterCta": {
+    "description": "Pill button on the register-as-delivery row."
+  },
+  "customerProfilePasswordSecurity": "Password and security",
+  "@customerProfilePasswordSecurity": {
+    "description": "Customer profile row opening password and security settings."
+  },
+  "customerProfileNotification": "Notification",
+  "@customerProfileNotification": {
+    "description": "Customer profile row opening notification preferences."
+  },
+  "customerProfileResetLocation": "Reset my location",
+  "@customerProfileResetLocation": {
+    "description": "Customer profile row to clear the saved default location."
+  },
+  "customerProfileSectionSupport": "Support",
+  "@customerProfileSectionSupport": {
+    "description": "Support section header on the customer profile screen."
+  },
+  "customerProfileContactUs": "Contact us",
+  "@customerProfileContactUs": {
+    "description": "Customer profile support row to contact the support team."
+  },
+  "customerProfileRateApp": "Rate the app",
+  "@customerProfileRateApp": {
+    "description": "Customer profile support row to rate the app."
+  },
+  "customerProfileVerifiedBadgeLabel": "Verified account",
+  "@customerProfileVerifiedBadgeLabel": {
+    "description": "Accessibility label for the verified-account seal badge next to the customer name."
+  },
+  "customerProfileBackLabel": "Back",
+  "@customerProfileBackLabel": {
+    "description": "Accessibility label for the customer profile back button."
+  },
+  "deliveryManProfileCloseLabel": "Close",
+  "@deliveryManProfileCloseLabel": {
+    "description": "Accessibility label for the close (X) button on the delivery-man public profile (Figma 56580:2697)."
+  },
+  "deliveryManProfileVerifiedBadgeLabel": "Verified",
+  "@deliveryManProfileVerifiedBadgeLabel": {
+    "description": "Accessibility label for the verified seal badge next to the delivery-man name."
+  },
+  "deliveryManProfileAvailable": "Available",
+  "@deliveryManProfileAvailable": {
+    "description": "Availability label shown when the delivery man can accept requests."
+  },
+  "deliveryManProfileUnavailable": "Unavailable",
+  "@deliveryManProfileUnavailable": {
+    "description": "Availability label shown when the delivery man cannot accept requests."
+  },
+  "deliveryManProfileRatingSummary": "{rating} . {count} Reviews",
+  "@deliveryManProfileRatingSummary": {
+    "description": "Header rating summary: numeric rating, separator, review count.",
+    "placeholders": {
+      "rating": { "type": "String" },
+      "count": { "type": "int" }
+    }
+  },
+  "deliveryManProfileLocationAvailability": "{location} . {availability}",
+  "@deliveryManProfileLocationAvailability": {
+    "description": "Header location row: location name, separator, availability label.",
+    "placeholders": {
+      "location": { "type": "String" },
+      "availability": { "type": "String" }
+    }
+  },
+  "deliveryManProfileReviewsTitle": "Reviews",
+  "@deliveryManProfileReviewsTitle": {
+    "description": "Reviews section heading on the delivery-man public profile."
+  },
+  "deliveryManProfileReviewsCount": "{count} Reviews",
+  "@deliveryManProfileReviewsCount": {
+    "description": "Total review count label above the reviews list.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "deliveryManProfileViewAllReviews": "View all",
+  "@deliveryManProfileViewAllReviews": {
+    "description": "Action that opens the full paginated reviews list."
+  },
+  "deliveryManProfileRatingStarsLabel": "Rated {rating} out of 5",
+  "@deliveryManProfileRatingStarsLabel": {
+    "description": "Accessibility label announcing the delivery-man star rating.",
+    "placeholders": {
+      "rating": { "type": "String" }
+    }
+  },
+  "deliveryManProfileEmptyReviewsTitle": "No reviews yet",
+  "@deliveryManProfileEmptyReviewsTitle": {
+    "description": "Empty-state title when the delivery man has no reviews."
+  },
+  "deliveryManProfileEmptyReviewsSubtitle": "Reviews from clients will appear here.",
+  "@deliveryManProfileEmptyReviewsSubtitle": {
+    "description": "Empty-state subtitle when the delivery man has no reviews."
+  },
+  "reviewerVerifiedBadge": "Verified Client",
+  "@reviewerVerifiedBadge": {
+    "description": "Subtitle under a reviewer name marking them as a verified client (domain-corrected from the Figma 'Verified Technician' per spec flag)."
+  },
+  "reviewHelpfulAction": "Helpful",
+  "@reviewHelpfulAction": {
+    "description": "Label of the 'helpful' vote action on a review card; count appended by the card."
+  },
+  "reviewReplyAction": "Reply",
+  "@reviewReplyAction": {
+    "description": "Label of the reply action on a review card."
+  },
+  "reviewRelativeDaysAgo": "{count} days ago",
+  "@reviewRelativeDaysAgo": {
+    "description": "Relative timestamp for a review posted N days ago.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
   }
 }
