@@ -102,7 +102,7 @@ class _ActiveOrderBody extends StatelessWidget {
       children: [
         _ActiveOrderHeader(title: request.title, tier: request.tier),
         const SizedBox(height: Spacing.twoXSmall),
-        _ActiveOrderDestination(label: request.destinationLabel),
+        _ActiveOrderDestination(label: request.summaryLine),
         const SizedBox(height: Spacing.medium),
         _ActiveOrderProgressBar(progressStep: request.progressStep),
         const SizedBox(height: Spacing.small),
@@ -112,8 +112,13 @@ class _ActiveOrderBody extends StatelessWidget {
     );
   }
 
+  /// The "Track my order" CTA shows once a Jeeber is engaged and the order is
+  /// physically trackable — accepted, at pickup, or en route. A request that is
+  /// still merely searching for a Jeeber has nothing to track yet.
   static bool _canTrack(ClientRequestStatus s) =>
-      s == ClientRequestStatus.searching || s == ClientRequestStatus.accepted;
+      s == ClientRequestStatus.accepted ||
+      s == ClientRequestStatus.atPickup ||
+      s == ClientRequestStatus.enRoute;
 }
 
 class _ActiveOrderHeader extends StatelessWidget {
@@ -250,12 +255,13 @@ class _ActiveOrderProgressLabels extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    final l10n = AppLocalizations.of(context);
+    return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _ProgressStepLabel(text: 'Ordered'),
-        _ProgressStepLabel(text: 'Picked'),
-        _ProgressStepLabel(text: 'In Transit'),
+        _ProgressStepLabel(text: l10n.homeStageOrdered),
+        _ProgressStepLabel(text: l10n.homeStagePicked),
+        _ProgressStepLabel(text: l10n.homeStageInTransit),
       ],
     );
   }
@@ -294,7 +300,7 @@ class _TrackOrderButton extends StatelessWidget {
         child: SizedBox(
           height: Sizes.twoXLarge,
           child: OmdsPrimaryButton(
-            text: 'Track my order',
+            text: AppLocalizations.of(context).homeTrackOrderCta,
             onTap: onTap,
             borderRadius: OmdsBorderRadius.pill,
           ),

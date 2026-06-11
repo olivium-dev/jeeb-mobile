@@ -3,7 +3,6 @@ import 'package:omds/omds.dart';
 
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/client_home_request.dart';
-import 'active_request_card.dart';
 
 /// Replies-tab row matching the Figma `+6 offers` panel.
 ///
@@ -27,15 +26,20 @@ class RepliesCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       key: Key('replies-card-${request.id}'),
-      padding: const EdgeInsets.symmetric(
+      padding: const EdgeInsetsDirectional.symmetric(
         horizontal: Spacing.medium,
-        vertical: Spacing.xSmall,
+        vertical: Spacing.small,
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _RepliesRow(request: request, onCheckOffers: onCheckOffers),
+          _RepliesHeader(request: request),
+          const SizedBox(height: Spacing.twoXSmall),
+          _RepliesSummary(text: request.summaryLine),
+          const SizedBox(height: Spacing.small),
+          _RepliesCheckOffersButton(request: request, onTap: onCheckOffers),
           Padding(
-            padding: const EdgeInsets.only(top: Spacing.xSmall),
+            padding: const EdgeInsetsDirectional.only(top: Spacing.small),
             child: Divider(height: 1, color: colorScheme.outlineVariant),
           ),
         ],
@@ -44,160 +48,167 @@ class RepliesCard extends StatelessWidget {
   }
 }
 
-class _RepliesRow extends StatelessWidget {
-  const _RepliesRow({required this.request, required this.onCheckOffers});
+/// Order id on the start, the offerer avatar stack + "+N" count on the end.
+class _RepliesHeader extends StatelessWidget {
+  const _RepliesHeader({required this.request});
 
   final ClientHomeRequest request;
-  final VoidCallback onCheckOffers;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _RepliesAvatar(initial: _initialFor(request.title)),
-        const SizedBox(width: Spacing.twoXSmall),
-        Expanded(
-          child: _RepliesBody(request: request, onCheckOffers: onCheckOffers),
-        ),
-      ],
-    );
-  }
-
-  static String _initialFor(String title) {
-    final trimmed = title.trim();
-    return trimmed.isEmpty ? '?' : trimmed[0];
-  }
-}
-
-class _RepliesAvatar extends StatelessWidget {
-  const _RepliesAvatar({required this.initial});
-
-  final String initial;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return OmdsProfileAvatar(
-      initial: initial,
-      size: Sizes.threeXLarge,
-      backgroundColor: colorScheme.surfaceContainerHigh,
-      initialColor: colorScheme.primary,
-    );
-  }
-}
-
-class _RepliesBody extends StatelessWidget {
-  const _RepliesBody({required this.request, required this.onCheckOffers});
-
-  final ClientHomeRequest request;
-  final VoidCallback onCheckOffers;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Flexible(
-              child: Text(
-                request.displayId ?? request.title,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: theme.colorScheme.onSurface,
-                  fontWeight: FontWeight.w400,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+        Expanded(
+          child: Text(
+            request.displayId ?? request.title,
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: theme.colorScheme.secondaryContainer,
+              fontWeight: FontWeight.w400,
             ),
-            const SizedBox(width: Spacing.xSmall),
-            ClientHomeTierBadge(tier: request.tier),
-          ],
-        ),
-        const SizedBox(height: Spacing.twoXSmall),
-        Text(
-          request.destinationLabel,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSecondaryContainer,
-            letterSpacing: 0.4,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(height: Spacing.small),
+        const SizedBox(width: Spacing.xSmall),
         _OfferAvatarStack(
+          requestId: request.id,
           avatarUrls: request.offerAvatarUrls,
           totalCount: request.offerCount,
-        ),
-        const SizedBox(height: Spacing.small),
-        Align(
-          alignment: AlignmentDirectional.centerEnd,
-          child: SizedBox(
-            height: Sizes.twoXLarge,
-            child: OmdsPrimaryButton(
-              key: Key('replies-check-offers-${request.id}'),
-              text: AppLocalizations.of(context).homeRepliesCheckOffersCta,
-              onTap: onCheckOffers,
-              borderRadius: OmdsBorderRadius.pill,
-            ),
-          ),
         ),
       ],
     );
   }
 }
 
-/// Horizontally-overlapped avatars with a "+N" pill once the count exceeds
-/// what we render inline. Used by the Replies card to surface the offerers
-/// without a separate screen.
+class _RepliesSummary extends StatelessWidget {
+  const _RepliesSummary({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Text(
+      text,
+      style: theme.textTheme.bodySmall?.copyWith(
+        color: theme.colorScheme.onSecondaryContainer,
+        letterSpacing: 0.4,
+      ),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
+class _RepliesCheckOffersButton extends StatelessWidget {
+  const _RepliesCheckOffersButton({required this.request, required this.onTap});
+
+  final ClientHomeRequest request;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: AlignmentDirectional.centerEnd,
+      child: SizedBox(
+        height: Sizes.twoXLarge,
+        child: Semantics(
+          identifier: 'orders_replies_check_offers_${request.id}',
+          button: true,
+          child: OmdsPrimaryButton(
+            key: Key('replies-check-offers-${request.id}'),
+            text: AppLocalizations.of(context).homeRepliesCheckOffersCta,
+            onTap: onTap,
+            borderRadius: OmdsBorderRadius.pill,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Overlapping offerer avatars followed by a navy "+N" overflow count,
+/// matching the Figma `+6` cluster on the end of the Replies card header. No
+/// OMDS avatar-stack primitive exists yet — flagged as an extraction candidate
+/// for `omds-flutter` (`flutter-component-extraction-aggressive`).
 class _OfferAvatarStack extends StatelessWidget {
   const _OfferAvatarStack({
+    required this.requestId,
     required this.avatarUrls,
     required this.totalCount,
   });
 
   static const int _maxInline = 3;
 
+  final String requestId;
   final List<String> avatarUrls;
   final int totalCount;
 
   @override
   Widget build(BuildContext context) {
     if (totalCount == 0) return const SizedBox.shrink();
-    final colorScheme = Theme.of(context).colorScheme;
     final inline = avatarUrls.take(_maxInline).toList(growable: false);
     final extra = totalCount - inline.length;
-    return Row(
-      children: [
-        for (var i = 0; i < inline.length; i++)
-          Padding(
-            padding: EdgeInsetsDirectional.only(start: i == 0 ? 0 : Spacing.twoXSmall),
-            child: _OfferAvatar(url: inline[i]),
-          ),
-        if (extra > 0) ...[
-          const SizedBox(width: Spacing.xSmall),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: Spacing.small,
-              vertical: Spacing.twoXSmall,
-            ),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHigh,
-              borderRadius: OmdsBorderRadius.pill,
-            ),
-            child: Text(
-              '+$extra',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: colorScheme.onSurface,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-          ),
+    return Semantics(
+      identifier: 'orders_replies_avatar_stack_$requestId',
+      label: '$totalCount',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _OverlappingAvatars(urls: inline),
+          if (extra > 0) ...[
+            const SizedBox(width: Spacing.twoXSmall),
+            _OfferOverflowCount(extra: extra),
+          ],
         ],
-      ],
+      ),
+    );
+  }
+}
+
+class _OverlappingAvatars extends StatelessWidget {
+  const _OverlappingAvatars({required this.urls});
+
+  final List<String> urls;
+
+  @override
+  Widget build(BuildContext context) {
+    const overlap = Sizes.medium;
+    final width = urls.isEmpty
+        ? 0.0
+        : Sizes.large + (urls.length - 1) * (Sizes.large - overlap);
+    return SizedBox(
+      width: width,
+      height: Sizes.large,
+      child: Stack(
+        children: [
+          for (var i = 0; i < urls.length; i++)
+            PositionedDirectional(
+              start: i * (Sizes.large - overlap),
+              child: _OfferAvatar(url: urls[i]),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OfferOverflowCount extends StatelessWidget {
+  const _OfferOverflowCount({required this.extra});
+
+  final int extra;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Text(
+      '+$extra',
+      style: theme.textTheme.titleMedium?.copyWith(
+        color: theme.colorScheme.onSecondaryContainer,
+        fontWeight: FontWeight.w500,
+      ),
     );
   }
 }

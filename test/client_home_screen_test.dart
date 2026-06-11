@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
+import 'package:jeeb_mobile/features/home_client/application/client_home_state.dart';
 import 'package:jeeb_mobile/features/home_client/data/in_memory_client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_request.dart';
@@ -47,6 +48,7 @@ Widget _harness({
   void Function(ClientHomeRequest)? onOpenRequest,
   VoidCallback? onCreateRequest,
   Locale locale = const Locale('en'),
+  ClientHomeTab initialTab = ClientHomeTab.inProgress,
 }) {
   return MaterialApp(
     theme: AppTheme.light(),
@@ -65,11 +67,58 @@ Widget _harness({
           greetingNameProvider: () => greetingName,
         ),
         child: ClientHomeScreen(
+          initialTab: initialTab,
           onOpenRequest: onOpenRequest,
           onCreateRequest: onCreateRequest,
         ),
       ),
     ),
+  );
+}
+
+/// Snapshot covering all three My Orders tabs, mirroring the Figma mock data
+/// for screens 13/14/15.
+ClientHomeRepository _threeTabRepo() {
+  return InMemoryClientHomeRepository.fromSnapshot(
+    const ClientHomeSnapshot(
+      inProgress: [
+        ClientHomeRequest(
+          id: 'ip-1',
+          title: 'Kamal Hajj',
+          destinationLabel: '1 kilo potato, water gallon, coffee blend',
+          itemsSummary: '1 kilo potato, water gallon, coffee blend',
+          status: ClientRequestStatus.enRoute,
+          tier: ClientRequestTier.flash,
+          progressStep: 3,
+        ),
+      ],
+      pending: [
+        ClientHomeRequest(
+          id: 'pen-1',
+          title: 'ORD-23470',
+          displayId: 'ORD-23470',
+          destinationLabel: '1 kilo potato, water gallon, coffee blend',
+          itemsSummary: '1 kilo potato, water gallon, coffee blend',
+          status: ClientRequestStatus.searching,
+          tier: ClientRequestTier.express,
+        ),
+      ],
+      replies: [
+        ClientHomeRequest(
+          id: 'rep-1',
+          title: 'ORD-23470',
+          displayId: 'ORD-23470',
+          destinationLabel: '1 kilo potato, water gallon, coffee blend',
+          itemsSummary: '1 kilo potato, water gallon, coffee blend',
+          status: ClientRequestStatus.offersReceived,
+          tier: ClientRequestTier.express,
+          offerCount: 9,
+          offerAvatarUrls: ['', '', ''],
+          conversationId: 'conv-rep-1',
+        ),
+      ],
+    ),
+    latency: Duration.zero,
   );
 }
 
@@ -198,7 +247,7 @@ void main() {
             id: 'r-1',
             title: 'Grocery pickup',
             destinationLabel: 'Hamra',
-            status: ClientRequestStatus.searching,
+            status: ClientRequestStatus.accepted,
           ),
         ],
       );
@@ -233,6 +282,83 @@ void main() {
       expect(find.text('لا توجد طلبات بعد'), findsOneWidget);
       expect(find.text('كل ما تطلبه يظهر هنا.'), findsOneWidget);
       expect(find.text('طلب جديد'), findsOneWidget);
+    });
+  });
+
+  // The three client "My Orders" filter variants render off one screen
+  // (Figma 56535:1525 / 1783 / 2251). initialTab selects which list shows.
+  group('ClientHomeScreen My Orders filter variants', () {
+    testWidgets(
+        'In Progress (screen 15) shows the jeeber name, items summary, tier '
+        'badge, stage labels, and Track CTA', (tester) async {
+      await tester.pumpWidget(_harness(repo: _threeTabRepo()));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('active-request-card-ip-1')), findsOneWidget);
+      expect(find.text('Kamal Hajj'), findsOneWidget);
+      expect(
+        find.text('1 kilo potato, water gallon, coffee blend'),
+        findsOneWidget,
+      );
+      expect(find.text('Flash'), findsOneWidget);
+      expect(find.text('Ordered'), findsOneWidget);
+      expect(find.text('Track my order'), findsOneWidget);
+    });
+
+    testWidgets(
+        'Pending Requests (screen 13) shows the order id + items + tier with '
+        'no avatar / progress / CTA', (tester) async {
+      await tester.pumpWidget(
+        _harness(repo: _threeTabRepo(), initialTab: ClientHomeTab.pendingRequests),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('pending-requests-list')), findsOneWidget);
+      expect(find.text('ORD-23470'), findsOneWidget);
+      expect(find.text('Express'), findsOneWidget);
+      expect(find.text('Track my order'), findsNothing);
+      expect(find.text('Ordered'), findsNothing);
+    });
+
+    testWidgets(
+        'Replies (screen 14) shows the order id, +N overflow, and Check '
+        'Offers CTA', (tester) async {
+      ClientHomeRequest? opened;
+      await tester.pumpWidget(_harness(
+        repo: _threeTabRepo(),
+        initialTab: ClientHomeTab.replies,
+        onOpenRequest: (r) => opened = r,
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('replies-card-rep-1')), findsOneWidget);
+      expect(find.text('+6'), findsOneWidget);
+      expect(find.text('Check Offers'), findsOneWidget);
+
+      await tester.tap(find.text('Check Offers'));
+      await tester.pumpAndSettle();
+      expect(opened?.id, 'rep-1');
+    });
+
+    testWidgets('filter chips carry stable Semantics identifiers',
+        (tester) async {
+      await tester.pumpWidget(_harness(repo: _threeTabRepo()));
+      await tester.pumpAndSettle();
+
+      final handle = tester.ensureSemantics();
+      expect(
+        find.bySemanticsIdentifier('orders_filter_inProgress'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('orders_filter_pendingRequests'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('orders_filter_replies'),
+        findsOneWidget,
+      );
+      handle.dispose();
     });
   });
 }
