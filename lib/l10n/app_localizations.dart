@@ -82,6 +82,11 @@ class AppLocalizations {
   String get homePendingEmpty => _get('homePendingEmpty');
   String get homeRepliesEmpty => _get('homeRepliesEmpty');
   String get homeRepliesCheckOffersCta => _get('homeRepliesCheckOffersCta');
+  String get homeSearchHint => _get('homeSearchHint');
+  String get homeTrackOrderCta => _get('homeTrackOrderCta');
+  String get homeStageOrdered => _get('homeStageOrdered');
+  String get homeStagePicked => _get('homeStagePicked');
+  String get homeStageInTransit => _get('homeStageInTransit');
   String get chatOfferAccept => _get('chatOfferAccept');
   String get chatOfferAccepting => _get('chatOfferAccepting');
   String chatOfferEtaMinutes(int minutes) =>

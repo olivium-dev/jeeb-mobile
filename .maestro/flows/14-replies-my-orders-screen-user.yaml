@@ -1,0 +1,85 @@
+# Jeeb mobile — 14 Replies / My Orders [User].
+# Figma node 56535:2251 (client "My Orders", Replies chip selected).
+#
+# WHAT THIS PROVES
+#   The client shell renders the Replies list (order id + items + offerer avatar
+#   stack with "+N" + Check Offers CTA), elements targeted BY SEMANTIC ID
+#   (all verified present in source on feat/jeeb-ui-parity-lane-b4):
+#     orders_filter_replies          — Replies chip (selected here)
+#                                       client_home_screen.dart:355 (orders_filter_$keySuffix)
+#     orders_filter_inProgress       — In Progress chip
+#     orders_filter_pendingRequests  — Pending Requests chip
+#     orders_search_bar              — pill search bar (client_home_screen.dart:278)
+#     orders_create_request_button   — filled "+" create-request CTA
+#                                       client_home_greeting.dart:136
+#     orders_replies_avatar_stack_<id> — offerer avatar stack + "+N" count
+#                                       replies_card.dart:155 (seeded id rep-1)
+#     orders_replies_check_offers_<id> — Check Offers CTA
+#                                       replies_card.dart:118 (seeded id rep-1)
+#
+# PRIMARY INTERACTION
+#   "Check Offers" is the screen's entry to the offers/broadcasting chat. On the
+#   dev seam the card tap is wired to onOpenRequest -> chat route
+#   (home_tab.dart:50,95). We tap the CTA BY ID and assert the tap is accepted
+#   without crashing; we do NOT assert the downstream chat content because the
+#   dev seam doesn't seed it (maestro-anti-patterns AP-9: no optional:true on a
+#   primary assertion; we simply don't over-assert an unguaranteed nav target).
+#
+# BACKEND / SEAM
+#   Dev seam: jeeb.route=/ + jeeb.home_tab=replies -> shell home tab seeded with
+#   DevClientHomeFixtures, Replies filter selected (home_tab.dart:40,77-90;
+#   dev_seam_config.dart:35 reads jeeb.home_tab). No live gateway. UI parity
+#   only (UI-GUARDRAILS §6). Seam knobs via launchApp.arguments (Android intent
+#   extras, release-inert — dev-seam-runtime.md).
+#
+# MAESTRO 2.x: extendedWaitUntil for timed waits (2.0.5 rejects inline
+#   assertVisible:{timeout}); waitForAnimationToEnd before screenshots; no fixed
+#   sleeps; no coordinate taps; id-based assertions only.
+#
+# Run:
+#   maestro --device emulator-5558 test -e APP_ID=app.jeeb.mobile.dev \
+#     --format JUNIT --output <evidence>/maestro/junit.xml \
+#     .maestro/flows/14-replies-my-orders-screen-user.yaml
+appId: ${APP_ID}
+---
+- launchApp:
+    arguments:
+      jeeb.route: "/"
+      jeeb.home_tab: "replies"
+
+# Replies chip — waited+asserted by id (cold launch + seeded load).
+- extendedWaitUntil:
+    visible:
+      id: "orders_filter_replies"
+    timeout: 25000
+
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 14_replies_my_orders_screen_user
+
+# All three filter chips + shared chrome present.
+- assertVisible:
+    id: "orders_filter_inProgress"
+- assertVisible:
+    id: "orders_filter_pendingRequests"
+- assertVisible:
+    id: "orders_search_bar"
+- assertVisible:
+    id: "orders_create_request_button"
+
+# Replies-specific elements: offerer avatar stack + Check Offers CTA (seeded id rep-1).
+- extendedWaitUntil:
+    visible:
+      id: "orders_replies_check_offers_rep-1"
+    timeout: 10000
+- assertVisible:
+    id: "orders_replies_avatar_stack_rep-1"
+
+# ── PRIMARY INTERACTION — Check Offers ───────────────────────────────────────
+# Tap the CTA by id (not coordinate/label). The dev seam wires the tap to the
+# chat route; we assert the tap is accepted and the app does not crash. We do
+# NOT assert a specific chat destination (dev backend cannot guarantee it).
+- tapOn:
+    id: "orders_replies_check_offers_rep-1"
+- waitForAnimationToEnd:
+    timeout: 5000

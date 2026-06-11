@@ -28,6 +28,17 @@ void main() {
       expect(config.chatSelector, isEmpty);
     });
 
+    test('maps jeeb.home_tab onto homeTab and flags hasHomeTab', () {
+      final config = DevSeamConfig.fromMap({
+        'jeeb.route': '/',
+        'jeeb.home_tab': '  replies ',
+      });
+
+      expect(config.homeTab, 'replies');
+      expect(config.hasHomeTab, isTrue);
+      expect(config.isEmpty, isFalse);
+    });
+
     test('accepts 1/yes as truthy hold_splash, everything else false', () {
       expect(DevSeamConfig.fromMap({'jeeb.hold_splash': '1'}).holdSplash, isTrue);
       expect(

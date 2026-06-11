@@ -1,9 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/dev_seam/dev_seam.dart';
 import '../../home_client/application/client_home_cubit.dart';
+import '../../home_client/application/client_home_state.dart';
+import '../../home_client/data/dev_client_home_fixtures.dart';
 import '../../home_client/data/in_memory_client_home_repository.dart';
 import '../../home_client/domain/client_home_repository.dart';
 import '../../home_client/domain/client_home_request.dart';
@@ -33,28 +37,56 @@ class HomeTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final devTab = _devSeamTab();
     return BlocProvider(
       key: const Key('home-tab-cubit'),
       create: (_) => ClientHomeCubit(
-        repository: repository ?? _resolveRepository(),
-        greetingNameProvider: greetingNameProvider ?? () => null,
+        repository: repository ?? _resolveRepository(devTab != null),
+        greetingNameProvider: greetingNameProvider ?? _resolveGreetingName,
       ),
       child: ClientHomeScreen(
         key: const Key('home-tab-root'),
+        initialTab: devTab ?? ClientHomeTab.inProgress,
         onOpenRequest: (request) => _openChat(context, request),
       ),
     );
   }
 
   /// Pulls the [DioClientHomeRepository] off GetIt when available so the
-  /// home tab talks to the mock backend; falls back to the in-memory fixture
-  /// in test hosts that don't wire DI.
-  ClientHomeRepository _resolveRepository() {
+  /// home tab talks to the mock backend; in the dev-seam capture path it uses
+  /// the deterministic fixtures so all three filter tabs render populated.
+  ClientHomeRepository _resolveRepository(bool devSeed) {
+    if (devSeed) {
+      return InMemoryClientHomeRepository.fromSnapshot(
+        DevClientHomeFixtures.snapshot(),
+      );
+    }
     final getIt = GetIt.instance;
     if (getIt.isRegistered<ClientHomeRepository>()) {
       return getIt<ClientHomeRepository>();
     }
     return InMemoryClientHomeRepository();
+  }
+
+  /// Greets "Sami" (the Figma mock name) under the dev seam so captures match
+  /// the design; `null` otherwise until the profile cubit is wired.
+  String? _resolveGreetingName() => _devSeamTab() != null ? 'Sami' : null;
+
+  /// The filter tab requested via the dev seam, or `null` when the seam isn't
+  /// driving the home tab. Debug-only — always `null` in release builds.
+  ClientHomeTab? _devSeamTab() {
+    if (!kDebugMode) return null;
+    final raw = DevSeam.current.homeTab;
+    switch (raw) {
+      case 'in_progress':
+        return ClientHomeTab.inProgress;
+      case 'pending':
+        return ClientHomeTab.pendingRequests;
+      case 'replies':
+        return ClientHomeTab.replies;
+      default:
+        return null;
+    }
   }
 
   /// Routes a card tap to `/chat/:id`. Replies-tab cards carry a

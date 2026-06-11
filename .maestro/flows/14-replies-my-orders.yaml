@@ -1,0 +1,72 @@
+# Jeeb mobile — 14 Replies / My Orders [User].
+# Figma node 56535:2251 (client "My Orders", Replies chip selected).
+#
+# WHAT THIS PROVES
+#   The client shell renders the Replies list (order id + items + offerer avatar
+#   stack with "+N" + Check Offers CTA), elements targeted BY SEMANTIC ID:
+#     orders_filter_replies            — Replies chip (selected here)
+#     orders_filter_inProgress         — In Progress chip
+#     orders_filter_pendingRequests    — Pending Requests chip
+#     orders_replies_avatar_stack_*     — offerer avatar stack + count
+#     orders_replies_check_offers_*     — Check Offers CTA
+#     orders_search_bar / orders_create_request_button — shared chrome
+#
+# PRIMARY INTERACTION
+#   "Check Offers" is the screen's entry to the offers/broadcasting chat. On the
+#   dev seam onOpenRequest is wired to the chat route; we tap the CTA by id and
+#   assert the tap is accepted without crashing. We do NOT assert the downstream
+#   chat content (the dev seam doesn't seed it) — AP-9.
+#
+# BACKEND / SEAM
+#   Dev seam: jeeb.route=/ + jeeb.home_tab=replies → shell home tab seeded with
+#   DevClientHomeFixtures, Replies filter selected. No live gateway. UI parity
+#   only (UI-GUARDRAILS §6). Seam via launchApp.arguments (intent extras).
+#
+# MAESTRO 2.x: extendedWaitUntil for timed waits; waitForAnimationToEnd before
+#   screenshots; no fixed sleeps / coordinate taps; id-based assertions.
+#
+# Run:
+#   maestro --device emulator-5558 test -e APP_ID=app.jeeb.mobile.dev \
+#     --format JUNIT --output <evidence>/maestro/junit.xml \
+#     .maestro/flows/14-replies-my-orders.yaml
+appId: ${APP_ID}
+---
+- launchApp:
+    arguments:
+      jeeb.route: "/"
+      jeeb.home_tab: "replies"
+
+# Replies chip — waited+asserted by id (cold launch + seeded load).
+- extendedWaitUntil:
+    visible:
+      id: "orders_filter_replies"
+    timeout: 25000
+
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 14_replies_my_orders
+
+# All three filter chips + shared chrome present.
+- assertVisible:
+    id: "orders_filter_inProgress"
+- assertVisible:
+    id: "orders_filter_pendingRequests"
+- assertVisible:
+    id: "orders_search_bar"
+- assertVisible:
+    id: "orders_create_request_button"
+
+# Replies-specific elements: offerer avatar stack + Check Offers CTA (seeded id rep-1).
+- extendedWaitUntil:
+    visible:
+      id: "orders_replies_check_offers_rep-1"
+    timeout: 10000
+- assertVisible:
+    id: "orders_replies_avatar_stack_rep-1"
+
+# ── PRIMARY INTERACTION — Check Offers ───────────────────────────────────────
+# Tap the CTA by id; assert accepted without crash (downstream chat not seeded).
+- tapOn:
+    id: "orders_replies_check_offers_rep-1"
+- waitForAnimationToEnd:
+    timeout: 5000

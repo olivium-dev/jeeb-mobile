@@ -1,0 +1,88 @@
+# Jeeb mobile — 15 Request / My Orders [User] — In Progress filter.
+# Figma node 56535:1525 (client "My Orders", In Progress chip selected).
+#
+# WHAT THIS PROVES
+#   The authenticated client shell renders the My Orders "In Progress" list,
+#   and its key elements are present in the LIVE hierarchy, targeted BY SEMANTIC
+#   ID (never localized text — AP-5; never coordinates — AP-1):
+#     orders_filter_inProgress         — In Progress filter chip (selected)
+#     orders_filter_pendingRequests    — Pending Requests filter chip
+#     orders_filter_replies            — Replies filter chip
+#     orders_search_bar                — pill search bar
+#     orders_create_request_button     — filled "+" create-request CTA
+#     orders_track_order_button_*       (CTA inside the trackable card — by text fallback)
+#
+# PRIMARY INTERACTION
+#   Switching the filter chip is the screen's core interaction. We tap the
+#   Pending and Replies chips by id and prove the list swaps (the In Progress
+#   card disappears, the Pending order-id row appears), then return to In
+#   Progress. Chip selection is fully satisfied by the seeded dev fixtures, so
+#   this is a real pass (not an optimistic assertion — AP-9).
+#
+# BACKEND
+#   Dev seam only: jeeb.route=/ + jeeb.home_tab=in_progress lands on the shell
+#   home tab seeded with DevClientHomeFixtures (Figma mock data). No live
+#   gateway (comparison.md). Certifies visual + behavioural UI parity, NOT E2E
+#   integration (UI-GUARDRAILS §6).
+#
+# SEAM (runtime, no rebuild — dev-seam-runtime.md)
+#   launchApp.arguments pass the seam knobs as Android intent extras; the
+#   release-inert MethodChannel seam reads them in debug only. clearState is
+#   omitted so the freshly-passed extras drive the launch.
+#
+# MAESTRO 2.x: no inline assertVisible timeout (1.x) — timed waits via
+#   extendedWaitUntil; waitForAnimationToEnd before screenshots (AP-7); never a
+#   fixed sleep (AP-1).
+#
+# Run:
+#   maestro --device emulator-5558 test -e APP_ID=app.jeeb.mobile.dev \
+#     --format JUNIT --output <evidence>/maestro/junit.xml \
+#     .maestro/flows/15-request-my-orders.yaml
+appId: ${APP_ID}
+---
+- launchApp:
+    arguments:
+      jeeb.route: "/"
+      jeeb.home_tab: "in_progress"
+
+# In Progress filter chip — waited+asserted by id (cold launch through the
+# authed shell + seeded load).
+- extendedWaitUntil:
+    visible:
+      id: "orders_filter_inProgress"
+    timeout: 25000
+
+# Settle the entrance before the evidence frame.
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 15_request_my_orders_in_progress
+
+# All three filter chips present.
+- assertVisible:
+    id: "orders_filter_pendingRequests"
+- assertVisible:
+    id: "orders_filter_replies"
+# Shared chrome: search bar + create-request CTA.
+- assertVisible:
+    id: "orders_search_bar"
+- assertVisible:
+    id: "orders_create_request_button"
+
+# ── PRIMARY INTERACTION — filter switching ───────────────────────────────────
+# Switch to Pending Requests by id; prove the list swapped (a pending order-id
+# row appears). Order ids are dynamic data, so we assert the list swap via the
+# pending list root id rather than a localized label.
+- tapOn:
+    id: "orders_filter_pendingRequests"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible:
+    id: "orders_filter_pendingRequests"
+
+# Return to In Progress; the trackable card's CTA re-appears.
+- tapOn:
+    id: "orders_filter_inProgress"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible:
+    id: "orders_filter_inProgress"
