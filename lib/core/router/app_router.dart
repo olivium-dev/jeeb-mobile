@@ -100,6 +100,16 @@ class AppRouter {
     required OnboardingCubit onboarding,
     required BiometricLockCubit biometricLock,
   }) {
+    // One-shot latch (per router instance) for the dev-seam route pin. The seam
+    // must drive the INITIAL landing onto the pinned dev route, but must NOT
+    // keep bouncing every later user-initiated push back to it — otherwise
+    // screen 10's "New Location" → `/capture-location` and screen 13's pending
+    // item → `/chat/:id` get redirected away the instant they're pushed and the
+    // target never mounts. Once the seam has landed on its dev route (or the
+    // app has otherwise moved off the default root), we stop forcing and let
+    // any pushed location pass. Instance-scoped (not static) so parallel tests
+    // and hot restarts each get a fresh latch.
+    var devSeamLanded = false;
     return GoRouter(
       initialLocation: '/',
       refreshListenable: _MergedRefreshListenable([
@@ -116,9 +126,26 @@ class AppRouter {
         // onboarding + biometric gates. `/` reproduces the old JEEB_DEV_HOME.
         // Compare on the PATH only so a seam route carrying query params (e.g.
         // `/orders/d-1/feedback?name=Sami`) lands once instead of looping.
+        //
+        // The pin is INITIAL-LANDING-ONLY: we force the redirect just until the
+        // seam reaches its dev route the first time, then release the latch so
+        // user-initiated pushes to other routes stick (screens 10 & 13). We
+        // only ever force from the default root (`/`) — any already-pinned or
+        // user-pushed location is allowed through untouched.
         if (_devRoute.isNotEmpty) {
           final devPath = Uri.parse(_devRoute).path;
-          return state.matchedLocation == devPath ? null : _devRoute;
+          if (state.matchedLocation == devPath) {
+            // Reached the pinned route: latch landed and let it render.
+            devSeamLanded = true;
+            return null;
+          }
+          // Before landing, only force the redirect while still on the default
+          // root. This drives the initial capture. After landing, never force
+          // again — user-pushed routes pass through.
+          if (!devSeamLanded && state.matchedLocation == '/') {
+            return _devRoute;
+          }
+          return null;
         }
         final completed = onboarding.state;
         final loc = state.matchedLocation;
