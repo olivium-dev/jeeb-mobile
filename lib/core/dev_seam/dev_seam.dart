@@ -66,6 +66,8 @@ class DevSeam {
       forcedLocale: primary.forcedLocale.isNotEmpty
           ? primary.forcedLocale
           : fallback.forcedLocale,
+      homeTab:
+          primary.homeTab.isNotEmpty ? primary.homeTab : fallback.homeTab,
       holdSplash: primary.holdSplash || fallback.holdSplash,
     );
   }

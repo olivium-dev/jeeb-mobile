@@ -13,20 +13,28 @@ class InMemoryClientHomeRepository implements ClientHomeRepository {
     List<ClientHomeRequest>? seedActive,
     List<RecentDeliverySummary>? seedRecent,
     Duration latency = const Duration(milliseconds: 150),
-  }) : _active = seedActive ?? const [],
-       _recent = seedRecent ?? const [],
+  }) : _snapshot = ClientHomeSnapshot(
+         inProgress: seedActive ?? const [],
+         recentDeliveries: seedRecent ?? const [],
+       ),
        _latency = latency;
 
-  final List<ClientHomeRequest> _active;
-  final List<RecentDeliverySummary> _recent;
+  /// Builds a repository from a complete [ClientHomeSnapshot] so every tab
+  /// (In Progress / Pending / Replies) can be seeded. Used by the dev-seam
+  /// capture path; the network repository populates the same shape from the
+  /// gateway.
+  InMemoryClientHomeRepository.fromSnapshot(
+    ClientHomeSnapshot snapshot, {
+    Duration latency = const Duration(milliseconds: 150),
+  }) : _snapshot = snapshot,
+       _latency = latency;
+
+  final ClientHomeSnapshot _snapshot;
   final Duration _latency;
 
   @override
   Future<ClientHomeSnapshot> loadSnapshot() async {
     await Future<void>.delayed(_latency);
-    return ClientHomeSnapshot(
-      inProgress: List.unmodifiable(_active),
-      recentDeliveries: List.unmodifiable(_recent),
-    );
+    return _snapshot;
   }
 }
