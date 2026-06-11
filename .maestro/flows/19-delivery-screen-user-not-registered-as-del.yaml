@@ -1,0 +1,89 @@
+# Maestro flow — Delivery screen, user not registered as delivery man (screen 19)
+#
+# Figma node 56614:18920 (file ZOi3kKtw7sd42ssSVX3Kn4): the Delivery-tab upsell
+#   shown to a user who has not registered as a delivery man — shared greeting
+#   header ("Hello, Kamal" + "Everything, One Place"), a scooter-out-of-phone
+#   hero, "Register as a delivery man" headline + "Start earning money"
+#   subtitle, and a bottom-pinned navy "Register now" CTA, over the shell
+#   bottom navigation. Built widget: JeeberUnregisteredView
+#   (lib/features/jeeber_home/presentation/widgets/jeeber_unregistered_view.dart)
+#   hosted by DashboardTab; closes the JEEB-66 hardcoded-string debt (all copy
+#   is now keyed in app_en.arb + app_ar.arb).
+#
+# NAV — RUNTIME DEV SEAM (dev-seam-runtime.md): the screen is reached by the
+#   runtime seam, NOT a dart-define rebuild. `launchApp.arguments` arrive as
+#   Android String intent extras (seam source priority 1). `jeeb.route /` lands
+#   on the shell; `jeeb.home_tab unregistered` is a debug-only knob (mirroring
+#   home_tab.dart's seam pattern) that forces the jeeber role + the unregistered
+#   Delivery-tab state so screen 19 renders deterministically without a UI role
+#   toggle. Release-inert (kDebugMode-gated).
+#     Equivalent adb one-liner:
+#       adb -s emulator-5560 shell am start -S \
+#         -n app.jeeb.mobile.dev/app.jeeb.mobile.MainActivity \
+#         -e jeeb.route / -e jeeb.home_tab unregistered -e jeeb.locale en
+#     RTL variant: swap `-e jeeb.locale ar`.
+#
+# BACKEND: none. The greeting name is the Figma mock ("Kamal", supplied by the
+#   seam path); the hero is a themed placeholder until the branded scooter asset
+#   ships through omds-flutter (comparison.md honest deferral). A PASS certifies
+#   VISUAL + BEHAVIORAL UI PARITY ONLY, not end-to-end registration integration
+#   (UI-GUARDRAILS §6).
+#
+# SYNTAX: Maestro 2.0.5 — extendedWaitUntil for timeouts (inline assertVisible
+#   `timeout:` is 1.x and REJECTED, pilot #3); waitForAnimationToEnd before each
+#   takeScreenshot (pilot #4); id-based assertions only — no sleeps, no
+#   coordinate taps, no localized-text matching (copy is localized; the AR run
+#   would break a text matcher — ids are locale-invariant).
+#
+# IDS asserted — verified present in source (grep of lib/features/jeeber_home):
+#   jeeber_unregistered_root            (jeeber_unregistered_view.dart — Semantics
+#                                        container wrapping the whole upsell)
+#   jeeber_unregistered_register_button (jeeber_unregistered_view.dart — Semantics
+#                                        button wrapping the navy "Register now"
+#                                        OmdsPrimaryButton; the tap target)
+#
+# PRIMARY-ACTION REALITY (verified app_router.dart + dashboard_tab.dart):
+#   "Register now" is wired `onRegister: () => context.pushNamed(
+#   'jeeber-onboarding')` → pushes /jeeber/onboarding (the DM onboarding wizard,
+#   screens 20-22). Tapping it leaves screen 19, so we assert the upsell root is
+#   GONE and the onboarding wizard's first interactive node is present — proving
+#   the CTA is LIVE (fires its push), not decoration.
+
+appId: ${APP_ID}
+---
+# ── LAUNCH via runtime dev seam (intent extras → DevSeam priority-1) ───────────
+- launchApp:
+    stopApp: true
+    arguments:
+      jeeb.route: "/"
+      jeeb.home_tab: "unregistered"
+      jeeb.locale: "en"
+
+# ── STATE RENDERS: the unregistered upsell is on screen ───────────────────────
+# 40s timeout absorbs slow first frames on a 2GB AVD (pilot memory; not a sleep).
+- extendedWaitUntil:
+    visible:
+      id: "jeeber_unregistered_root"
+    timeout: 40000
+- waitForAnimationToEnd
+
+# ── CHROME: the "Register now" CTA is present ─────────────────────────────────
+- assertVisible:
+    id: "jeeber_unregistered_register_button"
+
+# ── CAPTURE: the loaded upsell frame ──────────────────────────────────────────
+- waitForAnimationToEnd
+- takeScreenshot: "19-delivery-screen-user-not-registered-loaded"
+
+# ── PRIMARY INTERACTION: tap "Register now" → DM onboarding wizard ────────────
+- tapOn:
+    id: "jeeber_unregistered_register_button"
+- waitForAnimationToEnd
+# The CTA pushed /jeeber/onboarding (screen 20) — the upsell is gone and the
+# wizard's photo-upload drop area is present. Proves the CTA is a live control.
+- extendedWaitUntil:
+    visible:
+      id: "dm_onboarding_photo_upload_area"
+    timeout: 20000
+- assertNotVisible:
+    id: "jeeber_unregistered_register_button"
