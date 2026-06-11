@@ -66,9 +66,11 @@ class DevSeamConfig {
   final String forcedLocale;
 
   /// Client "My Orders" filter tab to land on when [route] resolves to the
-  /// shell home (`in_progress`, `pending`, `replies`). Debug capture aid only:
-  /// the home tab seeds deterministic fixtures and selects this filter so a
-  /// single APK renders screens 13/14/15 without a rebuild. Empty in release.
+  /// shell home (`in_progress`, `pending`, `replies`), or `unregistered` to
+  /// force the jeeber Delivery-tab upsell view. Debug capture aid only: the
+  /// home tab seeds deterministic fixtures and selects this filter so a single
+  /// APK renders screens 13/14/15 (and the jeeber-unregistered upsell) without
+  /// a rebuild. Keyed `jeeb.home_tab`. Empty in release.
   final String homeTab;
 
   /// Deliveryman (jeeber) feed selector for the Delivery tab. Debug capture

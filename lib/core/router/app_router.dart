@@ -20,12 +20,16 @@ import '../../features/delivery_man_profile/presentation/delivery_man_profile_sc
 import '../../features/deep_link_targets/delivery_detail_screen.dart';
 import '../../features/deep_link_targets/kyc_status_screen.dart';
 import '../../features/deep_link_targets/rating_prompt_screen.dart';
+import '../../features/rating/presentation/rating_screen.dart';
 import '../../features/jeeber_home/domain/entities/feed_request.dart';
 import '../../features/jeeber_home/domain/services/request_feed_service.dart';
+import '../../features/jeeber_onboarding/application/dm_onboarding_state.dart';
+import '../../features/jeeber_onboarding/presentation/dm_onboarding_screen.dart';
 import '../../features/jeeber_request_detail/domain/services/prohibited_item_report_service.dart';
 import '../../features/jeeber_request_detail/presentation/jeeber_request_detail_screen.dart';
 import '../../features/jeeber_request_detail/presentation/jeeber_request_unavailable_screen.dart';
 import '../../features/live_tracking/application/live_tracking_cubit.dart';
+import '../../features/live_tracking/data/demo_live_tracking_repository.dart';
 import '../../features/live_tracking/domain/live_tracking_repository.dart';
 import '../../features/live_tracking/presentation/live_tracking_screen.dart';
 import '../../features/location/presentation/capture_location_screen.dart';
@@ -81,6 +85,17 @@ class AppRouter {
   /// authenticated screen can be captured deterministically. Empty in release.
   static String get _devRoute => kDebugMode ? DevSeam.current.route : '';
 
+  /// Order-tracking (screen 16) needs a reachable gateway to render its ready
+  /// state. When the dev seam is driving a `/orders/.../tracking` capture, swap
+  /// in the deterministic demo repository so the screen renders offline; every
+  /// other run uses the real DI-registered repository.
+  static LiveTrackingRepository _trackingRepository() {
+    if (kDebugMode && _devRoute.contains('/tracking')) {
+      return const DemoLiveTrackingRepository();
+    }
+    return sl<LiveTrackingRepository>();
+  }
+
   static GoRouter create({
     required OnboardingCubit onboarding,
     required BiometricLockCubit biometricLock,
@@ -99,8 +114,11 @@ class AppRouter {
         }
         // Debug capture aid: drop straight onto any requested route, skipping
         // onboarding + biometric gates. `/` reproduces the old JEEB_DEV_HOME.
+        // Compare on the PATH only so a seam route carrying query params (e.g.
+        // `/orders/d-1/feedback?name=Sami`) lands once instead of looping.
         if (_devRoute.isNotEmpty) {
-          return state.matchedLocation == _devRoute ? null : _devRoute;
+          final devPath = Uri.parse(_devRoute).path;
+          return state.matchedLocation == devPath ? null : _devRoute;
         }
         final completed = onboarding.state;
         final loc = state.matchedLocation;
@@ -174,6 +192,26 @@ class AppRouter {
           path: '/profile/kyc',
           name: 'kyc-status',
           builder: (context, state) => const KycStatusScreen(),
+        ),
+        // Delivery-man onboarding wizard (Figma 56591:5323 → 56591:4109 →
+        // 56591:5337). Entered from the Delivery-tab upsell (screen 19). A
+        // `step` query param (address|service-area) lets the dev seam / a deep
+        // link land directly on a later step for deterministic capture.
+        GoRoute(
+          path: '/jeeber/onboarding',
+          name: 'jeeber-onboarding',
+          builder: (context, state) => DmOnboardingScreen(
+            initialStep: DmOnboardingStep.fromSlug(
+              state.uri.queryParameters['step'],
+            ),
+            onCompleted: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/');
+              }
+            },
+          ),
         ),
         GoRoute(
           path: '/profile/customer',
@@ -364,7 +402,7 @@ class AppRouter {
             final deliveryId = state.pathParameters['id'] ?? '';
             return BlocProvider<LiveTrackingCubit>(
               create: (_) => LiveTrackingCubit(
-                repository: sl<LiveTrackingRepository>(),
+                repository: _trackingRepository(),
                 deliveryId: deliveryId,
               ),
               child: LiveTrackingScreen(deliveryId: deliveryId),
@@ -387,6 +425,23 @@ class AppRouter {
                 deliveryId: deliveryId,
                 isClient: isClient,
               ),
+            );
+          },
+        ),
+        // Feedback / rating screen (Figma 56614:20132). `mode=jeeber` flips the
+        // audience so the delivery man rates the client; `name` seeds the
+        // ratee for capture. Distinct from the frozen `/orders/:id/rate`
+        // placeholder (RatingPromptScreen, Type-A CI gate).
+        GoRoute(
+          path: '/orders/:id/feedback',
+          name: 'feedback',
+          builder: (context, state) {
+            final deliveryId = state.pathParameters['id'] ?? '';
+            final isClient = state.uri.queryParameters['mode'] != 'jeeber';
+            return RatingScreen(
+              deliveryId: deliveryId,
+              isClient: isClient,
+              rateeName: state.uri.queryParameters['name'] ?? '',
             );
           },
         ),

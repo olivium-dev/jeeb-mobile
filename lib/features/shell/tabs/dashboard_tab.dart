@@ -25,11 +25,14 @@ enum _DevFeedView { empty, requests, pending, replies }
 ///
 /// Wires the feed card → request-detail route (T-mobile-033) so tapping a
 /// candidate from the feed opens the detail screen where the Jeeber can
-/// review the request and, if needed, file a prohibited-item report.
+/// review the request and, if needed, file a prohibited-item report. The
+/// "Register now" upsell CTA → the delivery-man onboarding wizard
+/// (screen 19 → 20).
 ///
 /// In the dev-seam capture path (`jeeb.feed=<view>`), the tab instead renders
 /// a self-contained, seeded feed surface so a single APK captures screens
-/// 23-26 without a rebuild.
+/// 23-26 without a rebuild; `jeeb.home_tab=unregistered` forces the screen-19
+/// Delivery-tab upsell.
 class DashboardTab extends StatelessWidget {
   const DashboardTab({super.key});
 
@@ -37,8 +40,12 @@ class DashboardTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final devView = _devSeamView();
     if (devView != null) return _DevFeedScaffold(view: devView);
+    final unregistered = _devSeamUnregistered();
     return JeeberHomeScreen(
       key: const Key('dashboard-tab-root'),
+      isRegistered: !unregistered,
+      profileName: unregistered ? 'Kamal' : null,
+      onRegister: () => context.pushNamed('jeeber-onboarding'),
       onOpenFeedRequest: (FeedRequest request) {
         context.pushNamed(
           'jeeber-request-detail',
@@ -62,6 +69,12 @@ class DashboardTab extends StatelessWidget {
       _ => null,
     };
   }
+
+  /// Debug-only: when the dev seam requests the `unregistered` home-tab state,
+  /// render screen 19 (the Delivery-tab upsell) deterministically with the
+  /// Figma mock name. Always `false` in release builds.
+  bool _devSeamUnregistered() =>
+      kDebugMode && DevSeam.current.homeTab == 'unregistered';
 }
 
 /// Self-contained scaffold for the dev-seam feed capture path. Owns its own

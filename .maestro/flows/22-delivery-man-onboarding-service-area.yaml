@@ -1,0 +1,93 @@
+# Maestro flow — Delivery-man onboarding, Service Area (screen 22)
+#
+# Figma node 56591:5337 (file ZOi3kKtw7sd42ssSVX3Kn4): the service-area step of
+#   the DM onboarding wizard — navbar "Service Area" + back chevron, the thin
+#   wizard progress bar, "Select the working area" heading + "Where do you want
+#   to offer your services?" subtitle, a "Your Primary Location" section with a
+#   tappable location selector row (orange pin + "Location" / "Select" + chevron),
+#   a "Distance Preference" label + live "{n} km" value, a single-thumb orange
+#   distance slider, and a bottom-pinned navy "Continue" CTA. Built widget:
+#   DmOnboardingServiceAreaStep
+#   (lib/features/jeeber_onboarding/presentation/widgets/dm_onboarding_service_area_step.dart).
+#
+# NAV — RUNTIME DEV SEAM (dev-seam-runtime.md): `/jeeber/onboarding?step=service-area`
+#   resolves to the service-area step via DmOnboardingStep.fromSlug
+#   (app_router.dart). `launchApp.arguments` arrive as Android intent extras
+#   (seam source priority 1).
+#     Equivalent adb one-liner (quote the value — it contains '?' and '='):
+#       adb -s emulator-5560 shell am start -S \
+#         -n app.jeeb.mobile.dev/app.jeeb.mobile.MainActivity \
+#         -e jeeb.route "/jeeber/onboarding?step=service-area" -e jeeb.locale en
+#     RTL variant: swap `-e jeeb.locale ar`.
+#
+# BACKEND: none. The location pick sets a stub label in the UI-only milestone
+#   (a real pick opens the geo picker via the host); the slider is local wizard
+#   state. A PASS certifies VISUAL + BEHAVIORAL UI PARITY ONLY, not
+#   geolocation-service / matching-radius integration (UI-GUARDRAILS §6).
+#
+# SYNTAX: Maestro 2.0.5 — extendedWaitUntil for timeouts (pilot #3);
+#   waitForAnimationToEnd before each takeScreenshot (pilot #4); id-based
+#   assertions only — no sleeps, no coordinate taps, no localized-text matching.
+#
+# IDS asserted — verified present in source (grep of lib/features/jeeber_onboarding):
+#   dm_onboarding_location_selector            (dm_onboarding_location_selector.dart —
+#                                               Semantics button on the selector row)
+#   dm_onboarding_location_value               (   ″   — the Select/chosen text)
+#   dm_onboarding_distance_slider              (dm_onboarding_distance_slider.dart —
+#                                               Semantics slider on the Slider)
+#   dm_onboarding_distance_value               (   ″   — the live "{n} km" text)
+#   dm_onboarding_service_area_continue_button (dm_onboarding_step_layout.dart)
+#   dm_onboarding_progress / dm_onboarding_back_button (shared wizard chrome)
+#
+# CONTINUE-GATING REALITY (verified dm_onboarding_service_area_step.dart):
+#   Continue is disabled until a primary location is chosen (the slider always
+#   has a default so it never blocks). We capture the default frame, tap the
+#   selector to set a location (Continue enables), then advance.
+
+appId: ${APP_ID}
+---
+# ── LAUNCH via runtime dev seam → wizard service-area step ────────────────────
+- launchApp:
+    stopApp: true
+    arguments:
+      jeeb.route: "/jeeber/onboarding?step=service-area"
+      jeeb.locale: "en"
+
+# ── STATE RENDERS: the location selector is on screen ─────────────────────────
+- extendedWaitUntil:
+    visible:
+      id: "dm_onboarding_location_selector"
+    timeout: 40000
+- waitForAnimationToEnd
+
+# ── CHROME: distance value, slider, and Continue are present ──────────────────
+- assertVisible:
+    id: "dm_onboarding_location_value"
+- assertVisible:
+    id: "dm_onboarding_distance_value"
+- assertVisible:
+    id: "dm_onboarding_distance_slider"
+- assertVisible:
+    id: "dm_onboarding_service_area_continue_button"
+
+# ── CAPTURE: the default service-area frame (location unselected) ─────────────
+- waitForAnimationToEnd
+- takeScreenshot: "22-dm-onboarding-service-area-default"
+
+# ── PRIMARY INTERACTION: pick a primary location (enables Continue) ───────────
+# Tapping the selector sets the primary-location label in the UI-only milestone,
+# proving the row is a live control; Continue then enables and advances/submits.
+- tapOn:
+    id: "dm_onboarding_location_selector"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "dm_onboarding_service_area_continue_button"
+- tapOn:
+    id: "dm_onboarding_service_area_continue_button"
+- waitForAnimationToEnd
+# Submitting pops the wizard (onCompleted → context.pop/go), so the service-area
+# nodes are gone — proves the final-step Continue is a live submit, not a no-op.
+- extendedWaitUntil:
+    notVisible:
+      id: "dm_onboarding_service_area_continue_button"
+    timeout: 20000
