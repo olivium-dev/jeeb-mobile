@@ -1892,6 +1892,66 @@
   "chatAttachmentGallery": "Gallery",
   "chatAttachmentSheetTitle": "Add a photo",
   "chatComposerHint": "Type a message",
+  "chatComposerHintPriceTime": "Price / time",
+  "@chatComposerHintPriceTime": {
+    "description": "Composer hint on the Jeeber (delivery-man) side of the chat, prompting them to quote a price and ETA. Figma node 56539:906 shows the designer shorthand 'PRICE\\TIME'; shipped copy is the reviewed wording."
+  },
+  "chatBalanceDeductionNotice": "Note {amount} will be reduced from your Balance",
+  "@chatBalanceDeductionNotice": {
+    "description": "Jeeber-only fee notice banner shown above the chat thread. The amount is a pre-formatted currency string supplied by the gateway fee config (Figma node 56539:906).",
+    "placeholders": {
+      "amount": {
+        "type": "String",
+        "example": "$0.5"
+      }
+    }
+  },
+  "chatBalanceDeductionA11y": "Fee notice: {amount} will be deducted from your balance",
+  "@chatBalanceDeductionA11y": {
+    "description": "Accessibility label for the fee notice banner.",
+    "placeholders": {
+      "amount": {
+        "type": "String",
+        "example": "$0.5"
+      }
+    }
+  },
+  "chatBalanceDeductionDismissA11y": "Dismiss fee notice",
+  "@chatBalanceDeductionDismissA11y": {
+    "description": "Accessibility label for the close button on the fee notice banner."
+  },
+  "chatDmOrderPickedAction": "Order picked",
+  "@chatDmOrderPickedAction": {
+    "description": "Inline action pill inside the fee banner on the Jeeber chat (node 56560:1605); confirms the order has been physically picked up."
+  },
+  "confirmPickingSheetTitle": "Confirm Picking the order",
+  "@confirmPickingSheetTitle": {
+    "description": "Title of the Jeeber confirm-picking bottom sheet (Figma node 56618:2751)."
+  },
+  "confirmPickingSheetSubtitle": "Help user track the order",
+  "@confirmPickingSheetSubtitle": {
+    "description": "Subtitle of the confirm-picking bottom sheet."
+  },
+  "confirmHeadingOffSheetTitle": "Confirm Heading off",
+  "@confirmHeadingOffSheetTitle": {
+    "description": "Title of the Jeeber confirm-heading-off bottom sheet (Figma node 56618:2852)."
+  },
+  "confirmHeadingOffSheetSubtitle": "Help user track the order",
+  "@confirmHeadingOffSheetSubtitle": {
+    "description": "Subtitle of the confirm-heading-off bottom sheet."
+  },
+  "confirmDeliveryActionCta": "Confirm",
+  "@confirmDeliveryActionCta": {
+    "description": "Confirm CTA shared by the picking and heading-off bottom sheets."
+  },
+  "confirmDeliveryActionDragHandleA11y": "Drag to dismiss",
+  "@confirmDeliveryActionDragHandleA11y": {
+    "description": "Accessibility label for the bottom sheet drag handle."
+  },
+  "confirmDeliveryActionIllustrationA11y": "Package with clock and location pin",
+  "@confirmDeliveryActionIllustrationA11y": {
+    "description": "Accessibility label for the parcel/clock/pin illustration on the delivery confirmation sheets."
+  },
   "chatEmptyThreadSubtitle": "Start the conversation by sending a message or photo.",
   "chatEmptyThreadTitle": "Say hello",
   "chatErrorPermissionDenied": "We need camera or gallery permission to attach a photo. Enable it from system settings.",

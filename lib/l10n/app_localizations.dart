@@ -1055,6 +1055,24 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get chatAttachmentGallery => _get('chatAttachmentGallery');
   String get chatAttachmentSheetTitle => _get('chatAttachmentSheetTitle');
   String get chatComposerHint => _get('chatComposerHint');
+  String get chatComposerHintPriceTime => _get('chatComposerHintPriceTime');
+  String chatBalanceDeductionNotice(String amount) =>
+      _get('chatBalanceDeductionNotice').replaceFirst('{amount}', amount);
+  String chatBalanceDeductionA11y(String amount) =>
+      _get('chatBalanceDeductionA11y').replaceFirst('{amount}', amount);
+  String get chatBalanceDeductionDismissA11y =>
+      _get('chatBalanceDeductionDismissA11y');
+  String get chatDmOrderPickedAction => _get('chatDmOrderPickedAction');
+  String get confirmPickingSheetTitle => _get('confirmPickingSheetTitle');
+  String get confirmPickingSheetSubtitle => _get('confirmPickingSheetSubtitle');
+  String get confirmHeadingOffSheetTitle => _get('confirmHeadingOffSheetTitle');
+  String get confirmHeadingOffSheetSubtitle =>
+      _get('confirmHeadingOffSheetSubtitle');
+  String get confirmDeliveryActionCta => _get('confirmDeliveryActionCta');
+  String get confirmDeliveryActionDragHandleA11y =>
+      _get('confirmDeliveryActionDragHandleA11y');
+  String get confirmDeliveryActionIllustrationA11y =>
+      _get('confirmDeliveryActionIllustrationA11y');
   String get chatEmptyThreadSubtitle => _get('chatEmptyThreadSubtitle');
   String get chatEmptyThreadTitle => _get('chatEmptyThreadTitle');
   String get chatErrorPermissionDenied => _get('chatErrorPermissionDenied');

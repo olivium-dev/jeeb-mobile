@@ -12,7 +12,7 @@ import '../domain/delivery_chat_message.dart';
 /// in-memory dev seam (pilot learning #2) and is wired only behind a
 /// `kDebugMode` guard in [ChatTab], so it is inert in release builds.
 class DevChatFixtureGateway extends ChatGateway {
-  DevChatFixtureGateway({required this.phase});
+  DevChatFixtureGateway({required this.phase, this.deliveryMan = false});
 
   /// The conversation phase this fixture renders.
   final ConversationPhase phase;
@@ -29,8 +29,14 @@ class DevChatFixtureGateway extends ChatGateway {
   @override
   Future<ConversationPhase> loadPhase(String conversationId) async => phase;
 
+  /// When true, [loadHistory] seeds the Jeeber-side delivery thread used by the
+  /// chat states 04–07 (one incoming client request + one outgoing Jeeber
+  /// offer) instead of the client-side accepted thread.
+  final bool deliveryMan;
+
   @override
   Future<List<DeliveryChatMessage>> loadHistory(String conversationId) async {
+    if (deliveryMan) return _deliveryManThread();
     return phase == ConversationPhase.broadcasting
         ? _broadcastingThread()
         : _acceptedThread();
@@ -115,6 +121,27 @@ class DevChatFixtureGateway extends ChatGateway {
           sentAt: _at0941,
           status: MessageStatus.read,
           text: 'Hello Kamal please i need the water to be tanourine',
+        ),
+      ];
+
+  /// Jeeber-side thread for the delivery-man chat states (04–07). The client's
+  /// request is the incoming bubble; the Jeeber's price/time offer is the
+  /// outgoing bubble — mirrors Figma nodes 56539:906 / 56560:1605.
+  List<DeliveryChatMessage> _deliveryManThread() => [
+        DeliveryChatMessage.text(
+          id: 'dev-dm-in-1',
+          author: ChatAuthor.them,
+          sentAt: _at0941,
+          status: MessageStatus.delivered,
+          text: 'I need 3 kilos of potatoes and water gallon and coffee '
+              'from blend',
+        ),
+        DeliveryChatMessage.text(
+          id: 'dev-dm-out-1',
+          author: ChatAuthor.me,
+          sentAt: _at0941,
+          status: MessageStatus.read,
+          text: 'Hi i can bring you your order in 3 hours for  20\$',
         ),
       ];
 }

@@ -66,11 +66,13 @@ class AppRouter {
   static const bool _kDevHome =
       kDebugMode && bool.fromEnvironment('JEEB_DEV_HOME');
 
-  /// Debug-only chat-capture seam (`--dart-define=JEEB_DEV_CHAT=broadcasting`
-  /// or `=accepted`). When set in a debug build the router lands directly on
-  /// the full-screen [DevChatPreviewScreen] for the requested state, bypassing
-  /// onboarding/biometric gates, so the two Figma chat frames can be captured
-  /// deterministically. Empty / no-op in release builds.
+  /// Debug-only chat-capture seam (`--dart-define=JEEB_DEV_CHAT=<selector>`).
+  /// Selectors: `broadcasting`, `accepted` (client frames), and the
+  /// delivery-man frames `dm`, `dm-order-picked`, `dm-confirm-picking`,
+  /// `dm-confirm-heading-off`. When set in a debug build the router lands
+  /// directly on the full-screen [DevChatPreviewScreen] for the requested
+  /// state, bypassing onboarding/biometric gates, so each Figma chat frame can
+  /// be captured deterministically. Empty / no-op in release builds.
   static const String _kDevChat =
       kDebugMode ? String.fromEnvironment('JEEB_DEV_CHAT') : '';
 

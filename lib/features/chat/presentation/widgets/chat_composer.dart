@@ -19,7 +19,12 @@ import 'chat_composer_icon_button.dart';
 /// thin local mirror that re-syncs whenever the cubit clears the text
 /// post-send.
 class ChatComposer extends StatefulWidget {
-  const ChatComposer({super.key});
+  const ChatComposer({super.key, this.hintText});
+
+  /// Optional composer hint override. The Jeeber (delivery-man) variant passes
+  /// `chatComposerHintPriceTime` ("Price / time"); the client variant leaves
+  /// this null so the default `chatComposerHint` ("Type a message") shows.
+  final String? hintText;
 
   static const Key textFieldKey = Key('chat-composer-text-field');
   static const Key sendButtonKey = Key('chat-composer-send-button');
@@ -77,6 +82,7 @@ class _ChatComposerState extends State<ChatComposer> {
         controller: _controller,
         focusNode: _focusNode,
         topBorderColor: colorScheme.outlineVariant,
+        hintText: widget.hintText,
         onSend: _send,
         onAttach: _openAttachmentSheet,
       ),
@@ -97,6 +103,7 @@ class _ComposerBar extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.topBorderColor,
+    required this.hintText,
     required this.onSend,
     required this.onAttach,
   });
@@ -104,6 +111,7 @@ class _ComposerBar extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final Color topBorderColor;
+  final String? hintText;
   final VoidCallback onSend;
   final Future<void> Function() onAttach;
 
@@ -137,6 +145,7 @@ class _ComposerBar extends StatelessWidget {
                 child: _ComposerField(
                   controller: controller,
                   focusNode: focusNode,
+                  hintText: hintText,
                 ),
               ),
               const _VoiceButton(),
@@ -184,10 +193,15 @@ class _AttachButton extends StatelessWidget {
 
 /// Rounded "Send message…" text field.
 class _ComposerField extends StatelessWidget {
-  const _ComposerField({required this.controller, required this.focusNode});
+  const _ComposerField({
+    required this.controller,
+    required this.focusNode,
+    required this.hintText,
+  });
 
   final TextEditingController controller;
   final FocusNode focusNode;
+  final String? hintText;
 
   @override
   Widget build(BuildContext context) {
@@ -203,7 +217,7 @@ class _ComposerField extends StatelessWidget {
         maxLines: 5,
         textInputAction: TextInputAction.newline,
         textCapitalization: TextCapitalization.sentences,
-        hintText: l10n.chatComposerHint,
+        hintText: hintText ?? l10n.chatComposerHint,
         borderRadius: UIConstants.borderRadiusXLarge,
         onChanged: (v) => context.read<ChatCubit>().composerChanged(v),
       ),

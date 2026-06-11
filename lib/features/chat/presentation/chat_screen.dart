@@ -13,9 +13,30 @@ import '../domain/delivery_chat_message.dart';
 import 'widgets/chat_app_bar.dart';
 import 'widgets/chat_composer.dart';
 import 'widgets/chat_date_separator.dart';
+import 'widgets/chat_fee_banner.dart';
 import 'widgets/chat_message_bubble.dart';
 import 'widgets/chat_offer_only_one_footer.dart';
 import 'widgets/offer_card_bubble.dart';
+
+/// Jeeber-only balance-deduction notice configuration for [ChatScreen].
+///
+/// When supplied, [ChatScreen] renders a [ChatFeeBanner] between the app bar
+/// and the message list. The [amount] is a pre-formatted currency string from
+/// the gateway fee config — the UI never computes it. Absent (null) on the
+/// client variant of the thread.
+class ChatFeeNotice {
+  const ChatFeeNotice({
+    required this.amount,
+    this.trailing = ChatFeeBannerTrailing.dismiss,
+    this.onDismiss,
+    this.onOrderPicked,
+  });
+
+  final String amount;
+  final ChatFeeBannerTrailing trailing;
+  final VoidCallback? onDismiss;
+  final VoidCallback? onOrderPicked;
+}
 
 /// WhatsApp-style 1:1 chat between the client and the Jeeber for an active
 /// delivery (T-mobile-016 / JEEB-69).
@@ -30,6 +51,8 @@ class ChatScreen extends StatelessWidget {
     required this.deliveryId,
     required this.counterpartName,
     this.counterpartAvatarUrl,
+    this.feeNotice,
+    this.composerHint,
     this.cubit,
     this.gateway,
     this.pickerService,
@@ -48,6 +71,14 @@ class ChatScreen extends StatelessWidget {
 
   /// Optional counterpart avatar (CDN url). Shown in the post-approval header.
   final String? counterpartAvatarUrl;
+
+  /// Jeeber-only fee notice rendered above the thread. Null hides the banner
+  /// (client variant). See [ChatFeeNotice].
+  final ChatFeeNotice? feeNotice;
+
+  /// Composer hint override. The Jeeber variant passes the localized
+  /// "Price / time" hint; null falls back to the default "Type a message".
+  final String? composerHint;
 
   /// Pre-built cubit for widget tests / hosts that own the lifecycle.
   final ChatCubit? cubit;
@@ -69,6 +100,8 @@ class ChatScreen extends StatelessWidget {
         child: _ChatScaffold(
           counterpartName: counterpartName,
           counterpartAvatarUrl: counterpartAvatarUrl,
+          feeNotice: feeNotice,
+          composerHint: composerHint,
         ),
       );
     }
@@ -81,6 +114,8 @@ class ChatScreen extends StatelessWidget {
       child: _ChatScaffold(
         counterpartName: counterpartName,
         counterpartAvatarUrl: counterpartAvatarUrl,
+        feeNotice: feeNotice,
+        composerHint: composerHint,
       ),
     );
   }
@@ -90,10 +125,14 @@ class _ChatScaffold extends StatefulWidget {
   const _ChatScaffold({
     required this.counterpartName,
     this.counterpartAvatarUrl,
+    this.feeNotice,
+    this.composerHint,
   });
 
   final String counterpartName;
   final String? counterpartAvatarUrl;
+  final ChatFeeNotice? feeNotice;
+  final String? composerHint;
 
   @override
   State<_ChatScaffold> createState() => _ChatScaffoldState();
@@ -144,6 +183,8 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
             state: state,
             l10n: l10n,
             scrollController: _scrollController,
+            feeNotice: widget.feeNotice,
+            composerHint: widget.composerHint,
           ),
         ),
       ),
@@ -187,11 +228,15 @@ class _ChatBody extends StatelessWidget {
     required this.state,
     required this.l10n,
     required this.scrollController,
+    this.feeNotice,
+    this.composerHint,
   });
 
   final ChatState state;
   final AppLocalizations l10n;
   final ScrollController scrollController;
+  final ChatFeeNotice? feeNotice;
+  final String? composerHint;
 
   @override
   Widget build(BuildContext context) {
@@ -199,11 +244,30 @@ class _ChatBody extends StatelessWidget {
     final body = state.messages.isEmpty
         ? _ChatEmptyState(phase: state.phase, l10n: l10n)
         : _ChatMessageList(state: state, controller: scrollController);
+    final notice = feeNotice;
     return Column(
       children: [
+        if (notice != null) _FeeBannerSlot(notice: notice),
         Expanded(child: body),
-        if (state.isComposerVisible) const ChatComposer(),
+        if (state.isComposerVisible) ChatComposer(hintText: composerHint),
       ],
+    );
+  }
+}
+
+/// Adapts a [ChatFeeNotice] config into the rendered [ChatFeeBanner].
+class _FeeBannerSlot extends StatelessWidget {
+  const _FeeBannerSlot({required this.notice});
+
+  final ChatFeeNotice notice;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChatFeeBanner(
+      amount: notice.amount,
+      trailing: notice.trailing,
+      onDismiss: notice.onDismiss,
+      onOrderPicked: notice.onOrderPicked,
     );
   }
 }
