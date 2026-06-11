@@ -257,7 +257,22 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Track my order'));
+      // Card + Track CTA carry stable Semantics identifiers so Maestro can
+      // target them by id (recon KNOWN DEBT #1 — no localized-text taps).
+      expect(
+        tester.getSemantics(find.byKey(const Key('active-request-card-r-1'))),
+        containsSemantics(identifier: 'orders_active_card_r-1'),
+      );
+      expect(
+        tester
+            .getSemantics(find.byKey(const Key('active-track-order-r-1'))),
+        containsSemantics(
+          identifier: 'orders_track_order_button_r-1',
+          isButton: true,
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('active-track-order-r-1')));
       await tester.pumpAndSettle();
 
       expect(opened?.id, 'r-1');

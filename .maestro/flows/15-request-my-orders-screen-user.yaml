@@ -14,21 +14,20 @@
 #     orders_create_request_button   — filled "+" create-request CTA
 #                                       client_home_greeting.dart:136
 #
-#   SEMANTICS GAP (documented; recon KNOWN DEBT #1): the In Progress order card
-#   and its "Track my order" CTA carry only a Flutter Key
-#   (active_request_card.dart:31 Key('active-request-card-<id>'), :289
-#   _TrackOrderButton) — NO Semantics(identifier:). They are therefore NOT
-#   id-targetable from Maestro. This flow does NOT tap the Track CTA (we refuse a
-#   coordinate/label tap — AP-1/AP-5). The screen's id-addressable primary
-#   interaction (filter switching) is fully exercised instead. The missing
-#   card/Track ids are raised as a blocking finding in qa-verdict.md.
+#   SEMANTICS (recon KNOWN DEBT #1 — NOW CLOSED on this branch): the In Progress
+#   order card and its "Track my order" CTA now carry Semantics(identifier:)
+#   (active_request_card.dart): orders_active_card_<id> on the card,
+#   orders_track_order_button_<id> on the CTA. Both are therefore id-targetable
+#   from Maestro — this flow asserts them by id and taps the Track CTA by id (no
+#   coordinate/label tap — AP-1/AP-5).
 #
 # PRIMARY INTERACTION
-#   Switching the filter chip is the screen's core id-addressable interaction.
-#   We tap the Pending and Replies chips BY ID and assert the selected chip
-#   responds, then return to In Progress. Chip selection is fully satisfied by
-#   the seeded dev fixtures (DevClientHomeFixtures), so this is a real pass — not
-#   an optimistic assertion (AP-9: no optional:true on the primary assertion).
+#   The card's primary action ("Track my order") and the filter chips are both
+#   id-addressable. We assert the seeded trackable card + its Track CTA by id,
+#   tap the Track CTA by id, then exercise filter switching (Pending/Replies and
+#   back to In Progress). All assertions are satisfied by the seeded dev fixtures
+#   (DevClientHomeFixtures), so this is a real pass — not an optimistic assertion
+#   (AP-9: no optional:true on the primary assertion).
 #
 # BACKEND / SEAM (runtime, no rebuild — dev-seam-runtime.md)
 #   Dev seam only: launchApp.arguments pass jeeb.route=/ + jeeb.home_tab=in_progress
@@ -76,7 +75,27 @@ appId: ${APP_ID}
 - assertVisible:
     id: "orders_create_request_button"
 
-# ── PRIMARY INTERACTION — filter switching (id-addressable) ───────────────────
+# ── PRIMARY INTERACTION — card-level: Track my order (id-addressable) ─────────
+# The seeded In Progress fixture card (ip-1, enRoute) renders the card +
+# trackable Track CTA. Assert both by id (recon KNOWN DEBT #1 now closed), then
+# tap the Track CTA by id — the card's primary action.
+- assertVisible:
+    id: "orders_active_card_ip-1"
+- assertVisible:
+    id: "orders_track_order_button_ip-1"
+- tapOn:
+    id: "orders_track_order_button_ip-1"
+- waitForAnimationToEnd:
+    timeout: 5000
+# Tap routes to the chat/track destination; assert we left the orders list
+# (the In Progress chip is no longer on screen) — a real navigation effect, not
+# an optimistic no-op assertion (AP-9).
+- assertNotVisible:
+    id: "orders_filter_inProgress"
+# Return to the orders list for the filter-switching sub-checks.
+- back
+
+# ── SECONDARY INTERACTION — filter switching (id-addressable) ─────────────────
 # Switch to Pending Requests by id; assert the chip responds (the list swaps to
 # the seeded pending order-id rows). Order ids are dynamic data, so we assert via
 # the chip id, not a localized label.

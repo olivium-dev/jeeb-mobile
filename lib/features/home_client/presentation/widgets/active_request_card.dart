@@ -27,21 +27,45 @@ class ActiveOrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      key: Key('active-request-card-${request.id}'),
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.medium,
-        vertical: Spacing.xSmall,
+    return Semantics(
+      identifier: 'orders_active_card_${request.id}',
+      child: Padding(
+        key: Key('active-request-card-${request.id}'),
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: Spacing.medium,
+          vertical: Spacing.xSmall,
+        ),
+        child: _ActiveOrderColumn(
+          request: request,
+          onTap: onTap,
+          divider: Divider(height: 1, color: colorScheme.outlineVariant),
+        ),
       ),
-      child: Column(
-        children: [
-          _ActiveOrderRow(request: request, onTap: onTap),
-          Padding(
-            padding: const EdgeInsets.only(top: Spacing.xSmall),
-            child: Divider(height: 1, color: colorScheme.outlineVariant),
-          ),
-        ],
-      ),
+    );
+  }
+}
+
+class _ActiveOrderColumn extends StatelessWidget {
+  const _ActiveOrderColumn({
+    required this.request,
+    required this.onTap,
+    required this.divider,
+  });
+
+  final ClientHomeRequest request;
+  final VoidCallback onTap;
+  final Widget divider;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _ActiveOrderRow(request: request, onTap: onTap),
+        Padding(
+          padding: const EdgeInsetsDirectional.only(top: Spacing.xSmall),
+          child: divider,
+        ),
+      ],
     );
   }
 }
@@ -107,7 +131,8 @@ class _ActiveOrderBody extends StatelessWidget {
         _ActiveOrderProgressBar(progressStep: request.progressStep),
         const SizedBox(height: Spacing.small),
         const _ActiveOrderProgressLabels(),
-        if (_canTrack(request.status)) _TrackOrderButton(onTap: onTap),
+        if (_canTrack(request.status))
+          _TrackOrderButton(requestId: request.id, onTap: onTap),
       ],
     );
   }
@@ -287,8 +312,9 @@ class _ProgressStepLabel extends StatelessWidget {
 }
 
 class _TrackOrderButton extends StatelessWidget {
-  const _TrackOrderButton({required this.onTap});
+  const _TrackOrderButton({required this.requestId, required this.onTap});
 
+  final String requestId;
   final VoidCallback onTap;
 
   @override
@@ -296,13 +322,18 @@ class _TrackOrderButton extends StatelessWidget {
     return Align(
       alignment: AlignmentDirectional.centerEnd,
       child: Padding(
-        padding: const EdgeInsets.only(top: Spacing.small),
+        padding: const EdgeInsetsDirectional.only(top: Spacing.small),
         child: SizedBox(
           height: Sizes.twoXLarge,
-          child: OmdsPrimaryButton(
-            text: AppLocalizations.of(context).homeTrackOrderCta,
-            onTap: onTap,
-            borderRadius: OmdsBorderRadius.pill,
+          child: Semantics(
+            identifier: 'orders_track_order_button_$requestId',
+            button: true,
+            child: OmdsPrimaryButton(
+              key: Key('active-track-order-$requestId'),
+              text: AppLocalizations.of(context).homeTrackOrderCta,
+              onTap: onTap,
+              borderRadius: OmdsBorderRadius.pill,
+            ),
           ),
         ),
       ),
