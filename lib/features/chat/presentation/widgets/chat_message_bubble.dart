@@ -184,7 +184,6 @@ class _TextBubble extends StatelessWidget {
             message.text,
             style: textTheme.bodyLarge?.copyWith(color: textColor),
           ),
-          const SizedBox(height: Spacing.twoXSmall),
           _BubbleFooter(message: message, color: textColor, isSender: isSender),
         ],
       ),
@@ -384,7 +383,6 @@ class _VoiceBubble extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: Spacing.twoXSmall),
           _BubbleFooter(message: message, color: onBubble, isSender: isSender),
         ],
       ),
@@ -447,9 +445,13 @@ class _LocationBubble extends StatelessWidget {
   }
 }
 
-/// Time + read-receipt row pinned to the bottom-right of the bubble. Always
-/// laid out LTR so the order is always "time → ticks" regardless of the
-/// surrounding locale.
+/// Time + read-receipt row pinned to the bottom-trailing corner of the bubble.
+///
+/// Only the **sender's** bubble carries the meta row: Figma node 56560:1605
+/// leaves the incoming (counterpart) bubble's timestamp slot empty, so the
+/// counterpart footer collapses to nothing (D3 fix). The row owns its own top
+/// gap so suppressing it leaves no orphan spacing, and is laid out LTR so the
+/// order is always "time → ticks" regardless of the surrounding locale.
 class _BubbleFooter extends StatelessWidget {
   const _BubbleFooter({
     required this.message,
@@ -463,17 +465,19 @@ class _BubbleFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.ltr,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          ChatBubbleTimestamp(
-            sentAt: message.sentAt,
-            color: color.withValues(alpha: UIConstants.opacityHigh),
-          ),
-          if (isSender) ...[
+    if (!isSender) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(top: Spacing.twoXSmall),
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            ChatBubbleTimestamp(
+              sentAt: message.sentAt,
+              color: color.withValues(alpha: UIConstants.opacityHigh),
+            ),
             const SizedBox(width: Spacing.twoXSmall),
             _StatusIcon(
               key: Key('chat-status-${message.id}'),
@@ -481,7 +485,7 @@ class _BubbleFooter extends StatelessWidget {
               color: color,
             ),
           ],
-        ],
+        ),
       ),
     );
   }

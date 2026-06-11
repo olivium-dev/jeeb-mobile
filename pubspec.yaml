@@ -115,3 +115,8 @@ flutter:
     # Client-home zero-orders hero illustration ("shop (1) 1", Figma node
     # 56611:18663, aspect 743/756). Exported from the Figma Dev Mode MCP.
     - assets/illustrations/empty_orders.png
+    # Sample peer avatar for the debug-only JEEB_DEV_CHAT capture seam so the
+    # chat header renders the Figma's circular bitmap avatar deterministically
+    # offline. Production binds the real cdn-service url; this asset is only
+    # referenced by DevChatPreviewScreen (kDebugMode-gated, inert in release).
+    - assets/dev/peer_avatar_sample.jpg

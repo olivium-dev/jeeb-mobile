@@ -72,22 +72,17 @@ appId: ${APP_ID}
 
 # ── STATE-07 DISTINCTIVE: fee banner WITH the inline "Order picked" pill ──────
 # State 07 differs from state 04 by the inline "Order picked" action pill in the
-# fee banner. DOCUMENTED SELECTOR GAP (verified via `maestro hierarchy`): the
-# pill's own Semantics(identifier:'chat_dm_order_picked_button') is MERGED by
-# Flutter's semantics compositor into the parent banner node — ChatFeeBanner
-# wraps its Row in Semantics(container:true, label:...), which forms a merge
-# boundary that absorbs the descendant OmdsPrimaryButton. In the hierarchy the
-# banner node 'chat_dm_fee_banner' therefore (a) carries the pill's localized
-# label ("Order picked" / "تم استلام الطلب") inside its merged accessibilityText
-# and (b) is itself `clickable:true` (it inherited the pill's tap handler). The
-# pill's id is NOT independently queryable, so asserting it directly is an
-# un-addressable/flaky selector (anti-pattern) — exactly the read-tick merge
-# trap documented in flow 04. We therefore prove the pill by its merged host:
-# the banner is present, and (below) tappable, dispatching the pill's onTap.
-# The navy pill's VISUAL presence + parity is validated by the UX verdict
-# against emulator_en.png / emulator_ar.png. See qa-verdict.md "Selector gaps".
+# fee banner. Round-2 FIX (verified via `maestro hierarchy`): the banner wrapper
+# no longer merges its children — ChatFeeBanner uses Semantics(explicitChildNodes:
+# true) (no container:true/label:) and the pill carries its OWN
+# Semantics(identifier:'chat_dm_order_picked_button', button:true, container:true).
+# So the pill is now an independent, clickable leaf node in the view hierarchy
+# (resource-id chat_dm_order_picked_button, clickable:true) and is asserted +
+# tapped directly below — no merged-host workaround.
 - assertVisible:
     id: "chat_dm_fee_banner"
+- assertVisible:
+    id: "chat_dm_order_picked_button"
 
 # ── THREAD CONTENT: date separator + the two seeded bubbles ───────────────────
 - assertVisible:
@@ -126,13 +121,13 @@ appId: ${APP_ID}
 - takeScreenshot: "07-dm-chat-order-picked-blank"
 
 # ── SECONDARY INTERACTION: "Order picked" pill is tappable without crashing ───
-# Because the pill's id is merged into the banner (see above), we tap the banner
-# host — which carries the pill's merged tap handler (clickable:true). The
-# preview wires onOrderPicked to a no-op closure (no delivery-state-machine
-# behind the dev seam, a documented dev-seam gap, pilot learning #7), so we
-# assert tap-accepted + the screen survives, not a state transition.
+# The pill is now independently targetable (round-2 semantics fix), so we tap the
+# pill ITSELF by its own id — not the banner host. The preview wires onOrderPicked
+# to a no-op closure (no delivery-state-machine behind the dev seam, a documented
+# dev-seam gap, pilot learning #7), so we assert tap-accepted + the screen
+# survives, not a state transition.
 - tapOn:
-    id: "chat_dm_fee_banner"
+    id: "chat_dm_order_picked_button"
 - waitForAnimationToEnd
 - assertVisible:
     id: "chat_detail_message_list"

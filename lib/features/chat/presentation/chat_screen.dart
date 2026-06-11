@@ -51,6 +51,7 @@ class ChatScreen extends StatelessWidget {
     required this.deliveryId,
     required this.counterpartName,
     this.counterpartAvatarUrl,
+    this.counterpartAvatarImage,
     this.feeNotice,
     this.composerHint,
     this.cubit,
@@ -71,6 +72,10 @@ class ChatScreen extends StatelessWidget {
 
   /// Optional counterpart avatar (CDN url). Shown in the post-approval header.
   final String? counterpartAvatarUrl;
+
+  /// Optional pre-resolved avatar image (e.g. a bundled [AssetImage] in the
+  /// dev capture seam). Takes precedence over [counterpartAvatarUrl].
+  final ImageProvider? counterpartAvatarImage;
 
   /// Jeeber-only fee notice rendered above the thread. Null hides the banner
   /// (client variant). See [ChatFeeNotice].
@@ -100,6 +105,7 @@ class ChatScreen extends StatelessWidget {
         child: _ChatScaffold(
           counterpartName: counterpartName,
           counterpartAvatarUrl: counterpartAvatarUrl,
+          counterpartAvatarImage: counterpartAvatarImage,
           feeNotice: feeNotice,
           composerHint: composerHint,
         ),
@@ -114,6 +120,7 @@ class ChatScreen extends StatelessWidget {
       child: _ChatScaffold(
         counterpartName: counterpartName,
         counterpartAvatarUrl: counterpartAvatarUrl,
+        counterpartAvatarImage: counterpartAvatarImage,
         feeNotice: feeNotice,
         composerHint: composerHint,
       ),
@@ -125,12 +132,14 @@ class _ChatScaffold extends StatefulWidget {
   const _ChatScaffold({
     required this.counterpartName,
     this.counterpartAvatarUrl,
+    this.counterpartAvatarImage,
     this.feeNotice,
     this.composerHint,
   });
 
   final String counterpartName;
   final String? counterpartAvatarUrl;
+  final ImageProvider? counterpartAvatarImage;
   final ChatFeeNotice? feeNotice;
   final String? composerHint;
 
@@ -168,6 +177,7 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
       appBar: ChatAppBar(
         title: widget.counterpartName,
         avatarUrl: widget.counterpartAvatarUrl,
+        avatarImage: widget.counterpartAvatarImage,
         showAvatar: context.select<ChatCubit, bool>(
           (c) => c.state.showsCounterpartHeader,
         ),

@@ -31,6 +31,12 @@ class DevChatPreviewScreen extends StatelessWidget {
 
   final String selector;
 
+  /// Bundled sample peer photo so the dev-seam capture shows the Figma's
+  /// circular bitmap avatar deterministically and offline (no CDN / network
+  /// dependency). Production binds the real CDN url via [ChatScreen].
+  static const AssetImage _devPeerAvatar =
+      AssetImage('assets/dev/peer_avatar_sample.jpg');
+
   bool get _isDeliveryMan => selector.startsWith('dm');
 
   ChatFeeBannerTrailing get _bannerTrailing {
@@ -59,6 +65,7 @@ class DevChatPreviewScreen extends StatelessWidget {
     return ChatScreen(
       deliveryId: 'dev-chat',
       counterpartName: broadcasting ? 'ORD-23748' : 'Kamal Hajj',
+      counterpartAvatarImage: broadcasting ? null : DevChatPreviewScreen._devPeerAvatar,
       gateway: DevChatFixtureGateway(phase: phase),
       pickerService: StubPhotoPickerService(),
     );
@@ -103,6 +110,7 @@ class _DeliveryManPreviewState extends State<_DeliveryManPreview> {
     return ChatScreen(
       deliveryId: 'dev-chat-dm',
       counterpartName: 'Sami Fawaz',
+      counterpartAvatarImage: DevChatPreviewScreen._devPeerAvatar,
       composerHint: AppLocalizations.of(context).chatComposerHintPriceTime,
       feeNotice: ChatFeeNotice(
         amount: _feeAmount,

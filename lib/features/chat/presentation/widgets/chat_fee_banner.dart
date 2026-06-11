@@ -51,12 +51,17 @@ class ChatFeeBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
+    // NB: NOT a merging container. A `Semantics(container: true, label: …)`
+    // here would absorb the descendant "Order picked" pill / dismiss button,
+    // hiding their ids from the accessibility tree (the Maestro selector gap
+    // the prior round flagged). The host id stays addressable for the flow,
+    // while the notice text carries the a11y label and each trailing control
+    // keeps its own independently-targetable button node (mirrors the QA-B1
+    // confirm-sheet fix).
     return Semantics(
       identifier: 'chat_dm_fee_banner',
-      label: l10n.chatBalanceDeductionA11y(amount),
-      container: true,
+      explicitChildNodes: true,
       child: Container(
         key: bannerKey,
         width: double.infinity,
@@ -97,13 +102,18 @@ class _BannerText extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    return Text(
-      l10n.chatBalanceDeductionNotice(amount),
-      style: theme.textTheme.bodyMedium?.copyWith(
-        color: theme.colorScheme.onPrimary,
-        fontWeight: FontWeight.w500,
+    // The notice copy carries the banner's a11y label (the wrapper no longer
+    // merges, so the descriptive text lives on this non-merging leaf node).
+    return Semantics(
+      label: l10n.chatBalanceDeductionA11y(amount),
+      child: Text(
+        l10n.chatBalanceDeductionNotice(amount),
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onPrimary,
+          fontWeight: FontWeight.w500,
+        ),
+        textAlign: TextAlign.start,
       ),
-      textAlign: TextAlign.start,
     );
   }
 }
@@ -121,6 +131,7 @@ class _BannerDismiss extends StatelessWidget {
     return Semantics(
       identifier: 'chat_dm_fee_banner_dismiss',
       button: true,
+      container: true,
       label: l10n.chatBalanceDeductionDismissA11y,
       child: InkResponse(
         onTap: onDismiss,
@@ -148,10 +159,17 @@ class _BannerOrderPicked extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
+    // Independently-targetable button node: `button: true` + explicit `label`
+    // + `container: true` give the pill its OWN semantics node carrying the
+    // stable id and a tap action, so Maestro/TalkBack can find and drive it
+    // (the banner wrapper no longer merges it away — QA-B1-class fix).
     return Padding(
       padding: const EdgeInsetsDirectional.only(start: Spacing.small),
       child: Semantics(
         identifier: 'chat_dm_order_picked_button',
+        button: true,
+        container: true,
+        label: l10n.chatDmOrderPickedAction,
         child: OmdsPrimaryButton(
           key: const Key('chat-fee-banner-order-picked'),
           text: l10n.chatDmOrderPickedAction,
