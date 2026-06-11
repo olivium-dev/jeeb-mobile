@@ -37,12 +37,18 @@ class DmOnboardingPhotoUploadCard extends StatelessWidget {
 
   Future<void> _openPicker(BuildContext context, AppLocalizations l10n) async {
     final cubit = context.read<DmOnboardingCubit>();
+    // OMDS exposes generic 'photo'/'video' choice keys with camera/videocam
+    // icons; this step repurposes the sheet as a photo-*source* picker, so the
+    // two visible option labels are Camera and Gallery (design-spec.md §6,
+    // Figma 56591:5334). The returned key is OMDS-internal, never shown:
+    //   'photo' (left option, Icons.photo_camera) -> camera capture
+    //   'video' (right option, Icons.videocam)    -> gallery pick
     final choice = await OmdsMediaPickerSheet.show(
       context,
       title: l10n.dmOnboardingPhotoUploadTitle,
       subtitle: l10n.dmOnboardingPhotoUploadSubtitle,
-      photoLabel: l10n.dmOnboardingPhotoUploadTitle,
-      videoLabel: l10n.dmOnboardingPhotoUploadSubtitle,
+      photoLabel: l10n.dmOnboardingPhotoUploadCameraLabel,
+      videoLabel: l10n.dmOnboardingPhotoUploadGalleryLabel,
     );
     if (choice == 'photo') {
       await cubit.pickFromCamera();

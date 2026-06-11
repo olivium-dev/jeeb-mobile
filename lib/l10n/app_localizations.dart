@@ -1314,6 +1314,10 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('dmOnboardingPhotoUploadSubtitle');
   String get dmOnboardingPhotoUploadHint =>
       _get('dmOnboardingPhotoUploadHint');
+  String get dmOnboardingPhotoUploadCameraLabel =>
+      _get('dmOnboardingPhotoUploadCameraLabel');
+  String get dmOnboardingPhotoUploadGalleryLabel =>
+      _get('dmOnboardingPhotoUploadGalleryLabel');
   String get dmOnboardingPersonalDetailsTitle =>
       _get('dmOnboardingPersonalDetailsTitle');
   String get dmOnboardingAddressStateLabel =>

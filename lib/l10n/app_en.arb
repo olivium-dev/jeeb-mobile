@@ -2379,6 +2379,14 @@
   "@dmOnboardingPhotoUploadHint": {
     "description": "Accessibility hint on the empty photo-upload drop area (Figma 56591:5334)."
   },
+  "dmOnboardingPhotoUploadCameraLabel": "Camera",
+  "@dmOnboardingPhotoUploadCameraLabel": {
+    "description": "Label for the camera option in the photo-source picker sheet of delivery-man onboarding (design-spec.md §6 56591:5334 'Camera option (sheet)')."
+  },
+  "dmOnboardingPhotoUploadGalleryLabel": "Gallery",
+  "@dmOnboardingPhotoUploadGalleryLabel": {
+    "description": "Label for the gallery option in the photo-source picker sheet of delivery-man onboarding (design-spec.md §6 56591:5334 'Gallery option (sheet)')."
+  },
   "dmOnboardingPersonalDetailsTitle": "Personal Details",
   "@dmOnboardingPersonalDetailsTitle": {
     "description": "Navbar title of the address/vehicle step of delivery-man onboarding (Figma 56591:4263)."

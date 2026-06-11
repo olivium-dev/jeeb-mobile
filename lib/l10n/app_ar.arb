@@ -847,6 +847,8 @@
   "dmOnboardingPhotoUploadTitle": "ارفع صورة واضحة لك",
   "dmOnboardingPhotoUploadSubtitle": "لمزيد من المصداقية",
   "dmOnboardingPhotoUploadHint": "اضغط لإضافة صورة",
+  "dmOnboardingPhotoUploadCameraLabel": "الكاميرا",
+  "dmOnboardingPhotoUploadGalleryLabel": "المعرض",
   "dmOnboardingPersonalDetailsTitle": "البيانات الشخصية",
   "dmOnboardingAddressStateLabel": "المحافظة",
   "dmOnboardingAddressStateHint": "إقليم الخروب",
