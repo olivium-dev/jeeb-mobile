@@ -1,0 +1,75 @@
+# Jeeb mobile — 27 Delivery Man Profile (public profile / reviews).
+# Figma node 56580:2697 (file ZOi3kKtw7sd42ssSVX3Kn4, flow profile-settings).
+#
+# WHAT THIS PROVES
+#   The delivery-man public profile renders (close-X navbar → avatar + verified
+#   name + rating summary + location/availability → "Reviews" section with count
+#   + "View all" + a list of review cards) with every interactive element
+#   targeted BY SEMANTIC ID (verified in source on feat/jeeb-ui-parity-lane-b4):
+#     delivery_man_profile_close            — _CloseButton (navbar X)
+#     delivery_man_profile_view_all_reviews — _ViewAllButton (OmdsPrimaryButton text)
+#     delivery_man_profile_review_card_0    — DeliveryReviewCard (first review)
+#     delivery_man_profile_review_card_1    — DeliveryReviewCard (second review)
+#   Non-interactive but assert-worthy:
+#     delivery_man_profile_name, delivery_man_profile_rating_summary,
+#     delivery_man_profile_availability.
+#
+# PRIMARY INTERACTION
+#   "View all" is the screen's primary affordance (opens the full reviews list).
+#   On the dev seam the full-list route is not yet wired, so the deterministic,
+#   assertible effect is: the button is present, tappable, and the app does not
+#   crash (the profile root stays visible after the tap). Honest tap-accepted
+#   check, not an over-assertion of an unbuilt destination (pilot-learning #7).
+#   The close (X) is also asserted present (modal-dismiss affordance).
+#
+# BACKEND / SEAM
+#   Dev seam: jeeb.route=/profile/delivery-man → AppRouter lands directly on
+#   DeliveryManProfileScreen with the deterministic
+#   DevDeliveryManProfileFixtures (Kamal Hajj, 4.3 / 113 reviews, 2 visible
+#   cards). No live gateway. UI parity only (UI-GUARDRAILS §6). Seam knobs via
+#   launchApp.arguments (Android intent extras, release-inert —
+#   dev-seam-runtime.md).
+#
+# MAESTRO 2.x: extendedWaitUntil for timed waits (2.0.5 rejects inline
+#   assertVisible:{timeout}); waitForAnimationToEnd before screenshots; no fixed
+#   sleeps; no coordinate taps; id-based assertions only.
+#
+# Run:
+#   maestro --device NONE-DEVICE-FREE test -e APP_ID=app.jeeb.mobile.dev \
+#     --format JUNIT --output <evidence>/maestro/junit.xml \
+#     .maestro/flows/27-delivery-man-profile.yaml
+appId: ${APP_ID}
+---
+- launchApp:
+    arguments:
+      jeeb.route: "/profile/delivery-man"
+
+# Identity header + reviews section — waited+asserted by id (cold launch).
+- extendedWaitUntil:
+    visible:
+      id: "delivery_man_profile_name"
+    timeout: 25000
+- assertVisible:
+    id: "delivery_man_profile_close"
+- assertVisible:
+    id: "delivery_man_profile_rating_summary"
+- assertVisible:
+    id: "delivery_man_profile_availability"
+- assertVisible:
+    id: "delivery_man_profile_view_all_reviews"
+- assertVisible:
+    id: "delivery_man_profile_review_card_0"
+- assertVisible:
+    id: "delivery_man_profile_review_card_1"
+
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 27_delivery_man_profile
+
+# PRIMARY INTERACTION: tap View all; assert tap-accepted + no crash.
+- tapOn:
+    id: "delivery_man_profile_view_all_reviews"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible:
+    id: "delivery_man_profile_name"

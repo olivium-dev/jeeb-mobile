@@ -21,6 +21,7 @@ class DevSeamConfig {
     this.chatSelector = '',
     this.forcedLocale = '',
     this.homeTab = '',
+    this.feed = '',
     this.holdSplash = false,
   });
 
@@ -33,6 +34,7 @@ class DevSeamConfig {
       chatSelector: map['jeeb.state']?.trim() ?? '',
       forcedLocale: map['jeeb.locale']?.trim() ?? '',
       homeTab: map['jeeb.home_tab']?.trim() ?? '',
+      feed: map['jeeb.feed']?.trim() ?? '',
       holdSplash: _asBool(map['jeeb.hold_splash']),
     );
   }
@@ -69,6 +71,13 @@ class DevSeamConfig {
   /// single APK renders screens 13/14/15 without a rebuild. Empty in release.
   final String homeTab;
 
+  /// Deliveryman (jeeber) feed selector for the Delivery tab. Debug capture
+  /// aid only: the dashboard tab seeds deterministic fixtures and selects this
+  /// view so a single APK renders screens 23-26 without a rebuild. Empty in
+  /// release. Values: `empty` (23), `requests` (24), `pending` (25),
+  /// `replies` (26).
+  final String feed;
+
   /// Holds the branded splash on screen after bootstrap (replaces
   /// `JEEB_HOLD_SPLASH`).
   final bool holdSplash;
@@ -80,6 +89,7 @@ class DevSeamConfig {
   bool get hasChatSelector => chatSelector.isNotEmpty;
   bool get hasForcedLocale => forcedLocale.isNotEmpty;
   bool get hasHomeTab => homeTab.isNotEmpty;
+  bool get hasFeed => feed.isNotEmpty;
 
   /// True when every field is at its inert default (nothing to apply).
   bool get isEmpty =>
@@ -87,6 +97,7 @@ class DevSeamConfig {
       chatSelector.isEmpty &&
       forcedLocale.isEmpty &&
       homeTab.isEmpty &&
+      feed.isEmpty &&
       !holdSplash;
 
   static bool _asBool(String? value) {
@@ -101,13 +112,21 @@ class DevSeamConfig {
       other.chatSelector == chatSelector &&
       other.forcedLocale == forcedLocale &&
       other.homeTab == homeTab &&
+      other.feed == feed &&
       other.holdSplash == holdSplash;
 
   @override
-  int get hashCode =>
-      Object.hash(route, chatSelector, forcedLocale, homeTab, holdSplash);
+  int get hashCode => Object.hash(
+        route,
+        chatSelector,
+        forcedLocale,
+        homeTab,
+        feed,
+        holdSplash,
+      );
 
   @override
   String toString() => 'DevSeamConfig(route: $route, chat: $chatSelector, '
-      'locale: $forcedLocale, homeTab: $homeTab, holdSplash: $holdSplash)';
+      'locale: $forcedLocale, homeTab: $homeTab, feed: $feed, '
+      'holdSplash: $holdSplash)';
 }

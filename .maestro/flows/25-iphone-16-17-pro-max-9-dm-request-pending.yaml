@@ -1,0 +1,62 @@
+# Jeeb mobile — 25 iPhone 16 & 17 Pro Max - 9 (DM request — Pending).
+# Figma node 56560:1403 (jeeber feed, "Pending Response" chip, one offered card).
+#
+# WHAT THIS PROVES
+#   The deliveryman feed renders the pending-response card (avatar + name +
+#   rating + tier + items + distance + italic "Pending" status + 09:41
+#   timestamp), targeted BY SEMANTIC ID (verified in source on
+#   feat/jeeb-ui-parity-lane-b4):
+#     jeeber_feed_request_card_dev-feed-pending — the pending card
+#                                                 jeeber_feed_card.dart (JeeberFeedCard)
+#     jeeber_feed_search_field                  — pill search bar
+#                                                 jeeber_feed_tab_view.dart (_FeedSearchBar)
+#   The italic "Pending" status (jeeber_feed_card.dart _PendingStatus, key
+#   jeeber-feed-pending-status) is the variant axis vs screen 24/26.
+#
+# PRIMARY INTERACTION
+#   The pending card has no per-card CTA in this Figma state (the jeeber is
+#   waiting on the client). The assertible interaction is the search field: it
+#   filters the feed and is the screen's only live control. We focus it and
+#   assert the card stays present + the app does not crash — an honest liveness
+#   check matched to what this state actually exposes (pilot-learning #7).
+#
+# BACKEND / SEAM
+#   Dev seam: jeeb.route=/ + jeeb.feed=pending → seam forces the jeeber role,
+#   DashboardTab seeds DevJeeberFeedFixtures.pending() with the Pending Response
+#   chip selected (dashboard_tab.dart _DevFeedScaffold). No live gateway. UI
+#   parity only (UI-GUARDRAILS §6). Seam knobs via launchApp.arguments
+#   (Android intent extras, release-inert).
+#
+# MAESTRO 2.x: extendedWaitUntil for timed waits; waitForAnimationToEnd before
+#   screenshots; no fixed sleeps; no coordinate taps; id-based assertions only.
+#
+# Run:
+#   maestro --device NONE-DEVICE-FREE test -e APP_ID=app.jeeb.mobile.dev \
+#     --format JUNIT --output <evidence>/maestro/junit.xml \
+#     .maestro/flows/25-iphone-16-17-pro-max-9-dm-request-pending.yaml
+appId: ${APP_ID}
+---
+- launchApp:
+    arguments:
+      jeeb.route: "/"
+      jeeb.feed: "pending"
+
+# Pending-response card — waited+asserted by id (cold launch + seeded load).
+- extendedWaitUntil:
+    visible:
+      id: "jeeber_feed_request_card_dev-feed-pending"
+    timeout: 25000
+- assertVisible:
+    id: "jeeber_feed_search_field"
+
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 25_iphone_16_17_pro_max_9_dm_request_pending
+
+# PRIMARY INTERACTION: focus the search field; assert card + field stay present.
+- tapOn:
+    id: "jeeber_feed_search_field"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible:
+    id: "jeeber_feed_request_card_dev-feed-pending"

@@ -1,0 +1,65 @@
+# Jeeb mobile — 24 Delivery Screen [Delivery Man] (populated request feed).
+# Figma node 56560:997 (registered jeeber, Requests chip, one incoming request).
+#
+# WHAT THIS PROVES
+#   The deliveryman feed renders the incoming-request card (avatar + name +
+#   rating + tier + items summary + distance + Ignore/Offer actions + 09:41
+#   timestamp), every interactive element targeted BY SEMANTIC ID (verified in
+#   source on feat/jeeb-ui-parity-lane-b4):
+#     jeeber_feed_search_field                     — pill search bar
+#                                                    jeeber_feed_tab_view.dart (_FeedSearchBar)
+#     jeeber_feed_request_card_dev-feed-incoming   — the request card
+#                                                    jeeber_feed_card.dart (JeeberFeedCard)
+#     jeeber_feed_request_ignore_dev-feed-incoming — Ignore action
+#     jeeber_feed_request_offer_dev-feed-incoming  — Offer action
+#                                                    jeeber_feed_card.dart (_IgnoreButton/_OfferButton)
+#
+# PRIMARY INTERACTION
+#   "Ignore" dismisses the request from the feed. On the dev seam this is wired
+#   to RequestFeedCubit.decline (jeeber_feed_tab_view.dart _FeedListView), which
+#   removes the card and surfaces the Requests-empty state — a DETERMINISTIC,
+#   assertible effect: after the tap the card id disappears. Real liveness +
+#   nav-effect check, not an over-assertion of an unguaranteed target.
+#
+# BACKEND / SEAM
+#   Dev seam: jeeb.route=/ + jeeb.feed=requests → seam forces the jeeber role,
+#   DashboardTab seeds DevJeeberFeedFixtures.incoming() into a
+#   SeededRequestFeedRepository (dashboard_tab.dart _DevFeedScaffold). No live
+#   gateway. UI parity only (UI-GUARDRAILS §6). Seam knobs via
+#   launchApp.arguments (Android intent extras, release-inert).
+#
+# MAESTRO 2.x: extendedWaitUntil for timed waits; waitForAnimationToEnd before
+#   screenshots; no fixed sleeps; no coordinate taps; id-based assertions only.
+#
+# Run:
+#   maestro --device NONE-DEVICE-FREE test -e APP_ID=app.jeeb.mobile.dev \
+#     --format JUNIT --output <evidence>/maestro/junit.xml \
+#     .maestro/flows/24-delivery-screen-delivery-man.yaml
+appId: ${APP_ID}
+---
+- launchApp:
+    arguments:
+      jeeb.route: "/"
+      jeeb.feed: "requests"
+
+# Incoming request card — waited+asserted by id (cold launch + seeded load).
+- extendedWaitUntil:
+    visible:
+      id: "jeeber_feed_request_card_dev-feed-incoming"
+    timeout: 25000
+- assertVisible:
+    id: "jeeber_feed_search_field"
+- assertVisible:
+    id: "jeeber_feed_request_offer_dev-feed-incoming"
+
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 24_delivery_screen_delivery_man
+
+# PRIMARY INTERACTION: Ignore dismisses the card from the feed.
+- tapOn:
+    id: "jeeber_feed_request_ignore_dev-feed-incoming"
+- extendedWaitUntil:
+    notVisible:
+      id: "jeeber_feed_request_card_dev-feed-incoming"
+    timeout: 10000

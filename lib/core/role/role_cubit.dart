@@ -8,9 +8,11 @@ import 'user_role.dart';
 /// Persisted to [SharedPreferences] so the user's last-active surface is
 /// preserved across launches.
 class RoleCubit extends Cubit<UserRole> {
-  RoleCubit({required SharedPreferences prefs})
+  RoleCubit({required SharedPreferences prefs, UserRole? initialRole})
       : _prefs = prefs,
-        super(UserRole.fromStorage(prefs.getString(_kRolePrefKey)));
+        super(
+          initialRole ?? UserRole.fromStorage(prefs.getString(_kRolePrefKey)),
+        );
 
   static const String _kRolePrefKey = 'app.role';
 

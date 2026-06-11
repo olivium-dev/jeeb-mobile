@@ -10,7 +10,13 @@ import '../../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../../features/biometric_auth/application/biometric_lock_state.dart';
 import '../../features/biometric_auth/presentation/biometric_lock_screen.dart';
 import '../../features/chat/presentation/dev_chat_preview_screen.dart';
+import '../../features/customer_profile/data/dev_customer_profile_fixtures.dart';
+import '../../features/customer_profile/domain/customer_profile_view_data.dart';
+import '../../features/customer_profile/presentation/customer_profile_screen.dart';
 import '../../features/deep_link_targets/chat_detail_screen.dart';
+import '../../features/delivery_man_profile/data/dev_delivery_man_profile_fixtures.dart';
+import '../../features/delivery_man_profile/domain/delivery_man_profile_view_data.dart';
+import '../../features/delivery_man_profile/presentation/delivery_man_profile_screen.dart';
 import '../../features/deep_link_targets/delivery_detail_screen.dart';
 import '../../features/deep_link_targets/kyc_status_screen.dart';
 import '../../features/deep_link_targets/rating_prompt_screen.dart';
@@ -168,6 +174,33 @@ class AppRouter {
           path: '/profile/kyc',
           name: 'kyc-status',
           builder: (context, state) => const KycStatusScreen(),
+        ),
+        GoRoute(
+          path: '/profile/customer',
+          name: 'customer-profile',
+          // Real callers hand the aggregated view data via `extra`; the
+          // dev-seam capture path (`jeeb.route=/profile/customer`) has no
+          // extra, so fall back to the deterministic debug fixture.
+          builder: (context, state) {
+            final extra = state.extra;
+            final data = extra is CustomerProfileViewData
+                ? extra
+                : DevCustomerProfileFixtures.sample;
+            return CustomerProfileScreen(data: data);
+          },
+        ),
+        GoRoute(
+          path: '/profile/delivery-man',
+          name: 'delivery-man-profile',
+          // Same pattern: typed `extra` from a real client tap, else the
+          // debug fixture so a single dev APK captures screen 27.
+          builder: (context, state) {
+            final extra = state.extra;
+            final data = extra is DeliveryManProfileViewData
+                ? extra
+                : DevDeliveryManProfileFixtures.sample;
+            return DeliveryManProfileScreen(data: data);
+          },
         ),
         GoRoute(
           path: '/location',

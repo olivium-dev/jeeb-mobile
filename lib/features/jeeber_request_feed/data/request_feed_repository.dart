@@ -155,6 +155,7 @@ class FakeRequestFeedRepository implements RequestFeedRepository {
       JeeberRequestTier.light => 0.6,
       JeeberRequestTier.standard => 0.9,
       JeeberRequestTier.bulk => 1.4,
+      JeeberRequestTier.flash => 1.6,
     };
     return DeliveryRequest(
       id: 'fake-$_counter',
@@ -176,4 +177,41 @@ class FakeRequestFeedRepository implements RequestFeedRepository {
       senderName: 'Test sender',
     );
   }
+}
+
+/// Static-snapshot repository that returns a fixed list of [DeliveryRequest]s
+/// and never emits live pushes. Used by the `jeeb.feed` dev seam so the
+/// deliveryman feed renders deterministic fixtures (screens 24-26) for capture
+/// without a backend or random churn. Accept/decline are no-ops so the cards
+/// stay on screen for screenshots.
+class SeededRequestFeedRepository implements RequestFeedRepository {
+  SeededRequestFeedRepository(this._snapshot);
+
+  final List<DeliveryRequest> _snapshot;
+
+  @override
+  Stream<DeliveryRequest> get requests => const Stream<DeliveryRequest>.empty();
+
+  @override
+  Stream<String> get cancellations => const Stream<String>.empty();
+
+  @override
+  Stream<FeedTransportUpdate> get transport async* {
+    yield const FeedTransportUpdate(FeedTransport.webSocket);
+  }
+
+  @override
+  Future<List<DeliveryRequest>> refresh() async =>
+      List<DeliveryRequest>.unmodifiable(_snapshot);
+
+  @override
+  Future<RequestActionOutcome> accept(String id) async =>
+      RequestActionOutcome.accepted;
+
+  @override
+  Future<RequestActionOutcome> decline(String id) async =>
+      RequestActionOutcome.declined;
+
+  @override
+  Future<void> dispose() async {}
 }

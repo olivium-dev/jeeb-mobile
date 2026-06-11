@@ -305,18 +305,21 @@ class _TierChip extends StatelessWidget {
         JeeberRequestTier.light => l10n.requestFeedTierLight,
         JeeberRequestTier.standard => l10n.requestFeedTierStandard,
         JeeberRequestTier.bulk => l10n.requestFeedTierBulk,
+        JeeberRequestTier.flash => l10n.requestFeedTierFlash,
       };
 
   Color _background() => switch (tier) {
         JeeberRequestTier.light => colorScheme.tertiaryContainer,
         JeeberRequestTier.standard => colorScheme.secondaryContainer,
         JeeberRequestTier.bulk => colorScheme.primaryContainer,
+        JeeberRequestTier.flash => colorScheme.primaryContainer,
       };
 
   Color _foreground() => switch (tier) {
         JeeberRequestTier.light => colorScheme.onTertiaryContainer,
         JeeberRequestTier.standard => colorScheme.onSecondaryContainer,
         JeeberRequestTier.bulk => colorScheme.onPrimaryContainer,
+        JeeberRequestTier.flash => colorScheme.onPrimaryContainer,
       };
 
   @override
