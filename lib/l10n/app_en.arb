@@ -1102,6 +1102,72 @@
       }
     }
   },
+  "jeeberFeedSearchHint": "Search…",
+  "@jeeberFeedSearchHint": {
+    "description": "Search field placeholder on the deliveryman request feed (Figma screens 24-26)"
+  },
+  "jeeberFeedFilterRequests": "Requests",
+  "@jeeberFeedFilterRequests": {
+    "description": "Filter chip selecting the incoming-requests view of the deliveryman feed"
+  },
+  "jeeberFeedFilterPendingResponse": "Pending Response",
+  "@jeeberFeedFilterPendingResponse": {
+    "description": "Filter chip selecting requests the Jeeber has offered on and is awaiting a client reply"
+  },
+  "jeeberFeedFilterReplies": "Replies",
+  "@jeeberFeedFilterReplies": {
+    "description": "Filter chip selecting accepted requests with delivery-status actions"
+  },
+  "jeeberFeedIgnoreAction": "Ignore",
+  "@jeeberFeedIgnoreAction": {
+    "description": "Destructive text action dismissing an incoming request from the deliveryman feed"
+  },
+  "jeeberFeedOfferAction": "Offer",
+  "@jeeberFeedOfferAction": {
+    "description": "Primary action on an incoming feed card — opens the offer submission flow"
+  },
+  "jeeberFeedDistanceAway": "{distance} away from you",
+  "@jeeberFeedDistanceAway": {
+    "description": "Distance from the Jeeber to the request pickup; distance is pre-formatted with its unit",
+    "placeholders": {
+      "distance": {
+        "type": "String"
+      }
+    }
+  },
+  "jeeberFeedStatusPending": "Pending",
+  "@jeeberFeedStatusPending": {
+    "description": "Italic status on a feed card the Jeeber has offered on and is awaiting the client's response"
+  },
+  "jeeberFeedActionHeadingToDropOff": "Heading to drop off",
+  "@jeeberFeedActionHeadingToDropOff": {
+    "description": "Delivery state-machine action advancing an accepted request from picked-up to heading-to-dropoff"
+  },
+  "jeeberFeedAcceptOrdersLabel": "Accept orders",
+  "@jeeberFeedAcceptOrdersLabel": {
+    "description": "Availability toggle label on the deliveryman empty-state home (Figma screen 23)"
+  },
+  "jeeberFeedEmptyTitle": "No Requests yet",
+  "@jeeberFeedEmptyTitle": {
+    "description": "Empty-state headline on the deliveryman home when there are zero incoming requests (Figma screen 23)"
+  },
+  "jeeberFeedEmptySubtitle": "All requests will show up here",
+  "@jeeberFeedEmptySubtitle": {
+    "description": "Empty-state supporting line on the deliveryman home (Figma screen 23)"
+  },
+  "jeeberFeedRatingSemantic": "Rated {rating} out of 5",
+  "@jeeberFeedRatingSemantic": {
+    "description": "Accessibility label for the client star rating on a feed card",
+    "placeholders": {
+      "rating": {
+        "type": "String"
+      }
+    }
+  },
+  "requestFeedTierFlash": "Flash",
+  "@requestFeedTierFlash": {
+    "description": "Fastest delivery tier label (orange accent) shown on deliveryman feed cards"
+  },
   "jeeberIncomingMatchTitle": "New request",
   "@jeeberIncomingMatchTitle": {
     "description": "Header on the foreground prompt shown when the matching engine nominates this Jeeber for a specific request"

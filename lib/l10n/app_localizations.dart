@@ -683,6 +683,25 @@ class AppLocalizations {
       _get('jeeberFeedDistance').replaceFirst('{distance}', distance);
   String jeeberFeedClientRatingReviews(int count) =>
       _get('jeeberFeedClientRatingReviews').replaceFirst('{count}', '$count');
+  String get jeeberFeedSearchHint => _get('jeeberFeedSearchHint');
+  String get jeeberFeedFilterRequests => _get('jeeberFeedFilterRequests');
+  String get jeeberFeedFilterPendingResponse =>
+      _get('jeeberFeedFilterPendingResponse');
+  String get jeeberFeedFilterReplies => _get('jeeberFeedFilterReplies');
+  String get jeeberFeedIgnoreAction => _get('jeeberFeedIgnoreAction');
+  String get jeeberFeedOfferAction => _get('jeeberFeedOfferAction');
+  String jeeberFeedDistanceAway(String distance) =>
+      _get('jeeberFeedDistanceAway').replaceFirst('{distance}', distance);
+  String get jeeberFeedStatusPending => _get('jeeberFeedStatusPending');
+  String get jeeberFeedActionHeadingToDropOff =>
+      _get('jeeberFeedActionHeadingToDropOff');
+  String get jeeberFeedAcceptOrdersLabel =>
+      _get('jeeberFeedAcceptOrdersLabel');
+  String get jeeberFeedEmptyTitle => _get('jeeberFeedEmptyTitle');
+  String get jeeberFeedEmptySubtitle => _get('jeeberFeedEmptySubtitle');
+  String jeeberFeedRatingSemantic(String rating) =>
+      _get('jeeberFeedRatingSemantic').replaceFirst('{rating}', rating);
+  String get requestFeedTierFlash => _get('requestFeedTierFlash');
   String get jeeberIncomingMatchTitle => _get('jeeberIncomingMatchTitle');
   String get jeeberIncomingMatchAccept => _get('jeeberIncomingMatchAccept');
   String get jeeberIncomingMatchDecline => _get('jeeberIncomingMatchDecline');
