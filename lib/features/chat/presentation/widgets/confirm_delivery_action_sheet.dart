@@ -79,6 +79,11 @@ class ConfirmDeliveryActionSheet extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Semantics(
       identifier: 'confirm_delivery_action_sheet',
+      // explicitChildNodes keeps the drag handle, title, and Confirm CTA as
+      // independent, id-addressable semantics nodes instead of letting the
+      // framework collapse them into this container node (QA B1: Maestro could
+      // only see `confirm_delivery_action_sheet`).
+      explicitChildNodes: true,
       child: SafeArea(
         top: false,
         child: Padding(
@@ -228,11 +233,14 @@ class _SheetTextBlock extends StatelessWidget {
           ),
         ),
         const SizedBox(height: Spacing.twoXSmall),
-        Text(
-          subtitle,
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSecondaryContainer,
+        Semantics(
+          identifier: 'confirm_delivery_subtitle',
+          child: Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSecondaryContainer,
+            ),
           ),
         ),
       ],
@@ -241,6 +249,12 @@ class _SheetTextBlock extends StatelessWidget {
 }
 
 /// Full-width navy Confirm CTA that spins while the action runs.
+///
+/// The `Semantics` node owns the tap action and is an explicit `container`
+/// boundary — the same shape as the proven `ChatComposerIconButton`
+/// (`chat_detail_send_button`), which Maestro can tap in flow 04. This makes
+/// the CTA a standalone, id-addressable, tappable node rather than relying on
+/// the inner [OmdsLoadingButton]'s bare `GestureDetector` semantics (QA B1).
 class _SheetConfirmCta extends StatelessWidget {
   const _SheetConfirmCta({
     required this.label,
@@ -255,17 +269,24 @@ class _SheetConfirmCta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final enabled = !isConfirming;
     return Semantics(
       identifier: 'confirm_delivery_confirm_button',
+      container: true,
       button: true,
-      child: OmdsLoadingButton(
-        key: const Key('confirm-delivery-confirm-button'),
-        text: label,
-        isLoading: isConfirming,
-        onTap: onConfirm,
-        backgroundColor: colorScheme.secondaryContainer,
-        textColor: colorScheme.onPrimary,
-        borderRadius: OmdsBorderRadius.uiSmall,
+      enabled: enabled,
+      label: label,
+      onTap: enabled ? onConfirm : null,
+      child: ExcludeSemantics(
+        child: OmdsLoadingButton(
+          key: const Key('confirm-delivery-confirm-button'),
+          text: label,
+          isLoading: isConfirming,
+          onTap: onConfirm,
+          backgroundColor: colorScheme.secondaryContainer,
+          textColor: colorScheme.onPrimary,
+          borderRadius: OmdsBorderRadius.uiSmall,
+        ),
       ),
     );
   }

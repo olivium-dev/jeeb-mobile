@@ -163,6 +163,65 @@ void main() {
       expect(confirmed, isTrue);
     });
 
+    testWidgets(
+        'Confirm CTA is an independent tappable semantics node (QA B1 fix)',
+        (tester) async {
+      final handle = tester.ensureSemantics();
+      var confirmed = false;
+      await tester.pumpWidget(_host(ConfirmDeliveryActionSheet(
+        kind: DeliveryConfirmKind.picking,
+        onConfirm: () => confirmed = true,
+      )));
+      await tester.pumpAndSettle();
+
+      // The CTA must expose its OWN button semantics node carrying the stable
+      // id and a tap action — not be merged into the sheet container node.
+      final ctaFinder = find.bySemanticsIdentifier(
+        'confirm_delivery_confirm_button',
+      );
+      expect(ctaFinder, findsOneWidget);
+      expect(
+        tester.getSemantics(ctaFinder),
+        containsSemantics(
+          identifier: 'confirm_delivery_confirm_button',
+          isButton: true,
+          hasTapAction: true,
+        ),
+      );
+
+      // Driving the SEMANTICS tap action (what Maestro/TalkBack does) fires
+      // onConfirm — proving the node is genuinely actionable, not decorative.
+      await tester.tap(ctaFinder, warnIfMissed: false);
+      expect(confirmed, isTrue);
+      handle.dispose();
+    });
+
+    testWidgets('sheet exposes its leaf nodes as explicit children (QA B1)',
+        (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(_host(ConfirmDeliveryActionSheet(
+        kind: DeliveryConfirmKind.picking,
+        onConfirm: () {},
+      )));
+      await tester.pumpAndSettle();
+
+      // The drag handle, title, subtitle, and CTA stay independently
+      // addressable instead of collapsing into confirm_delivery_action_sheet.
+      for (final id in const [
+        'confirm_delivery_drag_handle',
+        'confirm_delivery_title',
+        'confirm_delivery_subtitle',
+        'confirm_delivery_confirm_button',
+      ]) {
+        expect(
+          find.bySemanticsIdentifier(id),
+          findsOneWidget,
+          reason: 'expected an independent semantics node for $id',
+        );
+      }
+      handle.dispose();
+    });
+
     testWidgets('renders Arabic copy under RTL', (tester) async {
       await tester.pumpWidget(_host(
         ConfirmDeliveryActionSheet(
