@@ -764,5 +764,7 @@
   "availabilityActiveDeliveries": "التوصيلات النشطة",
   "chatPendingMessages": "الرسائل المعلّقة",
   "chatNoConversationTitle": "لا توجد محادثة بعد",
-  "chatNoConversationSubtitle": "هذا التوصيل لا يحتوي على محادثة حتى الآن. تحقق مجدداً عند تعيين جيبر."
+  "chatNoConversationSubtitle": "هذا التوصيل لا يحتوي على محادثة حتى الآن. تحقق مجدداً عند تعيين جيبر.",
+  "splashTagline": "تطبيق التوصيل",
+  "splashLogoSemantic": "جيب"
 }

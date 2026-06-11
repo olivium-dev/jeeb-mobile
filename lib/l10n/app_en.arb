@@ -2048,5 +2048,13 @@
   "availabilityActiveDeliveries": "Active deliveries",
   "chatPendingMessages": "Pending messages",
   "chatNoConversationTitle": "No conversation yet",
-  "chatNoConversationSubtitle": "This delivery doesn't have a chat thread. Check back once a Jeeber is assigned."
+  "chatNoConversationSubtitle": "This delivery doesn't have a chat thread. Check back once a Jeeber is assigned.",
+  "splashTagline": "Delivery App",
+  "@splashTagline": {
+    "description": "Tagline shown under the Jeeb logo on the splash screen (Figma node 56572:1822)."
+  },
+  "splashLogoSemantic": "Jeeb",
+  "@splashLogoSemantic": {
+    "description": "Accessibility label announced for the Jeeb brand wordmark artwork on the splash screen. Brand name; identical in every locale."
+  }
 }

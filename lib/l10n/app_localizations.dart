@@ -1196,4 +1196,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get voiceRecordingSubtitle => _get('voiceRecordingSubtitle');
   String voiceRecordingTimerLabel(String duration) => _get('voiceRecordingTimerLabel').replaceFirst('{duration}', duration);
   String get voiceRecordingTitle => _get('voiceRecordingTitle');
+  String get splashTagline => _get('splashTagline');
+  String get splashLogoSemantic => _get('splashLogoSemantic');
 }

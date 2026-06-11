@@ -50,6 +50,12 @@ dependencies:
   # UI / Design System support
   google_fonts: ^6.2.1
 
+  # Vector brand artwork (splash wordmark, node 56572:1711). Ships transitively
+  # via OMDS today; pinned explicitly so the `SvgPicture.asset` import in
+  # branded_splash.dart isn't load-bearing on OMDS's dependency graph (same
+  # rationale as `crypto` below). Version matches omds_library (^2.0.10+1).
+  flutter_svg: ^2.0.10+1
+
   # Internationalisation
   intl: ^0.20.2
 
@@ -103,3 +109,6 @@ flutter:
   assets:
     - lib/l10n/app_en.arb
     - lib/l10n/app_ar.arb
+    # Jeeb brand wordmark (Figma node 56572:1821 "Group 68"). Exported once
+    # from the Figma Dev Mode MCP; rendered on the splash via SvgPicture.asset.
+    - assets/brand/jeeb_logo.svg

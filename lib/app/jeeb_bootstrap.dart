@@ -1,9 +1,33 @@
+import 'dart:ui';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
+import '../core/theme/app_theme.dart';
+import '../l10n/app_localizations.dart';
 import 'app.dart';
 import 'bootstrap.dart';
 import 'branded_splash.dart';
+
+/// Debug-only flag (`--dart-define=JEEB_HOLD_SPLASH=true`) that keeps the
+/// branded splash on screen after bootstrap resolves, so the screen can be
+/// captured deterministically on the emulator. It renders the *production*
+/// [BrandedSplash] under the production theme + l10n — it never changes what
+/// ships. No-op in release builds.
+const bool _kHoldSplash =
+    bool.fromEnvironment('JEEB_HOLD_SPLASH') && kDebugMode;
+
+/// Debug-only locale override (`--dart-define=JEEB_FORCE_LOCALE=ar`) used to
+/// capture the RTL splash deterministically on an emulator that can't have its
+/// system locale changed without root. Honored only in debug builds; the
+/// production locale resolution (device locale → prefs) is untouched.
+///
+/// Must be a `const String.fromEnvironment` so `--dart-define` injects at
+/// compile time — wrapping it in a runtime ternary would discard the value.
+const String _kForcedLocaleDefine = String.fromEnvironment('JEEB_FORCE_LOCALE');
+const String _kForcedLocale = kDebugMode ? _kForcedLocaleDefine : '';
 
 /// Cold-start host (T-mobile-047).
 ///
@@ -48,7 +72,7 @@ class _JeebBootstrapState extends State<JeebBootstrap> {
     return FutureBuilder<BootstrapResult>(
       future: _bootstrap,
       builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
+        if (snapshot.connectionState != ConnectionState.done || _kHoldSplash) {
           return const _SplashApp();
         }
         if (snapshot.hasError) {
@@ -67,14 +91,39 @@ class _JeebBootstrapState extends State<JeebBootstrap> {
   }
 }
 
+/// Pre-bootstrap host for [BrandedSplash]. Wires the production OMDS theme and
+/// the [AppLocalizations] delegates so the splash consumes `colorScheme` roles
+/// and ARB strings — never literals. Locale resolves from the device locale
+/// (constrained to supported locales) so an Arabic device renders the splash
+/// mirrored from the very first frame, before prefs are loaded.
 class _SplashApp extends StatelessWidget {
   const _SplashApp();
 
+  static Locale _initialLocale() {
+    final candidate = _kForcedLocale.isNotEmpty
+        ? _kForcedLocale
+        : PlatformDispatcher.instance.locale.languageCode;
+    final supported =
+        AppLocalizations.supportedLocales.any((l) => l.languageCode == candidate);
+    return supported ? Locale(candidate) : const Locale('en');
+  }
+
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: BrandedSplash(),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: ThemeMode.system,
+      locale: _initialLocale(),
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      home: const BrandedSplash(),
     );
   }
 }
