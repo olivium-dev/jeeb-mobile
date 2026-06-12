@@ -1,0 +1,103 @@
+# Maestro flow — Delivery-man onboarding, Address / New Address (screen 21)
+#
+# Figma node 56591:4109 (file ZOi3kKtw7sd42ssSVX3Kn4): the address/vehicle step
+#   of the DM onboarding wizard — navbar "Personal Details" + back chevron, the
+#   thin wizard progress bar, and five labeled outlined fields (State, Country,
+#   Street, Vehicle number, Address) each with a periwinkle placeholder, over a
+#   bottom-pinned navy "Continue" CTA. Built widget: DmOnboardingAddressStep
+#   (lib/features/jeeber_onboarding/presentation/widgets/dm_onboarding_address_step.dart)
+#   hosted by DmOnboardingScreen.
+#
+# NAV — RUNTIME DEV SEAM (dev-seam-runtime.md): `jeeb.route` carries a query
+#   param so a capture can land directly on a later wizard step without walking
+#   the flow. `/jeeber/onboarding?step=address` resolves to the address step via
+#   DmOnboardingStep.fromSlug (app_router.dart). `launchApp.arguments` arrive as
+#   Android intent extras (seam source priority 1).
+#     Equivalent adb one-liner (quote the value — it contains '?' and '='):
+#       adb -s emulator-5560 shell am start -S \
+#         -n app.jeeb.mobile.dev/app.jeeb.mobile.MainActivity \
+#         -e jeeb.route "/jeeber/onboarding?step=address" -e jeeb.locale en
+#     RTL variant: swap `-e jeeb.locale ar`.
+#
+# BACKEND: none. Fields are local wizard state. A PASS certifies VISUAL +
+#   BEHAVIORAL UI PARITY ONLY, not form-builder-service submission integration
+#   (UI-GUARDRAILS §6).
+#
+# SYNTAX: Maestro 2.0.5 — extendedWaitUntil for timeouts (pilot #3);
+#   waitForAnimationToEnd before each takeScreenshot (pilot #4); id-based
+#   tapOn/inputText/assertVisible only — no sleeps, no coordinate taps, no
+#   localized-text matching.
+#
+# IDS asserted — verified present in source (grep of lib/features/jeeber_onboarding):
+#   dm_onboarding_address_state_field           (dm_onboarding_address_field.dart)
+#   dm_onboarding_address_country_field         (   ″   )
+#   dm_onboarding_address_street_field          (   ″   )
+#   dm_onboarding_address_vehicle_number_field  (   ″   )
+#   dm_onboarding_address_address_field         (   ″   )
+#   dm_onboarding_address_continue_button       (dm_onboarding_step_layout.dart)
+#   dm_onboarding_progress / dm_onboarding_back_button (shared wizard chrome)
+
+appId: ${APP_ID}
+---
+# ── LAUNCH via runtime dev seam → wizard address step ─────────────────────────
+- launchApp:
+    stopApp: true
+    arguments:
+      jeeb.route: "/jeeber/onboarding?step=address"
+      jeeb.locale: "en"
+
+# ── STATE RENDERS: the first address field is on screen ───────────────────────
+- extendedWaitUntil:
+    visible:
+      id: "dm_onboarding_address_state_field"
+    timeout: 40000
+- waitForAnimationToEnd
+
+# ── CHROME: all five fields + Continue are present ────────────────────────────
+- assertVisible:
+    id: "dm_onboarding_address_country_field"
+- assertVisible:
+    id: "dm_onboarding_address_street_field"
+- assertVisible:
+    id: "dm_onboarding_address_vehicle_number_field"
+- assertVisible:
+    id: "dm_onboarding_address_address_field"
+- assertVisible:
+    id: "dm_onboarding_address_continue_button"
+
+# ── CAPTURE: the empty address form (Figma default state) ─────────────────────
+- waitForAnimationToEnd
+- takeScreenshot: "21-dm-onboarding-address-empty"
+
+# ── PRIMARY INTERACTION: type into the fields (proves they are live inputs) ───
+- tapOn:
+    id: "dm_onboarding_address_state_field"
+- inputText: "Mount Lebanon"
+- tapOn:
+    id: "dm_onboarding_address_vehicle_number_field"
+- inputText: "G279424"
+# Dismiss the IME by tapping the wizard progress bar (a NON-interactive Semantics
+# node — dm_onboarding_progress_header.dart wraps OMDSStepperProgress with no
+# button/onTap; rendered above the step body in dm_onboarding_screen.dart) —
+# Flutter drops the field's focus on a tap outside an editable, hiding the
+# keyboard so the bottom-pinned Continue CTA is unobscured for the tap below.
+# HARNESS-FIX (CAP-3, same root cause as CAP-2 flows 02/07): we do NOT use
+# `hideKeyboard`. Maestro 2.0.5 implements hideKeyboard as an Android BACK
+# keyevent. This flow deep-links straight to the address step via the dev seam
+# (jeeb.route=/jeeber/onboarding?step=address), so the in-app back stack is EMPTY
+# — BACK pops the whole app to the launcher (verified empirically, identical to
+# the /dev-chat ROOT-route trap in 02/07), which would make the Continue tap
+# below fail. Tapping the progress bar keeps us on the address step.
+- tapOn:
+    id: "dm_onboarding_progress"
+- waitForAnimationToEnd
+- takeScreenshot: "21-dm-onboarding-address-filled"
+# Continue stays present and tappable after input — proves the step advances.
+- tapOn:
+    id: "dm_onboarding_address_continue_button"
+- waitForAnimationToEnd
+# Advancing lands on the service-area step (location selector present).
+- extendedWaitUntil:
+    visible:
+      id: "dm_onboarding_location_selector"
+    timeout: 20000

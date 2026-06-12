@@ -10,9 +10,33 @@ import '../application/chat_state.dart';
 import '../data/in_memory_chat_gateway.dart';
 import '../domain/chat_gateway.dart';
 import '../domain/delivery_chat_message.dart';
+import 'widgets/chat_app_bar.dart';
 import 'widgets/chat_composer.dart';
+import 'widgets/chat_date_separator.dart';
+import 'widgets/chat_fee_banner.dart';
 import 'widgets/chat_message_bubble.dart';
+import 'widgets/chat_offer_only_one_footer.dart';
 import 'widgets/offer_card_bubble.dart';
+
+/// Jeeber-only balance-deduction notice configuration for [ChatScreen].
+///
+/// When supplied, [ChatScreen] renders a [ChatFeeBanner] between the app bar
+/// and the message list. The [amount] is a pre-formatted currency string from
+/// the gateway fee config — the UI never computes it. Absent (null) on the
+/// client variant of the thread.
+class ChatFeeNotice {
+  const ChatFeeNotice({
+    required this.amount,
+    this.trailing = ChatFeeBannerTrailing.dismiss,
+    this.onDismiss,
+    this.onOrderPicked,
+  });
+
+  final String amount;
+  final ChatFeeBannerTrailing trailing;
+  final VoidCallback? onDismiss;
+  final VoidCallback? onOrderPicked;
+}
 
 /// WhatsApp-style 1:1 chat between the client and the Jeeber for an active
 /// delivery (T-mobile-016 / JEEB-69).
@@ -26,6 +50,10 @@ class ChatScreen extends StatelessWidget {
     super.key,
     required this.deliveryId,
     required this.counterpartName,
+    this.counterpartAvatarUrl,
+    this.counterpartAvatarImage,
+    this.feeNotice,
+    this.composerHint,
     this.cubit,
     this.gateway,
     this.pickerService,
@@ -41,6 +69,21 @@ class ChatScreen extends StatelessWidget {
   /// Display name in the app bar — the Jeeber's name on the client side, the
   /// client's name on the Jeeber side.
   final String counterpartName;
+
+  /// Optional counterpart avatar (CDN url). Shown in the post-approval header.
+  final String? counterpartAvatarUrl;
+
+  /// Optional pre-resolved avatar image (e.g. a bundled [AssetImage] in the
+  /// dev capture seam). Takes precedence over [counterpartAvatarUrl].
+  final ImageProvider? counterpartAvatarImage;
+
+  /// Jeeber-only fee notice rendered above the thread. Null hides the banner
+  /// (client variant). See [ChatFeeNotice].
+  final ChatFeeNotice? feeNotice;
+
+  /// Composer hint override. The Jeeber variant passes the localized
+  /// "Price / time" hint; null falls back to the default "Type a message".
+  final String? composerHint;
 
   /// Pre-built cubit for widget tests / hosts that own the lifecycle.
   final ChatCubit? cubit;
@@ -59,7 +102,13 @@ class ChatScreen extends StatelessWidget {
     if (provided != null) {
       return BlocProvider<ChatCubit>.value(
         value: provided,
-        child: _ChatScaffold(counterpartName: counterpartName),
+        child: _ChatScaffold(
+          counterpartName: counterpartName,
+          counterpartAvatarUrl: counterpartAvatarUrl,
+          counterpartAvatarImage: counterpartAvatarImage,
+          feeNotice: feeNotice,
+          composerHint: composerHint,
+        ),
       );
     }
     return BlocProvider<ChatCubit>(
@@ -68,15 +117,31 @@ class ChatScreen extends StatelessWidget {
         gateway: gateway ?? InMemoryChatGateway(),
         pickerService: pickerService ?? StubPhotoPickerService(),
       )..load(),
-      child: _ChatScaffold(counterpartName: counterpartName),
+      child: _ChatScaffold(
+        counterpartName: counterpartName,
+        counterpartAvatarUrl: counterpartAvatarUrl,
+        counterpartAvatarImage: counterpartAvatarImage,
+        feeNotice: feeNotice,
+        composerHint: composerHint,
+      ),
     );
   }
 }
 
 class _ChatScaffold extends StatefulWidget {
-  const _ChatScaffold({required this.counterpartName});
+  const _ChatScaffold({
+    required this.counterpartName,
+    this.counterpartAvatarUrl,
+    this.counterpartAvatarImage,
+    this.feeNotice,
+    this.composerHint,
+  });
 
   final String counterpartName;
+  final String? counterpartAvatarUrl;
+  final ImageProvider? counterpartAvatarImage;
+  final ChatFeeNotice? feeNotice;
+  final String? composerHint;
 
   @override
   State<_ChatScaffold> createState() => _ChatScaffoldState();
@@ -109,99 +174,48 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       key: ChatScreen.rootKey,
-      appBar: OMDSAppBar(title: widget.counterpartName, showBackButton: true),
+      appBar: ChatAppBar(
+        title: widget.counterpartName,
+        avatarUrl: widget.counterpartAvatarUrl,
+        avatarImage: widget.counterpartAvatarImage,
+        showAvatar: context.select<ChatCubit, bool>(
+          (c) => c.state.showsCounterpartHeader,
+        ),
+      ),
       body: SafeArea(
         bottom: false,
         child: BlocConsumer<ChatCubit, ChatState>(
           listenWhen: (prev, curr) =>
               prev.messages.length != curr.messages.length ||
               prev.error != curr.error,
-          listener: (context, state) {
-            // Auto-scroll on any message-count change. The hasClients guard
-            // inside the scheduler covers the empty-list / mid-dispose cases.
-            _scheduleScrollToBottom();
-            final error = state.error;
-            if (error != null) {
-              final message = _messageFor(l10n, error);
-              if (message != null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(message),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              }
-              context.read<ChatCubit>().acknowledgeError();
-            }
-          },
-          builder: (context, state) {
-            return Column(
-              children: [
-                Expanded(child: _buildMessages(context, state, l10n)),
-                if (state.isComposerVisible) ...[
-                  const Divider(height: 1),
-                  const ChatComposer(),
-                ],
-              ],
-            );
-          },
+          listener: (context, state) => _onStateChanged(context, state, l10n),
+          builder: (context, state) => _ChatBody(
+            state: state,
+            l10n: l10n,
+            scrollController: _scrollController,
+            feeNotice: widget.feeNotice,
+            composerHint: widget.composerHint,
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildMessages(
+  void _onStateChanged(
     BuildContext context,
     ChatState state,
     AppLocalizations l10n,
   ) {
-    if (state.isLoadingHistory) {
-      return const _ChatHistoryShimmer();
+    // Auto-scroll on any message-count change. The hasClients guard inside the
+    // scheduler covers the empty-list / mid-dispose cases.
+    _scheduleScrollToBottom();
+    final error = state.error;
+    if (error == null) return;
+    final message = _messageFor(l10n, error);
+    if (message != null) {
+      showOmdsSnackbar(context, message: message);
     }
-    if (state.messages.isEmpty) {
-      final String title;
-      final String subtitle;
-      if (state.phase == ConversationPhase.unknown) {
-        title = l10n.chatNoConversationTitle;
-        subtitle = l10n.chatNoConversationSubtitle;
-      } else if (state.phase == ConversationPhase.broadcasting) {
-        title = l10n.chatBroadcastingTitle;
-        subtitle = l10n.chatBroadcastingEmpty;
-      } else {
-        title = l10n.chatEmptyThreadTitle;
-        subtitle = l10n.chatEmptyThreadSubtitle;
-      }
-      return Center(
-        child: OmdsEmptyState(
-          key: ChatScreen.emptyStateKey,
-          icon: Icons.chat_bubble_outline,
-          title: title,
-          subtitle: subtitle,
-        ),
-      );
-    }
-    return ListView.builder(
-      key: ChatScreen.messageListKey,
-      controller: _scrollController,
-      padding: const EdgeInsets.symmetric(vertical: Spacing.small),
-      itemCount: state.messages.length,
-      itemBuilder: (context, index) {
-        final message = state.messages[index];
-        if (message.isOfferCard) {
-          final isAccepting =
-              state.acceptingOfferId == message.offerPayload?.offerId;
-          final disabled = state.acceptingOfferId != null && !isAccepting;
-          return OfferCardBubble(
-            message: message,
-            onAccept: (offerId) =>
-                context.read<ChatCubit>().acceptOffer(offerId),
-            isAccepting: isAccepting,
-            acceptDisabled: disabled,
-          );
-        }
-        return ChatMessageBubble(message: message);
-      },
-    );
+    context.read<ChatCubit>().acknowledgeError();
   }
 
   String? _messageFor(AppLocalizations l10n, ChatError error) {
@@ -215,6 +229,182 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
       case ChatError.sendFailed:
         return l10n.chatErrorSendFailed;
     }
+  }
+}
+
+/// Routes the cubit state to the shimmer / empty-state / message-list body.
+class _ChatBody extends StatelessWidget {
+  const _ChatBody({
+    required this.state,
+    required this.l10n,
+    required this.scrollController,
+    this.feeNotice,
+    this.composerHint,
+  });
+
+  final ChatState state;
+  final AppLocalizations l10n;
+  final ScrollController scrollController;
+  final ChatFeeNotice? feeNotice;
+  final String? composerHint;
+
+  @override
+  Widget build(BuildContext context) {
+    if (state.isLoadingHistory) return const _ChatHistoryShimmer();
+    final body = state.messages.isEmpty
+        ? _ChatEmptyState(phase: state.phase, l10n: l10n)
+        : _ChatMessageList(state: state, controller: scrollController);
+    final notice = feeNotice;
+    return Column(
+      children: [
+        if (notice != null) _FeeBannerSlot(notice: notice),
+        Expanded(child: body),
+        if (state.isComposerVisible) ChatComposer(hintText: composerHint),
+      ],
+    );
+  }
+}
+
+/// Adapts a [ChatFeeNotice] config into the rendered [ChatFeeBanner].
+class _FeeBannerSlot extends StatelessWidget {
+  const _FeeBannerSlot({required this.notice});
+
+  final ChatFeeNotice notice;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChatFeeBanner(
+      amount: notice.amount,
+      trailing: notice.trailing,
+      onDismiss: notice.onDismiss,
+      onOrderPicked: notice.onOrderPicked,
+    );
+  }
+}
+
+/// Empty conversation placeholder, copy keyed to the conversation [phase].
+class _ChatEmptyState extends StatelessWidget {
+  const _ChatEmptyState({required this.phase, required this.l10n});
+
+  final ConversationPhase phase;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    final (title, subtitle) = switch (phase) {
+      ConversationPhase.unknown => (
+          l10n.chatNoConversationTitle,
+          l10n.chatNoConversationSubtitle,
+        ),
+      ConversationPhase.broadcasting => (
+          l10n.chatBroadcastingTitle,
+          l10n.chatBroadcastingEmpty,
+        ),
+      _ => (l10n.chatEmptyThreadTitle, l10n.chatEmptyThreadSubtitle),
+    };
+    return Center(
+      child: OmdsEmptyState(
+        key: ChatScreen.emptyStateKey,
+        icon: Icons.chat_bubble_outline,
+        title: title,
+        subtitle: subtitle,
+      ),
+    );
+  }
+}
+
+/// Scrollable timeline: a leading date separator, the message bubbles / offer
+/// cards, and (in the broadcasting phase) a trailing "accept only one" note.
+class _ChatMessageList extends StatelessWidget {
+  const _ChatMessageList({required this.state, required this.controller});
+
+  final ChatState state;
+  final ScrollController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = _rows();
+    return Semantics(
+      identifier: 'chat_detail_message_list',
+      child: ListView.builder(
+        key: ChatScreen.messageListKey,
+        controller: controller,
+        padding: const EdgeInsets.symmetric(vertical: Spacing.small),
+        itemCount: rows.length,
+        itemBuilder: (context, index) =>
+            _ChatRow(row: rows[index], state: state),
+      ),
+    );
+  }
+
+  List<_ChatRowData> _rows() {
+    final rows = <_ChatRowData>[
+      _ChatRowData.date(state.messages.first.sentAt),
+      for (final m in state.messages) _ChatRowData.message(m),
+    ];
+    if (state.phase == ConversationPhase.broadcasting &&
+        state.offerCards.isNotEmpty) {
+      rows.add(const _ChatRowData.offerNote());
+    }
+    return rows;
+  }
+}
+
+/// Discriminated row model so the [ListView] builder stays declarative.
+class _ChatRowData {
+  const _ChatRowData._(this.kind, {this.date, this.message});
+  const _ChatRowData.date(DateTime date)
+      : this._(_ChatRowKind.date, date: date);
+  const _ChatRowData.message(DeliveryChatMessage message)
+      : this._(_ChatRowKind.message, message: message);
+  const _ChatRowData.offerNote() : this._(_ChatRowKind.offerNote);
+
+  final _ChatRowKind kind;
+  final DateTime? date;
+  final DeliveryChatMessage? message;
+}
+
+enum _ChatRowKind { date, message, offerNote }
+
+/// Renders one timeline row from its [row] descriptor.
+class _ChatRow extends StatelessWidget {
+  const _ChatRow({required this.row, required this.state});
+
+  final _ChatRowData row;
+  final ChatState state;
+
+  @override
+  Widget build(BuildContext context) {
+    switch (row.kind) {
+      case _ChatRowKind.date:
+        return ChatDateSeparator(date: row.date!);
+      case _ChatRowKind.offerNote:
+        return const ChatOfferOnlyOneFooter();
+      case _ChatRowKind.message:
+        return _MessageRow(message: row.message!, state: state);
+    }
+  }
+}
+
+/// A single chat message row — a plain bubble, or an offer card when the
+/// message carries an offer payload.
+class _MessageRow extends StatelessWidget {
+  const _MessageRow({required this.message, required this.state});
+
+  final DeliveryChatMessage message;
+  final ChatState state;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!message.isOfferCard) return ChatMessageBubble(message: message);
+    final offerId = message.offerPayload?.offerId;
+    final isAccepting = state.acceptingOfferId == offerId;
+    return OfferCardBubble(
+      message: message,
+      onAccept: (id) => context.read<ChatCubit>().acceptOffer(id),
+      isAccepting: isAccepting,
+      acceptDisabled: state.acceptingOfferId != null && !isAccepting,
+    );
   }
 }
 
@@ -237,7 +427,7 @@ class _ChatHistoryShimmer extends StatelessWidget {
         vertical: Spacing.small,
       ),
       itemCount: _placeholderCount,
-      itemBuilder: (_, __) => const OmdsListItemShimmer(),
+      itemBuilder: (context, index) => const OmdsListItemShimmer(),
     );
   }
 }

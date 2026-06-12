@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 class NoOfferTimeoutScreen extends StatelessWidget {
-  final String requestId;
   const NoOfferTimeoutScreen({super.key, required this.requestId});
+  final String requestId;
 
   @override
   Widget build(BuildContext context) {

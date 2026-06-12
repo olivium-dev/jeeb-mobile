@@ -11,12 +11,17 @@ import '../../../../l10n/app_localizations.dart';
 /// Jeeber-home states (unregistered / available-no-requests /
 /// available-with-requests) — only the body below it changes.
 class JeeberHomeGreeting extends StatelessWidget {
-  const JeeberHomeGreeting({super.key, this.name});
+  const JeeberHomeGreeting({super.key, this.name, this.avatarUrl});
 
   static const Key rootKey = Key('jeeber-home-greeting-root');
 
   /// Profile display name. `null` shows the generic "Welcome back" fallback.
   final String? name;
+
+  /// Optional profile avatar (cdn-service URL) shown leading the greeting
+  /// line, matching the Figma deliveryman home header (screens 23-26). When
+  /// `null` the greeting renders without an avatar (existing call sites).
+  final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -31,10 +36,52 @@ class JeeberHomeGreeting extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _GreetingLine(name: name),
+          _GreetingRow(name: name, avatarUrl: avatarUrl),
           const SizedBox(height: Sizes.threeXSmall),
           const _GreetingHeadline(),
         ],
+      ),
+    );
+  }
+}
+
+class _GreetingRow extends StatelessWidget {
+  const _GreetingRow({required this.name, required this.avatarUrl});
+
+  final String? name;
+  final String? avatarUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    if (avatarUrl == null) return _GreetingLine(name: name);
+    return Row(
+      children: [
+        _GreetingAvatar(name: name, avatarUrl: avatarUrl),
+        const SizedBox(width: Spacing.xSmall),
+        Flexible(child: _GreetingLine(name: name)),
+      ],
+    );
+  }
+}
+
+class _GreetingAvatar extends StatelessWidget {
+  const _GreetingAvatar({required this.name, required this.avatarUrl});
+
+  final String? name;
+  final String? avatarUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final trimmed = name?.trim() ?? '';
+    return Semantics(
+      identifier: 'jeeber_home_avatar',
+      child: OmdsProfileAvatar(
+        initial: trimmed.isEmpty ? '?' : trimmed[0].toUpperCase(),
+        profilePicUrl: avatarUrl,
+        size: Sizes.twoXLarge,
+        backgroundColor: colorScheme.surfaceContainerHigh,
+        initialColor: colorScheme.primary,
       ),
     );
   }

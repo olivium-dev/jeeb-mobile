@@ -1,24 +1,40 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../dev_seam/dev_seam.dart';
+import 'profile_unavailable_screen.dart';
 import '../../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../../features/biometric_auth/application/biometric_lock_state.dart';
 import '../../features/biometric_auth/presentation/biometric_lock_screen.dart';
+import '../../features/chat/presentation/dev_chat_preview_screen.dart';
+import '../../features/customer_profile/data/dev_customer_profile_fixtures.dart';
+import '../../features/customer_profile/domain/customer_profile_view_data.dart';
+import '../../features/customer_profile/presentation/customer_profile_screen.dart';
 import '../../features/deep_link_targets/chat_detail_screen.dart';
+import '../../features/delivery_man_profile/data/dev_delivery_man_profile_fixtures.dart';
+import '../../features/delivery_man_profile/domain/delivery_man_profile_view_data.dart';
+import '../../features/delivery_man_profile/presentation/delivery_man_profile_screen.dart';
 import '../../features/deep_link_targets/delivery_detail_screen.dart';
 import '../../features/deep_link_targets/kyc_status_screen.dart';
 import '../../features/deep_link_targets/rating_prompt_screen.dart';
+import '../../features/rating/presentation/rating_screen.dart';
 import '../../features/jeeber_home/domain/entities/feed_request.dart';
 import '../../features/jeeber_home/domain/services/request_feed_service.dart';
+import '../../features/jeeber_onboarding/application/dm_onboarding_state.dart';
+import '../../features/jeeber_onboarding/presentation/dm_onboarding_screen.dart';
 import '../../features/jeeber_request_detail/domain/services/prohibited_item_report_service.dart';
 import '../../features/jeeber_request_detail/presentation/jeeber_request_detail_screen.dart';
 import '../../features/jeeber_request_detail/presentation/jeeber_request_unavailable_screen.dart';
 import '../../features/live_tracking/application/live_tracking_cubit.dart';
+import '../../features/live_tracking/data/demo_live_tracking_repository.dart';
 import '../../features/live_tracking/domain/live_tracking_repository.dart';
 import '../../features/live_tracking/presentation/live_tracking_screen.dart';
+import '../../features/location/presentation/capture_location_screen.dart';
+import '../../features/location/presentation/client_location_screen.dart';
 import '../../features/location/presentation/screens/location_picker_screen.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
 import '../../features/offers/presentation/offer_submission_screen.dart';
@@ -30,10 +46,12 @@ import '../../features/registration/presentation/registration_screen.dart';
 import '../../features/request_summary/application/request_summary_cubit.dart';
 import '../../features/request_summary/domain/request_draft.dart';
 import '../../features/request_summary/presentation/request_summary_screen.dart';
+import '../../features/request_summary/presentation/request_summary_unavailable_screen.dart';
 import '../../features/settings/presentation/screens/notification_preferences_screen.dart';
 import '../../features/settings/presentation/screens/profile_edit_screen.dart';
 import '../../features/settings/presentation/screens/saved_addresses_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
+import '../../features/request_type/presentation/request_type_screen.dart';
 import '../../features/shell/shell_screen.dart';
 import '../../features/tier_selection/presentation/tier_selection_screen.dart';
 import '../../features/transcription/domain/voice_clip.dart';
@@ -55,10 +73,45 @@ class AppRouter {
   static const Set<String> _preAuthRoutes = {'/onboarding', '/register'};
   static const String _lockRoute = '/lock';
 
+  /// Debug-only chat-capture selector, resolved at RUNTIME from [DevSeam]
+  /// (replaces the compile-time `JEEB_DEV_CHAT`). When non-empty the router
+  /// lands on the full-screen [DevChatPreviewScreen] for the requested chat
+  /// state — `broadcasting`, `accepted`, `dm`, `dm-order-picked`,
+  /// `dm-confirm-picking`, `dm-confirm-heading-off`. Empty in release.
+  static String get _devChat =>
+      kDebugMode ? DevSeam.current.chatSelector : '';
+
+  /// Debug-only route override, resolved at RUNTIME from [DevSeam] (generalises
+  /// the old `JEEB_DEV_HOME=true` → `/`). When non-empty the router lands
+  /// directly on this location, skipping onboarding + biometric gates, so any
+  /// authenticated screen can be captured deterministically. Empty in release.
+  static String get _devRoute => kDebugMode ? DevSeam.current.route : '';
+
+  /// Order-tracking (screen 16) needs a reachable gateway to render its ready
+  /// state. When the dev seam is driving a `/orders/.../tracking` capture, swap
+  /// in the deterministic demo repository so the screen renders offline; every
+  /// other run uses the real DI-registered repository.
+  static LiveTrackingRepository _trackingRepository() {
+    if (kDebugMode && _devRoute.contains('/tracking')) {
+      return const DemoLiveTrackingRepository();
+    }
+    return sl<LiveTrackingRepository>();
+  }
+
   static GoRouter create({
     required OnboardingCubit onboarding,
     required BiometricLockCubit biometricLock,
   }) {
+    // One-shot latch (per router instance) for the dev-seam route pin. The seam
+    // must drive the INITIAL landing onto the pinned dev route, but must NOT
+    // keep bouncing every later user-initiated push back to it — otherwise
+    // screen 10's "New Location" → `/capture-location` and screen 13's pending
+    // item → `/chat/:id` get redirected away the instant they're pushed and the
+    // target never mounts. Once the seam has landed on its dev route (or the
+    // app has otherwise moved off the default root), we stop forcing and let
+    // any pushed location pass. Instance-scoped (not static) so parallel tests
+    // and hot restarts each get a fresh latch.
+    var devSeamLanded = false;
     return GoRouter(
       initialLocation: '/',
       refreshListenable: _MergedRefreshListenable([
@@ -66,6 +119,36 @@ class AppRouter {
         _CubitRefreshListenable<BiometricLockState>(biometricLock),
       ]),
       redirect: (context, state) {
+        // Debug capture aid: drop straight onto the fixtures-backed chat
+        // (chat selector wins over a generic route override).
+        if (_devChat.isNotEmpty) {
+          return state.matchedLocation == '/dev-chat' ? null : '/dev-chat';
+        }
+        // Debug capture aid: drop straight onto any requested route, skipping
+        // onboarding + biometric gates. `/` reproduces the old JEEB_DEV_HOME.
+        // Compare on the PATH only so a seam route carrying query params (e.g.
+        // `/orders/d-1/feedback?name=Sami`) lands once instead of looping.
+        //
+        // The pin is INITIAL-LANDING-ONLY: we force the redirect just until the
+        // seam reaches its dev route the first time, then release the latch so
+        // user-initiated pushes to other routes stick (screens 10 & 13). We
+        // only ever force from the default root (`/`) — any already-pinned or
+        // user-pushed location is allowed through untouched.
+        if (_devRoute.isNotEmpty) {
+          final devPath = Uri.parse(_devRoute).path;
+          if (state.matchedLocation == devPath) {
+            // Reached the pinned route: latch landed and let it render.
+            devSeamLanded = true;
+            return null;
+          }
+          // Before landing, only force the redirect while still on the default
+          // root. This drives the initial capture. After landing, never force
+          // again — user-pushed routes pass through.
+          if (!devSeamLanded && state.matchedLocation == '/') {
+            return _devRoute;
+          }
+          return null;
+        }
         final completed = onboarding.state;
         final loc = state.matchedLocation;
         final atPreAuth = _preAuthRoutes.contains(loc);
@@ -126,10 +209,77 @@ class AppRouter {
             chatId: state.pathParameters['id'] ?? '',
           ),
         ),
+        // Debug-only chat-capture seam; gated by [_devChat] in the redirect
+        // above so it is unreachable in release builds.
+        GoRoute(
+          path: '/dev-chat',
+          name: 'dev-chat',
+          builder: (context, state) =>
+              DevChatPreviewScreen(selector: _devChat),
+        ),
         GoRoute(
           path: '/profile/kyc',
           name: 'kyc-status',
           builder: (context, state) => const KycStatusScreen(),
+        ),
+        // Delivery-man onboarding wizard (Figma 56591:5323 → 56591:4109 →
+        // 56591:5337). Entered from the Delivery-tab upsell (screen 19). A
+        // `step` query param (address|service-area) lets the dev seam / a deep
+        // link land directly on a later step for deterministic capture.
+        GoRoute(
+          path: '/jeeber/onboarding',
+          name: 'jeeber-onboarding',
+          builder: (context, state) => DmOnboardingScreen(
+            initialStep: DmOnboardingStep.fromSlug(
+              state.uri.queryParameters['step'],
+            ),
+            onCompleted: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/');
+              }
+            },
+          ),
+        ),
+        GoRoute(
+          path: '/profile/customer',
+          name: 'customer-profile',
+          // Real callers hand the aggregated view data via `extra`. When it is
+          // absent the debug-only fixture drives the dev-seam capture path
+          // (`jeeb.route=/profile/customer`); in release we never render the
+          // fixture (it carries PII) and instead show an unavailable state.
+          builder: (context, state) {
+            final extra = state.extra;
+            if (extra is CustomerProfileViewData) {
+              return CustomerProfileScreen(data: extra);
+            }
+            if (kDebugMode) {
+              return const CustomerProfileScreen(
+                data: DevCustomerProfileFixtures.sample,
+              );
+            }
+            return const ProfileUnavailableScreen();
+          },
+        ),
+        GoRoute(
+          path: '/profile/delivery-man',
+          name: 'delivery-man-profile',
+          // Same pattern: typed `extra` from a real client tap drives the real
+          // screen; the debug fixture only powers screen-27 capture; release
+          // falls back to the unavailable state instead of fixture PII.
+          builder: (context, state) {
+            final extra = state.extra;
+            if (extra is DeliveryManProfileViewData) {
+              return DeliveryManProfileScreen(data: extra);
+            }
+            if (kDebugMode) {
+              return const DeliveryManProfileScreen(
+                data: DevDeliveryManProfileFixtures.sample,
+              );
+            }
+            return const ProfileUnavailableScreen();
+          },
         ),
         GoRoute(
           path: '/location',
@@ -168,6 +318,30 @@ class AppRouter {
           path: '/tier-selection',
           name: 'tier-selection',
           builder: (context, state) => const TierSelectionScreen(),
+        ),
+        // Delivery-create flow (Figma 56535:2392 → 56539:1444 → 56546:2303).
+        GoRoute(
+          path: '/request-type',
+          name: 'request-type',
+          builder: (context, state) => RequestTypeScreen(
+            onChangeLocation: () => context.push('/client-location'),
+          ),
+        ),
+        GoRoute(
+          path: '/client-location',
+          name: 'client-location',
+          builder: (context, state) => ClientLocationScreen(
+            onAddLocation: () => context.push('/capture-location'),
+          ),
+        ),
+        GoRoute(
+          path: '/capture-location',
+          name: 'capture-location',
+          builder: (context, state) => CaptureLocationScreen(
+            onPinned: () {
+              if (context.canPop()) context.pop();
+            },
+          ),
         ),
         GoRoute(
           path: '/voice-request/transcription',
@@ -249,12 +423,7 @@ class AppRouter {
           builder: (context, state) {
             final extra = state.extra;
             if (extra is! RequestDraft) {
-              return Scaffold(
-                appBar: AppBar(title: const Text('Review Request')),
-                body: const Center(
-                  child: Text('No request draft available.'),
-                ),
-              );
+              return const RequestSummaryUnavailableScreen();
             }
             return BlocProvider<RequestSummaryCubit>(
               create: (_) => RequestSummaryCubit()..setDraft(extra),
@@ -269,7 +438,7 @@ class AppRouter {
             final deliveryId = state.pathParameters['id'] ?? '';
             return BlocProvider<LiveTrackingCubit>(
               create: (_) => LiveTrackingCubit(
-                repository: sl<LiveTrackingRepository>(),
+                repository: _trackingRepository(),
                 deliveryId: deliveryId,
               ),
               child: LiveTrackingScreen(deliveryId: deliveryId),
@@ -292,6 +461,23 @@ class AppRouter {
                 deliveryId: deliveryId,
                 isClient: isClient,
               ),
+            );
+          },
+        ),
+        // Feedback / rating screen (Figma 56614:20132). `mode=jeeber` flips the
+        // audience so the delivery man rates the client; `name` seeds the
+        // ratee for capture. Distinct from the frozen `/orders/:id/rate`
+        // placeholder (RatingPromptScreen, Type-A CI gate).
+        GoRoute(
+          path: '/orders/:id/feedback',
+          name: 'feedback',
+          builder: (context, state) {
+            final deliveryId = state.pathParameters['id'] ?? '';
+            final isClient = state.uri.queryParameters['mode'] != 'jeeber';
+            return RatingScreen(
+              deliveryId: deliveryId,
+              isClient: isClient,
+              rateeName: state.uri.queryParameters['name'] ?? '',
             );
           },
         ),

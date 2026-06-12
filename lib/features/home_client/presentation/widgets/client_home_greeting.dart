@@ -133,6 +133,7 @@ class _AddRequestButton extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
     return Semantics(
+      identifier: 'orders_create_request_button',
       button: true,
       label: l10n.homeEmptyCta,
       child: IconButton.filled(

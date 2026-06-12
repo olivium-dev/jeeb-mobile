@@ -1,0 +1,108 @@
+# Jeeb mobile — 01 Splash (Figma node 56572:1711) parity verification flow.
+#
+# WHAT THIS PROVES
+#   - The branded splash renders on cold start (full-bleed navy boot frame).
+#   - Its three key elements are present and visible in the live view hierarchy,
+#     targeted BY SEMANTIC ID (not by localized text, not by coordinates):
+#       _splash_screen   — full-bleed brand-navy container (root)
+#       _splash_logo     — Jeeb wordmark (centred, ~mid-screen)
+#       _splash_tagline  — localized "Delivery App" tagline (lower band)
+#
+# PRIMARY INTERACTION
+#   The splash is a PASSIVE boot frame. It has NO user-facing tap/gesture: it
+#   auto-routes when Bootstrap.minimal() resolves (lib/app/jeeb_bootstrap.dart).
+#   There is therefore nothing to tapOn here — the screen's "primary behaviour"
+#   is rendering its branded elements, which is exactly what is asserted. We do
+#   NOT fabricate a coordinate tap (maestro-anti-patterns AP-1) for a screen the
+#   user never taps.
+#
+# BACKEND
+#   None. The splash paints before any network is reachable and makes zero
+#   calls (comparison.md). This flow certifies visual/structural UI parity, not
+#   end-to-end integration (UI-GUARDRAILS §6).
+#
+# RUNTIME EXPECTATION
+#   ~6-10 s wall-clock (cold launch + 3 assertions). Well under the 60 s refactor
+#   flag. Single screen, no subflows needed.
+#
+# SEMANTICS DEPENDENCY (verified, not assumed)
+#   This Flutter app historically did NOT export its semantics tree, which is why
+#   .maestro/smoke.yaml could only screenshot. The splash engineer added
+#   Semantics(identifier: ...) to branded_splash.dart, and `maestro hierarchy`
+#   now surfaces all three ids as resource-id values — independently confirmed by
+#   QA before writing this flow. Other screens still need their own Semantics ids.
+#
+# RUNTIME SEAM (self-injected — no special build required)
+#   The production splash resolves in ~250 ms and would flash past before any
+#   assertion can land. To make it deterministically assertable on the stock dev
+#   APK, this flow drives the RUNTIME dev seam: launchApp.arguments pass
+#   `jeeb.hold_splash=true` as an Android intent extra. The release-inert
+#   MethodChannel seam (IntentExtrasSource) reads it during Bootstrap.minimal()
+#   BEFORE the splash FutureBuilder evaluates, so `DevSeam.current.holdSplash`
+#   is already true and `jeeb_bootstrap.dart` keeps the production BrandedSplash
+#   mounted after bootstrap resolves (jeeb_bootstrap.dart:20,71 — kDebugMode-gated,
+#   no-op in release). This generalises the old compile-time
+#   --dart-define=JEEB_HOLD_SPLASH=true into a runtime knob, so the flow now
+#   self-injects exactly like the other seam flows (13/14/15) and runs against the
+#   installed dev APK with no rebuild. We also force `jeeb.locale=ar` to capture
+#   the RTL tagline; that is why the tagline is asserted BY ID (locale-independent —
+#   maestro-anti-patterns AP-5). clearState is omitted so the freshly-passed extras
+#   drive the launch (clearState would wipe the intent that carries the seam knobs).
+#
+# MAESTRO VERSION NOTE (2.0.5)
+#   In Maestro 2.x, `assertVisible` does NOT accept an inline `timeout:` property
+#   (that was a 1.x affordance). Timed waits go through `extendedWaitUntil`, which
+#   both waits up to `timeout` AND asserts visibility. We therefore gate every
+#   timing-sensitive check with extendedWaitUntil (NOT a fixed sleep — AP-1) and
+#   use a bare `assertVisible` only for the final re-confirmation of an element
+#   already proven present.
+#
+# Run:
+#   maestro --device emulator-5560 test -e APP_ID=app.jeeb.mobile.dev \
+#     --format JUNIT --output <evidence>/maestro/junit.xml \
+#     .maestro/flows/01-splash.yaml
+appId: ${APP_ID}
+---
+# Self-inject the splash-hold + locale seam knobs as Android intent extras
+# (release-inert MethodChannel seam; same pattern as flows 13/14/15). clearState
+# is omitted so the freshly-passed extras drive the launch — clearState would
+# wipe the launch intent that carries them.
+- launchApp:
+    arguments:
+      jeeb.hold_splash: "true"
+      jeeb.locale: "ar"
+
+# Splash container — the full-bleed brand-navy boot frame. extendedWaitUntil
+# (not a fixed sleep — AP-1) absorbs cold-start variance up to 15 s, AND asserts.
+- extendedWaitUntil:
+    visible:
+      id: "_splash_screen"
+    timeout: 15000              # AP-3: cold-start headroom
+
+# Let the splash fade-in animation settle BEFORE screenshotting — otherwise the
+# evidence frame catches a mid-transition blend (navy washing through a white
+# overlay) that misrepresents the settled navy render. AP-7 (waitForAnimationToEnd
+# after a transition), not a fixed sleep.
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Screenshot the SETTLED splash for the evidence pack.
+- takeScreenshot: 01_splash_rendered
+
+# Key element 1 — the Jeeb wordmark logo, centred. Waited+asserted by id (i18n-safe).
+- extendedWaitUntil:
+    visible:
+      id: "_splash_logo"
+    timeout: 10000
+
+# Key element 2 — the localized tagline in the lower band. Waited+asserted by id.
+- extendedWaitUntil:
+    visible:
+      id: "_splash_tagline"
+    timeout: 10000
+
+# Re-confirm the root container is still the visible host (screen did not
+# silently navigate away mid-flow under the hold flag). Element already proven
+# present above, so a bare assertVisible (no wait) is correct here.
+- assertVisible:
+    id: "_splash_screen"

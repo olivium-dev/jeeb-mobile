@@ -1,0 +1,140 @@
+# Maestro flow — Feedback Screen [Client|Delivery Man] (screen 17)
+#
+# Figma node 56614:20132 (file ZOi3kKtw7sd42ssSVX3Kn4): a single-purpose feedback
+#   screen — close (X) top-trailing, a large circular ratee avatar, the title
+#   "We appreciate your feedback", an audience-aware subtitle, an outlined
+#   "Leave your feedback here..." comment field, a "Rate {name}" heading, a row
+#   of 5 stars (0-of-5 default), and a navy full-width "Submit feedback" pill
+#   pinned to the bottom. Built screen: RatingScreen at route
+#   /orders/:id/feedback
+#   (lib/features/rating/presentation/rating_screen.dart + widgets/
+#   feedback_avatar.dart, feedback_header.dart, feedback_star_input.dart).
+#
+# NAV — RUNTIME DEV SEAM (dev-seam-runtime.md): reached via the runtime dev seam,
+#   NOT a dart-define rebuild. `launchApp.arguments` → Android String intent
+#   extras (MainActivity.kt `readSeamExtras()`, seam priority 1) → DevSeam routes
+#   straight to /orders/d-1/feedback?name=Sami, skipping onboarding + biometric.
+#   The dev-seam redirect compares on the PATH only, so the ?name=Sami query is
+#   preserved (no redirect loop). `mode=jeeber` flips the audience.
+#     Equivalent adb one-liner (the flow does it via launchApp):
+#       adb -s <device> shell am start -S \
+#         -n app.jeeb.mobile.dev/app.jeeb.mobile.MainActivity \
+#         -e jeeb.route "/orders/d-1/feedback?name=Sami" -e jeeb.locale en
+#     RTL variant: append `-e jeeb.locale ar`.
+#
+# BACKEND: none — pure presentation. Submit pops with {stars, comment} to the
+#   caller (feedback-service persistence is the upstream flow's job via the
+#   gateway). The avatar uses an INITIALS fallback (no URL passed), so there is
+#   no network fetch on the seam. A PASS certifies VISUAL + BEHAVIORAL UI PARITY
+#   ONLY, not E2E feedback submission (UI-GUARDRAILS §6).
+#
+# SYNTAX: Maestro 2.0.5 — extendedWaitUntil for timeouts (1.x inline `timeout:`
+#   is REJECTED — pilot #3); waitForAnimationToEnd before every takeScreenshot
+#   (pilot #4); tapOn/assertVisible by Semantics identifier only — no coordinate
+#   taps, no sleeps, no localized-text matching (title/subtitle/CTA are localized;
+#   an AR run would break a text matcher — ids are locale-invariant).
+#
+# IDS — verified present in source (grep of lib/features/rating):
+#   feedback_screen          (rating_screen.dart — Semantics container, route id)
+#   feedback_close_button    (rating_screen.dart — Semantics(button) close X)
+#   feedback_ratee_avatar    (feedback_avatar.dart — Semantics(image) avatar)
+#   feedback_comment_field   (rating_screen.dart — Semantics(textField) comment)
+#   feedback_star_rating     (feedback_star_input.dart — Semantics(slider) star row)
+#   feedback_submit_button   (rating_screen.dart — Semantics(button) submit CTA)
+#
+# PRIMARY-ACTION REALITY (verified in rating_screen.dart, NOT assumed — the two
+#   controls behave DIFFERENTLY and the flow must respect that):
+#     • close  → `_onClose`  = Navigator.of(context).maybePop()  (rating_screen.dart:85)
+#       maybePop is a TRUE no-op at the dev-seam stack root (/orders/:id/feedback is
+#       the route ROOT — AppRouter._devRoute redirect bounces any other
+#       matchedLocation back to it, so there is nothing to pop). The screen does NOT
+#       leave on close, so re-asserting `feedback_screen` after close is HONEST and
+#       proves the close control is a live, handled, NON-DESTRUCTIVE node.
+#     • submit → `_onSubmit` = Navigator.of(context).pop({stars, comment})
+#       (rating_screen.dart:79) is an UNCONDITIONAL pop. In production this returns
+#       the rating payload to the caller that pushed this route; the widget test
+#       `feedback_screen_test.dart` already proves submit returns {stars:4,...}. At
+#       the dev-seam stack root that pop empties the only page → the seam capture
+#       therefore MUST NOT re-assert the screen after submit (an emptied Navigator
+#       cannot show `feedback_screen` — that assertion is impossible by construction,
+#       NOT an app defect; the production pop() is correct and stays).
+#   Honest seam assertion (pilot #7 / AP-9): the star is a LIVE interactive node, the
+#   close is a LIVE non-destructive node (re-assertable), and submit is a LIVE node
+#   whose COMPLETED tap proves it is handled and really navigates (pop) — submit is
+#   the FINAL action with nothing asserted after it.
+
+appId: ${APP_ID}
+---
+# ── LAUNCH (EN) via runtime dev seam (client rates the delivery man) ───────────
+- launchApp:
+    stopApp: true
+    arguments:
+      jeeb.route: "/orders/d-1/feedback?name=Sami"
+      jeeb.locale: "en"
+
+# ── SCREEN RENDERS (proves the feedback frame painted, not a blank first frame) ─
+- extendedWaitUntil:
+    visible:
+      id: "feedback_screen"
+    timeout: 40000
+- waitForAnimationToEnd
+
+# ── CHROME: avatar, comment field, star row, submit CTA, close are all present ─
+- assertVisible:
+    id: "feedback_ratee_avatar"
+- assertVisible:
+    id: "feedback_comment_field"
+- assertVisible:
+    id: "feedback_star_rating"
+- assertVisible:
+    id: "feedback_submit_button"
+- assertVisible:
+    id: "feedback_close_button"
+
+# ── CAPTURE (EN/LTR): default 0-of-5 state ─────────────────────────────────────
+- waitForAnimationToEnd
+- takeScreenshot: "17-feedback-en"
+
+# ── PRIMARY INTERACTION: rate, prove the non-destructive close, then submit ────
+# 1) The star row is a LIVE interactive node — tapping it is accepted (proves it
+#    is not decoration).
+- tapOn:
+    id: "feedback_star_rating"
+- waitForAnimationToEnd
+# 2) Close (`_onClose` = Navigator.maybePop, rating_screen.dart:85) is a TRUE no-op
+#    at the seam stack root, so the screen stays. Re-asserting `feedback_screen`
+#    here is HONEST and proves the close control is a live, handled, NON-destructive
+#    nav node (tap accepted, screen remains coherent — no crash, no black frame).
+- tapOn:
+    id: "feedback_close_button"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "feedback_screen"
+# 3) Submit (`_onSubmit` = Navigator.pop({stars,comment}), rating_screen.dart:79) is
+#    an UNCONDITIONAL pop that legitimately returns the rating payload in production.
+#    At the seam stack root it empties the only page, so this is the FINAL action:
+#    the COMPLETED tap proves the submit CTA is a live, handled node that really
+#    navigates — and we assert NOTHING after it (an emptied Navigator cannot show
+#    `feedback_screen`; re-asserting it would be an impossible, dishonest check).
+- tapOn:
+    id: "feedback_submit_button"
+
+# ── RELAUNCH (AR/RTL): same route, forced Arabic → real RTL mirror ─────────────
+- launchApp:
+    stopApp: true
+    arguments:
+      jeeb.route: "/orders/d-1/feedback?name=Sami"
+      jeeb.locale: "ar"
+- extendedWaitUntil:
+    visible:
+      id: "feedback_screen"
+    timeout: 40000
+- waitForAnimationToEnd
+- assertVisible:
+    id: "feedback_star_rating"
+- assertVisible:
+    id: "feedback_submit_button"
+
+# ── CAPTURE (AR/RTL) ───────────────────────────────────────────────────────────
+- waitForAnimationToEnd
+- takeScreenshot: "17-feedback-ar"

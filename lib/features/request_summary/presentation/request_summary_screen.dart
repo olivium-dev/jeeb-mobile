@@ -76,9 +76,9 @@ class _SubmitButton extends StatelessWidget {
 }
 
 class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.title, required this.child});
   final String title;
   final Widget child;
-  const _SectionCard({required this.title, required this.child});
 
   @override
   Widget build(BuildContext context) {

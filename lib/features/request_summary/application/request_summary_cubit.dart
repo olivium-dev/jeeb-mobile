@@ -2,12 +2,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../domain/request_draft.dart';
 
 class RequestSummaryState {
+
+  const RequestSummaryState({this.draft, this.isSubmitting = false, this.isSubmitted = false, this.error});
   final RequestDraft? draft;
   final bool isSubmitting;
   final bool isSubmitted;
   final String? error;
-
-  const RequestSummaryState({this.draft, this.isSubmitting = false, this.isSubmitted = false, this.error});
 }
 
 class RequestSummaryCubit extends Cubit<RequestSummaryState> {

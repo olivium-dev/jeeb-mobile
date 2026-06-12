@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
@@ -8,28 +6,31 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../jeeber_request_feed/cubit/request_feed_cubit.dart';
 import '../../../jeeber_request_feed/cubit/request_feed_state.dart';
 import '../../../jeeber_request_feed/data/request_feed_models.dart';
-import '../../../jeeber_request_feed/presentation/request_card.dart';
+import '../../../jeeber_request_feed/presentation/jeeber_feed_card.dart';
 import 'jeeber_home_greeting.dart';
 
-/// Tab the Jeeber feed view is currently filtered to.
+/// Tab the Jeeber feed view is currently filtered to, matching the three
+/// filter chips in the Figma `deliveryman-requests` flow:
 ///
-/// `requests` is the default — all live offers ready for accept/decline.
-/// `pendingResponse` and `replies` are the two follow-up buckets in the
-/// Figma design; they ship as filterable views over the same cubit list
-/// until the jeeber-gateway separates the streams.
+/// * [requests] — incoming requests (Ignore/Offer cards, screen 24).
+/// * [pendingResponse] — requests the Jeeber offered on, awaiting the client
+///   (italic "Pending" cards, screen 25).
+/// * [replies] — accepted requests with delivery-status actions (screen 26).
 enum JeeberFeedTab { requests, pendingResponse, replies }
 
 /// State 3 of the Jeeber home: registered, available, and at least one
 /// live request in the feed.
 ///
 /// Renders the shared greeting → OMDS search bar → OmdsFilterChips tab
-/// strip → request card list. The list reads from [RequestFeedCubit] —
+/// strip → [JeeberFeedCard] list. The list reads from [RequestFeedCubit] —
 /// the host (the screen) is responsible for providing the cubit through
 /// the widget tree.
 class JeeberFeedTabView extends StatefulWidget {
   const JeeberFeedTabView({
     super.key,
     this.profileName,
+    this.profileAvatarUrl,
+    this.initialTab = JeeberFeedTab.requests,
     this.onOpenRequest,
   });
 
@@ -41,6 +42,12 @@ class JeeberFeedTabView extends StatefulWidget {
   /// Profile display name for the shared greeting.
   final String? profileName;
 
+  /// Profile avatar URL for the shared greeting header.
+  final String? profileAvatarUrl;
+
+  /// Filter chip selected on first render (dev-seam / deep-link entry point).
+  final JeeberFeedTab initialTab;
+
   /// Optional row-tap forward so the host (the screen) can decide whether
   /// to route into a request-detail page.
   final ValueChanged<DeliveryRequest>? onOpenRequest;
@@ -50,25 +57,8 @@ class JeeberFeedTabView extends StatefulWidget {
 }
 
 class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
-  JeeberFeedTab _activeTab = JeeberFeedTab.requests;
+  late JeeberFeedTab _activeTab = widget.initialTab;
   String _query = '';
-  Timer? _uiTicker;
-  DateTime _now = DateTime.now();
-
-  @override
-  void initState() {
-    super.initState();
-    _uiTicker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      setState(() => _now = DateTime.now());
-    });
-  }
-
-  @override
-  void dispose() {
-    _uiTicker?.cancel();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +66,10 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
       key: JeeberFeedTabView.rootKey,
       child: Column(
         children: [
-          JeeberHomeGreeting(name: widget.profileName),
+          JeeberHomeGreeting(
+            name: widget.profileName,
+            avatarUrl: widget.profileAvatarUrl,
+          ),
           _FeedSearchBar(onChanged: (q) => setState(() => _query = q)),
           const SizedBox(height: Spacing.small),
           _FeedTabStrip(active: _activeTab, onChanged: _onTabChanged),
@@ -85,7 +78,6 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
             child: _FeedRequestList(
               activeTab: _activeTab,
               query: _query,
-              now: _now,
               onOpenRequest: widget.onOpenRequest,
             ),
           ),
@@ -105,17 +97,19 @@ class _FeedSearchBar extends StatelessWidget {
 
   final ValueChanged<String> onChanged;
 
-  // TODO(jeeb-l10n): replace once `jeeberFeedSearchHint` ARB key lands.
-  static const _kSearchHint = 'Search';
-
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
-      child: OmdsSearchBar(
-        key: JeeberFeedTabView.searchBarKey,
-        hintText: _kSearchHint,
-        onChanged: onChanged,
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: Spacing.medium,
+      ),
+      child: Semantics(
+        identifier: 'jeeber_feed_search_field',
+        child: OmdsSearchBar(
+          key: JeeberFeedTabView.searchBarKey,
+          hintText: AppLocalizations.of(context).jeeberFeedSearchHint,
+          onChanged: onChanged,
+        ),
       ),
     );
   }
@@ -127,53 +121,48 @@ class _FeedTabStrip extends StatelessWidget {
   final JeeberFeedTab active;
   final ValueChanged<JeeberFeedTab?> onChanged;
 
-  // String constants pending l10n — see the jeeb-l10n TODOs across this file.
-  // TODO(jeeb-l10n): wire to ARB keys once they land.
-  static const _kRequests = 'Requests';
-  static const _kPendingResponse = 'Pending Response';
-  static const _kReplies = 'Replies';
-
-  static const List<OmdsFilterOption<JeeberFeedTab>> _filters = [
-    OmdsFilterOption<JeeberFeedTab>(
-      label: _kRequests,
-      value: JeeberFeedTab.requests,
-    ),
-    OmdsFilterOption<JeeberFeedTab>(
-      label: _kPendingResponse,
-      value: JeeberFeedTab.pendingResponse,
-    ),
-    OmdsFilterOption<JeeberFeedTab>(
-      label: _kReplies,
-      value: JeeberFeedTab.replies,
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: Spacing.medium,
+      ),
       child: OmdsFilterChips<JeeberFeedTab>(
         key: JeeberFeedTabView.tabStripKey,
-        filters: _filters,
+        filters: _filters(l10n),
         selectedValue: active,
         onFilterChanged: onChanged,
         showCounts: false,
       ),
     );
   }
+
+  List<OmdsFilterOption<JeeberFeedTab>> _filters(AppLocalizations l10n) => [
+        OmdsFilterOption<JeeberFeedTab>(
+          label: l10n.jeeberFeedFilterRequests,
+          value: JeeberFeedTab.requests,
+        ),
+        OmdsFilterOption<JeeberFeedTab>(
+          label: l10n.jeeberFeedFilterPendingResponse,
+          value: JeeberFeedTab.pendingResponse,
+        ),
+        OmdsFilterOption<JeeberFeedTab>(
+          label: l10n.jeeberFeedFilterReplies,
+          value: JeeberFeedTab.replies,
+        ),
+      ];
 }
 
 class _FeedRequestList extends StatelessWidget {
   const _FeedRequestList({
     required this.activeTab,
     required this.query,
-    required this.now,
     required this.onOpenRequest,
   });
 
   final JeeberFeedTab activeTab;
   final String query;
-  final DateTime now;
   final ValueChanged<DeliveryRequest>? onOpenRequest;
 
   @override
@@ -183,7 +172,6 @@ class _FeedRequestList extends StatelessWidget {
         state: state,
         activeTab: activeTab,
         query: query,
-        now: now,
         onOpenRequest: onOpenRequest,
       ),
     );
@@ -195,14 +183,12 @@ class _FeedRequestListBody extends StatelessWidget {
     required this.state,
     required this.activeTab,
     required this.query,
-    required this.now,
     required this.onOpenRequest,
   });
 
   final RequestFeedState state;
   final JeeberFeedTab activeTab;
   final String query;
-  final DateTime now;
   final ValueChanged<DeliveryRequest>? onOpenRequest;
 
   @override
@@ -213,56 +199,39 @@ class _FeedRequestListBody extends StatelessWidget {
       onRefresh: () => context.read<RequestFeedCubit>().refresh(),
       child: visible.isEmpty
           ? _EmptyTabState(l10n: l10n)
-          : _FeedListView(
-              requests: visible,
-              state: state,
-              now: now,
-              onOpenRequest: onOpenRequest,
-            ),
+          : _FeedListView(requests: visible, onOpenRequest: onOpenRequest),
     );
   }
 
-  /// Filters the cubit's request set by the active tab + search query.
-  /// Tab semantics: `requests` shows everything; `pendingResponse` shows
-  /// requests with an `accepting` action in flight; `replies` shows
-  /// requests with a `declining` action in flight. Until the gateway
-  /// returns dedicated streams this is the best approximation.
+  /// Filters the cubit's request set by the active tab + search query. Tab
+  /// → [JeeberFeedItemStatus] mapping keeps the Figma chip semantics: the
+  /// `requests` chip shows incoming cards, `pendingResponse` shows offered
+  /// cards, `replies` shows accepted cards with delivery actions.
   List<DeliveryRequest> _visibleRequests(List<DeliveryRequest> source) {
     final lowered = query.trim().toLowerCase();
     return source.where((r) {
       if (lowered.isNotEmpty && !_matchesQuery(r, lowered)) return false;
-      return _matchesTab(r);
+      return r.feedStatus == _statusForTab(activeTab);
     }).toList(growable: false);
   }
 
-  bool _matchesQuery(DeliveryRequest r, String q) {
-    return r.pickup.label.toLowerCase().contains(q) ||
-        r.dropoff.label.toLowerCase().contains(q) ||
-        (r.senderName?.toLowerCase().contains(q) ?? false);
-  }
+  JeeberFeedItemStatus _statusForTab(JeeberFeedTab tab) => switch (tab) {
+        JeeberFeedTab.requests => JeeberFeedItemStatus.incoming,
+        JeeberFeedTab.pendingResponse => JeeberFeedItemStatus.pendingResponse,
+        JeeberFeedTab.replies => JeeberFeedItemStatus.accepted,
+      };
 
-  bool _matchesTab(DeliveryRequest r) {
-    final status = state.actionStatusFor(r.id);
-    return switch (activeTab) {
-      JeeberFeedTab.requests => true,
-      JeeberFeedTab.pendingResponse =>
-        status == RequestActionStatus.accepting,
-      JeeberFeedTab.replies => status == RequestActionStatus.declining,
-    };
+  bool _matchesQuery(DeliveryRequest r, String q) {
+    return (r.senderName?.toLowerCase().contains(q) ?? false) ||
+        (r.itemsSummary?.toLowerCase().contains(q) ?? false) ||
+        r.pickup.label.toLowerCase().contains(q);
   }
 }
 
 class _FeedListView extends StatelessWidget {
-  const _FeedListView({
-    required this.requests,
-    required this.state,
-    required this.now,
-    required this.onOpenRequest,
-  });
+  const _FeedListView({required this.requests, required this.onOpenRequest});
 
   final List<DeliveryRequest> requests;
-  final RequestFeedState state;
-  final DateTime now;
   final ValueChanged<DeliveryRequest>? onOpenRequest;
 
   @override
@@ -270,55 +239,20 @@ class _FeedListView extends StatelessWidget {
     final cubit = context.read<RequestFeedCubit>();
     return ListView.builder(
       key: JeeberFeedTabView.listKey,
-      padding: const EdgeInsets.symmetric(vertical: Spacing.small),
+      padding: const EdgeInsetsDirectional.symmetric(vertical: Spacing.small),
       itemCount: requests.length,
-      itemBuilder: (_, index) => _FeedRow(
+      itemBuilder: (_, index) => JeeberFeedCard(
         request: requests[index],
-        state: state,
-        now: now,
-        onAccept: () => cubit.accept(requests[index].id),
-        onDecline: () => cubit.decline(requests[index].id),
-        onOpen: onOpenRequest,
+        onTap: onOpenRequest == null
+            ? null
+            : () => onOpenRequest!(requests[index]),
+        onIgnore: () => cubit.decline(requests[index].id),
+        onOffer: onOpenRequest == null
+            ? null
+            : () => onOpenRequest!(requests[index]),
+        onAdvanceStatus: () => cubit.accept(requests[index].id),
       ),
     );
-  }
-}
-
-class _FeedRow extends StatelessWidget {
-  const _FeedRow({
-    required this.request,
-    required this.state,
-    required this.now,
-    required this.onAccept,
-    required this.onDecline,
-    required this.onOpen,
-  });
-
-  final DeliveryRequest request;
-  final RequestFeedState state;
-  final DateTime now;
-  final VoidCallback onAccept;
-  final VoidCallback onDecline;
-  final ValueChanged<DeliveryRequest>? onOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onOpen == null ? null : () => onOpen!(request),
-      child: RequestCard(
-        request: request,
-        actionStatus: state.actionStatusFor(request.id),
-        secondsRemaining: _secondsLeft(),
-        onAccept: onAccept,
-        onDecline: onDecline,
-      ),
-    );
-  }
-
-  int _secondsLeft() {
-    final diff = request.expiresAt.difference(now).inSeconds;
-    return diff.clamp(0, 1 << 31);
   }
 }
 
@@ -336,8 +270,8 @@ class _EmptyTabState extends StatelessWidget {
           constraints: BoxConstraints(minHeight: constraints.maxHeight),
           child: OmdsEmptyState(
             icon: Icons.inbox_outlined,
-            title: l10n.requestFeedEmptyTitle,
-            subtitle: l10n.requestFeedEmptySubtitle,
+            title: l10n.jeeberFeedEmptyTitle,
+            subtitle: l10n.jeeberFeedEmptySubtitle,
           ),
         ),
       ),

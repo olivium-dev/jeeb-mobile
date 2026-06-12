@@ -87,7 +87,7 @@ class _ChatTabState extends State<ChatTab> {
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: Spacing.small),
       itemCount: _conversations.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (context, index) {
         final conv = _conversations[index];
         return InkWell(

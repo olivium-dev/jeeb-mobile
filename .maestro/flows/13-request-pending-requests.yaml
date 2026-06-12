@@ -1,0 +1,72 @@
+# Jeeb mobile — 13 Request / Pending Requests [User].
+# Figma node 56535:1783 (client "My Orders", Pending Requests chip selected).
+#
+# WHAT THIS PROVES
+#   The client shell renders the Pending Requests list (lean rows: order id +
+#   items + tier, no avatar/progress/CTA), elements targeted BY SEMANTIC ID:
+#     orders_filter_pendingRequests    — Pending Requests chip (selected here)
+#     orders_filter_inProgress         — In Progress chip
+#     orders_filter_replies            — Replies chip
+#     pending_requests_item_*           — a pending row (per-id)
+#     orders_search_bar                — pill search bar
+#     orders_create_request_button     — filled "+" create-request CTA
+#
+# PRIMARY INTERACTION
+#   The pending row is tappable (opens request detail in the full product). On
+#   the dev seam the tap is wired to onOpenRequest -> chat route; we assert the
+#   tap is accepted and the screen does not crash, then return — we do NOT
+#   assert a downstream destination the dev backend can't guarantee (AP-9).
+#
+# BACKEND / SEAM
+#   Dev seam: jeeb.route=/ + jeeb.home_tab=pending → shell home tab seeded with
+#   DevClientHomeFixtures, Pending filter selected. No live gateway. UI parity
+#   only (UI-GUARDRAILS §6). Seam knobs via launchApp.arguments (intent extras,
+#   release-inert — dev-seam-runtime.md).
+#
+# MAESTRO 2.x: extendedWaitUntil for timed waits; waitForAnimationToEnd before
+#   screenshots; no fixed sleeps; no coordinate taps; id-based assertions.
+#
+# Run:
+#   maestro --device emulator-5558 test -e APP_ID=app.jeeb.mobile.dev \
+#     --format JUNIT --output <evidence>/maestro/junit.xml \
+#     .maestro/flows/13-request-pending-requests.yaml
+appId: ${APP_ID}
+---
+- launchApp:
+    arguments:
+      jeeb.route: "/"
+      jeeb.home_tab: "pending"
+
+# Pending Requests chip — waited+asserted by id (cold launch + seeded load).
+- extendedWaitUntil:
+    visible:
+      id: "orders_filter_pendingRequests"
+    timeout: 25000
+
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 13_request_pending_requests
+
+# All three filter chips + shared chrome present.
+- assertVisible:
+    id: "orders_filter_inProgress"
+- assertVisible:
+    id: "orders_filter_replies"
+- assertVisible:
+    id: "orders_search_bar"
+- assertVisible:
+    id: "orders_create_request_button"
+
+# A pending row is present (seeded fixture id pen-1).
+- extendedWaitUntil:
+    visible:
+      id: "pending_requests_item_pen-1"
+    timeout: 10000
+
+# ── PRIMARY INTERACTION — open a pending request ─────────────────────────────
+# Tap the row by id (not coordinate/label). The dev seam wires onOpenRequest to
+# the chat route; we assert the tap is accepted and the app does not crash.
+- tapOn:
+    id: "pending_requests_item_pen-1"
+- waitForAnimationToEnd:
+    timeout: 5000

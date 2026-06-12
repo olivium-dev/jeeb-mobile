@@ -71,7 +71,7 @@ Widget _host(OrderRepository repo) {
     routes: [
       GoRoute(
         path: '/',
-        builder: (_, __) => BlocProvider.value(
+        builder: (_, _) => BlocProvider.value(
           value: cubit,
           child: const Scaffold(body: OrderHistoryScreen()),
         ),

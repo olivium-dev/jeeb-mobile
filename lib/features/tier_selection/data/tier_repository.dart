@@ -75,6 +75,8 @@ class DioTierRepository implements TierRepository {
 
   TierId? _parseId(Object? raw) {
     switch (raw) {
+      case 'flash':
+        return TierId.flash;
       case 'express':
         return TierId.express;
       case 'standard':
@@ -82,6 +84,8 @@ class DioTierRepository implements TierRepository {
       case 'on_the_way':
       case 'onTheWay':
         return TierId.onTheWay;
+      case 'eco':
+        return TierId.eco;
     }
     return null;
   }
@@ -114,14 +118,25 @@ class FakeTierRepository implements TierRepository {
   final TierLoadFailure? failWith;
 
   static const List<Tier> defaultCatalog = [
+    // Figma 56535:2392 display order: Flash → Express → Standard →
+    // On-the-way → Eco. Flash is flagged recommended so it is the default
+    // selected card (matching the Figma "Flash selected" frame).
+    Tier(
+      id: TierId.flash,
+      priceLow: 120000,
+      priceHigh: 160000,
+      currency: 'LBP',
+      vehicleClass: TierVehicleClass.scooterOrCar,
+      slaMinutes: 60,
+      recommended: true,
+    ),
     Tier(
       id: TierId.express,
       priceLow: 80000,
       priceHigh: 120000,
       currency: 'LBP',
       vehicleClass: TierVehicleClass.scooterOrCar,
-      slaMinutes: 120,
-      recommended: true,
+      slaMinutes: 180,
     ),
     Tier(
       id: TierId.standard,
@@ -138,6 +153,14 @@ class FakeTierRepository implements TierRepository {
       currency: 'LBP',
       vehicleClass: TierVehicleClass.any,
       slaMinutes: null,
+    ),
+    Tier(
+      id: TierId.eco,
+      priceLow: 20000,
+      priceHigh: 40000,
+      currency: 'LBP',
+      vehicleClass: TierVehicleClass.any,
+      slaMinutes: 2880,
     ),
   ];
 

@@ -2,10 +2,10 @@ import 'package:equatable/equatable.dart';
 
 /// Stable tier identifiers exposed by `GET /api/tiers` in jeeb-gateway.
 ///
-/// Order is the recommended display order on the selection screen
-/// (Express → Standard → On-the-way), with Express flagged as the
-/// recommended default.
-enum TierId { express, standard, onTheWay }
+/// Order is the recommended display order on the request-type screen
+/// (Figma 56535:2392): Flash → Express → Standard → On-the-way → Eco, with
+/// the back-office flagging one tier `recommended` for the default selection.
+enum TierId { flash, express, standard, onTheWay, eco }
 
 /// Vehicle category icon a tier card renders alongside its label. The set is
 /// intentionally smaller than [VehicleType] in the KYC flow — tier vehicle

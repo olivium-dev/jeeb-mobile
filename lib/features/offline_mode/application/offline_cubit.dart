@@ -3,13 +3,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 enum ConnectivityStatus { online, offline }
 
 class OfflineState {
-  final ConnectivityStatus status;
-  final int pendingSyncCount;
 
   const OfflineState({
     this.status = ConnectivityStatus.online,
     this.pendingSyncCount = 0,
   });
+  final ConnectivityStatus status;
+  final int pendingSyncCount;
 
   OfflineState copyWith({
     ConnectivityStatus? status,

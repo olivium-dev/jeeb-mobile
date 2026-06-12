@@ -11,14 +11,6 @@ class EarningsSummary extends Equatable {
     this.averageRating,
   });
 
-  final int totalEarnings;
-  final String currency;
-  final int deliveryCount;
-  final int commission;
-  final int netPayout;
-  final String periodLabel;
-  final double? averageRating;
-
   factory EarningsSummary.fromJson(Map<String, dynamic> json) {
     return EarningsSummary(
       totalEarnings: json['totalEarnings'] as int? ?? 0,
@@ -30,6 +22,14 @@ class EarningsSummary extends Equatable {
       averageRating: (json['averageRating'] as num?)?.toDouble(),
     );
   }
+
+  final int totalEarnings;
+  final String currency;
+  final int deliveryCount;
+  final int commission;
+  final int netPayout;
+  final String periodLabel;
+  final double? averageRating;
 
   @override
   List<Object?> get props => [

@@ -225,7 +225,7 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   void _promoteAtLeast(String id, MessageStatus target) {
-    final order = _statusOrder;
+    const order = _statusOrder;
     final updated = state.messages
         .map((m) {
           if (m.id != id) return m;
@@ -241,7 +241,7 @@ class ChatCubit extends Cubit<ChatState> {
   /// when the counterpart reads message N, every prior unread message is
   /// also marked read.
   void _promoteThroughRead(String throughId) {
-    final order = _statusOrder;
+    const order = _statusOrder;
     final target = order[MessageStatus.read]!;
     var hit = false;
     final updated = <DeliveryChatMessage>[];

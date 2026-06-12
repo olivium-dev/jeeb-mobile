@@ -1,0 +1,187 @@
+# Maestro flow — Chat [Delivery Man]: blank composer + "Order picked" banner (screen 07)
+#
+# Figma node 56560:1605 (file ZOi3kKtw7sd42ssSVX3Kn4), DM (Jeeber-side) chat thread,
+#   "Order picked" banner variant. "Blank" = the composer's empty/blank variant
+#   (input empty, send pill Disabled=True), NOT an empty conversation — the frame
+#   seeds one incoming client request + one outgoing Jeeber price/time offer.
+#
+# Built screen: existing ChatScreen rendered as the delivery-man variant via the
+#   debug-only JEEB_DEV_CHAT seam (AppRouter redirect -> /dev-chat ->
+#   DevChatPreviewScreen(selector:'dm-order-picked')). This selector sets the fee
+#   banner's trailing control to ChatFeeBannerTrailing.orderPicked, which is the
+#   single element that distinguishes state 07 from the base DM state 04.
+#   kDebugMode-gated; inert in release.
+#
+# BACKEND: DevChatFixtureGateway(phase: accepted, deliveryMan: true) — the
+#   workspace-sanctioned in-memory dev seam (UI-GUARDRAILS §6 / pilot learning #2).
+#   A PASS here certifies VISUAL + BEHAVIORAL UI PARITY ONLY, not end-to-end
+#   gateway integration. The "Order picked" pill handler is a no-op closure in the
+#   preview host (onOrderPicked: () {}), so this flow asserts the pill is present
+#   and tappable-without-crash; the delivery-state-machine side effect is a
+#   documented gap the dev seam cannot satisfy (pilot learning #7).
+#
+# PREREQUISITE (sanctioned, documented in qa-verdict.md): the app must be built
+#   and installed with the dart-define that activates the "Order picked" DM seam:
+#     flutter build apk --debug --flavor dev --target-platform android-arm64 \
+#       --dart-define=JEEB_DEV_CHAT=dm-order-picked
+#   The flow does NOT itself set the dart-define (Maestro cannot inject Flutter
+#   compile-time defines); the build step IS the seam. clearState is intentionally
+#   NOT used — the seam redirect fires deterministically on every cold launch of
+#   this build, and clearState would not change that while risking the debug
+#   onboarding/lock gates re-evaluating mid-capture.
+#
+# Syntax: Maestro 2.0.5 — extendedWaitUntil for timeouts (inline assertVisible
+#   `timeout:` is 1.x syntax and is REJECTED by 2.0.5); waitForAnimationToEnd
+#   before any takeScreenshot; tapOn/assertVisible by Semantics identifier only
+#   (no coordinate taps, no sleeps, no localized-text matching where an id exists).
+#
+# Ids asserted are verified present in source (grep of lib/features/chat):
+#   chat_detail_message_list          (chat_screen.dart _ChatMessageList)
+#   chat_detail_back_button           (chat_app_bar.dart _ChatHeaderLeading; rendered
+#                                      because phase==accepted => showsCounterpartHeader)
+#   chat_detail_avatar                (chat_app_bar.dart _ChatHeaderLeading)
+#   chat_dm_fee_banner                (chat_fee_banner.dart ChatFeeBanner)
+#   chat_detail_date_separator        (chat_date_separator.dart)
+#   chat_detail_message_dev-dm-in-1   (seeded incoming client request bubble)
+#   chat_detail_message_dev-dm-out-1  (seeded outgoing Jeeber price/time offer)
+#   chat_detail_message_input         (chat_composer.dart _ComposerField)
+#   chat_detail_attach_button         (chat_composer.dart _AttachButton)
+#   chat_detail_voice_button          (chat_composer.dart _VoiceButton)
+#   chat_detail_send_button           (chat_composer.dart _SendButton)
+#   chat_detail_message_msg-dev-chat-dm-0  (optimistic outgoing bubble appended by
+#                                      ChatCubit._nextId() = 'msg-' + deliveryId
+#                                      ('dev-chat-dm') + '-0' on the first send)
+
+appId: ${APP_ID}
+---
+# ── LAUNCH via runtime dev seam (jeeb.state → DevSeam priority-1 intent extra) ──
+# The installed APK is the RUNTIME dev-seam build (dev-seam-runtime.md): a bare
+# launchApp lands on onboarding. `launchApp.arguments` are delivered to Android
+# as String intent extras, which MainActivity.kt readSeamExtras() reads (seam
+# source priority 1) → DevSeam routes straight to the DM "Order picked" chat
+# preview (/dev-chat, DevChatPreviewScreen selector 'dm-order-picked', which sets
+# the fee banner trailing to ChatFeeBannerTrailing.orderPicked), skipping
+# onboarding + biometric gates. Verified self-contained: the DevSeam-resolved
+# logcat line reads "chat: dm-order-picked" on this exact launch (no external
+# priming, no rebuild). `stopApp: true` force-stops first so MainActivity
+# (singleTop) re-reads the FRESH extras on every run.
+- launchApp:
+    stopApp: true
+    arguments:
+      jeeb.state: "dm-order-picked"
+
+# ── STATE RENDERS: the DM chat thread is on screen ───────────────────────────
+- extendedWaitUntil:
+    visible:
+      id: "chat_detail_message_list"
+    timeout: 20000
+- waitForAnimationToEnd
+
+# ── HEADER: back affordance + counterpart avatar (accepted-phase header) ──────
+- assertVisible:
+    id: "chat_detail_back_button"
+- assertVisible:
+    id: "chat_detail_avatar"
+
+# ── STATE-07 DISTINCTIVE: fee banner WITH the inline "Order picked" pill ──────
+# State 07 differs from state 04 by the inline "Order picked" action pill in the
+# fee banner. Round-2 FIX (verified via `maestro hierarchy`): the banner wrapper
+# no longer merges its children — ChatFeeBanner uses Semantics(explicitChildNodes:
+# true) (no container:true/label:) and the pill carries its OWN
+# Semantics(identifier:'chat_dm_order_picked_button', button:true, container:true).
+# So the pill is now an independent, clickable leaf node in the view hierarchy
+# (resource-id chat_dm_order_picked_button, clickable:true) and is asserted +
+# tapped directly below — no merged-host workaround.
+- assertVisible:
+    id: "chat_dm_fee_banner"
+- assertVisible:
+    id: "chat_dm_order_picked_button"
+
+# ── THREAD CONTENT: date separator + the two seeded bubbles ───────────────────
+- assertVisible:
+    id: "chat_detail_date_separator"
+- assertVisible:
+    id: "chat_detail_message_dev-dm-in-1"     # incoming client request bubble
+- assertVisible:
+    id: "chat_detail_message_dev-dm-out-1"    # outgoing Jeeber price/time offer
+# NOTE (semantics-merging trap, documented gap): the read-tick leaf
+#   Semantics(identifier:'chat_detail_message_read') is a non-interactive Icon
+#   nested inside the outgoing bubble's timestamp row. Flutter's semantics
+#   compositor MERGES that leaf into the parent bubble node
+#   (chat_detail_message_dev-dm-out-1), so the read-tick id is NOT independently
+#   exposed in Maestro's view hierarchy. The cyan double-check read state is
+#   therefore validated by the UX visual-parity verdict (emulator_en.png), not by
+#   a Maestro id assertion. The outgoing bubble assertion above already proves the
+#   outgoing message rendered.
+
+# ── COMPOSER (BLANK STATE): input + attach + voice + send all present ─────────
+# The composer is rendered with an empty field and the "Price / time" hint; the
+# send pill is present but reduced-emphasis (ChatComposerIconButton exposes
+# Semantics(enabled:false) while ChatState.canSendText is false). We assert the
+# affordances are present; the disabled→enabled transition is proven below by the
+# send actually succeeding only after text is entered.
+- assertVisible:
+    id: "chat_detail_message_input"
+- assertVisible:
+    id: "chat_detail_attach_button"
+- assertVisible:
+    id: "chat_detail_voice_button"
+- assertVisible:
+    id: "chat_detail_send_button"
+
+# ── CAPTURE: the blank-composer + "Order picked" frame as rendered ────────────
+- waitForAnimationToEnd
+- takeScreenshot: "07-dm-chat-order-picked-blank"
+
+# ── SECONDARY INTERACTION: "Order picked" pill is tappable without crashing ───
+# The pill is now independently targetable (round-2 semantics fix), so we tap the
+# pill ITSELF by its own id — not the banner host. The preview wires onOrderPicked
+# to a no-op closure (no delivery-state-machine behind the dev seam, a documented
+# dev-seam gap, pilot learning #7), so we assert tap-accepted + the screen
+# survives, not a state transition.
+- tapOn:
+    id: "chat_dm_order_picked_button"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "chat_detail_message_list"
+
+# ── PRIMARY INTERACTION: blank composer → type → send → new bubble appears ─────
+# The composer is the screen's primary interaction. Send is disabled while the
+# field is blank (Figma "Send: Disabled=True"); typing enables it. ChatCubit
+# optimistically appends a NEW outgoing bubble with the deterministic id
+# msg-dev-chat-dm-0 (first send: _outboxCounter starts at 0, deliveryId is
+# 'dev-chat-dm' for the DM preview — verified in chat_cubit.dart + the preview
+# host). We assert that NEW BUBBLE BY ID — stronger than matching bubble text
+# (Flutter does not surface bubble text as its own a11y node) and stronger than
+# only re-asserting the list. This proves the blank→typed→send→append path
+# end-to-end against the dev fixture.
+- tapOn:
+    id: "chat_detail_message_input"
+- inputText: "20$ in 3 hours"
+# Dismiss the IME by tapping the message timeline (a NON-interactive scroll
+# region) — Flutter drops composer focus on a tap outside the field, hiding the
+# keyboard so the send pill is unobscured. We do NOT use `hideKeyboard`: Maestro
+# 2.0.5 implements it as an Android BACK keyevent, and on the dev-seam build the
+# chat is the ROOT route (/dev-chat) with no back stack, so BACK pops the screen
+# and EXITS the app to the launcher (verified empirically), breaking the send tap
+# below. Tapping the list keeps us on the chat route.
+- tapOn:
+    id: "chat_detail_message_list"
+- tapOn:
+    id: "chat_detail_send_button"
+- waitForAnimationToEnd:
+    timeout: 5000
+- extendedWaitUntil:
+    visible:
+      id: "chat_detail_message_msg-dev-chat-dm-0"
+    timeout: 10000
+
+# Re-confirm the timeline is still the visible host (the send did not crash,
+# dismiss, or navigate away). Element already proven present, so a bare
+# assertVisible (no wait) is correct here.
+- assertVisible:
+    id: "chat_detail_message_list"
+- assertVisible:
+    id: "chat_detail_message_input"
+- waitForAnimationToEnd
+- takeScreenshot: "07-dm-chat-after-send"

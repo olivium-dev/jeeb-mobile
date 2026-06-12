@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:jeeb_mobile/features/delivery_status/application/delivery_status_cubit.dart';
 import 'package:jeeb_mobile/features/delivery_status/domain/delivery_address.dart';
 import 'package:jeeb_mobile/features/delivery_status/domain/delivery_snapshot.dart';
 import 'package:jeeb_mobile/features/delivery_status/domain/delivery_stage.dart';
@@ -49,9 +48,21 @@ DeliverySnapshot _snapshot({
   );
 }
 
+/// Mounts [DeliveryStatusScreen] with the screen owning its cubit lifecycle.
+///
+/// We deliberately pass the [gateway] (the `BlocProvider.create` path) rather
+/// than a pre-built cubit (`BlocProvider.value`). An externally-created cubit
+/// subscribes to its gateway stream in the test body — outside the binding's
+/// frame loop — and the combination of that pending subscription with the
+/// `OmdsLoadingState` `CircularProgressIndicator` (an infinite ticker that
+/// mounts on the first frame) deadlocks `pumpWidget` under the FakeAsync test
+/// binding, so the test never completes. Letting the provider create + dispose
+/// the cubit inside the tree keeps the subscription inside the pumped frame and
+/// the screen settles deterministically. (Fixes the long-standing hang.)
 Future<void> _pumpScreen(
   WidgetTester tester, {
-  required DeliveryStatusCubit cubit,
+  required DeliveryStatusGateway gateway,
+  String deliveryId = 'd-1',
   ContactJeeberHandler? onContactJeeber,
 }) async {
   await tester.pumpWidget(
@@ -64,52 +75,53 @@ Future<void> _pumpScreen(
       ],
       supportedLocales: AppLocalizations.supportedLocales,
       home: DeliveryStatusScreen(
-        deliveryId: cubit.deliveryId,
-        cubit: cubit,
+        deliveryId: deliveryId,
+        gateway: gateway,
         onContactJeeber: onContactJeeber,
       ),
     ),
   );
-  // The active-stage pulsing dot uses a repeating AnimationController,
-  // so pumpAndSettle never returns. Pump a single frame instead.
+  // The active-stage pulsing dot uses a repeating AnimationController, so
+  // pumpAndSettle never returns. Pump a single frame instead.
   await tester.pump();
 }
 
 void main() {
   testWidgets('renders the stage indicator + jeeber card + details on ready',
       (tester) async {
-    final gateway = InMemoryDeliveryStatusGateway(
-      seed: _snapshot(stage: DeliveryStage.inTransit, etaMinutes: 7),
+    await _pumpScreen(
+      tester,
+      gateway: InMemoryDeliveryStatusGateway(
+        seed: _snapshot(stage: DeliveryStage.inTransit, etaMinutes: 7),
+      ),
     );
-    final cubit = DeliveryStatusCubit(deliveryId: 'd-1', gateway: gateway);
-    await _pumpScreen(tester, cubit: cubit);
     expect(find.byKey(DeliveryStageIndicator.listKey), findsOneWidget);
     expect(find.byKey(DeliveryDetailsCard.rootKey), findsOneWidget);
     expect(find.byKey(DeliveryJeeberCard.rootKey), findsOneWidget);
     expect(find.byKey(DeliveryEtaBadge.rootKey), findsOneWidget);
-    await cubit.close();
   });
 
   testWidgets('hides the ETA badge when not in transit', (tester) async {
-    final gateway = InMemoryDeliveryStatusGateway(
-      seed: _snapshot(stage: DeliveryStage.matched),
+    await _pumpScreen(
+      tester,
+      gateway: InMemoryDeliveryStatusGateway(
+        seed: _snapshot(stage: DeliveryStage.matched),
+      ),
     );
-    final cubit = DeliveryStatusCubit(deliveryId: 'd-1', gateway: gateway);
-    await _pumpScreen(tester, cubit: cubit);
     expect(find.byKey(DeliveryEtaBadge.rootKey), findsNothing);
-    await cubit.close();
   });
 
   testWidgets('shows the completed banner and hides action buttons on delivery',
       (tester) async {
-    final gateway = InMemoryDeliveryStatusGateway(
-      seed: _snapshot(
-        stage: DeliveryStage.delivered,
-        lifecycle: DeliveryLifecycle.completed,
+    await _pumpScreen(
+      tester,
+      gateway: InMemoryDeliveryStatusGateway(
+        seed: _snapshot(
+          stage: DeliveryStage.delivered,
+          lifecycle: DeliveryLifecycle.completed,
+        ),
       ),
     );
-    final cubit = DeliveryStatusCubit(deliveryId: 'd-1', gateway: gateway);
-    await _pumpScreen(tester, cubit: cubit);
     expect(find.byKey(DeliveryLifecycleBanner.rootKey), findsOneWidget);
     expect(
       find.text('Cancel delivery'),
@@ -121,55 +133,54 @@ void main() {
       findsNothing,
       reason: 'terminal state must hide the contact CTA',
     );
-    await cubit.close();
   });
 
   testWidgets('contact CTA invokes the handler with the gateway-supplied phone',
       (tester) async {
-    final gateway = InMemoryDeliveryStatusGateway(seed: _snapshot());
-    final cubit = DeliveryStatusCubit(deliveryId: 'd-1', gateway: gateway);
     String? captured;
     await _pumpScreen(
       tester,
-      cubit: cubit,
+      gateway: InMemoryDeliveryStatusGateway(seed: _snapshot()),
       onContactJeeber: (n) => captured = n,
     );
-    await tester.tap(find.text('Contact Jeeber'));
-    await tester.pumpAndSettle();
+    // The CTA sits at the bottom of a scrolling column; on the default
+    // 800×600 test surface it lands off-screen, so scroll it into the
+    // viewport before tapping (otherwise tap() hit-test-misses).
+    final contactCta = find.text('Contact Jeeber');
+    await tester.ensureVisible(contactCta);
+    await tester.pump();
+    await tester.tap(contactCta);
+    // The contact handler is synchronous; the screen has a live pulsing-dot
+    // ticker so pumpAndSettle would never return — pump a single frame.
+    await tester.pump();
     expect(captured, '+96171000000');
-    await cubit.close();
   });
 
   testWidgets('cancel CTA is hidden once the courier picks up',
       (tester) async {
-    final gateway = InMemoryDeliveryStatusGateway(
-      seed: _snapshot(
-        stage: DeliveryStage.pickedUp,
-        stageTimestamps: {
-          DeliveryStage.matched: DateTime(2026, 5, 17, 10, 0),
-          DeliveryStage.pickedUp: DateTime(2026, 5, 17, 10, 6),
-        },
+    await _pumpScreen(
+      tester,
+      gateway: InMemoryDeliveryStatusGateway(
+        seed: _snapshot(
+          stage: DeliveryStage.pickedUp,
+          stageTimestamps: {
+            DeliveryStage.matched: DateTime(2026, 5, 17, 10, 0),
+            DeliveryStage.pickedUp: DateTime(2026, 5, 17, 10, 6),
+          },
+        ),
       ),
     );
-    final cubit = DeliveryStatusCubit(deliveryId: 'd-1', gateway: gateway);
-    await _pumpScreen(tester, cubit: cubit);
     expect(find.text('Cancel delivery'), findsNothing);
     expect(find.text('Contact Jeeber'), findsOneWidget);
-    await cubit.close();
   });
 
   testWidgets('renders the error view with retry when the stream errors',
       (tester) async {
-    // Use a bare cubit + a gateway that throws on subscribe to push the
-    // stream into the error state immediately.
-    final cubit = DeliveryStatusCubit(
-      deliveryId: 'd-1',
-      gateway: _BrokenGateway(),
-    );
-    await _pumpScreen(tester, cubit: cubit);
+    // A gateway that throws on subscribe pushes the stream into the error
+    // state immediately; the screen creates + disposes its own cubit.
+    await _pumpScreen(tester, gateway: _BrokenGateway());
     expect(find.text('Connection lost'), findsOneWidget);
     expect(find.text('Retry'), findsOneWidget);
-    await cubit.close();
   });
 }
 

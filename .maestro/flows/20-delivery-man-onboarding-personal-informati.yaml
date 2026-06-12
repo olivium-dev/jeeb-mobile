@@ -1,0 +1,103 @@
+# Maestro flow — Delivery-man onboarding, Personal Information / photo (screen 20)
+#
+# Figma node 56591:5323 (file ZOi3kKtw7sd42ssSVX3Kn4): the photo-upload step of
+#   the delivery-man onboarding wizard — navbar "Image" + back chevron, a thin
+#   rounded wizard progress bar, "Upload a clear photo for you" heading + "For
+#   more credibility" subtitle, a large near-white drop-area card with a centred
+#   plus icon, and a bottom-pinned navy "Continue" CTA (no bottom nav — pushed
+#   full-screen wizard). Built widget: DmOnboardingPhotoStep
+#   (lib/features/jeeber_onboarding/presentation/widgets/dm_onboarding_photo_step.dart)
+#   hosted by DmOnboardingScreen at route /jeeber/onboarding.
+#
+# NAV — RUNTIME DEV SEAM (dev-seam-runtime.md): `jeeb.route /jeeber/onboarding`
+#   lands directly on the wizard's first (photo) step, skipping onboarding +
+#   biometric gates. `launchApp.arguments` arrive as Android intent extras
+#   (seam source priority 1). One dev APK; only the extras change.
+#     Equivalent adb one-liner:
+#       adb -s emulator-5560 shell am start -S \
+#         -n app.jeeb.mobile.dev/app.jeeb.mobile.MainActivity \
+#         -e jeeb.route /jeeber/onboarding -e jeeb.locale en
+#     RTL variant: swap `-e jeeb.locale ar`.
+#
+# BACKEND: none. The photo picker is the in-memory StubPhotoPickerService (the
+#   sanctioned dev seam); the upload card previews its synthetic bytes. A PASS
+#   certifies VISUAL + BEHAVIORAL UI PARITY ONLY, not cdn-service upload
+#   integration (UI-GUARDRAILS §6).
+#
+# SYNTAX: Maestro 2.0.5 — extendedWaitUntil for timeouts (pilot #3);
+#   waitForAnimationToEnd before each takeScreenshot (pilot #4); id-based
+#   assertions only — no sleeps, no coordinate taps, no localized-text matching.
+#
+# IDS asserted — verified present in source (grep of lib/features/jeeber_onboarding):
+#   dm_onboarding_back_button            (dm_onboarding_screen.dart — Semantics
+#                                         button wrapping the navbar back IconButton)
+#   dm_onboarding_progress               (dm_onboarding_progress_header.dart —
+#                                         Semantics value "Step n of N" on the bar)
+#   dm_onboarding_photo_upload_area      (dm_onboarding_photo_upload_card.dart —
+#                                         Semantics button on the drop-area card)
+#   dm_onboarding_photo_continue_button  (dm_onboarding_step_layout.dart — Semantics
+#                                         button on the bottom OmdsLoadingButton)
+#
+# CONTINUE-GATING REALITY (verified dm_onboarding_photo_step.dart): Continue is
+#   disabled until a photo is selected (the heading states the photo is
+#   required). Tapping the drop area opens OmdsMediaPickerSheet (an OMDS
+#   component, out of scope to edit). That sheet's options carry NO Semantics
+#   identifiers and render LOCALIZED labels, so tapping inside it by text would
+#   be an i18n anti-pattern (AP-5) and by id is impossible. We therefore assert
+#   the live upload area + chrome for the screenshot and prove the area is an
+#   interactive node by tapping it (the sheet opens) then re-asserting the
+#   screen is coherent. The in-sheet camera/gallery pick → preview → Continue-
+#   enable path is covered by the widget test
+#   (test/dm_onboarding_screen_test.dart) and is a later integration gate; an
+#   OMDS-gap flag requests semantics ids on the sheet options (see qa-verdict.md).
+
+appId: ${APP_ID}
+---
+# ── LAUNCH via runtime dev seam → wizard photo step ───────────────────────────
+- launchApp:
+    stopApp: true
+    arguments:
+      jeeb.route: "/jeeber/onboarding"
+      jeeb.locale: "en"
+
+# ── STATE RENDERS: the photo drop-area is on screen ───────────────────────────
+- extendedWaitUntil:
+    visible:
+      id: "dm_onboarding_photo_upload_area"
+    timeout: 40000
+- waitForAnimationToEnd
+
+# ── CHROME: progress bar, back button, and Continue CTA are present ───────────
+- assertVisible:
+    id: "dm_onboarding_progress"
+- assertVisible:
+    id: "dm_onboarding_back_button"
+- assertVisible:
+    id: "dm_onboarding_photo_continue_button"
+
+# ── CAPTURE: the empty photo-upload frame (Figma default state) ───────────────
+- waitForAnimationToEnd
+- takeScreenshot: "20-dm-onboarding-photo-empty"
+
+# ── PRIMARY INTERACTION: tap the drop area (opens the media picker sheet) ─────
+# Tapping the area opens OmdsMediaPickerSheet (verified in
+# dm_onboarding_photo_upload_card.dart `_openPicker` → OmdsMediaPickerSheet.show)
+# — proves the area is a live interactive node, not decoration. The in-sheet
+# source pick is covered by the widget test (the OMDS sheet options carry NO
+# semantics ids and render localized labels — see header note — so they cannot be
+# targeted by id and tapping by text would be AP-5).
+#
+# HARNESS-FIX (CAP-3): the previous post-tap step re-asserted
+# `dm_onboarding_photo_continue_button` VISIBLE — but OmdsMediaPickerSheet is a
+# MODAL bottom sheet that, by design, slides up over the bottom-pinned CTA and
+# OCCLUDES it, so that assertion could never pass once the sheet was open. The
+# Continue CTA is already proven VISIBLE by the pre-tap chrome assertion above
+# (line ~76). We now assert it is NOT visible AFTER the tap: the modal having
+# occluded the CTA is positive proof the sheet opened. This is a STRONGER, honest
+# assertion (it relies on no fabricated sheet id and no localized text) — not a
+# weakened one.
+- tapOn:
+    id: "dm_onboarding_photo_upload_area"
+- waitForAnimationToEnd
+- assertNotVisible:
+    id: "dm_onboarding_photo_continue_button"

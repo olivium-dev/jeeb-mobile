@@ -5,8 +5,8 @@ import 'package:omds/omds.dart';
 import '../application/offer_submission_cubit.dart';
 
 class OfferSubmissionScreen extends StatelessWidget {
-  final String requestId;
   const OfferSubmissionScreen({super.key, required this.requestId});
+  final String requestId;
 
   @override
   Widget build(BuildContext context) {

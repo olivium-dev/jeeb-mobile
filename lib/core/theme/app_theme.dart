@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:omds/omds.dart';
 
 import 'jeeb_semantic_colors.dart';
@@ -19,9 +18,15 @@ import 'jeeb_tier_colors.dart';
 ///
 /// Typography note: the Figma calls for Roboto (body) and Urbanist (nav
 /// labels), but we override to **Inter** per OMDS standard (audit doc §5.1).
-/// Inter ships with `google_fonts` and matches the OMDS theme entry point in
-/// `OmdsTheme(GoogleFonts.interTextTheme())` — see
-/// `flutter-material3-colorscheme-discipline` skill.
+/// Inter is bundled locally as discrete static instances (Regular/Medium/
+/// SemiBold/Bold, OFL-1.1; see pubspec.yaml + test/inter_font_weight_test.dart)
+/// and applied as a normal Flutter font family — NOT fetched at runtime via
+/// `google_fonts`. Runtime fetching throws a `HandshakeException` on a
+/// no-egress device (no path to `fonts.gstatic.com`), which crashed the theme
+/// build on first frame; the bundled font makes every branded screen render
+/// offline. `Bootstrap.minimal` additionally disables any residual
+/// `google_fonts` runtime fetch as defence-in-depth. See
+/// `flutter-material3-colorscheme-discipline` + `flutter-env-dart-define`.
 ///
 /// This file is the **single source of truth** for the Jeeb palette. The
 /// brand seeds are intentionally `private` (`_jeebNavy` etc.) so feature
@@ -35,6 +40,10 @@ import 'jeeb_tier_colors.dart';
 ///   4. `Theme.of(context).extension<JeebTierColors>()!.<tier>`
 class AppTheme {
   AppTheme._();
+
+  /// Bundled-Inter family name. Must match the `family:` declared under
+  /// `flutter > fonts` in `pubspec.yaml`.
+  static const String _fontFamily = 'Inter';
 
   // ───────────────────────────────────────────────────────────────────────
   // Private brand seeds — only consumed by the ColorScheme below.
@@ -84,7 +93,7 @@ class AppTheme {
             brightness: Brightness.dark,
           );
 
-    final baseTextTheme = GoogleFonts.interTextTheme(
+    final baseTextTheme = _interTextTheme(
       isLight ? ThemeData.light().textTheme : ThemeData.dark().textTheme,
     );
 
@@ -146,4 +155,13 @@ class AppTheme {
       extensions: extensions,
     );
   }
+
+  /// Applies the bundled [Inter] family to every style in [base].
+  ///
+  /// Drop-in replacement for `GoogleFonts.interTextTheme(base)` that resolves
+  /// the font from local assets only — no network, so it cannot throw a
+  /// `HandshakeException` on a no-egress device. When a glyph is missing from
+  /// Inter, Flutter falls back to the platform font automatically.
+  static TextTheme _interTextTheme(TextTheme base) =>
+      base.apply(fontFamily: _fontFamily);
 }

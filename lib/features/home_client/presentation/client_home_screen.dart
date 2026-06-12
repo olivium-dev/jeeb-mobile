@@ -7,7 +7,9 @@ import '../application/client_home_cubit.dart';
 import '../application/client_home_state.dart';
 import '../domain/client_home_request.dart';
 import 'widgets/active_request_card.dart';
+import 'widgets/client_home_empty_view.dart';
 import 'widgets/client_home_greeting.dart';
+import 'widgets/pending_request_card.dart';
 import 'widgets/replies_card.dart';
 
 /// Client home screen matching the Figma design (node 56535:1525).
@@ -20,17 +22,27 @@ import 'widgets/replies_card.dart';
 ///    destination, progress bar (Ordered → Picked → In Transit), and an
 ///    `OmdsPrimaryButton` "Track my order" CTA when actionable.
 class ClientHomeScreen extends StatefulWidget {
-  const ClientHomeScreen({super.key, this.onOpenRequest, this.onCreateRequest});
+  const ClientHomeScreen({
+    super.key,
+    this.onOpenRequest,
+    this.onCreateRequest,
+    this.initialTab = ClientHomeTab.inProgress,
+  });
 
   final void Function(ClientHomeRequest request)? onOpenRequest;
   final VoidCallback? onCreateRequest;
+
+  /// Which filter chip is selected on first render. Defaults to In Progress;
+  /// the dev seam drives this so a single APK can land on Pending / Replies
+  /// for capture without a rebuild.
+  final ClientHomeTab initialTab;
 
   @override
   State<ClientHomeScreen> createState() => _ClientHomeScreenState();
 }
 
 class _ClientHomeScreenState extends State<ClientHomeScreen> {
-  ClientHomeTab _selectedTab = ClientHomeTab.inProgress;
+  late ClientHomeTab _selectedTab = widget.initialTab;
 
   @override
   void initState() {
@@ -90,6 +102,12 @@ class _ClientHomeBody extends StatelessWidget {
           onCreateRequest: onCreateRequest,
         );
       case ClientHomeStatus.ready:
+        if (_hasNoRequests(state)) {
+          return ClientHomeEmptyView(
+            name: state.greetingName,
+            onNewOrder: onCreateRequest,
+          );
+        }
         return _ReadyLayout(
           state: state,
           selectedTab: selectedTab,
@@ -99,6 +117,13 @@ class _ClientHomeBody extends StatelessWidget {
         );
     }
   }
+
+  /// True when the client has zero requests across every tab — the
+  /// "No orders yet" hero empty state (Figma 56535:1514) applies.
+  bool _hasNoRequests(ClientHomeState state) =>
+      state.inProgress.isEmpty &&
+      state.pending.isEmpty &&
+      state.replies.isEmpty;
 }
 
 class _LoadingLayout extends StatelessWidget {
@@ -217,8 +242,12 @@ class _ReadyContent extends StatelessWidget {
     }
     switch (selectedTab) {
       case ClientHomeTab.inProgress:
-      case ClientHomeTab.pendingRequests:
         return _ActiveRequestList(
+          requests: items,
+          onOpenRequest: onOpenRequest,
+        );
+      case ClientHomeTab.pendingRequests:
+        return _PendingRequestList(
           requests: items,
           onOpenRequest: onOpenRequest,
         );
@@ -242,15 +271,21 @@ class _ClientHomeSearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
-      child: IgnorePointer(
-        child: OmdsSearchBar(
-          key: const Key('client-home-search-bar'),
-          hintText: 'Search...',
-          fillColor: colorScheme.surfaceContainerHigh,
-          borderRadius: UIConstants.borderRadiusPill,
-          height: Sizes.fiveXLarge,
+      child: Semantics(
+        identifier: 'orders_search_bar',
+        textField: true,
+        label: l10n.homeSearchHint,
+        child: IgnorePointer(
+          child: OmdsSearchBar(
+            key: const Key('client-home-search-bar'),
+            hintText: l10n.homeSearchHint,
+            fillColor: colorScheme.surfaceContainerHigh,
+            borderRadius: UIConstants.borderRadiusPill,
+            height: Sizes.fiveXLarge,
+          ),
         ),
       ),
     );
@@ -316,17 +351,23 @@ class _ClientHomeTabChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return OmdsChip(
-      key: Key('client-home-tab-$keySuffix'),
+    return Semantics(
+      identifier: 'orders_filter_$keySuffix',
+      button: true,
+      selected: isSelected,
       label: label,
-      isSelected: isSelected,
-      onTap: onTap,
-      selectedColor: colorScheme.primary,
-      unselectedColor: Colors.transparent,
-      selectedTextColor: colorScheme.onPrimary,
-      unselectedTextColor: colorScheme.onSurfaceVariant,
-      borderColor: isSelected ? colorScheme.primary : colorScheme.outline,
-      borderRadius: OmdsBorderRadius.xSmall,
+      child: OmdsChip(
+        key: Key('client-home-tab-$keySuffix'),
+        label: label,
+        isSelected: isSelected,
+        onTap: onTap,
+        selectedColor: colorScheme.primary,
+        unselectedColor: Colors.transparent,
+        selectedTextColor: colorScheme.onPrimary,
+        unselectedTextColor: colorScheme.onSurfaceVariant,
+        borderColor: isSelected ? colorScheme.primary : colorScheme.outline,
+        borderRadius: OmdsBorderRadius.xSmall,
+      ),
     );
   }
 }
@@ -346,6 +387,27 @@ class _ActiveRequestList extends StatelessWidget {
       children: [
         for (final r in requests)
           ActiveOrderCard(request: r, onTap: () => onOpenRequest?.call(r)),
+      ],
+    );
+  }
+}
+
+class _PendingRequestList extends StatelessWidget {
+  const _PendingRequestList({
+    required this.requests,
+    required this.onOpenRequest,
+  });
+
+  final List<ClientHomeRequest> requests;
+  final void Function(ClientHomeRequest)? onOpenRequest;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: const Key('pending-requests-list'),
+      children: [
+        for (final r in requests)
+          PendingRequestCard(request: r, onTap: () => onOpenRequest?.call(r)),
       ],
     );
   }

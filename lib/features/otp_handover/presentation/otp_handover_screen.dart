@@ -6,13 +6,13 @@ import '../application/otp_handover_cubit.dart';
 import '../application/otp_handover_state.dart';
 
 class OtpHandoverScreen extends StatelessWidget {
-  final String deliveryId;
-  final bool isClient;
   const OtpHandoverScreen({
     super.key,
     required this.deliveryId,
     required this.isClient,
   });
+  final String deliveryId;
+  final bool isClient;
 
   @override
   Widget build(BuildContext context) {
@@ -71,8 +71,8 @@ class _OtpBody extends StatelessWidget {
 }
 
 class _ClientOtpDisplay extends StatelessWidget {
-  final String code;
   const _ClientOtpDisplay({required this.code});
+  final String code;
 
   @override
   Widget build(BuildContext context) {
@@ -126,8 +126,8 @@ class _OtpCodeChip extends StatelessWidget {
 }
 
 class _JeeberOtpEntry extends StatefulWidget {
-  final bool isSubmitting;
   const _JeeberOtpEntry({required this.isSubmitting});
+  final bool isSubmitting;
 
   @override
   State<_JeeberOtpEntry> createState() => _JeeberOtpEntryState();

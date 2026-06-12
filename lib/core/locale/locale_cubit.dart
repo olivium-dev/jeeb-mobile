@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../dev_seam/dev_seam.dart';
 
 /// Cubit owning the active app [Locale].
 ///
@@ -31,10 +32,23 @@ class LocaleCubit extends Cubit<Locale> {
   static Locale _defaultDeviceLocaleProvider() =>
       PlatformDispatcher.instance.locale;
 
+  /// Debug-only locale override, resolved at RUNTIME from [DevSeam] (replaces
+  /// the compile-time `JEEB_FORCE_LOCALE`; the dart-define still feeds it via
+  /// the seam fallback). Lets the running app be captured in a fixed locale on
+  /// an emulator that can't change its system locale. Empty in release builds
+  /// and when unset; the normal prefs → device → English resolution is
+  /// untouched.
+  static String get _forcedLocale =>
+      kDebugMode ? DevSeam.current.forcedLocale : '';
+
   static Locale _resolveInitial(
     SharedPreferences prefs,
     Locale Function()? deviceLocaleProvider,
   ) {
+    final forced = _forcedLocale;
+    if (forced.isNotEmpty && _isSupported(forced)) {
+      return Locale(forced);
+    }
     final saved = prefs.getString(_kLocalePrefKey);
     if (saved != null && _isSupported(saved)) {
       return Locale(saved);

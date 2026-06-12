@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 class DisputeScreen extends StatefulWidget {
-  final String deliveryId;
   const DisputeScreen({super.key, required this.deliveryId});
+  final String deliveryId;
 
   @override
   State<DisputeScreen> createState() => _DisputeScreenState();

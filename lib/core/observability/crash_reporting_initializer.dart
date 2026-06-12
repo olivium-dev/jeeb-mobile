@@ -1,11 +1,10 @@
-import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'crash_reporter.dart';
 
 class CrashReportingInitializer {
-  final CrashReporter _reporter;
 
   CrashReportingInitializer(this._reporter);
+  final CrashReporter _reporter;
 
   void install() {
     FlutterError.onError = (details) {

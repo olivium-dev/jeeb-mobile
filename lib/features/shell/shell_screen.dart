@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../core/dev_seam/dev_seam.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/role/user_role.dart';
 import '../../l10n/app_localizations.dart';
@@ -36,9 +38,9 @@ class _ShellScreenState extends State<ShellScreen> {
   Widget build(BuildContext context) {
     return BlocConsumer<RoleCubit, UserRole>(
       listenWhen: (prev, curr) => prev != curr,
-      listener: (_, __) => setState(() => _index = 0),
+      listener: (_, _) => setState(() => _index = 0),
       builder: (context, role) {
-        final tabs = _tabsForRole(role);
+        final tabs = _tabsForRole(_effectiveRole(role));
         final safeIndex = _index.clamp(0, tabs.length - 1);
         return Scaffold(
           body: SafeArea(
@@ -58,24 +60,37 @@ class _ShellScreenState extends State<ShellScreen> {
     );
   }
 
+  /// Debug-only: the dev seam can force the jeeber role so the Delivery-tab
+  /// upsell (screen 19, hosted by [DashboardTab]) renders deterministically for
+  /// capture without a UI role toggle. Always the cubit's role in release.
+  UserRole _effectiveRole(UserRole role) {
+    if (kDebugMode && DevSeam.current.homeTab == 'unregistered') {
+      return UserRole.jeeber;
+    }
+    return role;
+  }
+
   List<_Tab> _tabsForRole(UserRole role) {
     final l10n = AppLocalizations.of(context);
     switch (role) {
       case UserRole.client:
         return [
           _Tab(
+            id: 'requests',
             label: l10n.navRequests,
-            icon: Icons.star_outline,
-            selectedIcon: Icons.star,
+            icon: Icons.move_to_inbox_outlined,
+            selectedIcon: Icons.move_to_inbox,
             page: const HomeTab(),
           ),
           _Tab(
+            id: 'delivery',
             label: l10n.navDelivery,
-            icon: Icons.chat_bubble_outline,
-            selectedIcon: Icons.chat_bubble,
+            icon: Icons.local_shipping_outlined,
+            selectedIcon: Icons.local_shipping,
             page: const OrdersTab(),
           ),
           _Tab(
+            id: 'profile',
             label: l10n.navProfile,
             icon: Icons.person_outline,
             selectedIcon: Icons.person,
@@ -85,18 +100,21 @@ class _ShellScreenState extends State<ShellScreen> {
       case UserRole.jeeber:
         return [
           _Tab(
+            id: 'dashboard',
             label: l10n.navDashboard,
             icon: Icons.dashboard_outlined,
             selectedIcon: Icons.dashboard,
             page: const DashboardTab(),
           ),
           _Tab(
+            id: 'earnings',
             label: l10n.navEarnings,
             icon: Icons.payments_outlined,
             selectedIcon: Icons.payments,
             page: const EarningsTab(),
           ),
           _Tab(
+            id: 'profile',
             label: l10n.navProfile,
             icon: Icons.person_outline,
             selectedIcon: Icons.person,
@@ -170,26 +188,32 @@ class _BarItem extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
     final color = isSelected ? colorScheme.primary : colorScheme.outline;
-    return InkWell(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isSelected ? tab.selectedIcon : tab.icon,
-            size: Sizes.xLarge,
-            color: color,
-          ),
-          const SizedBox(height: Sizes.threeXSmall),
-          Text(
-            tab.label,
-            style: textTheme.labelSmall?.copyWith(
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              letterSpacing: 0.2,
+    return Semantics(
+      identifier: '_request_empty_state_nav_${tab.id}',
+      button: true,
+      selected: isSelected,
+      label: tab.label,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? tab.selectedIcon : tab.icon,
+              size: Sizes.xLarge,
               color: color,
             ),
-          ),
-        ],
+            const SizedBox(height: Sizes.threeXSmall),
+            Text(
+              tab.label,
+              style: textTheme.labelSmall?.copyWith(
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                letterSpacing: 0.2,
+                color: color,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -197,12 +221,16 @@ class _BarItem extends StatelessWidget {
 
 class _Tab {
   const _Tab({
+    required this.id,
     required this.label,
     required this.icon,
     required this.selectedIcon,
     required this.page,
   });
 
+  /// Stable, locale-independent id used for the tab's Semantics identifier so
+  /// QA (Maestro) can target tabs without matching on localized labels.
+  final String id;
   final String label;
   final IconData icon;
   final IconData selectedIcon;

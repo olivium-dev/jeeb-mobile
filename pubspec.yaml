@@ -50,6 +50,12 @@ dependencies:
   # UI / Design System support
   google_fonts: ^6.2.1
 
+  # Vector brand artwork (splash wordmark, node 56572:1711). Ships transitively
+  # via OMDS today; pinned explicitly so the `SvgPicture.asset` import in
+  # branded_splash.dart isn't load-bearing on OMDS's dependency graph (same
+  # rationale as `crypto` below). Version matches omds_library (^2.0.10+1).
+  flutter_svg: ^2.0.10+1
+
   # Internationalisation
   intl: ^0.20.2
 
@@ -103,3 +109,31 @@ flutter:
   assets:
     - lib/l10n/app_en.arb
     - lib/l10n/app_ar.arb
+    # Jeeb brand wordmark (Figma node 56572:1821 "Group 68"). Exported once
+    # from the Figma Dev Mode MCP; rendered on the splash via SvgPicture.asset.
+    - assets/brand/jeeb_logo.svg
+    # Client-home zero-orders hero illustration ("shop (1) 1", Figma node
+    # 56611:18663, aspect 743/756). Exported from the Figma Dev Mode MCP.
+    - assets/illustrations/empty_orders.png
+
+  # Inter, bundled locally (OFL-1.1) as discrete STATIC instances. A single
+  # variable TTF registered under discrete `weight:` keys does NOT engage the
+  # weight axis — Flutter renders 400/500/600/700 identically (proven by
+  # test/inter_font_weight_test.dart, TL-4). Static instances guarantee distinct
+  # weights on every platform, including low-end Android. Bundling (rather than
+  # fetching via google_fonts) is what makes every branded screen render on a
+  # no-egress device — google_fonts' runtime fetch throws a HandshakeException
+  # on devices with no path to fonts.gstatic.com, which previously crashed the
+  # theme build on first frame. See AppTheme + Bootstrap.minimal.
+  # Static instances from the official Inter v4.1 release (rsms/inter).
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700

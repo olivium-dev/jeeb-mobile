@@ -232,23 +232,31 @@ class _TierListEntry extends StatelessWidget {
 
   String _tierName(AppLocalizations l10n, TierId id) {
     switch (id) {
+      case TierId.flash:
+        return l10n.tierSelectionTierFlash;
       case TierId.express:
         return l10n.tierSelectionTierExpress;
       case TierId.standard:
         return l10n.tierSelectionTierStandard;
       case TierId.onTheWay:
         return l10n.tierSelectionTierOnTheWay;
+      case TierId.eco:
+        return l10n.tierSelectionTierEco;
     }
   }
 
   String _tierFooter(AppLocalizations l10n, TierId id) {
     switch (id) {
+      case TierId.flash:
+        return l10n.tierSelectionFooterFlash;
       case TierId.express:
         return l10n.tierSelectionFooterExpress;
       case TierId.standard:
         return l10n.tierSelectionFooterStandard;
       case TierId.onTheWay:
         return l10n.tierSelectionFooterOnTheWay;
+      case TierId.eco:
+        return l10n.tierSelectionFooterEco;
     }
   }
 

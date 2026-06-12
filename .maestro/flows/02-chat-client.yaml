@@ -1,0 +1,233 @@
+# Jeeb mobile — 02 Chat [Client] (Figma node 56535:6659) parity verification flow.
+#
+# WHAT THIS PROVES
+#   The client's broadcasting-phase chat (the request thread while Jeeber offers
+#   arrive) renders, and its key elements are present + visible in the LIVE view
+#   hierarchy, targeted BY SEMANTIC ID (never by localized text — AP-5; never by
+#   coordinates — AP-1):
+#       chat_detail_message_list          — scrollable message timeline (root)
+#       chat_detail_date_separator        — "Today" date chip
+#       chat_detail_message_dev-out-1     — outgoing request bubble (client's order)
+#       chat_detail_message_dev-offer-1   — offer card #1 (Kamal Hajj); clickable
+#                                           (its "Accept Offer" button merges into
+#                                           this node — see SEMANTICS MERGING below)
+#       chat_detail_message_dev-offer-2   — offer card #2 (Rana Ahmad); clickable
+#       chat_detail_offer_only_one_note   — orange "Accept only one offer" helper note
+#       chat_detail_message_input         — composer "Send message…" field
+#       chat_detail_attach_button         — composer leading "+" attach affordance
+#       chat_detail_voice_button          — composer mic affordance
+#       chat_detail_send_button           — composer navy circular send pill
+#   All ids are emitted by Semantics(identifier:) the screen team added to the
+#   chat widgets (lib/features/chat/presentation/...); QA confirmed they surface
+#   as Android resource-id values via `maestro hierarchy` BEFORE this flow was
+#   written (not assumed). The app historically did not export its semantics tree
+#   (see .maestro/smoke.yaml) — these ids exist only because this screen added them.
+#
+#   SEMANTICS MERGING — two ids the source declares are NOT individually targetable
+#   (confirmed empirically via `maestro hierarchy`, not assumed):
+#     • chat_detail_accept_offer-<id> — the OmdsPrimaryButton's Semantics merges
+#       UP into its parent offer-card node, so the card id (chat_detail_message_
+#       dev-offer-1) is the clickable node. We therefore tap the CARD id to drive
+#       Accept Offer; the standalone accept id does not surface. (Flutter merges
+#       descendant Semantics lacking an explicitChildNodes/MergeSemantics boundary.)
+#     • chat_detail_message_read — the read-receipt tick Semantics merges into the
+#       outgoing bubble node (chat_detail_message_dev-out-1) and does not surface
+#       as a separate node, so we assert the BUBBLE (which carries the read state),
+#       not the tick id. Both are documented findings in qa-verdict.md, not faked.
+#
+#   NOTE the app-bar back button is NOT asserted: in the broadcasting phase
+#   ChatAppBar renders OMDSAppBar's built-in back button (showAvatar:false), which
+#   carries no custom id. The custom-id chat_detail_back_button only exists in the
+#   post-approval (avatar) header — asserting it here would be a fabricated id.
+#
+# PRIMARY INTERACTION (as far as the sanctioned backend allows — UI-GUARDRAILS §6)
+#   This screen has TWO user actions. We exercise both at the level the dev
+#   fixture (DevChatFixtureGateway) can honestly satisfy:
+#
+#   1. COMPOSER SEND (fully satisfiable). The send pill is disabled while the
+#      field is empty (Figma "Disabled=True"); typing enables it. We type a
+#      message, tap send by id, and assert the NEW outgoing bubble carrying that
+#      text renders (ChatCubit optimistically appends it — verified in
+#      chat_cubit.dart sendText). The typed string is user-generated fixture
+#      content, not a localized label, so a text assertion is AP-5-safe here.
+#
+#   2. ACCEPT OFFER (partially satisfiable — gap noted). Tapping "Accept Offer"
+#      drives ChatCubit.acceptOffer, but DevChatFixtureGateway.acceptOffer is a
+#      no-op and loadPhase always returns `broadcasting` (verified in
+#      dev_chat_fixture_gateway.dart) — so the offline fixture CANNOT transition
+#      the thread to the accepted phase. We therefore exercise the real,
+#      sanctioned behaviour: the CTA is present, visible, and TAPPABLE, and the
+#      tap does NOT crash — the message list stays mounted afterwards. We do NOT
+#      assert a phase transition / "offer accepted" system message, because the
+#      dev backend cannot produce one; asserting it would be a fabricated pass
+#      (maestro-anti-patterns AP-9 — no optimistic assertion of a path the
+#      backend can't satisfy). The accepted-phase transition belongs to a later
+#      end-to-end pass against the real chat-service via jeeb-gateway.
+#
+# BACKEND
+#   mock/dev seam only — DevChatFixtureGateway (in-memory, deterministic
+#   broadcasting thread: 1 outgoing request + 2 offer cards). NO live gateway
+#   (comparison.md). Certifies visual + behavioural UI parity, NOT end-to-end
+#   integration (UI-GUARDRAILS §6). Production path is DioChatGateway →
+#   chat-service via jeeb-gateway, unchanged by this work.
+#
+# BUILD DEPENDENCY (honest caveat — read before running)
+#   The broadcasting chat lives behind the authenticated shell (onboarding +
+#   biometric router redirects). The installed dev APK was built with the
+#   debug-only, release-inert flag --dart-define=JEEB_DEV_CHAT=broadcasting
+#   (kDebugMode-gated, no-op in release — lib/core/router/app_router.dart), which
+#   redirects the router straight to /dev-chat → DevChatPreviewScreen →
+#   ChatScreen(broadcasting) without a live OTP roundtrip. This EXTENDS the
+#   sanctioned JEEB_DEV_HOME dart-define pattern (pilot learning #1). dart-defines
+#   are compile-time baked into the APK, so launchApp/clearState cannot toggle
+#   them — clearState relaunches the SAME installed APK and the broadcasting
+#   fixture is the deterministic default code path, so it stays reachable. This
+#   flow is valid only against a JEEB_DEV_CHAT=broadcasting build; documented as a
+#   known constraint (same posture as 01-splash's JEEB_HOLD_SPLASH).
+#
+# MAESTRO VERSION NOTE (2.0.5)
+#   In Maestro 2.x `assertVisible` does NOT accept an inline `timeout:` (1.x only).
+#   Timed waits go through `extendedWaitUntil` (waits up to `timeout` AND asserts).
+#   Every timing-sensitive check uses extendedWaitUntil — NEVER a fixed sleep
+#   (AP-1). Bare `assertVisible` is used only to re-confirm an element already
+#   proven present.
+#
+# RUNTIME EXPECTATION
+#   ~18-25 s wall-clock (cold launch + dev-chat route + ~13 id assertions + 1
+#   composer send + 1 accept-offer tap). Under the 60 s refactor flag. Single
+#   screen; no subflow warranted (one screen, no reused page object).
+#
+# Run:
+#   maestro test -e APP_ID=app.jeeb.mobile.dev \
+#     --format JUNIT --output <evidence>/02-chat-client/maestro/junit.xml \
+#     .maestro/flows/02-chat-client.yaml
+appId: ${APP_ID}
+---
+# ── LAUNCH via runtime dev seam (jeeb.state → DevSeam priority-1 intent extra) ──
+# The installed APK is the RUNTIME dev-seam build (dev-seam-runtime.md): a bare
+# launchApp lands on onboarding. `launchApp.arguments` are delivered to Android
+# as String intent extras, which MainActivity.kt readSeamExtras() reads (seam
+# source priority 1) → DevSeam routes straight to the broadcasting chat preview
+# (/dev-chat, ChatScreen broadcasting), skipping onboarding + biometric gates.
+# Verified self-contained: the DevSeam-resolved logcat line reads
+# "chat: broadcasting" on this exact launch (no external priming, no rebuild).
+# `stopApp: true` force-stops first so MainActivity (singleTop) re-reads the
+# FRESH extras on every run.
+- launchApp:
+    stopApp: true               # AP-4: re-read fresh seam extras; no state bleed
+    arguments:
+      jeeb.state: "broadcasting"
+
+# Message timeline root — the scrollable broadcasting thread. extendedWaitUntil
+# (not a fixed sleep — AP-1) absorbs cold-start + dev-chat route variance up to
+# 25 s, AND asserts. Generous headroom: cold launch THROUGH the router redirect.
+- extendedWaitUntil:
+    visible:
+      id: "chat_detail_message_list"
+    timeout: 25000              # AP-3: cold-start + router redirect headroom
+
+# Let the screen + list entrance settle before screenshotting, so the evidence
+# frame is the settled render, not a mid-transition blend (pilot learning #4).
+# AP-7 (waitForAnimationToEnd after a transition), NOT a fixed sleep.
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Evidence frame of the settled broadcasting chat.
+- takeScreenshot: 02_chat_client_broadcasting_rendered
+
+# ── STATE RENDERS — key elements present, all targeted by id ──────────────────
+
+# Date chip ("Today"). Waited+asserted by id (i18n-safe — AP-5).
+- extendedWaitUntil:
+    visible:
+      id: "chat_detail_date_separator"
+    timeout: 10000
+
+# Outgoing request bubble (the client's order text). The read-receipt tick
+# Semantics merges into this node (see SEMANTICS MERGING header note), so the
+# bubble — which carries the read state — is the assertable host, not a tick id.
+- extendedWaitUntil:
+    visible:
+      id: "chat_detail_message_dev-out-1"
+    timeout: 10000
+
+# Offer card #1 (Kamal Hajj). Its "Accept Offer" button merges into this card
+# node (header note), which is the clickable element used in interaction 2 below.
+- extendedWaitUntil:
+    visible:
+      id: "chat_detail_message_dev-offer-1"
+    timeout: 10000
+
+# Offer card #2 (Rana Ahmad).
+- assertVisible:
+    id: "chat_detail_message_dev-offer-2"
+
+# Orange "Accept only one offer" helper note under the stacked offer cards.
+- assertVisible:
+    id: "chat_detail_offer_only_one_note"
+
+# Composer affordances: field + attach (+) + mic + send pill.
+- assertVisible:
+    id: "chat_detail_message_input"
+- assertVisible:
+    id: "chat_detail_attach_button"
+- assertVisible:
+    id: "chat_detail_voice_button"
+- assertVisible:
+    id: "chat_detail_send_button"
+
+# ── PRIMARY INTERACTION 1 — COMPOSER SEND (fully satisfiable) ─────────────────
+# Tap the field by id (NOT coordinate — AP-1), type a message, then tap send by
+# id. The send pill is disabled while the field is empty and becomes enabled once
+# text is present (verified: clickable flips false→true on type). ChatCubit
+# optimistically appends a NEW outgoing bubble with the deterministic id
+# msg-dev-chat-0 (first send: _outboxCounter starts at 0, deliveryId='dev-chat' —
+# verified in chat_cubit.dart), which renders as the resource-id
+# chat_detail_message_msg-dev-chat-0. We assert that NEW BUBBLE BY ID — far more
+# robust than matching the bubble's text (Flutter does not surface the bubble text
+# as its own a11y node, so a text assertion would false-fail). This proves the
+# composer→send→append path end-to-end against the dev fixture.
+- tapOn:
+    id: "chat_detail_message_input"
+- inputText: "QA parity check 02"
+# Dismiss the IME by tapping the message timeline (a NON-interactive scroll
+# region) — Flutter drops composer focus on a tap outside the field, hiding the
+# keyboard so the send pill is unobscured. We do NOT use `hideKeyboard`: Maestro
+# 2.0.5 implements it as an Android BACK keyevent, and on the dev-seam build the
+# chat is the ROOT route (/dev-chat) with no back stack, so BACK pops the screen
+# and EXITS the app to the launcher (verified empirically), breaking the send tap
+# below. Tapping the list keeps us on the chat route.
+- tapOn:
+    id: "chat_detail_message_list"
+- tapOn:
+    id: "chat_detail_send_button"
+- waitForAnimationToEnd:
+    timeout: 5000
+# The new outgoing bubble appended by the send is now in the timeline.
+- extendedWaitUntil:
+    visible:
+      id: "chat_detail_message_msg-dev-chat-0"
+    timeout: 10000
+
+# ── PRIMARY INTERACTION 2 — ACCEPT OFFER (partial — gap noted in header) ──────
+# Tap offer card #1 by id (NOT coordinate — AP-1; NOT localized label — AP-5).
+# The card node is clickable because the "Accept Offer" OmdsPrimaryButton merges
+# into it (SEMANTICS MERGING header note), so this tap drives ChatCubit.acceptOffer
+# for offer-kamal. The dev fixture's acceptOffer is a no-op and the phase never
+# leaves broadcasting, so the ONLY sanctioned assertion is: the tap is accepted
+# and does NOT crash — the message list survives and the screen stays the
+# broadcasting chat. We deliberately do NOT assert an accepted-phase transition
+# (the dev backend cannot produce one — AP-9).
+- tapOn:
+    id: "chat_detail_message_dev-offer-1"
+- waitForAnimationToEnd:
+    timeout: 5000
+# Re-confirm the timeline is still the visible host (the tap did not crash,
+# dismiss, or silently navigate away). Element already proven present, so a bare
+# assertVisible (no wait) is correct here.
+- assertVisible:
+    id: "chat_detail_message_list"
+# The offer card the user tapped is still on screen (no false "accepted" teardown
+# on the offline fixture) — documents the honest dev-backend behaviour.
+- assertVisible:
+    id: "chat_detail_message_dev-offer-1"

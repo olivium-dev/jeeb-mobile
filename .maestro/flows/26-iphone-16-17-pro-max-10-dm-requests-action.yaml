@@ -1,0 +1,65 @@
+# Jeeb mobile — 26 iPhone 16 & 17 Pro Max - 10 (DM requests — actions).
+# Figma node 56560:1523 (jeeber feed, "Replies" chip, accepted cards w/ actions).
+#
+# WHAT THIS PROVES
+#   The deliveryman feed renders accepted-request action cards (avatar + name +
+#   rating + tier + items + distance + a delivery state-machine action pill:
+#   "Order picked" / "Heading to drop off"), targeted BY SEMANTIC ID (verified
+#   in source on feat/jeeb-ui-parity-lane-b4):
+#     jeeber_feed_request_card_dev-feed-accepted-1   — first accepted card
+#     jeeber_feed_request_action_dev-feed-accepted-1 — its delivery-action pill
+#     jeeber_feed_request_action_dev-feed-accepted-2 — second card's action pill
+#                                                      jeeber_feed_card.dart (_AcceptedAction)
+#
+# PRIMARY INTERACTION
+#   The status action pill advances the delivery state machine. On the dev seam
+#   it is wired to RequestFeedCubit.accept (jeeber_feed_tab_view.dart, a no-op
+#   SeededRequestFeedRepository), so the deterministic, assertible effect is:
+#   the action button is present, tappable, and the app does not crash (the card
+#   stays visible after the tap). Honest liveness + tap-accepted check matched
+#   to the seam's capabilities (pilot-learning #7); the real transition is
+#   exercised end-to-end in the chat flows 05/06.
+#
+# BACKEND / SEAM
+#   Dev seam: jeeb.route=/ + jeeb.feed=replies → seam forces the jeeber role,
+#   DashboardTab seeds DevJeeberFeedFixtures.replies() (two accepted cards with
+#   order-picked + heading-to-drop-off actions) with the Replies chip selected
+#   (dashboard_tab.dart _DevFeedScaffold). No live gateway. UI parity only
+#   (UI-GUARDRAILS §6). Seam knobs via launchApp.arguments (Android intent
+#   extras, release-inert).
+#
+# MAESTRO 2.x: extendedWaitUntil for timed waits; waitForAnimationToEnd before
+#   screenshots; no fixed sleeps; no coordinate taps; id-based assertions only.
+#
+# Run:
+#   maestro --device NONE-DEVICE-FREE test -e APP_ID=app.jeeb.mobile.dev \
+#     --format JUNIT --output <evidence>/maestro/junit.xml \
+#     .maestro/flows/26-iphone-16-17-pro-max-10-dm-requests-action.yaml
+appId: ${APP_ID}
+---
+- launchApp:
+    arguments:
+      jeeb.route: "/"
+      jeeb.feed: "replies"
+
+# First accepted card + its action pill — waited+asserted by id.
+- extendedWaitUntil:
+    visible:
+      id: "jeeber_feed_request_card_dev-feed-accepted-1"
+    timeout: 25000
+- assertVisible:
+    id: "jeeber_feed_request_action_dev-feed-accepted-1"
+- assertVisible:
+    id: "jeeber_feed_request_action_dev-feed-accepted-2"
+
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 26_iphone_16_17_pro_max_10_dm_requests_action
+
+# PRIMARY INTERACTION: tap the delivery-action pill; assert tap-accepted + no crash.
+- tapOn:
+    id: "jeeber_feed_request_action_dev-feed-accepted-1"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible:
+    id: "jeeber_feed_request_card_dev-feed-accepted-1"

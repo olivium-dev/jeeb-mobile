@@ -55,6 +55,7 @@ class ClientHomeRequest extends Equatable {
     required this.title,
     required this.status,
     required this.destinationLabel,
+    this.itemsSummary,
     this.etaMinutes,
     this.jeeberName,
     this.tier = ClientRequestTier.unknown,
@@ -77,6 +78,19 @@ class ClientHomeRequest extends Equatable {
 
   /// Where the package is going. Display-only.
   final String destinationLabel;
+
+  /// Comma-joined item names the sender requested (e.g.
+  /// "1 kilo potato, water gallon, coffee blend"). Rendered as the card
+  /// subtitle on every My Orders tab. Falls back to [destinationLabel] when
+  /// the backend omits an items list.
+  final String? itemsSummary;
+
+  /// The subtitle line every order card renders — items summary when present,
+  /// otherwise the destination.
+  String get summaryLine =>
+      (itemsSummary != null && itemsSummary!.isNotEmpty)
+          ? itemsSummary!
+          : destinationLabel;
 
   /// Current coarse status.
   final ClientRequestStatus status;
@@ -112,6 +126,7 @@ class ClientHomeRequest extends Equatable {
     String? title,
     ClientRequestStatus? status,
     String? destinationLabel,
+    Object? itemsSummary = _sentinel,
     Object? etaMinutes = _sentinel,
     Object? jeeberName = _sentinel,
     ClientRequestTier? tier,
@@ -126,6 +141,9 @@ class ClientHomeRequest extends Equatable {
       title: title ?? this.title,
       status: status ?? this.status,
       destinationLabel: destinationLabel ?? this.destinationLabel,
+      itemsSummary: identical(itemsSummary, _sentinel)
+          ? this.itemsSummary
+          : itemsSummary as String?,
       etaMinutes: identical(etaMinutes, _sentinel)
           ? this.etaMinutes
           : etaMinutes as int?,
@@ -151,6 +169,7 @@ class ClientHomeRequest extends Equatable {
         displayId,
         title,
         destinationLabel,
+        itemsSummary,
         status,
         tier,
         progressStep,

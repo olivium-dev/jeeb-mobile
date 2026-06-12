@@ -1,101 +1,111 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:omds/omds.dart';
 
-/// Jeeb branded splash — matches the Figma design (node 56572:1711).
+import '../l10n/app_localizations.dart';
+
+/// Jeeb branded splash — Figma node `56572:1711` ("Splash", 440×956).
 ///
-/// Full navy background with the "Jeeb" wordmark centered and
-/// "Delivery App" at the bottom. Dependency-free so it renders instantly.
-class BrandedSplash extends StatefulWidget {
+/// Full-bleed brand-navy background with the Jeeb wordmark optically centered
+/// and the localized tagline in the lower band. The wordmark is the bundled
+/// brand vector (`assets/brand/jeeb_logo.svg`, Figma "Group 68" 56572:1821),
+/// never re-drawn as `Text` glyphs.
+///
+/// Renders under the OMDS theme + [AppLocalizations] supplied by the splash
+/// host, so every color is a `colorScheme` role and every string is an ARB
+/// key — no literals. Direction-agnostic layout mirrors automatically in RTL.
+class BrandedSplash extends StatelessWidget {
   const BrandedSplash({super.key});
 
-  static const Color _navy = Color(0xFF0B1351);
-  static const Color _orange = Color(0xFFD73B00);
-
-  @override
-  State<BrandedSplash> createState() => _BrandedSplashState();
-}
-
-class _BrandedSplashState extends State<BrandedSplash>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 800),
-  )..forward();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  static const String _logoAsset = 'assets/brand/jeeb_logo.svg';
 
   @override
   Widget build(BuildContext context) {
-    final fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    final scale = Tween<double>(begin: 0.85, end: 1.0).animate(fade);
-    return Directionality(
-      textDirection: TextDirection.ltr,
-      child: ColoredBox(
-        color: BrandedSplash._navy,
-        child: SafeArea(
-          child: Column(
-            children: [
-              const Spacer(),
-              FadeTransition(
-                opacity: fade,
-                child: ScaleTransition(
-                  scale: scale,
-                  child: const _JeebWordmark(),
-                ),
-              ),
-              const Spacer(),
-              const Padding(
-                padding: EdgeInsets.only(bottom: 56),
-                child: Text(
-                  'Delivery App',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ],
-          ),
+    final colorScheme = Theme.of(context).colorScheme;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+      ),
+      child: Semantics(
+        identifier: '_splash_screen',
+        container: true,
+        child: ColoredBox(
+          color: colorScheme.secondaryContainer,
+          child: const SafeArea(child: _SplashBody()),
         ),
       ),
     );
   }
 }
 
-class _JeebWordmark extends StatelessWidget {
-  const _JeebWordmark();
+/// Vertical composition: wordmark optically centered (slightly above true
+/// centre via asymmetric [Spacer] weights), tagline anchored to the lower band.
+class _SplashBody extends StatelessWidget {
+  const _SplashBody();
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
+    return const Column(
       children: [
-        const Text(
-          'Jee',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 64,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -1,
-          ),
-        ),
-        Text(
-          'b',
-          style: TextStyle(
-            color: BrandedSplash._orange,
-            fontSize: 64,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -1,
-          ),
-        ),
+        Spacer(flex: 10),
+        _SplashLogo(),
+        Spacer(flex: 9),
+        _SplashTagline(),
+        SizedBox(height: Spacing.fourXLarge),
       ],
+    );
+  }
+}
+
+/// Bundled Jeeb wordmark, clamped to a brand-sized max width and centred. The
+/// SVG keeps its intrinsic aspect ratio (viewBox 182:73), so it scales down on
+/// narrow devices without distortion. Marked as meaningful image artwork.
+class _SplashLogo extends StatelessWidget {
+  const _SplashLogo();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      identifier: '_splash_logo',
+      label: l10n.splashLogoSemantic,
+      image: true,
+      container: true,
+      child: Center(
+        // Token width; height derives from the SVG's intrinsic 182:73 ratio,
+        // so the wordmark scales without distortion. ~45% of a 440dp frame —
+        // the brand-sized analogue of Figma's 182px (≈41%) wordmark.
+        child: SvgPicture.asset(
+          BrandedSplash._logoAsset,
+          width: Sizes.twoHundredLarge,
+          fit: BoxFit.contain,
+        ),
+      ),
+    );
+  }
+}
+
+/// Localized "Delivery App" tagline. Uses the theme `titleMedium` role on the
+/// on-secondary (white) color so contrast holds against the navy fill.
+class _SplashTagline extends StatelessWidget {
+  const _SplashTagline();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      identifier: '_splash_tagline',
+      container: true,
+      child: Text(
+        l10n.splashTagline,
+        textAlign: TextAlign.center,
+        style: theme.textTheme.titleMedium?.copyWith(
+          color: theme.colorScheme.onSecondary,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }

@@ -54,12 +54,16 @@ class ChatState extends Equatable {
 
   bool get canSendText => composerText.trim().isNotEmpty;
 
-  /// Composer is hidden during the broadcasting phase (the Figma rule —
-  /// every "send" must go via tapping an offer card, not a free-text reply).
-  /// Also hidden in `closed` since the conversation is read-only.
-  bool get isComposerVisible =>
-      phase == ConversationPhase.accepted ||
-      phase == ConversationPhase.unknown;
+  /// Composer visibility. The Figma "Chat [Client]" frame (node 56535:6659)
+  /// shows the composer present *during* broadcasting (the client can still
+  /// message while offers come in), so it stays visible in every phase except
+  /// `closed`, where the conversation is read-only.
+  bool get isComposerVisible => phase != ConversationPhase.closed;
+
+  /// The post-approval header (Figma node 56546:2382) shows the winning
+  /// counterpart's avatar + name. During broadcasting (node 56535:6659) the
+  /// header is the order id only, so the avatar slot is suppressed.
+  bool get showsCounterpartHeader => phase == ConversationPhase.accepted;
 
   /// Offer cards currently sitting in the message list. Used by the
   /// broadcasting screen to render the stacked offer panel.

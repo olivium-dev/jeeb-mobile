@@ -1,0 +1,121 @@
+# Maestro flow — Delivery Screen: Chat [Delivery Man] (screen 04)
+#
+# Figma node 56539:906 (file ZOi3kKtw7sd42ssSVX3Kn4), DM (Jeeber-side) chat thread.
+# Built screen: existing ChatScreen rendered as the delivery-man variant via the
+#   debug-only JEEB_DEV_CHAT seam (AppRouter redirect -> /dev-chat ->
+#   DevChatPreviewScreen(selector:'dm')). kDebugMode-gated; inert in release.
+#
+# BACKEND: DevChatFixtureGateway(deliveryMan: true) — the workspace-sanctioned
+#   in-memory dev seam (UI-GUARDRAILS §6 / pilot learning #2). A PASS here
+#   certifies VISUAL + BEHAVIORAL UI PARITY ONLY, not end-to-end gateway
+#   integration.
+#
+# PREREQUISITE (sanctioned, documented in qa-verdict.md): the app must be built
+#   and installed with the dart-define that activates the DM capture seam:
+#     flutter build apk --debug --flavor dev --target-platform android-arm64 \
+#       --dart-define=JEEB_DEV_CHAT=dm
+#   The flow does NOT itself set the dart-define (Maestro cannot inject Flutter
+#   compile-time defines); the build step is the seam. clearState would wipe the
+#   already-launched debug seam target so it is intentionally NOT used — the seam
+#   redirect fires deterministically on every cold launch of this build.
+#
+# Syntax: Maestro 2.0.5 — extendedWaitUntil for timeouts (inline assertVisible
+#   timeout is 1.x and is REJECTED by 2.0.5); waitForAnimationToEnd before any
+#   takeScreenshot; tapOn/assertVisible by Semantics identifier only (no
+#   coordinate taps, no sleeps, no localized-text matching where an id exists).
+#
+# Ids asserted are verified present in source (grep of lib/features/chat):
+#   chat_detail_message_list, chat_detail_back_button, chat_detail_avatar,
+#   chat_dm_fee_banner, chat_detail_date_separator,
+#   chat_detail_message_dev-dm-in-1, chat_detail_message_dev-dm-out-1,
+#   chat_detail_message_read, chat_detail_message_input,
+#   chat_detail_attach_button, chat_detail_voice_button, chat_detail_send_button
+
+appId: ${APP_ID}
+---
+# ── LAUNCH via runtime dev seam (jeeb.state → DevSeam priority-1 intent extra) ──
+# The installed APK is the RUNTIME dev-seam build (dev-seam-runtime.md): a bare
+# launchApp lands on onboarding. `launchApp.arguments` are delivered to Android
+# as String intent extras, which MainActivity.kt readSeamExtras() reads (seam
+# source priority 1) → DevSeam routes straight to the delivery-man chat preview
+# (/dev-chat, DevChatPreviewScreen selector 'dm'), skipping onboarding +
+# biometric gates. Verified self-contained: the DevSeam-resolved logcat line
+# reads "chat: dm" on this exact launch (no external priming, no rebuild).
+# `stopApp: true` force-stops first so MainActivity (singleTop) re-reads the
+# FRESH extras on every run.
+- launchApp:
+    stopApp: true
+    arguments:
+      jeeb.state: "dm"
+
+# --- State renders: the DM chat thread is on screen -------------------------
+- extendedWaitUntil:
+    visible:
+      id: "chat_detail_message_list"
+    timeout: 20000
+- waitForAnimationToEnd
+
+# --- Header: back affordance + counterpart avatar (accepted-phase header) ----
+- assertVisible:
+    id: "chat_detail_back_button"
+- assertVisible:
+    id: "chat_detail_avatar"
+
+# --- Jeeber-only fee/balance-deduction notice banner -------------------------
+- assertVisible:
+    id: "chat_dm_fee_banner"
+
+# --- Thread content: date separator + the two seeded bubbles -----------------
+- assertVisible:
+    id: "chat_detail_date_separator"
+- assertVisible:
+    id: "chat_detail_message_dev-dm-in-1"     # incoming client request bubble
+- assertVisible:
+    id: "chat_detail_message_dev-dm-out-1"    # outgoing Jeeber price/time offer
+# NOTE (semantics-merging trap, documented gap): the read-tick leaf
+#   Semantics(identifier:'chat_detail_message_read') is a non-interactive Icon
+#   nested inside the outgoing bubble's timestamp row. Flutter's semantics
+#   compositor MERGES that leaf into the parent bubble node
+#   (chat_detail_message_dev-dm-out-1), so the read-tick id is NOT independently
+#   exposed in Maestro's view hierarchy (verified via `maestro hierarchy`). The
+#   cyan double-check read state is therefore validated by the UX visual-parity
+#   verdict (emulator_en.png), not by a Maestro id assertion — asserting a
+#   merged leaf here would be a flaky/un-addressable selector. The outgoing
+#   bubble assertion above already proves the outgoing message rendered.
+
+# --- Composer: input + attach + voice affordances ----------------------------
+- assertVisible:
+    id: "chat_detail_message_input"
+- assertVisible:
+    id: "chat_detail_attach_button"
+- assertVisible:
+    id: "chat_detail_voice_button"
+
+# --- Empty-thread capture screenshot -----------------------------------------
+- waitForAnimationToEnd
+- takeScreenshot: "04-dm-chat-rendered"
+
+# --- PRIMARY INTERACTION: type a price/time message and send -----------------
+# The composer is the screen's primary interaction. Send is disabled while the
+# field is empty (Figma "Send: Disabled=True"); it enables on first character.
+- tapOn:
+    id: "chat_detail_message_input"
+- inputText: "20$ in 3 hours"
+- assertVisible:
+    id: "chat_detail_send_button"
+- tapOn:
+    id: "chat_detail_send_button"
+- waitForAnimationToEnd
+
+# After send: the thread/list is still rendered (send did not crash the screen)
+# and the composer is ready again. The DevChatFixtureGateway.send() echoes the
+# message back as read, so the message list remains the source of truth.
+# NOTE (documented gap): the dev fixture assigns the outgoing message a runtime
+# id, so we assert the list still renders rather than asserting a specific new
+# bubble id (would be a fabricated assertion the dev seam can't guarantee).
+- assertVisible:
+    id: "chat_detail_message_list"
+- assertVisible:
+    id: "chat_detail_message_input"
+- waitForAnimationToEnd
+- takeScreenshot: "04-dm-chat-after-send"

@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 class CancellationScreen extends StatefulWidget {
-  final String deliveryId;
-  final bool isJeeber;
   const CancellationScreen({
     super.key,
     required this.deliveryId,
     required this.isJeeber,
   });
+  final String deliveryId;
+  final bool isJeeber;
 
   @override
   State<CancellationScreen> createState() => _CancellationScreenState();
@@ -52,12 +52,18 @@ class _CancellationScreenState extends State<CancellationScreen> {
           children: [
             const _PromptText(),
             const SizedBox(height: Spacing.medium),
-            ...reasons.map(
-              (reason) => RadioListTile<String>(
-                title: Text(reason),
-                value: reason,
-                groupValue: _selectedReason,
-                onChanged: (v) => setState(() => _selectedReason = v),
+            RadioGroup<String>(
+              groupValue: _selectedReason,
+              onChanged: (v) => setState(() => _selectedReason = v),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final reason in reasons)
+                    RadioListTile<String>(
+                      title: Text(reason),
+                      value: reason,
+                    ),
+                ],
               ),
             ),
             if (_selectedReason == 'Other') ...[

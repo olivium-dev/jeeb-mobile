@@ -1,0 +1,60 @@
+# Jeeb mobile — 23 Delivery Screen: Empty State [Delivery Man].
+# Figma node 56559:930 (registered jeeber, Delivery tab, zero incoming requests).
+#
+# WHAT THIS PROVES
+#   The deliveryman home empty state renders (greeting-with-avatar → inline
+#   "Accept orders" switch → hero illustration → "No Requests yet" block), with
+#   the only interactive control targeted BY SEMANTIC ID (verified in source on
+#   feat/jeeb-ui-parity-lane-b4):
+#     jeeber_home_accept_orders_switch — Accept-orders availability switch
+#                                        jeeber_feed_empty_view.dart (_AcceptOrdersRow)
+#     jeeber_home_avatar               — greeting avatar
+#                                        jeeber_home_greeting.dart (_GreetingAvatar)
+#
+# PRIMARY INTERACTION
+#   The "Accept orders" switch is the only action above the nav bar. On the dev
+#   seam it toggles local UI state (no live availability gateway), so the
+#   deterministic, assertible effect is: the switch is present, tappable, and
+#   the app does not crash (the empty-state title stays visible after the tap).
+#   This is an honest liveness + tap-accepted check, not an over-assertion of a
+#   gateway round-trip the seam can't satisfy (pilot-learning #7).
+#
+# BACKEND / SEAM
+#   Dev seam: jeeb.route=/ + jeeb.feed=empty → the seam forces the jeeber role
+#   and DashboardTab renders JeeberFeedEmptyView (dashboard_tab.dart
+#   _DevFeedScaffold; dev_seam_config.dart reads jeeb.feed). No live gateway.
+#   UI parity only (UI-GUARDRAILS §6). Seam knobs via launchApp.arguments
+#   (Android intent extras, release-inert — dev-seam-runtime.md).
+#
+# MAESTRO 2.x: extendedWaitUntil for timed waits (2.0.5 rejects inline
+#   assertVisible:{timeout}); waitForAnimationToEnd before screenshots; no fixed
+#   sleeps; no coordinate taps; id-based assertions only.
+#
+# Run:
+#   maestro --device NONE-DEVICE-FREE test -e APP_ID=app.jeeb.mobile.dev \
+#     --format JUNIT --output <evidence>/maestro/junit.xml \
+#     .maestro/flows/23-delivery-screen-empty-state-delivery-man.yaml
+appId: ${APP_ID}
+---
+- launchApp:
+    arguments:
+      jeeb.route: "/"
+      jeeb.feed: "empty"
+
+# Accept-orders switch — waited+asserted by id (cold launch + role switch).
+- extendedWaitUntil:
+    visible:
+      id: "jeeber_home_accept_orders_switch"
+    timeout: 25000
+
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: 23_delivery_screen_empty_state_delivery_man
+
+# PRIMARY INTERACTION: toggle availability; assert tap-accepted + no crash.
+- tapOn:
+    id: "jeeber_home_accept_orders_switch"
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible:
+    id: "jeeber_home_accept_orders_switch"

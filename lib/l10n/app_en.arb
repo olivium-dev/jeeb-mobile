@@ -49,6 +49,11 @@
   "homePendingEmpty": "No pending requests — broadcast a new one to get offers.",
   "homeRepliesEmpty": "No replies yet — pending requests with offers will appear here.",
   "homeRepliesCheckOffersCta": "Check Offers",
+  "homeSearchHint": "Search...",
+  "homeTrackOrderCta": "Track my order",
+  "homeStageOrdered": "Ordered",
+  "homeStagePicked": "Picked",
+  "homeStageInTransit": "In Transit",
   "chatOfferAccept": "Accept Offer",
   "chatOfferAccepting": "Accepting…",
   "chatOfferEtaMinutes": "ETA {minutes} min",
@@ -80,6 +85,15 @@
   "chatBroadcastingTitle": "Waiting for Jeebers…",
   "chatBroadcastingSubtitle": "Pick the offer that works best for you.",
   "chatBroadcastingEmpty": "No offers yet — sit tight.",
+  "chatDateChipToday": "Today",
+  "chatDateChipYesterday": "Yesterday",
+  "chatOfferAcceptOnlyOne": "Accept only one offer",
+  "chatBackA11y": "Leave chat",
+  "chatAvatarA11y": "Counterpart avatar",
+  "chatAttachA11y": "Attach a photo",
+  "chatVoiceA11y": "Record a voice message",
+  "chatSendA11y": "Send message",
+  "chatMessageReadA11y": "Read",
   "homeMicLabel": "Hold to speak",
   "homeRefreshHint": "Pull to refresh",
   "homeReorderAction": "Re-order",
@@ -474,6 +488,37 @@
         "type": "String"
       }
     }
+  },
+  "feedbackScreenTitle": "We appreciate your feedback",
+  "@feedbackScreenTitle": {
+    "description": "Feedback screen heading, both audiences (Figma 56614:20132)"
+  },
+  "feedbackScreenSubtitleJeeber": "We are always looking for ways to improve your experience. Please take a moment to evaluate the delivery man.",
+  "@feedbackScreenSubtitleJeeber": {
+    "description": "Feedback subtitle when a client rates the delivery man (Figma 56614:20132)"
+  },
+  "feedbackScreenSubtitleClient": "We are always looking for ways to improve your experience. Please take a moment to evaluate the client.",
+  "@feedbackScreenSubtitleClient": {
+    "description": "Feedback subtitle when the delivery man rates the client (Figma 56614:20132)"
+  },
+  "feedbackCommentHint": "Leave your feedback here...",
+  "@feedbackCommentHint": {
+    "description": "Placeholder for the optional feedback comment field (Figma 56614:20132)"
+  },
+  "feedbackRateName": "Rate {name}",
+  "@feedbackRateName": {
+    "description": "Heading above the star row, naming the person being rated (Figma 56614:20132)",
+    "placeholders": {
+      "name": { "type": "String", "example": "Sami" }
+    }
+  },
+  "feedbackSubmit": "Submit feedback",
+  "@feedbackSubmit": {
+    "description": "Primary CTA on the feedback screen (Figma 56614:20132)"
+  },
+  "feedbackCloseLabel": "Close",
+  "@feedbackCloseLabel": {
+    "description": "Accessibility label for the feedback screen close (X) button"
   },
   "pushBannerDeliveryCategory": "Delivery update",
   "pushBannerChatCategory": "New message",
@@ -890,6 +935,139 @@
   "tierSelectionFooterStandard": "Most coverage, lower cost",
   "tierSelectionFooterOnTheWay": "Cheapest, opportunistic match",
   "tierSelectionFooterEco": "Best price, plan ahead",
+  "requestTypeTitle": "Request",
+  "@requestTypeTitle": {
+    "description": "Navbar title on the Request type screen (Figma 56535:2392)"
+  },
+  "requestTypeChooseHeading": "Choose your request",
+  "@requestTypeChooseHeading": {
+    "description": "Section heading above the tier list on the Request type screen"
+  },
+  "requestTypeLocationHeading": "Location",
+  "@requestTypeLocationHeading": {
+    "description": "Location section heading on the Request type screen"
+  },
+  "requestTypeCurrentLocation": "Current Location",
+  "@requestTypeCurrentLocation": {
+    "description": "Label for the current-location row on the Request type screen"
+  },
+  "requestTypeChangeLocation": "Change Location",
+  "@requestTypeChangeLocation": {
+    "description": "Text action to change the pickup location on the Request type screen"
+  },
+  "tierFlashTitle": "⚡ Flash",
+  "@tierFlashTitle": {
+    "description": "Emoji tier title on the Request type screen — Flash"
+  },
+  "tierFlashSpeed": "Delivered in less than 1 hour.",
+  "@tierFlashSpeed": {
+    "description": "Speed line for the Flash tier"
+  },
+  "tierFlashValue": "Highest price • Priority pickup",
+  "@tierFlashValue": {
+    "description": "Price/value line for the Flash tier"
+  },
+  "tierExpressTitle": "🚀 Express",
+  "@tierExpressTitle": {
+    "description": "Emoji tier title — Express"
+  },
+  "tierExpressSpeed": "Arrives within 2-3 hours.",
+  "@tierExpressSpeed": {
+    "description": "Speed line for the Express tier"
+  },
+  "tierExpressValue": "High price • Fast service",
+  "@tierExpressValue": {
+    "description": "Price/value line for the Express tier"
+  },
+  "tierStandardTitle": "⚖️ Standard",
+  "@tierStandardTitle": {
+    "description": "Emoji tier title — Standard"
+  },
+  "tierStandardSpeed": "Delivered later today at a balanced rate.",
+  "@tierStandardSpeed": {
+    "description": "Speed line for the Standard tier"
+  },
+  "tierStandardValue": "Mid price • Best value",
+  "@tierStandardValue": {
+    "description": "Price/value line for the Standard tier"
+  },
+  "tierOnTheWayTitle": "🤝 On-the-Way",
+  "@tierOnTheWayTitle": {
+    "description": "Emoji tier title — On-the-Way"
+  },
+  "tierOnTheWaySpeed": "Matched with someone already heading there.",
+  "@tierOnTheWaySpeed": {
+    "description": "Speed line for the On-the-Way tier"
+  },
+  "tierOnTheWayValue": "Lower price • Flexible timing",
+  "@tierOnTheWayValue": {
+    "description": "Price/value line for the On-the-Way tier"
+  },
+  "tierEcoTitle": "🌿 Eco",
+  "@tierEcoTitle": {
+    "description": "Emoji tier title — Eco"
+  },
+  "tierEcoSpeed": "Delivered within 24–48 hours.",
+  "@tierEcoSpeed": {
+    "description": "Speed line for the Eco tier (24–48 uses an en dash)"
+  },
+  "tierEcoValue": "Lowest price • Flexible & affordable",
+  "@tierEcoValue": {
+    "description": "Price/value line for the Eco tier"
+  },
+  "requestTypeTierSemanticLabel": "{title}. {speed}. {value}.",
+  "@requestTypeTierSemanticLabel": {
+    "description": "Screen-reader summary for a Request type tier card",
+    "placeholders": {
+      "title": { "type": "String" },
+      "speed": { "type": "String" },
+      "value": { "type": "String" }
+    }
+  },
+  "requestTypeTierSelectedHint": "Selected",
+  "@requestTypeTierSelectedHint": {
+    "description": "Accessibility hint announced when a Request type tier card is selected"
+  },
+  "clientLocationTitle": "Location",
+  "@clientLocationTitle": {
+    "description": "Navbar title on the Client Location screen (Figma 56539:1444)"
+  },
+  "clientLocationHeading": "Choose your location",
+  "@clientLocationHeading": {
+    "description": "Section heading on the Client Location screen"
+  },
+  "clientLocationCurrentOption": "Current Location",
+  "@clientLocationCurrentOption": {
+    "description": "Label for the selected current-location card on the Client Location screen"
+  },
+  "clientLocationNewOption": "New Location",
+  "@clientLocationNewOption": {
+    "description": "Label for the add-new-location row on the Client Location screen"
+  },
+  "clientLocationAddSemantic": "Add a new location",
+  "@clientLocationAddSemantic": {
+    "description": "Accessibility label for the circular add-location button"
+  },
+  "captureLocationTitle": "Location",
+  "@captureLocationTitle": {
+    "description": "Navbar title on the Capture Location map screen (Figma 56546:2303)"
+  },
+  "captureLocationPinCta": "Pin Location",
+  "@captureLocationPinCta": {
+    "description": "Primary confirm CTA on the Capture Location map screen"
+  },
+  "captureLocationMapSemantic": "Map, pan to position the pin over your location",
+  "@captureLocationMapSemantic": {
+    "description": "Accessibility label for the map viewport on the Capture Location screen"
+  },
+  "captureLocationPinSemantic": "Selected location pin",
+  "@captureLocationPinSemantic": {
+    "description": "Accessibility label for the centered location pin marker"
+  },
+  "captureLocationMapPreview": "Map preview",
+  "@captureLocationMapPreview": {
+    "description": "Placeholder caption shown on the Capture Location map surface until live tiles load"
+  },
   "tierSelectionOnTheWayMvpNote": "Smart route matching coming soon — matched like Standard for now.",
   "@tierSelectionOnTheWayMvpNote": {
     "description": "Info note on the On-the-way tier card explaining the MVP Standard-fallback behavior (T-mobile-042)"
@@ -1088,6 +1266,72 @@
       }
     }
   },
+  "jeeberFeedSearchHint": "Search…",
+  "@jeeberFeedSearchHint": {
+    "description": "Search field placeholder on the deliveryman request feed (Figma screens 24-26)"
+  },
+  "jeeberFeedFilterRequests": "Requests",
+  "@jeeberFeedFilterRequests": {
+    "description": "Filter chip selecting the incoming-requests view of the deliveryman feed"
+  },
+  "jeeberFeedFilterPendingResponse": "Pending Response",
+  "@jeeberFeedFilterPendingResponse": {
+    "description": "Filter chip selecting requests the Jeeber has offered on and is awaiting a client reply"
+  },
+  "jeeberFeedFilterReplies": "Replies",
+  "@jeeberFeedFilterReplies": {
+    "description": "Filter chip selecting accepted requests with delivery-status actions"
+  },
+  "jeeberFeedIgnoreAction": "Ignore",
+  "@jeeberFeedIgnoreAction": {
+    "description": "Destructive text action dismissing an incoming request from the deliveryman feed"
+  },
+  "jeeberFeedOfferAction": "Offer",
+  "@jeeberFeedOfferAction": {
+    "description": "Primary action on an incoming feed card — opens the offer submission flow"
+  },
+  "jeeberFeedDistanceAway": "{distance} away from you",
+  "@jeeberFeedDistanceAway": {
+    "description": "Distance from the Jeeber to the request pickup; distance is pre-formatted with its unit",
+    "placeholders": {
+      "distance": {
+        "type": "String"
+      }
+    }
+  },
+  "jeeberFeedStatusPending": "Pending",
+  "@jeeberFeedStatusPending": {
+    "description": "Italic status on a feed card the Jeeber has offered on and is awaiting the client's response"
+  },
+  "jeeberFeedActionHeadingToDropOff": "Heading to drop off",
+  "@jeeberFeedActionHeadingToDropOff": {
+    "description": "Delivery state-machine action advancing an accepted request from picked-up to heading-to-dropoff"
+  },
+  "jeeberFeedAcceptOrdersLabel": "Accept orders",
+  "@jeeberFeedAcceptOrdersLabel": {
+    "description": "Availability toggle label on the deliveryman empty-state home (Figma screen 23)"
+  },
+  "jeeberFeedEmptyTitle": "No Requests yet",
+  "@jeeberFeedEmptyTitle": {
+    "description": "Empty-state headline on the deliveryman home when there are zero incoming requests (Figma screen 23)"
+  },
+  "jeeberFeedEmptySubtitle": "All requests will show up here",
+  "@jeeberFeedEmptySubtitle": {
+    "description": "Empty-state supporting line on the deliveryman home (Figma screen 23)"
+  },
+  "jeeberFeedRatingSemantic": "Rated {rating} out of 5",
+  "@jeeberFeedRatingSemantic": {
+    "description": "Accessibility label for the client star rating on a feed card",
+    "placeholders": {
+      "rating": {
+        "type": "String"
+      }
+    }
+  },
+  "requestFeedTierFlash": "Flash",
+  "@requestFeedTierFlash": {
+    "description": "Fastest delivery tier label (orange accent) shown on deliveryman feed cards"
+  },
   "jeeberIncomingMatchTitle": "New request",
   "@jeeberIncomingMatchTitle": {
     "description": "Header on the foreground prompt shown when the matching engine nominates this Jeeber for a specific request"
@@ -1225,6 +1469,14 @@
   "requestSummaryReRequest": "Re-send request",
   "@requestSummaryReRequest": {
     "description": "Primary CTA on the expired-request banner that re-runs the submission with the same draft (T-mobile-035)"
+  },
+  "requestSummaryUnavailableTitle": "Review & submit",
+  "@requestSummaryUnavailableTitle": {
+    "description": "App-bar title for the empty fallback shown when /request-summary opens without a request draft (e.g. a cold deep-link)."
+  },
+  "requestSummaryUnavailableBody": "No request draft available. Start a new request to continue.",
+  "@requestSummaryUnavailableBody": {
+    "description": "Body copy for the empty fallback when /request-summary has no draft to review."
   },
   "jeeberRequestDetailTitle": "Request details",
   "@jeeberRequestDetailTitle": {
@@ -1624,7 +1876,45 @@
   },
   "trackingTitle": "Live tracking",
   "@trackingTitle": {
-    "description": "App-bar title on the delivery tracking screen"
+    "description": "App-bar title on the delivery tracking screen (Figma node 56560:1772 shows 'Traking' — a typo; shipped corrected)"
+  },
+  "trackingStepOrdered": "Ordered",
+  "@trackingStepOrdered": {
+    "description": "Tracking panel stepper — stage 1 label (Figma 56560:1772)"
+  },
+  "trackingStepPicked": "Picked",
+  "@trackingStepPicked": {
+    "description": "Tracking panel stepper — stage 2 label (Figma 56560:1772)"
+  },
+  "trackingStepInTransit": "In transit",
+  "@trackingStepInTransit": {
+    "description": "Tracking panel stepper — stage 3 label (Figma 56560:1772)"
+  },
+  "trackingDistanceAway": "{distance} away from you",
+  "@trackingDistanceAway": {
+    "description": "Tracking panel — courier distance line (Figma 56560:1772)",
+    "placeholders": {
+      "distance": { "type": "String", "example": "3 km" }
+    }
+  },
+  "trackingEstimatedTime": "Estimated time: {minutes} min",
+  "@trackingEstimatedTime": {
+    "description": "Tracking panel — estimated arrival line (Figma 56560:1772)",
+    "placeholders": {
+      "minutes": { "type": "int", "example": "20" }
+    }
+  },
+  "trackingDistanceUnknown": "Distance updating…",
+  "@trackingDistanceUnknown": {
+    "description": "Tracking panel — placeholder when no GPS fix yet"
+  },
+  "trackingEtaUnknown": "Estimated time: —",
+  "@trackingEtaUnknown": {
+    "description": "Tracking panel — placeholder when ETA is not yet known"
+  },
+  "trackingMapSemanticLabel": "Live delivery map",
+  "@trackingMapSemanticLabel": {
+    "description": "Accessibility label for the tracking map surface (Figma 56560:1772)"
   },
   "trackingStepAccepted": "Accepted",
   "@trackingStepAccepted": {
@@ -1883,6 +2173,66 @@
   "chatAttachmentGallery": "Gallery",
   "chatAttachmentSheetTitle": "Add a photo",
   "chatComposerHint": "Type a message",
+  "chatComposerHintPriceTime": "Price / time",
+  "@chatComposerHintPriceTime": {
+    "description": "Composer hint on the Jeeber (delivery-man) side of the chat, prompting them to quote a price and ETA. Figma node 56539:906 shows the designer shorthand 'PRICE\\TIME'; shipped copy is the reviewed wording."
+  },
+  "chatBalanceDeductionNotice": "Note {amount} will be reduced from your Balance",
+  "@chatBalanceDeductionNotice": {
+    "description": "Jeeber-only fee notice banner shown above the chat thread. The amount is a pre-formatted currency string supplied by the gateway fee config (Figma node 56539:906).",
+    "placeholders": {
+      "amount": {
+        "type": "String",
+        "example": "$0.5"
+      }
+    }
+  },
+  "chatBalanceDeductionA11y": "Fee notice: {amount} will be deducted from your balance",
+  "@chatBalanceDeductionA11y": {
+    "description": "Accessibility label for the fee notice banner.",
+    "placeholders": {
+      "amount": {
+        "type": "String",
+        "example": "$0.5"
+      }
+    }
+  },
+  "chatBalanceDeductionDismissA11y": "Dismiss fee notice",
+  "@chatBalanceDeductionDismissA11y": {
+    "description": "Accessibility label for the close button on the fee notice banner."
+  },
+  "chatDmOrderPickedAction": "Order picked",
+  "@chatDmOrderPickedAction": {
+    "description": "Inline action pill inside the fee banner on the Jeeber chat (node 56560:1605); confirms the order has been physically picked up."
+  },
+  "confirmPickingSheetTitle": "Confirm Picking the order",
+  "@confirmPickingSheetTitle": {
+    "description": "Title of the Jeeber confirm-picking bottom sheet (Figma node 56618:2751)."
+  },
+  "confirmPickingSheetSubtitle": "Help user track the order",
+  "@confirmPickingSheetSubtitle": {
+    "description": "Subtitle of the confirm-picking bottom sheet."
+  },
+  "confirmHeadingOffSheetTitle": "Confirm Heading off",
+  "@confirmHeadingOffSheetTitle": {
+    "description": "Title of the Jeeber confirm-heading-off bottom sheet (Figma node 56618:2852)."
+  },
+  "confirmHeadingOffSheetSubtitle": "Help user track the order",
+  "@confirmHeadingOffSheetSubtitle": {
+    "description": "Subtitle of the confirm-heading-off bottom sheet."
+  },
+  "confirmDeliveryActionCta": "Confirm",
+  "@confirmDeliveryActionCta": {
+    "description": "Confirm CTA shared by the picking and heading-off bottom sheets."
+  },
+  "confirmDeliveryActionDragHandleA11y": "Drag to dismiss",
+  "@confirmDeliveryActionDragHandleA11y": {
+    "description": "Accessibility label for the bottom sheet drag handle."
+  },
+  "confirmDeliveryActionIllustrationA11y": "Package with clock and location pin",
+  "@confirmDeliveryActionIllustrationA11y": {
+    "description": "Accessibility label for the parcel/clock/pin illustration on the delivery confirmation sheets."
+  },
   "chatEmptyThreadSubtitle": "Start the conversation by sending a message or photo.",
   "chatEmptyThreadTitle": "Say hello",
   "chatErrorPermissionDenied": "We need camera or gallery permission to attach a photo. Enable it from system settings.",
@@ -1897,6 +2247,25 @@
   "homeGreetingFallback": "Welcome back",
   "homeGreetingNamed": "Hello, {name}",
   "homeGreetingSubtitle": "Everything, One Place",
+  "homeAvatarA11yLabel": "Profile photo of {name}",
+  "@homeAvatarA11yLabel": {
+    "description": "Accessibility label for the client home greeting avatar (Figma 56535:1517).",
+    "placeholders": {
+      "name": { "type": "String", "example": "Sami" }
+    }
+  },
+  "homeEmptyOrdersTitle": "No orders yet",
+  "@homeEmptyOrdersTitle": {
+    "description": "Title of the zero-orders hero empty state on the client home (Figma 56535:1520)."
+  },
+  "homeEmptyOrdersBody": "Everything you order shows up here.",
+  "@homeEmptyOrdersBody": {
+    "description": "Body copy of the zero-orders hero empty state on the client home (Figma 56535:1523)."
+  },
+  "homeNewOrderCta": "New Order",
+  "@homeNewOrderCta": {
+    "description": "Primary CTA on the client home zero-orders empty state that starts a new order (Figma 56611:18659)."
+  },
   "homeLoadFailedBody": "Check your connection and try again.",
   "homeLoadFailedRetry": "Retry",
   "homeLoadFailedTitle": "Couldn't load your home",
@@ -2048,5 +2417,277 @@
   "availabilityActiveDeliveries": "Active deliveries",
   "chatPendingMessages": "Pending messages",
   "chatNoConversationTitle": "No conversation yet",
-  "chatNoConversationSubtitle": "This delivery doesn't have a chat thread. Check back once a Jeeber is assigned."
+  "chatNoConversationSubtitle": "This delivery doesn't have a chat thread. Check back once a Jeeber is assigned.",
+  "splashTagline": "Delivery App",
+  "@splashTagline": {
+    "description": "Tagline shown under the Jeeb logo on the splash screen (Figma node 56572:1822)."
+  },
+  "splashLogoSemantic": "Jeeb",
+  "@splashLogoSemantic": {
+    "description": "Accessibility label announced for the Jeeb brand wordmark artwork on the splash screen. Brand name; identical in every locale."
+  },
+  "customerProfileTitle": "Profile",
+  "@customerProfileTitle": {
+    "description": "Customer Profile screen navbar title (Figma 56581:1910)."
+  },
+  "customerProfileSectionAccount": "Account",
+  "@customerProfileSectionAccount": {
+    "description": "Account section header on the customer profile screen."
+  },
+  "customerProfileRegisterAsDelivery": "Register as a delivery",
+  "@customerProfileRegisterAsDelivery": {
+    "description": "Row that lets a customer start delivery-man (Jeeber) registration."
+  },
+  "customerProfileRegisterCta": "Register",
+  "@customerProfileRegisterCta": {
+    "description": "Pill button on the register-as-delivery row."
+  },
+  "customerProfilePasswordSecurity": "Password and security",
+  "@customerProfilePasswordSecurity": {
+    "description": "Customer profile row opening password and security settings."
+  },
+  "customerProfileNotification": "Notification",
+  "@customerProfileNotification": {
+    "description": "Customer profile row opening notification preferences."
+  },
+  "customerProfileResetLocation": "Reset my location",
+  "@customerProfileResetLocation": {
+    "description": "Customer profile row to clear the saved default location."
+  },
+  "customerProfileSectionSupport": "Support",
+  "@customerProfileSectionSupport": {
+    "description": "Support section header on the customer profile screen."
+  },
+  "customerProfileContactUs": "Contact us",
+  "@customerProfileContactUs": {
+    "description": "Customer profile support row to contact the support team."
+  },
+  "customerProfileRateApp": "Rate the app",
+  "@customerProfileRateApp": {
+    "description": "Customer profile support row to rate the app."
+  },
+  "customerProfileVerifiedBadgeLabel": "Verified account",
+  "@customerProfileVerifiedBadgeLabel": {
+    "description": "Accessibility label for the verified-account seal badge next to the customer name."
+  },
+  "profileUnavailableTitle": "Profile unavailable",
+  "@profileUnavailableTitle": {
+    "description": "Title shown when a profile screen is opened without the profile data to display."
+  },
+  "profileUnavailableBody": "We couldn't load this profile. Please go back and try again.",
+  "@profileUnavailableBody": {
+    "description": "Body copy for the empty/error state shown when a profile screen has no data to render."
+  },
+  "deliveryManProfileCloseLabel": "Close",
+  "@deliveryManProfileCloseLabel": {
+    "description": "Accessibility label for the close (X) button on the delivery-man public profile (Figma 56580:2697)."
+  },
+  "deliveryManProfileVerifiedBadgeLabel": "Verified",
+  "@deliveryManProfileVerifiedBadgeLabel": {
+    "description": "Accessibility label for the verified seal badge next to the delivery-man name."
+  },
+  "deliveryManProfileAvailable": "Available",
+  "@deliveryManProfileAvailable": {
+    "description": "Availability label shown when the delivery man can accept requests."
+  },
+  "deliveryManProfileUnavailable": "Unavailable",
+  "@deliveryManProfileUnavailable": {
+    "description": "Availability label shown when the delivery man cannot accept requests."
+  },
+  "deliveryManProfileRatingSummary": "{rating} . {count} Reviews",
+  "@deliveryManProfileRatingSummary": {
+    "description": "Header rating summary: numeric rating, separator, review count.",
+    "placeholders": {
+      "rating": { "type": "String" },
+      "count": { "type": "int" }
+    }
+  },
+  "deliveryManProfileLocationAvailability": "{location} . {availability}",
+  "@deliveryManProfileLocationAvailability": {
+    "description": "Header location row: location name, separator, availability label.",
+    "placeholders": {
+      "location": { "type": "String" },
+      "availability": { "type": "String" }
+    }
+  },
+  "deliveryManProfileReviewsTitle": "Reviews",
+  "@deliveryManProfileReviewsTitle": {
+    "description": "Reviews section heading on the delivery-man public profile."
+  },
+  "deliveryManProfileReviewsCount": "{count} Reviews",
+  "@deliveryManProfileReviewsCount": {
+    "description": "Total review count label above the reviews list.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "deliveryManProfileViewAllReviews": "View all",
+  "@deliveryManProfileViewAllReviews": {
+    "description": "Action that opens the full paginated reviews list."
+  },
+  "deliveryManProfileRatingStarsLabel": "Rated {rating} out of 5",
+  "@deliveryManProfileRatingStarsLabel": {
+    "description": "Accessibility label announcing the delivery-man star rating.",
+    "placeholders": {
+      "rating": { "type": "String" }
+    }
+  },
+  "deliveryManProfileEmptyReviewsTitle": "No reviews yet",
+  "@deliveryManProfileEmptyReviewsTitle": {
+    "description": "Empty-state title when the delivery man has no reviews."
+  },
+  "deliveryManProfileEmptyReviewsSubtitle": "Reviews from clients will appear here.",
+  "@deliveryManProfileEmptyReviewsSubtitle": {
+    "description": "Empty-state subtitle when the delivery man has no reviews."
+  },
+  "reviewerVerifiedBadge": "Verified Client",
+  "@reviewerVerifiedBadge": {
+    "description": "Subtitle under a reviewer name marking them as a verified client (domain-corrected from the Figma 'Verified Technician' per spec flag)."
+  },
+  "reviewHelpfulAction": "Helpful",
+  "@reviewHelpfulAction": {
+    "description": "Label of the 'helpful' vote action on a review card; count appended by the card."
+  },
+  "reviewReplyAction": "Reply",
+  "@reviewReplyAction": {
+    "description": "Label of the reply action on a review card."
+  },
+  "reviewRelativeDaysAgo": "{count} days ago",
+  "@reviewRelativeDaysAgo": {
+    "description": "Relative timestamp for a review posted N days ago.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "jeeberRegisterTitle": "Register as a delivery man",
+  "@jeeberRegisterTitle": {
+    "description": "Headline of the Delivery tab upsell for a client not yet registered as a jeeber (Figma 56614:18933, closes JEEB-66)."
+  },
+  "jeeberRegisterSubtitle": "Start earning money",
+  "@jeeberRegisterSubtitle": {
+    "description": "Supporting line under the register-as-delivery-man headline (Figma 56614:18934, closes JEEB-66)."
+  },
+  "jeeberRegisterCta": "Register now",
+  "@jeeberRegisterCta": {
+    "description": "Primary CTA that opens the delivery-man onboarding wizard (Figma 56618:2618, closes JEEB-66)."
+  },
+  "jeeberRegisterHeroSemantic": "Delivery scooter bursting out of a phone",
+  "@jeeberRegisterHeroSemantic": {
+    "description": "Accessibility label for the decorative register-as-delivery-man hero illustration (Figma 56614:19012)."
+  },
+  "dmOnboardingPhotoStepTitle": "Image",
+  "@dmOnboardingPhotoStepTitle": {
+    "description": "Navbar title of the photo-upload step of delivery-man onboarding (Figma 56591:5560)."
+  },
+  "dmOnboardingPhotoUploadTitle": "Upload a clear photo for you",
+  "@dmOnboardingPhotoUploadTitle": {
+    "description": "Heading of the photo-upload step of delivery-man onboarding (Figma 56591:5331)."
+  },
+  "dmOnboardingPhotoUploadSubtitle": "For more credibility",
+  "@dmOnboardingPhotoUploadSubtitle": {
+    "description": "Supporting line under the photo-upload heading (Figma 56591:5332)."
+  },
+  "dmOnboardingPhotoUploadHint": "Tap to add a photo",
+  "@dmOnboardingPhotoUploadHint": {
+    "description": "Accessibility hint on the empty photo-upload drop area (Figma 56591:5334)."
+  },
+  "dmOnboardingPhotoUploadCameraLabel": "Camera",
+  "@dmOnboardingPhotoUploadCameraLabel": {
+    "description": "Label for the camera option in the photo-source picker sheet of delivery-man onboarding (design-spec.md §6 56591:5334 'Camera option (sheet)')."
+  },
+  "dmOnboardingPhotoUploadGalleryLabel": "Gallery",
+  "@dmOnboardingPhotoUploadGalleryLabel": {
+    "description": "Label for the gallery option in the photo-source picker sheet of delivery-man onboarding (design-spec.md §6 56591:5334 'Gallery option (sheet)')."
+  },
+  "dmOnboardingPersonalDetailsTitle": "Personal Details",
+  "@dmOnboardingPersonalDetailsTitle": {
+    "description": "Navbar title of the address/vehicle step of delivery-man onboarding (Figma 56591:4263)."
+  },
+  "dmOnboardingAddressStateLabel": "State",
+  "@dmOnboardingAddressStateLabel": {
+    "description": "Field label for the state input on the DM onboarding address step (Figma 56591:4133)."
+  },
+  "dmOnboardingAddressStateHint": "Iklim el kharoub",
+  "@dmOnboardingAddressStateHint": {
+    "description": "Placeholder for the state input on the DM onboarding address step (Figma 56591:4135)."
+  },
+  "dmOnboardingAddressCountryLabel": "Country",
+  "@dmOnboardingAddressCountryLabel": {
+    "description": "Field label for the country input on the DM onboarding address step (Figma 56591:4125)."
+  },
+  "dmOnboardingAddressCountryHint": "Daraya",
+  "@dmOnboardingAddressCountryHint": {
+    "description": "Placeholder for the country input on the DM onboarding address step (Figma 56591:4127)."
+  },
+  "dmOnboardingAddressStreetLabel": "Street",
+  "@dmOnboardingAddressStreetLabel": {
+    "description": "Field label for the street input on the DM onboarding address step (Figma 56591:4129)."
+  },
+  "dmOnboardingAddressStreetHint": "main street",
+  "@dmOnboardingAddressStreetHint": {
+    "description": "Placeholder for the street input on the DM onboarding address step (Figma 56591:4131)."
+  },
+  "dmOnboardingAddressVehicleNumberLabel": "Vehicle number",
+  "@dmOnboardingAddressVehicleNumberLabel": {
+    "description": "Field label for the vehicle-number input on the DM onboarding address step (Figma 56591:4137)."
+  },
+  "dmOnboardingAddressVehicleNumberHint": "G279424",
+  "@dmOnboardingAddressVehicleNumberHint": {
+    "description": "Placeholder for the vehicle-number input on the DM onboarding address step (Figma 56591:4139)."
+  },
+  "dmOnboardingAddressAddressLabel": "Address",
+  "@dmOnboardingAddressAddressLabel": {
+    "description": "Field label for the full-address input on the DM onboarding address step (Figma 56591:4145)."
+  },
+  "dmOnboardingAddressAddressHint": "Jasmine Tower, Apartment 12B",
+  "@dmOnboardingAddressAddressHint": {
+    "description": "Placeholder for the full-address input on the DM onboarding address step (Figma 56591:4147)."
+  },
+  "dmOnboardingServiceAreaTitle": "Service Area",
+  "@dmOnboardingServiceAreaTitle": {
+    "description": "Navbar title of the service-area step of delivery-man onboarding (Figma 56591:5337)."
+  },
+  "dmOnboardingServiceAreaHeading": "Select the working area",
+  "@dmOnboardingServiceAreaHeading": {
+    "description": "Heading of the service-area step of delivery-man onboarding (Figma 56591:5337 content)."
+  },
+  "dmOnboardingServiceAreaSubtitle": "Where do you want to offer your services?",
+  "@dmOnboardingServiceAreaSubtitle": {
+    "description": "Supporting line under the service-area heading (Figma 56591:5337 content)."
+  },
+  "dmOnboardingServiceAreaPrimaryLocationLabel": "Your Primary Location",
+  "@dmOnboardingServiceAreaPrimaryLocationLabel": {
+    "description": "Section label above the primary-location selector on the service-area step."
+  },
+  "dmOnboardingServiceAreaLocationFieldLabel": "Location",
+  "@dmOnboardingServiceAreaLocationFieldLabel": {
+    "description": "Leading label of the primary-location selector row on the service-area step."
+  },
+  "dmOnboardingServiceAreaLocationPlaceholder": "Select",
+  "@dmOnboardingServiceAreaLocationPlaceholder": {
+    "description": "Placeholder shown in the primary-location selector while no location is chosen."
+  },
+  "dmOnboardingServiceAreaDistanceLabel": "Distance Preference",
+  "@dmOnboardingServiceAreaDistanceLabel": {
+    "description": "Label above the distance slider on the service-area step. Figma layer has a typo 'Distance Preferencce'; corrected here (flag F-22-1)."
+  },
+  "dmOnboardingServiceAreaDistanceValue": "{distance} km",
+  "@dmOnboardingServiceAreaDistanceValue": {
+    "description": "Distance value shown next to the slider on the service-area step (Figma 56591:5337 content).",
+    "placeholders": {
+      "distance": { "type": "int", "example": "80" }
+    }
+  },
+  "dmOnboardingContinue": "Continue",
+  "@dmOnboardingContinue": {
+    "description": "Primary CTA on every delivery-man onboarding wizard step (Figma 56611:19420 / 56611:19416)."
+  },
+  "dmOnboardingStepProgressLabel": "Step {current} of {total}",
+  "@dmOnboardingStepProgressLabel": {
+    "description": "Screen-reader value for the delivery-man onboarding wizard progress bar.",
+    "placeholders": {
+      "current": { "type": "int", "example": "1" },
+      "total": { "type": "int", "example": "3" }
+    }
+  }
 }

@@ -1,13 +1,13 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class OfferSubmissionState {
+
+  const OfferSubmissionState({this.price, this.estimatedMinutes, this.isSubmitting = false, this.isSubmitted = false, this.error});
   final double? price;
   final int? estimatedMinutes;
   final bool isSubmitting;
   final bool isSubmitted;
   final String? error;
-
-  const OfferSubmissionState({this.price, this.estimatedMinutes, this.isSubmitting = false, this.isSubmitted = false, this.error});
 }
 
 class OfferSubmissionCubit extends Cubit<OfferSubmissionState> {

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,6 +8,7 @@ import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/accessibility/accessibility.dart';
+import '../core/dev_seam/dev_seam.dart';
 import '../core/locale/locale_cubit.dart';
 import '../core/notifications/application/badge_count_cubit.dart';
 import '../core/notifications/application/notification_dispatcher.dart';
@@ -19,6 +21,7 @@ import '../core/observability/crash_reporter.dart';
 import '../core/onboarding/onboarding_cubit.dart';
 import '../core/role/role_cubit.dart';
 import '../core/role/role_eligibility_cubit.dart';
+import '../core/role/user_role.dart';
 import '../core/router/app_router.dart';
 import '../core/theme/app_theme.dart';
 import '../features/biometric_auth/application/biometric_lock_cubit.dart';
@@ -43,9 +46,17 @@ class JeebApp extends StatefulWidget {
     this.crashReporter = const NoopCrashReporter(),
     this.pushTransport,
     this.biometricGateway,
+    this.localizationsDelegateOverride,
   });
 
   final SharedPreferences preferences;
+
+  /// Optional override for the localizations delegate. Production uses the
+  /// default async [AppLocalizations.delegate] (a `rootBundle.loadString`
+  /// round-trip); widget tests inject a synchronous delegate because that
+  /// round-trip does not reliably complete under the headless `flutter test`
+  /// binding (see `test/support/sync_app_localizations.dart`).
+  final LocalizationsDelegate<AppLocalizations>? localizationsDelegateOverride;
 
   /// Per T-mobile-049, the crash reporter is built in bootstrap (so it can
   /// be reused by the FlutterError hooks before this widget exists). The
@@ -73,7 +84,16 @@ class JeebApp extends StatefulWidget {
 class _JeebAppState extends State<JeebApp> {
   late final OnboardingCubit _onboarding =
       OnboardingCubit(prefs: widget.preferences);
-  late final RoleCubit _role = RoleCubit(prefs: widget.preferences);
+  late final RoleCubit _role = RoleCubit(
+    prefs: widget.preferences,
+    initialRole: _devSeamRole,
+  );
+
+  /// Debug-only: the `jeeb.feed` dev seam captures the deliveryman (jeeber)
+  /// feed, so force the jeeber role when it's set. `null` in release and when
+  /// the seam isn't driving the feed, preserving the persisted role.
+  UserRole? get _devSeamRole =>
+      kDebugMode && DevSeam.current.hasFeed ? UserRole.jeeber : null;
   late final RoleEligibilityCubit _roleEligibility = RoleEligibilityCubit();
   // Mirrors RoleCubit/OnboardingCubit — built directly from the prefs the
   // bootstrap handed us so widget tests don't need to configure GetIt. The
@@ -168,8 +188,9 @@ class _JeebAppState extends State<JeebApp> {
               themeMode: ThemeMode.system,
               locale: locale,
               supportedLocales: AppLocalizations.supportedLocales,
-              localizationsDelegates: const [
-                AppLocalizations.delegate,
+              localizationsDelegates: [
+                widget.localizationsDelegateOverride ??
+                    AppLocalizations.delegate,
                 GlobalMaterialLocalizations.delegate,
                 GlobalWidgetsLocalizations.delegate,
                 GlobalCupertinoLocalizations.delegate,
