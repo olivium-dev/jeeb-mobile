@@ -17,6 +17,9 @@ import 'widgets/confirm_delivery_action_sheet.dart';
 /// emulator. Never reachable in release.
 ///
 /// Selectors:
+///   `sending`               → client's just-sent initial request, pre-offers
+///                             (Figma 56535:6469) — single outgoing bubble, no
+///                             offer cards, composer present
 ///   `broadcasting`          → client offers feed (Figma 56535:6659)
 ///   `accepted` / *          → client accepted thread (Figma 56546:2382)
 ///   `dm`                    → delivery-man chat (Figma 56539:906)
@@ -58,15 +61,22 @@ class DevChatPreviewScreen extends StatelessWidget {
   }
 
   Widget _clientPreview() {
+    final sending = selector == 'sending';
     final broadcasting = selector == 'broadcasting';
-    final phase = broadcasting
+    // `sending` and `broadcasting` share the request-feed header (centered
+    // order id, no counterpart avatar) and the broadcasting phase semantics
+    // (composer visible, no counterpart header). `sending` differs only in the
+    // seeded thread: a single outgoing request with no offer cards yet.
+    final requestFeed = sending || broadcasting;
+    final phase = requestFeed
         ? ConversationPhase.broadcasting
         : ConversationPhase.accepted;
     return ChatScreen(
       deliveryId: 'dev-chat',
-      counterpartName: broadcasting ? 'ORD-23748' : 'Kamal Hajj',
-      counterpartAvatarImage: broadcasting ? null : DevChatPreviewScreen._devPeerAvatar,
-      gateway: DevChatFixtureGateway(phase: phase),
+      counterpartName: requestFeed ? 'ORD-23748' : 'Kamal Hajj',
+      counterpartAvatarImage:
+          requestFeed ? null : DevChatPreviewScreen._devPeerAvatar,
+      gateway: DevChatFixtureGateway(phase: phase, sending: sending),
       pickerService: StubPhotoPickerService(),
     );
   }

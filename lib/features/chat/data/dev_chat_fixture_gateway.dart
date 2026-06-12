@@ -4,15 +4,26 @@ import '../domain/chat_gateway.dart';
 import '../domain/delivery_chat_message.dart';
 
 /// Debug-only in-memory gateway that seeds a deterministic chat thread for one
-/// of the two designed client states so the screen can be captured on the
+/// of the designed client states so the screen can be captured on the
 /// emulator without a live backend.
 ///
-/// Selected via the `JEEB_DEV_CHAT` dart-define (`broadcasting` → Figma node
-/// 56535:6659, `accepted` → node 56546:2382). It extends the existing
-/// in-memory dev seam (pilot learning #2) and is wired only behind a
-/// `kDebugMode` guard in [ChatTab], so it is inert in release builds.
+/// Selected via the `jeeb.state` dev-seam knob (formerly the `JEEB_DEV_CHAT`
+/// dart-define):
+///   - `sending`      → Figma node 56535:6469 (the single outgoing initial
+///                      request, *before* any offer arrives — composer visible,
+///                      no offer cards). [sending] true, [phase] broadcasting.
+///   - `broadcasting` → Figma node 56535:6659 (the same request *plus* the
+///                      stacked offer cards that have started landing).
+///   - `accepted`     → Figma node 56546:2382 (1:1 accepted thread).
+/// It extends the existing in-memory dev seam (pilot learning #2) and is wired
+/// only behind a `kDebugMode` guard in [DevChatPreviewScreen], so it is inert
+/// in release builds.
 class DevChatFixtureGateway extends ChatGateway {
-  DevChatFixtureGateway({required this.phase, this.deliveryMan = false});
+  DevChatFixtureGateway({
+    required this.phase,
+    this.deliveryMan = false,
+    this.sending = false,
+  });
 
   /// The conversation phase this fixture renders.
   final ConversationPhase phase;
@@ -34,9 +45,18 @@ class DevChatFixtureGateway extends ChatGateway {
   /// offer) instead of the client-side accepted thread.
   final bool deliveryMan;
 
+  /// When true, [loadHistory] seeds ONLY the client's single outgoing initial
+  /// request (no offer cards) — the pre-offers "sending my initial request"
+  /// frame (Figma 56535:6469). The [phase] stays [ConversationPhase.broadcasting]
+  /// so the composer is visible and no counterpart header renders, exactly as
+  /// the frame shows; the broadcasting offer-note footer is automatically
+  /// suppressed because there are no offer cards in the list.
+  final bool sending;
+
   @override
   Future<List<DeliveryChatMessage>> loadHistory(String conversationId) async {
     if (deliveryMan) return _deliveryManThread();
+    if (sending) return _sendingThread();
     return phase == ConversationPhase.broadcasting
         ? _broadcastingThread()
         : _acceptedThread();
@@ -53,6 +73,22 @@ class DevChatFixtureGateway extends ChatGateway {
       message.copyWith(status: MessageStatus.read);
 
   Future<void> dispose() => _controller.close();
+
+  /// Pre-offers "sending my initial request" thread (Figma 56535:6469): the
+  /// single outgoing initial request bubble in the read state (teal double-tick),
+  /// seeded at today 09:41, with NO offer cards. This is the same outgoing
+  /// message [_broadcastingThread] opens with — the broadcasting state is this
+  /// state plus the offer cards that arrive next (56535:6659).
+  List<DeliveryChatMessage> _sendingThread() => [
+        DeliveryChatMessage.text(
+          id: 'dev-out-1',
+          author: ChatAuthor.me,
+          sentAt: _at0941,
+          status: MessageStatus.read,
+          text: 'I need 3 kilos of potatoes and water gallon and coffee '
+              'from blend',
+        ),
+      ];
 
   List<DeliveryChatMessage> _broadcastingThread() => [
         DeliveryChatMessage.text(

@@ -4,48 +4,48 @@
 #   client sends their first delivery request into the broadcast — the chat shows
 #   a centered "ORD-…" navbar, a "Today" day chip, a single navy outgoing bubble
 #   ("I need 3 kilos of potatoes…") with a 09:41 timestamp + teal read double-
-#   tick, and the message composer (+, hint, mic, navy send pill) at the bottom.
-#   NO NEW SCREEN — this is a parity-validate of the existing client ChatScreen in
-#   its `broadcasting` state (comparison.md: "no code change"), the same screen
-#   flow 02-chat-client exercises. Built screen: ChatScreen via
-#   DevChatPreviewScreen (lib/features/chat/presentation/...).
+#   tick, an EMPTY scroll area below it (no offers yet), and the message composer
+#   (+, hint, mic, navy send pill) at the bottom.
+#   NO NEW SCREEN — this is a parity-validate of the existing client ChatScreen
+#   driven into its pre-offers `sending` state (single outgoing bubble, no offer
+#   cards). The `broadcasting` selector (flow 02-chat-client) is the NEXT state,
+#   with offer cards. Built screen: ChatScreen via DevChatPreviewScreen
+#   (lib/features/chat/presentation/...).
 #
 # NAV — RUNTIME DEV SEAM (dev-seam-runtime.md): reached via the runtime dev seam
 #   `jeeb.state` knob, NOT a dart-define rebuild. `launchApp.arguments` are
 #   delivered to Android as String intent extras, which MainActivity.kt
 #   `readSeamExtras()` reads (seam source priority 1). `jeeb.state` TAKES
 #   PRECEDENCE over `jeeb.route`: the router redirects straight to /dev-chat →
-#   DevChatPreviewScreen(selector: broadcasting) → ChatScreen(broadcasting),
-#   skipping onboarding + biometric gates and the live OTP roundtrip. This
-#   supersedes the old --dart-define=JEEB_DEV_CHAT=broadcasting build (the seam
-#   makes the same fixture runtime-switchable; the dart-define remains a
-#   lowest-priority fallback).
+#   DevChatPreviewScreen(selector: sending) → ChatScreen (broadcasting phase,
+#   sending thread), skipping onboarding + biometric gates and the live OTP
+#   roundtrip.
 #     Equivalent adb one-liner (documented; the flow does it via launchApp):
 #       adb -s emulator-5556 shell am start -S \
 #         -n app.jeeb.mobile.dev/app.jeeb.mobile.MainActivity \
-#         -e jeeb.state broadcasting -e jeeb.locale en
+#         -e jeeb.state sending -e jeeb.locale en
 #     RTL variant: append `-e jeeb.locale ar` (renders mirrored, bubble on the
 #       opposite side, Arabic body string).
 #   Sticky alternative (seam source priority 2), if a launcher forwards no
 #   extras: push the device file before launchApp —
-#       printf '{"jeeb.state":"broadcasting","jeeb.locale":"en"}' \
+#       printf '{"jeeb.state":"sending","jeeb.locale":"en"}' \
 #         > /tmp/jeeb-dev-seam.json
 #       adb -s emulator-5556 push /tmp/jeeb-dev-seam.json \
 #         /data/local/tmp/jeeb-dev-seam.json
 #
-# BACKEND: DevChatFixtureGateway(phase: broadcasting) — in-memory deterministic
-#   fixture (1 outgoing request bubble seeded at today 09:41, read). NO live
-#   gateway. A PASS here certifies VISUAL + BEHAVIORAL UI PARITY ONLY, not
-#   end-to-end chat-service integration (UI-GUARDRAILS §6). Production path is
+# BACKEND: DevChatFixtureGateway(phase: broadcasting, sending: true) — in-memory
+#   deterministic fixture seeding EXACTLY ONE outgoing request bubble (today
+#   09:41, read) and NO offer cards, the pre-offers state Figma 56535:6469 draws.
+#   NO live gateway. A PASS here certifies VISUAL + BEHAVIORAL UI PARITY ONLY,
+#   not end-to-end chat-service integration (UI-GUARDRAILS §6). Production path is
 #   DioChatGateway → chat-service via jeeb-gateway, unchanged by this work.
 #
-# HONEST DELTA (comparison.md): the `broadcasting` fixture also seeds offer cards
-#   below the first bubble (the NEXT state, Figma 56535:6659). Figma 56535:6469
-#   shows only the single outgoing message pre-offers. The navbar + day chip +
-#   outgoing bubble + composer regions this frame specifies all match; the extra
-#   offer cards are a fixture-scope difference, not a parity defect in the
-#   bubble/composer. We anchor the assertions on the outgoing bubble + composer
-#   nodes (the frame's subject), not on the absence of offer cards.
+# FRAME FIDELITY (comparison.md): the `sending` fixture renders the frame exactly
+#   — one outgoing bubble, no offer cards, no "Accept only one offer" footer (the
+#   footer is gated on offer cards being present, so it is structurally absent
+#   here). The NEXT state, Figma 56535:6659 (offers landing), is the separate
+#   `broadcasting` selector that flow 02-chat-client exercises. We anchor the
+#   assertions on the outgoing bubble + composer nodes (the frame's subject).
 #
 # SYNTAX: Maestro 2.0.5 — extendedWaitUntil for timeouts (inline assertVisible
 #   `timeout:` is 1.x syntax and is REJECTED by 2.0.5, pilot learning #3);
@@ -121,14 +121,14 @@ appId: ${APP_ID}
 - launchApp:
     stopApp: true
     arguments:
-      jeeb.state: "broadcasting"
+      jeeb.state: "sending"
       jeeb.locale: "en"
 
 # ── STATE RENDERS: the chat thread (the sent outgoing request) is on screen ────
-# The message list being visible proves the broadcasting chat rendered (not a
-# blank first-frame / launcher fallthrough). 40s timeout absorbs slow Impeller-
-# on-software-GL first frames on this 2GB AVD (pilot memory; AP-3-legit, not a
-# sleep).
+# The message list being visible proves the pre-offers `sending` chat rendered
+# (not a blank first-frame / launcher fallthrough). 40s timeout absorbs slow
+# Impeller-on-software-GL first frames on this 2GB AVD (pilot memory; AP-3-legit,
+# not a sleep).
 - extendedWaitUntil:
     visible:
       id: "chat_detail_message_list"
@@ -157,13 +157,13 @@ appId: ${APP_ID}
       id: "chat_detail_message_input"
     timeout: 15000
 
-# ── CAPTURE: the loaded "sending my initial request" broadcasting frame ────────
+# ── CAPTURE: the loaded "sending my initial request" pre-offers frame ──────────
 - waitForAnimationToEnd
 - takeScreenshot: "12-sending-my-initial-request-loaded"
 
 # ── PRIMARY INTERACTION: the composer input is live (focusable) ────────────────
 # Tapping the composer field focuses it (keyboard intent) without advancing the
-# deterministic broadcasting fixture. We prove the composer is a live control by:
+# deterministic `sending` fixture. We prove the composer is a live control by:
 # tap accepted → no crash → the input + thread are still present/queryable. We do
 # NOT send a second message / assert a phase change the dev backend cannot
 # produce (AP-9).
@@ -180,7 +180,7 @@ appId: ${APP_ID}
 # `extendedWaitUntil` to re-query the input through the IME show animation
 # (re-lays-out the bottom bar on this 2GB AVD) — a deterministic settle, no sleep,
 # no route change, no weakened assertion. The thread + read-tick already asserted
-# above prove the broadcasting chat rendered; the live, still-mounted composer
+# above prove the pre-offers `sending` chat rendered; the live, still-mounted composer
 # input is the composer-is-live proof this step exists for (AP-9: we do not
 # fabricate a "message sent → phase changed" assertion the dev fixture can't
 # satisfy).
