@@ -123,6 +123,76 @@ void main() {
     expect(find.text('Heading to drop off'), findsOneWidget);
   });
 
+  // Figma 56560:1523 — the accepted-action pill is a content-hugging navy pill
+  // pinned to the END, NOT a gutter-to-gutter full-width button. `OmdsLoadingButton`
+  // expands to `double.infinity` unless given a tight content-width constraint via
+  // `IntrinsicWidth`; without that wrap this assertion fails (pill == card width).
+  // Fails-without-fix: removing `IntrinsicWidth` makes pillWidth == cardWidth.
+  testWidgets('accepted-action pill is content-hugging (not full-width)',
+      (tester) async {
+    // Fixed surface so card width is deterministic.
+    tester.view.physicalSize = const Size(800, 600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _host(
+        JeeberFeedCard(
+          request: _request(
+            status: JeeberFeedItemStatus.accepted,
+            action: JeeberDeliveryAction.orderPicked,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final pillWidth =
+        tester.getSize(find.byKey(const Key('jeeber-feed-action-req-1'))).width;
+    final cardWidth = tester.getSize(find.byType(JeeberFeedCard)).width;
+
+    // The pill must hug its label, leaving a clear horizontal gap to the gutter.
+    // A full-width pill (the defect) would be ~cardWidth; a hugging pill is far
+    // narrower. Guard with a generous margin so the test is robust to font metrics.
+    expect(
+      pillWidth,
+      lessThan(cardWidth * 0.7),
+      reason: 'accepted-action pill should hug its content, not fill the card',
+    );
+  });
+
+  // End-alignment proof: the hugged pill's right edge is flush with the card's
+  // content right edge (LTR), confirming `Align(AlignmentDirectional.centerEnd)`.
+  testWidgets('accepted-action pill is end-aligned (right-flush in LTR)',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _host(
+        JeeberFeedCard(
+          request: _request(
+            status: JeeberFeedItemStatus.accepted,
+            action: JeeberDeliveryAction.orderPicked,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final pillRect =
+        tester.getRect(find.byKey(const Key('jeeber-feed-action-req-1')));
+    final cardRect = tester.getRect(find.byType(JeeberFeedCard));
+
+    // Right edges flush (within card horizontal padding tolerance), and the pill
+    // does NOT start at the card's left gutter (so it is not full-width).
+    expect((cardRect.right - pillRect.right).abs(), lessThan(24));
+    expect(pillRect.left, greaterThan(cardRect.left + 24));
+  });
+
   testWidgets('exposes a stable card semantics identifier', (tester) async {
     await tester.pumpWidget(
       _host(JeeberFeedCard(request: _request(), onTap: () {})),

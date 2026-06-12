@@ -478,17 +478,30 @@ class _AcceptedAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Figma 56560:1523 pins a content-hugging navy pill to the END of the
+    // accepted-card action row ("Order picked" / "Heading to drop off").
+    // `OmdsLoadingButton` is an `AnimatedContainer` with `width: width ??
+    // double.infinity`, so with no explicit width it expands to fill the
+    // bounded incoming constraint — `Align(centerEnd)` alone is a no-op and the
+    // pill renders gutter-to-gutter. `IntrinsicWidth` feeds the button a tight
+    // content-width constraint so it hugs the label; the `Align` then pins the
+    // hugged pill to the end (mirrors correctly in AR). Same proven mechanism as
+    // the home-client Check Offers / Track CTAs (screens 14/15, commit 9e0ed57).
+    // Stays 100% OMDS; the `width:` param is the alternative but it would
+    // hardcode a magic pixel value, which the design-tokens rule forbids.
     return Align(
       alignment: AlignmentDirectional.centerEnd,
-      child: Semantics(
-        identifier: 'jeeber_feed_request_action_$requestId',
-        button: true,
-        child: OmdsLoadingButton(
-          key: Key('jeeber-feed-action-$requestId'),
-          text: _label(AppLocalizations.of(context)),
-          isLoading: isBusy,
-          borderRadius: OmdsBorderRadius.pill,
-          onTap: onTap ?? () {},
+      child: IntrinsicWidth(
+        child: Semantics(
+          identifier: 'jeeber_feed_request_action_$requestId',
+          button: true,
+          child: OmdsLoadingButton(
+            key: Key('jeeber-feed-action-$requestId'),
+            text: _label(AppLocalizations.of(context)),
+            isLoading: isBusy,
+            borderRadius: OmdsBorderRadius.pill,
+            onTap: onTap ?? () {},
+          ),
         ),
       ),
     );
