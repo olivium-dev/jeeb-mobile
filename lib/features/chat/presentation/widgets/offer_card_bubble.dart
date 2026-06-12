@@ -45,15 +45,41 @@ class OfferCardBubble extends StatelessWidget {
           children: [
             _OfferAvatar(payload: payload),
             const SizedBox(width: Spacing.small),
-            Expanded(child: _OfferCardBody(message: message, child: _cta(context))),
+            Expanded(
+              child: _OfferCardBody(
+                message: message,
+                child: _OfferCta(
+                  payload: payload,
+                  isAccepting: isAccepting,
+                  acceptDisabled: acceptDisabled,
+                  onAccept: onAccept,
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _cta(BuildContext context) {
-    final payload = message.offerPayload!;
+/// Navy "Accept Offer" pill in the offer card footer. Carries its own
+/// semantics identifier + key so QA/Maestro can target the accept action.
+class _OfferCta extends StatelessWidget {
+  const _OfferCta({
+    required this.payload,
+    required this.isAccepting,
+    required this.acceptDisabled,
+    required this.onAccept,
+  });
+
+  final OfferCardPayload payload;
+  final bool isAccepting;
+  final bool acceptDisabled;
+  final ValueChanged<String> onAccept;
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Semantics(
       identifier: 'chat_detail_accept_${payload.offerId}',

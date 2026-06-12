@@ -130,27 +130,55 @@ class _ChatHeaderAvatar extends StatelessWidget {
     return Semantics(
       identifier: 'chat_detail_avatar',
       label: l10n.chatAvatarA11y,
-      child: image != null ? _circularPhoto() : _urlOrInitial(context),
+      child: image != null
+          ? _CircularImageAvatar(image: image!, size: _size)
+          : _UrlOrInitialAvatar(title: title, url: url, size: _size),
     );
   }
+}
 
-  Widget _circularPhoto() {
+/// Circular avatar for a pre-resolved [ImageProvider] (e.g. a non-network
+/// source bound by a caller). OMDS's [OmdsProfileAvatar] only accepts a URL, so
+/// the image-provider case keeps a thin circular treatment of its own.
+class _CircularImageAvatar extends StatelessWidget {
+  const _CircularImageAvatar({required this.image, required this.size});
+
+  final ImageProvider image;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
     return ClipOval(
       child: Image(
-        image: image!,
-        width: _size,
-        height: _size,
+        image: image,
+        width: size,
+        height: size,
         fit: BoxFit.cover,
       ),
     );
   }
+}
 
-  Widget _urlOrInitial(BuildContext context) {
+/// CDN [url] via [OmdsProfileAvatar]'s cached image, falling back to an initial
+/// inside a visible circle — never a bare glyph (D1 fix).
+class _UrlOrInitialAvatar extends StatelessWidget {
+  const _UrlOrInitialAvatar({
+    required this.title,
+    required this.url,
+    required this.size,
+  });
+
+  final String title;
+  final String? url;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return OmdsProfileAvatar(
       initial: title.isEmpty ? 'J' : title.characters.first,
       profilePicUrl: url,
-      size: _size,
+      size: size,
       backgroundColor: colorScheme.primaryContainer,
       initialColor: colorScheme.onPrimaryContainer,
     );

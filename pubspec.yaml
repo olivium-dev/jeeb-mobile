@@ -115,28 +115,25 @@ flutter:
     # Client-home zero-orders hero illustration ("shop (1) 1", Figma node
     # 56611:18663, aspect 743/756). Exported from the Figma Dev Mode MCP.
     - assets/illustrations/empty_orders.png
-    # Sample peer avatar for the debug-only JEEB_DEV_CHAT capture seam so the
-    # chat header renders the Figma's circular bitmap avatar deterministically
-    # offline. Production binds the real cdn-service url; this asset is only
-    # referenced by DevChatPreviewScreen (kDebugMode-gated, inert in release).
-    - assets/dev/peer_avatar_sample.jpg
 
-  # Inter, bundled locally (OFL-1.1). This is a SINGLE variable font that
-  # covers the whole weight axis; we map the discrete weights Material 3 asks
-  # for (400/500/600/700) to the same file so Flutter selects the right axis
-  # instance per `fontWeight`. Bundling Inter (rather than fetching it at
-  # runtime via google_fonts) is what makes every branded screen render on a
+  # Inter, bundled locally (OFL-1.1) as discrete STATIC instances. A single
+  # variable TTF registered under discrete `weight:` keys does NOT engage the
+  # weight axis — Flutter renders 400/500/600/700 identically (proven by
+  # test/inter_font_weight_test.dart, TL-4). Static instances guarantee distinct
+  # weights on every platform, including low-end Android. Bundling (rather than
+  # fetching via google_fonts) is what makes every branded screen render on a
   # no-egress device — google_fonts' runtime fetch throws a HandshakeException
   # on devices with no path to fonts.gstatic.com, which previously crashed the
   # theme build on first frame. See AppTheme + Bootstrap.minimal.
+  # Static instances from the official Inter v4.1 release (rsms/inter).
   fonts:
     - family: Inter
       fonts:
-        - asset: assets/fonts/Inter-Variable.ttf
+        - asset: assets/fonts/Inter-Regular.ttf
           weight: 400
-        - asset: assets/fonts/Inter-Variable.ttf
+        - asset: assets/fonts/Inter-Medium.ttf
           weight: 500
-        - asset: assets/fonts/Inter-Variable.ttf
+        - asset: assets/fonts/Inter-SemiBold.ttf
           weight: 600
-        - asset: assets/fonts/Inter-Variable.ttf
+        - asset: assets/fonts/Inter-Bold.ttf
           weight: 700

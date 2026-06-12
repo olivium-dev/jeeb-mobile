@@ -73,14 +73,33 @@ class ChatFeeBanner extends StatelessWidget {
         child: Row(
           children: [
             Expanded(child: _BannerText(amount: amount)),
-            _trailingControl(),
+            _TrailingControl(
+              trailing: trailing,
+              onDismiss: onDismiss,
+              onOrderPicked: onOrderPicked,
+            ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _trailingControl() {
+/// Trailing slot of the fee banner — nothing, a dismiss (×), or the
+/// "Order picked" action pill, depending on [trailing].
+class _TrailingControl extends StatelessWidget {
+  const _TrailingControl({
+    required this.trailing,
+    required this.onDismiss,
+    required this.onOrderPicked,
+  });
+
+  final ChatFeeBannerTrailing trailing;
+  final VoidCallback? onDismiss;
+  final VoidCallback? onOrderPicked;
+
+  @override
+  Widget build(BuildContext context) {
     switch (trailing) {
       case ChatFeeBannerTrailing.none:
         return const SizedBox.shrink();

@@ -93,15 +93,30 @@ class _DevFeedScaffold extends StatelessWidget {
     return Scaffold(
       key: const Key('dashboard-tab-dev-feed'),
       appBar: OMDSAppBar(title: l10n.availabilityHomeTitle, centerTitle: false),
-      body: _body(),
+      body: _DevFeedBody(view: view, name: _name, avatarUrl: _avatarUrl),
     );
   }
+}
 
-  Widget _body() {
+/// Body of the dev-seam feed scaffold: an empty view or a seeded feed tab view
+/// for the selected [view].
+class _DevFeedBody extends StatelessWidget {
+  const _DevFeedBody({
+    required this.view,
+    required this.name,
+    required this.avatarUrl,
+  });
+
+  final _DevFeedView view;
+  final String name;
+  final String avatarUrl;
+
+  @override
+  Widget build(BuildContext context) {
     if (view == _DevFeedView.empty) {
-      return const JeeberFeedEmptyView(
-        profileName: _name,
-        profileAvatarUrl: _avatarUrl,
+      return JeeberFeedEmptyView(
+        profileName: name,
+        profileAvatarUrl: avatarUrl,
       );
     }
     return BlocProvider<RequestFeedCubit>(
@@ -109,8 +124,8 @@ class _DevFeedScaffold extends StatelessWidget {
         repository: SeededRequestFeedRepository(_snapshotFor(view)),
       )..start(),
       child: JeeberFeedTabView(
-        profileName: _name,
-        profileAvatarUrl: _avatarUrl,
+        profileName: name,
+        profileAvatarUrl: avatarUrl,
         initialTab: _tabFor(view),
       ),
     );

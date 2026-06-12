@@ -381,11 +381,21 @@ class _ChatRow extends StatelessWidget {
       case _ChatRowKind.offerNote:
         return const ChatOfferOnlyOneFooter();
       case _ChatRowKind.message:
-        return _messageRow(context, row.message!);
+        return _MessageRow(message: row.message!, state: state);
     }
   }
+}
 
-  Widget _messageRow(BuildContext context, DeliveryChatMessage message) {
+/// A single chat message row — a plain bubble, or an offer card when the
+/// message carries an offer payload.
+class _MessageRow extends StatelessWidget {
+  const _MessageRow({required this.message, required this.state});
+
+  final DeliveryChatMessage message;
+  final ChatState state;
+
+  @override
+  Widget build(BuildContext context) {
     if (!message.isOfferCard) return ChatMessageBubble(message: message);
     final offerId = message.offerPayload?.offerId;
     final isAccepting = state.acceptingOfferId == offerId;
