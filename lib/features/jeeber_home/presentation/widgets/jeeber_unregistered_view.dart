@@ -40,6 +40,14 @@ class JeeberUnregisteredView extends StatelessWidget {
     return Semantics(
       key: rootKey,
       container: true,
+      // explicitChildNodes makes this identified container a NON-merging
+      // boundary so the nested `jeeber_unregistered_register_button` (and any
+      // other identified descendant) surfaces as its own queryable
+      // SemanticsNode instead of being folded into the root. Without it,
+      // `container: true` still merges the subtree's semantics into this node
+      // and the CTA identifier is swallowed (CAP-3 / same pattern as 8b81dc1
+      // fixed for screens 16/17/22/26/27).
+      explicitChildNodes: true,
       identifier: 'jeeber_unregistered_root',
       child: SafeArea(
         child: Column(
