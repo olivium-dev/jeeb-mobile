@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -830,6 +829,12 @@ class AppLocalizations {
   String get requestSummaryExpiredTitle => _get('requestSummaryExpiredTitle');
   String get requestSummaryExpiredBody => _get('requestSummaryExpiredBody');
   String get requestSummaryReRequest => _get('requestSummaryReRequest');
+  // Shown when /request-summary is reached without a draft (e.g. a cold
+  // deep-link), replacing a raw scaffold with hardcoded English.
+  String get requestSummaryUnavailableTitle =>
+      _get('requestSummaryUnavailableTitle');
+  String get requestSummaryUnavailableBody =>
+      _get('requestSummaryUnavailableBody');
 
   String get jeeberRequestDetailTitle => _get('jeeberRequestDetailTitle');
   String get jeeberRequestDetailSectionPickup =>
@@ -1344,6 +1349,11 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get customerProfileRateApp => _get('customerProfileRateApp');
   String get customerProfileVerifiedBadgeLabel =>
       _get('customerProfileVerifiedBadgeLabel');
+
+  // Shown when a profile route is reached without typed view-data (release-safe
+  // fallback in place of the debug-only fixture).
+  String get profileUnavailableTitle => _get('profileUnavailableTitle');
+  String get profileUnavailableBody => _get('profileUnavailableBody');
 
   // --- Delivery Man public Profile (Figma 56580:2697, screen 27) ---
   String get deliveryManProfileCloseLabel =>

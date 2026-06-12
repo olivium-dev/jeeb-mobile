@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../dev_seam/dev_seam.dart';
+import 'profile_unavailable_screen.dart';
 import '../../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../../features/biometric_auth/application/biometric_lock_state.dart';
 import '../../features/biometric_auth/presentation/biometric_lock_screen.dart';
@@ -45,6 +46,7 @@ import '../../features/registration/presentation/registration_screen.dart';
 import '../../features/request_summary/application/request_summary_cubit.dart';
 import '../../features/request_summary/domain/request_draft.dart';
 import '../../features/request_summary/presentation/request_summary_screen.dart';
+import '../../features/request_summary/presentation/request_summary_unavailable_screen.dart';
 import '../../features/settings/presentation/screens/notification_preferences_screen.dart';
 import '../../features/settings/presentation/screens/profile_edit_screen.dart';
 import '../../features/settings/presentation/screens/saved_addresses_screen.dart';
@@ -243,28 +245,40 @@ class AppRouter {
         GoRoute(
           path: '/profile/customer',
           name: 'customer-profile',
-          // Real callers hand the aggregated view data via `extra`; the
-          // dev-seam capture path (`jeeb.route=/profile/customer`) has no
-          // extra, so fall back to the deterministic debug fixture.
+          // Real callers hand the aggregated view data via `extra`. When it is
+          // absent the debug-only fixture drives the dev-seam capture path
+          // (`jeeb.route=/profile/customer`); in release we never render the
+          // fixture (it carries PII) and instead show an unavailable state.
           builder: (context, state) {
             final extra = state.extra;
-            final data = extra is CustomerProfileViewData
-                ? extra
-                : DevCustomerProfileFixtures.sample;
-            return CustomerProfileScreen(data: data);
+            if (extra is CustomerProfileViewData) {
+              return CustomerProfileScreen(data: extra);
+            }
+            if (kDebugMode) {
+              return const CustomerProfileScreen(
+                data: DevCustomerProfileFixtures.sample,
+              );
+            }
+            return const ProfileUnavailableScreen();
           },
         ),
         GoRoute(
           path: '/profile/delivery-man',
           name: 'delivery-man-profile',
-          // Same pattern: typed `extra` from a real client tap, else the
-          // debug fixture so a single dev APK captures screen 27.
+          // Same pattern: typed `extra` from a real client tap drives the real
+          // screen; the debug fixture only powers screen-27 capture; release
+          // falls back to the unavailable state instead of fixture PII.
           builder: (context, state) {
             final extra = state.extra;
-            final data = extra is DeliveryManProfileViewData
-                ? extra
-                : DevDeliveryManProfileFixtures.sample;
-            return DeliveryManProfileScreen(data: data);
+            if (extra is DeliveryManProfileViewData) {
+              return DeliveryManProfileScreen(data: extra);
+            }
+            if (kDebugMode) {
+              return const DeliveryManProfileScreen(
+                data: DevDeliveryManProfileFixtures.sample,
+              );
+            }
+            return const ProfileUnavailableScreen();
           },
         ),
         GoRoute(
@@ -409,12 +423,7 @@ class AppRouter {
           builder: (context, state) {
             final extra = state.extra;
             if (extra is! RequestDraft) {
-              return Scaffold(
-                appBar: AppBar(title: const Text('Review Request')),
-                body: const Center(
-                  child: Text('No request draft available.'),
-                ),
-              );
+              return const RequestSummaryUnavailableScreen();
             }
             return BlocProvider<RequestSummaryCubit>(
               create: (_) => RequestSummaryCubit()..setDraft(extra),

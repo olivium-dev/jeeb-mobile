@@ -1470,6 +1470,14 @@
   "@requestSummaryReRequest": {
     "description": "Primary CTA on the expired-request banner that re-runs the submission with the same draft (T-mobile-035)"
   },
+  "requestSummaryUnavailableTitle": "Review & submit",
+  "@requestSummaryUnavailableTitle": {
+    "description": "App-bar title for the empty fallback shown when /request-summary opens without a request draft (e.g. a cold deep-link)."
+  },
+  "requestSummaryUnavailableBody": "No request draft available. Start a new request to continue.",
+  "@requestSummaryUnavailableBody": {
+    "description": "Body copy for the empty fallback when /request-summary has no draft to review."
+  },
   "jeeberRequestDetailTitle": "Request details",
   "@jeeberRequestDetailTitle": {
     "description": "App bar title for the Jeeber request-detail screen"
@@ -2461,6 +2469,14 @@
   "customerProfileVerifiedBadgeLabel": "Verified account",
   "@customerProfileVerifiedBadgeLabel": {
     "description": "Accessibility label for the verified-account seal badge next to the customer name."
+  },
+  "profileUnavailableTitle": "Profile unavailable",
+  "@profileUnavailableTitle": {
+    "description": "Title shown when a profile screen is opened without the profile data to display."
+  },
+  "profileUnavailableBody": "We couldn't load this profile. Please go back and try again.",
+  "@profileUnavailableBody": {
+    "description": "Body copy for the empty/error state shown when a profile screen has no data to render."
   },
   "deliveryManProfileCloseLabel": "Close",
   "@deliveryManProfileCloseLabel": {
