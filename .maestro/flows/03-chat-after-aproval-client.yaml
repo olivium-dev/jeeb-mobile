@@ -101,8 +101,20 @@
 #   subflow warranted (one screen, no reused page object).
 appId: ${APP_ID}
 ---
+# ── LAUNCH via runtime dev seam (jeeb.state → DevSeam priority-1 intent extra) ──
+# The installed APK is the RUNTIME dev-seam build (dev-seam-runtime.md): a bare
+# launchApp lands on onboarding. `launchApp.arguments` are delivered to Android
+# as String intent extras, which MainActivity.kt readSeamExtras() reads (seam
+# source priority 1) → DevSeam routes straight to the accepted (post-approval)
+# chat preview (/dev-chat, ChatScreen accepted), skipping onboarding + biometric
+# gates. Verified self-contained: the DevSeam-resolved logcat line reads
+# "chat: accepted" on this exact launch (no external priming, no rebuild).
+# `stopApp: true` force-stops first so MainActivity (singleTop) re-reads the
+# FRESH extras on every run.
 - launchApp:
-    clearState: true            # AP-4: no auth/state bleed between runs
+    stopApp: true               # AP-4: re-read fresh seam extras; no state bleed
+    arguments:
+      jeeb.state: "accepted"
 
 # Message timeline root — the scrollable accepted thread. extendedWaitUntil (not
 # a fixed sleep — AP-1) absorbs cold-start + dev-chat route variance up to 25 s,
@@ -182,7 +194,15 @@ appId: ${APP_ID}
 - tapOn:
     id: "chat_detail_message_input"
 - inputText: "QA parity check 03"
-- hideKeyboard               # keep the keyboard from occluding the send pill
+# Dismiss the IME by tapping the message timeline (a NON-interactive scroll
+# region) — Flutter drops composer focus on a tap outside the field, hiding the
+# keyboard so the send pill is unobscured. We do NOT use `hideKeyboard`: Maestro
+# 2.0.5 implements it as an Android BACK keyevent, and on the dev-seam build the
+# chat is the ROOT route (/dev-chat) with no back stack, so BACK pops the screen
+# and EXITS the app to the launcher (verified empirically), breaking the send tap
+# below. Tapping the list keeps us on the chat route.
+- tapOn:
+    id: "chat_detail_message_list"
 - tapOn:
     id: "chat_detail_send_button"
 - waitForAnimationToEnd:

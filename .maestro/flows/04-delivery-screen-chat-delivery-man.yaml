@@ -33,8 +33,20 @@
 
 appId: ${APP_ID}
 ---
+# ── LAUNCH via runtime dev seam (jeeb.state → DevSeam priority-1 intent extra) ──
+# The installed APK is the RUNTIME dev-seam build (dev-seam-runtime.md): a bare
+# launchApp lands on onboarding. `launchApp.arguments` are delivered to Android
+# as String intent extras, which MainActivity.kt readSeamExtras() reads (seam
+# source priority 1) → DevSeam routes straight to the delivery-man chat preview
+# (/dev-chat, DevChatPreviewScreen selector 'dm'), skipping onboarding +
+# biometric gates. Verified self-contained: the DevSeam-resolved logcat line
+# reads "chat: dm" on this exact launch (no external priming, no rebuild).
+# `stopApp: true` force-stops first so MainActivity (singleTop) re-reads the
+# FRESH extras on every run.
 - launchApp:
     stopApp: true
+    arguments:
+      jeeb.state: "dm"
 
 # --- State renders: the DM chat thread is on screen -------------------------
 - extendedWaitUntil:

@@ -61,8 +61,21 @@
 
 appId: ${APP_ID}
 ---
+# ── LAUNCH via runtime dev seam (jeeb.state → DevSeam priority-1 intent extra) ──
+# The installed APK is the RUNTIME dev-seam build (dev-seam-runtime.md): a bare
+# launchApp lands on onboarding. `launchApp.arguments` are delivered to Android
+# as String intent extras, which MainActivity.kt readSeamExtras() reads (seam
+# source priority 1) → DevSeam routes straight to the DM chat + heading-off sheet
+# preview (/dev-chat, DevChatPreviewScreen selector 'dm-confirm-heading-off',
+# which opens the sheet from a post-frame callback), skipping onboarding +
+# biometric gates. Verified self-contained: the DevSeam-resolved logcat line
+# reads "chat: dm-confirm-heading-off" on this exact launch (no external priming,
+# no rebuild). `stopApp: true` force-stops first so MainActivity (singleTop)
+# re-reads the FRESH extras on every run.
 - launchApp:
     stopApp: true
+    arguments:
+      jeeb.state: "dm-confirm-heading-off"
 
 # --- State renders: the confirm-heading-off sheet is on screen over the chat --
 # The sheet node is the deterministic landing element; the dev preview's
