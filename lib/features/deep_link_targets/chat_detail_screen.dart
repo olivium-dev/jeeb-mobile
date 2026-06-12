@@ -8,6 +8,7 @@ import '../chat/data/in_memory_chat_gateway.dart';
 import '../chat/domain/chat_gateway.dart';
 import '../chat/presentation/chat_screen.dart';
 import '../photo_attachment/data/stub_photo_picker_service.dart';
+import 'dev_chat_detail_fixtures.dart';
 
 /// Deep-link entry point for `/chat/:id`.
 ///
@@ -46,6 +47,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   Future<void> _resolveAndBuild() async {
+    // Debug capture aid (screen 13): when the dev seam is driving a seeded
+    // client-home tab, a seeded row id (e.g. pen-1) has no live conversation,
+    // so route it through the offline fixture gateway — the SAME in-memory
+    // mechanism flows 02–07 use — to mount a populated thread without a
+    // backend. Always null in release, so production resolution is unchanged.
+    final devGateway = DevChatDetailFixtures.resolveGateway(widget.chatId);
+    if (devGateway != null) {
+      _finalize(widget.chatId, devGateway, '');
+      return;
+    }
+
     final getIt = GetIt.instance;
     if (!getIt.isRegistered<Dio>()) {
       debugPrint(
