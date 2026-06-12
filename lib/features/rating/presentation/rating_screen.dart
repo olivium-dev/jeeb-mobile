@@ -116,9 +116,11 @@ class _FeedbackAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppBar(
+    // Titleless close-only variant: OMDSAppBar centralizes the surface theming,
+    // zero elevation, and RTL-correct action placement.
+    return OMDSAppBar(
+      title: '',
       backgroundColor: Theme.of(context).colorScheme.surface,
-      elevation: 0,
       automaticallyImplyLeading: false,
       actions: [_FeedbackCloseAction(onClose: onClose)],
     );

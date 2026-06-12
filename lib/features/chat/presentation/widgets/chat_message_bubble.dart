@@ -287,12 +287,10 @@ class _ImageBubble extends StatelessWidget {
             borderRadius: OmdsBorderRadius.xSmall,
             child: url.isEmpty
                 ? _ImagePlaceholder(color: onBubble)
-                : Image.network(
-                    url,
+                : OmdsCachedImage(
+                    url: url,
                     fit: BoxFit.cover,
-                    gaplessPlayback: true,
-                    errorBuilder: (_, _, _) =>
-                        _ImagePlaceholder(color: onBubble),
+                    errorWidget: (_, _, _) => _ImagePlaceholder(color: onBubble),
                   ),
           ),
           if (message.text.isNotEmpty)

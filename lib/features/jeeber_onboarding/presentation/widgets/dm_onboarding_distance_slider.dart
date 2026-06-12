@@ -79,6 +79,8 @@ class _DistanceTrack extends StatelessWidget {
       value: l10n.dmOnboardingServiceAreaDistanceValue(distanceKm),
       child: SliderTheme(
         data: _trackTheme(colorScheme),
+        // TODO(OMDS-gap): OMDS only ships two-thumb OMDSRangeSlider; needs a
+        // single-value OmdsSlider so this tokenized raw Slider can be retired.
         child: Slider(
           min: DmOnboardingState.minDistanceKm.toDouble(),
           max: DmOnboardingState.maxDistanceKm.toDouble(),
