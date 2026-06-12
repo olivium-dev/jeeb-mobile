@@ -327,20 +327,26 @@ class _TrackOrderButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Same content-hugging end-aligned pill as the Replies "Check Offers" CTA.
+    // `OmdsPrimaryButton` expands to fill bounded width, so `Align(centerEnd)`
+    // needs `IntrinsicWidth` to feed it a tight content-width constraint —
+    // otherwise the Track CTA renders full-width instead of a trailing pill.
     return Align(
       alignment: AlignmentDirectional.centerEnd,
       child: Padding(
         padding: const EdgeInsetsDirectional.only(top: Spacing.small),
-        child: SizedBox(
-          height: Sizes.twoXLarge,
-          child: Semantics(
-            identifier: 'orders_track_order_button_$requestId',
-            button: true,
-            child: OmdsPrimaryButton(
-              key: Key('active-track-order-$requestId'),
-              text: AppLocalizations.of(context).homeTrackOrderCta,
-              onTap: onTap,
-              borderRadius: OmdsBorderRadius.pill,
+        child: IntrinsicWidth(
+          child: SizedBox(
+            height: Sizes.twoXLarge,
+            child: Semantics(
+              identifier: 'orders_track_order_button_$requestId',
+              button: true,
+              child: OmdsPrimaryButton(
+                key: Key('active-track-order-$requestId'),
+                text: AppLocalizations.of(context).homeTrackOrderCta,
+                onTap: onTap,
+                borderRadius: OmdsBorderRadius.pill,
+              ),
             ),
           ),
         ),

@@ -119,18 +119,28 @@ class _RepliesCheckOffersButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Figma 56535:2251 pins a content-hugging navy pill to the END of the row.
+    // `OmdsPrimaryButton` is an `AnimatedContainer` with `width: null`, which
+    // expands to fill the bounded incoming width — so `Align(centerEnd)` alone
+    // renders it gutter-to-gutter (measured 768/800 px). `IntrinsicWidth` feeds
+    // the button a tight content-width constraint so it hugs the label, and the
+    // `Align` then pins the hugged pill to the end. Stays 100% OMDS (no raw
+    // Material button); the `width:` param is the alternative but it would
+    // hardcode a magic pixel value, which the design-tokens rule forbids.
     return Align(
       alignment: AlignmentDirectional.centerEnd,
-      child: SizedBox(
-        height: Sizes.twoXLarge,
-        child: Semantics(
-          identifier: 'orders_replies_check_offers_${request.id}',
-          button: true,
-          child: OmdsPrimaryButton(
-            key: Key('replies-check-offers-${request.id}'),
-            text: AppLocalizations.of(context).homeRepliesCheckOffersCta,
-            onTap: onTap,
-            borderRadius: OmdsBorderRadius.pill,
+      child: IntrinsicWidth(
+        child: SizedBox(
+          height: Sizes.twoXLarge,
+          child: Semantics(
+            identifier: 'orders_replies_check_offers_${request.id}',
+            button: true,
+            child: OmdsPrimaryButton(
+              key: Key('replies-check-offers-${request.id}'),
+              text: AppLocalizations.of(context).homeRepliesCheckOffersCta,
+              onTap: onTap,
+              borderRadius: OmdsBorderRadius.pill,
+            ),
           ),
         ),
       ),

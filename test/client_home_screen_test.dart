@@ -376,4 +376,141 @@ void main() {
       handle.dispose();
     });
   });
+
+  // UX-parity regressions for client-home screens 13/14/15 (Figma 56535:1783 /
+  // 56535:2251). Each test locks one independently-reviewed defect.
+  group('ClientHomeScreen UX parity (screens 13/14/15)', () {
+    // DEFECT 2 — AR tier-label l10n leak. Under `ar` the pending-request tier
+    // badge must render the Arabic ARB value (إكسبرس), NOT the leaked English
+    // "Express". Tier labels are localizable copy, not dynamic data.
+    testWidgets(
+        'Pending tier badge renders the Arabic tier label under ar locale',
+        (tester) async {
+      await tester.pumpWidget(_harness(
+        repo: _threeTabRepo(),
+        locale: const Locale('ar'),
+        initialTab: ClientHomeTab.pendingRequests,
+      ));
+      await tester.pumpAndSettle();
+
+      // Arabic value present, English value absent — proves the badge reads the
+      // localized getter and that the AR ARB is actually translated.
+      expect(find.text('إكسبرس'), findsOneWidget);
+      expect(find.text('Express'), findsNothing);
+    });
+
+    testWidgets('In Progress tier badge is localized to Arabic (Flash → سريع)',
+        (tester) async {
+      await tester.pumpWidget(_harness(
+        repo: _threeTabRepo(),
+        locale: const Locale('ar'),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('سريع'), findsOneWidget);
+      expect(find.text('Flash'), findsNothing);
+    });
+
+    // DEFECT 3 — Check Offers CTA must be a content-hugging pill pinned to the
+    // END, not full-width. `OmdsPrimaryButton` (an AnimatedContainer) expands
+    // to fill bounded width, so the card wraps it in IntrinsicWidth + Align so
+    // it hugs the label and sits at the trailing gutter.
+    testWidgets('Replies Check Offers CTA is content-hugging and end-aligned',
+        (tester) async {
+      await tester.pumpWidget(_harness(
+        repo: _threeTabRepo(),
+        initialTab: ClientHomeTab.replies,
+      ));
+      await tester.pumpAndSettle();
+
+      final btn = find.byKey(const Key('replies-check-offers-rep-1'));
+      final card = find.byKey(const Key('replies-card-rep-1'));
+      final btnSize = tester.getSize(btn);
+      final cardSize = tester.getSize(card);
+
+      // Hugs content: clearly narrower than the full card width (it was
+      // measured at 768/800 px — full-width — before the IntrinsicWidth fix).
+      expect(
+        btnSize.width < cardSize.width * 0.6,
+        isTrue,
+        reason: 'Check Offers must hug content, got '
+            '${btnSize.width} of ${cardSize.width}',
+      );
+
+      // End-aligned: right edge sits at the trailing gutter, flush with the
+      // card's right edge minus the horizontal padding.
+      final btnRight = tester.getTopRight(btn).dx;
+      final cardRight = tester.getTopRight(card).dx;
+      expect(
+        (cardRight - btnRight) < 24,
+        isTrue,
+        reason: 'Check Offers right edge should sit at the trailing gutter; '
+            'cardRight=$cardRight btnRight=$btnRight',
+      );
+
+      // Still wrapped in an Align(centerEnd) — structural guard against a
+      // regression back to a Center/stretch layout.
+      expect(
+        find.ancestor(of: btn, matching: find.byType(IntrinsicWidth)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('Active Track CTA is content-hugging and end-aligned',
+        (tester) async {
+      await tester.pumpWidget(_harness(repo: _threeTabRepo()));
+      await tester.pumpAndSettle();
+
+      final btn = find.byKey(const Key('active-track-order-ip-1'));
+      final card = find.byKey(const Key('active-request-card-ip-1'));
+      final btnSize = tester.getSize(btn);
+      final cardSize = tester.getSize(card);
+
+      expect(
+        btnSize.width < cardSize.width * 0.6,
+        isTrue,
+        reason: 'Track CTA must hug content, got '
+            '${btnSize.width} of ${cardSize.width}',
+      );
+      expect(
+        find.ancestor(of: btn, matching: find.byType(IntrinsicWidth)),
+        findsOneWidget,
+      );
+    });
+
+    // DEFECT 1 — the create-request "+" FAB must be the filled-navy CTA with a
+    // WHITE icon (Figma 56535:1783), NOT a low-emphasis gray circle. The button
+    // is correct-as-is: it derives fill from colorScheme.primary (navy #0B1351)
+    // and the icon from colorScheme.onPrimary (white) via
+    // OmdsButtonStyles.iconButtonFilled. This locks that role choice so a future
+    // edit to secondaryContainer/onSecondaryContainer (which would render a
+    // muted-purple icon) is caught.
+    testWidgets('Create-request "+" FAB uses navy primary fill + white icon',
+        (tester) async {
+      await tester.pumpWidget(_harness(
+        repo: _threeTabRepo(),
+        onCreateRequest: () {},
+      ));
+      await tester.pumpAndSettle();
+
+      final context =
+          tester.element(find.byKey(const Key('client-home-greeting-add')));
+      final scheme = Theme.of(context).colorScheme;
+
+      final iconButton = tester.widget<IconButton>(
+        find.byKey(const Key('client-home-greeting-add')),
+      );
+      final style = iconButton.style!;
+      const lightStates = <WidgetState>{};
+      final bg = style.backgroundColor!.resolve(lightStates);
+      final fg = style.foregroundColor!.resolve(lightStates);
+
+      // Navy fill from primary, white icon from onPrimary — matches Figma.
+      expect(bg, scheme.primary);
+      expect(fg, scheme.onPrimary);
+      expect(scheme.onPrimary, const Color(0xFFFFFFFF));
+      // And NOT the muted-purple onSecondaryContainer the reviewer proposed.
+      expect(fg, isNot(scheme.onSecondaryContainer));
+    });
+  });
 }
