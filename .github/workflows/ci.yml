@@ -133,7 +133,7 @@ jobs:
 
       - name: Build APK
         if: steps.pub_get.outcome == 'success'
-        run: flutter build apk --flavor dev --debug -t lib/main_dev.dart --dart-define=APP_FLAVOR=dev
+        run: flutter build apk --flavor dev --debug --dart-define=APP_FLAVOR=dev
 
       - name: Skipped build notice
         if: steps.pub_get.outcome != 'success'
