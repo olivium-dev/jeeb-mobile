@@ -39,8 +39,6 @@ class JeeberHomeScreen extends StatefulWidget {
   });
 
   static const Key scaffoldKey = Key('jeeber-home-screen-scaffold');
-  static const Key toggleErrorSnackbarKey =
-      Key('jeeber-home-screen-toggle-error-snackbar');
   static const Key loadErrorRetryKey = Key('jeeber-home-screen-load-retry');
 
   /// Tap-through for the feed cards (delegated to the host via
@@ -174,20 +172,8 @@ class _RegisteredBody extends StatelessWidget {
   ) {
     if (!view.toggleError) return;
     final l10n = AppLocalizations.of(context);
-    // ignore: deprecated_member_use
-    // EXEMPT: the org-wide OMDS `showOmdsSnackbar` does not accept a `Key`
-    // parameter, yet `jeeber_home_screen_test.dart` asserts on
-    // [JeeberHomeScreen.toggleErrorSnackbarKey]. Until OMDS exposes a
-    // key-aware wrapper (tracked at JEEB-66 follow-up), the ScaffoldMessenger
-    // call below is the only way to surface the key for the test harness.
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          key: JeeberHomeScreen.toggleErrorSnackbarKey,
-          content: Text(l10n.availabilityToggleErrorBody),
-        ),
-      );
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    showOmdsSnackbar(context, message: l10n.availabilityToggleErrorBody);
   }
 }
 

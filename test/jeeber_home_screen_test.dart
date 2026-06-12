@@ -101,7 +101,15 @@ void main() {
     await tester.pump(); // let the snackbar enqueue
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.byKey(JeeberHomeScreen.toggleErrorSnackbarKey), findsOneWidget);
+    // Targeted by the snackbar's localized content rather than a Key, so the
+    // screen can use the org-standard `showOmdsSnackbar` (which takes no Key).
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(JeeberHomeScreen)),
+    );
+    expect(
+      find.widgetWithText(SnackBar, l10n.availabilityToggleErrorBody),
+      findsOneWidget,
+    );
   });
 
   testWidgets('cold-start error surfaces the retry view', (tester) async {
