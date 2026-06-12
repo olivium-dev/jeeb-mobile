@@ -46,9 +46,17 @@ class JeebApp extends StatefulWidget {
     this.crashReporter = const NoopCrashReporter(),
     this.pushTransport,
     this.biometricGateway,
+    this.localizationsDelegateOverride,
   });
 
   final SharedPreferences preferences;
+
+  /// Optional override for the localizations delegate. Production uses the
+  /// default async [AppLocalizations.delegate] (a `rootBundle.loadString`
+  /// round-trip); widget tests inject a synchronous delegate because that
+  /// round-trip does not reliably complete under the headless `flutter test`
+  /// binding (see `test/support/sync_app_localizations.dart`).
+  final LocalizationsDelegate<AppLocalizations>? localizationsDelegateOverride;
 
   /// Per T-mobile-049, the crash reporter is built in bootstrap (so it can
   /// be reused by the FlutterError hooks before this widget exists). The
@@ -180,8 +188,9 @@ class _JeebAppState extends State<JeebApp> {
               themeMode: ThemeMode.system,
               locale: locale,
               supportedLocales: AppLocalizations.supportedLocales,
-              localizationsDelegates: const [
-                AppLocalizations.delegate,
+              localizationsDelegates: [
+                widget.localizationsDelegateOverride ??
+                    AppLocalizations.delegate,
                 GlobalMaterialLocalizations.delegate,
                 GlobalWidgetsLocalizations.delegate,
                 GlobalCupertinoLocalizations.delegate,

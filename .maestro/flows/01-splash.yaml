@@ -32,17 +32,22 @@
 #   now surfaces all three ids as resource-id values — independently confirmed by
 #   QA before writing this flow. Other screens still need their own Semantics ids.
 #
-# BUILD DEPENDENCY (honest caveat — read before running)
+# RUNTIME SEAM (self-injected — no special build required)
 #   The production splash resolves in ~250 ms and would flash past before any
-#   assertion can land. To make it deterministically assertable on the emulator,
-#   the installed dev APK was built with the debug-only, release-inert flag
-#   --dart-define=JEEB_HOLD_SPLASH=true (holds the splash after bootstrap;
-#   kDebugMode-gated, no-op in release). The captured emulator build is also
-#   --dart-define=JEEB_FORCE_LOCALE=ar, so the live tagline text is Arabic
-#   ("تطبيق التوصيل"); that is why this flow asserts the tagline BY ID, which is
-#   locale-independent (maestro-anti-patterns AP-5). dart-defines are compile-time
-#   baked into the APK, so launchApp/clearState cannot toggle them — this flow is
-#   valid only against a HOLD_SPLASH build. Documented as a known constraint.
+#   assertion can land. To make it deterministically assertable on the stock dev
+#   APK, this flow drives the RUNTIME dev seam: launchApp.arguments pass
+#   `jeeb.hold_splash=true` as an Android intent extra. The release-inert
+#   MethodChannel seam (IntentExtrasSource) reads it during Bootstrap.minimal()
+#   BEFORE the splash FutureBuilder evaluates, so `DevSeam.current.holdSplash`
+#   is already true and `jeeb_bootstrap.dart` keeps the production BrandedSplash
+#   mounted after bootstrap resolves (jeeb_bootstrap.dart:20,71 — kDebugMode-gated,
+#   no-op in release). This generalises the old compile-time
+#   --dart-define=JEEB_HOLD_SPLASH=true into a runtime knob, so the flow now
+#   self-injects exactly like the other seam flows (13/14/15) and runs against the
+#   installed dev APK with no rebuild. We also force `jeeb.locale=ar` to capture
+#   the RTL tagline; that is why the tagline is asserted BY ID (locale-independent —
+#   maestro-anti-patterns AP-5). clearState is omitted so the freshly-passed extras
+#   drive the launch (clearState would wipe the intent that carries the seam knobs).
 #
 # MAESTRO VERSION NOTE (2.0.5)
 #   In Maestro 2.x, `assertVisible` does NOT accept an inline `timeout:` property
@@ -53,13 +58,19 @@
 #   already proven present.
 #
 # Run:
-#   maestro test -e APP_ID=app.jeeb.mobile.dev \
+#   maestro --device emulator-5560 test -e APP_ID=app.jeeb.mobile.dev \
 #     --format JUNIT --output <evidence>/maestro/junit.xml \
 #     .maestro/flows/01-splash.yaml
 appId: ${APP_ID}
 ---
+# Self-inject the splash-hold + locale seam knobs as Android intent extras
+# (release-inert MethodChannel seam; same pattern as flows 13/14/15). clearState
+# is omitted so the freshly-passed extras drive the launch — clearState would
+# wipe the launch intent that carries them.
 - launchApp:
-    clearState: true            # AP-4: no auth/state bleed between runs
+    arguments:
+      jeeb.hold_splash: "true"
+      jeeb.locale: "ar"
 
 # Splash container — the full-bleed brand-navy boot frame. extendedWaitUntil
 # (not a fixed sleep — AP-1) absorbs cold-start variance up to 15 s, AND asserts.
