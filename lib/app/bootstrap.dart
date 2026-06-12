@@ -42,7 +42,8 @@ class Bootstrap {
   }) async {
     developer.Timeline.startSync('Bootstrap.minimal');
     try {
-      // Fonts are bundled locally (assets/fonts/Inter-Variable.ttf). Disable
+      // Fonts are bundled locally (static Inter instances in assets/fonts/).
+      // Disable
       // google_fonts' runtime fetch so nothing in the tree can hit
       // fonts.gstatic.com — a no-egress device throws a HandshakeException
       // there, which previously crashed the theme build on first frame.

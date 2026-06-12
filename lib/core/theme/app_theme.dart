@@ -18,8 +18,9 @@ import 'jeeb_tier_colors.dart';
 ///
 /// Typography note: the Figma calls for Roboto (body) and Urbanist (nav
 /// labels), but we override to **Inter** per OMDS standard (audit doc §5.1).
-/// Inter is bundled locally (`assets/fonts/Inter-Variable.ttf`, OFL-1.1) and
-/// applied as a normal Flutter font family — NOT fetched at runtime via
+/// Inter is bundled locally as discrete static instances (Regular/Medium/
+/// SemiBold/Bold, OFL-1.1; see pubspec.yaml + test/inter_font_weight_test.dart)
+/// and applied as a normal Flutter font family — NOT fetched at runtime via
 /// `google_fonts`. Runtime fetching throws a `HandshakeException` on a
 /// no-egress device (no path to `fonts.gstatic.com`), which crashed the theme
 /// build on first frame; the bundled font makes every branded screen render
