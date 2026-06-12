@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:jeeb_mobile/features/client_offers/domain/offer.dart';
 import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart';
 
 /// Test-only repository that lets each test queue the exact snapshots the

@@ -4,4 +4,5 @@
 /// implementation at `presentation/onboarding_screen.dart`. Rather than
 /// rewrite the router, we re-export the concrete class here so both paths
 /// point at the same widget.
+library;
 export 'presentation/onboarding_screen.dart';

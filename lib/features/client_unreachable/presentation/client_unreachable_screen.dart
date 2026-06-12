@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 class ClientUnreachableScreen extends StatelessWidget {
-  final String deliveryId;
   const ClientUnreachableScreen({super.key, required this.deliveryId});
+  final String deliveryId;
 
   @override
   Widget build(BuildContext context) {

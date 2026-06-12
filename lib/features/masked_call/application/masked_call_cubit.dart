@@ -1,15 +1,15 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class MaskedCallState {
-  final bool isLoading;
-  final String? sessionId;
-  final String? error;
 
   const MaskedCallState({
     this.isLoading = false,
     this.sessionId,
     this.error,
   });
+  final bool isLoading;
+  final String? sessionId;
+  final String? error;
 
   MaskedCallState copyWith({
     bool? isLoading,

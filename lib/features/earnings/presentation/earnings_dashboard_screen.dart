@@ -33,8 +33,8 @@ class EarningsDashboardScreen extends StatelessWidget {
 }
 
 class _ReadyBody extends StatelessWidget {
-  final EarningsSummary summary;
   const _ReadyBody({required this.summary});
+  final EarningsSummary summary;
 
   @override
   Widget build(BuildContext context) {
@@ -143,9 +143,9 @@ class _SecondaryStatsRow extends StatelessWidget {
 }
 
 class _StatCard extends StatelessWidget {
+  const _StatCard({required this.title, required this.value});
   final String title;
   final String value;
-  const _StatCard({required this.title, required this.value});
 
   @override
   Widget build(BuildContext context) {

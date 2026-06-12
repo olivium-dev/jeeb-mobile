@@ -4,9 +4,9 @@ import 'package:omds/omds.dart';
 import '../application/masked_call_cubit.dart';
 
 class MaskedCallButton extends StatelessWidget {
-  final String orderId;
 
   const MaskedCallButton({super.key, required this.orderId});
+  final String orderId;
 
   @override
   Widget build(BuildContext context) {

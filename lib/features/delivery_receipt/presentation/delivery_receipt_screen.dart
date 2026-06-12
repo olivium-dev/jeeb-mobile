@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 class DeliveryReceiptScreen extends StatelessWidget {
-  final String deliveryId;
   const DeliveryReceiptScreen({super.key, required this.deliveryId});
+  final String deliveryId;
 
   @override
   Widget build(BuildContext context) {
@@ -84,14 +84,14 @@ class _ReceiptHeaderCard extends StatelessWidget {
 }
 
 class _ReceiptRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool isBold;
   const _ReceiptRow({
     required this.label,
     required this.value,
     this.isBold = false,
   });
+  final String label;
+  final String value;
+  final bool isBold;
 
   @override
   Widget build(BuildContext context) {

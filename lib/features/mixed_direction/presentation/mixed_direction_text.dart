@@ -1,11 +1,6 @@
 import 'package:flutter/material.dart';
 
 class MixedDirectionText extends StatelessWidget {
-  final String text;
-  final TextStyle? style;
-  final TextAlign? textAlign;
-  final int? maxLines;
-  final TextOverflow? overflow;
 
   const MixedDirectionText(
     this.text, {
@@ -15,6 +10,11 @@ class MixedDirectionText extends StatelessWidget {
     this.maxLines,
     this.overflow,
   });
+  final String text;
+  final TextStyle? style;
+  final TextAlign? textAlign;
+  final int? maxLines;
+  final TextOverflow? overflow;
 
   static TextDirection detectDirection(String text) {
     if (text.isEmpty) return TextDirection.ltr;

@@ -255,7 +255,7 @@ class _OrderTabViewState extends State<_OrderTabView>
             controller: _scrollController,
             padding: const EdgeInsets.symmetric(vertical: Spacing.xSmall),
             itemCount: tabState.orders.length + (tabState.hasMore ? 1 : 0),
-            separatorBuilder: (_, __) => const Divider(height: 1),
+            separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (context, index) {
               if (index >= tabState.orders.length) {
                 return Padding(

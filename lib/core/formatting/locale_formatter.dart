@@ -1,9 +1,9 @@
 import 'package:intl/intl.dart';
 
 class LocaleFormatter {
-  final String locale;
 
   LocaleFormatter({this.locale = 'en'});
+  final String locale;
 
   String formatCurrency(double amount, {String currency = 'LBP'}) {
     final formatter = NumberFormat.currency(

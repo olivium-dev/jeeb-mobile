@@ -150,10 +150,10 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
 
   void _attachStreams() {
     _pollSubscription = (_externalPollTicks ??
-            Stream.periodic(_pollInterval, (_) => null))
+            Stream.periodic(_pollInterval, (_) {}))
         .listen((_) => _poll());
     _clockSubscription = (_externalClockTicks ??
-            Stream.periodic(_tickInterval, (_) => null))
+            Stream.periodic(_tickInterval, (_) {}))
         .listen((_) => tick());
   }
 

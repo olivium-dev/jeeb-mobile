@@ -1,11 +1,11 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class TranscriptionState {
+
+  const TranscriptionState({this.text = '', this.isEditing = false, this.isLoading = false});
   final String text;
   final bool isEditing;
   final bool isLoading;
-
-  const TranscriptionState({this.text = '', this.isEditing = false, this.isLoading = false});
 
   TranscriptionState copyWith({String? text, bool? isEditing, bool? isLoading}) =>
       TranscriptionState(

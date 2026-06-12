@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 class ProhibitedItemReportScreen extends StatefulWidget {
-  final String requestId;
   const ProhibitedItemReportScreen({super.key, required this.requestId});
+  final String requestId;
 
   @override
   State<ProhibitedItemReportScreen> createState() =>

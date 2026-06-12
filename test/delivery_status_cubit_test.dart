@@ -47,9 +47,9 @@ DeliverySnapshot _snapshot({
 }
 
 class _NullStreamGateway implements DeliveryStatusGateway {
-  _NullStreamGateway({this.cancelOutcome = CancellationOutcome.success});
+  _NullStreamGateway();
 
-  final CancellationOutcome cancelOutcome;
+  static const cancelOutcome = CancellationOutcome.success;
   final StreamController<DeliverySnapshot> _ctrl =
       StreamController<DeliverySnapshot>.broadcast();
 
