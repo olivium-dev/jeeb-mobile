@@ -1,4 +1,5 @@
-// Regression guards for the Semantics auto-merge defects (screens 09/12/14/15).
+// Regression guards for the Semantics auto-merge defects
+// (screens 09/12/14/15 — original CAP-1 set; 16/17/22/26/27 — this batch).
 //
 // Each of the four cards below wraps an OUTER `Semantics(identifier:)` (or a
 // Row/Column) around a NESTED `Semantics(identifier:)` for an interactive
@@ -18,6 +19,7 @@
 // and test/client_home_screen_test.dart).
 
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -39,6 +41,18 @@ import 'package:jeeb_mobile/features/home_client/domain/client_home_repository.d
 import 'package:jeeb_mobile/features/home_client/presentation/client_home_screen.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
+
+// --- This-batch defects (screens 16/17/22/26/27) ---
+import 'package:jeeb_mobile/features/live_tracking/domain/delivery_tracking_info.dart';
+import 'package:jeeb_mobile/features/live_tracking/presentation/widgets/delivery_tracking_panel.dart';
+import 'package:jeeb_mobile/features/rating/presentation/rating_screen.dart';
+import 'package:jeeb_mobile/features/jeeber_onboarding/application/dm_onboarding_cubit.dart';
+import 'package:jeeb_mobile/features/jeeber_onboarding/domain/dm_onboarding_gateway.dart';
+import 'package:jeeb_mobile/features/jeeber_onboarding/presentation/widgets/dm_onboarding_location_selector.dart';
+import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
+import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_models.dart';
+import 'package:jeeb_mobile/features/jeeber_request_feed/presentation/jeeber_feed_card.dart';
+import 'package:jeeb_mobile/features/delivery_man_profile/presentation/widgets/delivery_man_meta_row.dart';
 
 class _SyncDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _SyncDelegate(this._arbByTag);
@@ -276,6 +290,228 @@ void main() {
           findsOneWidget,
           reason: 'The Check-Offers button id must be addressable from the '
               'host ClientHomeScreen Replies tab, as the flow targets it.',
+        );
+      },
+    );
+  });
+
+  // B1 (screen 16) — REPRODUCING swallow. On the pre-fix source the
+  // `_TrackingStepper` Semantics has no `container: true`, so the multi-child
+  // OMDSLabeledStepperProgress labels fold the `tracking_progress_stepper`
+  // identifier up into the `tracking_status_panel` node and it is swallowed.
+  // (Verified: `findsNothing` pre-fix → `findsOneWidget` post-fix.)
+  group('B1 DeliveryTrackingPanel stepper (screen 16 / Figma 56560:1772)', () {
+    testWidgets(
+      'surfaces BOTH the panel-root id and the progress-stepper id as '
+      'distinct nodes',
+      (tester) async {
+        await tester.pumpWidget(
+          _harness(
+            const DeliveryTrackingPanel(
+              info: DeliveryTrackingInfo(
+                deliveryId: 'd-16',
+                currentStage: TrackingStage.picked,
+                stageTimestamps: {},
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Outer panel id preserved (already had container: true).
+        expect(
+          find.bySemanticsIdentifier('tracking_status_panel'),
+          findsOneWidget,
+          reason: 'The panel-root identifier must remain queryable.',
+        );
+        // Previously-swallowed stepper id now surfaces.
+        expect(
+          find.bySemanticsIdentifier('tracking_progress_stepper'),
+          findsOneWidget,
+          reason: 'The progress-stepper identifier must surface as its own '
+              'node (was folded into tracking_status_panel before the fix).',
+        );
+      },
+    );
+  });
+
+  // B2 (screen 17) — REPRODUCING swallow for the submit button. On the pre-fix
+  // source the `_FeedbackFooter` Semantics is a non-boundary, so its button
+  // semantics + label merge UP into the `feedback_screen` container node and
+  // `feedback_submit_button` is dropped from the tree. `feedback_close_button`
+  // (in the AppBar, outside the merge) already surfaced pre-fix; the assertion
+  // guards it stays surfaced after the proactive close-button hardening.
+  // (Verified: submit `findsNothing` pre-fix → `findsOneWidget` post-fix.)
+  group('B2 RatingScreen footer + close (screen 17 / Figma 56614:20132)', () {
+    testWidgets(
+      'surfaces the submit-button id (previously swallowed) and the '
+      'close-button id as distinct nodes',
+      (tester) async {
+        await tester.pumpWidget(
+          _harness(
+            const RatingScreen(deliveryId: 'd-17', rateeName: 'Sara'),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Previously-swallowed submit id now surfaces.
+        expect(
+          find.bySemanticsIdentifier('feedback_submit_button'),
+          findsOneWidget,
+          reason: 'The submit-button identifier must surface as its own node '
+              '(was folded into the feedback_screen container before the fix).',
+        );
+        // Close id remains queryable (proactive same-pattern hardening).
+        expect(
+          find.bySemanticsIdentifier('feedback_close_button'),
+          findsOneWidget,
+          reason: 'The close-button identifier must remain queryable.',
+        );
+      },
+    );
+  });
+
+  // B3 (screen 22) — REPRODUCING swallow. On the pre-fix source the
+  // `_SelectorRow` Semantics (button + label) is a merge boundary that folds
+  // the nested `_LocationValueText` Semantics, so `dm_onboarding_location_value`
+  // is swallowed. (Verified: value `findsNothing` pre-fix → `findsOneWidget`.)
+  group('B3 DmOnboardingLocationSelector (screen 22 / Figma 56591:5337)', () {
+    testWidgets(
+      'surfaces BOTH the selector-row id and the location-value id as '
+      'distinct nodes',
+      (tester) async {
+        final cubit = DmOnboardingCubit(
+          pickerService:
+              StubPhotoPickerService(cameraPayload: Uint8List(8)),
+          gateway: FakeDmOnboardingGateway(),
+        );
+        addTearDown(cubit.close);
+        await tester.pumpWidget(
+          _harness(
+            BlocProvider<DmOnboardingCubit>.value(
+              value: cubit,
+              child: const DmOnboardingLocationSelector(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Outer selector-row id preserved.
+        expect(
+          find.bySemanticsIdentifier('dm_onboarding_location_selector'),
+          findsOneWidget,
+          reason: 'The selector-row identifier must remain queryable.',
+        );
+        // Previously-swallowed value id now surfaces.
+        expect(
+          find.bySemanticsIdentifier('dm_onboarding_location_value'),
+          findsOneWidget,
+          reason: 'The location-value identifier must surface as its own node '
+              '(was merged into the selector-row node before the fix).',
+        );
+      },
+    );
+  });
+
+  // B4 (screen 26) — HARDENING LOCK (not a reproducing failure).
+  //
+  // HONESTY NOTE: in a Flutter widget test BOTH ids are ALREADY distinct nodes
+  // on the pre-fix source — `Semantics(button: true)` does NOT imply
+  // `mergeAllDescendantsIntoThisNode`, so the action node stays a separate
+  // child of the card node and `find.bySemanticsIdentifier` finds both
+  // before AND after the fix. This test therefore does NOT fail pre-fix; it
+  // LOCKS IN the independent-addressability the `explicitChildNodes: true`
+  // hardening guarantees, guarding against a future change that turns the
+  // card into a real merge boundary (e.g. wrapping it in MergeSemantics).
+  group('B4 JeeberFeedCard card + accepted action (screen 26 — lock)', () {
+    testWidgets(
+      'card id and accepted-action id are both independently queryable',
+      (tester) async {
+        final request = DeliveryRequest(
+          id: 'feed-26',
+          pickup:
+              const RequestLocation(label: 'Hamra', latitude: 0, longitude: 0),
+          dropoff:
+              const RequestLocation(label: 'Verdun', latitude: 0, longitude: 0),
+          tier: JeeberRequestTier.flash,
+          estimatedDistanceKm: 3,
+          potentialEarnings: 4,
+          currency: 'USD',
+          expiresAt: DateTime(2030),
+          senderName: 'Sami Fawaz',
+          feedStatus: JeeberFeedItemStatus.accepted,
+          nextDeliveryAction: JeeberDeliveryAction.orderPicked,
+        );
+        await tester.pumpWidget(
+          _harness(
+            JeeberFeedCard(
+              request: request,
+              onTap: () {},
+              onAdvanceStatus: () {},
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.bySemanticsIdentifier('jeeber_feed_request_card_feed-26'),
+          findsOneWidget,
+          reason: 'The card identifier must be queryable.',
+        );
+        expect(
+          find.bySemanticsIdentifier('jeeber_feed_request_action_feed-26'),
+          findsOneWidget,
+          reason: 'The accepted-action identifier must surface as its own '
+              'node alongside the card id (explicitChildNodes lock).',
+        );
+      },
+    );
+  });
+
+  // B5 (screen 27) — HARDENING LOCK (not a reproducing failure).
+  //
+  // HONESTY NOTE: in a Flutter widget test BOTH meta-row ids are ALREADY
+  // distinct nodes on the pre-fix source — the wrapper `label: text` does not
+  // fold the identifier because the row Semantics is not a merge boundary, so
+  // `find.bySemanticsIdentifier` finds both before AND after. The fix aligns
+  // `DeliveryManMetaRow` with the proven identifier-only `_NameText` pattern
+  // (drops the duplicate wrapper label, adds container: true). This test LOCKS
+  // IN the independent addressability rather than reproducing a failure.
+  group('B5 DeliveryManMetaRow rating + availability (screen 27 — lock)', () {
+    testWidgets(
+      'rating-summary id and availability id are both independently queryable',
+      (tester) async {
+        await tester.pumpWidget(
+          _harness(
+            const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DeliveryManMetaRow(
+                  icon: Icons.star,
+                  text: '4.8 (12)',
+                  semanticsId: 'delivery_man_profile_rating_summary',
+                ),
+                DeliveryManMetaRow(
+                  icon: Icons.location_on,
+                  text: 'Beirut · Available',
+                  semanticsId: 'delivery_man_profile_availability',
+                ),
+              ],
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.bySemanticsIdentifier('delivery_man_profile_rating_summary'),
+          findsOneWidget,
+          reason: 'The rating-summary identifier must be queryable.',
+        );
+        expect(
+          find.bySemanticsIdentifier('delivery_man_profile_availability'),
+          findsOneWidget,
+          reason: 'The availability identifier must be queryable as its own '
+              'node (identifier-only + container lock).',
         );
       },
     );

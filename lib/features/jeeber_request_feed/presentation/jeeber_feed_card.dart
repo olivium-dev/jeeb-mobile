@@ -51,9 +51,14 @@ class JeeberFeedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // `explicitChildNodes: true` keeps the card identifier a non-merging
+    // boundary so the nested `jeeber_feed_request_action_<id>` (and ignore/
+    // offer) button ids stay independently queryable as their own native
+    // nodes rather than risk being folded into this actionable card node.
     return Semantics(
       identifier: 'jeeber_feed_request_card_${request.id}',
       button: onTap != null,
+      explicitChildNodes: true,
       child: InkWell(
         key: Key('jeeber-feed-card-${request.id}'),
         onTap: onTap,

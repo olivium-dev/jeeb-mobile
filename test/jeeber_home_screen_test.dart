@@ -12,6 +12,7 @@ import 'package:jeeb_mobile/features/jeeber_home/presentation/jeeber_home_screen
 import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/availability_status_block.dart';
 import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/availability_toggle.dart';
 import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/inactivity_warning_banner.dart';
+import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/jeeber_unregistered_view.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
@@ -152,4 +153,49 @@ void main() {
     expect(cubit.state.warningVisible, isFalse);
     expect(find.byKey(InactivityWarningBanner.rootKey), findsNothing);
   });
+
+  // Screen-19 crash regression. The unregistered home-tab seam path mounts
+  // `JeeberHomeScreen(isRegistered: false)` with NO `BlocProvider<
+  // AvailabilityCubit>` ancestor (the upsell view never reads the cubit). On
+  // the pre-fix source `didChangeDependencies` called
+  // `context.read<AvailabilityCubit>()` unconditionally and threw
+  // `ProviderNotFound<AvailabilityCubit>` before the first frame painted, so
+  // the upsell never rendered. (Verified: throws pre-fix → renders post-fix.)
+  testWidgets(
+      'unregistered path mounts without an AvailabilityCubit and renders the '
+      'upsell root (screen 19)', (tester) async {
+    await tester.pumpWidget(_unregisteredHost());
+    await tester.pump();
+
+    // No exception was thrown bringing the screen up.
+    expect(tester.takeException(), isNull);
+    // The unregistered upsell root actually rendered.
+    expect(find.byKey(JeeberUnregisteredView.rootKey), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('jeeber_unregistered_root'),
+      findsOneWidget,
+      reason: 'The unregistered upsell screen must mount and surface its '
+          'root identifier without an AvailabilityCubit provider.',
+    );
+    // Sanity: the registered-only retry view is absent.
+    expect(find.byKey(JeeberHomeScreen.loadErrorRetryKey), findsNothing);
+  });
+}
+
+/// Hosts `JeeberHomeScreen` on the UNREGISTERED path with NO availability
+/// cubit provider — exactly the `DashboardTab` `jeeb.home_tab=unregistered`
+/// seam condition that crashed before the didChangeDependencies guard.
+Widget _unregisteredHost() {
+  return MaterialApp(
+    theme: AppTheme.light(),
+    locale: const Locale('en'),
+    supportedLocales: AppLocalizations.supportedLocales,
+    localizationsDelegates: const [
+      SyncAppLocalizationsDelegate(),
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    home: const JeeberHomeScreen(isRegistered: false, profileName: 'Kamal'),
+  );
 }

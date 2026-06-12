@@ -55,6 +55,12 @@ class _TrackingStepper extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Semantics(
       identifier: 'tracking_progress_stepper',
+      // `container: true` makes this a Semantics boundary so the identifier
+      // surfaces as its own queryable node. Without it the multi-child
+      // OMDSLabeledStepperProgress step labels are folded into the ancestor
+      // `tracking_status_panel` node and `tracking_progress_stepper` is
+      // swallowed (matches the sibling panel-root pattern at line 24).
+      container: true,
       value: _stepLabels(l10n)[stepIndex],
       child: OMDSLabeledStepperProgress(
         totalSteps: 3,

@@ -75,7 +75,14 @@ class _JeeberHomeScreenState extends State<JeeberHomeScreen> {
     super.didChangeDependencies();
     if (_bootstrapped) return;
     _bootstrapped = true;
-    context.read<AvailabilityCubit>().load();
+    // State 1 (unregistered) renders `JeeberUnregisteredView`, which never
+    // reads the availability cubit, so the host does not provide one on that
+    // path. Reading it unconditionally here threw `ProviderNotFound` before
+    // the first frame painted (screen-19 crash). Only bootstrap availability
+    // when the Jeeber is registered and the cubit is actually consumed.
+    if (widget.isRegistered) {
+      context.read<AvailabilityCubit>().load();
+    }
   }
 
   @override

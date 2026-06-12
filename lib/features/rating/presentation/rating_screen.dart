@@ -133,9 +133,14 @@ class _FeedbackCloseAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // `container: true` + `explicitChildNodes: true` keep `feedback_close_button`
+    // a distinct boundary node so its identifier survives the IconButton's own
+    // button/InkWell semantics (same latent merge pattern as the submit button).
     return Semantics(
       identifier: 'feedback_close_button',
       button: true,
+      container: true,
+      explicitChildNodes: true,
       label: l10n.feedbackCloseLabel,
       child: IconButton(
         icon: const Icon(Icons.close),
@@ -268,9 +273,17 @@ class _FeedbackFooter extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.all(Spacing.large),
+      // `container: true` + `explicitChildNodes: true` make this an explicit
+      // Semantics boundary so `feedback_submit_button` surfaces as its own
+      // queryable node. Without it the wrapper's button-semantics collides
+      // with OmdsLoadingButton's own inner button node and the identifier is
+      // folded up into the ancestor `feedback_screen` container (the screen
+      // node absorbs the button flag + label and drops this id).
       child: Semantics(
         identifier: 'feedback_submit_button',
         button: true,
+        container: true,
+        explicitChildNodes: true,
         child: OmdsLoadingButton(
           text: l10n.feedbackSubmit,
           isLoading: submitting,

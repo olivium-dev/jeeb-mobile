@@ -42,9 +42,16 @@ class _SelectorRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // `container: true` + `explicitChildNodes: true` make this an explicit
+    // Semantics boundary so BOTH `dm_onboarding_location_selector` (this row)
+    // and the nested `dm_onboarding_location_value` surface as distinct nodes.
+    // Without it the row's button+label merge boundary folds the value node in
+    // and `dm_onboarding_location_value` is swallowed.
     return Semantics(
       identifier: 'dm_onboarding_location_selector',
       button: true,
+      container: true,
+      explicitChildNodes: true,
       label: l10n.dmOnboardingServiceAreaLocationFieldLabel,
       child: InkWell(
         onTap: () => _onTap(context, l10n),
