@@ -76,7 +76,20 @@ appId: ${APP_ID}
 - tapOn:
     id: "dm_onboarding_address_vehicle_number_field"
 - inputText: "G279424"
-- hideKeyboard
+# Dismiss the IME by tapping the wizard progress bar (a NON-interactive Semantics
+# node — dm_onboarding_progress_header.dart wraps OMDSStepperProgress with no
+# button/onTap; rendered above the step body in dm_onboarding_screen.dart) —
+# Flutter drops the field's focus on a tap outside an editable, hiding the
+# keyboard so the bottom-pinned Continue CTA is unobscured for the tap below.
+# HARNESS-FIX (CAP-3, same root cause as CAP-2 flows 02/07): we do NOT use
+# `hideKeyboard`. Maestro 2.0.5 implements hideKeyboard as an Android BACK
+# keyevent. This flow deep-links straight to the address step via the dev seam
+# (jeeb.route=/jeeber/onboarding?step=address), so the in-app back stack is EMPTY
+# — BACK pops the whole app to the launcher (verified empirically, identical to
+# the /dev-chat ROOT-route trap in 02/07), which would make the Continue tap
+# below fail. Tapping the progress bar keeps us on the address step.
+- tapOn:
+    id: "dm_onboarding_progress"
 - waitForAnimationToEnd
 - takeScreenshot: "21-dm-onboarding-address-filled"
 # Continue stays present and tappable after input — proves the step advances.

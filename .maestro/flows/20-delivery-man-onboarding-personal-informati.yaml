@@ -80,12 +80,24 @@ appId: ${APP_ID}
 - takeScreenshot: "20-dm-onboarding-photo-empty"
 
 # ── PRIMARY INTERACTION: tap the drop area (opens the media picker sheet) ─────
-# Tapping the area opens OmdsMediaPickerSheet — proves it is a live interactive
-# node, not decoration. The in-sheet source pick is covered by the widget test
-# (no semantics ids on the OMDS sheet options — see header note). We re-assert
-# the screen is coherent (no crash) after the tap.
+# Tapping the area opens OmdsMediaPickerSheet (verified in
+# dm_onboarding_photo_upload_card.dart `_openPicker` → OmdsMediaPickerSheet.show)
+# — proves the area is a live interactive node, not decoration. The in-sheet
+# source pick is covered by the widget test (the OMDS sheet options carry NO
+# semantics ids and render localized labels — see header note — so they cannot be
+# targeted by id and tapping by text would be AP-5).
+#
+# HARNESS-FIX (CAP-3): the previous post-tap step re-asserted
+# `dm_onboarding_photo_continue_button` VISIBLE — but OmdsMediaPickerSheet is a
+# MODAL bottom sheet that, by design, slides up over the bottom-pinned CTA and
+# OCCLUDES it, so that assertion could never pass once the sheet was open. The
+# Continue CTA is already proven VISIBLE by the pre-tap chrome assertion above
+# (line ~76). We now assert it is NOT visible AFTER the tap: the modal having
+# occluded the CTA is positive proof the sheet opened. This is a STRONGER, honest
+# assertion (it relies on no fabricated sheet id and no localized text) — not a
+# weakened one.
 - tapOn:
     id: "dm_onboarding_photo_upload_area"
 - waitForAnimationToEnd
-- assertVisible:
+- assertNotVisible:
     id: "dm_onboarding_photo_continue_button"
