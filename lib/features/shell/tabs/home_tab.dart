@@ -47,6 +47,7 @@ class HomeTab extends StatelessWidget {
       child: ClientHomeScreen(
         key: const Key('home-tab-root'),
         initialTab: devTab ?? ClientHomeTab.inProgress,
+        onCreateRequest: () => _openRequestType(context),
         onOpenRequest: (request) => _openChat(context, request),
       ),
     );
@@ -87,6 +88,17 @@ class HomeTab extends StatelessWidget {
       default:
         return null;
     }
+  }
+
+  /// Opens the delivery-create flow from the home "+" FAB. Wiring this non-null
+  /// callback is what makes the `IconButton.filled` render ENABLED (navy
+  /// `colorScheme.primary` fill) instead of the disabled-gray state a null
+  /// `onPressed` produces — see `client_home_greeting.dart` `_AddRequestButton`.
+  /// Routes to the `request-type` screen (Figma 56535:2392), matching the
+  /// production create-request intent. Identical in debug + release; the seam
+  /// flows (13/14/15) only assert this button's visibility, never tap it.
+  void _openRequestType(BuildContext context) {
+    GoRouter.of(context).pushNamed('request-type');
   }
 
   /// Routes a card tap to `/chat/:id`. Replies-tab cards carry a
