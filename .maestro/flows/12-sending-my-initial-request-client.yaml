@@ -62,12 +62,40 @@
 #                               it's an OUTGOING message in the read state, the
 #                               exact "sent into broadcast" signal the frame shows)
 #   chat_detail_message_input   (chat_composer.dart:210 — the composer text field)
-#   chat_detail_avatar          (chat_app_bar.dart:69 — the navbar avatar node)
+#
+# NAVBAR ASSERTION REMOVED (design parity — avatar is accepted-phase-only):
+#   This flow previously asserted `chat_detail_avatar` as the "navbar present"
+#   check. That over-asserted an element the design intentionally OMITS in the
+#   broadcasting state: per Figma 56535:6469 the broadcasting navbar is a back
+#   chevron + centered "ORD-23748" title with NO avatar. In `chat_app_bar.dart`
+#   the avatar (`chat_detail_avatar`, line 131) renders ONLY when
+#   `showAvatar == true`, which binds to the ACCEPTED / post-approval phase
+#   (class doc line 41; `leading: showAvatar ? _ChatHeaderLeading(...) : null`,
+#   line 56). In broadcasting `showAvatar == false`, so the avatar Semantics node
+#   is structurally absent and the header renders `showBackButton: !showAvatar`.
+#   The back chevron in this path is drawn by OMDSAppBar's OWN back button (the
+#   chat-level `chat_detail_back_button` Semantics, line 98, lives inside
+#   `_ChatHeaderLeading`, which is used only on the avatar/accepted path). The
+#   on-device Maestro hierarchy in broadcasting confirms this: the navbar exposes
+#   a clickable Button with EMPTY resource-id (no Semantics identifier) plus the
+#   title node `accessibilityText: "ORD-23748"`. So NO present-in-broadcasting
+#   navbar Semantics id exists to assert, and the only navbar text available
+#   ("ORD-23748") is a localized/fixture string that the AR run + the flow's
+#   no-localized-text rule (AP-5) forbid as a selector. Per the minimal-change
+#   policy we therefore REMOVE the navbar assertion rather than weaken it to a
+#   text matcher or assert an absent id — the header rendering is still
+#   transitively proven, since `chat_detail_message_list` +
+#   `chat_detail_message_read` only mount inside the chat-detail scaffold whose
+#   AppBar is the navbar (a blank/launcher fallthrough would have neither). The
+#   avatar belongs to flow 02-chat-client's accepted state, not this frame.
 #
 # SELECTOR NOTES (semantics topology — verified in source, NOT a defect here):
 #   (a) The navbar order title ("ORD-23748") is a fixture string rendered without
-#       its own identifier; we assert `chat_detail_avatar` for navbar presence
-#       instead of a localized/fixture text matcher (AP-5 i18n anti-pattern).
+#       its own identifier, and OMDSAppBar's back button carries no Semantics id;
+#       there is no locale-invariant navbar id to assert, so we anchor parity on
+#       the message-list + read-tick (which mount only inside the chat-detail
+#       scaffold) rather than a localized/fixture text matcher (AP-5 i18n
+#       anti-pattern).
 #   (b) Individual bubbles carry `chat_detail_message_${id}` ids whose `${id}` is
 #       a fixture-generated value we do not hardcode; we assert the stable
 #       `chat_detail_message_read` tick (the read-state signal) + the list
@@ -114,11 +142,20 @@ appId: ${APP_ID}
 - assertVisible:
     id: "chat_detail_message_read"
 
-# ── NAVBAR + COMPOSER present (the frame's chrome) ─────────────────────────────
-- assertVisible:
-    id: "chat_detail_avatar"
-- assertVisible:
-    id: "chat_detail_message_input"
+# ── COMPOSER present (the frame's chrome) ──────────────────────────────────────
+# No navbar id is asserted here: the broadcasting navbar carries NO avatar
+# (`chat_detail_avatar` is accepted-phase-only per Figma 56535:6469) and its
+# back chevron is OMDS-rendered without a Semantics id — see the NAVBAR
+# ASSERTION REMOVED note above. The composer input is the navbar-adjacent chrome
+# anchor; the chat-detail scaffold (hence the navbar) is transitively proven by
+# the message list + read tick asserted above.
+# extendedWaitUntil (not bare assertVisible): the composer lays out a beat after
+# the message list on this 2GB AVD, so a deterministic wait absorbs the
+# bottom-bar settle without a sleep (same AP-3-legit pattern as the list above).
+- extendedWaitUntil:
+    visible:
+      id: "chat_detail_message_input"
+    timeout: 15000
 
 # ── CAPTURE: the loaded "sending my initial request" broadcasting frame ────────
 - waitForAnimationToEnd
@@ -132,8 +169,23 @@ appId: ${APP_ID}
 # produce (AP-9).
 - tapOn:
     id: "chat_detail_message_input"
+# Focus accepted (the tap above) proves the composer is a live control. We then
+# re-confirm the input is still present/queryable with the keyboard up.
+#
+# NOTE — we deliberately do NOT call `hideKeyboard` here: on this Android/Flutter
+# build Maestro's `hideKeyboard` dispatches a BACK event, which the chat route
+# consumes as `Navigator.maybePop()` and POPS DevChatPreviewScreen back to Home
+# (verified on-device: post-`hideKeyboard` the chat ids + "ORD-23748" all vanish
+# and the tree is the Home screen). So we keep the keyboard up and use
+# `extendedWaitUntil` to re-query the input through the IME show animation
+# (re-lays-out the bottom bar on this 2GB AVD) — a deterministic settle, no sleep,
+# no route change, no weakened assertion. The thread + read-tick already asserted
+# above prove the broadcasting chat rendered; the live, still-mounted composer
+# input is the composer-is-live proof this step exists for (AP-9: we do not
+# fabricate a "message sent → phase changed" assertion the dev fixture can't
+# satisfy).
 - waitForAnimationToEnd
-- assertVisible:
-    id: "chat_detail_message_input"
-- assertVisible:
-    id: "chat_detail_message_list"
+- extendedWaitUntil:
+    visible:
+      id: "chat_detail_message_input"
+    timeout: 15000
