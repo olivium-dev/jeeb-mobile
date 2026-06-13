@@ -23,7 +23,14 @@ android/local.properties
 android/captures/
 android/gradlew
 android/gradlew.bat
-android/gradle/
+# Ignore the Gradle build dir contents but allow descent so the wrapper
+# properties can be tracked. CI has no committed wrapper, so without this it
+# resolves Gradle 8.4 — and AGP 8.11.1 requires Gradle >= 8.13. The wrapper
+# jar stays ignored (Flutter/Gradle bootstraps it).
+android/gradle/*
+!android/gradle/wrapper/
+android/gradle/wrapper/*
+!android/gradle/wrapper/gradle-wrapper.properties
 android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
 
 # iOS
