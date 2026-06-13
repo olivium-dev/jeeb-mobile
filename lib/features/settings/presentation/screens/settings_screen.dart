@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/locale/locale_cubit.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../application/role_switch_cubit.dart';
 import '../../application/settings_cubit.dart';
 import '../../application/settings_state.dart';
 import '../../data/in_memory_profile_repository.dart';
 import '../../domain/account_service.dart';
-import 'profile_edit_screen.dart';
+import '../widgets/role_toggle_setting.dart';
 
 /// Settings screen (T-mobile-031).
 ///
@@ -29,6 +31,8 @@ class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
     super.key,
     this.cubit,
+    this.roleSwitchCubit,
+    this.availableRoles = const [],
     this.appVersion = '1.0.0',
   });
 
@@ -37,6 +41,14 @@ class SettingsScreen extends StatelessWidget {
   /// so they don't have to plumb SharedPreferences.
   final SettingsCubit? cubit;
 
+  /// T-MOB-028: Optional role-switch cubit. When non-null and [availableRoles]
+  /// contains both 'client' and 'jeeber', the Active Role toggle is shown.
+  final RoleSwitchCubit? roleSwitchCubit;
+
+  /// T-MOB-028: Available role identifiers for the logged-in user. Drives
+  /// [RoleToggleSetting] visibility.
+  final List<String> availableRoles;
+
   /// Human-readable app version surfaced in the About section. Defaults to
   /// the pubspec value; production wiring should pass the build-time
   /// resolved string.
@@ -44,26 +56,34 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final view = _SettingsView(
+      appVersion: appVersion,
+      roleSwitchCubit: roleSwitchCubit,
+      availableRoles: availableRoles,
+    );
     if (cubit != null) {
-      return BlocProvider<SettingsCubit>.value(
-        value: cubit!,
-        child: _SettingsView(appVersion: appVersion),
-      );
+      return BlocProvider<SettingsCubit>.value(value: cubit!, child: view);
     }
     return BlocProvider<SettingsCubit>(
       create: (_) => SettingsCubit(
         profileRepository: InMemoryProfileRepository(),
         accountService: const FakeAccountService(),
       )..load(),
-      child: _SettingsView(appVersion: appVersion),
+      child: view,
     );
   }
 }
 
 class _SettingsView extends StatelessWidget {
-  const _SettingsView({required this.appVersion});
+  const _SettingsView({
+    required this.appVersion,
+    this.roleSwitchCubit,
+    this.availableRoles = const [],
+  });
 
   final String appVersion;
+  final RoleSwitchCubit? roleSwitchCubit;
+  final List<String> availableRoles;
 
   @override
   Widget build(BuildContext context) {
@@ -90,8 +110,16 @@ class _SettingsView extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
             children: [
               _ProfileSection(state: state),
+              _AddressesSection(),
               _LanguageSection(),
               _NotificationsSection(state: state),
+              // T-MOB-028: Role toggle — only shown when both roles available
+              // and a RoleSwitchCubit is wired by the host (shell/profile-tab).
+              if (roleSwitchCubit != null)
+                RoleToggleSetting(
+                  availableRoles: availableRoles,
+                  cubit: roleSwitchCubit!,
+                ),
               _AboutSection(appVersion: appVersion),
               _AccountSection(state: state),
             ],
@@ -114,28 +142,56 @@ class _ProfileSection extends StatelessWidget {
     return OmdsSettingsSection(
       title: l10n.settingsProfileSection,
       children: [
-        OmdsSettingsRow(
-          key: const Key('settings-row-profile'),
-          title: displayName,
-          subtitle: state.profile.phoneE164.isEmpty
-              ? l10n.profileEditSubtitle
-              : state.profile.phoneE164,
-          leadingIcon: Icons.person_outline,
-          onTap: () => _openProfileEdit(context),
+        Semantics(
+          identifier: 'settings-profile-row',
+          button: true,
+          child: OmdsSettingsRow(
+            key: const Key('settings-row-profile'),
+            title: displayName,
+            subtitle: state.profile.phoneE164.isEmpty
+                ? l10n.profileEditSubtitle
+                : state.profile.phoneE164,
+            leadingIcon: Icons.person_outline,
+            onTap: () => context.pushNamed('settings-profile'),
+          ),
+        ),
+        Semantics(
+          identifier: 'settings-row-become-jeeber',
+          button: true,
+          child: OmdsSettingsRow(
+            key: const Key('settings-row-become-jeeber'),
+            title: l10n.becomeJeeberCardTitle,
+            subtitle: l10n.becomeJeeberCardSubtitle,
+            leadingIcon: Icons.badge_outlined,
+            icon: Icons.chevron_right,
+            onTap: () => context.pushNamed('kyc-status'),
+          ),
         ),
       ],
     );
   }
+}
 
-  void _openProfileEdit(BuildContext context) {
-    final cubit = context.read<SettingsCubit>();
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => BlocProvider<SettingsCubit>.value(
-          value: cubit,
-          child: const ProfileEditScreen(),
+class _AddressesSection extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return OmdsSettingsSection(
+      title: l10n.savedAddressesTitle,
+      children: [
+        Semantics(
+          identifier: 'settings_open_addresses',
+          button: true,
+          child: OmdsSettingsRow(
+            key: const Key('settings-row-addresses'),
+            title: l10n.savedAddressesTitle,
+            subtitle: l10n.savedAddressesSubtitle,
+            leadingIcon: Icons.location_on_outlined,
+            icon: Icons.chevron_right,
+            onTap: () => context.pushNamed('settings-addresses'),
+          ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -249,6 +305,18 @@ class _NotificationsSection extends StatelessWidget {
           subtitle: l10n.notificationCategoryOtpAlwaysOn,
           leadingIcon: Icons.lock_outline,
           icon: Icons.lock_outline,
+        ),
+        Semantics(
+          identifier: 'settings-row-notifications-manage',
+          button: true,
+          child: OmdsSettingsRow(
+            key: const Key('settings-row-notifications-manage'),
+            title: l10n.notificationPreferencesTitle,
+            subtitle: l10n.notificationPreferencesRowSubtitle,
+            leadingIcon: Icons.notifications_outlined,
+            icon: Icons.chevron_right,
+            onTap: () => context.pushNamed('settings-notifications'),
+          ),
         ),
       ],
     );

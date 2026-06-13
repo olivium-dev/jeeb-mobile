@@ -88,6 +88,25 @@ class AppLocalizations {
   String get homeStageInTransit => _get('homeStageInTransit');
   String get chatOfferAccept => _get('chatOfferAccept');
   String get chatOfferAccepting => _get('chatOfferAccepting');
+  String get chatOfferDecline => _get('chatOfferDecline');
+  String get chatOfferDeclineConfirm => _get('chatOfferDeclineConfirm');
+  String get chatOfferAcceptedBannerTitle => _get('chatOfferAcceptedBannerTitle');
+  String get chatOfferAcceptedBannerBody => _get('chatOfferAcceptedBannerBody');
+  String get chatStartActiveDeliveryButton =>
+      _get('chatStartActiveDeliveryButton');
+  String get chatJeeberRemovedMessage => _get('chatJeeberRemovedMessage');
+  String chatBroadcastTtlLabel(int seconds) =>
+      _get('chatBroadcastTtlLabel').replaceFirst('{seconds}', '$seconds');
+  String chatVoiceNoteA11y(String author, int duration) =>
+      _get('chatVoiceNoteA11y')
+          .replaceFirst('{author}', author)
+          .replaceFirst('{duration}', '$duration');
+  String chatVoiceNoteTranscription(String text) =>
+      _get('chatVoiceNoteTranscription').replaceFirst('{text}', text);
+  String get chatVoiceNoteTranscriptionUnavailable =>
+      _get('chatVoiceNoteTranscriptionUnavailable');
+  String get chatVoiceNoteRecordingA11y => _get('chatVoiceNoteRecordingA11y');
+  String get chatVoiceUploadFailed => _get('chatVoiceUploadFailed');
   String chatOfferEtaMinutes(int minutes) =>
       _get('chatOfferEtaMinutes').replaceFirst('{minutes}', '$minutes');
   String get chatSystemOfferAcceptedGeneric =>
@@ -252,6 +271,20 @@ class AppLocalizations {
       _get('notificationPreferencesDisableOffersBody');
   String get notificationPreferencesDisableOffersConfirm =>
       _get('notificationPreferencesDisableOffersConfirm');
+
+  // T-MOB-026: server-wired notification prefs (GET/PATCH /users/me/notification-preferences).
+  String get notificationPrefsSaveError => _get('notificationPrefsSaveError');
+  String get notificationPrefsLoadError => _get('notificationPrefsLoadError');
+  String get notificationPrefsRetry => _get('notificationPrefsRetry');
+  String get notificationTopicOffersSemanticLabel =>
+      _get('notificationTopicOffersSemanticLabel');
+  String get notificationTopicChatSemanticLabel =>
+      _get('notificationTopicChatSemanticLabel');
+  String get notificationTopicStatusChangesSemanticLabel =>
+      _get('notificationTopicStatusChangesSemanticLabel');
+  String get notificationTopicRatingRemindersSemanticLabel =>
+      _get('notificationTopicRatingRemindersSemanticLabel');
+
   String get notificationCategoryOffers => _get('notificationCategoryOffers');
   String get notificationCategoryOffersSubtitle =>
       _get('notificationCategoryOffersSubtitle');
@@ -327,6 +360,7 @@ class AppLocalizations {
   String get onboardingSlide3Body => _get('onboardingSlide3Body');
   String get onboardingNext => _get('onboardingNext');
   String get onboardingGetStarted => _get('onboardingGetStarted');
+  String get onboardingSkip => _get('onboardingSkip');
 
   String deliveryDetailTitle(String id) =>
       _get('deliveryDetailTitle').replaceFirst('{id}', id);
@@ -502,6 +536,7 @@ class AppLocalizations {
   String get tierSelectionRecommendedBadge =>
       _get('tierSelectionRecommendedBadge');
   String get tierSelectionLocked => _get('tierSelectionLocked');
+  String get tierSelectionCachedBanner => _get('tierSelectionCachedBanner');
   String get tierSelectionPriceLabel => _get('tierSelectionPriceLabel');
   String tierSelectionPriceRange(String low, String high) =>
       _get('tierSelectionPriceRange')
@@ -556,6 +591,7 @@ class AppLocalizations {
   String get requestTypeLocationHeading => _get('requestTypeLocationHeading');
   String get requestTypeCurrentLocation => _get('requestTypeCurrentLocation');
   String get requestTypeChangeLocation => _get('requestTypeChangeLocation');
+  String get requestTypeContinue => _get('requestTypeContinue');
   String get tierFlashTitle => _get('tierFlashTitle');
   String get tierFlashSpeed => _get('tierFlashSpeed');
   String get tierFlashValue => _get('tierFlashValue');
@@ -598,6 +634,28 @@ class AppLocalizations {
       _get('captureLocationMapSemantic');
   String get captureLocationPinSemantic => _get('captureLocationPinSemantic');
   String get captureLocationMapPreview => _get('captureLocationMapPreview');
+
+  // T-MOB-012: GPS denied + outside service area (AC4/AC5)
+  String get captureLocationGpsDeniedTitle =>
+      _get('captureLocationGpsDeniedTitle');
+  String get captureLocationGpsDeniedBody =>
+      _get('captureLocationGpsDeniedBody');
+  String get captureLocationGpsDeniedOpenSettings =>
+      _get('captureLocationGpsDeniedOpenSettings');
+  String get captureLocationOutsideServiceArea =>
+      _get('captureLocationOutsideServiceArea');
+
+  // T-MOB-012: Saved locations chip row
+  String get savedLocationsTitle => _get('savedLocationsTitle');
+  String get savedLocationsChipHome => _get('savedLocationsChipHome');
+  String get savedLocationsChipWork => _get('savedLocationsChipWork');
+  String get savedLocationsChipOther => _get('savedLocationsChipOther');
+  String get savedLocationsEmpty => _get('savedLocationsEmpty');
+  String get savedLocationsSaveSheetTitle =>
+      _get('savedLocationsSaveSheetTitle');
+  String get savedLocationsSaveSheetSave => _get('savedLocationsSaveSheetSave');
+  String get savedLocationsSaveSheetSkip => _get('savedLocationsSaveSheetSkip');
+  String get savedLocationsNameHint => _get('savedLocationsNameHint');
 
   // KYC wizard
   String get kycWizardTitle => _get('kycWizardTitle');
@@ -662,6 +720,27 @@ class AppLocalizations {
   String get kycRejectionReasonExpired =>
       _get('kycRejectionReasonExpired');
   String get kycRejectionReasonOther => _get('kycRejectionReasonOther');
+
+  // T-MOB-013: schema-driven KYC — ToS step + new error strings.
+  String get kycTosStepTitle => _get('kycTosStepTitle');
+  String get kycTosStepSubtitle => _get('kycTosStepSubtitle');
+  String kycTosVersionLabel({required String version}) =>
+      _get('kycTosVersionLabel').replaceFirst('{version}', version);
+  String get kycTosDocumentTitle => _get('kycTosDocumentTitle');
+  String get kycTosDocumentBody => _get('kycTosDocumentBody');
+  String get kycTosSignatureLabel => _get('kycTosSignatureLabel');
+  String get kycTosSignatureHint => _get('kycTosSignatureHint');
+  String get kycTosSignatureRecorded => _get('kycTosSignatureRecorded');
+  String get kycTosSignatureClear => _get('kycTosSignatureClear');
+  String get kycTosSignaturePadSemanticLabel =>
+      _get('kycTosSignaturePadSemanticLabel');
+  String get kycTosSignAndSubmit => _get('kycTosSignAndSubmit');
+  String get kycRetry => _get('kycRetry');
+  String get kycErrorSchemaLoadFailed => _get('kycErrorSchemaLoadFailed');
+  String get kycErrorContractLoadFailed => _get('kycErrorContractLoadFailed');
+  String get kycErrorSignFailed => _get('kycErrorSignFailed');
+  String get kycErrorFileTooLarge => _get('kycErrorFileTooLarge');
+  String get kycErrorFileTypeNotAllowed => _get('kycErrorFileTypeNotAllowed');
 
   String get kycErrorPermissionDenied => _get('kycErrorPermissionDenied');
   String get kycErrorUnavailable => _get('kycErrorUnavailable');
@@ -1326,6 +1405,11 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get voiceRecordingSubtitle => _get('voiceRecordingSubtitle');
   String voiceRecordingTimerLabel(String duration) => _get('voiceRecordingTimerLabel').replaceFirst('{duration}', duration);
   String get voiceRecordingTitle => _get('voiceRecordingTitle');
+
+  // T-MOB-011: Broadcasting sub-line shown post-send (AC3)
+  String get voiceRecordingBroadcastingHint =>
+      _get('voiceRecordingBroadcastingHint');
+
   String get splashTagline => _get('splashTagline');
   String get splashLogoSemantic => _get('splashLogoSemantic');
 
@@ -1458,4 +1542,258 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('dmOnboardingStepProgressLabel')
           .replaceFirst('{current}', '$current')
           .replaceFirst('{total}', '$total');
+
+  // T-MOB-027: Become a Jeeber card
+  String get becomeJeeberCardTitle => _get('becomeJeeberCardTitle');
+  String get becomeJeeberCardSubtitle => _get('becomeJeeberCardSubtitle');
+  String get becomeJeeberCardCta => _get('becomeJeeberCardCta');
+  String get becomeJeeberCardSemantic => _get('becomeJeeberCardSemantic');
+
+  // T-MOB-028: Role toggle setting
+  String get roleSettingTitle => _get('roleSettingTitle');
+  String get roleSettingClient => _get('roleSettingClient');
+  String get roleSettingJeeber => _get('roleSettingJeeber');
+  String roleSettingSemanticLabel(String role) =>
+      _get('roleSettingSemanticLabel').replaceFirst('{role}', role);
+  String get roleSettingSwitchError => _get('roleSettingSwitchError');
+  String get roleSettingKycGateTitle => _get('roleSettingKycGateTitle');
+  String get roleSettingKycGateBody => _get('roleSettingKycGateBody');
+  String get roleSettingKycGateCta => _get('roleSettingKycGateCta');
+  String get roleSettingKycGateDismiss => _get('roleSettingKycGateDismiss');
+
+  // T-MOB-029: Jeeber feed tier filters + offline banner
+  String get jeeberFeedTierAll => _get('jeeberFeedTierAll');
+  String get jeeberFeedTierFlash => _get('jeeberFeedTierFlash');
+  String get jeeberFeedTierExpress => _get('jeeberFeedTierExpress');
+  String get jeeberFeedTierStandard => _get('jeeberFeedTierStandard');
+  String get jeeberFeedOfflineBannerTitle =>
+      _get('jeeberFeedOfflineBannerTitle');
+  String get jeeberFeedOfflineBannerSubtitle =>
+      _get('jeeberFeedOfflineBannerSubtitle');
+  String jeeberFeedRowSemantic({
+    required String tier,
+    required String distance,
+    required String payout,
+  }) =>
+      _get('jeeberFeedRowSemantic')
+          .replaceFirst('{tier}', tier)
+          .replaceFirst('{distance}', distance)
+          .replaceFirst('{payout}', payout);
+
+  // T-MOB-006/007/008: Home tab isolated tab widgets
+  String get pendingTabSearchingLabel => _get('pendingTabSearchingLabel');
+  String pendingTabTtlLabel(String minutes, String seconds) =>
+      _get('pendingTabTtlLabel')
+          .replaceFirst('{minutes}', minutes)
+          .replaceFirst('{seconds}', seconds);
+  String get pendingTabExpiredLabel => _get('pendingTabExpiredLabel');
+  String get pendingTabRetryCta => _get('pendingTabRetryCta');
+  String get pendingTabReconnecting => _get('pendingTabReconnecting');
+  String pendingCardA11yLabel(String title, String ttl) =>
+      _get('pendingCardA11yLabel')
+          .replaceFirst('{title}', title)
+          .replaceFirst('{ttl}', ttl);
+  String inProgressTabA11yLabel(String title, String status, String eta) =>
+      _get('inProgressTabA11yLabel')
+          .replaceFirst('{title}', title)
+          .replaceFirst('{status}', status)
+          .replaceFirst('{eta}', eta);
+  String repliesTabA11yLabel(int count) =>
+      _get('repliesTabA11yLabel').replaceFirst('{count}', count.toString());
+  String get homeErrorRetry => _get('homeErrorRetry');
+
+  // T-MOB-021: Prohibited items acknowledgment dialog
+  String get prohibitedItemsDialogTitle => _get('prohibitedItemsDialogTitle');
+  String get prohibitedItemsDialogBody => _get('prohibitedItemsDialogBody');
+  String get prohibitedItemsDialogAcknowledge =>
+      _get('prohibitedItemsDialogAcknowledge');
+  String get prohibitedItemsDialogError => _get('prohibitedItemsDialogError');
+  String get prohibitedItemsDialogRetry => _get('prohibitedItemsDialogRetry');
+  String prohibitedItemsSemanticItem(String name) =>
+      _get('prohibitedItemsSemanticItem').replaceFirst('{name}', name);
+
+  // T-MOB-017: Live tracking at-door card + in-transit snack
+  String get trackingAtDoorHeadline => _get('trackingAtDoorHeadline');
+  String get trackingAtDoorBody => _get('trackingAtDoorBody');
+  String get trackingAtDoorCta => _get('trackingAtDoorCta');
+  String get trackingJeeberOnTheWay => _get('trackingJeeberOnTheWay');
+
+  // T-MOB-018: OTP handover screen (client + Jeeber views)
+  String get otpHandoverClientTitle => _get('otpHandoverClientTitle');
+  String get otpHandoverJeeberTitle => _get('otpHandoverJeeberTitle');
+  String get otpClientShareInstruction => _get('otpClientShareInstruction');
+  String get otpClientDoNotShare => _get('otpClientDoNotShare');
+  String get otpJeeberInstruction => _get('otpJeeberInstruction');
+  String get otpVerifyButton => _get('otpVerifyButton');
+  String get otpWrongCode => _get('otpWrongCode');
+  String otpAttemptsRemaining(int count) =>
+      _get('otpAttemptsRemaining').replaceFirst('{count}', count.toString());
+  String get otpEscalateDialogTitle => _get('otpEscalateDialogTitle');
+  String get otpEscalateDialogBody => _get('otpEscalateDialogBody');
+  String get otpEscalateConfirm => _get('otpEscalateConfirm');
+  String get otpEscalateDismiss => _get('otpEscalateDismiss');
+  String get otpDoneTitle => _get('otpDoneTitle');
+  String get otpDoneBody => _get('otpDoneBody');
+  String get otpRateNowCta => _get('otpRateNowCta');
+  String get otpRetry => _get('otpRetry');
+  String get otpErrorNetwork => _get('otpErrorNetwork');
+  String get otpErrorServer => _get('otpErrorServer');
+  String get otpErrorGeneric => _get('otpErrorGeneric');
+
+  // T-MOB-019: Earnings dashboard — period filter + PDF export
+  String get earningsPeriodCustom => _get('earningsPeriodCustom');
+  String get earningsGross => _get('earningsGross');
+  String get earningsNet => _get('earningsNet');
+  String get earningsCommission => _get('earningsCommission');
+  String get earningsExportButton => _get('earningsExportButton');
+  String get earningsExportLoading => _get('earningsExportLoading');
+  String get earningsExportError => _get('earningsExportError');
+  String earningsDeliveryItemTitle(String id) =>
+      _get('earningsDeliveryItemTitle').replaceFirst('{id}', id);
+  String earningsDeliveryItemTier(String tier) =>
+      _get('earningsDeliveryItemTier').replaceFirst('{tier}', tier);
+  String earningsDeliveryItemFare(String amount, String currency) =>
+      _get('earningsDeliveryItemFare')
+          .replaceFirst('{amount}', amount)
+          .replaceFirst('{currency}', currency);
+
+  // T-MOB-020: Mutual blind rating
+  String get mutualRatingTitle => _get('mutualRatingTitle');
+  String get mutualRatingSubtitle => _get('mutualRatingSubtitle');
+  String get mutualRatingTagsLabel => _get('mutualRatingTagsLabel');
+  String get mutualRatingSubmit => _get('mutualRatingSubmit');
+  String get mutualRatingAwaitingTitle => _get('mutualRatingAwaitingTitle');
+  String get mutualRatingAwaitingBody => _get('mutualRatingAwaitingBody');
+  String get mutualRatingRevealedTitle => _get('mutualRatingRevealedTitle');
+  String get mutualRatingAutoRevealedTitle =>
+      _get('mutualRatingAutoRevealedTitle');
+  String get mutualRatingNoCounterRating => _get('mutualRatingNoCounterRating');
+  String mutualRatingTheirStars(int stars) =>
+      _get('mutualRatingTheirStars').replaceFirst('{stars}', stars.toString());
+  String get mutualRatingError => _get('mutualRatingError');
+  String get mutualRatingDone => _get('mutualRatingDone');
+
+  // T-MOB-022: Escalate/dispute flow
+  String get escalateTitle => _get('escalateTitle');
+  String get escalateSubtitle => _get('escalateSubtitle');
+  String get escalateReasonLabel => _get('escalateReasonLabel');
+  String get escalateReasonDamaged => _get('escalateReasonDamaged');
+  String get escalateReasonWrongItem => _get('escalateReasonWrongItem');
+  String get escalateReasonNoShow => _get('escalateReasonNoShow');
+  String get escalateReasonFraud => _get('escalateReasonFraud');
+  String get escalateReasonAbuse => _get('escalateReasonAbuse');
+  String get escalateReasonOther => _get('escalateReasonOther');
+  String get escalatePhotoLabel => _get('escalatePhotoLabel');
+  String escalatePhotoCountRemaining(int remaining) =>
+      _get('escalatePhotoCountRemaining')
+          .replaceFirst('{remaining}', remaining.toString());
+  String escalatePhotoAttached(int count) =>
+      _get('escalatePhotoAttached').replaceFirst('{count}', count.toString());
+  String get escalateCommentLabel => _get('escalateCommentLabel');
+  String get escalateSubmitButton => _get('escalateSubmitButton');
+  String get escalateSubmitting => _get('escalateSubmitting');
+  String get escalateErrorNetwork => _get('escalateErrorNetwork');
+  String get escalateErrorServer => _get('escalateErrorServer');
+  String get escalateErrorAlreadyOpen => _get('escalateErrorAlreadyOpen');
+  String get escalateConfirmationTitle => _get('escalateConfirmationTitle');
+  String get escalateConfirmationBody => _get('escalateConfirmationBody');
+  String escalateConfirmationCaseNumber(String caseNumber) =>
+      _get('escalateConfirmationCaseNumber')
+          .replaceFirst('{caseNumber}', caseNumber);
+  String get escalateConfirmationDone => _get('escalateConfirmationDone');
+
+  // Generic action labels
+  String get actionDone => _get('actionDone');
+  String get actionConfirm => _get('actionConfirm');
+
+  // T-MOB-024: Cancellation flow
+  String get cancellationTitle => _get('cancellationTitle');
+  String get cancellationReasonPrompt => _get('cancellationReasonPrompt');
+  String get cancellationReasonChangedMind =>
+      _get('cancellationReasonChangedMind');
+  String get cancellationReasonWaitTooLong =>
+      _get('cancellationReasonWaitTooLong');
+  String get cancellationReasonWrongAddress =>
+      _get('cancellationReasonWrongAddress');
+  String get cancellationReasonOther => _get('cancellationReasonOther');
+  String get cancellationReasonCantComplete =>
+      _get('cancellationReasonCantComplete');
+  String get cancellationReasonVehicleIssue =>
+      _get('cancellationReasonVehicleIssue');
+  String get cancellationReasonEmergency => _get('cancellationReasonEmergency');
+  String get cancellationReasonProhibitedItem =>
+      _get('cancellationReasonProhibitedItem');
+  String get cancellationOtherHint => _get('cancellationOtherHint');
+  String get cancellationConfirmButton => _get('cancellationConfirmButton');
+  String cancellationRateLimitMessage(String date) =>
+      _get('cancellationRateLimitMessage').replaceFirst('{date}', date);
+  String get cancellationFeeApplied => _get('cancellationFeeApplied');
+  String get cancellationWalletCta => _get('cancellationWalletCta');
+  String get cancellationSuccess => _get('cancellationSuccess');
+  String get cancellationTooLate => _get('cancellationTooLate');
+
+  // T-MOB-025: Saved locations CRUD
+  String get savedLocationsManage => _get('savedLocationsManage');
+  String get savedLocationsAddNew => _get('savedLocationsAddNew');
+  String get savedLocationsEdit => _get('savedLocationsEdit');
+  String get savedLocationsDelete => _get('savedLocationsDelete');
+  String get savedLocationsDeleteConfirmTitle =>
+      _get('savedLocationsDeleteConfirmTitle');
+  String savedLocationsDeleteConfirmBody(String label) =>
+      _get('savedLocationsDeleteConfirmBody').replaceFirst('{label}', label);
+  String get savedLocationsCapReached => _get('savedLocationsCapReached');
+  String get savedLocationsError => _get('savedLocationsError');
+  String get savedLocationsDeleteError => _get('savedLocationsDeleteError');
+  String get savedLocationsSaveError => _get('savedLocationsSaveError');
+
+  // T-MOB-030: Offer submission form
+  String get offerSubmitTitle => _get('offerSubmitTitle');
+  String get offerSubmitPriceLabel => _get('offerSubmitPriceLabel');
+  String get offerSubmitEtaLabel => _get('offerSubmitEtaLabel');
+  String get offerSubmitNoteLabel => _get('offerSubmitNoteLabel');
+  String get offerSubmitButton => _get('offerSubmitButton');
+  String get offerSubmitButtonSemantics => _get('offerSubmitButtonSemantics');
+  String get offerSubmitWithdrawTooltip => _get('offerSubmitWithdrawTooltip');
+  String get offerSubmitRequestGone => _get('offerSubmitRequestGone');
+
+  // T-MOB-031: Active delivery (Jeeber)
+  String get activeDeliveryTitle => _get('activeDeliveryTitle');
+  String get activeDeliveryDropOffLabel => _get('activeDeliveryDropOffLabel');
+  String get activeDeliveryStatusOrdered => _get('activeDeliveryStatusOrdered');
+  String get activeDeliveryStatusPicked => _get('activeDeliveryStatusPicked');
+  String get activeDeliveryStatusInTransit =>
+      _get('activeDeliveryStatusInTransit');
+  String get activeDeliveryStatusAtDoor => _get('activeDeliveryStatusAtDoor');
+  String get activeDeliveryStatusDone => _get('activeDeliveryStatusDone');
+  String get activeDeliveryMarkPicked => _get('activeDeliveryMarkPicked');
+  String get activeDeliveryMarkInTransit => _get('activeDeliveryMarkInTransit');
+  String get activeDeliveryMarkAtDoor => _get('activeDeliveryMarkAtDoor');
+  String get activeDeliveryMarkDone => _get('activeDeliveryMarkDone');
+  String get activeDeliveryOpenMapsButton => _get('activeDeliveryOpenMapsButton');
+  String get activeDeliveryOpenChatButton => _get('activeDeliveryOpenChatButton');
+  String get activeDeliveryUnavailable => _get('activeDeliveryUnavailable');
+  String get activeDeliveryLoadError => _get('activeDeliveryLoadError');
+  String activeDeliveryStepperA11y(String current, String next) =>
+      _get('activeDeliveryStepperA11y')
+          .replaceFirst('{current}', current)
+          .replaceFirst('{next}', next);
+  String activeDeliveryStepperCurrentDone(String current) =>
+      _get('activeDeliveryStepperCurrentDone').replaceFirst('{current}', current);
+
+  // T-MOB-032: Settlement statements
+  String get settlementTitle => _get('settlementTitle');
+  String get settlementEmptyMessage => _get('settlementEmptyMessage');
+  String get settlementLoadError => _get('settlementLoadError');
+  String get settlementUnavailable => _get('settlementUnavailable');
+  String get settlementStatusPaid => _get('settlementStatusPaid');
+  String get settlementStatusPending => _get('settlementStatusPending');
+  String get settlementDownloadTooltip => _get('settlementDownloadTooltip');
+  String settlementRowSemantics(String amount, String status) =>
+      _get('settlementRowSemantics')
+          .replaceFirst('{amount}', amount)
+          .replaceFirst('{status}', status);
+  String get settlementBreakdownTitle => _get('settlementBreakdownTitle');
+  String get settlementTotalPayout => _get('settlementTotalPayout');
+  String settlementCommissionLabel(String amount) =>
+      _get('settlementCommissionLabel').replaceFirst('{amount}', amount);
 }

@@ -13,13 +13,14 @@ import 'kyc_status_view.dart';
 import 'widgets/kyc_id_step.dart';
 import 'widgets/kyc_selfie_step.dart';
 import 'widgets/kyc_submitting_view.dart';
+import 'widgets/kyc_tos_step.dart';
 import 'widgets/kyc_vehicle_step.dart';
 
 /// Hosts the KYC wizard at `/profile/kyc`.
 ///
-/// Builds a single [KycWizardCubit] per visit. The status step is rendered by
-/// [KycStatusView]; the three capture steps share a labeled stepper progress
-/// indicator pinned to the top.
+/// Starts with a schema-load step (AC1: fetches form schema on open).
+/// The four capture steps share a labeled stepper progress indicator.
+/// Step 5 (ToS) renders the contract template + signature pad.
 class KycWizardScreen extends StatelessWidget {
   const KycWizardScreen({
     super.key,
@@ -31,8 +32,6 @@ class KycWizardScreen extends StatelessWidget {
           'Provide either a cubit or the (pickerService, gateway) pair, not both.',
         );
 
-  /// Optional override — production builds a fresh cubit with stub camera +
-  /// fake gateway, widget tests inject one with a controlled gateway decision.
   final KycWizardCubit? cubit;
   final PhotoPickerService? pickerService;
   final KycGateway? gateway;
@@ -59,22 +58,13 @@ class KycWizardScreen extends StatelessWidget {
     );
   }
 
-  // The wizard is reachable from a push deep link before bootstrap has had a
-  // chance to register the singletons (cold-start path) and from boot tests
-  // that don't configure GetIt at all. Falling back to in-process fakes keeps
-  // the screen rendering instead of throwing a GetIt lookup error — once
-  // configureDependencies runs, the registered singleton wins for new visits.
   PhotoPickerService _resolvePicker() {
-    if (sl.isRegistered<PhotoPickerService>()) {
-      return sl<PhotoPickerService>();
-    }
+    if (sl.isRegistered<PhotoPickerService>()) return sl<PhotoPickerService>();
     return StubPhotoPickerService();
   }
 
   KycGateway _resolveGateway() {
-    if (sl.isRegistered<KycGateway>()) {
-      return sl<KycGateway>();
-    }
+    if (sl.isRegistered<KycGateway>()) return sl<KycGateway>();
     return FakeKycGateway();
   }
 }
@@ -92,17 +82,7 @@ class _WizardScaffold extends StatelessWidget {
         centerTitle: false,
         leading: BlocBuilder<KycWizardCubit, KycWizardState>(
           buildWhen: (prev, curr) => prev.step != curr.step,
-          builder: (context, state) {
-            final canGoBack = state.step == KycWizardStep.selfie ||
-                state.step == KycWizardStep.vehicle;
-            if (!canGoBack) return const BackButton();
-            return IconButton(
-              key: KycWizardScreen.backLeadingKey,
-              icon: const Icon(Icons.arrow_back),
-              tooltip: l10n.kycWizardBack,
-              onPressed: () => context.read<KycWizardCubit>().goBack(),
-            );
-          },
+          builder: (context, state) => _buildLeading(context, state, l10n),
         ),
       ),
       body: SafeArea(
@@ -110,19 +90,43 @@ class _WizardScaffold extends StatelessWidget {
           listenWhen: (prev, curr) =>
               prev.error != curr.error && curr.error != null,
           listener: _surfaceError,
-          builder: (context, state) {
-            if (state.step == KycWizardStep.status) {
-              return const KycStatusView();
-            }
-            return Column(
-              children: [
-                _ProgressHeader(state: state),
-                Expanded(child: _stepFor(state.step)),
-              ],
-            );
-          },
+          builder: (context, state) => _buildBody(context, state, l10n),
         ),
       ),
+    );
+  }
+
+  Widget _buildLeading(
+    BuildContext context,
+    KycWizardState state,
+    AppLocalizations l10n,
+  ) {
+    final canGoBack = state.step == KycWizardStep.selfie ||
+        state.step == KycWizardStep.vehicle ||
+        state.step == KycWizardStep.tos;
+    if (!canGoBack) return const BackButton();
+    return IconButton(
+      key: KycWizardScreen.backLeadingKey,
+      icon: const Icon(Icons.arrow_back),
+      tooltip: l10n.kycWizardBack,
+      onPressed: () => context.read<KycWizardCubit>().goBack(),
+    );
+  }
+
+  Widget _buildBody(
+    BuildContext context,
+    KycWizardState state,
+    AppLocalizations l10n,
+  ) {
+    if (state.step == KycWizardStep.status) return const KycStatusView();
+    if (state.step == KycWizardStep.schema) {
+      return _SchemaLoadingView(l10n: l10n, state: state);
+    }
+    return Column(
+      children: [
+        _ProgressHeader(state: state),
+        Expanded(child: _stepFor(state.step)),
+      ],
     );
   }
 
@@ -134,10 +138,12 @@ class _WizardScaffold extends StatelessWidget {
         return const KycSelfieStep();
       case KycWizardStep.vehicle:
         return const KycVehicleStep();
+      case KycWizardStep.tos:
+        return const KycTosStep();
       case KycWizardStep.submitting:
         return const KycSubmittingView();
+      case KycWizardStep.schema:
       case KycWizardStep.status:
-        // Handled by the early return above; defensive fall-through.
         return const SizedBox.shrink();
     }
   }
@@ -148,12 +154,7 @@ class _WizardScaffold extends StatelessWidget {
     if (error == null) return;
     final cubit = context.read<KycWizardCubit>();
     final message = _messageFor(l10n, error);
-    if (message != null) {
-      showOmdsSnackbar(context, message: message);
-    }
-    // The vehicle-registration error is an inline field error and is cleared
-    // by the cubit's setVehicleRegistration on input; everything else is a
-    // one-shot snackbar that we ack here.
+    if (message != null) showOmdsSnackbar(context, message: message);
     if (error != KycWizardError.vehicleRegistrationRequired) {
       cubit.acknowledgeError();
     }
@@ -172,9 +173,57 @@ class _WizardScaffold extends StatelessWidget {
       case KycWizardError.submitFailed:
         return l10n.kycErrorSubmitFailed;
       case KycWizardError.vehicleRegistrationRequired:
-        // Rendered inline under the text field; no snackbar.
         return null;
+      case KycWizardError.schemaLoadFailed:
+        return l10n.kycErrorSchemaLoadFailed;
+      case KycWizardError.contractLoadFailed:
+        return l10n.kycErrorContractLoadFailed;
+      case KycWizardError.signFailed:
+        return l10n.kycErrorSignFailed;
+      case KycWizardError.fileTooLarge:
+        return l10n.kycErrorFileTooLarge;
+      case KycWizardError.fileTypeNotAllowed:
+        return l10n.kycErrorFileTypeNotAllowed;
     }
+  }
+}
+
+class _SchemaLoadingView extends StatelessWidget {
+  const _SchemaLoadingView({required this.l10n, required this.state});
+
+  final AppLocalizations l10n;
+  final KycWizardState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasError = state.error == KycWizardError.schemaLoadFailed;
+    if (hasError) {
+      return _SchemaErrorView(l10n: l10n);
+    }
+    return const Center(child: OmdsLoadingState());
+  }
+}
+
+class _SchemaErrorView extends StatelessWidget {
+  const _SchemaErrorView({required this.l10n});
+
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(l10n.kycErrorSchemaLoadFailed),
+          const SizedBox(height: Spacing.medium),
+          OMDSOutlinedButton(
+            text: l10n.kycRetry,
+            onTap: () => context.read<KycWizardCubit>().loadSchema(),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -192,8 +241,11 @@ class _ProgressHeader extends StatelessWidget {
       case KycWizardStep.vehicle:
       case KycWizardStep.submitting:
         return 3;
+      case KycWizardStep.tos:
       case KycWizardStep.status:
         return KycWizardState.totalCaptureSteps;
+      case KycWizardStep.schema:
+        return 0;
     }
   }
 

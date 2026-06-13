@@ -21,7 +21,10 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 class _StubEarningsRepository implements EarningsRepository {
   @override
-  Future<EarningsSummary> fetchEarnings({required String jeeberId}) async =>
+  Future<EarningsSummary> fetchEarnings({
+    required String jeeberId,
+    EarningsPeriod period = EarningsPeriod.week,
+  }) async =>
       const EarningsSummary(
         totalEarnings: 0,
         currency: 'LBP',
@@ -30,6 +33,13 @@ class _StubEarningsRepository implements EarningsRepository {
         netPayout: 0,
         periodLabel: 'today',
       );
+
+  @override
+  Future<String> exportEarningsPdf({
+    required String jeeberId,
+    EarningsPeriod period = EarningsPeriod.week,
+  }) async =>
+      '/tmp/earnings.pdf';
 }
 
 class _SyncAppLocalizationsDelegate
@@ -117,7 +127,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Requests'), findsWidgets);
-    expect(find.text('DELIVERY'), findsWidgets);
+    expect(find.text('Delivery'), findsWidgets);
     expect(find.text('Profile'), findsWidgets);
     // Jeeber-only tabs must NOT be present.
     expect(find.text('Dashboard'), findsNothing);
@@ -138,7 +148,7 @@ void main() {
     expect(find.text('Earnings'), findsWidgets);
     expect(find.text('Profile'), findsWidgets);
     expect(find.text('Requests'), findsNothing);
-    expect(find.text('DELIVERY'), findsNothing);
+    expect(find.text('Delivery'), findsNothing);
   });
 
   testWidgets('Arabic locale renders RTL bottom-nav labels in Arabic',
@@ -161,8 +171,8 @@ void main() {
     await tester.pumpWidget(_harness(prefs: prefs));
     await tester.pumpAndSettle();
 
-    // Tap the DELIVERY destination (client-only, index 1).
-    await tester.tap(find.text('DELIVERY').last);
+    // Tap the Delivery destination (client-only, index 1).
+    await tester.tap(find.text('Delivery').last);
     await tester.pumpAndSettle();
 
     final BuildContext ctx = tester.element(find.byType(ShellScreen));

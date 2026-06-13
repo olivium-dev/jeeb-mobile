@@ -3,6 +3,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../domain/otp_handover_repository.dart';
 import 'otp_handover_state.dart';
 
+/// T-MOB-018: Manages client OTP display and Jeeber OTP entry flow.
+///
+/// AC2: success → emits `OtpHandoverViewMode.success`.
+/// AC3: wrong code → increments `wrongAttempts`, increments `shakeKey`.
+/// AC4: 3rd wrong code (or 423 locked) → sets `escalate = true`.
 class OtpHandoverCubit extends Cubit<OtpHandoverState> {
   OtpHandoverCubit({
     required OtpHandoverRepository repository,
@@ -40,16 +45,45 @@ class OtpHandoverCubit extends Cubit<OtpHandoverState> {
 
   Future<void> submitOtp(String otp) async {
     if (state.mode == OtpHandoverViewMode.submitting) return;
+    if (state.escalate) return;
     emit(state.copyWith(mode: OtpHandoverViewMode.submitting, clearError: true));
     try {
       await _repository.submitOtp(deliveryId: deliveryId, otp: otp);
       emit(state.copyWith(mode: OtpHandoverViewMode.success));
     } on OtpHandoverException catch (e) {
+      _handleSubmitError(e);
+    }
+  }
+
+  void _handleSubmitError(OtpHandoverException e) {
+    if (e.kind == OtpHandoverErrorKind.invalidOtp) {
+      _incrementWrongAttempts();
+      return;
+    }
+    if (e.kind == OtpHandoverErrorKind.locked) {
       emit(state.copyWith(
         mode: OtpHandoverViewMode.ready,
+        escalate: true,
         errorMessage: _mapError(e.kind),
       ));
+      return;
     }
+    emit(state.copyWith(
+      mode: OtpHandoverViewMode.ready,
+      errorMessage: _mapError(e.kind),
+    ));
+  }
+
+  void _incrementWrongAttempts() {
+    final next = state.wrongAttempts + 1;
+    final shouldEscalate = next >= OtpHandoverState.maxAttempts;
+    emit(state.copyWith(
+      mode: OtpHandoverViewMode.ready,
+      wrongAttempts: next,
+      shakeKey: state.shakeKey + 1,
+      errorMessage: _mapError(OtpHandoverErrorKind.invalidOtp),
+      escalate: shouldEscalate,
+    ));
   }
 
   void retry() {
@@ -60,16 +94,22 @@ class OtpHandoverCubit extends Cubit<OtpHandoverState> {
     }
   }
 
+  void dismissEscalate() {
+    emit(state.copyWith(escalate: false, clearError: true));
+  }
+
   String _mapError(OtpHandoverErrorKind kind) {
     switch (kind) {
       case OtpHandoverErrorKind.network:
-        return 'Unable to connect. Check your internet.';
+        return 'network';
       case OtpHandoverErrorKind.server:
-        return 'Server error. Please try again.';
+        return 'server';
       case OtpHandoverErrorKind.invalidOtp:
-        return 'Invalid OTP. Please check and try again.';
+        return 'invalid_otp';
+      case OtpHandoverErrorKind.locked:
+        return 'locked';
       case OtpHandoverErrorKind.parse:
-        return 'Unexpected response.';
+        return 'parse';
     }
   }
 }

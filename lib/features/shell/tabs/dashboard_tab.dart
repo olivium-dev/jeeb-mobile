@@ -6,7 +6,10 @@ import 'package:omds/omds.dart';
 
 import '../../../core/dev_seam/dev_seam.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../jeeber_home/application/availability_cubit.dart';
+import '../../jeeber_home/domain/entities/availability_status.dart';
 import '../../jeeber_home/domain/entities/feed_request.dart';
+import '../../jeeber_home/domain/services/availability_gateway.dart';
 import '../../jeeber_home/presentation/jeeber_home_screen.dart';
 import '../../jeeber_home/presentation/widgets/jeeber_feed_empty_view.dart';
 import '../../jeeber_home/presentation/widgets/jeeber_feed_tab_view.dart';
@@ -119,10 +122,25 @@ class _DevFeedBody extends StatelessWidget {
         profileAvatarUrl: avatarUrl,
       );
     }
-    return BlocProvider<RequestFeedCubit>(
-      create: (_) => RequestFeedCubit(
-        repository: SeededRequestFeedRepository(_snapshotFor(view)),
-      )..start(),
+    // Provide a dev-only availability cubit (always-online) so
+    // JeeberFeedTabView can read it for the offline-banner check.
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<AvailabilityCubit>(
+          create: (_) => AvailabilityCubit(
+            gateway: InMemoryAvailabilityGateway(
+              initial: AvailabilityStatus.initial.copyWith(
+                state: AvailabilityState.online,
+              ),
+            ),
+          ),
+        ),
+        BlocProvider<RequestFeedCubit>(
+          create: (_) => RequestFeedCubit(
+            repository: SeededRequestFeedRepository(_snapshotFor(view)),
+          )..start(),
+        ),
+      ],
       child: JeeberFeedTabView(
         profileName: name,
         profileAvatarUrl: avatarUrl,

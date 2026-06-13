@@ -146,13 +146,20 @@ class _RegistrationViewState extends State<_RegistrationView> {
     _pushedOtp = false;
   }
 
-  void _navigateHome() {
+  Future<void> _navigateHome() async {
     final onVerified = widget.onVerified;
     if (onVerified != null) {
+      // Test seam: caller controls navigation; no OnboardingCubit required.
       onVerified();
-    } else {
-      context.go('/');
+      return;
     }
+    // Production path: persist completion flag so the router lets the user
+    // through to the shell. The super-login dev seam manages this separately.
+    if (!mounted) return;
+    await context.read<OnboardingCubit>().complete();
+    if (!mounted) return;
+    // ignore: use_build_context_synchronously
+    context.go('/');
   }
 
   @override
@@ -161,14 +168,14 @@ class _RegistrationViewState extends State<_RegistrationView> {
     return BlocConsumer<RegistrationCubit, RegistrationState>(
       listenWhen: (prev, curr) =>
           prev.step != curr.step || prev.phoneInput != curr.phoneInput,
-      listener: (context, state) {
+      listener: (context, state) async {
         _syncControllerText(state.phoneInput);
         if (state.step == RegistrationStep.otp && !_pushedOtp) {
           _openOtpRoute();
         }
         if (state.step == RegistrationStep.verified) {
-          // Verified — drop the registration stack and land on home.
-          _navigateHome();
+          // Verified — persist onboarding completion and land on home.
+          await _navigateHome();
         }
       },
       builder: (context, state) {

@@ -66,6 +66,9 @@ class TierSelectionScreen extends StatelessWidget {
     );
   }
 
+  /// Resolves from DI if registered (production path: DioTierRepository).
+  /// Falls back to FakeTierRepository only in test environments where DI
+  /// hasn't been initialised — never reachable in release builds.
   TierRepository _resolveRepository() {
     if (sl.isRegistered<TierRepository>()) {
       return sl<TierRepository>();
@@ -144,6 +147,8 @@ class _LoadedView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (state.usingCachedFallback)
+          _CachedBanner(message: l10n.tierSelectionCachedBanner),
         Padding(
           padding: const EdgeInsets.fromLTRB(
             Spacing.large,
@@ -183,6 +188,52 @@ class _LoadedView extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Soft warning banner shown when the tier catalog fell back to bundled
+/// defaults because the network was unreachable (AC3).
+class _CachedBanner extends StatelessWidget {
+  const _CachedBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      key: const Key('tier-selection-cached-banner'),
+      margin: const EdgeInsets.symmetric(
+        horizontal: Spacing.large,
+        vertical: Spacing.xSmall,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.small,
+        vertical: Spacing.xSmall,
+      ),
+      decoration: BoxDecoration(
+        color: colors.tertiaryContainer,
+        borderRadius: OmdsBorderRadius.small,
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.info_outline_rounded,
+            color: colors.onTertiaryContainer,
+            size: Sizes.large,
+          ),
+          const SizedBox(width: Spacing.xSmall),
+          Expanded(
+            child: Text(
+              message,
+              style: textTheme.bodySmall
+                  ?.copyWith(color: colors.onTertiaryContainer),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -48,6 +48,30 @@ abstract class ChatGateway {
   /// flipped, system message appended). The gateway is responsible for the
   /// HTTP call; the cubit re-fetches history + phase once this resolves.
   Future<void> acceptOffer(String conversationId, String offerId) async {}
+
+  /// Upload a raw voice clip to `/v1/voice/transcribe` and return the CDN URL
+  /// and optional transcription text. The [idempotencyKey] must be stable
+  /// across retries so the voice-transcription-service deduplicates uploads.
+  /// Returns a [VoiceUploadResult] — callers store the URL in the voice bubble
+  /// and optionally fill the transcription text when it arrives.
+  Future<VoiceUploadResult> uploadVoice({
+    required String idempotencyKey,
+    required List<int> audioBytes,
+    required String mimeType,
+    required int durationMs,
+  }) async => const VoiceUploadResult(url: '', transcription: null);
+}
+
+/// Result returned by [ChatGateway.uploadVoice].
+class VoiceUploadResult {
+  const VoiceUploadResult({required this.url, this.transcription});
+
+  /// CDN URL of the uploaded audio file.
+  final String url;
+
+  /// AI-generated transcription text. Null when the transcription has not
+  /// resolved yet (async path) or when the backend timed out.
+  final String? transcription;
 }
 
 /// Closed union of inbound chat events. Kept as a sealed-style hierarchy so

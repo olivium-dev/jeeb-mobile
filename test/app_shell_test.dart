@@ -89,7 +89,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Requests'), findsWidgets);
-      expect(find.text('DELIVERY'), findsWidgets);
+      expect(find.text('Delivery'), findsWidgets);
       expect(find.text('Profile'), findsWidgets);
     });
 
@@ -128,7 +128,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Requests'), findsWidgets);
-      expect(find.text('DELIVERY'), findsWidgets);
+      expect(find.text('Delivery'), findsWidgets);
       expect(find.text('Profile'), findsWidgets);
       expect(find.text('Dashboard'), findsNothing);
       expect(find.text('Earnings'), findsNothing);

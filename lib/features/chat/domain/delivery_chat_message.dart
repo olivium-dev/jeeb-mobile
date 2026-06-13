@@ -239,6 +239,7 @@ class DeliveryChatMessage extends Equatable {
     this.imageUrl,
     this.voiceUrl,
     this.voiceDurationMs,
+    this.voiceTranscription,
     this.latitude,
     this.longitude,
     this.offerPayload,
@@ -305,6 +306,7 @@ class DeliveryChatMessage extends Equatable {
     required MessageStatus status,
     required String url,
     int durationMs = 0,
+    String? transcription,
   }) => DeliveryChatMessage._(
         id: id,
         author: author,
@@ -313,6 +315,7 @@ class DeliveryChatMessage extends Equatable {
         kind: MessageKind.voice,
         voiceUrl: url,
         voiceDurationMs: durationMs,
+        voiceTranscription: transcription,
       );
 
   factory DeliveryChatMessage.location({
@@ -413,6 +416,10 @@ class DeliveryChatMessage extends Equatable {
   final String? voiceUrl;
   final int? voiceDurationMs;
 
+  /// AI-generated transcription for `voice` kind messages. Null until the
+  /// upload resolves or if transcription timed out (shown as "unavailable").
+  final String? voiceTranscription;
+
   /// Lat/lng for `location` kind messages.
   final double? latitude;
   final double? longitude;
@@ -429,7 +436,10 @@ class DeliveryChatMessage extends Equatable {
   bool get isSystemNotice => kind.isSystemNotice;
   bool get isOfferCard => kind == MessageKind.offerCard;
 
-  DeliveryChatMessage copyWith({MessageStatus? status}) {
+  DeliveryChatMessage copyWith({
+    MessageStatus? status,
+    String? voiceTranscription,
+  }) {
     return DeliveryChatMessage._(
       id: id,
       author: author,
@@ -442,6 +452,7 @@ class DeliveryChatMessage extends Equatable {
       imageUrl: imageUrl,
       voiceUrl: voiceUrl,
       voiceDurationMs: voiceDurationMs,
+      voiceTranscription: voiceTranscription ?? this.voiceTranscription,
       latitude: latitude,
       longitude: longitude,
       offerPayload: offerPayload,
@@ -462,6 +473,7 @@ class DeliveryChatMessage extends Equatable {
         imageUrl,
         voiceUrl,
         voiceDurationMs,
+        voiceTranscription,
         latitude,
         longitude,
         offerPayload,

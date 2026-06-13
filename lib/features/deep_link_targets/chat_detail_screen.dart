@@ -1,7 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
+import 'package:omds/omds.dart';
 
+import '../../core/role/role_cubit.dart';
+import '../../core/role/user_role.dart';
 import '../chat/data/dio_chat_gateway.dart';
 import '../chat/data/in_memory_chat_gateway.dart';
 import '../chat/domain/chat_gateway.dart';
@@ -27,6 +32,12 @@ class ChatDetailScreen extends StatefulWidget {
 class _ChatDetailScreenState extends State<ChatDetailScreen> {
   String _resolvedConversationId = '';
   String _counterpartName = '';
+
+  /// The delivery/request id this conversation is bound to (mock convention:
+  /// `deliveryId == accepted-request-id`). Captured from `conversationData`
+  /// during resolution and used as the jeeber's active-delivery route param.
+  /// Empty when the conversation carries no `requestId`.
+  String _resolvedRequestId = '';
   ChatGateway? _gateway;
   bool _loading = true;
 
@@ -92,12 +103,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
 
     final title = await _resolveTitle(dio, conversationData);
+    // Mock convention: deliveryId == accepted-request-id. Prefer the
+    // conversation's requestId; the jeeber's "Start delivery" CTA pushes
+    // `/jeeber/deliveries/<id>/active` with this value (build() falls back to
+    // the resolved conversation id when no requestId is present).
+    final requestId = conversationData?['requestId'] as String? ?? '';
     final gateway = DioChatGateway(
       dio: dio,
       currentUserId: 'user-client-001',
     );
     if (!mounted) return;
-    _finalize(conversationId, gateway, title);
+    _finalize(conversationId, gateway, title, requestId: requestId);
   }
 
   Future<String> _resolveTitle(
@@ -136,26 +152,63 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     return '';
   }
 
-  void _finalize(String conversationId, ChatGateway gateway, String title) {
+  void _finalize(
+    String conversationId,
+    ChatGateway gateway,
+    String title, {
+    String requestId = '',
+  }) {
     if (!mounted) return;
     setState(() {
       _resolvedConversationId = conversationId;
       _gateway = gateway;
       _counterpartName = title;
+      _resolvedRequestId = requestId;
       _loading = false;
     });
   }
 
+  /// Reads the active [UserRole] from the app-global [RoleCubit]. Returns
+  /// [UserRole.client] when the cubit is not an ancestor (e.g. an isolated
+  /// host or widget test), so the screen degrades to the safe client variant
+  /// instead of throwing [ProviderNotFoundException].
+  UserRole _readRole(BuildContext context) {
+    try {
+      return context.read<RoleCubit>().state;
+    } on ProviderNotFoundException {
+      return UserRole.client;
+    }
+  }
+
+  /// Best-available delivery identifier for the active-delivery route. Prefers
+  /// the conversation's `requestId` (mock convention: `deliveryId ==
+  /// accepted-request-id`), falling back to the resolved conversation id.
+  String get _deliveryId =>
+      _resolvedRequestId.isNotEmpty
+          ? _resolvedRequestId
+          : _resolvedConversationId;
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: Center(child: OmdsLoadingState()));
     }
+    // Role-aware entry point: a jeeber whose offer was accepted lands here via
+    // `/chat/:id` and must be able to start the delivery. RoleCubit is provided
+    // app-wide (MultiBlocProvider in JeebApp, above MaterialApp.router), so it
+    // is an ancestor of every route the router builds — read it directly. We
+    // default to the client variant (null callback, prior behavior) when the
+    // cubit is absent from the tree, so non-app-rooted hosts (e.g. the dev
+    // capture seam, isolated widget tests) degrade safely rather than throw.
+    final isJeeber = _readRole(context) == UserRole.jeeber;
     return ChatScreen(
       deliveryId: _resolvedConversationId,
       counterpartName: _counterpartName,
       gateway: _gateway!,
       pickerService: StubPhotoPickerService(),
+      onStartActiveDelivery: isJeeber
+          ? () => context.push('/jeeber/deliveries/$_deliveryId/active')
+          : null,
     );
   }
 }

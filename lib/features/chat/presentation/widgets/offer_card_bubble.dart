@@ -9,20 +9,21 @@ import 'chat_bubble_timestamp.dart';
 ///
 /// Mirrors the Figma layout: a grey incoming-style card carrying the Jeeber's
 /// name + inline star rating on the header row, the offer note as the body,
-/// and a footer with the timestamp and a navy "Accept Offer" pill. A small
-/// counterpart avatar sits outside the card on the leading edge. The screen
-/// hands [onAccept] to the cubit which drives the accept saga.
+/// and a footer with the timestamp, a navy "Accept Offer" pill, and a Decline
+/// button. The screen hands [onAccept]/[onDecline] to the cubit.
 class OfferCardBubble extends StatelessWidget {
   const OfferCardBubble({
     super.key,
     required this.message,
     required this.onAccept,
+    this.onDecline,
     this.isAccepting = false,
     this.acceptDisabled = false,
   });
 
   final DeliveryChatMessage message;
   final ValueChanged<String> onAccept;
+  final ValueChanged<String>? onDecline;
   final bool isAccepting;
   final bool acceptDisabled;
 
@@ -48,11 +49,12 @@ class OfferCardBubble extends StatelessWidget {
             Expanded(
               child: _OfferCardBody(
                 message: message,
-                child: _OfferCta(
+                child: _OfferActions(
                   payload: payload,
                   isAccepting: isAccepting,
                   acceptDisabled: acceptDisabled,
                   onAccept: onAccept,
+                  onDecline: onDecline,
                 ),
               ),
             ),
@@ -63,10 +65,45 @@ class OfferCardBubble extends StatelessWidget {
   }
 }
 
-/// Navy "Accept Offer" pill in the offer card footer. Carries its own
-/// semantics identifier + key so QA/Maestro can target the accept action.
-class _OfferCta extends StatelessWidget {
-  const _OfferCta({
+/// Accept + Decline row in the offer card footer.
+class _OfferActions extends StatelessWidget {
+  const _OfferActions({
+    required this.payload,
+    required this.isAccepting,
+    required this.acceptDisabled,
+    required this.onAccept,
+    this.onDecline,
+  });
+
+  final OfferCardPayload payload;
+  final bool isAccepting;
+  final bool acceptDisabled;
+  final ValueChanged<String> onAccept;
+  final ValueChanged<String>? onDecline;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (onDecline != null) ...[
+          _DeclineButton(payload: payload, onDecline: onDecline!),
+          const SizedBox(width: Spacing.small),
+        ],
+        _AcceptButton(
+          payload: payload,
+          isAccepting: isAccepting,
+          acceptDisabled: acceptDisabled,
+          onAccept: onAccept,
+        ),
+      ],
+    );
+  }
+}
+
+/// Navy "Accept Offer" pill in the offer card footer.
+class _AcceptButton extends StatelessWidget {
+  const _AcceptButton({
     required this.payload,
     required this.isAccepting,
     required this.acceptDisabled,
@@ -84,6 +121,9 @@ class _OfferCta extends StatelessWidget {
     return Semantics(
       identifier: 'chat_detail_accept_${payload.offerId}',
       button: true,
+      label: '${l10n.chatOfferAccept}: ${payload.jeeberName}, '
+          '${payload.fee} ${payload.currency}, '
+          '${l10n.chatOfferEtaMinutes(payload.etaMinutes)}',
       child: OmdsPrimaryButton(
         key: Key('chat-offer-accept-${payload.offerId}'),
         text: isAccepting ? l10n.chatOfferAccepting : l10n.chatOfferAccept,
@@ -92,6 +132,34 @@ class _OfferCta extends StatelessWidget {
           onAccept(payload.offerId);
         },
         borderRadius: OmdsBorderRadius.pill,
+      ),
+    );
+  }
+}
+
+/// Outlined "Decline" button in the offer card footer.
+class _DeclineButton extends StatelessWidget {
+  const _DeclineButton({
+    required this.payload,
+    required this.onDecline,
+  });
+
+  final OfferCardPayload payload;
+  final ValueChanged<String> onDecline;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      identifier: 'chat_detail_decline_${payload.offerId}',
+      button: true,
+      label: '${l10n.chatOfferDecline}: ${payload.jeeberName}',
+      child: OmdsPrimaryButton(
+        key: Key('chat-offer-decline-${payload.offerId}'),
+        text: l10n.chatOfferDecline,
+        onTap: () => onDecline(payload.offerId),
+        borderRadius: OmdsBorderRadius.pill,
+        variant: OmdsButtonVariant.outlined,
       ),
     );
   }

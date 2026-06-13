@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../application/request_summary_cubit.dart';
@@ -9,15 +10,22 @@ class RequestSummaryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<RequestSummaryCubit, RequestSummaryState>(
-      builder: (context, state) {
-        final draft = state.draft;
-        if (draft == null) return const OmdsLoadingState();
-        return Scaffold(
-          appBar: const OMDSAppBar(title: 'Review Request'),
-          body: _RequestSummaryBody(state: state),
-        );
-      },
+    // On a successful submit, return to the Requests tab (`/`). The submit
+    // cubit only flips isSubmitted once, so listenWhen fires exactly on the
+    // false → true edge.
+    return BlocListener<RequestSummaryCubit, RequestSummaryState>(
+      listenWhen: (p, c) => !p.isSubmitted && c.isSubmitted,
+      listener: (context, state) => context.go('/'),
+      child: BlocBuilder<RequestSummaryCubit, RequestSummaryState>(
+        builder: (context, state) {
+          final draft = state.draft;
+          if (draft == null) return const OmdsLoadingState();
+          return Scaffold(
+            appBar: const OMDSAppBar(title: 'Review Request'),
+            body: _RequestSummaryBody(state: state),
+          );
+        },
+      ),
     );
   }
 }
@@ -67,10 +75,14 @@ class _SubmitButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OmdsLoadingButton(
-      text: 'Submit Request',
-      isLoading: isSubmitting,
-      onTap: () => context.read<RequestSummaryCubit>().submit(),
+    return Semantics(
+      identifier: 'request_summary_submit',
+      button: true,
+      child: OmdsLoadingButton(
+        text: 'Submit Request',
+        isLoading: isSubmitting,
+        onTap: () => context.read<RequestSummaryCubit>().submit(),
+      ),
     );
   }
 }

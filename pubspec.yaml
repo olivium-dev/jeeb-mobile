@@ -56,6 +56,18 @@ dependencies:
   # rationale as `crypto` below). Version matches omds_library (^2.0.10+1).
   flutter_svg: ^2.0.10+1
 
+  # URL launcher — used by active-delivery screen (T-MOB-031) to open Google
+  # Maps / Waze deep-link and by share-PDF flow (T-MOB-032).
+  url_launcher: ^6.3.0
+
+  # Open files from device storage — used by settlement PDF download (T-MOB-032)
+  # to trigger the OS share sheet after the file is saved to the cache dir.
+  open_file: ^3.3.2
+
+  # Temporary directory access — used by settlement PDF download to write the
+  # file before passing it to open_file (T-MOB-032).
+  path_provider: ^2.1.4
+
   # Internationalisation
   intl: ^0.20.2
 

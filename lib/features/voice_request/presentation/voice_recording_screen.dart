@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
-import '../../../core/network/dio_client.dart';
+import '../../../core/network/mock_gateway_client.dart';
 import '../../../l10n/app_localizations.dart';
 import '../cubit/voice_recording_cubit.dart';
 import '../cubit/voice_recording_state.dart';
@@ -48,7 +48,9 @@ class VoiceRecordingScreen extends StatelessWidget {
       create: (_) => VoiceRecordingCubit(
         recorder: FakeVoiceRecorder(),
         player: FakeVoicePlayer(),
-        repository: HttpVoiceRecordingRepository(dio: DioClient.createDio()),
+        repository: HttpVoiceRecordingRepository(
+          dio: MockGatewayClient.createDio(),
+        ),
       ),
       child: view,
     );
@@ -79,6 +81,9 @@ class _VoiceRecordingView extends StatelessWidget {
             }
             final error = state.error;
             if (error != null) {
+              // EXEMPT: OMDS does not export a standalone snackbar/toast
+              // widget; ScaffoldMessenger.showSnackBar is the approved
+              // fleet pattern for transient error feedback (T-MOB-011).
               ScaffoldMessenger.of(context)
                 ..clearSnackBars()
                 ..showSnackBar(
@@ -187,30 +192,10 @@ class _PrimarySurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final cubit = context.read<VoiceRecordingCubit>();
     switch (state.phase) {
       case VoiceRecordingPhase.idle:
       case VoiceRecordingPhase.recording:
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedMicButton(
-              isRecording: state.isRecording,
-              enabled: true,
-              onPressStart: cubit.startRecording,
-              onPressEnd: cubit.stopRecording,
-              semanticLabel: l10n.voiceRecordingMicSemantic,
-            ),
-            const SizedBox(height: Spacing.medium),
-            Text(
-              state.isRecording
-                  ? l10n.voiceRecordingReleaseToStop
-                  : l10n.voiceRecordingHoldToRecord,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          ],
-        );
+        return _MicSurface(state: state);
       case VoiceRecordingPhase.recorded:
       case VoiceRecordingPhase.playing:
       case VoiceRecordingPhase.sending:
@@ -218,6 +203,64 @@ class _PrimarySurface extends StatelessWidget {
       case VoiceRecordingPhase.sent:
         return _SentConfirmation();
     }
+  }
+}
+
+/// Mic surface: shows [OmdsRecordingInput] with waveform while recording (AC1)
+/// and [AnimatedMicButton] when idle.
+class _MicSurface extends StatelessWidget {
+  const _MicSurface({required this.state});
+
+  final VoiceRecordingState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cubit = context.read<VoiceRecordingCubit>();
+    if (state.isRecording) {
+      return _buildWaveformBar(context, cubit, l10n);
+    }
+    return _buildIdleMic(context, cubit, l10n);
+  }
+
+  Widget _buildWaveformBar(
+    BuildContext context,
+    VoiceRecordingCubit cubit,
+    AppLocalizations l10n,
+  ) {
+    return Semantics(
+      label: l10n.voiceRecordingReleaseToStop,
+      child: OmdsRecordingInput(
+        duration: state.elapsed,
+        isRecording: true,
+        onSend: cubit.stopRecording,
+        onCancel: cubit.cancelRecording,
+      ),
+    );
+  }
+
+  Widget _buildIdleMic(
+    BuildContext context,
+    VoiceRecordingCubit cubit,
+    AppLocalizations l10n,
+  ) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedMicButton(
+          isRecording: false,
+          enabled: true,
+          onPressStart: cubit.startRecording,
+          onPressEnd: cubit.stopRecording,
+          semanticLabel: l10n.voiceRecordingMicSemantic,
+        ),
+        const SizedBox(height: Spacing.medium),
+        Text(
+          l10n.voiceRecordingHoldToRecord,
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+      ],
+    );
   }
 }
 
@@ -299,6 +342,8 @@ class _PlaybackPreview extends StatelessWidget {
   }
 }
 
+/// Shown after the send ack returns. Per T-MOB-011 AC3 the send button is
+/// disabled and this confirmation surfaces the "Broadcasting" sub-line.
 class _SentConfirmation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -308,31 +353,77 @@ class _SentConfirmation extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: Sizes.tenXLarge,
-          height: Sizes.tenXLarge,
-          decoration: BoxDecoration(
-            color: colorScheme.primary.withValues(alpha: 0.12),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            Icons.check_circle,
-            size: Sizes.fiveXLarge,
-            color: colorScheme.primary,
-          ),
-        ),
+        _buildSuccessIcon(colorScheme),
         const SizedBox(height: Spacing.medium),
-        Text(
-          l10n.voiceRecordingSentTitle,
-          style: textTheme.titleLarge,
-        ),
+        Text(l10n.voiceRecordingSentTitle, style: textTheme.titleLarge),
         const SizedBox(height: Spacing.xSmall),
         Text(
           l10n.voiceRecordingSentBody,
           textAlign: TextAlign.center,
           style: textTheme.bodyMedium,
         ),
+        const SizedBox(height: Spacing.small),
+        _BroadcastingBanner(l10n: l10n, colorScheme: colorScheme),
       ],
+    );
+  }
+
+  Widget _buildSuccessIcon(ColorScheme colorScheme) {
+    return Container(
+      width: Sizes.tenXLarge,
+      height: Sizes.tenXLarge,
+      decoration: BoxDecoration(
+        color: colorScheme.primary.withValues(alpha: 0.12),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        Icons.check_circle,
+        size: Sizes.fiveXLarge,
+        color: colorScheme.primary,
+      ),
+    );
+  }
+}
+
+/// Sub-line shown below the sent confirmation, indicating the request is being
+/// broadcast to nearby Jeebers (SM-1 Broadcasting phase, T-MOB-011 AC3).
+class _BroadcastingBanner extends StatelessWidget {
+  const _BroadcastingBanner({
+    required this.l10n,
+    required this.colorScheme,
+  });
+
+  final AppLocalizations l10n;
+  final ColorScheme colorScheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: Spacing.medium,
+        vertical: Spacing.xSmall,
+      ),
+      decoration: BoxDecoration(
+        color: colorScheme.secondaryContainer,
+        borderRadius: OmdsBorderRadius.small,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.broadcast_on_personal,
+            size: Sizes.large,
+            color: colorScheme.onSecondaryContainer,
+          ),
+          const SizedBox(width: Spacing.xSmall),
+          Text(
+            l10n.voiceRecordingBroadcastingHint,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: colorScheme.onSecondaryContainer,
+                ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -32,7 +32,7 @@
   "@navRequests": {
     "description": "Client bottom tab: Requests"
   },
-  "navDelivery": "DELIVERY",
+  "navDelivery": "Delivery",
   "@navDelivery": {
     "description": "Client bottom tab: Delivery"
   },
@@ -56,6 +56,37 @@
   "homeStageInTransit": "In Transit",
   "chatOfferAccept": "Accept Offer",
   "chatOfferAccepting": "Accepting…",
+  "chatOfferDecline": "Decline",
+  "chatOfferDeclineConfirm": "Offer declined",
+  "chatOfferAcceptedBannerTitle": "Offer accepted!",
+  "chatOfferAcceptedBannerBody": "You are now chatting with your Jeeber.",
+  "chatStartActiveDeliveryButton": "Start delivery",
+  "@chatStartActiveDeliveryButton": {
+    "description": "CTA shown to the Jeeber inside the offer-accepted banner; opens the active-delivery screen for the accepted delivery."
+  },
+  "chatJeeberRemovedMessage": "This request was assigned to another Jeeber.",
+  "chatBroadcastTtlLabel": "Offer window closes in {seconds}s",
+  "@chatBroadcastTtlLabel": {
+    "placeholders": {
+      "seconds": { "type": "int" }
+    }
+  },
+  "chatVoiceNoteA11y": "Voice note from {author}, {duration} seconds, double tap to play",
+  "@chatVoiceNoteA11y": {
+    "placeholders": {
+      "author": { "type": "String" },
+      "duration": { "type": "int" }
+    }
+  },
+  "chatVoiceNoteTranscription": "Transcription: {text}",
+  "@chatVoiceNoteTranscription": {
+    "placeholders": {
+      "text": { "type": "String" }
+    }
+  },
+  "chatVoiceNoteTranscriptionUnavailable": "Transcription unavailable",
+  "chatVoiceNoteRecordingA11y": "Recording voice note…",
+  "chatVoiceUploadFailed": "Voice note failed to send. Tap to retry.",
   "chatOfferEtaMinutes": "ETA {minutes} min",
   "@chatOfferEtaMinutes": {
     "placeholders": {
@@ -163,6 +194,56 @@
   },
   "earningsLoadFailed": "Couldn't load earnings.",
   "earningsLoadRetry": "Retry",
+  "earningsPeriodCustom": "Custom",
+  "@earningsPeriodCustom": {
+    "description": "T-MOB-019: Period filter pill label for custom date range"
+  },
+  "earningsGross": "Gross",
+  "@earningsGross": {
+    "description": "T-MOB-019: Gross earnings label in summary card"
+  },
+  "earningsNet": "Net",
+  "@earningsNet": {
+    "description": "T-MOB-019: Net earnings label in summary card"
+  },
+  "earningsCommission": "Commission",
+  "@earningsCommission": {
+    "description": "T-MOB-019: Commission label in summary card"
+  },
+  "earningsExportButton": "Export PDF",
+  "@earningsExportButton": {
+    "description": "T-MOB-019: CTA button label to export earnings PDF"
+  },
+  "earningsExportLoading": "Preparing your PDF…",
+  "@earningsExportLoading": {
+    "description": "T-MOB-019: Inline loading message while PDF is generating"
+  },
+  "earningsExportError": "Couldn't export PDF. Please try again.",
+  "@earningsExportError": {
+    "description": "T-MOB-019: Error message when PDF export fails"
+  },
+  "earningsDeliveryItemTitle": "Delivery {id}",
+  "@earningsDeliveryItemTitle": {
+    "description": "T-MOB-019: Row title in per-delivery breakdown list",
+    "placeholders": {
+      "id": { "type": "String" }
+    }
+  },
+  "earningsDeliveryItemTier": "Tier: {tier}",
+  "@earningsDeliveryItemTier": {
+    "description": "T-MOB-019: Tier label in breakdown row",
+    "placeholders": {
+      "tier": { "type": "String" }
+    }
+  },
+  "earningsDeliveryItemFare": "Fare: {amount} {currency}",
+  "@earningsDeliveryItemFare": {
+    "description": "T-MOB-019: Fare label in breakdown row",
+    "placeholders": {
+      "amount": { "type": "String" },
+      "currency": { "type": "String" }
+    }
+  },
   "availabilityCardTitle": "Availability",
   "@availabilityCardTitle": {
     "description": "Header above the online/offline toggle on the Jeeber home screen"
@@ -293,6 +374,34 @@
   "@notificationPreferencesDisableOffersBody": {
     "description": "Body of the disable-offers confirmation dialog"
   },
+  "notificationPrefsSaveError": "Couldn't save your preference. It has been reverted.",
+  "@notificationPrefsSaveError": {
+    "description": "Snackbar shown when a PATCH to the gateway fails and the toggle reverts (T-MOB-026 AC2)"
+  },
+  "notificationPrefsLoadError": "Couldn't load your notification preferences.",
+  "@notificationPrefsLoadError": {
+    "description": "Error message shown when the initial GET fails on the notification prefs screen"
+  },
+  "notificationPrefsRetry": "Retry",
+  "@notificationPrefsRetry": {
+    "description": "Retry button on the notification prefs error view"
+  },
+  "notificationTopicOffersSemanticLabel": "Offers, on/off",
+  "@notificationTopicOffersSemanticLabel": {
+    "description": "Screen-reader label for the offers notification toggle (T-MOB-026 AC3)"
+  },
+  "notificationTopicChatSemanticLabel": "Chat messages, on/off",
+  "@notificationTopicChatSemanticLabel": {
+    "description": "Screen-reader label for the chat messages notification toggle"
+  },
+  "notificationTopicStatusChangesSemanticLabel": "Order status, on/off",
+  "@notificationTopicStatusChangesSemanticLabel": {
+    "description": "Screen-reader label for the status changes notification toggle"
+  },
+  "notificationTopicRatingRemindersSemanticLabel": "Rating reminders, on/off",
+  "@notificationTopicRatingRemindersSemanticLabel": {
+    "description": "Screen-reader label for the rating reminders notification toggle"
+  },
   "notificationPreferencesDisableOffersConfirm": "Turn off",
   "@notificationPreferencesDisableOffersConfirm": {
     "description": "Confirm CTA on the disable-offers dialog"
@@ -409,6 +518,10 @@
   "onboardingSlide3Body": "Follow your Jeeber on the map from pickup to drop-off in real time.",
   "onboardingNext": "Next",
   "onboardingGetStarted": "Get Started",
+  "onboardingSkip": "Skip",
+  "@onboardingSkip": {
+    "description": "Skip CTA on onboarding carousel — persists seen_onboarding and navigates to sign-in (T-MOB-003 AC3)."
+  },
   "deliveryDetailTitle": "Delivery {id}",
   "@deliveryDetailTitle": {
     "description": "Title of the delivery-detail screen reached from a push tap",
@@ -488,6 +601,57 @@
         "type": "String"
       }
     }
+  },
+  "mutualRatingTitle": "Rate your experience",
+  "@mutualRatingTitle": {
+    "description": "T-MOB-020: Page title for the mutual blind rating screen"
+  },
+  "mutualRatingSubtitle": "Your rating is confidential until both sides submit.",
+  "@mutualRatingSubtitle": {
+    "description": "T-MOB-020: Subtitle explaining blind rating"
+  },
+  "mutualRatingTagsLabel": "Quick tags (optional)",
+  "@mutualRatingTagsLabel": {
+    "description": "T-MOB-020: Label above the tag chips row"
+  },
+  "mutualRatingSubmit": "Submit rating",
+  "@mutualRatingSubmit": {
+    "description": "T-MOB-020: Submit button on mutual rating screen"
+  },
+  "mutualRatingAwaitingTitle": "Rating submitted!",
+  "@mutualRatingAwaitingTitle": {
+    "description": "T-MOB-020: Heading after submit while waiting for counterpart"
+  },
+  "mutualRatingAwaitingBody": "Waiting for the other party to rate. You'll be notified when both ratings are revealed.",
+  "@mutualRatingAwaitingBody": {
+    "description": "T-MOB-020: Body copy in awaiting state"
+  },
+  "mutualRatingRevealedTitle": "Both ratings revealed!",
+  "@mutualRatingRevealedTitle": {
+    "description": "T-MOB-020: Heading once both ratings are visible"
+  },
+  "mutualRatingAutoRevealedTitle": "Rating revealed",
+  "@mutualRatingAutoRevealedTitle": {
+    "description": "T-MOB-020: Heading for auto-reveal after 7 days"
+  },
+  "mutualRatingNoCounterRating": "The other party did not submit a rating.",
+  "@mutualRatingNoCounterRating": {
+    "description": "T-MOB-020: Note shown when counterpart did not rate (auto_revealed)"
+  },
+  "mutualRatingTheirStars": "Their rating: {stars} ★",
+  "@mutualRatingTheirStars": {
+    "description": "T-MOB-020: Label showing the counterpart's star count",
+    "placeholders": {
+      "stars": { "type": "int" }
+    }
+  },
+  "mutualRatingError": "Couldn't submit rating. Please try again.",
+  "@mutualRatingError": {
+    "description": "T-MOB-020: Error shown when rating submission fails"
+  },
+  "mutualRatingDone": "Done",
+  "@mutualRatingDone": {
+    "description": "T-MOB-020: Done button on the revealed state"
   },
   "feedbackScreenTitle": "We appreciate your feedback",
   "@feedbackScreenTitle": {
@@ -955,6 +1119,10 @@
   "@requestTypeChangeLocation": {
     "description": "Text action to change the pickup location on the Request type screen"
   },
+  "requestTypeContinue": "Continue",
+  "@requestTypeContinue": {
+    "description": "Sticky primary CTA that advances from the Request type screen to the request summary"
+  },
   "tierFlashTitle": "⚡ Flash",
   "@tierFlashTitle": {
     "description": "Emoji tier title on the Request type screen — Flash"
@@ -1091,6 +1259,10 @@
     }
   },
   "tierSelectionCardSelectedHint": "Selected",
+  "tierSelectionCachedBanner": "Showing cached options — prices may differ",
+  "@tierSelectionCachedBanner": {
+    "description": "Soft warning shown on tier selection when /tiers is unreachable and the bundled defaults are displayed (AC3)"
+  },
   "kycWizardTitle": "Verify your identity",
   "@kycWizardTitle": {
     "description": "App bar title for the KYC wizard host"
@@ -1153,6 +1325,31 @@
   "kycRejectionReasonVehicleDocumentMissing": "We need a clearer vehicle registration / plate number.",
   "kycRejectionReasonExpired": "Your ID looks expired. Submit a current document.",
   "kycRejectionReasonOther": "Please review your details and resubmit.",
+  "kycTosStepTitle": "Terms of Service",
+  "kycTosStepSubtitle": "Read the Jeeber Terms of Service below, then sign to confirm you accept.",
+  "kycTosVersionLabel": "Version: {version}",
+  "@kycTosVersionLabel": {
+    "description": "ToS version label (T-MOB-013 AC4)",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "kycTosDocumentTitle": "Jeeber Terms of Service",
+  "kycTosDocumentBody": "By signing below you agree to all terms and conditions of the Jeeber program. A full copy will be emailed to you.",
+  "kycTosSignatureLabel": "Your signature",
+  "kycTosSignatureHint": "Tap to sign",
+  "kycTosSignatureRecorded": "Signature recorded",
+  "kycTosSignatureClear": "Clear signature",
+  "kycTosSignaturePadSemanticLabel": "Signature pad. Tap to sign the Terms of Service.",
+  "kycTosSignAndSubmit": "Sign and Submit",
+  "kycRetry": "Retry",
+  "kycErrorSchemaLoadFailed": "Couldn't load the form. Check your connection and try again.",
+  "kycErrorContractLoadFailed": "Couldn't load the Terms of Service. Check your connection and try again.",
+  "kycErrorSignFailed": "Couldn't record your signature. Try again.",
+  "kycErrorFileTooLarge": "That file exceeds the 10 MB limit. Please choose a smaller file.",
+  "kycErrorFileTypeNotAllowed": "That file type is not supported. Use JPEG or PNG.",
   "kycErrorPermissionDenied": "Camera permission denied. Enable it in Settings.",
   "kycErrorUnavailable": "Couldn't open the camera. Try again.",
   "kycErrorCompressionFailed": "That photo is too large. Try retaking it.",
@@ -2688,6 +2885,707 @@
     "placeholders": {
       "current": { "type": "int", "example": "1" },
       "total": { "type": "int", "example": "3" }
+    }
+  },
+  "pendingTabSearchingLabel": "Searching for Jeebers…",
+  "@pendingTabSearchingLabel": {
+    "description": "Sub-line shown on each pending request card while the system is finding a Jeeber (Figma 56535:1783 / T-MOB-007)."
+  },
+  "pendingTabTtlLabel": "~{minutes}:{seconds} left",
+  "@pendingTabTtlLabel": {
+    "description": "TTL countdown label on the pending request card.",
+    "placeholders": {
+      "minutes": { "type": "String", "example": "10" },
+      "seconds": { "type": "String", "example": "00" }
+    }
+  },
+  "pendingTabExpiredLabel": "Expired",
+  "@pendingTabExpiredLabel": {
+    "description": "Label shown on a pending request card once the TTL countdown reaches zero."
+  },
+  "pendingTabRetryCta": "Retry",
+  "@pendingTabRetryCta": {
+    "description": "CTA button label on an expired pending request card."
+  },
+  "pendingTabReconnecting": "Reconnecting…",
+  "@pendingTabReconnecting": {
+    "description": "Faint banner shown at the top of the Pending tab when the WebSocket is disconnected and falling back to polling."
+  },
+  "pendingCardA11yLabel": "Pending request {title}, {ttl} remaining",
+  "@pendingCardA11yLabel": {
+    "description": "Accessibility label for a pending request card.",
+    "placeholders": {
+      "title": { "type": "String", "example": "ORD-23470" },
+      "ttl": { "type": "String", "example": "~10:00 left" }
+    }
+  },
+  "inProgressTabA11yLabel": "Active delivery {title}, status {status}, ETA {eta}",
+  "@inProgressTabA11yLabel": {
+    "description": "Accessibility label for an in-progress delivery card.",
+    "placeholders": {
+      "title": { "type": "String", "example": "Pharmacy run" },
+      "status": { "type": "String", "example": "En Route" },
+      "eta": { "type": "String", "example": "8 min away" }
+    }
+  },
+  "repliesTabA11yLabel": "Replies from {count} Jeebers, tap to view offers",
+  "@repliesTabA11yLabel": {
+    "description": "Accessibility label for a replies card avatar stack.",
+    "placeholders": {
+      "count": { "type": "int", "example": "5" }
+    }
+  },
+  "homeErrorRetry": "We could not load your orders. Tap to retry.",
+  "@homeErrorRetry": {
+    "description": "Error banner copy on the active tab when the API fails (AC4 of T-MOB-005)."
+  },
+  "becomeJeeberCardTitle": "Become a Jeeber",
+  "@becomeJeeberCardTitle": {
+    "description": "T-MOB-027: Headline on the become-a-Jeeber entry-point card shown to Client users."
+  },
+  "becomeJeeberCardSubtitle": "Earn money delivering with Jeeb",
+  "@becomeJeeberCardSubtitle": {
+    "description": "T-MOB-027: Subtitle on the become-a-Jeeber card."
+  },
+  "becomeJeeberCardCta": "Start now",
+  "@becomeJeeberCardCta": {
+    "description": "T-MOB-027: CTA button label on the become-a-Jeeber card."
+  },
+  "becomeJeeberCardSemantic": "Become a Jeeber, double tap to start",
+  "@becomeJeeberCardSemantic": {
+    "description": "T-MOB-027: Full semantic label for the become-a-Jeeber card (AC4)."
+  },
+  "roleSettingTitle": "Active Role",
+  "@roleSettingTitle": {
+    "description": "T-MOB-028: Section heading for the active-role segmented toggle in Settings."
+  },
+  "roleSettingClient": "Client",
+  "@roleSettingClient": {
+    "description": "T-MOB-028: Segment label for the Client role in the Settings toggle."
+  },
+  "roleSettingJeeber": "Jeeber",
+  "@roleSettingJeeber": {
+    "description": "T-MOB-028: Segment label for the Jeeber role in the Settings toggle."
+  },
+  "roleSettingSemanticLabel": "Active role: {role}",
+  "@roleSettingSemanticLabel": {
+    "description": "T-MOB-028: Screen-reader announcement when the active role changes (AC3).",
+    "placeholders": {
+      "role": { "type": "String" }
+    }
+  },
+  "roleSettingSwitchError": "Could not switch role. Please try again.",
+  "@roleSettingSwitchError": {
+    "description": "T-MOB-028: Error snackbar when POST /v1/users/me/role/switch fails."
+  },
+  "roleSettingKycGateTitle": "Jeeber profile required",
+  "@roleSettingKycGateTitle": {
+    "description": "T-MOB-028: Dialog title shown when role/switch returns 403 (KYC not approved)."
+  },
+  "roleSettingKycGateBody": "Complete your identity verification to start delivering with Jeeb.",
+  "@roleSettingKycGateBody": {
+    "description": "T-MOB-028: Dialog body for the KYC gate."
+  },
+  "roleSettingKycGateCta": "Start verification",
+  "@roleSettingKycGateCta": {
+    "description": "T-MOB-028: CTA button in the KYC gate dialog."
+  },
+  "roleSettingKycGateDismiss": "Not now",
+  "@roleSettingKycGateDismiss": {
+    "description": "T-MOB-028: Dismiss button in the KYC gate dialog."
+  },
+  "jeeberFeedTierAll": "All",
+  "@jeeberFeedTierAll": {
+    "description": "T-MOB-029: Tier filter chip showing all request tiers on the Jeeber home feed."
+  },
+  "jeeberFeedTierFlash": "Flash",
+  "@jeeberFeedTierFlash": {
+    "description": "T-MOB-029: Tier filter chip for Flash-tier requests."
+  },
+  "jeeberFeedTierExpress": "Express",
+  "@jeeberFeedTierExpress": {
+    "description": "T-MOB-029: Tier filter chip for Express-tier requests."
+  },
+  "jeeberFeedTierStandard": "Standard",
+  "@jeeberFeedTierStandard": {
+    "description": "T-MOB-029: Tier filter chip for Standard-tier requests."
+  },
+  "jeeberFeedOfflineBannerTitle": "You are offline",
+  "@jeeberFeedOfflineBannerTitle": {
+    "description": "T-MOB-029: Banner shown when Jeeber goes offline and the feed is cleared (AC3)."
+  },
+  "jeeberFeedOfflineBannerSubtitle": "Go online to see available requests.",
+  "@jeeberFeedOfflineBannerSubtitle": {
+    "description": "T-MOB-029: Subtitle on the offline banner."
+  },
+  "jeeberFeedRowSemantic": "{tier} request, {distance} km away, payout ~ {payout}",
+  "@jeeberFeedRowSemantic": {
+    "description": "T-MOB-029: Full a11y announcement for a feed row (AC4).",
+    "placeholders": {
+      "tier": { "type": "String" },
+      "distance": { "type": "String" },
+      "payout": { "type": "String" }
+    }
+  },
+  "voiceRecordingBroadcastingHint": "Looking for Jeebers…",
+  "@voiceRecordingBroadcastingHint": {
+    "description": "T-MOB-011 AC3: Sub-line shown below sent confirmation while request is broadcasting to nearby Jeebers (SM-1 Broadcasting phase)."
+  },
+  "savedLocationsTitle": "Saved locations",
+  "@savedLocationsTitle": {
+    "description": "T-MOB-012: Section header for the saved locations chip row on the capture-location screen."
+  },
+  "savedLocationsChipHome": "Home",
+  "@savedLocationsChipHome": {
+    "description": "T-MOB-012: Chip label for a saved home location."
+  },
+  "savedLocationsChipWork": "Work",
+  "@savedLocationsChipWork": {
+    "description": "T-MOB-012: Chip label for a saved work location."
+  },
+  "savedLocationsChipOther": "Other",
+  "@savedLocationsChipOther": {
+    "description": "T-MOB-012: Chip label for a saved other/custom location."
+  },
+  "savedLocationsEmpty": "No saved locations yet.",
+  "@savedLocationsEmpty": {
+    "description": "T-MOB-012: Placeholder shown in the chip row when the user has no saved locations."
+  },
+  "savedLocationsSaveSheetTitle": "Save this location?",
+  "@savedLocationsSaveSheetTitle": {
+    "description": "T-MOB-012: Title of the bottom sheet that offers to save a newly dropped pin."
+  },
+  "savedLocationsSaveSheetSave": "Save",
+  "@savedLocationsSaveSheetSave": {
+    "description": "T-MOB-012: Primary CTA on the save-location bottom sheet."
+  },
+  "savedLocationsSaveSheetSkip": "Skip",
+  "@savedLocationsSaveSheetSkip": {
+    "description": "T-MOB-012: Secondary CTA on the save-location bottom sheet."
+  },
+  "savedLocationsNameHint": "Location name (optional)",
+  "@savedLocationsNameHint": {
+    "description": "T-MOB-012: Hint text for the custom label input on the save-location sheet."
+  },
+  "captureLocationGpsDeniedTitle": "Location access required",
+  "@captureLocationGpsDeniedTitle": {
+    "description": "T-MOB-012 AC4: Title of the GPS-denied error state on the capture-location screen."
+  },
+  "captureLocationGpsDeniedBody": "Grant location permission to pin your drop-off point.",
+  "@captureLocationGpsDeniedBody": {
+    "description": "T-MOB-012 AC4: Body of the GPS-denied error state."
+  },
+  "captureLocationGpsDeniedOpenSettings": "Open Settings",
+  "@captureLocationGpsDeniedOpenSettings": {
+    "description": "T-MOB-012 AC4: CTA that deep-links to device app settings."
+  },
+  "captureLocationOutsideServiceArea": "Outside service area",
+  "@captureLocationOutsideServiceArea": {
+    "description": "T-MOB-012 AC5: Soft warning shown when the user pans outside Lebanon before confirming. Submit is still allowed; server is the authoritative gate."
+  },
+  "prohibitedItemsDialogTitle": "Prohibited Items",
+  "@prohibitedItemsDialogTitle": {
+    "description": "T-MOB-021: Title of the one-time prohibited-items acknowledgment dialog."
+  },
+  "prohibitedItemsDialogBody": "The following items cannot be requested through Jeeb. By continuing, you agree not to request any of these items.",
+  "@prohibitedItemsDialogBody": {
+    "description": "T-MOB-021: Introductory body copy in the prohibited-items dialog."
+  },
+  "prohibitedItemsDialogAcknowledge": "I understand, Continue",
+  "@prohibitedItemsDialogAcknowledge": {
+    "description": "T-MOB-021: CTA to acknowledge and dismiss the prohibited-items dialog."
+  },
+  "prohibitedItemsDialogError": "Could not load prohibited items. Please try again.",
+  "@prohibitedItemsDialogError": {
+    "description": "T-MOB-021: Error message shown when the /prohibited-items call fails."
+  },
+  "prohibitedItemsDialogRetry": "Retry",
+  "@prohibitedItemsDialogRetry": {
+    "description": "T-MOB-021: Retry CTA on the error state."
+  },
+  "prohibitedItemsSemanticItem": "Prohibited item: {name}",
+  "@prohibitedItemsSemanticItem": {
+    "description": "T-MOB-021 AC4: Screen-reader announcement for each prohibited item in the list.",
+    "placeholders": {
+      "name": { "type": "String", "example": "Alcohol" }
+    }
+  },
+  "trackingAtDoorHeadline": "Your Jeeber is at the door!",
+  "@trackingAtDoorHeadline": {
+    "description": "T-MOB-017 AC4: Headline on the OTP at-door card when status transitions to at_door."
+  },
+  "trackingAtDoorBody": "Share your code with your Jeeber to confirm the handover.",
+  "@trackingAtDoorBody": {
+    "description": "T-MOB-017 AC4: Supporting text on the OTP at-door card."
+  },
+  "trackingAtDoorCta": "Show OTP",
+  "@trackingAtDoorCta": {
+    "description": "T-MOB-017 AC4: CTA button on the at-door card that navigates to the OTP screen."
+  },
+  "trackingJeeberOnTheWay": "Jeeber is on the way!",
+  "@trackingJeeberOnTheWay": {
+    "description": "T-MOB-017 AC3: Snack shown when delivery status transitions to in_transit."
+  },
+  "otpHandoverClientTitle": "Your OTP Code",
+  "@otpHandoverClientTitle": {
+    "description": "T-MOB-018: App-bar title for the client OTP display view."
+  },
+  "otpHandoverJeeberTitle": "Enter OTP",
+  "@otpHandoverJeeberTitle": {
+    "description": "T-MOB-018: App-bar title for the Jeeber OTP entry view."
+  },
+  "otpClientShareInstruction": "Share this code with your Jeeber",
+  "@otpClientShareInstruction": {
+    "description": "T-MOB-018 AC1: Instruction label above the large OTP code on the client view."
+  },
+  "otpClientDoNotShare": "Do not share until you receive your items",
+  "@otpClientDoNotShare": {
+    "description": "T-MOB-018 AC1: Security reminder below the OTP code on the client view."
+  },
+  "otpJeeberInstruction": "Enter the OTP from the Client",
+  "@otpJeeberInstruction": {
+    "description": "T-MOB-018: Instruction label above the OTP input on the Jeeber view."
+  },
+  "otpVerifyButton": "Verify OTP",
+  "@otpVerifyButton": {
+    "description": "T-MOB-018: Label on the submit button on the Jeeber OTP entry view."
+  },
+  "otpWrongCode": "Incorrect code — please try again",
+  "@otpWrongCode": {
+    "description": "T-MOB-018 AC3: Inline error shown when Jeeber enters a wrong OTP."
+  },
+  "otpAttemptsRemaining": "{count} attempt(s) remaining",
+  "@otpAttemptsRemaining": {
+    "description": "T-MOB-018 AC3: Hint showing how many OTP attempts remain before escalation.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "otpEscalateDialogTitle": "Too many incorrect attempts",
+  "@otpEscalateDialogTitle": {
+    "description": "T-MOB-018 AC4: Title of the escalate-to-dispute dialog shown after 3 wrong codes."
+  },
+  "otpEscalateDialogBody": "You have entered the wrong code 3 times. Would you like to escalate this to a dispute?",
+  "@otpEscalateDialogBody": {
+    "description": "T-MOB-018 AC4: Body of the escalate-to-dispute dialog."
+  },
+  "otpEscalateConfirm": "Escalate",
+  "@otpEscalateConfirm": {
+    "description": "T-MOB-018 AC4: Confirm button on the escalate dialog — navigates to dispute flow."
+  },
+  "otpEscalateDismiss": "Cancel",
+  "@otpEscalateDismiss": {
+    "description": "T-MOB-018 AC4: Dismiss button on the escalate dialog."
+  },
+  "otpDoneTitle": "Delivery Complete!",
+  "@otpDoneTitle": {
+    "description": "T-MOB-018 AC2: Headline on the celebratory done screen after successful OTP verify."
+  },
+  "otpDoneBody": "Your items have been handed over successfully.",
+  "@otpDoneBody": {
+    "description": "T-MOB-018 AC2: Supporting text on the celebratory done screen."
+  },
+  "otpRateNowCta": "Rate your Jeeber",
+  "@otpRateNowCta": {
+    "description": "T-MOB-018 AC2: Rate-now CTA on the done screen that navigates to the rating screen."
+  },
+  "otpRetry": "Retry",
+  "@otpRetry": {
+    "description": "T-MOB-018: Retry label on the error state of the OTP screen."
+  },
+  "otpErrorNetwork": "Unable to connect. Check your internet.",
+  "@otpErrorNetwork": {
+    "description": "T-MOB-018: Error message for network failure on the OTP screen."
+  },
+  "otpErrorServer": "Server error. Please try again.",
+  "@otpErrorServer": {
+    "description": "T-MOB-018: Error message for server error on the OTP screen."
+  },
+  "otpErrorGeneric": "Something went wrong. Please try again.",
+  "@otpErrorGeneric": {
+    "description": "T-MOB-018: Generic error message on the OTP screen."
+  },
+  "escalateTitle": "Report an Issue",
+  "@escalateTitle": {
+    "description": "T-MOB-022: App bar title of the escalate/dispute screen"
+  },
+  "escalateSubtitle": "Describe what went wrong and we'll connect you with our support team within 24 hours.",
+  "@escalateSubtitle": {
+    "description": "T-MOB-022: Subtitle on the escalate screen"
+  },
+  "escalateReasonLabel": "Reason",
+  "@escalateReasonLabel": {
+    "description": "T-MOB-022: Label above the reason radio group"
+  },
+  "escalateReasonDamaged": "Damaged item",
+  "@escalateReasonDamaged": {
+    "description": "T-MOB-022: Reason option — item was damaged"
+  },
+  "escalateReasonWrongItem": "Wrong item delivered",
+  "@escalateReasonWrongItem": {
+    "description": "T-MOB-022: Reason option — wrong item"
+  },
+  "escalateReasonNoShow": "No-show",
+  "@escalateReasonNoShow": {
+    "description": "T-MOB-022: Reason option — delivery person did not show"
+  },
+  "escalateReasonFraud": "Fraud",
+  "@escalateReasonFraud": {
+    "description": "T-MOB-022: Reason option — fraud"
+  },
+  "escalateReasonAbuse": "Abusive behavior",
+  "@escalateReasonAbuse": {
+    "description": "T-MOB-022: Reason option — abusive behavior"
+  },
+  "escalateReasonOther": "Other",
+  "@escalateReasonOther": {
+    "description": "T-MOB-022: Reason option — other"
+  },
+  "escalatePhotoLabel": "Photos (optional, up to 5)",
+  "@escalatePhotoLabel": {
+    "description": "T-MOB-022: Label above the photo picker"
+  },
+  "escalatePhotoCountRemaining": "{remaining} of 5 remaining",
+  "@escalatePhotoCountRemaining": {
+    "description": "T-MOB-022: a11y announcement for photo count remaining",
+    "placeholders": {
+      "remaining": { "type": "int" }
+    }
+  },
+  "escalatePhotoAttached": "{count} of 5 attached",
+  "@escalatePhotoAttached": {
+    "description": "T-MOB-022: a11y label showing how many photos are attached",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "escalateCommentLabel": "Additional details (optional)",
+  "@escalateCommentLabel": {
+    "description": "T-MOB-022: Label above the optional free-text comment field"
+  },
+  "escalateSubmitButton": "Submit Report",
+  "@escalateSubmitButton": {
+    "description": "T-MOB-022: Primary action button on escalate screen"
+  },
+  "escalateSubmitting": "Submitting…",
+  "@escalateSubmitting": {
+    "description": "T-MOB-022: Loading state text while submission is in progress"
+  },
+  "escalateErrorNetwork": "No internet connection. Your report will be retried automatically.",
+  "@escalateErrorNetwork": {
+    "description": "T-MOB-022: Error shown when device is offline on submit"
+  },
+  "escalateErrorServer": "Couldn't submit. Please try again.",
+  "@escalateErrorServer": {
+    "description": "T-MOB-022: Generic server error on submit"
+  },
+  "escalateErrorAlreadyOpen": "A report for this delivery is already open.",
+  "@escalateErrorAlreadyOpen": {
+    "description": "T-MOB-022: Error shown when a case already exists (409)"
+  },
+  "escalateConfirmationTitle": "Report submitted",
+  "@escalateConfirmationTitle": {
+    "description": "T-MOB-022: Heading on the post-submission confirmation screen"
+  },
+  "escalateConfirmationBody": "Our team will review your case and respond within 24 hours.",
+  "@escalateConfirmationBody": {
+    "description": "T-MOB-022: Body copy on confirmation screen"
+  },
+  "escalateConfirmationCaseNumber": "Case #{caseNumber}",
+  "@escalateConfirmationCaseNumber": {
+    "description": "T-MOB-022: Case number label on confirmation screen",
+    "placeholders": {
+      "caseNumber": { "type": "String" }
+    }
+  },
+  "escalateConfirmationDone": "Done",
+  "@escalateConfirmationDone": {
+    "description": "T-MOB-022: Done button on confirmation screen"
+  },
+
+  "actionDone": "Done",
+  "@actionDone": {
+    "description": "Generic 'Done' action label"
+  },
+  "actionConfirm": "Confirm",
+  "@actionConfirm": {
+    "description": "Generic 'Confirm' action label"
+  },
+
+  "cancellationTitle": "Cancel Delivery",
+  "@cancellationTitle": {
+    "description": "T-MOB-024: App bar title for cancellation screen"
+  },
+  "cancellationReasonPrompt": "Why are you cancelling?",
+  "@cancellationReasonPrompt": {
+    "description": "T-MOB-024: Heading above reason picker"
+  },
+  "cancellationReasonChangedMind": "Changed my mind",
+  "@cancellationReasonChangedMind": {
+    "description": "T-MOB-024: Client reason — changed mind"
+  },
+  "cancellationReasonWaitTooLong": "Taking too long",
+  "@cancellationReasonWaitTooLong": {
+    "description": "T-MOB-024: Client reason — wait too long"
+  },
+  "cancellationReasonWrongAddress": "Wrong address",
+  "@cancellationReasonWrongAddress": {
+    "description": "T-MOB-024: Client reason — wrong address"
+  },
+  "cancellationReasonOther": "Other",
+  "@cancellationReasonOther": {
+    "description": "T-MOB-024: Reason — other (both client and Jeeber)"
+  },
+  "cancellationReasonCantComplete": "Cannot complete delivery",
+  "@cancellationReasonCantComplete": {
+    "description": "T-MOB-024: Jeeber reason — can't complete"
+  },
+  "cancellationReasonVehicleIssue": "Vehicle issue",
+  "@cancellationReasonVehicleIssue": {
+    "description": "T-MOB-024: Jeeber reason — vehicle issue"
+  },
+  "cancellationReasonEmergency": "Emergency",
+  "@cancellationReasonEmergency": {
+    "description": "T-MOB-024: Jeeber reason — emergency"
+  },
+  "cancellationReasonProhibitedItem": "Prohibited item detected",
+  "@cancellationReasonProhibitedItem": {
+    "description": "T-MOB-024: Jeeber reason — prohibited item"
+  },
+  "cancellationOtherHint": "Please specify",
+  "@cancellationOtherHint": {
+    "description": "T-MOB-024: Hint text for 'other' free-text field"
+  },
+  "cancellationConfirmButton": "Confirm Cancellation",
+  "@cancellationConfirmButton": {
+    "description": "T-MOB-024: Submit button label"
+  },
+  "cancellationRateLimitMessage": "Weekly cancellation limit reached. You can cancel again on {date}.",
+  "@cancellationRateLimitMessage": {
+    "description": "T-MOB-024: AC2 — rate-limit message shown on 429",
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "cancellationFeeApplied": "Cancellation fee",
+  "@cancellationFeeApplied": {
+    "description": "T-MOB-024: AC3 — fee row label in success sheet"
+  },
+  "cancellationWalletCta": "View in Wallet",
+  "@cancellationWalletCta": {
+    "description": "T-MOB-024: AC3 — CTA to open wallet after fee applied"
+  },
+  "cancellationSuccess": "Delivery cancelled",
+  "@cancellationSuccess": {
+    "description": "T-MOB-024: Success state heading"
+  },
+  "cancellationTooLate": "Too late to cancel — your Jeeber is already on the way.",
+  "@cancellationTooLate": {
+    "description": "T-MOB-024: 409 error when delivery is past cancellable state"
+  },
+
+  "savedLocationsManage": "Manage saved locations",
+  "@savedLocationsManage": {
+    "description": "T-MOB-025: Screen subtitle / manage label"
+  },
+  "savedLocationsAddNew": "Add new location",
+  "@savedLocationsAddNew": {
+    "description": "T-MOB-025: Button to add a new saved location"
+  },
+  "savedLocationsEdit": "Edit location",
+  "@savedLocationsEdit": {
+    "description": "T-MOB-025: Edit action label"
+  },
+  "savedLocationsDelete": "Delete",
+  "@savedLocationsDelete": {
+    "description": "T-MOB-025: Delete action label"
+  },
+  "savedLocationsDeleteConfirmTitle": "Delete saved location?",
+  "@savedLocationsDeleteConfirmTitle": {
+    "description": "T-MOB-025: AC delete confirm dialog title"
+  },
+  "savedLocationsDeleteConfirmBody": "{label} will be removed from your saved locations.",
+  "@savedLocationsDeleteConfirmBody": {
+    "description": "T-MOB-025: AC delete confirm dialog body",
+    "placeholders": {
+      "label": { "type": "String" }
+    }
+  },
+  "savedLocationsCapReached": "You can save up to 10 addresses.",
+  "@savedLocationsCapReached": {
+    "description": "T-MOB-025: AC3 — snack shown when cap of 10 is reached"
+  },
+  "savedLocationsError": "Could not load saved locations. Please try again.",
+  "@savedLocationsError": {
+    "description": "T-MOB-025: Error state message"
+  },
+  "savedLocationsDeleteError": "Could not delete location. Please try again.",
+  "@savedLocationsDeleteError": {
+    "description": "T-MOB-025: Error toast after delete fails"
+  },
+  "savedLocationsSaveError": "Could not save location. Please try again.",
+  "@savedLocationsSaveError": {
+    "description": "T-MOB-025: Error toast after create/update fails"
+  },
+
+  "offerSubmitTitle": "Submit Offer",
+  "@offerSubmitTitle": {
+    "description": "T-MOB-030: App-bar title for the offer submission form."
+  },
+  "offerSubmitPriceLabel": "Offer Price (USD)",
+  "@offerSubmitPriceLabel": {
+    "description": "T-MOB-030: Label for the price input field."
+  },
+  "offerSubmitEtaLabel": "Estimated Time (minutes)",
+  "@offerSubmitEtaLabel": {
+    "description": "T-MOB-030: Label for the ETA input field."
+  },
+  "offerSubmitNoteLabel": "Note (optional)",
+  "@offerSubmitNoteLabel": {
+    "description": "T-MOB-030: Label for the optional note field."
+  },
+  "offerSubmitButton": "Submit Offer",
+  "@offerSubmitButton": {
+    "description": "T-MOB-030: Submit button label."
+  },
+  "offerSubmitButtonSemantics": "Submit offer",
+  "@offerSubmitButtonSemantics": {
+    "description": "T-MOB-030 AC5: Accessibility label for the submit button."
+  },
+  "offerSubmitWithdrawTooltip": "Withdraw from offer",
+  "@offerSubmitWithdrawTooltip": {
+    "description": "T-MOB-030: Tooltip for the close/withdraw button."
+  },
+  "offerSubmitRequestGone": "This request is no longer available.",
+  "@offerSubmitRequestGone": {
+    "description": "T-MOB-030 AC4: Snack shown when the server returns 409 (request gone)."
+  },
+
+  "activeDeliveryTitle": "Active Delivery",
+  "@activeDeliveryTitle": {
+    "description": "T-MOB-031: App-bar title for the Jeeber active-delivery screen."
+  },
+  "activeDeliveryDropOffLabel": "Drop-off address",
+  "@activeDeliveryDropOffLabel": {
+    "description": "T-MOB-031 AC1: Label above the drop-off address."
+  },
+  "activeDeliveryStatusOrdered": "Ordered",
+  "@activeDeliveryStatusOrdered": {
+    "description": "T-MOB-031: Status step label — ordered."
+  },
+  "activeDeliveryStatusPicked": "Picked",
+  "@activeDeliveryStatusPicked": {
+    "description": "T-MOB-031: Status step label — picked up."
+  },
+  "activeDeliveryStatusInTransit": "In Transit",
+  "@activeDeliveryStatusInTransit": {
+    "description": "T-MOB-031: Status step label — in transit."
+  },
+  "activeDeliveryStatusAtDoor": "At Door",
+  "@activeDeliveryStatusAtDoor": {
+    "description": "T-MOB-031: Status step label — at door."
+  },
+  "activeDeliveryStatusDone": "Done",
+  "@activeDeliveryStatusDone": {
+    "description": "T-MOB-031: Status step label — done."
+  },
+  "activeDeliveryMarkPicked": "Mark as Picked",
+  "@activeDeliveryMarkPicked": {
+    "description": "T-MOB-031 AC2: CTA button to advance status to picked."
+  },
+  "activeDeliveryMarkInTransit": "Mark as In Transit",
+  "@activeDeliveryMarkInTransit": {
+    "description": "T-MOB-031: CTA button to advance status to in_transit."
+  },
+  "activeDeliveryMarkAtDoor": "Mark as At Door",
+  "@activeDeliveryMarkAtDoor": {
+    "description": "T-MOB-031: CTA button to advance status to at_door."
+  },
+  "activeDeliveryMarkDone": "Complete Delivery",
+  "@activeDeliveryMarkDone": {
+    "description": "T-MOB-031: CTA button to advance status to done."
+  },
+  "activeDeliveryOpenMapsButton": "Open in Maps",
+  "@activeDeliveryOpenMapsButton": {
+    "description": "T-MOB-031 AC4: Button that deep-links to Google Maps."
+  },
+  "activeDeliveryOpenChatButton": "Open Chat",
+  "@activeDeliveryOpenChatButton": {
+    "description": "T-MOB-031: Button that opens the chat with the client."
+  },
+  "activeDeliveryUnavailable": "Delivery details unavailable.",
+  "@activeDeliveryUnavailable": {
+    "description": "T-MOB-031: Message shown when no repository is provided."
+  },
+  "activeDeliveryLoadError": "Unable to load delivery details.",
+  "@activeDeliveryLoadError": {
+    "description": "T-MOB-031: Error message shown when loading fails."
+  },
+  "activeDeliveryStepperA11y": "Current status: {current}. Next: {next}",
+  "@activeDeliveryStepperA11y": {
+    "description": "T-MOB-031 AC5: Stepper accessibility label.",
+    "placeholders": {
+      "current": { "type": "String" },
+      "next": { "type": "String" }
+    }
+  },
+  "activeDeliveryStepperCurrentDone": "Delivery complete: {current}",
+  "@activeDeliveryStepperCurrentDone": {
+    "description": "T-MOB-031 AC5: Stepper accessibility label when done.",
+    "placeholders": {
+      "current": { "type": "String" }
+    }
+  },
+
+  "settlementTitle": "Settlement Statements",
+  "@settlementTitle": {
+    "description": "T-MOB-032: App-bar title for the settlement screen."
+  },
+  "settlementEmptyMessage": "No settlement statements yet.",
+  "@settlementEmptyMessage": {
+    "description": "T-MOB-032: Message shown when there are no statements."
+  },
+  "settlementLoadError": "Unable to load statements.",
+  "@settlementLoadError": {
+    "description": "T-MOB-032: Error message shown when loading fails."
+  },
+  "settlementUnavailable": "Statements unavailable.",
+  "@settlementUnavailable": {
+    "description": "T-MOB-032: Message shown when no repository is injected."
+  },
+  "settlementStatusPaid": "Paid",
+  "@settlementStatusPaid": {
+    "description": "T-MOB-032 AC1: Chip label for paid statements."
+  },
+  "settlementStatusPending": "Pending",
+  "@settlementStatusPending": {
+    "description": "T-MOB-032 AC1: Chip label for pending statements."
+  },
+  "settlementDownloadTooltip": "Download PDF",
+  "@settlementDownloadTooltip": {
+    "description": "T-MOB-032 AC3: Tooltip on the download icon button."
+  },
+  "settlementRowSemantics": "{amount} — {status}",
+  "@settlementRowSemantics": {
+    "description": "T-MOB-032 AC4: Accessibility label for each statement row.",
+    "placeholders": {
+      "amount": { "type": "String" },
+      "status": { "type": "String" }
+    }
+  },
+  "settlementBreakdownTitle": "Delivery Breakdown",
+  "@settlementBreakdownTitle": {
+    "description": "T-MOB-032 AC2: Section header for the per-delivery breakdown list."
+  },
+  "settlementTotalPayout": "Total Payout",
+  "@settlementTotalPayout": {
+    "description": "T-MOB-032 AC2: Label for total payout in detail screen."
+  },
+  "settlementCommissionLabel": "Commission: {amount}",
+  "@settlementCommissionLabel": {
+    "description": "T-MOB-032 AC2: Per-delivery commission label.",
+    "placeholders": {
+      "amount": { "type": "String" }
     }
   }
 }

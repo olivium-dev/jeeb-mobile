@@ -6,11 +6,12 @@ import '../../../l10n/app_localizations.dart';
 import '../application/client_home_cubit.dart';
 import '../application/client_home_state.dart';
 import '../domain/client_home_request.dart';
-import 'widgets/active_request_card.dart';
+import 'tabs/in_progress_tab.dart';
+import 'tabs/pending_requests_tab.dart';
+import 'tabs/replies_tab.dart';
 import 'widgets/client_home_empty_view.dart';
 import 'widgets/client_home_greeting.dart';
-import 'widgets/pending_request_card.dart';
-import 'widgets/replies_card.dart';
+import 'widgets/client_home_voice_cta.dart';
 
 /// Client home screen matching the Figma design (node 56535:1525).
 ///
@@ -26,11 +27,23 @@ class ClientHomeScreen extends StatefulWidget {
     super.key,
     this.onOpenRequest,
     this.onCreateRequest,
+    this.onRecordVoice,
+    this.onTrack,
     this.initialTab = ClientHomeTab.inProgress,
   });
 
   final void Function(ClientHomeRequest request)? onOpenRequest;
   final VoidCallback? onCreateRequest;
+
+  /// Opens the live-tracking screen (`/orders/:id/tracking`) for an in-progress
+  /// delivery's "Track my order" CTA. Distinct from [onOpenRequest], which
+  /// opens the conversation for pending/replies cards. When null the
+  /// [InProgressTab] falls back to GoRouter navigation directly.
+  final void Function(ClientHomeRequest request)? onTrack;
+
+  /// Opens the voice-request recorder (`/voice-request`). Supplied by the
+  /// HomeTab shell; when null the voice CTA is not rendered.
+  final VoidCallback? onRecordVoice;
 
   /// Which filter chip is selected on first render. Defaults to In Progress;
   /// the dev seam drives this so a single APK can land on Pending / Replies
@@ -68,6 +81,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             onTabSelected: (tab) => setState(() => _selectedTab = tab),
             onCreateRequest: widget.onCreateRequest,
             onOpenRequest: widget.onOpenRequest,
+            onRecordVoice: widget.onRecordVoice,
+            onTrack: widget.onTrack,
           ),
         );
       },
@@ -82,6 +97,8 @@ class _ClientHomeBody extends StatelessWidget {
     required this.onTabSelected,
     required this.onCreateRequest,
     required this.onOpenRequest,
+    required this.onRecordVoice,
+    required this.onTrack,
   });
 
   final ClientHomeState state;
@@ -89,17 +106,23 @@ class _ClientHomeBody extends StatelessWidget {
   final ValueChanged<ClientHomeTab> onTabSelected;
   final VoidCallback? onCreateRequest;
   final void Function(ClientHomeRequest)? onOpenRequest;
+  final VoidCallback? onRecordVoice;
+  final void Function(ClientHomeRequest)? onTrack;
 
   @override
   Widget build(BuildContext context) {
     switch (state.status) {
       case ClientHomeStatus.initial:
       case ClientHomeStatus.loading:
-        return _LoadingLayout(onCreateRequest: onCreateRequest);
+        return _LoadingLayout(
+          onCreateRequest: onCreateRequest,
+          onRecordVoice: onRecordVoice,
+        );
       case ClientHomeStatus.failed:
         return _FailedLayout(
           name: state.greetingName,
           onCreateRequest: onCreateRequest,
+          onRecordVoice: onRecordVoice,
         );
       case ClientHomeStatus.ready:
         if (_hasNoRequests(state)) {
@@ -114,6 +137,8 @@ class _ClientHomeBody extends StatelessWidget {
           onTabSelected: onTabSelected,
           onCreateRequest: onCreateRequest,
           onOpenRequest: onOpenRequest,
+          onRecordVoice: onRecordVoice,
+          onTrack: onTrack,
         );
     }
   }
@@ -127,9 +152,13 @@ class _ClientHomeBody extends StatelessWidget {
 }
 
 class _LoadingLayout extends StatelessWidget {
-  const _LoadingLayout({required this.onCreateRequest});
+  const _LoadingLayout({
+    required this.onCreateRequest,
+    required this.onRecordVoice,
+  });
 
   final VoidCallback? onCreateRequest;
+  final VoidCallback? onRecordVoice;
 
   @override
   Widget build(BuildContext context) {
@@ -137,6 +166,7 @@ class _LoadingLayout extends StatelessWidget {
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
         ClientHomeGreeting(name: null, onAddPressed: onCreateRequest),
+        _ClientHomeVoiceRequestCta(onRecordVoice: onRecordVoice),
         const _ClientHomeSearchBar(),
         const SizedBox(height: Spacing.large),
         const Center(child: OmdsLoadingState()),
@@ -145,11 +175,37 @@ class _LoadingLayout extends StatelessWidget {
   }
 }
 
+/// Renders the voice-request CTA below the greeting on every home layout,
+/// gated on a non-null [onRecordVoice] (the HomeTab shell supplies it). Wraps
+/// the OMDS button in a QA-targetable Semantics node. Routes to
+/// `/voice-request`.
+class _ClientHomeVoiceRequestCta extends StatelessWidget {
+  const _ClientHomeVoiceRequestCta({required this.onRecordVoice});
+
+  final VoidCallback? onRecordVoice;
+
+  @override
+  Widget build(BuildContext context) {
+    final onRecord = onRecordVoice;
+    if (onRecord == null) return const SizedBox.shrink();
+    return Semantics(
+      identifier: 'client_home_voice_request',
+      button: true,
+      child: ClientHomeVoiceCta(onPressed: onRecord),
+    );
+  }
+}
+
 class _FailedLayout extends StatelessWidget {
-  const _FailedLayout({required this.name, required this.onCreateRequest});
+  const _FailedLayout({
+    required this.name,
+    required this.onCreateRequest,
+    required this.onRecordVoice,
+  });
 
   final String? name;
   final VoidCallback? onCreateRequest;
+  final VoidCallback? onRecordVoice;
 
   @override
   Widget build(BuildContext context) {
@@ -158,6 +214,7 @@ class _FailedLayout extends StatelessWidget {
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
         ClientHomeGreeting(name: name, onAddPressed: onCreateRequest),
+        _ClientHomeVoiceRequestCta(onRecordVoice: onRecordVoice),
         const _ClientHomeSearchBar(),
         const SizedBox(height: Spacing.xLarge),
         OmdsErrorState(
@@ -179,6 +236,8 @@ class _ReadyLayout extends StatelessWidget {
     required this.onTabSelected,
     required this.onCreateRequest,
     required this.onOpenRequest,
+    required this.onRecordVoice,
+    required this.onTrack,
   });
 
   final ClientHomeState state;
@@ -186,6 +245,8 @@ class _ReadyLayout extends StatelessWidget {
   final ValueChanged<ClientHomeTab> onTabSelected;
   final VoidCallback? onCreateRequest;
   final void Function(ClientHomeRequest)? onOpenRequest;
+  final VoidCallback? onRecordVoice;
+  final void Function(ClientHomeRequest)? onTrack;
 
   @override
   Widget build(BuildContext context) {
@@ -202,15 +263,15 @@ class _ReadyLayout extends StatelessWidget {
         name: state.greetingName,
         onAddPressed: onCreateRequest,
       ),
+      _ClientHomeVoiceRequestCta(onRecordVoice: onRecordVoice),
       const _ClientHomeSearchBar(),
       const SizedBox(height: Spacing.large),
       _ClientHomeTabBar(selectedTab: selectedTab, onSelected: onTabSelected),
       const SizedBox(height: Spacing.large),
       _ReadyContent(
-        state: state,
         selectedTab: selectedTab,
-        onCreateRequest: onCreateRequest,
         onOpenRequest: onOpenRequest,
+        onTrack: onTrack,
       ),
     ];
   }
@@ -218,43 +279,29 @@ class _ReadyLayout extends StatelessWidget {
 
 class _ReadyContent extends StatelessWidget {
   const _ReadyContent({
-    required this.state,
     required this.selectedTab,
-    required this.onCreateRequest,
     required this.onOpenRequest,
+    required this.onTrack,
   });
 
-  final ClientHomeState state;
   final ClientHomeTab selectedTab;
-  final VoidCallback? onCreateRequest;
   final void Function(ClientHomeRequest)? onOpenRequest;
+  final void Function(ClientHomeRequest)? onTrack;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final items = state.listFor(selectedTab);
-    if (items.isEmpty) {
-      return _TabEmptyState(
-        selectedTab: selectedTab,
-        l10n: l10n,
-        onCreateRequest: onCreateRequest,
-      );
-    }
     switch (selectedTab) {
       case ClientHomeTab.inProgress:
-        return _ActiveRequestList(
-          requests: items,
-          onOpenRequest: onOpenRequest,
+        return InProgressTab(
+          onTrack: onTrack,
         );
       case ClientHomeTab.pendingRequests:
-        return _PendingRequestList(
-          requests: items,
-          onOpenRequest: onOpenRequest,
+        return PendingRequestsTab(
+          onTap: onOpenRequest,
         );
       case ClientHomeTab.replies:
-        return _RepliesList(
-          requests: items,
-          onOpenRequest: onOpenRequest,
+        return RepliesTab(
+          onCheckOffers: onOpenRequest,
         );
     }
   }
@@ -372,111 +419,3 @@ class _ClientHomeTabChip extends StatelessWidget {
   }
 }
 
-class _ActiveRequestList extends StatelessWidget {
-  const _ActiveRequestList({
-    required this.requests,
-    required this.onOpenRequest,
-  });
-
-  final List<ClientHomeRequest> requests;
-  final void Function(ClientHomeRequest)? onOpenRequest;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        for (final r in requests)
-          ActiveOrderCard(request: r, onTap: () => onOpenRequest?.call(r)),
-      ],
-    );
-  }
-}
-
-class _PendingRequestList extends StatelessWidget {
-  const _PendingRequestList({
-    required this.requests,
-    required this.onOpenRequest,
-  });
-
-  final List<ClientHomeRequest> requests;
-  final void Function(ClientHomeRequest)? onOpenRequest;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      key: const Key('pending-requests-list'),
-      children: [
-        for (final r in requests)
-          PendingRequestCard(request: r, onTap: () => onOpenRequest?.call(r)),
-      ],
-    );
-  }
-}
-
-class _RepliesList extends StatelessWidget {
-  const _RepliesList({
-    required this.requests,
-    required this.onOpenRequest,
-  });
-
-  final List<ClientHomeRequest> requests;
-  final void Function(ClientHomeRequest)? onOpenRequest;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        for (final r in requests)
-          RepliesCard(request: r, onCheckOffers: () => onOpenRequest?.call(r)),
-      ],
-    );
-  }
-}
-
-class _TabEmptyState extends StatelessWidget {
-  const _TabEmptyState({
-    required this.selectedTab,
-    required this.l10n,
-    required this.onCreateRequest,
-  });
-
-  final ClientHomeTab selectedTab;
-  final AppLocalizations l10n;
-  final VoidCallback? onCreateRequest;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: Spacing.large),
-      child: OmdsEmptyState(
-        icon: _iconFor(selectedTab),
-        title: l10n.homeEmptyTitle,
-        subtitle: _subtitleFor(selectedTab),
-        buttonText: l10n.homeEmptyCta,
-        onButtonTap: onCreateRequest,
-      ),
-    );
-  }
-
-  IconData _iconFor(ClientHomeTab tab) {
-    switch (tab) {
-      case ClientHomeTab.inProgress:
-        return Icons.local_shipping_outlined;
-      case ClientHomeTab.pendingRequests:
-        return Icons.hourglass_empty_rounded;
-      case ClientHomeTab.replies:
-        return Icons.mark_chat_unread_outlined;
-    }
-  }
-
-  String _subtitleFor(ClientHomeTab tab) {
-    switch (tab) {
-      case ClientHomeTab.inProgress:
-        return l10n.homeInProgressEmpty;
-      case ClientHomeTab.pendingRequests:
-        return l10n.homePendingEmpty;
-      case ClientHomeTab.replies:
-        return l10n.homeRepliesEmpty;
-    }
-  }
-}

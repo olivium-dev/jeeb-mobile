@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:open_file/open_file.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../dev_seam/dev_seam.dart';
 import 'profile_unavailable_screen.dart';
@@ -19,8 +21,14 @@ import '../../features/delivery_man_profile/data/dev_delivery_man_profile_fixtur
 import '../../features/delivery_man_profile/domain/delivery_man_profile_view_data.dart';
 import '../../features/delivery_man_profile/presentation/delivery_man_profile_screen.dart';
 import '../../features/deep_link_targets/delivery_detail_screen.dart';
-import '../../features/deep_link_targets/kyc_status_screen.dart';
 import '../../features/deep_link_targets/rating_prompt_screen.dart';
+import '../../features/kyc/presentation/kyc_wizard_screen.dart';
+import '../../features/escalate/application/escalate_cubit.dart';
+import '../../features/escalate/domain/escalate_repository.dart';
+import '../../features/escalate/presentation/escalate_screen.dart';
+import '../../features/rating/application/mutual_rating_cubit.dart';
+import '../../features/rating/domain/rating_repository.dart';
+import '../../features/rating/presentation/mutual_rating_screen.dart';
 import '../../features/rating/presentation/rating_screen.dart';
 import '../../features/jeeber_home/domain/entities/feed_request.dart';
 import '../../features/jeeber_home/domain/services/request_feed_service.dart';
@@ -36,8 +44,15 @@ import '../../features/live_tracking/presentation/live_tracking_screen.dart';
 import '../../features/location/presentation/capture_location_screen.dart';
 import '../../features/location/presentation/client_location_screen.dart';
 import '../../features/location/presentation/screens/location_picker_screen.dart';
+import '../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
+import '../../features/active_delivery_jeeber/presentation/active_delivery_jeeber_screen.dart';
+import '../../features/offers/domain/offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
 import '../../features/offers/presentation/offer_submission_screen.dart';
+import '../../features/settlement/domain/settlement_repository.dart';
+import '../../features/settlement/domain/settlement_statement.dart';
+import '../../features/settlement/presentation/settlement_detail_screen.dart';
+import '../../features/settlement/presentation/settlement_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/otp_handover/application/otp_handover_cubit.dart';
 import '../../features/otp_handover/domain/otp_handover_repository.dart';
@@ -49,11 +64,11 @@ import '../../features/request_summary/presentation/request_summary_screen.dart'
 import '../../features/request_summary/presentation/request_summary_unavailable_screen.dart';
 import '../../features/settings/presentation/screens/notification_preferences_screen.dart';
 import '../../features/settings/presentation/screens/profile_edit_screen.dart';
-import '../../features/settings/presentation/screens/saved_addresses_screen.dart';
+import '../../features/cancellation/presentation/cancellation_screen.dart';
+import '../../features/location/presentation/saved_locations_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../../features/request_type/presentation/request_type_screen.dart';
 import '../../features/shell/shell_screen.dart';
-import '../../features/tier_selection/presentation/tier_selection_screen.dart';
 import '../../features/transcription/domain/voice_clip.dart';
 import '../../features/transcription/presentation/transcription_screen.dart';
 import '../../features/voice_request/presentation/voice_request_screen.dart';
@@ -196,6 +211,19 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: '/orders/:id/cancel',
+          name: 'delivery-cancel',
+          builder: (context, state) {
+            final id = state.pathParameters['id'] ?? '';
+            final isJeeber =
+                state.uri.queryParameters['role'] == 'jeeber';
+            return CancellationScreen(
+              deliveryId: id,
+              isJeeber: isJeeber,
+            );
+          },
+        ),
+        GoRoute(
           path: '/orders/:id/rate',
           name: 'rating-prompt',
           builder: (context, state) => RatingPromptScreen(
@@ -220,7 +248,12 @@ class AppRouter {
         GoRoute(
           path: '/profile/kyc',
           name: 'kyc-status',
-          builder: (context, state) => const KycStatusScreen(),
+          // E-P0 fix: the old `KycStatusScreen` was a read-only status stub
+          // with no way to actually start KYC, dead-ending profile_tab's
+          // goNamed('kyc-status'). Surface the real wizard instead.
+          // KycWizardScreen self-provides KycWizardCubit via DI when no cubit
+          // is passed.
+          builder: (context, state) => const KycWizardScreen(),
         ),
         // Delivery-man onboarding wizard (Figma 56591:5323 → 56591:4109 →
         // 56591:5337). Entered from the Delivery-tab upsell (screen 19). A
@@ -299,7 +332,8 @@ class AppRouter {
             GoRoute(
               path: 'addresses',
               name: 'settings-addresses',
-              builder: (context, state) => const SavedAddressesScreen(),
+              // T-MOB-025: replace placeholder with the real CRUD screen.
+              builder: (context, state) => const SavedLocationsScreen(),
             ),
             GoRoute(
               path: 'notifications',
@@ -312,19 +346,45 @@ class AppRouter {
         GoRoute(
           path: '/voice-request',
           name: 'voice-request',
-          builder: (context, state) => const VoiceRequestScreen(),
+          // A-P1: wire the recording → transcription chain. The screen's
+          // `onSent` surfaces the transcription result id (a String); the
+          // transcription route requires a [VoiceClip] via `extra`. We bridge
+          // by wrapping the id into a VoiceClip here so the downstream cast
+          // (`state.extra as VoiceClip`) succeeds. (Adjusting the screen to
+          // surface the full clip is owned by the voice_request feature; the
+          // router does the minimal-coupling bridge.)
+          builder: (context, state) => VoiceRequestScreen(
+            onSent: (clipId) => context.push(
+              '/voice-request/transcription',
+              extra: VoiceClip(audioPath: clipId, durationMs: 0),
+            ),
+          ),
         ),
-        GoRoute(
-          path: '/tier-selection',
-          name: 'tier-selection',
-          builder: (context, state) => const TierSelectionScreen(),
-        ),
+        // The legacy `/tier-selection` route (TierSelectionScreen) was removed
+        // here per the in-code CTO note: it was a dead duplicate of
+        // `/request-type` with an unwired onConfirmed. The create flow now
+        // standardizes on `/request-type`. TierSelectionScreen itself is kept
+        // for its widget tests.
         // Delivery-create flow (Figma 56535:2392 → 56539:1444 → 56546:2303).
         GoRoute(
           path: '/request-type',
           name: 'request-type',
           builder: (context, state) => RequestTypeScreen(
             onChangeLocation: () => context.push('/client-location'),
+            // A-P0: Continue producer. The screen owns the Continue CTA + tier
+            // selection; the router supplies the navigation closure that
+            // assembles a RequestDraft from the chosen [Tier] and pushes the
+            // summary step. The Tier carries no free-text description, so the
+            // draft description starts empty (the user fills it on the summary
+            // screen); the tier id/name seed the quote.
+            onTierSelected: (tier) => context.push(
+              '/request-summary',
+              extra: RequestDraft(
+                description: '',
+                tierId: tier.id.name,
+                tierName: tier.id.name,
+              ),
+            ),
           ),
         ),
         GoRoute(
@@ -357,17 +417,25 @@ class AppRouter {
         GoRoute(
           path: '/jeeber/requests/:id/offer',
           name: 'jeeber-offer-submission',
-          // Bid composition entry-point. The Jeeber lands here after tapping
-          // through a feed card; the request id is the only parameter the
-          // screen needs to drive the cubit. Both onConfirmed and onWithdrawn
-          // pop back to the feed — host owns navigation.
-          builder: (context, state) => OfferSubmissionScreen(
-            requestId: state.pathParameters['id'] ?? '',
-            submissionService: sl<OfferSubmissionService>(),
-            onWithdrawn: () {
-              if (context.canPop()) context.pop();
-            },
-          ),
+          // T-MOB-030: Bid composition entry-point with full form wired to
+          // POST /v1/offers. Navigates to chat on success; pops to feed on 409.
+          builder: (context, state) {
+            final requestId = state.pathParameters['id'] ?? '';
+            return OfferSubmissionScreen(
+              requestId: requestId,
+              submissionService: sl<OfferSubmissionService>(),
+              repository: sl<OfferSubmissionRepository>(),
+              onWithdrawn: () {
+                if (context.canPop()) context.pop();
+              },
+              onSubmitted: (conversationId) {
+                context.go('/chat/$conversationId');
+              },
+              onRequestGone: () {
+                if (context.canPop()) context.pop();
+              },
+            );
+          },
         ),
         GoRoute(
           path: '/jeeber/requests/:id',
@@ -480,6 +548,112 @@ class AppRouter {
               rateeName: state.uri.queryParameters['name'] ?? '',
             );
           },
+        ),
+        // T-MOB-020: Mutual blind rating screen. `mode=jeeber` flips to
+        // delivery-man rating the client. Both see stars + comment until
+        // counterpart also rates (or 7-day auto-reveal).
+        GoRoute(
+          path: '/orders/:id/mutual-rate',
+          name: 'mutual-rating',
+          builder: (context, state) {
+            final deliveryId = state.pathParameters['id'] ?? '';
+            final isClient = state.uri.queryParameters['mode'] != 'jeeber';
+            return BlocProvider<MutualRatingCubit>(
+              create: (_) => MutualRatingCubit(
+                repository: sl<RatingRepository>(),
+                deliveryId: deliveryId,
+                isClient: isClient,
+              ),
+              child: const MutualRatingScreen(),
+            );
+          },
+        ),
+        // T-MOB-022: Escalate/dispute screen. Accessible from delivery detail
+        // and OTP-failed flow. Multipart POST to /v1/deliveries/{id}/escalate.
+        GoRoute(
+          path: '/orders/:id/escalate',
+          name: 'escalate',
+          builder: (context, state) {
+            final deliveryId = state.pathParameters['id'] ?? '';
+            return BlocProvider<EscalateCubit>(
+              create: (_) => EscalateCubit(
+                repository: sl<EscalateRepository>(),
+                deliveryId: deliveryId,
+              ),
+              child: const EscalateScreen(),
+            );
+          },
+        ),
+        // T-MOB-031: Jeeber active-delivery screen.
+        // Path: /jeeber/deliveries/:id/active
+        GoRoute(
+          path: '/jeeber/deliveries/:id/active',
+          name: 'jeeber-active-delivery',
+          builder: (context, state) {
+            final deliveryId = state.pathParameters['id'] ?? '';
+            return ActiveDeliveryJeeberScreen(
+              deliveryId: deliveryId,
+              repository: sl<ActiveDeliveryRepository>(),
+              onOpenChat: () {
+                if (context.canPop()) context.pop();
+              },
+              onOpenOtp: () {
+                context.go('/orders/$deliveryId/otp?mode=jeeber');
+              },
+              // T-MOB-031 AC4: open destination in Google Maps via url_launcher.
+              mapsUrlBuilder: (url) => launchUrl(
+                Uri.parse(url),
+                mode: LaunchMode.externalApplication,
+              ),
+            );
+          },
+        ),
+
+        // T-MOB-032: Settlement statement list.
+        GoRoute(
+          path: '/jeeber/settlement',
+          name: 'jeeber-settlement',
+          builder: (context, state) => SettlementScreen(
+            repository: sl<SettlementRepository>(),
+            onTapStatement: (statement) {
+              context.push(
+                '/jeeber/settlement/${statement.id}',
+                extra: statement,
+              );
+            },
+            // T-MOB-032 AC3: open downloaded PDF using open_file package.
+            onOpenPdf: (path) => OpenFile.open(path),
+          ),
+        ),
+
+        // T-MOB-032: Settlement statement detail (per-delivery breakdown).
+        GoRoute(
+          path: '/jeeber/settlement/:id',
+          name: 'jeeber-settlement-detail',
+          builder: (context, state) {
+            final extra = state.extra;
+            if (extra is SettlementStatement) {
+              return SettlementDetailScreen(statement: extra);
+            }
+            return const Scaffold(
+              body: Center(child: Text('Statement not found')),
+            );
+          },
+        ),
+
+        // T-MOB-024 AC3: Wallet deep-link destination.
+        // Shown after cancellation when a fee was charged and the user taps
+        // "View Wallet". A full wallet feature (balance + top-up) is tracked
+        // under T-MOB-035; this route provides a non-crashing landing page
+        // until that feature ships.
+        GoRoute(
+          path: '/wallet',
+          name: 'wallet',
+          builder: (context, state) => const Scaffold(
+            body: Center(
+              child: Text('Wallet — coming soon'),
+            ),
+          ),
         ),
       ],
       errorBuilder: (context, state) => Scaffold(

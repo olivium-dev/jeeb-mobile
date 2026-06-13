@@ -1,35 +1,23 @@
-import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
+import 'package:flutter/widgets.dart';
 
-/// Placeholder restored under T-MOB-FIX-001 (AC1+AC4+AC5). Real implementation
-/// arrives in the per-feature follow-up ticket. Do NOT add behavior here.
-class VoiceRequestScreen extends StatefulWidget {
-  const VoiceRequestScreen({super.key});
+import 'voice_recording_screen.dart';
 
-  @override
-  State<VoiceRequestScreen> createState() => _VoiceRequestScreenState();
-}
+/// Entry point for the voice-request flow at route `/voice-request`.
+///
+/// Delegates to [VoiceRecordingScreen] which wires the press-and-hold mic
+/// button, recording timer, playback row, discard/send actions, and the
+/// post-send broadcast confirmation (T-MOB-011).
+///
+/// The [VoiceRecordingScreen] uses [MockGatewayClient.createDio] internally
+/// so it always targets the gateway-shaped mock at :3055 in debug builds.
+class VoiceRequestScreen extends StatelessWidget {
+  const VoiceRequestScreen({super.key, this.onSent});
 
-class _VoiceRequestScreenState extends State<VoiceRequestScreen> {
-  static const _featureId = 'voice-request';
-
-  @override
-  void initState() {
-    super.initState();
-    debugPrint('[placeholder] $_featureId opened');
-  }
+  /// Optional callback fired once the request is sent (receives transcript id).
+  final ValueChanged<String>? onSent;
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      container: true,
-      label: 'Voice Request coming soon. This screen is not yet available.',
-      child: const OmdsEmptyStatePage(
-        appBar: null,
-        icon: Icons.construction_outlined,
-        title: 'Voice Request coming soon',
-        subtitle: 'This screen is not yet available.',
-      ),
-    );
+    return VoiceRecordingScreen(onSent: onSent);
   }
 }

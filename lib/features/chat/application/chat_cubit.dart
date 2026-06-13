@@ -75,10 +75,11 @@ class ChatCubit extends Cubit<ChatState> {
     }
   }
 
-  /// Accept the Jeeber whose offer card is identified by [offerId]. Flips
-  /// the conversation to [ConversationPhase.accepted], drops losing offer
-  /// cards out of the visible list, and re-fetches history so the server's
-  /// system message is visible.
+  /// Accept the Jeeber whose offer card is identified by [offerId].
+  ///
+  /// Optimistic: the accepting state flips immediately. On 409 (race: another
+  /// Jeeber's offer was accepted first) the optimistic state reverts and a
+  /// [ChatError.sendFailed] toast fires.
   Future<void> acceptOffer(String offerId) async {
     if (state.acceptingOfferId != null) return;
     emit(state.copyWith(acceptingOfferId: offerId, clearError: true));
@@ -98,6 +99,7 @@ class ChatCubit extends Cubit<ChatState> {
         ),
       );
     } catch (_) {
+      // On 409 or any error: revert optimistic state, surface error.
       emit(
         state.copyWith(
           clearAcceptingOfferId: true,
@@ -105,6 +107,13 @@ class ChatCubit extends Cubit<ChatState> {
         ),
       );
     }
+  }
+
+  /// Decline an offer optimistically (greyed-out card). The WS push from the
+  /// server is the authoritative state change; the client-side flag is UI-only.
+  void declineOffer(String offerId) {
+    final updated = Set<String>.from(state.declinedOfferIds)..add(offerId);
+    emit(state.copyWith(declinedOfferIds: updated, clearError: true));
   }
 
   /// Bind the composer field to the cubit. Cleared automatically after a
@@ -136,6 +145,74 @@ class ChatCubit extends Cubit<ChatState> {
       ),
     );
     await _dispatch(draft);
+  }
+
+  /// Record and upload a voice note. The bubble appears immediately with the
+  /// audio URL placeholder; the transcription fills in once the upload resolves.
+  /// [audioBytes] is the raw PCM/M4A from the recorder widget.
+  Future<void> sendVoiceNote({
+    required List<int> audioBytes,
+    required String mimeType,
+    required int durationMs,
+  }) async {
+    final idempotencyKey = 'voice-$_deliveryId-${_outboxCounter++}';
+    final draft = DeliveryChatMessage.voice(
+      id: idempotencyKey,
+      author: ChatAuthor.me,
+      sentAt: _clock(),
+      status: MessageStatus.sending,
+      url: '',
+      durationMs: durationMs,
+    );
+    emit(state.copyWith(
+      messages: List.unmodifiable([...state.messages, draft]),
+      clearError: true,
+    ));
+    await _dispatchVoiceNote(
+      draft: draft,
+      audioBytes: audioBytes,
+      mimeType: mimeType,
+      durationMs: durationMs,
+      idempotencyKey: idempotencyKey,
+    );
+  }
+
+  Future<void> _dispatchVoiceNote({
+    required DeliveryChatMessage draft,
+    required List<int> audioBytes,
+    required String mimeType,
+    required int durationMs,
+    required String idempotencyKey,
+  }) async {
+    try {
+      final result = await _gateway.uploadVoice(
+        idempotencyKey: idempotencyKey,
+        audioBytes: audioBytes,
+        mimeType: mimeType,
+        durationMs: durationMs,
+      );
+      final uploaded = DeliveryChatMessage.voice(
+        id: draft.id,
+        author: ChatAuthor.me,
+        sentAt: draft.sentAt,
+        status: MessageStatus.sent,
+        url: result.url,
+        durationMs: durationMs,
+        transcription: result.transcription,
+      );
+      _replaceMessage(draft.id, uploaded);
+      await _dispatch(uploaded);
+    } catch (_) {
+      _updateMessage(draft.id, MessageStatus.failed);
+      emit(state.copyWith(error: ChatError.voiceUploadFailed));
+    }
+  }
+
+  void _replaceMessage(String id, DeliveryChatMessage replacement) {
+    final updated = state.messages
+        .map((m) => m.id == id ? replacement : m)
+        .toList(growable: false);
+    emit(state.copyWith(messages: List.unmodifiable(updated)));
   }
 
   /// Pick a photo from the camera and send it as a single photo message.

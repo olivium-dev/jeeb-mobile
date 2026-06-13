@@ -22,4 +22,5 @@ class OtpHandoverException implements Exception {
       'OtpHandoverException(${kind.name}${cause == null ? '' : ', $cause'})';
 }
 
-enum OtpHandoverErrorKind { network, server, invalidOtp, parse }
+/// T-MOB-018 AC4: `locked` maps to HTTP 423 (3 attempts exhausted → escalate).
+enum OtpHandoverErrorKind { network, server, invalidOtp, locked, parse }

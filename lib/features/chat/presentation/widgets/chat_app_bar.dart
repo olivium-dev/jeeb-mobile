@@ -22,6 +22,7 @@ class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.avatarUrl,
     this.avatarImage,
     this.showAvatar = false,
+    this.onAvatarTap,
   });
 
   /// Header title — counterpart display name or order/request id.
@@ -40,6 +41,13 @@ class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// Whether to render the leading avatar (post-approval state only).
   final bool showAvatar;
 
+  /// Tapping the counterpart avatar opens their public profile (D-P1). The
+  /// caller (chat screen) supplies a closure that branches on [RoleCubit] —
+  /// pushing `/profile/delivery-man` (client viewing a jeeber) or
+  /// `/profile/customer` (jeeber viewing a client) with the typed view-data
+  /// extra. Null leaves the avatar non-interactive.
+  final VoidCallback? onAvatarTap;
+
   /// Leading-slot width when the avatar cluster (back + avatar) is shown.
   /// Back-button tap target + inter-gap + avatar, expressed in tokens.
   static const double _avatarLeadingWidth = Sizes.fiveXLarge + Sizes.fourXLarge;
@@ -54,7 +62,12 @@ class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
       centerTitle: false,
       showBackButton: !showAvatar,
       leading: showAvatar
-          ? _ChatHeaderLeading(title: title, url: avatarUrl, image: avatarImage)
+          ? _ChatHeaderLeading(
+              title: title,
+              url: avatarUrl,
+              image: avatarImage,
+              onAvatarTap: onAvatarTap,
+            )
           : null,
       leadingWidth: showAvatar ? _avatarLeadingWidth : null,
     );
@@ -68,11 +81,13 @@ class _ChatHeaderLeading extends StatelessWidget {
     required this.title,
     required this.url,
     required this.image,
+    required this.onAvatarTap,
   });
 
   final String title;
   final String? url;
   final ImageProvider? image;
+  final VoidCallback? onAvatarTap;
 
   @override
   Widget build(BuildContext context) {
@@ -80,7 +95,12 @@ class _ChatHeaderLeading extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const _ChatBackButton(),
-        _ChatHeaderAvatar(title: title, url: url, image: image),
+        _ChatHeaderAvatar(
+          title: title,
+          url: url,
+          image: image,
+          onTap: onAvatarTap,
+        ),
       ],
     );
   }
@@ -116,23 +136,37 @@ class _ChatHeaderAvatar extends StatelessWidget {
     required this.title,
     required this.url,
     required this.image,
+    required this.onTap,
   });
 
   final String title;
   final String? url;
   final ImageProvider? image;
 
+  /// When non-null, the avatar becomes a button that opens the counterpart's
+  /// public profile (D-P1). The role-branching + view-data construction lives
+  /// in the caller; this widget only exposes the tappable affordance.
+  final VoidCallback? onTap;
+
   static const double _size = Sizes.fourXLarge;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final avatar = image != null
+        ? _CircularImageAvatar(image: image!, size: _size)
+        : _UrlOrInitialAvatar(title: title, url: url, size: _size);
     return Semantics(
       identifier: 'chat_detail_avatar',
+      button: onTap != null,
       label: l10n.chatAvatarA11y,
-      child: image != null
-          ? _CircularImageAvatar(image: image!, size: _size)
-          : _UrlOrInitialAvatar(title: title, url: url, size: _size),
+      child: onTap != null
+          ? GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onTap,
+              child: avatar,
+            )
+          : avatar,
     );
   }
 }

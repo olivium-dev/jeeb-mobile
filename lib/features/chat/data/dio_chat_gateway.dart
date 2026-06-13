@@ -134,6 +134,40 @@ class DioChatGateway implements ChatGateway {
     }
   }
 
+  /// Upload a voice clip to `/v1/voice/transcribe` with a stable
+  /// [idempotencyKey]. The endpoint returns a CDN URL + optional transcription.
+  /// The 15s receive timeout is enforced so the bubble doesn't wait forever.
+  @override
+  Future<VoiceUploadResult> uploadVoice({
+    required String idempotencyKey,
+    required List<int> audioBytes,
+    required String mimeType,
+    required int durationMs,
+  }) async {
+    final form = FormData.fromMap({
+      'durationMs': durationMs,
+      'audio': MultipartFile.fromBytes(
+        audioBytes,
+        filename: 'voice-note.m4a',
+        contentType: DioMediaType.parse(mimeType),
+      ),
+    });
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/v1/voice/transcribe',
+      data: form,
+      options: Options(
+        headers: {'Idempotency-Key': idempotencyKey},
+        receiveTimeout: const Duration(seconds: 15),
+      ),
+    );
+    final body = response.data ?? const <String, dynamic>{};
+    return VoiceUploadResult(
+      url: body['url'] as String? ?? body['audioUrl'] as String? ?? '',
+      transcription: body['transcript'] as String? ??
+          body['transcription'] as String?,
+    );
+  }
+
   Future<void> dispose() async {
     await _socket?.close();
     if (!_events.isClosed) await _events.close();

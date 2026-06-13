@@ -8,14 +8,11 @@ import '../domain/kyc_submission.dart';
 import '../domain/vehicle_type.dart';
 import 'kyc_wizard_state.dart';
 
-/// Drives the three-step KYC wizard (ID → selfie → vehicle), the optional
-/// review step, and the final status screen.
+/// Drives the KYC wizard: schema load → ID → selfie → vehicle → ToS → submit.
 ///
-/// One [KycPhotoCompressor]-respecting compressor is shared by all three
-/// capture slots — there's no need for the per-slot cap that
-/// [PhotoAttachmentCubit] enforces because each slot only holds a single
-/// photo. The cubit refuses to advance until the prior step's photos have
-/// been captured (T-mobile-006 AC).
+/// On construction the cubit starts in [KycWizardStep.schema] and immediately
+/// kicks off [_loadSchema]. If the schema load fails the user is shown an error
+/// with a retry button.
 class KycWizardCubit extends Cubit<KycWizardState> {
   KycWizardCubit({
     required PhotoPickerService pickerService,
@@ -30,31 +27,62 @@ class KycWizardCubit extends Cubit<KycWizardState> {
   final KycGateway _gateway;
   final PhotoCompressor _compressor;
 
-  /// Monotonic counter shared by all three slots — keeps every captured
-  /// attachment id unique so consumers can compare by id.
   int _nextId = 0;
+
+  // ── Schema load ──────────────────────────────────────────────────────────
+
+  Future<void> loadSchema() async {
+    emit(state.copyWith(step: KycWizardStep.schema, clearError: true));
+    try {
+      final schema = await _gateway.fetchFormSchema();
+      emit(state.copyWith(formSchema: schema, step: KycWizardStep.id));
+    } catch (_) {
+      emit(state.copyWith(error: KycWizardError.schemaLoadFailed));
+    }
+  }
+
+  // ── Status (cold-start re-read) ──────────────────────────────────────────
+
+  Future<void> loadStatus() async {
+    emit(state.copyWith(isLoadingStatus: true, clearError: true));
+    final snapshot = await _gateway.fetchStatus();
+    if (snapshot.status == KycStatus.notSubmitted) {
+      await loadSchema();
+      return;
+    }
+    emit(state.copyWith(
+      isLoadingStatus: false,
+      submission: snapshot,
+      step: KycWizardStep.status,
+    ));
+  }
+
+  // ── Capture ──────────────────────────────────────────────────────────────
 
   Future<void> captureIdFront() => _capture(KycCaptureSlot.idFront);
   Future<void> captureIdBack() => _capture(KycCaptureSlot.idBack);
   Future<void> captureSelfie() => _capture(KycCaptureSlot.selfie);
 
-  /// Advances from step 1 → step 2 once both ID sides are captured. No-op
-  /// otherwise so the view doesn't have to gate the call itself.
+  // ── Navigation ───────────────────────────────────────────────────────────
+
   void goToSelfie() {
     if (!state.canAdvanceFromId) return;
     emit(state.copyWith(step: KycWizardStep.selfie, clearError: true));
   }
 
-  /// Advances from step 2 → step 3 once the selfie is captured.
   void goToVehicle() {
     if (!state.canAdvanceFromSelfie) return;
     emit(state.copyWith(step: KycWizardStep.vehicle, clearError: true));
   }
 
-  /// Returns to the immediately-previous capture step. The status screen
-  /// goes back to vehicle so the user can re-capture if needed.
+  void goToTos() {
+    if (!state.canAdvanceFromVehicle) return;
+    _loadContractTemplate();
+  }
+
   void goBack() {
     switch (state.step) {
+      case KycWizardStep.schema:
       case KycWizardStep.id:
       case KycWizardStep.submitting:
       case KycWizardStep.status:
@@ -65,8 +93,13 @@ class KycWizardCubit extends Cubit<KycWizardState> {
       case KycWizardStep.vehicle:
         emit(state.copyWith(step: KycWizardStep.selfie, clearError: true));
         break;
+      case KycWizardStep.tos:
+        emit(state.copyWith(step: KycWizardStep.vehicle, clearError: true));
+        break;
     }
   }
+
+  // ── Vehicle fields ───────────────────────────────────────────────────────
 
   void setVehicleType(VehicleType type) {
     emit(state.copyWith(
@@ -78,70 +111,82 @@ class KycWizardCubit extends Cubit<KycWizardState> {
   void setVehicleRegistration(String value) {
     emit(state.copyWith(
       submission: state.submission.copyWith(vehicleRegistration: value),
-      // Clear the inline required-field error as soon as the user types.
       clearError: state.error == KycWizardError.vehicleRegistrationRequired,
     ));
   }
 
-  /// Submits the captured data to the gateway. Validates the vehicle step
-  /// inline before kicking off the request — a missing registration produces
-  /// a one-shot [KycWizardError.vehicleRegistrationRequired].
-  Future<void> submit() async {
+  // ── ToS contract ─────────────────────────────────────────────────────────
+
+  Future<void> _loadContractTemplate() async {
+    emit(state.copyWith(step: KycWizardStep.tos, clearError: true));
+    if (state.contractTemplate != null) return;
+    try {
+      final template = await _gateway.fetchContractTemplate();
+      emit(state.copyWith(contractTemplate: template));
+    } catch (_) {
+      emit(state.copyWith(error: KycWizardError.contractLoadFailed));
+    }
+  }
+
+  Future<void> signAndSubmit(String signatureBlob) async {
+    final template = state.contractTemplate;
+    if (template == null) return;
     if (state.step == KycWizardStep.submitting) return;
-    if (!state.canAdvanceFromId ||
-        !state.canAdvanceFromSelfie ||
-        state.submission.vehicleType == null) {
-      return;
-    }
-    if (state.submission.vehicleRegistration.trim().isEmpty) {
-      emit(state.copyWith(error: KycWizardError.vehicleRegistrationRequired));
-      return;
-    }
     emit(state.copyWith(step: KycWizardStep.submitting, clearError: true));
     try {
-      final updated = await _gateway.submit(state.submission);
+      final stamp = await _gateway.signContract(
+        templateId: template.templateId,
+        tosVersion: template.tosVersion,
+        signatureBlob: signatureBlob,
+      );
+      final updated = await _gateway.submit(
+        state.submission.copyWith(status: KycStatus.notSubmitted),
+      );
       emit(state.copyWith(
         step: KycWizardStep.status,
         submission: updated,
+        tosAcceptedVersion: stamp.tosAcceptedVersion,
       ));
-    } on Object {
+    } catch (_) {
       emit(state.copyWith(
-        step: KycWizardStep.vehicle,
+        step: KycWizardStep.tos,
         error: KycWizardError.submitFailed,
       ));
     }
   }
 
-  /// Resets the wizard back to step 1 so the user can re-capture after a
-  /// rejection. Keeps the previously rejected status until the user actually
-  /// resubmits.
+  // ── Legacy submit (vehicle step) ─────────────────────────────────────────
+
+  Future<void> submit() async {
+    if (state.step == KycWizardStep.submitting) return;
+    if (!state.canAdvanceFromId || !state.canAdvanceFromSelfie) return;
+    if (state.submission.vehicleType == null) return;
+    if (state.submission.vehicleRegistration.trim().isEmpty) {
+      emit(state.copyWith(error: KycWizardError.vehicleRegistrationRequired));
+      return;
+    }
+    goToTos();
+  }
+
+  // ── Resubmit after rejection ─────────────────────────────────────────────
+
   void resubmit() {
     emit(state.copyWith(
-      step: KycWizardStep.id,
+      step: KycWizardStep.schema,
       submission: const KycSubmission(status: KycStatus.notSubmitted),
       clearCapturing: true,
       clearError: true,
+      clearTosVersion: true,
     ));
-  }
-
-  /// Cold-load entry point used by the status screen. Pulls the most recent
-  /// decision so the screen renders pending/approved/rejected across restarts.
-  Future<void> loadStatus() async {
-    emit(state.copyWith(isLoadingStatus: true, clearError: true));
-    final snapshot = await _gateway.fetchStatus();
-    emit(state.copyWith(
-      isLoadingStatus: false,
-      submission: snapshot,
-      step: snapshot.status == KycStatus.notSubmitted
-          ? KycWizardStep.id
-          : KycWizardStep.status,
-    ));
+    loadSchema();
   }
 
   void acknowledgeError() {
     if (state.error == null) return;
     emit(state.copyWith(clearError: true));
   }
+
+  // ── Private helpers ──────────────────────────────────────────────────────
 
   Future<void> _capture(KycCaptureSlot slot) async {
     if (state.isCapturing) return;

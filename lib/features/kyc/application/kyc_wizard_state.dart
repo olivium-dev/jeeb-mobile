@@ -1,19 +1,30 @@
 import 'package:equatable/equatable.dart';
 
+import '../domain/kyc_contract_template.dart';
+import '../domain/kyc_form_schema.dart';
 import '../domain/kyc_submission.dart';
 
-/// Which step the wizard is currently showing. The wizard host renders a
-/// different child per step; the cubit is the single source of truth for
-/// transitions.
-enum KycWizardStep { id, selfie, vehicle, submitting, status }
+/// Which step the wizard is currently showing.
+///
+/// Steps in order:
+///   schema → id → selfie → vehicle → tos → submitting → status
+///
+/// [schema] is the loading state while fetching the form schema from the server.
+/// [tos] shows the ToS contract + signature pad before final submit.
+enum KycWizardStep {
+  schema,
+  id,
+  selfie,
+  vehicle,
+  tos,
+  submitting,
+  status,
+}
 
-/// Which capture slot the cubit is currently filling. Surfaced so the view
-/// can disable the other capture buttons while a pick is in flight.
+/// Which capture slot the cubit is currently filling.
 enum KycCaptureSlot { idFront, idBack, selfie }
 
-/// Transient error surfaces produced by the wizard cubit. One-shot — the view
-/// renders the corresponding copy and calls [KycWizardCubit.acknowledgeError]
-/// so the same error isn't replayed on the next rebuild.
+/// Transient error surfaces produced by the wizard cubit.
 enum KycWizardError {
   pickCancelled,
   permissionDenied,
@@ -21,47 +32,62 @@ enum KycWizardError {
   compressionFailed,
   vehicleRegistrationRequired,
   submitFailed,
+  schemaLoadFailed,
+  contractLoadFailed,
+  signFailed,
+  fileTooLarge,
+  fileTypeNotAllowed,
 }
 
 class KycWizardState extends Equatable {
   const KycWizardState({
-    this.step = KycWizardStep.id,
+    this.step = KycWizardStep.schema,
     this.submission = const KycSubmission(status: KycStatus.notSubmitted),
+    this.formSchema,
+    this.contractTemplate,
+    this.tosAcceptedVersion,
     this.capturing,
     this.error,
     this.isLoadingStatus = false,
   });
 
-  /// Total step count for the progress indicator. Submitting/status are not
-  /// counted — the progress bar is full once review is reached.
+  /// Total capture steps (ID + selfie + vehicle) for the progress indicator.
   static const int totalCaptureSteps = 3;
 
   final KycWizardStep step;
   final KycSubmission submission;
 
-  /// Non-null while a camera capture is in flight. Lets the UI disable buttons
-  /// and surface a spinner without racing concurrent captures.
+  /// Loaded schema — null until the gateway returns it.
+  final KycFormSchema? formSchema;
+
+  /// Loaded ToS contract template — null until the ToS step loads it.
+  final KycContractTemplate? contractTemplate;
+
+  /// ToS version accepted by the user (populated after signing).
+  final String? tosAcceptedVersion;
+
+  /// Non-null while a camera capture is in flight.
   final KycCaptureSlot? capturing;
 
   final KycWizardError? error;
 
-  /// True while [KycWizardCubit.loadStatus] is in flight (status screen cold
-  /// load). Distinct from [capturing] so the wizard view doesn't confuse a
-  /// camera pick with a status refresh.
+  /// True while [KycWizardCubit.loadStatus] is in flight.
   final bool isLoadingStatus;
 
   bool get isCapturing => capturing != null;
+  bool get hasSignedTos => tosAcceptedVersion != null;
 
-  /// Number of capture steps the user has finished — drives the progress bar.
   int get completedCaptureSteps {
     switch (step) {
+      case KycWizardStep.schema:
+        return 0;
       case KycWizardStep.id:
-        // Both sides required to count step 1 as complete.
         return submission.hasIdFront && submission.hasIdBack ? 1 : 0;
       case KycWizardStep.selfie:
         return 1;
       case KycWizardStep.vehicle:
         return 2;
+      case KycWizardStep.tos:
       case KycWizardStep.submitting:
       case KycWizardStep.status:
         return totalCaptureSteps;
@@ -79,6 +105,10 @@ class KycWizardState extends Equatable {
   KycWizardState copyWith({
     KycWizardStep? step,
     KycSubmission? submission,
+    KycFormSchema? formSchema,
+    KycContractTemplate? contractTemplate,
+    String? tosAcceptedVersion,
+    bool clearTosVersion = false,
     KycCaptureSlot? capturing,
     bool clearCapturing = false,
     KycWizardError? error,
@@ -88,6 +118,11 @@ class KycWizardState extends Equatable {
     return KycWizardState(
       step: step ?? this.step,
       submission: submission ?? this.submission,
+      formSchema: formSchema ?? this.formSchema,
+      contractTemplate: contractTemplate ?? this.contractTemplate,
+      tosAcceptedVersion: clearTosVersion
+          ? null
+          : (tosAcceptedVersion ?? this.tosAcceptedVersion),
       capturing: clearCapturing ? null : (capturing ?? this.capturing),
       error: clearError ? null : (error ?? this.error),
       isLoadingStatus: isLoadingStatus ?? this.isLoadingStatus,
@@ -98,6 +133,9 @@ class KycWizardState extends Equatable {
   List<Object?> get props => [
         step,
         submission,
+        formSchema,
+        contractTemplate,
+        tosAcceptedVersion,
         capturing,
         error,
         isLoadingStatus,

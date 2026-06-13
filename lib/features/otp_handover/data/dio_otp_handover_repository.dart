@@ -3,36 +3,46 @@ import 'package:dio/dio.dart';
 import '../domain/otp_handover_repository.dart';
 import '../domain/otp_handover_result.dart';
 
+/// T-MOB-018: Endpoint contract verified against Mockoon :3055
+/// (d5-delivery-lifecycle suite, scenario s09-live-tracking).
+///
+/// GET  /v1/deliveries/{id}/otp
+///   → OtpStatusDto { deliveryId, triggered, code, expiresAt, attemptsRemaining }
+///   (wave-11 alias; `code` is the 4-digit string the client displays)
+///
+/// POST /deliveries/{id}/otp/verify
+///   body: { code: "1234" }
+///   → OtpHandoverVerificationResponse { deliveryId, verified, status, message }
+///   200 = success; 401 = wrong code; 423 = locked (3 attempts exhausted)
 class DioOtpHandoverRepository implements OtpHandoverRepository {
   DioOtpHandoverRepository(this._dio);
 
   final Dio _dio;
 
-  static const _deliveryPath = '/v1/delivery';
-  static const _transitionPath = '/v1/delivery/status/transition';
+  // GET /v1/deliveries/{id}/otp → returns code for client display (wave-11)
+  static const _v1DeliveriesPath = '/v1/deliveries';
+
+  // POST /deliveries/{id}/otp/verify → Jeeber submits the code
+  static const _deliveriesPath = '/deliveries';
 
   @override
   Future<String> fetchHandoverCode({required String deliveryId}) async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
-        '$_deliveryPath/$deliveryId',
+        '$_v1DeliveriesPath/$deliveryId/otp',
       );
       final data = response.data;
       if (data == null) {
         throw const OtpHandoverException(OtpHandoverErrorKind.parse);
       }
-      final code = data['handoverCode'] as String?;
+      // OtpStatusDto: `code` field added in wave-11 contract addendum
+      final code = data['code'] as String?;
       if (code == null || code.isEmpty) {
         throw const OtpHandoverException(OtpHandoverErrorKind.parse);
       }
       return code;
     } on DioException catch (e) {
-      throw OtpHandoverException(
-        e.response == null
-            ? OtpHandoverErrorKind.network
-            : OtpHandoverErrorKind.server,
-        e,
-      );
+      throw OtpHandoverException(_mapDioKind(e), e);
     }
   }
 
@@ -43,28 +53,27 @@ class DioOtpHandoverRepository implements OtpHandoverRepository {
   }) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
-        _transitionPath,
-        data: {
-          'deliveryId': deliveryId,
-          'to': 'Delivered',
-          'handoverCode': otp,
-        },
+        '$_deliveriesPath/$deliveryId/otp/verify',
+        data: {'code': otp},
       );
-      final data = response.data;
+      final data = response.data ?? {};
+      final verified = data['verified'] as bool? ?? false;
       return OtpHandoverResult(
-        success: true,
-        message: data?['message'] as String?,
+        success: verified,
+        message: data['message'] as String?,
       );
     } on DioException catch (e) {
-      if (e.response?.statusCode == 422 || e.response?.statusCode == 400) {
+      final status = e.response?.statusCode;
+      if (status == 401) {
         throw const OtpHandoverException(OtpHandoverErrorKind.invalidOtp);
       }
-      throw OtpHandoverException(
-        e.response == null
-            ? OtpHandoverErrorKind.network
-            : OtpHandoverErrorKind.server,
-        e,
-      );
+      if (status == 423) {
+        throw const OtpHandoverException(OtpHandoverErrorKind.locked);
+      }
+      throw OtpHandoverException(_mapDioKind(e), e);
     }
   }
+
+  OtpHandoverErrorKind _mapDioKind(DioException e) =>
+      e.response == null ? OtpHandoverErrorKind.network : OtpHandoverErrorKind.server;
 }

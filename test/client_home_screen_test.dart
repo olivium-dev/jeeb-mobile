@@ -46,6 +46,7 @@ Widget _harness({
   required ClientHomeRepository repo,
   String? greetingName,
   void Function(ClientHomeRequest)? onOpenRequest,
+  void Function(ClientHomeRequest)? onTrack,
   VoidCallback? onCreateRequest,
   Locale locale = const Locale('en'),
   ClientHomeTab initialTab = ClientHomeTab.inProgress,
@@ -69,6 +70,7 @@ Widget _harness({
         child: ClientHomeScreen(
           initialTab: initialTab,
           onOpenRequest: onOpenRequest,
+          onTrack: onTrack,
           onCreateRequest: onCreateRequest,
         ),
       ),
@@ -237,9 +239,9 @@ void main() {
       expect(find.text('In Transit'), findsOneWidget);
     });
 
-    testWidgets('tapping "Track my order" invokes onOpenRequest with that request',
+    testWidgets('tapping "Track my order" invokes onTrack with that request',
         (tester) async {
-      ClientHomeRequest? opened;
+      ClientHomeRequest? tracked;
       final repo = InMemoryClientHomeRepository(
         latency: Duration.zero,
         seedActive: const [
@@ -253,7 +255,7 @@ void main() {
       );
       await tester.pumpWidget(_harness(
         repo: repo,
-        onOpenRequest: (r) => opened = r,
+        onTrack: (r) => tracked = r,
       ));
       await tester.pumpAndSettle();
 
@@ -275,7 +277,7 @@ void main() {
       await tester.tap(find.byKey(const Key('active-track-order-r-1')));
       await tester.pumpAndSettle();
 
-      expect(opened?.id, 'r-1');
+      expect(tracked?.id, 'r-1');
     });
 
     // Recent deliveries section ("Order again" / "Re-order") was removed in
@@ -328,7 +330,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('pending-requests-list')), findsOneWidget);
+      // Key updated: home screen now delegates to PendingRequestsTab which uses
+      // key 'pending-requests-tab-list' (aligned with T-MOB-007 dedicated widget).
+      expect(find.byKey(const Key('pending-requests-tab-list')), findsOneWidget);
       expect(find.text('ORD-23470'), findsOneWidget);
       expect(find.text('Express'), findsOneWidget);
       expect(find.text('Track my order'), findsNothing);

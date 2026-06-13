@@ -24,52 +24,69 @@ abstract class TierRepository {
   Future<List<Tier>> fetchTiers();
 }
 
-/// Dio-backed implementation. Talks to `GET /api/tiers` on jeeb-gateway and
-/// decodes the JSON envelope. The endpoint is unauthenticated for catalog
-/// reads — auth headers are layered in by the Dio interceptor.
+/// Dio-backed implementation. Talks to `GET /tiers` on jeeb-gateway (Mockoon
+/// mock at :3055) and decodes the JSON envelope.
+///
+/// Mock contract (verified against Mockoon :3055 route `GET /tiers`,
+/// scenario `s05-order-prohibited-items`):
+/// ```json
+/// { "items": [ { "id": "flash", "name": "Flash", "slaHours": 1,
+///   "radiusKm": 3.0, "commissionRate": 0.15, "priceHint": "$$$" } ] }
+/// ```
+/// Since `useMockPrefixes=false` the path `/tiers` passes through unchanged.
+/// The production gateway will expose this on `/v1/delivery/tiers` (T-BE-008);
+/// update `_path` when gateway is promoted to prod.
 class DioTierRepository implements TierRepository {
   const DioTierRepository(this._dio);
 
   final Dio _dio;
 
-  static const String _path = '/api/tiers';
+  /// Endpoint verified against Mockoon :3055 — `GET /tiers` (no v1 prefix).
+  /// Acceptance-test note (T-MOB-010 AC): mock returns 200 with items array.
+  static const String _path = '/tiers';
 
   @override
   Future<List<Tier>> fetchTiers() async {
     try {
       final response = await _dio.get<dynamic>(_path);
-      final data = response.data;
-      if (data is! List) {
-        throw const TierLoadException(TierLoadFailure.server);
-      }
-      return data
-          .whereType<Map<String, dynamic>>()
-          .map(_parseTier)
-          .whereType<Tier>()
-          .toList(growable: false);
+      return _parseResponse(response.data);
     } on DioException {
       throw const TierLoadException(TierLoadFailure.network);
     }
   }
 
+  List<Tier> _parseResponse(dynamic data) {
+    final List<dynamic> items;
+    if (data is Map<String, dynamic> && data['items'] is List) {
+      items = data['items'] as List<dynamic>;
+    } else if (data is List) {
+      items = data;
+    } else {
+      throw const TierLoadException(TierLoadFailure.server);
+    }
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(_parseTier)
+        .whereType<Tier>()
+        .toList(growable: false);
+  }
+
   Tier? _parseTier(Map<String, dynamic> json) {
     final id = _parseId(json['id'] as Object?);
     if (id == null) return null;
-    final vehicle = _parseVehicleClass(json['vehicleClass'] as Object?);
-    final low = (json['priceLow'] as num?)?.toInt();
-    final high = (json['priceHigh'] as num?)?.toInt();
-    final currency = json['currency'] as String?;
-    if (low == null || high == null || currency == null || vehicle == null) {
-      return null;
-    }
+    final slaHours = (json['slaHours'] as num?)?.toInt();
+    final slaMinutes = slaHours != null ? slaHours * 60 : null;
+    final priceHint = json['priceHint'] as String? ?? '';
+    final vehicle = _vehicleForTier(id);
+    final prices = _pricesForHint(priceHint);
     return Tier(
       id: id,
-      priceLow: low,
-      priceHigh: high,
-      currency: currency,
+      priceLow: prices.$1,
+      priceHigh: prices.$2,
+      currency: 'USD',
       vehicleClass: vehicle,
-      slaMinutes: (json['slaMinutes'] as num?)?.toInt(),
-      recommended: json['recommended'] == true,
+      slaMinutes: slaMinutes,
+      recommended: id == TierId.flash,
     );
   }
 
@@ -90,18 +107,33 @@ class DioTierRepository implements TierRepository {
     return null;
   }
 
-  TierVehicleClass? _parseVehicleClass(Object? raw) {
-    switch (raw) {
-      case 'bike_or_scooter':
-        return TierVehicleClass.bikeOrScooter;
-      case 'scooter_or_car':
+  /// Maps tier id to the vehicle class shown on the card.
+  TierVehicleClass _vehicleForTier(TierId id) {
+    switch (id) {
+      case TierId.flash:
         return TierVehicleClass.scooterOrCar;
-      case 'car_or_van':
-        return TierVehicleClass.carOrVan;
-      case 'any':
+      case TierId.express:
+        return TierVehicleClass.scooterOrCar;
+      case TierId.standard:
+        return TierVehicleClass.bikeOrScooter;
+      case TierId.onTheWay:
+        return TierVehicleClass.any;
+      case TierId.eco:
         return TierVehicleClass.any;
     }
-    return null;
+  }
+
+  /// Derives indicative price band from the gateway's priceHint string.
+  (int, int) _pricesForHint(String hint) {
+    switch (hint) {
+      case '\$\$\$':
+        return (120000, 160000);
+      case '\$\$':
+        return (80000, 120000);
+      case '\$':
+        return (45000, 70000);
+    }
+    return (30000, 55000);
   }
 }
 

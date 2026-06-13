@@ -10,12 +10,15 @@ import '../application/chat_state.dart';
 import '../data/in_memory_chat_gateway.dart';
 import '../domain/chat_gateway.dart';
 import '../domain/delivery_chat_message.dart';
+import 'widgets/broadcast_ttl_indicator.dart';
 import 'widgets/chat_app_bar.dart';
 import 'widgets/chat_composer.dart';
 import 'widgets/chat_date_separator.dart';
 import 'widgets/chat_fee_banner.dart';
 import 'widgets/chat_message_bubble.dart';
 import 'widgets/chat_offer_only_one_footer.dart';
+import 'widgets/jeeber_removed_banner.dart';
+import 'widgets/offer_accepted_banner.dart';
 import 'widgets/offer_card_bubble.dart';
 
 /// Jeeber-only balance-deduction notice configuration for [ChatScreen].
@@ -54,6 +57,7 @@ class ChatScreen extends StatelessWidget {
     this.counterpartAvatarImage,
     this.feeNotice,
     this.composerHint,
+    this.onStartActiveDelivery,
     this.cubit,
     this.gateway,
     this.pickerService,
@@ -85,6 +89,13 @@ class ChatScreen extends StatelessWidget {
   /// "Price / time" hint; null falls back to the default "Type a message".
   final String? composerHint;
 
+  /// Jeeber-only entry point into the active-delivery screen. When non-null,
+  /// the [OfferAcceptedBanner] renders a "Start delivery" CTA once the offer
+  /// is accepted. Null on the client variant (the client never starts a
+  /// delivery), so the CTA is hidden there. Wired by the host that builds the
+  /// Jeeber's chat, where the delivery id is in scope.
+  final VoidCallback? onStartActiveDelivery;
+
   /// Pre-built cubit for widget tests / hosts that own the lifecycle.
   final ChatCubit? cubit;
 
@@ -108,6 +119,7 @@ class ChatScreen extends StatelessWidget {
           counterpartAvatarImage: counterpartAvatarImage,
           feeNotice: feeNotice,
           composerHint: composerHint,
+          onStartActiveDelivery: onStartActiveDelivery,
         ),
       );
     }
@@ -123,6 +135,7 @@ class ChatScreen extends StatelessWidget {
         counterpartAvatarImage: counterpartAvatarImage,
         feeNotice: feeNotice,
         composerHint: composerHint,
+        onStartActiveDelivery: onStartActiveDelivery,
       ),
     );
   }
@@ -135,6 +148,7 @@ class _ChatScaffold extends StatefulWidget {
     this.counterpartAvatarImage,
     this.feeNotice,
     this.composerHint,
+    this.onStartActiveDelivery,
   });
 
   final String counterpartName;
@@ -142,6 +156,7 @@ class _ChatScaffold extends StatefulWidget {
   final ImageProvider? counterpartAvatarImage;
   final ChatFeeNotice? feeNotice;
   final String? composerHint;
+  final VoidCallback? onStartActiveDelivery;
 
   @override
   State<_ChatScaffold> createState() => _ChatScaffoldState();
@@ -149,6 +164,7 @@ class _ChatScaffold extends StatefulWidget {
 
 class _ChatScaffoldState extends State<_ChatScaffold> {
   final ScrollController _scrollController = ScrollController();
+  bool _bannerDismissed = false;
 
   @override
   void dispose() {
@@ -187,18 +203,44 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
         child: BlocConsumer<ChatCubit, ChatState>(
           listenWhen: (prev, curr) =>
               prev.messages.length != curr.messages.length ||
-              prev.error != curr.error,
+              prev.error != curr.error ||
+              prev.phase != curr.phase,
           listener: (context, state) => _onStateChanged(context, state, l10n),
-          builder: (context, state) => _ChatBody(
-            state: state,
-            l10n: l10n,
-            scrollController: _scrollController,
-            feeNotice: widget.feeNotice,
-            composerHint: widget.composerHint,
-          ),
+          builder: (context, state) => _buildBody(state, l10n),
         ),
       ),
     );
+  }
+
+  Widget _buildBody(ChatState state, AppLocalizations l10n) {
+    final winnerName = _extractWinnerName(state);
+    return _ChatBody(
+      state: state,
+      l10n: l10n,
+      scrollController: _scrollController,
+      feeNotice: widget.feeNotice,
+      composerHint: widget.composerHint,
+      showAcceptedBanner: state.phase == ConversationPhase.accepted &&
+          !_bannerDismissed &&
+          winnerName != null,
+      winnerName: winnerName,
+      onBannerDismiss: () => setState(() => _bannerDismissed = true),
+      onStartActiveDelivery: widget.onStartActiveDelivery,
+      showRemovedBanner: state.phase == ConversationPhase.closed &&
+          state.messages.any(
+            (m) => m.kind == MessageKind.offerRejected,
+          ),
+      broadcastExpiresAt: state.broadcastExpiresAt,
+    );
+  }
+
+  String? _extractWinnerName(ChatState state) {
+    for (final m in state.messages.reversed) {
+      if (m.kind == MessageKind.offerAccepted) {
+        return m.systemOfferPayload?.jeeberName;
+      }
+    }
+    return widget.counterpartName;
   }
 
   void _onStateChanged(
@@ -228,6 +270,8 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
         return l10n.chatErrorPickUnavailable;
       case ChatError.sendFailed:
         return l10n.chatErrorSendFailed;
+      case ChatError.voiceUploadFailed:
+        return l10n.chatVoiceUploadFailed;
     }
   }
 }
@@ -240,6 +284,12 @@ class _ChatBody extends StatelessWidget {
     required this.scrollController,
     this.feeNotice,
     this.composerHint,
+    this.showAcceptedBanner = false,
+    this.winnerName,
+    this.onBannerDismiss,
+    this.onStartActiveDelivery,
+    this.showRemovedBanner = false,
+    this.broadcastExpiresAt,
   });
 
   final ChatState state;
@@ -247,6 +297,12 @@ class _ChatBody extends StatelessWidget {
   final ScrollController scrollController;
   final ChatFeeNotice? feeNotice;
   final String? composerHint;
+  final bool showAcceptedBanner;
+  final String? winnerName;
+  final VoidCallback? onBannerDismiss;
+  final VoidCallback? onStartActiveDelivery;
+  final bool showRemovedBanner;
+  final DateTime? broadcastExpiresAt;
 
   @override
   Widget build(BuildContext context) {
@@ -258,8 +314,26 @@ class _ChatBody extends StatelessWidget {
     return Column(
       children: [
         if (notice != null) _FeeBannerSlot(notice: notice),
+        if (showAcceptedBanner && winnerName != null)
+          OfferAcceptedBanner(
+            jeeberName: winnerName!,
+            onDismiss: onBannerDismiss,
+            onStartActiveDelivery: onStartActiveDelivery,
+          ),
+        if (showRemovedBanner) const JeeberRemovedBanner(),
+        if (state.phase == ConversationPhase.broadcasting)
+          BroadcastTtlIndicator(expiresAt: broadcastExpiresAt),
         Expanded(child: body),
-        if (state.isComposerVisible) ChatComposer(hintText: composerHint),
+        if (state.isComposerVisible)
+          ChatComposer(
+            hintText: composerHint,
+            onVoiceRecordingComplete: (bytes, mime, ms) =>
+                context.read<ChatCubit>().sendVoiceNote(
+                      audioBytes: bytes,
+                      mimeType: mime,
+                      durationMs: ms,
+                    ),
+          ),
       ],
     );
   }
@@ -397,13 +471,21 @@ class _MessageRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!message.isOfferCard) return ChatMessageBubble(message: message);
-    final offerId = message.offerPayload?.offerId;
+    final offerId = message.offerPayload?.offerId ?? '';
     final isAccepting = state.acceptingOfferId == offerId;
-    return OfferCardBubble(
-      message: message,
-      onAccept: (id) => context.read<ChatCubit>().acceptOffer(id),
-      isAccepting: isAccepting,
-      acceptDisabled: state.acceptingOfferId != null && !isAccepting,
+    final isDeclined = state.declinedOfferIds.contains(offerId);
+    return Opacity(
+      opacity: isDeclined ? 0.4 : 1.0,
+      child: OfferCardBubble(
+        message: message,
+        onAccept: (id) => context.read<ChatCubit>().acceptOffer(id),
+        onDecline: isDeclined
+            ? null
+            : (id) => context.read<ChatCubit>().declineOffer(id),
+        isAccepting: isAccepting,
+        acceptDisabled:
+            (state.acceptingOfferId != null && !isAccepting) || isDeclined,
+      ),
     );
   }
 }

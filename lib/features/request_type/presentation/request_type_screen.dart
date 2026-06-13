@@ -9,6 +9,7 @@ import '../../tier_selection/cubit/tier_selection_state.dart';
 import '../../tier_selection/data/tier_repository.dart';
 import '../../tier_selection/domain/tier.dart';
 import '../../location/presentation/widgets/delivery_create_layout.dart';
+import '../../request_summary/domain/request_draft.dart';
 import 'request_tier_card.dart';
 import 'request_location_row.dart';
 
@@ -28,6 +29,7 @@ class RequestTypeScreen extends StatelessWidget {
     this.repository,
     this.onChangeLocation,
     this.onTierSelected,
+    this.onContinue,
   });
 
   final TierSelectionCubit? cubit;
@@ -40,6 +42,12 @@ class RequestTypeScreen extends StatelessWidget {
   /// Invoked whenever the user taps a tier card.
   final ValueChanged<Tier>? onTierSelected;
 
+  /// Invoked when the sticky "Continue" CTA is tapped with a complete tier
+  /// selection. Carries a [RequestDraft] seeded with the chosen tier + pickup
+  /// so the host can advance to `/request-summary` (Figma 56535:2392 →
+  /// 56546:2303; router comment app_router.dart:352).
+  final ValueChanged<RequestDraft>? onContinue;
+
   @override
   Widget build(BuildContext context) {
     final provided = cubit;
@@ -49,6 +57,7 @@ class RequestTypeScreen extends StatelessWidget {
         child: _Scaffold(
           onChangeLocation: onChangeLocation,
           onTierSelected: onTierSelected,
+          onContinue: onContinue,
         ),
       );
     }
@@ -59,6 +68,7 @@ class RequestTypeScreen extends StatelessWidget {
       child: _Scaffold(
         onChangeLocation: onChangeLocation,
         onTierSelected: onTierSelected,
+        onContinue: onContinue,
       ),
     );
   }
@@ -70,10 +80,15 @@ class RequestTypeScreen extends StatelessWidget {
 }
 
 class _Scaffold extends StatelessWidget {
-  const _Scaffold({this.onChangeLocation, this.onTierSelected});
+  const _Scaffold({
+    this.onChangeLocation,
+    this.onTierSelected,
+    this.onContinue,
+  });
 
   final VoidCallback? onChangeLocation;
   final ValueChanged<Tier>? onTierSelected;
+  final ValueChanged<RequestDraft>? onContinue;
 
   @override
   Widget build(BuildContext context) {
@@ -94,7 +109,64 @@ class _Scaffold extends StatelessWidget {
           ),
         ),
       ),
+      bottomNavigationBar: BlocBuilder<TierSelectionCubit, TierSelectionState>(
+        builder: (context, state) => _ContinueFooter(
+          state: state,
+          onContinue: onContinue,
+        ),
+      ),
     );
+  }
+}
+
+/// Sticky "Continue" footer (Figma 56535:2392 → 56546:2303). Pinned outside
+/// the scroll body as a [Scaffold.bottomNavigationBar] so it never scrolls
+/// away; enabled only once a tier is selected, then seeds a [RequestDraft]
+/// for the host to forward to `/request-summary`.
+class _ContinueFooter extends StatelessWidget {
+  const _ContinueFooter({required this.state, this.onContinue});
+
+  final TierSelectionState state;
+  final ValueChanged<RequestDraft>? onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    // Only meaningful once tiers have loaded; hidden during load/error so it
+    // does not float over the spinner / error state.
+    if (state.status != TierSelectionStatus.loaded) {
+      return const SizedBox.shrink();
+    }
+    final l10n = AppLocalizations.of(context);
+    final selectedId = state.selectedTierId;
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: DeliveryCreateLayout.pagePadding,
+        child: Semantics(
+          identifier: 'request_type_continue',
+          button: true,
+          child: OmdsPrimaryButton(
+            key: const Key('request-type-continue'),
+            text: l10n.requestTypeContinue,
+            isEnabled: selectedId != null,
+            onTap: () => _onContinue(context, l10n),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _onContinue(BuildContext context, AppLocalizations l10n) {
+    final selectedId = state.selectedTierId;
+    if (selectedId == null) return;
+    final copy = _RequestTierCopy.of(l10n, selectedId);
+    final draft = RequestDraft(
+      description: '',
+      tierId: selectedId.name,
+      tierName: copy.title,
+      pickupAddress: l10n.requestTypeCurrentLocation,
+    );
+    onContinue?.call(draft);
   }
 }
 

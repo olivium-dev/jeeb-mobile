@@ -15,11 +15,15 @@ class MockGatewayClient {
   MockGatewayClient._();
 
   /// Single source of truth for mock backend URL.
-  /// Change this IP when switching between emulator (10.0.2.2) and physical
-  /// device (your machine's LAN IP).
-  static const String mockBaseUrl = 'http://192.168.2.33:4010';
+  /// Android emulator: 10.0.2.2 (host loopback alias).
+  /// iOS simulator / physical device: use your machine's LAN IP.
+  /// Port 3055 = Mockoon gateway-shaped mock (useMockPrefixes=false).
+  static const String mockBaseUrl = 'http://192.168.2.33:3055';
 
-  static const bool useMockPrefixes = true;
+  /// When false every path passes through unchanged to the Mockoon mock at
+  /// :3055, which speaks the real gateway contract (/v1/auth/otp/request, etc.).
+  /// Set to true only when targeting the old :4010 service-prefixed mock.
+  static const bool useMockPrefixes = false;
 
   static const Map<String, String> _pathToServicePrefix = {
     '/auth/otp': '/auth-service/auth/otp',
@@ -46,6 +50,8 @@ class MockGatewayClient {
     '/v1/disputes': '/compliment-service/v1/disputes',
     '/v1/payments/cod_jeeb': '/unified-payment-gateway/v1/payments/cod_jeeb',
     '/v1/jeeb/earnings': '/wallet-service/v1/jeeb/earnings',
+    '/api/deliveries': '/delivery-service/api/deliveries',
+    '/v1/deliveries': '/delivery-service/v1/deliveries',
     '/v1/transcribe': '/voice-transcription-service/v1/transcribe',
     '/v1/devices': '/push-notification/v1/devices',
     '/channels/jeeb-chat': '/realtime-comunication-service/channels/jeeb-chat',
@@ -94,11 +100,12 @@ class MockGatewayClient {
     return dio;
   }
 
+  /// WebSocket URL for the realtime shim at port 3056.
+  /// The companion shim handles Phoenix/SSE channels alongside the REST mock.
   static String get webSocketUrl {
     final base = Uri.parse(mockBaseUrl);
     final wsScheme = base.scheme == 'https' ? 'wss' : 'ws';
-    return '$wsScheme://${base.host}:${base.port}'
-        '/realtime-comunication-service/socket/websocket';
+    return '$wsScheme://${base.host}:3056/socket/websocket';
   }
 }
 

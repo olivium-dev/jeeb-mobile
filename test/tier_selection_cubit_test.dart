@@ -32,7 +32,7 @@ void main() {
     );
 
     blocTest<TierSelectionCubit, TierSelectionState>(
-      'surfaces a network failure when the repository throws',
+      'falls back to the bundled catalog when the repository throws (AC3)',
       build: () => TierSelectionCubit(
         repository: const FakeTierRepository(failWith: TierLoadFailure.network),
       ),
@@ -41,12 +41,16 @@ void main() {
         predicate<TierSelectionState>(
           (s) => s.status == TierSelectionStatus.loading,
         ),
+        // AC3 graceful offline fallback: instead of surfacing an error, the
+        // cubit serves FakeTierRepository.defaultCatalog and flags the state
+        // with usingCachedFallback so the view can show the soft warning.
         predicate<TierSelectionState>(
           (s) =>
-              s.status == TierSelectionStatus.error &&
-              s.failure == TierLoadFailure.network &&
-              s.tiers.isEmpty &&
-              s.selectedTierId == null,
+              s.status == TierSelectionStatus.loaded &&
+              s.usingCachedFallback == true &&
+              s.tiers == FakeTierRepository.defaultCatalog &&
+              s.failure == null,
+          'lands on loaded with the cached fallback catalog',
         ),
       ],
     );
@@ -62,18 +66,26 @@ void main() {
       expect(cubit.state.tiers, FakeTierRepository.defaultCatalog);
     });
 
-    test('retry after a failure restores the loaded state', () async {
+    test('retry after a cached fallback restores the live loaded state',
+        () async {
       var shouldFail = true;
       final cubit = TierSelectionCubit(
         repository: _ToggleRepository(() => shouldFail),
       );
       addTearDown(cubit.close);
       await cubit.load();
-      expect(cubit.state.status, TierSelectionStatus.error);
+      // AC3: the first load fails the network and serves the bundled catalog,
+      // so we are already loaded — flagged as a cached fallback, not error.
+      expect(cubit.state.status, TierSelectionStatus.loaded);
+      expect(cubit.state.usingCachedFallback, isTrue);
+      expect(cubit.state.failure, isNull);
 
       shouldFail = false;
       await cubit.load();
+      // Retry succeeds against the live repository: still loaded, but now
+      // serving fresh data so the cached-fallback flag clears.
       expect(cubit.state.status, TierSelectionStatus.loaded);
+      expect(cubit.state.usingCachedFallback, isFalse);
       expect(cubit.state.failure, isNull);
     });
   });

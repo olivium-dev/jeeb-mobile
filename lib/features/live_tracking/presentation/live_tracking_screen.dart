@@ -8,13 +8,13 @@ import '../application/live_tracking_state.dart';
 import '../domain/delivery_tracking_info.dart';
 import 'widgets/delivery_tracking_panel.dart';
 import 'widgets/tracking_map_surface.dart';
+import 'widgets/otp_at_door_card.dart';
 
-/// Order-tracking screen (Figma 56560:1772 — PROVISIONAL/draft frame).
+/// T-MOB-017: Order-tracking screen — full-bleed map with status panel.
 ///
-/// Full-bleed map filling the space under the navbar, with a bottom status
-/// panel (3-stage stepper + distance + ETA). Live position, polyline and the
-/// distance/ETA values arrive from the gateway tracking feed; the map raster
-/// itself is injected in production (see [TrackingMapSurface]).
+/// AC3: shows "Jeeber is on the way" snack on in_transit transition.
+/// AC4: slides in the OTP card and half-collapses the map on at_door.
+/// AC5: reconnect handled by the 5s poll timer in [LiveTrackingCubit].
 class LiveTrackingScreen extends StatelessWidget {
   const LiveTrackingScreen({super.key, required this.deliveryId});
 
@@ -29,17 +29,36 @@ class LiveTrackingScreen extends StatelessWidget {
         showBackButton: true,
         centerTitle: true,
       ),
-      body: BlocBuilder<LiveTrackingCubit, LiveTrackingState>(
-        builder: (context, state) => _TrackingStateView(state: state),
+      body: BlocConsumer<LiveTrackingCubit, LiveTrackingState>(
+        listenWhen: _hasNewEvent,
+        listener: _onEvent,
+        builder: (context, state) => _TrackingStateView(
+          state: state,
+          deliveryId: deliveryId,
+        ),
       ),
     );
+  }
+
+  bool _hasNewEvent(LiveTrackingState prev, LiveTrackingState next) =>
+      next.pendingEvent != LiveTrackingEvent.none;
+
+  void _onEvent(BuildContext context, LiveTrackingState state) {
+    final l10n = AppLocalizations.of(context);
+    if (state.pendingEvent == LiveTrackingEvent.jeeberOnTheWay) {
+      showOmdsSnackbar(context, message: l10n.trackingJeeberOnTheWay);
+    }
   }
 }
 
 class _TrackingStateView extends StatelessWidget {
-  const _TrackingStateView({required this.state});
+  const _TrackingStateView({
+    required this.state,
+    required this.deliveryId,
+  });
 
   final LiveTrackingState state;
+  final String deliveryId;
 
   @override
   Widget build(BuildContext context) {
@@ -52,15 +71,25 @@ class _TrackingStateView extends StatelessWidget {
           onRetry: () => context.read<LiveTrackingCubit>().retry(),
         );
       case LiveTrackingViewMode.ready:
-        return _TrackingBody(info: state.trackingInfo!);
+        return _TrackingBody(
+          info: state.trackingInfo!,
+          isAtDoor: state.isAtDoor,
+          deliveryId: deliveryId,
+        );
     }
   }
 }
 
 class _TrackingBody extends StatelessWidget {
-  const _TrackingBody({required this.info});
+  const _TrackingBody({
+    required this.info,
+    required this.isAtDoor,
+    required this.deliveryId,
+  });
 
   final DeliveryTrackingInfo info;
+  final bool isAtDoor;
+  final String deliveryId;
 
   @override
   Widget build(BuildContext context) {
@@ -68,14 +97,24 @@ class _TrackingBody extends StatelessWidget {
       top: false,
       child: Column(
         children: [
-          const Expanded(child: TrackingMapSurface()),
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: Spacing.medium,
-              vertical: Spacing.large,
-            ),
-            child: DeliveryTrackingPanel(info: info),
+          // AC4: half-collapse the map when at_door
+          Expanded(
+            flex: isAtDoor ? 1 : 2,
+            child: const TrackingMapSurface(),
           ),
+          if (isAtDoor)
+            Expanded(
+              flex: 1,
+              child: OtpAtDoorCard(deliveryId: deliveryId),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: Spacing.medium,
+                vertical: Spacing.large,
+              ),
+              child: DeliveryTrackingPanel(info: info),
+            ),
         ],
       ),
     );

@@ -64,6 +64,7 @@ class ClientHomeRequest extends Equatable {
     this.offerAvatarUrls = const <String>[],
     this.conversationId,
     this.displayId,
+    this.ttlSeconds,
   });
 
   /// Server-side identifier; also used as the deep-link key.
@@ -110,6 +111,11 @@ class ClientHomeRequest extends Equatable {
   /// [ClientRequestStatus.searching] or [ClientRequestStatus.offersReceived].
   final String? jeeberName;
 
+  /// Remaining seconds before the pending request expires, as returned by the
+  /// server at fetch time. The UI drives a local countdown from this snapshot.
+  /// `null` for requests that are not pending.
+  final int? ttlSeconds;
+
   /// Number of offers received so far (Replies tab only).
   final int offerCount;
 
@@ -135,6 +141,7 @@ class ClientHomeRequest extends Equatable {
     List<String>? offerAvatarUrls,
     Object? conversationId = _sentinel,
     Object? displayId = _sentinel,
+    Object? ttlSeconds = _sentinel,
   }) {
     return ClientHomeRequest(
       id: id ?? this.id,
@@ -160,6 +167,9 @@ class ClientHomeRequest extends Equatable {
       displayId: identical(displayId, _sentinel)
           ? this.displayId
           : displayId as String?,
+      ttlSeconds: identical(ttlSeconds, _sentinel)
+          ? this.ttlSeconds
+          : ttlSeconds as int?,
     );
   }
 
@@ -178,6 +188,7 @@ class ClientHomeRequest extends Equatable {
         offerCount,
         offerAvatarUrls,
         conversationId,
+        ttlSeconds,
       ];
 }
 

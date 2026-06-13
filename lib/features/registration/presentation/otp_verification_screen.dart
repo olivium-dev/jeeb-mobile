@@ -118,7 +118,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       text: state.isVerifying
                           ? l10n.registrationOtpVerifying
                           : l10n.registrationOtpVerify,
-                      isEnabled: !state.isVerifying && _enteredCode.length == 6,
+                      isEnabled: !state.isVerifying &&
+                          _enteredCode.length == _OtpEntry._kOtpLength,
                       onTap: () => context
                           .read<RegistrationCubit>()
                           .verifyCode(_enteredCode),
@@ -153,6 +154,9 @@ class _OtpEntry extends StatelessWidget {
     required this.onCompleted,
   });
 
+  // T-MOB-004 AC: Jeeb sign-in uses a 4-digit OTP code.
+  static const int _kOtpLength = 4;
+
   final bool hasError;
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onCompleted;
@@ -162,7 +166,7 @@ class _OtpEntry extends StatelessWidget {
     return Center(
       child: OmdsOtpInput(
         key: const Key('registration.otpField'),
-        length: 6,
+        length: _kOtpLength,
         hasError: hasError,
         onChanged: onChanged,
         onCompleted: onCompleted,

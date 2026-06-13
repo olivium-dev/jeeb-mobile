@@ -14,6 +14,7 @@ class TierSelectionState extends Equatable {
     this.selectedTierId,
     this.failure,
     this.confirmedTierId,
+    this.usingCachedFallback = false,
   });
 
   final TierSelectionStatus status;
@@ -30,6 +31,10 @@ class TierSelectionState extends Equatable {
   /// Set by [TierSelectionCubit.confirm] once the user commits a choice. The
   /// host listens for this and navigates to the request-summary step.
   final TierId? confirmedTierId;
+
+  /// True when the network failed and the screen is showing bundled defaults
+  /// (AC3 — 'showing cached options' soft warning).
+  final bool usingCachedFallback;
 
   Tier? get selectedTier {
     final id = selectedTierId;
@@ -52,6 +57,7 @@ class TierSelectionState extends Equatable {
     bool clearFailure = false,
     TierId? confirmedTierId,
     bool clearConfirmedTier = false,
+    bool? usingCachedFallback,
   }) {
     return TierSelectionState(
       status: status ?? this.status,
@@ -63,6 +69,8 @@ class TierSelectionState extends Equatable {
       confirmedTierId: clearConfirmedTier
           ? null
           : (confirmedTierId ?? this.confirmedTierId),
+      usingCachedFallback:
+          usingCachedFallback ?? this.usingCachedFallback,
     );
   }
 
@@ -73,5 +81,6 @@ class TierSelectionState extends Equatable {
         selectedTierId,
         failure,
         confirmedTierId,
+        usingCachedFallback,
       ];
 }

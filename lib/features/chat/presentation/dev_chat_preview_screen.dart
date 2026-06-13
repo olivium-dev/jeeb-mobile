@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../data/dev_chat_fixture_gateway.dart';
@@ -92,6 +93,11 @@ class _DeliveryManPreview extends StatefulWidget {
 class _DeliveryManPreviewState extends State<_DeliveryManPreview> {
   static const String _feeAmount = r'$0.5';
 
+  /// Backing delivery for this Jeeber-variant thread. Reused both as the chat
+  /// channel id and as the path id for the active-delivery entry point so the
+  /// "Start delivery" CTA opens the matching delivery.
+  static const String _deliveryId = 'dev-chat-dm';
+
   @override
   void initState() {
     super.initState();
@@ -113,7 +119,7 @@ class _DeliveryManPreviewState extends State<_DeliveryManPreview> {
   @override
   Widget build(BuildContext context) {
     return ChatScreen(
-      deliveryId: 'dev-chat-dm',
+      deliveryId: _deliveryId,
       counterpartName: 'Sami Fawaz',
       composerHint: AppLocalizations.of(context).chatComposerHintPriceTime,
       feeNotice: ChatFeeNotice(
@@ -122,6 +128,16 @@ class _DeliveryManPreviewState extends State<_DeliveryManPreview> {
         onDismiss: () {},
         onOrderPicked: () {},
       ),
+      // ENTRY POINT (jeeber active-delivery): the Jeeber-variant chat is the
+      // only place a jeeber-role [ChatScreen] is constructed (feeNotice !=
+      // null). The production `/chat/:id` route builds the CLIENT variant via
+      // ChatDetailScreen (currentUserId hardcoded to a client, feeNotice null,
+      // and it resolves a conversation id rather than carrying the jeeber role
+      // + delivery id), so it cannot cleanly supply both signals today. We
+      // therefore gate the "Start delivery" CTA on the jeeber variant here,
+      // where the delivery id is in scope, and push the active-delivery route.
+      onStartActiveDelivery: () =>
+          context.push('/jeeber/deliveries/$_deliveryId/active'),
       gateway: DevChatFixtureGateway(
         phase: ConversationPhase.accepted,
         deliveryMan: true,

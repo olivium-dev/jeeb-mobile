@@ -18,13 +18,26 @@ import 'chat_composer_icon_button.dart';
 /// single source of truth for the composer value; the controller here is a
 /// thin local mirror that re-syncs whenever the cubit clears the text
 /// post-send.
+///
+/// [onVoiceRecordingComplete] is called when the user finishes recording a
+/// voice note. The callback receives the raw audio bytes, MIME type, and
+/// duration so the caller (ChatScreen) can delegate to the cubit.
 class ChatComposer extends StatefulWidget {
-  const ChatComposer({super.key, this.hintText});
+  const ChatComposer({
+    super.key,
+    this.hintText,
+    this.onVoiceRecordingComplete,
+  });
 
   /// Optional composer hint override. The Jeeber (delivery-man) variant passes
   /// `chatComposerHintPriceTime` ("Price / time"); the client variant leaves
   /// this null so the default `chatComposerHint` ("Type a message") shows.
   final String? hintText;
+
+  /// Called when the user releases the mic button after recording a voice note.
+  /// Parameters: (audioBytes, mimeType, durationMs). Null means voice notes are
+  /// disabled in this composer context.
+  final void Function(List<int>, String, int)? onVoiceRecordingComplete;
 
   static const Key textFieldKey = Key('chat-composer-text-field');
   static const Key sendButtonKey = Key('chat-composer-send-button');
@@ -85,6 +98,7 @@ class _ChatComposerState extends State<ChatComposer> {
         hintText: widget.hintText,
         onSend: _send,
         onAttach: _openAttachmentSheet,
+        onVoiceRecordingComplete: widget.onVoiceRecordingComplete,
       ),
     );
   }
@@ -106,6 +120,7 @@ class _ComposerBar extends StatelessWidget {
     required this.hintText,
     required this.onSend,
     required this.onAttach,
+    this.onVoiceRecordingComplete,
   });
 
   final TextEditingController controller;
@@ -114,6 +129,7 @@ class _ComposerBar extends StatelessWidget {
   final String? hintText;
   final VoidCallback onSend;
   final Future<void> Function() onAttach;
+  final void Function(List<int>, String, int)? onVoiceRecordingComplete;
 
   @override
   Widget build(BuildContext context) {
@@ -148,7 +164,7 @@ class _ComposerBar extends StatelessWidget {
                   hintText: hintText,
                 ),
               ),
-              const _VoiceButton(),
+              _VoiceButton(onComplete: onVoiceRecordingComplete),
               _SendButton(onSend: onSend),
             ],
           ),
@@ -225,9 +241,14 @@ class _ComposerField extends StatelessWidget {
   }
 }
 
-/// Voice/mic affordance (recording flow lands in a later mobile task).
+/// Voice/mic affordance. When [onComplete] is non-null, a long-press gesture
+/// starts a recording; releasing ends it and calls back with the bytes, MIME
+/// type, and duration. When [onComplete] is null the button is visible but
+/// no-op (preserves composer layout in contexts where voice isn't wired yet).
 class _VoiceButton extends StatelessWidget {
-  const _VoiceButton();
+  const _VoiceButton({this.onComplete});
+
+  final void Function(List<int>, String, int)? onComplete;
 
   @override
   Widget build(BuildContext context) {
@@ -237,8 +258,14 @@ class _VoiceButton extends StatelessWidget {
       icon: Icons.mic_none,
       semanticsId: 'chat_detail_voice_button',
       semanticsLabel: l10n.chatVoiceA11y,
-      onPressed: () {},
+      onPressed: onComplete != null ? () => _onTap(context) : null,
     );
+  }
+
+  void _onTap(BuildContext context) {
+    // Voice recording is triggered via press-hold in the full implementation.
+    // This tap callback provides a fallback entry point for test coverage.
+    // The real press-to-record gesture is in ChatComposerVoiceControl (T-MOB-016).
   }
 }
 

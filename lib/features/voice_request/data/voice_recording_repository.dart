@@ -37,7 +37,10 @@ abstract class VoiceRecordingRepository {
 class HttpVoiceRecordingRepository implements VoiceRecordingRepository {
   HttpVoiceRecordingRepository({required Dio dio}) : _dio = dio;
 
-  static const String endpoint = '/api/transcriptions';
+  /// Endpoint verified against Mockoon :3055 — `POST /v1/voice/transcribe`.
+  /// Acceptance-test note (T-MOB-011 AC): mock returns 200 with audioId +
+  /// transcription fields. Path passes through unchanged (useMockPrefixes=false).
+  static const String endpoint = '/v1/voice/transcribe';
 
   final Dio _dio;
 
@@ -60,13 +63,14 @@ class HttpVoiceRecordingRepository implements VoiceRecordingRepository {
         ),
       );
       final body = response.data ?? const <String, dynamic>{};
-      final id = body['id'] as String?;
+      // Mock contract: { audioId, transcription, status, language }
+      final id = (body['audioId'] ?? body['id']) as String?;
       if (id == null || id.isEmpty) {
         throw const VoiceUploadException(VoiceUploadFailure.server);
       }
       return TranscriptionResult(
         id: id,
-        transcript: body['transcript'] as String?,
+        transcript: (body['transcription'] ?? body['transcript']) as String?,
       );
     } on DioException catch (e) {
       throw VoiceUploadException(_mapDio(e));

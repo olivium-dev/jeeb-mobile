@@ -349,50 +349,77 @@ class _VoiceBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
     final isSender = message.isMine;
     final bubbleColor = isSender
         ? colorScheme.primary
         : colorScheme.surfaceContainerHigh;
     final onBubble = isSender ? colorScheme.onPrimary : colorScheme.onSurface;
-    return _DirectionalBubble(
-      isSender: isSender,
-      color: bubbleColor,
-      symmetricRadius: true,
-      bubbleKey: Key('chat-voice-${message.id}'),
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        Spacing.medium,
-        Spacing.small,
-        Spacing.medium,
-        Spacing.twoXSmall,
+    final durationSecs = ((message.voiceDurationMs ?? 0) / 1000).round();
+    final authorLabel = isSender ? 'You' : 'Jeeber';
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      label: l10n.chatVoiceNoteA11y(authorLabel, durationSecs),
+      child: _DirectionalBubble(
+        isSender: isSender,
+        color: bubbleColor,
+        symmetricRadius: true,
+        bubbleKey: Key('chat-voice-${message.id}'),
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          Spacing.medium,
+          Spacing.small,
+          Spacing.medium,
+          Spacing.twoXSmall,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _VoicePlayerRow(message: message, onBubble: onBubble),
+            if (message.voiceTranscription != null)
+              _TranscriptionText(
+                text: message.voiceTranscription!,
+                color: onBubble,
+              ),
+            _BubbleFooter(
+              message: message,
+              color: onBubble,
+              isSender: isSender,
+            ),
+          ],
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.play_arrow_rounded, color: onBubble),
-              const SizedBox(width: Spacing.xSmall),
-              Expanded(
-                child: Container(
-                  height: Sizes.twoXSmall,
-                  decoration: BoxDecoration(
-                    color: onBubble.withValues(alpha: UIConstants.opacityLow),
-                    borderRadius: OmdsBorderRadius.pill,
-                  ),
-                ),
-              ),
-              const SizedBox(width: Spacing.xSmall),
-              Text(
-                _formatDuration(message.voiceDurationMs ?? 0),
-                style: textTheme.labelMedium?.copyWith(color: onBubble),
-              ),
-            ],
+    );
+  }
+}
+
+class _VoicePlayerRow extends StatelessWidget {
+  const _VoicePlayerRow({required this.message, required this.onBubble});
+
+  final DeliveryChatMessage message;
+  final Color onBubble;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Row(
+      children: [
+        Icon(Icons.play_arrow_rounded, color: onBubble),
+        const SizedBox(width: Spacing.xSmall),
+        Expanded(
+          child: Container(
+            height: Sizes.twoXSmall,
+            decoration: BoxDecoration(
+              color: onBubble.withValues(alpha: UIConstants.opacityLow),
+              borderRadius: OmdsBorderRadius.pill,
+            ),
           ),
-          _BubbleFooter(message: message, color: onBubble, isSender: isSender),
-        ],
-      ),
+        ),
+        const SizedBox(width: Spacing.xSmall),
+        Text(
+          _formatDuration(message.voiceDurationMs ?? 0),
+          style: textTheme.labelMedium?.copyWith(color: onBubble),
+        ),
+      ],
     );
   }
 
@@ -401,6 +428,32 @@ class _VoiceBubble extends StatelessWidget {
     final minutes = (totalSeconds / 60).floor();
     final seconds = totalSeconds % 60;
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+}
+
+class _TranscriptionText extends StatelessWidget {
+  const _TranscriptionText({required this.text, required this.color});
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context);
+    final display = text == '__unavailable__'
+        ? l10n.chatVoiceNoteTranscriptionUnavailable
+        : l10n.chatVoiceNoteTranscription(text);
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(top: Spacing.twoXSmall),
+      child: Text(
+        display,
+        style: textTheme.bodySmall?.copyWith(
+          color: color.withValues(alpha: UIConstants.opacityHigh),
+          fontStyle: FontStyle.italic,
+        ),
+      ),
+    );
   }
 }
 

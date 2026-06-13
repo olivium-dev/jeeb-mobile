@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../domain/delivery_tracking_info.dart';
 import '../domain/live_tracking_repository.dart';
 import 'live_tracking_state.dart';
 
@@ -35,6 +36,7 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
           mode: LiveTrackingViewMode.ready,
           trackingInfo: info,
           clearError: true,
+          pendingEvent: _detectEvent(info),
         ));
       }
     } on LiveTrackingException catch (e) {
@@ -47,6 +49,18 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
         }
       }
     }
+  }
+
+  /// T-MOB-017 AC3/AC4: detect stage transitions and emit one-shot events.
+  LiveTrackingEvent _detectEvent(DeliveryTrackingInfo info) {
+    final prev = state.trackingInfo?.currentStage;
+    final next = info.currentStage;
+    if (prev == next) return LiveTrackingEvent.none;
+    if (next == TrackingStage.atDoor) return LiveTrackingEvent.jeeberAtDoor;
+    if (next == TrackingStage.inTransit) {
+      return LiveTrackingEvent.jeeberOnTheWay;
+    }
+    return LiveTrackingEvent.none;
   }
 
   void _schedulePoll() {

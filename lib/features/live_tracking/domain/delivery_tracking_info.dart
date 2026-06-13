@@ -22,6 +22,17 @@ extension TrackingStageLabel on TrackingStage {
   bool isAtOrBefore(TrackingStage other) => order <= other.order;
 }
 
+/// T-MOB-017: GPS coordinate pair from the Mockoon TrackingPolylineDto.
+class GpsPoint extends Equatable {
+  const GpsPoint({required this.lat, required this.lng});
+
+  final double lat;
+  final double lng;
+
+  @override
+  List<Object?> get props => [lat, lng];
+}
+
 class DeliveryTrackingInfo extends Equatable {
   const DeliveryTrackingInfo({
     required this.deliveryId,
@@ -29,7 +40,40 @@ class DeliveryTrackingInfo extends Equatable {
     required this.stageTimestamps,
     this.distanceLabel,
     this.etaMinutes,
+    this.jeeberPosition,
+    this.polyline = const [],
   });
+
+  /// T-MOB-017: Parses the TrackingPolylineDto shape returned by
+  /// GET /deliveries/{id}/tracking and GET /v1/geo/jeeb/stream/{id}.
+  ///
+  /// Verified contract (d6-tracking-geo, s09-live-tracking):
+  ///   { deliveryId, jeeberId, polyline: [[lat,lng], …], position: {lat,lng},
+  ///     etag, serverTimestamp }
+  factory DeliveryTrackingInfo.fromTrackingJson(
+    String deliveryId,
+    Map<String, dynamic> json,
+  ) {
+    final stage = _parseStage(json['status'] as String? ?? '');
+    final posObj = json['position'] as Map<String, dynamic>?;
+    final GpsPoint? pos = posObj == null
+        ? null
+        : GpsPoint(
+            lat: (posObj['lat'] as num).toDouble(),
+            lng: (posObj['lng'] as num).toDouble(),
+          );
+    final rawPoly = json['polyline'] as List<dynamic>? ?? [];
+    final polyline = _decodePolyline(rawPoly);
+    return DeliveryTrackingInfo(
+      deliveryId: deliveryId,
+      currentStage: stage,
+      stageTimestamps: const {},
+      distanceLabel: json['distanceLabel'] as String?,
+      etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
+      jeeberPosition: pos,
+      polyline: polyline,
+    );
+  }
 
   factory DeliveryTrackingInfo.fromJson(
     String deliveryId,
@@ -38,28 +82,7 @@ class DeliveryTrackingInfo extends Equatable {
     final status = json['status'] as String? ?? 'Ordered';
     final currentStage = _parseStage(status);
     final timestamps = <TrackingStage, DateTime>{};
-
-    final history = json['statusHistory'] as List<dynamic>?;
-    if (history != null) {
-      for (final entry in history) {
-        if (entry is Map<String, dynamic>) {
-          final stage = _parseStage(entry['status'] as String? ?? '');
-          final ts = DateTime.tryParse(entry['timestamp'] as String? ?? '');
-          if (ts != null) {
-            timestamps[stage] = ts;
-          }
-        }
-      }
-    }
-
-    // Ensure current stage has a timestamp
-    if (!timestamps.containsKey(currentStage)) {
-      final updatedAt = DateTime.tryParse(json['updatedAt'] as String? ?? '');
-      if (updatedAt != null) {
-        timestamps[currentStage] = updatedAt;
-      }
-    }
-
+    _populateTimestamps(timestamps, json, currentStage);
     return DeliveryTrackingInfo(
       deliveryId: deliveryId,
       currentStage: currentStage,
@@ -69,17 +92,55 @@ class DeliveryTrackingInfo extends Equatable {
     );
   }
 
+  static void _populateTimestamps(
+    Map<TrackingStage, DateTime> timestamps,
+    Map<String, dynamic> json,
+    TrackingStage currentStage,
+  ) {
+    final history = json['statusHistory'] as List<dynamic>?;
+    if (history != null) {
+      for (final entry in history) {
+        if (entry is Map<String, dynamic>) {
+          final stage = _parseStage(entry['status'] as String? ?? '');
+          final ts = DateTime.tryParse(entry['timestamp'] as String? ?? '');
+          if (ts != null) timestamps[stage] = ts;
+        }
+      }
+    }
+    if (!timestamps.containsKey(currentStage)) {
+      final updatedAt = DateTime.tryParse(json['updatedAt'] as String? ?? '');
+      if (updatedAt != null) timestamps[currentStage] = updatedAt;
+    }
+  }
+
+  static List<GpsPoint> _decodePolyline(List<dynamic> raw) {
+    final result = <GpsPoint>[];
+    for (final item in raw) {
+      if (item is List && item.length >= 2) {
+        result.add(GpsPoint(
+          lat: (item[0] as num).toDouble(),
+          lng: (item[1] as num).toDouble(),
+        ));
+      }
+    }
+    return result;
+  }
+
   final String deliveryId;
   final TrackingStage currentStage;
   final Map<TrackingStage, DateTime> stageTimestamps;
 
-  /// Pre-formatted, unit-localized distance string from the gateway (e.g.
-  /// "3 km"). Null until the first GPS fix arrives — the panel shows a
-  /// placeholder rather than a stale "0 km" (Figma 56560:1772 §8).
+  /// Pre-formatted distance string from the gateway. Null until GPS fix.
   final String? distanceLabel;
 
-  /// Estimated minutes to arrival from the gateway. Null when unknown.
+  /// Estimated minutes to arrival. Null when unknown.
   final int? etaMinutes;
+
+  /// T-MOB-017: Latest Jeeber GPS position from tracking feed.
+  final GpsPoint? jeeberPosition;
+
+  /// T-MOB-017: Route polyline coordinates for the map overlay.
+  final List<GpsPoint> polyline;
 
   static TrackingStage _parseStage(String status) {
     switch (status.toLowerCase()) {
@@ -123,6 +184,13 @@ class DeliveryTrackingInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props =>
-      [deliveryId, currentStage, stageTimestamps, distanceLabel, etaMinutes];
+  List<Object?> get props => [
+        deliveryId,
+        currentStage,
+        stageTimestamps,
+        distanceLabel,
+        etaMinutes,
+        jeeberPosition,
+        polyline,
+      ];
 }

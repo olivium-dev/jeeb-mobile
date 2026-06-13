@@ -49,6 +49,8 @@ class HomeTab extends StatelessWidget {
         initialTab: devTab ?? ClientHomeTab.inProgress,
         onCreateRequest: () => _openRequestType(context),
         onOpenRequest: (request) => _openChat(context, request),
+        onTrack: (request) => _openTracking(context, request),
+        onRecordVoice: () => _openVoiceRequest(context),
       ),
     );
   }
@@ -108,5 +110,22 @@ class HomeTab extends StatelessWidget {
     final target = request.conversationId ?? request.id;
     if (target.isEmpty) return;
     GoRouter.of(context).pushNamed('chat-detail', pathParameters: {'id': target});
+  }
+
+  /// Routes an in-progress card's "Track my order" CTA to the live-tracking
+  /// screen (`/orders/:id/tracking`, route `live-tracking`). Distinct from
+  /// [_openChat]: in-progress cards track the delivery, replies/pending cards
+  /// open the conversation. The tracking screen defends its own empty/invalid
+  /// state, so an empty id is a no-op here.
+  void _openTracking(BuildContext context, ClientHomeRequest request) {
+    if (request.id.isEmpty) return;
+    GoRouter.of(context)
+        .pushNamed('live-tracking', pathParameters: {'id': request.id});
+  }
+
+  /// Opens the voice-request capture flow (`/voice-request`, route
+  /// `voice-request`) from the home voice CTA.
+  void _openVoiceRequest(BuildContext context) {
+    GoRouter.of(context).pushNamed('voice-request');
   }
 }

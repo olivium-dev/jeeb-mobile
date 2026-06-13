@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/di/injection_container.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/client_offers_cubit.dart';
 import '../application/client_offers_state.dart';
+import '../data/fake_offers_repository.dart';
 import '../domain/offers_repository.dart';
 import 'widgets/offer_card.dart';
 import 'widgets/offer_sort_bar.dart';
@@ -24,17 +26,25 @@ typedef ClientOffersCubitFactory = ClientOffersCubit Function(
 /// Renders the offer window countdown, the sort bar, and the current sorted
 /// offer list, plus the accept-success and request-closed banners. Owns the
 /// cubit lifecycle; the host route just passes the request id.
+///
+/// [repository] is optional — when omitted the screen resolves
+/// [OffersRepository] from the GetIt container (DioOffersRepository in
+/// release builds). Pass an explicit repository only in widget tests.
 class ClientOffersScreen extends StatelessWidget {
   const ClientOffersScreen({
     super.key,
     required this.requestId,
-    required this.repository,
+    this.repository,
     this.onOfferAccepted,
     this.cubitFactory,
   });
 
   final String requestId;
-  final OffersRepository repository;
+
+  /// Optional repository override. Production builds leave this null and
+  /// resolve DioOffersRepository from DI. Widget tests inject a scripted
+  /// instance via this parameter.
+  final OffersRepository? repository;
 
   /// Called once the accept request succeeds. The host typically navigates to
   /// the tracking thread; the cubit keeps the success state visible until the
@@ -44,13 +54,21 @@ class ClientOffersScreen extends StatelessWidget {
   /// Test seam — see [ClientOffersCubitFactory].
   final ClientOffersCubitFactory? cubitFactory;
 
+  OffersRepository _resolveRepository() {
+    final explicit = repository;
+    if (explicit != null) return explicit;
+    if (sl.isRegistered<OffersRepository>()) return sl<OffersRepository>();
+    return FakeOffersRepository();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final repo = _resolveRepository();
     return BlocProvider<ClientOffersCubit>(
       create: (_) {
-        final cubit = cubitFactory?.call(repository, requestId) ??
+        final cubit = cubitFactory?.call(repo, requestId) ??
             ClientOffersCubit(
-              repository: repository,
+              repository: repo,
               requestId: requestId,
             );
         cubit.load();

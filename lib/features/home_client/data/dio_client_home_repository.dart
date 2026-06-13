@@ -7,9 +7,19 @@ import '../domain/recent_delivery_summary.dart';
 /// Dio-backed [ClientHomeRepository] hitting the mock (jeeb-gateway in prod).
 ///
 /// Three calls in parallel, one per home-tab list the Figma renders:
-///   - `GET /v1/delivery/active`             → In Progress
-///   - `GET /v1/requests?status=pending`     → Pending Requests
-///   - `GET /v1/requests?status=offers-received` → Replies (+6 stack)
+///   - `GET /deliveries?stage=active`        → In Progress  (D5 contract)
+///   - `GET /v1/requests?role=client`        → Pending Requests + Replies
+///   - `GET /v1/requests?role=client`        → Replies (+6 stack)
+///
+/// BLOCKER-1 fix (2026-06-13): corrected path from the non-existent
+/// `/v1/delivery/active` to the real gateway contract
+/// `GET /deliveries?stage=active&limit=50` (ShipmentsListDto).
+/// Response items are keyed on `currentStage`, not `status`.
+///
+/// BLOCKER-2 note: the real gateway `GET /requests` filters by `role`, not
+/// `status`. Until the gateway exposes a `status` filter the client-side
+/// parser distinguishes pending vs offers-received by the `offersCount` field:
+/// items with offersCount > 0 are treated as replies.
 ///
 /// The [MockGatewayClient] interceptor rewrites these to their
 /// service-prefixed mock counterparts automatically.
@@ -18,7 +28,8 @@ class DioClientHomeRepository implements ClientHomeRepository {
 
   final Dio _dio;
 
-  static const _activeDeliveriesPath = '/v1/delivery/active';
+  // D5 contract: GET /deliveries?stage=<stage>&limit=<n>
+  static const _activeDeliveriesPath = '/deliveries';
   static const _requestsPath = '/v1/requests';
 
   @override
@@ -42,6 +53,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         _activeDeliveriesPath,
+        queryParameters: {'stage': 'active', 'limit': 50},
       );
       final data = response.data;
       if (data == null) return const [];
@@ -62,11 +74,20 @@ class DioClientHomeRepository implements ClientHomeRepository {
     }
   }
 
-  Future<List<ClientHomeRequest>> _fetchByStatus(String status) async {
+  /// Fetches client requests filtered by [bucket].
+  ///
+  /// BLOCKER-2 (2026-06-13): the real gateway GET /requests only supports a
+  /// `role` filter, not a `status` filter. We pass `role=client` for both tabs
+  /// and disambiguate locally: items with offersCount > 0 are classified as
+  /// replies (offers-received), items with offersCount == 0 are classified as
+  /// pending. The [bucket] parameter drives which subset is returned.
+  Future<List<ClientHomeRequest>> _fetchByStatus(String bucket) async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         _requestsPath,
-        queryParameters: {'status': status, 'page': 1, 'pageSize': 50},
+        // Use role=client (documented D3 filter). Do NOT pass status= — the
+        // gateway ignores it and both tabs would show identical data.
+        queryParameters: {'role': 'client', 'page': 1, 'pageSize': 50},
       );
       final data = response.data;
       if (data == null) return const [];
@@ -75,8 +96,14 @@ class DioClientHomeRepository implements ClientHomeRepository {
       final items = <ClientHomeRequest>[];
       for (final raw in rawItems) {
         if (raw is Map<String, dynamic>) {
-          final request = _parseRequest(raw, status: status);
-          if (request != null) items.add(request);
+          final request = _parseRequest(raw, status: bucket);
+          if (request != null) {
+            // Client-side bucket assignment: offers-received ↔ offersCount > 0
+            final isReply =
+                ((raw['offersCount'] as num?)?.toInt() ?? 0) > 0;
+            final wantReply = bucket == 'offers-received';
+            if (isReply == wantReply) items.add(request);
+          }
         }
       }
       return items;
@@ -91,7 +118,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         _requestsPath,
-        queryParameters: {'status': 'delivered', 'page': 1, 'pageSize': 10},
+        queryParameters: {'role': 'client', 'page': 1, 'pageSize': 10},
       );
       final data = response.data;
       if (data == null) return const [];
@@ -119,11 +146,14 @@ class DioClientHomeRepository implements ClientHomeRepository {
     final destination = dropoff is Map<String, dynamic>
         ? (dropoff['address'] as String? ?? '')
         : '';
+    // D5 ShipmentsListDto uses 'currentStage', not 'status'.
+    final stage =
+        json['currentStage'] as String? ?? json['status'] as String?;
     return ClientHomeRequest(
       id: id,
       displayId: json['displayId'] as String?,
       title: json['title'] as String? ?? 'Delivery $id',
-      status: _mapDeliveryStatus(json['status'] as String?),
+      status: _mapDeliveryStatus(stage),
       destinationLabel: destination,
       etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
       jeeberName: json['jeeberName'] as String?,
@@ -159,6 +189,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
       offerCount: (json['offersCount'] as num?)?.toInt() ?? 0,
       offerAvatarUrls: offerAvatarUrls,
       conversationId: json['conversationId'] as String?,
+      ttlSeconds: (json['ttlSeconds'] as num?)?.toInt(),
     );
   }
 

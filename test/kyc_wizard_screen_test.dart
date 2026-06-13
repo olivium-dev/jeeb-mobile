@@ -14,6 +14,7 @@ import 'package:jeeb_mobile/features/kyc/presentation/kyc_status_view.dart';
 import 'package:jeeb_mobile/features/kyc/presentation/kyc_wizard_screen.dart';
 import 'package:jeeb_mobile/features/kyc/presentation/widgets/kyc_id_step.dart';
 import 'package:jeeb_mobile/features/kyc/presentation/widgets/kyc_selfie_step.dart';
+import 'package:jeeb_mobile/features/kyc/presentation/widgets/kyc_tos_step.dart';
 import 'package:jeeb_mobile/features/kyc/presentation/widgets/kyc_vehicle_step.dart';
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 import 'package:jeeb_mobile/features/photo_attachment/domain/photo_picker_service.dart';
@@ -75,7 +76,7 @@ KycWizardCubit _newCubit({
     pickerService: picker ??
         StubPhotoPickerService(cameraPayload: _bytes(100 * 1024)),
     gateway: gateway ?? FakeKycGateway(),
-  );
+  )..loadSchema();
   addTearDown(cubit.close);
   return cubit;
 }
@@ -156,8 +157,21 @@ void main() {
       await tester.ensureVisible(
         find.byKey(KycVehicleStep.submitButtonKey),
       );
+      // Vehicle submit advances to the ToS step (contract loads async). Pump a
+      // couple of frames rather than pumpAndSettle: the OmdsLoadingState spinner
+      // shown while the contract loads never settles under pumpAndSettle.
       await tester.tap(find.byKey(KycVehicleStep.submitButtonKey));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump();
+
+      // Sign the ToS, then submit the full KYC payload.
+      await tester.ensureVisible(find.byKey(KycTosStep.signaturePadKey));
+      await tester.tap(find.byKey(KycTosStep.signaturePadKey));
+      await tester.pump();
+      await tester.ensureVisible(find.byKey(KycTosStep.signButtonKey));
+      await tester.tap(find.byKey(KycTosStep.signButtonKey));
+      await tester.pump();
+      await tester.pump();
 
       expect(find.byKey(KycStatusView.pendingTitleKey), findsOneWidget);
       expect(cubit.state.step, KycWizardStep.status);
@@ -177,7 +191,7 @@ void main() {
       await tester.pumpWidget(_host(cubit));
       await tester.pumpAndSettle();
 
-      // Drive directly: capture all three slots and submit.
+      // Drive directly: capture all three slots, accept the ToS, and submit.
       await cubit.captureIdFront();
       await cubit.captureIdBack();
       cubit.goToSelfie();
@@ -185,15 +199,21 @@ void main() {
       cubit.goToVehicle();
       cubit.setVehicleType(VehicleType.car);
       cubit.setVehicleRegistration('LB-99999');
+      // submit() advances to the ToS step; signAndSubmit() posts the payload.
       await cubit.submit();
-      await tester.pumpAndSettle();
+      await cubit.signAndSubmit('sig-blob');
+      // pump (not pumpAndSettle): the status view contains no perpetual
+      // animation, but earlier steps may briefly show the OmdsLoadingState
+      // spinner which never settles.
+      await tester.pump();
 
       expect(find.byKey(KycStatusView.rejectedTitleKey), findsOneWidget);
       expect(find.byKey(KycStatusView.rejectionReasonKey), findsOneWidget);
       expect(find.byKey(KycStatusView.resubmitCtaKey), findsOneWidget);
 
       await tester.tap(find.byKey(KycStatusView.resubmitCtaKey));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump();
 
       // Resubmit returns the user to the ID step.
       expect(find.byKey(KycIdStep.frontTileKey), findsOneWidget);
@@ -217,7 +237,7 @@ void main() {
       // Registration left blank; the submit button is disabled — push state
       // through the cubit directly so the inline error is exercised.
       await cubit.submit();
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(cubit.state.error, KycWizardError.vehicleRegistrationRequired);
       expect(cubit.state.step, KycWizardStep.vehicle);

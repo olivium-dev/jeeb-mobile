@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/locale/locale_cubit.dart';
@@ -7,6 +8,7 @@ import '../../../core/role/role_cubit.dart';
 import '../../../core/role/user_role.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../settings/presentation/screens/settings_screen.dart';
+import '../../settings/presentation/widgets/become_jeeber_card.dart';
 
 /// Profile tab. T-mobile-031 turned the inline settings sub-list (language +
 /// role only) into the full settings screen so QA has a single surface for
@@ -26,6 +28,12 @@ class ProfileTab extends StatelessWidget {
       key: const Key('profile-tab-root'),
       padding: const EdgeInsets.symmetric(vertical: Spacing.xSmall),
       children: [
+        // T-MOB-027: Become-a-Jeeber card — visible for Client users who
+        // have not yet taken on the Jeeber role.
+        BecomeJeeberCard(
+          isAlreadyJeeber: role == UserRole.jeeber,
+          onTap: () => _openKycFlow(context),
+        ),
         OmdsSettingsSection(
           title: l10n.settingsLanguage,
           children: [
@@ -84,6 +92,11 @@ class ProfileTab extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  void _openKycFlow(BuildContext context) {
+    final router = GoRouter.maybeOf(context);
+    router?.goNamed('kyc-status');
   }
 }
 

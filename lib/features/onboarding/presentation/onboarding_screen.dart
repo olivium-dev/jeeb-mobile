@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/onboarding/onboarding_cubit.dart';
 import '../../../l10n/app_localizations.dart';
 
 /// Three-page introductory onboarding carousel shown to first-launch users.
@@ -11,7 +13,12 @@ import '../../../l10n/app_localizations.dart';
 /// spacing and sizing pull from [Spacing] / [Sizes], and animation timings
 /// pull from [UIConstants].
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  const OnboardingScreen({super.key, this.onComplete});
+
+  /// Optional override for navigation. Tests inject this so the screen
+  /// does not need a GoRouter in scope. Production leaves it null and
+  /// `context.go('/register')` handles navigation.
+  final VoidCallback? onComplete;
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -34,6 +41,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         curve: Curves.easeInOut,
       );
     } else {
+      _completeAndNavigate();
+    }
+  }
+
+  Future<void> _completeAndNavigate() async {
+    // Persist seen_onboarding so cold restarts skip the carousel.
+    if (!mounted) return;
+    await context.read<OnboardingCubit>().complete();
+    if (!mounted) return;
+    final onComplete = widget.onComplete;
+    if (onComplete != null) {
+      onComplete();
+    } else {
+      // ignore: use_build_context_synchronously
       context.go('/register');
     }
   }
@@ -63,6 +84,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            _SkipRow(onSkip: _completeAndNavigate),
             Expanded(
               child: PageView.builder(
                 controller: _pageController,
@@ -78,6 +100,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Row pinned to the top of the screen with a Skip CTA.
+///
+/// Tapping Skip persists `seen_onboarding=true` and navigates to `/register`
+/// (T-MOB-003 AC3). Visible on every slide so users can exit the carousel
+/// at any point.
+class _SkipRow extends StatelessWidget {
+  const _SkipRow({required this.onSkip});
+
+  final VoidCallback onSkip;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Align(
+      alignment: AlignmentDirectional.centerEnd,
+      child: OmdsPrimaryButton(
+        key: const Key('onboarding.skip'),
+        text: l10n.onboardingSkip,
+        variant: OmdsButtonVariant.text,
+        onTap: onSkip,
       ),
     );
   }

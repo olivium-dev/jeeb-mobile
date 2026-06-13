@@ -54,7 +54,7 @@ void main() {
     );
   }
 
-  testWidgets('renders the 6-digit OTP input and the initial 60s countdown',
+  testWidgets('renders the 4-digit OTP input and the initial 60s countdown',
       (tester) async {
     final cubit = await primedOnOtpStep();
     await tester.pumpWidget(hostScreen(cubit));

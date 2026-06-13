@@ -1,31 +1,34 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/auth_token_store.dart';
 import '../domain/otp_service.dart';
 
-/// [OtpService] backed by the mock backend at `/auth-service/auth/otp`.
+/// [OtpService] backed by the Mockoon gateway mock at `/v1/auth/otp`.
 ///
-/// The path-rewrite interceptor in [MockGatewayClient] translates gateway
-/// paths to mock prefixes, so this service uses gateway-style paths.
+/// Routes match the real gateway contract:
+///   POST /v1/auth/otp/request → { ttlSeconds }
+///   POST /v1/auth/otp/verify  → { accessToken, refreshToken, user }
+///
+/// On successful verify the JWT pair is persisted to [AuthTokenStore] so
+/// all subsequent authenticated requests can read the access token.
 class DioOtpService implements OtpService {
-  const DioOtpService(this._dio);
+  const DioOtpService(this._dio, this._tokenStore);
 
   final Dio _dio;
+  final AuthTokenStore _tokenStore;
 
   @override
   Future<OtpSendOutcome> sendCode(String e164Phone) async {
     try {
       final response = await _dio.post(
-        '/auth/otp/request',
+        '/v1/auth/otp/request',
         data: {'phone': e164Phone},
       );
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return OtpSendOutcome.sent;
-      }
+      final status = response.statusCode ?? 0;
+      if (status == 200 || status == 201) return OtpSendOutcome.sent;
       return OtpSendOutcome.networkError;
     } on DioException catch (e) {
-      if (e.response?.statusCode == 429) {
-        return OtpSendOutcome.rateLimited;
-      }
+      if (e.response?.statusCode == 429) return OtpSendOutcome.rateLimited;
       return OtpSendOutcome.networkError;
     }
   }
@@ -37,22 +40,34 @@ class DioOtpService implements OtpService {
   }) async {
     try {
       final response = await _dio.post(
-        '/auth/otp/verify',
+        '/v1/auth/otp/verify',
         data: {'phone': e164Phone, 'code': code},
       );
       if (response.statusCode == 200) {
+        await _persistTokens(response.data as Map<String, dynamic>?);
         return OtpVerifyOutcome.verified;
       }
       return OtpVerifyOutcome.networkError;
     } on DioException catch (e) {
       final status = e.response?.statusCode;
-      if (status == 401) {
-        return OtpVerifyOutcome.invalidCode;
-      }
-      if (status == 410) {
-        return OtpVerifyOutcome.expired;
-      }
+      if (status == 401) return OtpVerifyOutcome.invalidCode;
+      if (status == 429) return OtpVerifyOutcome.invalidCode;
+      if (status == 410) return OtpVerifyOutcome.expired;
       return OtpVerifyOutcome.networkError;
     }
+  }
+
+  Future<void> _persistTokens(Map<String, dynamic>? body) async {
+    if (body == null) return;
+    final access = body['accessToken'] as String?;
+    final refresh = body['refreshToken'] as String?;
+    final user = body['user'] as Map<String, dynamic>?;
+    final userId = user?['userId'] as String?;
+    if (access == null || refresh == null) return;
+    await _tokenStore.save(
+      accessToken: access,
+      refreshToken: refresh,
+      userId: userId,
+    );
   }
 }

@@ -12,6 +12,7 @@ enum ChatError {
   permissionDenied,
   pickUnavailable,
   sendFailed,
+  voiceUploadFailed,
 }
 
 class ChatState extends Equatable {
@@ -22,6 +23,7 @@ class ChatState extends Equatable {
     this.isAttaching = false,
     this.phase = ConversationPhase.accepted,
     this.acceptingOfferId,
+    this.declinedOfferIds = const <String>{},
     this.error,
   });
 
@@ -50,6 +52,10 @@ class ChatState extends Equatable {
   /// one so the user can't race two accepts.
   final String? acceptingOfferId;
 
+  /// Set of offer ids the user has declined client-side. These cards render
+  /// greyed-out while the WS push from the server is the authoritative removal.
+  final Set<String> declinedOfferIds;
+
   final ChatError? error;
 
   bool get canSendText => composerText.trim().isNotEmpty;
@@ -64,6 +70,25 @@ class ChatState extends Equatable {
   /// counterpart's avatar + name. During broadcasting (node 56535:6659) the
   /// header is the order id only, so the avatar slot is suppressed.
   bool get showsCounterpartHeader => phase == ConversationPhase.accepted;
+
+  /// Derives the broadcast window expiry from the first offer card's timestamp
+  /// + 5 minutes. This is a client-side heuristic — the server is authoritative.
+  /// Returns null when there are no offer cards (pre-offer state).
+  DateTime? get broadcastExpiresAt {
+    if (phase != ConversationPhase.broadcasting) return null;
+    final firstOffer = messages.firstWhere(
+      (m) => m.kind == MessageKind.offerCard,
+      orElse: () => messages.isEmpty ? _never : messages.first,
+    );
+    if (!firstOffer.isOfferCard) return null;
+    return firstOffer.sentAt.add(const Duration(minutes: 5));
+  }
+
+  static final DeliveryChatMessage _never = DeliveryChatMessage.system(
+    id: '__never__',
+    sentAt: DateTime.fromMillisecondsSinceEpoch(0),
+    text: '',
+  );
 
   /// Offer cards currently sitting in the message list. Used by the
   /// broadcasting screen to render the stacked offer panel.
@@ -80,6 +105,7 @@ class ChatState extends Equatable {
     ConversationPhase? phase,
     String? acceptingOfferId,
     bool clearAcceptingOfferId = false,
+    Set<String>? declinedOfferIds,
     ChatError? error,
     bool clearError = false,
   }) {
@@ -92,6 +118,7 @@ class ChatState extends Equatable {
       acceptingOfferId: clearAcceptingOfferId
           ? null
           : (acceptingOfferId ?? this.acceptingOfferId),
+      declinedOfferIds: declinedOfferIds ?? this.declinedOfferIds,
       error: clearError ? null : (error ?? this.error),
     );
   }
@@ -104,6 +131,7 @@ class ChatState extends Equatable {
     isAttaching,
     phase,
     acceptingOfferId,
+    declinedOfferIds,
     error,
   ];
 }
