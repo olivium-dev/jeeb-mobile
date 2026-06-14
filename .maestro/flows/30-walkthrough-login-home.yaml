@@ -1,0 +1,66 @@
+# Jeeb mobile — 30 Walkthrough → Login (phone+OTP) → Home E2E smoke.
+#
+# WHAT THIS PROVES (real-user path, not a widget test)
+#   Cold launch → 3-slide walkthrough → phone entry → real OTP exchange against
+#   the live gateway mock (192.168.2.33:3055, code 123456) → lands on the Home
+#   shell. Certifies the walkthrough-login feature works end-to-end on a device.
+#
+# BACKEND
+#   Live Mockoon gateway mock on the Mac LAN IP that the dev build's
+#   MockGatewayClient targets. /v1/auth/otp/request -> 200, /v1/auth/otp/verify
+#   with 123456 -> 200 {accessToken,user}. Verified by curl before the run.
+#
+# TARGETING
+#   By exported semantics text (English default locale). Maestro's a11y service
+#   surfaces Flutter Text content; verified via `maestro hierarchy`.
+#
+# Run:
+#   maestro test -e APP_ID=app.jeeb.mobile.dev .maestro/flows/30-walkthrough-login-home.yaml
+appId: ${APP_ID}
+---
+- launchApp:
+    clearState: true              # fresh install state -> walkthrough shows
+
+# ── Walkthrough (3 slides) ───────────────────────────────────────────────────
+# NOTE: OmdsWalkthroughStep merges its title+description into ONE semantics
+# node ("Voice-first deliveries\nTap to talk…"), and Maestro anchors text
+# matches to the whole string. So we drive/assert via the clean standalone
+# button nodes (Skip / Next / Get Started), not the merged slide copy.
+- extendedWaitUntil:
+    visible: "Skip"
+    timeout: 20000
+- takeScreenshot: 30a_walkthrough_slide1
+- tapOn: "Next"
+- tapOn: "Next"
+- extendedWaitUntil:
+    visible: "Get Started"
+    timeout: 8000
+- tapOn: "Get Started"
+
+# ── Phone entry ──────────────────────────────────────────────────────────────
+- extendedWaitUntil:
+    visible: "(?s).*Enter your phone.*"
+    timeout: 10000
+- takeScreenshot: 30b_phone_entry
+- tapOn: "Phone number"
+- inputText: "71123456"
+- tapOn: "Send code"
+
+# ── OTP verify (real exchange, code 123456) ──────────────────────────────────
+- extendedWaitUntil:
+    visible: "(?s).*Enter the code.*"
+    timeout: 10000
+- takeScreenshot: 30c_otp
+- inputText: "123456"
+# OmdsOtpInput auto-submits onCompleted; Verify is a fallback if focus differs.
+- runFlow:
+    when:
+      visible: "Verify"
+    commands:
+      - tapOn: "Verify"
+
+# ── Home shell ───────────────────────────────────────────────────────────────
+- extendedWaitUntil:
+    visible: "Home"
+    timeout: 15000
+- takeScreenshot: 30d_home
