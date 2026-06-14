@@ -60,4 +60,13 @@ class SuperLoginCubit extends Cubit<SuperLoginState> {
         emit(state.copyWith(status: SuperLoginStatus.error, error: error));
     }
   }
+
+  /// Clears a surfaced credential error so the inline message under the
+  /// passcode field disappears the moment the user starts correcting it
+  /// (DEF-2). Returns the sheet to [SuperLoginStatus.idle]; a no-op while
+  /// submitting or already idle/successful.
+  void clearError() {
+    if (state.status != SuperLoginStatus.error) return;
+    emit(state.copyWith(status: SuperLoginStatus.idle, error: null));
+  }
 }

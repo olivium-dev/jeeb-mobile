@@ -132,6 +132,22 @@ void main() {
     expect(find.byKey(const Key('registration.orDivider')), findsOneWidget);
   });
 
+  testWidgets(
+      'D4: exactly ONE "or" divider renders (no duplicate between Google '
+      'and the phone field)', (tester) async {
+    await tester.pumpWidget(wrapForTest(
+      RegistrationScreen(cubit: makeCubit()),
+    ));
+    await tester.pump();
+
+    // The screen owns a single keyed divider. The social section must NOT
+    // render its own — that produced the two `content-desc="or"` nodes QA saw.
+    expect(find.byKey(const Key('registration.orDivider')), findsOneWidget);
+    // The divider label ("or", `registrationSocialDivider`) must appear exactly
+    // once — this is the literal QA matched (`content-desc="or"`).
+    expect(find.text('or'), findsOneWidget);
+  });
+
   testWidgets('FR-LOGIN: CTA is an OmdsLoadingButton (in-button spinner)',
       (tester) async {
     await tester.pumpWidget(wrapForTest(

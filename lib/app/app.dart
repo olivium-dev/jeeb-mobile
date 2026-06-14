@@ -197,6 +197,14 @@ class _JeebAppState extends State<JeebApp> {
         BlocProvider.value(value: _onboarding),
         BlocProvider.value(value: _biometricLock),
         BlocProvider.value(value: _badgeCount),
+        // FR-P0-3 (defect DEF-1): expose the production SessionCubit to the
+        // tree so a successful login (OTP verify / super-login) can call
+        // `refresh()` — that emit drives `refreshListenable` and re-runs the
+        // router redirect, promoting `/` to Home instead of bouncing back to
+        // `/register`. Only provided when WE own the cubit; when a test injects
+        // a bare SessionGate there is no cubit to provide, and the login
+        // screens read it as `SessionCubit?` (null → no-op).
+        if (_ownedSession != null) BlocProvider.value(value: _ownedSession),
       ],
       child: BlocBuilder<LocaleCubit, Locale>(
         builder: (context, locale) {

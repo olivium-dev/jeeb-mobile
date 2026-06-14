@@ -10,7 +10,11 @@ import 'social_provider.dart';
 import 'social_sign_in_button.dart';
 
 /// Renders the social sign-in row at the top of the registration screen:
-/// [Apple button (iOS-only)] [Google button] [— or — divider].
+/// [Apple button (iOS-only)] [Google button].
+///
+/// The "— or —" divider is owned by the registration screen layout
+/// (`_PhoneEntryBody._OrDivider`, keyed `registration.orDivider`), NOT here —
+/// rendering one in each place produced the duplicate divider QA flagged (D4).
 ///
 /// Reads the [SocialAuthCubit] from the surrounding context. Surfaces
 /// errors as a snackbar; lets the caller decide what to do on success
@@ -66,34 +70,9 @@ class SocialSignInSection extends StatelessWidget {
               isEnabled: !state.isBusy,
               onTap: () => cubit.signInWith(SocialProvider.google),
             ),
-            const SizedBox(height: Spacing.medium),
-            _OrDivider(label: l10n.registrationSocialDivider),
           ],
         );
       },
-    );
-  }
-}
-
-class _OrDivider extends StatelessWidget {
-  const _OrDivider({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final style = Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: colorScheme.onSurfaceVariant,
-        );
-    return Row(
-      children: [
-        Expanded(child: Divider(color: colorScheme.outlineVariant)),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
-          child: Text(label, style: style),
-        ),
-        Expanded(child: Divider(color: colorScheme.outlineVariant)),
-      ],
     );
   }
 }

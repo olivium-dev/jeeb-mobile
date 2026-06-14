@@ -9,6 +9,7 @@ import 'package:omds/omds.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/mock_gateway_client.dart';
 import '../../../core/onboarding/onboarding_cubit.dart';
+import '../../../core/session/session_cubit.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../auth/social/social_auth_cubit.dart';
 import '../../auth/social/social_auth_service.dart';
@@ -160,8 +161,23 @@ class _RegistrationViewState extends State<_RegistrationView> {
     if (!mounted) return;
     await context.read<OnboardingCubit>().complete();
     if (!mounted) return;
+    // FR-P0-3 (defect DEF-1): re-evaluate the session BEFORE navigating so the
+    // router's first-run gate sees the freshly-persisted token and lets `/`
+    // resolve to Home instead of bouncing back to `/register`.
+    // ignore: use_build_context_synchronously
+    await _refreshSession(context);
+    if (!mounted) return;
     // ignore: use_build_context_synchronously
     context.go('/');
+  }
+
+  /// Re-reads the session keystore via the production [SessionCubit] (when one
+  /// is in scope) so the router redirect promotes the user to Home. Reads it as
+  /// a nullable type: under widget tests that mount the screen without the app
+  /// shell there is no [SessionCubit] provider, so this is a no-op there.
+  static Future<void> _refreshSession(BuildContext context) async {
+    final session = context.read<SessionCubit?>();
+    if (session != null) await session.refresh();
   }
 
   @override
@@ -222,9 +238,16 @@ class _RegistrationViewState extends State<_RegistrationView> {
     final onVerified = widget.onVerified;
     if (onVerified != null) {
       onVerified();
-    } else {
-      context.go('/');
+      return;
     }
+    // FR-P0-3 (defect DEF-1): the sheet persisted the real tokens, but the
+    // router's session gate still reads `unauthenticated` until the SessionCubit
+    // re-reads the keystore. Refresh it FIRST so `context.go('/')` lands on Home
+    // immediately (previously the redirect bounced back to `/register` and Home
+    // only appeared after a relaunch).
+    await _refreshSession(context);
+    if (!context.mounted) return;
+    context.go('/');
   }
 }
 
