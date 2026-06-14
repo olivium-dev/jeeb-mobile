@@ -118,7 +118,10 @@ void main() {
       'pushed requests merge into the feed and trigger the sound notifier exactly once per new id',
       build: () {
         var sounds = 0;
-        final cubit = build(onSound: () => sounds += 1);
+        final cubit = build(
+          clock: () => DateTime(2026, 5, 17, 12),
+          onSound: () => sounds += 1,
+        );
         addTearDown(() {
           expect(sounds, 1, reason: 'sound should fire once per new request id');
         });
