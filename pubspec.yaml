@@ -128,12 +128,15 @@ flutter:
     # 56611:18663, aspect 743/756). Exported from the Figma Dev Mode MCP.
     - assets/illustrations/empty_orders.png
     # Walkthrough slide illustrations (300x300 brand vectors, FR-WALKTHROUGH).
-    #   voice_first   -> slide 1 (onboardingSlide1 "Voice-first deliveries")
-    #   live_tracking -> slide 3 (onboardingSlide3 "Live tracking, end to end")
-    # Slide 2 ("Trusted Jeebers, every time") has no exported asset yet and
-    # uses the interim brand-field glyph in onboarding_screen.dart until its
-    # Figma frame lands. Both SVGs render via SvgPicture.asset (flutter_svg).
+    #   voice_first      -> slide 1 (onboardingSlide1 "Voice-first deliveries")
+    #   trusted_jeebers  -> slide 2 (onboardingSlide2 "Trusted Jeebers, every time")
+    #   live_tracking    -> slide 3 (onboardingSlide3 "Live tracking, end to end")
+    # All three slides now ship a real brand vector (FR-D1D2 replaced slide 2's
+    # interim glyph with onboarding_trusted_jeebers.svg, drawn in the same
+    # 300x300 navy/orange/periwinkle idiom as the other two). Each renders via
+    # SvgPicture.asset (flutter_svg).
     - assets/illustrations/onboarding_voice_first.svg
+    - assets/illustrations/onboarding_trusted_jeebers.svg
     - assets/illustrations/onboarding_live_tracking.svg
 
   # Inter, bundled locally (OFL-1.1) as discrete STATIC instances. A single

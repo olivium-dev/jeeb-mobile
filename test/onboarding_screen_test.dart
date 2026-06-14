@@ -194,7 +194,7 @@ void main() {
   });
 
   testWidgets(
-      'slide 2 (no exported asset) degrades to the interim brand glyph',
+      'slide 2 renders the real trusted-Jeebers SVG illustration (FR-D1D2)',
       (tester) async {
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
@@ -203,16 +203,21 @@ void main() {
     await tester.tap(find.byKey(const Key('onboarding.next')));
     await tester.pumpAndSettle();
 
-    // Interim treatment: a Material glyph inside the illustration slot, NOT
-    // an SvgPicture, until the Figma asset for "Trusted Jeebers" lands.
+    // FR-D1D2: slide 2's placeholder shield/check glyph was replaced with a
+    // real exported brand vector, matching slides 1 and 3. The illustration
+    // slot now hosts the trusted-Jeebers SvgPicture, NOT a Material Icon.
     final illustration = find.byKey(const Key('onboarding.illustration'));
     expect(
       find.descendant(of: illustration, matching: find.byType(SvgPicture)),
-      findsNothing,
+      findsOneWidget,
     );
     expect(
       find.descendant(of: illustration, matching: find.byType(Icon)),
-      findsOneWidget,
+      findsNothing,
+    );
+    expect(
+      svgAssetName(tester),
+      'assets/illustrations/onboarding_trusted_jeebers.svg',
     );
   });
 
