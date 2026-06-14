@@ -361,6 +361,11 @@ class AppLocalizations {
   String get onboardingNext => _get('onboardingNext');
   String get onboardingGetStarted => _get('onboardingGetStarted');
   String get onboardingSkip => _get('onboardingSkip');
+  String get onboardingLanguageEnglish => _get('onboardingLanguageEnglish');
+  String get onboardingLanguageArabic => _get('onboardingLanguageArabic');
+  String get onboardingSlide1Semantics => _get('onboardingSlide1Semantics');
+  String get onboardingSlide2Semantics => _get('onboardingSlide2Semantics');
+  String get onboardingSlide3Semantics => _get('onboardingSlide3Semantics');
 
   String deliveryDetailTitle(String id) =>
       _get('deliveryDetailTitle').replaceFirst('{id}', id);

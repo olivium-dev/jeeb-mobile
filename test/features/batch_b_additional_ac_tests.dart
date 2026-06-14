@@ -17,6 +17,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
 import 'package:jeeb_mobile/core/onboarding/onboarding_cubit.dart';
 import 'package:jeeb_mobile/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:jeeb_mobile/features/registration/application/registration_cubit.dart';
@@ -55,13 +56,23 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       final cubit = OnboardingCubit(prefs: prefs);
       addTearDown(cubit.close);
+      // The onboarding screen now hosts an EN/AR language toggle bound to the
+      // LocaleCubit (FR-P1-2), so it must be in scope.
+      final localeCubit = LocaleCubit(
+        prefs: prefs,
+        deviceLocaleProvider: () => const Locale('en'),
+      );
+      addTearDown(localeCubit.close);
 
       var completed = false;
 
       await tester.pumpWidget(
         wrapForTest(
-          BlocProvider<OnboardingCubit>.value(
-            value: cubit,
+          MultiBlocProvider(
+            providers: [
+              BlocProvider<OnboardingCubit>.value(value: cubit),
+              BlocProvider<LocaleCubit>.value(value: localeCubit),
+            ],
             child: OnboardingScreen(onComplete: () => completed = true),
           ),
         ),

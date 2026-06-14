@@ -522,6 +522,26 @@
   "@onboardingSkip": {
     "description": "Skip CTA on onboarding carousel — persists seen_onboarding and navigates to sign-in (T-MOB-003 AC3)."
   },
+  "onboardingLanguageEnglish": "English",
+  "@onboardingLanguageEnglish": {
+    "description": "English option in the EN/AR language toggle on the onboarding screen (FR-WALKTHROUGH / FR-P1-2)."
+  },
+  "onboardingLanguageArabic": "العربية",
+  "@onboardingLanguageArabic": {
+    "description": "Arabic option in the EN/AR language toggle on the onboarding screen. Always shown in its native script in both locales (FR-WALKTHROUGH / FR-P1-2)."
+  },
+  "onboardingSlide1Semantics": "Illustration: a person speaks a delivery request into the Jeeb app.",
+  "@onboardingSlide1Semantics": {
+    "description": "Screen-reader alt text for the slide-1 voice-first illustration (assets/illustrations/onboarding_voice_first.svg)."
+  },
+  "onboardingSlide2Semantics": "Illustration: a vetted, trusted Jeeber delivery partner.",
+  "@onboardingSlide2Semantics": {
+    "description": "Screen-reader alt text for the slide-2 trusted-Jeeber interim illustration (brand-field glyph until the Figma asset lands)."
+  },
+  "onboardingSlide3Semantics": "Illustration: a live map tracking a Jeeber from pickup to drop-off.",
+  "@onboardingSlide3Semantics": {
+    "description": "Screen-reader alt text for the slide-3 live-tracking illustration (assets/illustrations/onboarding_live_tracking.svg)."
+  },
   "deliveryDetailTitle": "Delivery {id}",
   "@deliveryDetailTitle": {
     "description": "Title of the delivery-detail screen reached from a push tap",
