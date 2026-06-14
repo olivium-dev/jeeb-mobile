@@ -18,11 +18,14 @@ import '../core/notifications/domain/notification_deep_link.dart';
 import '../core/notifications/presentation/push_banner_host.dart';
 import '../core/observability/crash_context_bridge.dart';
 import '../core/observability/crash_reporter.dart';
+import '../core/network/auth_token_store.dart';
 import '../core/onboarding/onboarding_cubit.dart';
 import '../core/role/role_cubit.dart';
 import '../core/role/role_eligibility_cubit.dart';
 import '../core/role/user_role.dart';
 import '../core/router/app_router.dart';
+import '../core/session/session_cubit.dart';
+import '../core/session/session_gate.dart';
 import '../core/theme/app_theme.dart';
 import '../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../features/biometric_auth/data/shared_prefs_pin_repository.dart';
@@ -47,6 +50,7 @@ class JeebApp extends StatefulWidget {
     this.pushTransport,
     this.biometricGateway,
     this.localizationsDelegateOverride,
+    this.sessionGate,
   });
 
   final SharedPreferences preferences;
@@ -77,6 +81,13 @@ class JeebApp extends StatefulWidget {
   /// deterministically.
   final BiometricGateway? biometricGateway;
 
+  /// Optional override for the session/JWT router gate (FR-P0-3). Production
+  /// builds a real [SessionCubit] over [AuthTokenStore] (secure keystore) when
+  /// this is null; widget tests inject a scripted [SessionGate] (e.g.
+  /// [AlwaysAuthenticatedSessionGate]) so they don't need a keystore. When an
+  /// override is supplied it is NOT owned by this widget (no dispose).
+  final SessionGate? sessionGate;
+
   @override
   State<JeebApp> createState() => _JeebAppState();
 }
@@ -105,9 +116,19 @@ class _JeebAppState extends State<JeebApp> {
     gateway: widget.biometricGateway ?? const UnavailableBiometricGateway(),
     pinRepository: SharedPrefsPinRepository(prefs: widget.preferences),
   )..evaluate();
+
+  /// FR-P0-3: the production session/JWT gate. Built over a real
+  /// [AuthTokenStore] (secure keystore) unless a test injects a [sessionGate].
+  /// We hold a reference to the [SessionCubit] only when WE created it, so
+  /// dispose closes exactly what we own. The router reads it as a [SessionGate];
+  /// [_evaluateSession] kicks the first keystore read after first frame.
+  late final SessionCubit? _ownedSession =
+      widget.sessionGate == null ? SessionCubit(tokenStore: AuthTokenStore()) : null;
+  late final SessionGate _session = widget.sessionGate ?? _ownedSession!;
   late final GoRouter _router = AppRouter.create(
     onboarding: _onboarding,
     biometricLock: _biometricLock,
+    session: _session,
   );
   // BadgeCountCubit is cheap (in-memory Cubit<int>) and is read by the
   // MultiBlocProvider on first build, so it stays eager.
@@ -126,6 +147,11 @@ class _JeebAppState extends State<JeebApp> {
   @override
   void initState() {
     super.initState();
+    // FR-P0-3: evaluate the session AFTER first frame. The cubit starts in the
+    // `unknown` phase (router gate is a no-op) so we never flash `/register`
+    // during the keystore read; once this resolves, an onboarded-but-tokenless
+    // user is redirected to login via `refreshListenable`.
+    _ownedSession?.refresh();
     SchedulerBinding.instance.addPostFrameCallback((_) => _initPushChain());
   }
 
@@ -156,6 +182,7 @@ class _JeebAppState extends State<JeebApp> {
     _roleEligibility.close();
     _role.close();
     _onboarding.close();
+    _ownedSession?.close();
     _router.dispose();
     super.dispose();
   }

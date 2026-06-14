@@ -70,6 +70,7 @@ class DevSeam {
           primary.homeTab.isNotEmpty ? primary.homeTab : fallback.homeTab,
       feed: primary.feed.isNotEmpty ? primary.feed : fallback.feed,
       holdSplash: primary.holdSplash || fallback.holdSplash,
+      skipOnboarding: primary.skipOnboarding || fallback.skipOnboarding,
     );
   }
 
