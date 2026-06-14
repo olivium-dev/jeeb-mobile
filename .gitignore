@@ -40,3 +40,12 @@ ios/Runner/GeneratedPluginRegistrant.*
 
 # Coverage
 coverage/
+
+# Build / capture junk (not source; keep the integration tree clean)
+# Flutter crash logs dropped at repo root by the tool
+flutter_*.log
+# Ad-hoc capture/QA screenshots dropped at the repo root (numbered PNGs).
+# Scoped to root only — assets/**, docs/screenshots/**, android/** PNGs stay tracked.
+/*.png
+# Figma Dev Mode screenshot cache (regenerated on demand)
+docs/figma-cache/
