@@ -1,0 +1,85 @@
+<svg width="300" height="300" viewBox="0 0 300 300" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Jeeb voice-first delivery onboarding illustration</title>
+  <desc id="desc">A smartphone voice command sends an orange delivery route toward a scooter, shop, and package.</desc>
+
+  <ellipse id="ground-shadow" cx="151" cy="253" rx="99" ry="13" fill="#0B1351" opacity="0.10"/>
+
+  <g id="local-shop">
+    <rect x="30" y="151" width="60" height="72" rx="9" fill="#FFFFFF" stroke="#916F66" stroke-width="2"/>
+    <path d="M35 151H85L79 135H41L35 151Z" fill="#EAE7EB" stroke="#916F66" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M41 136H49L47 151H35L41 136Z" fill="#D73B00"/>
+    <path d="M55 136H64L64 151H49L55 136Z" fill="#FFFFFF"/>
+    <path d="M70 136H79L85 151H66L70 136Z" fill="#D73B00"/>
+    <rect x="42" y="164" width="16" height="22" rx="3" fill="#777FC0" opacity="0.78"/>
+    <rect x="64" y="164" width="16" height="50" rx="5" fill="#0B1351"/>
+    <circle cx="76" cy="190" r="2" fill="#D73B00"/>
+    <rect x="39" y="195" width="19" height="13" rx="3" fill="#E5E1E5"/>
+    <path d="M43 201H54" fill="none" stroke="#916F66" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <g id="phone">
+    <rect x="77" y="37" width="139" height="204" rx="31" fill="#0B1351" stroke="#EAE7EB" stroke-width="3"/>
+    <rect x="89" y="51" width="115" height="175" rx="22" fill="#FFFFFF"/>
+    <rect x="130" y="45" width="34" height="6" rx="3" fill="#777FC0"/>
+    <rect x="132" y="231" width="29" height="4" rx="2" fill="#777FC0"/>
+
+    <g id="voice-bubble">
+      <rect x="107" y="73" width="79" height="72" rx="20" fill="#EAE7EB"/>
+      <circle cx="147" cy="108" r="23" fill="#FFFFFF"/>
+      <rect x="140" y="92" width="14" height="28" rx="7" fill="#D73B00"/>
+      <path d="M132 110C132 120 138 127 147 127C156 127 162 120 162 110" fill="none" stroke="#0B1351" stroke-width="5" stroke-linecap="round"/>
+      <path d="M147 128V136" fill="none" stroke="#0B1351" stroke-width="5" stroke-linecap="round"/>
+      <path d="M137 136H157" fill="none" stroke="#0B1351" stroke-width="5" stroke-linecap="round"/>
+      <rect x="116" y="103" width="5" height="12" rx="2.5" fill="#777FC0"/>
+      <rect x="125" y="98" width="5" height="22" rx="2.5" fill="#D73B00"/>
+      <rect x="164" y="98" width="5" height="22" rx="2.5" fill="#D73B00"/>
+      <rect x="173" y="103" width="5" height="12" rx="2.5" fill="#777FC0"/>
+    </g>
+
+    <g id="abstract-order-card">
+      <rect x="105" y="158" width="84" height="42" rx="13" fill="#E5E1E5"/>
+      <rect x="117" y="168" width="21" height="21" rx="5" fill="#D73B00"/>
+      <path d="M117 174L128 168L138 174" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M149 171H177" fill="none" stroke="#777FC0" stroke-width="5" stroke-linecap="round"/>
+      <path d="M149 184H168" fill="none" stroke="#916F66" stroke-width="5" stroke-linecap="round" opacity="0.80"/>
+    </g>
+  </g>
+
+  <g id="voice-to-route">
+    <circle cx="163" cy="108" r="5" fill="#D73B00"/>
+    <circle cx="178" cy="100" r="4" fill="#D73B00"/>
+    <circle cx="194" cy="96" r="4" fill="#D73B00"/>
+    <circle cx="211" cy="101" r="4" fill="#D73B00"/>
+    <circle cx="226" cy="119" r="4" fill="#D73B00"/>
+    <circle cx="224" cy="143" r="4" fill="#D73B00"/>
+    <circle cx="214" cy="164" r="4" fill="#D73B00"/>
+    <circle cx="206" cy="185" r="4" fill="#D73B00"/>
+    <path d="M220 109C220 100 227 93 236 93C245 93 252 100 252 109C252 119 236 135 236 135C236 135 220 119 220 109Z" fill="#D73B00" stroke="#EAE7EB" stroke-width="2" stroke-linejoin="round"/>
+    <circle cx="236" cy="109" r="6" fill="#FFFFFF"/>
+    <circle cx="226" cy="213" r="7" fill="#FFFFFF" stroke="#D73B00" stroke-width="4"/>
+  </g>
+
+  <g id="delivery-package">
+    <path d="M172 224L193 213L214 224V247L193 258L172 247V224Z" fill="#EAE7EB" stroke="#916F66" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M172 224L193 236L214 224" fill="none" stroke="#916F66" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M193 236V258" fill="none" stroke="#916F66" stroke-width="2" stroke-linecap="round"/>
+    <path d="M183 219L203 231" fill="none" stroke="#D73B00" stroke-width="4" stroke-linecap="round"/>
+  </g>
+
+  <g id="scooter-courier">
+    <circle cx="223" cy="233" r="16" fill="#FFFFFF" stroke="#0B1351" stroke-width="5"/>
+    <circle cx="260" cy="233" r="16" fill="#FFFFFF" stroke="#0B1351" stroke-width="5"/>
+    <circle cx="223" cy="233" r="4" fill="#D73B00"/>
+    <circle cx="260" cy="233" r="4" fill="#D73B00"/>
+    <path d="M219 217H244C252 217 258 223 260 233" fill="none" stroke="#0B1351" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M232 217L244 195H259" fill="none" stroke="#0B1351" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M203 220H236L226 234H202C198 234 195 231 196 227C197 223 199 220 203 220Z" fill="#D73B00"/>
+    <path d="M244 191C250 188 256 188 262 192" fill="none" stroke="#0B1351" stroke-width="5" stroke-linecap="round"/>
+    <rect x="209" y="184" width="33" height="30" rx="7" fill="#0B1351" stroke="#EAE7EB" stroke-width="2"/>
+    <path d="M214 191H237" fill="none" stroke="#D73B00" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="224" cy="171" r="13" fill="#EAE7EB" stroke="#0B1351" stroke-width="4"/>
+    <path d="M212 173C220 163 231 164 238 172" fill="none" stroke="#D73B00" stroke-width="4" stroke-linecap="round"/>
+    <path d="M224 185L216 203H237L230 185H224Z" fill="#777FC0" stroke="#0B1351" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M229 202L245 217" fill="none" stroke="#0B1351" stroke-width="5" stroke-linecap="round"/>
+  </g>
+</svg>

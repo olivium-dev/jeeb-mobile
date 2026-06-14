@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/locale/locale_cubit.dart';
 import '../../../core/onboarding/onboarding_cubit.dart';
 import '../../../l10n/app_localizations.dart';
 
@@ -17,14 +19,22 @@ import '../../../l10n/app_localizations.dart';
 /// swipeable back layer; the text + controls float over the scrim
 /// (`IgnorePointer` on the copy so swipes still reach the carousel).
 ///
-/// FLAG(figma): the per-slide artwork is still a placeholder glyph. The
-/// branded full-bleed illustrations live in Figma `ZOi3kKtw7sd42ssSVX3Kn4`
-/// but the slide node ids are unresolved (Dev Mode MCP unreachable in this
-/// pass — see design/SCREEN-SPEC.md §0/§7). [_WalkthroughIllustration]
-/// isolates the swap point: drop the three exported assets into
-/// `assets/illustrations/` and replace the placeholder glyph with a full-bleed
-/// `Image.asset(..., fit: BoxFit.cover)` / [OmdsCachedImage] — no layout change
-/// needed. We deliberately do NOT invent pixel values for unconfirmed designs.
+/// Slide artwork (FR-WALKTHROUGH / FR-P1-1): slides 1 and 3 render the real
+/// exported brand vectors — `assets/illustrations/onboarding_voice_first.svg`
+/// (voice-first) and `onboarding_live_tracking.svg` (live tracking) — via
+/// [SvgPicture.asset]. Slide 2 ("Trusted Jeebers") has no exported asset yet;
+/// its Figma frame node id is still unresolved (Dev Mode MCP unreachable in
+/// this pass — see design/SCREEN-SPEC.md §0/§7), so it falls back to the
+/// INTERIM brand-field glyph until the asset lands. [_WalkthroughIllustration]
+/// isolates the per-slide treatment: a slide with an `asset` renders the SVG;
+/// a slide without one degrades to the tinted glyph on the brand field — no
+/// layout change either way. We deliberately do NOT invent pixel values for
+/// the unconfirmed slide-2 design.
+///
+/// FR-P1-2: an EN/AR language toggle ([_LanguageToggle], built on
+/// [OmdsFilterChips]) is anchored top-trailing; selecting a locale drives
+/// [LocaleCubit.setLocale], which rebuilds `MaterialApp.locale` and flips the
+/// entire tree to RTL live (no restart).
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key, this.onComplete});
 
@@ -91,42 +101,67 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             onNext: () => _onNext(pages.length),
             onSkip: _completeAndNavigate,
           ),
+          const _LanguageToggle(),
         ],
       ),
     );
   }
 }
 
-/// Static slide content. Icons are placeholders for the Figma illustrations
-/// (see [OnboardingScreen] FLAG).
+/// Asset paths for the wired walkthrough slide illustrations (FR-P1-1).
+const String _kVoiceFirstAsset = 'assets/illustrations/onboarding_voice_first.svg';
+const String _kLiveTrackingAsset =
+    'assets/illustrations/onboarding_live_tracking.svg';
+
+/// Static slide content. Slides 1 and 3 carry the real exported SVGs; slide 2
+/// has no asset yet so it renders the interim glyph (see [OnboardingScreen]
+/// docs and [_WalkthroughIllustration]).
 List<_OnboardingPage> _onboardingPages(AppLocalizations l10n) => [
       _OnboardingPage(
-        icon: Icons.delivery_dining,
+        icon: Icons.mic_none_rounded,
+        asset: _kVoiceFirstAsset,
         title: l10n.onboardingSlide1Title,
         body: l10n.onboardingSlide1Body,
+        semanticsLabel: l10n.onboardingSlide1Semantics,
       ),
       _OnboardingPage(
-        icon: Icons.mic,
+        // INTERIM (FR-P1-1): no exported asset for the "Trusted Jeebers" slide
+        // yet — degrade to a brand-field glyph until the Figma frame lands.
+        icon: Icons.verified_user_outlined,
+        asset: null,
         title: l10n.onboardingSlide2Title,
         body: l10n.onboardingSlide2Body,
+        semanticsLabel: l10n.onboardingSlide2Semantics,
       ),
       _OnboardingPage(
-        icon: Icons.star,
+        icon: Icons.map_outlined,
+        asset: _kLiveTrackingAsset,
         title: l10n.onboardingSlide3Title,
         body: l10n.onboardingSlide3Body,
+        semanticsLabel: l10n.onboardingSlide3Semantics,
       ),
     ];
 
 class _OnboardingPage {
   const _OnboardingPage({
     required this.icon,
+    required this.asset,
     required this.title,
     required this.body,
+    required this.semanticsLabel,
   });
 
+  /// Interim glyph, used only when [asset] is null.
   final IconData icon;
+
+  /// Bundled SVG illustration path, or null to fall back to the [icon] glyph.
+  final String? asset;
+
   final String title;
   final String body;
+
+  /// Localized screen-reader alt text for the illustration.
+  final String semanticsLabel;
 }
 
 /// Full-bleed, swipeable illustration carousel — the back layer of the stack.
@@ -148,36 +183,67 @@ class _IllustrationCarousel extends StatelessWidget {
       controller: controller,
       itemCount: pages.length,
       onPageChanged: onPageChanged,
-      itemBuilder: (_, i) => _WalkthroughIllustration(icon: pages[i].icon),
+      itemBuilder: (_, i) => _WalkthroughIllustration(page: pages[i]),
     );
   }
 }
 
-/// Placeholder swap-point for the branded full-bleed slide artwork.
+/// The branded full-bleed slide artwork.
 ///
-/// FLAG(figma): renders a tinted Material glyph on the brand-navy field
-/// because the Figma slide illustrations have unresolved node ids in this
-/// pass. Replace with `Image.asset(..., fit: BoxFit.cover)` once the three
-/// exported assets land in `assets/illustrations/` — no layout change needed.
+/// Renders the page's exported SVG ([SvgPicture.asset]) when [_OnboardingPage.asset]
+/// is set (slides 1 and 3); otherwise degrades to a tinted Material glyph on
+/// the brand-navy field (the INTERIM slide-2 treatment). Either way the artwork
+/// floats above the bottom copy/control band and carries a localized semantic
+/// label so screen readers announce the slide.
 class _WalkthroughIllustration extends StatelessWidget {
-  const _WalkthroughIllustration({required this.icon});
+  const _WalkthroughIllustration({required this.page});
 
-  final IconData icon;
+  final _OnboardingPage page;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Theme.of(context).colorScheme.secondaryContainer,
+      child: Align(
+        // Float the artwork above the bottom copy/control band.
+        alignment: const Alignment(0.0, -0.35),
+        child: Semantics(
+          key: const Key('onboarding.illustration'),
+          image: true,
+          label: page.semanticsLabel,
+          child: _IllustrationArtwork(page: page),
+        ),
+      ),
+    );
+  }
+}
+
+/// The artwork itself: the real SVG, or the interim brand glyph when no asset
+/// exists for this slide.
+class _IllustrationArtwork extends StatelessWidget {
+  const _IllustrationArtwork({required this.page});
+
+  final _OnboardingPage page;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return ColoredBox(
-      color: colorScheme.secondaryContainer,
-      child: Align(
-        // Float the artwork above the bottom copy/control band.
-        alignment: const Alignment(0.0, -0.35),
-        child: Icon(
-          key: const Key('onboarding.illustration'),
-          icon,
-          size: Sizes.twoHundredLarge,
-          color: colorScheme.onSecondaryContainer,
-        ),
+    final asset = page.asset;
+    if (asset == null) {
+      return Icon(
+        page.icon,
+        size: Sizes.twoHundredLarge,
+        color: colorScheme.onSecondaryContainer,
+      );
+    }
+    return SvgPicture.asset(
+      asset,
+      width: Sizes.twoHundredLarge,
+      height: Sizes.twoHundredLarge,
+      fit: BoxFit.contain,
+      // A failed/slow decode degrades to the brand field, never a broken glyph.
+      placeholderBuilder: (_) => const SizedBox.square(
+        dimension: Sizes.twoHundredLarge,
       ),
     );
   }
@@ -299,5 +365,59 @@ class _OnboardingCtaButton extends StatelessWidget {
       onTap: onTap,
       width: double.infinity,
     );
+  }
+}
+
+/// Supported onboarding locale language codes (FR-P1-2).
+const String _kLangEn = 'en';
+const String _kLangAr = 'ar';
+
+/// Top-trailing EN/AR language toggle (FR-P1-2).
+///
+/// Built on [OmdsFilterChips] (there is no `OmdsButtonGroup` in OMDS — see
+/// design spec §2b). Selecting a chip drives [LocaleCubit.setLocale], which
+/// persists the choice and rebuilds `MaterialApp.locale`, flipping the whole
+/// tree to RTL for Arabic live (no restart). Anchored top-trailing so it
+/// mirrors to top-leading in RTL automatically.
+class _LanguageToggle extends StatelessWidget {
+  const _LanguageToggle();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final locale = context.watch<LocaleCubit>().state;
+    return SafeArea(
+      child: Align(
+        alignment: AlignmentDirectional.topEnd,
+        child: Padding(
+          padding: const EdgeInsets.all(Spacing.large),
+          child: Semantics(
+            container: true,
+            label: l10n.onboardingChooseLanguage,
+            child: OmdsFilterChips<String>(
+              key: const Key('onboarding.languageToggle'),
+              showCounts: false,
+              selectedValue: locale.languageCode,
+              onFilterChanged: (code) => _onLanguageSelected(context, code),
+              filters: [
+                OmdsFilterOption<String>(
+                  label: l10n.onboardingLanguageEnglish,
+                  value: _kLangEn,
+                ),
+                OmdsFilterOption<String>(
+                  label: l10n.onboardingLanguageArabic,
+                  value: _kLangAr,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _onLanguageSelected(BuildContext context, String? code) {
+    if (code == null) return;
+    context.read<LocaleCubit>().setLocale(Locale(code));
   }
 }
