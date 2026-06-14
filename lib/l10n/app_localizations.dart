@@ -533,6 +533,20 @@ class AppLocalizations {
           .replaceFirst('{seconds}', seconds);
   String get registrationChangePhone => _get('registrationChangePhone');
 
+  // FR-LOGIN: branded register hero + welcome heading.
+  String get registrationWelcome => _get('registrationWelcome');
+
+  // FR-P0-4: super-login credential bottom sheet.
+  String get superLoginTitle => _get('superLoginTitle');
+  String get superLoginSubtitle => _get('superLoginSubtitle');
+  String get superLoginUserId => _get('superLoginUserId');
+  String get superLoginUserIdHint => _get('superLoginUserIdHint');
+  String get superLoginPasscode => _get('superLoginPasscode');
+  String get superLoginPasscodeHint => _get('superLoginPasscodeHint');
+  String get superLoginSubmit => _get('superLoginSubmit');
+  String get superLoginError => _get('superLoginError');
+  String get superLoginNetworkError => _get('superLoginNetworkError');
+
   String get tierSelectionTitle => _get('tierSelectionTitle');
   String get tierSelectionSubtitle => _get('tierSelectionSubtitle');
   String get tierSelectionConfirm => _get('tierSelectionConfirm');

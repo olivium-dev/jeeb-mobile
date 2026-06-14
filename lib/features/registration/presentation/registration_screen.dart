@@ -2,11 +2,11 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
-import '../../../core/network/auth_token_store.dart';
 import '../../../core/network/mock_gateway_client.dart';
 import '../../../core/onboarding/onboarding_cubit.dart';
 import '../../../l10n/app_localizations.dart';
@@ -19,6 +19,7 @@ import '../application/registration_state.dart';
 import '../domain/lebanon_phone.dart';
 import '../domain/otp_service.dart';
 import 'otp_verification_screen.dart';
+import 'super_login/super_login_sheet.dart';
 
 /// Entry point for the phone+OTP registration flow (T-mobile-002).
 ///
@@ -188,77 +189,11 @@ class _RegistrationViewState extends State<_RegistrationView> {
           body: SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(Spacing.medium),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SocialSignInSection(
-                    onAuthenticated: (_) {
-                      final cb =
-                          widget.onSocialAuthenticated ?? widget.onVerified;
-                      if (cb != null) {
-                        cb();
-                      } else {
-                        context.go('/');
-                      }
-                    },
-                  ),
-                  const SizedBox(height: Spacing.large),
-                  Text(
-                    l10n.registrationPhoneTitle,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: Spacing.xSmall),
-                  Text(
-                    l10n.registrationPhoneSubtitle,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: Spacing.large),
-                  _PhoneField(
-                    controller: _phoneController,
-                    hintText: l10n.registrationPhoneHint,
-                    errorText: state.phoneError == null
-                        ? null
-                        : _phoneErrorCopy(state.phoneError!, l10n),
-                    enabled: !state.isSendingCode,
-                    onChanged: (raw) =>
-                        context.read<RegistrationCubit>().phoneChanged(raw),
-                  ),
-                  const SizedBox(height: Spacing.large),
-                  OmdsPrimaryButton(
-                    key: const Key('registration.sendCode'),
-                    text: state.isSendingCode
-                        ? l10n.registrationSending
-                        : l10n.registrationSendCode,
-                    isEnabled: state.isPhoneReady && !state.isSendingCode,
-                    onTap: () => context.read<RegistrationCubit>().sendCode(),
-                  ),
-                  // SECURITY: the super-login dev backdoor mints a
-                  // `mock-jwt-access-super-user` token that bypasses real
-                  // auth. It is now compiled out of release builds — the
-                  // tap target only exists under `kDebugMode` (debug/profile
-                  // dev seam). Full removal is owner-gated (see
-                  // design/JEEB-PLAN.md §6, defect #2 / P0-2).
-                  if (kDebugMode) ...[
-                    const SizedBox(height: Spacing.twoXLarge),
-                    Center(
-                      child: GestureDetector(
-                        key: const Key('registration.superLogin'),
-                        onTap: () => _superLogin(context),
-                        child: Text(
-                          'Super User Login',
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .primary
-                                .withValues(alpha: UIConstants.opacityMedium),
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
+              child: _PhoneEntryBody(
+                state: state,
+                phoneController: _phoneController,
+                onSocialAuthenticated: () => _onSocialAuthenticated(context),
+                onSuperLogin: () => _openSuperLogin(context),
               ),
             ),
           ),
@@ -267,28 +202,234 @@ class _RegistrationViewState extends State<_RegistrationView> {
     );
   }
 
-  Future<void> _superLogin(BuildContext context) async {
-    final tokenStore = sl<AuthTokenStore>();
-    await tokenStore.save(
-      accessToken: 'mock-jwt-access-super-user',
-      refreshToken: 'mock-jwt-refresh-super-user',
-      userId: 'super-user-001',
-    );
+  void _onSocialAuthenticated(BuildContext context) {
+    final cb = widget.onSocialAuthenticated ?? widget.onVerified;
+    if (cb != null) {
+      cb();
+    } else {
+      context.go('/');
+    }
+  }
 
-    if (!context.mounted) return;
-
-    // Mark onboarding as done via the cubit so the router redirect sees the
-    // state change and lets us through to the shell.
+  /// Opens the FR-P0-4 credential sheet. On a server-validated success the
+  /// sheet pops `true`; we then mark onboarding complete and land on home —
+  /// using the **real** tokens the sheet persisted, never a client mint.
+  Future<void> _openSuperLogin(BuildContext context) async {
+    final signedIn = await showSuperLoginSheet(context);
+    if (signedIn != true || !context.mounted) return;
     await context.read<OnboardingCubit>().complete();
-
     if (!context.mounted) return;
-
     final onVerified = widget.onVerified;
     if (onVerified != null) {
       onVerified();
     } else {
       context.go('/');
     }
+  }
+}
+
+/// The phone-entry composition: branded hero → welcome → social → "or"
+/// divider → phone field → send-code CTA → (debug) super-login link. Mirrors
+/// the Rahma/Salehly layout grouping while keeping Jeeb's phone+OTP + OMDS.
+class _PhoneEntryBody extends StatelessWidget {
+  const _PhoneEntryBody({
+    required this.state,
+    required this.phoneController,
+    required this.onSocialAuthenticated,
+    required this.onSuperLogin,
+  });
+
+  final RegistrationState state;
+  final TextEditingController phoneController;
+  final VoidCallback onSocialAuthenticated;
+  final VoidCallback onSuperLogin;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _RegisterHero(),
+        const SizedBox(height: Spacing.large),
+        const _WelcomeHeading(),
+        const SizedBox(height: Spacing.large),
+        SocialSignInSection(onAuthenticated: (_) => onSocialAuthenticated()),
+        const SizedBox(height: Spacing.twoXLarge),
+        _OrDivider(label: l10n.registrationSocialDivider),
+        const SizedBox(height: Spacing.twoXLarge),
+        _PhoneField(
+          controller: phoneController,
+          hintText: l10n.registrationPhoneHint,
+          errorText: state.phoneError == null
+              ? null
+              : _phoneErrorCopy(state.phoneError!, l10n),
+          enabled: !state.isSendingCode,
+          onChanged: (raw) =>
+              context.read<RegistrationCubit>().phoneChanged(raw),
+        ),
+        const SizedBox(height: Spacing.large),
+        _SendCodeButton(state: state),
+        // SECURITY: the super-login dev affordance is compiled out of release
+        // builds (only mounted under `kDebugMode`). It opens a server-validated
+        // credential sheet instead of the old gate-less `mock-jwt-*` mint
+        // (FR-P0-4). Full removal is owner-gated (JEEB-PLAN.md §6, defect #2).
+        if (kDebugMode) ...[
+          const SizedBox(height: Spacing.twoXLarge),
+          _SuperLoginLink(onTap: onSuperLogin),
+        ],
+      ],
+    );
+  }
+}
+
+/// Phone send-code CTA — upgraded to [OmdsLoadingButton] for an in-button
+/// spinner (Rahma/Salehly parity) over the old label-swap.
+class _SendCodeButton extends StatelessWidget {
+  const _SendCodeButton({required this.state});
+
+  final RegistrationState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return OmdsLoadingButton(
+      key: const Key('registration.sendCode'),
+      text: l10n.registrationSendCode,
+      isLoading: state.isSendingCode,
+      isEnabled: state.isPhoneReady && !state.isSendingCode,
+      onTap: () => context.read<RegistrationCubit>().sendCode(),
+    );
+  }
+}
+
+/// Branded wordmark hero band (DESIGN-FIRST-RUN §2c / §3.2 #3). Reuses the
+/// splash wordmark on the brand-navy field — token-clean, swappable for the
+/// Figma hero asset once the node id is captured (FR-P1-3 [FIGMA-BLOCKER]).
+class _RegisterHero extends StatelessWidget {
+  const _RegisterHero();
+
+  static const String _logoAsset = 'assets/brand/jeeb_logo.svg';
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      identifier: '_register_hero',
+      container: true,
+      child: Container(
+        height: Sizes.tenXLarge,
+        decoration: BoxDecoration(
+          color: colorScheme.secondaryContainer,
+          borderRadius: OmdsBorderRadius.large,
+        ),
+        alignment: Alignment.center,
+        child: Semantics(
+          identifier: '_register_hero_logo',
+          label: l10n.splashLogoSemantic,
+          image: true,
+          // Height-constrained so the wordmark scales to the band; width
+          // derives from the SVG's intrinsic 182:73 ratio (no distortion).
+          child: SvgPicture.asset(
+            _logoAsset,
+            height: Sizes.fiveXLarge,
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Welcome to Jeeb" heading + the existing phone-step subtitle, promoted
+/// above the form to match the Salehly/Rahma welcome stack.
+class _WelcomeHeading extends StatelessWidget {
+  const _WelcomeHeading();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.registrationWelcome,
+          key: const Key('registration.welcome'),
+          style: theme.textTheme.headlineSmall
+              ?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: Spacing.xSmall),
+        Text(
+          l10n.registrationPhoneSubtitle,
+          style: theme.textTheme.bodyMedium
+              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
+}
+
+/// "social — or — phone" divider (DESIGN-FIRST-RUN §2c). Themed [Divider]s
+/// (a structural primitive; OMDS ships no divider widget) around the label.
+class _OrDivider extends StatelessWidget {
+  const _OrDivider({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Row(
+      key: const Key('registration.orDivider'),
+      children: [
+        Expanded(child: Divider(color: colorScheme.outlineVariant)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
+          child: Text(
+            label,
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(color: colorScheme.onSurfaceVariant),
+          ),
+        ),
+        Expanded(child: Divider(color: colorScheme.outlineVariant)),
+      ],
+    );
+  }
+}
+
+/// Debug-only "Super User Login" text link that opens the credential sheet.
+class _SuperLoginLink extends StatelessWidget {
+  const _SuperLoginLink({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    return Center(
+      child: Semantics(
+        identifier: '_super_login_link',
+        button: true,
+        label: l10n.superLoginTitle,
+        child: GestureDetector(
+          key: const Key('registration.superLogin'),
+          onTap: onTap,
+          child: Text(
+            l10n.superLoginTitle,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colorScheme.primary
+                      .withValues(alpha: UIConstants.opacityMedium),
+                  decoration: TextDecoration.underline,
+                ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

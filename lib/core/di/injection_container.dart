@@ -30,6 +30,7 @@ import '../../features/escalate/domain/escalate_repository.dart';
 import '../../features/rating/data/dio_rating_repository.dart';
 import '../../features/rating/domain/rating_repository.dart';
 import '../../features/registration/data/dio_otp_service.dart';
+import '../../features/registration/data/super_login_service.dart';
 import '../../features/registration/domain/otp_service.dart';
 import '../../features/settings/data/repositories/dio_role_switch_repository.dart';
 import '../../features/settings/domain/role_switch_repository.dart';
@@ -65,6 +66,12 @@ void configureDependencies({
 
   sl.registerLazySingleton<OtpService>(
     () => DioOtpService(sl<Dio>(), sl<AuthTokenStore>()),
+  );
+
+  // FR-P0-4: super-login service POSTs the dev passcode to the gateway and
+  // returns a real, server-minted session (no client-side mock-jwt mint).
+  sl.registerLazySingleton<SuperLoginService>(
+    () => DefaultSuperLoginService(dio: sl<Dio>()),
   );
 
   sl.registerLazySingleton<OrderRepository>(
