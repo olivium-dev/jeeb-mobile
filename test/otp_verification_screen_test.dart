@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/registration/application/registration_cubit.dart';
 import 'package:jeeb_mobile/features/registration/domain/otp_service.dart';
@@ -54,12 +55,18 @@ void main() {
     );
   }
 
-  testWidgets('renders the 4-digit OTP input and the initial 60s countdown',
+  testWidgets('renders the 6-digit OTP input and the initial 60s countdown',
       (tester) async {
     final cubit = await primedOnOtpStep();
     await tester.pumpWidget(hostScreen(cubit));
     await tester.pump();
     expect(find.byKey(const Key('registration.otpField')), findsOneWidget);
+    // P0-3 / defect D1: the input length must match the live 6-digit
+    // gateway contract (DioOtpService + FakeOtpService '123456' + ARB copy).
+    final otpInput = tester.widget<OmdsOtpInput>(
+      find.byKey(const Key('registration.otpField')),
+    );
+    expect(otpInput.length, 6);
     expect(
       find.byKey(const Key('registration.resendCountdown')),
       findsOneWidget,

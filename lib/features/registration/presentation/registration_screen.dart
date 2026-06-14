@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -136,8 +137,8 @@ class _RegistrationViewState extends State<_RegistrationView> {
     final cubit = context.read<RegistrationCubit>();
     final onVerified = widget.onVerified;
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => BlocProvider<RegistrationCubit>.value(
+      OmdsSlideRoute<void>(
+        page: BlocProvider<RegistrationCubit>.value(
           value: cubit,
           child: OtpVerificationScreen(onVerified: onVerified),
         ),
@@ -231,23 +232,32 @@ class _RegistrationViewState extends State<_RegistrationView> {
                     isEnabled: state.isPhoneReady && !state.isSendingCode,
                     onTap: () => context.read<RegistrationCubit>().sendCode(),
                   ),
-                  const SizedBox(height: Spacing.twoXLarge),
-                  Center(
-                    child: GestureDetector(
-                      key: const Key('registration.superLogin'),
-                      onTap: () => _superLogin(context),
-                      child: Text(
-                        'Super User Login',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .primary
-                              .withValues(alpha: UIConstants.opacityMedium),
-                          decoration: TextDecoration.underline,
+                  // SECURITY: the super-login dev backdoor mints a
+                  // `mock-jwt-access-super-user` token that bypasses real
+                  // auth. It is now compiled out of release builds — the
+                  // tap target only exists under `kDebugMode` (debug/profile
+                  // dev seam). Full removal is owner-gated (see
+                  // design/JEEB-PLAN.md §6, defect #2 / P0-2).
+                  if (kDebugMode) ...[
+                    const SizedBox(height: Spacing.twoXLarge),
+                    Center(
+                      child: GestureDetector(
+                        key: const Key('registration.superLogin'),
+                        onTap: () => _superLogin(context),
+                        child: Text(
+                          'Super User Login',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withValues(alpha: UIConstants.opacityMedium),
+                            decoration: TextDecoration.underline,
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -97,5 +98,21 @@ void main() {
     expect(find.byKey(const Key('registration.otpField')), findsOneWidget);
     expect(find.byKey(const Key('registration.verify')), findsOneWidget);
     verify(() => otp.sendCode('+96171123456')).called(1);
+  });
+
+  testWidgets(
+      'super-login backdoor is gated behind kDebugMode '
+      '(present in debug/test, compiled out of release)', (tester) async {
+    await tester.pumpWidget(wrapForTest(
+      RegistrationScreen(cubit: makeCubit()),
+    ));
+    await tester.pump();
+
+    // `flutter test` runs under kDebugMode=true, so the dev seam is mounted.
+    // The same `if (kDebugMode)` guard removes it entirely from release
+    // builds (P0-2 / defect D2) — the `mock-jwt-access-super-user` token can
+    // never be minted in production.
+    expect(kDebugMode, isTrue);
+    expect(find.byKey(const Key('registration.superLogin')), findsOneWidget);
   });
 }

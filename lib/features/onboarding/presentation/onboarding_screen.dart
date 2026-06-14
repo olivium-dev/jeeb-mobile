@@ -8,10 +8,19 @@ import '../../../l10n/app_localizations.dart';
 
 /// Three-page introductory onboarding carousel shown to first-launch users.
 ///
-/// All visual primitives flow through OMDS: page indicator dots come from
-/// [OmdsDotIndicator], the primary call-to-action uses [OmdsPrimaryButton],
-/// spacing and sizing pull from [Spacing] / [Sizes], and animation timings
-/// pull from [UIConstants].
+/// All visual primitives flow through OMDS: slide copy comes from
+/// [OmdsWalkthroughStep], the Skip affordance from [OmdsSkipButton], the page
+/// indicator dots from [OmdsDotIndicator], the primary call-to-action from
+/// [OmdsPrimaryButton]; spacing and sizing pull from [Spacing] / [Sizes], and
+/// animation timings from [UIConstants].
+///
+/// FLAG(figma): the per-slide artwork is still a placeholder. The branded
+/// illustrations live in Figma `ZOi3kKtw7sd42ssSVX3Kn4` but the slide node ids
+/// are unresolved (Dev Mode MCP unreachable in this pass — see
+/// design/SCREEN-SPEC.md §0/§7). [_WalkthroughIllustration] isolates the swap
+/// point: drop the three exported SVGs into `assets/illustrations/` and replace
+/// the placeholder glyph once the node ids are confirmed. We deliberately do
+/// NOT invent pixel values here.
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key, this.onComplete});
 
@@ -120,10 +129,10 @@ class _SkipRow extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Align(
       alignment: AlignmentDirectional.centerEnd,
-      child: OmdsPrimaryButton(
+      child: OmdsSkipButton(
         key: const Key('onboarding.skip'),
         text: l10n.onboardingSkip,
-        variant: OmdsButtonVariant.text,
+        padding: const EdgeInsets.all(Spacing.medium),
         onTap: onSkip,
       ),
     );
@@ -206,58 +215,41 @@ class _OnboardingPage extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _OnboardingHeroIcon(icon: icon),
+          _WalkthroughIllustration(icon: icon),
           const SizedBox(height: Spacing.fourXLarge),
-          _OnboardingTitle(title: title),
-          const SizedBox(height: Spacing.medium),
-          _OnboardingSubtitle(subtitle: subtitle),
+          OmdsWalkthroughStep(
+            key: const Key('onboarding.step'),
+            label: title,
+            description: subtitle,
+          ),
         ],
       ),
     );
   }
 }
 
-class _OnboardingHeroIcon extends StatelessWidget {
-  const _OnboardingHeroIcon({required this.icon});
+/// Placeholder swap-point for the branded slide artwork.
+///
+/// FLAG(figma): renders a tinted Material glyph because the Figma slide
+/// illustrations (file `ZOi3kKtw7sd42ssSVX3Kn4`) have unresolved node ids in
+/// this pass. Replace the [Icon] with `SvgPicture.asset(...)` / [OmdsCachedImage]
+/// once the three exported assets land in `assets/illustrations/`. Keeping the
+/// glyph isolated here means that swap is a one-line change with no layout
+/// churn — we do not guess pixel values for unconfirmed designs.
+class _WalkthroughIllustration extends StatelessWidget {
+  const _WalkthroughIllustration({required this.icon});
   final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     // Sizes.elevenXLarge (100dp) is the closest existing OMDS size token
-    // to the original 120dp onboarding hero icon. Promotion of a
+    // to the intended onboarding hero artwork. Promotion of a
     // `Sizes.onboardingHero` token is tracked under JEEB-57.
     return Icon(
+      key: const Key('onboarding.illustration'),
       icon,
       size: Sizes.elevenXLarge,
       color: Theme.of(context).colorScheme.primary,
-    );
-  }
-}
-
-class _OnboardingTitle extends StatelessWidget {
-  const _OnboardingTitle({required this.title});
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.headlineMedium,
-      textAlign: TextAlign.center,
-    );
-  }
-}
-
-class _OnboardingSubtitle extends StatelessWidget {
-  const _OnboardingSubtitle({required this.subtitle});
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      subtitle,
-      style: Theme.of(context).textTheme.bodyLarge,
-      textAlign: TextAlign.center,
     );
   }
 }

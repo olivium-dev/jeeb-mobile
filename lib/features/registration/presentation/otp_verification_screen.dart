@@ -154,8 +154,16 @@ class _OtpEntry extends StatelessWidget {
     required this.onCompleted,
   });
 
-  // T-MOB-004 AC: Jeeb sign-in uses a 4-digit OTP code.
-  static const int _kOtpLength = 4;
+  // Jeeb sign-in uses a 6-digit OTP code. Reconciled from 4 → 6 (P0-3 /
+  // defect D1) to match the live gateway contract: `DioOtpService` is the
+  // DI-default `OtpService`, the dev `FakeOtpService.validCode` is `'123456'`
+  // (6 digits), and both `registrationPhoneSubtitle` / `registrationOtpSubtitle`
+  // ARB copies (en + ar) already say "6-digit". The old 4-box input made the
+  // canonical 6-digit code physically un-enterable. FLAG: confirm against the
+  // running `/v1/auth/otp/verify` before release — if the live service truly
+  // emits a different length, that is an owner-gated SHARED change to
+  // `one-time-password` (non-breaking-extension-protocol), not a UI edit.
+  static const int _kOtpLength = 6;
 
   final bool hasError;
   final ValueChanged<String> onChanged;
