@@ -3587,5 +3587,45 @@
     "placeholders": {
       "amount": { "type": "String" }
     }
+  },
+  "registrationWelcome": "Welcome to Jeeb",
+  "@registrationWelcome": {
+    "description": "FR-LOGIN: Welcome heading above the registration form, parity with Salehly welcomeBack."
+  },
+  "superLoginTitle": "Super user login",
+  "@superLoginTitle": {
+    "description": "FR-P0-4: Title of the dev super-login credential bottom sheet."
+  },
+  "superLoginSubtitle": "Enter your user id and passcode to sign in for the demo.",
+  "@superLoginSubtitle": {
+    "description": "FR-P0-4: Subtitle of the super-login sheet explaining the credential gate."
+  },
+  "superLoginUserId": "User ID",
+  "@superLoginUserId": {
+    "description": "FR-P0-4: Label for the user-id field in the super-login sheet."
+  },
+  "superLoginUserIdHint": "e.g. super-user-001",
+  "@superLoginUserIdHint": {
+    "description": "FR-P0-4: Hint for the user-id field in the super-login sheet."
+  },
+  "superLoginPasscode": "Passcode",
+  "@superLoginPasscode": {
+    "description": "FR-P0-4: Label for the passcode field in the super-login sheet."
+  },
+  "superLoginPasscodeHint": "Super user passcode",
+  "@superLoginPasscodeHint": {
+    "description": "FR-P0-4: Hint for the passcode field in the super-login sheet."
+  },
+  "superLoginSubmit": "Sign in",
+  "@superLoginSubmit": {
+    "description": "FR-P0-4: Submit CTA in the super-login sheet."
+  },
+  "superLoginError": "Invalid user id or passcode. Please try again.",
+  "@superLoginError": {
+    "description": "FR-P0-4: Credential-rejection error shown when super-login fails. Never reveals which field was wrong."
+  },
+  "superLoginNetworkError": "Could not reach the server. Check your connection and try again.",
+  "@superLoginNetworkError": {
+    "description": "FR-P0-4: Network/timeout error shown when the super-login request cannot reach the gateway."
   }
 }

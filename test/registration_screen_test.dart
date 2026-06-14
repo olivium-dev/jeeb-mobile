@@ -61,7 +61,7 @@ void main() {
     await tester.pumpWidget(wrapForTest(
       RegistrationScreen(cubit: makeCubit()),
     ));
-    final disabled = tester.widget<OmdsPrimaryButton>(
+    final disabled = tester.widget<OmdsLoadingButton>(
       find.byKey(const Key('registration.sendCode')),
     );
     expect(disabled.isEnabled, isFalse);
@@ -72,7 +72,7 @@ void main() {
     );
     await tester.pump();
 
-    final enabled = tester.widget<OmdsPrimaryButton>(
+    final enabled = tester.widget<OmdsLoadingButton>(
       find.byKey(const Key('registration.sendCode')),
     );
     expect(enabled.isEnabled, isTrue);
@@ -110,9 +110,57 @@ void main() {
 
     // `flutter test` runs under kDebugMode=true, so the dev seam is mounted.
     // The same `if (kDebugMode)` guard removes it entirely from release
-    // builds (P0-2 / defect D2) — the `mock-jwt-access-super-user` token can
-    // never be minted in production.
+    // builds (P0-2 / defect D2) — the super-login entry can never reach a
+    // production user.
     expect(kDebugMode, isTrue);
     expect(find.byKey(const Key('registration.superLogin')), findsOneWidget);
+  });
+
+  testWidgets(
+      'FR-LOGIN: renders the branded hero + welcome heading + or divider '
+      '(Rahma/Salehly parity)', (tester) async {
+    await tester.pumpWidget(wrapForTest(
+      RegistrationScreen(cubit: makeCubit()),
+    ));
+    await tester.pump();
+
+    // Branded wordmark hero band (interim register hero, FR-P1-3).
+    expect(find.bySemanticsLabel(RegExp('Jeeb')), findsWidgets);
+    // Welcome heading promoted above the form.
+    expect(find.byKey(const Key('registration.welcome')), findsOneWidget);
+    // "social — or — phone" divider between social and the phone block.
+    expect(find.byKey(const Key('registration.orDivider')), findsOneWidget);
+  });
+
+  testWidgets('FR-LOGIN: CTA is an OmdsLoadingButton (in-button spinner)',
+      (tester) async {
+    await tester.pumpWidget(wrapForTest(
+      RegistrationScreen(cubit: makeCubit()),
+    ));
+    await tester.pump();
+    expect(
+      find.byKey(const Key('registration.sendCode')),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget(find.byKey(const Key('registration.sendCode'))),
+      isA<OmdsLoadingButton>(),
+    );
+  });
+
+  testWidgets('FR-LOGIN: register screen lays out RTL under Locale(ar)',
+      (tester) async {
+    await tester.pumpWidget(wrapForTest(
+      RegistrationScreen(cubit: makeCubit()),
+      locale: const Locale('ar'),
+    ));
+    await tester.pump();
+
+    final dir = Directionality.of(
+      tester.element(find.byKey(const Key('registration.welcome'))),
+    );
+    expect(dir, TextDirection.rtl);
+    // The Arabic welcome copy renders (value != key, parity-test backed).
+    expect(find.text('مرحباً بك في جيب'), findsOneWidget);
   });
 }

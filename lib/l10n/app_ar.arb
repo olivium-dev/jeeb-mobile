@@ -1177,5 +1177,15 @@
     "placeholders": {
       "amount": { "type": "String" }
     }
-  }
+  },
+  "registrationWelcome": "مرحباً بك في جيب",
+  "superLoginTitle": "تسجيل دخول المستخدم الخارق",
+  "superLoginSubtitle": "أدخل معرّف المستخدم ورمز المرور لتسجيل الدخول للعرض التجريبي.",
+  "superLoginUserId": "معرّف المستخدم",
+  "superLoginUserIdHint": "مثال: super-user-001",
+  "superLoginPasscode": "رمز المرور",
+  "superLoginPasscodeHint": "رمز مرور المستخدم الخارق",
+  "superLoginSubmit": "تسجيل الدخول",
+  "superLoginError": "معرّف المستخدم أو رمز المرور غير صحيح. حاول مرة أخرى.",
+  "superLoginNetworkError": "تعذّر الوصول إلى الخادم. تحقق من اتصالك وحاول مجدداً."
 }
