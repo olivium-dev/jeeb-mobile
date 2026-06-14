@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:jeeb_mobile/app/app.dart';
+import 'package:jeeb_mobile/core/session/session_gate.dart';
 import 'package:jeeb_mobile/features/shell/shell_screen.dart';
 
 import 'support/sync_app_localizations.dart';
@@ -25,6 +26,11 @@ void main() {
       JeebApp(
         preferences: prefs,
         localizationsDelegateOverride: const SyncAppLocalizationsDelegate(),
+        // FR-P0-3: this test asserts "onboarded user boots to the shell"; that
+        // now also requires a session. Inject an authenticated gate so the
+        // first-run JWT gate allows Home (the keystore is unavailable under the
+        // headless test binding, so the real cubit would fail closed).
+        sessionGate: const AlwaysAuthenticatedSessionGate(),
       ),
     );
     // With the delegate resolving synchronously, the GoRouter redirect lands on

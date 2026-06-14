@@ -8,6 +8,8 @@ import 'package:open_file/open_file.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../dev_seam/dev_seam.dart';
+import '../session/session_gate.dart';
+import '../session/session_state.dart';
 import 'profile_unavailable_screen.dart';
 import '../../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../../features/biometric_auth/application/biometric_lock_state.dart';
@@ -77,11 +79,21 @@ import '../onboarding/onboarding_cubit.dart';
 
 /// Top-level router.
 ///
-/// First-launch gate: while [OnboardingCubit.state] is `false`, the user is
-/// kept on `/onboarding` or `/register` (the only pre-auth destinations).
-/// Once the user finishes or skips onboarding the cubit flips and the
-/// redirect lets `/` (the shell) render normally. `refreshListenable`
-/// re-evaluates redirects whenever the cubit emits.
+/// First-launch gate (two layers, FR-P0-1 + FR-P0-3):
+///   1. While [OnboardingCubit.state] is `false`, the user is kept on
+///      `/onboarding` or `/register` (the only pre-auth destinations).
+///   2. Once onboarding completes, the [SessionGate] gate keeps an
+///      onboarded-but-tokenless user on `/register` until a valid token exists,
+///      so Home is unreachable without logging in.
+/// Once the user finishes onboarding AND has a valid session the redirect lets
+/// `/` (the shell) render normally. `refreshListenable` re-evaluates redirects
+/// whenever onboarding, the biometric lock, or the session emits.
+///
+/// The debug-only DevSeam route pin can still drive deterministic capture of
+/// authenticated screens, but (FR-P0-1) it may only *bypass* the onboarding +
+/// session gates when [DevSeamConfig.skipOnboarding] is explicitly set — a bare
+/// `jeeb.route=/` / `JEEB_DEV_HOME=true` on a fresh install now lands on
+/// `/onboarding`, not Home.
 class AppRouter {
   AppRouter._();
 
@@ -102,6 +114,74 @@ class AppRouter {
   /// authenticated screen can be captured deterministically. Empty in release.
   static String get _devRoute => kDebugMode ? DevSeam.current.route : '';
 
+  /// FR-P0-1: explicit opt-in for letting [_devRoute] bypass the first-run
+  /// (onboarding + session) gate. Debug-only and `false` unless
+  /// [DevSeamConfig.skipOnboarding] is set, so a bare route pin can never
+  /// silently skip first-run. Always `false` in release.
+  static bool get _devSkipOnboarding =>
+      kDebugMode && DevSeam.current.skipOnboarding;
+
+  /// Sentinel returned by [_devRoutePinRedirect] meaning "the pin is not
+  /// forcing a redirect right now" — distinct from `null`, which go_router
+  /// treats as "stay here". Using a sentinel lets the caller tell "no opinion"
+  /// apart from "explicitly allow".
+  static const String _noPin = ' __no_pin__';
+
+  /// The DevSeam route-pin's initial-landing-only redirect, extracted so it can
+  /// be applied either before (skipOnboarding) or after (deep-capture of an
+  /// already-onboarded device) the first-run gate. Returns [_noPin] when it has
+  /// no opinion, a path to force a redirect, or `null` to explicitly allow the
+  /// current location.
+  static String? _devRoutePinRedirect(
+    GoRouterState state,
+    bool Function() landed,
+    void Function(bool) setLanded,
+  ) {
+    // Compare on the PATH only so a seam route carrying query params (e.g.
+    // `/orders/d-1/feedback?name=Sami`) lands once instead of looping.
+    final devPath = Uri.parse(_devRoute).path;
+    if (state.matchedLocation == devPath) {
+      // Reached the pinned route: latch landed and let it render.
+      setLanded(true);
+      return null;
+    }
+    // Before landing, only force the redirect while still on the default root.
+    // This drives the initial capture. After landing, never force again — so
+    // user-pushed routes stick (screens 10 & 13, regression-tested).
+    if (!landed() && state.matchedLocation == '/') {
+      return _devRoute;
+    }
+    return _noPin;
+  }
+
+  /// First-run gate: onboarding (FR-P0-1) then session/JWT (FR-P0-3). Returns
+  /// the redirect target, or `null` to allow the current location.
+  ///
+  ///   * onboarding incomplete, not on a pre-auth route → `/onboarding`
+  ///   * onboarding complete but on `/onboarding`        → `/`
+  ///   * onboarding complete, NO valid token, not on a pre-auth route
+  ///       → `/register` (the login destination)
+  ///
+  /// The session check uses [SessionGate.isUnauthenticated] (not
+  /// `!isAuthenticated`) so the cold-start `unknown` phase is a no-op and we
+  /// never flash `/register` while the keystore read is in flight.
+  static String? _firstRunRedirect(
+    GoRouterState state,
+    OnboardingCubit onboarding,
+    SessionGate session,
+  ) {
+    final completed = onboarding.state;
+    final loc = state.matchedLocation;
+    final atPreAuth = _preAuthRoutes.contains(loc);
+    if (!completed && !atPreAuth) return '/onboarding';
+    if (completed && loc == '/onboarding') return '/';
+    // FR-P0-3: onboarded-but-tokenless user must log in before reaching Home.
+    if (completed && session.isUnauthenticated && !atPreAuth) {
+      return '/register';
+    }
+    return null;
+  }
+
   /// Order-tracking (screen 16) needs a reachable gateway to render its ready
   /// state. When the dev seam is driving a `/orders/.../tracking` capture, swap
   /// in the deterministic demo repository so the screen renders offline; every
@@ -116,6 +196,12 @@ class AppRouter {
   static GoRouter create({
     required OnboardingCubit onboarding,
     required BiometricLockCubit biometricLock,
+    // FR-P0-3: the JWT/session gate. Defaults to an inert, always-authenticated
+    // gate so callers (and tests) that don't wire a real session keep the
+    // pre-gate routing behaviour. Production passes a `SessionCubit`, which is
+    // also a `Cubit` and is therefore added to `refreshListenable` below so a
+    // login/logout re-runs the redirect.
+    SessionGate session = const AlwaysAuthenticatedSessionGate(),
   }) {
     // One-shot latch (per router instance) for the dev-seam route pin. The seam
     // must drive the INITIAL landing onto the pinned dev route, but must NOT
@@ -127,11 +213,19 @@ class AppRouter {
     // any pushed location pass. Instance-scoped (not static) so parallel tests
     // and hot restarts each get a fresh latch.
     var devSeamLanded = false;
+    // FR-P0-3: re-run redirects when the session changes (login/logout). Only
+    // the real `SessionCubit` is a `Cubit`; the inert default gate has no stream
+    // so it contributes nothing. `session` is captured by the `redirect` closure
+    // below, which blocks flow promotion, so we narrow via an explicit cast.
+    final Cubit<SessionState>? sessionCubit =
+        session is Cubit<SessionState> ? session as Cubit<SessionState> : null;
     return GoRouter(
       initialLocation: '/',
       refreshListenable: _MergedRefreshListenable([
         _CubitRefreshListenable<bool>(onboarding),
         _CubitRefreshListenable<BiometricLockState>(biometricLock),
+        if (sessionCubit != null)
+          _CubitRefreshListenable<SessionState>(sessionCubit),
       ]),
       redirect: (context, state) {
         // Debug capture aid: drop straight onto the fixtures-backed chat
@@ -139,40 +233,48 @@ class AppRouter {
         if (_devChat.isNotEmpty) {
           return state.matchedLocation == '/dev-chat' ? null : '/dev-chat';
         }
-        // Debug capture aid: drop straight onto any requested route, skipping
-        // onboarding + biometric gates. `/` reproduces the old JEEB_DEV_HOME.
-        // Compare on the PATH only so a seam route carrying query params (e.g.
-        // `/orders/d-1/feedback?name=Sami`) lands once instead of looping.
+
+        // FR-P0-1: The DevSeam route pin may only BYPASS the first-run
+        // (onboarding + session) gate when `DevSeamConfig.skipOnboarding` is
+        // explicitly set. A bare `jeeb.route=/` / device-file / `JEEB_DEV_HOME`
+        // no longer silently skips first-run: on a fresh install (onboarding
+        // incomplete or no token) the first-run gate below wins and lands the
+        // user on `/onboarding` (or `/register`), exactly like a real device.
         //
-        // The pin is INITIAL-LANDING-ONLY: we force the redirect just until the
-        // seam reaches its dev route the first time, then release the latch so
-        // user-initiated pushes to other routes stick (screens 10 & 13). We
-        // only ever force from the default root (`/`) — any already-pinned or
-        // user-pushed location is allowed through untouched.
-        if (_devRoute.isNotEmpty) {
-          final devPath = Uri.parse(_devRoute).path;
-          if (state.matchedLocation == devPath) {
-            // Reached the pinned route: latch landed and let it render.
-            devSeamLanded = true;
-            return null;
-          }
-          // Before landing, only force the redirect while still on the default
-          // root. This drives the initial capture. After landing, never force
-          // again — user-pushed routes pass through.
-          if (!devSeamLanded && state.matchedLocation == '/') {
-            return _devRoute;
-          }
-          return null;
+        // When skipOnboarding IS set, the pin keeps its original FULL bypass
+        // (onboarding + session + biometric) + initial-landing-only latch so
+        // authenticated screens (10/13/16/…) can be captured deterministically
+        // from a single APK without seeding prefs or a token. This branch
+        // returns early in every sub-case, exactly like the pre-FR-P0-1 code.
+        if (_devRoute.isNotEmpty && _devSkipOnboarding) {
+          final pinRedirect = _devRoutePinRedirect(state, () => devSeamLanded,
+              (v) => devSeamLanded = v);
+          // _noPin → not forcing → allow (null). Otherwise force the pin path.
+          return pinRedirect == _noPin ? null : pinRedirect;
         }
-        final completed = onboarding.state;
-        final loc = state.matchedLocation;
-        final atPreAuth = _preAuthRoutes.contains(loc);
-        if (!completed && !atPreAuth) return '/onboarding';
-        if (completed && loc == '/onboarding') return '/';
+
+        // First-run gate (FR-P0-1 onboarding + FR-P0-3 session). Runs for every
+        // non-skip launch — including when a route is pinned WITHOUT
+        // skipOnboarding, which is precisely how the silent bypass is closed.
+        final firstRun = _firstRunRedirect(state, onboarding, session);
+        if (firstRun != null) return firstRun;
+
+        // Onboarded + authenticated. If a route is pinned (without skip) and the
+        // first-run gate allowed us through, honour the pin's initial landing so
+        // deep-capture of authenticated screens still works on a device whose
+        // onboarding is already complete.
+        if (_devRoute.isNotEmpty && !_devSkipOnboarding) {
+          final pinRedirect = _devRoutePinRedirect(state, () => devSeamLanded,
+              (v) => devSeamLanded = v);
+          if (pinRedirect != _noPin) return pinRedirect;
+        }
+
         // Biometric gate (T-mobile-005). Once onboarding has completed, hold
         // the user on `/lock` until the cubit reports unlocked/disabled. The
         // gate is a no-op before evaluation finishes (phase == unknown) so we
         // don't flash the lock screen during cold start.
+        final completed = onboarding.state;
+        final loc = state.matchedLocation;
         final lockPhase = biometricLock.state.phase;
         if (completed && lockPhase == BiometricLockPhase.locked && loc != _lockRoute) {
           return _lockRoute;

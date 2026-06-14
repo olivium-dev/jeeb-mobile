@@ -85,11 +85,18 @@ class DartDefineSource implements DevSeamSource {
       String.fromEnvironment('JEEB_FORCE_LOCALE');
   static const bool _holdSplash = bool.fromEnvironment('JEEB_HOLD_SPLASH');
 
+  /// Opt-in for letting the route pin skip first-run. Deliberately a SEPARATE
+  /// dart-define from `JEEB_DEV_HOME` so `JEEB_DEV_HOME=true` alone no longer
+  /// silently bypasses onboarding/login (FR-P0-1). Default false.
+  static const bool _skipOnboarding =
+      bool.fromEnvironment('JEEB_DEV_SKIP_ONBOARDING');
+
   @override
   DevSeamConfig read() => const DevSeamConfig(
         route: _devHomeRoute,
         chatSelector: _devChat,
         forcedLocale: _forcedLocale,
         holdSplash: _holdSplash,
+        skipOnboarding: _skipOnboarding,
       );
 }

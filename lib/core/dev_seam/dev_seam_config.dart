@@ -23,6 +23,7 @@ class DevSeamConfig {
     this.homeTab = '',
     this.feed = '',
     this.holdSplash = false,
+    this.skipOnboarding = false,
   });
 
   /// Builds a config from a flat string map (intent extras or decoded JSON).
@@ -36,6 +37,7 @@ class DevSeamConfig {
       homeTab: map['jeeb.home_tab']?.trim() ?? '',
       feed: map['jeeb.feed']?.trim() ?? '',
       holdSplash: _asBool(map['jeeb.hold_splash']),
+      skipOnboarding: _asBool(map['jeeb.skip_onboarding']),
     );
   }
 
@@ -84,6 +86,23 @@ class DevSeamConfig {
   /// `JEEB_HOLD_SPLASH`).
   final bool holdSplash;
 
+  /// Explicit opt-in that lets [route] bypass the first-run onboarding (and
+  /// session/JWT) gate. SECURITY-CRITICAL DEFAULT: `false`.
+  ///
+  /// Why this exists (FR-P0-1): a bare route pin (`jeeb.route=/`, the device
+  /// file, or `--dart-define=JEEB_DEV_HOME=true`) used to *silently* skip
+  /// onboarding + login, so anyone who ran the dev APK out of habit booted
+  /// straight to Home and never saw splash → walkthrough → login. The router
+  /// now only allows the pin to skip first-run when THIS flag is also set, so a
+  /// fresh install with empty prefs deterministically lands on `/onboarding`
+  /// even when a route is pinned. Deep-capture of *already-onboarded* states
+  /// (the original capture use case) is unaffected — that path never needed to
+  /// skip onboarding because onboarding was already complete.
+  ///
+  /// Keyed `jeeb.skip_onboarding` (intent extra / device file) or
+  /// `--dart-define=JEEB_DEV_SKIP_ONBOARDING=true`. Empty/false in release.
+  final bool skipOnboarding;
+
   /// The inert default. The only instance a release build ever sees.
   static const DevSeamConfig empty = DevSeamConfig();
 
@@ -100,7 +119,8 @@ class DevSeamConfig {
       forcedLocale.isEmpty &&
       homeTab.isEmpty &&
       feed.isEmpty &&
-      !holdSplash;
+      !holdSplash &&
+      !skipOnboarding;
 
   static bool _asBool(String? value) {
     final v = value?.trim().toLowerCase();
@@ -115,7 +135,8 @@ class DevSeamConfig {
       other.forcedLocale == forcedLocale &&
       other.homeTab == homeTab &&
       other.feed == feed &&
-      other.holdSplash == holdSplash;
+      other.holdSplash == holdSplash &&
+      other.skipOnboarding == skipOnboarding;
 
   @override
   int get hashCode => Object.hash(
@@ -125,10 +146,11 @@ class DevSeamConfig {
         homeTab,
         feed,
         holdSplash,
+        skipOnboarding,
       );
 
   @override
   String toString() => 'DevSeamConfig(route: $route, chat: $chatSelector, '
       'locale: $forcedLocale, homeTab: $homeTab, feed: $feed, '
-      'holdSplash: $holdSplash)';
+      'holdSplash: $holdSplash, skipOnboarding: $skipOnboarding)';
 }
