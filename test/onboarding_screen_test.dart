@@ -47,11 +47,14 @@ void main() {
     await tester.pumpWidget(_harness(cubit: cubit));
     await tester.pump();
 
-    // Slide copy is rendered by OmdsWalkthroughStep (was hand-rolled Text).
+    // Slide copy is rendered by OmdsWalkthroughStep via OmdsWalkthroughSwitcher
+    // (was hand-rolled Text), matching the fleet reference walkthrough layout.
+    expect(find.byType(OmdsWalkthroughSwitcher), findsOneWidget);
     expect(find.byType(OmdsWalkthroughStep), findsWidgets);
-    expect(find.byKey(const Key('onboarding.step')), findsWidgets);
+    // Full-bleed swipeable illustration carousel is the back layer.
+    expect(find.byKey(const Key('onboarding.pager')), findsOneWidget);
     // The placeholder illustration is isolated behind a stable key so the
-    // Figma SVG swap is a one-line change (see FLAG in onboarding_screen.dart).
+    // Figma asset swap is a one-line change (see FLAG in onboarding_screen.dart).
     expect(find.byKey(const Key('onboarding.illustration')), findsWidgets);
     // Skip is the sanctioned OmdsSkipButton, not OmdsPrimaryButton.text.
     expect(
