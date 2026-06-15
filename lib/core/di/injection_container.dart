@@ -42,6 +42,8 @@ import '../../features/voice_request/domain/voice_player.dart';
 import '../../features/voice_request/domain/voice_recorder.dart';
 import '../../features/prohibited_acknowledgment/data/prohibited_acknowledgment_repository_impl.dart';
 import '../../features/prohibited_acknowledgment/domain/prohibited_acknowledgment_repository.dart';
+import '../../features/request_summary/data/dio_request_submission_service.dart';
+import '../../features/request_summary/domain/request_submission_service.dart';
 import '../../features/cancellation/data/dio_cancellation_repository.dart';
 import '../../features/cancellation/domain/cancellation_repository.dart';
 import '../../features/location/data/dio_saved_location_repository.dart';
@@ -193,6 +195,13 @@ void configureDependencies({
   // resolved by app_router when building the jeeber-offer-submission route.
   sl.registerLazySingleton<OfferSubmissionService>(
     () => const OfferSubmissionService(),
+  );
+
+  // T-MOB-REQSUBMIT: real request-create RPC — POST /requests → 201 {id}.
+  // Resolved by app_router when building the /request-summary route so the
+  // RequestSummaryCubit submits over Dio instead of the prior stub.
+  sl.registerLazySingleton<RequestSubmissionService>(
+    () => DioRequestSubmissionService(sl<Dio>()),
   );
 
   // T-MOB-031: Active delivery (Jeeber) — GET /v1/deliveries/{id} +

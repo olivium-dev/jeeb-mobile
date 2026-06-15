@@ -12,10 +12,21 @@ class RequestSummaryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     // On a successful submit, return to the Requests tab (`/`). The submit
     // cubit only flips isSubmitted once, so listenWhen fires exactly on the
-    // false → true edge.
-    return BlocListener<RequestSummaryCubit, RequestSummaryState>(
-      listenWhen: (p, c) => !p.isSubmitted && c.isSubmitted,
-      listener: (context, state) => context.go('/'),
+    // false → true edge. A failed submit surfaces an OMDS error snackbar on
+    // the null → non-null `error` edge and leaves the screen in place so the
+    // user can retry.
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<RequestSummaryCubit, RequestSummaryState>(
+          listenWhen: (p, c) => !p.isSubmitted && c.isSubmitted,
+          listener: (context, state) => context.go('/'),
+        ),
+        BlocListener<RequestSummaryCubit, RequestSummaryState>(
+          listenWhen: (p, c) => p.error == null && c.error != null,
+          listener: (context, state) =>
+              showOmdsErrorSnackbar(context, message: state.error!),
+        ),
+      ],
       child: BlocBuilder<RequestSummaryCubit, RequestSummaryState>(
         builder: (context, state) {
           final draft = state.draft;
@@ -79,6 +90,7 @@ class _SubmitButton extends StatelessWidget {
       identifier: 'request_summary_submit',
       button: true,
       child: OmdsLoadingButton(
+        key: const Key('request_summary.submit'),
         text: 'Submit Request',
         isLoading: isSubmitting,
         onTap: () => context.read<RequestSummaryCubit>().submit(),
