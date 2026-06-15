@@ -1,40 +1,249 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../l10n/app_localizations.dart';
+import '../application/transcription_cubit.dart';
+import '../domain/transcript_audio_player.dart';
 import '../domain/voice_clip.dart';
+import 'widgets/transcription_audio_card.dart';
+import 'widgets/transcription_status_banner.dart';
+import 'widgets/transcription_text_panel.dart';
 
-/// Placeholder restored under T-MOB-FIX-001 (AC1+AC4+AC5). Real implementation
-/// arrives in the per-feature follow-up ticket. Do NOT add behavior here.
-// Deviation note: router call-site passes a `clip` (VoiceClip extra); the
-// field is retained but unused so the import-graph stays green.
-class TranscriptionScreen extends StatefulWidget {
-  const TranscriptionScreen({super.key, required this.clip});
+/// Stable Semantics identifiers for the transcription-review controls. Exposed
+/// so Codex QA / uiautomator / integration tests can target the interactive
+/// elements deterministically (DoD: every interactive widget addressable).
+class TranscriptionKeys {
+  const TranscriptionKeys._();
 
-  final VoiceClip clip;
-
-  @override
-  State<TranscriptionScreen> createState() => _TranscriptionScreenState();
+  static const String audioToggle = 'voice_transcript_audio_toggle';
+  static const String editButton = 'voice_transcript_edit_button';
+  static const String textField = 'voice_transcript_text_field';
+  static const String saveEditButton = 'voice_transcript_save_edit_button';
+  static const String confirmButton = 'voice_transcript_confirm_button';
+  static const String reRecordButton = 'voice_transcript_re_record_button';
+  static const String retryButton = 'voice_transcript_retry_button';
 }
 
-class _TranscriptionScreenState extends State<TranscriptionScreen> {
-  static const _featureId = 'transcription';
+/// The voice TRANSCRIPTION-RESULT screen.
+///
+/// Reached from the voice composer via `/voice-request/transcription` once the
+/// recording has been uploaded to `POST /v1/voice/transcribe` (the gateway mock
+/// at :3055 echoes `{ audioId, transcription, language }`). The screen lets the
+/// user review the machine transcription, edit it, replay the original audio,
+/// or re-record, then confirm — which forwards a [RequestDraft]-shaped payload
+/// to the next create-request step (`/request-summary`).
+///
+/// Navigation is injected via [onConfirm] / [onReRecord] so the widget stays
+/// router-agnostic and unit-testable; the router (`app_router.dart`) supplies
+/// the real `context.push` / `context.pop` closures.
+///
+/// Empty/failed transcriptions degrade gracefully: a `queued` upload (no text
+/// yet) drops the user straight into a typeable field, and a failed call shows
+/// a retry banner over the same manual-entry fallback.
+class TranscriptionScreen extends StatelessWidget {
+  const TranscriptionScreen({
+    super.key,
+    required this.clip,
+    this.onConfirm,
+    this.onReRecord,
+    this.cubit,
+    this.audioPlayer,
+  });
+
+  /// Clip handed over from the voice composer. Carries the audio path/id and an
+  /// optional machine [VoiceClip.transcript].
+  final VoiceClip clip;
+
+  /// Fired when the user confirms. Receives the final (possibly edited) text
+  /// plus the audio path so the caller can build the forward [RequestDraft].
+  final void Function(String text, String audioPath)? onConfirm;
+
+  /// Fired when the user taps Re-record — returns to the voice composer.
+  final VoidCallback? onReRecord;
+
+  /// Optional injected cubit (tests). Production builds one from the clip.
+  final TranscriptionCubit? cubit;
+
+  /// Optional audio player override (tests). Defaults to the inert no-op player
+  /// so production never crashes on a missing backend registration.
+  final TranscriptAudioPlayer? audioPlayer;
 
   @override
-  void initState() {
-    super.initState();
-    debugPrint('[placeholder] $_featureId opened');
+  Widget build(BuildContext context) {
+    final view = _TranscriptionView(onConfirm: onConfirm, onReRecord: onReRecord);
+    if (cubit != null) {
+      return BlocProvider<TranscriptionCubit>.value(value: cubit!, child: view);
+    }
+    return BlocProvider<TranscriptionCubit>(
+      create: (_) =>
+          TranscriptionCubit(player: audioPlayer)..seedFromClip(clip),
+      child: view,
+    );
   }
+}
+
+class _TranscriptionView extends StatelessWidget {
+  const _TranscriptionView({this.onConfirm, this.onReRecord});
+
+  final void Function(String text, String audioPath)? onConfirm;
+  final VoidCallback? onReRecord;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Scaffold(
+      appBar: OMDSAppBar(title: l10n.transcriptionTitle, centerTitle: false),
+      body: SafeArea(
+        child: BlocBuilder<TranscriptionCubit, TranscriptionState>(
+          builder: (context, state) => _TranscriptionBody(
+            state: state,
+            onConfirm: onConfirm,
+            onReRecord: onReRecord,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TranscriptionBody extends StatelessWidget {
+  const _TranscriptionBody({
+    required this.state,
+    this.onConfirm,
+    this.onReRecord,
+  });
+
+  final TranscriptionState state;
+  final void Function(String text, String audioPath)? onConfirm;
+  final VoidCallback? onReRecord;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.all(Spacing.medium),
+            children: [
+              const _TranscriptionHeader(),
+              const SizedBox(height: Spacing.medium),
+              if (state.hasAudio) ...[
+                TranscriptionAudioCard(state: state),
+                const SizedBox(height: Spacing.medium),
+              ],
+              if (state.status != TranscriptionStatus.ready) ...[
+                TranscriptionStatusBanner(state: state),
+                const SizedBox(height: Spacing.medium),
+              ],
+              TranscriptionTextPanel(state: state),
+            ],
+          ),
+        ),
+        _TranscriptionActions(
+          state: state,
+          onConfirm: onConfirm,
+          onReRecord: onReRecord,
+        ),
+      ],
+    );
+  }
+}
+
+class _TranscriptionHeader extends StatelessWidget {
+  const _TranscriptionHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(l10n.transcriptionHeader, style: textTheme.titleLarge),
+        const SizedBox(height: Spacing.xSmall),
+        Text(
+          l10n.transcriptionSubtitle,
+          style: textTheme.bodyMedium
+              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
+}
+
+class _TranscriptionActions extends StatelessWidget {
+  const _TranscriptionActions({
+    required this.state,
+    this.onConfirm,
+    this.onReRecord,
+  });
+
+  final TranscriptionState state;
+  final void Function(String text, String audioPath)? onConfirm;
+  final VoidCallback? onReRecord;
+
+  @override
+  Widget build(BuildContext context) {
+    if (state.isEditing) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(Spacing.medium),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ConfirmButton(
+            label: l10n.transcriptionSubmit,
+            enabled: state.canConfirm,
+            onTap: () => onConfirm?.call(state.text.trim(), state.audioPath ?? ''),
+          ),
+          const SizedBox(height: Spacing.small),
+          _ReRecordButton(label: l10n.transcriptionReRecord, onTap: onReRecord),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConfirmButton extends StatelessWidget {
+  const _ConfirmButton({
+    required this.label,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool enabled;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
+      identifier: TranscriptionKeys.confirmButton,
       container: true,
-      label: 'Transcription coming soon. This screen is not yet available.',
-      child: const OmdsEmptyStatePage(
-        appBar: null,
-        icon: Icons.construction_outlined,
-        title: 'Transcription coming soon',
-        subtitle: 'This screen is not yet available.',
+      child: OmdsPrimaryButton(
+        text: label,
+        isEnabled: enabled,
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _ReRecordButton extends StatelessWidget {
+  const _ReRecordButton({required this.label, this.onTap});
+
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      identifier: TranscriptionKeys.reRecordButton,
+      container: true,
+      child: OMDSOutlinedButton(
+        text: label,
+        onTap: () => onTap?.call(),
       ),
     );
   }

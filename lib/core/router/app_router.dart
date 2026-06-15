@@ -509,13 +509,36 @@ class AppRouter {
         GoRoute(
           path: '/voice-request/transcription',
           name: 'transcription',
-          // The clip is handed over via `extra` from the voice_request flow.
-          // If the route is hit directly (cold deep link, no extra), the
-          // errorBuilder upstream owns the missing-extra case via the cast
-          // failure below — there's no meaningful recovery without audio.
-          builder: (context, state) => TranscriptionScreen(
-            clip: state.extra as VoiceClip,
-          ),
+          // T-MOB-TRANSCRIPT: the voice TRANSCRIPTION-RESULT step. The clip is
+          // handed over via `extra` from the voice composer (audioId + optional
+          // machine transcript). On confirm we assemble a [RequestDraft] from
+          // the reviewed text and forward to the next create-request step
+          // (`/request-summary`, the same target the `/request-type` path uses).
+          // Re-record pops back to the composer.
+          //
+          // A cold deep-link can land here without a clip; rather than crash on
+          // the cast we fall back to an empty clip so the screen renders its
+          // queued/manual-entry state.
+          builder: (context, state) {
+            final extra = state.extra;
+            final clip = extra is VoiceClip
+                ? extra
+                : const VoiceClip(audioPath: '', durationMs: 0);
+            return TranscriptionScreen(
+              clip: clip,
+              onConfirm: (text, audioPath) => context.push(
+                '/request-summary',
+                extra: RequestDraft(
+                  description: text,
+                  transcription: text,
+                  audioUrl: audioPath.isEmpty ? null : audioPath,
+                ),
+              ),
+              onReRecord: () {
+                if (context.canPop()) context.pop();
+              },
+            );
+          },
         ),
         GoRoute(
           path: '/jeeber/requests/:id/offer',
