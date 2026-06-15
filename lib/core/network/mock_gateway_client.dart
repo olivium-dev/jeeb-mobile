@@ -15,13 +15,14 @@ class MockGatewayClient {
   MockGatewayClient._();
 
   /// Single source of truth for mock backend URL.
-  /// Android emulator: 10.0.2.2 (host loopback alias).
-  /// iOS simulator / physical device: override with your machine's LAN IP via
-  /// `--dart-define=JEEB_MOCK_BASE_URL=http://<host-ip>:3055`.
+  /// Defaults to the host machine's LAN IP so iOS simulators and physical
+  /// devices reach the mock directly. Android emulators can also use the LAN
+  /// IP, or override with the loopback alias via
+  /// `--dart-define=JEEB_MOCK_BASE_URL=http://10.0.2.2:3055`.
   /// Port 3055 = Mockoon gateway-shaped mock (useMockPrefixes=false).
   static const String mockBaseUrl = String.fromEnvironment(
     'JEEB_MOCK_BASE_URL',
-    defaultValue: 'http://10.0.2.2:3055',
+    defaultValue: 'http://192.168.2.33:3055',
   );
 
   /// When false every path passes through unchanged to the Mockoon mock at
