@@ -1,15 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/di/injection_container.dart';
 import '../../../core/network/mock_gateway_client.dart';
 import '../../../l10n/app_localizations.dart';
 import '../cubit/voice_recording_cubit.dart';
 import '../cubit/voice_recording_state.dart';
 import '../data/voice_recording_repository.dart';
+import '../domain/audioplayers_voice_player.dart';
+import '../domain/record_voice_recorder.dart';
 import '../domain/voice_player.dart';
 import '../domain/voice_recorder.dart';
 import 'widgets/animated_mic_button.dart';
+
+/// Stable widget keys for the voice-request controls. Exposed so Codex QA /
+/// integration tests can target the interactive elements deterministically
+/// (T-MOB-011 DoD: every interactive widget has a Key / Semantics).
+class VoiceRecordingKeys {
+  const VoiceRecordingKeys._();
+
+  static const Key micButton = Key('voice_request_mic_button');
+  static const Key recordingWaveform = Key('voice_request_recording_waveform');
+  static const Key cancelButton = Key('voice_request_cancel_button');
+  static const Key playbackToggle = Key('voice_request_playback_toggle');
+  static const Key playbackProgress = Key('voice_request_playback_progress');
+  static const Key discardButton = Key('voice_request_discard_button');
+  static const Key sendButton = Key('voice_request_send_button');
+  static const Key recordAnotherButton =
+      Key('voice_request_record_another_button');
+}
 
 /// Screen that lets the user record a voice request, preview it, and send it
 /// to the gateway (JEEB-60 / T-mobile-007).
@@ -45,14 +66,32 @@ class VoiceRecordingScreen extends StatelessWidget {
       );
     }
     return BlocProvider<VoiceRecordingCubit>(
-      create: (_) => VoiceRecordingCubit(
-        recorder: FakeVoiceRecorder(),
-        player: FakeVoicePlayer(),
-        repository: HttpVoiceRecordingRepository(
-          dio: MockGatewayClient.createDio(),
-        ),
-      ),
+      create: (_) => _buildProductionCubit(),
       child: view,
+    );
+  }
+
+  /// Builds the cubit for the real app, resolving the platform recorder, player,
+  /// and upload repository from the DI container (T-MOB-011). Falls back to a
+  /// directly-constructed graph if GetIt has not been configured (e.g. a
+  /// standalone preview), so the screen never hard-crashes on a missing
+  /// registration.
+  VoiceRecordingCubit _buildProductionCubit() {
+    final GetIt di = sl;
+    final VoiceRecorder recorder = di.isRegistered<VoiceRecorder>()
+        ? di<VoiceRecorder>()
+        : RecordVoiceRecorder();
+    final VoicePlayer player = di.isRegistered<VoicePlayer>()
+        ? di<VoicePlayer>()
+        : AudioPlayersVoicePlayer();
+    final VoiceRecordingRepository repository =
+        di.isRegistered<VoiceRecordingRepository>()
+            ? di<VoiceRecordingRepository>()
+            : HttpVoiceRecordingRepository(dio: MockGatewayClient.createDio());
+    return VoiceRecordingCubit(
+      recorder: recorder,
+      player: player,
+      repository: repository,
     );
   }
 }
@@ -231,6 +270,7 @@ class _MicSurface extends StatelessWidget {
     return Semantics(
       label: l10n.voiceRecordingReleaseToStop,
       child: OmdsRecordingInput(
+        key: VoiceRecordingKeys.recordingWaveform,
         duration: state.elapsed,
         isRecording: true,
         onSend: cubit.stopRecording,
@@ -248,6 +288,7 @@ class _MicSurface extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         AnimatedMicButton(
+          key: VoiceRecordingKeys.micButton,
           isRecording: false,
           enabled: true,
           onPressStart: cubit.startRecording,
@@ -299,6 +340,7 @@ class _PlaybackPreview extends StatelessWidget {
                     ? l10n.voiceRecordingPause
                     : l10n.voiceRecordingPlay,
                 child: IconButton.filled(
+                  key: VoiceRecordingKeys.playbackToggle,
                   iconSize: 40,
                   onPressed:
                       state.isSending ? null : () => cubit.togglePlayback(),
@@ -317,6 +359,7 @@ class _PlaybackPreview extends StatelessWidget {
                     ClipRRect(
                       borderRadius: OmdsBorderRadius.twoXSmall,
                       child: LinearProgressIndicator(
+                        key: VoiceRecordingKeys.playbackProgress,
                         value: progress,
                         minHeight: 6,
                         backgroundColor:
@@ -443,6 +486,7 @@ class _ActionRow extends StatelessWidget {
         return SizedBox(
           width: double.infinity,
           child: OMDSOutlinedButton(
+            key: VoiceRecordingKeys.cancelButton,
             text: l10n.voiceRecordingCancel,
             onTap: () => cubit.cancelRecording(),
           ),
@@ -453,6 +497,7 @@ class _ActionRow extends StatelessWidget {
           children: [
             Expanded(
               child: OMDSOutlinedButton(
+                key: VoiceRecordingKeys.discardButton,
                 text: l10n.voiceRecordingDiscard,
                 onTap: () => cubit.discardClip(),
               ),
@@ -460,6 +505,7 @@ class _ActionRow extends StatelessWidget {
             const SizedBox(width: Spacing.medium),
             Expanded(
               child: OmdsPrimaryButton(
+                key: VoiceRecordingKeys.sendButton,
                 text: l10n.voiceRecordingSend,
                 onTap: () => cubit.send(),
                 isEnabled: state.canSend,
@@ -480,6 +526,7 @@ class _ActionRow extends StatelessWidget {
         return SizedBox(
           width: double.infinity,
           child: OmdsPrimaryButton(
+            key: VoiceRecordingKeys.recordAnotherButton,
             text: l10n.voiceRecordingRecordAnother,
             onTap: () => cubit.reset(),
           ),

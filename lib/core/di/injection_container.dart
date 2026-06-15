@@ -35,6 +35,11 @@ import '../../features/registration/domain/otp_service.dart';
 import '../../features/settings/data/repositories/dio_role_switch_repository.dart';
 import '../../features/settings/domain/role_switch_repository.dart';
 import '../../features/tier_selection/data/tier_repository.dart';
+import '../../features/voice_request/data/voice_recording_repository.dart';
+import '../../features/voice_request/domain/audioplayers_voice_player.dart';
+import '../../features/voice_request/domain/record_voice_recorder.dart';
+import '../../features/voice_request/domain/voice_player.dart';
+import '../../features/voice_request/domain/voice_recorder.dart';
 import '../../features/prohibited_acknowledgment/data/prohibited_acknowledgment_repository_impl.dart';
 import '../../features/prohibited_acknowledgment/domain/prohibited_acknowledgment_repository.dart';
 import '../../features/cancellation/data/dio_cancellation_repository.dart';
@@ -199,5 +204,21 @@ void configureDependencies({
   // T-MOB-032: Settlement statements — GET /v1/wallet/jeeb/earnings/statements.
   sl.registerLazySingleton<SettlementRepository>(
     () => DioSettlementRepository(sl<Dio>()),
+  );
+
+  // T-MOB-011: Real voice recorder + player behind the VoiceRecorder /
+  // VoicePlayer ports. Registered as FACTORIES (not singletons) because each
+  // recording session owns an open mic / audio-session resource — a fresh
+  // instance per VoiceRecordingScreen avoids leaking a half-open recorder
+  // across screen entries. FakeVoiceRecorder / FakeVoicePlayer remain the
+  // unit-test seam via the cubit constructor, so they are NOT registered here.
+  sl.registerFactory<VoiceRecorder>(() => RecordVoiceRecorder());
+  sl.registerFactory<VoicePlayer>(() => AudioPlayersVoicePlayer());
+
+  // T-MOB-011: Voice upload repository — POST /v1/voice/transcribe (gateway
+  // proxies voice-transcription-service). Registered so the screen resolves
+  // it from DI in release builds instead of self-constructing.
+  sl.registerLazySingleton<VoiceRecordingRepository>(
+    () => HttpVoiceRecordingRepository(dio: sl<Dio>()),
   );
 }

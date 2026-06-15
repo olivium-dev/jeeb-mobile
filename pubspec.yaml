@@ -68,6 +68,17 @@ dependencies:
   # file before passing it to open_file (T-MOB-032).
   path_provider: ^2.1.4
 
+  # Voice-request recorder (T-MOB-011). `record` owns microphone capture to a
+  # temp file (AAC-LC / m4a) and the RECORD_AUDIO runtime-permission prompt via
+  # `hasPermission()`; `audioplayers` streams the captured file back for the
+  # preview/playback row. Both are wrapped behind the `VoiceRecorder` /
+  # `VoicePlayer` ports so the cubit, screen, and tests stay platform-free
+  # (the in-memory Fake* impls remain the unit-test seam). 6.x lines are pinned
+  # because record 7.x requires Dart >=3.12 / Flutter >=3.44 (this app is on
+  # Dart 3.10.8 / Flutter 3.38.9).
+  record: ^6.2.1
+  audioplayers: ^6.7.1
+
   # Internationalisation
   intl: ^0.20.2
 
