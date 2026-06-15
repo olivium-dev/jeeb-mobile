@@ -238,11 +238,18 @@ class _ReRecordButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // OMDSOutlinedButton fills with colorScheme.secondaryContainer (deep navy
+    // in the Jeeb theme) and defaults its label to colorScheme.onSecondaryContainer
+    // (~#777FC0, muted lavender, ~3:1 contrast on navy — fails WCAG 2.2 AA).
+    // We override with colorScheme.onPrimary (white, ~17:1 on navy) to match
+    // the same fix applied to the queued banner in transcription_status_banner.dart.
+    final textColor = Theme.of(context).colorScheme.onPrimary;
     return Semantics(
       identifier: TranscriptionKeys.reRecordButton,
       container: true,
       child: OMDSOutlinedButton(
         text: label,
+        textColor: textColor,
         onTap: () => onTap?.call(),
       ),
     );
