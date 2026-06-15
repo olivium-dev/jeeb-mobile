@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/layout/bottom_inset.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/order_summary.dart';
 
@@ -48,7 +49,9 @@ class _OrderHistoryDateFilterSheetState
         start: Spacing.medium,
         end: Spacing.medium,
         top: Spacing.xSmall,
-        bottom: MediaQuery.of(context).viewInsets.bottom + Spacing.xLarge,
+        // Keyboard + system nav-bar inset (was keyboard-only) so the
+        // Apply/Clear buttons clear the soft-button nav bar under edge-to-edge.
+        bottom: context.sheetBottomInset + Spacing.xLarge,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

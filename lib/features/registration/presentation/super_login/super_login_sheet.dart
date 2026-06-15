@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/network/auth_token_store.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../data/super_login_service.dart';
@@ -186,17 +187,19 @@ class _SuperLoginForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final viewInsets = MediaQuery.of(context).viewInsets.bottom;
+    // Keyboard inset + system nav-bar inset: keeps the submit CTA clear of both
+    // the keyboard AND the soft-button nav bar under edge-to-edge. Using only
+    // `viewInsets.bottom` (keyboard) left the button behind the nav bar.
+    final bottomInset = context.sheetBottomInset;
     return Semantics(
       identifier: '_super_login_sheet',
       container: true,
       child: Padding(
-        // Keyboard-safe bottom padding so fields stay visible (Rahma parity).
         padding: EdgeInsets.fromLTRB(
           Spacing.large,
           Spacing.medium,
           Spacing.large,
-          Spacing.large + viewInsets,
+          Spacing.large + bottomInset,
         ),
         child: _SuperLoginFormColumn(
           userIdController: userIdController,
