@@ -860,6 +860,18 @@
   "@transcriptionFailedGeneric": {
     "description": "Banner body for the generic-failure branch"
   },
+  "transcriptionEdit": "Edit text",
+  "@transcriptionEdit": {
+    "description": "Action that switches the transcription into the editable text field"
+  },
+  "transcriptionSaveEdit": "Done",
+  "@transcriptionSaveEdit": {
+    "description": "Confirms the edited transcription text and leaves edit mode"
+  },
+  "transcriptionReRecord": "Re-record",
+  "@transcriptionReRecord": {
+    "description": "Secondary CTA that discards the transcription and returns to the voice composer"
+  },
   "photoAttachmentTitle": "Photos ({count}/{max})",
   "@photoAttachmentTitle": {
     "description": "Header above the attachment strip showing how many photos have been added vs the cap",

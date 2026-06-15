@@ -478,6 +478,9 @@ class AppLocalizations {
   String get transcriptionFailedPayloadTooLarge =>
       _get('transcriptionFailedPayloadTooLarge');
   String get transcriptionFailedGeneric => _get('transcriptionFailedGeneric');
+  String get transcriptionEdit => _get('transcriptionEdit');
+  String get transcriptionSaveEdit => _get('transcriptionSaveEdit');
+  String get transcriptionReRecord => _get('transcriptionReRecord');
 
   String photoAttachmentTitle(int count, int max) => _get('photoAttachmentTitle')
       .replaceFirst('{count}', '$count')
