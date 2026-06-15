@@ -78,8 +78,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(RequestTierCard), findsNWidgets(5));
-      expect(find.text('⚡ Flash'), findsOneWidget);
-      expect(find.text('🌿 Eco'), findsOneWidget);
+      // Tier titles are plain text now; the leading glyph is an OMDS vector
+      // icon (Icons.bolt_outlined / Icons.eco_outlined …), not an emoji.
+      expect(find.text('Flash'), findsOneWidget);
+      expect(find.text('Eco'), findsOneWidget);
+      expect(find.byIcon(Icons.bolt_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.eco_outlined), findsOneWidget);
       expect(find.text('Choose your request'), findsOneWidget);
       expect(find.text('Location'), findsOneWidget);
       expect(find.text('Change Location'), findsOneWidget);

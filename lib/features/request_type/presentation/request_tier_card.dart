@@ -5,10 +5,15 @@ import 'selectable_radio_glyph.dart';
 
 /// Selectable tier card for the Request type screen (Figma 56535:2392).
 ///
-/// Layout: an emoji [title] row + a two-line description ([speed] then
-/// [value]) on the leading side, and a radio glyph on the trailing side. The
-/// whole card is one tap target. There is no OMDS radio primitive, so the
-/// glyph is drawn from `colorScheme` roles ([SelectableRadioGlyph]).
+/// Layout: a leading OMDS vector [icon] + [title] row, a two-line description
+/// ([speed] then [value]) on the leading side, and a radio glyph on the
+/// trailing side. The whole card is one tap target. There is no OMDS radio
+/// primitive, so the glyph is drawn from `colorScheme` roles
+/// ([SelectableRadioGlyph]).
+///
+/// The [icon] replaces the legacy emoji prefix that used to be baked into the
+/// localized [title] — the design-system iconography idiom (`IconData`) is
+/// used across the app and renders crisply in dark mode + RTL.
 ///
 /// Selected state mirrors the Figma "Flash selected" frame: navy fill
 /// (`colorScheme.primary`) + white foreground; unselected cards are a white
@@ -17,6 +22,7 @@ import 'selectable_radio_glyph.dart';
 class RequestTierCard extends StatelessWidget {
   const RequestTierCard({
     super.key,
+    required this.icon,
     required this.title,
     required this.speed,
     required this.value,
@@ -27,6 +33,7 @@ class RequestTierCard extends StatelessWidget {
     required this.selectedHint,
   });
 
+  final IconData icon;
   final String title;
   final String speed;
   final String value;
@@ -90,11 +97,18 @@ class _TierCopy extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final descColor =
         card.selected ? scheme.onPrimary : scheme.onSecondaryContainer;
+    final titleColor = card.selected ? scheme.onPrimary : scheme.primary;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(card.title, style: _titleStyle(text, scheme)),
+        Row(
+          children: [
+            Icon(card.icon, size: Sizes.large, color: titleColor),
+            const SizedBox(width: Spacing.twoXSmall),
+            Flexible(child: Text(card.title, style: _titleStyle(text, scheme))),
+          ],
+        ),
         const SizedBox(height: Spacing.twoXSmall),
         Text(card.speed, style: text.bodySmall?.copyWith(color: descColor)),
         Text(card.value, style: _valueStyle(text, descColor)),
