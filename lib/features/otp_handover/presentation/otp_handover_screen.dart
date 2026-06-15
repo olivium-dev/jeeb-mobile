@@ -98,10 +98,14 @@ class _OtpBody extends StatelessWidget {
           onRetry: () => context.read<OtpHandoverCubit>().retry(),
         );
       case OtpHandoverViewMode.success:
-        return _DoneBody(deliveryId: deliveryId);
+        return _DoneBody(deliveryId: deliveryId, isClient: isClient);
       case OtpHandoverViewMode.ready:
       case OtpHandoverViewMode.submitting:
-        return _ReadyBody(state: state, isClient: isClient);
+        return _ReadyBody(
+          state: state,
+          isClient: isClient,
+          deliveryId: deliveryId,
+        );
     }
   }
 }
@@ -137,10 +141,19 @@ class _ErrorBody extends StatelessWidget {
 }
 
 /// T-MOB-018 AC2: Celebratory done state shown after successful OTP verify.
+///
+/// JEEBER-LOOP F1: navigation now targets the blind mutual-rating screen
+/// (`/orders/:id/mutual-rate`, T-MOB-020) — not the single-side `/feedback`
+/// placeholder — and threads [isClient] so the Jeeber leg carries
+/// `?mode=jeeber`. The router resolves `isClient = mode != 'jeeber'`, so an
+/// absent `mode` lands the client and `?mode=jeeber` lands the delivery man on
+/// his side of the two-party rating. Without the param the Jeeber would be
+/// mis-routed to the client-facing rating screen.
 class _DoneBody extends StatelessWidget {
-  const _DoneBody({required this.deliveryId});
+  const _DoneBody({required this.deliveryId, required this.isClient});
 
   final String deliveryId;
+  final bool isClient;
 
   @override
   Widget build(BuildContext context) {
@@ -174,7 +187,7 @@ class _DoneBody extends StatelessWidget {
               text: l10n.otpRateNowCta,
               isLoading: false,
               isEnabled: true,
-              onTap: () => context.go('/orders/$deliveryId/feedback'),
+              onTap: () => context.go(_mutualRateRoute(deliveryId, isClient)),
             ),
           ],
         ),
@@ -183,28 +196,48 @@ class _DoneBody extends StatelessWidget {
   }
 }
 
+/// Builds the mutual-rate route, appending `?mode=jeeber` for the delivery-man
+/// leg so the router (`isClient = mode != 'jeeber'`) flips audience correctly.
+String _mutualRateRoute(String deliveryId, bool isClient) =>
+    '/orders/$deliveryId/mutual-rate${isClient ? '' : '?mode=jeeber'}';
+
 class _ReadyBody extends StatelessWidget {
-  const _ReadyBody({required this.state, required this.isClient});
+  const _ReadyBody({
+    required this.state,
+    required this.isClient,
+    required this.deliveryId,
+  });
 
   final OtpHandoverState state;
   final bool isClient;
+  final String deliveryId;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(Spacing.xLarge),
       child: isClient
-          ? _ClientOtpDisplay(code: state.handoverCode ?? '----')
+          ? _ClientOtpDisplay(
+              code: state.handoverCode ?? '----',
+              deliveryId: deliveryId,
+            )
           : _JeeberOtpEntry(state: state),
     );
   }
 }
 
 /// T-MOB-018 AC1/AC5: Client sees large 4-digit code; announced via liveRegion.
+///
+/// JEEBER-LOOP F2: the client OTP-display had no forward path — once the
+/// Jeeber verified the code the client sat here indefinitely (there is no
+/// status polling). A manual "Rate now" CTA lets the client advance to the
+/// mutual-rate screen (`/orders/:id/mutual-rate`, client leg) after handover,
+/// closing the client side of the two-party loop without introducing polling.
 class _ClientOtpDisplay extends StatelessWidget {
-  const _ClientOtpDisplay({required this.code});
+  const _ClientOtpDisplay({required this.code, required this.deliveryId});
 
   final String code;
+  final String deliveryId;
 
   @override
   Widget build(BuildContext context) {
@@ -227,7 +260,32 @@ class _ClientOtpDisplay extends StatelessWidget {
             style: theme.textTheme.bodySmall,
             textAlign: TextAlign.center,
           ),
+          const SizedBox(height: Spacing.xLarge),
+          _ClientRateNowButton(deliveryId: deliveryId),
         ],
+      ),
+    );
+  }
+}
+
+/// JEEBER-LOOP F2: post-handover "Rate now" CTA on the client OTP display.
+/// Navigates the client leg to the blind mutual-rating screen (no `mode`
+/// param → router resolves `isClient = true`).
+class _ClientRateNowButton extends StatelessWidget {
+  const _ClientRateNowButton({required this.deliveryId});
+
+  final String deliveryId;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      // QA: uiautomator-addressable handle for the client's rate-now CTA.
+      identifier: 'client_otp_rate_now',
+      child: OmdsPrimaryButton(
+        key: const Key('otpHandover.clientRateNow'),
+        text: l10n.otpRateNowCta,
+        onTap: () => context.go(_mutualRateRoute(deliveryId, true)),
       ),
     );
   }

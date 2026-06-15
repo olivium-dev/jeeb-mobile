@@ -11,6 +11,7 @@ import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/jeeber_home/application/availability_cubit.dart';
 import 'package:jeeb_mobile/features/jeeber_home/domain/services/availability_gateway.dart';
 import 'package:jeeb_mobile/features/jeeber_home/presentation/jeeber_home_screen.dart';
+import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_repository.dart';
 import 'package:jeeb_mobile/features/shell/tabs/dashboard_tab.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
@@ -105,10 +106,18 @@ void main() {
   });
 
   setUp(() {
-    // The DI registration the production DashboardTab resolves. An in-memory
+    // The DI registrations the production DashboardTab resolves. An in-memory
     // gateway keeps the cubit's cold-start fetch deterministic and offline.
     sl.registerLazySingleton<AvailabilityGateway>(
       _ScriptedAvailabilityGateway.new,
+    );
+    // JEEBER-LOOP F3: the host now also builds a RequestFeedCubit from a
+    // DI-registered RequestFeedRepository, so this regression harness must
+    // register one too. An empty seeded feed keeps this test focused on the
+    // availability-provider contract (the feed-render contract is covered by
+    // dashboard_tab_request_feed_provider_test.dart).
+    sl.registerLazySingleton<RequestFeedRepository>(
+      () => SeededRequestFeedRepository(const []),
     );
   });
 

@@ -15,6 +15,7 @@ import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/earnings/domain/earnings_repository.dart';
 import 'package:jeeb_mobile/features/earnings/domain/earnings_summary.dart';
 import 'package:jeeb_mobile/features/jeeber_home/domain/services/availability_gateway.dart';
+import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_repository.dart';
 import 'package:jeeb_mobile/features/shell/shell_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
@@ -120,6 +121,14 @@ void main() {
     // and deterministic.
     sl.registerLazySingleton<AvailabilityGateway>(
       InMemoryAvailabilityGateway.new,
+    );
+    // JEEBER-LOOP F3: DashboardTab now also self-provides a RequestFeedCubit
+    // from a DI-registered RequestFeedRepository (so the Jeeber home shows the
+    // active-delivery feed), so the repository it resolves must be registered
+    // here too. An empty seeded feed keeps this shell/role test focused on
+    // tab-swap behaviour.
+    sl.registerLazySingleton<RequestFeedRepository>(
+      () => SeededRequestFeedRepository(const []),
     );
   });
 

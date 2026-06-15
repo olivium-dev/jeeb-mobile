@@ -68,21 +68,34 @@ class DashboardTab extends StatelessWidget {
       kDebugMode && DevSeam.current.homeTab == 'unregistered';
 }
 
-/// Hosts the production [JeeberHomeScreen] under a [BlocProvider]
-/// `<AvailabilityCubit>` so the registered path has the cubit it reads
-/// (`didChangeDependencies` + `_RegisteredBody`'s `BlocConsumer`).
+/// Hosts the production [JeeberHomeScreen] under a [MultiBlocProvider] that
+/// supplies the two cubits the registered home reads: an [AvailabilityCubit]
+/// (`didChangeDependencies` + `_RegisteredBody`'s `BlocConsumer`) and a
+/// [RequestFeedCubit] (the active-delivery / request feed surface).
 ///
-/// Before this host existed, the role-switch into the Jeeber surface mounted
-/// `JeeberHomeScreen(isRegistered: true)` with no `AvailabilityCubit` ancestor
-/// — only the dev-seam feed path provided one — so the registered screen threw
-/// `ProviderNotFound<AvailabilityCubit>` on entry (E2E "Switch to Jeeber"
-/// crash). The cubit is built from the DI-registered [AvailabilityGateway],
-/// matching how sibling route builders (escalate/tracking/rating) construct
-/// their screen-scoped cubits from `sl<...>()`.
+/// Before the availability provider existed, the role-switch into the Jeeber
+/// surface mounted `JeeberHomeScreen(isRegistered: true)` with no
+/// `AvailabilityCubit` ancestor — only the dev-seam feed path provided one — so
+/// the registered screen threw `ProviderNotFound<AvailabilityCubit>` on entry
+/// (E2E "Switch to Jeeber" crash).
 ///
-/// The provider wraps even the `unregistered` (screen-19) path because the
-/// auto-offline ticker is owned by the cubit and the upsell view simply never
-/// reads it; keeping a single create-site avoids a second provider tree.
+/// JEEBER-LOOP F3: the host also did not pass a `requestFeedCubit`, so
+/// [JeeberHomeScreen] stayed in State 2 (availability toggle only, no feed) —
+/// the Jeeber had no in-app entry to an active delivery and could only reach
+/// one via a deep link. Wiring a DI-backed [RequestFeedCubit] lights up State 3
+/// (the live request / active-delivery feed) so tapping a card reaches the
+/// chat → "Start delivery" → active-delivery → OTP entry chain that closes the
+/// two-party loop. Both cubits are built from DI-registered gateways
+/// (`sl<...>()`), matching how sibling route builders construct their
+/// screen-scoped cubits.
+///
+/// Both providers wrap even the `unregistered` (screen-19) path: the
+/// availability auto-offline ticker is owned by its cubit and the upsell view
+/// simply never reads either cubit, so a single create-site avoids a second
+/// provider tree. `BlocProvider.create` owns the cubit lifecycle (it is closed
+/// on dispose), so we hand the created [RequestFeedCubit] to
+/// [JeeberHomeScreen] — which re-exposes it via `BlocProvider.value` (a
+/// non-owning view) — instead of constructing a second, leaked instance.
 class _JeeberHomeHost extends StatelessWidget {
   const _JeeberHomeHost({required this.unregistered});
 
@@ -90,21 +103,32 @@ class _JeeberHomeHost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<AvailabilityCubit>(
-      create: (_) =>
-          AvailabilityCubit(gateway: sl<AvailabilityGateway>()),
-      child: JeeberHomeScreen(
-        key: const Key('dashboard-tab-root'),
-        isRegistered: !unregistered,
-        profileName: unregistered ? 'Kamal' : null,
-        onRegister: () => context.pushNamed('jeeber-onboarding'),
-        onOpenFeedRequest: (FeedRequest request) {
-          context.pushNamed(
-            'jeeber-request-detail',
-            pathParameters: {'id': request.id},
-            extra: request,
-          );
-        },
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<AvailabilityCubit>(
+          create: (_) => AvailabilityCubit(gateway: sl<AvailabilityGateway>()),
+        ),
+        BlocProvider<RequestFeedCubit>(
+          create: (_) =>
+              RequestFeedCubit(repository: sl<RequestFeedRepository>())
+                ..start(),
+        ),
+      ],
+      child: Builder(
+        builder: (context) => JeeberHomeScreen(
+          key: const Key('dashboard-tab-root'),
+          isRegistered: !unregistered,
+          profileName: unregistered ? 'Kamal' : null,
+          requestFeedCubit: context.read<RequestFeedCubit>(),
+          onRegister: () => context.pushNamed('jeeber-onboarding'),
+          onOpenFeedRequest: (FeedRequest request) {
+            context.pushNamed(
+              'jeeber-request-detail',
+              pathParameters: {'id': request.id},
+              extra: request,
+            );
+          },
+        ),
       ),
     );
   }
