@@ -390,5 +390,41 @@ void main() {
         isFalse,
       );
     });
+
+    testWidgets(
+        'DEF-1: pre-filled fields carry NO in-decoration floating label '
+        '(labels live ABOVE the field, so the collapsed label cannot crowd '
+        'the value)', (tester) async {
+      await openPrefilled(
+        tester,
+        makeCubit(),
+        initialUserId: '22222222-2222-4222-8222-222222222222',
+        initialPasscode: 'demo-kamal',
+      );
+
+      // FAIL-WITHOUT: the fields used to pass `labelText` into their
+      // InputDecoration, which on the borderless filled OMDS field floats to
+      // the top edge and crowds the pre-filled value. The fix lifts the label
+      // out of the decoration, so labelText is now null on both fields.
+      expect(
+        tester
+            .widget<OmdsTextField>(find.byKey(const Key('superLogin.userId')))
+            .labelText,
+        isNull,
+        reason: 'user-id field must not render a floating in-field label',
+      );
+      expect(
+        tester
+            .widget<OMDSPasswordTextField>(
+                find.byKey(const Key('superLogin.passcode')))
+            .labelText,
+        isNull,
+        reason: 'passcode field must not render a floating in-field label',
+      );
+
+      // The labels are still present — now as standalone Text above each field.
+      expect(find.text('User ID'), findsOneWidget);
+      expect(find.text('Passcode'), findsOneWidget);
+    });
   });
 }

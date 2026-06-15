@@ -954,6 +954,10 @@ class AppLocalizations {
       _get('jeeberRequestDetailSectionDropoff');
   String get jeeberRequestDetailSectionDescription =>
       _get('jeeberRequestDetailSectionDescription');
+  String get jeeberRequestDetailRequestSection =>
+      _get('jeeberRequestDetailRequestSection');
+  String get jeeberRequestDetailReference =>
+      _get('jeeberRequestDetailReference');
   String jeeberRequestDetailDistance(String distance) =>
       _get('jeeberRequestDetailDistance')
           .replaceFirst('{distance}', distance);

@@ -581,6 +581,8 @@
   "jeeberRequestDetailSectionPickup": "نقطة الاستلام",
   "jeeberRequestDetailSectionDropoff": "نقطة التسليم",
   "jeeberRequestDetailSectionDescription": "ما يقوله العميل",
+  "jeeberRequestDetailRequestSection": "الطلب",
+  "jeeberRequestDetailReference": "مرجع الطلب",
   "jeeberRequestDetailDistance": "يبعد {distance}",
   "jeeberRequestDetailReportButton": "إبلاغ — صنف ممنوع",
   "jeeberRequestDetailReportHint": "هل رصدت أسلحة أو مخدرات أو مواد خطرة أو أي صنف ممنوع؟ أبلغ الإدارة لمراجعة الطلب.",
