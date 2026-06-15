@@ -86,7 +86,11 @@ class _OfferAcceptedRow extends StatelessWidget {
       children: [
         Icon(
           Icons.check_circle_outline,
-          color: colorScheme.onSecondaryContainer,
+          // The banner background is the navy `secondaryContainer`; use the
+          // high-contrast on-navy token (`onPrimary`, white) so the icon is
+          // legible. `onSecondaryContainer` (#777FC0) is ~3:1 on navy and
+          // fails WCAG 2.2 AA.
+          color: colorScheme.onPrimary,
           size: Sizes.large,
         ),
         const SizedBox(width: Spacing.small),
@@ -113,14 +117,17 @@ class _OfferAcceptedText extends StatelessWidget {
         Text(
           l10n.chatOfferAcceptedBannerTitle,
           style: textTheme.labelLarge?.copyWith(
-            color: colorScheme.onSecondaryContainer,
+            // High-contrast on-navy token (white); the navy
+            // `secondaryContainer` background makes `onSecondaryContainer`
+            // (#777FC0) fail WCAG 2.2 AA.
+            color: colorScheme.onPrimary,
             fontWeight: FontWeight.w700,
           ),
         ),
         Text(
           l10n.chatOfferAcceptedBannerBody,
           style: textTheme.bodySmall?.copyWith(
-            color: colorScheme.onSecondaryContainer,
+            color: colorScheme.onPrimary,
           ),
         ),
       ],
@@ -145,7 +152,9 @@ class _OfferAcceptedDismiss extends StatelessWidget {
         child: Icon(
           Icons.close,
           size: Sizes.medium,
-          color: colorScheme.onSecondaryContainer,
+          // High-contrast on-navy token (white) so the dismiss affordance is
+          // legible on the navy `secondaryContainer` banner.
+          color: colorScheme.onPrimary,
         ),
       ),
     );

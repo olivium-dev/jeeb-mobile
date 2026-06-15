@@ -265,12 +265,17 @@ class _ActionButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         OmdsPrimaryButton(
           text: l10n.activeDeliveryOpenMapsButton,
-          icon: const Icon(Icons.map_outlined),
+          // `OmdsPrimaryButton` only colors its text child, not a passed icon,
+          // so the leading icon must be given the on-navy token explicitly —
+          // otherwise it inherits the ambient (near-black) IconTheme color and
+          // renders black-on-navy. Match the white text via `onPrimary`.
+          icon: Icon(Icons.map_outlined, color: colorScheme.onPrimary),
           onTap: onOpenMaps,
         ),
         const SizedBox(height: Spacing.small),
