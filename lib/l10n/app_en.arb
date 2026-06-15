@@ -511,9 +511,9 @@
     "description": "Onboarding slide 2 — vetted delivery partners"
   },
   "onboardingSlide2Body": "Every Jeeber is vetted, rated, and accountable so your deliveries stay in safe hands.",
-  "onboardingSlide3Title": "Live tracking, end to end",
+  "onboardingSlide3Title": "Live tracking, end to end",
   "@onboardingSlide3Title": {
-    "description": "Onboarding slide 3 — live order tracking"
+    "description": "Onboarding slide 3 — live order tracking. The non-breaking spaces in 'end to end' keep the phrase on one line so the headline wraps cleanly after 'Live tracking,' instead of orphaning a trailing 'end'."
   },
   "onboardingSlide3Body": "Follow your Jeeber on the map from pickup to drop-off in real time.",
   "onboardingNext": "Next",

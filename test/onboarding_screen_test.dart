@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
 import 'package:jeeb_mobile/core/onboarding/onboarding_cubit.dart';
 import 'package:jeeb_mobile/features/onboarding/presentation/onboarding_screen.dart';
+import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import 'support/sync_app_localizations.dart';
 
@@ -62,6 +64,34 @@ void main() {
     expect(find.byKey(const Key('onboarding.skip')), findsOneWidget);
     expect(find.byKey(const Key('onboarding.next')), findsOneWidget);
     expect(find.byKey(const Key('onboarding.dots')), findsOneWidget);
+  });
+
+  // ---- Status-bar contrast: LIGHT icons over the navy hero ----
+
+  testWidgets(
+      'sets LIGHT status-bar icons so they stay legible on the navy hero',
+      (tester) async {
+    // The global overlay set in main() is Brightness.dark (for the light auth
+    // screens); the walkthrough hero is brand-navy and must override to light
+    // icons, scoped via an AnnotatedRegion so it never forces light icons on
+    // the light screens elsewhere in the app.
+    await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
+    await tester.pump();
+
+    final region = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
+      find.descendant(
+        of: find.byType(OnboardingScreen),
+        matching: find.byType(AnnotatedRegion<SystemUiOverlayStyle>),
+      ),
+    );
+    expect(
+      region.value.statusBarIconBrightness,
+      Brightness.light,
+      reason: 'walkthrough status-bar icons must be light on the navy hero',
+    );
+    // statusBarBrightness is the iOS counterpart of the same intent: a DARK
+    // bar background expects light content (SystemUiOverlayStyle.light).
+    expect(region.value.statusBarBrightness, Brightness.dark);
   });
 
   testWidgets('slide copy + Skip flow through OMDS components (OMDS upgrade)',
@@ -173,6 +203,33 @@ void main() {
     );
     expect(semantics.properties.image, isTrue);
     expect(semantics.properties.label, isNotEmpty);
+  });
+
+  testWidgets(
+      'slide 3 title keeps "end to end" unbreakable so it wraps cleanly',
+      (tester) async {
+    // Bug fix: the headline previously wrapped as "Live tracking, end to / end",
+    // orphaning a trailing "end". Non-breaking spaces (U+00A0) bind "end to end"
+    // into one unit so the break falls after the comma instead.
+    await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
+    await tester.pump();
+
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(OnboardingScreen)),
+    );
+    const nbsp = '\u00A0';
+    expect(
+      l10n.onboardingSlide3Title,
+      'Live tracking, end${nbsp}to${nbsp}end',
+      reason: 'slide-3 headline must bind "end to end" with non-breaking spaces',
+    );
+    // Guard against a regression that reintroduces breakable spaces in the
+    // bound phrase (which is what caused the orphaned "end").
+    expect(
+      l10n.onboardingSlide3Title.contains('end to end'),
+      isFalse,
+      reason: 'plain-space "end to end" reintroduces the awkward orphan wrap',
+    );
   });
 
   testWidgets('slide 3 renders the real live-tracking SVG illustration',
