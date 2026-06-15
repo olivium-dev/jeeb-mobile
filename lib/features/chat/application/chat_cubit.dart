@@ -84,7 +84,7 @@ class ChatCubit extends Cubit<ChatState> {
     if (state.acceptingOfferId != null) return;
     emit(state.copyWith(acceptingOfferId: offerId, clearError: true));
     try {
-      await _gateway.acceptOffer(_deliveryId, offerId);
+      final acceptResult = await _gateway.acceptOffer(_deliveryId, offerId);
       final results = await Future.wait([
         _gateway.loadHistory(_deliveryId),
         _gateway.loadPhase(_deliveryId),
@@ -95,6 +95,9 @@ class ChatCubit extends Cubit<ChatState> {
         state.copyWith(
           messages: List.unmodifiable(history),
           phase: phase,
+          // Null when the gateway did not surface a delivery id — copyWith
+          // keeps any id already captured (e.g. from a PhaseChanged event).
+          acceptedDeliveryId: acceptResult.deliveryId,
           clearAcceptingOfferId: true,
         ),
       );
@@ -286,8 +289,8 @@ class ChatCubit extends Cubit<ChatState> {
         _promoteAtLeast(id, MessageStatus.delivered);
       case ReadReceipt(throughMessageId: final id):
         _promoteThroughRead(id);
-      case PhaseChanged(phase: final phase):
-        emit(state.copyWith(phase: phase));
+      case PhaseChanged(phase: final phase, deliveryId: final deliveryId):
+        emit(state.copyWith(phase: phase, acceptedDeliveryId: deliveryId));
     }
   }
 

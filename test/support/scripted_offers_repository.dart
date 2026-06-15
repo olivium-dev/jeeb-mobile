@@ -50,8 +50,12 @@ class ScriptedOffersRepository implements OffersRepository {
     return _snapshots.removeAt(0);
   }
 
+  /// Delivery id the next successful accept returns. Null mirrors a gateway
+  /// that does not surface one.
+  String? acceptDeliveryId;
+
   @override
-  Future<void> acceptOffer({
+  Future<OfferAcceptResult> acceptOffer({
     required String requestId,
     required String offerId,
   }) async {
@@ -63,5 +67,6 @@ class ScriptedOffersRepository implements OffersRepository {
       _acceptFailure = null;
       throw OffersRepositoryException(failure);
     }
+    return OfferAcceptResult(deliveryId: acceptDeliveryId);
   }
 }

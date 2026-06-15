@@ -25,6 +25,8 @@ import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_composer.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/jeeber_removed_banner.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/offer_accepted_banner.dart';
+import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart'
+    show OfferAcceptResult;
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
@@ -87,9 +89,13 @@ class _FakeGateway extends ChatGateway {
   Stream<ChatEvent> subscribe(String id) => _ctrl.stream;
 
   @override
-  Future<void> acceptOffer(String conversationId, String offerId) async {
+  Future<OfferAcceptResult> acceptOffer(
+    String conversationId,
+    String offerId,
+  ) async {
     acceptCalled = true;
     _phase = ConversationPhase.accepted;
+    return OfferAcceptResult.empty;
   }
 }
 

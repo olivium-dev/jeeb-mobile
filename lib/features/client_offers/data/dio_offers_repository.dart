@@ -33,15 +33,32 @@ class DioOffersRepository implements OffersRepository {
   }
 
   @override
-  Future<void> acceptOffer({
+  Future<OfferAcceptResult> acceptOffer({
     required String requestId,
     required String offerId,
   }) async {
     try {
-      await _dio.post<void>('/v1/offers/$offerId/accept');
+      final response = await _dio.post<dynamic>('/v1/offers/$offerId/accept');
+      return _parseAcceptResult(response.data);
     } on DioException catch (e) {
       _rethrowAccept(e);
     }
+  }
+
+  /// Pull the server-created delivery id out of the accept response.
+  ///
+  /// The offer-accept saga returns an `OfferAcceptResultDto`. The golden
+  /// response surfaces the created delivery as `deliveryId`; we also accept
+  /// the snake_case `delivery_id` so we stay compatible regardless of the
+  /// gateway's serialization casing. Anything else (legacy body with no
+  /// delivery field, non-map payload, empty string) maps to
+  /// [OfferAcceptResult.empty] so the caller never crashes and the
+  /// "Track order" CTA simply stays hidden.
+  OfferAcceptResult _parseAcceptResult(dynamic data) {
+    if (data is! Map) return OfferAcceptResult.empty;
+    final raw = data['deliveryId'] ?? data['delivery_id'];
+    final deliveryId = raw is String && raw.trim().isNotEmpty ? raw : null;
+    return OfferAcceptResult(deliveryId: deliveryId);
   }
 
   OffersSnapshot _parseSnapshot(dynamic data) {

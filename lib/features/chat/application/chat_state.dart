@@ -23,6 +23,7 @@ class ChatState extends Equatable {
     this.isAttaching = false,
     this.phase = ConversationPhase.accepted,
     this.acceptingOfferId,
+    this.acceptedDeliveryId,
     this.declinedOfferIds = const <String>{},
     this.error,
   });
@@ -51,6 +52,18 @@ class ChatState extends Equatable {
   /// view disables every offer card and renders a spinner on the in-flight
   /// one so the user can't race two accepts.
   final String? acceptingOfferId;
+
+  /// Server-created delivery id surfaced by the offer-accept response (or the
+  /// synthetic `PhaseChanged` event). Null until an accept resolves with a
+  /// delivery id — and stays null when the gateway does not surface one. The
+  /// client "Track order" CTA is shown only when this is non-null, so a
+  /// golden-less / legacy accept response degrades safely to no CTA.
+  final String? acceptedDeliveryId;
+
+  /// True when live tracking is reachable for this thread — i.e. an accept
+  /// surfaced a delivery id. Drives the client "Track order" CTA visibility.
+  bool get canTrackDelivery =>
+      acceptedDeliveryId != null && acceptedDeliveryId!.isNotEmpty;
 
   /// Set of offer ids the user has declined client-side. These cards render
   /// greyed-out while the WS push from the server is the authoritative removal.
@@ -105,6 +118,7 @@ class ChatState extends Equatable {
     ConversationPhase? phase,
     String? acceptingOfferId,
     bool clearAcceptingOfferId = false,
+    String? acceptedDeliveryId,
     Set<String>? declinedOfferIds,
     ChatError? error,
     bool clearError = false,
@@ -118,6 +132,9 @@ class ChatState extends Equatable {
       acceptingOfferId: clearAcceptingOfferId
           ? null
           : (acceptingOfferId ?? this.acceptingOfferId),
+      // Sticky once set: a later phase event without a delivery id must not
+      // erase a tracking id we already captured.
+      acceptedDeliveryId: acceptedDeliveryId ?? this.acceptedDeliveryId,
       declinedOfferIds: declinedOfferIds ?? this.declinedOfferIds,
       error: clearError ? null : (error ?? this.error),
     );
@@ -131,6 +148,7 @@ class ChatState extends Equatable {
     isAttaching,
     phase,
     acceptingOfferId,
+    acceptedDeliveryId,
     declinedOfferIds,
     error,
   ];

@@ -15,12 +15,20 @@ import '../../../../l10n/app_localizations.dart';
 /// Jeeber can move from the accepted-offer chat into the active-delivery
 /// screen. The callback is absent (null) on the client variant, so the client
 /// never sees the CTA.
+///
+/// When [onTrackOrder] is non-null (the client variant, once the accept
+/// surfaced a delivery id), a primary "Track order" CTA is rendered below the
+/// strip so the client can move from the accepted-offer chat into live
+/// tracking. The callback is absent (null) when no delivery id is available,
+/// so the client never sees a dead CTA — this is the fix for the accept→track
+/// dead-end (G5).
 class OfferAcceptedBanner extends StatelessWidget {
   const OfferAcceptedBanner({
     super.key,
     required this.jeeberName,
     this.onDismiss,
     this.onStartActiveDelivery,
+    this.onTrackOrder,
   });
 
   final String jeeberName;
@@ -30,10 +38,15 @@ class OfferAcceptedBanner extends StatelessWidget {
   /// client variant (hides the CTA).
   final VoidCallback? onStartActiveDelivery;
 
+  /// Client-only entry point into live tracking. Null until the accept
+  /// response surfaced a delivery id (hides the CTA so it is never a dead end).
+  final VoidCallback? onTrackOrder;
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final startDelivery = onStartActiveDelivery;
+    final trackOrder = onTrackOrder;
     return Container(
       key: const Key('offer-accepted-banner'),
       width: double.infinity,
@@ -49,6 +62,10 @@ class OfferAcceptedBanner extends StatelessWidget {
           if (startDelivery != null) ...[
             const SizedBox(height: Spacing.small),
             _StartActiveDeliveryCta(onTap: startDelivery),
+          ],
+          if (trackOrder != null) ...[
+            const SizedBox(height: Spacing.small),
+            _TrackOrderCta(onTap: trackOrder),
           ],
         ],
       ),
@@ -154,6 +171,34 @@ class _StartActiveDeliveryCta extends StatelessWidget {
         key: const Key('chat-start-active-delivery-cta'),
         text: l10n.chatStartActiveDeliveryButton,
         icon: const Icon(Icons.local_shipping_outlined),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+/// Client-only "Track order" CTA that opens the live-tracking screen for the
+/// accepted delivery.
+///
+/// Carries a stable Semantics identifier (`offer_accepted_track_cta`) + Key so
+/// Maestro/QA can target it in the offer-accepted → live-tracking flow. Reuses
+/// the existing `homeTrackOrderCta` localization ("Track my order" / "تتبّع
+/// طلبي") rather than introducing a new key.
+class _TrackOrderCta extends StatelessWidget {
+  const _TrackOrderCta({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      identifier: 'offer_accepted_track_cta',
+      button: true,
+      child: OmdsPrimaryButton(
+        key: const Key('offer-accepted-track-cta'),
+        text: l10n.homeTrackOrderCta,
+        icon: const Icon(Icons.location_on_outlined),
         onTap: onTap,
       ),
     );

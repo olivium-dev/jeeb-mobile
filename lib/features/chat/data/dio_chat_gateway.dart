@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 
 import '../../../core/network/mock_gateway_client.dart';
+import '../../client_offers/domain/offers_repository.dart' show OfferAcceptResult;
 import '../domain/chat_gateway.dart';
 import '../domain/chat_socket.dart';
 import '../domain/delivery_chat_message.dart';
@@ -113,8 +114,11 @@ class DioChatGateway implements ChatGateway {
   }
 
   @override
-  Future<void> acceptOffer(String conversationId, String offerId) async {
-    await _dio.post<Map<String, dynamic>>(
+  Future<OfferAcceptResult> acceptOffer(
+    String conversationId,
+    String offerId,
+  ) async {
+    final response = await _dio.post<Map<String, dynamic>>(
       '/v1/offers/$offerId/accept',
       data: <String, Object?>{
         'acceptedAt': DateTime.now().toUtc().toIso8601String(),
@@ -126,12 +130,27 @@ class DioChatGateway implements ChatGateway {
         },
       ),
     );
+    final deliveryId = _deliveryIdOf(response.data);
     // The mock backend flips the phase + writes the system message inside the
     // accept handler. We surface a synthetic phase event so the cubit reacts
-    // immediately rather than waiting for the next socket frame.
+    // immediately rather than waiting for the next socket frame; it carries
+    // the delivery id so the cubit can expose the "Track order" path.
     if (!_events.isClosed) {
-      _events.add(const PhaseChanged(ConversationPhase.accepted));
+      _events.add(
+        PhaseChanged(ConversationPhase.accepted, deliveryId: deliveryId),
+      );
     }
+    return OfferAcceptResult(deliveryId: deliveryId);
+  }
+
+  /// Defensive read of the server-created delivery id from the accept body.
+  /// Accepts both `deliveryId` and snake_case `delivery_id`; anything else
+  /// (missing field, non-string, empty) maps to null so a legacy/golden-less
+  /// response never crashes the accept path.
+  String? _deliveryIdOf(Map<String, dynamic>? body) {
+    if (body == null) return null;
+    final raw = body['deliveryId'] ?? body['delivery_id'];
+    return raw is String && raw.trim().isNotEmpty ? raw : null;
   }
 
   /// Upload a voice clip to `/v1/voice/transcribe` with a stable

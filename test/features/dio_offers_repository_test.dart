@@ -76,22 +76,52 @@ void main() {
   });
 
   group('acceptOffer', () {
-    test('returns normally on 200', () async {
-      when(() => mockDio.post<void>(any())).thenAnswer(
-        (_) async => Response<void>(
+    test('returns result (deliveryId null) on 200 with no delivery field',
+        () async {
+      when(() => mockDio.post<dynamic>(any())).thenAnswer(
+        (_) async => Response<dynamic>(
           requestOptions: RequestOptions(path: ''),
+          // Pre-golden accept body — carries no delivery id.
+          data: const {'id': 'req-1', 'status': 'accepted'},
           statusCode: 200,
         ),
       );
 
-      await expectLater(
-        repo.acceptOffer(requestId: 'req-1', offerId: 'offer-1'),
-        completes,
+      final result =
+          await repo.acceptOffer(requestId: 'req-1', offerId: 'offer-1');
+      expect(result.deliveryId, isNull);
+    });
+
+    test('surfaces deliveryId from the accept response (G3)', () async {
+      when(() => mockDio.post<dynamic>(any())).thenAnswer(
+        (_) async => Response<dynamic>(
+          requestOptions: RequestOptions(path: ''),
+          data: const {'id': 'req-1', 'deliveryId': 'dlv-golden-001'},
+          statusCode: 200,
+        ),
       );
+
+      final result =
+          await repo.acceptOffer(requestId: 'req-1', offerId: 'offer-1');
+      expect(result.deliveryId, 'dlv-golden-001');
+    });
+
+    test('reads snake_case delivery_id defensively (G3)', () async {
+      when(() => mockDio.post<dynamic>(any())).thenAnswer(
+        (_) async => Response<dynamic>(
+          requestOptions: RequestOptions(path: ''),
+          data: const {'delivery_id': 'dlv-snake-9'},
+          statusCode: 200,
+        ),
+      );
+
+      final result =
+          await repo.acceptOffer(requestId: 'req-1', offerId: 'offer-1');
+      expect(result.deliveryId, 'dlv-snake-9');
     });
 
     test('throws offerNotPending on 409', () {
-      when(() => mockDio.post<void>(any())).thenThrow(
+      when(() => mockDio.post<dynamic>(any())).thenThrow(
         DioException(
           requestOptions: RequestOptions(path: ''),
           response: Response(
