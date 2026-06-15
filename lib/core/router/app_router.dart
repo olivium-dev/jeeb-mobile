@@ -509,6 +509,16 @@ class AppRouter {
                 tierName: tier.id.name,
               ),
             ),
+            // FIX-B: the sticky Continue CTA was a dead end — only the tier
+            // card tap navigated. The screen already assembles a complete
+            // [RequestDraft] (localized tier name + pickup) from the current
+            // selection and hands it here; forward it to the SAME destination
+            // the tier-card tap uses (`/request-summary`). No double-navigate:
+            // tapping a card and pressing Continue are distinct user actions.
+            onContinue: (draft) => context.push(
+              '/request-summary',
+              extra: draft,
+            ),
           ),
         ),
         GoRoute(

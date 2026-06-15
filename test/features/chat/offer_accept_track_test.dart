@@ -17,6 +17,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/chat/application/chat_cubit.dart';
@@ -366,6 +367,57 @@ void main() {
       await tester.pump();
 
       expect(trackedId, 'dlv-golden-001');
+    });
+
+    testWidgets(
+        'NON-PREBUILT path: ChatScreen built with a gateway (not a cubit) '
+        'forwards onTrackOrder so the Track CTA appears + routes', (tester) async {
+      // FIX-A: the production/normal ChatScreen branch (no prebuilt cubit) must
+      // forward onTrackOrder to _ChatScaffold exactly like the prebuilt branch.
+      // The existing tests above all pass `cubit:`, exercising ONLY the prebuilt
+      // branch; this one passes `gateway:` so ChatScreen takes the
+      // BlocProvider.create(..)..load() path the real app uses.
+      //
+      // FAIL-WITHOUT: before FIX-A the non-prebuilt branch dropped onTrackOrder,
+      // so _trackOrderCallback() saw a null handler and the CTA never rendered —
+      // these assertions are red without the one-line forward.
+      final gw = _ScreenGateway(acceptDeliveryId: 'dlv-nonprebuilt-9');
+      addTearDown(gw.dispose);
+
+      String? trackedId;
+      await tester.pumpWidget(
+        _host(
+          ChatScreen(
+            deliveryId: 'conv-nonprebuilt',
+            counterpartName: 'Kamal Hajj',
+            // No `cubit:` → ChatScreen owns the cubit via BlocProvider.create,
+            // the real non-prebuilt branch.
+            gateway: gw,
+            onTrackOrder: (id) => trackedId = id,
+          ),
+        ),
+      );
+      // The create()..load() path resolves loadHistory/loadPhase synchronously
+      // (the gateway returns immediately); pump to settle the initial emit.
+      await tester.pump();
+      await tester.pump();
+
+      // Accepted thread with a winner → banner is up, but no tracking id yet.
+      expect(find.byKey(const Key('offer-accepted-banner')), findsOneWidget);
+      expect(find.byKey(_trackCtaKey), findsNothing);
+
+      // Accept surfaces the delivery id → the forwarded callback makes the CTA
+      // appear (this is exactly what the prebuilt branch already did).
+      final ctx = tester.element(find.byKey(const Key('offer-accepted-banner')));
+      await ctx.read<ChatCubit>().acceptOffer('offer-kamal');
+      await tester.pump();
+      expect(find.byKey(_trackCtaKey), findsOneWidget);
+
+      await tester.ensureVisible(find.byKey(_trackCtaKey));
+      await tester.tap(find.byKey(_trackCtaKey));
+      await tester.pump();
+
+      expect(trackedId, 'dlv-nonprebuilt-9');
     });
 
     testWidgets('no Track CTA when the accept response carries no deliveryId',

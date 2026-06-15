@@ -146,6 +146,7 @@ class ChatScreen extends StatelessWidget {
         feeNotice: feeNotice,
         composerHint: composerHint,
         onStartActiveDelivery: onStartActiveDelivery,
+        onTrackOrder: onTrackOrder,
       ),
     );
   }
