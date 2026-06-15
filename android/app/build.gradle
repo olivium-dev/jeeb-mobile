@@ -22,6 +22,20 @@ if (flutterVersionName == null) {
     flutterVersionName = '1.0'
 }
 
+// ─── T-MOB-012 / T-MOB-017: Google Maps API key (INJECTABLE, never committed) ──
+// Resolution priority:
+//   1. -PMAPS_API_KEY=... gradle property (CI: pass via --project-prop or
+//      ORG_GRADLE_PROJECT_MAPS_API_KEY env var)
+//   2. MAPS_API_KEY environment variable (local dev / CI secret)
+//   3. local.properties `MAPS_API_KEY=...` (gitignored; the owner's one-liner)
+//   4. documented sentinel so the build never breaks without a key
+// The resolved value feeds the `${MAPS_API_KEY}` manifest placeholder; the key
+// is NOT a Dart compile-time constant, so it never lands in lib/ or a snapshot.
+def mapsApiKey = project.findProperty('MAPS_API_KEY')
+        ?: System.getenv('MAPS_API_KEY')
+        ?: localProperties.getProperty('MAPS_API_KEY')
+        ?: 'YOUR_MAPS_API_KEY_HERE'
+
 android {
     namespace "app.jeeb.mobile"
     compileSdk 36
@@ -43,6 +57,10 @@ android {
         targetSdk 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+
+        // T-MOB-012 / T-MOB-017: feed the Maps key into the AndroidManifest
+        // `${MAPS_API_KEY}` placeholder. Applies to every flavor + build type.
+        manifestPlaceholders += [MAPS_API_KEY: mapsApiKey]
     }
 
     // ─── Flavor Configuration ────────────────────────────────────────────────

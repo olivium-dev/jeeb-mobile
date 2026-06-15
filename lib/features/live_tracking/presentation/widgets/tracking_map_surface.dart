@@ -2,21 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../l10n/app_localizations.dart';
+import '../../domain/delivery_tracking_info.dart';
+import 'tracking_google_map.dart';
 
 /// Full-bleed map surface for the order-tracking screen (Figma 56560:1772).
 ///
-/// The Figma frame shows a live map raster with the route polyline, the
-/// destination spotlight pin and the courier heading puck. Those are map-SDK
-/// overlay annotations — the raster itself is a Figma mock and is never
-/// bundled (UI-GUARDRAILS §0). Production injects the live map (gateway
-/// tracking SSE feed → `ofl_geo_capture` map layer); this themed surface
-/// stands in so the navbar + bottom status panel chrome can be validated
-/// deterministically on the dev seam / in tests, mirroring
-/// `CaptureMapViewport`.
+/// T-MOB-017: when [info] is supplied and [useLiveMap] is true this renders a
+/// live [TrackingGoogleMap] (route polyline + Jeeber heading marker driven by
+/// the [LiveTrackingCubit] state). Otherwise it falls back to the deterministic
+/// themed placeholder so the dev seam and widget tests can validate the navbar
+/// + bottom status-panel chrome without a Maps API key or a platform view
+/// (the Figma map raster is a mock and is never bundled — UI-GUARDRAILS §0).
+///
+/// The Semantics identifier + [rootKey] are kept on the wrapper in both modes
+/// so uiautomator/Maestro and widget tests target the surface identically.
 class TrackingMapSurface extends StatelessWidget {
-  const TrackingMapSurface({super.key});
+  const TrackingMapSurface({
+    super.key,
+    this.info,
+    this.useLiveMap = true,
+  });
+
+  /// Latest tracking snapshot from the cubit. Null before the first fetch.
+  final DeliveryTrackingInfo? info;
+
+  /// Test/dev-seam seam: when false the deterministic placeholder is used even
+  /// if [info] is present (a real GoogleMap can't render in `flutter test`).
+  final bool useLiveMap;
 
   static const Key rootKey = Key('tracking_map');
+
+  bool get _showsLiveMap => useLiveMap && info != null;
 
   @override
   Widget build(BuildContext context) {
@@ -25,12 +41,30 @@ class TrackingMapSurface extends StatelessWidget {
       identifier: 'tracking_map',
       image: true,
       label: l10n.trackingMapSemanticLabel,
-      child: Container(
-        key: rootKey,
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        alignment: Alignment.center,
-        child: const _MapPlaceholderMark(),
+      child: _MapBody(
+        rootKey: rootKey,
+        child: _showsLiveMap
+            ? TrackingGoogleMap(info: info!)
+            : const _MapPlaceholderMark(),
       ),
+    );
+  }
+}
+
+/// Themed container that anchors [rootKey] and frames the active surface.
+class _MapBody extends StatelessWidget {
+  const _MapBody({required this.rootKey, required this.child});
+
+  final Key rootKey;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: rootKey,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      alignment: Alignment.center,
+      child: child,
     );
   }
 }

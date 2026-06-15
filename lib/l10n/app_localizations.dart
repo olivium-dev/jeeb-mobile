@@ -653,6 +653,8 @@ class AppLocalizations {
       _get('captureLocationMapSemantic');
   String get captureLocationPinSemantic => _get('captureLocationPinSemantic');
   String get captureLocationMapPreview => _get('captureLocationMapPreview');
+  // T-MOB-012: "centre map on current GPS" button (maps wiring).
+  String get captureLocationMyLocation => _get('captureLocationMyLocation');
 
   // T-MOB-012: GPS denied + outside service area (AC4/AC5)
   String get captureLocationGpsDeniedTitle =>

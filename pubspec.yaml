@@ -79,6 +79,24 @@ dependencies:
   record: ^6.2.1
   audioplayers: ^6.7.1
 
+  # Maps + GPS for the two map screens (T-MOB-012 drop-off pin capture,
+  # T-MOB-017 live tracking). `google_maps_flutter` is the app-facing facade;
+  # `geolocator` resolves the device's current fix for the "centre on me"
+  # button. Both sit behind the existing `MapPickerLauncher` / `GeocaptureGateway`
+  # ports — the cubits and screens never import the plugins directly, so the
+  # Fakes stay the unit-test seam and `dart analyze` stays green without a key.
+  #
+  # SDK-PIN (same discipline as `record` 6.x above): this app is on
+  # Dart 3.10.8 / Flutter 3.38.9. The federated Android impl
+  # `google_maps_flutter_android` 2.19.11+ requires Dart >=3.12 / Flutter
+  # >=3.44, so pinning ONLY the facade lets pub resolve an incompatible Android
+  # impl. The facade is pinned to the last 3.38-compatible minor and the Android
+  # impl is constrained explicitly to <2.19.11 (2.19.10 is the last that
+  # declares sdk: ^3.10.0 / flutter: >=3.38.0). iOS impl 2.18.x is fine.
+  google_maps_flutter: 2.17.1
+  google_maps_flutter_android: ">=2.19.9 <2.19.11"
+  geolocator: ^14.0.0
+
   # Internationalisation
   intl: ^0.20.2
 

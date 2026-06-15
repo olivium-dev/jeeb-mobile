@@ -29,6 +29,20 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
 
+    <!--
+        T-MOB-012 / T-MOB-017: Maps + GPS.
+        - ACCESS_FINE_LOCATION is the precise-location runtime (dangerous)
+          permission `geolocator` requests via Geolocator.requestPermission()
+          (GeolocatorGeocaptureGateway.requestAlwaysPermission). It backs the
+          "centre on my location" button on the drop-off picker and the
+          courier-position fix.
+        - ACCESS_COARSE_LOCATION is the city-block-accuracy fallback Android
+          may grant instead of FINE on the 12+ two-button prompt; geolocator
+          downgrades gracefully when only COARSE is held.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"
@@ -66,6 +80,22 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="jeeb_default"/>
+
+        <!--
+            T-MOB-012 / T-MOB-017: Google Maps Android API key.
+            The literal key is NEVER committed. `${MAPS_API_KEY}` is a manifest
+            placeholder injected at build time by android/app/build.gradle from
+            (in priority order) the gradle property `MAPS_API_KEY`, the env var
+            `MAPS_API_KEY`, or local.properties `MAPS_API_KEY`. When none is
+            supplied the placeholder resolves to the documented sentinel
+            "YOUR_MAPS_API_KEY_HERE" so the manifest still merges and the rest
+            of the app builds/runs — only the GoogleMap tiles render grey with a
+            "for development purposes only" watermark until the owner drops the
+            real key in. See MAPS-IMPL.md "Where the owner injects the key".
+        -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}"/>
 
         <meta-data
             android:name="flutterEmbedding"
