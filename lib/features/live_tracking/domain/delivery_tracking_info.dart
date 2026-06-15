@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../../delivery_status/domain/jeeber_summary.dart';
+
 enum TrackingStage { ordered, picked, inTransit, atDoor, delivered }
 
 extension TrackingStageLabel on TrackingStage {
@@ -42,6 +44,7 @@ class DeliveryTrackingInfo extends Equatable {
     this.etaMinutes,
     this.jeeberPosition,
     this.polyline = const [],
+    this.jeeber,
   });
 
   /// T-MOB-017: Parses the TrackingPolylineDto shape returned by
@@ -72,6 +75,7 @@ class DeliveryTrackingInfo extends Equatable {
       etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
       jeeberPosition: pos,
       polyline: polyline,
+      jeeber: _parseJeeber(json),
     );
   }
 
@@ -126,6 +130,42 @@ class DeliveryTrackingInfo extends Equatable {
     return result;
   }
 
+  /// Parses the PUBLIC matched-Jeeber slice the gateway is allowed to surface
+  /// while a delivery is in flight: display name (first name + initial),
+  /// vehicle label, and avatar URL.
+  ///
+  /// Mirrors the real jeeb-gateway public shape — `UserProfileResponse.Name` /
+  /// `AvatarUrl` and `MatchedJeeberDto.VehicleType`
+  /// (`jeeb-gateway/src/JeebGateway/Users/UsersDtos.cs`,
+  /// `Matching/MatchingDtos.cs`). The blind-reveal rule
+  /// (`Ratings/BlindRevealPolicy.cs`) only withholds the post-delivery mutual
+  /// rating, NOT the jeeber's public profile — so name/avatar/vehicle are fair
+  /// to show once a jeeber is assigned.
+  ///
+  /// Privacy guards enforced here, not at the call site:
+  ///   * `phoneE164` is NEVER read — the in-flight surface withholds it.
+  ///   * `rating` is NEVER read — no pre-completion ratings in-flight.
+  /// Returns null while the delivery is still matching (no jeeber object), so
+  /// the card is only mounted once a jeeber is genuinely assigned.
+  static JeeberSummary? _parseJeeber(Map<String, dynamic> json) {
+    final raw = json['jeeber'];
+    if (raw is! Map<String, dynamic>) return null;
+    final displayName = (raw['displayName'] as String?)?.trim();
+    final vehicleLabel = (raw['vehicleLabel'] as String?)?.trim();
+    if (displayName == null ||
+        displayName.isEmpty ||
+        vehicleLabel == null ||
+        vehicleLabel.isEmpty) {
+      return null;
+    }
+    final avatar = (raw['avatarUrl'] as String?)?.trim();
+    return JeeberSummary(
+      displayName: displayName,
+      vehicleLabel: vehicleLabel,
+      avatarUrl: (avatar == null || avatar.isEmpty) ? null : avatar,
+    );
+  }
+
   final String deliveryId;
   final TrackingStage currentStage;
   final Map<TrackingStage, DateTime> stageTimestamps;
@@ -141,6 +181,13 @@ class DeliveryTrackingInfo extends Equatable {
 
   /// T-MOB-017: Route polyline coordinates for the map overlay.
   final List<GpsPoint> polyline;
+
+  /// The PUBLIC matched-Jeeber slice (display name, vehicle, avatar) surfaced
+  /// once a jeeber is assigned. Null while the delivery is still matching — the
+  /// tracking screen only mounts the Jeeber card when this is non-null, so the
+  /// misleading "looking for a Jeeber…" placeholder never shows on an already
+  /// GPS-streaming delivery.
+  final JeeberSummary? jeeber;
 
   static TrackingStage _parseStage(String status) {
     switch (status.toLowerCase()) {
@@ -192,5 +239,6 @@ class DeliveryTrackingInfo extends Equatable {
         etaMinutes,
         jeeberPosition,
         polyline,
+        jeeber,
       ];
 }
