@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/locale/locale_cubit.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/role_switch_cubit.dart';
@@ -107,7 +108,15 @@ class _SettingsView extends StatelessWidget {
           ),
           body: ListView(
             key: const Key('settings-screen-list'),
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
+            // Preserve the horizontal gutter AND reserve the system nav-bar
+            // inset so the final Account row clears the soft buttons in
+            // edge-to-edge mode (this is a pushed full-screen route with no
+            // bottom nav bar). See [BottomInsetX.scrollBodyBottomInset].
+            padding: EdgeInsets.only(
+              left: Spacing.medium,
+              right: Spacing.medium,
+              bottom: context.scrollBodyBottomInset,
+            ),
             children: [
               _ProfileSection(state: state),
               _AddressesSection(),

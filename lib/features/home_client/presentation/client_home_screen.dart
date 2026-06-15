@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/layout/bottom_inset.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/client_home_cubit.dart';
 import '../application/client_home_state.dart';
@@ -164,6 +165,9 @@ class _LoadingLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
+      // Reserve the system nav-bar inset so the last item clears the soft
+      // buttons / bottom nav bar in edge-to-edge mode. See [BottomInsetX].
+      padding: EdgeInsets.only(bottom: context.scrollBodyBottomInset),
       children: [
         ClientHomeGreeting(name: null, onAddPressed: onCreateRequest),
         _ClientHomeVoiceRequestCta(onRecordVoice: onRecordVoice),
@@ -212,6 +216,9 @@ class _FailedLayout extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
+      // Reserve the system nav-bar inset so the retry CTA clears the soft
+      // buttons / bottom nav bar in edge-to-edge mode. See [BottomInsetX].
+      padding: EdgeInsets.only(bottom: context.scrollBodyBottomInset),
       children: [
         ClientHomeGreeting(name: name, onAddPressed: onCreateRequest),
         _ClientHomeVoiceRequestCta(onRecordVoice: onRecordVoice),
@@ -252,7 +259,12 @@ class _ReadyLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: Spacing.twoXLarge),
+      // Keep the design's twoXLarge breathing room AND reserve the system
+      // nav-bar inset so the last order card clears the soft buttons / bottom
+      // nav bar in edge-to-edge mode. See [BottomInsetX.scrollBodyBottomInset].
+      padding: EdgeInsets.only(
+        bottom: Spacing.twoXLarge + context.scrollBodyBottomInset,
+      ),
       children: _scrollChildren(),
     );
   }

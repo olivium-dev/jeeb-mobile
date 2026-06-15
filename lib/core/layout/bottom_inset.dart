@@ -54,6 +54,36 @@ extension BottomInsetX on BuildContext {
     final navBar = view.viewPadding.bottom / view.devicePixelRatio;
     return keyboard + navBar;
   }
+
+  /// Bottom padding for a scrollable [Scaffold] body (e.g. a `ListView`) so its
+  /// LAST item scrolls clear of the system navigation bar / soft buttons in
+  /// edge-to-edge mode.
+  ///
+  /// ## Why this exists (distinct from [sheetBottomInset])
+  ///
+  /// Two scrollable-body contexts both leak content under the soft buttons:
+  ///
+  /// 1. A screen pushed as a full route (e.g. Settings via `MaterialPageRoute`)
+  ///    has NO `bottomNavigationBar`, so in edge-to-edge mode the `Scaffold`
+  ///    body draws all the way down to the physical screen edge — the last
+  ///    list row renders behind the soft buttons.
+  /// 2. A tab body hosted above a `bottomNavigationBar` (e.g. the home request
+  ///    list) is laid out above the bar, but its scroll extent must still
+  ///    reserve enough bottom padding for the last card to scroll fully clear;
+  ///    a fixed token (`Spacing.twoXLarge` = 32dp) is smaller than a 3-button
+  ///    nav inset (~48dp), so the last card stays clipped against the bar.
+  ///
+  /// Unlike [sheetBottomInset], this reads [MediaQueryData.viewPadding] (NOT
+  /// `View.of(context)`): a pushed [PageRoute] does NOT consume the bottom
+  /// padding (only `showModalBottomSheet` does), so MediaQuery carries the true
+  /// nav-bar inset here. Reading MediaQuery also makes this **double-pad safe**:
+  /// if an ancestor already consumed the bottom inset via `SafeArea`, this
+  /// returns `0` and no extra padding is added.
+  ///
+  /// No keyboard term: a scroll body's input fields scroll into view on focus,
+  /// so only the stable nav-bar inset matters. Correct for BOTH gesture
+  /// navigation (~24dp) and 3-button navigation (~48dp) — no hardcoded padding.
+  double get scrollBodyBottomInset => MediaQuery.of(this).viewPadding.bottom;
 }
 
 /// Wraps a modal bottom sheet body so its content clears the keyboard and the
