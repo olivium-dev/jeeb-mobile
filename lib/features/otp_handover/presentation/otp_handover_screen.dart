@@ -242,10 +242,13 @@ class _OtpCodeDisplay extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Semantics(
+      // QA: uiautomator-addressable handle for the client-facing code display.
+      identifier: 'otp_handover_code_display',
       liveRegion: true,
       label: 'OTP code',
       value: code.split('').join(' '),
       child: Container(
+        key: const Key('otpHandover.codeDisplay'),
         padding: const EdgeInsetsDirectional.symmetric(
           horizontal: Spacing.twoXLarge,
           vertical: Spacing.medium,
@@ -385,16 +388,26 @@ class _ShakingOtpInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: shakeAnim,
-      builder: (_, child) => Transform.translate(
-        offset: Offset(shakeAnim.value, 0),
-        child: child,
-      ),
-      child: OmdsOtpInput(
-        length: 4,
-        onChanged: onChanged,
-        onCompleted: onCompleted,
+    return Semantics(
+      // QA: uiautomator-addressable handle for the Jeeber OTP entry field.
+      // `container: true` makes the identifier surface as its own queryable
+      // SemanticsNode even though OmdsOtpInput renders multiple cell fields
+      // (CAP-1: a non-boundary id over a multi-child widget can be folded into
+      // an ancestor).
+      identifier: 'otp_handover_input',
+      container: true,
+      child: AnimatedBuilder(
+        animation: shakeAnim,
+        builder: (_, child) => Transform.translate(
+          offset: Offset(shakeAnim.value, 0),
+          child: child,
+        ),
+        child: OmdsOtpInput(
+          key: const Key('otpHandover.input'),
+          length: 4,
+          onChanged: onChanged,
+          onCompleted: onCompleted,
+        ),
       ),
     );
   }
@@ -438,11 +451,19 @@ class _SubmitButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return OmdsLoadingButton(
-      text: l10n.otpVerifyButton,
-      isLoading: isSubmitting,
-      isEnabled: code.length == 4 && !isSubmitting,
-      onTap: onSubmit,
+    return Semantics(
+      // QA: uiautomator-addressable handle for the verify/submit CTA. No
+      // `button: true` here — OmdsLoadingButton already exposes the button
+      // role; `container: true` keeps this identifier its own queryable node.
+      identifier: 'otp_handover_submit',
+      container: true,
+      child: OmdsLoadingButton(
+        key: const Key('otpHandover.submit'),
+        text: l10n.otpVerifyButton,
+        isLoading: isSubmitting,
+        isEnabled: code.length == 4 && !isSubmitting,
+        onTap: onSubmit,
+      ),
     );
   }
 }
