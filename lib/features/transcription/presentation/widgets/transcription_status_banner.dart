@@ -68,9 +68,14 @@ class _BannerSurface extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final container =
         isFailed ? colorScheme.errorContainer : colorScheme.secondaryContainer;
+    // The queued container resolves to deep navy in the Jeeb scheme, so its
+    // on-color must be the high-contrast on-navy token (`onPrimary`, white)
+    // rather than `onSecondaryContainer` (muted purple #777FC0, ~3:1 on navy
+    // — fails WCAG 2.2 AA for body text). The failed container is a light
+    // error tint, so it keeps its M3-paired `onErrorContainer`.
     final onContainer = isFailed
         ? colorScheme.onErrorContainer
-        : colorScheme.onSecondaryContainer;
+        : colorScheme.onPrimary;
     return Semantics(
       container: true,
       label: '$title. $body',
