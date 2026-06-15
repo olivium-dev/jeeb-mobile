@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
@@ -85,25 +86,42 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final pages = _onboardingPages(AppLocalizations.of(context));
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-      body: Stack(
-        children: [
-          _IllustrationCarousel(
-            controller: _pageController,
-            pages: pages,
-            onPageChanged: (i) => setState(() => _currentPage = i),
-          ),
-          const _BottomScrim(),
-          _BottomPanel(
-            pages: pages,
-            currentPage: _currentPage,
-            onNext: () => _onNext(pages.length),
-            onSkip: _completeAndNavigate,
-          ),
-          const _LanguageToggle(),
-        ],
+    // The hero illustration band is brand-navy (`secondaryContainer`), so the
+    // status bar must paint LIGHT (white) icons to stay legible — the global
+    // `Brightness.dark` set in `main()` is for the light auth/client screens.
+    // The bottom band is the light `surface` scrim, so the system nav-bar icons
+    // resolve from the active theme brightness (dark icons in light mode).
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+        systemNavigationBarIconBrightness:
+            Theme.of(context).brightness == Brightness.dark
+                ? Brightness.light
+                : Brightness.dark,
+      ),
+      child: Scaffold(
+        backgroundColor: colorScheme.secondaryContainer,
+        body: Stack(
+          children: [
+            _IllustrationCarousel(
+              controller: _pageController,
+              pages: pages,
+              onPageChanged: (i) => setState(() => _currentPage = i),
+            ),
+            const _BottomScrim(),
+            _BottomPanel(
+              pages: pages,
+              currentPage: _currentPage,
+              onNext: () => _onNext(pages.length),
+              onSkip: _completeAndNavigate,
+            ),
+            const _LanguageToggle(),
+          ],
+        ),
       ),
     );
   }
