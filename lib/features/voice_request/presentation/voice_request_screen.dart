@@ -13,8 +13,11 @@ import 'voice_recording_screen.dart';
 class VoiceRequestScreen extends StatelessWidget {
   const VoiceRequestScreen({super.key, this.onSent});
 
-  /// Optional callback fired once the request is sent (receives transcript id).
-  final ValueChanged<String>? onSent;
+  /// Optional callback fired once the request is sent. Receives the upload id
+  /// and the optional machine transcript (null when resolved asynchronously),
+  /// so the transcription-result step can show the transcript on the happy
+  /// path.
+  final void Function(String id, String? transcript)? onSent;
 
   @override
   Widget build(BuildContext context) {

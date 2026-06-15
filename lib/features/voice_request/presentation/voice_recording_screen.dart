@@ -52,9 +52,13 @@ class VoiceRecordingScreen extends StatelessWidget {
   /// default with the in-memory recorder/player and HTTP repository.
   final VoiceRecordingCubit? cubit;
 
-  /// Callback fired once the cubit transitions to `sent`. Defaults to a
+  /// Callback fired once the cubit transitions to `sent`. Receives the upload
+  /// id and the optional machine [TranscriptionResult.transcript] so the
+  /// downstream transcription-result screen can land on its happy path (it
+  /// reads `clip.transcript`). The transcript is `null` when the gateway
+  /// resolves it asynchronously; callers must tolerate null. Defaults to a
   /// no-op so the screen can also be used as a standalone surface.
-  final ValueChanged<String>? onSent;
+  final void Function(String id, String? transcript)? onSent;
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +103,7 @@ class VoiceRecordingScreen extends StatelessWidget {
 class _VoiceRecordingView extends StatelessWidget {
   const _VoiceRecordingView({this.onSent});
 
-  final ValueChanged<String>? onSent;
+  final void Function(String id, String? transcript)? onSent;
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +120,11 @@ class _VoiceRecordingView extends StatelessWidget {
           listener: (context, state) {
             if (state.phase == VoiceRecordingPhase.sent &&
                 state.result != null) {
-              onSent?.call(state.result!.id);
+              // Forward both the upload id AND the machine transcript so the
+              // transcription-result screen lands on the happy path when the
+              // gateway returned the transcript synchronously (T-MOB-011 →
+              // T-MOB-TRANSCRIPT). `transcript` is null when resolved async.
+              onSent?.call(state.result!.id, state.result!.transcript);
             }
             final error = state.error;
             if (error != null) {

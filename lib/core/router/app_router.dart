@@ -329,6 +329,21 @@ class AppRouter {
         GoRoute(
           path: '/orders/:id/rate',
           name: 'rating-prompt',
+          // B-3: the `rating-prompt` placeholder is superseded by the real
+          // blind mutual-rating screen (T-MOB-020). Redirect this route — hit
+          // from the post-delivery "rate" notification deep link
+          // (notification_deep_link.dart) — to `/orders/:id/mutual-rate`,
+          // carrying the delivery id (and any `mode` query param) through. The
+          // [RatingPromptScreen] builder below is retained only as an
+          // unreachable fallback so the placeholder file stays under the
+          // Type-A discipline gate until T-MOB-RATING-001 formally lifts it.
+          redirect: (context, state) {
+            final id = state.pathParameters['id'] ?? '';
+            if (id.isEmpty) return null;
+            final query = state.uri.query;
+            final suffix = query.isEmpty ? '' : '?$query';
+            return '/orders/$id/mutual-rate$suffix';
+          },
           builder: (context, state) => RatingPromptScreen(
             deliveryId: state.pathParameters['id'] ?? '',
           ),
@@ -450,16 +465,22 @@ class AppRouter {
           path: '/voice-request',
           name: 'voice-request',
           // A-P1: wire the recording → transcription chain. The screen's
-          // `onSent` surfaces the transcription result id (a String); the
-          // transcription route requires a [VoiceClip] via `extra`. We bridge
-          // by wrapping the id into a VoiceClip here so the downstream cast
-          // (`state.extra as VoiceClip`) succeeds. (Adjusting the screen to
-          // surface the full clip is owned by the voice_request feature; the
-          // router does the minimal-coupling bridge.)
+          // `onSent` now surfaces BOTH the transcription result id and the
+          // optional machine transcript; the transcription route requires a
+          // [VoiceClip] via `extra`. We bridge by wrapping both into a
+          // VoiceClip here so the downstream screen reads `clip.transcript`
+          // and lands on its happy path when the gateway returned the
+          // transcript synchronously (null → the screen's queued/manual-entry
+          // state). (The full clip surface is owned by the voice_request
+          // feature; the router does the minimal-coupling bridge.)
           builder: (context, state) => VoiceRequestScreen(
-            onSent: (clipId) => context.push(
+            onSent: (clipId, transcript) => context.push(
               '/voice-request/transcription',
-              extra: VoiceClip(audioPath: clipId, durationMs: 0),
+              extra: VoiceClip(
+                audioPath: clipId,
+                durationMs: 0,
+                transcript: transcript,
+              ),
             ),
           ),
         ),
