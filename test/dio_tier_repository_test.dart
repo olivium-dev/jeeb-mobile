@@ -87,6 +87,51 @@ void main() {
       expect(tiers[2].slaMinutes, 480);
     });
 
+    // FIX-TIERS-FIVE — addressability/regression lock for the live mock
+    // contract. On-device only 3 tier cards rendered (Flash/Express/Standard)
+    // because the Mockoon :3055 `GET /tiers` route served only 3 rows from the
+    // s05-order-prohibited-items bucket, even though TierId has 5 values and
+    // the screen/_tierIcon resolver cover all 5. The unit suite stayed green
+    // because every screen test injects FakeTierRepository (5 rows). This test
+    // closes that gap: it feeds DioTierRepository the EXACT payload the mock
+    // now serves (verified `curl localhost:3055/tiers`) — 5 items including the
+    // snake_case `on_the_way` id and a null slaHours on the opportunistic tier
+    // — and asserts all five parse, in Figma display order, with the correct
+    // TierId mapping. It would go red if the mock regresses to the 3-row list.
+    test('parses the full 5-tier mock contract (Flash→Express→Standard→'
+        'On-the-way→Eco), mapping snake_case on_the_way + null SLA', () async {
+      final dio = _dioWith({
+        'items': [
+          {'id': 'flash', 'name': 'Flash', 'slaHours': 1, 'radiusKm': 3.0, 'commissionRate': 0.15, 'priceHint': r'$$$'},
+          {'id': 'express', 'name': 'Express', 'slaHours': 2, 'radiusKm': 10.0, 'commissionRate': 0.12, 'priceHint': r'$$'},
+          {'id': 'standard', 'name': 'Standard', 'slaHours': 8, 'radiusKm': 25.0, 'commissionRate': 0.10, 'priceHint': r'$'},
+          {'id': 'on_the_way', 'name': 'On-the-way', 'slaHours': null, 'radiusKm': 40.0, 'commissionRate': 0.08, 'priceHint': r'$'},
+          {'id': 'eco', 'name': 'Eco', 'slaHours': 48, 'radiusKm': 40.0, 'commissionRate': 0.06, 'priceHint': r'$'},
+        ],
+      });
+      final repo = DioTierRepository(dio);
+
+      final tiers = await repo.fetchTiers();
+
+      expect(
+        tiers.map((t) => t.id).toList(),
+        const [
+          TierId.flash,
+          TierId.express,
+          TierId.standard,
+          TierId.onTheWay,
+          TierId.eco,
+        ],
+        reason: 'all five TierId values must round-trip from the live mock',
+      );
+      // Opportunistic tier carries no SLA (null slaHours → null slaMinutes).
+      final onTheWay = tiers.firstWhere((t) => t.id == TierId.onTheWay);
+      expect(onTheWay.slaMinutes, isNull);
+      // Eco's 48h SLA survives the hours→minutes conversion.
+      final eco = tiers.firstWhere((t) => t.id == TierId.eco);
+      expect(eco.slaMinutes, 48 * 60);
+    });
+
     test('accepts bare array response', () async {
       final dio = _dioWith([
         {'id': 'flash', 'slaHours': 1, 'priceHint': r'$$$'},
