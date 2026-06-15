@@ -25,15 +25,18 @@ import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
 import 'package:jeeb_mobile/core/onboarding/onboarding_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_eligibility_cubit.dart';
+import 'package:jeeb_mobile/core/di/injection_container.dart';
 import 'package:jeeb_mobile/core/router/app_router.dart';
 import 'package:jeeb_mobile/features/biometric_auth/application/biometric_lock_cubit.dart';
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
 import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_repository.dart';
 import 'package:jeeb_mobile/features/request_summary/application/request_summary_cubit.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/request_draft.dart';
+import 'package:jeeb_mobile/features/request_summary/domain/request_submission_service.dart';
 import 'package:jeeb_mobile/features/settings/data/repositories/biometric_preference_repository_impl.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
+import '../../support/fake_request_submission_service.dart';
 import '../../support/sync_app_localizations.dart';
 
 Future<({
@@ -112,6 +115,20 @@ const _draft = RequestDraft(
 
 void main() {
   group('GoRoute /request-summary (T-MOB-FIX-004 LEAD pin: Option B)', () {
+    // The /request-summary builder resolves sl<RequestSubmissionService>() to
+    // construct the cubit. Register a fake so the route builds without the
+    // real Dio service (T-MOB-REQSUBMIT).
+    setUp(() async {
+      await sl.reset();
+      sl.registerLazySingleton<RequestSubmissionService>(
+        FakeRequestSubmissionService.new,
+      );
+    });
+
+    tearDown(() async {
+      await sl.reset();
+    });
+
     testWidgets(
       'Test 1 — happy path: RequestDraft extra renders screen with '
       'draft fields and an enabled Submit button injected via BlocProvider',

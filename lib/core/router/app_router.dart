@@ -62,6 +62,7 @@ import '../../features/otp_handover/presentation/otp_handover_screen.dart';
 import '../../features/registration/presentation/registration_screen.dart';
 import '../../features/request_summary/application/request_summary_cubit.dart';
 import '../../features/request_summary/domain/request_draft.dart';
+import '../../features/request_summary/domain/request_submission_service.dart';
 import '../../features/request_summary/presentation/request_summary_screen.dart';
 import '../../features/request_summary/presentation/request_summary_unavailable_screen.dart';
 import '../../features/settings/presentation/screens/notification_preferences_screen.dart';
@@ -596,7 +597,9 @@ class AppRouter {
               return const RequestSummaryUnavailableScreen();
             }
             return BlocProvider<RequestSummaryCubit>(
-              create: (_) => RequestSummaryCubit()..setDraft(extra),
+              create: (_) =>
+                  RequestSummaryCubit(sl<RequestSubmissionService>())
+                    ..setDraft(extra),
               child: const RequestSummaryScreen(),
             );
           },
