@@ -318,6 +318,7 @@ class _TierEntry extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final copy = _RequestTierCopy.of(l10n, tier.id);
     return RequestTierCard(
+      icon: _tierIcon(tier.id),
       title: copy.title,
       speed: copy.speed,
       value: copy.value,
@@ -337,6 +338,19 @@ class _TierEntry extends StatelessWidget {
     context.read<TierSelectionCubit>().selectTier(tier.id);
     onTierSelected?.call(tier);
   }
+
+  /// OMDS-style vector glyph per tier — replaces the legacy emoji prefix that
+  /// used to live in the localized title (⚡🚀⚖️🤝🌿). Material `IconData` is
+  /// the design-system iconography idiom used across the app (see
+  /// `client_offers/.../offer_card.dart`); OMDS exports no standalone icon
+  /// component.
+  static IconData _tierIcon(TierId id) => switch (id) {
+        TierId.flash => Icons.bolt_outlined,
+        TierId.express => Icons.rocket_launch_outlined,
+        TierId.standard => Icons.balance_outlined,
+        TierId.onTheWay => Icons.handshake_outlined,
+        TierId.eco => Icons.eco_outlined,
+      };
 }
 
 /// Resolves the emoji title + two description lines for a [TierId] from the

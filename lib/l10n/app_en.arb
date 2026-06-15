@@ -1155,9 +1155,9 @@
   "@requestTypeContinue": {
     "description": "Sticky primary CTA that advances from the Request type screen to the request summary"
   },
-  "tierFlashTitle": "⚡ Flash",
+  "tierFlashTitle": "Flash",
   "@tierFlashTitle": {
-    "description": "Emoji tier title on the Request type screen — Flash"
+    "description": "Tier title on the Request type screen — Flash (leading icon is an OMDS vector icon)"
   },
   "tierFlashSpeed": "Delivered in less than 1 hour.",
   "@tierFlashSpeed": {
@@ -1167,9 +1167,9 @@
   "@tierFlashValue": {
     "description": "Price/value line for the Flash tier"
   },
-  "tierExpressTitle": "🚀 Express",
+  "tierExpressTitle": "Express",
   "@tierExpressTitle": {
-    "description": "Emoji tier title — Express"
+    "description": "Tier title — Express (leading icon is an OMDS vector icon)"
   },
   "tierExpressSpeed": "Arrives within 2-3 hours.",
   "@tierExpressSpeed": {
@@ -1179,9 +1179,9 @@
   "@tierExpressValue": {
     "description": "Price/value line for the Express tier"
   },
-  "tierStandardTitle": "⚖️ Standard",
+  "tierStandardTitle": "Standard",
   "@tierStandardTitle": {
-    "description": "Emoji tier title — Standard"
+    "description": "Tier title — Standard (leading icon is an OMDS vector icon)"
   },
   "tierStandardSpeed": "Delivered later today at a balanced rate.",
   "@tierStandardSpeed": {
@@ -1191,9 +1191,9 @@
   "@tierStandardValue": {
     "description": "Price/value line for the Standard tier"
   },
-  "tierOnTheWayTitle": "🤝 On-the-Way",
+  "tierOnTheWayTitle": "On-the-Way",
   "@tierOnTheWayTitle": {
-    "description": "Emoji tier title — On-the-Way"
+    "description": "Tier title — On-the-Way (leading icon is an OMDS vector icon)"
   },
   "tierOnTheWaySpeed": "Matched with someone already heading there.",
   "@tierOnTheWaySpeed": {
@@ -1203,9 +1203,9 @@
   "@tierOnTheWayValue": {
     "description": "Price/value line for the On-the-Way tier"
   },
-  "tierEcoTitle": "🌿 Eco",
+  "tierEcoTitle": "Eco",
   "@tierEcoTitle": {
-    "description": "Emoji tier title — Eco"
+    "description": "Tier title — Eco (leading icon is an OMDS vector icon)"
   },
   "tierEcoSpeed": "Delivered within 24–48 hours.",
   "@tierEcoSpeed": {

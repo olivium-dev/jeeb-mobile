@@ -56,14 +56,10 @@ class _JeeberRow extends StatelessWidget {
 
   final JeeberSummary jeeber;
 
-  String _initials() {
-    final parts = jeeber.displayName.trim().split(RegExp(r'\s+'));
-    final letters = parts
-        .where((p) => p.isNotEmpty)
-        .map((p) => p.characters.first)
-        .take(2)
-        .join();
-    return letters.toUpperCase();
+  String _initial() {
+    final trimmed = jeeber.displayName.trim();
+    if (trimmed.isEmpty) return '?';
+    return trimmed.characters.first.toUpperCase();
   }
 
   @override
@@ -74,31 +70,12 @@ class _JeeberRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Container(
-          width: Sizes.threeXLarge,
-          height: Sizes.threeXLarge,
-          decoration: BoxDecoration(
-            color: colorScheme.primaryContainer,
-            shape: BoxShape.circle,
-          ),
-          alignment: Alignment.center,
-          child: jeeber.avatarUrl == null
-              ? Text(
-                  _initials(),
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: colorScheme.onPrimaryContainer,
-                    fontWeight: FontWeight.w700,
-                  ),
-                )
-              : ClipOval(
-                  child: Image.network(
-                    jeeber.avatarUrl!,
-                    width: Sizes.threeXLarge,
-                    height: Sizes.threeXLarge,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Text(_initials()),
-                  ),
-                ),
+        OmdsProfileAvatar(
+          initial: _initial(),
+          profilePicUrl: jeeber.avatarUrl,
+          size: Sizes.threeXLarge,
+          backgroundColor: colorScheme.primaryContainer,
+          initialColor: colorScheme.onPrimaryContainer,
         ),
         const SizedBox(width: Spacing.medium),
         Expanded(

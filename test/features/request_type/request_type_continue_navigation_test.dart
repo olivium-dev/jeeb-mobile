@@ -151,11 +151,12 @@ void main() {
           reason: 'Continue must navigate to /request-summary (the same '
               'destination the tier-card tap uses).',
         );
-        // The screen-built draft carries the localized tier title (⚡ Flash),
-        // proving Continue forwards the CURRENTLY SELECTED tier, not an empty
-        // / default draft.
+        // The screen-built draft carries the localized tier title (plain
+        // "Flash" — the emoji glyph is now a separate OMDS vector icon, not
+        // baked into the data), proving Continue forwards the CURRENTLY
+        // SELECTED tier, not an empty / default draft.
         expect(
-          find.text('⚡ Flash'),
+          find.text('Flash'),
           findsOneWidget,
           reason: 'The summary must show the selected tier name forwarded by '
               'the Continue CTA.',
@@ -210,7 +211,7 @@ void main() {
         );
         expect(
           forwarded!.tierName,
-          '🌿 Eco',
+          'Eco',
           reason: 'The draft carries the localized tier title, not the enum '
               'name — proving the screen-built draft, not a stub.',
         );
