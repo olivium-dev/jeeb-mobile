@@ -58,6 +58,7 @@ class ChatScreen extends StatelessWidget {
     this.feeNotice,
     this.composerHint,
     this.onStartActiveDelivery,
+    this.onTrackOrder,
     this.cubit,
     this.gateway,
     this.pickerService,
@@ -96,6 +97,14 @@ class ChatScreen extends StatelessWidget {
   /// Jeeber's chat, where the delivery id is in scope.
   final VoidCallback? onStartActiveDelivery;
 
+  /// Client-only entry point into live tracking, invoked with the
+  /// server-created delivery id captured from the accept response. When
+  /// non-null AND an accept surfaced a delivery id, the [OfferAcceptedBanner]
+  /// renders a "Track order" CTA that routes to
+  /// `/orders/<deliveryId>/tracking`. Null on the Jeeber variant. Hidden until
+  /// a delivery id is available, so it is never a dead end (G5 fix).
+  final void Function(String deliveryId)? onTrackOrder;
+
   /// Pre-built cubit for widget tests / hosts that own the lifecycle.
   final ChatCubit? cubit;
 
@@ -120,6 +129,7 @@ class ChatScreen extends StatelessWidget {
           feeNotice: feeNotice,
           composerHint: composerHint,
           onStartActiveDelivery: onStartActiveDelivery,
+          onTrackOrder: onTrackOrder,
         ),
       );
     }
@@ -149,6 +159,7 @@ class _ChatScaffold extends StatefulWidget {
     this.feeNotice,
     this.composerHint,
     this.onStartActiveDelivery,
+    this.onTrackOrder,
   });
 
   final String counterpartName;
@@ -157,6 +168,7 @@ class _ChatScaffold extends StatefulWidget {
   final ChatFeeNotice? feeNotice;
   final String? composerHint;
   final VoidCallback? onStartActiveDelivery;
+  final void Function(String deliveryId)? onTrackOrder;
 
   @override
   State<_ChatScaffold> createState() => _ChatScaffoldState();
@@ -226,12 +238,23 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
       winnerName: winnerName,
       onBannerDismiss: () => setState(() => _bannerDismissed = true),
       onStartActiveDelivery: widget.onStartActiveDelivery,
+      onTrackOrder: _trackOrderCallback(state),
       showRemovedBanner: state.phase == ConversationPhase.closed &&
           state.messages.any(
             (m) => m.kind == MessageKind.offerRejected,
           ),
       broadcastExpiresAt: state.broadcastExpiresAt,
     );
+  }
+
+  /// Builds the zero-arg banner callback only when both a host route handler
+  /// is wired AND the accept surfaced a delivery id. Returns null otherwise,
+  /// so the "Track order" CTA stays hidden (never a dead end).
+  VoidCallback? _trackOrderCallback(ChatState state) {
+    final handler = widget.onTrackOrder;
+    if (handler == null || !state.canTrackDelivery) return null;
+    final deliveryId = state.acceptedDeliveryId!;
+    return () => handler(deliveryId);
   }
 
   String? _extractWinnerName(ChatState state) {
@@ -288,6 +311,7 @@ class _ChatBody extends StatelessWidget {
     this.winnerName,
     this.onBannerDismiss,
     this.onStartActiveDelivery,
+    this.onTrackOrder,
     this.showRemovedBanner = false,
     this.broadcastExpiresAt,
   });
@@ -301,6 +325,7 @@ class _ChatBody extends StatelessWidget {
   final String? winnerName;
   final VoidCallback? onBannerDismiss;
   final VoidCallback? onStartActiveDelivery;
+  final VoidCallback? onTrackOrder;
   final bool showRemovedBanner;
   final DateTime? broadcastExpiresAt;
 
@@ -319,6 +344,7 @@ class _ChatBody extends StatelessWidget {
             jeeberName: winnerName!,
             onDismiss: onBannerDismiss,
             onStartActiveDelivery: onStartActiveDelivery,
+            onTrackOrder: onTrackOrder,
           ),
         if (showRemovedBanner) const JeeberRemovedBanner(),
         if (state.phase == ConversationPhase.broadcasting)

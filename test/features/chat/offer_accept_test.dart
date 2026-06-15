@@ -14,6 +14,8 @@ import 'package:jeeb_mobile/features/chat/application/chat_cubit.dart';
 import 'package:jeeb_mobile/features/chat/application/chat_state.dart';
 import 'package:jeeb_mobile/features/chat/domain/chat_gateway.dart';
 import 'package:jeeb_mobile/features/chat/domain/delivery_chat_message.dart';
+import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart'
+    show OfferAcceptResult;
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 
 class _RaceGateway extends ChatGateway {
@@ -37,8 +39,12 @@ class _RaceGateway extends ChatGateway {
   Stream<ChatEvent> subscribe(String id) => const Stream.empty();
 
   @override
-  Future<void> acceptOffer(String conversationId, String offerId) async {
+  Future<OfferAcceptResult> acceptOffer(
+    String conversationId,
+    String offerId,
+  ) async {
     if (shouldThrow409) throw Exception('409 Conflict');
+    return OfferAcceptResult.empty;
   }
 }
 

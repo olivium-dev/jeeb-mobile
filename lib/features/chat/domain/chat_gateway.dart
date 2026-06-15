@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../../client_offers/domain/offers_repository.dart' show OfferAcceptResult;
 import 'delivery_chat_message.dart';
 
 /// Outbound contract for chat transport. The cubit handles optimistic UI
@@ -47,7 +48,17 @@ abstract class ChatGateway {
   /// offer-service saga (winning offer accepted, losers superseded, phase
   /// flipped, system message appended). The gateway is responsible for the
   /// HTTP call; the cubit re-fetches history + phase once this resolves.
-  Future<void> acceptOffer(String conversationId, String offerId) async {}
+  ///
+  /// Returns an [OfferAcceptResult] carrying the server-created
+  /// [OfferAcceptResult.deliveryId] so the cubit can offer a "Track order"
+  /// path into live tracking. The default (MVP in-memory + dev-fixture
+  /// gateways) returns [OfferAcceptResult.empty] — no delivery id — which the
+  /// cubit treats as "tracking not yet reachable".
+  Future<OfferAcceptResult> acceptOffer(
+    String conversationId,
+    String offerId,
+  ) async =>
+      OfferAcceptResult.empty;
 
   /// Upload a raw voice clip to `/v1/voice/transcribe` and return the CDN URL
   /// and optional transcription text. The [idempotencyKey] must be stable
@@ -105,7 +116,14 @@ class ReadReceipt extends ChatEvent {
 /// The conversation flipped phase (e.g. `broadcasting → accepted` after the
 /// client accepted an offer). The cubit re-derives composer visibility and
 /// re-fetches history so the system message is visible.
+///
+/// When the transition is the accept that created a delivery, [deliveryId]
+/// carries the server-created delivery id so the cubit can expose the
+/// "Track order" path even if it learns about the accept over the event
+/// stream rather than from the [ChatGateway.acceptOffer] return value. Null
+/// for any other phase transition (or when the gateway does not surface one).
 class PhaseChanged extends ChatEvent {
-  const PhaseChanged(this.phase);
+  const PhaseChanged(this.phase, {this.deliveryId});
   final ConversationPhase phase;
+  final String? deliveryId;
 }

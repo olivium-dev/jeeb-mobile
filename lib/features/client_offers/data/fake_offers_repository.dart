@@ -58,7 +58,7 @@ class FakeOffersRepository implements OffersRepository {
   }
 
   @override
-  Future<void> acceptOffer({
+  Future<OfferAcceptResult> acceptOffer({
     required String requestId,
     required String offerId,
   }) async {
@@ -74,6 +74,8 @@ class FakeOffersRepository implements OffersRepository {
       throw const OffersRepositoryException(OffersFailure.offerNotPending);
     }
     _requestOpen = false;
+    // The fake mirrors the mock convention deliveryId == accepted-request-id.
+    return OfferAcceptResult(deliveryId: requestId);
   }
 
   DateTime _lastEmittedAt = DateTime.fromMillisecondsSinceEpoch(0);

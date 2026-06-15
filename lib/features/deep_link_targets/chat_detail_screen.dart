@@ -209,6 +209,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       onStartActiveDelivery: isJeeber
           ? () => context.push('/jeeber/deliveries/$_deliveryId/active')
           : null,
+      // Client-only: once the accept surfaces a delivery id, the chat banner's
+      // "Track order" CTA routes to live tracking (`/orders/:id/tracking`,
+      // route `live-tracking`). Null on the Jeeber variant (Jeeber starts the
+      // delivery instead). ChatScreen only invokes this when the delivery id
+      // is available, so the CTA is never a dead end.
+      onTrackOrder: isJeeber
+          ? null
+          : (deliveryId) => context.push('/orders/$deliveryId/tracking'),
     );
   }
 }

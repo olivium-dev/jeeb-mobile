@@ -322,11 +322,12 @@ class _SuspendingRepository implements OffersRepository {
   Future<OffersSnapshot> fetchOffers(String requestId) async => snapshot;
 
   @override
-  Future<void> acceptOffer({
+  Future<OfferAcceptResult> acceptOffer({
     required String requestId,
     required String offerId,
   }) async {
     acceptCalls++;
     await acceptGate;
+    return OfferAcceptResult.empty;
   }
 }
