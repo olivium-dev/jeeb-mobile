@@ -96,8 +96,14 @@ class _StarSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
+      // QA: uiautomator-addressable handle for the star-rating input.
+      // `container: true` makes the identifier surface as its own node even
+      // though OmdsStarRating renders multiple tappable stars (CAP-1).
+      identifier: 'mutual_rating_stars',
+      container: true,
       label: '$stars stars selected',
       child: OmdsStarRating(
+        key: const Key('mutualRating.stars'),
         rating: stars,
         onRatingChanged: (v) => context.read<MutualRatingCubit>().setStars(v),
       ),
@@ -112,11 +118,18 @@ class _CommentField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return OmdsTextField(
-      hintText: l10n.ratingCommentHint,
-      maxLines: 4,
-      maxLength: 500,
-      onChanged: (v) => context.read<MutualRatingCubit>().setComment(v),
+    return Semantics(
+      // QA: uiautomator-addressable handle for the optional comment field.
+      identifier: 'mutual_rating_comment',
+      textField: true,
+      label: l10n.ratingCommentHint,
+      child: OmdsTextField(
+        key: const Key('mutualRating.comment'),
+        hintText: l10n.ratingCommentHint,
+        maxLines: 4,
+        maxLength: 500,
+        onChanged: (v) => context.read<MutualRatingCubit>().setComment(v),
+      ),
     );
   }
 }
@@ -173,10 +186,18 @@ class _SubmitButton extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.all(Spacing.large),
-      child: OmdsPrimaryButton(
-        text: l10n.mutualRatingSubmit,
-        isEnabled: stars > 0,
-        onTap: () => context.read<MutualRatingCubit>().submit(),
+      child: Semantics(
+        // QA: uiautomator-addressable handle for the rating submit CTA.
+        // No `button: true` — OmdsPrimaryButton already exposes the button
+        // role; `container: true` keeps this identifier its own node.
+        identifier: 'mutual_rating_submit',
+        container: true,
+        child: OmdsPrimaryButton(
+          key: const Key('mutualRating.submit'),
+          text: l10n.mutualRatingSubmit,
+          isEnabled: stars > 0,
+          onTap: () => context.read<MutualRatingCubit>().submit(),
+        ),
       ),
     );
   }

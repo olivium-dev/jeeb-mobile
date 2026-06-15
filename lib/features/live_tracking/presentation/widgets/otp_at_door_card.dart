@@ -67,11 +67,19 @@ class _CardContent extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: Spacing.large),
-          OmdsLoadingButton(
-            text: l10n.trackingAtDoorCta,
-            isLoading: false,
-            isEnabled: true,
-            onTap: () => _navigateToOtp(context),
+          Semantics(
+            // QA: uiautomator-addressable handle for the at-door → OTP CTA.
+            // `container: true` keeps the identifier its own queryable node;
+            // OmdsLoadingButton already exposes the button role.
+            identifier: 'tracking_otp_cta',
+            container: true,
+            child: OmdsLoadingButton(
+              key: const Key('tracking.otpCta'),
+              text: l10n.trackingAtDoorCta,
+              isLoading: false,
+              isEnabled: true,
+              onTap: () => _navigateToOtp(context),
+            ),
           ),
         ],
       ),
