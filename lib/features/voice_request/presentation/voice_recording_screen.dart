@@ -268,6 +268,8 @@ class _MicSurface extends StatelessWidget {
     AppLocalizations l10n,
   ) {
     return Semantics(
+      identifier: 'voice_request_recording_waveform',
+      container: true,
       label: l10n.voiceRecordingReleaseToStop,
       child: OmdsRecordingInput(
         key: VoiceRecordingKeys.recordingWaveform,
@@ -287,13 +289,21 @@ class _MicSurface extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        AnimatedMicButton(
-          key: VoiceRecordingKeys.micButton,
-          isRecording: false,
-          enabled: true,
-          onPressStart: cubit.startRecording,
-          onPressEnd: cubit.stopRecording,
-          semanticLabel: l10n.voiceRecordingMicSemantic,
+        // Semantics(identifier:) surfaces as the Android resource-id so
+        // uiautomator/Maestro can target the mic. The inner AnimatedMicButton
+        // owns the `button:true` + spoken label; container:true keeps this an
+        // addressable, merged node carrying the id (D2 / VoiceRecordingKeys).
+        Semantics(
+          identifier: 'voice_request_mic_button',
+          container: true,
+          child: AnimatedMicButton(
+            key: VoiceRecordingKeys.micButton,
+            isRecording: false,
+            enabled: true,
+            onPressStart: cubit.startRecording,
+            onPressEnd: cubit.stopRecording,
+            semanticLabel: l10n.voiceRecordingMicSemantic,
+          ),
         ),
         const SizedBox(height: Spacing.medium),
         Text(
@@ -335,6 +345,7 @@ class _PlaybackPreview extends StatelessWidget {
           Row(
             children: [
               Semantics(
+                identifier: 'voice_request_playback_toggle',
                 button: true,
                 label: state.isPlaying
                     ? l10n.voiceRecordingPause
@@ -356,14 +367,19 @@ class _PlaybackPreview extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    ClipRRect(
-                      borderRadius: OmdsBorderRadius.twoXSmall,
-                      child: LinearProgressIndicator(
-                        key: VoiceRecordingKeys.playbackProgress,
-                        value: progress,
-                        minHeight: 6,
-                        backgroundColor:
-                            colorScheme.outline.withValues(alpha: 0.2),
+                    Semantics(
+                      identifier: 'voice_request_playback_progress',
+                      container: true,
+                      value: '${(progress * 100).round()}%',
+                      child: ClipRRect(
+                        borderRadius: OmdsBorderRadius.twoXSmall,
+                        child: LinearProgressIndicator(
+                          key: VoiceRecordingKeys.playbackProgress,
+                          value: progress,
+                          minHeight: 6,
+                          backgroundColor:
+                              colorScheme.outline.withValues(alpha: 0.2),
+                        ),
                       ),
                     ),
                     const SizedBox(height: Spacing.xSmall),
@@ -485,10 +501,14 @@ class _ActionRow extends StatelessWidget {
       case VoiceRecordingPhase.recording:
         return SizedBox(
           width: double.infinity,
-          child: OMDSOutlinedButton(
-            key: VoiceRecordingKeys.cancelButton,
-            text: l10n.voiceRecordingCancel,
-            onTap: () => cubit.cancelRecording(),
+          child: Semantics(
+            identifier: 'voice_request_cancel_button',
+            container: true,
+            child: OMDSOutlinedButton(
+              key: VoiceRecordingKeys.cancelButton,
+              text: l10n.voiceRecordingCancel,
+              onTap: () => cubit.cancelRecording(),
+            ),
           ),
         );
       case VoiceRecordingPhase.recorded:
@@ -504,11 +524,15 @@ class _ActionRow extends StatelessWidget {
             ),
             const SizedBox(width: Spacing.medium),
             Expanded(
-              child: OmdsPrimaryButton(
-                key: VoiceRecordingKeys.sendButton,
-                text: l10n.voiceRecordingSend,
-                onTap: () => cubit.send(),
-                isEnabled: state.canSend,
+              child: Semantics(
+                identifier: 'voice_request_send_button',
+                container: true,
+                child: OmdsPrimaryButton(
+                  key: VoiceRecordingKeys.sendButton,
+                  text: l10n.voiceRecordingSend,
+                  onTap: () => cubit.send(),
+                  isEnabled: state.canSend,
+                ),
               ),
             ),
           ],
@@ -525,10 +549,14 @@ class _ActionRow extends StatelessWidget {
       case VoiceRecordingPhase.sent:
         return SizedBox(
           width: double.infinity,
-          child: OmdsPrimaryButton(
-            key: VoiceRecordingKeys.recordAnotherButton,
-            text: l10n.voiceRecordingRecordAnother,
-            onTap: () => cubit.reset(),
+          child: Semantics(
+            identifier: 'voice_request_record_another_button',
+            container: true,
+            child: OmdsPrimaryButton(
+              key: VoiceRecordingKeys.recordAnotherButton,
+              text: l10n.voiceRecordingRecordAnother,
+              onTap: () => cubit.reset(),
+            ),
           ),
         );
     }
