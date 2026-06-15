@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/layout/bottom_inset.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../data/super_login_demo_user.dart';
 
@@ -59,7 +60,9 @@ class _SuperLoginPickerBodyState extends State<_SuperLoginPickerBody> {
 
   @override
   Widget build(BuildContext context) {
-    final viewInsets = MediaQuery.of(context).viewInsets.bottom;
+    // Keyboard inset + system nav-bar inset so the bottom-most picker row stays
+    // clear of the soft-button nav bar under edge-to-edge (was keyboard-only).
+    final bottomInset = context.sheetBottomInset;
     // The entire sheet is ONE SingleChildScrollView so an isScrollControlled
     // modal sizes to min(content, viewport) and scrolls — content can never
     // overflow the bottom of the screen (the trap a `Column(min)` falls into).
@@ -71,7 +74,7 @@ class _SuperLoginPickerBodyState extends State<_SuperLoginPickerBody> {
           Spacing.large,
           Spacing.medium,
           Spacing.large,
-          Spacing.large + viewInsets,
+          Spacing.large + bottomInset,
         ),
         child: _SuperLoginPickerContent(
           future: _future,
