@@ -63,6 +63,85 @@ void main() {
     expect(find.text('Delivery App'), findsOneWidget);
   });
 
+  // Regression guard for the "plain navy square" splash. The widget being
+  // present (the assertion above) is NOT enough — the splash bug was a navy
+  // square where the white/orange wordmark should be. This inspects the EXACT
+  // logo asset BrandedSplash draws and proves it is non-empty path geometry
+  // filled in white + orange (i.e. brand-contrasting on the navy splash
+  // background) — so a regression to an empty / navy-fill logo fails here.
+  //
+  // Pure file inspection: no RepaintBoundary.toImage (which hangs under this
+  // host's software-rendered test binding) and no async asset decode. Fast and
+  // deterministic in the shared suite binding. Pixel-level rendering of this
+  // exact asset on navy was verified separately during diagnosis (white +
+  // orange pixels painted on the navy field); this guards the source of those
+  // pixels so the painted result cannot silently regress.
+  test('splash logo is non-empty white + orange artwork (not a navy square)', () {
+    final svg = File('assets/brand/jeeb_logo.svg').readAsStringSync();
+
+    // Real drawable geometry — at least one filled <path>.
+    final fillMatches =
+        RegExp(r'fill="([^"]+)"', caseSensitive: false).allMatches(svg);
+    final fills = fillMatches
+        .map((m) => m.group(1)!.toLowerCase())
+        .where((f) => f != 'none')
+        .toSet();
+    expect(
+      RegExp(r'<path').allMatches(svg).length,
+      greaterThan(0),
+      reason: 'logo SVG has no <path> geometry — would render as a blank/navy square',
+    );
+
+    // White glyphs (read on navy) + orange brand accent.
+    expect(
+      fills.any((f) => f == 'white' || f == '#fff' || f == '#ffffff'),
+      isTrue,
+      reason: 'wordmark must contain white fills that read on the navy background',
+    );
+    expect(
+      fills.contains('#d73b00'),
+      isTrue,
+      reason: 'wordmark must contain the orange brand accent fill',
+    );
+
+    // The logo must NOT be filled the same navy as the splash background —
+    // that is the invisible navy-on-navy failure mode.
+    final navyVariants = {'#0b1351', '#0b1351ff'};
+    expect(
+      fills.intersection(navyVariants),
+      isEmpty,
+      reason: 'logo fills must contrast with the navy splash background',
+    );
+  });
+
+  // Confirms the splash actually draws the wordmark asset on the navy field,
+  // tying the geometry guard above to the live widget composition.
+  testWidgets('BrandedSplash draws the wordmark asset over the navy background',
+      (tester) async {
+    await tester.pumpWidget(_harness());
+    await tester.pump();
+
+    final svgPicture = tester.widget<SvgPicture>(find.byType(SvgPicture));
+    expect(
+      svgPicture.bytesLoader,
+      isA<SvgAssetLoader>().having(
+        (l) => l.assetName,
+        'assetName',
+        'assets/brand/jeeb_logo.svg',
+      ),
+      reason: 'splash must draw the brand wordmark asset, not a different drawable',
+    );
+
+    final navy = AppTheme.light().colorScheme.secondaryContainer;
+    final box = tester.widget<ColoredBox>(
+      find.descendant(
+        of: find.byType(BrandedSplash),
+        matching: find.byType(ColoredBox),
+      ),
+    );
+    expect(box.color, navy, reason: 'splash background must be the brand navy');
+  });
+
   testWidgets('exposes Semantics identifiers for QA targeting',
       (tester) async {
     await tester.pumpWidget(_harness());

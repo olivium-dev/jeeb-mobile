@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Jeeb brand palette (mirrors lib/core/theme/app_theme.dart seeds and the
+         Flutter BrandedSplash background colorScheme.secondaryContainer).
+         Keeping the native cold-start splash on the same navy as the Flutter
+         splash makes the OS-splash → Flutter-splash hand-off seamless: no
+         white flash, no stray launcher-icon square. -->
+    <color name="jeeb_navy">#FF0B1351</color>
+    <color name="jeeb_orange">#FFD73B00</color>
+    <color name="jeeb_white">#FFFFFFFF</color>
+</resources>

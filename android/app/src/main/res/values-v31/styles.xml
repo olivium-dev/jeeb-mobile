@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ (API 31+) cold-start splash.
+
+  ROOT CAUSE THIS FIXES: from API 31 the platform SplashScreen API draws the
+  app's android:icon (here the flat navy ic_launcher square) centred on the
+  LaunchTheme windowBackground (white). Result: "white screen + navy square" —
+  the bug the QA screenshot captured. The pre-12 launch_background was never
+  consulted on these devices, so editing the Flutter SVG had no effect.
+
+  FIX: drive the SplashScreen API explicitly —
+    * windowSplashScreenBackground  -> brand navy (matches Flutter BrandedSplash)
+    * windowSplashScreenAnimatedIcon -> the Jeeb wordmark (white/orange, reads on navy)
+  so the OS splash IS the branded Jeeb splash and the Flutter splash continues it
+  seamlessly with no white flash and no stray launcher square.
+-->
+<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <!-- Android 12+ SplashScreen API -->
+        <item name="android:windowSplashScreenBackground">@color/jeeb_navy</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/jeeb_splash_icon</item>
+    </style>
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>
