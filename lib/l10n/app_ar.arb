@@ -1195,5 +1195,12 @@
   "superLoginPasscodeHint": "رمز مرور المستخدم الخارق",
   "superLoginSubmit": "تسجيل الدخول",
   "superLoginError": "معرّف المستخدم أو رمز المرور غير صحيح. حاول مرة أخرى.",
-  "superLoginNetworkError": "تعذّر الوصول إلى الخادم. تحقق من اتصالك وحاول مجدداً."
+  "superLoginNetworkError": "تعذّر الوصول إلى الخادم. تحقق من اتصالك وحاول مجدداً.",
+  "superLoginPlusTitle": "تسجيل دخول المستخدم الخارق بلس",
+  "superLoginPickerTitle": "اختر مستخدماً تجريبياً",
+  "superLoginPickerSubtitle": "انقر على مستخدم لملء نموذج تسجيل الدخول مسبقاً.",
+  "superLoginPickerLoadingError": "تعذّر تحميل المستخدمين التجريبيين. تحقق من اتصالك.",
+  "superLoginPickerRetry": "إعادة المحاولة",
+  "superLoginPickerRoleClient": "عميل",
+  "superLoginPickerRoleJeeber": "جيبر"
 }

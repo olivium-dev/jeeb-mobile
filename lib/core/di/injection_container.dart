@@ -31,6 +31,7 @@ import '../../features/escalate/domain/escalate_repository.dart';
 import '../../features/rating/data/dio_rating_repository.dart';
 import '../../features/rating/domain/rating_repository.dart';
 import '../../features/registration/data/dio_otp_service.dart';
+import '../../features/registration/data/super_login_demo_user.dart';
 import '../../features/registration/data/super_login_service.dart';
 import '../../features/registration/domain/otp_service.dart';
 import '../../features/settings/data/repositories/dio_role_switch_repository.dart';
@@ -80,6 +81,12 @@ void configureDependencies({
   // returns a real, server-minted session (no client-side mock-jwt mint).
   sl.registerLazySingleton<SuperLoginService>(
     () => DefaultSuperLoginService(dio: sl<Dio>()),
+  );
+
+  // "Super user login plus": fetches the predefined demo-user roster the picker
+  // lists (debug-only). Same Dio client as every other gateway data source.
+  sl.registerLazySingleton<SuperLoginDemoUserService>(
+    () => DefaultSuperLoginDemoUserService(dio: sl<Dio>()),
   );
 
   sl.registerLazySingleton<OrderRepository>(

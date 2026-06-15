@@ -20,6 +20,7 @@ import '../application/registration_state.dart';
 import '../domain/lebanon_phone.dart';
 import '../domain/otp_service.dart';
 import 'otp_verification_screen.dart';
+import 'super_login/super_login_picker.dart';
 import 'super_login/super_login_sheet.dart';
 
 /// Entry point for the phone+OTP registration flow (T-mobile-002).
@@ -210,6 +211,7 @@ class _RegistrationViewState extends State<_RegistrationView> {
                 phoneController: _phoneController,
                 onSocialAuthenticated: () => _onSocialAuthenticated(context),
                 onSuperLogin: () => _openSuperLogin(context),
+                onSuperLoginPlus: () => _openSuperLoginPlus(context),
               ),
             ),
           ),
@@ -249,6 +251,32 @@ class _RegistrationViewState extends State<_RegistrationView> {
     if (!context.mounted) return;
     context.go('/');
   }
+
+  /// "Super user login plus": first opens the demo-user picker, then opens the
+  /// SAME credential sheet pre-filled with the chosen user's userId + passcode.
+  /// The user still taps "Sign in" → the sheet POSTs to the gateway for real
+  /// server-side validation, then the post-success path is identical to
+  /// [_openSuperLogin] (onboarding complete → session refresh → home).
+  Future<void> _openSuperLoginPlus(BuildContext context) async {
+    final user = await showSuperLoginPicker(context);
+    if (user == null || !context.mounted) return;
+    final signedIn = await showSuperLoginSheet(
+      context,
+      initialUserId: user.userId,
+      initialPasscode: user.passcode,
+    );
+    if (signedIn != true || !context.mounted) return;
+    await context.read<OnboardingCubit>().complete();
+    if (!context.mounted) return;
+    final onVerified = widget.onVerified;
+    if (onVerified != null) {
+      onVerified();
+      return;
+    }
+    await _refreshSession(context);
+    if (!context.mounted) return;
+    context.go('/');
+  }
 }
 
 /// The phone-entry composition: branded hero → welcome → social → "or"
@@ -260,12 +288,14 @@ class _PhoneEntryBody extends StatelessWidget {
     required this.phoneController,
     required this.onSocialAuthenticated,
     required this.onSuperLogin,
+    required this.onSuperLoginPlus,
   });
 
   final RegistrationState state;
   final TextEditingController phoneController;
   final VoidCallback onSocialAuthenticated;
   final VoidCallback onSuperLogin;
+  final VoidCallback onSuperLoginPlus;
 
   @override
   Widget build(BuildContext context) {
@@ -300,6 +330,11 @@ class _PhoneEntryBody extends StatelessWidget {
         if (kDebugMode) ...[
           const SizedBox(height: Spacing.twoXLarge),
           _SuperLoginLink(onTap: onSuperLogin),
+          const SizedBox(height: Spacing.medium),
+          // "Super user login plus": opens a demo-user picker first, then the
+          // SAME credential sheet pre-filled with the chosen user. Sits NEXT TO
+          // the original link; both share the debug-only gate.
+          _SuperLoginPlusLink(onTap: onSuperLoginPlus),
         ],
       ],
     );
@@ -444,6 +479,40 @@ class _SuperLoginLink extends StatelessWidget {
           onTap: onTap,
           child: Text(
             l10n.superLoginTitle,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colorScheme.primary
+                      .withValues(alpha: UIConstants.opacityMedium),
+                  decoration: TextDecoration.underline,
+                ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Debug-only "Super user login plus" text link. Opens a demo-user picker that
+/// pre-fills the credential sheet. Rendered next to [_SuperLoginLink]; the
+/// existing direct-sheet link is kept unchanged.
+class _SuperLoginPlusLink extends StatelessWidget {
+  const _SuperLoginPlusLink({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    return Center(
+      child: Semantics(
+        identifier: 'super_login_plus_button',
+        button: true,
+        label: l10n.superLoginPlusTitle,
+        child: GestureDetector(
+          key: const Key('registration.superLoginPlus'),
+          onTap: onTap,
+          child: Text(
+            l10n.superLoginPlusTitle,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: colorScheme.primary
                       .withValues(alpha: UIConstants.opacityMedium),
