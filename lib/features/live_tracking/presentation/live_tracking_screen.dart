@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../delivery_status/domain/jeeber_summary.dart';
+import '../../delivery_status/presentation/widgets/delivery_jeeber_card.dart';
 import '../application/live_tracking_cubit.dart';
 import '../application/live_tracking_state.dart';
 import '../domain/delivery_tracking_info.dart';
@@ -96,27 +98,61 @@ class _TrackingBody extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Column(
+        // The matched-Jeeber card (when a jeeber is assigned) sits ABOVE the
+        // stepper / OTP card; `Expanded` (at_door OTP) stays a direct child of
+        // this flex Column so its bounded height is preserved.
         children: [
           // AC4: half-collapse the map when at_door
           Expanded(
             flex: isAtDoor ? 1 : 2,
             child: const TrackingMapSurface(),
           ),
+          if (info.jeeber != null) _TrackingJeeberSection(jeeber: info.jeeber!),
           if (isAtDoor)
-            Expanded(
-              flex: 1,
-              child: OtpAtDoorCard(deliveryId: deliveryId),
-            )
+            Expanded(flex: 1, child: OtpAtDoorCard(deliveryId: deliveryId))
           else
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: Spacing.medium,
-                vertical: Spacing.large,
-              ),
-              child: DeliveryTrackingPanel(info: info),
-            ),
+            _TrackingPanelSection(info: info),
         ],
       ),
+    );
+  }
+}
+
+/// The matched-Jeeber card rendered above the stepper / OTP card. Mounted ONLY
+/// when a jeeber is assigned, so [DeliveryJeeberCard]'s "looking for a Jeeber…"
+/// placeholder never shows on an already GPS-streaming delivery.
+class _TrackingJeeberSection extends StatelessWidget {
+  const _TrackingJeeberSection({required this.jeeber});
+
+  final JeeberSummary jeeber;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        Spacing.medium,
+        Spacing.medium,
+        Spacing.medium,
+        0,
+      ),
+      child: DeliveryJeeberCard(jeeber: jeeber),
+    );
+  }
+}
+
+class _TrackingPanelSection extends StatelessWidget {
+  const _TrackingPanelSection({required this.info});
+
+  final DeliveryTrackingInfo info;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.medium,
+        vertical: Spacing.large,
+      ),
+      child: DeliveryTrackingPanel(info: info),
     );
   }
 }
