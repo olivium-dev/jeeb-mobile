@@ -19,17 +19,18 @@ import '../../../l10n/app_localizations.dart';
 /// swipeable back layer; the text + controls float over the scrim
 /// (`IgnorePointer` on the copy so swipes still reach the carousel).
 ///
-/// Slide artwork (FR-WALKTHROUGH / FR-P1-1): slides 1 and 3 render the real
-/// exported brand vectors — `assets/illustrations/onboarding_voice_first.svg`
-/// (voice-first) and `onboarding_live_tracking.svg` (live tracking) — via
-/// [SvgPicture.asset]. Slide 2 ("Trusted Jeebers") has no exported asset yet;
-/// its Figma frame node id is still unresolved (Dev Mode MCP unreachable in
-/// this pass — see design/SCREEN-SPEC.md §0/§7), so it falls back to the
-/// INTERIM brand-field glyph until the asset lands. [_WalkthroughIllustration]
-/// isolates the per-slide treatment: a slide with an `asset` renders the SVG;
-/// a slide without one degrades to the tinted glyph on the brand field — no
-/// layout change either way. We deliberately do NOT invent pixel values for
-/// the unconfirmed slide-2 design.
+/// Slide artwork (FR-WALKTHROUGH / FR-P1-1; slide 2 completed in FR-D1D2): all
+/// three slides now render real exported brand vectors via [SvgPicture.asset] —
+/// `assets/illustrations/onboarding_voice_first.svg` (voice-first),
+/// `onboarding_trusted_jeebers.svg` (trusted Jeebers) and
+/// `onboarding_live_tracking.svg` (live tracking). The slide-2 illustration was
+/// added in FR-D1D2 to replace the interim shield/check glyph Codex QA flagged
+/// as a placeholder; it is drawn in the same 300x300 navy/orange/periwinkle
+/// idiom as the other two (a vetted courier with a verification badge, a
+/// five-star rating, and a trust shield). [_WalkthroughIllustration] still
+/// isolates the per-slide treatment: a slide with an `asset` renders the SVG; a
+/// slide without one degrades to the tinted [_OnboardingPage.icon] glyph on the
+/// brand field — preserving the resilient fallback for any future slide.
 ///
 /// FR-P1-2: an EN/AR language toggle ([_LanguageToggle], built on
 /// [OmdsFilterChips]) is anchored top-trailing; selecting a locale drives
@@ -108,14 +109,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 }
 
-/// Asset paths for the wired walkthrough slide illustrations (FR-P1-1).
+/// Asset paths for the wired walkthrough slide illustrations (FR-P1-1; the
+/// trusted-Jeebers slide-2 asset landed in FR-D1D2).
 const String _kVoiceFirstAsset = 'assets/illustrations/onboarding_voice_first.svg';
+const String _kTrustedJeebersAsset =
+    'assets/illustrations/onboarding_trusted_jeebers.svg';
 const String _kLiveTrackingAsset =
     'assets/illustrations/onboarding_live_tracking.svg';
 
-/// Static slide content. Slides 1 and 3 carry the real exported SVGs; slide 2
-/// has no asset yet so it renders the interim glyph (see [OnboardingScreen]
-/// docs and [_WalkthroughIllustration]).
+/// Static slide content. All three slides carry real exported SVGs; the [icon]
+/// remains as a resilient fallback only (rendered if a future slide ever ships
+/// without an `asset` — see [_WalkthroughIllustration]).
 List<_OnboardingPage> _onboardingPages(AppLocalizations l10n) => [
       _OnboardingPage(
         icon: Icons.mic_none_rounded,
@@ -125,10 +129,10 @@ List<_OnboardingPage> _onboardingPages(AppLocalizations l10n) => [
         semanticsLabel: l10n.onboardingSlide1Semantics,
       ),
       _OnboardingPage(
-        // INTERIM (FR-P1-1): no exported asset for the "Trusted Jeebers" slide
-        // yet — degrade to a brand-field glyph until the Figma frame lands.
+        // FR-D1D2: the real "Trusted Jeebers" brand vector. The verified-user
+        // glyph is retained only as the resilient decode fallback.
         icon: Icons.verified_user_outlined,
-        asset: null,
+        asset: _kTrustedJeebersAsset,
         title: l10n.onboardingSlide2Title,
         body: l10n.onboardingSlide2Body,
         semanticsLabel: l10n.onboardingSlide2Semantics,
