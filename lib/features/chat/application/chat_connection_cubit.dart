@@ -21,6 +21,12 @@ typedef ChatClock = DateTime Function();
 /// Random-id generator for new outbound messages. Tests inject a counter.
 typedef ChatIdGenerator = String Function();
 
+/// Schedules the reconnect backoff. Defaults to the real [Timer] constructor;
+/// tests inject `fakeAsync`'s clock (or a manual fake) so the backoff schedule
+/// is driven by virtual time instead of wall-clock sleeps. Keeping this a seam
+/// means production behavior is byte-for-byte identical to a bare `Timer(...)`.
+typedef ChatTimerFactory = Timer Function(Duration duration, void Function() callback);
+
 /// Owns the chat WebSocket connection, the offline outbox, and reconnect
 /// scheduling. Surfaces a single [ChatConnectionState] to the UI.
 ///
@@ -39,12 +45,14 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
     ReconnectPolicy policy = const ReconnectPolicy(),
     ChatClock? clock,
     ChatIdGenerator? idGenerator,
+    ChatTimerFactory? timerFactory,
   })  : _socketFactory = socketFactory,
         _outbox = outbox,
         _currentUserId = currentUserId,
         _policy = policy,
         _clock = clock ?? DateTime.now,
         _idGenerator = idGenerator ?? _defaultIdGenerator,
+        _timerFactory = timerFactory ?? Timer.new,
         super(const ChatConnectionState());
 
   final ChatSocketFactory _socketFactory;
@@ -53,6 +61,7 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
   final ReconnectPolicy _policy;
   final ChatClock _clock;
   final ChatIdGenerator _idGenerator;
+  final ChatTimerFactory _timerFactory;
 
   ChatSocket? _socket;
   StreamSubscription<Map<String, Object?>>? _eventsSub;
@@ -311,7 +320,7 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
     ));
     final delay = _policy.delayFor(nextAttempt);
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(delay, () {
+    _reconnectTimer = _timerFactory(delay, () {
       if (_disposed) return;
       _connect();
     });
