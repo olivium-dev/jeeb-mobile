@@ -269,4 +269,126 @@ void main() {
       expect(find.text('تسجيل دخول المستخدم الخارق'), findsOneWidget);
     });
   });
+
+  group('Super-login sheet pre-fill (Super user login plus)', () {
+    // Host that opens the sheet pre-filled with explicit initial values.
+    Widget prefilledHost(
+      SuperLoginCubit cubit, {
+      String? initialUserId,
+      String? initialPasscode,
+    }) =>
+        wrapForTest(
+          Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  key: const Key('open'),
+                  onPressed: () => showSuperLoginSheet(
+                    context,
+                    cubit: cubit,
+                    initialUserId: initialUserId,
+                    initialPasscode: initialPasscode,
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+    Future<void> openPrefilled(
+      WidgetTester tester,
+      SuperLoginCubit cubit, {
+      String? initialUserId,
+      String? initialPasscode,
+    }) async {
+      await tester.pumpWidget(prefilledHost(
+        cubit,
+        initialUserId: initialUserId,
+        initialPasscode: initialPasscode,
+      ));
+      await tester.tap(find.byKey(const Key('open')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    testWidgets(
+        'pre-fills both controllers AND enables submit immediately '
+        '(picker happy path)', (tester) async {
+      await openPrefilled(
+        tester,
+        makeCubit(),
+        initialUserId: '22222222-2222-4222-8222-222222222222',
+        initialPasscode: 'demo-kamal',
+      );
+
+      // Both fields arrive populated.
+      expect(
+        tester
+            .widget<OmdsTextField>(find.byKey(const Key('superLogin.userId')))
+            .controller!
+            .text,
+        '22222222-2222-4222-8222-222222222222',
+      );
+      expect(
+        tester
+            .widget<OMDSPasswordTextField>(
+                find.byKey(const Key('superLogin.passcode')))
+            .controller
+            .text,
+        'demo-kamal',
+      );
+      // FAIL-WITHOUT: without the initState _computeCanSubmit() call the button
+      // would be disabled despite both fields being non-empty.
+      expect(
+        tester
+            .widget<OmdsLoadingButton>(find.byKey(const Key('superLogin.submit')))
+            .isEnabled,
+        isTrue,
+        reason: 'a pre-filled sheet must open submit-ready',
+      );
+    });
+
+    testWidgets(
+        'a pre-filled sheet submits the SAME credentials to the service '
+        '(no client-side edit needed)', (tester) async {
+      service.result = const SuperLoginSuccess(_session);
+      final cubit = makeCubit();
+      await openPrefilled(
+        tester,
+        cubit,
+        initialUserId: '44444444-4444-4444-8444-444444444444',
+        initialPasscode: 'demo-nour',
+      );
+
+      await tester.tap(find.byKey(const Key('superLogin.submit')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(service.lastUserId, '44444444-4444-4444-8444-444444444444');
+      expect(service.lastPasscode, 'demo-nour');
+      // Sheet popped on success.
+      expect(find.byKey(const Key('superLogin.submit')), findsNothing);
+    });
+
+    testWidgets(
+        'no pre-fill (direct open) keeps fields empty + submit disabled '
+        '(backward-compat: the original behaviour)', (tester) async {
+      await openPrefilled(tester, makeCubit());
+
+      expect(
+        tester
+            .widget<OmdsTextField>(find.byKey(const Key('superLogin.userId')))
+            .controller!
+            .text,
+        isEmpty,
+      );
+      expect(
+        tester
+            .widget<OmdsLoadingButton>(find.byKey(const Key('superLogin.submit')))
+            .isEnabled,
+        isFalse,
+      );
+    });
+  });
 }

@@ -550,6 +550,16 @@ class AppLocalizations {
   String get superLoginError => _get('superLoginError');
   String get superLoginNetworkError => _get('superLoginNetworkError');
 
+  // "Super user login plus": demo-user picker that pre-fills the sheet.
+  String get superLoginPlusTitle => _get('superLoginPlusTitle');
+  String get superLoginPickerTitle => _get('superLoginPickerTitle');
+  String get superLoginPickerSubtitle => _get('superLoginPickerSubtitle');
+  String get superLoginPickerLoadingError =>
+      _get('superLoginPickerLoadingError');
+  String get superLoginPickerRetry => _get('superLoginPickerRetry');
+  String get superLoginPickerRoleClient => _get('superLoginPickerRoleClient');
+  String get superLoginPickerRoleJeeber => _get('superLoginPickerRoleJeeber');
+
   String get tierSelectionTitle => _get('tierSelectionTitle');
   String get tierSelectionSubtitle => _get('tierSelectionSubtitle');
   String get tierSelectionConfirm => _get('tierSelectionConfirm');

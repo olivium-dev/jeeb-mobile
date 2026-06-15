@@ -14,9 +14,17 @@ import 'super_login_state.dart';
 /// Hosts a [SuperLoginCubit] scoped to the sheet. On a successful, server-
 /// validated sign-in the sheet pops with `true`; the caller then navigates
 /// home. Pass a custom [cubit] from tests; production builds one from DI.
+///
+/// [initialUserId] / [initialPasscode] pre-fill the two credential fields —
+/// used by the "Super user login plus" picker, which hands a chosen demo
+/// user's credentials in so the form opens submit-ready. Both default to null
+/// (empty fields), so every existing `showSuperLoginSheet(context)` call site
+/// is unaffected.
 Future<bool?> showSuperLoginSheet(
   BuildContext context, {
   SuperLoginCubit? cubit,
+  String? initialUserId,
+  String? initialPasscode,
 }) {
   return showModalBottomSheet<bool>(
     context: context,
@@ -25,23 +33,37 @@ Future<bool?> showSuperLoginSheet(
     shape: const RoundedRectangleBorder(
       borderRadius: OmdsBorderRadius.topLarge,
     ),
-    builder: (sheetContext) => _SuperLoginScope(cubit: cubit),
+    builder: (sheetContext) => _SuperLoginScope(
+      cubit: cubit,
+      initialUserId: initialUserId,
+      initialPasscode: initialPasscode,
+    ),
   );
 }
 
 /// Builds (or adopts) the [SuperLoginCubit] for the sheet body.
 class _SuperLoginScope extends StatelessWidget {
-  const _SuperLoginScope({this.cubit});
+  const _SuperLoginScope({
+    this.cubit,
+    this.initialUserId,
+    this.initialPasscode,
+  });
 
   final SuperLoginCubit? cubit;
+  final String? initialUserId;
+  final String? initialPasscode;
 
   @override
   Widget build(BuildContext context) {
+    final body = _SuperLoginSheetBody(
+      initialUserId: initialUserId,
+      initialPasscode: initialPasscode,
+    );
     final injected = cubit;
     if (injected != null) {
       return BlocProvider<SuperLoginCubit>.value(
         value: injected,
-        child: const _SuperLoginSheetBody(),
+        child: body,
       );
     }
     return BlocProvider<SuperLoginCubit>(
@@ -49,7 +71,7 @@ class _SuperLoginScope extends StatelessWidget {
         service: sl<SuperLoginService>(),
         tokenStore: sl<AuthTokenStore>(),
       ),
-      child: const _SuperLoginSheetBody(),
+      child: body,
     );
   }
 }
@@ -57,16 +79,40 @@ class _SuperLoginScope extends StatelessWidget {
 /// The credential form. Owns the two controllers + the submit-enabled flag,
 /// and reacts to cubit success (pop) / error (snackbar).
 class _SuperLoginSheetBody extends StatefulWidget {
-  const _SuperLoginSheetBody();
+  const _SuperLoginSheetBody({this.initialUserId, this.initialPasscode});
+
+  /// Pre-fill values supplied by the "Super user login plus" picker. Null when
+  /// the sheet is opened directly (the original empty-field behaviour).
+  final String? initialUserId;
+  final String? initialPasscode;
 
   @override
   State<_SuperLoginSheetBody> createState() => _SuperLoginSheetBodyState();
 }
 
 class _SuperLoginSheetBodyState extends State<_SuperLoginSheetBody> {
-  final _userIdController = TextEditingController();
-  final _passcodeController = TextEditingController();
+  late final TextEditingController _userIdController;
+  late final TextEditingController _passcodeController;
   bool _canSubmit = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _userIdController =
+        TextEditingController(text: widget.initialUserId ?? '');
+    _passcodeController =
+        TextEditingController(text: widget.initialPasscode ?? '');
+    // When both fields arrive pre-filled (picker path) the "Sign in" button
+    // must be enabled immediately — otherwise the user stares at a disabled
+    // CTA. Set the flag DIRECTLY here (not via `_recomputeCanSubmit`, which
+    // calls `setState` — illegal during initState). A no-op-to-false when both
+    // are empty (the direct-open path).
+    _canSubmit = _computeCanSubmit();
+  }
+
+  bool _computeCanSubmit() =>
+      _userIdController.text.trim().isNotEmpty &&
+      _passcodeController.text.isNotEmpty;
 
   @override
   void dispose() {
@@ -76,8 +122,7 @@ class _SuperLoginSheetBodyState extends State<_SuperLoginSheetBody> {
   }
 
   void _recomputeCanSubmit() {
-    final next = _userIdController.text.trim().isNotEmpty &&
-        _passcodeController.text.isNotEmpty;
+    final next = _computeCanSubmit();
     if (next != _canSubmit) setState(() => _canSubmit = next);
   }
 

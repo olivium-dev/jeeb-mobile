@@ -3659,5 +3659,33 @@
   "superLoginNetworkError": "Could not reach the server. Check your connection and try again.",
   "@superLoginNetworkError": {
     "description": "FR-P0-4: Network/timeout error shown when the super-login request cannot reach the gateway."
+  },
+  "superLoginPlusTitle": "Super user login plus",
+  "@superLoginPlusTitle": {
+    "description": "Debug-only link that opens the demo-user picker which pre-fills the super-login sheet."
+  },
+  "superLoginPickerTitle": "Select a demo user",
+  "@superLoginPickerTitle": {
+    "description": "Title of the demo-user picker sheet."
+  },
+  "superLoginPickerSubtitle": "Tap a user to pre-fill the sign-in form.",
+  "@superLoginPickerSubtitle": {
+    "description": "Subtitle of the demo-user picker sheet."
+  },
+  "superLoginPickerLoadingError": "Could not load demo users. Check your connection.",
+  "@superLoginPickerLoadingError": {
+    "description": "Error shown when the demo-user list fetch fails."
+  },
+  "superLoginPickerRetry": "Retry",
+  "@superLoginPickerRetry": {
+    "description": "Retry CTA on the demo-user picker error state."
+  },
+  "superLoginPickerRoleClient": "Client",
+  "@superLoginPickerRoleClient": {
+    "description": "Role badge label for a client demo user."
+  },
+  "superLoginPickerRoleJeeber": "Jeeber",
+  "@superLoginPickerRoleJeeber": {
+    "description": "Role badge label for a jeeber (dual-role) demo user."
   }
 }
