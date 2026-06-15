@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/dev_seam/dev_seam.dart';
+import '../../../core/di/injection_container.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../jeeber_home/application/availability_cubit.dart';
 import '../../jeeber_home/domain/entities/availability_status.dart';
@@ -43,20 +44,7 @@ class DashboardTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final devView = _devSeamView();
     if (devView != null) return _DevFeedScaffold(view: devView);
-    final unregistered = _devSeamUnregistered();
-    return JeeberHomeScreen(
-      key: const Key('dashboard-tab-root'),
-      isRegistered: !unregistered,
-      profileName: unregistered ? 'Kamal' : null,
-      onRegister: () => context.pushNamed('jeeber-onboarding'),
-      onOpenFeedRequest: (FeedRequest request) {
-        context.pushNamed(
-          'jeeber-request-detail',
-          pathParameters: {'id': request.id},
-          extra: request,
-        );
-      },
-    );
+    return _JeeberHomeHost(unregistered: _devSeamUnregistered());
   }
 
   /// The deliveryman feed variant requested via the dev seam, or `null` when
@@ -78,6 +66,48 @@ class DashboardTab extends StatelessWidget {
   /// Figma mock name. Always `false` in release builds.
   bool _devSeamUnregistered() =>
       kDebugMode && DevSeam.current.homeTab == 'unregistered';
+}
+
+/// Hosts the production [JeeberHomeScreen] under a [BlocProvider]
+/// `<AvailabilityCubit>` so the registered path has the cubit it reads
+/// (`didChangeDependencies` + `_RegisteredBody`'s `BlocConsumer`).
+///
+/// Before this host existed, the role-switch into the Jeeber surface mounted
+/// `JeeberHomeScreen(isRegistered: true)` with no `AvailabilityCubit` ancestor
+/// — only the dev-seam feed path provided one — so the registered screen threw
+/// `ProviderNotFound<AvailabilityCubit>` on entry (E2E "Switch to Jeeber"
+/// crash). The cubit is built from the DI-registered [AvailabilityGateway],
+/// matching how sibling route builders (escalate/tracking/rating) construct
+/// their screen-scoped cubits from `sl<...>()`.
+///
+/// The provider wraps even the `unregistered` (screen-19) path because the
+/// auto-offline ticker is owned by the cubit and the upsell view simply never
+/// reads it; keeping a single create-site avoids a second provider tree.
+class _JeeberHomeHost extends StatelessWidget {
+  const _JeeberHomeHost({required this.unregistered});
+
+  final bool unregistered;
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider<AvailabilityCubit>(
+      create: (_) =>
+          AvailabilityCubit(gateway: sl<AvailabilityGateway>()),
+      child: JeeberHomeScreen(
+        key: const Key('dashboard-tab-root'),
+        isRegistered: !unregistered,
+        profileName: unregistered ? 'Kamal' : null,
+        onRegister: () => context.pushNamed('jeeber-onboarding'),
+        onOpenFeedRequest: (FeedRequest request) {
+          context.pushNamed(
+            'jeeber-request-detail',
+            pathParameters: {'id': request.id},
+            extra: request,
+          );
+        },
+      ),
+    );
+  }
 }
 
 /// Self-contained scaffold for the dev-seam feed capture path. Owns its own

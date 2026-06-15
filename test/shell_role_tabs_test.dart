@@ -14,7 +14,6 @@ import 'package:jeeb_mobile/core/role/user_role.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/earnings/domain/earnings_repository.dart';
 import 'package:jeeb_mobile/features/earnings/domain/earnings_summary.dart';
-import 'package:jeeb_mobile/features/jeeber_home/application/availability_cubit.dart';
 import 'package:jeeb_mobile/features/jeeber_home/domain/services/availability_gateway.dart';
 import 'package:jeeb_mobile/features/shell/shell_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
@@ -75,6 +74,12 @@ Widget _harness({
   required SharedPreferences prefs,
   Locale locale = const Locale('en'),
 }) {
+  // NOTE: the shell deliberately does NOT provide a global AvailabilityCubit.
+  // The Jeeber dashboard (DashboardTab) self-provides one from DI
+  // (sl<AvailabilityGateway>()), screen-scoped with its own idle ticker.
+  // This harness therefore registers the gateway in DI (see setUp) and does
+  // NOT inject a top-level cubit — matching production, so the role-switch
+  // path is exercised exactly as it runs on device.
   return MultiBlocProvider(
     providers: [
       BlocProvider(
@@ -85,11 +90,6 @@ Widget _harness({
       ),
       BlocProvider(create: (_) => RoleCubit(prefs: prefs)),
       BlocProvider(create: (_) => RoleEligibilityCubit()),
-      BlocProvider(
-        create: (_) => AvailabilityCubit(
-          gateway: InMemoryAvailabilityGateway(),
-        ),
-      ),
     ],
     child: BlocBuilder<LocaleCubit, Locale>(
       builder: (context, l) => MaterialApp(
@@ -114,6 +114,13 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     sl.registerFactory<EarningsRepository>(() => _StubEarningsRepository());
+    // DashboardTab now self-provides AvailabilityCubit from DI, so the
+    // gateway it resolves must be registered — exactly as production does in
+    // injection_container.dart. An in-memory gateway keeps cold-start offline
+    // and deterministic.
+    sl.registerLazySingleton<AvailabilityGateway>(
+      InMemoryAvailabilityGateway.new,
+    );
   });
 
   tearDown(() async {
