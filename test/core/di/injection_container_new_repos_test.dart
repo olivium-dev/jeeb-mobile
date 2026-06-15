@@ -14,6 +14,7 @@ import 'package:jeeb_mobile/core/observability/crash_reporter.dart';
 import 'package:jeeb_mobile/features/chat/domain/chat_gateway.dart';
 import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart';
 import 'package:jeeb_mobile/features/jeeber_home/domain/services/availability_gateway.dart';
+import 'package:jeeb_mobile/features/jeeber_request_detail/domain/services/prohibited_item_report_service.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_repository.dart';
 import 'package:jeeb_mobile/features/kyc/domain/kyc_gateway.dart';
 import 'package:jeeb_mobile/features/notification_prefs/domain/notification_prefs_repository.dart';
@@ -81,5 +82,19 @@ void main() {
   test('NotificationPrefsRepository is registered and resolves', () {
     expect(GetIt.I.isRegistered<NotificationPrefsRepository>(), isTrue);
     expect(() => GetIt.I<NotificationPrefsRepository>(), returnsNormally);
+  });
+
+  // T-MOB-FIX-001: the jeeber-request-detail route builder resolves
+  // ProhibitedItemReportService from GetIt. It was never registered, so
+  // tapping a Jeeber feed card threw `Bad state: GetIt: Object/factory with
+  // type ProhibitedItemReportService is not registered inside GetIt.` and
+  // red-screened the whole Jeeber leg. This pins the registration.
+  test('ProhibitedItemReportService is registered and resolves', () {
+    expect(GetIt.I.isRegistered<ProhibitedItemReportService>(), isTrue);
+    expect(() => GetIt.I<ProhibitedItemReportService>(), returnsNormally);
+    expect(
+      GetIt.I<ProhibitedItemReportService>(),
+      isA<ProhibitedItemReportService>(),
+    );
   });
 }

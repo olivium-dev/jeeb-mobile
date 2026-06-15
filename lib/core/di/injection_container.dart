@@ -12,6 +12,7 @@ import '../../features/home_client/data/dio_client_home_repository.dart';
 import '../../features/home_client/domain/client_home_repository.dart';
 import '../../features/jeeber_home/data/dio_availability_gateway.dart';
 import '../../features/jeeber_home/domain/services/availability_gateway.dart';
+import '../../features/jeeber_request_detail/domain/services/prohibited_item_report_service.dart';
 import '../../features/jeeber_request_feed/data/dio_request_feed_repository.dart';
 import '../../features/jeeber_request_feed/data/request_feed_repository.dart';
 import '../../features/kyc/data/dio_kyc_gateway.dart';
@@ -135,6 +136,20 @@ void configureDependencies({
   // Jeeber request feed — polling-backed until WS support is wired.
   sl.registerLazySingleton<RequestFeedRepository>(
     () => DioRequestFeedRepository(dio: sl<Dio>()),
+  );
+
+  // T-MOB-FIX-001: ProhibitedItemReportService — resolved by app_router when
+  // building the jeeber-request-detail route. Without this registration the
+  // route builder's `sl<ProhibitedItemReportService>()` throws a GetIt "not
+  // registered" Bad state and red-screens the Jeeber leg (active delivery →
+  // OTP → mutual rating all unreachable). It is a pure/local, stateless
+  // service today, so it is a const lazy singleton — same shape as the sibling
+  // OfferSubmissionService that the adjacent jeeber-offer-submission route
+  // resolves. When the real prohibited-item flagging RPC lands it swaps to a
+  // Dio-backed impl here (mirroring the Dio* repositories above) without
+  // touching the route or screen.
+  sl.registerLazySingleton<ProhibitedItemReportService>(
+    () => const ProhibitedItemReportService(),
   );
 
   // KYC — submit + status from auth-service via gateway.
