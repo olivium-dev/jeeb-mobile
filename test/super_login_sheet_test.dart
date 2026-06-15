@@ -179,8 +179,8 @@ void main() {
       expect(service.lastPasscode, 's3cret');
     });
 
-    testWidgets('negative path: bad credential shows an error snackbar, '
-        'sheet stays open', (tester) async {
+    testWidgets('negative path (DEF-2): bad credential surfaces the error '
+        'INLINE under the passcode field, sheet stays open', (tester) async {
       service.result =
           const SuperLoginFailure(SuperLoginError.invalidCredentials);
       await openSheet(tester, makeCubit());
@@ -194,11 +194,52 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      // Sheet still open, localized error surfaced.
+      // Sheet still open, localized error surfaced INLINE (not a transient
+      // snackbar) — the 401 ProblemDetails is now visible to the user.
       expect(find.byKey(const Key('superLogin.submit')), findsOneWidget);
       expect(
         find.text('Invalid user id or passcode. Please try again.'),
         findsOneWidget,
+      );
+      // The message is wired into the passcode field's OMDS errorText slot,
+      // so it lives inside the passcode field's subtree (inline), not in a
+      // ScaffoldMessenger overlay.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('superLogin.passcode')),
+          matching:
+              find.text('Invalid user id or passcode. Please try again.'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('DEF-2: the inline error clears as soon as the user edits '
+        'a field', (tester) async {
+      service.result =
+          const SuperLoginFailure(SuperLoginError.invalidCredentials);
+      await openSheet(tester, makeCubit());
+
+      await tester.enterText(
+          find.byKey(const Key('superLogin.userId')), 'x');
+      await tester.enterText(
+          find.byKey(const Key('superLogin.passcode')), 'wrong');
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('superLogin.submit')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        find.text('Invalid user id or passcode. Please try again.'),
+        findsOneWidget,
+      );
+
+      // User starts correcting the passcode → error must disappear.
+      await tester.enterText(
+          find.byKey(const Key('superLogin.passcode')), 'wrong2');
+      await tester.pump();
+      expect(
+        find.text('Invalid user id or passcode. Please try again.'),
+        findsNothing,
       );
     });
 

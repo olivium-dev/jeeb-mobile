@@ -89,13 +89,21 @@ class _SuperLoginSheetBodyState extends State<_SuperLoginSheetBody> {
         );
   }
 
+  void _onFieldChanged() {
+    _recomputeCanSubmit();
+    // DEF-2: clear any surfaced credential error the moment the user edits a
+    // field, so a stale "invalid credentials" message doesn't linger while
+    // they type a correction. `submit` re-evaluates from a clean slate.
+    final cubit = context.read<SuperLoginCubit>();
+    if (cubit.state.status == SuperLoginStatus.error) cubit.clearError();
+  }
+
   void _onStateChange(BuildContext context, SuperLoginState state) {
+    // Success is the only transition that pops the sheet. Errors are surfaced
+    // INLINE under the passcode field (DEF-2) by [_SuperLoginFields] reading
+    // the cubit state directly — no snackbar, which the QA run never saw.
     if (state.isSuccess) {
       Navigator.of(context).pop(true);
-      return;
-    }
-    if (state.status == SuperLoginStatus.error && state.error != null) {
-      showOmdsErrorSnackbar(context, message: _errorCopy(context, state.error!));
     }
   }
 
@@ -108,7 +116,7 @@ class _SuperLoginSheetBodyState extends State<_SuperLoginSheetBody> {
         userIdController: _userIdController,
         passcodeController: _passcodeController,
         canSubmit: _canSubmit,
-        onChanged: _recomputeCanSubmit,
+        onChanged: _onFieldChanged,
         onSubmit: _submit,
       ),
     );
@@ -261,10 +269,25 @@ class _SuperLoginFields extends StatelessWidget {
       children: [
         _UserIdField(controller: userIdController, onChanged: onChanged),
         const SizedBox(height: Spacing.medium),
-        _PasscodeField(
-          controller: passcodeController,
-          onChanged: onChanged,
-          onSubmit: onSubmit,
+        // DEF-2: the passcode field renders the server-side rejection (401
+        // ProblemDetails) INLINE via its OMDS `errorText` slot — below the
+        // field, in `colorScheme.error`. The message comes from the cubit
+        // state, so a wrong passcode is now visible to the user instead of
+        // failing silently.
+        BlocBuilder<SuperLoginCubit, SuperLoginState>(
+          buildWhen: (prev, curr) =>
+              prev.status != curr.status || prev.error != curr.error,
+          builder: (context, state) {
+            final error = state.status == SuperLoginStatus.error
+                ? state.error
+                : null;
+            return _PasscodeField(
+              controller: passcodeController,
+              onChanged: onChanged,
+              onSubmit: onSubmit,
+              errorText: error == null ? null : _errorCopy(context, error),
+            );
+          },
         ),
       ],
     );
@@ -301,11 +324,16 @@ class _PasscodeField extends StatelessWidget {
     required this.controller,
     required this.onChanged,
     required this.onSubmit,
+    this.errorText,
   });
 
   final TextEditingController controller;
   final VoidCallback onChanged;
   final VoidCallback onSubmit;
+
+  /// Inline credential error shown below the field (DEF-2). Null when there is
+  /// no error to surface.
+  final String? errorText;
 
   @override
   Widget build(BuildContext context) {
@@ -320,6 +348,7 @@ class _PasscodeField extends StatelessWidget {
         labelText: l10n.superLoginPasscode,
         hint: l10n.superLoginPasscodeHint,
         textInputAction: TextInputAction.done,
+        errorText: errorText,
         onChanged: (_) => onChanged(),
         onSubmitted: (_) => onSubmit(),
       ),
