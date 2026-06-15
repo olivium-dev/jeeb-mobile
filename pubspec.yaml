@@ -125,6 +125,10 @@ dev_dependencies:
   mocktail: ^1.0.1
   injectable_generator: ^2.4.1
   build_runner: ^2.5.4
+  # Drives deterministic virtual time in chat reconnect/backoff cubit tests
+  # (chat_connection_cubit_test.dart). Ships transitively with flutter_test but
+  # imported directly, so declared explicitly per depend_on_referenced_packages.
+  fake_async: ^1.3.3
 
 flutter:
   uses-material-design: true
