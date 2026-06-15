@@ -316,7 +316,11 @@ class _SuperLoginFields extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _UserIdField(controller: userIdController, onChanged: onChanged),
-        const SizedBox(height: Spacing.medium),
+        // DEF-1: a full-`Spacing.large` gap (was `medium`) so the second
+        // field's above-label can never crowd the field above it — the
+        // pre-filled (collapsed-from-frame-1) state used to leave the labels
+        // jammed against the neighbouring field box.
+        const SizedBox(height: Spacing.large),
         // DEF-2: the passcode field renders the server-side rejection (401
         // ProblemDetails) INLINE via its OMDS `errorText` slot — below the
         // field, in `colorScheme.error`. The message comes from the cubit
@@ -342,6 +346,36 @@ class _SuperLoginFields extends StatelessWidget {
   }
 }
 
+/// A persistent label rendered ABOVE its field, matching the OMDS
+/// `OmdsValidatedTextField` convention (`labelLarge` / `onSurface`, then a
+/// `Spacing.xSmall` gap). DEF-1: the credential fields previously passed the
+/// label into the field's `InputDecoration` as a *floating* label. On the
+/// borderless, filled OMDS field that floated label sits at the very top edge
+/// of the fill with only ~6 logical px of headroom, so in the pre-filled
+/// "Super user login plus" path — where the field opens already populated and
+/// the label is collapsed from the first frame, with no focus animation easing
+/// it into a gap — the label visually crowded the pre-filled value and the
+/// neighbouring field. Lifting the label out of the decoration removes the
+/// collision entirely and is stable across text scales.
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(bottom: Spacing.xSmall),
+      child: Text(
+        text,
+        style: theme.textTheme.labelLarge
+            ?.copyWith(color: theme.colorScheme.onSurface),
+      ),
+    );
+  }
+}
+
 class _UserIdField extends StatelessWidget {
   const _UserIdField({required this.controller, required this.onChanged});
 
@@ -355,13 +389,18 @@ class _UserIdField extends StatelessWidget {
       identifier: '_super_login_user_id',
       textField: true,
       label: l10n.superLoginUserId,
-      child: OmdsTextField(
-        key: const Key('superLogin.userId'),
-        controller: controller,
-        labelText: l10n.superLoginUserId,
-        hintText: l10n.superLoginUserIdHint,
-        textInputAction: TextInputAction.next,
-        onChanged: (_) => onChanged(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _FieldLabel(l10n.superLoginUserId),
+          OmdsTextField(
+            key: const Key('superLogin.userId'),
+            controller: controller,
+            hintText: l10n.superLoginUserIdHint,
+            textInputAction: TextInputAction.next,
+            onChanged: (_) => onChanged(),
+          ),
+        ],
       ),
     );
   }
@@ -390,15 +429,20 @@ class _PasscodeField extends StatelessWidget {
       identifier: '_super_login_passcode',
       textField: true,
       label: l10n.superLoginPasscode,
-      child: OMDSPasswordTextField(
-        key: const Key('superLogin.passcode'),
-        controller: controller,
-        labelText: l10n.superLoginPasscode,
-        hint: l10n.superLoginPasscodeHint,
-        textInputAction: TextInputAction.done,
-        errorText: errorText,
-        onChanged: (_) => onChanged(),
-        onSubmitted: (_) => onSubmit(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _FieldLabel(l10n.superLoginPasscode),
+          OMDSPasswordTextField(
+            key: const Key('superLogin.passcode'),
+            controller: controller,
+            hint: l10n.superLoginPasscodeHint,
+            textInputAction: TextInputAction.done,
+            errorText: errorText,
+            onChanged: (_) => onChanged(),
+            onSubmitted: (_) => onSubmit(),
+          ),
+        ],
       ),
     );
   }
