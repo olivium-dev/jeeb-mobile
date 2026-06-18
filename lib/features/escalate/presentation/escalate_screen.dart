@@ -19,9 +19,7 @@ class EscalateScreen extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: OMDSAppBar(title: l10n.escalateTitle),
-      body: BlocBuilder<EscalateCubit, EscalateState>(
-        builder: _buildBody,
-      ),
+      body: BlocBuilder<EscalateCubit, EscalateState>(builder: _buildBody),
     );
   }
 
@@ -64,7 +62,7 @@ class _InputForm extends StatelessWidget {
                   const SizedBox(height: Spacing.large),
                   _PhotoSection(photos: state.photoPaths),
                   const SizedBox(height: Spacing.large),
-                  _CommentField(),
+                  const _CommentField(),
                 ],
               ),
             ),
@@ -112,7 +110,9 @@ class _ReasonTile extends StatelessWidget {
       title: Text(_reasonLabel(l10n, reason)),
       leading: Icon(
         selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-        color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+        color: selected
+            ? theme.colorScheme.primary
+            : theme.colorScheme.onSurface,
       ),
       onTap: () => context.read<EscalateCubit>().setReason(reason),
     );
@@ -170,7 +170,9 @@ class _PhotoSection extends StatelessWidget {
   /// EXEMPT: Image picker is device-native. In release, wire to
   /// image_picker package. Stubbed here for testability.
   void _fakePickPhoto(BuildContext context) {
-    context.read<EscalateCubit>().addPhoto('photo_${DateTime.now().millisecondsSinceEpoch}.jpg');
+    context.read<EscalateCubit>().addPhoto(
+      'photo_${DateTime.now().millisecondsSinceEpoch}.jpg',
+    );
   }
 }
 

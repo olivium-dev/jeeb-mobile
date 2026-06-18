@@ -20,15 +20,15 @@ enum RatingRevealState {
 class CounterpartRating extends Equatable {
   const CounterpartRating({required this.stars, this.comment});
 
-  final int stars;
-  final String? comment;
-
   factory CounterpartRating.fromJson(Map<String, dynamic> json) {
     return CounterpartRating(
       stars: json['stars'] as int? ?? 0,
       comment: json['comment'] as String?,
     );
   }
+
+  final int stars;
+  final String? comment;
 
   @override
   List<Object?> get props => [stars, comment];
@@ -41,10 +41,6 @@ class RatingStatus extends Equatable {
     this.counterpartRating,
   });
 
-  final String deliveryId;
-  final RatingRevealState revealState;
-  final CounterpartRating? counterpartRating;
-
   factory RatingStatus.fromJson(String deliveryId, Map<String, dynamic> json) {
     final raw =
         json['status'] as String? ??
@@ -56,6 +52,10 @@ class RatingStatus extends Equatable {
       counterpartRating: _parseCounterpart(json),
     );
   }
+
+  final String deliveryId;
+  final RatingRevealState revealState;
+  final CounterpartRating? counterpartRating;
 
   static RatingRevealState _parseState(String raw) {
     switch (raw) {

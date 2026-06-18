@@ -13,6 +13,15 @@ class NotificationTopicPrefs extends Equatable {
     this.ratingReminders = true,
   });
 
+  factory NotificationTopicPrefs.fromJson(Map<String, dynamic> json) {
+    return NotificationTopicPrefs(
+      offers: (json['offers'] as bool?) ?? true,
+      chat: (json['chat'] as bool?) ?? true,
+      statusChanges: (json['statusChanges'] as bool?) ?? true,
+      ratingReminders: (json['ratingReminders'] as bool?) ?? true,
+    );
+  }
+
   final bool offers;
   final bool chat;
   final bool statusChanges;
@@ -33,20 +42,11 @@ class NotificationTopicPrefs extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
-        'offers': offers,
-        'chat': chat,
-        'statusChanges': statusChanges,
-        'ratingReminders': ratingReminders,
-      };
-
-  factory NotificationTopicPrefs.fromJson(Map<String, dynamic> json) {
-    return NotificationTopicPrefs(
-      offers: (json['offers'] as bool?) ?? true,
-      chat: (json['chat'] as bool?) ?? true,
-      statusChanges: (json['statusChanges'] as bool?) ?? true,
-      ratingReminders: (json['ratingReminders'] as bool?) ?? true,
-    );
-  }
+    'offers': offers,
+    'chat': chat,
+    'statusChanges': statusChanges,
+    'ratingReminders': ratingReminders,
+  };
 
   @override
   List<Object?> get props => [offers, chat, statusChanges, ratingReminders];

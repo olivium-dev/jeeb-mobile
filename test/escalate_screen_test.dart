@@ -11,7 +11,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/escalate/application/escalate_cubit.dart';
-import 'package:jeeb_mobile/features/escalate/application/escalate_state.dart';
 import 'package:jeeb_mobile/features/escalate/domain/escalate_repository.dart';
 import 'package:jeeb_mobile/features/escalate/presentation/escalate_screen.dart';
 
@@ -56,7 +55,9 @@ void main() {
     expect(find.text('Other'), findsOneWidget);
   });
 
-  testWidgets('submit button is disabled until reason selected', (tester) async {
+  testWidgets('submit button is disabled until reason selected', (
+    tester,
+  ) async {
     await tester.pumpWidget(_wrap());
     await tester.pump();
 
@@ -68,8 +69,9 @@ void main() {
     expect(find.text('Submit Report'), findsOneWidget);
   });
 
-  testWidgets('selecting a reason and submitting shows confirmation',
-      (tester) async {
+  testWidgets('selecting a reason and submitting shows confirmation', (
+    tester,
+  ) async {
     await tester.pumpWidget(_wrap());
     await tester.pump();
 
@@ -101,10 +103,8 @@ void main() {
     await tester.pumpWidget(
       wrapForTest(
         BlocProvider<EscalateCubit>(
-          create: (_) => EscalateCubit(
-            repository: const _FakeRepo(),
-            deliveryId: 'dlv-1',
-          ),
+          create: (_) =>
+              EscalateCubit(repository: const _FakeRepo(), deliveryId: 'dlv-1'),
           child: const EscalateScreen(),
         ),
         locale: const Locale('ar'),

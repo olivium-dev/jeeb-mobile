@@ -13,13 +13,13 @@ void main() {
 
   setUp(() => repo = _MockRepo());
 
-  OtpHandoverCubit _clientCubit() => OtpHandoverCubit(
+  OtpHandoverCubit createClientCubit() => OtpHandoverCubit(
     repository: repo,
     deliveryId: 'DLV-770001',
     isClient: true,
   );
 
-  OtpHandoverCubit _jeeberCubit() => OtpHandoverCubit(
+  OtpHandoverCubit createJeeberCubit() => OtpHandoverCubit(
     repository: repo,
     deliveryId: 'DLV-770001',
     isClient: false,
@@ -31,7 +31,7 @@ void main() {
         () => repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')),
       ).thenAnswer((_) async => '1234');
 
-      final cubit = _clientCubit();
+      final cubit = createClientCubit();
       await Future<void>.delayed(Duration.zero);
 
       expect(cubit.state.mode, OtpHandoverViewMode.ready);
@@ -44,7 +44,7 @@ void main() {
         () => repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')),
       ).thenThrow(const OtpHandoverException(OtpHandoverErrorKind.network));
 
-      final cubit = _clientCubit();
+      final cubit = createClientCubit();
       await Future<void>.delayed(Duration.zero);
 
       expect(cubit.state.mode, OtpHandoverViewMode.error);
@@ -57,7 +57,7 @@ void main() {
       when(
         () => repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')),
       ).thenAnswer((_) async => '9999'); // should never be called
-      final cubit = _jeeberCubit();
+      final cubit = createJeeberCubit();
       expect(cubit.state.mode, OtpHandoverViewMode.ready);
       verifyNever(
         () => repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')),
@@ -73,7 +73,7 @@ void main() {
         ),
       ).thenAnswer((_) async => const OtpHandoverResult(success: true));
 
-      final cubit = _jeeberCubit();
+      final cubit = createJeeberCubit();
       await cubit.submitOtp('1234');
 
       expect(cubit.state.mode, OtpHandoverViewMode.success);
@@ -90,7 +90,7 @@ void main() {
           ),
         ).thenAnswer((_) async => const OtpHandoverResult(success: false));
 
-        final cubit = _jeeberCubit();
+        final cubit = createJeeberCubit();
         await cubit.submitOtp('0000');
 
         expect(cubit.state.mode, OtpHandoverViewMode.ready);
@@ -108,7 +108,7 @@ void main() {
         ),
       ).thenThrow(const OtpHandoverException(OtpHandoverErrorKind.invalidOtp));
 
-      final cubit = _jeeberCubit();
+      final cubit = createJeeberCubit();
       await cubit.submitOtp('0000');
 
       expect(cubit.state.wrongAttempts, 1);
@@ -125,7 +125,7 @@ void main() {
         ),
       ).thenThrow(const OtpHandoverException(OtpHandoverErrorKind.invalidOtp));
 
-      final cubit = _jeeberCubit();
+      final cubit = createJeeberCubit();
       await cubit.submitOtp('0000');
       await cubit.submitOtp('0000');
       await cubit.submitOtp('0000');
@@ -143,7 +143,7 @@ void main() {
         ),
       ).thenThrow(const OtpHandoverException(OtpHandoverErrorKind.locked));
 
-      final cubit = _jeeberCubit();
+      final cubit = createJeeberCubit();
       await cubit.submitOtp('1234');
 
       expect(cubit.state.escalate, isTrue);
@@ -158,7 +158,7 @@ void main() {
         ),
       ).thenThrow(const OtpHandoverException(OtpHandoverErrorKind.locked));
 
-      final cubit = _jeeberCubit();
+      final cubit = createJeeberCubit();
       await cubit.submitOtp('1234');
       expect(cubit.state.escalate, isTrue);
 

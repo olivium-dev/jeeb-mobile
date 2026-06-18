@@ -48,21 +48,21 @@ ClientHomeRequest _pendingRequest({
   String id = 'pen-1',
   String displayId = 'ORD-23470',
   int ttlSeconds = 600,
-}) =>
-    ClientHomeRequest(
-      id: id,
-      displayId: displayId,
-      title: displayId,
-      status: ClientRequestStatus.searching,
-      destinationLabel: 'Achrafieh',
-      tier: ClientRequestTier.express,
-      ttlSeconds: ttlSeconds,
-    );
+}) => ClientHomeRequest(
+  id: id,
+  displayId: displayId,
+  title: displayId,
+  status: ClientRequestStatus.searching,
+  destinationLabel: 'Achrafieh',
+  tier: ClientRequestTier.express,
+  ttlSeconds: ttlSeconds,
+);
 
 void main() {
   group('PendingRequestsTab — T-MOB-007', () {
-    testWidgets('AC1: pending row renders with order id and tier',
-        (tester) async {
+    testWidgets('AC1: pending row renders with order id and tier', (
+      tester,
+    ) async {
       final repo = InMemoryClientHomeRepository.fromSnapshot(
         ClientHomeSnapshot(pending: [_pendingRequest()]),
         latency: Duration.zero,
@@ -70,17 +70,22 @@ void main() {
       await tester.pumpWidget(_harness(repo: repo));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('pending-requests-tab-list')), findsOneWidget);
-      expect(find.byKey(const Key('pending-countdown-card-pen-1')), findsOneWidget);
+      expect(
+        find.byKey(const Key('pending-requests-tab-list')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('pending-countdown-card-pen-1')),
+        findsOneWidget,
+      );
       expect(find.text('ORD-23470'), findsOneWidget);
     });
 
-    testWidgets('AC1: TTL countdown label visible with correct format',
-        (tester) async {
+    testWidgets('AC1: TTL countdown label visible with correct format', (
+      tester,
+    ) async {
       final repo = InMemoryClientHomeRepository.fromSnapshot(
-        ClientHomeSnapshot(
-          pending: [_pendingRequest(ttlSeconds: 600)],
-        ),
+        ClientHomeSnapshot(pending: [_pendingRequest(ttlSeconds: 600)]),
         latency: Duration.zero,
       );
       await tester.pumpWidget(_harness(repo: repo));
@@ -90,12 +95,11 @@ void main() {
       expect(find.textContaining('~10:00'), findsOneWidget);
     });
 
-    testWidgets('AC2: expired card shows "Expired" label when TTL is 0',
-        (tester) async {
+    testWidgets('AC2: expired card shows "Expired" label when TTL is 0', (
+      tester,
+    ) async {
       final repo = InMemoryClientHomeRepository.fromSnapshot(
-        ClientHomeSnapshot(
-          pending: [_pendingRequest(ttlSeconds: 0)],
-        ),
+        ClientHomeSnapshot(pending: [_pendingRequest(ttlSeconds: 0)]),
         latency: Duration.zero,
       );
       await tester.pumpWidget(_harness(repo: repo));
@@ -104,12 +108,11 @@ void main() {
       expect(find.text('Expired'), findsOneWidget);
     });
 
-    testWidgets('AC2: countdown decrements from 2 to 1 after 1s tick',
-        (tester) async {
+    testWidgets('AC2: countdown decrements from 2 to 1 after 1s tick', (
+      tester,
+    ) async {
       final repo = InMemoryClientHomeRepository.fromSnapshot(
-        ClientHomeSnapshot(
-          pending: [_pendingRequest(ttlSeconds: 2)],
-        ),
+        ClientHomeSnapshot(pending: [_pendingRequest(ttlSeconds: 2)]),
         latency: Duration.zero,
       );
       await tester.pumpWidget(_harness(repo: repo));
@@ -132,8 +135,9 @@ void main() {
       expect(find.byKey(const Key('pending-requests-tab-list')), findsNothing);
     });
 
-    testWidgets('AC5: two pending cards each have their own countdown widget',
-        (tester) async {
+    testWidgets('AC5: two pending cards each have their own countdown widget', (
+      tester,
+    ) async {
       final repo = InMemoryClientHomeRepository.fromSnapshot(
         ClientHomeSnapshot(
           pending: [
@@ -147,10 +151,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Both cards are rendered as separate PendingCountdownCard widgets.
-      expect(
-        find.byType(PendingCountdownCard),
-        findsNWidgets(2),
-      );
+      expect(find.byType(PendingCountdownCard), findsNWidgets(2));
       // Different TTLs produce different labels.
       expect(find.textContaining('~05:00'), findsOneWidget);
       expect(find.textContaining('~02:00'), findsOneWidget);
@@ -158,18 +159,16 @@ void main() {
 
     testWidgets('reconnect banner hidden when visible=false', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          locale: const Locale('en'),
-          supportedLocales: const [Locale('en')],
-          localizationsDelegates: const [
+        const MaterialApp(
+          locale: Locale('en'),
+          supportedLocales: [Locale('en')],
+          localizationsDelegates: [
             SyncAppLocalizationsDelegate(),
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          home: Scaffold(
-            body: PendingReconnectBanner(visible: false),
-          ),
+          home: Scaffold(body: PendingReconnectBanner(visible: false)),
         ),
       );
       expect(find.byKey(const Key('pending-reconnect-banner')), findsNothing);
@@ -177,18 +176,16 @@ void main() {
 
     testWidgets('reconnect banner visible when visible=true', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          locale: const Locale('en'),
-          supportedLocales: const [Locale('en')],
-          localizationsDelegates: const [
+        const MaterialApp(
+          locale: Locale('en'),
+          supportedLocales: [Locale('en')],
+          localizationsDelegates: [
             SyncAppLocalizationsDelegate(),
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          home: Scaffold(
-            body: PendingReconnectBanner(visible: true),
-          ),
+          home: Scaffold(body: PendingReconnectBanner(visible: true)),
         ),
       );
       expect(find.byKey(const Key('pending-reconnect-banner')), findsOneWidget);

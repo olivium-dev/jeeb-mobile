@@ -14,29 +14,23 @@ import 'package:jeeb_mobile/features/settlement/domain/settlement_repository.dar
 import 'package:jeeb_mobile/features/settlement/domain/settlement_statement.dart';
 
 List<SettlementStatement> _sampleStatements() => List.generate(
-      4,
-      (i) => SettlementStatement(
-        id: 'stmt-$i',
-        weekLabel: 'Week $i',
-        totalPayout: 100.0 * (i + 1),
-        currency: 'USD',
-        status: i.isEven ? SettlementStatus.paid : SettlementStatus.pending,
-        deliveries: const [],
-      ),
-    );
+  4,
+  (i) => SettlementStatement(
+    id: 'stmt-$i',
+    weekLabel: 'Week $i',
+    totalPayout: 100.0 * (i + 1),
+    currency: 'USD',
+    status: i.isEven ? SettlementStatus.paid : SettlementStatus.pending,
+    deliveries: const [],
+  ),
+);
 
 class _FakeSettlementRepo implements SettlementRepository {
-  _FakeSettlementRepo({
-    this.statements,
-    this.listThrows,
-    this.pdfPath,
-    this.pdfThrows,
-  });
+  _FakeSettlementRepo({this.statements, this.listThrows, this.pdfPath});
 
   final List<SettlementStatement>? statements;
   final SettlementException? listThrows;
   final String? pdfPath;
-  final SettlementException? pdfThrows;
 
   @override
   Future<List<SettlementStatement>> fetchStatements() async {
@@ -46,7 +40,6 @@ class _FakeSettlementRepo implements SettlementRepository {
 
   @override
   Future<String> downloadPdf(String statementId) async {
-    if (pdfThrows != null) throw pdfThrows!;
     return pdfPath ?? '/tmp/settlement_$statementId.pdf';
   }
 }
@@ -65,9 +58,7 @@ void main() {
           'loading',
         ),
         predicate<SettlementState>(
-          (s) =>
-              s.mode == SettlementListMode.ready &&
-              s.statements.length == 4,
+          (s) => s.mode == SettlementListMode.ready && s.statements.length == 4,
           'ready with 4 statements',
         ),
       ],
@@ -84,9 +75,7 @@ void main() {
       expect: () => [
         predicate<SettlementState>((s) => s.mode == SettlementListMode.loading),
         predicate<SettlementState>(
-          (s) =>
-              s.mode == SettlementListMode.error &&
-              s.errorMessage != null,
+          (s) => s.mode == SettlementListMode.error && s.errorMessage != null,
           'error with message',
         ),
       ],
