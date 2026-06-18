@@ -37,11 +37,13 @@ flutter build apk --flavor dev --debug \
   --dart-define=JEEB_MOCK_BASE_URL=http://10.0.2.2:3055
 ```
 
-Check the host-side mock health before Maestro:
+Check the host-side mock health before Maestro, using the shim health URL from
+`.maestro/env/android-mock.env`:
 
 ```bash
+. .maestro/env/android-mock.env
 curl -fsS http://127.0.0.1:3055/health/aggregate
-curl -fsS http://127.0.0.1:3056/health
+curl -fsS "$MOCK_SHIM_HEALTH_URL"
 ```
 
 Run the structured smoke suite with debug output under the orchestrator path:
