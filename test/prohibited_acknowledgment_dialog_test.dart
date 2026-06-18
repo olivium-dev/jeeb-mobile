@@ -7,10 +7,9 @@ import 'package:jeeb_mobile/features/prohibited_acknowledgment/presentation/proh
 import 'support/sync_app_localizations.dart';
 
 class _FakeRepo implements ProhibitedAcknowledgmentRepository {
-  _FakeRepo({this.items = const [], this.alreadyAcked = false});
+  _FakeRepo({this.items = const []});
 
   final List<ProhibitedItem> items;
-  final bool alreadyAcked;
   bool localSaved = false;
 
   @override
@@ -20,7 +19,7 @@ class _FakeRepo implements ProhibitedAcknowledgmentRepository {
   Future<void> acknowledge() async {}
 
   @override
-  Future<bool> hasAcknowledged() async => alreadyAcked;
+  Future<bool> hasAcknowledged() async => false;
 
   @override
   Future<void> saveLocalAcknowledgment() async => localSaved = true;
@@ -36,17 +35,17 @@ void main() {
         ],
       );
 
-      await tester.pumpWidget(wrapForTest(
-        Builder(
-          builder: (context) => TextButton(
-            onPressed: () => showProhibitedAcknowledgmentDialog(
-              context,
-              repository: repo,
+      await tester.pumpWidget(
+        wrapForTest(
+          Builder(
+            builder: (context) => TextButton(
+              onPressed: () =>
+                  showProhibitedAcknowledgmentDialog(context, repository: repo),
+              child: const Text('open'),
             ),
-            child: const Text('open'),
           ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
@@ -61,19 +60,21 @@ void main() {
       );
 
       bool? result;
-      await tester.pumpWidget(wrapForTest(
-        Builder(
-          builder: (context) => TextButton(
-            onPressed: () async {
-              result = await showProhibitedAcknowledgmentDialog(
-                context,
-                repository: repo,
-              );
-            },
-            child: const Text('open'),
+      await tester.pumpWidget(
+        wrapForTest(
+          Builder(
+            builder: (context) => TextButton(
+              onPressed: () async {
+                result = await showProhibitedAcknowledgmentDialog(
+                  context,
+                  repository: repo,
+                );
+              },
+              child: const Text('open'),
+            ),
           ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();

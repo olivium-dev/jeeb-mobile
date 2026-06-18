@@ -19,18 +19,19 @@ enum EscalateReason { damaged, wrongItem, noShow, fraud, abuse, other }
 class EscalateResult {
   const EscalateResult({required this.caseId, required this.status});
 
-  final String caseId;
-  final String status;
-
   factory EscalateResult.fromJson(Map<String, dynamic> json) {
     return EscalateResult(
-      caseId: json['caseId'] as String? ??
+      caseId:
+          json['caseId'] as String? ??
           json['id'] as String? ??
           json['case_id'] as String? ??
           '',
       status: json['status'] as String? ?? 'open',
     );
   }
+
+  final String caseId;
+  final String status;
 }
 
 class EscalateException implements Exception {

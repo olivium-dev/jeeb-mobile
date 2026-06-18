@@ -7,25 +7,24 @@ import 'package:jeeb_mobile/features/prohibited_acknowledgment/presentation/cubi
 
 /// Fake repo for testing.
 class _FakeRepo implements ProhibitedAcknowledgmentRepository {
-  _FakeRepo({
-    this.items = _kItems,
-    this.alreadyAcknowledged = false,
-    this.acknowledgeThrows = false,
-  });
+  _FakeRepo({this.alreadyAcknowledged = false, this.acknowledgeThrows = false});
 
   static const _kItems = [
     ProhibitedItem(id: 'arak', name: 'Arak'),
-    ProhibitedItem(id: 'knife', name: 'Knife', severity: ProhibitedItemSeverity.warn),
+    ProhibitedItem(
+      id: 'knife',
+      name: 'Knife',
+      severity: ProhibitedItemSeverity.warn,
+    ),
   ];
 
-  final List<ProhibitedItem> items;
   final bool alreadyAcknowledged;
   final bool acknowledgeThrows;
 
   bool localSaved = false;
 
   @override
-  Future<List<ProhibitedItem>> fetchItems() async => items;
+  Future<List<ProhibitedItem>> fetchItems() async => _kItems;
 
   @override
   Future<void> acknowledge() async {
@@ -52,8 +51,11 @@ void main() {
       build: () => ProhibitedAcknowledgmentCubit(repository: _FakeRepo()),
       act: (cubit) => cubit.load(),
       expect: () => [
-        isA<ProhibitedAcknowledgmentState>()
-            .having((s) => s.status, 'status', ProhibitedAckStatus.loading),
+        isA<ProhibitedAcknowledgmentState>().having(
+          (s) => s.status,
+          'status',
+          ProhibitedAckStatus.loading,
+        ),
         isA<ProhibitedAcknowledgmentState>()
             .having((s) => s.status, 'status', ProhibitedAckStatus.loaded)
             .having((s) => s.items.length, 'items.length', 2),
@@ -67,10 +69,16 @@ void main() {
       ),
       act: (cubit) => cubit.load(),
       expect: () => [
-        isA<ProhibitedAcknowledgmentState>()
-            .having((s) => s.status, 'status', ProhibitedAckStatus.loading),
-        isA<ProhibitedAcknowledgmentState>()
-            .having((s) => s.status, 'status', ProhibitedAckStatus.acknowledged),
+        isA<ProhibitedAcknowledgmentState>().having(
+          (s) => s.status,
+          'status',
+          ProhibitedAckStatus.loading,
+        ),
+        isA<ProhibitedAcknowledgmentState>().having(
+          (s) => s.status,
+          'status',
+          ProhibitedAckStatus.acknowledged,
+        ),
       ],
     );
 
@@ -83,10 +91,16 @@ void main() {
       ),
       act: (cubit) => cubit.acknowledge(),
       expect: () => [
-        isA<ProhibitedAcknowledgmentState>()
-            .having((s) => s.status, 'status', ProhibitedAckStatus.acknowledging),
-        isA<ProhibitedAcknowledgmentState>()
-            .having((s) => s.status, 'status', ProhibitedAckStatus.acknowledged),
+        isA<ProhibitedAcknowledgmentState>().having(
+          (s) => s.status,
+          'status',
+          ProhibitedAckStatus.acknowledging,
+        ),
+        isA<ProhibitedAcknowledgmentState>().having(
+          (s) => s.status,
+          'status',
+          ProhibitedAckStatus.acknowledged,
+        ),
       ],
     );
 
@@ -101,10 +115,16 @@ void main() {
       ),
       act: (cubit) => cubit.acknowledge(),
       expect: () => [
-        isA<ProhibitedAcknowledgmentState>()
-            .having((s) => s.status, 'status', ProhibitedAckStatus.acknowledging),
-        isA<ProhibitedAcknowledgmentState>()
-            .having((s) => s.status, 'status', ProhibitedAckStatus.acknowledged),
+        isA<ProhibitedAcknowledgmentState>().having(
+          (s) => s.status,
+          'status',
+          ProhibitedAckStatus.acknowledging,
+        ),
+        isA<ProhibitedAcknowledgmentState>().having(
+          (s) => s.status,
+          'status',
+          ProhibitedAckStatus.acknowledged,
+        ),
       ],
     );
 
@@ -116,10 +136,16 @@ void main() {
       },
       act: (cubit) => cubit.load(),
       expect: () => [
-        isA<ProhibitedAcknowledgmentState>()
-            .having((s) => s.status, 'status', ProhibitedAckStatus.loading),
-        isA<ProhibitedAcknowledgmentState>()
-            .having((s) => s.status, 'status', ProhibitedAckStatus.error),
+        isA<ProhibitedAcknowledgmentState>().having(
+          (s) => s.status,
+          'status',
+          ProhibitedAckStatus.loading,
+        ),
+        isA<ProhibitedAcknowledgmentState>().having(
+          (s) => s.status,
+          'status',
+          ProhibitedAckStatus.error,
+        ),
       ],
     );
   });

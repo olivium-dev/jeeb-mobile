@@ -9,10 +9,10 @@ import 'package:jeeb_mobile/features/live_tracking/domain/live_tracking_reposito
 class _MockRepo extends Mock implements LiveTrackingRepository {}
 
 DeliveryTrackingInfo _info(TrackingStage stage) => DeliveryTrackingInfo(
-      deliveryId: 'DLV-770001',
-      currentStage: stage,
-      stageTimestamps: const {},
-    );
+  deliveryId: 'DLV-770001',
+  currentStage: stage,
+  stageTimestamps: const {},
+);
 
 void main() {
   late _MockRepo repo;
@@ -21,17 +21,18 @@ void main() {
     repo = _MockRepo();
   });
 
-  LiveTrackingCubit _cubit() => LiveTrackingCubit(
-        repository: repo,
-        deliveryId: 'DLV-770001',
-        pollInterval: const Duration(days: 1), // disable auto-poll in tests
-      );
+  LiveTrackingCubit createCubit() => LiveTrackingCubit(
+    repository: repo,
+    deliveryId: 'DLV-770001',
+    pollInterval: const Duration(days: 1), // disable auto-poll in tests
+  );
 
   test('emits loading → ready on successful fetch', () async {
-    when(() => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
-        .thenAnswer((_) async => _info(TrackingStage.inTransit));
+    when(
+      () => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')),
+    ).thenAnswer((_) async => _info(TrackingStage.inTransit));
 
-    final cubit = _cubit();
+    final cubit = createCubit();
     // Wait for the initial fetch to complete.
     await Future<void>.delayed(Duration.zero);
 
@@ -41,10 +42,11 @@ void main() {
   });
 
   test('emits error when no prior info and fetch fails', () async {
-    when(() => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
-        .thenThrow(const LiveTrackingException(LiveTrackingErrorKind.network));
+    when(
+      () => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')),
+    ).thenThrow(const LiveTrackingException(LiveTrackingErrorKind.network));
 
-    final cubit = _cubit();
+    final cubit = createCubit();
     await Future<void>.delayed(Duration.zero);
 
     expect(cubit.state.mode, LiveTrackingViewMode.error);
@@ -53,15 +55,16 @@ void main() {
 
   test('emits jeeberOnTheWay event on inTransit transition', () async {
     var callCount = 0;
-    when(() => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
-        .thenAnswer((_) async {
+    when(
+      () => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')),
+    ).thenAnswer((_) async {
       callCount++;
       return callCount == 1
           ? _info(TrackingStage.ordered)
           : _info(TrackingStage.inTransit);
     });
 
-    final cubit = _cubit();
+    final cubit = createCubit();
     await Future<void>.delayed(Duration.zero);
     expect(cubit.state.pendingEvent, LiveTrackingEvent.none);
 
@@ -74,15 +77,16 @@ void main() {
 
   test('emits jeeberAtDoor event on atDoor transition', () async {
     var callCount = 0;
-    when(() => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
-        .thenAnswer((_) async {
+    when(
+      () => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')),
+    ).thenAnswer((_) async {
       callCount++;
       return callCount == 1
           ? _info(TrackingStage.inTransit)
           : _info(TrackingStage.atDoor);
     });
 
-    final cubit = _cubit();
+    final cubit = createCubit();
     await Future<void>.delayed(Duration.zero);
 
     cubit.retry();
@@ -94,10 +98,11 @@ void main() {
   });
 
   test('no event emitted when stage does not change', () async {
-    when(() => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
-        .thenAnswer((_) async => _info(TrackingStage.inTransit));
+    when(
+      () => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')),
+    ).thenAnswer((_) async => _info(TrackingStage.inTransit));
 
-    final cubit = _cubit();
+    final cubit = createCubit();
     await Future<void>.delayed(Duration.zero);
 
     cubit.retry();

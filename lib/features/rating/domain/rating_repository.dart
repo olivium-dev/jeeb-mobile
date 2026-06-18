@@ -9,6 +9,8 @@
 ///               counterpartRating?: { stars, comment? } }
 ///
 /// Mock contract verified against Mockoon :3055.
+library;
+
 import 'entities/rating_status.dart';
 
 abstract class RatingRepository {

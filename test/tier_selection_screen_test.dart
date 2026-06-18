@@ -12,9 +12,7 @@ void main() {
     testWidgets('renders 3 tier cards when API succeeds', (tester) async {
       await tester.pumpWidget(
         wrapForTest(
-          TierSelectionScreen(
-            repository: const FakeTierRepository(),
-          ),
+          const TierSelectionScreen(repository: FakeTierRepository()),
         ),
       );
       await tester.pump();
@@ -37,9 +35,8 @@ void main() {
     testWidgets('shows cached banner when network fails (AC3)', (tester) async {
       await tester.pumpWidget(
         wrapForTest(
-          TierSelectionScreen(
-            repository:
-                const FakeTierRepository(failWith: TierLoadFailure.network),
+          const TierSelectionScreen(
+            repository: FakeTierRepository(failWith: TierLoadFailure.network),
           ),
         ),
       );
@@ -58,13 +55,12 @@ void main() {
       );
     });
 
-    testWidgets('confirm button is disabled until a tier is selected',
-        (tester) async {
+    testWidgets('confirm button is disabled until a tier is selected', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         wrapForTest(
-          TierSelectionScreen(
-            repository: const _NoRecommendedRepository(),
-          ),
+          const TierSelectionScreen(repository: _NoRecommendedRepository()),
         ),
       );
       await tester.pump();
@@ -77,8 +73,9 @@ void main() {
       expect(btn.isEnabled, isFalse);
     });
 
-    testWidgets('tapping a card selects it and enables confirm (AC2)',
-        (tester) async {
+    testWidgets('tapping a card selects it and enables confirm (AC2)', (
+      tester,
+    ) async {
       Tier? confirmed;
       await tester.pumpWidget(
         wrapForTest(
@@ -107,9 +104,7 @@ void main() {
     testWidgets('pre-selects recommended tier on first load', (tester) async {
       await tester.pumpWidget(
         wrapForTest(
-          TierSelectionScreen(
-            repository: const FakeTierRepository(),
-          ),
+          const TierSelectionScreen(repository: FakeTierRepository()),
         ),
       );
       await tester.pump();
@@ -122,8 +117,9 @@ void main() {
       expect(btn.isEnabled, isTrue);
     });
 
-    testWidgets('retry button triggers reload from cubit (AC3 retry)',
-        (tester) async {
+    testWidgets('retry button triggers reload from cubit (AC3 retry)', (
+      tester,
+    ) async {
       var callCount = 0;
       await tester.pumpWidget(
         wrapForTest(
@@ -159,16 +155,16 @@ class _NoRecommendedRepository implements TierRepository {
 
   @override
   Future<List<Tier>> fetchTiers() async => const [
-        Tier(
-          id: TierId.express,
-          priceLow: 80000,
-          priceHigh: 120000,
-          currency: 'LBP',
-          vehicleClass: TierVehicleClass.scooterOrCar,
-          slaMinutes: 120,
-          recommended: false,
-        ),
-      ];
+    Tier(
+      id: TierId.express,
+      priceLow: 80000,
+      priceHigh: 120000,
+      currency: 'LBP',
+      vehicleClass: TierVehicleClass.scooterOrCar,
+      slaMinutes: 120,
+      recommended: false,
+    ),
+  ];
 }
 
 class _CountingFakeRepository implements TierRepository {

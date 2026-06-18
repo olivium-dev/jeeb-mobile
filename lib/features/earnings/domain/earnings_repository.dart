@@ -9,7 +9,7 @@ abstract class EarningsRepository {
   });
 
   /// Downloads the earnings PDF and returns the local file path.
-  /// Endpoint: GET /v1/wallet/jeeb/earnings/export?format=pdf&period=<period>
+  /// Endpoint: `GET /v1/wallet/jeeb/earnings/export?format=pdf&period=<period>`.
   Future<String> exportEarningsPdf({
     required String jeeberId,
     EarningsPeriod period = EarningsPeriod.week,

@@ -14,7 +14,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -88,6 +87,8 @@ class _FakeGateway extends ChatGateway {
   @override
   Stream<ChatEvent> subscribe(String id) => _ctrl.stream;
 
+  Future<void> close() => _ctrl.close();
+
   @override
   Future<OfferAcceptResult> acceptOffer(
     String conversationId,
@@ -103,22 +104,21 @@ class _FakeGateway extends ChatGateway {
 // Helper
 // ---------------------------------------------------------------------------
 
-DeliveryChatMessage _offerMsg(String offerId) =>
-    DeliveryChatMessage.offerCard(
-      id: 'msg-$offerId',
-      author: ChatAuthor.them,
-      sentAt: DateTime(2026, 6, 1, 12),
-      status: MessageStatus.delivered,
-      payload: OfferCardPayload(
-        offerId: offerId,
-        jeeberId: 'j-$offerId',
-        jeeberName: 'Kamal Test',
-        fee: 35.0,
-        currency: 'USD',
-        etaMinutes: 20,
-        note: 'Fast delivery',
-      ),
-    );
+DeliveryChatMessage _offerMsg(String offerId) => DeliveryChatMessage.offerCard(
+  id: 'msg-$offerId',
+  author: ChatAuthor.them,
+  sentAt: DateTime(2026, 6, 1, 12),
+  status: MessageStatus.delivered,
+  payload: OfferCardPayload(
+    offerId: offerId,
+    jeeberId: 'j-$offerId',
+    jeeberName: 'Kamal Test',
+    fee: 35.0,
+    currency: 'USD',
+    etaMinutes: 20,
+    note: 'Fast delivery',
+  ),
+);
 
 Widget _buildApp(ChatCubit cubit, {Locale locale = const Locale('en')}) =>
     MaterialApp(
@@ -155,7 +155,10 @@ ChatCubit _cubit({
     gateway: gw,
     pickerService: StubPhotoPickerService(),
   );
-  addTearDown(c.close);
+  addTearDown(() async {
+    await c.close();
+    await gw.close();
+  });
   return c;
 }
 
@@ -186,7 +189,9 @@ void main() {
       expect(cubit.state.canSendText, isFalse);
     });
 
-    testWidgets('send button has Semantics enabled=false when empty (AC1 a11y)', (tester) async {
+    testWidgets('send button has Semantics enabled=false when empty (AC1 a11y)', (
+      tester,
+    ) async {
       // AC1 explicitly requires Semantics(enabled: false) on the disabled send button.
       final handle = tester.ensureSemantics();
       final cubit = _cubit(phase: ConversationPhase.broadcasting);
@@ -194,9 +199,10 @@ void main() {
       await cubit.load();
       await tester.pumpAndSettle();
 
-      final sendNode = tester
-          .getSemantics(find.byKey(ChatComposer.sendButtonKey));
-      expect(sendNode.hasFlag(SemanticsFlag.isEnabled), isFalse);
+      final sendNode = tester.getSemantics(
+        find.byKey(ChatComposer.sendButtonKey),
+      );
+      expect(sendNode.flagsCollection.isEnabled.toBoolOrNull(), isFalse);
       handle.dispose();
     });
 
@@ -211,7 +217,9 @@ void main() {
   });
 
   group('ChatScreen — offer card rendering (T-MOB-014 AC2)', () {
-    testWidgets('OfferCard with Accept and Decline buttons renders', (tester) async {
+    testWidgets('OfferCard with Accept and Decline buttons renders', (
+      tester,
+    ) async {
       final offer = _offerMsg('offer-kamal-1');
       final cubit = _cubit(
         history: [offer],
@@ -221,12 +229,23 @@ void main() {
       await cubit.load();
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('chat-offer-card-offer-kamal-1')), findsOneWidget);
-      expect(find.byKey(const Key('chat-offer-accept-offer-kamal-1')), findsOneWidget);
-      expect(find.byKey(const Key('chat-offer-decline-offer-kamal-1')), findsOneWidget);
+      expect(
+        find.byKey(const Key('chat-offer-card-offer-kamal-1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('chat-offer-accept-offer-kamal-1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('chat-offer-decline-offer-kamal-1')),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('tapping accept triggers phase transition (AC2)', (tester) async {
+    testWidgets('tapping accept triggers phase transition (AC2)', (
+      tester,
+    ) async {
       final offer = _offerMsg('offer-kamal-2');
       final cubit = _cubit(
         history: [offer],
@@ -237,7 +256,9 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tap Accept and fully settle (the fake gateway resolves sync).
-      await tester.tap(find.byKey(const Key('chat-offer-accept-offer-kamal-2')));
+      await tester.tap(
+        find.byKey(const Key('chat-offer-accept-offer-kamal-2')),
+      );
       await tester.pumpAndSettle();
 
       // After accept, phase flips to accepted (gateway returns it on next loadPhase).
@@ -246,7 +267,9 @@ void main() {
   });
 
   group('ChatScreen — Jeeber removed (T-MOB-014 AC4)', () {
-    testWidgets('JeeberRemovedBanner visible when closed + offerRejected', (tester) async {
+    testWidgets('JeeberRemovedBanner visible when closed + offerRejected', (
+      tester,
+    ) async {
       final rejected = DeliveryChatMessage.offerRejected(
         id: 'sys-rejected-1',
         sentAt: DateTime(2026, 6, 1, 12),
@@ -269,7 +292,9 @@ void main() {
   });
 
   group('ChatScreen — accepted phase (T-MOB-014 AC2)', () {
-    testWidgets('OfferAcceptedBanner shown after phase=accepted', (tester) async {
+    testWidgets('OfferAcceptedBanner shown after phase=accepted', (
+      tester,
+    ) async {
       final accepted = DeliveryChatMessage.offerAccepted(
         id: 'sys-accepted-1',
         sentAt: DateTime(2026, 6, 1, 12),

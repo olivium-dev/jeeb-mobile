@@ -253,8 +253,9 @@ class DioClientHomeRepository implements ClientHomeRepository {
 
   static List<String> _offerAvatarUrls(Map<String, dynamic> json) {
     final direct = json['offerAvatars'] ?? json['offerAvatarUrls'];
-    if (direct is List)
+    if (direct is List) {
       return direct.whereType<String>().toList(growable: false);
+    }
     final offers = json['offers'];
     if (offers is! List) return const <String>[];
     return offers

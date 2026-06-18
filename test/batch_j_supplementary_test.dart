@@ -8,8 +8,6 @@
 //   T-MOB-031 AC1: fetchDelivery result contains dropOff address.
 //   T-MOB-032 AC2: tap-row behaviour — onTapStatement callback fires.
 
-import 'dart:async';
-
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -29,11 +27,8 @@ import 'package:jeeb_mobile/features/settlement/domain/settlement_statement.dart
 
 const _dropOff = DropOffAddress(label: 'Hamra', lat: 33.89, lng: 35.50);
 
-JeeberDelivery _delivery(JeeberDeliveryStatus s) => JeeberDelivery(
-      id: 'DLV-9001',
-      status: s,
-      dropOff: _dropOff,
-    );
+JeeberDelivery _delivery(JeeberDeliveryStatus s) =>
+    JeeberDelivery(id: 'DLV-9001', status: s, dropOff: _dropOff);
 
 class _LoggingOfferRepo implements OfferSubmissionRepository {
   final List<Map<String, dynamic>> calls = [];
@@ -80,15 +75,15 @@ class _FakeSettlementRepo implements SettlementRepository {
 
   @override
   Future<List<SettlementStatement>> fetchStatements() async => [
-        SettlementStatement(
-          id: 's-1',
-          weekLabel: 'Week 1',
-          totalPayout: 200,
-          currency: 'USD',
-          status: SettlementStatus.paid,
-          deliveries: const [],
-        ),
-      ];
+    const SettlementStatement(
+      id: 's-1',
+      weekLabel: 'Week 1',
+      totalPayout: 200,
+      currency: 'USD',
+      status: SettlementStatus.paid,
+      deliveries: [],
+    ),
+  ];
 
   @override
   Future<String> downloadPdf(String statementId) async {
@@ -106,11 +101,7 @@ void main() {
     blocTest<OfferFormCubit, OfferFormState>(
       'ETA = 0 blocks submit and sets etaError',
       build: () => OfferFormCubit(repository: _LoggingOfferRepo()),
-      act: (c) => c.submit(
-        requestId: 'req-1',
-        priceUsd: 5.0,
-        etaMinutes: 0,
-      ),
+      act: (c) => c.submit(requestId: 'req-1', priceUsd: 5.0, etaMinutes: 0),
       expect: () => [
         predicate<OfferFormState>(
           (s) => s.etaError != null && s.mode == OfferFormMode.idle,
@@ -122,11 +113,7 @@ void main() {
     blocTest<OfferFormCubit, OfferFormState>(
       'negative ETA blocks submit and sets etaError',
       build: () => OfferFormCubit(repository: _LoggingOfferRepo()),
-      act: (c) => c.submit(
-        requestId: 'req-1',
-        priceUsd: 5.0,
-        etaMinutes: -5,
-      ),
+      act: (c) => c.submit(requestId: 'req-1', priceUsd: 5.0, etaMinutes: -5),
       expect: () => [
         predicate<OfferFormState>(
           (s) => s.etaError != null,
@@ -136,26 +123,32 @@ void main() {
     );
   });
 
-  group('T-MOB-030 AC6 — offer.submitted reaches repository with correct params', () {
-    test('submit calls repository with requestId, priceUsd, etaMinutes', () async {
-      final repo = _LoggingOfferRepo();
-      final cubit = OfferFormCubit(repository: repo);
+  group(
+    'T-MOB-030 AC6 — offer.submitted reaches repository with correct params',
+    () {
+      test(
+        'submit calls repository with requestId, priceUsd, etaMinutes',
+        () async {
+          final repo = _LoggingOfferRepo();
+          final cubit = OfferFormCubit(repository: repo);
 
-      await cubit.submit(
-        requestId: 'req-obs-001',
-        priceUsd: 7.5,
-        etaMinutes: 15,
-        note: 'Quick',
+          await cubit.submit(
+            requestId: 'req-obs-001',
+            priceUsd: 7.5,
+            etaMinutes: 15,
+            note: 'Quick',
+          );
+
+          expect(repo.calls, hasLength(1));
+          expect(repo.calls.first['requestId'], equals('req-obs-001'));
+          expect(repo.calls.first['priceUsd'], equals(7.5));
+          expect(repo.calls.first['etaMinutes'], equals(15));
+
+          cubit.close();
+        },
       );
-
-      expect(repo.calls, hasLength(1));
-      expect(repo.calls.first['requestId'], equals('req-obs-001'));
-      expect(repo.calls.first['priceUsd'], equals(7.5));
-      expect(repo.calls.first['etaMinutes'], equals(15));
-
-      cubit.close();
-    });
-  });
+    },
+  );
 
   // ---------------------------------------------------------------------------
   // T-MOB-031 supplementary
@@ -170,7 +163,9 @@ void main() {
       ),
       act: (c) => c.loadDelivery(),
       expect: () => [
-        predicate<ActiveDeliveryState>((s) => s.mode == ActiveDeliveryMode.loading),
+        predicate<ActiveDeliveryState>(
+          (s) => s.mode == ActiveDeliveryMode.loading,
+        ),
         predicate<ActiveDeliveryState>(
           (s) =>
               s.mode == ActiveDeliveryMode.ready &&
@@ -191,10 +186,12 @@ void main() {
         deliveryId: 'DLV-9001',
       );
       // Seed ready state with ordered delivery
-      cubit.emit(ActiveDeliveryState(
-        mode: ActiveDeliveryMode.ready,
-        delivery: _delivery(JeeberDeliveryStatus.ordered),
-      ));
+      cubit.emit(
+        ActiveDeliveryState(
+          mode: ActiveDeliveryMode.ready,
+          delivery: _delivery(JeeberDeliveryStatus.ordered),
+        ),
+      );
 
       await cubit.advanceStatus();
 
@@ -222,10 +219,12 @@ void main() {
       final cubit = SettlementCubit(repository: repo);
 
       // Seed a ready state so isExporting guard passes
-      cubit.emit(SettlementState(
-        mode: SettlementListMode.ready,
-        statements: await repo.fetchStatements(),
-      ));
+      cubit.emit(
+        SettlementState(
+          mode: SettlementListMode.ready,
+          statements: await repo.fetchStatements(),
+        ),
+      );
 
       await cubit.downloadPdf('s-1');
 
@@ -236,14 +235,14 @@ void main() {
 
   group('T-MOB-032 AC2 — per-delivery breakdown data present', () {
     test('statement with deliveries has breakdown lines', () {
-      final stmt = SettlementStatement(
+      const stmt = SettlementStatement(
         id: 'stmt-detail',
         weekLabel: 'Week 3',
         totalPayout: 350.0,
         currency: 'USD',
         status: SettlementStatus.paid,
         deliveries: [
-          const SettlementDeliveryLine(
+          SettlementDeliveryLine(
             deliveryId: 'DLV-001',
             date: '2026-06-01',
             tier: 'Express',
@@ -252,7 +251,7 @@ void main() {
             commission: 5.0,
             currency: 'USD',
           ),
-          const SettlementDeliveryLine(
+          SettlementDeliveryLine(
             deliveryId: 'DLV-002',
             date: '2026-06-02',
             tier: 'Flash',
