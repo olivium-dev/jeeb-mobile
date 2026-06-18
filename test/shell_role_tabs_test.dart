@@ -18,28 +18,27 @@ import 'package:jeeb_mobile/features/jeeber_home/domain/services/availability_ga
 import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_repository.dart';
 import 'package:jeeb_mobile/features/shell/shell_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
+import 'package:jeeb_mobile/shared/first_run/first_run.dart';
 
 class _StubEarningsRepository implements EarningsRepository {
   @override
   Future<EarningsSummary> fetchEarnings({
     required String jeeberId,
     EarningsPeriod period = EarningsPeriod.week,
-  }) async =>
-      const EarningsSummary(
-        totalEarnings: 0,
-        currency: 'LBP',
-        deliveryCount: 0,
-        commission: 0,
-        netPayout: 0,
-        periodLabel: 'today',
-      );
+  }) async => const EarningsSummary(
+    totalEarnings: 0,
+    currency: 'LBP',
+    deliveryCount: 0,
+    commission: 0,
+    netPayout: 0,
+    periodLabel: 'today',
+  );
 
   @override
   Future<String> exportEarningsPdf({
     required String jeeberId,
     EarningsPeriod period = EarningsPeriod.week,
-  }) async =>
-      '/tmp/earnings.pdf';
+  }) async => '/tmp/earnings.pdf';
 }
 
 class _SyncAppLocalizationsDelegate
@@ -84,10 +83,8 @@ Widget _harness({
   return MultiBlocProvider(
     providers: [
       BlocProvider(
-        create: (_) => LocaleCubit(
-          prefs: prefs,
-          deviceLocaleProvider: () => locale,
-        ),
+        create: (_) =>
+            LocaleCubit(prefs: prefs, deviceLocaleProvider: () => locale),
       ),
       BlocProvider(create: (_) => RoleCubit(prefs: prefs)),
       BlocProvider(create: (_) => RoleEligibilityCubit()),
@@ -136,8 +133,9 @@ void main() {
     await sl.reset();
   });
 
-  testWidgets('Client role shows Requests/DELIVERY/Profile tabs',
-      (tester) async {
+  testWidgets('Client role shows Requests/DELIVERY/Profile tabs', (
+    tester,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(_harness(prefs: prefs));
     await tester.pumpAndSettle();
@@ -150,8 +148,22 @@ void main() {
     expect(find.text('Earnings'), findsNothing);
   });
 
-  testWidgets('Switching to jeeber swaps to Dashboard/Earnings/Profile',
-      (tester) async {
+  testWidgets('Shell landing root exposes the stable home shell identifier', (
+    tester,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(_harness(prefs: prefs));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.bySemanticsIdentifier(FirstRunSemanticsIds.homeShell),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Switching to jeeber swaps to Dashboard/Earnings/Profile', (
+    tester,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(_harness(prefs: prefs));
     await tester.pumpAndSettle();
@@ -167,8 +179,9 @@ void main() {
     expect(find.text('Delivery'), findsNothing);
   });
 
-  testWidgets('Arabic locale renders RTL bottom-nav labels in Arabic',
-      (tester) async {
+  testWidgets('Arabic locale renders RTL bottom-nav labels in Arabic', (
+    tester,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(_harness(prefs: prefs, locale: const Locale('ar')));
     await tester.pumpAndSettle();
@@ -181,21 +194,23 @@ void main() {
     expect(Directionality.of(ctx), TextDirection.rtl);
   });
 
-  testWidgets('Role switch resets selected tab to 0 so we never land on a removed tab',
-      (tester) async {
-    final prefs = await SharedPreferences.getInstance();
-    await tester.pumpWidget(_harness(prefs: prefs));
-    await tester.pumpAndSettle();
+  testWidgets(
+    'Role switch resets selected tab to 0 so we never land on a removed tab',
+    (tester) async {
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(_harness(prefs: prefs));
+      await tester.pumpAndSettle();
 
-    // Tap the Delivery destination (client-only, index 1).
-    await tester.tap(find.text('Delivery').last);
-    await tester.pumpAndSettle();
+      // Tap the Delivery destination (client-only, index 1).
+      await tester.tap(find.text('Delivery').last);
+      await tester.pumpAndSettle();
 
-    final BuildContext ctx = tester.element(find.byType(ShellScreen));
-    await ctx.read<RoleCubit>().setRole(UserRole.jeeber);
-    await tester.pumpAndSettle();
+      final BuildContext ctx = tester.element(find.byType(ShellScreen));
+      await ctx.read<RoleCubit>().setRole(UserRole.jeeber);
+      await tester.pumpAndSettle();
 
-    // After switching to jeeber, tab 0 (Dashboard) should be active.
-    expect(find.byKey(const Key('dashboard-tab-root')), findsOneWidget);
-  });
+      // After switching to jeeber, tab 0 (Dashboard) should be active.
+      expect(find.byKey(const Key('dashboard-tab-root')), findsOneWidget);
+    },
+  );
 }

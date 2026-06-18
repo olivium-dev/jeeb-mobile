@@ -8,6 +8,7 @@ import 'package:omds/omds.dart';
 import '../../../core/locale/locale_cubit.dart';
 import '../../../core/onboarding/onboarding_cubit.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/first_run/first_run.dart';
 
 /// Three-page introductory onboarding carousel shown to first-launch users.
 ///
@@ -100,27 +101,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         systemNavigationBarDividerColor: Colors.transparent,
         systemNavigationBarIconBrightness:
             Theme.of(context).brightness == Brightness.dark
-                ? Brightness.light
-                : Brightness.dark,
+            ? Brightness.light
+            : Brightness.dark,
       ),
-      child: Scaffold(
-        backgroundColor: colorScheme.secondaryContainer,
-        body: Stack(
-          children: [
-            _IllustrationCarousel(
-              controller: _pageController,
-              pages: pages,
-              onPageChanged: (i) => setState(() => _currentPage = i),
-            ),
-            const _BottomScrim(),
-            _BottomPanel(
-              pages: pages,
-              currentPage: _currentPage,
-              onNext: () => _onNext(pages.length),
-              onSkip: _completeAndNavigate,
-            ),
-            const _LanguageToggle(),
-          ],
+      child: FirstRunSemanticTarget(
+        identifier: FirstRunSemanticsIds.onboardingScreen,
+        explicitChildNodes: true,
+        child: Scaffold(
+          backgroundColor: colorScheme.secondaryContainer,
+          body: Stack(
+            children: [
+              _IllustrationCarousel(
+                controller: _pageController,
+                pages: pages,
+                onPageChanged: (i) => setState(() => _currentPage = i),
+              ),
+              const _BottomScrim(),
+              _BottomPanel(
+                pages: pages,
+                currentPage: _currentPage,
+                onNext: () => _onNext(pages.length),
+                onSkip: _completeAndNavigate,
+              ),
+              const _LanguageToggle(),
+            ],
+          ),
         ),
       ),
     );
@@ -129,7 +134,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
 /// Asset paths for the wired walkthrough slide illustrations (FR-P1-1; the
 /// trusted-Jeebers slide-2 asset landed in FR-D1D2).
-const String _kVoiceFirstAsset = 'assets/illustrations/onboarding_voice_first.svg';
+const String _kVoiceFirstAsset =
+    'assets/illustrations/onboarding_voice_first.svg';
 const String _kTrustedJeebersAsset =
     'assets/illustrations/onboarding_trusted_jeebers.svg';
 const String _kLiveTrackingAsset =
@@ -139,30 +145,30 @@ const String _kLiveTrackingAsset =
 /// remains as a resilient fallback only (rendered if a future slide ever ships
 /// without an `asset` — see [_WalkthroughIllustration]).
 List<_OnboardingPage> _onboardingPages(AppLocalizations l10n) => [
-      _OnboardingPage(
-        icon: Icons.mic_none_rounded,
-        asset: _kVoiceFirstAsset,
-        title: l10n.onboardingSlide1Title,
-        body: l10n.onboardingSlide1Body,
-        semanticsLabel: l10n.onboardingSlide1Semantics,
-      ),
-      _OnboardingPage(
-        // FR-D1D2: the real "Trusted Jeebers" brand vector. The verified-user
-        // glyph is retained only as the resilient decode fallback.
-        icon: Icons.verified_user_outlined,
-        asset: _kTrustedJeebersAsset,
-        title: l10n.onboardingSlide2Title,
-        body: l10n.onboardingSlide2Body,
-        semanticsLabel: l10n.onboardingSlide2Semantics,
-      ),
-      _OnboardingPage(
-        icon: Icons.map_outlined,
-        asset: _kLiveTrackingAsset,
-        title: l10n.onboardingSlide3Title,
-        body: l10n.onboardingSlide3Body,
-        semanticsLabel: l10n.onboardingSlide3Semantics,
-      ),
-    ];
+  _OnboardingPage(
+    icon: Icons.mic_none_rounded,
+    asset: _kVoiceFirstAsset,
+    title: l10n.onboardingSlide1Title,
+    body: l10n.onboardingSlide1Body,
+    semanticsLabel: l10n.onboardingSlide1Semantics,
+  ),
+  _OnboardingPage(
+    // FR-D1D2: the real "Trusted Jeebers" brand vector. The verified-user
+    // glyph is retained only as the resilient decode fallback.
+    icon: Icons.verified_user_outlined,
+    asset: _kTrustedJeebersAsset,
+    title: l10n.onboardingSlide2Title,
+    body: l10n.onboardingSlide2Body,
+    semanticsLabel: l10n.onboardingSlide2Semantics,
+  ),
+  _OnboardingPage(
+    icon: Icons.map_outlined,
+    asset: _kLiveTrackingAsset,
+    title: l10n.onboardingSlide3Title,
+    body: l10n.onboardingSlide3Body,
+    semanticsLabel: l10n.onboardingSlide3Semantics,
+  ),
+];
 
 class _OnboardingPage {
   const _OnboardingPage({
@@ -200,12 +206,17 @@ class _IllustrationCarousel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PageView.builder(
-      key: const Key('onboarding.pager'),
-      controller: controller,
-      itemCount: pages.length,
-      onPageChanged: onPageChanged,
-      itemBuilder: (_, i) => _WalkthroughIllustration(page: pages[i]),
+    return FirstRunSemanticTarget(
+      identifier: FirstRunSemanticsIds.onboardingPager,
+      explicitChildNodes: true,
+      child: PageView.builder(
+        key: const Key('onboarding.pager'),
+        controller: controller,
+        itemCount: pages.length,
+        onPageChanged: onPageChanged,
+        itemBuilder: (_, i) =>
+            _WalkthroughIllustration(index: i, page: pages[i]),
+      ),
     );
   }
 }
@@ -218,8 +229,9 @@ class _IllustrationCarousel extends StatelessWidget {
 /// floats above the bottom copy/control band and carries a localized semantic
 /// label so screen readers announce the slide.
 class _WalkthroughIllustration extends StatelessWidget {
-  const _WalkthroughIllustration({required this.page});
+  const _WalkthroughIllustration({required this.index, required this.page});
 
+  final int index;
   final _OnboardingPage page;
 
   @override
@@ -229,8 +241,9 @@ class _WalkthroughIllustration extends StatelessWidget {
       child: Align(
         // Float the artwork above the bottom copy/control band.
         alignment: const Alignment(0.0, -0.35),
-        child: Semantics(
+        child: FirstRunSemanticTarget(
           key: const Key('onboarding.illustration'),
+          identifier: FirstRunSemanticsIds.onboardingIllustrationSlide(index),
           image: true,
           label: page.semanticsLabel,
           child: _IllustrationArtwork(page: page),
@@ -264,9 +277,8 @@ class _IllustrationArtwork extends StatelessWidget {
       height: Sizes.twoHundredLarge,
       fit: BoxFit.contain,
       // A failed/slow decode degrades to the brand field, never a broken glyph.
-      placeholderBuilder: (_) => const SizedBox.square(
-        dimension: Sizes.twoHundredLarge,
-      ),
+      placeholderBuilder: (_) =>
+          const SizedBox.square(dimension: Sizes.twoHundredLarge),
     );
   }
 }
@@ -341,24 +353,31 @@ class _BottomPanel extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: Spacing.large),
-              OmdsDotIndicator(
-                key: const Key('onboarding.dots'),
-                currentIndex: currentPage,
-                itemCount: pages.length,
+              FirstRunSemanticTarget(
+                identifier: FirstRunSemanticsIds.onboardingDots,
+                child: OmdsDotIndicator(
+                  key: const Key('onboarding.dots'),
+                  currentIndex: currentPage,
+                  itemCount: pages.length,
+                ),
               ),
               const SizedBox(height: Spacing.xLarge),
               _OnboardingCtaButton(
                 isLast: isLast,
-                label:
-                    isLast ? l10n.onboardingGetStarted : l10n.onboardingNext,
+                label: isLast ? l10n.onboardingGetStarted : l10n.onboardingNext,
                 onTap: onNext,
               ),
               const SizedBox(height: Spacing.medium),
-              OmdsSkipButton(
-                key: const Key('onboarding.skip'),
-                text: l10n.onboardingSkip,
-                padding: const EdgeInsets.all(Spacing.small),
-                onTap: onSkip,
+              FirstRunSemanticTarget(
+                identifier: FirstRunSemanticsIds.onboardingSkipButton,
+                label: l10n.onboardingSkip,
+                button: true,
+                child: OmdsSkipButton(
+                  key: const Key('onboarding.skip'),
+                  text: l10n.onboardingSkip,
+                  padding: const EdgeInsets.all(Spacing.small),
+                  onTap: onSkip,
+                ),
               ),
             ],
           ),
@@ -381,8 +400,11 @@ class _OnboardingCtaButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OmdsPrimaryButton(
-      key: Key(isLast ? 'onboarding.getStarted' : 'onboarding.next'),
+    return FirstRunPrimaryButton(
+      buttonKey: Key(isLast ? 'onboarding.getStarted' : 'onboarding.next'),
+      identifier: isLast
+          ? FirstRunSemanticsIds.onboardingGetStartedButton
+          : FirstRunSemanticsIds.onboardingNextButton,
       text: label,
       onTap: onTap,
       width: double.infinity,
@@ -413,8 +435,10 @@ class _LanguageToggle extends StatelessWidget {
         alignment: AlignmentDirectional.topEnd,
         child: Padding(
           padding: const EdgeInsets.all(Spacing.large),
-          child: Semantics(
+          child: FirstRunSemanticTarget(
+            identifier: FirstRunSemanticsIds.onboardingLanguageToggle,
             container: true,
+            explicitChildNodes: true,
             label: l10n.onboardingChooseLanguage,
             child: OmdsFilterChips<String>(
               key: const Key('onboarding.languageToggle'),

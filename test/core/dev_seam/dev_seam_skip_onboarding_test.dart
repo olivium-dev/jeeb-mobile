@@ -5,6 +5,8 @@
 // false and must round-trip through every source/merge path so a bare route pin
 // can never silently flip it on.
 
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -52,8 +54,7 @@ void main() {
         isFalse,
       );
       for (final falsey in ['false', '0', 'no', '']) {
-        final config =
-            DevSeamConfig.fromMap({'jeeb.skip_onboarding': falsey});
+        final config = DevSeamConfig.fromMap({'jeeb.skip_onboarding': falsey});
         expect(config.skipOnboarding, isFalse, reason: 'value "$falsey"');
       }
     });
@@ -65,6 +66,21 @@ void main() {
       });
       expect(config.route, '/');
       expect(config.skipOnboarding, isTrue);
+    });
+  });
+
+  group('Android intent-extra whitelist', () {
+    test('MainActivity accepts RC4 dev-seam keys from adb extras', () {
+      final mainActivity = File(
+        'android/app/src/main/kotlin/app/jeeb/mobile/MainActivity.kt',
+      ).readAsStringSync();
+      final seamKeys = RegExp(
+        r'private val seamKeys = listOf\(([\s\S]*?)\)',
+      ).firstMatch(mainActivity)?.group(1);
+
+      expect(seamKeys, isNotNull);
+      expect(seamKeys, contains('"jeeb.skip_onboarding"'));
+      expect(seamKeys, contains('"jeeb.mock_base_url"'));
     });
   });
 
@@ -111,20 +127,24 @@ void main() {
       () async {
         assert(kDebugMode, 'merge test must run in debug');
         // Intent sets only the route; device file supplies the skip flag.
-        await DevSeam.resolve(sources: const [
-          _StaticSource(DevSeamConfig(route: '/')),
-          _StaticSource(DevSeamConfig(skipOnboarding: true)),
-        ]);
+        await DevSeam.resolve(
+          sources: const [
+            _StaticSource(DevSeamConfig(route: '/')),
+            _StaticSource(DevSeamConfig(skipOnboarding: true)),
+          ],
+        );
         expect(DevSeam.current.route, '/');
         expect(DevSeam.current.skipOnboarding, isTrue);
       },
     );
 
     test('neither source setting the flag leaves it false', () async {
-      await DevSeam.resolve(sources: const [
-        _StaticSource(DevSeamConfig(route: '/')),
-        _StaticSource(DevSeamConfig(forcedLocale: 'ar')),
-      ]);
+      await DevSeam.resolve(
+        sources: const [
+          _StaticSource(DevSeamConfig(route: '/')),
+          _StaticSource(DevSeamConfig(forcedLocale: 'ar')),
+        ],
+      );
       expect(DevSeam.current.route, '/');
       expect(DevSeam.current.skipOnboarding, isFalse);
     });

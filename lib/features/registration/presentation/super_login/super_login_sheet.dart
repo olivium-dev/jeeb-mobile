@@ -6,6 +6,7 @@ import '../../../../core/di/injection_container.dart';
 import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/network/auth_token_store.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../../shared/first_run/first_run.dart';
 import '../../data/super_login_service.dart';
 import 'super_login_cubit.dart';
 import 'super_login_state.dart';
@@ -62,10 +63,7 @@ class _SuperLoginScope extends StatelessWidget {
     );
     final injected = cubit;
     if (injected != null) {
-      return BlocProvider<SuperLoginCubit>.value(
-        value: injected,
-        child: body,
-      );
+      return BlocProvider<SuperLoginCubit>.value(value: injected, child: body);
     }
     return BlocProvider<SuperLoginCubit>(
       create: (_) => SuperLoginCubit(
@@ -99,10 +97,10 @@ class _SuperLoginSheetBodyState extends State<_SuperLoginSheetBody> {
   @override
   void initState() {
     super.initState();
-    _userIdController =
-        TextEditingController(text: widget.initialUserId ?? '');
-    _passcodeController =
-        TextEditingController(text: widget.initialPasscode ?? '');
+    _userIdController = TextEditingController(text: widget.initialUserId ?? '');
+    _passcodeController = TextEditingController(
+      text: widget.initialPasscode ?? '',
+    );
     // When both fields arrive pre-filled (picker path) the "Sign in" button
     // must be enabled immediately — otherwise the user stares at a disabled
     // CTA. Set the flag DIRECTLY here (not via `_recomputeCanSubmit`, which
@@ -130,9 +128,9 @@ class _SuperLoginSheetBodyState extends State<_SuperLoginSheetBody> {
   void _submit() {
     FocusScope.of(context).unfocus();
     context.read<SuperLoginCubit>().submit(
-          userId: _userIdController.text,
-          passcode: _passcodeController.text,
-        );
+      userId: _userIdController.text,
+      passcode: _passcodeController.text,
+    );
   }
 
   void _onFieldChanged() {
@@ -191,9 +189,10 @@ class _SuperLoginForm extends StatelessWidget {
     // the keyboard AND the soft-button nav bar under edge-to-edge. Using only
     // `viewInsets.bottom` (keyboard) left the button behind the nav bar.
     final bottomInset = context.sheetBottomInset;
-    return Semantics(
-      identifier: '_super_login_sheet',
+    return FirstRunSemanticTarget(
+      identifier: FirstRunSemanticsIds.superLoginSheet,
       container: true,
+      explicitChildNodes: true,
       child: Padding(
         padding: EdgeInsets.fromLTRB(
           Spacing.large,
@@ -262,7 +261,9 @@ class _SheetDragHandle extends StatelessWidget {
         width: Sizes.fourXLarge,
         height: Spacing.xSmall,
         decoration: BoxDecoration(
-          color: colorScheme.onSurface.withValues(alpha: UIConstants.opacityLow),
+          color: colorScheme.onSurface.withValues(
+            alpha: UIConstants.opacityLow,
+          ),
           borderRadius: OmdsBorderRadius.small,
         ),
       ),
@@ -283,14 +284,16 @@ class _SuperLoginHeader extends StatelessWidget {
         Text(
           l10n.superLoginTitle,
           key: const Key('superLogin.title'),
-          style: theme.textTheme.headlineSmall
-              ?.copyWith(fontWeight: FontWeight.w700),
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
         ),
         const SizedBox(height: Spacing.xSmall),
         Text(
           l10n.superLoginSubtitle,
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );
@@ -369,8 +372,9 @@ class _FieldLabel extends StatelessWidget {
       padding: const EdgeInsetsDirectional.only(bottom: Spacing.xSmall),
       child: Text(
         text,
-        style: theme.textTheme.labelLarge
-            ?.copyWith(color: theme.colorScheme.onSurface),
+        style: theme.textTheme.labelLarge?.copyWith(
+          color: theme.colorScheme.onSurface,
+        ),
       ),
     );
   }
@@ -385,8 +389,8 @@ class _UserIdField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Semantics(
-      identifier: '_super_login_user_id',
+    return FirstRunSemanticTarget(
+      identifier: FirstRunSemanticsIds.superLoginUserIdField,
       textField: true,
       label: l10n.superLoginUserId,
       child: Column(
@@ -425,8 +429,8 @@ class _PasscodeField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Semantics(
-      identifier: '_super_login_passcode',
+    return FirstRunSemanticTarget(
+      identifier: FirstRunSemanticsIds.superLoginPasscodeField,
       textField: true,
       label: l10n.superLoginPasscode,
       child: Column(
@@ -449,7 +453,10 @@ class _PasscodeField extends StatelessWidget {
 }
 
 class _SuperLoginSubmitButton extends StatelessWidget {
-  const _SuperLoginSubmitButton({required this.canSubmit, required this.onSubmit});
+  const _SuperLoginSubmitButton({
+    required this.canSubmit,
+    required this.onSubmit,
+  });
 
   final bool canSubmit;
   final VoidCallback onSubmit;
@@ -460,8 +467,9 @@ class _SuperLoginSubmitButton extends StatelessWidget {
     return BlocBuilder<SuperLoginCubit, SuperLoginState>(
       buildWhen: (prev, curr) => prev.isSubmitting != curr.isSubmitting,
       builder: (context, state) {
-        return OmdsLoadingButton(
-          key: const Key('superLogin.submit'),
+        return FirstRunLoadingButton(
+          buttonKey: const Key('superLogin.submit'),
+          identifier: FirstRunSemanticsIds.superLoginSubmitButton,
           text: l10n.superLoginSubmit,
           isLoading: state.isSubmitting,
           isEnabled: canSubmit,
