@@ -1,5 +1,6 @@
 # Parameters:
 #   LOCALE - app locale language code, defaulted by parent flow.
+#   JEEB_MOCK_BASE_URL - runtime mock REST base URL for this APK run.
 appId: ${APP_ID}
 ---
 - launchApp:
@@ -7,5 +8,6 @@ appId: ${APP_ID}
     clearState: true
     arguments:
       jeeb.locale: "${LOCALE}"
+      jeeb.mock_base_url: "${JEEB_MOCK_BASE_URL}"
 - waitForAnimationToEnd:
     timeout: 5000

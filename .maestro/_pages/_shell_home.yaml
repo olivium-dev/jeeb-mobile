@@ -1,4 +1,4 @@
-# Expected app Semantics identifier from checkpoint 008:
+# App Semantics identifier:
 #   home_shell
 #
 # Secondary currently-present IDs:
@@ -6,11 +6,6 @@
 #   _request_empty_state_nav_requests
 #   _request_empty_state_nav_delivery
 #   _request_empty_state_nav_profile
-#
-# Current blocker:
-#   ShellScreen does not yet wrap the shell root in Semantics(identifier:
-#   'home_shell'). Keep home_shell as the primary assertion so the shared lane
-#   owns a single stable landing contract.
 appId: ${APP_ID}
 ---
 - extendedWaitUntil:

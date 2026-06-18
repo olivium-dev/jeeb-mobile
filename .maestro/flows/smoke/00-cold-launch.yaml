@@ -2,8 +2,6 @@
 #
 # Runtime expectation: 10-20s on a warm emulator; under the 60s refactor flag.
 # Debug output: pass --debug-output "$MAESTRO_DEBUG_ROOT".
-#
-# Blocked until onboarding exports checkpoint-008 Semantics identifiers.
 appId: ${APP_ID}
 tags:
   - android
@@ -11,14 +9,15 @@ tags:
   - mock
   - cold-launch
   - critical
-  - blocked
 env:
   LOCALE: en
+  JEEB_MOCK_BASE_URL: "http://10.0.2.2:3055"
 ---
 - runFlow:
     file: ../../_pages/_launch_android_fresh.yaml
     env:
       LOCALE: "${LOCALE}"
+      JEEB_MOCK_BASE_URL: "${JEEB_MOCK_BASE_URL}"
 - extendedWaitUntil:
     visible:
       id: "onboarding_next_button"

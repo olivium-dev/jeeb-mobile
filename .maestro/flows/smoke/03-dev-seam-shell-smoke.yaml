@@ -1,9 +1,9 @@
 # Android mock smoke: runtime dev seam lands on authenticated shell.
 #
-# Purpose: a fast shell smoke once Android accepts jeeb.skip_onboarding and the
-# app exports home_shell. This avoids spending 30s on OTP for non-auth surfaces.
+# Purpose: a fast shell smoke using Android runtime dev-seam extras. This avoids
+# spending 30s on OTP for non-auth surfaces.
 #
-# Runtime expectation after blockers are cleared: 10-20s.
+# Runtime expectation: 10-20s.
 appId: ${APP_ID}
 tags:
   - android
@@ -11,11 +11,11 @@ tags:
   - mock
   - dev-seam
   - critical
-  - blocked
 env:
   LOCALE: en
   JEEB_ROUTE: "/"
   JEEB_HOME_TAB: "in_progress"
+  JEEB_MOCK_BASE_URL: "http://10.0.2.2:3055"
 ---
 - runFlow:
     file: ../../_pages/_launch_android_dev_seam.yaml
@@ -23,5 +23,6 @@ env:
       LOCALE: "${LOCALE}"
       JEEB_ROUTE: "${JEEB_ROUTE}"
       JEEB_HOME_TAB: "${JEEB_HOME_TAB}"
+      JEEB_MOCK_BASE_URL: "${JEEB_MOCK_BASE_URL}"
 - runFlow: ../../_pages/_shell_home.yaml
 - takeScreenshot: "smoke_03_dev_seam_shell"

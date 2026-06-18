@@ -4,7 +4,7 @@
 #   POST /v1/auth/otp/request -> 200
 #   POST /v1/auth/otp/verify with code 123456 -> 200
 #
-# Runtime expectation after semantic blockers are cleared: 35-55s.
+# Runtime expectation: 35-55s.
 appId: ${APP_ID}
 tags:
   - android
@@ -13,16 +13,17 @@ tags:
   - auth
   - critical
   - happy-path
-  - blocked
 env:
   LOCALE: en
   PHONE_NATIONAL: "71123456"
   OTP_VALID: "123456"
+  JEEB_MOCK_BASE_URL: "http://10.0.2.2:3055"
 ---
 - runFlow:
     file: ../../_pages/_launch_android_fresh.yaml
     env:
       LOCALE: "${LOCALE}"
+      JEEB_MOCK_BASE_URL: "${JEEB_MOCK_BASE_URL}"
 - runFlow: ../../_pages/_onboarding_walkthrough.yaml
 - runFlow:
     file: ../../_pages/_registration_phone.yaml

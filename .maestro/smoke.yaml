@@ -9,12 +9,12 @@
 #   staging                      -> app.jeeb.mobile.staging
 # Run with:
 #   maestro test -e APP_ID=app.jeeb.mobile.dev \
+#     -e JEEB_MOCK_BASE_URL=http://10.0.2.2:3055 \
 #     --debug-output "/Volumes/Extreme Pro/claude-jeeb/jeeb-mobile-orchestrator/maestro-debug" \
 #     .maestro/smoke.yaml
 #
-# Blocked until onboarding exports checkpoint-008 Semantics identifiers:
-#   onboarding_skip_button
-#   onboarding_next_button
+# Static contract: Android accepts jeeb.mock_base_url and the app exports the
+# onboarding Semantics identifiers asserted below.
 appId: ${APP_ID}
 tags:
   - android
@@ -22,15 +22,16 @@ tags:
   - mock
   - cold-launch
   - critical
-  - blocked
 env:
   LOCALE: en
+  JEEB_MOCK_BASE_URL: "http://10.0.2.2:3055"
 ---
 - launchApp:
     stopApp: true
     clearState: true
     arguments:
       jeeb.locale: "${LOCALE}"
+      jeeb.mock_base_url: "${JEEB_MOCK_BASE_URL}"
 - waitForAnimationToEnd:
     timeout: 5000
 - extendedWaitUntil:

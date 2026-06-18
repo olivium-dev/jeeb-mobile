@@ -1,11 +1,7 @@
-# Expected app Semantics identifiers from checkpoint 008:
+# App Semantics identifiers:
 #   onboarding_skip_button
 #   onboarding_next_button
 #   onboarding_get_started_button
-#
-# Current blocker:
-#   onboarding_screen.dart currently exposes Flutter Keys for the controls but
-#   not Semantics(identifier: ...). This subflow is intentionally id-only.
 appId: ${APP_ID}
 ---
 - extendedWaitUntil:

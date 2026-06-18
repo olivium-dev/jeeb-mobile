@@ -1,13 +1,9 @@
 # Parameters:
 #   OTP_CODE - code to enter, e.g. 123456 or 000000.
 #
-# Expected app Semantics identifiers from checkpoint 008:
+# App Semantics identifiers:
 #   registration_otp_field
 #   registration_verify_button
-#
-# Current blocker:
-#   otp_verification_screen.dart currently uses Key('registration.otpField') and
-#   Key('registration.verify'), not Semantics(identifier: ...).
 appId: ${APP_ID}
 ---
 - extendedWaitUntil:
