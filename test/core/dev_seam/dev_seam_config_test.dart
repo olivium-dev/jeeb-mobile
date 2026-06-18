@@ -8,12 +8,14 @@ void main() {
         'jeeb.route': '/settings',
         'jeeb.state': 'broadcasting',
         'jeeb.locale': 'ar',
+        'jeeb.mock_base_url': ' http://192.168.1.42:3055 ',
         'jeeb.hold_splash': 'true',
       });
 
       expect(config.route, '/settings');
       expect(config.chatSelector, 'broadcasting');
       expect(config.forcedLocale, 'ar');
+      expect(config.mockBaseUrl, 'http://192.168.1.42:3055');
       expect(config.holdSplash, isTrue);
       expect(config.isEmpty, isFalse);
     });
@@ -50,13 +52,36 @@ void main() {
       expect(config.isEmpty, isFalse);
     });
 
+    test(
+      'maps jeeb.mock_base_url onto mockBaseUrl and flags hasMockBaseUrl',
+      () {
+        final config = DevSeamConfig.fromMap({
+          'jeeb.mock_base_url': ' http://10.0.2.2:3055 ',
+        });
+
+        expect(config.mockBaseUrl, 'http://10.0.2.2:3055');
+        expect(config.hasMockBaseUrl, isTrue);
+        expect(config.isEmpty, isFalse);
+      },
+    );
+
     test('accepts 1/yes as truthy hold_splash, everything else false', () {
-      expect(DevSeamConfig.fromMap({'jeeb.hold_splash': '1'}).holdSplash, isTrue);
       expect(
-          DevSeamConfig.fromMap({'jeeb.hold_splash': 'YES'}).holdSplash, isTrue);
+        DevSeamConfig.fromMap({'jeeb.hold_splash': '1'}).holdSplash,
+        isTrue,
+      );
       expect(
-          DevSeamConfig.fromMap({'jeeb.hold_splash': 'no'}).holdSplash, isFalse);
-      expect(DevSeamConfig.fromMap({'jeeb.hold_splash': ''}).holdSplash, isFalse);
+        DevSeamConfig.fromMap({'jeeb.hold_splash': 'YES'}).holdSplash,
+        isTrue,
+      );
+      expect(
+        DevSeamConfig.fromMap({'jeeb.hold_splash': 'no'}).holdSplash,
+        isFalse,
+      );
+      expect(
+        DevSeamConfig.fromMap({'jeeb.hold_splash': ''}).holdSplash,
+        isFalse,
+      );
     });
 
     test('empty map yields the inert empty config', () {
@@ -69,11 +94,14 @@ void main() {
   group('DevSeamConfig.fromJsonString', () {
     test('parses a well-formed device-file payload', () {
       final config = DevSeamConfig.fromJsonString(
-        '{"jeeb.route":"/","jeeb.locale":"ar","jeeb.hold_splash":true}',
+        '{"jeeb.route":"/","jeeb.locale":"ar",'
+        '"jeeb.mock_base_url":"http://192.168.1.42:3055",'
+        '"jeeb.hold_splash":true}',
       );
 
       expect(config.route, '/');
       expect(config.forcedLocale, 'ar');
+      expect(config.mockBaseUrl, 'http://192.168.1.42:3055');
       expect(config.holdSplash, isTrue);
     });
 
@@ -95,16 +123,26 @@ void main() {
         route: '/',
         chatSelector: 'dm',
         forcedLocale: 'en',
+        mockBaseUrl: 'http://10.0.2.2:3055',
       );
       expect(config.hasRoute, isTrue);
       expect(config.hasChatSelector, isTrue);
       expect(config.hasForcedLocale, isTrue);
+      expect(config.hasMockBaseUrl, isTrue);
     });
 
     test('value equality and hashCode are field-based', () {
-      const a = DevSeamConfig(route: '/', forcedLocale: 'ar');
-      const b = DevSeamConfig(route: '/', forcedLocale: 'ar');
-      const c = DevSeamConfig(route: '/settings', forcedLocale: 'ar');
+      const a = DevSeamConfig(
+        route: '/',
+        forcedLocale: 'ar',
+        mockBaseUrl: 'http://10.0.2.2:3055',
+      );
+      const b = DevSeamConfig(
+        route: '/',
+        forcedLocale: 'ar',
+        mockBaseUrl: 'http://10.0.2.2:3055',
+      );
+      const c = DevSeamConfig(route: '/', forcedLocale: 'ar');
       expect(a, b);
       expect(a.hashCode, b.hashCode);
       expect(a, isNot(c));
