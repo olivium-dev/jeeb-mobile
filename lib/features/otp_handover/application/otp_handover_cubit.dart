@@ -13,8 +13,8 @@ class OtpHandoverCubit extends Cubit<OtpHandoverState> {
     required OtpHandoverRepository repository,
     required this.deliveryId,
     required this.isClient,
-  })  : _repository = repository,
-        super(const OtpHandoverState()) {
+  }) : _repository = repository,
+       super(const OtpHandoverState()) {
     if (isClient) {
       _loadHandoverCode();
     } else {
@@ -29,27 +29,34 @@ class OtpHandoverCubit extends Cubit<OtpHandoverState> {
   Future<void> _loadHandoverCode() async {
     emit(state.copyWith(mode: OtpHandoverViewMode.loading, clearError: true));
     try {
-      final code =
-          await _repository.fetchHandoverCode(deliveryId: deliveryId);
-      emit(state.copyWith(
-        mode: OtpHandoverViewMode.ready,
-        handoverCode: code,
-      ));
+      final code = await _repository.fetchHandoverCode(deliveryId: deliveryId);
+      emit(state.copyWith(mode: OtpHandoverViewMode.ready, handoverCode: code));
     } on OtpHandoverException catch (e) {
-      emit(state.copyWith(
-        mode: OtpHandoverViewMode.error,
-        errorMessage: _mapError(e.kind),
-      ));
+      emit(
+        state.copyWith(
+          mode: OtpHandoverViewMode.error,
+          errorMessage: _mapError(e.kind),
+        ),
+      );
     }
   }
 
   Future<void> submitOtp(String otp) async {
     if (state.mode == OtpHandoverViewMode.submitting) return;
     if (state.escalate) return;
-    emit(state.copyWith(mode: OtpHandoverViewMode.submitting, clearError: true));
+    emit(
+      state.copyWith(mode: OtpHandoverViewMode.submitting, clearError: true),
+    );
     try {
-      await _repository.submitOtp(deliveryId: deliveryId, otp: otp);
-      emit(state.copyWith(mode: OtpHandoverViewMode.success));
+      final result = await _repository.submitOtp(
+        deliveryId: deliveryId,
+        otp: otp,
+      );
+      if (result.success) {
+        emit(state.copyWith(mode: OtpHandoverViewMode.success));
+      } else {
+        _incrementWrongAttempts();
+      }
     } on OtpHandoverException catch (e) {
       _handleSubmitError(e);
     }
@@ -61,29 +68,35 @@ class OtpHandoverCubit extends Cubit<OtpHandoverState> {
       return;
     }
     if (e.kind == OtpHandoverErrorKind.locked) {
-      emit(state.copyWith(
-        mode: OtpHandoverViewMode.ready,
-        escalate: true,
-        errorMessage: _mapError(e.kind),
-      ));
+      emit(
+        state.copyWith(
+          mode: OtpHandoverViewMode.ready,
+          escalate: true,
+          errorMessage: _mapError(e.kind),
+        ),
+      );
       return;
     }
-    emit(state.copyWith(
-      mode: OtpHandoverViewMode.ready,
-      errorMessage: _mapError(e.kind),
-    ));
+    emit(
+      state.copyWith(
+        mode: OtpHandoverViewMode.ready,
+        errorMessage: _mapError(e.kind),
+      ),
+    );
   }
 
   void _incrementWrongAttempts() {
     final next = state.wrongAttempts + 1;
     final shouldEscalate = next >= OtpHandoverState.maxAttempts;
-    emit(state.copyWith(
-      mode: OtpHandoverViewMode.ready,
-      wrongAttempts: next,
-      shakeKey: state.shakeKey + 1,
-      errorMessage: _mapError(OtpHandoverErrorKind.invalidOtp),
-      escalate: shouldEscalate,
-    ));
+    emit(
+      state.copyWith(
+        mode: OtpHandoverViewMode.ready,
+        wrongAttempts: next,
+        shakeKey: state.shakeKey + 1,
+        errorMessage: _mapError(OtpHandoverErrorKind.invalidOtp),
+        escalate: shouldEscalate,
+      ),
+    );
   }
 
   void retry() {

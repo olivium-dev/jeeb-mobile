@@ -38,10 +38,7 @@ void main() {
     );
 
     final captured = verify(
-      () => mockDio.post<void>(
-        any(),
-        data: captureAny(named: 'data'),
-      ),
+      () => mockDio.post<void>(any(), data: captureAny(named: 'data')),
     ).captured;
 
     final body = captured.first as Map<String, dynamic>;
@@ -58,17 +55,10 @@ void main() {
       ),
     );
 
-    await repo.submitRating(
-      deliveryId: 'DLV-1',
-      stars: 3,
-      isClient: false,
-    );
+    await repo.submitRating(deliveryId: 'DLV-1', stars: 3, isClient: false);
 
     final captured = verify(
-      () => mockDio.post<void>(
-        any(),
-        data: captureAny(named: 'data'),
-      ),
+      () => mockDio.post<void>(any(), data: captureAny(named: 'data')),
     ).captured;
 
     final body = captured.first as Map<String, dynamic>;
@@ -85,12 +75,27 @@ void main() {
     );
 
     expect(
-      () => repo.submitRating(
-        deliveryId: 'DLV-1',
-        stars: 4,
-        isClient: true,
-      ),
+      () => repo.submitRating(deliveryId: 'DLV-1', stars: 4, isClient: true),
       throwsException,
     );
+  });
+
+  test('fetchRatingStatus parses camelCase mock status envelope', () async {
+    when(() => mockDio.get<Map<String, dynamic>>(any())).thenAnswer(
+      (_) async => Response<Map<String, dynamic>>(
+        requestOptions: RequestOptions(path: ''),
+        statusCode: 200,
+        data: const {
+          'revealState': 'bothRated',
+          'counterpart_rating': {'stars': 4, 'comment': 'Smooth handover'},
+        },
+      ),
+    );
+
+    final status = await repo.fetchRatingStatus(deliveryId: 'DLV-1');
+
+    expect(status.revealState.name, 'bothRated');
+    expect(status.counterpartRating?.stars, 4);
+    expect(status.counterpartRating?.comment, 'Smooth handover');
   });
 }

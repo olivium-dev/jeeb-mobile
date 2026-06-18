@@ -57,7 +57,7 @@ class DeliveryTrackingInfo extends Equatable {
     String deliveryId,
     Map<String, dynamic> json,
   ) {
-    final stage = _parseStage(json['status'] as String? ?? '');
+    final stage = _parseStage(_stageWireValue(json));
     final posObj = json['position'] as Map<String, dynamic>?;
     final GpsPoint? pos = posObj == null
         ? null
@@ -83,8 +83,7 @@ class DeliveryTrackingInfo extends Equatable {
     String deliveryId,
     Map<String, dynamic> json,
   ) {
-    final status = json['status'] as String? ?? 'Ordered';
-    final currentStage = _parseStage(status);
+    final currentStage = _parseStage(_stageWireValue(json));
     final timestamps = <TrackingStage, DateTime>{};
     _populateTimestamps(timestamps, json, currentStage);
     return DeliveryTrackingInfo(
@@ -121,10 +120,12 @@ class DeliveryTrackingInfo extends Equatable {
     final result = <GpsPoint>[];
     for (final item in raw) {
       if (item is List && item.length >= 2) {
-        result.add(GpsPoint(
-          lat: (item[0] as num).toDouble(),
-          lng: (item[1] as num).toDouble(),
-        ));
+        result.add(
+          GpsPoint(
+            lat: (item[0] as num).toDouble(),
+            lng: (item[1] as num).toDouble(),
+          ),
+        );
       }
     }
     return result;
@@ -214,6 +215,11 @@ class DeliveryTrackingInfo extends Equatable {
     }
   }
 
+  static String _stageWireValue(Map<String, dynamic> json) {
+    final raw = json['currentStage'] ?? json['stage'] ?? json['status'];
+    return raw is String ? raw : '';
+  }
+
   /// Maps the 5-stage internal lifecycle onto the 3-stage Figma stepper
   /// (Ordered / Picked / In transit). `atDoor` and `delivered` both land on
   /// the third stage so the panel reads "In transit" through arrival.
@@ -232,13 +238,13 @@ class DeliveryTrackingInfo extends Equatable {
 
   @override
   List<Object?> get props => [
-        deliveryId,
-        currentStage,
-        stageTimestamps,
-        distanceLabel,
-        etaMinutes,
-        jeeberPosition,
-        polyline,
-        jeeber,
-      ];
+    deliveryId,
+    currentStage,
+    stageTimestamps,
+    distanceLabel,
+    etaMinutes,
+    jeeberPosition,
+    polyline,
+    jeeber,
+  ];
 }

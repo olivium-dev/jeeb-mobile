@@ -29,17 +29,31 @@ void main() {
       );
     });
 
-    test('jeeber is null while still matching (no jeeber object on the wire)',
-        () {
-      final info = DeliveryTrackingInfo.fromTrackingJson('dlv-1', {
-        'deliveryId': 'dlv-1',
-        'jeeberId': 'jeeber-kamal-001',
-        'status': 'in_transit',
+    test('uses currentStage when the tracking mock omits status', () {
+      final info = DeliveryTrackingInfo.fromTrackingJson('dlv-golden-001', {
+        'deliveryId': 'dlv-golden-001',
+        'currentStage': 'AtDoor',
         'polyline': const [],
+        'position': {'lat': 33.8938, 'lng': 35.5018},
       });
 
-      expect(info.jeeber, isNull);
+      expect(info.currentStage, TrackingStage.atDoor);
+      expect(info.trackingStepIndex, 2);
     });
+
+    test(
+      'jeeber is null while still matching (no jeeber object on the wire)',
+      () {
+        final info = DeliveryTrackingInfo.fromTrackingJson('dlv-1', {
+          'deliveryId': 'dlv-1',
+          'jeeberId': 'jeeber-kamal-001',
+          'status': 'in_transit',
+          'polyline': const [],
+        });
+
+        expect(info.jeeber, isNull);
+      },
+    );
 
     test('NEVER surfaces phone or pre-completion rating, even if the wire '
         'leaks them (blind-reveal / privacy guard)', () {
@@ -58,24 +72,29 @@ void main() {
 
       expect(info.jeeber, isNotNull);
       expect(info.jeeber!.phoneE164, isNull, reason: 'phone is withheld');
-      expect(info.jeeber!.rating, isNull,
-          reason: 'pre-completion rating is withheld');
+      expect(
+        info.jeeber!.rating,
+        isNull,
+        reason: 'pre-completion rating is withheld',
+      );
       expect(info.jeeber!.avatarUrl, isNull);
     });
 
-    test('treats a jeeber object missing name or vehicle as not-yet-assigned',
-        () {
-      final missingName = DeliveryTrackingInfo.fromTrackingJson('dlv-1', {
-        'jeeber': {'vehicleLabel': 'Motorbike'},
-        'status': 'matched',
-      });
-      final missingVehicle = DeliveryTrackingInfo.fromTrackingJson('dlv-1', {
-        'jeeber': {'displayName': 'Kamal Hajj'},
-        'status': 'matched',
-      });
+    test(
+      'treats a jeeber object missing name or vehicle as not-yet-assigned',
+      () {
+        final missingName = DeliveryTrackingInfo.fromTrackingJson('dlv-1', {
+          'jeeber': {'vehicleLabel': 'Motorbike'},
+          'status': 'matched',
+        });
+        final missingVehicle = DeliveryTrackingInfo.fromTrackingJson('dlv-1', {
+          'jeeber': {'displayName': 'Kamal Hajj'},
+          'status': 'matched',
+        });
 
-      expect(missingName.jeeber, isNull);
-      expect(missingVehicle.jeeber, isNull);
-    });
+        expect(missingName.jeeber, isNull);
+        expect(missingVehicle.jeeber, isNull);
+      },
+    );
   });
 }
