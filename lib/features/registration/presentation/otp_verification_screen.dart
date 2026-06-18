@@ -94,10 +94,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                         hasError: state.otpError != null,
                         onChanged: (code) =>
                             setState(() => _enteredCode = code),
-                        onCompleted: (code) {
-                          setState(() => _enteredCode = code);
-                          context.read<RegistrationCubit>().verifyCode(code);
-                        },
+                        onCompleted: (code) =>
+                            setState(() => _enteredCode = code),
                       ),
                     if (state.otpError != null) ...[
                       const SizedBox(height: Spacing.small),

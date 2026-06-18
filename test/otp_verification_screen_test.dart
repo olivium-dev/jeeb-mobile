@@ -94,6 +94,52 @@ void main() {
     await cubit.close();
   });
 
+  testWidgets('requires an explicit Verify tap after a complete OTP entry', (
+    tester,
+  ) async {
+    when(
+      () => otp.verifyCode(
+        e164Phone: any(named: 'e164Phone'),
+        code: any(named: 'code'),
+      ),
+    ).thenAnswer((_) async => OtpVerifyOutcome.verified);
+    final cubit = await primedOnOtpStep();
+    var verified = false;
+    await tester.pumpWidget(
+      hostScreen(cubit, onVerified: () => verified = true),
+    );
+    await tester.pump();
+
+    final otpInput = tester.widget<OmdsOtpInput>(
+      find.byKey(const Key('registration.otpField')),
+    );
+    expect(otpInput.onCompleted, isNotNull);
+    otpInput.onCompleted!.call('123456');
+    await tester.pump();
+
+    verifyNever(
+      () => otp.verifyCode(
+        e164Phone: any(named: 'e164Phone'),
+        code: any(named: 'code'),
+      ),
+    );
+    expect(
+      find.bySemanticsIdentifier(FirstRunSemanticsIds.otpVerifyButton),
+      findsOneWidget,
+    );
+
+    await tester.ensureVisible(find.byKey(const Key('registration.verify')));
+    await tester.tap(find.byKey(const Key('registration.verify')));
+    await tester.pump();
+
+    verify(
+      () => otp.verifyCode(e164Phone: '+96171123456', code: '123456'),
+    ).called(1);
+    await tester.pump();
+    expect(verified, isTrue);
+    await cubit.close();
+  });
+
   testWidgets('renders invalid OTP error with the Maestro-targeted ID', (
     tester,
   ) async {
