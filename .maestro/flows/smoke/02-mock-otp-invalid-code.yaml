@@ -1,0 +1,35 @@
+# Android mock negative smoke: invalid OTP stays recoverable on OTP screen.
+#
+# Network contract from checkpoint 011:
+#   POST /v1/auth/otp/request -> 200
+#   POST /v1/auth/otp/verify with invalid code -> 401
+#
+# Runtime expectation after semantic blockers are cleared: 35-55s.
+appId: ${APP_ID}
+tags:
+  - android
+  - smoke
+  - mock
+  - auth
+  - negative
+  - blocked
+env:
+  LOCALE: en
+  PHONE_NATIONAL: "71123456"
+  OTP_INVALID: "000000"
+---
+- runFlow:
+    file: ../../_pages/_launch_android_fresh.yaml
+    env:
+      LOCALE: "${LOCALE}"
+- runFlow: ../../_pages/_onboarding_walkthrough.yaml
+- runFlow:
+    file: ../../_pages/_registration_phone.yaml
+    env:
+      PHONE_NATIONAL: "${PHONE_NATIONAL}"
+- runFlow:
+    file: ../../_pages/_otp_submit.yaml
+    env:
+      OTP_CODE: "${OTP_INVALID}"
+- runFlow: ../../_pages/_otp_invalid_assertion.yaml
+- takeScreenshot: "smoke_02_mock_otp_invalid_code"

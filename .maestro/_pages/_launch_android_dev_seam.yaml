@@ -1,0 +1,21 @@
+# Parameters:
+#   LOCALE        - app locale language code, defaulted by parent flow.
+#   JEEB_ROUTE    - route to pin through the runtime dev seam.
+#   JEEB_HOME_TAB - optional client home tab seed.
+#
+# Blocker note:
+#   checkpoint 008 says jeeb.skip_onboarding is parsed in Dart but not currently
+#   whitelisted by Android MainActivity intent extras. Keep the expected extra
+#   here so the flow becomes live as soon as the shared lane adds the whitelist.
+appId: ${APP_ID}
+---
+- launchApp:
+    stopApp: true
+    clearState: true
+    arguments:
+      jeeb.route: "${JEEB_ROUTE}"
+      jeeb.locale: "${LOCALE}"
+      jeeb.home_tab: "${JEEB_HOME_TAB}"
+      jeeb.skip_onboarding: "true"
+- waitForAnimationToEnd:
+    timeout: 5000

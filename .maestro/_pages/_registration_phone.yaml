@@ -1,0 +1,29 @@
+# Parameters:
+#   PHONE_NATIONAL - 8-digit Lebanon national number without +961.
+#
+# Expected app Semantics identifiers from checkpoint 008:
+#   registration_phone_field
+#   registration_send_code_button
+#
+# Current blocker:
+#   registration_screen.dart currently uses Key('registration.phoneField') and
+#   Key('registration.sendCode'), not Semantics(identifier: ...).
+appId: ${APP_ID}
+---
+- extendedWaitUntil:
+    visible:
+      id: "registration_phone_field"
+    timeout: 15000
+- tapOn:
+    id: "registration_phone_field"
+- eraseText: 32
+- inputText: "${PHONE_NATIONAL}"
+- hideKeyboard
+- extendedWaitUntil:
+    visible:
+      id: "registration_send_code_button"
+    timeout: 10000
+- tapOn:
+    id: "registration_send_code_button"
+- waitForAnimationToEnd:
+    timeout: 5000

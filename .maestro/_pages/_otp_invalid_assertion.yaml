@@ -1,0 +1,14 @@
+# Expected app Semantics identifier:
+#   registration_otp_error
+#
+# Current blocker:
+#   the invalid-code Text has no Semantics(identifier: ...). Add
+#   Semantics(identifier: 'registration_otp_error') around the inline OTP error.
+appId: ${APP_ID}
+---
+- extendedWaitUntil:
+    visible:
+      id: "registration_otp_error"
+    timeout: 15000
+- assertVisible:
+    id: "registration_verify_button"

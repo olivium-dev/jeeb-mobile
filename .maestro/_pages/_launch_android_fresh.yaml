@@ -1,0 +1,11 @@
+# Parameters:
+#   LOCALE - app locale language code, defaulted by parent flow.
+appId: ${APP_ID}
+---
+- launchApp:
+    stopApp: true
+    clearState: true
+    arguments:
+      jeeb.locale: "${LOCALE}"
+- waitForAnimationToEnd:
+    timeout: 5000
