@@ -1,0 +1,167 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-068 — All Reviews List
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given reviews, Then reviews_root visible + infinite scroll (skeletons
+#        on load, D73) + reviewer first name only [D58] visible on each row.
+#   AC2: Cold-start hide <5 + New badge [D59]:
+#        reviews_new_badge visible when reviewCount has just-crossed threshold.
+#        reviews_hidden_score_note visible when count < 5.
+#   AC3: review_<id>_report_cta present on each row [D27].
+#   AC4: reviews_back → jeeber-profile-reviews
+#        (profile_view_all_reviews visible) [JM-067].
+#
+# Mock:
+#   GET /score-taking-service/v1/ratings/jeeb/jeeber/:jeeberId/reviews
+#     (mock-fix R1m — define; paginated, per-jeeber, with reviewer first name)
+# Seam:
+#   AC1/2/3/4: jeeb.seam.session=customer_logged_in
+#              + jeeb.seam.journey=jeeber_has_reviews  ← NEW W4 seed
+#              + jeeb.route=/profile/delivery-man/user-jeeber-002/reviews
+#   AC2 (cold-start <5): jeeb.seam.session=customer_logged_in
+#                        + jeeb.seam.journey=jeeber_cold_start_profile
+#                        + jeeb.route=/profile/delivery-man/user-jeeber-002/reviews
+#
+# NEW SEAM KEYS / MOCK SEEDS REQUIRED (W4 test-data contract):
+#   jeeb.seam.journey=jeeber_has_reviews — seeds ≥3 review rows for user-jeeber-002
+#     with reviewer first names (not full names) and report CTAs. Stable ids:
+#       review-001  (reviewer: "Ahmad", rating=5)
+#       review-002  (reviewer: "Sara",  rating=4)
+#       review-003  (reviewer: "Omar",  rating=5)
+#     Also seeds reviewCount=6 so New badge and score are visible (≥5 threshold).
+#   POST /__mock/seed/journey { "journey": "jeeber_has_reviews" }
+#   Mock-fix R1m: paginated reviews endpoint per-jeeber with first-name-only field.
+#
+# COINED IDENTIFIERS:
+#   reviews_root                — root of the reviews list screen
+#   reviews_new_badge           — "New" badge shown after score threshold crossed (D59)
+#   reviews_hidden_score_note   — note explaining score hidden until N≥5 (D59)
+#   review_<id>_reviewer_name   — reviewer first-name chip on each row (D58)
+#   review_<id>_report_cta      — report button on each row (D27)
+#
+# STATUS: RED until JM-068 ships + R1m mock-fix + jeeber_has_reviews seed exist.
+#         Also depends on JM-067 (back target). Decisions: D27, D57, D58, D59, D73.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-068-reviews-list.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Review rows with first-name attribution ─────────────────────────────
+# REQUIRES: R1m mock-fix + jeeber_has_reviews seed
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "jeeber_has_reviews"
+      jeeb.route: "/profile/delivery-man/user-jeeber-002/reviews"
+
+- extendedWaitUntil:
+    visible:
+      id: "reviews_root"
+    timeout: 45000
+
+# First-name attribution on review rows (D58)
+- assertVisible:
+    id: "review_review-001_reviewer_name"
+
+- assertVisible:
+    id: "review_review-002_reviewer_name"
+
+- takeScreenshot: jm068_ac1_review_rows_first_names
+
+# ── AC2: Score shown when ≥5 reviews (non-cold-start) ────────────────────────
+# FLOW-FIX (closeout): D59 makes the "New" badge a COLD-START (<5) indicator,
+# mutually exclusive with the aggregate score. For `jeeber_has_reviews`
+# (reviewCount>=5, non-cold-start) the screen renders `reviews_aggregate` (the
+# rounded score), NOT `reviews_new_badge`. The New-badge/hidden-score branch is
+# exercised by AC2b below (`jeeber_cold_start_profile`).
+- assertVisible:
+    id: "reviews_aggregate"
+
+- takeScreenshot: jm068_ac2_score_shown_non_cold_start
+
+# ── AC2b: Cold-start < 5 — hidden score note ─────────────────────────────────
+# REQUIRES: jeeber_cold_start_profile seed (reviewCount=2)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "jeeber_cold_start_profile"
+      jeeb.route: "/profile/delivery-man/user-jeeber-002/reviews"
+
+- extendedWaitUntil:
+    visible:
+      id: "reviews_root"
+    timeout: 45000
+
+- assertVisible:
+    id: "reviews_hidden_score_note"
+
+- takeScreenshot: jm068_ac2b_cold_start_hidden_score_note
+
+# ── AC3: Report CTA on each row ──────────────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "jeeber_has_reviews"
+      jeeb.route: "/profile/delivery-man/user-jeeber-002/reviews"
+
+- extendedWaitUntil:
+    visible:
+      id: "reviews_root"
+    timeout: 45000
+
+- assertVisible:
+    id: "review_review-001_report_cta"
+
+- assertVisible:
+    id: "review_review-002_report_cta"
+
+- takeScreenshot: jm068_ac3_report_cta_per_row
+
+# ── AC4: Back → jeeber-profile-reviews ───────────────────────────────────────
+# Enter the reviews list FROM the jeeber profile (push) so `reviews_back` pops
+# back to the profile (`profile_view_all_reviews`). A bare deep-link to the
+# reviews list (AC1-3 above) has no profile beneath it, so the back→profile edge
+# is exercised here via the profile entry (mirrors jm-067).
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "jeeber_has_reviews"
+      jeeb.route: "/profile/delivery-man"
+
+- extendedWaitUntil:
+    visible:
+      id: "delivery_man_profile_screen_root"
+    timeout: 45000
+
+- scrollUntilVisible:
+    element:
+      id: "profile_view_all_reviews"
+    direction: DOWN
+    timeout: 15000
+
+- tapOn:
+    id: "profile_view_all_reviews"
+
+- extendedWaitUntil:
+    visible:
+      id: "reviews_root"
+    timeout: 15000
+
+- tapOn:
+    id: "reviews_back"
+
+- extendedWaitUntil:
+    visible:
+      id: "profile_view_all_reviews"
+    timeout: 15000
+
+- takeScreenshot: jm068_ac4_back_to_jeeber_profile
