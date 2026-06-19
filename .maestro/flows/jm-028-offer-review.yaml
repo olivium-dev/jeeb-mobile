@@ -1,0 +1,160 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-028 — Offer Review (route the orphaned ClientOffersScreen)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given offers for a request, When the route opens, Then per-Jeeber
+#        offer_card_<id> shows price/ETA/rating + "Pay $X cash on delivery" [D11];
+#        sort controls offer_review_sort_<key> present.
+#   AC2: offer_card_<id>_name tapped → jeeber-profile-reviews
+#        (profile_view_all_reviews visible) [JM-067].
+#   AC3: offer_card_<id>_accept_cta → offer-accept-confirm sheet
+#        (offer_accept_sheet visible) [JM-029, not inline accept].
+#   AC4: offer_review_cancel_cta → cancel-request-confirm sheet
+#        (cancel_request_sheet visible) [JM-030].
+#
+# Mock: GET /offer-service/v1/offers?requestId=,
+#       POST /offer-service/v1/offers/:offerId/accept
+# Seam: jeeb.seam.session=customer_logged_in + jeeb.seam.journey=offers_received
+#       + jeeb.route=/requests/req-client-001-offers/offers
+#
+# Why the explicit route pin (AC3 root cause fix):
+#   The base fixture contains a separate request-replies-001 (status=offers-received).
+#   Without a route pin, the Replies tab fetches ALL offers-received requests
+#   (base + journey), and replies_check_offers_cta taps the first row in the list
+#   — which is request-replies-001, whose offers are stale base-fixture rows with
+#   no seeded accept window. The seeded req-client-001-offers (from offers_received
+#   journey) may appear second or have its offers shadowed. The fix: bypass the
+#   Replies→check-offers navigation entirely and use jeeb.route to deep-link
+#   directly to /requests/req-client-001-offers/offers (the stable journey id).
+#   This is the same seam-override pattern used by pending_request (§W1-0) and
+#   avoids the base-fixture ordering ambiguity permanently.
+#
+# STATUS: Decisions: D11, D6, D58, D59.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-028-offer-review.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Offer cards + sort controls visible ──────────────────────────────────
+# Route pin lands directly on /requests/req-client-001-offers/offers, bypassing
+# the Replies tab ordering ambiguity (base-fixture request-replies-001 would
+# otherwise be tapped first).
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "offers_received"
+      jeeb.route: "/requests/req-client-001-offers/offers"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_review_list_root"
+    timeout: 45000
+
+# AC1: First offer card present with price/ETA/rating
+- assertVisible:
+    id: "offer_card_0"
+
+- assertVisible:
+    id: "offer_card_0_price"
+
+- assertVisible:
+    id: "offer_card_0_eta"
+
+- assertVisible:
+    id: "offer_card_0_cash_on_delivery_label"
+
+# Sort controls present
+- assertVisible:
+    id: "offer_review_sort_price"
+
+- takeScreenshot: jm028_ac1_offer_cards_visible
+
+# ── AC2: Tap jeeber name → jeeber-profile-reviews (JM-067, now BUILT) ─────────
+# Tapping the name PUSHES the registered `delivery-man-profile` screen
+# (jeeber-profile-reviews host, JM-067). Assert its canonical root + close
+# control, then `profile_close` returns to the offer-review list (JM-067 AC).
+- tapOn:
+    id: "offer_card_0_name"
+
+- extendedWaitUntil:
+    visible:
+      id: "delivery_man_profile_screen_root"
+    timeout: 15000
+- assertVisible:
+    id: "profile_close"
+
+- takeScreenshot: jm028_ac2_jeeber_profile_from_offer_card
+
+- tapOn:
+    id: "profile_close"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_review_list_root"
+    timeout: 15000
+
+# ── AC3: Accept CTA → offer-accept-confirm sheet (not inline accept) ─────────
+# Re-launch with route pin so we arrive on the seeded req-client-001-offers screen,
+# not the base-fixture request-replies-001 (which has stale/no-window offers).
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "offers_received"
+      jeeb.route: "/requests/req-client-001-offers/offers"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_review_list_root"
+    timeout: 45000
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_card_0_accept_cta"
+    timeout: 20000
+
+- tapOn:
+    id: "offer_card_0_accept_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_accept_sheet"
+    timeout: 15000
+
+- takeScreenshot: jm028_ac3_accept_cta_to_sheet
+
+# ── AC4: Cancel → cancel-request-confirm sheet ───────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "offers_received"
+      jeeb.route: "/requests/req-client-001-offers/offers"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_review_list_root"
+    timeout: 45000
+
+# The cancel CTA sits below the offer cards — scroll it into view first.
+- scrollUntilVisible:
+    element:
+      id: "offer_review_cancel_cta"
+    direction: DOWN
+    timeout: 15000
+
+- tapOn:
+    id: "offer_review_cancel_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "cancel_request_sheet"
+    timeout: 15000
+
+- takeScreenshot: jm028_ac4_cancel_from_offer_review
