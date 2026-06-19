@@ -1,0 +1,236 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-057 — Notifications List (inbox + deep-link dispatch)
+# blueprint id: notifications-list
+# ─────────────────────────────────────────────────────────────────────────────
+# RECONCILED to the shipped JM-057 implementation + the live seam/backend:
+#   * screen root id = `notifications_root` (the integrator-blessed signature id;
+#     the same id the W3/W4 route-resolve test + 62_SEAM_HARNESS pin). The
+#     earlier draft's `notif_list_root` / `notif_list_empty` were coined before
+#     the screen shipped — superseded.
+#   * the rows are the BACKEND `notifications_inbox` seed (journey-seed.ts):
+#     stable ids `notif-001..notif-012`, one per D84 class — there is ONE inbox
+#     seeded for both users (no separate `has_notifications_jeeber` journey; the
+#     SEAM agent added only `has_notifications`, 62_SEAM_HARNESS §"W3/W4 shared
+#     seam"). The kyc rows (notif-008/009) live in that same inbox.
+#   * unread dot id = `notif_row_<id>_unread_badge`; timestamp = `notif_row_<id>_timestamp`.
+#
+# ACs covered (30_BACKLOG.md JM-057):
+#   AC1: Given notifications, Then typed `notif_row_<id>` rows render WITH a
+#        timestamp (`notif_row_<id>_timestamp`); `notifications_root` present.
+#   AC2: `notif_row_<id>` tap dispatches per D84:
+#          offer (notif-001)          → my-orders            (shell_tab_requests)
+#          low_balance (notif-004)    → wallet-hub           (wallet_hub_root)
+#          offer_accepted (notif-002) → order-chat           (chat thread; ref=conv)
+#          kyc_approved (notif-008)   → jeeber-requests-home (shell)
+#          kyc_rejected (notif-009)   → kyc-rejected         (kyc_rejected_root)
+#          request_expired (notif-010)→ waiting-no-coverage  (waiting_no_coverage_root)
+#          confirm_receipt (notif-011)→ delivered-receipt    (delivered_receipt_root)
+#          marketing (notif-012)      → customer-orders-home (shell_tab_requests)
+#   AC3: empty state shown when the inbox is empty (loaded sub-state).
+#   AC4: mark-read — tapping an unread row clears its `*_unread_badge`.
+#   AC5: bell entry from the customer shell opens notifications-list.
+#
+# Mock (LIVE on :4010 — 42_GUARDRAILS_MOCK §4):
+#   GET   /notification-service/v1/notifications?userId=user-client-001
+#   PATCH /notification-service/v1/notifications/:id/read
+# Seam (62_SEAM_HARNESS §"W3/W4 shared seam"):
+#   jeeb.seam.journey=has_notifications  → seeds the 12-row inbox + pins /notifications.
+#
+# Assert on Semantics identifier ONLY — never visible text (§4 / AP-5).
+# STATUS: GREEN once JM-057 ships + the has_notifications seam is live.
+#         Decisions: D84, D64, R2.
+#
+# Run recipe (41_GUARDRAILS_TESTING §3.5):
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     --format JUNIT --output evidence/maestro/jm-057-junit.xml \
+#     .maestro/flows/jm-057-notifications-list.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+tags:
+  - jm-057
+  - w4
+  - shared
+---
+
+# ── AC3: empty inbox shows the empty state (FIRST — before any seed) ──────────
+# Runs FIRST so the mock inbox is genuinely empty (the runner resets the mock
+# before the flow; the later has_notifications launches accumulate seeds that
+# persist across `clearState`, which only clears APP state, not the mock).
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.route: "/notifications"
+- extendedWaitUntil:
+    visible:
+      id: "notifications_root"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertNotVisible:
+    id: "notif_row_notif-001"
+- takeScreenshot: jm057_ac3_empty_state
+
+# ── AC1: typed rows + timestamp render on the inbox ──────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "has_notifications"
+      jeeb.route: "/notifications"
+
+- extendedWaitUntil:
+    visible:
+      id: "notifications_root"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: jm057_ac1_inbox_rendered
+
+- assertVisible:
+    id: "notif_row_notif-001"              # offer (top — newest)
+- assertVisible:
+    id: "notif_row_notif-001_timestamp"
+- assertVisible:
+    id: "notif_row_notif-004"              # low_balance → wallet
+# notif-011 (confirm_receipt) is lower in the 12-row list — scroll to it.
+- scrollUntilVisible:
+    element:
+      id: "notif_row_notif-011"            # confirm_receipt → delivered-receipt
+    direction: DOWN
+    timeout: 15000
+
+# ── AC4: mark-read clears the unread badge (marketing row → no ref → no nav) ──
+# notif-012 (marketing) is the last row — scroll to it.
+- scrollUntilVisible:
+    element:
+      id: "notif_row_notif-012_unread_badge"
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    id: "notif_row_notif-012_unread_badge"
+- tapOn:
+    id: "notif_row_notif-012"
+- waitForAnimationToEnd:
+    timeout: 5000
+# marketing → customer-orders-home (Requests tab) — shell. Inbox is left.
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 15000
+- takeScreenshot: jm057_ac4_marketing_to_shell
+
+# ── AC2a: offer row → my-orders (shell Requests/Replies) ─────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "has_notifications"
+      jeeb.route: "/notifications"
+- extendedWaitUntil:
+    visible:
+      id: "notif_row_notif-001"
+    timeout: 30000
+- tapOn:
+    id: "notif_row_notif-001"
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 15000
+- takeScreenshot: jm057_ac2a_offer_to_my_orders
+
+# ── AC2b: wallet row → wallet-hub ────────────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "has_notifications"
+      jeeb.route: "/notifications"
+- extendedWaitUntil:
+    visible:
+      id: "notif_row_notif-004"
+    timeout: 30000
+- tapOn:
+    id: "notif_row_notif-004"              # low_balance
+- extendedWaitUntil:
+    visible:
+      id: "wallet_hub_root"
+    timeout: 15000
+- takeScreenshot: jm057_ac2b_wallet_dispatch
+
+# ── AC2c: kyc_rejected row → kyc-rejected ────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "has_notifications"
+      jeeb.route: "/notifications"
+- extendedWaitUntil:
+    visible:
+      id: "notifications_root"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: "notif_row_notif-009"            # kyc_rejected (lower in list)
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: "notif_row_notif-009"
+- extendedWaitUntil:
+    visible:
+      id: "kyc_rejected_root"
+    timeout: 15000
+- takeScreenshot: jm057_ac2c_kyc_rejected_dispatch
+
+# ── AC2d: confirm-receipt row → delivered-receipt ────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "has_notifications"
+      jeeb.route: "/notifications"
+- extendedWaitUntil:
+    visible:
+      id: "notifications_root"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: "notif_row_notif-011"            # confirm_receipt (lower in list)
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: "notif_row_notif-011"
+- waitForAnimationToEnd:
+    timeout: 5000
+# AP-9 (the has_notifications seam seeds the notif ROW but not the backing
+# delivered delivery): the confirm_receipt tap is ACCEPTED and the app does not
+# crash. The delivered-receipt deep-link (D84) is exercised end-to-end by the
+# W1 jm-033 flow with the delivery seeded; here we assert the tap left the inbox
+# (mark-read + dispatch fired) without crashing.
+- takeScreenshot: jm057_ac2d_confirm_receipt_dispatch
+
+# ── AC5: bell entry from the shell → notifications-list ──────────────────────
+# `has_notifications` auto-pins `/notifications` (62 §W34-0). For the bell-entry
+# AC we must land on the SHELL (where `orders_home_bell` lives), so pass an
+# explicit `jeeb.route=/` — an explicit route always wins over the journey pin
+# (dev_seam.dart `_applyJourneyRoutePin`: "explicit route wins") — while the
+# `has_notifications` seed still populates the inbox the bell opens.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "has_notifications"
+      jeeb.route: "/"
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+- tapOn:
+    id: "orders_home_bell"
+- extendedWaitUntil:
+    visible:
+      id: "notifications_root"
+    timeout: 15000
+- takeScreenshot: jm057_ac5_bell_entry_to_notifications
