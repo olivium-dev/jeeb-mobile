@@ -6,6 +6,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/dev_seam/dev_seam.dart';
+import '../../../core/dev_seam/social_auth_seam.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/mock_gateway_client.dart';
 import '../../../core/onboarding/onboarding_cubit.dart';
@@ -19,6 +21,7 @@ import '../application/registration_cubit.dart';
 import '../application/registration_state.dart';
 import '../domain/lebanon_phone.dart';
 import '../domain/otp_service.dart';
+import '../domain/registration_attempt_policy.dart';
 import 'otp_verification_screen.dart';
 import 'super_login/super_login_picker.dart';
 import 'super_login/super_login_sheet.dart';
@@ -71,7 +74,15 @@ class RegistrationScreen extends StatelessWidget {
         return BlocProvider<RegistrationCubit>.value(value: cubit!, child: child);
       }
       return BlocProvider<RegistrationCubit>(
-        create: (_) => RegistrationCubit(otpService: sl<OtpService>()),
+        create: (_) => RegistrationCubit(
+          otpService: sl<OtpService>(),
+          // DEBUG-ONLY (62_SEAM_HARNESS.md): `jeeb.seam.otp_countdown_expired`
+          // zeroes the app-driven resend cooldown so `phone_otp_resend_cta` is
+          // immediately tappable (JM-009 AC2) without the flow waiting out the
+          // real 60 s timer. kDebugMode-gated + DevSeam is empty in release, so
+          // production always uses the default 60 s policy.
+          policy: _otpResendPolicy(),
+        ),
         child: child,
       );
     }
@@ -87,6 +98,9 @@ class RegistrationScreen extends StatelessWidget {
         create: (_) => SocialAuthCubit(
           service: DefaultSocialAuthService(
             dio: MockGatewayClient.createDio(),
+            // DEBUG-ONLY (62_SEAM_HARNESS.md): `jeeb.seam.social_login` drives a
+            // deterministic social result (no live OAuth). No-op in release.
+            seamResolver: SocialAuthSeam.resolver,
           ),
           tokenStore: SecureSocialAuthTokenStore(),
         ),
@@ -96,6 +110,22 @@ class RegistrationScreen extends StatelessWidget {
 
     return withRegistration(withSocial(view));
   }
+}
+
+/// DEBUG-ONLY resend policy for the phone-OTP flow (62_SEAM_HARNESS.md, JM-009).
+///
+/// Returns a zero-cooldown [RegistrationAttemptPolicy] when the
+/// `jeeb.seam.otp_countdown_expired` seam is set, so `phone_otp_resend_cta` is
+/// tappable on the first frame (the resend countdown is app-driven by
+/// [RegistrationCubit] off `policy.resendCooldown`). Everything else (max
+/// attempts, lockout duration) keeps the production default. In release —
+/// where [DevSeam.current] is always empty and `kDebugMode` is false — this
+/// always returns the default `const RegistrationAttemptPolicy()`.
+RegistrationAttemptPolicy _otpResendPolicy() {
+  if (kDebugMode && DevSeam.current.otpCountdownExpired) {
+    return const RegistrationAttemptPolicy(resendCooldown: Duration.zero);
+  }
+  return const RegistrationAttemptPolicy();
 }
 
 class _RegistrationView extends StatefulWidget {

@@ -1,0 +1,158 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-049 — Saved Addresses Manager (default + entry edge)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given saved addresses, Then saved_address_default_badge marks the default
+#        address; saved_address_add_cta is visible.
+#   AC2: saved_address_add_cta → address-detail-form
+#        (address_form_save_cta visible) [JM-050].
+#   AC3: saved_address_<id>_edit → address-detail-form for that address
+#        (address_form_save_cta visible) [JM-050].
+#   AC4: Reachable from customer-profile (customer_profile_addresses_row →
+#        saved_address_add_cta visible) [JM-035].
+#   AC5: Reachable from location-select (location_select_saved_addresses_row →
+#        saved_address_add_cta visible) [JM-024].
+#
+# Mock: GET /user-management/users/:userId/saved-locations,
+#       POST /user-management/users/:userId/saved-locations
+# Seam: jeeb.seam.session=customer_logged_in + jeeb.seam.journey=has_saved_addresses
+#       (FLAGGED — needs >=1 saved address seeded for user-client-001 so the
+#        default badge and edit button are visible; otherwise only add CTA shows)
+#
+# STATUS: RED until JM-049 ships + seam seed has_saved_addresses exists (test-first).
+#         Priority: P2. Decisions: —.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-049-saved-addresses.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Default badge + add CTA visible (with seeded addresses) ──────────────
+# REQUIRES seam seed: jeeb.seam.journey=has_saved_addresses
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "has_saved_addresses"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_profile"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_addresses_row"
+    timeout: 15000
+
+- tapOn:
+    id: "customer_profile_addresses_row"
+
+- extendedWaitUntil:
+    visible:
+      id: "saved_address_add_cta"
+    timeout: 15000
+
+# AC1: Default badge on the first seeded address
+- assertVisible:
+    id: "saved_address_default_badge"
+
+- takeScreenshot: jm049_ac1_addresses_with_default_badge
+
+# ── AC2: Add CTA → address-detail-form ───────────────────────────────────────
+- tapOn:
+    id: "saved_address_add_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "address_form_save_cta"
+    timeout: 15000
+
+- takeScreenshot: jm049_ac2_add_cta_to_address_form
+
+# ── AC3: Edit → address-detail-form ──────────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "has_saved_addresses"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_profile"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_addresses_row"
+    timeout: 15000
+
+- tapOn:
+    id: "customer_profile_addresses_row"
+
+- extendedWaitUntil:
+    visible:
+      id: "saved_address_0_edit"
+    timeout: 15000
+
+- tapOn:
+    id: "saved_address_0_edit"
+
+- extendedWaitUntil:
+    visible:
+      id: "address_form_save_cta"
+    timeout: 15000
+
+- takeScreenshot: jm049_ac3_edit_to_address_form
+
+# ── AC4: Reachable from customer-profile (already tested above — screenshot is proof)
+
+# ── AC5: Reachable from location-select ──────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "orders_home_new_order_fab"
+
+- extendedWaitUntil:
+    visible:
+      id: "request_type_continue_cta"
+    timeout: 15000
+
+- tapOn:
+    id: "request_type_standard_radio"
+
+- tapOn:
+    id: "request_type_continue_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "location_select_saved_addresses_row"
+    timeout: 15000
+
+- tapOn:
+    id: "location_select_saved_addresses_row"
+
+- extendedWaitUntil:
+    visible:
+      id: "saved_address_add_cta"
+    timeout: 15000
+
+- takeScreenshot: jm049_ac5_reachable_from_location_select

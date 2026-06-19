@@ -8,21 +8,26 @@ import '../domain/active_delivery_repository.dart';
 import '../domain/jeeber_delivery.dart';
 import '../domain/jeeber_delivery_status.dart';
 import 'widgets/delivery_status_stepper.dart';
+import 'widgets/mark_delivered_panel.dart';
 
-/// Jeeber active-delivery screen (T-MOB-031).
+/// Jeeber active-delivery / mark-delivered screen (T-MOB-031, JM-051).
 ///
-/// Route: /jeeber/deliveries/:id/active
+/// Route: `/jeeber/deliveries/:id/active` (seam-pinned for the
+/// `jeeber_active_delivery` journey → `mark_delivered_root` on first frame).
 ///
-/// Shows the drop-off address, status stepper, Open in Maps deep-link,
-/// and Open chat shortcut. Each status-advance calls POST
-/// /v1/deliveries/{id}/transition (AC2). Last step transitions to OTP
-/// handover (AC-last-step).
+/// Shows the drop-off address, the status stepper (Ordered→…→AtDoor), and — at
+/// `AtDoor` — the mark-delivered panel: a proof-of-delivery photo capture (D3),
+/// an optional note, the "customer confirms receipt + pays cash" copy (D11),
+/// and the "Mark as delivered" CTA. When the delivery reaches `Done` the screen
+/// routes to `feedback-rate-delivery` (the mandatory mutual rating, JM-034 /
+/// D56) — **NOT** the OTP handover.
 class ActiveDeliveryJeeberScreen extends StatelessWidget {
   const ActiveDeliveryJeeberScreen({
     super.key,
     required this.deliveryId,
     required this.onOpenChat,
-    required this.onOpenOtp,
+    this.onMarkedDelivered,
+    this.onOpenOtp,
     this.repository,
     this.cubit,
     this.mapsUrlBuilder,
@@ -30,7 +35,17 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
 
   final String deliveryId;
   final VoidCallback onOpenChat;
-  final VoidCallback onOpenOtp;
+
+  /// JM-051 AC2: fired once the delivery reaches `Done` — routes to
+  /// `feedback-rate-delivery` (mutual rating, `mode=jeeber`). When null (route
+  /// not yet rewired — see 50_ROUTE_REQUESTS.md JM-051) the done transition
+  /// still completes; the rating chain lights up once the integrator wires it.
+  final VoidCallback? onMarkedDelivered;
+
+  /// DEPRECATED for JM-051: the legacy OTP-handover edge. The mark-delivered
+  /// flow no longer routes to OTP (D56). Retained only so the existing route
+  /// builder compiles until the integrator swaps it for [onMarkedDelivered].
+  final VoidCallback? onOpenOtp;
 
   /// Injectable repo — production uses DI; tests supply a fake.
   final ActiveDeliveryRepository? repository;
@@ -50,7 +65,7 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
         child: _Body(
           deliveryId: deliveryId,
           onOpenChat: onOpenChat,
-          onOpenOtp: onOpenOtp,
+          onMarkedDelivered: onMarkedDelivered,
           mapsUrlBuilder: mapsUrlBuilder,
         ),
       );
@@ -66,7 +81,7 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
       child: _Body(
         deliveryId: deliveryId,
         onOpenChat: onOpenChat,
-        onOpenOtp: onOpenOtp,
+        onMarkedDelivered: onMarkedDelivered,
         mapsUrlBuilder: mapsUrlBuilder,
       ),
     );
@@ -81,7 +96,12 @@ class _Unavailable extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: OMDSAppBar(title: l10n.activeDeliveryTitle),
-      body: Center(child: Text(l10n.activeDeliveryUnavailable)),
+      // mark_delivered_root is exposed even on the unavailable shell so a cold
+      // deep-link / seam pin can still assert the screen rendered.
+      body: Semantics(
+        identifier: 'mark_delivered_root',
+        child: Center(child: Text(l10n.activeDeliveryUnavailable)),
+      ),
     );
   }
 }
@@ -90,13 +110,13 @@ class _Body extends StatelessWidget {
   const _Body({
     required this.deliveryId,
     required this.onOpenChat,
-    required this.onOpenOtp,
+    this.onMarkedDelivered,
     this.mapsUrlBuilder,
   });
 
   final String deliveryId;
   final VoidCallback onOpenChat;
-  final VoidCallback onOpenOtp;
+  final VoidCallback? onMarkedDelivered;
   final Future<void> Function(String url)? mapsUrlBuilder;
 
   @override
@@ -114,8 +134,10 @@ class _Body extends StatelessWidget {
       showOmdsSnackbar(context, message: state.transitionError!);
       context.read<ActiveDeliveryCubit>().acknowledgeTransitionError();
     }
-    if (state.delivery?.status == JeeberDeliveryStatus.done) {
-      onOpenOtp();
+    // JM-051 AC2: done → mandatory rating (NOT OTP). One-shot signal.
+    if (state.delivered) {
+      context.read<ActiveDeliveryCubit>().acknowledgeDelivered();
+      onMarkedDelivered?.call();
     }
   }
 
@@ -126,7 +148,13 @@ class _Body extends StatelessWidget {
         title: l10n.activeDeliveryTitle,
         showBackButton: true,
       ),
-      body: _buildBody(context, state, l10n),
+      // mark_delivered_root (JM-051) — root of the active-delivery /
+      // mark-delivered screen, asserted on first frame by the seam route pin.
+      body: Semantics(
+        identifier: 'mark_delivered_root',
+        explicitChildNodes: true,
+        child: _buildBody(context, state, l10n),
+      ),
     );
   }
 
@@ -148,10 +176,18 @@ class _Body extends StatelessWidget {
         final delivery = state.delivery;
         if (delivery == null) return const SizedBox.shrink();
         return _ReadyContent(
+          state: state,
           delivery: delivery,
-          isTransitioning: state.isTransitioning,
           onAdvance: () =>
               context.read<ActiveDeliveryCubit>().advanceStatus(),
+          onCaptureProof: () =>
+              context.read<ActiveDeliveryCubit>().captureProofPhoto(
+                    'proof_${DateTime.now().millisecondsSinceEpoch}.jpg',
+                  ),
+          onNoteChanged: (v) =>
+              context.read<ActiveDeliveryCubit>().setNote(v),
+          onMarkDelivered: () =>
+              context.read<ActiveDeliveryCubit>().markDelivered(),
           onOpenChat: onOpenChat,
           onOpenMaps: () => _launchMaps(delivery),
           l10n: l10n,
@@ -174,23 +210,37 @@ class _Body extends StatelessWidget {
 
 class _ReadyContent extends StatelessWidget {
   const _ReadyContent({
+    required this.state,
     required this.delivery,
-    required this.isTransitioning,
     required this.onAdvance,
+    required this.onCaptureProof,
+    required this.onNoteChanged,
+    required this.onMarkDelivered,
     required this.onOpenChat,
     required this.onOpenMaps,
     required this.l10n,
   });
 
+  final ActiveDeliveryState state;
   final JeeberDelivery delivery;
-  final bool isTransitioning;
   final VoidCallback onAdvance;
+  final VoidCallback onCaptureProof;
+  final ValueChanged<String> onNoteChanged;
+  final VoidCallback onMarkDelivered;
   final VoidCallback onOpenChat;
   final VoidCallback onOpenMaps;
   final AppLocalizations l10n;
 
   @override
   Widget build(BuildContext context) {
+    // JM-051: the mark-delivered panel is surfaced during the delivering phase
+    // (InTransit or AtDoor) — the seam seeds `jeeber_active_delivery` at
+    // InTransit, and the flow asserts the panel on first frame. `markDelivered`
+    // walks the remaining SM-1 forward steps (InTransit → AtDoor → Done),
+    // stamping the proof evidenceUrl on the final transition.
+    final showMarkDelivered =
+        delivery.status == JeeberDeliveryStatus.inTransit ||
+            delivery.status == JeeberDeliveryStatus.atDoor;
     return ListView(
       padding: const EdgeInsets.all(Spacing.medium),
       children: [
@@ -198,10 +248,24 @@ class _ReadyContent extends StatelessWidget {
         const SizedBox(height: Spacing.large),
         DeliveryStatusStepper(
           currentStatus: delivery.status,
-          isTransitioning: isTransitioning,
+          isTransitioning: state.isTransitioning,
           onAdvance: onAdvance,
         ),
         const SizedBox(height: Spacing.large),
+        // JM-051 AC1/AC2: surface the mark-delivered panel — proof photo (D3)
+        // + optional note + cash-receipt copy (D11) + the CTA.
+        if (showMarkDelivered) ...[
+          MarkDeliveredPanel(
+            delivery: delivery,
+            proofPhotoStatus: state.proofPhotoStatus,
+            isMarking: state.isTransitioning,
+            onCaptureProof: onCaptureProof,
+            onNoteChanged: onNoteChanged,
+            onMarkDelivered: onMarkDelivered,
+            l10n: l10n,
+          ),
+          const SizedBox(height: Spacing.large),
+        ],
         _ActionButtons(
           onOpenMaps: onOpenMaps,
           onOpenChat: onOpenChat,

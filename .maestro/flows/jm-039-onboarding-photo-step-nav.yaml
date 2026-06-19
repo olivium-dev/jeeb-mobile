@@ -1,0 +1,105 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-039 — Onboarding photo step nav fixes
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given step 1 (photo upload), Then dm_onboarding_back →
+#        delivery-register-prompt (delivery_register_prompt visible), NOT maybePop.
+#   AC2: dm_onboarding_continue chains through the wizard (not Fake submit+pop).
+#        Specifically: photo-step → personal-details step
+#        (dm_onboarding_address_root visible).
+#
+# Mock: —
+# Seam:
+#   jeeb.seam.session=jeeber_logged_in + jeeb.seam.kyc_status=none
+#   (user-jeeber-002 kycStatus=none → DELIVERY tab shows register prompt)
+#
+# NEW SEAM KEYS REQUIRED: jeeb.seam.kyc_status (see JM-036)
+#
+# STATUS: RED until JM-039 ships (test-first). Decisions: D67.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-039-onboarding-photo-step-nav.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── Navigate to photo upload step ────────────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "none"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "delivery_register_now_cta"
+    timeout: 15000
+
+- tapOn:
+    id: "delivery_register_now_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "dm_onboarding_continue"
+    timeout: 15000
+
+- takeScreenshot: jm039_arrived_at_photo_step
+
+# ── AC1: Back → delivery-register-prompt (NOT maybePop / random stack) ───────
+- tapOn:
+    id: "dm_onboarding_back"
+
+- extendedWaitUntil:
+    visible:
+      id: "delivery_register_prompt"
+    timeout: 15000
+
+# delivery_register_now_cta must still be on screen (confirms we're on the
+# register prompt, not some other back destination)
+- assertVisible:
+    id: "delivery_register_now_cta"
+
+- takeScreenshot: jm039_ac1_back_to_register_prompt
+
+# ── Navigate back to photo step for AC2 ──────────────────────────────────────
+- tapOn:
+    id: "delivery_register_now_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "dm_onboarding_continue"
+    timeout: 15000
+
+# ── AC2: Continue → personal-details (wizard chains, no Fake submit+pop) ─────
+# The photo step REQUIRES a profile photo before Continue is enabled
+# (dm_onboarding_photo_step.dart `enabled: state.hasPhoto`); pick one via the
+# media sheet so Continue is tappable and the wizard chains to the address step.
+- tapOn:
+    id: "dm_onboarding_photo_upload_area"
+- extendedWaitUntil:
+    visible:
+      text: "Camera"
+    timeout: 8000
+- tapOn:
+    text: "Camera"
+
+- tapOn:
+    id: "dm_onboarding_continue"
+
+- extendedWaitUntil:
+    visible:
+      id: "dm_onboarding_address_root"
+    timeout: 15000
+
+- takeScreenshot: jm039_ac2_continue_chains_to_personal_details

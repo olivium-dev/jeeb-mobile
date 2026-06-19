@@ -5,24 +5,49 @@ import '../../../../l10n/app_localizations.dart';
 import '../../domain/jeeber_vehicle.dart';
 import '../../domain/offer.dart';
 
-/// One offer card in the client offer list. Renders the Jeeber's identity,
-/// the price + ETA + vehicle facts, the rating, and the Accept CTA.
+/// One offer card in the client offer-review list (JM-028).
 ///
-/// The card is intentionally self-contained — it takes the offer payload plus
-/// two flags from the cubit ([isAccepting], [acceptDisabled]) and emits a tap
-/// callback. No cubit access here so the widget can be golden-tested with
-/// fixture data.
+/// Renders the Jeeber's identity, the price + ETA + vehicle facts, the rating,
+/// the "Pay $X cash on delivery" line (D11), and the Accept CTA. The card is
+/// intentionally dumb — it takes the offer payload + two flags from the cubit
+/// and emits two callbacks ([onAccept], [onTapName]); no cubit / `sl` /
+/// navigation here so it stays golden-testable with fixture data
+/// (40_GUARDRAILS_ARCH §1).
+///
+/// Semantics identifiers exposed (EXACT, 63_W1_TEST_PLAN §2.8). [index] keys the
+/// position-based ids the Maestro flow asserts (`offer_card_0…`) while the
+/// per-Jeeber pattern (`offer_card_<jeeberId>…`) is also exposed on every card
+/// so the full `offer_card_<id>` AC pattern resolves:
+///   - `offer_card_<index>`                        / `offer_card_<jeeberId>`
+///   - `offer_card_<index>_price`                  / `…_<jeeberId>_price`
+///   - `offer_card_<index>_eta`                    / `…_<jeeberId>_eta`
+///   - `offer_card_<index>_cash_on_delivery_label` / `…_<jeeberId>_cash_on_delivery_label`
+///   - `offer_card_<index>_name`                   / `…_<jeeberId>_name`  (→ jeeber-profile-reviews)
+///   - `offer_card_<index>_accept_cta`             / `…_<jeeberId>_accept_cta` (→ offer-accept-confirm)
 class OfferCard extends StatelessWidget {
   const OfferCard({
     super.key,
     required this.offer,
+    required this.index,
     required this.onAccept,
+    required this.onTapName,
     this.isAccepting = false,
     this.acceptDisabled = false,
   });
 
   final Offer offer;
+
+  /// Zero-based position in the sorted list. Drives the `offer_card_<index>…`
+  /// identifiers the Maestro flow keys on (it asserts the index-0 card).
+  final int index;
+
+  /// Fired when the Accept CTA is tapped — the host opens the JM-029
+  /// `offer-accept-confirm` sheet (NOT an inline accept, D11/D71).
   final VoidCallback onAccept;
+
+  /// Fired when the Jeeber name is tapped — the host routes to
+  /// `jeeber-profile-reviews` (JM-067).
+  final VoidCallback onTapName;
 
   /// True while the cubit's accept call is in-flight on this offer.
   final bool isAccepting;
@@ -49,8 +74,12 @@ class OfferCard extends StatelessWidget {
       minutes: offer.etaMinutes,
     );
 
-    return Semantics(
-      container: true,
+    // The card is addressable both by index (the asserted Maestro id) and by
+    // Jeeber id (the full `offer_card_<id>` AC pattern). The merged root node
+    // carries the index id; the per-id alias is layered on the inner content.
+    return _DualId(
+      indexId: 'offer_card_$index',
+      patternId: 'offer_card_${offer.jeeberId}',
       label: semanticLabel,
       child: Card(
         key: Key('offer-card-${offer.id}'),
@@ -77,11 +106,12 @@ class OfferCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          offer.jeeberName,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                        // Jeeber name — tap target → jeeber-profile-reviews.
+                        _NameTapTarget(
+                          indexId: 'offer_card_${index}_name',
+                          patternId: 'offer_card_${offer.jeeberId}_name',
+                          name: offer.jeeberName,
+                          onTap: onTapName,
                         ),
                         const SizedBox(height: Spacing.twoXSmall),
                         OmdsStarRatingDisplay(
@@ -93,18 +123,28 @@ class OfferCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  _FeePill(
-                    amount: feeFormatted,
-                    currency: offer.currency,
+                  // Price pill.
+                  _IdWrap(
+                    indexId: 'offer_card_${index}_price',
+                    patternId: 'offer_card_${offer.jeeberId}_price',
+                    child: _FeePill(
+                      amount: feeFormatted,
+                      currency: offer.currency,
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: Spacing.small),
               Row(
                 children: [
-                  _MetaChip(
-                    icon: Icons.access_time,
-                    label: l10n.offersCardEtaMinutes(offer.etaMinutes),
+                  // ETA chip.
+                  _IdWrap(
+                    indexId: 'offer_card_${index}_eta',
+                    patternId: 'offer_card_${offer.jeeberId}_eta',
+                    child: _MetaChip(
+                      icon: Icons.access_time,
+                      label: l10n.offersCardEtaMinutes(offer.etaMinutes),
+                    ),
                   ),
                   const SizedBox(width: Spacing.xSmall),
                   _MetaChip(
@@ -113,18 +153,47 @@ class OfferCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: Spacing.medium),
-              SizedBox(
-                width: double.infinity,
-                child: OmdsPrimaryButton(
-                  key: Key('offer-card-accept-${offer.id}'),
-                  text: isAccepting
-                      ? l10n.offersCardAccepting
-                      : l10n.offersCardAccept,
-                  isEnabled: !acceptDisabled && !isAccepting,
-                  onTap: onAccept,
-                  icon: isAccepting ? const OmdsButtonLoading() : null,
+              const SizedBox(height: Spacing.small),
+              // "Pay $X cash on delivery" (D11) — the load-bearing comprehension
+              // line: payment is cash to the Jeeber on delivery, not in-app.
+              _IdWrap(
+                indexId: 'offer_card_${index}_cash_on_delivery_label',
+                patternId:
+                    'offer_card_${offer.jeeberId}_cash_on_delivery_label',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.payments_outlined,
+                      size: Sizes.medium,
+                      color: colors.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: Spacing.xSmall),
+                    Expanded(
+                      child: Text(
+                        l10n.offerCardCashOnDelivery(
+                          feeFormatted,
+                          offer.currency,
+                        ),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+              ),
+              const SizedBox(height: Spacing.medium),
+              // Accept CTA → opens the JM-029 offer-accept-confirm sheet.
+              _AcceptCta(
+                indexId: 'offer_card_${index}_accept_cta',
+                patternId: 'offer_card_${offer.jeeberId}_accept_cta',
+                label: isAccepting
+                    ? l10n.offersCardAccepting
+                    : l10n.offersCardAccept,
+                offerId: offer.id,
+                enabled: !acceptDisabled && !isAccepting,
+                loading: isAccepting,
+                onTap: onAccept,
               ),
             ],
           ),
@@ -171,6 +240,153 @@ class OfferCard extends StatelessWidget {
       case JeeberVehicle.van:
         return l10n.offersCardVehicleVan;
     }
+  }
+}
+
+/// Wraps [child] so both an index-based id and a per-Jeeber-id id resolve to
+/// the same subtree. Maestro matches either; the index id is the asserted one.
+class _IdWrap extends StatelessWidget {
+  const _IdWrap({
+    required this.indexId,
+    required this.patternId,
+    required this.child,
+  });
+
+  final String indexId;
+  final String patternId;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      identifier: indexId,
+      child: Semantics(
+        identifier: patternId,
+        child: child,
+      ),
+    );
+  }
+}
+
+/// The card root — exposes the index id and the per-Jeeber id as a container,
+/// plus the rich screen-reader [label]. Children stay independently
+/// addressable so Maestro can tap the name / accept CTA.
+class _DualId extends StatelessWidget {
+  const _DualId({
+    required this.indexId,
+    required this.patternId,
+    required this.label,
+    required this.child,
+  });
+
+  final String indexId;
+  final String patternId;
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      identifier: indexId,
+      container: true,
+      label: label,
+      explicitChildNodes: true,
+      child: Semantics(
+        identifier: patternId,
+        explicitChildNodes: true,
+        child: child,
+      ),
+    );
+  }
+}
+
+/// Tappable Jeeber name → jeeber-profile-reviews (JM-067).
+class _NameTapTarget extends StatelessWidget {
+  const _NameTapTarget({
+    required this.indexId,
+    required this.patternId,
+    required this.name,
+    required this.onTap,
+  });
+
+  final String indexId;
+  final String patternId;
+  final String name;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      identifier: indexId,
+      button: true,
+      label: name,
+      onTap: onTap,
+      child: Semantics(
+        identifier: patternId,
+        child: ExcludeSemantics(
+          child: InkWell(
+            key: Key('offer-card-name-$name'),
+            onTap: onTap,
+            child: Text(
+              name,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                decoration: TextDecoration.underline,
+                decorationColor: theme.colorScheme.primary,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Full-width Accept CTA → offer-accept-confirm sheet.
+class _AcceptCta extends StatelessWidget {
+  const _AcceptCta({
+    required this.indexId,
+    required this.patternId,
+    required this.label,
+    required this.offerId,
+    required this.enabled,
+    required this.loading,
+    required this.onTap,
+  });
+
+  final String indexId;
+  final String patternId;
+  final String label;
+  final String offerId;
+  final bool enabled;
+  final bool loading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      identifier: indexId,
+      button: true,
+      enabled: enabled,
+      label: label,
+      onTap: enabled ? onTap : null,
+      child: Semantics(
+        identifier: patternId,
+        child: ExcludeSemantics(
+          child: SizedBox(
+            width: double.infinity,
+            child: OmdsPrimaryButton(
+              key: Key('offer-card-accept-$offerId'),
+              text: label,
+              isEnabled: enabled,
+              onTap: onTap,
+              icon: loading ? const OmdsButtonLoading() : null,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

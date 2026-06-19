@@ -1,0 +1,164 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-052 — Earnings & Fees Dashboard (fee-only reframe)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given the dashboard, Then it frames economics fee-only [D41/D44]:
+#        earnings_total_cash ("net, off-wallet COD") + earnings_fees_paid
+#        ("captured 10%") + earnings_net_per_offer + earnings_member_since visible.
+#        earnings_gross_payout, earnings_commission_line, earnings_net_payout
+#        must NOT be visible [D41/D44 — fee-only; NO gross/commission/net-payout].
+#   AC2: earnings_wallet_link → wallet-hub (wallet_available_balance visible)
+#        [JM-053].
+#   AC3: earnings_activity_link → wallet-activity-list
+#        (wallet_activity_root or wallet_activity_empty visible) [JM-055].
+#        AP-9: JM-055 lands in W3; guarded "coming soon" until it ships.
+#        Prove the tap is ACCEPTED and the earnings root survives.
+#
+# Mock:
+#   GET /wallet-service/v1/jeeb/earnings
+#   GET /wallet-service/v1/jeeb/earnings/export
+# Seam:
+#   jeeb.seam.session=jeeber_logged_in + jeeb.seam.kyc_status=approved
+#   Earnings tab is the Earnings tab body in the jeeber shell.
+#   Navigate via shell_tab_earnings (no route pin needed).
+#
+# COINED IDENTIFIERS (implied-but-unnamed in ACs):
+#   earnings_net_per_offer  — net per-offer line (D44 "you earn (cash) net-per-offer")
+#   earnings_member_since   — member-since chip (explicitly named in AC, "NOT gross/...")
+#   earnings_gross_payout   — assertNotVisible guard (must not exist, D41)
+#   earnings_commission_line — assertNotVisible guard (must not exist, D44)
+#   earnings_net_payout     — assertNotVisible guard (must not exist, D44)
+#
+# STATUS: RED until JM-052 ships. Decisions: D44, D41, D37, D33.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-052-earnings-dashboard.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Fee-only framing — expected fields present, forbidden fields absent ──
+# REQUIRES: jeeber_logged_in; kyc_status=approved; earnings mock endpoint.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.wallet_state: "sufficient"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_earnings"
+
+- extendedWaitUntil:
+    visible:
+      id: "earnings_total_cash"
+    timeout: 30000
+
+- assertVisible:
+    id: "earnings_fees_paid"
+
+- assertVisible:
+    id: "earnings_net_per_offer"
+
+- assertVisible:
+    id: "earnings_member_since"
+
+# Fee-only invariant: forbidden lines must not be present (D41/D44)
+- assertNotVisible:
+    id: "earnings_gross_payout"
+
+- assertNotVisible:
+    id: "earnings_commission_line"
+
+- assertNotVisible:
+    id: "earnings_net_payout"
+
+- takeScreenshot: jm052_ac1_fee_only_fields
+
+# ── AC2: Wallet link → wallet-hub ────────────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.wallet_state: "sufficient"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_earnings"
+
+- extendedWaitUntil:
+    visible:
+      id: "earnings_total_cash"
+    timeout: 30000
+
+# The wallet link sits below the fold — scroll it into view first.
+- scrollUntilVisible:
+    element:
+      id: "earnings_wallet_link"
+    direction: DOWN
+    timeout: 15000
+
+- tapOn:
+    id: "earnings_wallet_link"
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet_available_balance"
+    timeout: 15000
+
+- takeScreenshot: jm052_ac2_wallet_link_to_hub
+
+# ── AC3: Activity link → wallet-activity-list ─────────────────────────────────
+# AP-9: wallet-activity-list (JM-055) is a W3 screen, NOT yet registered.
+# The earnings_activity_link fires a guarded "coming soon"; prove it is accepted
+# and the earnings root survives. Swap to assert wallet_activity_root once W3 ships.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.wallet_state: "sufficient"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_earnings"
+
+- extendedWaitUntil:
+    visible:
+      id: "earnings_total_cash"
+    timeout: 30000
+
+- scrollUntilVisible:
+    element:
+      id: "earnings_activity_link"
+    direction: DOWN
+    timeout: 15000
+
+- tapOn:
+    id: "earnings_activity_link"
+
+# JM-055 has shipped — the activity link now lands on the real wallet-activity
+# list (AP-9 guard retired). Assert the real target root.
+- extendedWaitUntil:
+    visible:
+      id: "wallet_activity_root"
+    timeout: 15000
+
+- takeScreenshot: jm052_ac3_activity_link_to_wallet_activity

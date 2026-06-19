@@ -16,6 +16,13 @@ enum SocialAuthError {
   /// Account is locked or banned (gateway 403 with a ban payload).
   accountDisabled,
 
+  /// 409 `email_collision` — the email behind this social identity is already
+  /// registered via another method (email/password or a different provider).
+  /// JM-018/JM-019, D22: NOT surfaced as an error banner — the cubit raises a
+  /// distinct collision outcome so the host routes to `social-collision-prompt`
+  /// (the `social_collision_sheet`).
+  collision,
+
   /// Anything we did not anticipate — generic copy.
   unknown,
 }

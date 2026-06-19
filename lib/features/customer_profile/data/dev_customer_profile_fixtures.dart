@@ -12,5 +12,9 @@ abstract final class DevCustomerProfileFixtures {
     avatarUrl: 'https://i.pravatar.cc/150?img=12',
     isVerified: true,
     isJeeber: false,
+    // Per-role rating (D6) so the dev capture path renders the rated header
+    // chip; the live getMe refresh (JM-035) replaces it with the real value.
+    rating: 4.8,
+    ratingCount: 27,
   );
 }

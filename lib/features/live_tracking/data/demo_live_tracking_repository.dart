@@ -29,6 +29,14 @@ class DemoLiveTrackingRepository implements LiveTrackingRepository {
       },
       distanceLabel: '3 km',
       etaMinutes: 20,
+      // JM-032: pinned-summary fields so `order_summary_pinned` renders on the
+      // dev-seam capture path (no reachable gateway).
+      requestId: deliveryId,
+      price: 9.0,
+      currency: 'USD',
+      jeeberName: 'Kamal Hajj',
+      tier: 'express',
+      itemSummary: 'Groceries from Spinneys',
     );
   }
 }

@@ -1,73 +1,359 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/di/injection_container.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../cancel_request/presentation/cancel_request_sheet.dart';
+import '../application/waiting_cubit.dart';
+import '../application/waiting_state.dart';
+import '../data/dio_waiting_repository.dart';
+import '../data/fake_waiting_repository.dart';
+import '../domain/waiting_repository.dart';
+
+/// Signature for the optional cubit factory the screen exposes for tests.
+/// Production wiring leaves it `null` so the default ticker-driven cubit is
+/// used; tests pass a factory that injects empty `pollTicks` / `clockTicks` so
+/// the test binding doesn't complain about pending timers.
+typedef WaitingCubitFactory = WaitingCubit Function(
+  WaitingRepository repository,
+  String requestId,
+);
+
+/// JM-026 — Waiting / No-Coverage state [D48, D69].
+///
+/// Route: `/requests/:id/waiting` (name `waiting-no-coverage`, registered by the
+/// W1 integrator). This REWRITES the orphaned tier-upgrade placeholder into the
+/// real pre-accept waiting surface:
+///
+///  - **Broadcast state:** `waiting_notified_count` + `waiting_countdown` render
+///    while the matching service fans the request out (AC1).
+///  - **No-coverage variant:** when 0 Jeebers were notified, the
+///    `waiting_no_coverage_state` container shows instead (AC1b).
+///  - **Offers arrived:** the cubit polls; once an offer lands the screen flips
+///    live to `waiting_review_offers_cta` → `offer-review` (AC2, JM-028).
+///  - `waiting_retarget_cta` → `request-type` (re-target, D48; AC3).
+///  - `waiting_cancel_cta` → `CancelRequestSheet` (free pre-accept, D69; AC4).
+///
+/// The screen self-provides its cubit and resolves [WaitingRepository] from the
+/// GetIt container (DioWaitingRepository in release builds). When DI has not yet
+/// registered the type it constructs `DioWaitingRepository(sl<Dio>())` directly
+/// (real `:4010` Dio) so the screen is still data-bound; a [FakeWaitingRepository]
+/// is the last-resort fallback only when even `Dio` is unavailable (mirrors
+/// `ClientOffersScreen._resolveRepository`).
+///
+/// Semantics identifiers (EXACT, per 63_W1_TEST_PLAN §2.6):
+///   waiting_notified_count     — number of Jeebers notified (broadcast signature)
+///   waiting_countdown          — broadcast countdown timer
+///   waiting_no_coverage_state  — no-coverage variant root (0 notified)
+///   waiting_review_offers_cta  — appears when offers arrive → offer-review-list
+///   waiting_retarget_cta       — re-target → request-type-selection (D48)
+///   waiting_cancel_cta         — cancel → cancel-request-confirm sheet (D69)
 class NoOfferTimeoutScreen extends StatelessWidget {
-  const NoOfferTimeoutScreen({super.key, required this.requestId});
+  const NoOfferTimeoutScreen({
+    super.key,
+    required this.requestId,
+    this.repository,
+    this.cubitFactory,
+  });
+
+  final String requestId;
+
+  /// Optional repository override. Production builds leave this null and resolve
+  /// DioWaitingRepository from DI. Widget tests inject a scripted instance here.
+  final WaitingRepository? repository;
+
+  /// Test seam — see [WaitingCubitFactory].
+  final WaitingCubitFactory? cubitFactory;
+
+  WaitingRepository _resolveRepository() {
+    final explicit = repository;
+    if (explicit != null) return explicit;
+    if (sl.isRegistered<WaitingRepository>()) return sl<WaitingRepository>();
+    // DI batch for WaitingRepository not landed yet (50_ROUTE_REQUESTS JM-026):
+    // construct the real Dio repo over the registered `sl<Dio>()` so the screen
+    // is still bound to `:4010`. Fall back to the fake only if Dio itself is
+    // unavailable (e.g. a bare widget test without DI).
+    if (sl.isRegistered<Dio>()) return DioWaitingRepository(sl<Dio>());
+    return FakeWaitingRepository();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = _resolveRepository();
+    return BlocProvider<WaitingCubit>(
+      create: (_) {
+        final cubit = cubitFactory?.call(repo, requestId) ??
+            WaitingCubit(repository: repo, requestId: requestId);
+        cubit.load();
+        return cubit;
+      },
+      child: _WaitingView(requestId: requestId),
+    );
+  }
+}
+
+class _WaitingView extends StatelessWidget {
+  const _WaitingView({required this.requestId});
+
   final String requestId;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: const OMDSAppBar(title: 'No Offers Yet'),
-      body: Padding(
-        padding: const EdgeInsets.all(Spacing.medium),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const _Header(),
-            const SizedBox(height: Spacing.twoXLarge),
-            OmdsPrimaryButton(
-              text: 'Upgrade Tier',
-              onTap: () => Navigator.of(context).pop('upgrade'),
-            ),
-            const SizedBox(height: Spacing.small),
-            OmdsPrimaryButton(
-              text: 'Keep Waiting',
-              variant: OmdsButtonVariant.outlined,
-              onTap: () => Navigator.of(context).pop('wait'),
-            ),
-            const SizedBox(height: Spacing.small),
-            OmdsPrimaryButton(
-              text: 'Cancel Request',
-              variant: OmdsButtonVariant.text,
-              textColor: Theme.of(context).colorScheme.error,
-              onTap: () => Navigator.of(context).pop('cancel'),
-            ),
-          ],
+      appBar: OMDSAppBar(title: l10n.waitingTitle),
+      body: SafeArea(
+        child: BlocBuilder<WaitingCubit, WaitingState>(
+          builder: (context, state) {
+            if (state.isLoading) {
+              return const _WaitingLoading();
+            }
+            if (state.status == WaitingScreenStatus.failed) {
+              return _WaitingError(
+                onRetry: () => context.read<WaitingCubit>().retry(),
+              );
+            }
+            return _WaitingLoaded(requestId: requestId, state: state);
+          },
         ),
       ),
     );
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header();
+class _WaitingLoading extends StatelessWidget {
+  const _WaitingLoading();
 
   @override
   Widget build(BuildContext context) {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(Spacing.large),
+        child: OmdsShimmer(width: 220, height: 120),
+      ),
+    );
+  }
+}
+
+class _WaitingError extends StatelessWidget {
+  const _WaitingError({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(Spacing.large),
+      child: Semantics(
+        identifier: 'waiting_error_state',
+        container: true,
+        child: OmdsErrorState(
+          message: l10n.waitingErrorBody,
+          onRetry: onRetry,
+        ),
+      ),
+    );
+  }
+}
+
+class _WaitingLoaded extends StatelessWidget {
+  const _WaitingLoaded({required this.requestId, required this.state});
+
+  final String requestId;
+  final WaitingState state;
+
+  void _openReviewOffers(BuildContext context) {
+    // EDGE: waiting_review_offers_cta → offer-review-list (JM-028). The route
+    // `offer-review` (`/requests/:id/offers`) is registered by the W1 integrator.
+    context.pushNamed(
+      'offer-review',
+      pathParameters: {'id': requestId},
+    );
+  }
+
+  void _retarget(BuildContext context) {
+    // EDGE: waiting_retarget_cta → request-type-selection (D48). The route
+    // `request-type` is registered. CONTRACT GAP (50_ROUTE_REQUESTS JM-026):
+    // the route takes no request-id seed, so "reuse original content" (D48
+    // pre-fill) cannot be forwarded yet — the user re-enters the tier picker
+    // fresh. Tracked for a `?from=:requestId` route param.
+    context.pushNamed('request-type');
+  }
+
+  Future<void> _cancel(BuildContext context) async {
+    // EDGE: waiting_cancel_cta → cancel-request-confirm sheet (D69). The sheet
+    // (JM-030) is a modal, not a route, and itself routes home on confirm.
+    await CancelRequestSheet.show(context, requestId: requestId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final request = state.request;
+    final notifiedCount = request?.notifiedCount ?? 0;
+    final showReviewOffers = state.hasOffers;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(Spacing.large),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: Spacing.large),
+          if (state.isNoCoverage)
+            const _NoCoverageHeader()
+          else
+            _BroadcastHeader(
+              notifiedCount: notifiedCount,
+              remaining: state.remaining,
+            ),
+          const SizedBox(height: Spacing.twoXLarge),
+
+          // ── Offers-arrived: live transition to the review CTA (AC2) ───────
+          if (showReviewOffers) ...[
+            Semantics(
+              identifier: 'waiting_review_offers_cta',
+              button: true,
+              child: OmdsPrimaryButton(
+                text: l10n.waitingReviewOffersCta,
+                onTap: () => _openReviewOffers(context),
+              ),
+            ),
+            const SizedBox(height: Spacing.small),
+          ],
+
+          // ── Re-target (D48; AC3) ──────────────────────────────────────────
+          Semantics(
+            identifier: 'waiting_retarget_cta',
+            button: true,
+            child: OmdsPrimaryButton(
+              text: l10n.waitingRetargetCta,
+              variant: OmdsButtonVariant.outlined,
+              onTap: () => _retarget(context),
+            ),
+          ),
+          const SizedBox(height: Spacing.small),
+
+          // ── Cancel (free pre-accept, D69; AC4) ────────────────────────────
+          Semantics(
+            identifier: 'waiting_cancel_cta',
+            button: true,
+            child: OmdsPrimaryButton(
+              text: l10n.waitingCancelCta,
+              variant: OmdsButtonVariant.text,
+              textColor: theme.colorScheme.error,
+              onTap: () => _cancel(context),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Broadcast (coverage) header — notified count + live countdown (AC1).
+class _BroadcastHeader extends StatelessWidget {
+  const _BroadcastHeader({
+    required this.notifiedCount,
+    required this.remaining,
+  });
+
+  final int notifiedCount;
+  final Duration remaining;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Column(
       children: [
         Icon(
-          Icons.hourglass_empty,
+          Icons.podcasts,
           size: Sizes.eightXLarge,
-          color: theme.colorScheme.tertiary,
+          color: theme.colorScheme.primary,
         ),
-        const SizedBox(height: Spacing.xLarge),
+        const SizedBox(height: Spacing.large),
         Text(
-          'No offers received yet',
+          l10n.requestSummaryFindingTitle,
           style: theme.textTheme.headlineSmall,
           textAlign: TextAlign.center,
         ),
+        const SizedBox(height: Spacing.medium),
+        // waiting_notified_count — broadcast-state signature id (63 §2.6). Uses
+        // the existing i18n-safe plural getter for the count copy.
+        Semantics(
+          identifier: 'waiting_notified_count',
+          child: Text(
+            l10n.requestSummaryFindingNotifiedCount(notifiedCount),
+            style: theme.textTheme.titleMedium,
+            textAlign: TextAlign.center,
+          ),
+        ),
         const SizedBox(height: Spacing.small),
-        Text(
-          'Your request has been waiting for a while. You can upgrade to a '
-          'higher tier for faster matching.',
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodyLarge,
+        // waiting_countdown — broadcast countdown timer (AC1).
+        Semantics(
+          identifier: 'waiting_countdown',
+          child: Text(
+            l10n.waitingCountdownLabel(_format(remaining)),
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
+          ),
         ),
       ],
+    );
+  }
+
+  static String _format(Duration d) {
+    final minutes = d.inMinutes;
+    final seconds = d.inSeconds % 60;
+    final mm = minutes.toString();
+    final ss = seconds.toString().padLeft(2, '0');
+    return '$mm:$ss';
+  }
+}
+
+/// No-coverage variant — 0 Jeebers notified (AC1b).
+class _NoCoverageHeader extends StatelessWidget {
+  const _NoCoverageHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    // waiting_no_coverage_state — variant root (63 §2.6, coined). Container so a
+    // Maestro flow can assert the whole no-coverage block is present.
+    return Semantics(
+      identifier: 'waiting_no_coverage_state',
+      container: true,
+      child: Column(
+        children: [
+          Icon(
+            Icons.location_off_outlined,
+            size: Sizes.eightXLarge,
+            color: theme.colorScheme.tertiary,
+          ),
+          const SizedBox(height: Spacing.large),
+          Text(
+            l10n.waitingNoCoverageTitle,
+            style: theme.textTheme.headlineSmall,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: Spacing.small),
+          Text(
+            l10n.waitingNoCoverageBody,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 }

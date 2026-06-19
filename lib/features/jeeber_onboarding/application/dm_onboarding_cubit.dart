@@ -40,21 +40,20 @@ class DmOnboardingCubit extends Cubit<DmOnboardingState> {
       emit(state.copyWith(country: value, clearError: true));
   void setStreet(String value) =>
       emit(state.copyWith(street: value, clearError: true));
-  void setVehicleNumber(String value) =>
-      emit(state.copyWith(vehicleNumber: value, clearError: true));
   void setAddress(String value) =>
       emit(state.copyWith(address: value, clearError: true));
 
-  void setPrimaryLocation(String value) =>
-      emit(state.copyWith(primaryLocation: value, clearError: true));
+  /// Records the home base pinned on the service-area map (JM-038, D51). This
+  /// gates the service-area Continue (a home base is required).
+  void setHomeBase(DmOnboardingHomeBase homeBase) => emit(
+        state.copyWith(homeBase: homeBase, clearError: true),
+      );
 
-  void setDistanceKm(int km) =>
-      emit(state.copyWith(distanceKm: km.clamp(
-        DmOnboardingState.minDistanceKm,
-        DmOnboardingState.maxDistanceKm,
-      )));
-
-  /// Advances to the next step, or submits when on the final step.
+  /// Advances to the next step. On the service-area step a home base is
+  /// required; Continue confirms coverage (matching find-jeebers) then flags
+  /// [DmOnboardingState.coverageReady] so the host can chain on to KYC identity
+  /// (JM-038 AC4) — it does NOT mark the onboarding submitted (KYC is a
+  /// separate wizard; no Fake-gateway terminal here).
   Future<void> next() async {
     switch (state.step) {
       case DmOnboardingStep.photo:
@@ -65,7 +64,7 @@ class DmOnboardingCubit extends Cubit<DmOnboardingState> {
           clearError: true,
         ));
       case DmOnboardingStep.serviceArea:
-        await _submit();
+        await _confirmCoverage();
     }
   }
 
@@ -81,12 +80,14 @@ class DmOnboardingCubit extends Cubit<DmOnboardingState> {
     }
   }
 
-  Future<void> _submit() async {
-    if (state.isSubmitting) return;
+  Future<void> _confirmCoverage() async {
+    final homeBase = state.homeBase;
+    // No-op until a home base is pinned (the view also gates Continue on this).
+    if (homeBase == null || state.isSubmitting) return;
     emit(state.copyWith(isSubmitting: true, clearError: true));
     try {
-      await _gateway.submit(_draft());
-      emit(state.copyWith(isSubmitting: false, isSubmitted: true));
+      await _gateway.submit(_draft(homeBase));
+      emit(state.copyWith(isSubmitting: false, coverageReady: true));
     } on Object {
       emit(state.copyWith(
         isSubmitting: false,
@@ -95,14 +96,15 @@ class DmOnboardingCubit extends Cubit<DmOnboardingState> {
     }
   }
 
-  DmOnboardingSubmission _draft() => DmOnboardingSubmission(
+  DmOnboardingSubmission _draft(DmOnboardingHomeBase homeBase) =>
+      DmOnboardingSubmission(
         state: state.state,
         country: state.country,
         street: state.street,
-        vehicleNumber: state.vehicleNumber,
         address: state.address,
-        primaryLocation: state.primaryLocation,
-        distanceKm: state.distanceKm,
+        homeBaseLat: homeBase.lat,
+        homeBaseLng: homeBase.lng,
+        homeBaseLabel: homeBase.label,
       );
 
   Future<void> _pick({required bool fromCamera}) async {

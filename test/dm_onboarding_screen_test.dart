@@ -93,36 +93,54 @@ void main() {
     expect(find.byKey(DmOnboardingPhotoUploadCard.rootKey), findsOneWidget);
   });
 
-  testWidgets('address step renders five labeled fields', (tester) async {
+  testWidgets('address step renders four labeled fields (no vehicle, D20)',
+      (tester) async {
     await tester.pumpWidget(
       _host(_newCubit(initialStep: DmOnboardingStep.address)),
     );
     await tester.pumpAndSettle();
 
     expect(find.byKey(DmOnboardingAddressStep.rootKey), findsOneWidget);
-    expect(find.byType(TextField), findsNWidgets(5));
+    // D20 (JM-037): vehicle-number field removed → state/country/street/address.
+    expect(find.byType(TextField), findsNWidgets(4));
   });
 
-  testWidgets('service-area step renders selector + slider', (tester) async {
+  testWidgets('service-area step renders the home-base pin, no slider (D51)',
+      (tester) async {
     await tester.pumpWidget(
       _host(_newCubit(initialStep: DmOnboardingStep.serviceArea)),
     );
     await tester.pumpAndSettle();
 
     expect(find.byKey(DmOnboardingServiceAreaStep.rootKey), findsOneWidget);
-    expect(find.byType(Slider), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('service_area_map_pin'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsIdentifier('service_area_select_location'),
+      findsOneWidget,
+    );
+    // D51: the distance slider is removed.
+    expect(find.byType(Slider), findsNothing);
+    expect(
+      find.bySemanticsIdentifier('dm_onboarding_distance_slider'),
+      findsNothing,
+    );
   });
 
-  testWidgets('tapping the location selector sets a primary location',
+  testWidgets('tapping select-location sets the home base (no-router fallback)',
       (tester) async {
     final cubit = _newCubit(initialStep: DmOnboardingStep.serviceArea);
     await tester.pumpWidget(_host(cubit));
     await tester.pumpAndSettle();
 
-    expect(cubit.state.hasPrimaryLocation, isFalse);
-    await tester.tap(find.byType(InkWell).first);
+    expect(cubit.state.hasHomeBase, isFalse);
+    await tester.tap(
+      find.bySemanticsIdentifier('service_area_select_location'),
+    );
     await tester.pumpAndSettle();
-    expect(cubit.state.hasPrimaryLocation, isTrue);
+    expect(cubit.state.hasHomeBase, isTrue);
   });
 
   testWidgets('renders mirrored under Arabic (RTL)', (tester) async {

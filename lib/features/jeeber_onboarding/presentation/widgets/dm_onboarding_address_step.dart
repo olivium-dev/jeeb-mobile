@@ -7,12 +7,17 @@ import '../../application/dm_onboarding_cubit.dart';
 import 'dm_onboarding_address_field.dart';
 import 'dm_onboarding_step_layout.dart';
 
-/// Address / vehicle step of delivery-man onboarding (Figma 56591:4109).
+/// Personal-details / address step of delivery-man onboarding (Figma
+/// 56591:4109).
 ///
-/// Five labeled outlined fields (state / country / street / vehicle number /
-/// address), each backed by an [OmdsValidatedTextField], over a bottom-pinned
-/// Continue. The field set is data-driven so order/labels stay in one place
-/// (RAIL 4 — no five-way copy-paste).
+/// Four labeled outlined fields (state / country / street / address), each
+/// backed by an [OmdsValidatedTextField], over a bottom-pinned Continue. The
+/// field set is data-driven so order/labels stay in one place (RAIL 4 — no
+/// per-field copy-paste).
+///
+/// **No vehicle-number field — D20** (jeeb is not a vehicle-fleet product). The
+/// field was removed across this widget, [DmOnboardingCubit.setVehicleNumber],
+/// the state, and the `DmOnboardingSubmission` DTO under JM-037.
 class DmOnboardingAddressStep extends StatelessWidget {
   const DmOnboardingAddressStep({super.key});
 
@@ -20,10 +25,14 @@ class DmOnboardingAddressStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DmOnboardingStepLayout(
-      key: rootKey,
-      continueIdentifier: 'dm_onboarding_address_continue_button',
-      content: _AddressFields(specs: _specs(context)),
+    return Semantics(
+      identifier: 'dm_onboarding_address_root',
+      container: true,
+      child: DmOnboardingStepLayout(
+        key: rootKey,
+        continueIdentifier: 'dm_onboarding_continue',
+        content: _AddressFields(specs: _specs(context)),
+      ),
     );
   }
 
@@ -34,7 +43,6 @@ class DmOnboardingAddressStep extends StatelessWidget {
       _state(l10n, cubit),
       _country(l10n, cubit),
       _street(l10n, cubit),
-      _vehicle(l10n, cubit),
       _address(l10n, cubit),
     ];
   }
@@ -63,17 +71,9 @@ class DmOnboardingAddressStep extends StatelessWidget {
         onChanged: c.setStreet,
       );
 
-  DmAddressFieldSpec _vehicle(AppLocalizations l10n, DmOnboardingCubit c) =>
-      DmAddressFieldSpec(
-        identifier: 'dm_onboarding_address_vehicle_number_field',
-        label: l10n.dmOnboardingAddressVehicleNumberLabel,
-        hint: l10n.dmOnboardingAddressVehicleNumberHint,
-        onChanged: c.setVehicleNumber,
-      );
-
   DmAddressFieldSpec _address(AppLocalizations l10n, DmOnboardingCubit c) =>
       DmAddressFieldSpec(
-        identifier: 'dm_onboarding_address_address_field',
+        identifier: 'dm_onboarding_address_field',
         label: l10n.dmOnboardingAddressAddressLabel,
         hint: l10n.dmOnboardingAddressAddressHint,
         onChanged: c.setAddress,

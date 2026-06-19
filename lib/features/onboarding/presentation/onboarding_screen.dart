@@ -9,7 +9,8 @@ import '../../../core/locale/locale_cubit.dart';
 import '../../../core/onboarding/onboarding_cubit.dart';
 import '../../../l10n/app_localizations.dart';
 
-/// Three-page introductory onboarding carousel shown to first-launch users.
+/// Three-page introductory onboarding carousel shown to first-launch users
+/// (JM-010 `walkthrough`).
 ///
 /// Structure mirrors the Olivium fleet reference walkthroughs (Salehly /
 /// rahmah / creamati / saawt): a full-bleed [PageView] of branded
@@ -20,15 +21,28 @@ import '../../../l10n/app_localizations.dart';
 /// swipeable back layer; the text + controls float over the scrim
 /// (`IgnorePointer` on the copy so swipes still reach the carousel).
 ///
+/// JM-010 destination (CTO-D1, email-first funnel): "Get Started" on the last
+/// slide AND "Skip" from any slide route to **sign-up** (`/sign-up`,
+/// `signup_name_field`), NOT the legacy phone-first `/register`. The
+/// phone-first `/register` is now reachable only as the phone-OTP verify step
+/// behind sign-up/social (JM-009). See `docs/build-out/01_CTO_DECISIONS.md`
+/// CTO-D1 and `30_BACKLOG.md` JM-010.
+///
+/// Semantics contract (`docs/build-out/60_W0_TEST_PLAN.md` §2.2; coined §4):
+///   - `walkthrough_slide_1` / `_slide_2` / `_slide_3` — the per-slide root
+///     containers (each becomes visible as the carousel advances).
+///   - `walkthrough_next_cta` — the advance button on slides 1–2.
+///   - `walkthrough_get_started_cta` — the primary CTA on the last slide only.
+///   - `walkthrough_skip_cta` — the Skip affordance, present from slide 1.
+/// The foundation-era `onboarding_next_button` (primary CTA) and
+/// `onboarding_headline` (animated step copy) identifiers are preserved so the
+/// pre-existing Phase-2 PoC flow keeps asserting on them.
+///
 /// Slide artwork (FR-WALKTHROUGH / FR-P1-1; slide 2 completed in FR-D1D2): all
-/// three slides now render real exported brand vectors via [SvgPicture.asset] —
+/// three slides render real exported brand vectors via [SvgPicture.asset] —
 /// `assets/illustrations/onboarding_voice_first.svg` (voice-first),
 /// `onboarding_trusted_jeebers.svg` (trusted Jeebers) and
-/// `onboarding_live_tracking.svg` (live tracking). The slide-2 illustration was
-/// added in FR-D1D2 to replace the interim shield/check glyph Codex QA flagged
-/// as a placeholder; it is drawn in the same 300x300 navy/orange/periwinkle
-/// idiom as the other two (a vetted courier with a verification badge, a
-/// five-star rating, and a trust shield). [_WalkthroughIllustration] still
+/// `onboarding_live_tracking.svg` (live tracking). [_WalkthroughIllustration]
 /// isolates the per-slide treatment: a slide with an `asset` renders the SVG; a
 /// slide without one degrades to the tinted [_OnboardingPage.icon] glyph on the
 /// brand field — preserving the resilient fallback for any future slide.
@@ -42,7 +56,7 @@ class OnboardingScreen extends StatefulWidget {
 
   /// Optional override for navigation. Tests inject this so the screen
   /// does not need a GoRouter in scope. Production leaves it null and
-  /// `context.go('/register')` handles navigation.
+  /// `context.goNamed('sign-up')` handles navigation (CTO-D1).
   final VoidCallback? onComplete;
 
   @override
@@ -79,8 +93,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (onComplete != null) {
       onComplete();
     } else {
+      // JM-010 / CTO-D1: Get Started + Skip both land on the email-first
+      // sign-up screen (`signup_name_field`), not the phone-first `/register`.
       // ignore: use_build_context_synchronously
-      context.go('/register');
+      context.goNamed('sign-up');
     }
   }
 
@@ -118,6 +134,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               currentPage: _currentPage,
               onNext: () => _onNext(pages.length),
               onSkip: _completeAndNavigate,
+              onGetStarted: _completeAndNavigate,
             ),
             const _LanguageToggle(),
           ],
@@ -187,6 +204,14 @@ class _OnboardingPage {
 }
 
 /// Full-bleed, swipeable illustration carousel — the back layer of the stack.
+///
+/// Each page's artwork is wrapped in the per-slide
+/// `walkthrough_slide_<n>` Semantics container (JM-010 / 60_W0_TEST_PLAN
+/// §2.2). Because a [PageView] keeps only the centered page on-screen and
+/// translates the neighbours out of bounds, exactly one `walkthrough_slide_<n>`
+/// node is reported visible at a time — which is what the Maestro
+/// `extendedWaitUntil { visible: walkthrough_slide_N }` steps assert as the
+/// carousel advances.
 class _IllustrationCarousel extends StatelessWidget {
   const _IllustrationCarousel({
     required this.controller,
@@ -205,7 +230,12 @@ class _IllustrationCarousel extends StatelessWidget {
       controller: controller,
       itemCount: pages.length,
       onPageChanged: onPageChanged,
-      itemBuilder: (_, i) => _WalkthroughIllustration(page: pages[i]),
+      itemBuilder: (_, i) => Semantics(
+        // walkthrough_slide_1 / _slide_2 / _slide_3 — per-slide root container.
+        identifier: 'walkthrough_slide_${i + 1}',
+        container: true,
+        child: _WalkthroughIllustration(page: pages[i]),
+      ),
     );
   }
 }
@@ -213,10 +243,9 @@ class _IllustrationCarousel extends StatelessWidget {
 /// The branded full-bleed slide artwork.
 ///
 /// Renders the page's exported SVG ([SvgPicture.asset]) when [_OnboardingPage.asset]
-/// is set (slides 1 and 3); otherwise degrades to a tinted Material glyph on
-/// the brand-navy field (the INTERIM slide-2 treatment). Either way the artwork
-/// floats above the bottom copy/control band and carries a localized semantic
-/// label so screen readers announce the slide.
+/// is set; otherwise degrades to a tinted Material glyph on the brand-navy
+/// field. Either way the artwork floats above the bottom copy/control band and
+/// carries a localized semantic label so screen readers announce the slide.
 class _WalkthroughIllustration extends StatelessWidget {
   const _WalkthroughIllustration({required this.page});
 
@@ -302,19 +331,22 @@ class _BottomScrim extends StatelessWidget {
   }
 }
 
-/// Bottom-anchored content: animated step copy, page dots, CTA, and Skip.
+/// Bottom-anchored content: animated step copy, page dots, the primary CTA
+/// (Next on slides 1–2 / Get Started on the last slide), and Skip.
 class _BottomPanel extends StatelessWidget {
   const _BottomPanel({
     required this.pages,
     required this.currentPage,
     required this.onNext,
     required this.onSkip,
+    required this.onGetStarted,
   });
 
   final List<_OnboardingPage> pages;
   final int currentPage;
   final VoidCallback onNext;
   final VoidCallback onSkip;
+  final VoidCallback onGetStarted;
 
   @override
   Widget build(BuildContext context) {
@@ -329,15 +361,21 @@ class _BottomPanel extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               IgnorePointer(
-                child: OmdsWalkthroughSwitcher(
-                  currentIndex: currentPage,
-                  steps: [
-                    for (final page in pages)
-                      OmdsWalkthroughStepData(
-                        label: page.title,
-                        description: page.body,
-                      ),
-                  ],
+                // PoC Maestro identifier: the animated step copy is the screen's
+                // headline. Exposing a stable `identifier` lets Maestro assert on
+                // the headline by id (i18n-safe), independent of visible text.
+                child: Semantics(
+                  identifier: 'onboarding_headline',
+                  child: OmdsWalkthroughSwitcher(
+                    currentIndex: currentPage,
+                    steps: [
+                      for (final page in pages)
+                        OmdsWalkthroughStepData(
+                          label: page.title,
+                          description: page.body,
+                        ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: Spacing.large),
@@ -349,15 +387,14 @@ class _BottomPanel extends StatelessWidget {
               const SizedBox(height: Spacing.xLarge),
               _OnboardingCtaButton(
                 isLast: isLast,
-                label:
-                    isLast ? l10n.onboardingGetStarted : l10n.onboardingNext,
-                onTap: onNext,
+                nextLabel: l10n.onboardingNext,
+                getStartedLabel: l10n.onboardingGetStarted,
+                onNext: onNext,
+                onGetStarted: onGetStarted,
               ),
               const SizedBox(height: Spacing.medium),
-              OmdsSkipButton(
-                key: const Key('onboarding.skip'),
-                text: l10n.onboardingSkip,
-                padding: const EdgeInsets.all(Spacing.small),
+              _OnboardingSkipButton(
+                label: l10n.onboardingSkip,
                 onTap: onSkip,
               ),
             ],
@@ -368,24 +405,75 @@ class _BottomPanel extends StatelessWidget {
   }
 }
 
+/// The primary CTA at the foot of the carousel.
+///
+/// Carries TWO Semantics contracts at once:
+///   - the foundation-era `onboarding_next_button` (kept so the Phase-2 PoC
+///     flow keeps asserting the primary CTA by id across both labels/locales);
+///   - the JM-010 contract id, which switches with the slide:
+///     `walkthrough_next_cta` on slides 1–2, `walkthrough_get_started_cta` on
+///     the last slide (60_W0_TEST_PLAN §2.2 — "Next … becomes Get Started on
+///     slide 3" / "Get Started … visible on last slide only").
+/// On the last slide the tap routes to sign-up (CTO-D1); on earlier slides it
+/// advances the carousel.
 class _OnboardingCtaButton extends StatelessWidget {
   const _OnboardingCtaButton({
     required this.isLast,
-    required this.label,
-    required this.onTap,
+    required this.nextLabel,
+    required this.getStartedLabel,
+    required this.onNext,
+    required this.onGetStarted,
   });
 
   final bool isLast;
+  final String nextLabel;
+  final String getStartedLabel;
+  final VoidCallback onNext;
+  final VoidCallback onGetStarted;
+
+  @override
+  Widget build(BuildContext context) {
+    // JM-010 id flips with the slide; the legacy `onboarding_next_button` id
+    // wraps it so both contracts resolve to the same button.
+    return Semantics(
+      identifier: 'onboarding_next_button',
+      child: Semantics(
+        identifier:
+            isLast ? 'walkthrough_get_started_cta' : 'walkthrough_next_cta',
+        button: true,
+        child: OmdsPrimaryButton(
+          key: Key(isLast ? 'onboarding.getStarted' : 'onboarding.next'),
+          text: isLast ? getStartedLabel : nextLabel,
+          onTap: isLast ? onGetStarted : onNext,
+          width: double.infinity,
+        ),
+      ),
+    );
+  }
+}
+
+/// The Skip affordance, present from slide 1.
+///
+/// Carries the JM-010 coined id `walkthrough_skip_cta` (60_W0_TEST_PLAN §2.2/§4)
+/// and routes to sign-up (CTO-D1). The legacy `Key('onboarding.skip')` is kept
+/// for the existing widget tests that find it by key.
+class _OnboardingSkipButton extends StatelessWidget {
+  const _OnboardingSkipButton({required this.label, required this.onTap});
+
   final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return OmdsPrimaryButton(
-      key: Key(isLast ? 'onboarding.getStarted' : 'onboarding.next'),
-      text: label,
-      onTap: onTap,
-      width: double.infinity,
+    return Semantics(
+      identifier: 'walkthrough_skip_cta',
+      button: true,
+      child: OmdsSkipButton(
+        key: const Key('onboarding.skip'),
+        text: label,
+        padding: const EdgeInsets.all(Spacing.small),
+        onTap: onTap,
+      ),
     );
   }
 }

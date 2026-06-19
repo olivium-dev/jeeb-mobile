@@ -1,28 +1,61 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../application/mutual_rating_cubit.dart';
 import '../application/mutual_rating_state.dart';
 
-/// Mutual blind rating screen (T-MOB-020).
+/// Mandatory post-delivery rating screen (JM-034) — the canonical rating
+/// terminal (`/orders/:id/mutual-rate`, `mode=jeeber` flips audience).
 ///
-/// Shown after delivery completion (status=done). Both parties rate
-/// independently; neither sees the other's rating until both submit or
-/// 7 days elapse (auto-reveal via T-BE-025 cron).
+/// AC1 (D56): the rating is MANDATORY — there is no skip/dismiss control and
+/// the system back gesture is suppressed (`PopScope(canPop: false)`).
+/// AC2/AC3: a successful submit navigates to the role-aware shell
+/// (`context.go('/')`) — customer → customer-orders-home (Requests tab,
+/// `orders_home_new_order_fab`); jeeber → Dashboard tab (`shell_tab_dashboard`).
+/// AC4: `rating_root` is the signature id present on this canonical terminal
+/// (the legacy `/feedback` `RatingScreen` exposes the same id).
 class MutualRatingScreen extends StatelessWidget {
   const MutualRatingScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: OMDSAppBar(title: l10n.mutualRatingTitle),
-      body: BlocBuilder<MutualRatingCubit, MutualRatingState>(
-        builder: _buildBody,
+    // D56: suppress the system back gesture so the mandatory rating cannot be
+    // dismissed without submitting. `canPop: false` blocks both the OS back and
+    // any predictive-back; there is intentionally no leading/close affordance.
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        appBar: OMDSAppBar(
+          title: l10n.mutualRatingTitle,
+          automaticallyImplyLeading: false,
+        ),
+        // `rating_root` is the screen signature id (JM-034 §2.14, AC4). A
+        // boundary container so the id surfaces as its own queryable node.
+        body: Semantics(
+          identifier: 'rating_root',
+          container: true,
+          child: BlocConsumer<MutualRatingCubit, MutualRatingState>(
+            listenWhen: (p, n) => p.phase != n.phase,
+            listener: _onPhaseChanged,
+            builder: _buildBody,
+          ),
+        ),
       ),
     );
+  }
+
+  /// Nav side-effects live in the listener, never the builder (a `context.go`
+  /// in `build` would fire every rebuild). On the mandatory terminal phase we
+  /// route to the role-aware shell, which selects the correct landing tab from
+  /// the session role (customer → Requests; jeeber → Dashboard).
+  void _onPhaseChanged(BuildContext context, MutualRatingState state) {
+    if (state.phase == MutualRatingPhase.submitted) {
+      context.go('/');
+    }
   }
 
   Widget _buildBody(BuildContext context, MutualRatingState state) {
@@ -30,16 +63,18 @@ class MutualRatingScreen extends StatelessWidget {
       case MutualRatingPhase.inputting:
         return _InputView(state: state);
       case MutualRatingPhase.submitting:
+      case MutualRatingPhase.submitted:
         return const Center(child: OmdsLoadingState());
+      case MutualRatingPhase.error:
+        return const _ErrorView();
+      // The blind-reveal phases are server-owned (T-BE-025 cron) and are not
+      // reached on the mandatory JM-034 path; fall back to the input view so a
+      // stale state never strands the user without a submit affordance.
       case MutualRatingPhase.awaitingOther:
       case MutualRatingPhase.polling:
-        return _AwaitingView(state: state);
       case MutualRatingPhase.revealed:
-        return _RevealedView(state: state, isAutoReveal: false);
       case MutualRatingPhase.autoRevealed:
-        return _RevealedView(state: state, isAutoReveal: true);
-      case MutualRatingPhase.error:
-        return _ErrorView(state: state);
+        return _InputView(state: state);
     }
   }
 }
@@ -96,9 +131,9 @@ class _StarSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      // QA: uiautomator-addressable handle for the star-rating input.
-      // `container: true` makes the identifier surface as its own node even
-      // though OmdsStarRating renders multiple tappable stars (CAP-1).
+      // QA: addressable handle for the star-rating input. `container: true`
+      // surfaces the id as its own node even though OmdsStarRating renders
+      // multiple tappable stars (CAP-1).
       identifier: 'mutual_rating_stars',
       container: true,
       label: '$stars stars selected',
@@ -119,7 +154,7 @@ class _CommentField extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Semantics(
-      // QA: uiautomator-addressable handle for the optional comment field.
+      // QA: addressable handle for the optional comment field.
       identifier: 'mutual_rating_comment',
       textField: true,
       label: l10n.ratingCommentHint,
@@ -186,11 +221,11 @@ class _SubmitButton extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.all(Spacing.large),
+      // `rating_submit_cta` is the W1 contract id (JM-034 §2.14). No
+      // `button: true` — OmdsPrimaryButton already exposes the button role;
+      // `container: true` keeps this identifier its own queryable node.
       child: Semantics(
-        // QA: uiautomator-addressable handle for the rating submit CTA.
-        // No `button: true` — OmdsPrimaryButton already exposes the button
-        // role; `container: true` keeps this identifier its own node.
-        identifier: 'mutual_rating_submit',
+        identifier: 'rating_submit_cta',
         container: true,
         child: OmdsPrimaryButton(
           key: const Key('mutualRating.submit'),
@@ -203,112 +238,8 @@ class _SubmitButton extends StatelessWidget {
   }
 }
 
-class _AwaitingView extends StatelessWidget {
-  const _AwaitingView({required this.state});
-  final MutualRatingState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(Spacing.xLarge),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const OmdsLoadingState(),
-            const SizedBox(height: Spacing.xLarge),
-            Text(
-              l10n.mutualRatingAwaitingTitle,
-              style: Theme.of(context).textTheme.titleLarge,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: Spacing.medium),
-            Text(
-              l10n.mutualRatingAwaitingBody,
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RevealedView extends StatelessWidget {
-  const _RevealedView({required this.state, required this.isAutoReveal});
-  final MutualRatingState state;
-  final bool isAutoReveal;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final title = isAutoReveal
-        ? l10n.mutualRatingAutoRevealedTitle
-        : l10n.mutualRatingRevealedTitle;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(Spacing.xLarge),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: Spacing.large),
-            _CounterpartRatingDisplay(state: state, isAutoReveal: isAutoReveal),
-            const SizedBox(height: Spacing.xLarge),
-            OmdsPrimaryButton(
-              text: l10n.mutualRatingDone,
-              onTap: () => Navigator.of(context).maybePop(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CounterpartRatingDisplay extends StatelessWidget {
-  const _CounterpartRatingDisplay({
-    required this.state,
-    required this.isAutoReveal,
-  });
-  final MutualRatingState state;
-  final bool isAutoReveal;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final counterpart = state.counterpartRating;
-    if (counterpart == null) {
-      return Text(l10n.mutualRatingNoCounterRating);
-    }
-    return Column(
-      children: [
-        Text(
-          l10n.mutualRatingTheirStars(counterpart.stars),
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        if (counterpart.comment != null) ...[
-          const SizedBox(height: Spacing.small),
-          Text(
-            counterpart.comment!,
-            style: Theme.of(context).textTheme.bodyMedium,
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ],
-    );
-  }
-}
-
 class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.state});
-  final MutualRatingState state;
+  const _ErrorView();
 
   @override
   Widget build(BuildContext context) {

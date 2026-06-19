@@ -1,0 +1,100 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-067 — Jeeber Profile Reviews (remove Helpful/Reply; wire View-all)
+# ─────────────────────────────────────────────────────────────────────────────
+# Blueprint id: jeeber-profile-reviews · Target: DeliveryManProfileScreen
+# (/profile/delivery-man). ACs (30_BACKLOG.md JM-067):
+#   AC1 (D57): NO Helpful/Reply controls. The OmdsReviewCard action row is
+#       suppressed (showActions: false) so there are NO helpful/reply ids to
+#       target at all. Maestro asserts the read-only review cards render; the
+#       *absence* of the action controls is locked by the feature widget test
+#       (test/delivery_man_profile_screen_test.dart, "D57: NO Helpful/Reply").
+#   AC2 (JM-068): profile_view_all_reviews → reviews-list (reviews_list_root).
+#   AC3 (D58/D59): reviewer first-name-only attribution + cold-start hides the
+#       aggregate score until N>=5. The route-pin fixture is 113 reviews
+#       (>= 5 → score shown). The cold-start *hide* is content/state and is
+#       locked by the widget test ("D59 cold-start: < 5 reviews hides ...");
+#       Maestro asserts the shown branch (profile_score) here.
+#   AC4: profile_close → offer-review-list.
+#
+# IDs (canonical, 41_GUARDRAILS_TESTING §1.1 — migrated from the legacy
+# delivery_man_profile_* underscore ids under this JM-067 rework; confirmed
+# present in source):
+#   delivery_man_profile_screen_root      — screen host container
+#   profile_close                         — close X → offer-review-list (AC4)
+#   profile_score                         — aggregate score (shown when N>=5, D59)
+#   profile_view_all_reviews              — View all → reviews-list (AC2)
+#   delivery_man_profile_review_card_0/1  — read-only review cards (D57)
+#   reviews_list_root                     — reviews-list destination (JM-068)
+#
+# BACKEND/SEAM: mock only on :4010 via emulator alias 10.0.2.2 (§3). The profile
+#   takes identity via `extra`; the dev-seam route pin lands it on the
+#   deterministic debug fixture (Kamal Hajj, 4.3 / 113 reviews → non-cold-start).
+#   The full offers-received → offer-card → profile entry is exercised by
+#   jm-028-offer-review.yaml (which now closes via profile_close). No real backend.
+#
+# Run recipe (§3.5):
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   maestro --device emulator-5554 test -e APP_ID=app.jeeb.mobile.dev \
+#     --format JUNIT --output evidence/maestro/jm-067-junit.xml \
+#     .maestro/flows/jm-067-jeeber-profile-reviews.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+tags:
+  - jm-067
+  - w4
+  - shared
+---
+- launchApp:
+    clearState: true
+    arguments:
+      # The bare route pin needs an onboarded + authenticated session for the
+      # router's first-run gate to allow it (else it redirects to onboarding).
+      # Pairing the customer session lands the deep route on the debug profile
+      # fixture (113 reviews → non-cold-start).
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.route: "/profile/delivery-man"
+
+# Screen host (cold launch + router-redirect headroom).
+- extendedWaitUntil:
+    visible:
+      id: "delivery_man_profile_screen_root"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: jm067_profile_rendered
+
+# AC3 (D59 shown branch): fixture has 113 reviews (>= 5) → aggregate score shows.
+- assertVisible:
+    id: "profile_score"
+
+# AC1 (D57): read-only review cards render (no Helpful/Reply controls exist —
+# absence locked by the feature widget test).
+- assertVisible:
+    id: "delivery_man_profile_review_card_0"
+- assertVisible:
+    id: "delivery_man_profile_review_card_1"
+
+# AC2: View all → reviews-list (JM-068), WIRED.
+- assertVisible:
+    id: "profile_view_all_reviews"
+- tapOn:
+    id: "profile_view_all_reviews"
+- extendedWaitUntil:
+    visible:
+      id: "reviews_root"
+    timeout: 15000
+- takeScreenshot: jm067_view_all_to_reviews_list
+
+# AC4: back to the profile, then profile_close. On the route-pin cold launch the
+# profile has no offer-review host beneath it, so profile_close honestly falls
+# back (AP-9) — we re-assert the profile root survives the round trip rather than
+# fabricating the offer-review list. The wired close → offer-review-list is
+# exercised end-to-end by jm-028-offer-review.yaml.
+- back
+- extendedWaitUntil:
+    visible:
+      id: "delivery_man_profile_screen_root"
+    timeout: 15000
+- assertVisible:
+    id: "profile_close"
+- takeScreenshot: jm067_profile_close_present

@@ -4,12 +4,17 @@ import '../domain/active_delivery_repository.dart';
 import '../domain/jeeber_delivery.dart';
 import '../domain/jeeber_delivery_status.dart';
 
-/// Dio-backed [ActiveDeliveryRepository] (T-MOB-031).
+/// Dio-backed [ActiveDeliveryRepository] (T-MOB-031, extended by JM-051).
 ///
-/// Endpoints (Mockoon :3055, useMockPrefixes=false):
-///   GET  /v1/deliveries/{id}             → JeeberDelivery JSON
-///   POST /v1/deliveries/{id}/transition  → body {from, to}
-///   200 → {status}  |  422 → invalid transition
+/// Speaks the gateway-contract `/v1/...` paths; `MockGatewayClient` rewrites
+/// the prefix to the `:4010` `delivery-service` (40_GUARDRAILS_ARCH §4 — never
+/// hardcode a host/prefix here).
+///
+///   GET  /v1/delivery/{id}              → delivery JSON
+///   POST /v1/delivery/status/transition → body { deliveryId, to, evidenceUrl? }
+///                                          200 → delivery | 422 → bad transition
+///   POST /v1/delivery/proof-photo       → body { deliveryId, filename }
+///                                          201 → { url, evidenceUrl, deliveryId }
 class DioActiveDeliveryRepository implements ActiveDeliveryRepository {
   const DioActiveDeliveryRepository(this._dio);
 
@@ -19,7 +24,7 @@ class DioActiveDeliveryRepository implements ActiveDeliveryRepository {
   Future<JeeberDelivery> fetchDelivery(String deliveryId) async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
-        '/v1/deliveries/$deliveryId',
+        '/v1/delivery/$deliveryId',
       );
       final data = response.data;
       if (data == null) {
@@ -36,17 +41,49 @@ class DioActiveDeliveryRepository implements ActiveDeliveryRepository {
     required String deliveryId,
     required JeeberDeliveryStatus from,
     required JeeberDeliveryStatus to,
+    String? evidenceUrl,
   }) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
-        '/v1/deliveries/$deliveryId/transition',
-        data: {'from': from.apiValue, 'to': to.apiValue},
+        '/v1/delivery/status/transition',
+        data: <String, dynamic>{
+          'deliveryId': deliveryId,
+          'to': to.apiValue,
+          'trigger': 'jeeber',
+          if (evidenceUrl != null && evidenceUrl.isNotEmpty)
+            'evidenceUrl': evidenceUrl,
+        },
       );
+      // The transition endpoint returns the full delivery row; read its status.
       final raw = response.data?['status'] as String?;
       if (raw == null) return to;
       return JeeberDeliveryStatusX.fromApi(raw);
     } on DioException catch (e) {
       throw _mapTransitionError(e);
+    }
+  }
+
+  @override
+  Future<String> uploadProofPhoto({
+    required String deliveryId,
+    required String filename,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/v1/delivery/proof-photo',
+        data: <String, dynamic>{
+          'deliveryId': deliveryId,
+          'filename': filename,
+        },
+      );
+      final url = response.data?['evidenceUrl'] as String? ??
+          response.data?['url'] as String?;
+      if (url == null || url.isEmpty) {
+        throw const ActiveDeliveryException(ActiveDeliveryFailure.server);
+      }
+      return url;
+    } on DioException catch (e) {
+      throw _mapError(e);
     }
   }
 

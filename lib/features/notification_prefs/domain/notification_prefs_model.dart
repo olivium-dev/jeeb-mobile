@@ -1,85 +1,181 @@
 import 'package:equatable/equatable.dart';
 
-/// Per-topic notification preference — one per semantic topic the gateway
-/// exposes. Each topic maps to a single boolean (enabled/disabled).
+/// The four toggleable notification categories (JM-058, D64).
 ///
-/// Matches the gateway `NotificationPreferencesResponse.preferences` shape:
-///   { "offers": bool, "chat": bool, "statusChanges": bool, "ratingReminders": bool }
-class NotificationTopicPrefs extends Equatable {
-  const NotificationTopicPrefs({
-    this.offers = true,
-    this.chat = true,
-    this.statusChanges = true,
-    this.ratingReminders = true,
-  });
+/// `transactional` is intentionally NOT in this enum: it is the locked, always-on
+/// class (order receipts, money movements you must see) — the gateway never lets
+/// the client disable it, so it is rendered as a disabled row, not a toggle.
+enum NotificationCategory {
+  /// New offers on your requests (and offer-accepted nudges).
+  offers,
 
-  final bool offers;
-  final bool chat;
-  final bool statusChanges;
-  final bool ratingReminders;
+  /// Pickup / hand-off / delivery status changes (D84 `status`).
+  orderStatus,
 
-  NotificationTopicPrefs copyWith({
-    bool? offers,
-    bool? chat,
-    bool? statusChanges,
-    bool? ratingReminders,
-  }) {
-    return NotificationTopicPrefs(
-      offers: offers ?? this.offers,
-      chat: chat ?? this.chat,
-      statusChanges: statusChanges ?? this.statusChanges,
-      ratingReminders: ratingReminders ?? this.ratingReminders,
-    );
-  }
+  /// Wallet movements you opt into seeing (low balance, fee won, top-up, gift).
+  wallet,
 
-  Map<String, dynamic> toJson() => {
-        'offers': offers,
-        'chat': chat,
-        'statusChanges': statusChanges,
-        'ratingReminders': ratingReminders,
-      };
-
-  factory NotificationTopicPrefs.fromJson(Map<String, dynamic> json) {
-    return NotificationTopicPrefs(
-      offers: (json['offers'] as bool?) ?? true,
-      chat: (json['chat'] as bool?) ?? true,
-      statusChanges: (json['statusChanges'] as bool?) ?? true,
-      ratingReminders: (json['ratingReminders'] as bool?) ?? true,
-    );
-  }
-
-  @override
-  List<Object?> get props => [offers, chat, statusChanges, ratingReminders];
+  /// Promotions, news, seasonal campaigns.
+  marketing,
 }
 
-/// Full preferences snapshot returned by GET/PATCH `/users/me/notification-preferences`.
+/// The wire key each category serialises to inside the gateway `topics` map.
 ///
-/// `alwaysOn` lists topics that cannot be disabled (e.g. "otp", "system_critical").
-/// The gateway returns 400 if the client attempts to disable one of these.
-class NotificationPrefs extends Equatable {
-  const NotificationPrefs({
-    this.preferences = const NotificationTopicPrefs(),
-    this.alwaysOn = const [],
+/// The mock `GET/PUT /v1/notifications/preferences` echoes an opaque
+/// `topics: { <key>: bool }` map (`notification-service.ts`), so the app owns
+/// these keys. Kept snake_case to match the rest of the notification contract
+/// (D84 dispatch classes are snake_case).
+extension NotificationCategoryWire on NotificationCategory {
+  String get wireKey {
+    switch (this) {
+      case NotificationCategory.offers:
+        return 'offers';
+      case NotificationCategory.orderStatus:
+        return 'order_status';
+      case NotificationCategory.wallet:
+        return 'wallet';
+      case NotificationCategory.marketing:
+        return 'marketing';
+    }
+  }
+
+  static NotificationCategory? fromWire(String key) {
+    switch (key) {
+      case 'offers':
+        return NotificationCategory.offers;
+      case 'order_status':
+      // Tolerate the legacy camelCase the older screen used.
+      case 'orderStatus':
+      case 'statusChanges':
+        return NotificationCategory.orderStatus;
+      case 'wallet':
+        return NotificationCategory.wallet;
+      case 'marketing':
+        return NotificationCategory.marketing;
+      default:
+        return null;
+    }
+  }
+}
+
+/// Per-category enabled flags. Defaults are opt-in for the three operational
+/// categories and opt-out for marketing (least-surprising; CTO-D R-F — D64 does
+/// not fix a default, marketing-off is the conservative, consent-friendly choice).
+class NotificationCategoryPrefs extends Equatable {
+  const NotificationCategoryPrefs({
+    this.offers = true,
+    this.orderStatus = true,
+    this.wallet = true,
+    this.marketing = false,
   });
 
-  final NotificationTopicPrefs preferences;
+  /// Parses the gateway `topics` map; absent keys fall back to the constructor
+  /// defaults so a partial / empty `topics: {}` (the mock's seed) degrades
+  /// gracefully rather than crashing.
+  factory NotificationCategoryPrefs.fromTopicsJson(Map<String, dynamic> json) {
+    bool read(NotificationCategory c, bool fallback) {
+      final v = json[c.wireKey];
+      return v is bool ? v : fallback;
+    }
 
-  /// Topics that are always enabled and cannot be toggled off.
-  final List<String> alwaysOn;
+    return NotificationCategoryPrefs(
+      offers: read(NotificationCategory.offers, true),
+      orderStatus: read(NotificationCategory.orderStatus, true),
+      wallet: read(NotificationCategory.wallet, true),
+      marketing: read(NotificationCategory.marketing, false),
+    );
+  }
 
-  bool get isOtpAlwaysOn => alwaysOn.contains('otp');
-  bool get isSystemCriticalAlwaysOn => alwaysOn.contains('system_critical');
+  final bool offers;
+  final bool orderStatus;
+  final bool wallet;
+  final bool marketing;
+
+  bool valueOf(NotificationCategory category) {
+    switch (category) {
+      case NotificationCategory.offers:
+        return offers;
+      case NotificationCategory.orderStatus:
+        return orderStatus;
+      case NotificationCategory.wallet:
+        return wallet;
+      case NotificationCategory.marketing:
+        return marketing;
+    }
+  }
+
+  NotificationCategoryPrefs withValue(
+    NotificationCategory category,
+    bool value,
+  ) {
+    switch (category) {
+      case NotificationCategory.offers:
+        return copyWith(offers: value);
+      case NotificationCategory.orderStatus:
+        return copyWith(orderStatus: value);
+      case NotificationCategory.wallet:
+        return copyWith(wallet: value);
+      case NotificationCategory.marketing:
+        return copyWith(marketing: value);
+    }
+  }
+
+  NotificationCategoryPrefs copyWith({
+    bool? offers,
+    bool? orderStatus,
+    bool? wallet,
+    bool? marketing,
+  }) {
+    return NotificationCategoryPrefs(
+      offers: offers ?? this.offers,
+      orderStatus: orderStatus ?? this.orderStatus,
+      wallet: wallet ?? this.wallet,
+      marketing: marketing ?? this.marketing,
+    );
+  }
+
+  /// Serialises to the gateway `topics` map (the wire keys, not enum names).
+  Map<String, bool> toTopicsJson() => {
+        NotificationCategory.offers.wireKey: offers,
+        NotificationCategory.orderStatus.wireKey: orderStatus,
+        NotificationCategory.wallet.wireKey: wallet,
+        NotificationCategory.marketing.wireKey: marketing,
+      };
+
+  @override
+  List<Object?> get props => [offers, orderStatus, wallet, marketing];
+}
+
+/// Full preferences snapshot from `GET/PUT /v1/notifications/preferences`.
+///
+/// `pushEnabled` reflects the gateway `push` channel flag; the screen surfaces a
+/// push-only note (R2) so the user understands every category here is a *push*
+/// channel preference (SMS/email are not surfaced — push is the only channel the
+/// app controls). `transactionalLocked` is always true: the transactional class
+/// (D64) cannot be disabled and renders as a locked row.
+class NotificationPrefs extends Equatable {
+  const NotificationPrefs({
+    this.categories = const NotificationCategoryPrefs(),
+    this.pushEnabled = true,
+    this.transactionalLocked = true,
+  });
+
+  final NotificationCategoryPrefs categories;
+  final bool pushEnabled;
+  final bool transactionalLocked;
 
   NotificationPrefs copyWith({
-    NotificationTopicPrefs? preferences,
-    List<String>? alwaysOn,
+    NotificationCategoryPrefs? categories,
+    bool? pushEnabled,
+    bool? transactionalLocked,
   }) {
     return NotificationPrefs(
-      preferences: preferences ?? this.preferences,
-      alwaysOn: alwaysOn ?? this.alwaysOn,
+      categories: categories ?? this.categories,
+      pushEnabled: pushEnabled ?? this.pushEnabled,
+      transactionalLocked: transactionalLocked ?? this.transactionalLocked,
     );
   }
 
   @override
-  List<Object?> get props => [preferences, alwaysOn];
+  List<Object?> get props => [categories, pushEnabled, transactionalLocked];
 }

@@ -134,10 +134,21 @@ class _PendingList extends StatelessWidget {
     return Column(
       key: const Key('pending-requests-tab-list'),
       children: [
-        for (final r in requests)
-          PendingCountdownCard(
-            request: r,
-            onTap: onTap != null ? () => onTap!(r) : null,
+        for (var i = 0; i < requests.length; i++)
+          // JM-023 AC2: the indexed `orders_home_request_row_<n>` identifier is
+          // the QA tap target for a pending request row on the Requests home.
+          // It wraps (does not replace) the per-id `pending_requests_item_<id>`
+          // identifier the card already exposes, so both contracts stay
+          // targetable; tapping routes to `waiting-no-coverage` (JM-026) via
+          // the screen-supplied [onTap].
+          Semantics(
+            identifier: 'orders_home_request_row_$i',
+            container: true,
+            explicitChildNodes: true,
+            child: PendingCountdownCard(
+              request: requests[i],
+              onTap: onTap != null ? () => onTap!(requests[i]) : null,
+            ),
           ),
       ],
     );

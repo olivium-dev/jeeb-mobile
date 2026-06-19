@@ -30,6 +30,14 @@ const Color _googleBrandBlue = Color(0xFF4285F4);
 /// Google Identity Branding Guidelines.
 const Color _googleGlyphForeground = Color(0xFFFFFFFF);
 
+/// Facebook Brand Blue (#1877F2) — required by the Facebook Brand Guidelines
+/// for the "f" mark inside the sign-in button. Matches `OmdsSocialButtons.facebook`'s
+/// background so the glyph disc reads as part of the button.
+const Color _facebookBrandBlue = Color(0xFF1877F2);
+
+/// Pure white "f" glyph on the Facebook-blue button — Facebook Brand Guidelines.
+const Color _facebookGlyphForeground = Color(0xFFFFFFFF);
+
 /// Pure black for the Apple glyph when it sits on a white button.
 const Color _appleBrandBlack = Color(0xFF000000);
 
@@ -85,6 +93,24 @@ class SocialSignInButton extends StatelessWidget {
             onTap: effectiveOnTap,
           ),
         );
+      case SocialProvider.facebook:
+        return Semantics(
+          button: true,
+          enabled: isEnabled && !isBusy,
+          // Visible label reuses the locale-safe generic `actionContinue`
+          // ("Continue") — no dedicated Facebook key exists yet (requested in
+          // 50_ROUTE_REQUESTS.md for a copy-polish swap to
+          // `socialContinueWithFacebook`). Maestro asserts on the caller's
+          // `*_social_facebook` identifier, never this text.
+          label: l10n.actionContinue,
+          child: OmdsSocialButtons.facebook(
+            // Facebook brand "f" mark on the brand-blue button. White glyph per
+            // the Facebook Brand Guidelines — see the EXEMPT block at top.
+            icon: _FacebookGlyph(enabled: isEnabled && !isBusy),
+            text: isBusy ? '…' : l10n.actionContinue,
+            onTap: effectiveOnTap,
+          ),
+        );
       case SocialProvider.apple:
         final isDark = brightness == Brightness.dark;
         return Semantics(
@@ -136,6 +162,38 @@ class _GoogleGlyph extends StatelessWidget {
         // is a brand mark, not body copy. See top-of-file EXEMPT block.
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: _googleGlyphForeground,
+              fontWeight: FontWeight.w700,
+            ),
+      ),
+    );
+  }
+}
+
+/// Facebook "f" mark. Like [_GoogleGlyph] this is a lightweight text glyph so
+/// we don't bundle an SVG for the MVP (real branded asset tracked under
+/// JEEB-57). The white "f" sits on a Facebook-blue disc that blends into the
+/// brand-blue button background.
+class _FacebookGlyph extends StatelessWidget {
+  const _FacebookGlyph({required this.enabled});
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.omdsColorTokens;
+    return Container(
+      width: Sizes.large,
+      height: Sizes.large,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: enabled ? _facebookBrandBlue : tokens.greyScale400,
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        'f',
+        // Brand mark, not body copy — bypasses textTheme color intentionally
+        // (see the top-of-file EXEMPT block).
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: _facebookGlyphForeground,
               fontWeight: FontWeight.w700,
             ),
       ),

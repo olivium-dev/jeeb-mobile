@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/layout/bottom_inset.dart';
@@ -33,13 +34,19 @@ class ClientHomeScreen extends StatefulWidget {
     this.initialTab = ClientHomeTab.inProgress,
   });
 
+  /// Legacy "open the conversation for a request" hook. Retained for API
+  /// compatibility with the shell host (`shell/tabs/home_tab.dart`) and the
+  /// widget tests that still pass it. As of JM-027/JM-023 it no longer drives
+  /// the Pending and Replies sub-tabs: Pending rows route to
+  /// `waiting-no-coverage` (JM-026) and Replies CTAs route to `offer-review`
+  /// (JM-028) / `offer-accept-confirm` (JM-029) from inside their own tabs, so
+  /// `my-orders` no longer opens `/chat/:id` (the divergence 20_GAP_MAP flagged).
   final void Function(ClientHomeRequest request)? onOpenRequest;
   final VoidCallback? onCreateRequest;
 
   /// Opens the live-tracking screen (`/orders/:id/tracking`) for an in-progress
-  /// delivery's "Track my order" CTA. Distinct from [onOpenRequest], which
-  /// opens the conversation for pending/replies cards. When null the
-  /// [InProgressTab] falls back to GoRouter navigation directly.
+  /// delivery's "Track my order" CTA. Distinct from [onOpenRequest]. When null
+  /// the [InProgressTab] falls back to GoRouter navigation directly.
   final void Function(ClientHomeRequest request)? onTrack;
 
   /// Opens the voice-request recorder (`/voice-request`). Supplied by the
@@ -58,6 +65,11 @@ class ClientHomeScreen extends StatefulWidget {
 class _ClientHomeScreenState extends State<ClientHomeScreen> {
   late ClientHomeTab _selectedTab = widget.initialTab;
 
+  /// True once a sub-tab has been chosen — either by the user tapping a chip or
+  /// by the one-shot "land on the first populated tab" affordance below. Guards
+  /// the affordance so it never fights a manual selection on later rebuilds.
+  bool _tabResolved = false;
+
   @override
   void initState() {
     super.initState();
@@ -70,24 +82,109 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     });
   }
 
+  /// JM-023 AC2: when data first lands, surface the requests that actually
+  /// exist. If the caller left the default In Progress chip selected (i.e. the
+  /// dev seam / a deep-link did NOT pin a specific tab) and In Progress is
+  /// empty while another tab has content, advance to the first populated tab —
+  /// Pending Requests first (the seeded pending journey), then Replies. This is
+  /// a one-shot "land where the content is" affordance; once the user taps a
+  /// chip [_tabResolved] is set and the selection is never overridden again.
+  void _resolveInitialTab(ClientHomeState state) {
+    if (_tabResolved) return;
+    if (state.status != ClientHomeStatus.ready) return;
+    _tabResolved = true;
+    // Respect an explicit (non-default) starting tab — capture flows pin one.
+    if (widget.initialTab != ClientHomeTab.inProgress) return;
+    if (state.inProgress.isNotEmpty) return;
+    final ClientHomeTab? populated = state.pending.isNotEmpty
+        ? ClientHomeTab.pendingRequests
+        : (state.replies.isNotEmpty ? ClientHomeTab.replies : null);
+    if (populated == null || populated == _selectedTab) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => _selectedTab = populated);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<ClientHomeCubit, ClientHomeState>(
       builder: (context, state) {
-        return OmdsPullToRefresh(
-          onRefresh: () => context.read<ClientHomeCubit>().refresh(),
-          child: _ClientHomeBody(
-            state: state,
-            selectedTab: _selectedTab,
-            onTabSelected: (tab) => setState(() => _selectedTab = tab),
-            onCreateRequest: widget.onCreateRequest,
-            onOpenRequest: widget.onOpenRequest,
-            onRecordVoice: widget.onRecordVoice,
-            onTrack: widget.onTrack,
-          ),
+        _resolveInitialTab(state);
+        // JM-023: the New Order FAB (`orders_home_new_order_fab`) is the
+        // signature create-flow entry on the Requests tab and must be present
+        // regardless of load phase / list contents, so it is overlaid on the
+        // scrollable body via a Stack rather than rendered inside the list.
+        // (The tab is a body inside the shell's IndexedStack — there is no
+        // Scaffold here to host a `floatingActionButton`.)
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: OmdsPullToRefresh(
+                onRefresh: () => context.read<ClientHomeCubit>().refresh(),
+                child: _ClientHomeBody(
+                  state: state,
+                  selectedTab: _selectedTab,
+                  onTabSelected: (tab) => setState(() {
+                    _tabResolved = true;
+                    _selectedTab = tab;
+                  }),
+                  onCreateRequest: widget.onCreateRequest,
+                  onRecordVoice: widget.onRecordVoice,
+                  onTrack: widget.onTrack,
+                ),
+              ),
+            ),
+            _ClientHomeNewOrderFab(onCreateRequest: widget.onCreateRequest),
+          ],
         );
       },
     );
+  }
+}
+
+/// JM-023 AC3: the "New Order" FAB on the Requests tab. Carries the
+/// signature `orders_home_new_order_fab` identifier and routes to
+/// `request-type-selection` (the existing `request-type` route) via the
+/// shell-supplied [onCreateRequest]. Falls back to a direct GoRouter push when
+/// no callback is wired (release always supplies one through HomeTab).
+class _ClientHomeNewOrderFab extends StatelessWidget {
+  const _ClientHomeNewOrderFab({required this.onCreateRequest});
+
+  final VoidCallback? onCreateRequest;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return PositionedDirectional(
+      end: Spacing.medium,
+      bottom: Spacing.medium + context.scrollBodyBottomInset,
+      child: Semantics(
+        identifier: 'orders_home_new_order_fab',
+        button: true,
+        // Tooltip-only label (not a visible Text child) so the FAB carries the
+        // create-flow affordance without colliding with the empty-state hero's
+        // visible "New Order" CTA text.
+        label: l10n.homeNewOrderCta,
+        child: FloatingActionButton(
+          heroTag: 'orders-home-new-order-fab',
+          tooltip: l10n.homeNewOrderCta,
+          onPressed: () => _onPressed(context),
+          child: const Icon(Icons.add),
+        ),
+      ),
+    );
+  }
+
+  void _onPressed(BuildContext context) {
+    final onCreate = onCreateRequest;
+    if (onCreate != null) {
+      onCreate();
+      return;
+    }
+    // Honest fallback target: the create-flow tier-selection step
+    // (request-type-selection → existing `request-type` route).
+    GoRouter.of(context).pushNamed('request-type');
   }
 }
 
@@ -97,7 +194,6 @@ class _ClientHomeBody extends StatelessWidget {
     required this.selectedTab,
     required this.onTabSelected,
     required this.onCreateRequest,
-    required this.onOpenRequest,
     required this.onRecordVoice,
     required this.onTrack,
   });
@@ -106,7 +202,6 @@ class _ClientHomeBody extends StatelessWidget {
   final ClientHomeTab selectedTab;
   final ValueChanged<ClientHomeTab> onTabSelected;
   final VoidCallback? onCreateRequest;
-  final void Function(ClientHomeRequest)? onOpenRequest;
   final VoidCallback? onRecordVoice;
   final void Function(ClientHomeRequest)? onTrack;
 
@@ -137,7 +232,6 @@ class _ClientHomeBody extends StatelessWidget {
           selectedTab: selectedTab,
           onTabSelected: onTabSelected,
           onCreateRequest: onCreateRequest,
-          onOpenRequest: onOpenRequest,
           onRecordVoice: onRecordVoice,
           onTrack: onTrack,
         );
@@ -242,7 +336,6 @@ class _ReadyLayout extends StatelessWidget {
     required this.selectedTab,
     required this.onTabSelected,
     required this.onCreateRequest,
-    required this.onOpenRequest,
     required this.onRecordVoice,
     required this.onTrack,
   });
@@ -251,7 +344,6 @@ class _ReadyLayout extends StatelessWidget {
   final ClientHomeTab selectedTab;
   final ValueChanged<ClientHomeTab> onTabSelected;
   final VoidCallback? onCreateRequest;
-  final void Function(ClientHomeRequest)? onOpenRequest;
   final VoidCallback? onRecordVoice;
   final void Function(ClientHomeRequest)? onTrack;
 
@@ -282,7 +374,6 @@ class _ReadyLayout extends StatelessWidget {
       const SizedBox(height: Spacing.large),
       _ReadyContent(
         selectedTab: selectedTab,
-        onOpenRequest: onOpenRequest,
         onTrack: onTrack,
       ),
     ];
@@ -292,12 +383,10 @@ class _ReadyLayout extends StatelessWidget {
 class _ReadyContent extends StatelessWidget {
   const _ReadyContent({
     required this.selectedTab,
-    required this.onOpenRequest,
     required this.onTrack,
   });
 
   final ClientHomeTab selectedTab;
-  final void Function(ClientHomeRequest)? onOpenRequest;
   final void Function(ClientHomeRequest)? onTrack;
 
   @override
@@ -308,14 +397,33 @@ class _ReadyContent extends StatelessWidget {
           onTrack: onTrack,
         );
       case ClientHomeTab.pendingRequests:
+        // JM-023 AC2: a pending request row routes to `waiting-no-coverage`
+        // (the live broadcast/wait state, JM-026) — NOT the chat thread. We
+        // pass an explicit waiting handler so the pending tap target diverges
+        // from the Replies/In-Progress chat/track callbacks; the rows carry
+        // the indexed `orders_home_request_row_<n>` identifier inside the tab.
         return PendingRequestsTab(
-          onTap: onOpenRequest,
+          onTap: (request) => _openWaiting(context, request),
         );
       case ClientHomeTab.replies:
-        return RepliesTab(
-          onCheckOffers: onOpenRequest,
-        );
+        // JM-027: the Replies sub-tab owns its own navigation — Check Offers →
+        // offer-review-list (JM-028) and Accept → offer-accept-confirm sheet
+        // (JM-029). It MUST NOT reuse `onOpenRequest` (which routes to
+        // `/chat/:id`, the divergent edge 20_GAP_MAP flagged for `my-orders`),
+        // so no callbacks are injected here — RepliesTab's defaults apply.
+        return const RepliesTab();
     }
+  }
+
+  /// JM-023 AC2: route a pending request row to its waiting / no-coverage
+  /// state (`waiting-no-coverage` → `/requests/:id/waiting`, JM-026), keyed by
+  /// the request id. Defends an empty id (the route requires the path param).
+  void _openWaiting(BuildContext context, ClientHomeRequest request) {
+    if (request.id.isEmpty) return;
+    GoRouter.of(context).pushNamed(
+      'waiting-no-coverage',
+      pathParameters: {'id': request.id},
+    );
   }
 }
 
@@ -379,6 +487,12 @@ class _ClientHomeTabBar extends StatelessWidget {
               isSelected: tabs[i].tab == selectedTab,
               onTap: () => onSelected(tabs[i].tab),
               keySuffix: tabs[i].tab.name,
+              // JM-023 / JM-027: the Replies sub-tab carries the coined
+              // `orders_home_replies_tab` identifier so QA can target it from
+              // the Requests home as the tap target onto the Replies surface.
+              extraIdentifier: tabs[i].tab == ClientHomeTab.replies
+                  ? 'orders_home_replies_tab'
+                  : null,
             ),
           ],
         ],
@@ -400,6 +514,7 @@ class _ClientHomeTabChip extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     required this.keySuffix,
+    this.extraIdentifier,
   });
 
   final String label;
@@ -407,10 +522,15 @@ class _ClientHomeTabChip extends StatelessWidget {
   final VoidCallback onTap;
   final String keySuffix;
 
+  /// An additional QA identifier wrapped around the chip (e.g. the coined
+  /// `orders_home_replies_tab`). Kept distinct from the existing
+  /// `orders_filter_<tab>` id so both id contracts stay targetable.
+  final String? extraIdentifier;
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Semantics(
+    Widget chip = Semantics(
       identifier: 'orders_filter_$keySuffix',
       button: true,
       selected: isSelected,
@@ -428,6 +548,16 @@ class _ClientHomeTabChip extends StatelessWidget {
         borderRadius: OmdsBorderRadius.xSmall,
       ),
     );
+    final extraId = extraIdentifier;
+    if (extraId != null) {
+      chip = Semantics(
+        identifier: extraId,
+        container: true,
+        explicitChildNodes: true,
+        child: chip,
+      );
+    }
+    return chip;
   }
 }
 

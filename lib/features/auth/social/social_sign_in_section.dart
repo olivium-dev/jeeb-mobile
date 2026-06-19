@@ -85,6 +85,7 @@ String _errorCopy(SocialAuthError error, AppLocalizations l10n) {
       return l10n.registrationSocialErrorInvalidToken;
     case SocialAuthError.accountDisabled:
       return l10n.registrationSocialErrorAccountDisabled;
+    case SocialAuthError.collision:
     case SocialAuthError.cancelled:
     case SocialAuthError.unknown:
       return l10n.registrationSocialErrorGeneric;

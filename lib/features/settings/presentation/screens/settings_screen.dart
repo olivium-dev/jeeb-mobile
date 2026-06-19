@@ -11,6 +11,7 @@ import '../../application/settings_cubit.dart';
 import '../../application/settings_state.dart';
 import '../../data/in_memory_profile_repository.dart';
 import '../../domain/account_service.dart';
+import '../widgets/logout_delete_confirm_sheet.dart';
 import '../widgets/role_toggle_setting.dart';
 
 /// Settings screen (T-mobile-031).
@@ -355,6 +356,19 @@ class _AboutSection extends StatelessWidget {
   }
 }
 
+/// Account section — the JM-062 `logout-delete-account` host.
+///
+/// The Delete-account + Sign-out rows each open the [LogoutDeleteConfirmSheet]
+/// (the blueprint `logout-delete-account` confirm surface), whose
+/// `logout_confirm_cta` / `delete_confirm_cta` clear the local session and route
+/// to splash (`/` → first-run gate → `/login`, D5). This is also the screen the
+/// `account-status` (JM-066) `account_status_signout_cta` routes to (`/settings`),
+/// so a suspended/locked user reaches sign-out without a dead end.
+///
+/// Semantics: the section root is tagged `logout_delete_account_root` so the
+/// surface is addressable; the confirm CTAs live inside the sheet (the dialog
+/// path was retired — `OmdsConfirmationDialog` cannot carry the EXACT confirm-CTA
+/// identifiers the JM-062 AC requires).
 class _AccountSection extends StatelessWidget {
   const _AccountSection({required this.state});
 
@@ -364,67 +378,65 @@ class _AccountSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
-    return OmdsSettingsSection(
-      title: l10n.settingsAccountSection,
-      children: [
-        OmdsSettingsRow(
-          key: const Key('settings-row-delete-account'),
-          title: l10n.accountDeleteRow,
-          subtitle: state.deletionPending
-              ? l10n.accountDeletePending
-              : l10n.accountDeleteSubtitle,
-          leadingIcon: Icons.delete_outline,
-          leadingIconColor: colorScheme.error,
-          titleStyle: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: state.deletionPending
-                    ? colorScheme.onSurface
-                    : colorScheme.error,
-              ),
-          enabled: !state.deletionPending && !state.isDeletingAccount,
-          onTap: () => _confirmDeleteAccount(context),
-        ),
-        OmdsSettingsRow(
-          key: const Key('settings-row-sign-out'),
-          title: l10n.appBarSignOut,
-          leadingIcon: Icons.logout,
-          icon: Icons.chevron_right,
-          enabled: !state.isSigningOut,
-          onTap: () => _confirmSignOut(context),
-        ),
-      ],
+    return Semantics(
+      identifier: 'logout_delete_account_root',
+      container: true,
+      child: OmdsSettingsSection(
+        title: l10n.settingsAccountSection,
+        children: [
+          Semantics(
+            identifier: 'settings_delete_account_row',
+            button: true,
+            child: OmdsSettingsRow(
+              key: const Key('settings-row-delete-account'),
+              title: l10n.accountDeleteRow,
+              subtitle: state.deletionPending
+                  ? l10n.accountDeletePending
+                  : l10n.accountDeleteSubtitle,
+              leadingIcon: Icons.delete_outline,
+              leadingIconColor: colorScheme.error,
+              titleStyle: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: state.deletionPending
+                        ? colorScheme.onSurface
+                        : colorScheme.error,
+                  ),
+              enabled: !state.deletionPending && !state.isDeletingAccount,
+              onTap: () => _confirmDeleteAccount(context),
+            ),
+          ),
+          Semantics(
+            identifier: 'settings_sign_out_row',
+            button: true,
+            child: OmdsSettingsRow(
+              key: const Key('settings-row-sign-out'),
+              title: l10n.appBarSignOut,
+              leadingIcon: Icons.logout,
+              icon: Icons.chevron_right,
+              enabled: !state.isSigningOut,
+              onTap: () => _confirmSignOut(context),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
+  /// Opens the delete-account confirm sheet (`delete_confirm_cta`). On confirm
+  /// the sheet clears the session and routes to splash (D5).
   Future<void> _confirmDeleteAccount(BuildContext context) async {
-    final l10n = AppLocalizations.of(context);
-    final cubit = context.read<SettingsCubit>();
-    final confirmed = await OmdsConfirmationDialog.show(
-      context: context,
-      title: l10n.accountDeleteDialogTitle,
-      content: l10n.accountDeleteDialogBody,
-      confirmText: l10n.accountDeleteConfirm,
-      cancelText: l10n.actionCancel,
-      isDestructive: true,
-      icon: Icons.delete_outline,
+    await LogoutDeleteConfirmSheet.show(
+      context,
+      mode: LogoutDeleteMode.delete,
     );
-    if (!confirmed) return;
-    await cubit.requestAccountDeletion();
   }
 
+  /// Opens the sign-out confirm sheet (`logout_confirm_cta`). On confirm the
+  /// sheet clears the session and routes to splash (D5).
   Future<void> _confirmSignOut(BuildContext context) async {
-    final l10n = AppLocalizations.of(context);
-    final cubit = context.read<SettingsCubit>();
-    final confirmed = await OmdsConfirmationDialog.show(
-      context: context,
-      title: l10n.signOutDialogTitle,
-      content: l10n.signOutDialogBody,
-      confirmText: l10n.appBarSignOut,
-      cancelText: l10n.actionCancel,
-      isDestructive: true,
-      icon: Icons.logout,
+    await LogoutDeleteConfirmSheet.show(
+      context,
+      mode: LogoutDeleteMode.logout,
     );
-    if (!confirmed) return;
-    await cubit.signOut();
   }
 }
 

@@ -1,0 +1,144 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-026 — Waiting / No-Coverage state
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given a broadcast request, Then waiting_notified_count + waiting_countdown
+#        render; no-coverage variant shows when 0 notified (waiting_no_coverage_state).
+#   AC2: When offers arrive, Then waiting_review_offers_cta → offer-review-list
+#        (offer_card_<id> visible) [JM-028].
+#   AC3: waiting_retarget_cta → request-type-selection reusing original content
+#        (request_type_continue_cta visible) [D48].
+#   AC4: waiting_cancel_cta → cancel-request-confirm sheet (cancel_request_sheet
+#        visible) [JM-030, D69].
+#
+# Mock: POST /matching/v1/matching/find-jeebers,
+#       POST /matching/v1/matching/broadcast,
+#       GET /delivery-service/v1/requests?status=pending,
+#       GET /offer-service/v1/offers?requestId=
+# Seam:
+#   AC1/AC3/AC4: jeeb.seam.session=customer_logged_in + jeeb.seam.journey=pending_request
+#        (FLAGGED — seam key jeeb.seam.journey=pending_request: a request in state=pending
+#         for user-client-001 with notified_count>0 must be seeded)
+#   AC1b (no-coverage): jeeb.seam.journey=pending_request_no_coverage
+#        (FLAGGED — request in state=pending with 0 nearby jeebers)
+#   AC2: jeeb.seam.journey=offers_received
+#        (FLAGGED — request in state=offers-received with >=2 offers seeded for user-client-001)
+#
+# STATUS: RED until JM-026 ships + seam seeds pending_request,
+#         pending_request_no_coverage, offers_received exist (test-first).
+#         Decisions: D48, D69.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-026-waiting-no-coverage.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Broadcast waiting state — count + countdown render ──────────────────
+# REQUIRES seam seed: jeeb.seam.journey=pending_request
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "pending_request"
+
+- extendedWaitUntil:
+    visible:
+      id: "waiting_notified_count"
+    timeout: 30000
+
+- assertVisible:
+    id: "waiting_countdown"
+
+- takeScreenshot: jm026_ac1_waiting_broadcast_state
+
+# ── AC1b: No-coverage variant when 0 jeebers notified ────────────────────────
+# REQUIRES seam seed: jeeb.seam.journey=pending_request_no_coverage
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "pending_request_no_coverage"
+
+- extendedWaitUntil:
+    visible:
+      id: "waiting_no_coverage_state"
+    timeout: 30000
+
+- takeScreenshot: jm026_ac1b_no_coverage_variant
+
+# ── AC2: Offers arrived → review offers CTA → offer-review-list ──────────────
+# REQUIRES seam seed: jeeb.seam.journey=offers_received. That journey has no
+# default route pin (it lands on the shell so jm-027/028/029 navigate via the
+# Replies tab); AC2 specifically asserts the WAITING screen's live transition to
+# the review-offers CTA, so we pin the offers request's waiting route explicitly
+# (an explicit jeeb.route wins over the no-pin journey, 62_SEAM_HARNESS §W1-2).
+# On that screen the cubit sees offers (state.hasOffers) and renders the CTA.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "offers_received"
+      jeeb.route: "/requests/req-client-001-offers/waiting"
+
+- extendedWaitUntil:
+    visible:
+      id: "waiting_review_offers_cta"
+    timeout: 30000
+
+- tapOn:
+    id: "waiting_review_offers_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_review_list_root"
+    timeout: 15000
+
+- takeScreenshot: jm026_ac2_review_offers_cta_to_offer_list
+
+# ── AC3: Re-target → request-type-selection ───────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "pending_request"
+
+- extendedWaitUntil:
+    visible:
+      id: "waiting_retarget_cta"
+    timeout: 30000
+
+- tapOn:
+    id: "waiting_retarget_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "request_type_continue_cta"
+    timeout: 15000
+
+- takeScreenshot: jm026_ac3_retarget_to_request_type
+
+# ── AC4: Cancel CTA → cancel-request-confirm sheet ───────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "pending_request"
+
+- extendedWaitUntil:
+    visible:
+      id: "waiting_cancel_cta"
+    timeout: 30000
+
+- tapOn:
+    id: "waiting_cancel_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "cancel_request_sheet"
+    timeout: 15000
+
+- takeScreenshot: jm026_ac4_cancel_sheet_from_waiting

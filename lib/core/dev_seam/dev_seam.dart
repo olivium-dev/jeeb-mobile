@@ -46,10 +46,50 @@ class DevSeam {
     for (final source in sources ?? _defaultSources) {
       merged = _mergePreferring(merged, await source.read());
     }
+    // Wave 1 journey seam (63_W1_TEST_PLAN §4): a `jeeb.seam.journey` value that
+    // implies a deep landing folds its route pin into [DevSeamConfig.route] so
+    // the EXISTING router route-pin (app_router `_devRoute`) lands the flow on
+    // the right screen — without the flow having to also pass `jeeb.route` and
+    // without editing the router. An explicit `jeeb.route` always wins (so a
+    // flow can still override the journey's default landing). Journeys whose
+    // routePin is empty (offers_received / has_saved_addresses) leave the route
+    // untouched, so the app lands on the shell and the flow navigates there.
+    merged = _applyJourneyRoutePin(merged);
     _current = merged;
     if (!merged.isEmpty) {
       debugPrint('DevSeam resolved: $merged');
     }
+  }
+
+  /// Folds [JourneySeed.routePin] into [DevSeamConfig.route] when a journey seed
+  /// implies a deep landing and no explicit route was already set. Returns
+  /// [config] unchanged when there is no journey, the journey has no route pin,
+  /// or an explicit `jeeb.route` is present.
+  static DevSeamConfig _applyJourneyRoutePin(DevSeamConfig config) {
+    if (!config.hasJourneySeed) return config;
+    if (config.route.isNotEmpty) return config; // explicit route wins
+    final pin = config.journeySeed.routePin;
+    if (pin.isEmpty) return config;
+    return DevSeamConfig(
+      route: pin,
+      chatSelector: config.chatSelector,
+      forcedLocale: config.forcedLocale,
+      homeTab: config.homeTab,
+      feed: config.feed,
+      holdSplash: config.holdSplash,
+      skipOnboarding: config.skipOnboarding,
+      sessionSeed: config.sessionSeed,
+      journeySeed: config.journeySeed,
+      kycStatusSeed: config.kycStatusSeed,
+      walletStateSeed: config.walletStateSeed,
+      otpCode: config.otpCode,
+      otpCountdownExpired: config.otpCountdownExpired,
+      signupCollision: config.signupCollision,
+      socialLogin: config.socialLogin,
+      recoveryCode: config.recoveryCode,
+      recoveryCountdownExpired: config.recoveryCountdownExpired,
+      setPasswordMode: config.setPasswordMode,
+    );
   }
 
   /// Field-wise merge where [primary] (a higher-priority source) wins on any
@@ -71,6 +111,39 @@ class DevSeam {
       feed: primary.feed.isNotEmpty ? primary.feed : fallback.feed,
       holdSplash: primary.holdSplash || fallback.holdSplash,
       skipOnboarding: primary.skipOnboarding || fallback.skipOnboarding,
+      // Wave 0 dev-seam session/journey harness fields (62_SEAM_HARNESS.md):
+      // primary (higher-priority source) wins on any field it sets.
+      sessionSeed: primary.sessionSeed != SessionSeed.none
+          ? primary.sessionSeed
+          : fallback.sessionSeed,
+      // Wave 1 journey seam (63_W1_TEST_PLAN §4): primary wins on any journey it
+      // sets; the route pin is folded in by [_applyJourneyRoutePin] after merge.
+      journeySeed: primary.journeySeed != JourneySeed.none
+          ? primary.journeySeed
+          : fallback.journeySeed,
+      // Wave 2 jeeber seam (65_W2_TEST_PLAN §3): primary wins on any kyc/wallet
+      // seed it sets.
+      kycStatusSeed: primary.kycStatusSeed != KycStatusSeed.none
+          ? primary.kycStatusSeed
+          : fallback.kycStatusSeed,
+      walletStateSeed: primary.walletStateSeed != WalletStateSeed.none
+          ? primary.walletStateSeed
+          : fallback.walletStateSeed,
+      otpCode: primary.otpCode.isNotEmpty ? primary.otpCode : fallback.otpCode,
+      otpCountdownExpired:
+          primary.otpCountdownExpired || fallback.otpCountdownExpired,
+      signupCollision: primary.signupCollision || fallback.signupCollision,
+      socialLogin: primary.socialLogin.isNotEmpty
+          ? primary.socialLogin
+          : fallback.socialLogin,
+      recoveryCode: primary.recoveryCode.isNotEmpty
+          ? primary.recoveryCode
+          : fallback.recoveryCode,
+      recoveryCountdownExpired:
+          primary.recoveryCountdownExpired || fallback.recoveryCountdownExpired,
+      setPasswordMode: primary.setPasswordMode.isNotEmpty
+          ? primary.setPasswordMode
+          : fallback.setPasswordMode,
     );
   }
 

@@ -1,19 +1,43 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/di/injection_container.dart';
 import '../../../l10n/app_localizations.dart';
+import '../data/dio_saved_location_repository.dart';
 import '../domain/saved_location.dart';
 import '../domain/saved_location_repository.dart';
 import 'cubit/saved_locations_cubit.dart';
 import 'cubit/saved_locations_state.dart';
-import 'widgets/add_edit_location_sheet.dart';
 
-/// Saved-locations CRUD screen (T-MOB-025).
+/// `saved-addresses` (JM-049). Saved-address manager at `/settings/addresses`.
 ///
-/// Profile → Settings → Addresses route.
-/// Lifted from salehly-mobile location_screen.dart pattern, restyled with
-/// OMDS tokens and backed by `/v1/users/me/saved-locations` CRUD.
+/// Reachable from `customer-profile` (`customer_profile_addresses_row`) and
+/// `location-select` (`location_select_saved_addresses_row`) — both already
+/// `goNamed('settings-addresses')` (integrator-wired); this screen owns only
+/// the manager surface.
+///
+/// Exposes the 63_W1_TEST_PLAN §2.16 ids:
+///   * `saved_address_add_cta`       — Add CTA (also the screen signature id),
+///                                     → `address-detail` (add path).
+///   * `saved_address_default_badge` — marks the default address (the seam
+///                                     seeds `Home` as default).
+///   * `saved_address_<n>_edit`      — per-row edit (index-0 pattern),
+///                                     → `address-detail?id=<addressId>` (JM-050).
+///
+/// Backed by `GET/POST /users/:userId/saved-locations` via
+/// [SavedLocationRepository] (`DioSavedLocationRepository`, repointed to the
+/// journey-honest userId path in JM-049 — see 50_ROUTE_REQUESTS.md). Add/edit
+/// hand off to the JM-050 `address-detail-form` route, which owns persistence;
+/// this screen reloads on return so a newly-saved row appears.
+/// Feature-local label for the default-address badge — the one string with no
+/// dedicated ARB key (see the JM-049 request in 50_ROUTE_REQUESTS.md). Falls
+/// back to English for any non-Arabic locale.
+String _defaultBadgeLabel(Locale locale) =>
+    locale.languageCode == 'ar' ? 'الافتراضي' : 'Default';
+
 class SavedLocationsScreen extends StatelessWidget {
   const SavedLocationsScreen({super.key, this.repository});
 
@@ -23,12 +47,28 @@ class SavedLocationsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (ctx) {
-        final repo = repository ?? ctx.read<SavedLocationRepository>();
-        return SavedLocationsCubit(repo)..load();
-      },
+      create: (_) => SavedLocationsCubit(repository ?? _resolveRepository())
+        ..load(),
       child: const _SavedLocationsView(),
     );
+  }
+
+  /// Resolves the repository the same way the sibling [ClientLocationScreen]
+  /// does (40_GUARDRAILS_ARCH §5.4 — screen self-provides): prefer a DI-
+  /// registered interface (`injection_container.dart` registers it over the
+  /// app Dio), else self-provide the Dio impl over the registered Dio.
+  ///
+  /// The router builds `const SavedLocationsScreen()` with no `repository`, and
+  /// nothing supplies a `SavedLocationRepository` in the *widget* tree — it
+  /// lives in GetIt (`sl`), not a `RepositoryProvider`. The previous
+  /// `context.read<SavedLocationRepository>()` therefore threw
+  /// `ProviderNotFoundException` on build, so the manager never mounted and
+  /// `saved_address_add_cta` was never visible (jm-024/049/050 root cause).
+  SavedLocationRepository _resolveRepository() {
+    if (sl.isRegistered<SavedLocationRepository>()) {
+      return sl<SavedLocationRepository>();
+    }
+    return DioSavedLocationRepository(sl<Dio>());
   }
 }
 
@@ -48,7 +88,13 @@ class _SavedLocationsView extends StatelessWidget {
             showBackButton: true,
           ),
           body: _buildBody(context, state),
-          floatingActionButton: _buildFab(context, state, l10n),
+          floatingActionButton: _AddAddressFab(
+            // The Add CTA is the screen's signature id — present in EVERY
+            // non-fatal state (incl. empty), per the jm-049 flow (AC2/AC5
+            // assert it directly after opening the manager).
+            enabled: !_isMutating(state) && state is! SavedLocationsLoading,
+            onPressed: () => _onAdd(context),
+          ),
         );
       },
     );
@@ -82,43 +128,18 @@ class _SavedLocationsView extends StatelessWidget {
       );
     }
     if (locations.isEmpty) {
-      return _EmptyView();
+      return const _EmptyView();
     }
     return _LocationList(locations: locations, isMutating: _isMutating(state));
   }
 
-  Widget? _buildFab(
-    BuildContext context,
-    SavedLocationsState state,
-    AppLocalizations l10n,
-  ) {
-    if (state is SavedLocationsLoading || state is SavedLocationsError) {
-      return null;
-    }
-    // EXEMPT: No OmdsFloatingActionButton exists in the OMDS component library.
-    // FloatingActionButton.extended is used here following the approved fleet
-    // pattern until an OMDS FAB variant ships (tracked under T-MOB-025).
-    return FloatingActionButton.extended(
-      heroTag: 'add-location-fab',
-      onPressed: _isMutating(state) ? null : () => _onAdd(context),
-      icon: const Icon(Icons.add),
-      label: Text(l10n.savedLocationsAddNew),
-    );
-  }
-
+  /// Add path: route to the JM-050 form (no `id` → add). Reload on return so a
+  /// freshly-saved address surfaces. The form owns the POST.
   Future<void> _onAdd(BuildContext context) async {
-    final result = await AddEditLocationSheet.show(
-      context: context,
-      existing: null,
-    );
-    if (result == null || !context.mounted) return;
-    await context.read<SavedLocationsCubit>().create(
-          latitude: result.latitude,
-          longitude: result.longitude,
-          label: result.label,
-          category: result.category,
-          address: result.address,
-        );
+    final cubit = context.read<SavedLocationsCubit>();
+    await context.pushNamed('address-detail');
+    if (!context.mounted) return;
+    await cubit.load();
   }
 
   List<SavedLocation> _locationsFrom(SavedLocationsState state) {
@@ -132,6 +153,33 @@ class _SavedLocationsView extends StatelessWidget {
 
   bool _isMutating(SavedLocationsState state) {
     return state is SavedLocationsMutating;
+  }
+}
+
+/// The Add-address CTA. EXEMPT: no `OmdsFloatingActionButton` exists in the OMDS
+/// component library (the same approved fleet exemption the prior T-MOB-025
+/// screen carried). Carries the `saved_address_add_cta` signature id.
+class _AddAddressFab extends StatelessWidget {
+  const _AddAddressFab({required this.enabled, required this.onPressed});
+
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      identifier: 'saved_address_add_cta',
+      button: true,
+      enabled: enabled,
+      label: l10n.savedLocationsAddNew,
+      child: FloatingActionButton.extended(
+        heroTag: 'saved-address-add-fab',
+        onPressed: enabled ? onPressed : null,
+        icon: const Icon(Icons.add),
+        label: Text(l10n.savedLocationsAddNew),
+      ),
+    );
   }
 }
 
@@ -153,52 +201,115 @@ class _LocationList extends StatelessWidget {
           itemCount: locations.length,
           separatorBuilder: (context, index) => const Divider(height: 1),
           itemBuilder: (ctx, i) => _LocationTile(
+            index: i,
             location: locations[i],
             isMutating: isMutating,
           ),
         ),
-        if (isMutating)
-          const Center(child: OmdsLoadingState()),
+        if (isMutating) const Center(child: OmdsLoadingState()),
       ],
     );
   }
 }
 
 class _LocationTile extends StatelessWidget {
-  const _LocationTile({required this.location, required this.isMutating});
+  const _LocationTile({
+    required this.index,
+    required this.location,
+    required this.isMutating,
+  });
 
+  /// List position; drives the `saved_address_<index>_edit` id (63 §2.16
+  /// coins index-0 for the seeded fixture; pattern `saved_address_<n>_edit`).
+  final int index;
   final SavedLocation location;
   final bool isMutating;
-
-  String _semanticLabel(AppLocalizations l10n) {
-    final addr = location.address ?? '';
-    // AC4: accessible label per ticket spec
-    return '${location.label}, $addr, double tap to edit';
-  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Semantics(
-      button: true,
-      label: _semanticLabel(l10n),
-      child: OmdsSettingsRow(
-        title: location.label,
-        subtitle: location.address,
-        leadingIcon: _iconFor(location.category),
-        trailing: const Icon(Icons.more_vert),
-        onTap: isMutating ? null : () => _onEdit(context),
-        titleStyle: Theme.of(context).textTheme.bodyLarge,
+    final theme = Theme.of(context);
+    // Custom row (not OmdsSettingsRow) so the title/subtitle column is the
+    // flexible part and the trailing edit/overflow controls stay fixed-width —
+    // no overflow when the badge + two affordances coexist on a narrow tile.
+    return InkWell(
+      onTap: isMutating ? null : () => _onEdit(context),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: Spacing.xSmall,
+          vertical: Spacing.small,
+        ),
+        child: Row(
+          children: [
+            Icon(_iconFor(location.category), color: theme.colorScheme.primary),
+            const SizedBox(width: Spacing.medium),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          location.label,
+                          style: theme.textTheme.bodyLarge,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (location.isDefault) ...[
+                        const SizedBox(width: Spacing.xSmall),
+                        _DefaultBadge(locale: l10n.locale),
+                      ],
+                    ],
+                  ),
+                  if (location.address != null) ...[
+                    const SizedBox(height: Spacing.twoXSmall),
+                    Text(
+                      location.address!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            _EditButton(
+              index: index,
+              label: l10n.savedLocationsEdit,
+              onTap: isMutating ? null : () => _onEdit(context),
+            ),
+            _MoreButton(
+              label: location.label,
+              onTap: isMutating ? null : () => _onMore(context),
+            ),
+          ],
+        ),
       ),
     );
   }
 
+  /// Edit path: route to the JM-050 form for THIS address (`?id=`). The form
+  /// owns the PUT; the manager reloads on return.
   Future<void> _onEdit(BuildContext context) async {
+    final cubit = context.read<SavedLocationsCubit>();
+    await context.pushNamed(
+      'address-detail',
+      queryParameters: {'id': location.id},
+    );
+    if (!context.mounted) return;
+    await cubit.load();
+  }
+
+  /// The overflow menu keeps Delete reachable (Edit also offered for parity).
+  Future<void> _onMore(BuildContext context) async {
     final l10n = AppLocalizations.of(context);
     final choice = await _showActionsSheet(context, l10n);
     if (choice == null || !context.mounted) return;
     if (choice == _Action.edit) {
-      await _handleEdit(context);
+      await _onEdit(context);
     } else {
       await _handleDelete(context, l10n);
     }
@@ -222,22 +333,6 @@ class _LocationTile extends StatelessWidget {
         deleteLabel: l10n.savedLocationsDelete,
       ),
     );
-  }
-
-  Future<void> _handleEdit(BuildContext context) async {
-    final result = await AddEditLocationSheet.show(
-      context: context,
-      existing: location,
-    );
-    if (result == null || !context.mounted) return;
-    await context.read<SavedLocationsCubit>().update(
-          id: location.id,
-          latitude: result.latitude,
-          longitude: result.longitude,
-          label: result.label,
-          category: result.category,
-          address: result.address,
-        );
   }
 
   Future<void> _handleDelete(
@@ -265,6 +360,84 @@ class _LocationTile extends StatelessWidget {
       case SavedLocationCategory.other:
         return Icons.place_outlined;
     }
+  }
+}
+
+/// The default-address badge carrying `saved_address_default_badge` (JM-049 AC).
+///
+/// No dedicated ARB key exists and the ARB layer is integrator-owned, so the
+/// single word resolves via a feature-local EN/AR helper (the JM-031
+/// `order_summary_l10n.dart` / JM-032 resolver precedent — see
+/// 50_ROUTE_REQUESTS.md). Maestro asserts on the id, never the text, so swapping
+/// to `l10n.savedAddressDefaultBadge` once the integrator lands it is a
+/// no-call-site change.
+class _DefaultBadge extends StatelessWidget {
+  const _DefaultBadge({required this.locale});
+
+  final Locale locale;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final label = _defaultBadgeLabel(locale);
+    return Semantics(
+      identifier: 'saved_address_default_badge',
+      label: label,
+      child: ExcludeSemantics(
+        child: OmdsChip(
+          label: label,
+          isSelected: true,
+          selectedColor: scheme.primaryContainer,
+          selectedTextColor: scheme.onPrimaryContainer,
+        ),
+      ),
+    );
+  }
+}
+
+/// Per-row edit affordance carrying `saved_address_<index>_edit` (→ JM-050 form).
+class _EditButton extends StatelessWidget {
+  const _EditButton({
+    required this.index,
+    required this.label,
+    required this.onTap,
+  });
+
+  final int index;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      identifier: 'saved_address_${index}_edit',
+      button: true,
+      enabled: onTap != null,
+      label: label,
+      child: ExcludeSemantics(
+        child: IconButton(
+          icon: const Icon(Icons.edit_outlined),
+          tooltip: label,
+          onPressed: onTap,
+        ),
+      ),
+    );
+  }
+}
+
+class _MoreButton extends StatelessWidget {
+  const _MoreButton({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.more_vert),
+      tooltip: label,
+      onPressed: onTap,
+    );
   }
 }
 
@@ -324,6 +497,8 @@ class _ActionSheet extends StatelessWidget {
 }
 
 class _EmptyView extends StatelessWidget {
+  const _EmptyView();
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);

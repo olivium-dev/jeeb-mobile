@@ -122,19 +122,25 @@ class DioKycGateway implements KycGateway {
         return KycRejectionReason.idUnreadable;
       case 'selfie_mismatch':
         return KycRejectionReason.selfieMismatch;
-      case 'vehicle_document_missing':
-        return KycRejectionReason.vehicleDocumentMissing;
       case 'expired':
         return KycRejectionReason.expired;
       default:
+        // Covers legacy `vehicle_document_missing` (D20-removed) + anything
+        // the back-office adds that the app does not model yet.
         return KycRejectionReason.other;
     }
   }
 
+  // JM-040 (D20): no vehicle fields. The mock K1 `/v1/kyc/submit` body is
+  // free-form and the identity photos are uploaded out-of-band (proof-photo
+  // sink), so the submit POST carries the document-type marker the schema
+  // (`national_id`) expects. Field names match the K1 contract.
   Map<String, dynamic> _toSubmitBody(KycSubmission draft) {
     return {
-      'vehicle_plate_number': draft.vehicleRegistration,
-      'vehicle_year_make_model': '',
+      'document_type': 'national_id',
+      'has_id_front': draft.hasIdFront,
+      'has_id_back': draft.hasIdBack,
+      'has_selfie': draft.hasSelfie,
     };
   }
 }

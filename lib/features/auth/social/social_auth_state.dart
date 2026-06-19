@@ -10,10 +10,17 @@ enum SocialAuthStatus {
   /// A native sheet is open / we're exchanging the ID token with the gateway.
   inProgress,
 
-  /// Gateway returned the JWT bundle and we've persisted it.
+  /// Gateway returned the JWT bundle and we've persisted it. The screen reads
+  /// [SocialAuthState.session] / [SocialAuthState.requiresPhoneVerification]
+  /// (G8) to decide between landing home and pushing the phone-OTP step.
   authenticated,
 
-  /// The flow ended with a (non-cancellation) failure.
+  /// Gateway returned 409 `email_collision` (D22, JM-019): the social email is
+  /// already registered another way. The screen routes to the
+  /// `social-collision-prompt` sheet — this is NOT a failure banner.
+  collision,
+
+  /// The flow ended with a (non-cancellation, non-collision) failure.
   failed,
 }
 
@@ -44,6 +51,17 @@ class SocialAuthState extends Equatable {
 
   bool isBusyFor(SocialProvider provider) =>
       isBusy && activeProvider == provider;
+
+  /// G8: an authenticated social user with no phone on file must complete the
+  /// phone-OTP verification step (JM-009) before landing home. False once a
+  /// phone is on file (or while not authenticated).
+  bool get requiresPhoneVerification =>
+      status == SocialAuthStatus.authenticated &&
+      session != null &&
+      !session!.hasPhone;
+
+  /// True on a 409 collision (D22): the screen pushes the collision sheet.
+  bool get isCollision => status == SocialAuthStatus.collision;
 
   SocialAuthState copyWith({
     SocialAuthStatus? status,

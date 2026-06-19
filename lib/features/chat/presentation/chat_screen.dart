@@ -10,6 +10,7 @@ import '../application/chat_state.dart';
 import '../data/in_memory_chat_gateway.dart';
 import '../domain/chat_gateway.dart';
 import '../domain/delivery_chat_message.dart';
+import '../domain/order_chat_summary.dart';
 import 'widgets/broadcast_ttl_indicator.dart';
 import 'widgets/chat_app_bar.dart';
 import 'widgets/chat_composer.dart';
@@ -20,6 +21,7 @@ import 'widgets/chat_offer_only_one_footer.dart';
 import 'widgets/jeeber_removed_banner.dart';
 import 'widgets/offer_accepted_banner.dart';
 import 'widgets/offer_card_bubble.dart';
+import 'widgets/order_chat_pinned_summary.dart';
 
 /// Jeeber-only balance-deduction notice configuration for [ChatScreen].
 ///
@@ -62,6 +64,11 @@ class ChatScreen extends StatelessWidget {
     this.cubit,
     this.gateway,
     this.pickerService,
+    this.pinnedSummary,
+    this.onViewSummary,
+    this.onOpenDispute,
+    this.isOrderChat = false,
+    this.onFirstMessageBroadcast,
   }) : assert(
          cubit == null || (gateway == null && pickerService == null),
          'Provide either a cubit or the (gateway, pickerService) pair, not both.',
@@ -112,6 +119,35 @@ class ChatScreen extends StatelessWidget {
   final ChatGateway? gateway;
   final PhotoPickerService? pickerService;
 
+  /// JM-025 AC2 (D71/D11): the locked order summary for the pinned strip. When
+  /// non-null AND the conversation is accepted/active, [OrderChatPinnedSummary]
+  /// renders above the message list with `order_chat_pinned_summary` +
+  /// `order_chat_view_summary_link`. Null on the broadcasting/compose state and
+  /// on the Jeeber variant (no client-side pinned summary there).
+  final OrderChatSummary? pinnedSummary;
+
+  /// JM-025 AC2: tap handler for the pinned strip's view-summary link →
+  /// `order-summary-pinned` (JM-031). Required for the link to render.
+  final VoidCallback? onViewSummary;
+
+  /// JM-025 AC3: tap handler for the dispute affordance → `dispute-open-evidence`
+  /// (JM-060). When non-null AND the order is accepted/active, the app bar
+  /// shows `order_chat_open_dispute`. Null hides it (e.g. broadcasting/closed).
+  final VoidCallback? onOpenDispute;
+
+  /// JM-025: marks this thread as the customer order-chat surface. Flips the
+  /// composer's Semantics ids to `order_chat_composer_input` /
+  /// `order_chat_composer_send` (63_W1_TEST_PLAN §2.5) so the W1 flow drives
+  /// them. Defaults false → the legacy `chat_detail_*` ids (jeeber/active chat).
+  final bool isOrderChat;
+
+  /// JM-025 AC1 (D83): compose-state hook. When non-null, the FIRST message the
+  /// client sends broadcasts the request and the host routes to
+  /// `waiting-no-coverage` (JM-026). Invoked exactly once, after the first
+  /// successful send, with the request/conversation id to broadcast. Null on
+  /// the accepted/active thread (no compose entry).
+  final void Function(String requestId)? onFirstMessageBroadcast;
+
   static const Key rootKey = Key('chat-screen-root');
   static const Key messageListKey = Key('chat-screen-message-list');
   static const Key emptyStateKey = Key('chat-screen-empty');
@@ -123,6 +159,7 @@ class ChatScreen extends StatelessWidget {
       return BlocProvider<ChatCubit>.value(
         value: provided,
         child: _ChatScaffold(
+          deliveryId: deliveryId,
           counterpartName: counterpartName,
           counterpartAvatarUrl: counterpartAvatarUrl,
           counterpartAvatarImage: counterpartAvatarImage,
@@ -130,6 +167,11 @@ class ChatScreen extends StatelessWidget {
           composerHint: composerHint,
           onStartActiveDelivery: onStartActiveDelivery,
           onTrackOrder: onTrackOrder,
+          pinnedSummary: pinnedSummary,
+          onViewSummary: onViewSummary,
+          onOpenDispute: onOpenDispute,
+          isOrderChat: isOrderChat,
+          onFirstMessageBroadcast: onFirstMessageBroadcast,
         ),
       );
     }
@@ -140,6 +182,7 @@ class ChatScreen extends StatelessWidget {
         pickerService: pickerService ?? StubPhotoPickerService(),
       )..load(),
       child: _ChatScaffold(
+        deliveryId: deliveryId,
         counterpartName: counterpartName,
         counterpartAvatarUrl: counterpartAvatarUrl,
         counterpartAvatarImage: counterpartAvatarImage,
@@ -147,6 +190,11 @@ class ChatScreen extends StatelessWidget {
         composerHint: composerHint,
         onStartActiveDelivery: onStartActiveDelivery,
         onTrackOrder: onTrackOrder,
+        pinnedSummary: pinnedSummary,
+        onViewSummary: onViewSummary,
+        onOpenDispute: onOpenDispute,
+        isOrderChat: isOrderChat,
+        onFirstMessageBroadcast: onFirstMessageBroadcast,
       ),
     );
   }
@@ -154,6 +202,7 @@ class ChatScreen extends StatelessWidget {
 
 class _ChatScaffold extends StatefulWidget {
   const _ChatScaffold({
+    required this.deliveryId,
     required this.counterpartName,
     this.counterpartAvatarUrl,
     this.counterpartAvatarImage,
@@ -161,8 +210,14 @@ class _ChatScaffold extends StatefulWidget {
     this.composerHint,
     this.onStartActiveDelivery,
     this.onTrackOrder,
+    this.pinnedSummary,
+    this.onViewSummary,
+    this.onOpenDispute,
+    this.isOrderChat = false,
+    this.onFirstMessageBroadcast,
   });
 
+  final String deliveryId;
   final String counterpartName;
   final String? counterpartAvatarUrl;
   final ImageProvider? counterpartAvatarImage;
@@ -170,6 +225,11 @@ class _ChatScaffold extends StatefulWidget {
   final String? composerHint;
   final VoidCallback? onStartActiveDelivery;
   final void Function(String deliveryId)? onTrackOrder;
+  final OrderChatSummary? pinnedSummary;
+  final VoidCallback? onViewSummary;
+  final VoidCallback? onOpenDispute;
+  final bool isOrderChat;
+  final void Function(String requestId)? onFirstMessageBroadcast;
 
   @override
   State<_ChatScaffold> createState() => _ChatScaffoldState();
@@ -178,6 +238,11 @@ class _ChatScaffold extends StatefulWidget {
 class _ChatScaffoldState extends State<_ChatScaffold> {
   final ScrollController _scrollController = ScrollController();
   bool _bannerDismissed = false;
+
+  /// JM-025 AC1: guards the one-shot compose→broadcast. Set the instant the
+  /// first outgoing message appears so a re-emit (status promotion, scroll)
+  /// can't fire the broadcast twice.
+  bool _broadcastFired = false;
 
   @override
   void dispose() {
@@ -201,6 +266,25 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // JM-025 AC3: surface the dispute affordance on the accepted/active order
+    // (D70). The mock conversation phase for an accepted order is `accepted`; an
+    // in-flight (active/in-transit) delivery is tracked on the delivery, not the
+    // conversation, so its conversation may report a phase the chat-service
+    // contract doesn't enumerate — that lands as `unknown` here. The HOST only
+    // wires `onOpenDispute` for the client's accepted/active order (it is null on
+    // compose and on the Jeeber variant), so the handler's presence is the
+    // authoritative "this is a disputable order" signal. We therefore show the
+    // affordance whenever the host wired it AND we are not in a state that
+    // definitively forbids it: hidden only while still `broadcasting` (no winner
+    // yet) or once `closed` (terminated). This keeps the active-delivery seam
+    // (jeeb.seam.journey=active_delivery) honest even when its conversation phase
+    // does not literally read `accepted`.
+    final phase = context.select<ChatCubit, ConversationPhase>(
+      (c) => c.state.phase,
+    );
+    final showDispute = widget.onOpenDispute != null &&
+        phase != ConversationPhase.broadcasting &&
+        phase != ConversationPhase.closed;
     return Scaffold(
       key: ChatScreen.rootKey,
       appBar: ChatAppBar(
@@ -210,6 +294,20 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
         showAvatar: context.select<ChatCubit, bool>(
           (c) => c.state.showsCounterpartHeader,
         ),
+        actions: showDispute
+            ? <Widget>[
+                Semantics(
+                  identifier: 'order_chat_open_dispute',
+                  button: true,
+                  label: l10n.escalateTitle,
+                  child: IconButton(
+                    icon: const Icon(Icons.report_gmailerrorred_outlined),
+                    tooltip: l10n.escalateTitle,
+                    onPressed: widget.onOpenDispute,
+                  ),
+                ),
+              ]
+            : null,
       ),
       body: SafeArea(
         bottom: false,
@@ -227,6 +325,12 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
 
   Widget _buildBody(ChatState state, AppLocalizations l10n) {
     final winnerName = _extractWinnerName(state);
+    // JM-025 AC2: render the pinned summary only on the accepted/active order
+    // (D71/D11), and only when the host resolved one. The broadcasting/compose
+    // and Jeeber variants pass null.
+    final showPinnedSummary = widget.pinnedSummary != null &&
+        widget.onViewSummary != null &&
+        state.phase == ConversationPhase.accepted;
     return _ChatBody(
       state: state,
       l10n: l10n,
@@ -245,6 +349,10 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
             (m) => m.kind == MessageKind.offerRejected,
           ),
       broadcastExpiresAt: state.broadcastExpiresAt,
+      pinnedSummary: showPinnedSummary ? widget.pinnedSummary : null,
+      counterpartName: widget.counterpartName,
+      onViewSummary: showPinnedSummary ? widget.onViewSummary : null,
+      isOrderChat: widget.isOrderChat,
     );
   }
 
@@ -275,6 +383,12 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
     // Auto-scroll on any message-count change. The hasClients guard inside the
     // scheduler covers the empty-list / mid-dispose cases.
     _scheduleScrollToBottom();
+    // JM-025 AC1 (D83): in the compose state, the FIRST message the client
+    // sends broadcasts the request. We fire the host's broadcast hook the
+    // instant the first outgoing message lands (optimistic append) — the
+    // host then routes to `waiting-no-coverage` (JM-026). One-shot, guarded by
+    // `_broadcastFired` so a status promotion / re-emit doesn't re-broadcast.
+    _maybeBroadcastFirstMessage(state);
     final error = state.error;
     if (error == null) return;
     final message = _messageFor(l10n, error);
@@ -282,6 +396,17 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
       showOmdsSnackbar(context, message: message);
     }
     context.read<ChatCubit>().acknowledgeError();
+  }
+
+  /// Fires [onFirstMessageBroadcast] exactly once, the first time an outgoing
+  /// message appears in the compose-state thread. No-op outside compose mode.
+  void _maybeBroadcastFirstMessage(ChatState state) {
+    final broadcast = widget.onFirstMessageBroadcast;
+    if (broadcast == null || _broadcastFired) return;
+    final hasOutgoing = state.messages.any((m) => m.isMine);
+    if (!hasOutgoing) return;
+    _broadcastFired = true;
+    broadcast(widget.deliveryId);
   }
 
   String? _messageFor(AppLocalizations l10n, ChatError error) {
@@ -315,6 +440,10 @@ class _ChatBody extends StatelessWidget {
     this.onTrackOrder,
     this.showRemovedBanner = false,
     this.broadcastExpiresAt,
+    this.pinnedSummary,
+    this.counterpartName = '',
+    this.onViewSummary,
+    this.isOrderChat = false,
   });
 
   final ChatState state;
@@ -329,6 +458,10 @@ class _ChatBody extends StatelessWidget {
   final VoidCallback? onTrackOrder;
   final bool showRemovedBanner;
   final DateTime? broadcastExpiresAt;
+  final OrderChatSummary? pinnedSummary;
+  final String counterpartName;
+  final VoidCallback? onViewSummary;
+  final bool isOrderChat;
 
   @override
   Widget build(BuildContext context) {
@@ -337,9 +470,19 @@ class _ChatBody extends StatelessWidget {
         ? _ChatEmptyState(phase: state.phase, l10n: l10n)
         : _ChatMessageList(state: state, controller: scrollController);
     final notice = feeNotice;
+    final summary = pinnedSummary;
     return Column(
       children: [
         if (notice != null) _FeeBannerSlot(notice: notice),
+        // JM-025 AC2: pinned locked-price summary on the accepted order, above
+        // the thread (D71/D11). Carries `order_chat_pinned_summary` +
+        // `order_chat_view_summary_link` → order-summary-pinned (JM-031).
+        if (summary != null && onViewSummary != null)
+          OrderChatPinnedSummary(
+            summary: summary,
+            counterpartName: counterpartName,
+            onViewSummary: onViewSummary!,
+          ),
         if (showAcceptedBanner && winnerName != null)
           OfferAcceptedBanner(
             jeeberName: winnerName!,
@@ -354,6 +497,15 @@ class _ChatBody extends StatelessWidget {
         if (state.isComposerVisible)
           ChatComposer(
             hintText: composerHint,
+            // JM-025: the customer order-chat surface exposes the
+            // `order_chat_composer_*` ids the W1 flow drives; every other
+            // caller keeps the default `chat_detail_*` ids.
+            inputIdentifier: isOrderChat
+                ? 'order_chat_composer_input'
+                : 'chat_detail_message_input',
+            sendIdentifier: isOrderChat
+                ? 'order_chat_composer_send'
+                : 'chat_detail_send_button',
             onVoiceRecordingComplete: (bytes, mime, ms) =>
                 context.read<ChatCubit>().sendVoiceNote(
                       audioBytes: bytes,

@@ -1,18 +1,16 @@
-// FIX-B — the request-type "Continue" CTA must navigate (E2E gap).
+// JM-024 — the request-type "Continue" CTA advances to `location-select`.
 //
-// Before this fix the sticky `request_type_continue` button was a dead end:
-// the router wired `onTierSelected` (so tapping a TIER CARD navigated to
-// `/request-summary`) but never wired `onContinue`, so pressing Continue
-// invoked a null callback and nothing happened.
+// SUPERSEDES the W0-era FIX-B test (Continue → /request-summary): JM-024
+// re-points the customer create flow to the blueprint graph
+// tier → location-select → map-pin → order-chat (20_GAP_MAP customer domain;
+// 30_BACKLOG JM-024 AC1). The screen now OWNS this edge (it self-navigates to
+// the `client-location` route, 40_GUARDRAILS_ARCH §10.8) and no longer routes
+// to the `request-summary` card. The legacy router `onTierSelected`/`onContinue`
+// `→ /request-summary` closures are dead (50_ROUTE_REQUESTS — JM-024 cleanup).
 //
-// These tests drive the REAL `AppRouter.create(...)` graph (same harness as
-// request_summary_route_test.dart) to `/request-type`, then tap the Continue
-// CTA — proving it lands on the same destination the tier-card tap uses
-// (`/request-summary`) and carries the currently-selected tier.
-//
-// FAIL-WITHOUT: with `onContinue` unwired in the router the CTA is a no-op, so
-// the post-tap assertions (RequestSummaryScreen rendered with the selected
-// tier name) fail — these tests are red without the FIX-B router change.
+// This test drives the REAL `AppRouter.create(...)` graph to `/request-type`,
+// taps the Continue CTA (id `request_type_continue_cta`), and proves it lands
+// on `location-select` (`ClientLocationScreen`, `location_select_confirm_cta`).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -30,15 +28,13 @@ import 'package:jeeb_mobile/core/router/app_router.dart';
 import 'package:jeeb_mobile/features/biometric_auth/application/biometric_lock_cubit.dart';
 import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_repository.dart';
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
-import 'package:jeeb_mobile/features/request_summary/application/request_summary_cubit.dart';
-import 'package:jeeb_mobile/features/request_summary/domain/request_draft.dart';
+import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
+import 'package:jeeb_mobile/features/location/domain/location_select_repository.dart';
+import 'package:jeeb_mobile/features/location/presentation/client_location_screen.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/request_submission_service.dart';
-import 'package:jeeb_mobile/features/request_summary/presentation/request_summary_screen.dart';
 import 'package:jeeb_mobile/features/request_type/presentation/request_type_screen.dart';
 import 'package:jeeb_mobile/features/settings/data/repositories/biometric_preference_repository_impl.dart';
-import 'package:jeeb_mobile/features/tier_selection/cubit/tier_selection_cubit.dart';
 import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
-import 'package:jeeb_mobile/features/tier_selection/domain/tier.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import '../../support/fake_request_submission_service.dart';
@@ -102,15 +98,20 @@ Widget _harness(
 }
 
 void main() {
-  group('FIX-B — /request-type Continue CTA navigates with the selected tier',
-      () {
+  group('JM-024 — /request-type Continue CTA advances to location-select', () {
     setUp(() async {
       await sl.reset();
-      // `/request-type` builder resolves TierRepository via sl (falling back to
-      // FakeTierRepository if absent); register it explicitly for determinism.
+      // `/request-type` resolves TierRepository via sl (pre-selects Flash so the
+      // Continue CTA is enabled on first paint).
       sl.registerLazySingleton<TierRepository>(FakeTierRepository.new);
-      // `/request-summary` builder resolves sl<RequestSubmissionService>() to
-      // construct its cubit — register a fake so the destination route builds.
+      // `/client-location` self-provides LocationSelectCubit; it resolves a
+      // DioLocationSelectRepository when sl<Dio> is present. We DON'T register
+      // Dio here, so it falls back to the in-memory seam — but register the
+      // fake explicitly for determinism (no network in this widget test).
+      sl.registerLazySingleton<LocationSelectRepository>(
+        FakeLocationSelectRepository.new,
+      );
+      // Kept registered in case any sibling builder resolves it.
       sl.registerLazySingleton<RequestSubmissionService>(
         FakeRequestSubmissionService.new,
       );
@@ -121,114 +122,41 @@ void main() {
     });
 
     testWidgets(
-      'tapping Continue (default-selected Flash tier) lands on '
-      'RequestSummaryScreen carrying that tier',
+      'tapping Continue (default-selected Flash tier) lands on the '
+      'location-select screen (NOT the request-summary card)',
       (tester) async {
         final built = await _buildRouter();
-        // Land directly on the request-type route so the shell at `/` (whose
-        // tabs depend on cubits outside this test) never renders.
         built.router.go('/request-type');
         await tester.pumpWidget(
-          _harness(built.router, built.role, built.roleEligibility, built.locale),
+          _harness(built.router, built.role, built.roleEligibility,
+              built.locale),
         );
         await tester.pumpAndSettle();
 
-        // The request-type screen is up and its Continue CTA is enabled because
-        // the cubit pre-selects the recommended (Flash) tier on load.
+        // The request-type screen is up; Continue is enabled (Flash pre-selected).
         expect(find.byType(RequestTypeScreen), findsOneWidget);
-        final continueCta = find.byKey(const Key('request-type-continue'));
+        final continueCta =
+            find.bySemanticsIdentifier('request_type_continue_cta');
         expect(continueCta, findsOneWidget);
         await tester.ensureVisible(continueCta);
 
-        // FAIL-WITHOUT: with onContinue unwired this tap is a no-op and the
-        // RequestSummaryScreen below never renders.
         await tester.tap(continueCta);
         await tester.pumpAndSettle();
 
+        // JM-024 AC1: Continue → location-select.
         expect(
-          find.byType(RequestSummaryScreen),
+          find.byType(ClientLocationScreen),
           findsOneWidget,
-          reason: 'Continue must navigate to /request-summary (the same '
-              'destination the tier-card tap uses).',
+          reason: 'Continue must advance to location-select (the blueprint '
+              'create flow), not the legacy /request-summary card.',
         );
-        // The screen-built draft carries the localized tier title (plain
-        // "Flash" — the emoji glyph is now a separate OMDS vector icon, not
-        // baked into the data), proving Continue forwards the CURRENTLY
-        // SELECTED tier, not an empty / default draft.
         expect(
-          find.text('Flash'),
+          find.bySemanticsIdentifier('location_select_confirm_cta'),
           findsOneWidget,
-          reason: 'The summary must show the selected tier name forwarded by '
-              'the Continue CTA.',
-        );
-        // Destination cubit is wired (BlocProvider at the summary route).
-        final ctx = tester.element(find.byType(RequestSummaryScreen));
-        expect(
-          () => BlocProvider.of<RequestSummaryCubit>(ctx),
-          returnsNormally,
-        );
-        expect(tester.takeException(), isNull);
-      },
-    );
-
-    // Screen-level proof (no router) that the Continue CTA forwards the
-    // CURRENTLY-SELECTED tier in the RequestDraft — not the default. Driving a
-    // pre-loaded cubit with Eco selected isolates the Continue→draft contract
-    // from the tier-card tap navigation. The router-level navigation itself is
-    // already pinned by the test above.
-    testWidgets(
-      'Continue forwards a RequestDraft seeded with the selected (Eco) tier',
-      (tester) async {
-        final cubit = TierSelectionCubit(repository: const FakeTierRepository());
-        addTearDown(cubit.close);
-        await cubit.load(); // pre-selects recommended Flash
-        cubit.selectTier(TierId.eco); // user changes selection to Eco
-        expect(cubit.state.selectedTierId, TierId.eco);
-
-        RequestDraft? forwarded;
-        await tester.pumpWidget(
-          _screenHost(
-            RequestTypeScreen(
-              cubit: cubit,
-              onContinue: (draft) => forwarded = draft,
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        final continueCta = find.byKey(const Key('request-type-continue'));
-        await tester.ensureVisible(continueCta);
-        // FAIL-WITHOUT is covered by the router test; here we pin the draft
-        // contract the router forwards: Continue must hand back the Eco tier.
-        await tester.tap(continueCta);
-        await tester.pump();
-
-        expect(forwarded, isNotNull);
-        expect(
-          forwarded!.tierId,
-          TierId.eco.name,
-          reason: 'Continue must carry the latest selected tier (Eco).',
-        );
-        expect(
-          forwarded!.tierName,
-          'Eco',
-          reason: 'The draft carries the localized tier title, not the enum '
-              'name — proving the screen-built draft, not a stub.',
+          reason: 'The location-select Confirm CTA must be on screen.',
         );
         expect(tester.takeException(), isNull);
       },
     );
   });
 }
-
-/// Minimal Localizations host for the screen-level test (no router / shell).
-Widget _screenHost(Widget child) => MaterialApp(
-      localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
-        SyncAppLocalizationsDelegate(),
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: child,
-    );

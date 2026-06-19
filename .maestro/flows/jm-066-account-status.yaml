@@ -1,0 +1,105 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-066 — Account Status (suspended/locked) + router gate
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given getMe.status=suspended, When the app resolves session, Then the
+#        router forces /account-status and account_status_root visible;
+#        shell tabs (shell_tab_requests, shell_tab_profile) must NOT be visible
+#        (all tab access blocked, D5).
+#   AC2: account_status_support_cta → support-ticket
+#        (support_root visible) [JM-063, D76].
+#   AC3: account_status_signout_cta → logout-delete-account confirm sheet
+#        (logout_delete_sheet visible) [JM-062].
+#
+# Mock:
+#   GET /user-management/users/me  (must surface status=suspended, U1)
+# Seam:
+#   AC1/2/3: jeeb.seam.session=suspended
+#            (seeds onboarding=true + token + account_blocked=true →
+#             SeededAccountStatusGate forces /account-status)
+#
+# COINED IDENTIFIERS: none beyond ACs. account_status_root and
+#   account_status_support_cta and account_status_signout_cta are AC-named.
+#
+# STATUS: RED until JM-066 account-status SCREEN body ships (gate logic landed
+#         in W0). Also depends on JM-063 (AC2) + JM-062 (AC3).
+#         Decisions: D5, D76.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-066-account-status.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Suspended session → account-status; tabs blocked ─────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "suspended"
+
+- extendedWaitUntil:
+    visible:
+      id: "account_status_root"
+    timeout: 30000
+
+# Tabs must NOT be accessible (router gate blocks them, D5)
+- assertNotVisible:
+    id: "shell_tab_requests"
+
+- assertNotVisible:
+    id: "shell_tab_profile"
+
+- assertVisible:
+    id: "account_status_support_cta"
+
+- assertVisible:
+    id: "account_status_signout_cta"
+
+- takeScreenshot: jm066_ac1_suspended_session_tabs_blocked
+
+# ── AC2: Support CTA → support-ticket ────────────────────────────────────────
+# REQUIRES: JM-063 support screen
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "suspended"
+
+- extendedWaitUntil:
+    visible:
+      id: "account_status_root"
+    timeout: 30000
+
+- tapOn:
+    id: "account_status_support_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "support_root"
+    timeout: 15000
+
+- takeScreenshot: jm066_ac2_support_cta_to_ticket
+
+# ── AC3: Signout CTA → logout-delete sheet ────────────────────────────────────
+# REQUIRES: JM-062 logout-delete confirm sheet
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "suspended"
+
+- extendedWaitUntil:
+    visible:
+      id: "account_status_root"
+    timeout: 30000
+
+- tapOn:
+    id: "account_status_signout_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "logout_delete_sheet"
+    timeout: 15000
+
+- takeScreenshot: jm066_ac3_signout_cta_to_logout_sheet

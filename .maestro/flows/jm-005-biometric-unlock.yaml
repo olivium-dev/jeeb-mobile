@@ -1,0 +1,73 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-005 — Biometric Unlock
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given a returning logged-in user with biometric enabled, When the app
+#        cold-starts, Then splash routes to /lock and biometric_unlock_prompt
+#        is visible (no OTP) [D23].
+#   AC2: Given the lock screen, When biometric_unlock_authenticate_cta succeeds,
+#        Then route to the last-used tab (shell) [D23/D75].
+#   AC3: Given biometric fails/declined, When biometric_unlock_use_password_link
+#        is tapped, Then route to /login [JM-007].
+#
+# STATUS: RED until JM-005 ships (test-first)
+#
+# Run recipe (--device flag is REQUIRED; iPhone sim is also attached and Maestro
+# will otherwise hang on the device picker):
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-005-biometric-unlock.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+# AC1 — Cold-start a returning user whose session has biometric enrolled.
+# The dev seam injects a logged-in+biometric-enrolled session so the splash
+# router is forced down the /lock branch without requiring a real OS enrolment.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "biometric_enrolled"
+
+# Splash must auto-route to /lock. biometric_unlock_prompt is the signature id
+# for the lock screen; wait long enough for cold-start + splash dwell.
+- extendedWaitUntil:
+    visible:
+      id: "biometric_unlock_prompt"
+    timeout: 30000
+
+- takeScreenshot: jm005_ac1_biometric_lock_screen
+
+# AC2 — Tap the authenticate CTA and expect the shell (Requests tab) to appear.
+# biometric_unlock_authenticate_cta triggers the platform biometric dialog;
+# the seam auto-approves it in the dev flavor so no OS dialog needs to be driven.
+- tapOn:
+    id: "biometric_unlock_authenticate_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 15000
+
+- takeScreenshot: jm005_ac2_shell_after_biometric_success
+
+# AC3 — Relaunch, verify lock screen again, then use the password fallback link.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "biometric_enrolled"
+
+- extendedWaitUntil:
+    visible:
+      id: "biometric_unlock_prompt"
+    timeout: 30000
+
+- tapOn:
+    id: "biometric_unlock_use_password_link"
+
+- extendedWaitUntil:
+    visible:
+      id: "login_email_field"
+    timeout: 15000
+
+- takeScreenshot: jm005_ac3_login_screen_after_biometric_fallback

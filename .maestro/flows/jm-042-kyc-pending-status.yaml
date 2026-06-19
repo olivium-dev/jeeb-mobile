@@ -1,0 +1,155 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-042 — KYC Pending/Result status links
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1a: Given approved KYC, Then kyc_status_feed_cta → jeeber-requests-home
+#         (jeeber_feed_root visible).
+#   AC1b: Given approved KYC, Then kyc_status_wallet_cta → wallet-hub
+#         (wallet_available_balance visible).
+#   AC1c: Given approved KYC, Then kyc_status_topup_cta → wallet-charge-info
+#         (charge_info_back_cta visible).
+#   AC2: Given rejected KYC, Then kyc_status_view_rejection → kyc-rejected
+#        (kyc_rejected_root visible) [JM-043].
+#   AC3: "Top-up allowed while pending" note (kyc_status_topup_allowed_note)
+#        visible on the pending variant.
+#
+# Mock:
+#   GET /user-management/users/:userId/kyc
+# Seam:
+#   AC1a/b/c: jeeb.seam.session=jeeber_logged_in + jeeb.seam.kyc_status=approved
+#             + jeeb.route=/profile/kyc?step=status
+#   AC2:      jeeb.seam.session=jeeber_logged_in + jeeb.seam.kyc_status=rejected
+#             + jeeb.route=/profile/kyc?step=status
+#   AC3:      jeeb.seam.session=jeeber_logged_in + jeeb.seam.kyc_status=pending
+#             + jeeb.route=/profile/kyc?step=status
+#
+# NEW SEAM KEYS REQUIRED:
+#   jeeb.seam.kyc_status: "none" | "pending" | "approved" | "rejected" (FLAG)
+#
+# STATUS: RED until JM-042 ships + jeeb.seam.kyc_status seed exists (test-first).
+#         Decisions: D38, D39, D52, D67.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-042-kyc-pending-status.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC3: Pending variant — top-up allowed note visible ───────────────────────
+# REQUIRES: jeeb.seam.kyc_status=pending (new seed — FLAG)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "pending"
+      jeeb.route: "/profile/kyc?step=status"
+
+- extendedWaitUntil:
+    visible:
+      id: "kyc_status_root"
+    timeout: 30000
+
+- assertVisible:
+    id: "kyc_status_topup_allowed_note"
+
+- takeScreenshot: jm042_ac3_pending_topup_note_visible
+
+# ── AC1a: Approved → feed CTA → jeeber-requests-home ─────────────────────────
+# REQUIRES: jeeb.seam.kyc_status=approved (new seed — FLAG)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.route: "/profile/kyc?step=status"
+
+- extendedWaitUntil:
+    visible:
+      id: "kyc_status_root"
+    timeout: 30000
+
+- assertVisible:
+    id: "kyc_status_feed_cta"
+
+- tapOn:
+    id: "kyc_status_feed_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "jeeber_feed_root"
+    timeout: 15000
+
+- takeScreenshot: jm042_ac1a_approved_feed_cta_to_home
+
+# ── AC1b: Approved → wallet CTA → wallet-hub ─────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.route: "/profile/kyc?step=status"
+
+- extendedWaitUntil:
+    visible:
+      id: "kyc_status_wallet_cta"
+    timeout: 30000
+
+- tapOn:
+    id: "kyc_status_wallet_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet_available_balance"
+    timeout: 15000
+
+- takeScreenshot: jm042_ac1b_approved_wallet_cta_to_hub
+
+# ── AC1c: Approved → top-up CTA → wallet-charge-info ─────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.route: "/profile/kyc?step=status"
+
+- extendedWaitUntil:
+    visible:
+      id: "kyc_status_topup_cta"
+    timeout: 30000
+
+- tapOn:
+    id: "kyc_status_topup_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "charge_info_back_cta"
+    timeout: 15000
+
+- takeScreenshot: jm042_ac1c_approved_topup_to_charge_info
+
+# ── AC2: Rejected → view rejection → kyc-rejected ─────────────────────────────
+# REQUIRES: jeeb.seam.kyc_status=rejected (new seed — FLAG)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "rejected"
+      jeeb.route: "/profile/kyc?step=status"
+
+- extendedWaitUntil:
+    visible:
+      id: "kyc_status_view_rejection"
+    timeout: 30000
+
+- tapOn:
+    id: "kyc_status_view_rejection"
+
+- extendedWaitUntil:
+    visible:
+      id: "kyc_rejected_root"
+    timeout: 15000
+
+- takeScreenshot: jm042_ac2_rejected_view_rejection_to_kyc_rejected

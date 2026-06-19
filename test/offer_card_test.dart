@@ -21,7 +21,9 @@ void main() {
       ratingCount: 132,
     );
     await tester.pumpWidget(
-      wrapForTest(OfferCard(offer: offer, onAccept: () {})),
+      wrapForTest(
+        OfferCard(offer: offer, index: 0, onAccept: () {}, onTapName: () {}),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -40,7 +42,13 @@ void main() {
     final offer = buildOffer(id: 'inflight');
     await tester.pumpWidget(
       wrapForTest(
-        OfferCard(offer: offer, isAccepting: true, onAccept: () {}),
+        OfferCard(
+          offer: offer,
+          index: 0,
+          isAccepting: true,
+          onAccept: () {},
+          onTapName: () {},
+        ),
       ),
     );
     // Indefinite spinner — pump once and assert, then settle nothing.
@@ -60,13 +68,45 @@ void main() {
     await tester.pumpWidget(
       wrapForTest(OfferCard(
         offer: buildOffer(id: 'tap-me'),
+        index: 0,
         onAccept: () => taps++,
+        onTapName: () {},
       )),
     );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('offer-card-accept-tap-me')));
     expect(taps, 1);
+  });
+
+  testWidgets('OfferCard name tap fires onTapName (→ jeeber-profile-reviews)',
+      (tester) async {
+    var nameTaps = 0;
+    await tester.pumpWidget(
+      wrapForTest(OfferCard(
+        offer: buildOffer(id: 'name-me', jeeberName: 'Karim'),
+        index: 0,
+        onAccept: () {},
+        onTapName: () => nameTaps++,
+      )),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('offer-card-name-Karim')));
+    expect(nameTaps, 1);
+  });
+
+  testWidgets('OfferCard renders the cash-on-delivery line (D11)',
+      (tester) async {
+    final offer = buildOffer(id: 'cod', fee: 6, currency: 'USD');
+    await tester.pumpWidget(
+      wrapForTest(
+        OfferCard(offer: offer, index: 0, onAccept: () {}, onTapName: () {}),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('6.00'), findsWidgets);
   });
 
   testWidgets('OfferCard renders Arabic copy under the AR locale',
@@ -78,7 +118,7 @@ void main() {
     );
     await tester.pumpWidget(
       wrapForTest(
-        OfferCard(offer: offer, onAccept: () {}),
+        OfferCard(offer: offer, index: 0, onAccept: () {}, onTapName: () {}),
         locale: const Locale('ar'),
       ),
     );

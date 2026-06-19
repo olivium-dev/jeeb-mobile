@@ -18,12 +18,25 @@ enum OffersFailure {
 /// degraded/legacy gateway may still omit it. Callers MUST treat a null
 /// [deliveryId] as "tracking not yet reachable" rather than crashing — the
 /// "Track order" CTA simply stays hidden in that case.
+///
+/// [conversationId] is the 1:1 order-chat conversation the saga promotes the
+/// winning Jeeber into (the mock's `POST /v1/offers/:offerId/accept` returns
+/// `conversationId` + `conversationPhase=accepted`). The accept-confirm sheet
+/// (JM-029) navigates to `order-chat` (`/chat/<conversationId>`) on confirm so
+/// the pinned summary (D11/D71) renders. Also nullable: a legacy/in-memory
+/// gateway may omit it, in which case the caller falls back to the
+/// request/delivery id (`ChatDetailScreen` resolves either by `by-request`).
 class OfferAcceptResult {
-  const OfferAcceptResult({this.deliveryId});
+  const OfferAcceptResult({this.deliveryId, this.conversationId});
 
   /// Server-created delivery id, or null when the accept response did not
   /// surface one. Never an empty string — parsers normalise `''` to null.
   final String? deliveryId;
+
+  /// The accepted order's 1:1 conversation id, or null when the accept
+  /// response did not surface one. Never an empty string — parsers normalise
+  /// `''` to null. Drives the JM-029 confirm → order-chat navigation.
+  final String? conversationId;
 
   /// Empty result — used by gateways that do not produce a delivery id
   /// (the MVP in-memory and dev-fixture gateways) and as the safe default

@@ -6,94 +6,93 @@ import '../domain/notification_prefs_model.dart';
 import '../domain/notification_prefs_repository.dart';
 import 'notification_prefs_state.dart';
 
-/// Drives the notification preferences screen.
+/// Drives the notification-preferences screen (JM-058, D64).
 ///
-/// On mount, GETs `/users/me/notification-preferences`.
-/// Each toggle optimistically updates the UI then schedules a debounced 500ms
-/// PATCH. On PATCH failure the toggle reverts and [NotificationPrefsLoaded.saveError]
-/// fires so the screen can show an OMDS snackbar (AC2).
+/// On mount, GETs `/v1/notifications/preferences`. Each category toggle
+/// optimistically updates the UI then schedules a debounced PUT (default 500ms).
+/// On PUT failure the category reverts and [NotificationPrefsLoaded.saveError]
+/// fires so the screen shows an OMDS snackbar. The transactional class is locked
+/// (never toggled) and push is the only channel surfaced (R2).
 class NotificationPrefsCubit extends Cubit<NotificationPrefsState> {
-  NotificationPrefsCubit({required NotificationPrefsRepository repository})
-      : _repo = repository,
+  NotificationPrefsCubit({
+    required NotificationPrefsRepository repository,
+    Duration debounce = const Duration(milliseconds: 500),
+  })  : _repo = repository,
+        _debounceDuration = debounce,
         super(const NotificationPrefsLoading());
 
   final NotificationPrefsRepository _repo;
+  final Duration _debounceDuration;
   Timer? _debounce;
 
-  /// Fetches prefs from the gateway on mount.
+  /// Fetches prefs from the gateway on mount / retry.
   Future<void> load() async {
     emit(const NotificationPrefsLoading());
     try {
       final prefs = await _repo.fetch();
       emit(NotificationPrefsLoaded(prefs: prefs));
-    } catch (e) {
-      emit(NotificationPrefsError(e.toString()));
+    } on NotificationPrefsRepositoryException catch (e) {
+      emit(NotificationPrefsError(_view(e.failure)));
+    } catch (_) {
+      emit(const NotificationPrefsError(NotificationPrefsFailureView.unknown));
     }
   }
 
-  /// Toggles a topic field by name and schedules a debounced PATCH.
-  void toggleTopic(String topic, bool value) {
+  /// Toggles a category, optimistically updates, and schedules a debounced PUT.
+  void toggleCategory(NotificationCategory category, bool value) {
     final current = state;
     if (current is! NotificationPrefsLoaded) return;
-    final updated = _applyTopic(current.prefs.preferences, topic, value);
+
+    final preRevert = current.prefs;
+    final updatedCategories =
+        current.prefs.categories.withValue(category, value);
     emit(current.copyWith(
-      prefs: current.prefs.copyWith(preferences: updated),
+      prefs: current.prefs.copyWith(categories: updatedCategories),
       saveError: false,
     ));
-    _scheduleDebounce(current.prefs, updated);
+    _scheduleSave(preRevert, updatedCategories);
   }
 
-  NotificationTopicPrefs _applyTopic(
-    NotificationTopicPrefs prev,
-    String topic,
-    bool value,
-  ) {
-    switch (topic) {
-      case 'offers':
-        return prev.copyWith(offers: value);
-      case 'chat':
-        return prev.copyWith(chat: value);
-      case 'statusChanges':
-        return prev.copyWith(statusChanges: value);
-      case 'ratingReminders':
-        return prev.copyWith(ratingReminders: value);
-      default:
-        return prev;
-    }
-  }
-
-  void _scheduleDebounce(
+  void _scheduleSave(
     NotificationPrefs preRevert,
-    NotificationTopicPrefs pending,
+    NotificationCategoryPrefs pending,
   ) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
-      _patch(preRevert, pending);
-    });
+    _debounce = Timer(_debounceDuration, () => _save(preRevert, pending));
   }
 
-  Future<void> _patch(
+  Future<void> _save(
     NotificationPrefs preRevert,
-    NotificationTopicPrefs pending,
+    NotificationCategoryPrefs pending,
   ) async {
     final current = state;
     if (current is! NotificationPrefsLoaded) return;
     emit(current.copyWith(isSaving: true));
     try {
-      final serverPrefs = await _repo.patch(pending);
+      final confirmed = await _repo.save(pending);
       if (isClosed) return;
-      emit(NotificationPrefsLoaded(prefs: serverPrefs));
+      emit(NotificationPrefsLoaded(prefs: confirmed));
     } catch (_) {
       if (isClosed) return;
+      // Revert to the last server-confirmed snapshot + flag the error (D30).
       emit(NotificationPrefsLoaded(prefs: preRevert, saveError: true));
     }
   }
 
-  /// Clears the transient save-error flag so the screen can stop showing it.
+  /// Clears the transient save-error flag once the snackbar has been shown.
   void acknowledgeError() {
     final current = state;
     if (current is NotificationPrefsLoaded && current.saveError) {
       emit(current.copyWith(saveError: false));
+    }
+  }
+
+  NotificationPrefsFailureView _view(NotificationPrefsFailure f) {
+    switch (f) {
+      case NotificationPrefsFailure.network:
+        return NotificationPrefsFailureView.network;
+      case NotificationPrefsFailure.unknown:
+        return NotificationPrefsFailureView.unknown;
     }
   }
 

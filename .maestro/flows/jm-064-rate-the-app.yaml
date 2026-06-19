@@ -1,0 +1,68 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-064 — Rate the App (native sheet)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given the Rate-app row, When customer_profile_rate_app_row tapped,
+#        Then native store-review sheet invoked; app returns to Profile
+#        (customer_profile_wallet_chip visible after dismissal).
+#
+# Mock: — (in_app_review — no network call; OS native sheet)
+# Seam:
+#   jeeb.seam.session=customer_logged_in
+#   Navigate via Profile tab → customer_profile_rate_app_row
+#
+# NOTES:
+#   The native in_app_review sheet is OS-controlled (invoked via
+#   in_app_review package). On the emulator / test runner, the OS may show a
+#   dialog or no dialog at all (in_app_review respects OS cooldown and test
+#   policy). This flow can ONLY assert that the tap is accepted without crashing
+#   and that the profile root survives. There is no Semantics id for the OS
+#   native sheet itself — do NOT assert on it.
+#
+# COINED IDENTIFIERS: none beyond those named in ACs.
+#
+# STATUS: RED until JM-064 ships (thin handler wired). Decisions: none.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-064-rate-the-app.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Rate-app row tap accepted; profile survives ─────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_profile"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_wallet_chip"
+    timeout: 15000
+
+- assertVisible:
+    id: "customer_profile_rate_app_row"
+
+- tapOn:
+    id: "customer_profile_rate_app_row"
+
+# The OS native review sheet may or may not appear on emulator.
+# Wait for animation and confirm profile root is still accessible.
+- waitForAnimationToEnd:
+    timeout: 5000
+
+- assertVisible:
+    id: "customer_profile_wallet_chip"
+
+- takeScreenshot: jm064_ac1_rate_app_row_tap_profile_survives

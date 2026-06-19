@@ -23,6 +23,7 @@ class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.avatarImage,
     this.showAvatar = false,
     this.onAvatarTap,
+    this.actions,
   });
 
   /// Header title — counterpart display name or order/request id.
@@ -48,6 +49,11 @@ class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// extra. Null leaves the avatar non-interactive.
   final VoidCallback? onAvatarTap;
 
+  /// Trailing app-bar actions. JM-025 AC3 injects the `order_chat_open_dispute`
+  /// affordance here on the accepted/active order-chat; the legacy 1:1 chat
+  /// leaves it null (no actions). Additive — existing callers are unchanged.
+  final List<Widget>? actions;
+
   /// Leading-slot width when the avatar cluster (back + avatar) is shown.
   /// Back-button tap target + inter-gap + avatar, expressed in tokens.
   static const double _avatarLeadingWidth = Sizes.fiveXLarge + Sizes.fourXLarge;
@@ -70,6 +76,7 @@ class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
             )
           : null,
       leadingWidth: showAvatar ? _avatarLeadingWidth : null,
+      actions: actions ?? const <Widget>[],
     );
   }
 }

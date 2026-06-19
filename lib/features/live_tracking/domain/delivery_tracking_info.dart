@@ -45,6 +45,13 @@ class DeliveryTrackingInfo extends Equatable {
     this.jeeberPosition,
     this.polyline = const [],
     this.jeeber,
+    this.requestId,
+    this.conversationId,
+    this.price,
+    this.currency,
+    this.jeeberName,
+    this.tier,
+    this.itemSummary,
   });
 
   /// T-MOB-017: Parses the TrackingPolylineDto shape returned by
@@ -94,6 +101,71 @@ class DeliveryTrackingInfo extends Equatable {
       distanceLabel: json['distanceLabel'] as String?,
       etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
     );
+  }
+
+  /// JM-032: parses the `GET /v1/delivery/:deliveryId` delivery row the
+  /// order-tracking screen polls (`delivery-service` getDelivery, mock shape:
+  /// `{ id, requestId, jeeberId, tier, status, title, amount:{value,currency},
+  ///    jeeberName, conversationId, evidenceUrl, proofPhotoUrl, … }`).
+  ///
+  /// Drives BOTH the 4-step `tracking_stepper` (via [currentStage] — the
+  /// delivery lifecycle status `Ordered/Picked/InTransit/AtDoor/Done`) and the
+  /// `order_summary_pinned` header (price/tier/jeeber/item — D11/D71). Defensive
+  /// throughout: tolerates snake_case + camelCase, the `{value,minorUnits,
+  /// currency}` money object or a bare number, and null-coalesces every field so
+  /// a malformed body degrades a field gracefully instead of crashing.
+  factory DeliveryTrackingInfo.fromDeliveryJson(
+    String deliveryId,
+    Map<String, dynamic> json,
+  ) {
+    final status = (json['status'] as String?) ??
+        (json['deliveryStatus'] as String?) ??
+        'Ordered';
+    final currentStage = _parseStage(status);
+    final timestamps = <TrackingStage, DateTime>{};
+    _populateTimestamps(timestamps, json, currentStage);
+    final amount = json['amount'] ?? json['price'];
+    return DeliveryTrackingInfo(
+      deliveryId: _str(json['id']) ?? deliveryId,
+      currentStage: currentStage,
+      stageTimestamps: timestamps,
+      distanceLabel: _str(json['distanceLabel']),
+      etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
+      jeeber: _parseJeeber(json),
+      requestId: _str(json['requestId'] ?? json['request_id']),
+      conversationId:
+          _str(json['conversationId'] ?? json['conversation_id']),
+      price: _money(amount),
+      currency: _currency(amount),
+      jeeberName: _str(json['jeeberName'] ?? json['jeeber_name']),
+      tier: _str(json['tier']),
+      itemSummary: _str(json['title'] ?? json['itemSummary']),
+    );
+  }
+
+  static String? _str(Object? raw) {
+    if (raw == null) return null;
+    final s = raw is String ? raw : raw.toString();
+    final trimmed = s.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  /// Pulls a numeric amount from a bare number or the `{ value, minorUnits,
+  /// currency }` money object the seed emits.
+  static double? _money(Object? raw) {
+    if (raw is num) return raw.toDouble();
+    if (raw is Map) {
+      final value = raw['value'] ?? raw['amount'];
+      if (value is num) return value.toDouble();
+      final minor = raw['minorUnits'] ?? raw['minor_units'];
+      if (minor is num) return minor.toDouble() / 100.0;
+    }
+    return null;
+  }
+
+  static String? _currency(Object? raw) {
+    if (raw is Map) return _str(raw['currency']);
+    return null;
   }
 
   static void _populateTimestamps(
@@ -189,6 +261,39 @@ class DeliveryTrackingInfo extends Equatable {
   /// GPS-streaming delivery.
   final JeeberSummary? jeeber;
 
+  /// JM-032 / JM-031 pinned-summary fields, parsed from the delivery row by
+  /// [DeliveryTrackingInfo.fromDeliveryJson]. Null on the legacy tracking-feed
+  /// shape (the pinned header simply hides absent fields).
+
+  /// The originating request id (drives `order_summary_open_chat` fallback).
+  final String? requestId;
+
+  /// The 1:1 conversation id for the accepted order (chat CTA target).
+  final String? conversationId;
+
+  /// Accepted COD price the customer pays in cash on delivery (D11).
+  final double? price;
+
+  /// ISO currency code for [price] (e.g. `USD`).
+  final String? currency;
+
+  /// Display name of the matched Jeeber on the pinned summary.
+  final String? jeeberName;
+
+  /// Tier id/label of the accepted order (e.g. `express`).
+  final String? tier;
+
+  /// One-line summary of what was ordered (the delivery/request title).
+  final String? itemSummary;
+
+  /// True once the row carries enough to render the `order_summary_pinned`
+  /// header (price + jeeber name). Avoids mounting an empty summary strip.
+  bool get hasSummary => price != null && (jeeberName?.isNotEmpty ?? false);
+
+  /// True when the delivery has reached its terminal delivered state, so the
+  /// tracking screen auto-advances to `delivered-receipt-confirm` (JM-033, D70).
+  bool get isDelivered => currentStage == TrackingStage.delivered;
+
   static TrackingStage _parseStage(String status) {
     switch (status.toLowerCase()) {
       case 'ordered':
@@ -208,6 +313,10 @@ class DeliveryTrackingInfo extends Equatable {
       case 'at door':
         return TrackingStage.atDoor;
       case 'delivered':
+      // Mock SM-1 terminal status is `Done` (delivery-service SM1_TRANSITIONS);
+      // both map to the delivered step + auto-advance to the receipt prompt.
+      case 'done':
+      case 'completed':
         return TrackingStage.delivered;
       default:
         return TrackingStage.ordered;
@@ -230,6 +339,24 @@ class DeliveryTrackingInfo extends Equatable {
     }
   }
 
+  /// JM-032: maps the lifecycle onto the canonical 4-step blueprint stepper
+  /// (Ordered → Picked → In Transit → Delivered, D70). `atDoor` lands on the
+  /// In-Transit step (the courier is en route to the door); `delivered` lands on
+  /// the final step. Returned as the index of the CURRENT step (0-based).
+  int get trackingStepIndex4 {
+    switch (currentStage) {
+      case TrackingStage.ordered:
+        return 0;
+      case TrackingStage.picked:
+        return 1;
+      case TrackingStage.inTransit:
+      case TrackingStage.atDoor:
+        return 2;
+      case TrackingStage.delivered:
+        return 3;
+    }
+  }
+
   @override
   List<Object?> get props => [
         deliveryId,
@@ -240,5 +367,12 @@ class DeliveryTrackingInfo extends Equatable {
         jeeberPosition,
         polyline,
         jeeber,
+        requestId,
+        conversationId,
+        price,
+        currency,
+        jeeberName,
+        tier,
+        itemSummary,
       ];
 }

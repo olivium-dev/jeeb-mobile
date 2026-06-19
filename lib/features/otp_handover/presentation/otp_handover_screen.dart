@@ -463,6 +463,12 @@ class _ShakingOtpInput extends StatelessWidget {
         child: OmdsOtpInput(
           key: const Key('otpHandover.input'),
           length: 4,
+          // RC-7: per-cell editable ids (`otp_handover_input_0..3`) so a UI
+          // test driver can tap+inputText each cell of the jeeber at-door entry
+          // (the single container id above cannot distribute a multi-digit
+          // string across the N separate fields). Additive — mirrors the
+          // `verify_code_input` / `phone_otp_input` entry surfaces.
+          identifier: 'otp_handover_input',
           onChanged: onChanged,
           onCompleted: onCompleted,
         ),

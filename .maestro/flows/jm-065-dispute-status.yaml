@@ -1,0 +1,100 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-065 — Dispute Status
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given a dispute, Then dispute_status_state (Open/Resolved) +
+#        dispute_status_outcome_note (refund/penalty note, D2) +
+#        dispute_status_evidence_summary (D53) visible.
+#   AC2: dispute_status_support → support-ticket
+#        (support_root visible) [JM-063, D76].
+#   AC3: dispute_status_back → order-chat
+#        (order_chat_composer_send visible) [JM-025].
+#
+# Mock:
+#   GET /compliment-service/v1/disputes?status=&userId=
+#   GET /compliment-service/v1/disputes/:disputeId
+# Seam:
+#   AC1/2/3: jeeb.seam.session=customer_logged_in
+#            + jeeb.seam.journey=has_open_dispute  ← NEW W4 seed
+#            + jeeb.route=/disputes/dispute-client-001
+#
+# NEW SEAM KEYS / MOCK SEEDS REQUIRED (W4 test-data contract):
+#   jeeb.seam.journey=has_open_dispute — seeds 1 open dispute for user-client-001
+#     anchored to del-client-001-active conversation. Stable ids:
+#       dispute-client-001  (status=Open, outcome=pending)
+#     Also seeds the related accepted order + conversation so dispute_status_back
+#     can navigate to the correct order-chat.
+#   POST /__mock/seed/journey { "journey": "has_open_dispute" }
+#
+# COINED IDENTIFIERS:
+#   dispute_status_outcome_note     — refund/penalty outcome note (D2)
+#   dispute_status_evidence_summary — list/summary of submitted evidence (D53)
+#
+# STATUS: RED until JM-065 ships + has_open_dispute seed exists + JM-060 ships
+#         (dispute-status is the post-submit target of JM-060).
+#         Decisions: D2, D19, D53, D76.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-065-dispute-status.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Dispute status fields visible ───────────────────────────────────────
+# REQUIRES: has_open_dispute seed
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "has_open_dispute"
+      jeeb.route: "/disputes/dispute-client-001"
+
+- extendedWaitUntil:
+    visible:
+      id: "dispute_status_state"
+    timeout: 30000
+
+- assertVisible:
+    id: "dispute_status_outcome_note"
+
+- assertVisible:
+    id: "dispute_status_evidence_summary"
+
+- takeScreenshot: jm065_ac1_status_fields_visible
+
+# ── AC2: Support link → support-ticket ────────────────────────────────────────
+- tapOn:
+    id: "dispute_status_support"
+
+- extendedWaitUntil:
+    visible:
+      id: "support_root"
+    timeout: 15000
+
+- takeScreenshot: jm065_ac2_support_link_to_ticket
+
+# ── AC3: Back → order-chat ────────────────────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "has_open_dispute"
+      jeeb.route: "/disputes/dispute-client-001"
+
+- extendedWaitUntil:
+    visible:
+      id: "dispute_status_state"
+    timeout: 30000
+
+- tapOn:
+    id: "dispute_status_back"
+
+- extendedWaitUntil:
+    visible:
+      id: "order_chat_composer_send"
+    timeout: 15000
+
+- takeScreenshot: jm065_ac3_back_to_order_chat

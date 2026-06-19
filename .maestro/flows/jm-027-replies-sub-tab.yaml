@@ -1,0 +1,93 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-027 — Replies sub-tab CTAs
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given a reply card, When replies_check_offers_cta tapped, Then route to
+#        offer-review-list (offer_review_list_root visible) [JM-028, not /chat/:id].
+#   AC2: replies_accept_cta → offer-accept-confirm sheet
+#        (offer_accept_sheet visible) [JM-029].
+#
+# Mock: GET /delivery-service/v1/requests?status=offers-received
+# Seam: jeeb.seam.session=customer_logged_in + jeeb.seam.journey=offers_received
+#       (FLAGGED — needs a request in state=offers-received with >=1 offer for
+#        user-client-001 so the Replies sub-tab card is non-empty)
+#
+# STATUS: RED until JM-027 ships + seam seed offers_received exists (test-first).
+#         Decisions: D82, D11.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-027-replies-sub-tab.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Check Offers CTA → offer-review-list ────────────────────────────────
+# REQUIRES seam seed: jeeb.seam.journey=offers_received
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "offers_received"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_requests"
+
+# Navigate to the Replies sub-tab
+- tapOn:
+    id: "orders_home_replies_tab"
+
+- extendedWaitUntil:
+    visible:
+      id: "replies_check_offers_cta"
+    timeout: 15000
+
+- tapOn:
+    id: "replies_check_offers_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_review_list_root"
+    timeout: 15000
+
+- takeScreenshot: jm027_ac1_check_offers_to_offer_review_list
+
+# ── AC2: Accept CTA → offer-accept-confirm sheet ─────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "offers_received"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_requests"
+
+- tapOn:
+    id: "orders_home_replies_tab"
+
+- extendedWaitUntil:
+    visible:
+      id: "replies_accept_cta"
+    timeout: 15000
+
+- tapOn:
+    id: "replies_accept_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_accept_sheet"
+    timeout: 15000
+
+- takeScreenshot: jm027_ac2_accept_cta_to_accept_sheet

@@ -1,0 +1,145 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-062 — Logout / Delete Account (surface from account-status; route to splash)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given the confirm sheet visible (logout_delete_sheet), Then
+#        logout_confirm_cta and delete_confirm_cta are present.
+#   AC2: When logout_confirm_cta tapped, Then session cleared and route to
+#        splash → login (login_root visible) [D5].
+#   AC3: When delete_confirm_cta tapped, Then session cleared and route to
+#        splash → login (login_root visible) [D5].
+#   AC4: Reachable from account-status: account_status_signout_cta opens the
+#        sheet (logout_delete_sheet visible) [JM-066].
+#
+# Mock:
+#   POST /auth-service/auth/logout
+#   POST /push-notification/v1/devices/unregister
+# Seam:
+#   AC1/2: jeeb.seam.session=customer_logged_in
+#          Entry via customer-profile → logout row (no direct route to the sheet).
+#   AC4: jeeb.seam.session=suspended
+#        (account_status_root is the landing; tap signout_cta to open sheet)
+#
+# COINED IDENTIFIERS:
+#   logout_delete_sheet  — bottom sheet / dialog root for the confirm prompt
+#
+# STATUS: RED until JM-062 ships + JM-066 ships (account-status screen, AC4).
+#         Decisions: D5.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-062-logout-delete.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Sheet CTAs present (entry via profile logout row) ────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+# Navigate to profile tab
+- tapOn:
+    id: "shell_tab_profile"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_wallet_chip"
+    timeout: 15000
+
+- tapOn:
+    id: "customer_profile_logout_row"
+
+- extendedWaitUntil:
+    visible:
+      id: "logout_delete_sheet"
+    timeout: 15000
+
+- assertVisible:
+    id: "logout_confirm_cta"
+
+- assertVisible:
+    id: "delete_confirm_cta"
+
+- takeScreenshot: jm062_ac1_sheet_ctas_present
+
+# ── AC2: Logout confirm → splash → login ─────────────────────────────────────
+- tapOn:
+    id: "logout_confirm_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "login_root"
+    timeout: 20000
+
+- takeScreenshot: jm062_ac2_logout_to_login
+
+# ── AC3: Delete confirm → splash → login ─────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_profile"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_wallet_chip"
+    timeout: 15000
+
+- tapOn:
+    id: "customer_profile_logout_row"
+
+- extendedWaitUntil:
+    visible:
+      id: "logout_delete_sheet"
+    timeout: 15000
+
+- tapOn:
+    id: "delete_confirm_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "login_root"
+    timeout: 20000
+
+- takeScreenshot: jm062_ac3_delete_to_login
+
+# ── AC4: Entry from account-status ────────────────────────────────────────────
+# REQUIRES: JM-066 account-status screen (account_status_signout_cta)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "suspended"
+
+- extendedWaitUntil:
+    visible:
+      id: "account_status_root"
+    timeout: 30000
+
+- tapOn:
+    id: "account_status_signout_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "logout_delete_sheet"
+    timeout: 15000
+
+- assertVisible:
+    id: "logout_confirm_cta"
+
+- takeScreenshot: jm062_ac4_entry_from_account_status

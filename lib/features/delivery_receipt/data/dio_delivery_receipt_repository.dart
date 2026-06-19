@@ -1,0 +1,161 @@
+import 'package:dio/dio.dart';
+
+import '../domain/delivery_receipt.dart';
+import '../domain/delivery_receipt_repository.dart';
+
+/// Dio-backed [DeliveryReceiptRepository] (JM-033).
+///
+/// Endpoints (gateway contract; `MockGatewayClient` rewrites the `/v1/...`
+/// prefix to the `:4010` service prefix — 40_GUARDRAILS_ARCH §4/§11). NEVER
+/// hardcode a `:4010` host or a service prefix here.
+///   GET  `/v1/delivery/:deliveryId` → `/delivery-service/v1/delivery/:id`
+///         — the delivery row `{ id, status, amount: { value, currency },
+///           jeeberName, jeeberId, proofPhotoUrl|evidenceUrl, ... }`.
+///   POST `/v1/payments/cod_jeeb/record` → `/unified-payment-gateway/...`
+///         — records the cash-on-delivery settlement (D11). Idempotent on
+///           `deliveryId` (mock returns the existing record on replay).
+///   POST `/v1/delivery/status/transition` → `/delivery-service/...`
+///         — SM-1 `AtDoor → Done` (D70). 422 `transition_not_allowed` when the
+///           delivery is not at a receipt-pending state.
+///
+/// The cash settlement is recorded BEFORE the status transition so that a
+/// confirmed (`Done`) delivery always has a matching COD record. Both calls are
+/// idempotent server-side, so a retry after a partial failure is safe.
+class DioDeliveryReceiptRepository implements DeliveryReceiptRepository {
+  const DioDeliveryReceiptRepository(this._dio);
+
+  final Dio _dio;
+
+  /// SM-1 terminal reached when the customer confirms receipt (D70).
+  static const String _confirmedStatus = 'Done';
+
+  @override
+  Future<DeliveryReceipt> fetchReceipt(String deliveryId) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/v1/delivery/$deliveryId',
+      );
+      return _parseReceipt(deliveryId, response.data);
+    } on DioException catch (e) {
+      _rethrowDio(e);
+    }
+  }
+
+  @override
+  Future<void> confirmReceipt(DeliveryReceipt receipt) async {
+    try {
+      // 1) Record the cash-on-delivery settlement (D11). The customer pays the
+      //    Jeeber in person; this stamps the COD ledger. No fee is sent — the
+      //    platform commission is a server/jeeber concern, never the customer's.
+      await _dio.post<Map<String, dynamic>>(
+        '/v1/payments/cod_jeeb/record',
+        data: <String, dynamic>{
+          'deliveryId': receipt.deliveryId,
+          if (receipt.jeeberId != null) 'jeeberId': receipt.jeeberId,
+          'amount': <String, dynamic>{
+            'value': receipt.cashAmount,
+            'currency': receipt.currency,
+          },
+        },
+      );
+      // 2) Transition the delivery to Done (SM-1 `AtDoor → Done`, D70).
+      await _dio.post<Map<String, dynamic>>(
+        '/v1/delivery/status/transition',
+        data: <String, dynamic>{
+          'deliveryId': receipt.deliveryId,
+          'to': _confirmedStatus,
+          'trigger': 'customer_confirmed_receipt',
+        },
+      );
+    } on DioException catch (e) {
+      _rethrowTransition(e);
+    }
+  }
+
+  /// Defensive parse — accept snake_case + camelCase, the nested
+  /// `{ value, currency }` money object or a flat numeric, and either
+  /// `proofPhotoUrl` or `evidenceUrl` for the photo (the mock stamps both). A
+  /// malformed body degrades (empty name, null photo) rather than crashing.
+  DeliveryReceipt _parseReceipt(String deliveryId, Map<String, dynamic>? data) {
+    if (data == null) {
+      throw const DeliveryReceiptRepositoryException(
+        DeliveryReceiptFailure.unknown,
+      );
+    }
+    final rawProof = (data['proofPhotoUrl'] ?? data['evidenceUrl']) as String?;
+    final proof =
+        (rawProof != null && rawProof.trim().isNotEmpty) ? rawProof : null;
+    final rawJeeberId = (data['jeeberId'] ?? data['jeeber_id']) as String?;
+    final jeeberId = (rawJeeberId != null && rawJeeberId.trim().isNotEmpty)
+        ? rawJeeberId
+        : null;
+    return DeliveryReceipt(
+      deliveryId: (data['id'] as String?) ?? deliveryId,
+      jeeberName: (data['jeeberName'] ?? data['jeeber_name']) as String? ?? '',
+      jeeberId: jeeberId,
+      cashAmount: _parseAmount(data),
+      currency: _parseCurrency(data),
+      status: (data['status'] as String?) ?? '',
+      proofPhotoUrl: proof,
+    );
+  }
+
+  double _parseAmount(Map<String, dynamic> json) {
+    final flat = json['amount'];
+    if (flat is num) return flat.toDouble();
+    final fromObject = _moneyValue(json['amount']) ?? _moneyValue(json['price']);
+    return fromObject ?? 0.0;
+  }
+
+  String _parseCurrency(Map<String, dynamic> json) {
+    final fromObject =
+        _moneyCurrency(json['amount']) ?? _moneyCurrency(json['price']);
+    if (fromObject != null) return fromObject;
+    final flat = json['currency'];
+    if (flat is String && flat.isNotEmpty) return flat;
+    return 'USD';
+  }
+
+  double? _moneyValue(dynamic money) {
+    if (money is Map) {
+      final v = money['value'];
+      if (v is num) return v.toDouble();
+    }
+    return null;
+  }
+
+  String? _moneyCurrency(dynamic money) {
+    if (money is Map) {
+      final c = money['currency'];
+      if (c is String && c.isNotEmpty) return c;
+    }
+    return null;
+  }
+
+  Never _rethrowDio(DioException e) {
+    if (e.type == DioExceptionType.connectionError ||
+        e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.receiveTimeout) {
+      throw const DeliveryReceiptRepositoryException(
+        DeliveryReceiptFailure.network,
+      );
+    }
+    if (e.response?.statusCode == 404) {
+      throw const DeliveryReceiptRepositoryException(
+        DeliveryReceiptFailure.notFound,
+      );
+    }
+    throw const DeliveryReceiptRepositoryException(
+      DeliveryReceiptFailure.unknown,
+    );
+  }
+
+  Never _rethrowTransition(DioException e) {
+    if (e.response?.statusCode == 422) {
+      throw const DeliveryReceiptRepositoryException(
+        DeliveryReceiptFailure.transitionNotAllowed,
+      );
+    }
+    _rethrowDio(e);
+  }
+}

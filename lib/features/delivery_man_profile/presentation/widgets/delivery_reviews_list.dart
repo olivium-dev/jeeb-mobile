@@ -9,17 +9,13 @@ import 'delivery_review_card.dart';
 /// Lazily built ([ListView.separated]) because a Jeeber can have hundreds of
 /// reviews (design §5). Non-scrollable + shrink-wrapped: it lives inside the
 /// page's single scroll view so the whole column scrolls as one.
+///
+/// JM-067/D57: read-only — no Helpful/Reply callbacks (jeeber reviews are
+/// immutable). D58: cards render the reviewer's first name only.
 class DeliveryReviewsList extends StatelessWidget {
-  const DeliveryReviewsList({
-    super.key,
-    required this.reviews,
-    required this.onHelpful,
-    required this.onReply,
-  });
+  const DeliveryReviewsList({super.key, required this.reviews});
 
   final List<DeliveryReviewData> reviews;
-  final ValueChanged<int> onHelpful;
-  final ValueChanged<int> onReply;
 
   @override
   Widget build(BuildContext context) {
@@ -36,12 +32,8 @@ class DeliveryReviewsList extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       itemCount: reviews.length,
       separatorBuilder: (_, _) => const SizedBox(height: Spacing.small),
-      itemBuilder: (context, index) => DeliveryReviewCard(
-        review: reviews[index],
-        index: index,
-        onHelpful: () => onHelpful(index),
-        onReply: () => onReply(index),
-      ),
+      itemBuilder: (context, index) =>
+          DeliveryReviewCard(review: reviews[index], index: index),
     );
   }
 }

@@ -217,6 +217,13 @@ void main() {
         );
         await tester.pump();
 
+        // JM-034 §2.14 W1 contract ids.
+        expect(
+          find.bySemanticsIdentifier('rating_root'),
+          findsOneWidget,
+          reason: 'The screen signature id must surface on the canonical '
+              'mutual-rate terminal.',
+        );
         expect(
           find.bySemanticsIdentifier('mutual_rating_stars'),
           findsOneWidget,
@@ -228,9 +235,15 @@ void main() {
           reason: 'The comment field must be addressable.',
         );
         expect(
-          find.bySemanticsIdentifier('mutual_rating_submit'),
+          find.bySemanticsIdentifier('rating_submit_cta'),
           findsOneWidget,
-          reason: 'The rating submit CTA must be addressable.',
+          reason: 'The rating submit CTA must be addressable (W1 id).',
+        );
+        // AC1/D56: no skip/dismiss control on the mandatory path.
+        expect(
+          find.bySemanticsIdentifier('rating_skip_cta'),
+          findsNothing,
+          reason: 'The mandatory rating path must expose no skip control.',
         );
         expect(find.byKey(const Key('mutualRating.stars')), findsOneWidget);
         expect(find.byKey(const Key('mutualRating.comment')), findsOneWidget);

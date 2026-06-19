@@ -2,7 +2,7 @@ import 'package:equatable/equatable.dart';
 
 import '../domain/notification_prefs_model.dart';
 
-/// Loading / loaded / error lifecycle for the notification prefs screen.
+/// Loading / loaded / error lifecycle for the notification prefs screen (JM-058).
 sealed class NotificationPrefsState extends Equatable {
   const NotificationPrefsState();
 }
@@ -25,10 +25,10 @@ class NotificationPrefsLoaded extends NotificationPrefsState {
 
   final NotificationPrefs prefs;
 
-  /// True while a debounced PATCH is in-flight.
+  /// True while a debounced PUT is in-flight.
   final bool isSaving;
 
-  /// True for one frame when the PATCH failed and the toggle was reverted.
+  /// True after a PUT failed and the toggle was reverted (drives the snackbar).
   final bool saveError;
 
   NotificationPrefsLoaded copyWith({
@@ -49,10 +49,14 @@ class NotificationPrefsLoaded extends NotificationPrefsState {
 
 /// Initial fetch failed.
 class NotificationPrefsError extends NotificationPrefsState {
-  const NotificationPrefsError(this.message);
+  const NotificationPrefsError(this.failure);
 
-  final String message;
+  final NotificationPrefsFailureView failure;
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [failure];
 }
+
+/// Screen-facing error classification (decoupled from the data-layer enum so the
+/// presentation switch is exhaustive without importing `data/`).
+enum NotificationPrefsFailureView { network, unknown }

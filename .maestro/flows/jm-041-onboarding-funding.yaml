@@ -1,0 +1,95 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-041 — Onboarding Funding (starter credit explainer)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given KYC submitted, Then funding_explainer describes fixed non-
+#        refundable starter credit usable post-KYC [D42] + reserve-10%-per-offer
+#        [D1]; funding_topup_cta and funding_continue_cta are present.
+#   AC2: funding_topup_cta → wallet-charge-info [JM-054, D92/D93]
+#        (charge_info_back_cta visible).
+#   AC3: funding_continue_cta → kyc-pending-status (top-up allowed pre-approval)
+#        [D38/D39] (kyc_status_root or kyc_status_pending_title visible).
+#
+# Mock:
+#   GET /wallet-service/v1/jeeb/earnings
+# Seam:
+#   jeeb.seam.session=jeeber_logged_in
+#   + jeeb.seam.journey=jeeber_kyc_submitted   ← NEW seam value (FLAG)
+#   (Seeds the mock so the KYC was just submitted and the app lands on
+#    onboarding-funding at /jeeber/onboarding/funding)
+#   OR: jeeb.route=/jeeber/onboarding/funding (direct deep-link — FLAG)
+#       combined with jeeb.seam.kyc_status=pending
+#
+# NEW SEAM KEYS / VALUES REQUIRED:
+#   jeeb.seam.kyc_status: "pending" (FLAG — needed for funding screen context)
+#   jeeb.seam.journey value "jeeber_kyc_submitted" — seeds mock KYC status as
+#     submitted/pending so onboarding-funding route is valid landing target.
+#
+# STATUS: RED until JM-041 ships + jeeb.seam.journey=jeeber_kyc_submitted
+#         seed + W2.5 wallet mock exist (test-first). Decisions: D28, D42, D1,
+#         D38, D39, D92, D93.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-041-onboarding-funding.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: funding_explainer + CTAs visible ────────────────────────────────────
+# REQUIRES: jeeb.seam.journey=jeeber_kyc_submitted (new seed — FLAG)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "pending"
+      jeeb.seam.journey: "jeeber_kyc_submitted"
+
+- extendedWaitUntil:
+    visible:
+      id: "funding_explainer"
+    timeout: 30000
+
+- assertVisible:
+    id: "funding_topup_cta"
+
+- assertVisible:
+    id: "funding_continue_cta"
+
+- takeScreenshot: jm041_ac1_funding_screen_content
+
+# ── AC2: funding_topup_cta → wallet-charge-info ───────────────────────────────
+- tapOn:
+    id: "funding_topup_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "charge_info_back_cta"
+    timeout: 15000
+
+- takeScreenshot: jm041_ac2_topup_to_charge_info
+
+# ── AC3: funding_continue_cta → kyc-pending-status ───────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "pending"
+      jeeb.seam.journey: "jeeber_kyc_submitted"
+
+- extendedWaitUntil:
+    visible:
+      id: "funding_continue_cta"
+    timeout: 30000
+
+- tapOn:
+    id: "funding_continue_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "kyc_status_root"
+    timeout: 15000
+
+- takeScreenshot: jm041_ac3_continue_to_kyc_pending_status

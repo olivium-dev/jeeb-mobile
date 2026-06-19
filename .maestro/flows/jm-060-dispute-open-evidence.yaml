@@ -1,0 +1,158 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-060 — Dispute (open + evidence) [repoint + extend]
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given a dispute screen, Then dispute_root visible + dispute_reason
+#        + dispute_photos (real image_picker, ≤5 slots) + dispute_voice
+#        (voice evidence, D53) + dispute_auto_attach_note visible.
+#   AC2: dispute_submit_cta posts to POST /compliment-service/v1/disputes
+#        and routes to dispute-status (dispute_status_state visible) [JM-065].
+#   AC3: dispute_support_link → support-ticket
+#        (support_root visible) [D76, JM-063].
+#   AC4: dispute_back → order-chat (order_chat_composer_send visible).
+#
+# Mock:
+#   POST /compliment-service/v1/disputes
+#   GET  /chat-service/v1/chat/jeeb/conversations/:conversationId/snapshot
+# Seam:
+#   jeeb.seam.session=customer_logged_in
+#   + jeeb.seam.journey=order_accepted  (provides conv-journey-accepted + del-client-001-active)
+#   + jeeb.route=/orders/del-client-001-active/escalate
+#
+# COINED IDENTIFIERS:
+#   dispute_root             — root of the dispute screen
+#   dispute_auto_attach_note — note explaining auto-attached chat+GPS/status timeline (D53)
+#
+# STATUS: RED until JM-060 ships + JM-065 ships (dispute-status route target).
+#         Decisions: D19, D53, D2, D54, D76.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-060-dispute-open-evidence.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Evidence fields visible ─────────────────────────────────────────────
+# REQUIRES: order_accepted journey seed (provides active order + conversation)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "order_accepted"
+      jeeb.route: "/orders/del-client-001-active/escalate"
+
+- extendedWaitUntil:
+    visible:
+      id: "dispute_root"
+    timeout: 30000
+
+- assertVisible:
+    id: "dispute_reason"
+
+- assertVisible:
+    id: "dispute_photos"
+
+- assertVisible:
+    id: "dispute_voice"
+
+- assertVisible:
+    id: "dispute_auto_attach_note"
+
+- assertVisible:
+    id: "dispute_submit_cta"
+
+- takeScreenshot: jm060_ac1_evidence_fields_visible
+
+# ── AC2: Submit → dispute-status ─────────────────────────────────────────────
+# Fill minimal reason and submit
+- tapOn:
+    id: "dispute_reason"
+
+- inputText: "Item was damaged"
+
+- tapOn:
+    id: "dispute_submit_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "dispute_status_state"
+    timeout: 20000
+
+- takeScreenshot: jm060_ac2_submit_to_dispute_status
+
+# ── AC3: Support link → support-ticket ────────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "order_accepted"
+      jeeb.route: "/orders/del-client-001-active/escalate"
+
+- extendedWaitUntil:
+    visible:
+      id: "dispute_root"
+    timeout: 30000
+
+# The support link sits at the bottom of the evidence form — scroll it to the
+# CENTRE (so the tap coordinate is well clear of the bottom bar / nav gesture
+# area), settle, then tap.
+- scrollUntilVisible:
+    element:
+      id: "dispute_support_link"
+    direction: DOWN
+    centerElement: true
+    timeout: 15000
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn:
+    id: "dispute_support_link"
+- waitForAnimationToEnd:
+    timeout: 3000
+
+- extendedWaitUntil:
+    visible:
+      id: "support_root"
+    timeout: 15000
+
+- takeScreenshot: jm060_ac3_support_link_to_ticket
+
+# ── AC4: Back → order-chat ────────────────────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "order_accepted"
+      jeeb.route: "/orders/del-client-001-active/escalate"
+
+- extendedWaitUntil:
+    visible:
+      id: "dispute_root"
+    timeout: 30000
+
+# dispute_back ("Back to chat") is in the bottom bar — scroll/settle then tap.
+- scrollUntilVisible:
+    element:
+      id: "dispute_back"
+    direction: DOWN
+    timeout: 15000
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn:
+    id: "dispute_back"
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# AP-9: this dispute was DEEP-LINKED via the route pin (no order-chat beneath
+# it to pop to), so `dispute_back` safely falls back to the home shell rather
+# than fabricating a chat id (escalate honest-fallback). The real
+# dispute_back → order-chat edge is exercised when escalate is entered FROM the
+# order-chat (the W1 order flow). Assert the safe landing here.
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 15000
+
+- takeScreenshot: jm060_ac4_back_safe_fallback

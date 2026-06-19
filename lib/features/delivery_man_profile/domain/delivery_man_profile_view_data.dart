@@ -20,7 +20,20 @@ class DeliveryReviewData extends Equatable {
   final int daysAgo;
   final String? reviewerAvatarUrl;
   final bool isVerified;
+
+  /// Retained on the model for compatibility but NO LONGER rendered: the
+  /// Helpful/Reply controls were removed per D57 (JM-067) — jeeber reviews are
+  /// immutable, read-only, with no client helpfulness/reply affordances.
   final int helpfulCount;
+
+  /// First name only (D58 — JM-067/068). Splits on whitespace and returns the
+  /// leading token; falls back to the full string when there is no whitespace.
+  String get reviewerFirstName {
+    final trimmed = reviewerName.trim();
+    if (trimmed.isEmpty) return trimmed;
+    final space = trimmed.indexOf(RegExp(r'\s'));
+    return space > 0 ? trimmed.substring(0, space) : trimmed;
+  }
 
   @override
   List<Object?> get props =>
@@ -43,6 +56,7 @@ class DeliveryManProfileViewData extends Equatable {
     required this.reviews,
     this.avatarUrl,
     this.isVerified = true,
+    this.jeeberId,
   });
 
   final String name;
@@ -54,6 +68,18 @@ class DeliveryManProfileViewData extends Equatable {
   final String? avatarUrl;
   final bool isVerified;
 
+  /// The jeeber's id, threaded through so `profile_view_all_reviews` can pass
+  /// `?jeeberId=` to the reviews-list route (JM-068). Null when the source (the
+  /// offer card today) does not carry it — the target then resolves the seeded
+  /// jeeber (the reviews-list engineer's concern).
+  final String? jeeberId;
+
+  /// D59 cold-start: a jeeber with fewer than 5 reviews has no aggregate score
+  /// shown (the score is hidden until N>=5). Threshold is the D59 floor.
+  static const int coldStartThreshold = 5;
+
+  bool get isColdStart => reviewCount < coldStartThreshold;
+
   @override
   List<Object?> get props => [
         name,
@@ -64,5 +90,6 @@ class DeliveryManProfileViewData extends Equatable {
         reviews,
         avatarUrl,
         isVerified,
+        jeeberId,
       ];
 }

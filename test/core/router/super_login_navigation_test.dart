@@ -37,7 +37,7 @@ import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_reposi
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
 import 'package:jeeb_mobile/features/registration/data/fake_otp_service.dart';
 import 'package:jeeb_mobile/features/registration/domain/otp_service.dart';
-import 'package:jeeb_mobile/features/registration/presentation/registration_screen.dart';
+import 'package:jeeb_mobile/features/auth/presentation/login_screen.dart';
 import 'package:jeeb_mobile/features/settings/data/repositories/biometric_preference_repository_impl.dart';
 import 'package:jeeb_mobile/features/shell/shell_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
@@ -127,19 +127,19 @@ void main() {
       r.routerDelegate.currentConfiguration.uri.toString();
 
   testWidgets(
-      'onboarded + no token starts on /register; persisting a token and '
+      'onboarded + no token starts on /login; persisting a token and '
       'refreshing the session promotes go("/") to Home (DEF-1)', (tester) async {
-    // Cold start: no token yet → gate forces /register once the first refresh
-    // resolves.
+    // Cold start: no token yet → gate forces /login once the first refresh
+    // resolves (W0 / JM-006 / CTO-D1: email-first login replaces /register).
     when(() => store.accessToken).thenAnswer((_) async => null);
 
     final built = await buildHome(tester);
     await session.refresh(); // app.dart kicks this after first frame
     await tester.pumpAndSettle();
 
-    expect(find.byType(RegistrationScreen), findsOneWidget);
+    expect(find.byType(LoginScreen), findsOneWidget);
     expect(find.byType(ShellScreen), findsNothing);
-    expect(location(built.router), '/register');
+    expect(location(built.router), '/login');
 
     // Simulate a successful super-login: the sheet persists the real token, the
     // screen refreshes the session, THEN navigates. (registration_screen now
@@ -156,29 +156,29 @@ void main() {
           'first-run gate must let / resolve to Home — no relaunch required.',
     );
     expect(find.byType(ShellScreen), findsOneWidget);
-    expect(find.byType(RegistrationScreen), findsNothing);
+    expect(find.byType(LoginScreen), findsNothing);
   });
 
   testWidgets(
-      'without the session refresh, go("/") is bounced back to /register '
+      'without the session refresh, go("/") is bounced back to /login '
       '(documents the DEF-1 failure mode)', (tester) async {
     when(() => store.accessToken).thenAnswer((_) async => null);
 
     final built = await buildHome(tester);
     await session.refresh();
     await tester.pumpAndSettle();
-    expect(location(built.router), '/register');
+    expect(location(built.router), '/login');
 
     // Token persisted to the keystore but the SessionCubit is NOT refreshed
     // (the pre-fix behaviour). The gate still reads unauthenticated, so the
-    // redirect keeps the user on /register exactly like the QA capture.
+    // redirect keeps the user on /login exactly like the QA capture.
     when(() => store.accessToken).thenAnswer((_) async => 'real-access-token');
     built.router.go('/');
     await tester.pumpAndSettle();
 
     expect(
       location(built.router),
-      '/register',
+      '/login',
       reason: 'This is the bug DEF-1 fixes: a persisted token alone does not '
           'update the router gate; the session must be refreshed.',
     );

@@ -1,10 +1,10 @@
-// Tests for MutualRatingCubit (T-MOB-020).
+// Tests for MutualRatingCubit (JM-034).
 //
 // Verifies:
-//   - submit transitions inputting → submitting → awaitingOther.
+//   - submit transitions inputting → submitting → submitted (mandatory
+//     terminal; the screen navigates home/dashboard on `submitted`).
 //   - stars=0 prevents submit.
 //   - submit failure emits error phase.
-//   - poll flips to revealed when status is both_rated.
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -62,20 +62,18 @@ void main() {
         repository: const _FakeRatingRepo(),
         deliveryId: 'dlv-1',
         isClient: true,
-        pollInterval: const Duration(days: 999),
       ),
       act: (c) => c.submit(),
       expect: () => [],
     );
 
     blocTest<MutualRatingCubit, MutualRatingState>(
-      'emits submitting → awaitingOther on success',
+      'emits submitting → submitted on success (mandatory terminal)',
       build: () {
         final c = MutualRatingCubit(
           repository: const _FakeRatingRepo(),
           deliveryId: 'dlv-1',
           isClient: true,
-          pollInterval: const Duration(days: 999),
         );
         c.setStars(4);
         return c;
@@ -87,8 +85,8 @@ void main() {
           'submitting phase',
         ),
         predicate<MutualRatingState>(
-          (s) => s.phase == MutualRatingPhase.awaitingOther,
-          'awaitingOther phase',
+          (s) => s.phase == MutualRatingPhase.submitted,
+          'submitted phase',
         ),
       ],
     );
@@ -100,7 +98,6 @@ void main() {
           repository: const _FakeRatingRepo(failSubmit: true),
           deliveryId: 'dlv-1',
           isClient: true,
-          pollInterval: const Duration(days: 999),
         );
         c.setStars(3);
         return c;

@@ -1,0 +1,339 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-008 — Sign Up (email-first, per CTO-D1)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given the sign-up screen, When signup_name_field + signup_email_field +
+#        signup_password_field filled and signup_submit_cta tapped, Then route to
+#        phone-otp-verification (phone_otp_input visible) [G8].
+#   AC2: signup_password_strength_hint reflects entered password; present on screen.
+#        signup_password_visibility_toggle flips masking (field stays visible).
+#   AC3: When signup_login_link tapped → /login (login_email_field visible).
+#   AC4: Social row CTAs (signup_social_google, signup_social_facebook,
+#        signup_social_apple) are present → social flow.
+#   AC5: On email collision (409 response seamed) → social-collision-prompt
+#        (social_collision_sheet visible) [JM-019, D22].
+#   NOTE: Email is NOT verified at this step [D21].
+#
+# STREAMLINED (W1 FIX ROUND — FLOW_BUG / timeout):
+#   - AC1 (happy path) and AC5 (collision) are the two subflows that drive the
+#     network + OTP path and are kept as separate concise scenarios.
+#   - AC2/AC3/AC4 reach the sign-up screen via jeeb.seam.session=logged_out_returning
+#     + jeeb.route=/sign-up so no walkthrough navigation is needed — these ACs only
+#     assert fields/links visible on the sign-up screen itself, so the walkthrough
+#     slides add zero value and significant time.
+#   - AC5 collision: step-1 signs up once (walkthrough once), then step-2 relaunches
+#     straight to /sign-up via route pin (no second walkthrough traverse) and submits
+#     the same email to trigger the 409 — this avoids the second full walkthrough that
+#     was the main contributor to the 180s timeout.
+#
+# Mock dependencies: POST /auth-service/auth/otp/request.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-008-signup.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+tags:
+  - jm-008
+  - w0
+  - auth
+---
+
+# ── AC1: Successful sign-up → phone OTP verification ─────────────────────────
+# Reset mock state so the AC1 email has no prior registration, then sign up.
+- evalScript: |
+    http.post('http://10.0.2.2:4010/__mock/reset', '{}', {'Content-Type': 'application/json'});
+
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible:
+      id: "walkthrough_slide_1"
+    timeout: 60000
+
+- tapOn:
+    id: "walkthrough_next_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "walkthrough_slide_2"
+    timeout: 8000
+
+- tapOn:
+    id: "walkthrough_next_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "walkthrough_slide_3"
+    timeout: 8000
+
+- tapOn:
+    id: "walkthrough_get_started_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "signup_name_field"
+    timeout: 15000
+
+- takeScreenshot: jm008_ac1a_signup_screen
+
+- tapOn:
+    id: "signup_name_field"
+- inputText: "Test User"
+
+- tapOn:
+    id: "signup_email_field"
+- inputText: "signup-ac1@jeeb.app"
+
+- tapOn:
+    id: "signup_password_field"
+- inputText: "Password123!"
+
+- tapOn:
+    id: "signup_submit_cta"
+
+# After signup the app shows the _register_hero phone-entry step before OTP (RC-10).
+- extendedWaitUntil:
+    visible:
+      id: "_register_hero"
+    timeout: 15000
+
+- takeScreenshot: jm008_ac1b_register_hero_phone_entry
+
+- tapOn:
+    text: "Phone number"
+- inputText: "0501234567"
+
+- tapOn:
+    text: "Send code"
+
+- extendedWaitUntil:
+    visible:
+      id: "phone_otp_input"
+    timeout: 15000
+
+- takeScreenshot: jm008_ac1c_otp_screen_after_signup
+
+# ── AC2a: Password strength hint is visible ───────────────────────────────────
+# Reach sign-up via the login screen's signup link (clean self-contained launch).
+# RC-10: the bare `jeeb.route=/sign-up` pin does NOT survive the logged-out
+# redirect (the returning-user seam lands on /login regardless), so navigate the
+# real funnel /login → login_signup_link → /sign-up instead.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "logged_out_returning"
+
+- extendedWaitUntil:
+    visible:
+      id: "login_signup_link"
+    timeout: 90000
+
+- tapOn:
+    id: "login_signup_link"
+
+- extendedWaitUntil:
+    visible:
+      id: "signup_name_field"
+    timeout: 15000
+
+- tapOn:
+    id: "signup_password_field"
+- inputText: "Password123!"
+
+- assertVisible:
+    id: "signup_password_strength_hint"
+
+- takeScreenshot: jm008_ac2a_password_strength_hint
+
+# ── AC2b: Password visibility toggle ─────────────────────────────────────────
+- tapOn:
+    id: "signup_password_visibility_toggle"
+
+- assertVisible:
+    id: "signup_password_field"
+
+- takeScreenshot: jm008_ac2b_password_toggle
+
+# ── AC3: Login link → /login ──────────────────────────────────────────────────
+# Reach sign-up via the login funnel (RC-10: route pin to /sign-up does not
+# survive the logged-out redirect), then assert the reverse link back to /login.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "logged_out_returning"
+
+- extendedWaitUntil:
+    visible:
+      id: "login_signup_link"
+    timeout: 90000
+
+- tapOn:
+    id: "login_signup_link"
+
+- extendedWaitUntil:
+    visible:
+      id: "signup_name_field"
+    timeout: 15000
+
+- tapOn:
+    id: "signup_login_link"
+
+- extendedWaitUntil:
+    visible:
+      id: "login_email_field"
+    timeout: 15000
+
+- takeScreenshot: jm008_ac3_login_from_signup
+
+# ── AC4: Social CTAs present on sign-up screen ───────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "logged_out_returning"
+
+- extendedWaitUntil:
+    visible:
+      id: "login_signup_link"
+    timeout: 90000
+
+- tapOn:
+    id: "login_signup_link"
+
+- extendedWaitUntil:
+    visible:
+      id: "signup_name_field"
+    timeout: 15000
+
+- assertVisible:
+    id: "signup_social_google"
+- assertVisible:
+    id: "signup_social_facebook"
+- assertVisible:
+    id: "signup_social_apple"
+
+- takeScreenshot: jm008_ac4_social_ctas
+
+# ── AC5: Email collision → social-collision-prompt ───────────────────────────
+# Two-step collision dance (per 62_SEAM_HARNESS §4.3):
+# Step 1 — reset mock + sign up with the collision email via walkthrough → 201,
+#           lands on OTP. This is the only walkthrough traversal in this AC.
+# Step 2 — reach /sign-up via the login funnel (no second walkthrough) + submit
+#           the SAME email → 409 collision sheet. Step-1 registers it fresh
+#           (after reset), step-2 reuses it (no reset) so the collision fires.
+- evalScript: |
+    http.post('http://10.0.2.2:4010/__mock/reset', '{}', {'Content-Type': 'application/json'});
+
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.signup_collision: "true"
+
+- extendedWaitUntil:
+    visible:
+      id: "walkthrough_slide_1"
+    timeout: 60000
+
+- tapOn:
+    id: "walkthrough_next_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "walkthrough_slide_2"
+    timeout: 8000
+
+- tapOn:
+    id: "walkthrough_next_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "walkthrough_slide_3"
+    timeout: 8000
+
+- tapOn:
+    id: "walkthrough_get_started_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "signup_name_field"
+    timeout: 15000
+
+# Step 1: register the collision email for the first time (201 expected).
+- tapOn:
+    id: "signup_name_field"
+- inputText: "Existing User"
+
+- tapOn:
+    id: "signup_email_field"
+- inputText: "existing@jeeb.app"
+
+- tapOn:
+    id: "signup_password_field"
+- inputText: "Password123!"
+
+- tapOn:
+    id: "signup_submit_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "_register_hero"
+    timeout: 15000
+
+- tapOn:
+    text: "Phone number"
+- inputText: "0501234567"
+
+- tapOn:
+    text: "Send code"
+
+- extendedWaitUntil:
+    visible:
+      id: "phone_otp_input"
+    timeout: 15000
+
+- takeScreenshot: jm008_ac5_step1_first_signup_ok
+
+# Step 2: reach /sign-up via the login funnel — no second walkthrough needed.
+# Mock still holds the collision email (no reset), so the same email → 409.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "logged_out_returning"
+
+- extendedWaitUntil:
+    visible:
+      id: "login_signup_link"
+    timeout: 90000
+
+- tapOn:
+    id: "login_signup_link"
+
+- extendedWaitUntil:
+    visible:
+      id: "signup_name_field"
+    timeout: 15000
+
+- tapOn:
+    id: "signup_name_field"
+- inputText: "Existing User"
+
+- tapOn:
+    id: "signup_email_field"
+- inputText: "existing@jeeb.app"
+
+- tapOn:
+    id: "signup_password_field"
+- inputText: "Password123!"
+
+- tapOn:
+    id: "signup_submit_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "social_collision_sheet"
+    timeout: 15000
+
+- takeScreenshot: jm008_ac5_collision_sheet

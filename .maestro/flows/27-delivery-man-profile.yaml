@@ -1,26 +1,25 @@
 # Jeeb mobile — 27 Delivery Man Profile (public profile / reviews).
 # Figma node 56580:2697 (file ZOi3kKtw7sd42ssSVX3Kn4, flow profile-settings).
 #
-# WHAT THIS PROVES
+# WHAT THIS PROVES (migrated to canonical ids under JM-067 — 41_GUARDRAILS §1.1)
 #   The delivery-man public profile renders (close-X navbar → avatar + verified
 #   name + rating summary + location/availability → "Reviews" section with count
 #   + "View all" + a list of review cards) with every interactive element
-#   targeted BY SEMANTIC ID (verified in source on feat/jeeb-ui-parity-lane-b4):
-#     delivery_man_profile_close            — _CloseButton (navbar X)
-#     delivery_man_profile_view_all_reviews — _ViewAllButton (OmdsPrimaryButton text)
+#   targeted BY SEMANTIC ID:
+#     delivery_man_profile_screen_root      — screen host container (JM-067)
+#     profile_close                         — _CloseButton (navbar X) (JM-067 AC)
+#     profile_view_all_reviews              — _ViewAllButton → reviews-list (JM-067 AC)
+#     profile_score                         — aggregate score (shown; fixture is 113 >= 5)
 #     delivery_man_profile_review_card_0    — DeliveryReviewCard (first review)
 #     delivery_man_profile_review_card_1    — DeliveryReviewCard (second review)
 #   Non-interactive but assert-worthy:
-#     delivery_man_profile_name, delivery_man_profile_rating_summary,
-#     delivery_man_profile_availability.
+#     delivery_man_profile_name, delivery_man_profile_availability.
 #
 # PRIMARY INTERACTION
-#   "View all" is the screen's primary affordance (opens the full reviews list).
-#   On the dev seam the full-list route is not yet wired, so the deterministic,
-#   assertible effect is: the button is present, tappable, and the app does not
-#   crash (the profile root stays visible after the tap). Honest tap-accepted
-#   check, not an over-assertion of an unbuilt destination (pilot-learning #7).
-#   The close (X) is also asserted present (modal-dismiss affordance).
+#   "View all" is the screen's primary affordance. Under JM-067 it is now WIRED
+#   to the reviews-list route (JM-068), so the tap lands on `reviews_list_root`
+#   (the integrator's compiling stub renders that root). The close (X) is also
+#   asserted present (modal-dismiss affordance).
 #
 # BACKEND / SEAM
 #   Dev seam: jeeb.route=/profile/delivery-man → AppRouter lands directly on
@@ -47,16 +46,18 @@ appId: ${APP_ID}
 # Identity header + reviews section — waited+asserted by id (cold launch).
 - extendedWaitUntil:
     visible:
-      id: "delivery_man_profile_name"
+      id: "delivery_man_profile_screen_root"
     timeout: 25000
 - assertVisible:
-    id: "delivery_man_profile_close"
+    id: "delivery_man_profile_name"
 - assertVisible:
-    id: "delivery_man_profile_rating_summary"
+    id: "profile_close"
+- assertVisible:
+    id: "profile_score"
 - assertVisible:
     id: "delivery_man_profile_availability"
 - assertVisible:
-    id: "delivery_man_profile_view_all_reviews"
+    id: "profile_view_all_reviews"
 - assertVisible:
     id: "delivery_man_profile_review_card_0"
 - assertVisible:
@@ -66,10 +67,10 @@ appId: ${APP_ID}
     timeout: 5000
 - takeScreenshot: 27_delivery_man_profile
 
-# PRIMARY INTERACTION: tap View all; assert tap-accepted + no crash.
+# PRIMARY INTERACTION: tap View all → reviews-list (JM-067 → JM-068, WIRED).
 - tapOn:
-    id: "delivery_man_profile_view_all_reviews"
-- waitForAnimationToEnd:
-    timeout: 5000
-- assertVisible:
-    id: "delivery_man_profile_name"
+    id: "profile_view_all_reviews"
+- extendedWaitUntil:
+    visible:
+      id: "reviews_list_root"
+    timeout: 15000

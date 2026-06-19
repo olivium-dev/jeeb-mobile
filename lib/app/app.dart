@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/accessibility/accessibility.dart';
 import '../core/dev_seam/dev_seam.dart';
+import '../core/dev_seam/session_seam_bootstrap.dart';
 import '../core/locale/locale_cubit.dart';
 import '../core/notifications/application/badge_count_cubit.dart';
 import '../core/notifications/application/notification_dispatcher.dart';
@@ -24,10 +25,12 @@ import '../core/role/role_cubit.dart';
 import '../core/role/role_eligibility_cubit.dart';
 import '../core/role/user_role.dart';
 import '../core/router/app_router.dart';
+import '../core/session/account_status_gate.dart';
 import '../core/session/session_cubit.dart';
 import '../core/session/session_gate.dart';
 import '../core/theme/app_theme.dart';
 import '../features/biometric_auth/application/biometric_lock_cubit.dart';
+import '../features/biometric_auth/data/dev_biometric_gateway.dart';
 import '../features/biometric_auth/data/shared_prefs_pin_repository.dart';
 import '../features/biometric_auth/domain/biometric_gateway.dart';
 import '../features/settings/data/repositories/biometric_preference_repository_impl.dart';
@@ -113,7 +116,17 @@ class _JeebAppState extends State<JeebApp> {
   late final BiometricLockCubit _biometricLock = BiometricLockCubit(
     preference:
         BiometricPreferenceRepositoryImpl(prefs: widget.preferences),
-    gateway: widget.biometricGateway ?? const UnavailableBiometricGateway(),
+    // This is the app-level cubit the router gate watches AND the one the
+    // `/lock` screen consumes (BlocProvider.value) — the SAME instance whose
+    // authenticate() must succeed for JM-005 to release to the shell. RC-3: in
+    // DEBUG (no test override) wire [DevBiometricGateway] so the challenge
+    // resolves `true`. A test-injected `biometricGateway` always wins; release
+    // keeps the production [UnavailableBiometricGateway] (kDebugMode const false
+    // → dev path tree-shaken).
+    gateway: widget.biometricGateway ??
+        (kDebugMode
+            ? const DevBiometricGateway()
+            : const UnavailableBiometricGateway()),
     pinRepository: SharedPrefsPinRepository(prefs: widget.preferences),
   )..evaluate();
 
@@ -125,10 +138,22 @@ class _JeebAppState extends State<JeebApp> {
   late final SessionCubit? _ownedSession =
       widget.sessionGate == null ? SessionCubit(tokenStore: AuthTokenStore()) : null;
   late final SessionGate _session = widget.sessionGate ?? _ownedSession!;
+
+  /// JM-006 / D5 account-status gate. In DEBUG we wire a [SeededAccountStatusGate]
+  /// so the `jeeb.seam.session=suspended` harness routes to `/account-status`
+  /// (62_SEAM_HARNESS.md); the flag was written during bootstrap, before this is
+  /// read. In release we keep the inert default ([AlwaysActiveAccountStatusGate])
+  /// — the real JM-006 account-status cubit (GET /users/:id) supersedes this when
+  /// it lands. Inert (`isBlocked == false`) for every non-suspended seed and for
+  /// un-seeded launches, so it never affects normal routing.
+  late final AccountStatusGate _accountStatus = kDebugMode
+      ? SeededAccountStatusGate(widget.preferences)
+      : const AlwaysActiveAccountStatusGate();
   late final GoRouter _router = AppRouter.create(
     onboarding: _onboarding,
     biometricLock: _biometricLock,
     session: _session,
+    accountStatus: _accountStatus,
   );
   // BadgeCountCubit is cheap (in-memory Cubit<int>) and is read by the
   // MultiBlocProvider on first build, so it stays eager.

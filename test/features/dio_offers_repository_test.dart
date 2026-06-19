@@ -25,25 +25,31 @@ void main() {
   });
 
   group('fetchOffers', () {
-    test('parses offers list and returns OffersSnapshot', () async {
+    test('parses { items } envelope and returns OffersSnapshot', () async {
       final now = DateTime.now().toUtc().toIso8601String();
-      when(() => mockDio.get<dynamic>(any())).thenAnswer(
+      when(() => mockDio.get<dynamic>(
+            any(),
+            queryParameters: any(named: 'queryParameters'),
+          )).thenAnswer(
         (_) async => Response<dynamic>(
           requestOptions: RequestOptions(path: ''),
-          data: [
-            {
-              'id': 'offer-1',
-              'jeeberId': 'jeeber-1',
-              'jeeberName': 'Karim',
-              'fee': 35.0,
-              'currency': 'USD',
-              'etaMinutes': 15,
-              'vehicle': 'scooter',
-              'rating': 4.5,
-              'ratingCount': 100,
-              'createdAt': now,
-            },
-          ],
+          data: {
+            'items': [
+              {
+                'id': 'offer-1',
+                'jeeberId': 'jeeber-1',
+                'jeeberName': 'Karim',
+                'amount': {'value': 35.0, 'currency': 'USD'},
+                'etaMinutes': 15,
+                'vehicle': 'scooter',
+                'rating': 4.5,
+                'ratingCount': 100,
+                'status': 'submitted',
+                'createdAt': now,
+              },
+            ],
+            'cursor': null,
+          },
           statusCode: 200,
         ),
       );
@@ -51,11 +57,15 @@ void main() {
       final snapshot = await repo.fetchOffers('req-1');
       expect(snapshot.offers.length, 1);
       expect(snapshot.offers.first.id, 'offer-1');
+      expect(snapshot.offers.first.fee, 35.0);
       expect(snapshot.requestIsOpen, isTrue);
     });
 
     test('throws OffersRepositoryException(network) on DioException', () {
-      when(() => mockDio.get<dynamic>(any())).thenThrow(
+      when(() => mockDio.get<dynamic>(
+            any(),
+            queryParameters: any(named: 'queryParameters'),
+          )).thenThrow(
         DioException(
           requestOptions: RequestOptions(path: ''),
           type: DioExceptionType.connectionError,

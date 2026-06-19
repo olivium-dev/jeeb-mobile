@@ -1,0 +1,104 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-030 — Cancel Request Confirm sheet (pre-accept, free)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given a pre-accept request, When cancel_request_sheet shows, Then it
+#        states "free before accept, nothing charged" [D69];
+#        cancel_request_free_note is visible.
+#   AC2: cancel_request_confirm_cta → customer-orders-home
+#        (orders_home_new_order_fab visible).
+#   AC3: cancel_request_keep_cta dismisses the sheet (returns to caller;
+#        cancel_request_sheet no longer visible).
+#
+# Mock: POST /delivery-service/v1/delivery/cancel
+# Seam: jeeb.seam.session=customer_logged_in + jeeb.seam.journey=pending_request
+#       (FLAGGED — needs a request in state=pending for user-client-001 so the
+#        cancel sheet can be triggered from waiting screen)
+#
+# STATUS: RED until JM-030 ships + seam seed pending_request exists (test-first).
+#         Decision: D69.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-030-cancel-request-confirm.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Sheet shows free-before-accept note ─────────────────────────────────
+# REQUIRES seam seed: jeeb.seam.journey=pending_request
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "pending_request"
+
+- extendedWaitUntil:
+    visible:
+      id: "waiting_cancel_cta"
+    timeout: 30000
+
+- tapOn:
+    id: "waiting_cancel_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "cancel_request_sheet"
+    timeout: 15000
+
+# AC1: Free-before-accept note must be present
+- assertVisible:
+    id: "cancel_request_free_note"
+
+- assertVisible:
+    id: "cancel_request_confirm_cta"
+
+- assertVisible:
+    id: "cancel_request_keep_cta"
+
+- takeScreenshot: jm030_ac1_cancel_sheet_free_note
+
+# ── AC2: Confirm → customer-orders-home ──────────────────────────────────────
+- tapOn:
+    id: "cancel_request_confirm_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "orders_home_new_order_fab"
+    timeout: 15000
+
+- takeScreenshot: jm030_ac2_confirm_to_orders_home
+
+# ── AC3: Keep → sheet dismisses ──────────────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "pending_request"
+
+- extendedWaitUntil:
+    visible:
+      id: "waiting_cancel_cta"
+    timeout: 30000
+
+- tapOn:
+    id: "waiting_cancel_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "cancel_request_sheet"
+    timeout: 15000
+
+- tapOn:
+    id: "cancel_request_keep_cta"
+
+# Sheet must no longer be visible; waiting screen remains
+- assertNotVisible:
+    id: "cancel_request_sheet"
+
+- assertVisible:
+    id: "waiting_cancel_cta"
+
+- takeScreenshot: jm030_ac3_keep_dismisses_sheet

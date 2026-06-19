@@ -1,18 +1,28 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Stub created by sanity-build pass (2026-05-17).
+/// Persists the "biometric unlock enabled" preference (D23).
 ///
-/// app.dart constructs this with `{required SharedPreferences prefs}`. The
-/// real persistence layer (the `biometric_enabled` flag) was never committed
-/// — this stub returns `false` so the lock cubit defaults to "disabled" and
-/// the router never holds the user on /lock.
+/// Originally a sanity-build stub that hard-returned `false`; it now reads and
+/// writes a real [SharedPreferences] flag so the preference survives launches
+/// AND so the debug-only [SessionSeamBootstrap] can seed it
+/// (`jeeb.seam.session=biometric_enrolled*`) before the router's biometric gate
+/// evaluates. The key defaults to absent → `false`, so the prior "never hold on
+/// /lock" behaviour is unchanged for any user who has not opted in / been
+/// seeded.
 class BiometricPreferenceRepositoryImpl {
   BiometricPreferenceRepositoryImpl({required SharedPreferences prefs})
       : _prefs = prefs;
 
-  // ignore: unused_field
+  /// SharedPreferences key for the biometric-unlock opt-in flag. Public so the
+  /// dev-seam bootstrap seeds the SAME key this repo reads (single source of
+  /// truth — no second store to drift).
+  static const String kEnabledKey = 'biometric.enabled';
+
   final SharedPreferences _prefs;
 
-  Future<bool> isEnabled() async => false;
-  Future<void> setEnabled(bool value) async {}
+  Future<bool> isEnabled() async => _prefs.getBool(kEnabledKey) ?? false;
+
+  Future<void> setEnabled(bool value) async {
+    await _prefs.setBool(kEnabledKey, value);
+  }
 }

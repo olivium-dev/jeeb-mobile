@@ -1,0 +1,184 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-024 — Create-flow: tier → location-select → map-pin → order-chat
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given a tier selected (request_type_<tier>_radio), When
+#        request_type_continue_cta tapped, Then route to location-select
+#        (location_select_confirm_cta visible) [not /request-summary].
+#   AC2: Given location_select_saved_addresses_row, When tapped, Then route to
+#        saved-addresses (saved_address_add_cta visible) [Q3, JM-049].
+#   AC3: Given location_select_new_location_cta tapped, Then route to
+#        location-map-pin (capture_location_pin_cta visible); pin CTA confirms back.
+#   AC4: Given a location confirmed, When location_select_confirm_cta tapped,
+#        Then route to order-chat (order_chat_composer_send visible) [JM-025].
+#   AC5: Tier catalog shows 5 tiers (Flash/Express/Standard/On-the-Way/Eco) [T1].
+#
+# Mock: GET /delivery-service/v1/tiers (T1 — must return 5 tiers),
+#       GET /user-management/users/:userId/saved-locations
+# Seam: jeeb.seam.session=customer_logged_in
+# Test-data contract: T1 fix (backender) must land for AC5 to pass.
+#
+# STATUS: RED until JM-024 ships + T1 5-tier mock fix lands (test-first).
+#         Decisions: D14, Q3.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-024-create-flow.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC5 + AC1: 5 tier tiles visible → select tier → location-select ───────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "orders_home_new_order_fab"
+
+- extendedWaitUntil:
+    visible:
+      id: "request_type_continue_cta"
+    timeout: 15000
+
+# AC5: All 5 tier radio options must be present (T1 mock fix required)
+- assertVisible:
+    id: "request_type_flash_radio"
+- assertVisible:
+    id: "request_type_express_radio"
+- assertVisible:
+    id: "request_type_standard_radio"
+- assertVisible:
+    id: "request_type_on_the_way_radio"
+- assertVisible:
+    id: "request_type_eco_radio"
+
+- takeScreenshot: jm024_ac5_five_tiers_visible
+
+# AC1: Select standard tier → continue → location-select
+- tapOn:
+    id: "request_type_standard_radio"
+
+- tapOn:
+    id: "request_type_continue_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "location_select_confirm_cta"
+    timeout: 15000
+
+- takeScreenshot: jm024_ac1_tier_to_location_select
+
+# ── AC2: Saved addresses row → saved-addresses screen ────────────────────────
+# PRECONDITION: needs has_saved_addresses journey seed so the location-select
+# screen shows a saved-addresses row. Re-launch with that seed and navigate to
+# the location screen.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "has_saved_addresses"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "orders_home_new_order_fab"
+
+- extendedWaitUntil:
+    visible:
+      id: "request_type_continue_cta"
+    timeout: 15000
+
+- tapOn:
+    id: "request_type_standard_radio"
+
+- tapOn:
+    id: "request_type_continue_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "location_select_confirm_cta"
+    timeout: 15000
+
+- tapOn:
+    id: "location_select_saved_addresses_row"
+
+- extendedWaitUntil:
+    visible:
+      id: "saved_address_add_cta"
+    timeout: 15000
+
+- takeScreenshot: jm024_ac2_saved_addresses_from_location_select
+
+# ── AC3: New location CTA → map-pin → confirm back ───────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "orders_home_new_order_fab"
+
+- extendedWaitUntil:
+    visible:
+      id: "request_type_continue_cta"
+    timeout: 15000
+
+- tapOn:
+    id: "request_type_standard_radio"
+
+- tapOn:
+    id: "request_type_continue_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "location_select_confirm_cta"
+    timeout: 15000
+
+- tapOn:
+    id: "location_select_new_location_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "capture_location_pin_cta"
+    timeout: 15000
+
+- takeScreenshot: jm024_ac3_map_pin_screen
+
+# Confirm pin → returns to location-select
+- tapOn:
+    id: "capture_location_pin_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "location_select_confirm_cta"
+    timeout: 15000
+
+- takeScreenshot: jm024_ac3b_back_to_location_select_after_pin
+
+# ── AC4: Location confirmed → order-chat ─────────────────────────────────────
+- tapOn:
+    id: "location_select_confirm_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "order_chat_composer_send"
+    timeout: 15000
+
+- takeScreenshot: jm024_ac4_location_to_order_chat

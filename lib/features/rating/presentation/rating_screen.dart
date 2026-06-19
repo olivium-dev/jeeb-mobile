@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/di/injection_container.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../mixed_direction/presentation/mixed_direction_text.dart';
+import '../domain/entities/rating_status.dart';
+import '../domain/rating_repository.dart';
 import 'widgets/feedback_avatar.dart';
 import 'widgets/feedback_header.dart';
 import 'widgets/feedback_star_input.dart';
@@ -29,12 +33,17 @@ class FeedbackContentData {
   final ValueChanged<int> onStarsChanged;
 }
 
-/// Feedback / rating screen shared by both audiences (Figma 56614:20132).
+/// Legacy feedback/rating screen (`/orders/:id/feedback`, Figma 56614:20132).
 ///
-/// A client rating the delivery man, or the delivery man rating the client —
-/// same layout, audience-parameterised copy. Returns the chosen `stars` +
-/// `comment` to the caller on submit (the upstream flow owns persistence via
-/// the feedback-service through the gateway).
+/// JM-034 reconciliation (AC4): the canonical mandatory terminal is
+/// [MutualRatingScreen] (`/orders/:id/mutual-rate`); this `/feedback` variant is
+/// retained but made compliant with the same mandatory contract:
+///   * AC1/D56: NO skip/dismiss control (the close X was removed) and the
+///     system back gesture is suppressed (`PopScope(canPop: false)`).
+///   * AC2/AC3: a successful submit persists via [RatingRepository] and routes
+///     to the role-aware shell (`context.go('/')`) — customer →
+///     customer-orders-home; jeeber → Dashboard tab.
+///   * AC4: `rating_root` is the signature id present on both rating routes.
 class RatingScreen extends StatefulWidget {
   const RatingScreen({
     super.key,
@@ -42,13 +51,14 @@ class RatingScreen extends StatefulWidget {
     this.isClient = true,
     this.rateeName = '',
     this.rateeAvatarUrl,
+    this.repository,
   });
 
   /// The delivery this feedback is attached to.
   final String deliveryId;
 
   /// True when a client is rating the delivery man; false when the delivery
-  /// man is rating the client. Drives the subtitle copy.
+  /// man is rating the client. Drives the subtitle copy and the rater role.
   final bool isClient;
 
   /// Display name of the person being rated (interpolated into "Rate {name}").
@@ -56,6 +66,9 @@ class RatingScreen extends StatefulWidget {
 
   /// Optional avatar URL for the ratee; falls back to an initial.
   final String? rateeAvatarUrl;
+
+  /// Test seam — defaults to `sl<RatingRepository>()` at runtime.
+  final RatingRepository? repository;
 
   @override
   State<RatingScreen> createState() => _RatingScreenState();
@@ -66,6 +79,11 @@ class _RatingScreenState extends State<RatingScreen> {
   bool _submitting = false;
   final TextEditingController _commentController = TextEditingController();
 
+  RatingRepository get _repository =>
+      widget.repository ??
+      (sl.isRegistered<RatingRepository>() ? sl<RatingRepository>() : null) ??
+      _NoopRatingRepository();
+
   @override
   void dispose() {
     _commentController.dispose();
@@ -74,15 +92,28 @@ class _RatingScreenState extends State<RatingScreen> {
 
   void _onStarsChanged(int value) => setState(() => _stars = value);
 
-  void _onSubmit() {
+  Future<void> _onSubmit() async {
+    if (_stars == 0 || _submitting) return;
     setState(() => _submitting = true);
-    Navigator.of(context).pop(<String, Object?>{
-      'stars': _stars,
-      'comment': _commentController.text,
-    });
+    try {
+      await _repository.submitRating(
+        deliveryId: widget.deliveryId,
+        stars: _stars,
+        isClient: widget.isClient,
+        comment: _commentController.text.isEmpty
+            ? null
+            : _commentController.text,
+      );
+    } catch (_) {
+      // Mandatory terminal: the rating is fire-and-forget; even a transient
+      // failure must not strand the user on the un-dismissable screen, so we
+      // still route home. The score-taking submit is idempotent server-side.
+    }
+    if (!context.mounted) return;
+    // AC2/AC3: route to the role-aware shell (customer → customer-orders-home;
+    // jeeber → Dashboard tab). `context.mounted` guards the async gap.
+    context.go('/');
   }
-
-  void _onClose() => Navigator.of(context).maybePop();
 
   FeedbackContentData get _data => FeedbackContentData(
         isClient: widget.isClient,
@@ -95,62 +126,42 @@ class _RatingScreenState extends State<RatingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: _FeedbackAppBar(onClose: _onClose),
-      body: _FeedbackBody(
-        data: _data,
-        submitting: _submitting,
-        onSubmit: _onSubmit,
-      ),
-    );
-  }
-}
-
-class _FeedbackAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const _FeedbackAppBar({required this.onClose});
-
-  final VoidCallback onClose;
-
-  @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
-
-  @override
-  Widget build(BuildContext context) {
-    // Titleless close-only variant: OMDSAppBar centralizes the surface theming,
-    // zero elevation, and RTL-correct action placement.
-    return OMDSAppBar(
-      title: '',
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      automaticallyImplyLeading: false,
-      actions: [_FeedbackCloseAction(onClose: onClose)],
-    );
-  }
-}
-
-class _FeedbackCloseAction extends StatelessWidget {
-  const _FeedbackCloseAction({required this.onClose});
-
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // `container: true` + `explicitChildNodes: true` keep `feedback_close_button`
-    // a distinct boundary node so its identifier survives the IconButton's own
-    // button/InkWell semantics (same latent merge pattern as the submit button).
-    return Semantics(
-      identifier: 'feedback_close_button',
-      button: true,
-      container: true,
-      explicitChildNodes: true,
-      label: l10n.feedbackCloseLabel,
-      child: IconButton(
-        icon: const Icon(Icons.close),
-        color: Theme.of(context).colorScheme.secondaryContainer,
-        tooltip: l10n.feedbackCloseLabel,
-        onPressed: onClose,
+    // D56: mandatory — suppress system back; no leading/close affordance.
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        appBar: OMDSAppBar(
+          title: l10n.mutualRatingTitle,
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          automaticallyImplyLeading: false,
+        ),
+        body: _FeedbackBody(
+          data: _data,
+          submitting: _submitting,
+          onSubmit: _onSubmit,
+        ),
       ),
     );
+  }
+}
+
+/// Fallback used only when no [RatingRepository] is registered (e.g. a widget
+/// test that does not boot DI). Keeps the mandatory submit → home flow honest
+/// without a network call; `fetchRatingStatus` is never called on this path.
+class _NoopRatingRepository implements RatingRepository {
+  @override
+  Future<void> submitRating({
+    required String deliveryId,
+    required int stars,
+    required bool isClient,
+    String? comment,
+    List<String>? tags,
+  }) async {}
+
+  @override
+  Future<RatingStatus> fetchRatingStatus({required String deliveryId}) {
+    throw UnimplementedError();
   }
 }
 
@@ -168,8 +179,10 @@ class _FeedbackBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
+      // `rating_root` is the signature id present on both rating routes
+      // (JM-034 §2.14, AC4).
       child: Semantics(
-        identifier: 'feedback_screen',
+        identifier: 'rating_root',
         container: true,
         child: Column(
           children: [
@@ -275,14 +288,12 @@ class _FeedbackFooter extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.all(Spacing.large),
-      // `container: true` + `explicitChildNodes: true` make this an explicit
-      // Semantics boundary so `feedback_submit_button` surfaces as its own
-      // queryable node. Without it the wrapper's button-semantics collides
-      // with OmdsLoadingButton's own inner button node and the identifier is
-      // folded up into the ancestor `feedback_screen` container (the screen
-      // node absorbs the button flag + label and drops this id).
+      // `rating_submit_cta` is the W1 contract id (JM-034 §2.14). `container:
+      // true` + `explicitChildNodes: true` make this an explicit Semantics
+      // boundary so the id surfaces as its own queryable node (without it the
+      // wrapper folds into the `rating_root` container, dropping the id).
       child: Semantics(
-        identifier: 'feedback_submit_button',
+        identifier: 'rating_submit_cta',
         button: true,
         container: true,
         explicitChildNodes: true,

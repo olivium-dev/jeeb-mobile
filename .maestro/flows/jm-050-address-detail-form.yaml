@@ -1,0 +1,99 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-050 — Address Detail Form (full screen)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given the form, Then it has map pin/preview (address_form_map_pin) + label
+#        field (address_form_label) + Building field (address_form_building) +
+#        Floor/apt field (address_form_floor_apt) + Delivery notes
+#        (address_form_delivery_notes) + COD Phone (address_form_cod_phone);
+#        address_form_save_cta is present.
+#   AC2: address_form_save_cta → saved-addresses (saved_address_add_cta visible).
+#
+# Mock: POST /user-management/users/:userId/saved-locations
+# Seam: jeeb.seam.session=customer_logged_in (no journey state needed for the
+#       form itself; reached via JM-049 add flow)
+#
+# STATUS: RED until JM-050 ships (test-first). Priority: P2. Decisions: —.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-050-address-detail-form.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: All form fields present ──────────────────────────────────────────────
+# Navigate: profile → addresses → add
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_profile"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_addresses_row"
+    timeout: 15000
+
+- tapOn:
+    id: "customer_profile_addresses_row"
+
+- extendedWaitUntil:
+    visible:
+      id: "saved_address_add_cta"
+    timeout: 15000
+
+- tapOn:
+    id: "saved_address_add_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "address_form_save_cta"
+    timeout: 15000
+
+# AC1: All form fields
+- assertVisible:
+    id: "address_form_map_pin"
+
+- assertVisible:
+    id: "address_form_label"
+
+- assertVisible:
+    id: "address_form_building"
+
+- assertVisible:
+    id: "address_form_floor_apt"
+
+- assertVisible:
+    id: "address_form_delivery_notes"
+
+- assertVisible:
+    id: "address_form_cod_phone"
+
+- takeScreenshot: jm050_ac1_all_form_fields
+
+# ── AC2: Save → saved-addresses ───────────────────────────────────────────────
+# Fill required label field then save
+- tapOn:
+    id: "address_form_label"
+
+- inputText: "Home"
+
+- tapOn:
+    id: "address_form_save_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "saved_address_add_cta"
+    timeout: 15000
+
+- takeScreenshot: jm050_ac2_save_to_saved_addresses

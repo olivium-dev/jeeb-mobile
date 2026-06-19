@@ -9,13 +9,9 @@ import 'package:jeeb_mobile/features/kyc/application/kyc_wizard_cubit.dart';
 import 'package:jeeb_mobile/features/kyc/application/kyc_wizard_state.dart';
 import 'package:jeeb_mobile/features/kyc/domain/kyc_gateway.dart';
 import 'package:jeeb_mobile/features/kyc/domain/kyc_submission.dart';
-import 'package:jeeb_mobile/features/kyc/domain/vehicle_type.dart';
 import 'package:jeeb_mobile/features/kyc/presentation/kyc_status_view.dart';
 import 'package:jeeb_mobile/features/kyc/presentation/kyc_wizard_screen.dart';
-import 'package:jeeb_mobile/features/kyc/presentation/widgets/kyc_id_step.dart';
-import 'package:jeeb_mobile/features/kyc/presentation/widgets/kyc_selfie_step.dart';
-import 'package:jeeb_mobile/features/kyc/presentation/widgets/kyc_tos_step.dart';
-import 'package:jeeb_mobile/features/kyc/presentation/widgets/kyc_vehicle_step.dart';
+import 'package:jeeb_mobile/features/kyc/presentation/widgets/kyc_identity_step.dart';
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 import 'package:jeeb_mobile/features/photo_attachment/domain/photo_picker_service.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
@@ -46,7 +42,10 @@ void _loadArbFromDisk() {
   _syncDelegate = _SyncAppLocalizationsDelegate({'en': en, 'ar': ar});
 }
 
-Widget _host(KycWizardCubit cubit) {
+Widget _host(
+  KycWizardCubit cubit, {
+  void Function(BuildContext context)? onSubmitted,
+}) {
   return MaterialApp(
     locale: const Locale('en'),
     supportedLocales: AppLocalizations.supportedLocales,
@@ -56,7 +55,7 @@ Widget _host(KycWizardCubit cubit) {
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
-    home: KycWizardScreen(cubit: cubit),
+    home: KycWizardScreen(cubit: cubit, onSubmitted: onSubmitted),
   );
 }
 
@@ -81,166 +80,167 @@ KycWizardCubit _newCubit({
   return cubit;
 }
 
+/// Finds a widget by its `Semantics(identifier:)` value.
+Finder _byIdentifier(String id) => find.byWidgetPredicate(
+      (w) => w is Semantics && w.properties.identifier == id,
+    );
+
 void main() {
   setUpAll(_loadArbFromDisk);
 
   testWidgets(
-    'wizard renders step 1 with a stepper progress indicator',
+    'identity screen renders all three uploads, the submit CTA, and no vehicle step',
+    (tester) async {
+      final cubit = _newCubit();
+      await tester.pumpWidget(_host(cubit));
+      await tester.pumpAndSettle();
+
+      // kyc_wizard_root wraps the whole body.
+      expect(_byIdentifier('kyc_wizard_root'), findsOneWidget);
+
+      // AC2: gov-ID front/back + selfie present.
+      expect(_byIdentifier('kyc_id_front_upload'), findsOneWidget);
+      expect(_byIdentifier('kyc_id_back_upload'), findsOneWidget);
+      expect(_byIdentifier('kyc_selfie_upload'), findsOneWidget);
+
+      // kyc_submit_cta present from the first frame of the identity screen.
+      expect(_byIdentifier('kyc_submit_cta'), findsOneWidget);
+      expect(find.byKey(KycIdentityStep.submitButtonKey), findsOneWidget);
+
+      // AC1: NO vehicle step anywhere.
+      expect(_byIdentifier('kyc_vehicle_step'), findsNothing);
+      expect(find.text('LB-12345'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'progress header reflects 2 capture steps (vehicle removed)',
     (tester) async {
       final cubit = _newCubit();
       await tester.pumpWidget(_host(cubit));
       await tester.pumpAndSettle();
 
       expect(find.byKey(KycWizardScreen.progressKey), findsOneWidget);
-      expect(find.byKey(KycIdStep.frontTileKey), findsOneWidget);
-      expect(find.byKey(KycIdStep.backTileKey), findsOneWidget);
-      expect(find.byKey(KycIdStep.nextButtonKey), findsOneWidget);
+      expect(KycWizardState.totalCaptureSteps, 2);
     },
   );
 
   testWidgets(
-    'capturing both ID sides enables the next button and advances to selfie',
+    'AC4: tapping kyc_submit_cta chains to onboarding-funding (not status view)',
     (tester) async {
-      final cubit = _newCubit();
-      await tester.pumpWidget(_host(cubit));
-      await tester.pumpAndSettle();
-
-      await tester.ensureVisible(find.byKey(KycIdStep.frontTileKey));
-      await tester.tap(find.byKey(KycIdStep.frontTileKey));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.byKey(KycIdStep.backTileKey));
-      await tester.tap(find.byKey(KycIdStep.backTileKey));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byKey(KycIdStep.nextButtonKey));
-      await tester.pumpAndSettle();
-
-      expect(find.byKey(KycSelfieStep.selfieTileKey), findsOneWidget);
-      expect(find.byKey(KycSelfieStep.livenessPromptKey), findsOneWidget);
-    },
-  );
-
-  testWidgets(
-    'happy path: ID → selfie → vehicle → pending status',
-    (tester) async {
+      var fundingNav = 0;
       final cubit = _newCubit(
         gateway: FakeKycGateway(decision: KycStatus.pending),
       );
-      await tester.pumpWidget(_host(cubit));
-      await tester.pumpAndSettle();
-
-      await tester.ensureVisible(find.byKey(KycIdStep.frontTileKey));
-      await tester.tap(find.byKey(KycIdStep.frontTileKey));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.byKey(KycIdStep.backTileKey));
-      await tester.tap(find.byKey(KycIdStep.backTileKey));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(KycIdStep.nextButtonKey));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byKey(KycSelfieStep.selfieTileKey));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(KycSelfieStep.nextButtonKey));
-      await tester.pumpAndSettle();
-
-      await tester.tap(
-        find.byKey(KycVehicleStep.vehicleChipKey(VehicleType.scooter)),
+      await tester.pumpWidget(
+        _host(cubit, onSubmitted: (_) => fundingNav++),
       );
-      await tester.ensureVisible(
-        find.byKey(KycVehicleStep.registrationFieldKey),
-      );
-      await tester.enterText(
-        find.byKey(KycVehicleStep.registrationFieldKey),
-        'LB-12345',
-      );
-      await tester.pump();
-      await tester.ensureVisible(
-        find.byKey(KycVehicleStep.submitButtonKey),
-      );
-      // Vehicle submit advances to the ToS step (contract loads async). Pump a
-      // couple of frames rather than pumpAndSettle: the OmdsLoadingState spinner
-      // shown while the contract loads never settles under pumpAndSettle.
-      await tester.tap(find.byKey(KycVehicleStep.submitButtonKey));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(KycIdentityStep.submitButtonKey));
       await tester.pump();
       await tester.pump();
 
-      // Sign the ToS, then submit the full KYC payload.
-      await tester.ensureVisible(find.byKey(KycTosStep.signaturePadKey));
-      await tester.tap(find.byKey(KycTosStep.signaturePadKey));
-      await tester.pump();
-      await tester.ensureVisible(find.byKey(KycTosStep.signButtonKey));
-      await tester.tap(find.byKey(KycTosStep.signButtonKey));
-      await tester.pump();
-      await tester.pump();
-
-      expect(find.byKey(KycStatusView.pendingTitleKey), findsOneWidget);
-      expect(cubit.state.step, KycWizardStep.status);
+      // The screen fired the funding-navigation hook exactly once...
+      expect(fundingNav, 1);
+      // ...and consumed the one-shot flag so it cannot re-fire.
+      expect(cubit.state.justSubmitted, isFalse);
       expect(cubit.state.submission.status, KycStatus.pending);
     },
   );
 
   testWidgets(
-    'rejected submission shows rejection reason and resubmit CTA',
+    'submit is reachable without driving the camera (server validates)',
     (tester) async {
+      // Mirrors the JM-040 Maestro flow: it cannot drive the camera, so it taps
+      // kyc_submit_cta directly and expects the chain to funding to fire.
+      var fundingNav = 0;
       final cubit = _newCubit(
-        gateway: FakeKycGateway(
-          decision: KycStatus.rejected,
-          rejectionReason: KycRejectionReason.idUnreadable,
-        ),
+        gateway: FakeKycGateway(decision: KycStatus.pending),
       );
-      await tester.pumpWidget(_host(cubit));
+      await tester.pumpWidget(
+        _host(cubit, onSubmitted: (_) => fundingNav++),
+      );
       await tester.pumpAndSettle();
 
-      // Drive directly: capture all three slots, accept the ToS, and submit.
-      await cubit.captureIdFront();
-      await cubit.captureIdBack();
-      cubit.goToSelfie();
-      await cubit.captureSelfie();
-      cubit.goToVehicle();
-      cubit.setVehicleType(VehicleType.car);
-      cubit.setVehicleRegistration('LB-99999');
-      // submit() advances to the ToS step; signAndSubmit() posts the payload.
-      await cubit.submit();
-      await cubit.signAndSubmit('sig-blob');
-      // pump (not pumpAndSettle): the status view contains no perpetual
-      // animation, but earlier steps may briefly show the OmdsLoadingState
-      // spinner which never settles.
-      await tester.pump();
-
-      expect(find.byKey(KycStatusView.rejectedTitleKey), findsOneWidget);
-      expect(find.byKey(KycStatusView.rejectionReasonKey), findsOneWidget);
-      expect(find.byKey(KycStatusView.resubmitCtaKey), findsOneWidget);
-
-      await tester.tap(find.byKey(KycStatusView.resubmitCtaKey));
+      // No capture tiles tapped — straight to submit.
+      await tester.tap(find.byKey(KycIdentityStep.submitButtonKey));
       await tester.pump();
       await tester.pump();
 
-      // Resubmit returns the user to the ID step.
-      expect(find.byKey(KycIdStep.frontTileKey), findsOneWidget);
-      expect(cubit.state.step, KycWizardStep.id);
+      expect(fundingNav, 1);
     },
   );
 
   testWidgets(
-    'submit refuses to advance when registration is blank and surfaces inline error',
+    're-entry on an already-submitted KYC shows the status view, not funding',
     (tester) async {
-      final cubit = _newCubit();
-      await tester.pumpWidget(_host(cubit));
+      var fundingNav = 0;
+      final shared = FakeKycGateway(decision: KycStatus.approved);
+      // Pre-submit via a seeder cubit.
+      final seeder = KycWizardCubit(
+        pickerService: StubPhotoPickerService(cameraPayload: _bytes(1024)),
+        gateway: shared,
+      );
+      addTearDown(seeder.close);
+      await seeder.loadSchema();
+      await seeder.captureIdFront();
+      await seeder.captureIdBack();
+      await seeder.captureSelfie();
+      seeder.setTosAccepted(true);
+      await seeder.submit();
+
+      // A fresh cubit re-entering the wizard against the same gateway.
+      final reentry = KycWizardCubit(
+        pickerService: StubPhotoPickerService(cameraPayload: _bytes(1024)),
+        gateway: shared,
+      )..loadStatus();
+      addTearDown(reentry.close);
+
+      await tester.pumpWidget(
+        _host(reentry, onSubmitted: (_) => fundingNav++),
+      );
       await tester.pumpAndSettle();
 
-      await cubit.captureIdFront();
-      await cubit.captureIdBack();
-      cubit.goToSelfie();
-      await cubit.captureSelfie();
-      cubit.goToVehicle();
-      cubit.setVehicleType(VehicleType.bicycle);
-      // Registration left blank; the submit button is disabled — push state
-      // through the cubit directly so the inline error is exercised.
-      await cubit.submit();
-      await tester.pump();
+      expect(find.byKey(KycStatusView.approvedTitleKey), findsOneWidget);
+      expect(fundingNav, 0, reason: 're-entry must not chain to funding');
+    },
+  );
 
-      expect(cubit.state.error, KycWizardError.vehicleRegistrationRequired);
-      expect(cubit.state.step, KycWizardStep.vehicle);
+  testWidgets(
+    're-entry on a rejected KYC shows the view-rejection CTA and no resubmit (D52/D87)',
+    (tester) async {
+      // Preserves the JM-042/043 coverage: the rejected status branch exposes
+      // `kyc_status_view_rejection` and NEVER a resubmit CTA (rejection is final).
+      final shared = FakeKycGateway(
+        decision: KycStatus.rejected,
+        rejectionReason: KycRejectionReason.idUnreadable,
+      );
+      final seeder = KycWizardCubit(
+        pickerService: StubPhotoPickerService(cameraPayload: _bytes(1024)),
+        gateway: shared,
+      );
+      addTearDown(seeder.close);
+      await seeder.loadSchema();
+      await seeder.captureIdFront();
+      await seeder.captureIdBack();
+      await seeder.captureSelfie();
+      seeder.setTosAccepted(true);
+      await seeder.submit();
+
+      final reentry = KycWizardCubit(
+        pickerService: StubPhotoPickerService(cameraPayload: _bytes(1024)),
+        gateway: shared,
+      )..loadStatus();
+      addTearDown(reentry.close);
+
+      await tester.pumpWidget(_host(reentry));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(KycStatusView.rejectedTitleKey), findsOneWidget);
+      expect(_byIdentifier('kyc_status_view_rejection'), findsOneWidget);
+      // No resubmit affordance (the old key was removed under D52/D87).
+      expect(_byIdentifier('kyc_status_resubmit_cta'), findsNothing);
     },
   );
 }

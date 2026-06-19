@@ -1,16 +1,21 @@
 import 'jeeber_delivery.dart';
 import 'jeeber_delivery_status.dart';
 
-/// Domain contract for the Jeeber active-delivery data layer (T-MOB-031).
+/// Domain contract for the Jeeber active-delivery data layer (T-MOB-031,
+/// extended by JM-051).
 ///
-/// Endpoints verified against Mockoon :3055 (useMockPrefixes=false):
-///   GET  /v1/deliveries/{id}              → JeeberDelivery snapshot
-///   POST /v1/deliveries/{id}/transition   → {status} on 200, 422 on bad transition
+/// Endpoints (real mock gateway contract; `MockGatewayClient` rewrites `/v1/...`
+/// to the `:4010` service prefix):
+///   GET  /v1/delivery/{id}              → JeeberDelivery snapshot
+///   POST /v1/delivery/status/transition → updated delivery; 422 on bad transition
+///   POST /v1/delivery/proof-photo       → { url, evidenceUrl, deliveryId } (D1m)
 abstract class ActiveDeliveryRepository {
   /// Fetch the current snapshot for [deliveryId].
   Future<JeeberDelivery> fetchDelivery(String deliveryId);
 
-  /// Advance the delivery status from [from] to [to].
+  /// Advance the delivery status from [from] to [to], optionally stamping the
+  /// proof-of-delivery [evidenceUrl] (carried on the `AtDoor → Done`
+  /// transition, JM-051 / D3).
   ///
   /// Returns the updated [JeeberDeliveryStatus] on success.
   /// Throws [ActiveDeliveryException] on failure.
@@ -18,6 +23,15 @@ abstract class ActiveDeliveryRepository {
     required String deliveryId,
     required JeeberDeliveryStatus from,
     required JeeberDeliveryStatus to,
+    String? evidenceUrl,
+  });
+
+  /// Upload a proof-of-delivery photo (D3, mock-fix D1m) and return the stable
+  /// evidence URL the mock minted. [filename] shapes the returned URL; the mock
+  /// does not store bytes. Throws [ActiveDeliveryException] on failure.
+  Future<String> uploadProofPhoto({
+    required String deliveryId,
+    required String filename,
   });
 }
 

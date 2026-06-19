@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-/// Visual framing guide rendered above the ID capture tiles in [KycIdStep].
+/// Visual framing guide rendered above the ID capture tiles in the KYC
+/// identity step (`KycIdentityStep`).
 ///
 /// The frame is proportioned to the ISO/IEC 7810 ID-1 aspect ratio
 /// (85.6 × 54 mm ≈ 1.586). It tells the user how to align their national ID

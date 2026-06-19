@@ -8,16 +8,23 @@ import '../domain/earnings_summary.dart';
 
 /// Dio-backed [EarningsRepository].
 ///
-/// Endpoint contract verified against Mockoon :3055 (useMockPrefixes=false):
-///   GET  /v1/wallet/jeeb/earnings?period={today|week|month}  → 200
-///   GET  /v1/wallet/jeeb/earnings/export?format=pdf&period=  → 200 bytes
+/// Endpoint contract (JM-052 — path rewrite CONFIRMED, 20_GAP_MAP / AC):
+///   GET  /v1/jeeb/earnings?jeeberId=&period={today|week|month}  → 200
+///   GET  /v1/jeeb/earnings/export?jeeberId=&format=pdf&period=  → 200
+///
+/// The app posts the gateway-relative `/v1/jeeb/earnings`; `MockGatewayClient`
+/// rewrites it to `/wallet-service/v1/jeeb/earnings` on :4010 (the live mount).
+/// The previous path here was `/v1/wallet/jeeb/earnings`, which has NO rewrite
+/// key and never reached the wallet-service — the divergence the JM-052 AC
+/// flags ("confirm earnings path rewrite `/v1/wallet/jeeb/earnings*` vs
+/// `/wallet-service/v1/...`"). Fixed to the keyed `/v1/jeeb/earnings`.
 class DioEarningsRepository implements EarningsRepository {
   DioEarningsRepository(this._dio);
 
   final Dio _dio;
 
-  static const _basePath = '/v1/wallet/jeeb/earnings';
-  static const _exportPath = '/v1/wallet/jeeb/earnings/export';
+  static const _basePath = '/v1/jeeb/earnings';
+  static const _exportPath = '/v1/jeeb/earnings/export';
 
   @override
   Future<EarningsSummary> fetchEarnings({

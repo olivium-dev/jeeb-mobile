@@ -8,6 +8,9 @@ import '../domain/jeeber_delivery_status.dart';
 /// View-mode enum for the active-delivery Jeeber screen.
 enum ActiveDeliveryMode { loading, ready, transitioning, error }
 
+/// Lifecycle of the proof-of-delivery photo capture+upload (D3 / D1m, JM-051).
+enum ProofPhotoStatus { none, uploading, captured, failed }
+
 /// State emitted by [ActiveDeliveryCubit].
 class ActiveDeliveryState extends Equatable {
   const ActiveDeliveryState({
@@ -15,6 +18,9 @@ class ActiveDeliveryState extends Equatable {
     this.delivery,
     this.transitionError,
     this.errorMessage,
+    this.proofPhotoStatus = ProofPhotoStatus.none,
+    this.note,
+    this.delivered = false,
   });
 
   final ActiveDeliveryMode mode;
@@ -26,7 +32,23 @@ class ActiveDeliveryState extends Equatable {
   /// Full-screen error message on load failure.
   final String? errorMessage;
 
+  /// Proof-of-delivery photo capture/upload lifecycle (JM-051 AC1).
+  final ProofPhotoStatus proofPhotoStatus;
+
+  /// Optional Jeeber note attached to the delivery (JM-051 AC1).
+  final String? note;
+
+  /// One-shot signal that the delivery reached `Done` — the screen routes to
+  /// `feedback-rate-delivery` (JM-051 AC2 / JM-034 / D56), NOT the OTP handover.
+  final bool delivered;
+
   bool get isTransitioning => mode == ActiveDeliveryMode.transitioning;
+
+  bool get isUploadingProof => proofPhotoStatus == ProofPhotoStatus.uploading;
+
+  bool get hasProofPhoto =>
+      proofPhotoStatus == ProofPhotoStatus.captured &&
+      (delivery?.hasProofPhoto ?? false);
 
   ActiveDeliveryState copyWith({
     ActiveDeliveryMode? mode,
@@ -35,6 +57,10 @@ class ActiveDeliveryState extends Equatable {
     bool clearTransitionError = false,
     String? errorMessage,
     bool clearError = false,
+    ProofPhotoStatus? proofPhotoStatus,
+    String? note,
+    bool clearNote = false,
+    bool? delivered,
   }) {
     return ActiveDeliveryState(
       mode: mode ?? this.mode,
@@ -42,21 +68,33 @@ class ActiveDeliveryState extends Equatable {
       transitionError: clearTransitionError
           ? null
           : (transitionError ?? this.transitionError),
-      errorMessage:
-          clearError ? null : (errorMessage ?? this.errorMessage),
+      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      proofPhotoStatus: proofPhotoStatus ?? this.proofPhotoStatus,
+      note: clearNote ? null : (note ?? this.note),
+      delivered: delivered ?? this.delivered,
     );
   }
 
   @override
-  List<Object?> get props =>
-      [mode, delivery, transitionError, errorMessage];
+  List<Object?> get props => [
+        mode,
+        delivery,
+        transitionError,
+        errorMessage,
+        proofPhotoStatus,
+        note,
+        delivered,
+      ];
 }
 
-/// Drives the Jeeber active-delivery screen (T-MOB-031).
+/// Drives the Jeeber active-delivery screen (T-MOB-031, extended by JM-051).
 ///
-/// Loads the delivery snapshot from [ActiveDeliveryRepository] and allows
-/// the Jeeber to advance the status by calling [advanceStatus]. Each
-/// transition logs `delivery.status_transition` with from/to (AC7).
+/// Loads the delivery snapshot from [ActiveDeliveryRepository] and lets the
+/// Jeeber advance the early stages ([advanceStatus]) and finally mark the
+/// delivery as delivered ([markDelivered]) — which captures a proof photo (D3),
+/// transitions `AtDoor → Done` carrying the evidence URL, and emits
+/// `delivered: true` so the screen chains to the mandatory rating (JM-034/D56),
+/// never the OTP handover.
 class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
   ActiveDeliveryCubit({
     required ActiveDeliveryRepository repository,
@@ -71,7 +109,14 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     emit(state.copyWith(mode: ActiveDeliveryMode.loading, clearError: true));
     try {
       final delivery = await _repository.fetchDelivery(deliveryId);
-      emit(state.copyWith(mode: ActiveDeliveryMode.ready, delivery: delivery));
+      emit(state.copyWith(
+        mode: ActiveDeliveryMode.ready,
+        delivery: delivery,
+        // Reflect a pre-stamped proof photo (seam may seed evidenceUrl).
+        proofPhotoStatus: delivery.hasProofPhoto
+            ? ProofPhotoStatus.captured
+            : ProofPhotoStatus.none,
+      ));
     } on ActiveDeliveryException catch (e) {
       emit(state.copyWith(
         mode: ActiveDeliveryMode.error,
@@ -80,13 +125,19 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     }
   }
 
-  /// Advance status to the next valid stage.
+  /// Advance status to the next valid stage (Ordered → Picked → InTransit).
   ///
-  /// Emits transitioning immediately (optimistic UI), then either confirms
-  /// on success or reverts + sets [transitionError] on failure.
+  /// Emits transitioning immediately (optimistic UI), then either confirms on
+  /// success or reverts + sets [transitionError] on failure. The delivering
+  /// phase (`InTransit → AtDoor → Done`) is driven by [markDelivered] (it needs
+  /// the proof photo + done→rating chain), so this no-ops from `InTransit` on.
   Future<void> advanceStatus() async {
     final current = state.delivery;
     if (current == null) return;
+    if (current.status == JeeberDeliveryStatus.inTransit ||
+        current.status == JeeberDeliveryStatus.atDoor) {
+      return;
+    }
     final nextStatus = current.status.next;
     if (nextStatus == null) return;
     if (state.isTransitioning) return;
@@ -120,8 +171,104 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     }
   }
 
+  /// Capture + upload the proof-of-delivery photo (D3 / D1m, JM-051 AC1).
+  ///
+  /// [filename] names the captured image; the mock mints a stable evidence URL
+  /// which is stamped onto the delivery so the thumbnail renders and the
+  /// `AtDoor → Done` transition can carry it.
+  Future<void> captureProofPhoto(String filename) async {
+    final current = state.delivery;
+    if (current == null) return;
+    if (state.isUploadingProof) return;
+    emit(state.copyWith(
+      proofPhotoStatus: ProofPhotoStatus.uploading,
+      clearTransitionError: true,
+    ));
+    try {
+      final url = await _repository.uploadProofPhoto(
+        deliveryId: deliveryId,
+        filename: filename,
+      );
+      emit(state.copyWith(
+        delivery: current.withProofPhoto(url),
+        proofPhotoStatus: ProofPhotoStatus.captured,
+      ));
+    } on ActiveDeliveryException catch (e) {
+      emit(state.copyWith(
+        proofPhotoStatus: ProofPhotoStatus.failed,
+        transitionError: _mapTransitionError(e),
+      ));
+    }
+  }
+
+  /// Record the optional Jeeber note (JM-051 AC1).
+  void setNote(String value) {
+    final trimmed = value.trim();
+    emit(trimmed.isEmpty
+        ? state.copyWith(clearNote: true)
+        : state.copyWith(note: trimmed));
+  }
+
+  /// Mark the delivery as delivered (JM-051 AC2).
+  ///
+  /// Walks the remaining SM-1 forward steps from the current status to `Done`
+  /// (`InTransit → AtDoor → Done`, or just `AtDoor → Done`), stamping the proof
+  /// [evidenceUrl] on the terminal `AtDoor → Done` step (D3). On success emits
+  /// `delivered: true` so the screen routes to the mandatory rating — NOT the
+  /// OTP handover (D56). On any step failure the whole walk reverts.
+  Future<void> markDelivered() async {
+    final original = state.delivery;
+    if (original == null) return;
+    if (state.isTransitioning) return;
+    if (original.status == JeeberDeliveryStatus.done) return;
+
+    emit(state.copyWith(
+      mode: ActiveDeliveryMode.transitioning,
+      delivery: _withStatus(original, JeeberDeliveryStatus.done),
+      clearTransitionError: true,
+    ));
+
+    var from = original.status;
+    try {
+      while (from != JeeberDeliveryStatus.done) {
+        final to = from.next;
+        if (to == null) break;
+        final isFinal = to == JeeberDeliveryStatus.done;
+        final confirmed = await _repository.transition(
+          deliveryId: deliveryId,
+          from: from,
+          to: to,
+          // Carry the proof evidence on the terminal step only.
+          evidenceUrl: isFinal ? original.proofPhotoUrl : null,
+        );
+        _logTransition(from, confirmed);
+        from = confirmed;
+        // Guard against a server that refuses to advance (avoid an infinite
+        // loop if `confirmed` echoes `from`).
+        if (confirmed != to) break;
+      }
+      emit(state.copyWith(
+        mode: ActiveDeliveryMode.ready,
+        delivery: _withStatus(original, from),
+        delivered: from == JeeberDeliveryStatus.done,
+      ));
+    } on ActiveDeliveryException catch (e) {
+      emit(state.copyWith(
+        mode: ActiveDeliveryMode.ready,
+        delivery: original,
+        transitionError: _mapTransitionError(e),
+      ));
+    }
+  }
+
   void acknowledgeTransitionError() {
     emit(state.copyWith(clearTransitionError: true));
+  }
+
+  /// Acknowledge the one-shot `delivered` navigation signal so a rebuild does
+  /// not re-fire the rating route.
+  void acknowledgeDelivered() {
+    emit(state.copyWith(delivered: false));
   }
 
   JeeberDelivery _withStatus(JeeberDelivery d, JeeberDeliveryStatus s) {
@@ -131,6 +278,9 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
       dropOff: d.dropOff,
       clientName: d.clientName,
       conversationId: d.conversationId,
+      amountText: d.amountText,
+      cashNote: d.cashNote,
+      proofPhotoUrl: d.proofPhotoUrl,
     );
   }
 

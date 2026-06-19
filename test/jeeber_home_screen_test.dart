@@ -188,12 +188,53 @@ void main() {
     // Sanity: the registered-only retry view is absent.
     expect(find.byKey(JeeberHomeScreen.loadErrorRetryKey), findsNothing);
   });
+
+  // JM-036: the DELIVERY-tab gate passes `registerCtaIdentifier:
+  // 'delivery_register_now_cta'` so the register-prompt CTA is addressable by
+  // the coined screen id (65_W2_TEST_PLAN §2 JM-036) IN ADDITION TO the W0
+  // `jeeber_unregistered_register_button`. This verifies both ids surface as
+  // distinct nodes and that the coined id forwards the tap to `onRegister`
+  // (which the gate host wires to the onboarding wizard, AC1b).
+  testWidgets(
+      'register prompt exposes delivery_register_now_cta alongside the W0 id '
+      'and forwards the tap (JM-036)', (tester) async {
+    var tapped = false;
+    await tester.pumpWidget(
+      _unregisteredHost(
+        registerCtaIdentifier: 'delivery_register_now_cta',
+        onRegister: () => tapped = true,
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    // W0 widget id preserved (screen-19 flow).
+    expect(
+      find.bySemanticsIdentifier('jeeber_unregistered_register_button'),
+      findsOneWidget,
+      reason: 'The W0 register-button id must remain queryable for screen-19.',
+    );
+    // JM-036 coined CTA id surfaces as its own node.
+    expect(
+      find.bySemanticsIdentifier('delivery_register_now_cta'),
+      findsOneWidget,
+      reason: 'The JM-036 coined register-now CTA id must surface for the '
+          'delivery-tab-gate flow.',
+    );
+    // Tapping the coined CTA forwards to onRegister (→ onboarding wizard).
+    await tester.tap(find.byKey(JeeberUnregisteredView.registerButtonKey));
+    await tester.pump();
+    expect(tapped, isTrue);
+  });
 }
 
 /// Hosts `JeeberHomeScreen` on the UNREGISTERED path with NO availability
 /// cubit provider — exactly the `DashboardTab` `jeeb.home_tab=unregistered`
 /// seam condition that crashed before the didChangeDependencies guard.
-Widget _unregisteredHost() {
+Widget _unregisteredHost({
+  String? registerCtaIdentifier,
+  VoidCallback? onRegister,
+}) {
   return MaterialApp(
     theme: AppTheme.light(),
     locale: const Locale('en'),
@@ -204,6 +245,11 @@ Widget _unregisteredHost() {
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
-    home: const JeeberHomeScreen(isRegistered: false, profileName: 'Kamal'),
+    home: JeeberHomeScreen(
+      isRegistered: false,
+      profileName: 'Kamal',
+      registerCtaIdentifier: registerCtaIdentifier,
+      onRegister: onRegister,
+    ),
   );
 }

@@ -1,0 +1,220 @@
+// JM-062 — Logout / Delete Account confirm sheet (logout-delete-account).
+//
+// Proves, against the real ARBs + OMDS theme, that:
+//   AC1: the sheet surfaces every EXACT Semantics identifier the JM-062 AC names
+//        as its own queryable SemanticsNode — `logout_confirm_cta` (logout mode)
+//        and `delete_confirm_cta` (delete mode) — plus the root + cancel ids.
+//   AC2: tapping `logout_confirm_cta` clears the session via the terminator and
+//        fires `onCompleted` (the host then refreshes SessionCubit + go('/') →
+//        splash → /login, D5).
+//   AC3: tapping `delete_confirm_cta` deletes the account via the terminator and
+//        fires `onCompleted`.
+//   AC4: tapping `logout_delete_cancel_cta` fires `onCancelled` (dismiss) and
+//        does NOT clear the session.
+//
+// Harness mirrors test/features/cancel_request/cancel_request_sheet_test.dart
+// (synchronous LocalizationsDelegate over the real ARBs + a tall surface so
+// nothing is culled). All JM-062 copy keys already exist in the shipped ARBs
+// (signOutDialog*, accountDelete*, appBarSignOut, actionCancel), so no key
+// injection is needed.
+
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/l10n/app_localizations.dart';
+
+import 'package:jeeb_mobile/features/settings/domain/account_session_terminator.dart';
+import 'package:jeeb_mobile/features/settings/presentation/widgets/logout_delete_confirm_sheet.dart';
+
+class _SyncDelegate extends LocalizationsDelegate<AppLocalizations> {
+  const _SyncDelegate(this._arbByTag);
+  final Map<String, String> _arbByTag;
+
+  @override
+  bool isSupported(Locale locale) => _arbByTag.containsKey(locale.languageCode);
+
+  @override
+  Future<AppLocalizations> load(Locale locale) async =>
+      debugLoadAppLocalizationsSync(locale, _arbByTag[locale.languageCode]!);
+
+  @override
+  bool shouldReload(_SyncDelegate old) => false;
+}
+
+/// Records which terminal action ran so the test can assert the session clear
+/// without a keystore / Dio. Mirrors the FakeCancelRequestRepository pattern.
+class _FakeTerminator implements AccountSessionTerminator {
+  int logoutCount = 0;
+  int deleteCount = 0;
+
+  @override
+  Future<void> logout() async => logoutCount++;
+
+  @override
+  Future<void> deleteAccount() async => deleteCount++;
+}
+
+late _SyncDelegate _syncDelegate;
+
+void _loadArbs() {
+  _syncDelegate = _SyncDelegate({
+    'en': File('lib/l10n/app_en.arb').readAsStringSync(),
+    'ar': File('lib/l10n/app_ar.arb').readAsStringSync(),
+  });
+}
+
+Widget _harness(Widget child) {
+  return MaterialApp(
+    theme: AppTheme.light(),
+    locale: const Locale('en'),
+    supportedLocales: AppLocalizations.supportedLocales,
+    localizationsDelegates: [
+      _syncDelegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    // Normally hosted by showModalBottomSheet; mounted directly here so the
+    // widget tree under test is the sheet content (matches CancelRequestSheet).
+    home: Scaffold(body: child),
+  );
+}
+
+void main() {
+  setUpAll(_loadArbs);
+
+  setUp(() {
+    final binding = TestWidgetsFlutterBinding.ensureInitialized();
+    final view = binding.platformDispatcher.views.first;
+    view.physicalSize = const Size(1080, 2400);
+    view.devicePixelRatio = 1.0;
+    addTearDown(view.resetPhysicalSize);
+    addTearDown(view.resetDevicePixelRatio);
+  });
+
+  group('JM-062 LogoutDeleteConfirmSheet', () {
+    testWidgets('AC1 — logout mode surfaces logout_confirm_cta + root + cancel',
+        (tester) async {
+      await tester.pumpWidget(
+        _harness(
+          LogoutDeleteConfirmSheet(
+            mode: LogoutDeleteMode.logout,
+            terminator: _FakeTerminator(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      for (final id in const [
+        'logout_delete_confirm_sheet',
+        'logout_confirm_cta',
+        'logout_delete_cancel_cta',
+      ]) {
+        expect(
+          find.bySemanticsIdentifier(id),
+          findsOneWidget,
+          reason: '$id must surface as its own SemanticsNode.',
+        );
+      }
+      // The delete-specific id must NOT be present in logout mode.
+      expect(find.bySemanticsIdentifier('delete_confirm_cta'), findsNothing);
+    });
+
+    testWidgets('AC1b — delete mode surfaces delete_confirm_cta', (tester) async {
+      await tester.pumpWidget(
+        _harness(
+          LogoutDeleteConfirmSheet(
+            mode: LogoutDeleteMode.delete,
+            terminator: _FakeTerminator(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.bySemanticsIdentifier('delete_confirm_cta'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('logout_confirm_cta'), findsNothing);
+    });
+
+    testWidgets('AC2 — logout_confirm_cta clears the session + reports completed',
+        (tester) async {
+      final terminator = _FakeTerminator();
+      var completedCount = 0;
+
+      await tester.pumpWidget(
+        _harness(
+          LogoutDeleteConfirmSheet(
+            mode: LogoutDeleteMode.logout,
+            terminator: terminator,
+            onCompleted: () => completedCount++,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.bySemanticsIdentifier('logout_confirm_cta'));
+      await tester.pump(); // inFlight
+      await tester.pump(); // terminator resolves → onCompleted
+
+      expect(terminator.logoutCount, 1);
+      expect(terminator.deleteCount, 0);
+      expect(completedCount, 1,
+          reason: 'host routes to splash (D5) once session is cleared');
+    });
+
+    testWidgets('AC3 — delete_confirm_cta deletes + reports completed',
+        (tester) async {
+      final terminator = _FakeTerminator();
+      var completedCount = 0;
+
+      await tester.pumpWidget(
+        _harness(
+          LogoutDeleteConfirmSheet(
+            mode: LogoutDeleteMode.delete,
+            terminator: terminator,
+            onCompleted: () => completedCount++,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.bySemanticsIdentifier('delete_confirm_cta'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(terminator.deleteCount, 1);
+      expect(terminator.logoutCount, 0);
+      expect(completedCount, 1);
+    });
+
+    testWidgets('AC4 — cancel dismisses and does NOT clear the session',
+        (tester) async {
+      final terminator = _FakeTerminator();
+      var cancelledCount = 0;
+      var completedCount = 0;
+
+      await tester.pumpWidget(
+        _harness(
+          LogoutDeleteConfirmSheet(
+            mode: LogoutDeleteMode.logout,
+            terminator: terminator,
+            onCompleted: () => completedCount++,
+            onCancelled: () => cancelledCount++,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.bySemanticsIdentifier('logout_delete_cancel_cta'));
+      await tester.pump();
+
+      expect(cancelledCount, 1);
+      expect(completedCount, 0);
+      expect(terminator.logoutCount, 0);
+      expect(terminator.deleteCount, 0);
+    });
+  });
+}

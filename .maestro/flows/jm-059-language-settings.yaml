@@ -1,0 +1,104 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-059 — Language Settings (register + wire)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given the language screen, language_settings_root is visible.
+#        language_english_option and language_arabic_option are visible.
+#   AC2: When language_arabic_option tapped, Then instant RTL flip
+#        (language_settings_root renders in RTL direction).
+#   AC3: language_back → customer-profile
+#        (customer_profile_wallet_chip visible) [JM-035].
+#
+# Mock: — (no network call; locale is local preference)
+# Seam:
+#   jeeb.seam.session=customer_logged_in + jeeb.route=/settings/language
+#
+# COINED IDENTIFIERS:
+#   language_settings_root   — root of language settings screen
+#   language_english_option  — English option tile/radio
+#   language_arabic_option   — Arabic option tile/radio (D: instant RTL on select)
+#
+# STATUS: RED until JM-059 ships (register + wire). Decisions: R3.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-059-language-settings.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Language options visible ────────────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.route: "/settings/language"
+
+- extendedWaitUntil:
+    visible:
+      id: "language_settings_root"
+    timeout: 30000
+
+- assertVisible:
+    id: "language_english_option"
+
+- assertVisible:
+    id: "language_arabic_option"
+
+- takeScreenshot: jm059_ac1_language_options_visible
+
+# ── AC2: Arabic tap → instant RTL flip ──────────────────────────────────────
+- tapOn:
+    id: "language_arabic_option"
+
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# Root still visible after RTL flip (i.e. the widget tree did not crash)
+- assertVisible:
+    id: "language_settings_root"
+
+- takeScreenshot: jm059_ac2_arabic_rtl_flip
+
+# ── AC3: Back → customer-profile ─────────────────────────────────────────────
+# Enter via the Profile-tab row (pushNamed) so `language_back` pops back to the
+# shell Profile tab, where `customer_profile_wallet_chip` (the shell header
+# overlay) is shown. The chip is painted only by the shell, so a bare route pin
+# (no shell beneath) could never surface it on back.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_profile"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_wallet_chip"
+    timeout: 15000
+
+- tapOn:
+    id: "customer_profile_language_row"
+
+- extendedWaitUntil:
+    visible:
+      id: "language_settings_root"
+    timeout: 15000
+
+- tapOn:
+    id: "language_back"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_wallet_chip"
+    timeout: 15000
+
+- takeScreenshot: jm059_ac3_back_to_customer_profile

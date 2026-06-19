@@ -15,20 +15,18 @@ appId: ${APP_ID}
     clearState: true            # AP-4 fix: no state bleed between runs
 - takeScreenshot: jeeb_cold_launch   # captures the onboarding "Voice-first deliveries" screen
 #
-# ── BLOCKED: content assertion ───────────────────────────────────────────────
-# The line below is the assertion we WANT, but it cannot pass on this build.
-# Maestro reads the Android accessibility tree; this Flutter app does NOT export
-# its semantics tree (verified: `maestro hierarchy` returns 40 nodes, ALL with
-# empty text/resource-id, while the screen clearly renders "Voice-first
-# deliveries" + a "Next" button). Flutter only publishes semantics when an
-# a11y service is active OR the widget tree carries Semantics()/semanticsLabel.
+# ── UNBLOCKED: content assertion (semantics export landed Phase 2) ────────────
+# Foundation enabled the Flutter semantics tree at boot
+# (`SemanticsBinding.instance.ensureSemantics()` in lib/main.dart) and the
+# onboarding CTA now carries `Semantics(identifier: 'onboarding_next_button')`
+# (lib/features/onboarding/presentation/onboarding_screen.dart). Verified with
+# `maestro hierarchy`: the node now exposes resource-id "onboarding_next_button"
+# with accessibilityText "Next" and clickable=true (was empty before the fix).
 #
-# FIX (mobile devs — hand off to staff-tech-lead, this is architectural):
-#   1. Add Semantics(identifier: 'onboarding_next_button') to the Next button
-#      and Text widgets on lib/features/onboarding/presentation/onboarding_screen.dart.
-#   2. THEN replace the screenshot above with:
-#
-# - extendedWaitUntil:
-#     visible:
-#       id: "onboarding_next_button"   # was text:"Next" — id is i18n-safe (AP-5)
-#     timeout: 15000                    # AP-3 fix: cold-start + 800ms splash anim
+# The assertion is keyed on the stable `id` (i18n-safe, AP-5), never visible
+# text, and waits long enough to clear cold-start + the ~1.3s branded-splash
+# floor (AP-3).
+- extendedWaitUntil:
+    visible:
+      id: "onboarding_next_button"
+    timeout: 15000

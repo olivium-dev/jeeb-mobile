@@ -1,0 +1,142 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-047 — Jeeber Pending Offers (submitted-offers list + withdraw)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given submitted offers awaiting decision, Then each pending_offer_<id>
+#        row shows price+ETA + "Awaiting customer decision" copy
+#        (pending_offer_awaiting_label visible).
+#   AC2: pending_offer_<id>_withdraw_cta visible per row [D15].
+#   AC3: Tapping pending_offer_0_withdraw_cta withdraws the offer
+#        (confirm or immediate removal; pending_offer_0 no longer visible).
+#   AC4: Back → delivery-requests (shell_tab_dashboard visible).
+#
+# Mock:
+#   GET /offer-service/v1/offers?jeeberId=user-jeeber-002
+#   DELETE /offer-service/v1/offers/:offerId
+# Seam:
+#   jeeb.seam.session=jeeber_logged_in + jeeb.seam.kyc_status=approved
+#   + jeeb.seam.journey=jeeber_pending_offers  ← NEW seam value (FLAG)
+#   (Seeds 1+ submitted offers for user-jeeber-002 awaiting customer
+#    decision; stable id: pending-offer-jeeber-001. Route pin: the pending
+#    offers sub-tab of the jeeber feed, or /jeeber/pending-offers if a
+#    standalone route is used.)
+#
+# NEW SEAM KEYS / VALUES REQUIRED:
+#   jeeb.seam.kyc_status: "approved" (FLAG — see JM-036)
+#   jeeb.seam.journey value "jeeber_pending_offers":
+#     seeds 1 offer for user-jeeber-002 with status=submitted (awaiting
+#     customer decision). Stable offer id: pending-offer-jeeber-001.
+#     Endpoint: POST /__mock/seed/journey { journey: "jeeber_pending_offers" }
+#
+# STATUS: RED until JM-047 ships + jeeber_pending_offers seed exists (test-first).
+#         Decisions: D15, D67.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-047-jeeber-pending-offers.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── Navigate to pending offers tab / screen ───────────────────────────────────
+# REQUIRES: jeeber_pending_offers seed (FLAG)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.journey: "jeeber_pending_offers"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "jeeber_feed_root"
+    timeout: 20000
+
+# Navigate to pending offers sub-tab (or standalone screen if route used)
+- tapOn:
+    id: "jeeber_feed_pending_tab"
+
+- extendedWaitUntil:
+    visible:
+      id: "pending_offer_0"
+    timeout: 15000
+
+# ── AC1: Row content present ──────────────────────────────────────────────────
+- assertVisible:
+    id: "pending_offer_0_price"
+
+- assertVisible:
+    id: "pending_offer_0_eta"
+
+- assertVisible:
+    id: "pending_offer_awaiting_label"
+
+- takeScreenshot: jm047_ac1_pending_offer_row_content
+
+# ── AC2: Withdraw CTA present ─────────────────────────────────────────────────
+- assertVisible:
+    id: "pending_offer_0_withdraw_cta"
+
+- takeScreenshot: jm047_ac2_withdraw_cta_present
+
+# ── AC3: Withdraw offer ───────────────────────────────────────────────────────
+- tapOn:
+    id: "pending_offer_0_withdraw_cta"
+
+# Confirm withdraw if a confirm dialog appears (optional — depends on impl)
+# If no confirm dialog, offer_0 should be removed immediately
+- extendedWaitUntil:
+    notVisible:
+      id: "pending_offer_0"
+    timeout: 10000
+
+- takeScreenshot: jm047_ac3_offer_withdrawn
+
+# ── AC4: Back → delivery-requests (dashboard tab) ────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.journey: "jeeber_pending_offers"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "jeeber_feed_root"
+    timeout: 20000
+
+- tapOn:
+    id: "jeeber_feed_pending_tab"
+
+- extendedWaitUntil:
+    visible:
+      id: "pending_offers_back"
+    timeout: 15000
+
+- tapOn:
+    id: "pending_offers_back"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 15000
+
+- takeScreenshot: jm047_ac4_back_to_delivery_requests

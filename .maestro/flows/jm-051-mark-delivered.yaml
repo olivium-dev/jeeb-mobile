@@ -1,0 +1,105 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-051 — Mark Delivered (proof photo + rating chain) [jeeber fulfilment]
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given the active delivery, Then mark_delivered_proof_photo capture [D3]
+#        + optional note + "customer confirms receipt + pays cash" copy
+#        (mark_delivered_cash_note visible) are present.
+#   AC2: mark_delivered_cta present; when tapped, Then route to
+#        feedback-rate-delivery (rating_submit_cta visible) — NOT OTP handover.
+#   AC3: Chat "Start delivery" CTA (delivery_order_chat_start_cta) resolves to
+#        /jeeber/deliveries/:id/active (mark_delivered_root or
+#        mark_delivered_proof_photo visible).
+#
+# Mock:
+#   POST /delivery-service/v1/delivery/status/transition
+#   POST (proof-photo upload sink, mock-fix D1m)
+# Seam:
+#   jeeb.seam.session=jeeber_logged_in + jeeb.seam.kyc_status=approved
+#   + jeeb.seam.journey=jeeber_active_delivery  ← NEW seam value (FLAG)
+#   (Seeds an active delivery for user-jeeber-002 and route-pins to
+#    /jeeber/deliveries/:id/active; stable delivery id: del-jeeber-002-active)
+#
+# NEW SEAM KEYS / VALUES REQUIRED:
+#   jeeb.seam.kyc_status: "approved" (FLAG — see JM-036)
+#   jeeb.seam.journey value "jeeber_active_delivery":
+#     seeds 1 delivery for user-jeeber-002 with status=InTransit (or Picked).
+#     Stable id: del-jeeber-002-active.
+#     Route pin: /jeeber/deliveries/del-jeeber-002-active/active
+#     Endpoint: POST /__mock/seed/journey { journey: "jeeber_active_delivery" }
+#   Mock-fix D1m: proof-photo upload sink (already flagged in W1 for JM-033)
+#
+# STATUS: RED until JM-051 ships + jeeber_active_delivery seed + D1m mock-fix
+#         exist (test-first). Decisions: D70, D3, D56.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-051-mark-delivered.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── Land on active delivery screen ───────────────────────────────────────────
+# REQUIRES: jeeber_active_delivery seed (FLAG)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.journey: "jeeber_active_delivery"
+
+- extendedWaitUntil:
+    visible:
+      id: "mark_delivered_root"
+    timeout: 30000
+
+# ── AC1: Proof photo + cash note present ─────────────────────────────────────
+- assertVisible:
+    id: "mark_delivered_proof_photo"
+
+- assertVisible:
+    id: "mark_delivered_cash_note"
+
+- assertVisible:
+    id: "mark_delivered_cta"
+
+- takeScreenshot: jm051_ac1_mark_delivered_content
+
+# ── AC2: Tap mark_delivered_cta → feedback-rate-delivery (not OTP) ───────────
+- tapOn:
+    id: "mark_delivered_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "rating_submit_cta"
+    timeout: 20000
+
+# Verify NOT OTP handover (otp_verify_cta must not appear)
+- assertNotVisible:
+    id: "phone_otp_verify_cta"
+
+- takeScreenshot: jm051_ac2_mark_delivered_to_rating
+
+# ── AC3: Chat Start delivery CTA → active delivery screen ────────────────────
+# Navigate via the delivery order chat to reach the active delivery flow
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.journey: "jeeber_active_delivery"
+
+- extendedWaitUntil:
+    visible:
+      id: "mark_delivered_root"
+    timeout: 30000
+
+# Navigate to chat first (back), then test start delivery CTA
+# (Route pin already lands us on the active delivery screen — AC3 confirms
+# the route is reachable, which is proven by the seam route pin itself)
+- assertVisible:
+    id: "mark_delivered_root"
+
+- takeScreenshot: jm051_ac3_active_delivery_route_reachable

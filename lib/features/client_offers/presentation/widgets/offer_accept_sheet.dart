@@ -1,0 +1,308 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import 'package:omds/omds.dart';
+
+import '../../../../core/di/injection_container.dart';
+import '../../../../l10n/app_localizations.dart';
+import '../../application/offer_accept_cubit.dart';
+import '../../application/offer_accept_state.dart';
+import '../../data/fake_offers_repository.dart';
+import '../../domain/offer.dart';
+import '../../domain/offers_repository.dart';
+
+/// `offer-accept-confirm` (JM-029, D11/D71/D69) — the accept-offer confirmation
+/// sheet.
+///
+/// The D11/D71 comprehension gate: accepting an offer is consequential — it
+/// captures the fee and closes every losing offer — so it is fronted by this
+/// explicit confirm step instead of firing inline from the offer card
+/// (`offer-review-list`, JM-028). The sheet shows the chosen Jeeber's name, the
+/// "Pay $N cash on delivery" amount (D11), and the "other offers will close"
+/// note (D71), then:
+///   - [offer_accept_confirm_cta] → `POST /v1/offers/:offerId/accept` (fee
+///     captured + losers superseded server-side), then navigates to
+///     `order-chat` (`/chat/<conversationId>`) so the pinned summary renders.
+///   - [offer_accept_cancel_cta]  → dismisses, returning to `offer-review-list`.
+///
+/// It is a **sheet, not a route** (40_GUARDRAILS_ARCH §5 — sheets are
+/// `showModalBottomSheet`, not `GoRoute`s; mirrors `SocialCollisionSheet`).
+/// It owns its own async surface via [OfferAcceptCubit].
+///
+/// Semantics identifiers exposed (EXACT, 63_W1_TEST_PLAN §2.9):
+///   - `offer_accept_sheet`              — bottom-sheet root
+///   - `offer_accept_jeeber_name`        — "Accept X's offer?" / Jeeber name
+///   - `offer_accept_price_label`        — "Pay $N cash on delivery" (D11)
+///   - `offer_accept_other_offers_note`  — "Other offers will close" (D71)
+///   - `offer_accept_confirm_cta`        — Confirm → capture fee → order-chat
+///   - `offer_accept_cancel_cta`         — Cancel → back to offer-review-list
+class OfferAcceptSheet extends StatelessWidget {
+  const OfferAcceptSheet({
+    super.key,
+    required this.offer,
+    required this.requestId,
+    this.repository,
+    this.onConfirmed,
+    this.onCancelled,
+  });
+
+  /// The offer being confirmed. Supplies the Jeeber name + fee + currency the
+  /// sheet renders; [Offer.id] is the offer accepted server-side.
+  final Offer offer;
+
+  /// The parent request id — paired with [Offer.id] for the accept call.
+  final String requestId;
+
+  /// Optional repository override. Production builds leave this null and
+  /// resolve [OffersRepository] from DI (DioOffersRepository). Widget tests
+  /// inject a scripted instance.
+  final OffersRepository? repository;
+
+  /// Fired once the accept call succeeds, with the resolved order-chat
+  /// conversation id (or null when the gateway surfaced none). [show] wires the
+  /// default `order-chat` navigation; an explicit callback is for tests.
+  final void Function(String? conversationId)? onConfirmed;
+
+  /// Fired when the user cancels (or the accept fails and they back out). [show]
+  /// wires the default dismiss; an explicit callback is for tests.
+  final VoidCallback? onCancelled;
+
+  OffersRepository _resolveRepository() {
+    final explicit = repository;
+    if (explicit != null) return explicit;
+    if (sl.isRegistered<OffersRepository>()) return sl<OffersRepository>();
+    return FakeOffersRepository();
+  }
+
+  /// Opens the accept-confirm sheet over the current route with a dimmed scrim
+  /// and the standard OMDS top-rounded sheet shape (matches
+  /// `SocialCollisionSheet`). Confirm captures the fee then navigates to
+  /// `order-chat`; cancel dismisses back to `offer-review-list`. Both pop the
+  /// sheet FIRST so the destination's signature id (`order_chat_pinned_summary`
+  /// / `offer_review_list_root`) is the only thing the Maestro flow sees.
+  ///
+  /// EDGE (21_NAV_PLAN §C, JM-029, D11/D71): the confirm path resolves to
+  /// `chat-detail` (`/chat/:id`) — the `order-chat` blueprint surface — keyed on
+  /// the server `conversationId`. When the gateway omits one we fall back to the
+  /// [requestId]; `ChatDetailScreen` resolves either (it accepts a conversation
+  /// id OR a delivery/request id and walks `by-request`).
+  static Future<void> show(
+    BuildContext context, {
+    required Offer offer,
+    required String requestId,
+    OffersRepository? repository,
+  }) {
+    final rootContext = context;
+    final scrim = Theme.of(context)
+        .colorScheme
+        .onSecondaryContainer
+        .withValues(alpha: UIConstants.opacityHigh);
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      barrierColor: scrim,
+      shape: const RoundedRectangleBorder(
+        borderRadius: OmdsBorderRadius.topXLarge,
+      ),
+      builder: (sheetContext) => OfferAcceptSheet(
+        offer: offer,
+        requestId: requestId,
+        repository: repository,
+        onConfirmed: (conversationId) {
+          Navigator.of(sheetContext).pop();
+          final chatId = (conversationId != null && conversationId.isNotEmpty)
+              ? conversationId
+              : requestId;
+          rootContext.goNamed(
+            'chat-detail',
+            pathParameters: {'id': chatId},
+          );
+        },
+        onCancelled: () => Navigator.of(sheetContext).pop(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = _resolveRepository();
+    return BlocProvider<OfferAcceptCubit>(
+      create: (_) => OfferAcceptCubit(
+        repository: repo,
+        requestId: requestId,
+        offerId: offer.id,
+      ),
+      child: _OfferAcceptView(
+        offer: offer,
+        onConfirmed: onConfirmed,
+        onCancelled: onCancelled,
+      ),
+    );
+  }
+}
+
+class _OfferAcceptView extends StatelessWidget {
+  const _OfferAcceptView({
+    required this.offer,
+    this.onConfirmed,
+    this.onCancelled,
+  });
+
+  final Offer offer;
+  final void Function(String? conversationId)? onConfirmed;
+  final VoidCallback? onCancelled;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final feeFormatted = offer.fee.toStringAsFixed(2);
+    return BlocConsumer<OfferAcceptCubit, OfferAcceptState>(
+      listenWhen: (prev, next) =>
+          prev.status != next.status &&
+          next.status == OfferAcceptStatus.succeeded,
+      listener: (context, state) {
+        // Side effect only in the listener (never the builder) per
+        // 40_GUARDRAILS_ARCH §3.
+        onConfirmed?.call(state.result?.conversationId);
+      },
+      builder: (context, state) {
+        return Semantics(
+          identifier: 'offer_accept_sheet',
+          // explicitChildNodes keeps each line + CTA as an independent,
+          // id-addressable semantics node (matches SocialCollisionSheet) so
+          // Maestro can assert/tap each one.
+          explicitChildNodes: true,
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                Spacing.xLarge,
+                Spacing.small,
+                Spacing.xLarge,
+                Spacing.xLarge,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const _SheetDragHandle(),
+                  const SizedBox(height: Spacing.large),
+                  // "Accept X's offer?" — the Jeeber name is the load-bearing
+                  // data; framing reuses chatSystemOfferAcceptedNamed (a
+                  // dedicated `offerAcceptTitle` is filed in 50_ROUTE_REQUESTS).
+                  Semantics(
+                    identifier: 'offer_accept_jeeber_name',
+                    child: Text(
+                      l10n.chatSystemOfferAcceptedNamed(offer.jeeberName),
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: Spacing.medium),
+                  // "Pay $N cash on delivery" (D11). Reuses offersCardFee
+                  // ("{amount} {currency}") for the amount; a dedicated
+                  // `offerAcceptPayCashOnDelivery` is filed in 50_ROUTE_REQUESTS.
+                  Semantics(
+                    identifier: 'offer_accept_price_label',
+                    child: Text(
+                      l10n.offersCardFee(feeFormatted, offer.currency),
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: Spacing.small),
+                  // "Other offers will close" (D71). Reuses chatOfferAcceptOnlyOne
+                  // ("Accept only one offer"); a dedicated
+                  // `offerAcceptOtherOffersClose` is filed in 50_ROUTE_REQUESTS.
+                  Semantics(
+                    identifier: 'offer_accept_other_offers_note',
+                    child: Text(
+                      l10n.chatOfferAcceptOnlyOne,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: Spacing.twoXLarge),
+                  // CONFIRM → capture fee → order-chat. Disabled-while-submitting
+                  // + spinner via the loading button; success fires the listener.
+                  Semantics(
+                    identifier: 'offer_accept_confirm_cta',
+                    container: true,
+                    button: true,
+                    label: l10n.chatOfferAccept,
+                    onTap: state.isSubmitting
+                        ? null
+                        : () => context.read<OfferAcceptCubit>().confirm(),
+                    child: ExcludeSemantics(
+                      child: OmdsLoadingButton(
+                        key: const Key('offer-accept-confirm-cta'),
+                        text: state.isSubmitting
+                            ? l10n.chatOfferAccepting
+                            : l10n.chatOfferAccept,
+                        isLoading: state.isSubmitting,
+                        onTap: () =>
+                            context.read<OfferAcceptCubit>().confirm(),
+                        backgroundColor: theme.colorScheme.primary,
+                        textColor: theme.colorScheme.onPrimary,
+                        borderRadius: OmdsBorderRadius.uiSmall,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: Spacing.small),
+                  // CANCEL → back to offer-review-list. Inert while submitting
+                  // so a confirmed accept can't be torn down mid-flight.
+                  Semantics(
+                    identifier: 'offer_accept_cancel_cta',
+                    container: true,
+                    button: true,
+                    label: l10n.actionCancel,
+                    onTap: state.isSubmitting ? null : onCancelled,
+                    child: ExcludeSemantics(
+                      child: OMDSOutlinedButton(
+                        key: const Key('offer-accept-cancel-cta'),
+                        text: l10n.actionCancel,
+                        enabled: !state.isSubmitting,
+                        onTap: () => onCancelled?.call(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Centered M3 drag handle (32×4 pill) tinted with the brand primary — matches
+/// the shared sheet handle styling used across the app's bottom sheets.
+class _SheetDragHandle extends StatelessWidget {
+  const _SheetDragHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Container(
+        width: Spacing.twoXLarge,
+        height: Spacing.twoXSmall,
+        decoration: BoxDecoration(
+          color: colorScheme.primary,
+          borderRadius: OmdsBorderRadius.pill,
+        ),
+      ),
+    );
+  }
+}

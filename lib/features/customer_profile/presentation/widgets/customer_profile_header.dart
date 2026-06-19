@@ -4,13 +4,20 @@ import 'package:omds/omds.dart';
 import '../../../../core/widgets/jeeb_verified_badge.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../chat/presentation/widgets/auto_direction_text.dart';
+import 'customer_profile_rating.dart';
 
-/// Profile header: circular avatar + (name row with verified badge) + email.
+/// Profile header: circular avatar + (name row with verified badge) +
+/// per-role rating + email (JM-035 AC1).
 ///
 /// Composed from OMDS primitives because [OmdsProfileCard] is an
 /// image-background card, not an inline identity row (design §6 anticipates
 /// composing from primitives here). Navy name on muted email matches the
 /// Figma navy-dominant palette via [ColorScheme] roles only.
+///
+/// Exposes the JM-035 AC1 identifiers `customer_profile_avatar`,
+/// `customer_profile_name` and `customer_profile_rating` (the wallet chip + bell
+/// are shell-owned, painted by `ShellHeaderActions` — NOT here, to avoid
+/// duplicate ids).
 class CustomerProfileHeader extends StatelessWidget {
   const CustomerProfileHeader({
     super.key,
@@ -18,26 +25,44 @@ class CustomerProfileHeader extends StatelessWidget {
     required this.email,
     required this.avatarUrl,
     required this.isVerified,
+    required this.rating,
+    required this.ratingCount,
   });
 
   final String? name;
   final String? email;
   final String? avatarUrl;
   final bool isVerified;
+  final double? rating;
+  final int ratingCount;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.xLarge,
-        vertical: Spacing.medium,
+      // Top inset clears the shell-overlaid header actions (wallet chip + bell)
+      // so the avatar never sits under them.
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        // Spacing tops out at fourXLarge; the larger top inset to clear the
+        // shell-overlaid header actions uses the equivalent Sizes token (56.0).
+        Sizes.fiveXLarge,
+        Spacing.xLarge,
+        Spacing.medium,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           _Avatar(name: name, avatarUrl: avatarUrl),
           const SizedBox(width: Spacing.small),
-          Expanded(child: _Identity(name: name, email: email, verified: isVerified)),
+          Expanded(
+            child: _Identity(
+              name: name,
+              email: email,
+              verified: isVerified,
+              rating: rating,
+              ratingCount: ratingCount,
+            ),
+          ),
         ],
       ),
     );
@@ -53,11 +78,15 @@ class _Avatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final initial = (name?.trim().isNotEmpty ?? false) ? name!.trim()[0] : '?';
-    return OmdsProfileAvatar(
-      key: const Key('customer-profile-avatar'),
-      initial: initial,
-      profilePicUrl: avatarUrl,
-      size: Sizes.eightXLarge,
+    return Semantics(
+      identifier: 'customer_profile_avatar',
+      image: true,
+      child: OmdsProfileAvatar(
+        key: const Key('customer-profile-avatar'),
+        initial: initial,
+        profilePicUrl: avatarUrl,
+        size: Sizes.eightXLarge,
+      ),
     );
   }
 }
@@ -67,11 +96,15 @@ class _Identity extends StatelessWidget {
     required this.name,
     required this.email,
     required this.verified,
+    required this.rating,
+    required this.ratingCount,
   });
 
   final String? name;
   final String? email;
   final bool verified;
+  final double? rating;
+  final int ratingCount;
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +114,11 @@ class _Identity extends StatelessWidget {
       children: [
         _NameRow(name: name, verified: verified),
         const SizedBox(height: Spacing.twoXSmall),
-        if (email != null) _Email(email: email!),
+        CustomerProfileRating(rating: rating, ratingCount: ratingCount),
+        if (email != null) ...[
+          const SizedBox(height: Spacing.twoXSmall),
+          _Email(email: email!),
+        ],
       ],
     );
   }
@@ -116,11 +153,15 @@ class _NameText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return AutoDirectionText(
-      name ?? '',
-      style: theme.textTheme.headlineSmall?.copyWith(
-        color: theme.colorScheme.secondaryContainer,
-        fontWeight: FontWeight.w700,
+    return Semantics(
+      identifier: 'customer_profile_name',
+      label: name ?? '',
+      child: AutoDirectionText(
+        name ?? '',
+        style: theme.textTheme.headlineSmall?.copyWith(
+          color: theme.colorScheme.secondaryContainer,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }

@@ -1,0 +1,65 @@
+import 'package:equatable/equatable.dart';
+
+import '../domain/waiting_repository.dart';
+import '../domain/waiting_request.dart';
+
+/// Cold-load lifecycle of the waiting screen.
+enum WaitingScreenStatus { initial, loading, loaded, failed }
+
+class WaitingState extends Equatable {
+  const WaitingState({
+    this.status = WaitingScreenStatus.initial,
+    this.request,
+    this.now,
+    this.error,
+  });
+
+  final WaitingScreenStatus status;
+
+  /// Latest snapshot; null before the first load resolves.
+  final WaitingRequest? request;
+
+  /// The cubit's injected "now", advanced each clock tick so the countdown
+  /// rebuilds deterministically (tests fast-forward via [WaitingCubit.tick]).
+  final DateTime? now;
+
+  final WaitingFailure? error;
+
+  bool get isLoading =>
+      status == WaitingScreenStatus.loading ||
+      status == WaitingScreenStatus.initial;
+
+  /// True once zero Jeebers were notified — drives the no-coverage variant.
+  bool get isNoCoverage => (request?.hasNoCoverage ?? false);
+
+  /// True once at least one offer has arrived — drives the review-offers CTA.
+  bool get hasOffers => (request?.hasOffers ?? false);
+
+  /// Remaining time until the broadcast deadline, clamped at zero. Returns
+  /// [Duration.zero] when there is no snapshot/deadline yet so the countdown
+  /// label can render a stable "0:00".
+  Duration get remaining {
+    final deadline = request?.broadcastExpiresAt;
+    final clock = now;
+    if (deadline == null || clock == null) return Duration.zero;
+    final delta = deadline.difference(clock);
+    return delta.isNegative ? Duration.zero : delta;
+  }
+
+  WaitingState copyWith({
+    WaitingScreenStatus? status,
+    WaitingRequest? request,
+    DateTime? now,
+    WaitingFailure? error,
+    bool clearError = false,
+  }) =>
+      WaitingState(
+        status: status ?? this.status,
+        request: request ?? this.request,
+        now: now ?? this.now,
+        error: clearError ? null : (error ?? this.error),
+      );
+
+  @override
+  List<Object?> get props => [status, request, now, error];
+}

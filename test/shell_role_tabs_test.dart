@@ -26,12 +26,10 @@ class _StubEarningsRepository implements EarningsRepository {
     EarningsPeriod period = EarningsPeriod.week,
   }) async =>
       const EarningsSummary(
-        totalEarnings: 0,
-        currency: 'LBP',
+        totalCashEarned: 0,
+        feesPaid: 0,
+        currency: 'USD',
         deliveryCount: 0,
-        commission: 0,
-        netPayout: 0,
-        periodLabel: 'today',
       );
 
   @override

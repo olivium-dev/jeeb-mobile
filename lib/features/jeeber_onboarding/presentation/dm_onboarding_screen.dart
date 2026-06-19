@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
+
+import 'package:dio/dio.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../l10n/app_localizations.dart';
@@ -8,6 +11,7 @@ import '../../photo_attachment/data/stub_photo_picker_service.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
 import '../application/dm_onboarding_cubit.dart';
 import '../application/dm_onboarding_state.dart';
+import '../data/dio_dm_onboarding_gateway.dart';
 import '../domain/dm_onboarding_gateway.dart';
 import 'widgets/dm_onboarding_address_step.dart';
 import 'widgets/dm_onboarding_photo_step.dart';
@@ -33,8 +37,9 @@ class DmOnboardingScreen extends StatelessWidget {
   /// one with controlled gateway behaviour.
   final DmOnboardingCubit? cubit;
 
-  /// Invoked once the final step submits successfully so the host can pop or
-  /// route on to KYC status.
+  /// Fallback completion hook used only when no [GoRouter] is in the tree
+  /// (cold deep link / widget tests). In the app the service-area Continue
+  /// chains directly to KYC identity (JM-038 AC4); this is never invoked there.
   final VoidCallback? onCompleted;
 
   /// Step to start on. Production enters at [DmOnboardingStep.photo]; the
@@ -56,7 +61,7 @@ class DmOnboardingScreen extends StatelessWidget {
     return BlocProvider<DmOnboardingCubit>(
       create: (_) => DmOnboardingCubit(
         pickerService: _resolvePicker(),
-        gateway: FakeDmOnboardingGateway(),
+        gateway: _resolveGateway(),
         initialStep: initialStep,
       ),
       child: _Scaffold(onCompleted: onCompleted),
@@ -69,6 +74,16 @@ class DmOnboardingScreen extends StatelessWidget {
     }
     return StubPhotoPickerService();
   }
+
+  /// The service-area Continue probes matching find-jeebers (JM-038); use the
+  /// real Dio gateway when DI is configured, falling back to the in-memory fake
+  /// on cold deep links / boot tests so the wizard still renders + advances.
+  DmOnboardingGateway _resolveGateway() {
+    if (sl.isRegistered<Dio>()) {
+      return DioDmOnboardingGateway(sl<Dio>());
+    }
+    return FakeDmOnboardingGateway();
+  }
 }
 
 class _Scaffold extends StatelessWidget {
@@ -79,8 +94,9 @@ class _Scaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocListener<DmOnboardingCubit, DmOnboardingState>(
-      listenWhen: (prev, curr) => !prev.isSubmitted && curr.isSubmitted,
-      listener: (_, _) => onCompleted?.call(),
+      // Service-area coverage confirmed → chain to KYC identity (JM-038 AC4).
+      listenWhen: (prev, curr) => !prev.coverageReady && curr.coverageReady,
+      listener: _onCoverageReady,
       child: const Scaffold(
         key: DmOnboardingScreen.rootKey,
         appBar: _OnboardingAppBar(),
@@ -94,6 +110,20 @@ class _Scaffold extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Routes service-area → KYC identity (JM-038 AC4 → JM-040). The KYC wizard
+  /// lives at the `kyc-status` route (`/profile/kyc`, blueprint `kyc-identity`,
+  /// per 21_NAV_PLAN). `goNamed` replaces the wizard so KYC owns Back. When no
+  /// GoRouter is present (cold deep link / widget test) we fall back to the
+  /// injected [onCompleted] hook so the host still resolves.
+  void _onCoverageReady(BuildContext context, DmOnboardingState _) {
+    final router = GoRouter.maybeOf(context);
+    if (router != null) {
+      context.goNamed('kyc-status');
+      return;
+    }
+    onCompleted?.call();
   }
 }
 
@@ -132,28 +162,43 @@ class _OnboardingAppBar extends StatelessWidget
 class _OnboardingBackButton extends StatelessWidget {
   const _OnboardingBackButton({required this.canGoBack});
 
+  /// Whether the wizard has a previous step to fall back to. `false` on the
+  /// first (photo) step, where Back must leave the wizard entirely.
   final bool canGoBack;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     return Semantics(
-      identifier: 'dm_onboarding_back_button',
+      // JM-039: canonical wizard back id (one id across every step; only one
+      // step is mounted at a time, so QA can assert/tap it unambiguously).
+      identifier: 'dm_onboarding_back',
       button: true,
       child: IconButton(
         icon: const BackButtonIcon(),
         tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-        onPressed: () => _onBack(context, l10n),
+        onPressed: () => _onBack(context),
       ),
     );
   }
 
-  void _onBack(BuildContext context, AppLocalizations l10n) {
+  /// JM-039 AC1: from the first (photo) step, Back returns to the
+  /// `delivery-register-prompt` the wizard was pushed from (DELIVERY tab) —
+  /// deterministically `pop()`-ing the pushed `/jeeber/onboarding` route rather
+  /// than firing a non-deterministic `maybePop()`. On a later step it steps the
+  /// wizard back one (photo ← address ← service-area) via the cubit. The
+  /// `go('/')` branch only fires on a cold deep-link entry where nothing was
+  /// pushed (no register-prompt below); it routes to the first-run/shell gate so
+  /// Back never strands the user on a rootless wizard.
+  void _onBack(BuildContext context) {
     if (canGoBack) {
       context.read<DmOnboardingCubit>().back();
       return;
     }
-    Navigator.of(context).maybePop();
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/');
+    }
   }
 }
 

@@ -1,0 +1,147 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-038 — Service-Area home-base pin (remove distance slider, D51) + chain KYC
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given the service-area step, Then NO distance slider
+#        (dm_onboarding_distance_slider must NOT be visible) [D51].
+#   AC2: A home-base service_area_map_pin is required (visible).
+#   AC3: service_area_select_location → location-map-pin
+#        (capture_location_pin_cta visible).
+#   AC4: dm_onboarding_continue → kyc-identity
+#        (kyc_wizard_root or kyc_id_front_upload visible) [JM-040].
+#
+# Mock:
+#   POST /matching/v1/matching/find-jeebers
+# Seam:
+#   jeeb.seam.session=jeeber_logged_in + jeeb.seam.kyc_status=none
+#   Navigate through: register_prompt → photo step → personal-details step
+#   → service-area step via dm_onboarding_continue each time.
+#
+# NEW SEAM KEYS REQUIRED: jeeb.seam.kyc_status (see JM-036)
+# Alternatively, a direct route pin can be used once the wizard is reachable
+# via jeeb.route=/jeeber/onboarding?step=service-area (FLAG for seam owner).
+#
+# STATUS: RED until JM-038 ships (test-first). Decisions: D51, D67.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-038-service-area-homebase-pin.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── Navigate to service-area step ────────────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "none"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "delivery_register_now_cta"
+    timeout: 15000
+
+- tapOn:
+    id: "delivery_register_now_cta"
+
+# photo step → personal-details
+- extendedWaitUntil:
+    visible:
+      id: "dm_onboarding_continue"
+    timeout: 15000
+
+# The photo step REQUIRES a profile photo before Continue is enabled
+# (dm_onboarding_photo_step.dart `enabled: state.hasPhoto`); pick one via the
+# media sheet so the wizard advances to the address step.
+- tapOn:
+    id: "dm_onboarding_photo_upload_area"
+- extendedWaitUntil:
+    visible:
+      text: "Camera"
+    timeout: 8000
+- tapOn:
+    text: "Camera"
+
+- tapOn:
+    id: "dm_onboarding_continue"
+
+# personal-details → service-area
+- extendedWaitUntil:
+    visible:
+      id: "dm_onboarding_address_root"
+    timeout: 15000
+
+- tapOn:
+    id: "dm_onboarding_address_state_field"
+- inputText: "TestState"
+- tapOn:
+    id: "dm_onboarding_address_country_field"
+- inputText: "TestCountry"
+- tapOn:
+    id: "dm_onboarding_address_street_field"
+- inputText: "TestStreet"
+- tapOn:
+    id: "dm_onboarding_address_field"
+- inputText: "TestAddress"
+
+- tapOn:
+    id: "dm_onboarding_continue"
+
+- extendedWaitUntil:
+    visible:
+      id: "dm_onboarding_service_area_root"
+    timeout: 15000
+
+# ── AC1: No distance slider ───────────────────────────────────────────────────
+- assertNotVisible:
+    id: "dm_onboarding_distance_slider"
+
+- takeScreenshot: jm038_ac1_no_distance_slider
+
+# ── AC2: Home-base map pin visible ────────────────────────────────────────────
+- assertVisible:
+    id: "service_area_map_pin"
+
+- takeScreenshot: jm038_ac2_map_pin_visible
+
+# ── AC3: Select location → location-map-pin ───────────────────────────────────
+- tapOn:
+    id: "service_area_select_location"
+
+- extendedWaitUntil:
+    visible:
+      id: "capture_location_pin_cta"
+    timeout: 15000
+
+- takeScreenshot: jm038_ac3_select_location_to_map_pin
+
+# Return from location-map-pin back to service-area to test continue edge
+- tapOn:
+    id: "capture_location_pin_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "dm_onboarding_service_area_root"
+    timeout: 15000
+
+# ── AC4: Continue → kyc-identity (not Fake gateway) ──────────────────────────
+- tapOn:
+    id: "dm_onboarding_continue"
+
+- extendedWaitUntil:
+    visible:
+      id: "kyc_wizard_root"
+    timeout: 15000
+
+- takeScreenshot: jm038_ac4_continue_to_kyc_identity

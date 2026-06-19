@@ -1,0 +1,97 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-043 — KYC Rejected (appeal-only, D52/D87)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given rejection (FINAL), Then NO resubmit CTA
+#        (kyc_rejected_resubmit_cta must NOT be visible) [D52/D87].
+#   AC2: kyc_rejected_appeal_cta → support-ticket [JM-063]
+#        (support_submit_cta visible).
+#   AC3: kyc_rejected_back_cta → customer-profile
+#        (customer_profile_wallet_chip visible).
+#
+# Mock:
+#   GET /user-management/users/:userId/kyc (returns status=rejected)
+# Seam:
+#   jeeb.seam.session=jeeber_logged_in + jeeb.seam.kyc_status=rejected
+#   + jeeb.route=/kyc/rejected
+#
+# NEW SEAM KEYS REQUIRED:
+#   jeeb.seam.kyc_status: "rejected" (FLAG — see JM-036)
+#
+# STATUS: RED until JM-043 ships + jeeb.seam.kyc_status=rejected seed exists
+#         (test-first). Decisions: D52, D87, D7.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-043-kyc-rejected.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: No resubmit CTA; appeal CTA + back CTA present ─────────────────────
+# REQUIRES: jeeb.seam.kyc_status=rejected (new seed — FLAG)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "rejected"
+      jeeb.route: "/kyc/rejected"
+
+- extendedWaitUntil:
+    visible:
+      id: "kyc_rejected_root"
+    timeout: 30000
+
+- assertNotVisible:
+    id: "kyc_rejected_resubmit_cta"
+
+- assertVisible:
+    id: "kyc_rejected_appeal_cta"
+
+- assertVisible:
+    id: "kyc_rejected_back_cta"
+
+- takeScreenshot: jm043_ac1_no_resubmit_appeal_present
+
+# ── AC2: Appeal → support-ticket (AP-9: support is W4/JM-063) ────────────────
+# The support-ticket screen (`support_submit_cta`, JM-063) is built in W4; the
+# appeal CTA today fires a "coming soon" placeholder (kyc_rejected_screen.dart
+# `_comingSoon`, documented "[JM-063, W4]"). Per AP-9 (41_GUARDRAILS_TESTING) do
+# NOT fabricate the W4 destination — prove the appeal CTA is ACCEPTED and the
+# rejected screen survives (no crash, no silent nav). Swap to assert
+# `support_submit_cta` once the W4 support-ticket screen lands.
+- tapOn:
+    id: "kyc_rejected_appeal_cta"
+
+- waitForAnimationToEnd:
+    timeout: 5000
+
+- assertVisible:
+    id: "kyc_rejected_root"
+
+- takeScreenshot: jm043_ac2_appeal_cta_accepted_screen_survives
+
+# ── AC3: Back → customer-profile ─────────────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "rejected"
+      jeeb.route: "/kyc/rejected"
+
+- extendedWaitUntil:
+    visible:
+      id: "kyc_rejected_back_cta"
+    timeout: 30000
+
+- tapOn:
+    id: "kyc_rejected_back_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_wallet_chip"
+    timeout: 15000
+
+- takeScreenshot: jm043_ac3_back_to_customer_profile

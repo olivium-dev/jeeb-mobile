@@ -66,13 +66,21 @@ class _LoggingDeliveryRepo implements ActiveDeliveryRepository {
 
   @override
   Future<JeeberDeliveryStatus> transition({
-    required String deliveryId,
     required JeeberDeliveryStatus from,
     required JeeberDeliveryStatus to,
+    required String deliveryId,
+    String? evidenceUrl,
   }) async {
-    transitionCalls.add({'from': from, 'to': to});
+    transitionCalls.add({'from': from, 'to': to, 'evidenceUrl': evidenceUrl});
     return to;
   }
+
+  @override
+  Future<String> uploadProofPhoto({
+    required String deliveryId,
+    required String filename,
+  }) async =>
+      'https://cdn.jeeb.app/proof/$deliveryId.jpg';
 }
 
 class _FakeSettlementRepo implements SettlementRepository {

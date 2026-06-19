@@ -1,0 +1,141 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-058 — Notification Preferences (categories + repo path)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given prefs, Then 4 category toggles present:
+#        notif_prefs_offers_toggle + notif_prefs_order_status_toggle +
+#        notif_prefs_wallet_toggle + notif_prefs_marketing_toggle.
+#   AC2: Transactional locked — notif_prefs_transactional_toggle must NOT
+#        be interactive (locked, D64). notif_prefs_transactional_lock_icon visible.
+#   AC3: notif_prefs_<category>_toggle — debounced PATCH to
+#        /notification-service/v1/notifications/preferences (repo path R2).
+#   AC4: notif_prefs_back → customer-profile
+#        (customer_profile_wallet_chip visible) [JM-035].
+#   AC5: Push-only note (notif_prefs_push_only_note) visible [R2].
+#
+# Mock:
+#   GET  /notification-service/v1/notifications/preferences
+#   PUT  /notification-service/v1/notifications/preferences
+# Seam:
+#   jeeb.seam.session=customer_logged_in + jeeb.route=/settings/notifications
+#
+# COINED IDENTIFIERS:
+#   notif_prefs_root                   — root of the screen
+#   notif_prefs_transactional_lock_icon — locked padlock/icon beside transactional
+#   notif_prefs_push_only_note         — static note explaining push-only (R2)
+#
+# STATUS: RED until JM-058 ships. Decisions: D64, R2.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-058-notification-prefs.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Four category toggles present ───────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.route: "/settings/notifications"
+
+- extendedWaitUntil:
+    visible:
+      id: "notif_prefs_root"
+    timeout: 30000
+
+- assertVisible:
+    id: "notif_prefs_offers_toggle"
+
+- assertVisible:
+    id: "notif_prefs_order_status_toggle"
+
+- assertVisible:
+    id: "notif_prefs_wallet_toggle"
+
+- assertVisible:
+    id: "notif_prefs_marketing_toggle"
+
+- takeScreenshot: jm058_ac1_four_category_toggles
+
+# ── AC2: Transactional locked — lock icon visible ────────────────────────────
+- assertVisible:
+    id: "notif_prefs_transactional_lock_icon"
+
+- takeScreenshot: jm058_ac2_transactional_locked
+
+# ── AC3: Toggle tap triggers debounced PATCH (marketing toggle example) ───────
+# Tap the marketing toggle and verify the UI reflects the toggle state change.
+# The debounced PATCH to /notification-service/v1/notifications/preferences
+# is the wire; UI change is the observable side-effect.
+- tapOn:
+    id: "notif_prefs_marketing_toggle"
+
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# Screen root must still be visible after toggle (no nav / crash)
+- assertVisible:
+    id: "notif_prefs_root"
+
+- takeScreenshot: jm058_ac3_marketing_toggle_tapped
+
+# ── AC4: Back → customer-profile ─────────────────────────────────────────────
+# Enter via the Profile-tab row (pushNamed) so `notif_prefs_back` pops back to
+# the shell Profile tab, where `customer_profile_wallet_chip` (the shell header
+# overlay) is shown.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_profile"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_wallet_chip"
+    timeout: 15000
+
+- tapOn:
+    id: "customer_profile_notifications_row"
+
+- extendedWaitUntil:
+    visible:
+      id: "notif_prefs_root"
+    timeout: 15000
+
+- tapOn:
+    id: "notif_prefs_back"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_wallet_chip"
+    timeout: 15000
+
+- takeScreenshot: jm058_ac4_back_to_customer_profile
+
+# ── AC5: Push-only note visible ───────────────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.route: "/settings/notifications"
+
+- extendedWaitUntil:
+    visible:
+      id: "notif_prefs_root"
+    timeout: 30000
+
+- assertVisible:
+    id: "notif_prefs_push_only_note"
+
+- takeScreenshot: jm058_ac5_push_only_note

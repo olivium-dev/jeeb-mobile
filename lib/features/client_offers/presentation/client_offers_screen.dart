@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../cancel_request/domain/cancel_request_repository.dart';
+import '../../cancel_request/presentation/cancel_request_sheet.dart';
+import '../../delivery_man_profile/domain/delivery_man_profile_view_data.dart';
 import '../application/client_offers_cubit.dart';
 import '../application/client_offers_state.dart';
 import '../data/fake_offers_repository.dart';
+import '../domain/offer.dart';
 import '../domain/offers_repository.dart';
+import 'widgets/offer_accept_sheet.dart';
 import 'widgets/offer_card.dart';
 import 'widgets/offer_sort_bar.dart';
 import 'widgets/offer_window_timer.dart';
@@ -21,21 +27,35 @@ typedef ClientOffersCubitFactory = ClientOffersCubit Function(
   String requestId,
 );
 
-/// Client view of the offer cards screen.
+/// `offer-review-list` (JM-028) — the client's view of the per-Jeeber offer
+/// cards for one request, reached at `/requests/:id/offers`.
 ///
-/// Renders the offer window countdown, the sort bar, and the current sorted
-/// offer list, plus the accept-success and request-closed banners. Owns the
-/// cubit lifecycle; the host route just passes the request id.
+/// Renders the offer-window countdown, the price/rating sort bar, and the
+/// sorted offer list. Each card shows the Jeeber identity, price, ETA, rating
+/// and the "Pay $X cash on delivery" line (D11). The consequential edges are:
+///   - tap a Jeeber name  → `jeeber-profile-reviews` (JM-067)
+///   - tap Accept on a card → the JM-029 `offer-accept-confirm` sheet
+///     (NOT an inline accept — the D11/D71 comprehension gate)
+///   - tap Cancel request → the JM-030 `cancel-request-confirm` sheet (free
+///     pre-accept, D69)
 ///
-/// [repository] is optional — when omitted the screen resolves
-/// [OffersRepository] from the GetIt container (DioOffersRepository in
-/// release builds). Pass an explicit repository only in widget tests.
+/// Owns the [ClientOffersCubit] lifecycle (load + poll); the host route just
+/// passes the request id. [repository] is optional — when omitted the screen
+/// resolves [OffersRepository] from GetIt (DioOffersRepository in release).
+/// Pass an explicit repository only in widget tests.
+///
+/// Semantics identifiers exposed (EXACT, 63_W1_TEST_PLAN §2.8):
+///   - `offer_review_list_root`     — screen root (signature id)
+///   - `offer_review_sort_price` / `offer_review_sort_rating` — sort controls
+///   - `offer_card_<n>` (+ per-Jeeber alias) with `_price` / `_eta` /
+///     `_cash_on_delivery_label` / `_name` / `_accept_cta` (see [OfferCard])
+///   - `offer_review_cancel_cta`    — cancel request → cancel-request-confirm
 class ClientOffersScreen extends StatelessWidget {
   const ClientOffersScreen({
     super.key,
     required this.requestId,
     this.repository,
-    this.onOfferAccepted,
+    this.cancelRepositoryOverride,
     this.cubitFactory,
   });
 
@@ -46,10 +66,10 @@ class ClientOffersScreen extends StatelessWidget {
   /// instance via this parameter.
   final OffersRepository? repository;
 
-  /// Called once the accept request succeeds. The host typically navigates to
-  /// the tracking thread; the cubit keeps the success state visible until the
-  /// widget is disposed so the banner stays on screen during the transition.
-  final void Function(String offerId)? onOfferAccepted;
+  /// Optional override forwarded to the JM-030 cancel sheet so a widget test
+  /// can avoid the live cancel repository. Null in production (the sheet
+  /// resolves its own repo from DI).
+  final CancelRequestRepository? cancelRepositoryOverride;
 
   /// Test seam — see [ClientOffersCubitFactory].
   final ClientOffersCubitFactory? cubitFactory;
@@ -74,15 +94,25 @@ class ClientOffersScreen extends StatelessWidget {
         cubit.load();
         return cubit;
       },
-      child: _ClientOffersView(onOfferAccepted: onOfferAccepted),
+      child: _ClientOffersView(
+        requestId: requestId,
+        repository: repo,
+        cancelRepositoryOverride: cancelRepositoryOverride,
+      ),
     );
   }
 }
 
 class _ClientOffersView extends StatelessWidget {
-  const _ClientOffersView({this.onOfferAccepted});
+  const _ClientOffersView({
+    required this.requestId,
+    required this.repository,
+    this.cancelRepositoryOverride,
+  });
 
-  final void Function(String offerId)? onOfferAccepted;
+  final String requestId;
+  final OffersRepository repository;
+  final CancelRequestRepository? cancelRepositoryOverride;
 
   @override
   Widget build(BuildContext context) {
@@ -92,39 +122,37 @@ class _ClientOffersView extends StatelessWidget {
         title: l10n.offersScreenTitle,
         showBackButton: true,
       ),
-      body: BlocConsumer<ClientOffersCubit, ClientOffersState>(
-        listenWhen: (prev, next) =>
-            prev.acceptStatus != next.acceptStatus &&
-            next.acceptStatus == AcceptStatus.succeeded,
-        listener: (context, state) {
-          final id = state.acceptedOfferId;
-          if (id != null) onOfferAccepted?.call(id);
-        },
-        builder: (context, state) {
-          switch (state.status) {
-            case OffersScreenStatus.initial:
-            case OffersScreenStatus.loading:
-              return const OmdsLoadingState();
-            case OffersScreenStatus.failed:
-              return OmdsErrorState(
-                key: const Key('offer-load-error'),
-                message: _errorCopy(l10n, state.error),
-                retryLabel: l10n.offersRetryAction,
-                onRetry: () =>
-                    context.read<ClientOffersCubit>().refresh(),
-              );
-            case OffersScreenStatus.loaded:
-              return _LoadedBody(
-                state: state,
-                onSortChanged: (mode) =>
-                    context.read<ClientOffersCubit>().setSortMode(mode),
-                onAccept: (id) =>
-                    context.read<ClientOffersCubit>().acceptOffer(id),
-                onRefresh: () =>
-                    context.read<ClientOffersCubit>().refresh(),
-              );
-          }
-        },
+      // offer_review_list_root — signature id for the offer-review-list route.
+      body: Semantics(
+        identifier: 'offer_review_list_root',
+        explicitChildNodes: true,
+        child: BlocBuilder<ClientOffersCubit, ClientOffersState>(
+          builder: (context, state) {
+            switch (state.status) {
+              case OffersScreenStatus.initial:
+              case OffersScreenStatus.loading:
+                return const OmdsLoadingState();
+              case OffersScreenStatus.failed:
+                return OmdsErrorState(
+                  key: const Key('offer-load-error'),
+                  message: _errorCopy(l10n, state.error),
+                  retryLabel: l10n.offersRetryAction,
+                  onRetry: () => context.read<ClientOffersCubit>().refresh(),
+                );
+              case OffersScreenStatus.loaded:
+                return _LoadedBody(
+                  state: state,
+                  requestId: requestId,
+                  repository: repository,
+                  cancelRepositoryOverride: cancelRepositoryOverride,
+                  onSortChanged: (mode) =>
+                      context.read<ClientOffersCubit>().setSortMode(mode),
+                  onRefresh: () =>
+                      context.read<ClientOffersCubit>().refresh(),
+                );
+            }
+          },
+        ),
       ),
     );
   }
@@ -147,23 +175,27 @@ class _ClientOffersView extends StatelessWidget {
 class _LoadedBody extends StatelessWidget {
   const _LoadedBody({
     required this.state,
+    required this.requestId,
+    required this.repository,
     required this.onSortChanged,
-    required this.onAccept,
     required this.onRefresh,
+    this.cancelRepositoryOverride,
   });
 
   final ClientOffersState state;
+  final String requestId;
+  final OffersRepository repository;
   final ValueChanged<OfferSortMode> onSortChanged;
-  final void Function(String offerId) onAccept;
   final Future<void> Function() onRefresh;
+  final CancelRequestRepository? cancelRepositoryOverride;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final acceptDisabled = state.acceptStatus == AcceptStatus.inFlight ||
-        state.acceptStatus == AcceptStatus.succeeded ||
-        state.windowExpired ||
-        !state.requestIsOpen;
+    // The card Accept CTA opens the JM-029 confirm sheet (it does not accept
+    // inline), so it stays tappable while the request is open; only the
+    // window-expired / closed states inert it.
+    final acceptDisabled = state.windowExpired || !state.requestIsOpen;
     return OmdsPullToRefresh(
       onRefresh: onRefresh,
       child: ListView(
@@ -186,16 +218,6 @@ class _LoadedBody extends StatelessWidget {
               key: const Key('offer-request-closed-banner'),
               icon: Icons.lock_outline,
               title: l10n.offersRequestClosedTitle,
-            ),
-          ],
-          if (state.acceptStatus == AcceptStatus.succeeded) ...[
-            const SizedBox(height: Spacing.small),
-            _Banner(
-              key: const Key('offer-accepted-banner'),
-              icon: Icons.check_circle_outline,
-              title: l10n.offersAcceptedBannerTitle,
-              body: l10n.offersAcceptedBannerBody,
-              positive: true,
             ),
           ],
           if (state.error != null) ...[
@@ -225,17 +247,90 @@ class _LoadedBody extends StatelessWidget {
               ),
             )
           else
-            ...state.offers.map(
-              (offer) => OfferCard(
-                offer: offer,
-                isAccepting: state.acceptingOfferId == offer.id,
-                acceptDisabled: acceptDisabled &&
-                    state.acceptingOfferId != offer.id,
-                onAccept: () => onAccept(offer.id),
+            ...state.offers.asMap().entries.map(
+                  (entry) => OfferCard(
+                    offer: entry.value,
+                    index: entry.key,
+                    isAccepting: false,
+                    acceptDisabled: acceptDisabled,
+                    // Accept → JM-029 offer-accept-confirm sheet (not inline).
+                    onAccept: () => _openAcceptSheet(context, entry.value),
+                    // Name → jeeber-profile-reviews (JM-067).
+                    onTapName: () => _openJeeberProfile(context, entry.value),
+                  ),
+                ),
+          if (state.hasOffers && state.requestIsOpen) ...[
+            const SizedBox(height: Spacing.large),
+            // offer_review_cancel_cta → cancel-request-confirm sheet (JM-030).
+            // `container: true` makes this an explicit, id-addressable child of
+            // the `offer_review_list_root` node (which sets
+            // `explicitChildNodes: true`) — without it the CTA's Semantics is
+            // merged into the surrounding ListView subtree and Maestro can't
+            // resolve the identifier (W2 QA RD-3). Mirrors the offer-card CTAs
+            // (each `container: true`) and the cancel-sheet confirm CTA.
+            Semantics(
+              identifier: 'offer_review_cancel_cta',
+              container: true,
+              button: true,
+              label: l10n.offerReviewCancelCta,
+              onTap: () => _openCancelSheet(context),
+              child: ExcludeSemantics(
+                child: OmdsPrimaryButton(
+                  key: const Key('offer-review-cancel-cta'),
+                  text: l10n.offerReviewCancelCta,
+                  variant: OmdsButtonVariant.text,
+                  onTap: () => _openCancelSheet(context),
+                ),
               ),
             ),
+          ],
         ],
       ),
+    );
+  }
+
+  /// EDGE (63_W1_TEST_PLAN §3 jm-028, JM-029, D11/D71):
+  /// `offer_card_<id>_accept_cta` → offer-accept-confirm sheet. The sheet owns
+  /// the accept call + the post-accept navigation to order-chat; the list never
+  /// accepts inline.
+  void _openAcceptSheet(BuildContext context, Offer offer) {
+    OfferAcceptSheet.show(
+      context,
+      offer: offer,
+      requestId: requestId,
+      repository: repository,
+    );
+  }
+
+  /// EDGE (63_W1_TEST_PLAN §3 jm-028, JM-067): `offer_card_<id>_name` →
+  /// jeeber-profile-reviews. We hand the registered `delivery-man-profile`
+  /// route a [DeliveryManProfileViewData] built from the offer's identity +
+  /// rating; the reviews list is loaded by the target screen (R1m). Cold-start
+  /// rating-hiding (under 5 reviews, D59) and first-name attribution (D58) are the
+  /// profile screen's concern (JM-067).
+  void _openJeeberProfile(BuildContext context, Offer offer) {
+    context.pushNamed(
+      'delivery-man-profile',
+      extra: DeliveryManProfileViewData(
+        name: offer.jeeberName,
+        rating: offer.rating,
+        reviewCount: offer.ratingCount,
+        location: '',
+        isAvailable: true,
+        reviews: const <DeliveryReviewData>[],
+        avatarUrl: offer.avatarUrl,
+      ),
+    );
+  }
+
+  /// EDGE (63_W1_TEST_PLAN §3 jm-028, JM-030, D69): offer_review_cancel_cta →
+  /// cancel-request-confirm sheet (free pre-accept). The sheet routes home on
+  /// confirm; it dismisses (returns false) on keep.
+  void _openCancelSheet(BuildContext context) {
+    CancelRequestSheet.show(
+      context,
+      requestId: requestId,
+      repository: cancelRepositoryOverride,
     );
   }
 
@@ -258,54 +353,30 @@ class _Banner extends StatelessWidget {
     super.key,
     required this.icon,
     required this.title,
-    this.body,
-    this.positive = false,
   });
 
   final IconData icon;
   final String title;
-  final String? body;
-  final bool positive;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final background = positive
-        ? colors.tertiaryContainer
-        : colors.surfaceContainerHighest;
-    final foreground = positive
-        ? colors.onTertiaryContainer
-        : colors.onSurface;
     return Container(
       padding: const EdgeInsets.all(Spacing.small),
       decoration: BoxDecoration(
-        color: background,
+        color: colors.surfaceContainerHighest,
         borderRadius: OmdsBorderRadius.small,
       ),
       child: Row(
         children: [
-          Icon(icon, color: foreground),
+          Icon(icon, color: colors.onSurface),
           const SizedBox(width: Spacing.small),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: theme.textTheme.titleSmall
-                      ?.copyWith(color: foreground),
-                ),
-                if (body != null) ...[
-                  const SizedBox(height: Spacing.twoXSmall),
-                  Text(
-                    body!,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: foreground),
-                  ),
-                ],
-              ],
+            child: Text(
+              title,
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(color: colors.onSurface),
             ),
           ),
         ],

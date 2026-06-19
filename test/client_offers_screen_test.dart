@@ -104,32 +104,61 @@ void main() {
         reason: 'rating desc — best rating first');
   });
 
-  testWidgets('ClientOffersScreen — accept tap closes the request and shows banner',
-      (tester) async {
+  testWidgets(
+      'ClientOffersScreen — accept tap opens the offer-accept-confirm sheet '
+      '(JM-029, not inline accept)', (tester) async {
     final repo = ScriptedOffersRepository(snapshots: [
       _snapshot([buildOffer(id: 'pick-me', jeeberName: 'Hadi')]),
     ]);
-    String? acceptedId;
     await tester.pumpWidget(
       wrapForTest(
         ClientOffersScreen(
           requestId: 'req-1',
           repository: repo,
           cubitFactory: _testCubitFactory,
-          onOfferAccepted: (id) => acceptedId = id,
         ),
       ),
     );
     await tester.pump();
     await tester.pump();
 
+    // Tapping accept must NOT accept inline — it opens the JM-029 sheet.
     await tester.tap(find.byKey(const Key('offer-card-accept-pick-me')));
+    await tester.pumpAndSettle();
+
+    // The accept call has not fired (the sheet's confirm CTA does that).
+    expect(repo.lastAcceptedOfferId, isNull);
+    expect(repo.acceptCalls, 0);
+    // The offer-accept-confirm sheet (JM-029) is now visible.
+    expect(
+      find.byKey(const Key('offer-accept-confirm-cta')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+      'ClientOffersScreen — cancel request CTA is present while open (JM-030 '
+      'edge; sheet open is exercised by the Maestro flow once JM-030 keys land)',
+      (tester) async {
+    final repo = ScriptedOffersRepository(snapshots: [
+      _snapshot([buildOffer(id: 'pick-me', jeeberName: 'Hadi')]),
+    ]);
+    await tester.pumpWidget(
+      wrapForTest(
+        ClientOffersScreen(
+          requestId: 'req-1',
+          repository: repo,
+          cubitFactory: _testCubitFactory,
+        ),
+      ),
+    );
     await tester.pump();
     await tester.pump();
 
-    expect(repo.lastAcceptedOfferId, 'pick-me');
-    expect(acceptedId, 'pick-me');
-    expect(find.byKey(const Key('offer-accepted-banner')), findsOneWidget);
+    expect(
+      find.byKey(const Key('offer-review-cancel-cta')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('ClientOffersScreen — empty state when no offers yet',

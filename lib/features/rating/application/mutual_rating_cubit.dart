@@ -1,29 +1,29 @@
-import 'dart:async';
-
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../domain/entities/rating_status.dart';
 import '../domain/rating_repository.dart';
 import 'mutual_rating_state.dart';
 
-/// Cubit driving the mutual blind rating flow (T-MOB-020).
+/// Cubit driving the mandatory post-delivery rating (JM-034).
 ///
-/// Flow: inputting → submitting → awaitingOther -(poll)→ revealed|autoRevealed
+/// Flow: inputting → submitting → submitted.
+///
+/// Per JM-034 (D56) the rating is a mandatory TERMINAL step: a successful
+/// submit lands in [MutualRatingPhase.submitted] and the screen navigates back
+/// to the role-aware shell (customer → customer-orders-home; jeeber → Dashboard
+/// tab). There is no skip/dismiss on this path and no blind-reveal poll loop —
+/// the rating is fire-and-forget against the score-taking-service, which owns
+/// reveal/auto-reveal server-side (T-BE-025 cron).
 class MutualRatingCubit extends Cubit<MutualRatingState> {
   MutualRatingCubit({
     required RatingRepository repository,
     required this.deliveryId,
     required this.isClient,
-    Duration pollInterval = const Duration(seconds: 5),
   })  : _repository = repository,
-        _pollInterval = pollInterval,
         super(const MutualRatingState());
 
   final RatingRepository _repository;
   final String deliveryId;
   final bool isClient;
-  final Duration _pollInterval;
-  Timer? _pollTimer;
 
   void setStars(int stars) => emit(state.copyWith(stars: stars));
   void setComment(String comment) => emit(state.copyWith(comment: comment));
@@ -49,60 +49,20 @@ class MutualRatingCubit extends Cubit<MutualRatingState> {
         comment: state.comment.isEmpty ? null : state.comment,
         tags: state.tags.isEmpty ? null : state.tags,
       );
-      emit(state.copyWith(phase: MutualRatingPhase.awaitingOther));
-      _startPolling();
+      // JM-034 (AC2/AC3, D56): mandatory terminal — the screen's BlocListener
+      // navigates back to the shell on this phase (nav side-effects belong in
+      // the listener, never the builder).
+      emit(state.copyWith(phase: MutualRatingPhase.submitted));
+    } on RatingRepositoryException {
+      emit(state.copyWith(
+        phase: MutualRatingPhase.error,
+        errorMessage: 'ratingError',
+      ));
     } catch (_) {
       emit(state.copyWith(
         phase: MutualRatingPhase.error,
         errorMessage: 'ratingError',
       ));
     }
-  }
-
-  void _startPolling() {
-    _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(_pollInterval, (_) => _pollStatus());
-  }
-
-  Future<void> _pollStatus() async {
-    if (isClosed) return;
-    emit(state.copyWith(phase: MutualRatingPhase.polling));
-    try {
-      final status = await _repository.fetchRatingStatus(
-        deliveryId: deliveryId,
-      );
-      _applyStatus(status);
-    } catch (_) {
-      // Polling failure is silent — keep in awaitingOther
-      if (!isClosed) {
-        emit(state.copyWith(phase: MutualRatingPhase.awaitingOther));
-      }
-    }
-  }
-
-  void _applyStatus(RatingStatus status) {
-    if (isClosed) return;
-    switch (status.revealState) {
-      case RatingRevealState.bothRated:
-        _pollTimer?.cancel();
-        emit(state.copyWith(
-          phase: MutualRatingPhase.revealed,
-          counterpartRating: status.counterpartRating,
-        ));
-      case RatingRevealState.autoRevealed:
-        _pollTimer?.cancel();
-        emit(state.copyWith(
-          phase: MutualRatingPhase.autoRevealed,
-          counterpartRating: status.counterpartRating,
-        ));
-      default:
-        emit(state.copyWith(phase: MutualRatingPhase.awaitingOther));
-    }
-  }
-
-  @override
-  Future<void> close() {
-    _pollTimer?.cancel();
-    return super.close();
   }
 }

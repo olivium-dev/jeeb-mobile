@@ -4,7 +4,18 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../domain/offer_submission_repository.dart';
 
 /// View-mode for the offer-submission form.
-enum OfferFormMode { idle, submitting, success, requestGone, error }
+enum OfferFormMode {
+  idle,
+  submitting,
+  success,
+  requestGone,
+
+  /// 402 (O1): the wallet can't cover the 10% reserve. The view surfaces the
+  /// JM-046 `insufficient_balance_sheet` (NOT an error snack). The draft is
+  /// preserved so "keep editing" returns the user to the filled composer.
+  insufficientBalance,
+  error,
+}
 
 /// State emitted by [OfferFormCubit].
 class OfferFormState extends Equatable {
@@ -14,6 +25,7 @@ class OfferFormState extends Equatable {
     this.etaError,
     this.conversationId,
     this.errorMessage,
+    this.insufficientBalance,
   });
 
   final OfferFormMode mode;
@@ -30,6 +42,10 @@ class OfferFormState extends Equatable {
   /// Set on [OfferFormMode.error] — displayed as a snack.
   final String? errorMessage;
 
+  /// Set on [OfferFormMode.insufficientBalance] — the parsed 402
+  /// `{needed, available, currency}` (O1) the JM-046 sheet renders.
+  final InsufficientBalanceInfo? insufficientBalance;
+
   bool get isSubmitting => mode == OfferFormMode.submitting;
 
   OfferFormState copyWith({
@@ -41,6 +57,8 @@ class OfferFormState extends Equatable {
     String? conversationId,
     String? errorMessage,
     bool clearError = false,
+    InsufficientBalanceInfo? insufficientBalance,
+    bool clearInsufficientBalance = false,
   }) {
     return OfferFormState(
       mode: mode ?? this.mode,
@@ -48,12 +66,21 @@ class OfferFormState extends Equatable {
       etaError: clearEtaError ? null : (etaError ?? this.etaError),
       conversationId: conversationId ?? this.conversationId,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      insufficientBalance: clearInsufficientBalance
+          ? null
+          : (insufficientBalance ?? this.insufficientBalance),
     );
   }
 
   @override
-  List<Object?> get props =>
-      [mode, priceError, etaError, conversationId, errorMessage];
+  List<Object?> get props => [
+        mode,
+        priceError,
+        etaError,
+        conversationId,
+        errorMessage,
+        insufficientBalance,
+      ];
 }
 
 /// Cubit driving the Jeeber offer-submission form (T-MOB-030).
@@ -121,6 +148,20 @@ class OfferFormCubit extends Cubit<OfferFormState> {
       emit(state.copyWith(mode: OfferFormMode.requestGone));
       return;
     }
+    // 402 (O1, JM-046): surface the insufficient-balance sheet, not an error
+    // snack. The draft is untouched (price/eta/note live in the view's
+    // controllers) so "keep editing" returns to the filled composer. Always set
+    // the payload for THIS 402 — when the gateway omits a body (`e.balance ==
+    // null`) explicitly clear it so the sheet never shows a prior 402's figures
+    // (the composer then falls back to the computed reserve / wallet snapshot).
+    if (e.failure == OfferSubmissionFailure.insufficientBalance) {
+      emit(state.copyWith(
+        mode: OfferFormMode.insufficientBalance,
+        insufficientBalance: e.balance,
+        clearInsufficientBalance: e.balance == null,
+      ));
+      return;
+    }
     final msg = e.failure == OfferSubmissionFailure.network
         ? 'No internet connection'
         : 'Unable to submit offer. Please try again.';
@@ -137,6 +178,18 @@ class OfferFormCubit extends Cubit<OfferFormState> {
   void acknowledgeError() {
     if (state.mode == OfferFormMode.error) {
       emit(state.copyWith(mode: OfferFormMode.idle, clearError: true));
+    }
+  }
+
+  /// JM-046 "keep editing": dismiss the insufficient-balance sheet and return to
+  /// the idle composer with the draft intact (the controllers hold the values).
+  /// Idempotent — a no-op unless currently showing the sheet.
+  void acknowledgeInsufficientBalance() {
+    if (state.mode == OfferFormMode.insufficientBalance) {
+      emit(state.copyWith(
+        mode: OfferFormMode.idle,
+        clearInsufficientBalance: true,
+      ));
     }
   }
 }

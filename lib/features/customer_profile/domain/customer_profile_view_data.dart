@@ -14,6 +14,8 @@ class CustomerProfileViewData extends Equatable {
     this.avatarUrl,
     this.isVerified = false,
     this.isJeeber = false,
+    this.rating,
+    this.ratingCount = 0,
   });
 
   /// Display name (dynamic data). `null` renders the initials avatar fallback
@@ -33,6 +35,42 @@ class CustomerProfileViewData extends Equatable {
   /// "Register as a delivery" row is hidden (design §8.2).
   final bool isJeeber;
 
+  /// Per-role rating average (JM-035 AC1 `customer_profile_rating`, D6). Sourced
+  /// from `GET /user-management/users/me` (`rating`). `null` when the account has
+  /// no rating yet (the seeded customer carries no rating) — the header then
+  /// renders a deterministic "no ratings yet" state with the SAME identifier so
+  /// the Maestro assertion stays valid (the id is presence-only, not value).
+  final double? rating;
+
+  /// Number of ratings backing [rating] (`ratingCount` on getMe). `0` when the
+  /// account has not been rated yet (drives the cold-start copy, D59-consistent).
+  final int ratingCount;
+
+  /// True when the account has at least one rating to display.
+  bool get hasRating => rating != null && ratingCount > 0;
+
+  CustomerProfileViewData copyWith({
+    String? name,
+    String? email,
+    String? avatarUrl,
+    bool? isVerified,
+    bool? isJeeber,
+    double? rating,
+    int? ratingCount,
+    bool clearRating = false,
+  }) {
+    return CustomerProfileViewData(
+      name: name ?? this.name,
+      email: email ?? this.email,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      isVerified: isVerified ?? this.isVerified,
+      isJeeber: isJeeber ?? this.isJeeber,
+      rating: clearRating ? null : (rating ?? this.rating),
+      ratingCount: ratingCount ?? this.ratingCount,
+    );
+  }
+
   @override
-  List<Object?> get props => [name, email, avatarUrl, isVerified, isJeeber];
+  List<Object?> get props =>
+      [name, email, avatarUrl, isVerified, isJeeber, rating, ratingCount];
 }

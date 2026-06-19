@@ -89,8 +89,9 @@ class _ViewAllButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Canonical id per JM-067 AC + seam harness W4 (`profile_view_all_reviews`).
     return Semantics(
-      identifier: 'delivery_man_profile_view_all_reviews',
+      identifier: 'profile_view_all_reviews',
       button: true,
       child: OmdsPrimaryButton(
         key: const Key('delivery-man-profile-view-all'),

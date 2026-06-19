@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../l10n/app_localizations.dart';
@@ -8,15 +9,27 @@ import '../../delivery_status/presentation/widgets/delivery_jeeber_card.dart';
 import '../application/live_tracking_cubit.dart';
 import '../application/live_tracking_state.dart';
 import '../domain/delivery_tracking_info.dart';
+import 'live_tracking_l10n.dart';
 import 'widgets/delivery_tracking_panel.dart';
+import 'widgets/order_summary_pinned_header.dart';
+import 'widgets/order_tracking_stepper.dart';
 import 'widgets/tracking_map_surface.dart';
+import 'widgets/tracking_noshow_sheet.dart';
 import 'widgets/otp_at_door_card.dart';
 
-/// T-MOB-017: Order-tracking screen — full-bleed map with status panel.
+/// JM-032 — `order-tracking`. The customer's live order-tracking surface.
 ///
-/// AC3: shows "Jeeber is on the way" snack on in_transit transition.
-/// AC4: slides in the OTP card and half-collapses the map on at_door.
-/// AC5: reconnect handled by the 5s poll timer in [LiveTrackingCubit].
+/// AC1: a 4-step `tracking_stepper` (Ordered → Picked → In Transit → Delivered,
+///      D70) is the PRIMARY visual + an `order_summary_pinned` header (JM-031).
+/// AC2: when the Jeeber marks delivered, the screen auto-advances to
+///      `delivered-receipt-confirm` (`delivered-receipt` route, JM-033).
+/// AC3: `tracking_dispute_cta` → dispute-open-evidence (`escalate` route, W4).
+/// AC4: `tracking_noshow_cta` opens the `tracking_noshow_sheet` →
+///      reassign (`offer-review`) / re-broadcast (`waiting-no-coverage`) [D88].
+///
+/// The live map + at-door OTP card + GPS-lost retry (T-MOB-017) are retained
+/// beneath the stepper. Navigation side-effects live in the `BlocListener`
+/// (gated by `listenWhen`), never the builder (40_GUARDRAILS_ARCH §3).
 class LiveTrackingScreen extends StatelessWidget {
   const LiveTrackingScreen({super.key, required this.deliveryId});
 
@@ -47,8 +60,23 @@ class LiveTrackingScreen extends StatelessWidget {
 
   void _onEvent(BuildContext context, LiveTrackingState state) {
     final l10n = AppLocalizations.of(context);
-    if (state.pendingEvent == LiveTrackingEvent.jeeberOnTheWay) {
-      showOmdsSnackbar(context, message: l10n.trackingJeeberOnTheWay);
+    switch (state.pendingEvent) {
+      case LiveTrackingEvent.jeeberOnTheWay:
+        showOmdsSnackbar(context, message: l10n.trackingJeeberOnTheWay);
+        break;
+      case LiveTrackingEvent.deliveredAutoAdvance:
+        // JM-032 AC2: terminal delivered → auto-advance to the receipt prompt.
+        // EDGE: order-tracking → delivered-receipt-confirm (JM-033,
+        // 21_NAV_PLAN §C). `goNamed` replaces tracking so back doesn't return
+        // to a stale stepper.
+        context.goNamed(
+          'delivered-receipt',
+          pathParameters: {'id': deliveryId},
+        );
+        break;
+      case LiveTrackingEvent.none:
+      case LiveTrackingEvent.jeeberAtDoor:
+        break;
     }
   }
 }
@@ -98,11 +126,37 @@ class _TrackingBody extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Column(
-        // The matched-Jeeber card (when a jeeber is assigned) sits ABOVE the
-        // stepper / OTP card; `Expanded` (at_door OTP) stays a direct child of
-        // this flex Column so its bounded height is preserved.
         children: [
-          // AC4: half-collapse the map when at_door
+          // JM-031: pinned summary header at the very top (visible in both chat
+          // + tracking contexts). Only mounted once the row carries the summary.
+          if (info.hasSummary)
+            OrderSummaryPinnedHeader(
+              info: info,
+              // EDGE: order_summary_open_chat → order-chat (JM-025). Resolves
+              // the conversation id, falling back to the delivery id (the
+              // `/chat/:id` route resolves either, per the mock convention).
+              onOpenChat: () => context.goNamed(
+                'chat-detail',
+                pathParameters: {
+                  'id': (info.conversationId?.isNotEmpty ?? false)
+                      ? info.conversationId!
+                      : (info.requestId ?? deliveryId),
+                },
+              ),
+              // The Track CTA is the current surface — omitted to avoid a
+              // self-navigating button (JM-031 renders it on the chat surface).
+            ),
+          // JM-032 AC1: the 4-step stepper is the PRIMARY visual.
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              Spacing.medium,
+              Spacing.medium,
+              Spacing.medium,
+              Spacing.xSmall,
+            ),
+            child: OrderTrackingStepper(currentStep: info.trackingStepIndex4),
+          ),
+          // T-MOB-017: live map (half-collapsed at_door).
           Expanded(
             flex: isAtDoor ? 1 : 2,
             child: const TrackingMapSurface(),
@@ -112,13 +166,86 @@ class _TrackingBody extends StatelessWidget {
             Expanded(flex: 1, child: OtpAtDoorCard(deliveryId: deliveryId))
           else
             _TrackingPanelSection(info: info),
+          // JM-032 AC3/AC4: dispute + no-show CTAs.
+          _TrackingActionBar(info: info, deliveryId: deliveryId),
         ],
       ),
     );
   }
 }
 
-/// The matched-Jeeber card rendered above the stepper / OTP card. Mounted ONLY
+/// JM-032 AC3 (dispute) + AC4 (no-show). Both controls carry their coined ids
+/// from 63_W1_TEST_PLAN §2.12. Dispute routes to the registered `escalate`
+/// route (its `dispute_reason` body is JM-060/W4); no-show opens the sheet.
+class _TrackingActionBar extends StatelessWidget {
+  const _TrackingActionBar({required this.info, required this.deliveryId});
+
+  final DeliveryTrackingInfo info;
+  final String deliveryId;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = LiveTrackingL10n.of(context);
+    // The no-show recovery routes are request-scoped; the delivery row carries
+    // requestId (mock convention: deliveryId == accepted-request-id when null).
+    final requestId =
+        (info.requestId?.isNotEmpty ?? false) ? info.requestId! : deliveryId;
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.medium,
+        0,
+        Spacing.medium,
+        Spacing.medium,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Semantics(
+              identifier: 'tracking_noshow_cta',
+              button: true,
+              child: OmdsPrimaryButton(
+                text: l10n.noShowCta,
+                variant: OmdsButtonVariant.text,
+                onTap: () => TrackingNoShowSheet.show(
+                  context: context,
+                  // AC4a: reassign → offer-review-list.
+                  onReassign: () => context.goNamed(
+                    'offer-review',
+                    pathParameters: {'id': requestId},
+                  ),
+                  // AC4b: re-broadcast → waiting-no-coverage.
+                  onRebroadcast: () => context.goNamed(
+                    'waiting-no-coverage',
+                    pathParameters: {'id': requestId},
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: Spacing.small),
+          Expanded(
+            child: Semantics(
+              identifier: 'tracking_dispute_cta',
+              button: true,
+              child: OmdsPrimaryButton(
+                text: l10n.disputeCta,
+                variant: OmdsButtonVariant.outlined,
+                // EDGE: tracking_dispute_cta → dispute-open-evidence
+                // (`escalate` route, JM-060/W4). 21_NAV_PLAN §C.
+                onTap: () => context.goNamed(
+                  'escalate',
+                  pathParameters: {'id': deliveryId},
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The matched-Jeeber card rendered above the panel / OTP card. Mounted ONLY
 /// when a jeeber is assigned, so [DeliveryJeeberCard]'s "looking for a Jeeber…"
 /// placeholder never shows on an already GPS-streaming delivery.
 class _TrackingJeeberSection extends StatelessWidget {
@@ -150,7 +277,7 @@ class _TrackingPanelSection extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: Spacing.medium,
-        vertical: Spacing.large,
+        vertical: Spacing.small,
       ),
       child: DeliveryTrackingPanel(info: info),
     );

@@ -28,11 +28,32 @@ enum DmOnboardingStep {
 /// the matching copy then calls [acknowledgeError] so it isn't replayed.
 enum DmOnboardingError { photoPickFailed, submitFailed }
 
+/// The chosen home-base point for the service-area step (JM-038 / D51).
+///
+/// Replaces the removed distance slider: a Jeeber pins a single home base
+/// rather than a working radius. `lat`/`lng` are the pinned coordinates;
+/// `label` is the human-readable place text surfaced on the selector row. A
+/// null home base means none has been pinned yet, so Continue stays disabled.
+class DmOnboardingHomeBase extends Equatable {
+  const DmOnboardingHomeBase({
+    required this.lat,
+    required this.lng,
+    this.label = '',
+  });
+
+  final double lat;
+  final double lng;
+  final String label;
+
+  @override
+  List<Object?> get props => [lat, lng, label];
+}
+
 /// Immutable snapshot of the delivery-man onboarding wizard.
 ///
-/// Holds the captured photo, the address-step text fields, the chosen primary
-/// location, and the service-area radius. The cubit is the single source of
-/// truth for step transitions; the view is a pure function of this state.
+/// Holds the captured photo, the address-step text fields, and the chosen
+/// service-area home base. The cubit is the single source of truth for step
+/// transitions; the view is a pure function of this state.
 class DmOnboardingState extends Equatable {
   const DmOnboardingState({
     this.step = DmOnboardingStep.photo,
@@ -40,35 +61,39 @@ class DmOnboardingState extends Equatable {
     this.state = '',
     this.country = '',
     this.street = '',
-    this.vehicleNumber = '',
     this.address = '',
-    this.primaryLocation = '',
-    this.distanceKm = defaultDistanceKm,
+    this.homeBase,
     this.isSubmitting = false,
     this.isSubmitted = false,
+    this.coverageReady = false,
     this.error,
   });
-
-  /// Slider bounds for the service-area radius (BR pending — flag F-22-2).
-  static const int minDistanceKm = 1;
-  static const int maxDistanceKm = 150;
-  static const int defaultDistanceKm = 80;
 
   final DmOnboardingStep step;
   final PhotoAttachment? photo;
   final String state;
   final String country;
   final String street;
-  final String vehicleNumber;
   final String address;
-  final String primaryLocation;
-  final int distanceKm;
+
+  /// The pinned service-area home base (JM-038, D51). Null until the Jeeber
+  /// picks a location via the map-pin screen.
+  final DmOnboardingHomeBase? homeBase;
+
   final bool isSubmitting;
   final bool isSubmitted;
+
+  /// True once the service-area coverage check (find-jeebers against the home
+  /// base) has resolved, so the host may chain on to KYC identity (JM-038 AC4).
+  final bool coverageReady;
+
   final DmOnboardingError? error;
 
   bool get hasPhoto => photo != null;
-  bool get hasPrimaryLocation => primaryLocation.trim().isNotEmpty;
+
+  /// Whether a home base has been pinned. Drives the service-area Continue gate
+  /// (JM-038 AC2 — a home base is required).
+  bool get hasHomeBase => homeBase != null;
 
   /// Number of steps the user has completed — drives the progress bar so the
   /// fill is `(stepIndex) / totalSteps` on entry and reaches full on submit.
@@ -86,12 +111,12 @@ class DmOnboardingState extends Equatable {
     String? state,
     String? country,
     String? street,
-    String? vehicleNumber,
     String? address,
-    String? primaryLocation,
-    int? distanceKm,
+    DmOnboardingHomeBase? homeBase,
+    bool clearHomeBase = false,
     bool? isSubmitting,
     bool? isSubmitted,
+    bool? coverageReady,
     DmOnboardingError? error,
     bool clearError = false,
   }) {
@@ -101,12 +126,11 @@ class DmOnboardingState extends Equatable {
       state: state ?? this.state,
       country: country ?? this.country,
       street: street ?? this.street,
-      vehicleNumber: vehicleNumber ?? this.vehicleNumber,
       address: address ?? this.address,
-      primaryLocation: primaryLocation ?? this.primaryLocation,
-      distanceKm: distanceKm ?? this.distanceKm,
+      homeBase: clearHomeBase ? null : (homeBase ?? this.homeBase),
       isSubmitting: isSubmitting ?? this.isSubmitting,
       isSubmitted: isSubmitted ?? this.isSubmitted,
+      coverageReady: coverageReady ?? this.coverageReady,
       error: clearError ? null : (error ?? this.error),
     );
   }
@@ -118,12 +142,11 @@ class DmOnboardingState extends Equatable {
         state,
         country,
         street,
-        vehicleNumber,
         address,
-        primaryLocation,
-        distanceKm,
+        homeBase,
         isSubmitting,
         isSubmitted,
+        coverageReady,
         error,
       ];
 }

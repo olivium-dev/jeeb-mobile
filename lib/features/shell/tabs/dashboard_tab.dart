@@ -6,6 +6,7 @@ import 'package:omds/omds.dart';
 
 import '../../../core/dev_seam/dev_seam.dart';
 import '../../../core/di/injection_container.dart';
+import '../../../core/session/jeeber_kyc_status_gate.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../jeeber_home/application/availability_cubit.dart';
 import '../../jeeber_home/domain/entities/availability_status.dart';
@@ -35,8 +36,27 @@ enum _DevFeedView { empty, requests, pending, replies }
 ///
 /// In the dev-seam capture path (`jeeb.feed=<view>`), the tab instead renders
 /// a self-contained, seeded feed surface so a single APK captures screens
-/// 23-26 without a rebuild; `jeeb.home_tab=unregistered` forces the screen-19
-/// Delivery-tab upsell.
+/// 23-26 without a rebuild.
+///
+/// W2-INT (JM-036): the DELIVERY-tab body gates on REAL jeeber KYC status via
+/// [JeeberKycStatusGate] (`sl<JeeberKycStatusGate>()`) instead of the old
+/// dev-seam `jeeb.home_tab=unregistered` flag. Reconciled with D38 (KYC gates
+/// OFFERING, not feed-browsing) per the
+/// [JeeberDeliveryTabDestination.forStatus] mapping:
+///   * `none`     → `delivery_register_prompt` (`JeeberHomeScreen(isRegistered:
+///     false)`), whose "Register now" CTA → the onboarding wizard (JM-039).
+///   * `pending`  → the jeeber request feed (`jeeber_feed_root`): a registered
+///     jeeber BROWSES the feed; tapping `feed_make_offer_cta` routes through
+///     `offer_kyc_gate` (JM-044/048) until approval — that is the only gated
+///     action. This is the W2-closer fix: the old `!isApproved` collapse routed
+///     `pending` jeebers to the register prompt, making the offer-KYC gate
+///     unreachable.
+///   * `approved` → the feed (`jeeber_feed_root`); offering allowed.
+///   * `rejected` → redirect to the `kyc-rejected` screen (D52/D87); the tab
+///     body renders the register prompt only for the frame before the redirect.
+/// The gate's debug default reads `jeeb.seam.kyc_status` so a Maestro flow drives
+/// the branch deterministically (65_W2_TEST_PLAN §3.1); release reports
+/// approved until the JM-036 engineer swaps in the real getMe/kyc-backed gate.
 class DashboardTab extends StatelessWidget {
   const DashboardTab({super.key});
 
@@ -44,7 +64,17 @@ class DashboardTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final devView = _devSeamView();
     if (devView != null) return _DevFeedScaffold(view: devView);
-    return _JeeberHomeHost(unregistered: _devSeamUnregistered());
+    // JM-036 gate (D38-reconciled): resolve the DELIVERY-tab destination from
+    // the gate. Resolve the gate from DI, falling back to the seam-backed
+    // default when DI isn't wired (regression harnesses that mount DashboardTab
+    // without configuring the gate) so the tab never throws a GetIt "not
+    // registered" on entry.
+    final gate = sl.isRegistered<JeeberKycStatusGate>()
+        ? sl<JeeberKycStatusGate>()
+        : const SeamJeeberKycStatusGate();
+    return _JeeberHomeHost(
+      destination: JeeberDeliveryTabDestination.forStatus(gate.status),
+    );
   }
 
   /// The deliveryman feed variant requested via the dev seam, or `null` when
@@ -60,12 +90,6 @@ class DashboardTab extends StatelessWidget {
       _ => null,
     };
   }
-
-  /// Debug-only: when the dev seam requests the `unregistered` home-tab state,
-  /// render screen 19 (the Delivery-tab upsell) deterministically with the
-  /// Figma mock name. Always `false` in release builds.
-  bool _devSeamUnregistered() =>
-      kDebugMode && DevSeam.current.homeTab == 'unregistered';
 }
 
 /// Hosts the production [JeeberHomeScreen] under a [MultiBlocProvider] that
@@ -97,9 +121,17 @@ class DashboardTab extends StatelessWidget {
 /// [JeeberHomeScreen] — which re-exposes it via `BlocProvider.value` (a
 /// non-owning view) — instead of constructing a second, leaked instance.
 class _JeeberHomeHost extends StatelessWidget {
-  const _JeeberHomeHost({required this.unregistered});
+  const _JeeberHomeHost({required this.destination});
 
-  final bool unregistered;
+  final JeeberDeliveryTabDestination destination;
+
+  /// The DELIVERY-tab body renders the register prompt (State 1) for both the
+  /// `none` (not-onboarded) destination AND the `rejected` destination — the
+  /// latter only for the single frame before [_GateScoped] redirects to the
+  /// `kyc-rejected` screen (so a registered-but-rejected jeeber never sees the
+  /// feed). The feed (State 2/3) renders only for `pending`/`approved`.
+  bool get _unregistered =>
+      destination != JeeberDeliveryTabDestination.feed;
 
   @override
   Widget build(BuildContext context) {
@@ -115,21 +147,110 @@ class _JeeberHomeHost extends StatelessWidget {
         ),
       ],
       child: Builder(
-        builder: (context) => JeeberHomeScreen(
-          key: const Key('dashboard-tab-root'),
-          isRegistered: !unregistered,
-          profileName: unregistered ? 'Kamal' : null,
-          requestFeedCubit: context.read<RequestFeedCubit>(),
-          onRegister: () => context.pushNamed('jeeber-onboarding'),
-          onOpenFeedRequest: (FeedRequest request) {
-            context.pushNamed(
-              'jeeber-request-detail',
-              pathParameters: {'id': request.id},
-              extra: request,
-            );
-          },
+        builder: (context) => _GateScoped(
+          destination: destination,
+          child: JeeberHomeScreen(
+            key: const Key('dashboard-tab-root'),
+            isRegistered: !_unregistered,
+            profileName: _unregistered ? 'Kamal' : null,
+            // JM-036: when the gate renders the register prompt (State 1), the
+            // home screen wraps its "Register now" CTA in an additional
+            // `delivery_register_now_cta` Semantics so the JM-036 flow can tap
+            // it by the coined id (the W0 `jeeber_unregistered_register_button`
+            // id is preserved underneath for the screen-19 flow).
+            registerCtaIdentifier: 'delivery_register_now_cta',
+            requestFeedCubit: context.read<RequestFeedCubit>(),
+            // JM-036 AC1b / JM-039: the register-prompt CTA chains into the
+            // delivery-man onboarding wizard (photo step). The wizard's own
+            // `dm_onboarding_continue` / `dm_onboarding_back` ids are JM-039's.
+            onRegister: () => context.pushNamed('jeeber-onboarding'),
+            onOpenFeedRequest: (FeedRequest request) {
+              context.pushNamed(
+                'jeeber-request-detail',
+                pathParameters: {'id': request.id},
+                extra: request,
+              );
+            },
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// Places the JM-036 coined screen-level *root* Semantics id on the DELIVERY-tab
+/// body so the QA flow (`jm-036-delivery-tab-kyc-gate.yaml`) can assert the
+/// gate branch by identifier (65_W2_TEST_PLAN §2 JM-036), without disturbing the
+/// W0-asserted widget ids inside [JeeberUnregisteredView] (`jeeber_unregistered_*`)
+/// or [JeeberFeedTabView] (`jeeber_feed_search_field`):
+///
+///   * [JeeberDeliveryTabDestination.registerPrompt] (`none`) →
+///     `delivery_register_prompt` (root) wraps the register prompt.
+///     `explicitChildNodes` keeps the nested W0 `jeeber_unregistered_*` and the
+///     `delivery_register_now_cta` nodes individually queryable (same CAP-3
+///     boundary pattern as `JeeberUnregisteredView`'s own root), so the existing
+///     screen-19 flow still passes.
+///   * [JeeberDeliveryTabDestination.feed] (`pending`/`approved`) →
+///     `jeeber_feed_root` (root) wraps the feed surface; the flow asserts it is
+///     shown and `delivery_register_prompt` is NOT. A `pending` jeeber browses
+///     this feed and reaches the offer-KYC gate via `feed_make_offer_cta`
+///     (JM-044/048, D38).
+///   * [JeeberDeliveryTabDestination.kycRejected] (`rejected`) → a post-frame
+///     redirect to the `kyc-rejected` screen (D52/D87). The body carries the
+///     `delivery_register_prompt` root for the single frame before the redirect
+///     fires, so a rejected jeeber never lands on the feed.
+///
+/// The root id sits on the gate host (this file, the JM-036 target per
+/// 20_GAP_MAP.md row JM-036) rather than inside the shared home widgets, so the
+/// gate's branches each expose exactly one screen-level root id regardless of
+/// which inner State (1/2/3) [JeeberHomeScreen] renders.
+class _GateScoped extends StatefulWidget {
+  const _GateScoped({required this.destination, required this.child});
+
+  final JeeberDeliveryTabDestination destination;
+  final Widget child;
+
+  @override
+  State<_GateScoped> createState() => _GateScopedState();
+}
+
+class _GateScopedState extends State<_GateScoped> {
+  @override
+  void initState() {
+    super.initState();
+    _scheduleRejectedRedirect();
+  }
+
+  @override
+  void didUpdateWidget(_GateScoped oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.destination != oldWidget.destination) {
+      _scheduleRejectedRedirect();
+    }
+  }
+
+  /// `rejected` is terminal (D52/D87): the DELIVERY tab must not host the feed
+  /// or the register prompt for a rejected jeeber — it redirects to the
+  /// dedicated `kyc-rejected` screen. Done after the first frame (the tab is
+  /// built inside the shell's IndexedStack) and guarded by `GoRouter.maybeOf`
+  /// so it is a no-op in a router-less widget test.
+  void _scheduleRejectedRedirect() {
+    if (widget.destination != JeeberDeliveryTabDestination.kycRejected) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (GoRouter.maybeOf(context) == null) return;
+      context.goNamed('kyc-rejected');
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isFeed = widget.destination == JeeberDeliveryTabDestination.feed;
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      identifier: isFeed ? 'jeeber_feed_root' : 'delivery_register_prompt',
+      child: widget.child,
     );
   }
 }

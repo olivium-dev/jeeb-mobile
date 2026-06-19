@@ -1,0 +1,127 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-031 — Order Summary + Pinned Price (header widget + optional route)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given an accepted order, Then order_summary_pinned shows accepted price +
+#        Jeeber name/rating + ETA + tier + item summary + "Pay cash on delivery"
+#        (order_summary_cash_label visible) [D11, D71, D6].
+#   AC2: order_summary_open_chat → order-chat (order_chat_pinned_summary visible).
+#   AC3: order_summary_track → order-tracking (tracking_stepper visible) [JM-032].
+#   AC4: Widget is visible both in order-chat (AC2 path) and in order-tracking
+#        (AC3 path) — test the widget injected in both contexts.
+#
+# Mock: GET /delivery-service/v1/delivery/:deliveryId,
+#       GET /delivery-service/v1/requests/:requestId
+# Seam: jeeb.seam.session=customer_logged_in + jeeb.seam.journey=order_accepted
+#       (FLAGGED — needs request in state=accepted with delivery_id and
+#        conversation_id seeded for user-client-001 so the pinned widget appears)
+#
+# STATUS: RED until JM-031 ships + seam seed order_accepted exists (test-first).
+#         CTO-D3 (pinned widget + optional /orders/:id/summary route).
+#         Decisions: D11, D71, D6.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-031-order-summary-pinned.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1 + AC4a: Pinned summary visible on order-chat ─────────────────────────
+# REQUIRES seam seed: jeeb.seam.journey=order_accepted
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "order_accepted"
+
+- extendedWaitUntil:
+    visible:
+      id: "order_chat_pinned_summary"
+    timeout: 30000
+
+# AC1: Summary fields present
+- assertVisible:
+    id: "order_summary_pinned"
+
+- assertVisible:
+    id: "order_summary_price"
+
+- assertVisible:
+    id: "order_summary_jeeber_name"
+
+- assertVisible:
+    id: "order_summary_eta"
+
+- assertVisible:
+    id: "order_summary_tier"
+
+- assertVisible:
+    id: "order_summary_cash_label"
+
+- takeScreenshot: jm031_ac1_pinned_summary_on_chat
+
+# ── AC2: Open the standalone summary widget, then its open-chat CTA ───────────
+# The CHAT strip carries `order_chat_view_summary_link` (→ the standalone
+# order-summary-pinned widget on the `order-summary` route), which is where the
+# `order_summary_open_chat` / `order_summary_track` CTAs live (CTO-D3: the pinned
+# summary is a header WIDGET; the chat shows the strip + a view-summary link).
+- tapOn:
+    id: "order_chat_view_summary_link"
+
+- extendedWaitUntil:
+    visible:
+      id: "order_summary_pinned"
+    timeout: 15000
+
+- assertVisible:
+    id: "order_summary_open_chat"
+
+- tapOn:
+    id: "order_summary_open_chat"
+
+- extendedWaitUntil:
+    visible:
+      id: "order_chat_pinned_summary"
+    timeout: 15000
+
+- takeScreenshot: jm031_ac2_open_chat_from_summary
+
+# ── AC3: Track → order-tracking (from the standalone summary widget) ──────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "order_accepted"
+
+- extendedWaitUntil:
+    visible:
+      id: "order_chat_pinned_summary"
+    timeout: 30000
+
+- tapOn:
+    id: "order_chat_view_summary_link"
+
+- extendedWaitUntil:
+    visible:
+      id: "order_summary_track"
+    timeout: 15000
+
+- tapOn:
+    id: "order_summary_track"
+
+- extendedWaitUntil:
+    visible:
+      id: "tracking_stepper"
+    timeout: 15000
+
+- takeScreenshot: jm031_ac3_track_to_order_tracking
+
+# ── AC4b: Pinned summary also visible in order-tracking context ───────────────
+# (tracking_stepper already visible from AC3; assert summary pinned in that context)
+- assertVisible:
+    id: "order_summary_pinned"
+
+- takeScreenshot: jm031_ac4b_pinned_summary_on_tracking

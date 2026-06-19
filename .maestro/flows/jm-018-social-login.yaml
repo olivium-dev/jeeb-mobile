@@ -1,0 +1,120 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-018 — Social Login (FB + post-auth routing)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given social sign-in success with no phone on file, Then route to
+#        phone-otp-verification (phone_otp_input visible) — NOT straight home [G8].
+#   AC2: social_login_facebook_cta is present on the social/login screen
+#        alongside Google/Apple.
+#   AC3: Given a 409 collision response (seamed), Then route to
+#        social-collision-prompt (social_collision_sheet visible) [D22, JM-019].
+#
+# NOTE: social_login_google_cta and social_login_apple_cta are coined here
+# following the convention <screen>_<element>. Engineers must implement all three.
+# The social flow is entered from the login screen CTAs login_social_google,
+# login_social_facebook, login_social_apple (named in JM-007).
+#
+# Mock dependencies: POST /auth-service/auth/social (B2). RED until B2 lands.
+# Governing decisions: D8, D22, G8.
+#
+# STATUS: RED until JM-018 ships (test-first)
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-018-social-login.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC2: All three social CTAs are present on the login screen ────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "logged_out_returning"
+
+- extendedWaitUntil:
+    visible:
+      id: "login_email_field"
+    timeout: 30000
+
+- assertVisible:
+    id: "login_social_facebook"
+- assertVisible:
+    id: "login_social_google"
+- assertVisible:
+    id: "login_social_apple"
+
+- takeScreenshot: jm018_ac2_social_ctas_present
+
+# ── AC1: Social login success (no phone) → phone-entry hero → phone OTP ───────
+# Seam injects logged_out_returning so the app lands on the login screen.
+# SocialAuthSeam.resolver intercepts the Facebook tap and returns a success
+# with no phone on file, routing to /register which first shows the phone-entry
+# hero (_register_hero). The flow must drive phone entry before OTP appears (RC-6).
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "logged_out_returning"
+      jeeb.seam.social_login: "facebook_no_phone"
+
+- extendedWaitUntil:
+    visible:
+      id: "login_email_field"
+    timeout: 30000
+
+- tapOn:
+    id: "login_social_facebook"
+
+# /register lands on the phone-entry hero first (_register_hero).
+- extendedWaitUntil:
+    visible:
+      id: "_register_hero"
+    timeout: 15000
+
+- takeScreenshot: jm018_ac1a_phone_entry_hero
+
+# Enter a phone number into the registration phone field and submit.
+# TODO(app-eng): add Semantics(identifier:'register_phone_field') to _PhoneField
+#   and Semantics(identifier:'register_phone_submit_cta') to _SendCodeButton so
+#   these can be targeted by id. Until then we tap by visible hint text (EN only).
+- tapOn:
+    text: "Phone number"
+- inputText: "0501234567"
+
+- tapOn:
+    text: "Send code"
+
+# Now the OTP verification screen is shown.
+- extendedWaitUntil:
+    visible:
+      id: "phone_otp_input"
+    timeout: 15000
+
+- takeScreenshot: jm018_ac1b_otp_after_social_login
+
+# ── AC3: Social login → 409 collision → collision prompt ─────────────────────
+# Seam injects logged_out_returning so the app lands on the login screen.
+# SocialAuthSeam.resolver intercepts the Facebook tap and returns a 409 collision,
+# routing the flow to the social collision sheet.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "logged_out_returning"
+      jeeb.seam.social_login: "collision_409"
+
+- extendedWaitUntil:
+    visible:
+      id: "login_email_field"
+    timeout: 30000
+
+- tapOn:
+    id: "login_social_facebook"
+
+- extendedWaitUntil:
+    visible:
+      id: "social_collision_sheet"
+    timeout: 15000
+
+- takeScreenshot: jm018_ac3_collision_sheet_from_social

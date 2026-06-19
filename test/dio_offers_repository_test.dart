@@ -48,7 +48,74 @@ Dio _dioError(DioExceptionType type, {int? status}) {
 void main() {
   group('DioOffersRepository — T-MOB-015 endpoint contract', () {
     group('fetchOffers', () {
-      test('parses bare array from mock :3055 GET /v1/requests/:id/offers',
+      test('parses { items: [...] } envelope from GET /v1/offers?requestId=',
+          () async {
+        final now = DateTime.now().toUtc();
+        final t1 = now.subtract(const Duration(minutes: 1)).toIso8601String();
+        final repo = DioOffersRepository(
+          _dioRespond({
+            'items': [
+              {
+                'id': 'offer-001',
+                'requestId': 'req-client-001-offers',
+                'jeeberId': 'user-jeeber-002',
+                'status': 'submitted',
+                'amount': {'value': 6.0, 'currency': 'USD'},
+                'price': {'value': 6.0, 'currency': 'USD'},
+                'etaMinutes': 20,
+                'note': 'On my way',
+                'createdAt': t1,
+              },
+              {
+                'id': 'offer-002',
+                'requestId': 'req-client-001-offers',
+                'jeeberId': 'user-jeeber-003',
+                'status': 'withdrawn',
+                'amount': {'value': 7.5, 'currency': 'USD'},
+                'etaMinutes': 35,
+                'createdAt': t1,
+              },
+            ],
+            'cursor': null,
+          }),
+        );
+
+        final snapshot = await repo.fetchOffers('req-client-001-offers');
+
+        // Withdrawn offer is filtered out — only the live submitted bid shows.
+        expect(snapshot.offers.length, 1);
+        expect(snapshot.offers.first.id, 'offer-001');
+        expect(snapshot.offers.first.fee, 6.0);
+        expect(snapshot.offers.first.currency, 'USD');
+        expect(snapshot.offers.first.etaMinutes, 20);
+        expect(snapshot.offers.first.note, 'On my way');
+        expect(snapshot.requestIsOpen, isTrue);
+      });
+
+      test('marks request closed when an accepted offer is present', () async {
+        final now = DateTime.now().toUtc().toIso8601String();
+        final repo = DioOffersRepository(
+          _dioRespond({
+            'items': [
+              {
+                'id': 'offer-001',
+                'jeeberId': 'j1',
+                'status': 'accepted',
+                'amount': {'value': 6.0, 'currency': 'USD'},
+                'etaMinutes': 20,
+                'createdAt': now,
+              },
+            ],
+          }),
+        );
+
+        final snapshot = await repo.fetchOffers('req-1');
+        expect(snapshot.requestIsOpen, isFalse);
+        // The accepted offer is not a live bid — it is filtered from the list.
+        expect(snapshot.offers, isEmpty);
+      });
+
+      test('still parses a bare top-level array (legacy / tolerant path)',
           () async {
         // Use a recent timestamp so the derived 5-min deadline is always in the
         // future regardless of when this test runs (blocker fix 2026-06-13).
@@ -143,16 +210,19 @@ void main() {
         );
       });
 
-      test('uses correct path /v1/requests/:id/offers', () async {
+      test('uses path /v1/offers with requestId query (JM-028 contract)',
+          () async {
         String? capturedPath;
+        Map<String, dynamic>? capturedQuery;
         final dio = Dio(BaseOptions(baseUrl: 'http://test'));
         dio.interceptors.add(
           InterceptorsWrapper(
             onRequest: (options, handler) {
               capturedPath = options.path;
+              capturedQuery = options.queryParameters;
               handler.resolve(
                 Response(
-                  data: <dynamic>[],
+                  data: const {'items': <dynamic>[]},
                   statusCode: 200,
                   requestOptions: options,
                 ),
@@ -162,7 +232,8 @@ void main() {
         );
 
         await DioOffersRepository(dio).fetchOffers('req-abc');
-        expect(capturedPath, '/v1/requests/req-abc/offers');
+        expect(capturedPath, '/v1/offers');
+        expect(capturedQuery, {'requestId': 'req-abc'});
       });
     });
 

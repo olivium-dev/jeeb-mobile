@@ -99,7 +99,10 @@ void main() {
       expect(find.text('Reviews'), findsOneWidget);
       expect(find.text('113 Reviews'), findsOneWidget);
       expect(find.text('View all'), findsOneWidget);
-      expect(find.text('Karl Assaf'), findsNWidgets(2));
+      // D58: cards attribute by first name only (the seed reviewer is "Karl
+      // Assaf" → "Karl").
+      expect(find.text('Karl'), findsNWidgets(2));
+      expect(find.text('Karl Assaf'), findsNothing);
     });
 
     testWidgets('uses the localized verified-client reviewer label, not '
@@ -130,20 +133,89 @@ void main() {
       expect(find.text('Lebanon . Unavailable'), findsOneWidget);
     });
 
-    testWidgets('exposes Semantics identifiers on close + view-all + cards',
-        (tester) async {
+    testWidgets(
+        'exposes canonical Semantics identifiers (JM-067): root + close + '
+        'view-all + score + cards', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(_harness());
       await tester.pumpAndSettle();
 
       for (final id in const [
-        'delivery_man_profile_close',
-        'delivery_man_profile_view_all_reviews',
+        'delivery_man_profile_screen_root',
+        'profile_close',
+        'profile_view_all_reviews',
+        'profile_score', // shown: 113 reviews (>= 5, not cold-start)
         'delivery_man_profile_review_card_0',
         'delivery_man_profile_review_card_1',
       ]) {
         expect(find.bySemanticsIdentifier(id), findsOneWidget, reason: id);
       }
+      handle.dispose();
+    });
+
+    testWidgets('D57: NO Helpful/Reply controls on review cards',
+        (tester) async {
+      await tester.pumpWidget(_harness());
+      await tester.pumpAndSettle();
+
+      // The OmdsReviewCard action row (Helpful/Reply) is suppressed
+      // (showActions: false) — assert by their action icons + localized labels.
+      expect(find.byIcon(Icons.thumb_up_outlined), findsNothing);
+      expect(find.byIcon(Icons.chat_bubble_outline), findsNothing);
+      expect(find.text('Helpful (24)'), findsNothing);
+      expect(find.text('Reply'), findsNothing);
+    });
+
+    testWidgets('D58: reviewer attribution is FIRST NAME only', (tester) async {
+      await tester.pumpWidget(
+        _harness(
+          data: _data(
+            reviews: [
+              const DeliveryReviewData(
+                id: 'r1',
+                reviewerName: 'Karl Assaf',
+                rating: 4,
+                body: 'Great delivery.',
+                daysAgo: 2,
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Karl'), findsOneWidget);
+      expect(find.text('Karl Assaf'), findsNothing);
+    });
+
+    testWidgets('D59 cold-start: < 5 reviews hides the aggregate score',
+        (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _harness(
+          data: const DeliveryManProfileViewData(
+            name: 'Kamal Hajj',
+            rating: 4.8,
+            reviewCount: 3,
+            location: 'Lebanon',
+            isAvailable: true,
+            reviews: [
+              DeliveryReviewData(
+                id: 'r1',
+                reviewerName: 'Karl Assaf',
+                rating: 5,
+                body: 'Fast.',
+                daysAgo: 1,
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Score row absent; the "4.8 . 3 Reviews" summary is NOT shown.
+      expect(find.bySemanticsIdentifier('profile_score'), findsNothing);
+      expect(find.text('4.8 . 3 Reviews'), findsNothing);
       handle.dispose();
     });
 

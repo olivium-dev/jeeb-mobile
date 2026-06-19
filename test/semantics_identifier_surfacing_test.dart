@@ -48,7 +48,8 @@ import 'package:jeeb_mobile/features/live_tracking/presentation/widgets/delivery
 import 'package:jeeb_mobile/features/rating/presentation/rating_screen.dart';
 import 'package:jeeb_mobile/features/jeeber_onboarding/application/dm_onboarding_cubit.dart';
 import 'package:jeeb_mobile/features/jeeber_onboarding/domain/dm_onboarding_gateway.dart';
-import 'package:jeeb_mobile/features/jeeber_onboarding/presentation/widgets/dm_onboarding_location_selector.dart';
+import 'package:jeeb_mobile/features/jeeber_onboarding/application/dm_onboarding_state.dart';
+import 'package:jeeb_mobile/features/jeeber_onboarding/presentation/widgets/dm_onboarding_service_area_step.dart';
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_models.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/presentation/jeeber_feed_card.dart';
@@ -172,10 +173,10 @@ void main() {
     );
   });
 
-  group('A3 RepliesCard (screen 14)', () {
+  group('A3 RepliesCard (screen 14 / JM-027)', () {
     testWidgets(
-      'surfaces BOTH the avatar-stack id and the check-offers button id as '
-      'distinct nodes',
+      'surfaces the avatar-stack id and BOTH JM-027 CTA ids '
+      '(replies_check_offers_cta + replies_accept_cta) as distinct nodes',
       (tester) async {
         const request = ClientHomeRequest(
           id: 'rep-7',
@@ -188,22 +189,34 @@ void main() {
           offerAvatarUrls: <String>['a.png', 'b.png', 'c.png'],
         );
         await tester.pumpWidget(
-          _harness(RepliesCard(request: request, onCheckOffers: () {})),
+          _harness(
+            RepliesCard(
+              request: request,
+              onCheckOffers: () {},
+              onAccept: () {},
+            ),
+          ),
         );
         await tester.pumpAndSettle();
 
-        // Avatar-stack id (the one that previously survived).
+        // Avatar-stack id (the one that previously survived the auto-merge).
         expect(
           find.bySemanticsIdentifier('orders_replies_avatar_stack_rep-7'),
           findsOneWidget,
           reason: 'The avatar-stack identifier must remain queryable.',
         );
-        // Previously-swallowed check-offers button id now surfaces.
+        // JM-027 AC1: Check Offers CTA surfaces as its own node.
         expect(
-          find.bySemanticsIdentifier('orders_replies_check_offers_rep-7'),
+          find.bySemanticsIdentifier('replies_check_offers_cta'),
           findsOneWidget,
-          reason: 'The Check-Offers button identifier must surface as its own '
-              'node (was merged with the avatar-stack node before the fix).',
+          reason: 'JM-027 replies_check_offers_cta must surface as its own '
+              'node (explicitChildNodes boundary keeps it un-merged).',
+        );
+        // JM-027 AC2: Accept CTA surfaces as its own node.
+        expect(
+          find.bySemanticsIdentifier('replies_accept_cta'),
+          findsOneWidget,
+          reason: 'JM-027 replies_accept_cta must surface as its own node.',
         );
       },
     );
@@ -274,9 +287,10 @@ void main() {
     );
   });
 
-  group('A3 screen-level (ClientHomeScreen Replies tab)', () {
+  group('A3 screen-level (ClientHomeScreen Replies tab / JM-027)', () {
     testWidgets(
-      'check-offers button id is queryable within the full Replies tab',
+      'replies_check_offers_cta + replies_accept_cta are queryable within '
+      'the full Replies tab',
       (tester) async {
         await tester.pumpWidget(_clientHome(initialTab: ClientHomeTab.replies));
         await tester.pumpAndSettle();
@@ -285,10 +299,18 @@ void main() {
           find.bySemanticsIdentifier('orders_replies_avatar_stack_rep-1'),
           findsOneWidget,
         );
+        // JM-027 AC1: Check Offers CTA addressable from the host screen.
         expect(
-          find.bySemanticsIdentifier('orders_replies_check_offers_rep-1'),
+          find.bySemanticsIdentifier('replies_check_offers_cta'),
           findsOneWidget,
-          reason: 'The Check-Offers button id must be addressable from the '
+          reason: 'JM-027 replies_check_offers_cta must be addressable from '
+              'the host ClientHomeScreen Replies tab, as the flow targets it.',
+        );
+        // JM-027 AC2: Accept CTA addressable from the host screen.
+        expect(
+          find.bySemanticsIdentifier('replies_accept_cta'),
+          findsOneWidget,
+          reason: 'JM-027 replies_accept_cta must be addressable from the '
               'host ClientHomeScreen Replies tab, as the flow targets it.',
         );
       },
@@ -335,17 +357,14 @@ void main() {
     );
   });
 
-  // B2 (screen 17) — REPRODUCING swallow for the submit button. On the pre-fix
-  // source the `_FeedbackFooter` Semantics is a non-boundary, so its button
-  // semantics + label merge UP into the `feedback_screen` container node and
-  // `feedback_submit_button` is dropped from the tree. `feedback_close_button`
-  // (in the AppBar, outside the merge) already surfaced pre-fix; the assertion
-  // guards it stays surfaced after the proactive close-button hardening.
-  // (Verified: submit `findsNothing` pre-fix → `findsOneWidget` post-fix.)
-  group('B2 RatingScreen footer + close (screen 17 / Figma 56614:20132)', () {
+  // B2 (screen 17) — JM-034: the legacy `/feedback` RatingScreen is now the
+  // mandatory-compliant variant. It surfaces the W1 contract ids `rating_root`
+  // + `rating_submit_cta` as distinct boundary nodes (the footer Semantics is
+  // an explicit boundary so the submit id does not fold into `rating_root`),
+  // and per D56 it exposes NO skip/close control (`rating_skip_cta` absent).
+  group('B2 RatingScreen footer (screen 17 / Figma 56614:20132)', () {
     testWidgets(
-      'surfaces the submit-button id (previously swallowed) and the '
-      'close-button id as distinct nodes',
+      'surfaces rating_root + rating_submit_cta and no skip control',
       (tester) async {
         await tester.pumpWidget(
           _harness(
@@ -354,60 +373,83 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Previously-swallowed submit id now surfaces.
         expect(
-          find.bySemanticsIdentifier('feedback_submit_button'),
+          find.bySemanticsIdentifier('rating_root'),
+          findsOneWidget,
+          reason: 'The screen signature id must surface on the /feedback '
+              'variant too (AC4).',
+        );
+        expect(
+          find.bySemanticsIdentifier('rating_submit_cta'),
           findsOneWidget,
           reason: 'The submit-button identifier must surface as its own node '
-              '(was folded into the feedback_screen container before the fix).',
+              '(explicit Semantics boundary, not folded into rating_root).',
         );
-        // Close id remains queryable (proactive same-pattern hardening).
+        // AC1/D56: mandatory path exposes no skip/dismiss control.
+        expect(
+          find.bySemanticsIdentifier('rating_skip_cta'),
+          findsNothing,
+          reason: 'The mandatory rating path must expose no skip control.',
+        );
         expect(
           find.bySemanticsIdentifier('feedback_close_button'),
-          findsOneWidget,
-          reason: 'The close-button identifier must remain queryable.',
+          findsNothing,
+          reason: 'The close (X) affordance was removed (D56).',
         );
       },
     );
   });
 
-  // B3 (screen 22) — REPRODUCING swallow. On the pre-fix source the
-  // `_SelectorRow` Semantics (button + label) is a merge boundary that folds
-  // the nested `_LocationValueText` Semantics, so `dm_onboarding_location_value`
-  // is swallowed. (Verified: value `findsNothing` pre-fix → `findsOneWidget`.)
-  group('B3 DmOnboardingLocationSelector (screen 22 / Figma 56591:5337)', () {
+  // B3 (screen 22 / JM-038) — surfacing lock on the service-area step. The
+  // `_SelectLocationRow` Semantics (button + label) is a merge boundary; the
+  // `container + explicitChildNodes` guard keeps the nested
+  // `dm_onboarding_location_value` node from being folded in, and the required
+  // home-base `service_area_map_pin` must surface as its own node (JM-038 AC2).
+  group('B3 DmOnboardingServiceAreaStep (screen 22 / Figma 56591:5337)', () {
     testWidgets(
-      'surfaces BOTH the selector-row id and the location-value id as '
+      'surfaces the select-location row, location-value, and map-pin as '
       'distinct nodes',
       (tester) async {
         final cubit = DmOnboardingCubit(
           pickerService:
               StubPhotoPickerService(cameraPayload: Uint8List(8)),
           gateway: FakeDmOnboardingGateway(),
+          initialStep: DmOnboardingStep.serviceArea,
         );
         addTearDown(cubit.close);
         await tester.pumpWidget(
           _harness(
             BlocProvider<DmOnboardingCubit>.value(
               value: cubit,
-              child: const DmOnboardingLocationSelector(),
+              child: const DmOnboardingServiceAreaStep(),
             ),
           ),
         );
         await tester.pumpAndSettle();
 
-        // Outer selector-row id preserved.
+        // Select-location row id surfaces.
         expect(
-          find.bySemanticsIdentifier('dm_onboarding_location_selector'),
+          find.bySemanticsIdentifier('service_area_select_location'),
           findsOneWidget,
-          reason: 'The selector-row identifier must remain queryable.',
+          reason: 'The select-location row identifier must remain queryable.',
         );
-        // Previously-swallowed value id now surfaces.
+        // Nested value id is not swallowed by the button-row merge boundary.
         expect(
           find.bySemanticsIdentifier('dm_onboarding_location_value'),
           findsOneWidget,
-          reason: 'The location-value identifier must surface as its own node '
-              '(was merged into the selector-row node before the fix).',
+          reason: 'The location-value identifier must surface as its own node.',
+        );
+        // The required home-base pin surfaces (JM-038 AC2).
+        expect(
+          find.bySemanticsIdentifier('service_area_map_pin'),
+          findsOneWidget,
+          reason: 'The home-base map pin must surface as its own node.',
+        );
+        // D51: the distance slider is gone.
+        expect(
+          find.bySemanticsIdentifier('dm_onboarding_distance_slider'),
+          findsNothing,
+          reason: 'The distance slider was removed (D51).',
         );
       },
     );

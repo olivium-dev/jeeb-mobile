@@ -10,6 +10,10 @@ enum LiveTrackingEvent {
   none,
   jeeberOnTheWay, // AC3: in_transit toast
   jeeberAtDoor,   // AC4: at_door OTP card slide-in
+
+  /// JM-032 AC2: the delivery reached its terminal delivered state — the
+  /// screen auto-advances to `delivered-receipt-confirm` (JM-033, D70).
+  deliveredAutoAdvance,
 }
 
 class LiveTrackingState extends Equatable {

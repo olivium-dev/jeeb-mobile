@@ -1,0 +1,210 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-032 — Order Tracking (4-step stepper + no-show sheet + auto-advance)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given an active delivery, Then tracking_stepper shows
+#        Ordered→Picked→In Transit→Delivered [D70] as primary visual +
+#        order_summary_pinned header [JM-031]. All 4 step indicators visible.
+#   AC2: When the Jeeber marks delivered, Then auto-advance to
+#        delivered-receipt-confirm (receipt_prompt visible) [JM-033].
+#   AC3: tracking_dispute_cta → dispute-open-evidence (dispute_reason visible).
+#   AC4: tracking_noshow_sheet → reassign offer-review-list OR re-broadcast
+#        waiting-no-coverage [D88]; no-show sheet shows tracking_noshow_reassign_cta
+#        and tracking_noshow_rebroadcast_cta.
+#
+# Mock: GET /delivery-service/v1/delivery/:deliveryId,
+#       POST /delivery-service/v1/delivery/status/transition,
+#       GET /geolocation-service/v1/jeeb/geo/route/:deliveryId
+# Seam:
+#   AC1/AC3/AC4: jeeb.seam.session=customer_logged_in + jeeb.seam.journey=active_delivery
+#        (FLAGGED — needs delivery in state=active/in_transit for user-client-001)
+#   AC2: jeeb.seam.journey=delivery_marked_done
+#        (FLAGGED — needs delivery transitioning to state=delivered so tracking
+#         auto-advances to receipt screen; may be a mock endpoint trigger or a
+#         separate seam value)
+#
+# STATUS: RED until JM-032 ships + seam seeds active_delivery + delivery_marked_done
+#         exist (test-first). Decisions: D70, D11, D18, D88, D71.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-032-order-tracking.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: 4-step stepper + pinned summary visible on tracking ──────────────────
+# REQUIRES seam seed: jeeb.seam.journey=active_delivery
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "active_delivery"
+
+- extendedWaitUntil:
+    visible:
+      id: "tracking_stepper"
+    timeout: 30000
+
+# AC1: All 4 step indicators
+- assertVisible:
+    id: "tracking_step_ordered"
+
+- assertVisible:
+    id: "tracking_step_picked"
+
+- assertVisible:
+    id: "tracking_step_in_transit"
+
+- assertVisible:
+    id: "tracking_step_delivered"
+
+# Pinned summary header present
+- assertVisible:
+    id: "order_summary_pinned"
+
+- takeScreenshot: jm032_ac1_tracking_stepper_and_summary
+
+# ── AC2: Delivery marked done → receipt-confirm screen ───────────────────────
+# REQUIRES seam seed: jeeb.seam.journey=delivery_marked_done
+# (FLAGGED — delivery transitions to delivered state, app auto-advances)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "delivery_marked_done"
+
+- extendedWaitUntil:
+    visible:
+      id: "receipt_prompt"
+    timeout: 30000
+
+- takeScreenshot: jm032_ac2_auto_advance_to_receipt_confirm
+
+# ── AC3: Dispute CTA → dispute-open-evidence (JM-060 GREEN) ──────────────────
+# JM-060 (dispute-open-evidence) is now GREEN on-device (W4 closeout 06-19).
+# The `escalate` route is registered in app_router.dart and lands `dispute_root`.
+# Assert the real destination instead of the former AP-9 back+root-survives guard.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "active_delivery"
+
+- extendedWaitUntil:
+    visible:
+      id: "tracking_dispute_cta"
+    timeout: 30000
+
+# AP-7: let the bottom action bar finish laying out (the map marker animates
+# continuously, so bound the wait) before tapping the dispute CTA.
+- waitForAnimationToEnd:
+    timeout: 3000
+
+- takeScreenshot: jm032_ac3a_dispute_cta_visible
+
+- tapOn:
+    id: "tracking_dispute_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "dispute_root"
+    timeout: 20000
+
+- takeScreenshot: jm032_ac3b_dispute_open_evidence_reached
+
+# ── AC4: No-show sheet → reassign and re-broadcast CTAs ──────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "active_delivery"
+
+- extendedWaitUntil:
+    visible:
+      id: "tracking_stepper"
+    timeout: 30000
+
+# Wait for the bottom action bar to lay out before tapping (the no-show CTA
+# sits below the map; right after launch the stepper paints first).
+- extendedWaitUntil:
+    visible:
+      id: "tracking_noshow_cta"
+    timeout: 15000
+
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# The no-show CTA is a wrapped text button atop a continuously-animating map;
+# a single tap occasionally misses before the modal opens. Retry the tap until
+# the sheet appears (idempotent — the sheet only opens once).
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          id: "tracking_noshow_cta"
+      - extendedWaitUntil:
+          visible:
+            id: "tracking_noshow_sheet"
+          timeout: 8000
+
+- assertVisible:
+    id: "tracking_noshow_reassign_cta"
+
+- assertVisible:
+    id: "tracking_noshow_rebroadcast_cta"
+
+- takeScreenshot: jm032_ac4a_noshow_sheet_options
+
+# AC4a: Reassign → offer-review-list
+- tapOn:
+    id: "tracking_noshow_reassign_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_review_list_root"
+    timeout: 15000
+
+- takeScreenshot: jm032_ac4b_noshow_reassign_to_offer_list
+
+# AC4b: Re-broadcast → waiting-no-coverage
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "active_delivery"
+
+- extendedWaitUntil:
+    visible:
+      id: "tracking_stepper"
+    timeout: 30000
+
+- extendedWaitUntil:
+    visible:
+      id: "tracking_noshow_cta"
+    timeout: 15000
+
+- waitForAnimationToEnd:
+    timeout: 3000
+
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          id: "tracking_noshow_cta"
+      - extendedWaitUntil:
+          visible:
+            id: "tracking_noshow_sheet"
+          timeout: 8000
+
+- tapOn:
+    id: "tracking_noshow_rebroadcast_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "waiting_notified_count"
+    timeout: 15000
+
+- takeScreenshot: jm032_ac4c_noshow_rebroadcast_to_waiting

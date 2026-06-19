@@ -1,0 +1,94 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-010 — Walkthrough destination + naming
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given last slide, When walkthrough_get_started_cta tapped, Then route
+#        to sign-up (signup_name_field visible) [per CTO-D1, email-first].
+#   AC2: Given walkthrough_skip_cta tapped from any slide, Then also route to
+#        sign-up (signup_name_field visible).
+#   AC3: Walkthrough renders all 3 slides: walkthrough_slide_1, walkthrough_slide_2,
+#        walkthrough_slide_3 must each become visible as walkthrough_next_cta is
+#        tapped.
+#
+# NOTE: walkthrough_skip_cta is coined here because the backlog item says "or Skip"
+# without naming the identifier. Convention: walkthrough_skip_cta. Engineers must
+# implement Semantics(identifier: 'walkthrough_skip_cta') on the Skip button.
+# Similarly: walkthrough_next_cta for the Next/slide-advance button.
+# walkthrough_slide_1 / _slide_2 / _slide_3 are the slide container identifiers.
+#
+# Governing decisions: D79, G14.
+#
+# STATUS: RED until JM-010 ships (test-first)
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-010-walkthrough.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC3 + AC1: Walk all 3 slides then Get Started → sign-up ──────────────────
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible:
+      id: "walkthrough_slide_1"
+    timeout: 30000
+
+- takeScreenshot: jm010_ac3a_slide1
+
+- tapOn:
+    id: "walkthrough_next_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "walkthrough_slide_2"
+    timeout: 8000
+
+- takeScreenshot: jm010_ac3b_slide2
+
+- tapOn:
+    id: "walkthrough_next_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "walkthrough_slide_3"
+    timeout: 8000
+
+- takeScreenshot: jm010_ac3c_slide3
+
+# Last slide — Get Started CTA must be visible now.
+- assertVisible:
+    id: "walkthrough_get_started_cta"
+
+- tapOn:
+    id: "walkthrough_get_started_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "signup_name_field"
+    timeout: 15000
+
+- takeScreenshot: jm010_ac1_signup_after_get_started
+
+# ── AC2: Skip from slide 1 → sign-up ─────────────────────────────────────────
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible:
+      id: "walkthrough_slide_1"
+    timeout: 30000
+
+- tapOn:
+    id: "walkthrough_skip_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "signup_name_field"
+    timeout: 15000
+
+- takeScreenshot: jm010_ac2_signup_after_skip

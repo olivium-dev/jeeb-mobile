@@ -14,6 +14,19 @@ import 'dm_onboarding_step_layout.dart';
 /// Heading + subtitle, then a large tappable drop-area card that opens a
 /// camera/gallery sheet and previews the chosen photo. Continue stays disabled
 /// until a photo is selected (the heading states it is required).
+///
+/// JM-039 — nav fixes:
+///   * The Continue CTA carries the canonical wizard id `dm_onboarding_continue`
+///     (one id shared by every step; only one step is mounted at a time, so it
+///     is unambiguous for QA). Tapping it calls `DmOnboardingCubit.next()`,
+///     which advances photo → address (it chains through the wizard — it is NOT
+///     a fake submit+pop). The address step exposes `dm_onboarding_address_root`
+///     (JM-037) so the flow can assert the wizard advanced.
+///   * Back from this first step routes to the `delivery-register-prompt` it was
+///     pushed from — handled by the wizard's shared back button
+///     (`dm_onboarding_back` in `dm_onboarding_screen.dart`), which `pop()`s the
+///     pushed onboarding route rather than firing a non-deterministic
+///     `maybePop()`.
 class DmOnboardingPhotoStep extends StatelessWidget {
   const DmOnboardingPhotoStep({super.key});
 
@@ -26,7 +39,7 @@ class DmOnboardingPhotoStep extends StatelessWidget {
       buildWhen: (prev, curr) => prev.hasPhoto != curr.hasPhoto,
       builder: (context, state) => DmOnboardingStepLayout(
         key: rootKey,
-        continueIdentifier: 'dm_onboarding_photo_continue_button',
+        continueIdentifier: 'dm_onboarding_continue',
         enabled: state.hasPhoto,
         content: _PhotoStepContent(l10n: l10n),
       ),

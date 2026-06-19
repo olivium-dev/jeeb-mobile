@@ -1,0 +1,227 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-063 — Support Ticket / Contact Us
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given support, Then support_root + support_category + support_body +
+#        support_attach + support_order_link visible.
+#   AC2: support_submit_cta → confirmation (support_confirmation visible) →
+#        customer-profile (customer_profile_wallet_chip visible).
+#   AC3: support_dispute_link → dispute-open-evidence
+#        (dispute_root visible) [JM-060].
+#        AP-9: JM-060 is W4; confirm JM-060 is signed before removing guard.
+#   AC4: Reachable from account-status [JM-066].
+#   AC5: Reachable from dispute-status [JM-065].
+#   AC6: Reachable from kyc-rejected [JM-043].
+#
+# Mock:
+#   POST /support-service/v1/tickets  (mock-fix S1 — define)
+# Seam:
+#   AC1/2/3: jeeb.seam.session=customer_logged_in
+#            + jeeb.route=/support
+#   AC4: jeeb.seam.session=suspended
+#        (account_status_root landing; tap account_status_support_cta)
+#   AC5: jeeb.seam.session=customer_logged_in
+#        + jeeb.seam.journey=order_accepted
+#        + (navigate to dispute-status first, then support link)
+#   AC6: jeeb.seam.session=jeeber_logged_in
+#        + jeeb.seam.kyc_status=rejected
+#        + jeeb.route=/kyc/rejected
+#
+# COINED IDENTIFIERS:
+#   support_root          — root of the support ticket screen
+#   support_confirmation  — post-submit confirmation widget/screen
+#
+# STATUS: RED until JM-063 ships + S1 mock-fix exists.
+#         Decisions: D76.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-063-support-ticket.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Support form fields present ─────────────────────────────────────────
+# REQUIRES: S1 mock-fix
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.route: "/support"
+
+- extendedWaitUntil:
+    visible:
+      id: "support_root"
+    timeout: 30000
+
+- assertVisible:
+    id: "support_category"
+
+- assertVisible:
+    id: "support_body"
+
+# attach / order-link / submit sit below the fold — scroll each into view.
+- scrollUntilVisible:
+    element:
+      id: "support_attach"
+    direction: DOWN
+    timeout: 15000
+
+- scrollUntilVisible:
+    element:
+      id: "support_order_link"
+    direction: DOWN
+    timeout: 15000
+
+- scrollUntilVisible:
+    element:
+      id: "support_submit_cta"
+    direction: DOWN
+    timeout: 15000
+
+- takeScreenshot: jm063_ac1_form_fields_present
+
+# ── AC2: Submit → confirmation → customer-profile ─────────────────────────────
+# Enter via the Profile-tab contact row (pushNamed) so the confirmation-back
+# CTA pops to the shell Profile tab, where `customer_profile_wallet_chip` shows.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_profile"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_wallet_chip"
+    timeout: 15000
+
+- tapOn:
+    id: "customer_profile_contact_row"
+
+- extendedWaitUntil:
+    visible:
+      id: "support_root"
+    timeout: 15000
+
+- tapOn:
+    id: "support_category"
+
+# Select first available category
+- waitForAnimationToEnd:
+    timeout: 2000
+
+- tapOn:
+    id: "support_body"
+
+- inputText: "I need help with my order"
+
+- scrollUntilVisible:
+    element:
+      id: "support_submit_cta"
+    direction: DOWN
+    timeout: 15000
+
+- tapOn:
+    id: "support_submit_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "support_confirmation"
+    timeout: 20000
+
+- takeScreenshot: jm063_ac2a_submit_confirmation
+
+# Tap confirmation CTA to return to profile (pop → shell Profile tab + chip)
+- tapOn:
+    id: "support_confirmation_back_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_wallet_chip"
+    timeout: 15000
+
+- takeScreenshot: jm063_ac2b_back_to_profile
+
+# ── AC3: Dispute link → dispute-open-evidence ─────────────────────────────────
+# JM-060 has shipped — the dispute link now lands on the escalate screen
+# (`dispute_root`). AP-9 guard retired.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.route: "/support"
+
+- extendedWaitUntil:
+    visible:
+      id: "support_root"
+    timeout: 30000
+
+- scrollUntilVisible:
+    element:
+      id: "support_dispute_link"
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: "support_dispute_link"
+
+- extendedWaitUntil:
+    visible:
+      id: "dispute_root"
+    timeout: 15000
+
+- takeScreenshot: jm063_ac3_dispute_link_to_dispute_root
+
+# ── AC4: Entry from account-status ────────────────────────────────────────────
+# REQUIRES: JM-066 account-status screen
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "suspended"
+
+- extendedWaitUntil:
+    visible:
+      id: "account_status_root"
+    timeout: 30000
+
+- tapOn:
+    id: "account_status_support_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "support_root"
+    timeout: 15000
+
+- takeScreenshot: jm063_ac4_entry_from_account_status
+
+# ── AC6: Entry from kyc-rejected ─────────────────────────────────────────────
+# REQUIRES: JM-043 kyc-rejected screen (kyc_rejected_appeal_cta)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "rejected"
+      jeeb.route: "/kyc/rejected"
+
+- extendedWaitUntil:
+    visible:
+      id: "kyc_rejected_root"
+    timeout: 30000
+
+- tapOn:
+    id: "kyc_rejected_appeal_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "support_root"
+    timeout: 15000
+
+- takeScreenshot: jm063_ac6_entry_from_kyc_rejected

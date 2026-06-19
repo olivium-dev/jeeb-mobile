@@ -22,12 +22,20 @@ class DeliveryStatusStepper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // JM-051: during the delivering phase (InTransit / AtDoor) the journey to
+    // Done is owned by the MarkDeliveredPanel's `mark_delivered_cta` (it needs
+    // the proof photo + the done→rating chain), so the stepper suppresses its
+    // own advance button there. Earlier stages (Ordered → Picked → InTransit)
+    // keep the inline advance button.
+    final showAdvance = !currentStatus.isTerminal &&
+        currentStatus != JeeberDeliveryStatus.inTransit &&
+        currentStatus != JeeberDeliveryStatus.atDoor;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _StepsRow(currentStatus: currentStatus),
         const SizedBox(height: Spacing.small),
-        if (!currentStatus.isTerminal)
+        if (showAdvance)
           _AdvanceButton(
             nextStatus: currentStatus.next!,
             isLoading: isTransitioning,

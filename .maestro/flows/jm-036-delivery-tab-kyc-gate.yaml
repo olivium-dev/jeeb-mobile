@@ -1,0 +1,174 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-036 — DELIVERY Tab KYC gate (register-prompt vs feed)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given a not-registered / KYC-not-approved user, When the DELIVERY tab
+#        opens, Then delivery_register_prompt shows; delivery_register_now_cta
+#        → delivery-onboarding-image-upload (dm_onboarding_continue visible)
+#        [D38, JM-039].
+#   AC2: Given a KYC-approved user, When the DELIVERY tab opens, Then the feed
+#        (jeeber-requests-home / jeeber_feed_root) shows, NOT
+#        delivery_register_prompt.
+#   AC3: delivery_tab_wallet_chip → wallet-hub (wallet_available_balance
+#        visible) [JM-053].
+#   AC4: delivery_tab_bell → notifications-list (notif_row_root or
+#        notifications_empty_state visible) [JM-057].
+#
+# Mock:
+#   GET /user-management/users/:userId/kyc
+#   GET /delivery-service/v1/requests
+# Seam:
+#   AC1: jeeb.seam.session=jeeber_logged_in
+#        + jeeb.seam.kyc_status=none        ← NEW seam key (FLAG)
+#        (Seeds user-jeeber-002 with kycStatus=none so the DELIVERY tab gate
+#         renders delivery_register_prompt instead of the feed)
+#   AC2: jeeb.seam.session=jeeber_logged_in
+#        + jeeb.seam.kyc_status=approved    ← NEW seam key (FLAG)
+#        (Seeds user-jeeber-002 with kycStatus=approved so the feed renders)
+#   AC3/AC4: jeeb.seam.session=jeeber_logged_in + jeeb.seam.kyc_status=approved
+#
+# NEW SEAM KEYS REQUIRED (flag for seam/backender owner):
+#   jeeb.seam.kyc_status : "none" | "pending" | "approved" | "rejected"
+#     → Seeds kycStatus on user-jeeber-002's profile in the mock so the
+#       DELIVERY-tab gate (and JM-044 offer-kyc-gate) branch correctly.
+#     → Store: mock fixture only (GET /user-management/users/:userId/kyc response
+#       overridden by the /__mock/seed/kyc endpoint — NEW backender endpoint).
+#
+# STATUS: RED until JM-036 ships + jeeb.seam.kyc_status seed exists (test-first).
+#         Decisions: D38, D67.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-036-delivery-tab-kyc-gate.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1a: Not-approved jeeber → DELIVERY tab shows register prompt ───────────
+# REQUIRES: jeeb.seam.kyc_status=none (new seed — FLAG)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "none"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "delivery_register_prompt"
+    timeout: 15000
+
+- assertVisible:
+    id: "delivery_register_now_cta"
+
+- takeScreenshot: jm036_ac1a_not_approved_shows_register_prompt
+
+# ── AC1b: delivery_register_now_cta → delivery-onboarding-image-upload ───────
+- tapOn:
+    id: "delivery_register_now_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "dm_onboarding_continue"
+    timeout: 15000
+
+- takeScreenshot: jm036_ac1b_register_now_to_onboarding_photo
+
+# ── AC2: KYC-approved jeeber → feed shows (no register prompt) ───────────────
+# REQUIRES: jeeb.seam.kyc_status=approved (new seed — FLAG)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "jeeber_feed_root"
+    timeout: 15000
+
+- assertNotVisible:
+    id: "delivery_register_prompt"
+
+- takeScreenshot: jm036_ac2_approved_shows_feed
+
+# ── AC3: delivery_tab_wallet_chip → wallet-hub ───────────────────────────────
+# REQUIRES: jeeb.seam.kyc_status=approved + W1m wallet mock
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "delivery_tab_wallet_chip"
+    timeout: 15000
+
+- tapOn:
+    id: "delivery_tab_wallet_chip"
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet_available_balance"
+    timeout: 15000
+
+- takeScreenshot: jm036_ac3_wallet_chip_to_hub
+
+# ── AC4: delivery_tab_bell → notifications-list ───────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "delivery_tab_bell"
+    timeout: 15000
+
+# AP-9 retired (41_GUARDRAILS_TESTING F-1 / §69 FLOW_BUG): JM-057 notifications-list
+# shipped in W4. `delivery_tab_bell` now navigates to the real `notifications_root`.
+# Assertion updated from the retired placeholder `jeeber_feed_root` to the live target.
+- tapOn:
+    id: "delivery_tab_bell"
+
+- extendedWaitUntil:
+    visible:
+      id: "notifications_root"
+    timeout: 15000
+
+- takeScreenshot: jm036_ac4_bell_tap_notifications_root

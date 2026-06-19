@@ -33,11 +33,11 @@ DmOnboardingCubit _buildCubit({
 
 void main() {
   group('DmOnboardingCubit', () {
-    test('starts on the photo step with no photo', () {
+    test('starts on the photo step with no photo or home base', () {
       final cubit = _buildCubit();
       expect(cubit.state.step, DmOnboardingStep.photo);
       expect(cubit.state.hasPhoto, isFalse);
-      expect(cubit.state.distanceKm, DmOnboardingState.defaultDistanceKm);
+      expect(cubit.state.hasHomeBase, isFalse);
     });
 
     test('initialStep seeds the starting step (dev-seam deep link)', () {
@@ -94,22 +94,31 @@ void main() {
       expect(cubit.state.step, DmOnboardingStep.photo);
     });
 
-    test('distance is clamped to the configured bounds', () {
+    test('a pinned home base enables service-area continue gating (D51)', () {
       final cubit = _buildCubit();
-      cubit.setDistanceKm(999);
-      expect(cubit.state.distanceKm, DmOnboardingState.maxDistanceKm);
-      cubit.setDistanceKm(-5);
-      expect(cubit.state.distanceKm, DmOnboardingState.minDistanceKm);
+      expect(cubit.state.hasHomeBase, isFalse);
+      cubit.setHomeBase(
+        const DmOnboardingHomeBase(lat: 33.89, lng: 35.50, label: 'Beirut'),
+      );
+      expect(cubit.state.hasHomeBase, isTrue);
+      expect(cubit.state.homeBase!.label, 'Beirut');
     });
 
-    test('primary location enables service-area continue gating', () {
-      final cubit = _buildCubit();
-      expect(cubit.state.hasPrimaryLocation, isFalse);
-      cubit.setPrimaryLocation('Beirut');
-      expect(cubit.state.hasPrimaryLocation, isTrue);
+    test('service-area continue is a no-op until a home base is pinned',
+        () async {
+      final gateway = FakeDmOnboardingGateway();
+      final cubit = _buildCubit(
+        gateway: gateway,
+        initialStep: DmOnboardingStep.serviceArea,
+      );
+      await cubit.next();
+      expect(cubit.state.coverageReady, isFalse);
+      expect(gateway.lastSubmission, isNull);
     });
 
-    test('submit on final step forwards the draft to the gateway', () async {
+    test(
+        'service-area continue confirms coverage with the home base and flags '
+        'coverageReady (chains to KYC, not Fake-submit)', () async {
       final gateway = FakeDmOnboardingGateway();
       final cubit = _buildCubit(
         gateway: gateway,
@@ -117,24 +126,31 @@ void main() {
       );
       cubit
         ..setStateField('Mount Lebanon')
-        ..setVehicleNumber('G279424')
-        ..setPrimaryLocation('Beirut')
-        ..setDistanceKm(60);
+        ..setAddress('12 Hamra St')
+        ..setHomeBase(
+          const DmOnboardingHomeBase(lat: 33.89, lng: 35.50, label: 'Beirut'),
+        );
       await cubit.next();
-      expect(cubit.state.isSubmitted, isTrue);
-      expect(gateway.lastSubmission!.vehicleNumber, 'G279424');
-      expect(gateway.lastSubmission!.distanceKm, 60);
-      expect(cubit.state.completedSteps, DmOnboardingState.totalSteps);
+      expect(cubit.state.coverageReady, isTrue);
+      // The DTO forwards the pinned home base as the matching origin (D51).
+      // No vehicleNumber on the DTO — D20 removal (JM-037).
+      expect(gateway.lastSubmission!.state, 'Mount Lebanon');
+      expect(gateway.lastSubmission!.address, '12 Hamra St');
+      expect(gateway.lastSubmission!.homeBaseLat, 33.89);
+      expect(gateway.lastSubmission!.homeBaseLng, 35.50);
     });
 
-    test('submit failure surfaces submitFailed and stays on the step',
+    test('coverage failure surfaces submitFailed and stays on the step',
         () async {
       final cubit = _buildCubit(
         gateway: FakeDmOnboardingGateway(shouldFail: true),
         initialStep: DmOnboardingStep.serviceArea,
       );
+      cubit.setHomeBase(
+        const DmOnboardingHomeBase(lat: 0, lng: 0, label: 'Base'),
+      );
       await cubit.next();
-      expect(cubit.state.isSubmitted, isFalse);
+      expect(cubit.state.coverageReady, isFalse);
       expect(cubit.state.isSubmitting, isFalse);
       expect(cubit.state.error, DmOnboardingError.submitFailed);
     });

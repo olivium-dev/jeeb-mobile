@@ -30,6 +30,7 @@ class JeeberFeedCard extends StatelessWidget {
     this.onOffer,
     this.onAdvanceStatus,
     this.isActionBusy = false,
+    this.exposeMakeOfferId = false,
   });
 
   final DeliveryRequest request;
@@ -48,6 +49,15 @@ class JeeberFeedCard extends StatelessWidget {
 
   /// Whether the accepted-status action button is mid-flight (shows a loader).
   final bool isActionBusy;
+
+  /// JM-048: when true, this card's "Offer" button additionally carries the
+  /// screen-level `feed_make_offer_cta` coined id (in addition to its per-row
+  /// `jeeber_feed_request_offer_<id>`). The feed sets it on the FIRST incoming
+  /// card only so the QA flow taps an unambiguous make-offer CTA — tapping it
+  /// routes through the KYC gate (unapproved) or to the composer (approved),
+  /// JM-044/048. Non-incoming cards (pending/accepted) never offer, so the id
+  /// is inert for them.
+  final bool exposeMakeOfferId;
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +78,7 @@ class JeeberFeedCard extends StatelessWidget {
           onOffer: onOffer,
           onAdvanceStatus: onAdvanceStatus,
           isActionBusy: isActionBusy,
+          exposeMakeOfferId: exposeMakeOfferId,
         ),
       ),
     );
@@ -81,6 +92,7 @@ class _CardColumn extends StatelessWidget {
     required this.onOffer,
     required this.onAdvanceStatus,
     required this.isActionBusy,
+    required this.exposeMakeOfferId,
   });
 
   final DeliveryRequest request;
@@ -88,6 +100,7 @@ class _CardColumn extends StatelessWidget {
   final VoidCallback? onOffer;
   final VoidCallback? onAdvanceStatus;
   final bool isActionBusy;
+  final bool exposeMakeOfferId;
 
   @override
   Widget build(BuildContext context) {
@@ -107,6 +120,7 @@ class _CardColumn extends StatelessWidget {
             onOffer: onOffer,
             onAdvanceStatus: onAdvanceStatus,
             isActionBusy: isActionBusy,
+            exposeMakeOfferId: exposeMakeOfferId,
           ),
           _Timestamp(receivedAt: request.receivedAt),
           Padding(
@@ -345,6 +359,7 @@ class _ActionArea extends StatelessWidget {
     required this.onOffer,
     required this.onAdvanceStatus,
     required this.isActionBusy,
+    required this.exposeMakeOfferId,
   });
 
   final DeliveryRequest request;
@@ -352,6 +367,7 @@ class _ActionArea extends StatelessWidget {
   final VoidCallback? onOffer;
   final VoidCallback? onAdvanceStatus;
   final bool isActionBusy;
+  final bool exposeMakeOfferId;
 
   @override
   Widget build(BuildContext context) {
@@ -362,6 +378,7 @@ class _ActionArea extends StatelessWidget {
             requestId: request.id,
             onIgnore: onIgnore,
             onOffer: onOffer,
+            exposeMakeOfferId: exposeMakeOfferId,
           ),
         JeeberFeedItemStatus.pendingResponse => const _PendingStatus(),
         JeeberFeedItemStatus.accepted => _AcceptedAction(
@@ -380,11 +397,13 @@ class _IncomingActions extends StatelessWidget {
     required this.requestId,
     required this.onIgnore,
     required this.onOffer,
+    required this.exposeMakeOfferId,
   });
 
   final String requestId;
   final VoidCallback? onIgnore;
   final VoidCallback? onOffer;
+  final bool exposeMakeOfferId;
 
   @override
   Widget build(BuildContext context) {
@@ -393,7 +412,11 @@ class _IncomingActions extends StatelessWidget {
       children: [
         _IgnoreButton(requestId: requestId, onTap: onIgnore),
         const SizedBox(width: Spacing.medium),
-        _OfferButton(requestId: requestId, onTap: onOffer),
+        _OfferButton(
+          requestId: requestId,
+          onTap: onOffer,
+          exposeMakeOfferId: exposeMakeOfferId,
+        ),
       ],
     );
   }
@@ -423,14 +446,25 @@ class _IgnoreButton extends StatelessWidget {
 }
 
 class _OfferButton extends StatelessWidget {
-  const _OfferButton({required this.requestId, required this.onTap});
+  const _OfferButton({
+    required this.requestId,
+    required this.onTap,
+    this.exposeMakeOfferId = false,
+  });
 
   final String requestId;
   final VoidCallback? onTap;
 
+  /// JM-048: expose the screen-level `feed_make_offer_cta` coined id on this
+  /// row's offer button (the FIRST incoming card only). The per-row
+  /// `jeeber_feed_request_offer_<id>` stays as the inner explicit-child node so
+  /// existing T-MOB flows that key off it keep working; the QA JM-048 flow taps
+  /// the unambiguous screen-level id (65_W2_TEST_PLAN §2 JM-044/048).
+  final bool exposeMakeOfferId;
+
   @override
   Widget build(BuildContext context) {
-    return Semantics(
+    final button = Semantics(
       identifier: 'jeeber_feed_request_offer_$requestId',
       button: true,
       child: OmdsPrimaryButton(
@@ -439,6 +473,14 @@ class _OfferButton extends StatelessWidget {
         borderRadius: OmdsBorderRadius.pill,
         onTap: onTap ?? () {},
       ),
+    );
+    if (!exposeMakeOfferId) return button;
+    return Semantics(
+      identifier: 'feed_make_offer_cta',
+      button: true,
+      container: true,
+      explicitChildNodes: true,
+      child: button,
     );
   }
 }

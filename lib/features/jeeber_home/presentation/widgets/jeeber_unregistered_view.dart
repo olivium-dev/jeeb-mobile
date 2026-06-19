@@ -23,6 +23,7 @@ class JeeberUnregisteredView extends StatelessWidget {
     super.key,
     required this.onRegister,
     this.profileName,
+    this.ctaIdentifier,
   });
 
   static const Key rootKey = Key('jeeber-unregistered-view-root');
@@ -34,6 +35,15 @@ class JeeberUnregisteredView extends StatelessWidget {
 
   /// Optional profile display name passed through to the greeting.
   final String? profileName;
+
+  /// JM-036: optional additional Semantics identifier wrapped around the
+  /// "Register now" CTA, in addition to the W0 `jeeber_unregistered_register_button`.
+  /// The DELIVERY-tab gate (`dashboard_tab.dart`) passes `delivery_register_now_cta`
+  /// (65_W2_TEST_PLAN §2) so the JM-036 flow can tap the prompt's CTA by its
+  /// coined screen id while screen-19's flow keeps using the widget id. Null
+  /// for non-gate callers (e.g. the dev-seam capture path) — the CTA then
+  /// carries only the W0 id.
+  final String? ctaIdentifier;
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +64,10 @@ class JeeberUnregisteredView extends StatelessWidget {
           children: [
             JeeberHomeGreeting(name: profileName),
             const Expanded(child: _UnregisteredHero()),
-            _UnregisteredCta(onRegister: onRegister),
+            _UnregisteredCta(
+              onRegister: onRegister,
+              extraIdentifier: ctaIdentifier,
+            ),
             const SizedBox(height: Spacing.large),
           ],
         ),
@@ -116,24 +129,41 @@ class _UnregisteredIllustrationArt extends StatelessWidget {
 }
 
 class _UnregisteredCta extends StatelessWidget {
-  const _UnregisteredCta({required this.onRegister});
+  const _UnregisteredCta({required this.onRegister, this.extraIdentifier});
 
   final VoidCallback onRegister;
+
+  /// JM-036: when set, the CTA is additionally wrapped in a Semantics node
+  /// carrying this identifier (`delivery_register_now_cta`) so the DELIVERY-tab
+  /// gate flow can tap the same button by the coined screen id. The inner
+  /// `jeeber_unregistered_register_button` node stays queryable because the
+  /// root view sets `explicitChildNodes: true`.
+  final String? extraIdentifier;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    Widget cta = Semantics(
+      identifier: 'jeeber_unregistered_register_button',
+      button: true,
+      child: OmdsPrimaryButton(
+        key: JeeberUnregisteredView.registerButtonKey,
+        text: l10n.jeeberRegisterCta,
+        onTap: onRegister,
+      ),
+    );
+    final extraId = extraIdentifier;
+    if (extraId != null) {
+      cta = Semantics(
+        identifier: extraId,
+        button: true,
+        explicitChildNodes: true,
+        child: cta,
+      );
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
-      child: Semantics(
-        identifier: 'jeeber_unregistered_register_button',
-        button: true,
-        child: OmdsPrimaryButton(
-          key: JeeberUnregisteredView.registerButtonKey,
-          text: l10n.jeeberRegisterCta,
-          onTap: onRegister,
-        ),
-      ),
+      child: cta,
     );
   }
 }

@@ -2,39 +2,37 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../domain/notification_prefs_model.dart';
 
-/// Local SharedPreferences cache for notification preferences.
+/// Local SharedPreferences cache for notification category preferences.
 ///
-/// Used as a fallback when the gateway is unreachable. The cubit does not read
-/// from this store directly — it always fetches from the gateway on mount.
-/// This store is kept for backward compatibility and potential offline fallback.
+/// Offline fallback only — the cubit does not read this on the happy path; it
+/// always fetches from the gateway on mount (JM-058). Kept (and migrated to the
+/// D64 category model) for backward compatibility and a potential offline read.
+/// Registered in DI; the cubit uses the gateway repository, not this store.
 class NotificationPrefsStore {
   NotificationPrefsStore(this._prefs);
 
   final SharedPreferences _prefs;
 
   static const _keyOffers = 'notif_prefs_offers';
-  static const _keyChat = 'notif_prefs_chat';
-  static const _keyStatusChanges = 'notif_prefs_status_changes';
-  static const _keyRatingReminders = 'notif_prefs_rating_reminders';
+  static const _keyOrderStatus = 'notif_prefs_order_status';
+  static const _keyWallet = 'notif_prefs_wallet';
+  static const _keyMarketing = 'notif_prefs_marketing';
 
-  NotificationPrefs load() {
-    return NotificationPrefs(
-      preferences: NotificationTopicPrefs(
-        offers: _prefs.getBool(_keyOffers) ?? true,
-        chat: _prefs.getBool(_keyChat) ?? true,
-        statusChanges: _prefs.getBool(_keyStatusChanges) ?? true,
-        ratingReminders: _prefs.getBool(_keyRatingReminders) ?? true,
-      ),
+  NotificationCategoryPrefs load() {
+    return NotificationCategoryPrefs(
+      offers: _prefs.getBool(_keyOffers) ?? true,
+      orderStatus: _prefs.getBool(_keyOrderStatus) ?? true,
+      wallet: _prefs.getBool(_keyWallet) ?? true,
+      marketing: _prefs.getBool(_keyMarketing) ?? false,
     );
   }
 
-  Future<void> save(NotificationPrefs prefs) async {
-    final p = prefs.preferences;
+  Future<void> save(NotificationCategoryPrefs categories) async {
     await Future.wait([
-      _prefs.setBool(_keyOffers, p.offers),
-      _prefs.setBool(_keyChat, p.chat),
-      _prefs.setBool(_keyStatusChanges, p.statusChanges),
-      _prefs.setBool(_keyRatingReminders, p.ratingReminders),
+      _prefs.setBool(_keyOffers, categories.offers),
+      _prefs.setBool(_keyOrderStatus, categories.orderStatus),
+      _prefs.setBool(_keyWallet, categories.wallet),
+      _prefs.setBool(_keyMarketing, categories.marketing),
     ]);
   }
 }

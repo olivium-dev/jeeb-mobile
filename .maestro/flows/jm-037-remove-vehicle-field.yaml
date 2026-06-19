@@ -1,0 +1,132 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-037 — Remove Vehicle field from onboarding personal-details (D20)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given the personal-details step, Then NO
+#        dm_onboarding_address_vehicle_number_field exists (removed across
+#        widget, setVehicleNumber, state, DTO) [D20].
+#   AC2: State/Country/Street/Address fields remain present.
+#   AC3: dm_onboarding_continue → service-area step
+#        (service_area_map_pin or dm_onboarding_service_area_root visible).
+#
+# Mock:
+#   POST /form-builder-service/v1/templates/jeeb_jeeber_v1/submit
+# Seam:
+#   jeeb.seam.session=jeeber_logged_in + jeeb.seam.kyc_status=none
+#   Navigate into onboarding wizard from delivery_register_now_cta
+#   (photo step → personal-details step via dm_onboarding_continue)
+#
+# NEW SEAM KEYS REQUIRED: jeeb.seam.kyc_status (see JM-036)
+#
+# STATUS: RED until JM-037 ships + vehicle removal lands (test-first).
+#         Decisions: D20, D67.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-037-remove-vehicle-field.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── Navigate to personal-details step ────────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "none"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "delivery_register_now_cta"
+    timeout: 15000
+
+- tapOn:
+    id: "delivery_register_now_cta"
+
+# Arrive at photo upload step first
+- extendedWaitUntil:
+    visible:
+      id: "dm_onboarding_continue"
+    timeout: 15000
+
+# The photo step REQUIRES a profile photo before Continue is enabled
+# (dm_onboarding_photo_step.dart `enabled: state.hasPhoto`). Pick one via the
+# media sheet (Camera) so Continue is tappable and the wizard advances to the
+# address step — without this the disabled Continue tap is a no-op and
+# `dm_onboarding_address_root` never appears.
+- tapOn:
+    id: "dm_onboarding_photo_upload_area"
+- extendedWaitUntil:
+    visible:
+      text: "Camera"
+    timeout: 8000
+- tapOn:
+    text: "Camera"
+
+# Advance to personal-details step (photo → personal-details)
+- tapOn:
+    id: "dm_onboarding_continue"
+
+- extendedWaitUntil:
+    visible:
+      id: "dm_onboarding_address_root"
+    timeout: 15000
+
+# ── AC1: Vehicle field must NOT be present ────────────────────────────────────
+- assertNotVisible:
+    id: "dm_onboarding_address_vehicle_number_field"
+
+- takeScreenshot: jm037_ac1_no_vehicle_field
+
+# ── AC2: Remaining fields present ────────────────────────────────────────────
+- assertVisible:
+    id: "dm_onboarding_address_state_field"
+
+- assertVisible:
+    id: "dm_onboarding_address_country_field"
+
+- assertVisible:
+    id: "dm_onboarding_address_street_field"
+
+- assertVisible:
+    id: "dm_onboarding_address_field"
+
+- takeScreenshot: jm037_ac2_address_fields_present
+
+# ── AC3: Continue → service-area ─────────────────────────────────────────────
+# Fill required fields first (minimal values so form is valid)
+- tapOn:
+    id: "dm_onboarding_address_state_field"
+- inputText: "TestState"
+
+- tapOn:
+    id: "dm_onboarding_address_country_field"
+- inputText: "TestCountry"
+
+- tapOn:
+    id: "dm_onboarding_address_street_field"
+- inputText: "TestStreet"
+
+- tapOn:
+    id: "dm_onboarding_address_field"
+- inputText: "TestAddress"
+
+- tapOn:
+    id: "dm_onboarding_continue"
+
+- extendedWaitUntil:
+    visible:
+      id: "dm_onboarding_service_area_root"
+    timeout: 15000
+
+- takeScreenshot: jm037_ac3_continue_to_service_area

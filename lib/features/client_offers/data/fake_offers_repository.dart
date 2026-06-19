@@ -74,8 +74,13 @@ class FakeOffersRepository implements OffersRepository {
       throw const OffersRepositoryException(OffersFailure.offerNotPending);
     }
     _requestOpen = false;
-    // The fake mirrors the mock convention deliveryId == accepted-request-id.
-    return OfferAcceptResult(deliveryId: requestId);
+    // The fake mirrors the mock convention deliveryId == accepted-request-id,
+    // and surfaces a derived conversation id so JM-029's confirm → order-chat
+    // navigation lands on a non-empty `/chat/<id>` in dev/offline runs.
+    return OfferAcceptResult(
+      deliveryId: requestId,
+      conversationId: 'conv-for-$requestId',
+    );
   }
 
   DateTime _lastEmittedAt = DateTime.fromMillisecondsSinceEpoch(0);

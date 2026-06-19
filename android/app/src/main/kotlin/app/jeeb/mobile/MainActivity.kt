@@ -13,12 +13,35 @@ class MainActivity : FlutterActivity() {
 
     // Debug-only seam keys read from `adb shell am start … -e <key> <value>`.
     private val seamKeys = listOf(
+        // Legacy capture knobs (route / chat-state / locale / tab / feed / splash).
         "jeeb.route",
         "jeeb.state",
         "jeeb.locale",
         "jeeb.home_tab",
         "jeeb.feed",
         "jeeb.hold_splash",
+        // Wave 0 dev-seam session/journey harness (62_SEAM_HARNESS.md). These let
+        // a Maestro flow deterministically start mid-journey by seeding app state
+        // before the GoRouter first-run redirect fires. All are kDebugMode-gated
+        // on the Dart side (DevSeamConfig) so release builds ignore them.
+        "jeeb.seam.session",
+        // Wave 1 journey seam (63_W1_TEST_PLAN §4): seeds mid-journey
+        // request/offer/delivery/conversation state for user-client-001 (or
+        // user-jeeber-002) so the core customer-journey flows start deep.
+        "jeeb.seam.journey",
+        // Wave 2 jeeber seam (65_W2_TEST_PLAN §3): seeds the jeeber KYC status
+        // (the DELIVERY-tab + offer gates read) and the wallet affordability
+        // state (the wallet hub + offer composer read). Both are kDebugMode-gated
+        // on the Dart side (DevSeamConfig) so release builds ignore them.
+        "jeeb.seam.kyc_status",
+        "jeeb.seam.wallet_state",
+        "jeeb.seam.otp_code",
+        "jeeb.seam.otp_countdown_expired",
+        "jeeb.seam.signup_collision",
+        "jeeb.seam.social_login",
+        "jeeb.seam.recovery_code",
+        "jeeb.seam.recovery_countdown_expired",
+        "jeeb.seam.set_password_mode",
     )
 
     // `adb push jeeb-dev-seam.json /data/local/tmp/jeeb-dev-seam.json`.

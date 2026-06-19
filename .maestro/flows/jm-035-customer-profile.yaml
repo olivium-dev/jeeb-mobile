@@ -1,0 +1,336 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-035 — Customer Profile tab (real screen + all rows)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given the Profile tab, When opened, Then the real profile (avatar, name,
+#        per-role rating, customer_profile_wallet_chip, customer_profile_bell)
+#        renders (not the QA dev surface).
+#   AC2: Each row navigates correctly:
+#        - customer_profile_register_delivery_row → delivery-onboarding-image-upload
+#          (dm_onboarding_continue visible) [JM-039, NOT /register]
+#        - customer_profile_password_row → password-security
+#          (password_back visible) [JM-061]
+#        - customer_profile_notifications_row → notification-prefs
+#          (notif_prefs_back visible) [JM-058]
+#        - customer_profile_language_row → language-settings
+#          (language_back visible) [JM-059]
+#        - customer_profile_contact_row → support-ticket
+#          (support_submit_cta visible) [JM-063]
+#        - customer_profile_rate_app_row → native app review sheet (tap accepted)
+#        - customer_profile_logout_row → logout confirm (logout_confirm_cta visible)
+#          [JM-062]
+#        - customer_profile_addresses_row → saved-addresses
+#          (saved_address_add_cta visible) [JM-049]
+#   AC3: Wallet chip/row → wallet-hub (wallet_hub_root visible) [JM-053].
+#   AC4: Bell → notifications-list (notifications_root visible) [JM-057].
+#
+# Mock: GET /user-management/users/me,
+#       GET /notification-service/v1/notifications/preferences
+# Seam: jeeb.seam.session=customer_logged_in
+#
+# STATUS: All target rows now assert real destinations — AP-9 guards retired
+#         after W4 closeout (06-19). JM-058/059/061/062/063 all GREEN on-device.
+#         Decisions: D6, D90, D67, D20.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-035-customer-profile.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Profile tab renders real screen (not dev surface) ───────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_profile"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_wallet_chip"
+    timeout: 15000
+
+# AC1: Real profile elements
+- assertVisible:
+    id: "customer_profile_bell"
+
+- assertVisible:
+    id: "customer_profile_avatar"
+
+- assertVisible:
+    id: "customer_profile_name"
+
+- assertVisible:
+    id: "customer_profile_rating"
+
+- takeScreenshot: jm035_ac1_real_profile_screen
+
+# ── AC2a: Register delivery row → delivery-register-prompt / jeeber onboarding ─
+# JM-044 (AC3) confirmed on-device (W4 closeout 06-19): the register-delivery row
+# navigates to `delivery_register_prompt` (DeliveryRegisterPromptScreen,
+# route name 'delivery-register-prompt'). Assert the real destination.
+- tapOn:
+    id: "customer_profile_register_delivery_row"
+
+- extendedWaitUntil:
+    visible:
+      id: "delivery_register_prompt"
+    timeout: 15000
+
+- takeScreenshot: jm035_ac2a_register_delivery_to_onboarding_prompt
+
+# ── AC2b: Addresses row → saved-addresses ────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_profile"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_wallet_chip"
+    timeout: 15000
+
+- tapOn:
+    id: "customer_profile_addresses_row"
+
+- extendedWaitUntil:
+    visible:
+      id: "saved_address_add_cta"
+    timeout: 15000
+
+- takeScreenshot: jm035_ac2b_addresses_row_to_saved_addresses
+
+# ── AC2c: Password row → password-security (JM-061 GREEN) ───────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_profile"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_password_row"
+    timeout: 15000
+
+- tapOn:
+    id: "customer_profile_password_row"
+
+# JM-061 (password-security) is now GREEN on-device (W4 closeout 06-19).
+# Assert the real destination: password_security_root.
+- extendedWaitUntil:
+    visible:
+      id: "password_security_root"
+    timeout: 15000
+
+- takeScreenshot: jm035_ac2c_password_row_to_security
+
+# ── AC2d: Notifications row → notification-prefs (JM-058 GREEN) ─────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_profile"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_notifications_row"
+    timeout: 15000
+
+- tapOn:
+    id: "customer_profile_notifications_row"
+
+# JM-058 (notification-prefs) is now GREEN on-device (W4 closeout 06-19).
+# Assert the real destination: notif_prefs_root.
+- extendedWaitUntil:
+    visible:
+      id: "notif_prefs_root"
+    timeout: 15000
+
+- takeScreenshot: jm035_ac2d_notifications_row_to_prefs
+
+# ── AC2e: Language row → language-settings (JM-059 GREEN) ───────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_profile"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_language_row"
+    timeout: 15000
+
+- tapOn:
+    id: "customer_profile_language_row"
+
+# JM-059 (language-settings) is now GREEN on-device (W4 closeout 06-19).
+# Assert the real destination: language_settings_root.
+- extendedWaitUntil:
+    visible:
+      id: "language_settings_root"
+    timeout: 15000
+
+- takeScreenshot: jm035_ac2e_language_row_to_settings
+
+# ── AC2f: Contact/support row → support-ticket (JM-063 GREEN) ───────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_profile"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_contact_row"
+    timeout: 15000
+
+- tapOn:
+    id: "customer_profile_contact_row"
+
+# JM-063 (support-ticket) is now GREEN on-device (W4 closeout 06-19).
+# Assert the real destination: support_root.
+- extendedWaitUntil:
+    visible:
+      id: "support_root"
+    timeout: 15000
+
+- takeScreenshot: jm035_ac2f_contact_row_to_support
+
+# ── AC2g: Logout row → logout confirm sheet (JM-062 GREEN) ──────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_profile"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_logout_row"
+    timeout: 15000
+
+- tapOn:
+    id: "customer_profile_logout_row"
+
+# JM-062 (logout-delete) is now GREEN on-device (W4 closeout 06-19).
+# Assert the real destination: logout_delete_sheet.
+- extendedWaitUntil:
+    visible:
+      id: "logout_delete_sheet"
+    timeout: 15000
+
+- takeScreenshot: jm035_ac2g_logout_row_to_confirm
+
+# ── AC3: Wallet chip → wallet-hub (JM-053 GREEN) ────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_profile"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_wallet_chip"
+    timeout: 15000
+
+- tapOn:
+    id: "customer_profile_wallet_chip"
+
+# JM-053 (wallet-hub) is now GREEN on-device (W4 closeout 06-19).
+# Assert the real destination: wallet_hub_root.
+- extendedWaitUntil:
+    visible:
+      id: "wallet_hub_root"
+    timeout: 15000
+
+- takeScreenshot: jm035_ac3_wallet_chip_to_wallet_hub
+
+# ── AC4: Bell → notifications-list (JM-057 GREEN) ───────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_profile"
+
+- extendedWaitUntil:
+    visible:
+      id: "customer_profile_bell"
+    timeout: 15000
+
+- tapOn:
+    id: "customer_profile_bell"
+
+# JM-057 (notifications-list) is now GREEN on-device (W4 closeout 06-19).
+# Assert the real destination: notifications_root.
+- extendedWaitUntil:
+    visible:
+      id: "notifications_root"
+    timeout: 15000
+
+- takeScreenshot: jm035_ac4_bell_to_notifications

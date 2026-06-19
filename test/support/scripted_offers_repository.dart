@@ -54,6 +54,11 @@ class ScriptedOffersRepository implements OffersRepository {
   /// that does not surface one.
   String? acceptDeliveryId;
 
+  /// Conversation id the next successful accept returns (the order-chat the
+  /// JM-029 confirm navigates to). Null mirrors a gateway that does not surface
+  /// one, exercising the requestId fallback.
+  String? acceptConversationId;
+
   @override
   Future<OfferAcceptResult> acceptOffer({
     required String requestId,
@@ -67,6 +72,9 @@ class ScriptedOffersRepository implements OffersRepository {
       _acceptFailure = null;
       throw OffersRepositoryException(failure);
     }
-    return OfferAcceptResult(deliveryId: acceptDeliveryId);
+    return OfferAcceptResult(
+      deliveryId: acceptDeliveryId,
+      conversationId: acceptConversationId,
+    );
   }
 }

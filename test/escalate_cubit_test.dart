@@ -1,11 +1,14 @@
-// Tests for EscalateCubit (T-MOB-022).
+// Tests for EscalateCubit (JM-060 dispute-open-evidence; ex T-MOB-022).
 //
 // Verifies:
-//   - submit transitions inputting → submitting → success with caseId.
+//   - submit transitions inputting → submitting → success with caseId (dispute id).
 //   - submit without reason is a no-op.
 //   - network error emits error phase with network kind.
 //   - 409 already-open emits error with alreadyOpen kind.
 //   - retryFromError restores inputting phase.
+//   - photo cap at 5; voice attach/clear (D53).
+//   - loadEvidence resolves the auto-attached snapshot/timeline (D53) and
+//     degrades to empty on failure.
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,9 +18,17 @@ import 'package:jeeb_mobile/features/escalate/application/escalate_state.dart';
 import 'package:jeeb_mobile/features/escalate/domain/escalate_repository.dart';
 
 class _FakeEscalateRepo implements EscalateRepository {
-  const _FakeEscalateRepo({this.failWith});
+  const _FakeEscalateRepo({this.failWith, this.evidence, this.evidenceThrows = false});
 
   final EscalateErrorKind? failWith;
+  final EscalateEvidence? evidence;
+  final bool evidenceThrows;
+
+  @override
+  Future<EscalateEvidence> fetchEvidence({required String deliveryId}) async {
+    if (evidenceThrows) throw Exception('boom');
+    return evidence ?? EscalateEvidence.empty;
+  }
 
   @override
   Future<EscalateResult> submitEscalation({
@@ -25,9 +36,11 @@ class _FakeEscalateRepo implements EscalateRepository {
     required EscalateReason reason,
     String? comment,
     List<String> photoPaths = const [],
+    String? voicePath,
+    EscalateEvidence evidence = EscalateEvidence.empty,
   }) async {
     if (failWith != null) throw EscalateException(failWith!);
-    return const EscalateResult(caseId: 'case-001', status: 'open');
+    return const EscalateResult(caseId: 'dispute-001', status: 'open');
   }
 }
 
@@ -44,7 +57,7 @@ void main() {
     );
 
     blocTest<EscalateCubit, EscalateState>(
-      'emits submitting → success with caseId',
+      'emits submitting → success with dispute id as caseId',
       build: () {
         final c = EscalateCubit(
           repository: const _FakeEscalateRepo(),
@@ -60,8 +73,8 @@ void main() {
           'submitting',
         ),
         predicate<EscalateState>(
-          (s) => s.phase == EscalatePhase.success && s.caseId == 'case-001',
-          'success with caseId',
+          (s) => s.phase == EscalatePhase.success && s.caseId == 'dispute-001',
+          'success with dispute id',
         ),
       ],
     );
@@ -162,5 +175,73 @@ void main() {
       expect(c.state.photoPaths, isEmpty);
       c.close();
     });
+  });
+
+  group('EscalateCubit — voice evidence (D53)', () {
+    test('setVoice attaches a clip path; clearVoice removes it', () {
+      final c = EscalateCubit(
+        repository: const _FakeEscalateRepo(),
+        deliveryId: 'dlv-1',
+      );
+      c.setVoice('voice.m4a');
+      expect(c.state.hasVoice, isTrue);
+      c.clearVoice();
+      expect(c.state.hasVoice, isFalse);
+      c.close();
+    });
+
+    test('setVoice ignores an empty path', () {
+      final c = EscalateCubit(
+        repository: const _FakeEscalateRepo(),
+        deliveryId: 'dlv-1',
+      );
+      c.setVoice('');
+      expect(c.state.hasVoice, isFalse);
+      c.close();
+    });
+  });
+
+  group('EscalateCubit — auto-attached evidence (D53)', () {
+    blocTest<EscalateCubit, EscalateState>(
+      'loadEvidence resolves the snapshot + timeline',
+      build: () => EscalateCubit(
+        repository: const _FakeEscalateRepo(
+          evidence: EscalateEvidence(
+            chatSnapshotUrl: 'https://cdn.jeeb.app/snapshots/conv-1.html',
+            chatMessageCount: 4,
+            timeline: [
+              EscalateTimelineEntry(status: 'Ordered'),
+              EscalateTimelineEntry(status: 'InTransit'),
+            ],
+          ),
+        ),
+        deliveryId: 'dlv-1',
+      ),
+      act: (c) => c.loadEvidence(),
+      expect: () => [
+        predicate<EscalateState>(
+          (s) =>
+              s.evidenceLoaded &&
+              s.evidence.hasChatSnapshot &&
+              s.evidence.timeline.length == 2,
+          'evidence loaded with snapshot + timeline',
+        ),
+      ],
+    );
+
+    blocTest<EscalateCubit, EscalateState>(
+      'loadEvidence degrades to empty on a failed fetch (never blocks)',
+      build: () => EscalateCubit(
+        repository: const _FakeEscalateRepo(evidenceThrows: true),
+        deliveryId: 'dlv-1',
+      ),
+      act: (c) => c.loadEvidence(),
+      expect: () => [
+        predicate<EscalateState>(
+          (s) => s.evidenceLoaded && s.evidence.isEmpty,
+          'evidence loaded, empty',
+        ),
+      ],
+    );
   });
 }

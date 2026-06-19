@@ -12,16 +12,23 @@ class ClientLocationAddRow extends StatelessWidget {
     required this.label,
     required this.addSemanticLabel,
     required this.onTap,
+    this.identifier = 'client_location_add_new',
   });
 
   final String label;
   final String addSemanticLabel;
   final VoidCallback onTap;
 
+  /// Semantics identifier for the row. Defaults to the legacy
+  /// `client_location_add_new` (kept for the existing delivery-create tests);
+  /// the JM-024 location-select screen passes `location_select_new_location_cta`
+  /// (63_W1_TEST_PLAN §2.3).
+  final String identifier;
+
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      identifier: 'client_location_add_new',
+      identifier: identifier,
       button: true,
       label: addSemanticLabel,
       child: ExcludeSemantics(

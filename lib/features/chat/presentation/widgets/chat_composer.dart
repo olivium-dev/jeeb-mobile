@@ -27,6 +27,8 @@ class ChatComposer extends StatefulWidget {
     super.key,
     this.hintText,
     this.onVoiceRecordingComplete,
+    this.inputIdentifier = 'chat_detail_message_input',
+    this.sendIdentifier = 'chat_detail_send_button',
   });
 
   /// Optional composer hint override. The Jeeber (delivery-man) variant passes
@@ -38,6 +40,17 @@ class ChatComposer extends StatefulWidget {
   /// Parameters: (audioBytes, mimeType, durationMs). Null means voice notes are
   /// disabled in this composer context.
   final void Function(List<int>, String, int)? onVoiceRecordingComplete;
+
+  /// Semantics identifier for the text field. Defaults to the legacy
+  /// `chat_detail_message_input` (the 1:1 active-delivery chat); the order-chat
+  /// (client compose) surface overrides it to `order_chat_composer_input`
+  /// (JM-025, 63_W1_TEST_PLAN §2.5) so the W1 flow can drive the field.
+  final String inputIdentifier;
+
+  /// Semantics identifier for the send button. Defaults to the legacy
+  /// `chat_detail_send_button`; the order-chat surface overrides it to
+  /// `order_chat_composer_send` (JM-025) — the first send broadcasts.
+  final String sendIdentifier;
 
   static const Key textFieldKey = Key('chat-composer-text-field');
   static const Key sendButtonKey = Key('chat-composer-send-button');
@@ -99,6 +112,8 @@ class _ChatComposerState extends State<ChatComposer> {
         onSend: _send,
         onAttach: _openAttachmentSheet,
         onVoiceRecordingComplete: widget.onVoiceRecordingComplete,
+        inputIdentifier: widget.inputIdentifier,
+        sendIdentifier: widget.sendIdentifier,
       ),
     );
   }
@@ -120,6 +135,8 @@ class _ComposerBar extends StatelessWidget {
     required this.hintText,
     required this.onSend,
     required this.onAttach,
+    required this.inputIdentifier,
+    required this.sendIdentifier,
     this.onVoiceRecordingComplete,
   });
 
@@ -129,6 +146,8 @@ class _ComposerBar extends StatelessWidget {
   final String? hintText;
   final VoidCallback onSend;
   final Future<void> Function() onAttach;
+  final String inputIdentifier;
+  final String sendIdentifier;
   final void Function(List<int>, String, int)? onVoiceRecordingComplete;
 
   @override
@@ -162,10 +181,11 @@ class _ComposerBar extends StatelessWidget {
                   controller: controller,
                   focusNode: focusNode,
                   hintText: hintText,
+                  inputIdentifier: inputIdentifier,
                 ),
               ),
               _VoiceButton(onComplete: onVoiceRecordingComplete),
-              _SendButton(onSend: onSend),
+              _SendButton(onSend: onSend, sendIdentifier: sendIdentifier),
             ],
           ),
         ),
@@ -213,17 +233,19 @@ class _ComposerField extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.hintText,
+    required this.inputIdentifier,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
   final String? hintText;
+  final String inputIdentifier;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Semantics(
-      identifier: 'chat_detail_message_input',
+      identifier: inputIdentifier,
       textField: true,
       child: OmdsTextField(
         key: ChatComposer.textFieldKey,
@@ -271,9 +293,10 @@ class _VoiceButton extends StatelessWidget {
 
 /// Navy circular send pill; enabled only when the composer text is non-empty.
 class _SendButton extends StatelessWidget {
-  const _SendButton({required this.onSend});
+  const _SendButton({required this.onSend, required this.sendIdentifier});
 
   final VoidCallback onSend;
+  final String sendIdentifier;
 
   @override
   Widget build(BuildContext context) {
@@ -285,7 +308,7 @@ class _SendButton extends StatelessWidget {
           key: ChatComposer.sendButtonKey,
           icon: Icons.send,
           filled: true,
-          semanticsId: 'chat_detail_send_button',
+          semanticsId: sendIdentifier,
           semanticsLabel: l10n.chatSendA11y,
           onPressed: state.canSendText ? onSend : null,
         );

@@ -3,20 +3,24 @@ import 'package:dio/dio.dart';
 import '../domain/delivery_tracking_info.dart';
 import '../domain/live_tracking_repository.dart';
 
-/// T-MOB-017: Repository uses the verified mock paths:
-///   GET /deliveries/{id}/tracking → TrackingPolylineDto
-///   GET /v1/geo/jeeb/stream/{id}  → same shape (mobile alias, also REST)
+/// JM-032: order-tracking repository over the delivery-service.
 ///
-/// Endpoint contract verified against Mockoon :3055 (d6-tracking-geo suite,
-/// scenario s09-live-tracking).  useMockPrefixes=false, paths pass through.
+/// Speaks the gateway-contract path `GET /v1/delivery/:deliveryId`
+/// (30_BACKLOG JM-032 Mock line + 42_GUARDRAILS_MOCK §1.2 rewrite key
+/// `/v1/delivery` → `/delivery-service/v1/delivery`). `MockGatewayClient`'s
+/// `_PathRewriteInterceptor` rewrites the `/v1/...` prefix to the `:4010`
+/// service prefix — never hardcode a host/prefix here (40_GUARDRAILS_ARCH §4).
+///
+/// The delivery row carries both the lifecycle `status`
+/// (`Ordered/Picked/InTransit/AtDoor/Done`) that drives the 4-step
+/// `tracking_stepper` AND the pinned-summary fields (price/tier/jeeber/item)
+/// the `order_summary_pinned` header renders (D11/D71). The screen polls this
+/// every 5s (LiveTrackingCubit); when the status reaches the terminal delivered
+/// state the screen auto-advances to the receipt prompt (JM-033).
 class DioLiveTrackingRepository implements LiveTrackingRepository {
-  DioLiveTrackingRepository(this._dio);
+  const DioLiveTrackingRepository(this._dio);
 
   final Dio _dio;
-
-  // Verified path: GET /deliveries/{id}/tracking → 200 TrackingPolylineDto
-  // (ETag header + polyline array + position object)
-  static const _trackingPath = '/deliveries';
 
   @override
   Future<DeliveryTrackingInfo> fetchDeliveryStatus({
@@ -24,13 +28,13 @@ class DioLiveTrackingRepository implements LiveTrackingRepository {
   }) async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
-        '$_trackingPath/$deliveryId/tracking',
+        '/v1/delivery/$deliveryId',
       );
       final data = response.data;
       if (data == null) {
         throw const LiveTrackingException(LiveTrackingErrorKind.parse);
       }
-      return DeliveryTrackingInfo.fromTrackingJson(deliveryId, data);
+      return DeliveryTrackingInfo.fromDeliveryJson(deliveryId, data);
     } on DioException catch (e) {
       throw LiveTrackingException(
         e.response == null

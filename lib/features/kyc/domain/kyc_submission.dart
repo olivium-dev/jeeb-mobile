@@ -1,7 +1,6 @@
 import 'package:equatable/equatable.dart';
 
 import '../../photo_attachment/domain/photo_attachment.dart';
-import 'vehicle_type.dart';
 
 /// Decision the back-office returned for a [KycSubmission]. `pending` is the
 /// state immediately after submit; `approved`/`rejected` are terminal.
@@ -9,10 +8,13 @@ enum KycStatus { notSubmitted, pending, approved, rejected }
 
 /// Structured reason returned with a rejected submission. Kept as an enum so
 /// the UI can render localized copy and analytics can be keyed on the cause.
+///
+/// D20 (JM-040) removed the in-app Vehicle step, but the back-office reason
+/// taxonomy is server-owned, so the legible-document reasons stay; a stray
+/// `vehicleDocumentMissing` from a legacy submission still maps to "other".
 enum KycRejectionReason {
   idUnreadable,
   selfieMismatch,
-  vehicleDocumentMissing,
   expired,
   other,
 }
@@ -23,14 +25,17 @@ enum IdSide { front, back }
 /// Snapshot of the user's KYC submission. Stored on the cubit's state and
 /// echoed by [KycGateway.fetchStatus] after submit so the status screen can
 /// re-render across cold starts.
+///
+/// JM-040 (D20): the vehicle type + registration fields were removed. The
+/// platform is cash-on-delivery and never collected a vehicle; the KYC form
+/// schema (K1) carries only `full_name, national_id, dob, id_front, id_back,
+/// selfie`.
 class KycSubmission extends Equatable {
   const KycSubmission({
     required this.status,
     this.idFront,
     this.idBack,
     this.selfie,
-    this.vehicleType,
-    this.vehicleRegistration = '',
     this.rejectionReason,
     this.submittedAt,
   });
@@ -39,10 +44,6 @@ class KycSubmission extends Equatable {
   final PhotoAttachment? idFront;
   final PhotoAttachment? idBack;
   final PhotoAttachment? selfie;
-  final VehicleType? vehicleType;
-
-  /// Free-text registration / plate number. Empty until the user fills step 3.
-  final String vehicleRegistration;
 
   /// Only set when [status] is [KycStatus.rejected].
   final KycRejectionReason? rejectionReason;
@@ -53,16 +54,12 @@ class KycSubmission extends Equatable {
   bool get hasIdFront => idFront != null;
   bool get hasIdBack => idBack != null;
   bool get hasSelfie => selfie != null;
-  bool get hasVehicle =>
-      vehicleType != null && vehicleRegistration.trim().isNotEmpty;
 
   KycSubmission copyWith({
     KycStatus? status,
     PhotoAttachment? idFront,
     PhotoAttachment? idBack,
     PhotoAttachment? selfie,
-    VehicleType? vehicleType,
-    String? vehicleRegistration,
     KycRejectionReason? rejectionReason,
     bool clearRejectionReason = false,
     DateTime? submittedAt,
@@ -72,8 +69,6 @@ class KycSubmission extends Equatable {
       idFront: idFront ?? this.idFront,
       idBack: idBack ?? this.idBack,
       selfie: selfie ?? this.selfie,
-      vehicleType: vehicleType ?? this.vehicleType,
-      vehicleRegistration: vehicleRegistration ?? this.vehicleRegistration,
       rejectionReason:
           clearRejectionReason ? null : (rejectionReason ?? this.rejectionReason),
       submittedAt: submittedAt ?? this.submittedAt,
@@ -86,8 +81,6 @@ class KycSubmission extends Equatable {
         idFront,
         idBack,
         selfie,
-        vehicleType,
-        vehicleRegistration,
         rejectionReason,
         submittedAt,
       ];

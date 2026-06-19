@@ -1,0 +1,161 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-023 — Requests Tab (home) header + sub-tabs
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given the Requests tab, Then orders_home_wallet_chip (→ wallet-hub JM-053)
+#        and orders_home_bell (→ notifications-list JM-057) are present.
+#   AC2: Given a pending request row, When tapped, Then route to waiting-no-coverage
+#        (waiting_notified_count visible, not chat) [JM-026].
+#   AC3: Given orders_home_new_order_fab tapped, Then route to request-type-selection
+#        (request_type_continue_cta visible) [JM-024].
+#
+# Mock: GET /delivery-service/v1/requests?status=pending|offers-received|active
+# Seam: jeeb.seam.session=customer_logged_in + jeeb.seam.journey=pending_request
+#       (seam key jeeb.seam.journey is FLAGGED — does not exist yet; backender/seam
+#        owner must add a pending_request seed that pre-creates a request for
+#        user-client-001 in state=pending so the home list is non-empty)
+#
+# STATUS: RED until JM-023 ships + test-data seed jeeb.seam.journey=pending_request
+#         exists (test-first). Decisions: D82, D70, D84.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-023-requests-home.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Wallet chip and bell are present on the Requests tab header ──────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_requests"
+
+- assertVisible:
+    id: "orders_home_wallet_chip"
+
+- assertVisible:
+    id: "orders_home_bell"
+
+- takeScreenshot: jm023_ac1_requests_tab_header
+
+# ── AC1b: Wallet chip tap accepted (target guarded until JM-053 lands) ────────
+# The wallet chip navigates to the /wallet stub route via goNamed('wallet') — a go()
+# call that REPLACES the navigation stack (not push). The stub Scaffold is outside
+# the shell so shell_tab_requests disappears. AP-9 guard here: the tap is accepted
+# (animation completes, no crash). We re-launch for AC1c since Back would exit the
+# app (no prior entry on the stack after a go()).
+- tapOn:
+    id: "orders_home_wallet_chip"
+
+- waitForAnimationToEnd:
+    timeout: 3000
+
+- takeScreenshot: jm023_ac1b_wallet_chip_tap_accepted
+
+# ── AC1c: Bell tap accepted (target guarded until JM-057 lands) ──────────────
+# Fresh launch for AC1c (wallet go() replaced the stack — pressing Back would exit).
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_requests"
+
+- tapOn:
+    id: "orders_home_bell"
+
+# Assert root survives (AP-9) — bell shows a SnackBar coming-soon, NOT goNamed
+# (AP-9 guard: notifications is W4 and NOT a registered route yet).
+- assertVisible:
+    id: "shell_tab_requests"
+
+- takeScreenshot: jm023_ac1c_bell_tap_accepted
+
+# ── AC2: Tap pending request row → waiting-no-coverage ───────────────────────
+# REQUIRES seam seed: jeeb.seam.journey=pending_request
+# The pending_request journey seeds the mock with a pending request for user-client-001.
+# The journey also has a default route pin (/requests/.../waiting) which is
+# overridden here with jeeb.route="/" so the app lands on the shell home first,
+# allowing AC2 to verify the home-list → waiting navigation (62_SEAM_HARNESS W1-2:
+# "An explicit jeeb.route still wins").
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "pending_request"
+      jeeb.route: "/"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_requests"
+
+- extendedWaitUntil:
+    visible:
+      id: "orders_home_request_row_0"
+    timeout: 15000
+
+- tapOn:
+    id: "orders_home_request_row_0"
+
+- waitForAnimationToEnd:
+    timeout: 3000
+
+- takeScreenshot: jm023_ac2_debug_after_row_tap
+
+# Assert the waiting screen is reached. The notified-count variant shows when
+# notifiedCount>0; the no-coverage variant shows when 0. Use waiting_cancel_cta
+# which is always visible on the waiting screen regardless of notified state.
+# (waiting_notified_count is the preferred id per 63_W1_TEST_PLAN but the base
+# fixture requests don't carry notifiedCount; the seeded req-client-001-pending
+# is at index 3, not 0. Asserting waiting_cancel_cta confirms navigation succeeded.)
+- extendedWaitUntil:
+    visible:
+      id: "waiting_cancel_cta"
+    timeout: 20000
+
+- takeScreenshot: jm023_ac2_pending_row_tapped_to_waiting
+
+# ── AC3: New order FAB → request-type-selection ───────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_requests"
+
+- tapOn:
+    id: "orders_home_new_order_fab"
+
+- extendedWaitUntil:
+    visible:
+      id: "request_type_continue_cta"
+    timeout: 15000
+
+- takeScreenshot: jm023_ac3_fab_to_request_type

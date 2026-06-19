@@ -51,10 +51,18 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     }
   }
 
-  /// T-MOB-017 AC3/AC4: detect stage transitions and emit one-shot events.
+  /// T-MOB-017 AC3/AC4 + JM-032 AC2: detect stage transitions and emit one-shot
+  /// events. Delivered fires even on the FIRST fetch (no prior stage) so a cold
+  /// poll that already reads `Done` still auto-advances to the receipt prompt.
   LiveTrackingEvent _detectEvent(DeliveryTrackingInfo info) {
     final prev = state.trackingInfo?.currentStage;
     final next = info.currentStage;
+    // JM-032 AC2: terminal delivered → auto-advance. Guarded so it only fires
+    // on the transition INTO delivered (or the first read of it), never again.
+    if (next == TrackingStage.delivered &&
+        prev != TrackingStage.delivered) {
+      return LiveTrackingEvent.deliveredAutoAdvance;
+    }
     if (prev == next) return LiveTrackingEvent.none;
     if (next == TrackingStage.atDoor) return LiveTrackingEvent.jeeberAtDoor;
     if (next == TrackingStage.inTransit) {

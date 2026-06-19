@@ -9,6 +9,12 @@ enum MutualRatingPhase {
   /// Submit call in-flight.
   submitting,
 
+  /// JM-034 mandatory terminal: the rating persisted and the screen must
+  /// navigate away (customer → customer-orders-home, jeeber → Dashboard tab).
+  /// This is the canonical end of the mandatory rating path (AC2/AC3, D56).
+  /// The blind-reveal phases below remain for the T-MOB-020 standalone flow.
+  submitted,
+
   /// Submitted; waiting for counterpart to rate.
   awaitingOther,
 

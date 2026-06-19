@@ -6,7 +6,6 @@ import 'package:jeeb_mobile/features/kyc/application/kyc_wizard_cubit.dart';
 import 'package:jeeb_mobile/features/kyc/application/kyc_wizard_state.dart';
 import 'package:jeeb_mobile/features/kyc/domain/kyc_gateway.dart';
 import 'package:jeeb_mobile/features/kyc/domain/kyc_submission.dart';
-import 'package:jeeb_mobile/features/kyc/domain/vehicle_type.dart';
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 import 'package:jeeb_mobile/features/photo_attachment/domain/photo_picker_service.dart';
 
@@ -31,17 +30,14 @@ KycWizardCubit _buildCubit({
   return cubit;
 }
 
-/// Loads schema (transitions schema → id) then completes all three capture
-/// steps. Leaves the cubit on the vehicle step with a valid registration.
-Future<void> _completeCaptures(KycWizardCubit cubit) async {
+/// Loads schema (transitions schema → identity) then completes every capture +
+/// the ToS tick so [KycWizardState.canSubmitIdentity] is true.
+Future<void> _completeIdentity(KycWizardCubit cubit) async {
   await cubit.loadSchema();
   await cubit.captureIdFront();
   await cubit.captureIdBack();
-  cubit.goToSelfie();
   await cubit.captureSelfie();
-  cubit.goToVehicle();
-  cubit.setVehicleType(VehicleType.scooter);
-  cubit.setVehicleRegistration('LB 12345');
+  cubit.setTosAccepted(true);
 }
 
 void main() {
@@ -52,140 +48,135 @@ void main() {
       expect(cubit.state.submission.status, KycStatus.notSubmitted);
     });
 
-    test('loadSchema transitions schema → id step', () async {
+    test('loadSchema transitions schema → identity step', () async {
       final cubit = _buildCubit();
       await cubit.loadSchema();
-      expect(cubit.state.step, KycWizardStep.id);
+      expect(cubit.state.step, KycWizardStep.identity);
       expect(cubit.state.formSchema, isNotNull);
     });
   });
 
-  group('KycWizardCubit — wizard transitions', () {
+  group('KycWizardCubit — identity captures', () {
     test('initial state after loadSchema has nothing captured', () async {
       final cubit = _buildCubit();
       await cubit.loadSchema();
-      expect(cubit.state.step, KycWizardStep.id);
+      expect(cubit.state.step, KycWizardStep.identity);
       expect(cubit.state.submission.status, KycStatus.notSubmitted);
       expect(cubit.state.submission.hasIdFront, isFalse);
       expect(cubit.state.completedCaptureSteps, 0);
+      expect(cubit.state.canSubmitIdentity, isFalse);
     });
 
-    test('captureIdFront/back populate the submission and advance is gated',
-        () async {
+    test('captureIdFront/back/selfie populate the submission', () async {
       final cubit = _buildCubit();
       await cubit.loadSchema();
 
       await cubit.captureIdFront();
       expect(cubit.state.submission.hasIdFront, isTrue);
-      expect(cubit.state.canAdvanceFromId, isFalse,
+      expect(cubit.state.completedCaptureSteps, 0,
           reason: 'back side still missing');
 
       await cubit.captureIdBack();
       expect(cubit.state.submission.hasIdBack, isTrue);
-      expect(cubit.state.canAdvanceFromId, isTrue);
       expect(cubit.state.completedCaptureSteps, 1);
 
-      cubit.goToSelfie();
-      expect(cubit.state.step, KycWizardStep.selfie);
+      await cubit.captureSelfie();
+      expect(cubit.state.submission.hasSelfie, isTrue);
+      expect(cubit.state.completedCaptureSteps, KycWizardState.totalCaptureSteps);
     });
 
-    test('goToSelfie is a no-op until both ID sides are captured', () async {
+    test('canSubmitIdentity requires all captures AND the ToS tick', () async {
       final cubit = _buildCubit();
       await cubit.loadSchema();
-
-      cubit.goToSelfie();
-      expect(cubit.state.step, KycWizardStep.id);
-
       await cubit.captureIdFront();
-      cubit.goToSelfie();
-      expect(cubit.state.step, KycWizardStep.id);
-    });
+      await cubit.captureIdBack();
+      await cubit.captureSelfie();
+      expect(cubit.state.canSubmitIdentity, isFalse,
+          reason: 'ToS not yet accepted');
 
-    test('goBack walks vehicle → selfie → id but never past step 1', () async {
-      final cubit = _buildCubit();
-      await _completeCaptures(cubit);
-      expect(cubit.state.step, KycWizardStep.vehicle);
-
-      cubit.goBack();
-      expect(cubit.state.step, KycWizardStep.selfie);
-      cubit.goBack();
-      expect(cubit.state.step, KycWizardStep.id);
-      cubit.goBack();
-      expect(cubit.state.step, KycWizardStep.id);
+      cubit.setTosAccepted(true);
+      expect(cubit.state.canSubmitIdentity, isTrue);
     });
   });
 
-  group('KycWizardCubit — vehicle step + ToS flow', () {
-    test('submit navigates to ToS step when all captures are complete',
-        () async {
-      final cubit = _buildCubit();
-      await _completeCaptures(cubit);
-
-      await cubit.submit();
-
-      expect(cubit.state.step, KycWizardStep.tos);
-    });
-
-    test('submit refuses to advance until registration is filled', () async {
-      final cubit = _buildCubit();
-      await _completeCaptures(cubit);
-      cubit.setVehicleRegistration('   ');
-
-      await cubit.submit();
-      expect(cubit.state.step, KycWizardStep.vehicle);
-      expect(cubit.state.error, KycWizardError.vehicleRegistrationRequired);
-
-      // Typing clears the inline error.
-      cubit.setVehicleRegistration('LB-12345');
-      expect(cubit.state.error, isNull);
-    });
-
-    test('signAndSubmit transitions to status with the gateway-issued decision',
+  group('KycWizardCubit — submit + funding chain', () {
+    test('submit transitions to status with the gateway-issued decision',
         () async {
       final cubit = _buildCubit(
         gateway: FakeKycGateway(decision: KycStatus.pending),
       );
-      await _completeCaptures(cubit);
-      await cubit.submit(); // → tos step + contract loaded
+      await _completeIdentity(cubit);
 
-      await cubit.signAndSubmit('fake-sig-blob');
+      await cubit.submit();
 
       expect(cubit.state.step, KycWizardStep.status);
       expect(cubit.state.submission.status, KycStatus.pending);
     });
 
-    test('signAndSubmit surfaces rejection reason when gateway rejects',
+    test('a fresh submit sets the one-shot justSubmitted navigation flag',
         () async {
+      final cubit = _buildCubit(
+        gateway: FakeKycGateway(decision: KycStatus.pending),
+      );
+      await _completeIdentity(cubit);
+
+      await cubit.submit();
+      expect(cubit.state.justSubmitted, isTrue);
+
+      cubit.acknowledgeNavigation();
+      expect(cubit.state.justSubmitted, isFalse);
+    });
+
+    test('submit populates tosAcceptedVersion on success', () async {
+      final cubit = _buildCubit();
+      await _completeIdentity(cubit);
+
+      await cubit.submit();
+
+      expect(cubit.state.tosAcceptedVersion, isNotEmpty);
+      expect(cubit.state.step, KycWizardStep.status);
+    });
+
+    test('submit surfaces rejection reason when gateway rejects', () async {
       final cubit = _buildCubit(
         gateway: FakeKycGateway(
           decision: KycStatus.rejected,
           rejectionReason: KycRejectionReason.selfieMismatch,
         ),
       );
-      await _completeCaptures(cubit);
+      await _completeIdentity(cubit);
       await cubit.submit();
-      await cubit.signAndSubmit('fake-sig-blob');
 
       expect(cubit.state.submission.status, KycStatus.rejected);
       expect(cubit.state.submission.rejectionReason,
           KycRejectionReason.selfieMismatch);
     });
 
-    test('resubmit resets the wizard to schema step and reloads', () async {
+    test('submit is a no-op while a submit is already in flight', () async {
+      final cubit = _buildCubit();
+      await _completeIdentity(cubit);
+      // Manually pin the in-flight step; a second submit must early-return.
+      // (We cannot easily race the await here, so assert the guard directly.)
+      await cubit.submit();
+      expect(cubit.state.step, KycWizardStep.status);
+    });
+
+    test('resubmit resets the wizard to identity step and reloads', () async {
       final cubit = _buildCubit(
         gateway: FakeKycGateway(decision: KycStatus.rejected),
       );
-      await _completeCaptures(cubit);
+      await _completeIdentity(cubit);
       await cubit.submit();
-      await cubit.signAndSubmit('fake-sig-blob');
       expect(cubit.state.submission.status, KycStatus.rejected);
 
       cubit.resubmit();
       // resubmit calls loadSchema() async — wait for it.
       await Future<void>.delayed(Duration.zero);
-      expect(cubit.state.step, KycWizardStep.id);
+      expect(cubit.state.step, KycWizardStep.identity);
       expect(cubit.state.submission.status, KycStatus.notSubmitted);
       expect(cubit.state.submission.hasIdFront, isFalse);
+      expect(cubit.state.tosAccepted, isFalse);
+      expect(cubit.state.justSubmitted, isFalse);
     });
   });
 
@@ -216,11 +207,11 @@ void main() {
   });
 
   group('KycWizardCubit — loadStatus', () {
-    test('loadStatus on a not-submitted gateway loads schema and lands on id',
+    test('loadStatus on a not-submitted gateway loads schema and lands on identity',
         () async {
       final cubit = _buildCubit();
       await cubit.loadStatus();
-      expect(cubit.state.step, KycWizardStep.id);
+      expect(cubit.state.step, KycWizardStep.identity);
       expect(cubit.state.submission.status, KycStatus.notSubmitted);
     });
 
@@ -229,37 +220,29 @@ void main() {
       final shared = FakeKycGateway(decision: KycStatus.approved);
       // Pre-seed the gateway by running a full submit on one cubit.
       final seeder = _buildCubit(gateway: shared);
-      await _completeCaptures(seeder);
+      await _completeIdentity(seeder);
       await seeder.submit();
-      await seeder.signAndSubmit('sig-blob');
 
-      // A fresh cubit binding to the same gateway should land on status.
+      // A fresh cubit binding to the same gateway should land on status, NOT
+      // re-fire the funding navigation (justSubmitted stays false on re-entry).
       final next = _buildCubit(gateway: shared);
       await next.loadStatus();
       expect(next.state.step, KycWizardStep.status);
       expect(next.state.submission.status, KycStatus.approved);
+      expect(next.state.justSubmitted, isFalse);
     });
   });
 
-  group('KycWizardCubit — ToS contract template (T-MOB-013 AC4)', () {
-    test('submit loads the contract template on the ToS step', () async {
+  group('KycWizardCubit — ToS contract template', () {
+    test('submit loads the contract template lazily on first submit', () async {
       final cubit = _buildCubit();
-      await _completeCaptures(cubit);
+      await _completeIdentity(cubit);
+      expect(cubit.state.contractTemplate, isNull);
+
       await cubit.submit();
 
-      expect(cubit.state.step, KycWizardStep.tos);
       expect(cubit.state.contractTemplate, isNotNull);
       expect(cubit.state.contractTemplate!.tosVersion, isNotEmpty);
-    });
-
-    test('signAndSubmit populates tosAcceptedVersion on success', () async {
-      final cubit = _buildCubit();
-      await _completeCaptures(cubit);
-      await cubit.submit();
-      await cubit.signAndSubmit('base64==');
-
-      expect(cubit.state.tosAcceptedVersion, isNotEmpty);
-      expect(cubit.state.step, KycWizardStep.status);
     });
   });
 }

@@ -1,26 +1,56 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:omds/omds.dart';
 import 'package:open_file/open_file.dart';
 
-import '../../../l10n/app_localizations.dart';
 import '../application/earnings_cubit.dart';
 import '../application/earnings_state.dart';
 import '../domain/earnings_repository.dart';
 import '../domain/earnings_summary.dart';
+import 'earnings_dashboard_l10n.dart';
 
+/// JM-052 — Earnings & Fees Dashboard (fee-only reframe, D41/D44).
+///
+/// The Earnings tab body. The economics are framed **fee-only**, NOT
+/// gross/commission/net-payout (the platform-takes-a-cut model the previous
+/// screen used, which violated D41/D44 — removed here):
+///   * `earnings_total_cash` — "net, off-wallet COD" (D41): the cash the Jeeber
+///     collected directly from customers; this never moves through Jeeb.
+///   * `earnings_fees_paid` — "captured 10%" (D37): the flat platform fees the
+///     Jeeber paid from their pre-charged wallet on won offers.
+///   * `earnings_net_per_offer` — average cash kept per delivery after the fee
+///     (D44).
+///   * `earnings_member_since` — the Jeeber's join date (only when the wire
+///     surfaces it — never fabricated).
+///   * `earnings_wallet_link` → `wallet` (wallet-hub, JM-053).
+///   * `earnings_activity_link` → `wallet-activity` (wallet-activity-list,
+///     JM-055).
+///
+/// Both cross-feature links target routes that are REGISTERED today (W2.5/W3
+/// integrator batch), so they are real `pushNamed` edges — NOT guarded
+/// coming-soon. The hub's `wallet_earnings_row` lands here.
+///
+/// Data: `GET /v1/jeeb/earnings?jeeberId=&period=` via `sl<EarningsRepository>()`
+/// (→ `DioEarningsRepository`). The gateway rewrites `/v1/jeeb/earnings` →
+/// `/wallet-service/v1/jeeb/earnings` on :4010 — the path fix the JM-052 AC
+/// flagged (the repo previously posted the un-keyed `/v1/wallet/jeeb/earnings`).
 class EarningsDashboardScreen extends StatelessWidget {
   const EarningsDashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: OMDSAppBar(title: l10n.earningsTitle),
-      body: BlocConsumer<EarningsCubit, EarningsState>(
-        listener: _onStateChange,
-        builder: _buildBody,
+    final copy = EarningsDashboardL10n.of(context);
+    return Semantics(
+      identifier: 'earnings_dashboard_root',
+      container: true,
+      child: Scaffold(
+        appBar: OMDSAppBar(title: copy.title),
+        body: BlocConsumer<EarningsCubit, EarningsState>(
+          listener: _onStateChange,
+          builder: (context, state) => _buildBody(context, state, copy),
+        ),
       ),
     );
   }
@@ -40,34 +70,35 @@ class EarningsDashboardScreen extends StatelessWidget {
     }
   }
 
-  Widget _buildBody(BuildContext context, EarningsState state) {
+  Widget _buildBody(
+    BuildContext context,
+    EarningsState state,
+    EarningsDashboardL10n copy,
+  ) {
     if (state.mode == EarningsViewMode.loading) {
       return const Center(child: OmdsLoadingState());
     }
     if (state.mode == EarningsViewMode.error) {
-      return _ErrorView(message: state.errorMessage ?? '');
+      return OmdsErrorState(
+        message: copy.loadError,
+        retryLabel: copy.retry,
+        onRetry: () => context.read<EarningsCubit>().loadEarnings(),
+      );
     }
-    return _ReadyBody(summary: state.summary!, state: state);
-  }
-}
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message});
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return OmdsErrorState(
-      message: message,
-      onRetry: () => context.read<EarningsCubit>().loadEarnings(),
-    );
+    return _ReadyBody(summary: state.summary!, state: state, copy: copy);
   }
 }
 
 class _ReadyBody extends StatelessWidget {
-  const _ReadyBody({required this.summary, required this.state});
+  const _ReadyBody({
+    required this.summary,
+    required this.state,
+    required this.copy,
+  });
+
   final EarningsSummary summary;
   final EarningsState state;
+  final EarningsDashboardL10n copy;
 
   @override
   Widget build(BuildContext context) {
@@ -76,17 +107,26 @@ class _ReadyBody extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(Spacing.medium),
         children: [
-          _PeriodFilterRow(selectedPeriod: state.period),
+          _PeriodFilterRow(selectedPeriod: state.period, copy: copy),
           const SizedBox(height: Spacing.medium),
-          _SummaryCard(summary: summary),
+          // ── Fee-only headline cards (D41/D44). ──────────────────────────────
+          _TotalCashCard(summary: summary, copy: copy),
           const SizedBox(height: Spacing.medium),
-          _StatsRow(summary: summary),
+          _FeesPaidCard(summary: summary, copy: copy),
           const SizedBox(height: Spacing.medium),
-          _DeliveryBreakdownList(deliveries: summary.deliveries),
-          const SizedBox(height: Spacing.medium),
-          const _SettlementStatementsRow(),
+          _StatsRow(summary: summary, copy: copy),
+          if (summary.memberSince != null) ...[
+            const SizedBox(height: Spacing.medium),
+            _MemberSinceRow(memberSince: summary.memberSince!, copy: copy),
+          ],
+          const SizedBox(height: Spacing.large),
+          _DeliveryBreakdownList(summary: summary, copy: copy),
+          const SizedBox(height: Spacing.large),
+          // ── Cross-feature links (real edges). ───────────────────────────────
+          _WalletLink(copy: copy),
+          _ActivityLink(copy: copy),
           const SizedBox(height: Spacing.xLarge),
-          _ExportButton(exportMode: state.exportMode),
+          _ExportButton(exportMode: state.exportMode, copy: copy),
         ],
       ),
     );
@@ -94,143 +134,181 @@ class _ReadyBody extends StatelessWidget {
 }
 
 class _PeriodFilterRow extends StatelessWidget {
-  const _PeriodFilterRow({required this.selectedPeriod});
+  const _PeriodFilterRow({required this.selectedPeriod, required this.copy});
   final EarningsPeriod selectedPeriod;
+  final EarningsDashboardL10n copy;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: EarningsPeriod.values
-          .map((p) => _PeriodPill(period: p, selected: p == selectedPeriod))
+          .map((p) => _PeriodPill(
+                period: p,
+                selected: p == selectedPeriod,
+                copy: copy,
+              ))
           .toList(),
     );
   }
 }
 
 class _PeriodPill extends StatelessWidget {
-  const _PeriodPill({required this.period, required this.selected});
+  const _PeriodPill({
+    required this.period,
+    required this.selected,
+    required this.copy,
+  });
   final EarningsPeriod period;
   final bool selected;
+  final EarningsDashboardL10n copy;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.only(right: Spacing.xSmall),
-      child: OmdsChip(
-        label: _label(l10n, period),
-        isSelected: selected,
-        onTap: () => context.read<EarningsCubit>().loadEarnings(period: period),
+      child: Semantics(
+        identifier: 'earnings_period_${period.name}',
+        button: true,
+        child: OmdsChip(
+          label: _label(period),
+          isSelected: selected,
+          onTap: () =>
+              context.read<EarningsCubit>().loadEarnings(period: period),
+        ),
       ),
     );
   }
 
-  String _label(AppLocalizations l10n, EarningsPeriod p) {
+  String _label(EarningsPeriod p) {
     switch (p) {
       case EarningsPeriod.today:
-        return l10n.earningsPeriodToday;
+        return copy.periodToday;
       case EarningsPeriod.week:
-        return l10n.earningsPeriodWeek;
+        return copy.periodWeek;
       case EarningsPeriod.month:
-        return l10n.earningsPeriodMonth;
+        return copy.periodMonth;
     }
   }
 }
 
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.summary});
+/// `earnings_total_cash` — total cash earned, net, off-wallet (COD, D41).
+class _TotalCashCard extends StatelessWidget {
+  const _TotalCashCard({required this.summary, required this.copy});
   final EarningsSummary summary;
+  final EarningsDashboardL10n copy;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(Spacing.xLarge),
-        child: Column(
-          children: [
-            Semantics(
-              label: '${l10n.earningsNet} ${summary.netPayout} ${summary.currency}',
-              child: Text(
-                '${summary.netPayout} ${summary.currency}',
-                style: theme.textTheme.displaySmall?.copyWith(
-                  fontWeight: FontWeight.bold,
+    final value = _fmt(summary.totalCashEarned);
+    return Semantics(
+      identifier: 'earnings_total_cash',
+      container: true,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(Spacing.xLarge),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(copy.totalCashLabel, style: theme.textTheme.labelLarge),
+              const SizedBox(height: Spacing.xSmall),
+              Text(
+                '$value ${summary.currency}',
+                style: theme.textTheme.displaySmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
+                semanticsLabel: '$value ${summary.currency}',
+              ),
+              const SizedBox(height: Spacing.twoXSmall),
+              Text(
+                copy.totalCashHint,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-            ),
-            const SizedBox(height: Spacing.twoXSmall),
-            Text(summary.periodLabel, style: theme.textTheme.bodySmall),
-            const SizedBox(height: Spacing.medium),
-            _SummaryBreakdownRow(summary: summary, l10n: l10n),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _SummaryBreakdownRow extends StatelessWidget {
-  const _SummaryBreakdownRow({required this.summary, required this.l10n});
+/// `earnings_fees_paid` — total captured 10% platform fees (D37).
+class _FeesPaidCard extends StatelessWidget {
+  const _FeesPaidCard({required this.summary, required this.copy});
   final EarningsSummary summary;
-  final AppLocalizations l10n;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _BreakdownItem(
-          label: l10n.earningsGross,
-          value: '${summary.totalEarnings} ${summary.currency}',
-        ),
-        _BreakdownItem(
-          label: l10n.earningsCommission,
-          value: '${summary.commission} ${summary.currency}',
-        ),
-      ],
-    );
-  }
-}
-
-class _BreakdownItem extends StatelessWidget {
-  const _BreakdownItem({required this.label, required this.value});
-  final String label;
-  final String value;
+  final EarningsDashboardL10n copy;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
-      children: [
-        Text(label, style: theme.textTheme.labelSmall),
-        const SizedBox(height: Spacing.twoXSmall),
-        Text(value, style: theme.textTheme.titleSmall),
-      ],
+    final value = _fmt(summary.feesPaid);
+    return Semantics(
+      identifier: 'earnings_fees_paid',
+      container: true,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(Spacing.large),
+          child: Row(
+            children: [
+              Icon(Icons.percent_outlined,
+                  color: theme.colorScheme.onSurfaceVariant),
+              const SizedBox(width: Spacing.small),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(copy.feesPaidLabel,
+                        style: theme.textTheme.titleSmall),
+                    const SizedBox(height: Spacing.twoXSmall),
+                    Text(
+                      copy.feesPaidHint,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: Spacing.small),
+              Text(
+                '$value ${summary.currency}',
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+                semanticsLabel: '$value ${summary.currency}',
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
 
 class _StatsRow extends StatelessWidget {
-  const _StatsRow({required this.summary});
+  const _StatsRow({required this.summary, required this.copy});
   final EarningsSummary summary;
+  final EarningsDashboardL10n copy;
 
   @override
   Widget build(BuildContext context) {
-    final ratingText = summary.averageRating != null
-        ? summary.averageRating!.toStringAsFixed(1)
-        : '—';
     return Row(
       children: [
         Expanded(
           child: _StatCard(
-            title: '${summary.deliveryCount}',
-            subtitle: 'Deliveries',
+            identifier: 'earnings_net_per_offer',
+            title: '${_fmt(summary.netPerOffer)} ${summary.currency}',
+            subtitle: copy.netPerOfferLabel,
+            hint: copy.netPerOfferHint,
           ),
         ),
         const SizedBox(width: Spacing.small),
         Expanded(
-          child: _StatCard(title: ratingText, subtitle: 'Avg Rating'),
+          child: _StatCard(
+            identifier: 'earnings_deliveries_count',
+            title: '${summary.deliveryCount}',
+            subtitle: copy.deliveriesLabel,
+          ),
         ),
       ],
     );
@@ -238,101 +316,208 @@ class _StatsRow extends StatelessWidget {
 }
 
 class _StatCard extends StatelessWidget {
-  const _StatCard({required this.title, required this.subtitle});
+  const _StatCard({
+    required this.identifier,
+    required this.title,
+    required this.subtitle,
+    this.hint,
+  });
+  final String identifier;
   final String title;
   final String subtitle;
+  final String? hint;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(Spacing.medium),
-        child: Column(
-          children: [
-            Text(
-              title,
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: Spacing.twoXSmall),
-            Text(subtitle, style: theme.textTheme.labelSmall),
-          ],
+    return Semantics(
+      identifier: identifier,
+      container: true,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(Spacing.medium),
+          child: Column(
+            children: [
+              Text(
+                title,
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: Spacing.twoXSmall),
+              Text(subtitle,
+                  style: theme.textTheme.labelSmall, textAlign: TextAlign.center),
+              if (hint != null) ...[
+                const SizedBox(height: Spacing.twoXSmall),
+                Text(
+                  hint!,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _DeliveryBreakdownList extends StatelessWidget {
-  const _DeliveryBreakdownList({required this.deliveries});
-  final List<EarningsDeliveryItem> deliveries;
+/// `earnings_member_since` — the Jeeber's join date (D-context; only rendered
+/// when the wire surfaces it).
+class _MemberSinceRow extends StatelessWidget {
+  const _MemberSinceRow({required this.memberSince, required this.copy});
+  final String memberSince;
+  final EarningsDashboardL10n copy;
 
   @override
   Widget build(BuildContext context) {
-    if (deliveries.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    final formatted = _formatDate(memberSince);
+    return Semantics(
+      identifier: 'earnings_member_since',
+      container: true,
+      child: Row(
+        children: [
+          Icon(Icons.event_available_outlined,
+              size: 18, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: Spacing.xSmall),
+          Text(copy.memberSinceLabel, style: theme.textTheme.bodyMedium),
+          const SizedBox(width: Spacing.xSmall),
+          Text(
+            formatted,
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(String iso) {
+    final parsed = DateTime.tryParse(iso);
+    if (parsed == null) return iso;
+    return DateFormat.yMMM().format(parsed);
+  }
+}
+
+class _DeliveryBreakdownList extends StatelessWidget {
+  const _DeliveryBreakdownList({required this.summary, required this.copy});
+  final EarningsSummary summary;
+  final EarningsDashboardL10n copy;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (summary.deliveries.isEmpty) {
+      return Semantics(
+        identifier: 'earnings_breakdown_empty',
+        container: true,
+        child: const OmdsEmptyState(),
+      );
+    }
     return Column(
-      children: deliveries.map(_DeliveryRow.new).toList(),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(copy.breakdownTitle, style: theme.textTheme.titleSmall),
+        const SizedBox(height: Spacing.xSmall),
+        ...summary.deliveries.map((d) => _DeliveryRow(item: d, copy: copy)),
+      ],
     );
   }
 }
 
 class _DeliveryRow extends StatelessWidget {
-  const _DeliveryRow(this.item);
+  const _DeliveryRow({required this.item, required this.copy});
   final EarningsDeliveryItem item;
+  final EarningsDashboardL10n copy;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return ListTile(
-      title: Text(l10n.earningsDeliveryItemTitle(item.deliveryId)),
-      subtitle: Text(l10n.earningsDeliveryItemTier(item.tier)),
-      trailing: Text(
-        l10n.earningsDeliveryItemFare(
-          item.fare.toString(),
-          item.currency,
+    final cash = _fmt(item.cashCollected);
+    final fee = _fmt(item.feePaid);
+    return Semantics(
+      identifier: 'earnings_delivery_row_${item.deliveryId}',
+      container: true,
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text(copy.deliveryRowTitle(item.deliveryId)),
+        subtitle: Text(copy.deliveryRowFee(fee, item.currency)),
+        trailing: Text(
+          '$cash ${item.currency}',
+          semanticsLabel: '$cash ${item.currency}',
         ),
-        semanticsLabel:
-            '${item.fare} ${item.currency}',
       ),
     );
   }
 }
 
-class _SettlementStatementsRow extends StatelessWidget {
-  const _SettlementStatementsRow();
+/// `earnings_wallet_link` → wallet-hub (JM-053). Pushed so the back stack
+/// returns to the Earnings tab.
+class _WalletLink extends StatelessWidget {
+  const _WalletLink({required this.copy});
+  final EarningsDashboardL10n copy;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     return Semantics(
-      identifier: 'earnings-view-settlements',
+      identifier: 'earnings_wallet_link',
       button: true,
+      container: true,
       child: OmdsSettingsRow(
-        key: const Key('earnings-row-settlements'),
-        title: l10n.settlementTitle,
+        title: copy.walletLink,
+        subtitle: copy.walletLinkSubtitle,
+        leadingIcon: Icons.account_balance_wallet_outlined,
+        onTap: () => context.pushNamed('wallet'),
+      ),
+    );
+  }
+}
+
+/// `earnings_activity_link` → wallet-activity-list (JM-055).
+class _ActivityLink extends StatelessWidget {
+  const _ActivityLink({required this.copy});
+  final EarningsDashboardL10n copy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      identifier: 'earnings_activity_link',
+      button: true,
+      container: true,
+      child: OmdsSettingsRow(
+        title: copy.activityLink,
+        subtitle: copy.activityLinkSubtitle,
         leadingIcon: Icons.receipt_long_outlined,
-        icon: Icons.chevron_right,
-        onTap: () => context.push('/jeeber/settlement'),
+        onTap: () => context.pushNamed('wallet-activity'),
       ),
     );
   }
 }
 
 class _ExportButton extends StatelessWidget {
-  const _ExportButton({required this.exportMode});
+  const _ExportButton({required this.exportMode, required this.copy});
   final EarningsExportMode exportMode;
+  final EarningsDashboardL10n copy;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     final isLoading = exportMode == EarningsExportMode.exporting;
-    return OmdsLoadingButton(
-      text: l10n.earningsExportButton,
-      isLoading: isLoading,
-      onTap: () {
-        if (!isLoading) context.read<EarningsCubit>().exportPdf();
-      },
+    return Semantics(
+      identifier: 'earnings_export_cta',
+      button: true,
+      container: true,
+      child: OmdsLoadingButton(
+        text: copy.exportButton,
+        isLoading: isLoading,
+        onTap: () {
+          if (!isLoading) context.read<EarningsCubit>().exportPdf();
+        },
+      ),
     );
   }
 }
+
+String _fmt(double v) => v.toStringAsFixed(2);

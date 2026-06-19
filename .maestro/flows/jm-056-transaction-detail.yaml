@@ -1,0 +1,142 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-056 — Transaction Detail (per-type)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given a transaction, Then txn_detail shows per-type copy:
+#        Fee-won = exact 10% + pinned price [D37];
+#        Refund/Penalty + dispute link [D2].
+#        txn_detail_type_label + txn_detail_amount + txn_detail_order_ref visible.
+#   AC2: txn_detail_order_link → order-summary-pinned
+#        (order_summary_pinned visible) [JM-031, CTO-D3 optional route].
+#        AP-9: order-summary-pinned optional route may not exist yet —
+#        guard as tap-accepted + txn_detail root survives.
+#   AC3: txn_detail_dispute_link → dispute-open-evidence
+#        (dispute_root visible) [JM-060].
+#        AP-9: JM-060 is W4; guard as tap-accepted + txn_detail root survives
+#        until JM-060 ships.
+#   AC4: Fee-won type: txn_detail_fee_percentage_label (10%) + txn_detail_pinned_price
+#        visible [D37].
+#   AC5: Refund/Penalty type: txn_detail_dispute_link visible [D2].
+#
+# Mock:
+#   GET /wallet-service/v1/jeeb/wallet/transactions/:id  (mock-fix W3m — define)
+# Seam:
+#   AC1/2/4: jeeb.seam.session=jeeber_logged_in
+#            + jeeb.seam.kyc_status=approved
+#            + jeeb.seam.journey=jeeber_wallet_fee_txn  ← NEW W3 seed
+#            + jeeb.route=/wallet/transactions/txn-fee-001
+#   AC3/5: jeeb.seam.session=jeeber_logged_in
+#          + jeeb.seam.kyc_status=approved
+#          + jeeb.seam.journey=jeeber_wallet_refund_txn  ← NEW W3 seed
+#          + jeeb.route=/wallet/transactions/txn-refund-001
+#
+# NEW SEAM KEYS / MOCK SEEDS REQUIRED (W3 test-data contract):
+#   jeeb.seam.journey=jeeber_wallet_fee_txn — seeds 1 Fee-won txn row for
+#     user-jeeber-002. Stable id: txn-fee-001 (type=fee_won, amount=-10%, pinned_price)
+#   jeeb.seam.journey=jeeber_wallet_refund_txn — seeds 1 Refund txn row.
+#     Stable id: txn-refund-001 (type=refund, amount, dispute_id=dispute-001)
+#   POST /__mock/seed/journey { "journey": "jeeber_wallet_fee_txn" }
+#   POST /__mock/seed/journey { "journey": "jeeber_wallet_refund_txn" }
+#   Mock-fix W3m: GET /wallet-service/v1/jeeb/wallet/transactions/:id
+#
+# COINED IDENTIFIERS:
+#   txn_detail_type_label    — per-type label chip (Fee-won / Refund / Reserve / etc.)
+#   txn_detail_amount        — amount + sign display
+#   txn_detail_order_ref     — order reference number
+#   txn_detail_fee_percentage_label — "10%" label (D37 fee-won type)
+#   txn_detail_pinned_price  — accepted offer price shown alongside fee (D37)
+#
+# STATUS: RED until JM-056 ships + W3m mock-fix + both journey seeds exist.
+#         Decisions: D37, D1, D2, D41.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-056-transaction-detail.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1 + AC4: Fee-won type — detail fields + 10% + pinned price ──────────────
+# REQUIRES: W3m mock-fix + jeeber_wallet_fee_txn seed
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.wallet_state: "sufficient"
+      jeeb.seam.journey: "jeeber_wallet_fee_txn"
+      jeeb.route: "/wallet/transactions/txn-fee-001"
+
+- extendedWaitUntil:
+    visible:
+      id: "txn_detail"
+    timeout: 30000
+
+- assertVisible:
+    id: "txn_detail_type_label"
+
+- assertVisible:
+    id: "txn_detail_amount"
+
+- assertVisible:
+    id: "txn_detail_order_ref"
+
+# Fee-won specifics (D37)
+- assertVisible:
+    id: "txn_detail_fee_percentage_label"
+
+- assertVisible:
+    id: "txn_detail_pinned_price"
+
+- takeScreenshot: jm056_ac1_ac4_fee_won_detail
+
+# ── AC2: Order link → order-summary-pinned ────────────────────────────────────
+# The CTO-D3 `/orders/:id/summary` route now exists, so the order link NAVIGATES
+# AWAY from txn-detail (it no longer "survives"). Assert the tap is accepted and
+# navigation occurred (txn_detail is left). The destination's data-bound body
+# (JM-031 order-summary) is its own flow's concern.
+- tapOn:
+    id: "txn_detail_order_link"
+
+- extendedWaitUntil:
+    notVisible:
+      id: "txn_detail"
+    timeout: 10000
+
+- takeScreenshot: jm056_ac2_order_link_navigated
+
+# ── AC3 + AC5: Refund type — dispute link present and navigates ────────────────
+# REQUIRES: W3m mock-fix + jeeber_wallet_refund_txn seed
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.wallet_state: "sufficient"
+      jeeb.seam.journey: "jeeber_wallet_refund_txn"
+      jeeb.route: "/wallet/transactions/txn-refund-001"
+
+- extendedWaitUntil:
+    visible:
+      id: "txn_detail"
+    timeout: 30000
+
+# Refund/Penalty type must show dispute link (D2)
+- assertVisible:
+    id: "txn_detail_dispute_link"
+
+- takeScreenshot: jm056_ac5_refund_type_dispute_link_visible
+
+# JM-060 (dispute-open-evidence) has shipped — the dispute link now lands on the
+# escalate screen (`dispute_root`). AP-9 guard retired.
+- tapOn:
+    id: "txn_detail_dispute_link"
+
+- extendedWaitUntil:
+    visible:
+      id: "dispute_root"
+    timeout: 15000
+
+- takeScreenshot: jm056_ac3_dispute_link_to_dispute_root

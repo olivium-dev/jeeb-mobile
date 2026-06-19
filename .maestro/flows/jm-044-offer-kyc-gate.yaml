@@ -1,0 +1,213 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-044 — Offering KYC Gate (D38 invariant)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given an unapproved Jeeber taps feed_make_offer_cta, Then route through
+#        offer_kyc_gate (not the composer); offer_kyc_gate root is visible.
+#   AC2: gate_start_kyc_cta → kyc-identity (kyc_wizard_root visible).
+#   AC3: gate_register_link → delivery-register-prompt
+#        (delivery_register_prompt visible).
+#   AC4: gate_back_cta → jeeber-requests-home (jeeber_feed_root visible).
+#   AC5: "top-up still allowed" note (gate_topup_note) is visible on gate screen.
+#   AC6: Given an approved Jeeber, Then the gate is skipped → offer composer
+#        directly (offer_composer_root visible, offer_kyc_gate NOT visible).
+#
+# Mock:
+#   GET /user-management/users/:userId/kyc
+# Seam:
+#   AC1-5 (unapproved): jeeb.seam.session=jeeber_logged_in
+#           + jeeb.seam.kyc_status=pending
+#           + jeeb.seam.journey=jeeber_feed_with_request
+#           Gate mapping (D38, reconciled): kyc_status=pending → jeeber_feed_root
+#           (feed is accessible); feed_make_offer_cta routes to offer_kyc_gate
+#           because gate.isApproved is false for pending. kyc_status=none shows
+#           delivery_register_prompt (NO feed), so none cannot reach
+#           feed_make_offer_cta.
+#   AC6 (approved):  jeeb.seam.session=jeeber_logged_in
+#           + jeeb.seam.kyc_status=approved
+#           + jeeb.seam.journey=jeeber_feed_with_request
+#
+# Seam key reference:
+#   jeeb.seam.kyc_status: "pending" (unapproved-but-registered) | "approved"
+#   jeeb.seam.journey value "jeeber_feed_with_request":
+#     seeds 1 open request visible to user-jeeber-002 in the delivery feed so
+#     feed_make_offer_cta is present. Stable id: req-feed-001.
+#     Endpoint: POST /__mock/seed/journey { journey: "jeeber_feed_with_request" }
+#
+# STATUS: Decisions: D38, D67.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-044-offer-kyc-gate.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Unapproved (pending) jeeber taps make-offer → gate (not composer) ───
+# kyc_status=pending: feed is visible (D38 — pending browses feed);
+# feed_make_offer_cta → offer_kyc_gate because gate.isApproved=false.
+# kyc_status=none would show delivery_register_prompt (no feed) — wrong seed.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "pending"
+      jeeb.seam.journey: "jeeber_feed_with_request"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "feed_make_offer_cta"
+    timeout: 20000
+
+- tapOn:
+    id: "feed_make_offer_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_kyc_gate"
+    timeout: 15000
+
+- assertNotVisible:
+    id: "offer_composer_root"
+
+- takeScreenshot: jm044_ac1_unapproved_to_kyc_gate
+
+# ── AC5: Top-up note visible on gate ─────────────────────────────────────────
+- assertVisible:
+    id: "gate_topup_note"
+
+- takeScreenshot: jm044_ac5_gate_topup_note_visible
+
+# ── AC2: gate_start_kyc_cta → kyc-identity ───────────────────────────────────
+- tapOn:
+    id: "gate_start_kyc_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "kyc_wizard_root"
+    timeout: 15000
+
+- takeScreenshot: jm044_ac2_start_kyc_to_kyc_identity
+
+# ── AC3: gate_register_link → delivery-register-prompt ───────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "pending"
+      jeeb.seam.journey: "jeeber_feed_with_request"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "feed_make_offer_cta"
+    timeout: 20000
+
+- tapOn:
+    id: "feed_make_offer_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_kyc_gate"
+    timeout: 15000
+
+- tapOn:
+    id: "gate_register_link"
+
+- extendedWaitUntil:
+    visible:
+      id: "delivery_register_prompt"
+    timeout: 15000
+
+- takeScreenshot: jm044_ac3_register_link_to_register_prompt
+
+# ── AC4: gate_back_cta → jeeber-requests-home ────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "pending"
+      jeeb.seam.journey: "jeeber_feed_with_request"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "feed_make_offer_cta"
+    timeout: 20000
+
+- tapOn:
+    id: "feed_make_offer_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_kyc_gate"
+    timeout: 15000
+
+- tapOn:
+    id: "gate_back_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "jeeber_feed_root"
+    timeout: 15000
+
+- takeScreenshot: jm044_ac4_back_to_jeeber_feed
+
+# ── AC6: Approved jeeber → gate skipped → offer composer ─────────────────────
+# REQUIRES: jeeb.seam.kyc_status=approved (FLAG)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.journey: "jeeber_feed_with_request"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "feed_make_offer_cta"
+    timeout: 20000
+
+- tapOn:
+    id: "feed_make_offer_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_composer_root"
+    timeout: 15000
+
+- assertNotVisible:
+    id: "offer_kyc_gate"
+
+- takeScreenshot: jm044_ac6_approved_gate_skipped_to_composer

@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
 import 'package:jeeb_mobile/features/location/presentation/capture_location_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/client_location_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/widgets/capture_map_viewport.dart';
@@ -87,6 +88,19 @@ void main() {
       expect(find.text('Choose your request'), findsOneWidget);
       expect(find.text('Location'), findsOneWidget);
       expect(find.text('Change Location'), findsOneWidget);
+
+      // JM-024 / 63_W1_TEST_PLAN §2.2: the EXACT 5 tier-radio ids + the Continue
+      // CTA id the create-flow Maestro flow asserts (on-the-way → on_the_way).
+      for (final id in const [
+        'request_type_flash_radio',
+        'request_type_express_radio',
+        'request_type_standard_radio',
+        'request_type_on_the_way_radio',
+        'request_type_eco_radio',
+        'request_type_continue_cta',
+      ]) {
+        expect(find.bySemanticsIdentifier(id), findsOneWidget, reason: id);
+      }
     });
 
     testWidgets('tapping a tier card selects it', (tester) async {
@@ -95,7 +109,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final ecoCard = find.bySemanticsIdentifier('request_type_tier_eco');
+      // JM-024 / 63_W1_TEST_PLAN §2.2: tier radios carry the contract
+      // `request_type_<tier>_radio` id (was `request_type_tier_<enum>`).
+      final ecoCard = find.bySemanticsIdentifier('request_type_eco_radio');
       expect(ecoCard, findsOneWidget);
       // Eco starts unchecked (Flash is the recommended default).
       expect(
@@ -147,7 +163,11 @@ void main() {
     testWidgets('renders the current-location card + new-location row', (
       tester,
     ) async {
-      await tester.pumpWidget(_harness(const ClientLocationScreen()));
+      await tester.pumpWidget(
+        _harness(const ClientLocationScreen(
+          repository: FakeLocationSelectRepository(),
+        )),
+      );
       await tester.pumpAndSettle();
       expect(find.text('Choose your location'), findsOneWidget);
       expect(find.text('Current Location'), findsOneWidget);
@@ -156,8 +176,16 @@ void main() {
         find.bySemanticsIdentifier('client_location_option_current'),
         findsOneWidget,
       );
+      // JM-024 / 63_W1_TEST_PLAN §2.3: the new-location CTA carries the
+      // contract `location_select_new_location_cta` id (the underlying row
+      // widget defaults to the legacy `client_location_add_new` elsewhere).
       expect(
-        find.bySemanticsIdentifier('client_location_add_new'),
+        find.bySemanticsIdentifier('location_select_new_location_cta'),
+        findsOneWidget,
+      );
+      // The location-select Confirm CTA → order-chat (JM-024 AC4).
+      expect(
+        find.bySemanticsIdentifier('location_select_confirm_cta'),
         findsOneWidget,
       );
     });
@@ -165,10 +193,15 @@ void main() {
     testWidgets('add-location callback fires', (tester) async {
       var added = false;
       await tester.pumpWidget(
-        _harness(ClientLocationScreen(onAddLocation: () => added = true)),
+        _harness(ClientLocationScreen(
+          repository: const FakeLocationSelectRepository(),
+          onAddLocation: () => added = true,
+        )),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.bySemanticsIdentifier('client_location_add_new'));
+      await tester.tap(
+        find.bySemanticsIdentifier('location_select_new_location_cta'),
+      );
       expect(added, isTrue);
     });
   });

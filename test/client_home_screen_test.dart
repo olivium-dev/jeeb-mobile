@@ -340,23 +340,35 @@ void main() {
     });
 
     testWidgets(
-        'Replies (screen 14) shows the order id, +N overflow, and Check '
-        'Offers CTA', (tester) async {
-      ClientHomeRequest? opened;
+        'Replies (screen 14 / JM-027) shows the order id, +N overflow, and '
+        'BOTH CTAs (Check Offers + Accept) with contract identifiers',
+        (tester) async {
       await tester.pumpWidget(_harness(
         repo: _threeTabRepo(),
         initialTab: ClientHomeTab.replies,
-        onOpenRequest: (r) => opened = r,
       ));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('replies-card-rep-1')), findsOneWidget);
       expect(find.text('+6'), findsOneWidget);
       expect(find.text('Check Offers'), findsOneWidget);
+      // JM-027 added the per-card Accept CTA (→ offer-accept-confirm, JM-029).
+      expect(find.byKey(const Key('replies-accept-rep-1')), findsOneWidget);
 
-      await tester.tap(find.text('Check Offers'));
-      await tester.pumpAndSettle();
-      expect(opened?.id, 'rep-1');
+      // JM-027 AC1/AC2: both CTAs carry the contract Semantics identifiers.
+      // (No tap here — the Replies tab now navigates via GoRouter internally,
+      // wired in the host shell; the nav legs are covered by the jm-027 Maestro
+      // flow, not this MaterialApp-only widget harness.)
+      final handle = tester.ensureSemantics();
+      expect(
+        find.bySemanticsIdentifier('replies_check_offers_cta'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('replies_accept_cta'),
+        findsOneWidget,
+      );
+      handle.dispose();
     });
 
     testWidgets('filter chips carry stable Semantics identifiers',

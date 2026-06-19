@@ -1,0 +1,199 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-045 — Structured Offer Composer (economics layer, G3)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given the composer, Then offer_composer_fee_line shows exact 10%
+#        [D37/D44]; offer_composer_net_line shows "you earn (cash)" [D44];
+#        offer_composer_reserve_note shows reserve/charge/release copy [D1].
+#   AC2: offer_composer_eta_dropdown is bounded by tier SLA band [D14] (present).
+#   AC3: offer_composer_order_ref header shows "Your offer · ORD-…"
+#        (offer_composer_order_ref visible).
+#   AC4: When offer_composer_send_cta tapped with sufficient balance, Then 10%
+#        reserved and route to jeeber-requests-home (jeeber_feed_root visible).
+#   AC5: When insufficient balance, Then route to offer-insufficient-balance
+#        (insufficient_balance_sheet visible) [JM-046].
+#        (This AC gates on mock-fix O1 + W1m — wallet balance must return 402)
+#
+# Mock:
+#   POST /offer-service/v1/offers
+#   GET /delivery-service/v1/tiers
+# Seam:
+#   AC1-4 (sufficient balance):
+#     jeeb.seam.session=jeeber_logged_in + jeeb.seam.kyc_status=approved
+#     + jeeb.seam.journey=jeeber_feed_with_request
+#     + jeeb.seam.wallet_state=sufficient      ← NEW seam key (FLAG)
+#     (Seeds wallet balance sufficient for a 10% reserve on the test offer)
+#   AC5 (insufficient):
+#     jeeb.seam.session=jeeber_logged_in + jeeb.seam.kyc_status=approved
+#     + jeeb.seam.journey=jeeber_feed_with_request
+#     + jeeb.seam.wallet_state=insufficient    ← NEW seam key (FLAG)
+#     (Seeds wallet balance=0 / below reserve threshold so POST /offers → 402)
+#
+# NEW SEAM KEYS REQUIRED:
+#   jeeb.seam.kyc_status: "approved" (FLAG — see JM-036)
+#   jeeb.seam.wallet_state: "sufficient" | "insufficient" | "empty"
+#     → "sufficient" : Seeds wallet availableBalance > 10% of offer price.
+#                      affordabilityState = "enough".
+#     → "insufficient": Seeds wallet availableBalance < reserve required.
+#                       affordabilityState = "low" or "empty".
+#                       Mock POST /offer-service/v1/offers returns 402
+#                       { needed, available } (mock-fix O1).
+#     → Endpoint: POST /__mock/seed/wallet { state: "sufficient|insufficient" }
+#                 for user-jeeber-002 (NEW backender endpoint — FLAG).
+#   jeeb.seam.journey value "jeeber_feed_with_request" (FLAG — see JM-044)
+#
+# NOTE: AC5 (insufficient path) also requires mock-fix O1 (offer 402 response)
+#       AND mock-fix W1m (wallet balance endpoint). ACs 1-4 can be signed off
+#       first; AC5 is PARTIAL-parked until O1+W1m land.
+#
+# STATUS: RED until JM-045 ships + seam seeds exist.
+#         AC5 additionally gates on O1+W1m (test-first).
+#         Decisions: D1, D14, D15, D37, D43, D44, D45, D18, D54.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-045-offer-composer.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── Navigate to offer composer (via kyc gate skip — approved jeeber) ──────────
+# REQUIRES: jeeb.seam.kyc_status=approved + jeeber_feed_with_request (FLAG)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.wallet_state: "sufficient"
+      jeeb.seam.journey: "jeeber_feed_with_request"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "feed_make_offer_cta"
+    timeout: 20000
+
+- tapOn:
+    id: "feed_make_offer_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_composer_root"
+    timeout: 15000
+
+# ── AC1: Economics layer present ──────────────────────────────────────────────
+- assertVisible:
+    id: "offer_composer_fee_line"
+
+- assertVisible:
+    id: "offer_composer_net_line"
+
+- assertVisible:
+    id: "offer_composer_reserve_note"
+
+- takeScreenshot: jm045_ac1_economics_layer_present
+
+# ── AC2: ETA dropdown bounded by tier SLA ─────────────────────────────────────
+- assertVisible:
+    id: "offer_composer_eta_dropdown"
+
+- takeScreenshot: jm045_ac2_eta_dropdown_present
+
+# ── AC3: Order ref header present ─────────────────────────────────────────────
+- assertVisible:
+    id: "offer_composer_order_ref"
+
+- takeScreenshot: jm045_ac3_order_ref_header
+
+# ── AC4: Send with sufficient balance → home (fee reserved) ───────────────────
+# Fill a price so the form is valid
+- tapOn:
+    id: "offer_composer_price_field"
+- inputText: "10"
+
+# Select ETA from dropdown
+- tapOn:
+    id: "offer_composer_eta_dropdown"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_composer_eta_option_0"
+    timeout: 10000
+
+- tapOn:
+    id: "offer_composer_eta_option_0"
+
+- tapOn:
+    id: "offer_composer_send_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "jeeber_feed_root"
+    timeout: 20000
+
+- takeScreenshot: jm045_ac4_send_sufficient_to_feed
+
+# ── AC5: Insufficient balance → insufficient-balance sheet (gates on O1+W1m) ─
+# REQUIRES: jeeb.seam.wallet_state=insufficient + O1 mock-fix + W1m (FLAG)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.wallet_state: "insufficient"
+      jeeb.seam.journey: "jeeber_feed_with_request"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "feed_make_offer_cta"
+    timeout: 20000
+
+- tapOn:
+    id: "feed_make_offer_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_composer_root"
+    timeout: 15000
+
+- tapOn:
+    id: "offer_composer_price_field"
+- inputText: "10"
+
+- tapOn:
+    id: "offer_composer_eta_dropdown"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_composer_eta_option_0"
+    timeout: 10000
+
+- tapOn:
+    id: "offer_composer_eta_option_0"
+
+- tapOn:
+    id: "offer_composer_send_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "insufficient_balance_sheet"
+    timeout: 20000
+
+- takeScreenshot: jm045_ac5_insufficient_balance_sheet

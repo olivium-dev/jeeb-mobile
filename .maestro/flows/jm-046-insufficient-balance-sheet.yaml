@@ -1,0 +1,187 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-046 — Insufficient Balance to Offer (sheet)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given a send with insufficient balance, Then insufficient_balance_sheet
+#        shows needed-vs-available amounts:
+#        insufficient_balance_needed_amount + insufficient_balance_available_amount
+#        are visible.
+#   AC2: insufficient_topup_cta → wallet-charge-info [D92/D93]
+#        (charge_info_back_cta visible).
+#   AC3: insufficient_keep_editing_cta → composer (offer_composer_root visible);
+#        draft is preserved (offer_composer_price_field retains value).
+#
+# Mock:
+#   POST /offer-service/v1/offers (returns 402 with {needed, available}) — mock-fix O1
+#   GET /wallet-service/v1/jeeb/wallet (balance/affordability) — mock-fix W1m
+# Seam:
+#   jeeb.seam.session=jeeber_logged_in + jeeb.seam.kyc_status=approved
+#   + jeeb.seam.wallet_state=insufficient
+#   + jeeb.seam.journey=jeeber_feed_with_request
+#   (Same as JM-045 AC5 — this flow starts from the offer composer with
+#    insufficient wallet, which surfaces the sheet)
+#
+# NEW SEAM KEYS REQUIRED:
+#   jeeb.seam.kyc_status: "approved" (FLAG — see JM-036)
+#   jeeb.seam.wallet_state: "insufficient" (FLAG — see JM-045)
+#   jeeb.seam.journey value "jeeber_feed_with_request" (FLAG — see JM-044)
+#   Mock-fixes: O1 (offer 402 path), W1m (wallet balance)
+#
+# STATUS: RED until JM-046 ships + O1 + W1m + all above seeds exist (test-first).
+#         Decisions: D43, D92, D93, D1.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-046-insufficient-balance-sheet.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── Helper: land on offer composer with insufficient balance ──────────────────
+# REQUIRES: jeeb.seam.wallet_state=insufficient + O1 + W1m + seeds (FLAG)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.wallet_state: "insufficient"
+      jeeb.seam.journey: "jeeber_feed_with_request"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "feed_make_offer_cta"
+    timeout: 20000
+
+- tapOn:
+    id: "feed_make_offer_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_composer_root"
+    timeout: 15000
+
+- tapOn:
+    id: "offer_composer_price_field"
+- inputText: "10"
+
+- tapOn:
+    id: "offer_composer_eta_dropdown"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_composer_eta_option_0"
+    timeout: 10000
+
+- tapOn:
+    id: "offer_composer_eta_option_0"
+
+- tapOn:
+    id: "offer_composer_send_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "insufficient_balance_sheet"
+    timeout: 20000
+
+# ── AC1: Sheet shows needed-vs-available ──────────────────────────────────────
+- assertVisible:
+    id: "insufficient_balance_needed_amount"
+
+- assertVisible:
+    id: "insufficient_balance_available_amount"
+
+- assertVisible:
+    id: "insufficient_topup_cta"
+
+- assertVisible:
+    id: "insufficient_keep_editing_cta"
+
+- takeScreenshot: jm046_ac1_insufficient_sheet_content
+
+# ── AC2: Top-up CTA → wallet-charge-info ─────────────────────────────────────
+- tapOn:
+    id: "insufficient_topup_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "charge_info_back_cta"
+    timeout: 15000
+
+- takeScreenshot: jm046_ac2_topup_to_charge_info
+
+# ── AC3: Keep editing → composer (draft preserved) ───────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.wallet_state: "insufficient"
+      jeeb.seam.journey: "jeeber_feed_with_request"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "feed_make_offer_cta"
+    timeout: 20000
+
+- tapOn:
+    id: "feed_make_offer_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_composer_root"
+    timeout: 15000
+
+- tapOn:
+    id: "offer_composer_price_field"
+- inputText: "10"
+
+- tapOn:
+    id: "offer_composer_eta_dropdown"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_composer_eta_option_0"
+    timeout: 10000
+
+- tapOn:
+    id: "offer_composer_eta_option_0"
+
+- tapOn:
+    id: "offer_composer_send_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "insufficient_balance_sheet"
+    timeout: 20000
+
+- tapOn:
+    id: "insufficient_keep_editing_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_composer_root"
+    timeout: 15000
+
+# Draft preserved — price field should retain "10"
+- assertVisible:
+    id: "offer_composer_price_field"
+
+- takeScreenshot: jm046_ac3_keep_editing_draft_preserved

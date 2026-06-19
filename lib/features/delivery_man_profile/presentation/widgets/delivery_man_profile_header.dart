@@ -20,6 +20,7 @@ class DeliveryManProfileHeader extends StatelessWidget {
     required this.reviewCount,
     required this.location,
     required this.isAvailable,
+    this.isColdStart = false,
   });
 
   final String name;
@@ -29,6 +30,10 @@ class DeliveryManProfileHeader extends StatelessWidget {
   final int reviewCount;
   final String location;
   final bool isAvailable;
+
+  /// D59 cold-start: when true (jeeber has < 5 reviews) the aggregate score is
+  /// hidden — only the review count is shown.
+  final bool isColdStart;
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +50,7 @@ class DeliveryManProfileHeader extends StatelessWidget {
         reviewCount: reviewCount,
         location: location,
         isAvailable: isAvailable,
+        isColdStart: isColdStart,
       ),
     );
   }
@@ -59,6 +65,7 @@ class _HeaderRow extends StatelessWidget {
     required this.reviewCount,
     required this.location,
     required this.isAvailable,
+    required this.isColdStart,
   });
 
   final String name;
@@ -68,6 +75,7 @@ class _HeaderRow extends StatelessWidget {
   final int reviewCount;
   final String location;
   final bool isAvailable;
+  final bool isColdStart;
 
   @override
   Widget build(BuildContext context) {
@@ -84,6 +92,7 @@ class _HeaderRow extends StatelessWidget {
             reviewCount: reviewCount,
             location: location,
             isAvailable: isAvailable,
+            isColdStart: isColdStart,
           ),
         ),
       ],
@@ -117,6 +126,7 @@ class _Details extends StatelessWidget {
     required this.reviewCount,
     required this.location,
     required this.isAvailable,
+    required this.isColdStart,
   });
 
   final String name;
@@ -125,6 +135,7 @@ class _Details extends StatelessWidget {
   final int reviewCount;
   final String location;
   final bool isAvailable;
+  final bool isColdStart;
 
   @override
   Widget build(BuildContext context) {
@@ -134,7 +145,11 @@ class _Details extends StatelessWidget {
       children: [
         _NameRow(name: name, isVerified: isVerified),
         const SizedBox(height: Spacing.xSmall),
-        _RatingRow(rating: rating, reviewCount: reviewCount),
+        _RatingRow(
+          rating: rating,
+          reviewCount: reviewCount,
+          isColdStart: isColdStart,
+        ),
         const SizedBox(height: Spacing.twoXSmall),
         _AvailabilityRow(location: location, isAvailable: isAvailable),
       ],
@@ -143,21 +158,37 @@ class _Details extends StatelessWidget {
 }
 
 class _RatingRow extends StatelessWidget {
-  const _RatingRow({required this.rating, required this.reviewCount});
+  const _RatingRow({
+    required this.rating,
+    required this.reviewCount,
+    required this.isColdStart,
+  });
 
   final double rating;
   final int reviewCount;
+  final bool isColdStart;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // D59 cold-start (< 5 reviews): HIDE the aggregate score. We still surface
+    // the review count (no star score), so the header stays coherent without an
+    // unverified score. `profile_score` is present ONLY when the score shows,
+    // so QA can assert it is absent during cold-start.
+    if (isColdStart) {
+      return DeliveryManMetaRow(
+        icon: Icons.reviews_outlined,
+        text: l10n.deliveryManProfileReviewsCount(reviewCount),
+        semanticsId: 'delivery_man_profile_rating_summary',
+      );
+    }
     return DeliveryManMetaRow(
       icon: Icons.star,
       text: l10n.deliveryManProfileRatingSummary(
         rating.toStringAsFixed(1),
         reviewCount,
       ),
-      semanticsId: 'delivery_man_profile_rating_summary',
+      semanticsId: 'profile_score',
     );
   }
 }

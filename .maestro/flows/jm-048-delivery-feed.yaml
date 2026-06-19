@@ -1,0 +1,157 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-048 — Delivery Feed (route make-offer through gate)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given a request row in the feed, When feed_make_offer_cta tapped by an
+#        unapproved jeeber, Then → offer-kyc-gate (offer_kyc_gate visible,
+#        NOT offer_composer_root) [JM-044].
+#   AC2: Given a request row in the feed, When feed_make_offer_cta tapped by an
+#        approved jeeber, Then → offer-composer (offer_composer_root visible,
+#        NOT offer_kyc_gate).
+#   AC3: Pending/Replies tabs backed by real data: jeeber_feed_pending_tab tappable
+#        and pending_offer_0 visible when pending offers exist [JM-047].
+#
+# Mock:
+#   GET /delivery-service/v1/requests?status=
+#   GET /offer-service/v1/offers?jeeberId=
+#   POST /geolocation-service/v1/availability
+# Seam:
+#   AC1: jeeb.seam.session=jeeber_logged_in + jeeb.seam.kyc_status=pending
+#        + jeeb.seam.journey=jeeber_feed_with_request
+#        Gate mapping (D38): kyc_status=pending → feed visible; make-offer still
+#        routes to offer_kyc_gate (gate.isApproved=false). kyc_status=none shows
+#        delivery_register_prompt (no feed) and cannot reach feed_make_offer_cta.
+#   AC2: jeeb.seam.session=jeeber_logged_in + jeeb.seam.kyc_status=approved
+#        + jeeb.seam.journey=jeeber_feed_with_request
+#   AC3: jeeb.seam.session=jeeber_logged_in + jeeb.seam.kyc_status=approved
+#        + jeeb.seam.journey=jeeber_pending_offers
+#
+# Seam key reference:
+#   jeeb.seam.kyc_status: "pending" (unapproved-but-registered) | "approved"
+#   jeeb.seam.journey value "jeeber_feed_with_request" (see JM-044)
+#   jeeb.seam.journey value "jeeber_pending_offers" (see JM-047)
+#
+# STATUS: Decisions: D38, D67.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-048-delivery-feed.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Unapproved (pending) → make offer tapped → kyc gate (not composer) ──
+# kyc_status=pending: feed is accessible (D38); make-offer → offer_kyc_gate
+# because gate.isApproved=false. kyc_status=none would show
+# delivery_register_prompt (no feed) — wrong seed for this AC.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "pending"
+      jeeb.seam.journey: "jeeber_feed_with_request"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "jeeber_feed_root"
+    timeout: 20000
+
+- extendedWaitUntil:
+    visible:
+      id: "feed_make_offer_cta"
+    timeout: 15000
+
+- tapOn:
+    id: "feed_make_offer_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_kyc_gate"
+    timeout: 15000
+
+- assertNotVisible:
+    id: "offer_composer_root"
+
+- takeScreenshot: jm048_ac1_unapproved_to_kyc_gate
+
+# ── AC2: Approved → make offer tapped → offer composer (gate skipped) ─────────
+# REQUIRES: jeeb.seam.kyc_status=approved + jeeber_feed_with_request seed (FLAG)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.journey: "jeeber_feed_with_request"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "jeeber_feed_root"
+    timeout: 20000
+
+- extendedWaitUntil:
+    visible:
+      id: "feed_make_offer_cta"
+    timeout: 15000
+
+- tapOn:
+    id: "feed_make_offer_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_composer_root"
+    timeout: 15000
+
+- assertNotVisible:
+    id: "offer_kyc_gate"
+
+- takeScreenshot: jm048_ac2_approved_to_composer
+
+# ── AC3: Pending tab backed by real data ──────────────────────────────────────
+# REQUIRES: jeeber_pending_offers seed (FLAG)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.journey: "jeeber_pending_offers"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- tapOn:
+    id: "shell_tab_dashboard"
+
+- extendedWaitUntil:
+    visible:
+      id: "jeeber_feed_root"
+    timeout: 20000
+
+- tapOn:
+    id: "jeeber_feed_pending_tab"
+
+- extendedWaitUntil:
+    visible:
+      id: "pending_offer_0"
+    timeout: 15000
+
+- takeScreenshot: jm048_ac3_pending_tab_real_data

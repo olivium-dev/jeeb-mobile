@@ -1,0 +1,91 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-054 — Wallet Charge Info (static, no payment)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given the info screen, Then it explains: charge at authorized store,
+#        give phone/ID, pay cash, balance auto-updates, 10% fees from
+#        pre-charged balance [D92/D93]:
+#        charge_info_store_step + charge_info_identity_step +
+#        charge_info_pay_cash_step + charge_info_auto_update_note +
+#        charge_info_fee_note visible.
+#   AC2: NO card/amount/directory UI (charge_info_card_input must NOT be visible;
+#        charge_info_amount_field must NOT be visible; charge_info_store_directory
+#        must NOT be visible).
+#   AC3: charge_info_back_cta → wallet-hub
+#        (wallet_available_balance visible) [JM-053].
+#        (For the standalone screen, back returns to hub. From onboarding/KYC
+#         paths, back returns to the caller — tested via JM-041/042.)
+#
+# Mock: — (no network call; purely static)
+# Seam:
+#   jeeb.seam.session=jeeber_logged_in + jeeb.route=/wallet/charge-info
+#   (No kyc_status needed — screen is accessible regardless of KYC state,
+#   but we pair with kyc_status=approved for the back→wallet-hub AC.)
+#
+# STATUS: RED until JM-054 ships (test-first). No mock-fix dependency.
+#         Decisions: D92, D93, D1, D41.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-054-wallet-charge-info.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Static content present ───────────────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.route: "/wallet/charge-info"
+
+- extendedWaitUntil:
+    visible:
+      id: "charge_info_root"
+    timeout: 30000
+
+- assertVisible:
+    id: "charge_info_store_step"
+
+- assertVisible:
+    id: "charge_info_identity_step"
+
+- assertVisible:
+    id: "charge_info_pay_cash_step"
+
+- assertVisible:
+    id: "charge_info_auto_update_note"
+
+- assertVisible:
+    id: "charge_info_fee_note"
+
+- assertVisible:
+    id: "charge_info_back_cta"
+
+- takeScreenshot: jm054_ac1_static_content_present
+
+# ── AC2: No card/amount/directory ────────────────────────────────────────────
+- assertNotVisible:
+    id: "charge_info_card_input"
+
+- assertNotVisible:
+    id: "charge_info_amount_field"
+
+- assertNotVisible:
+    id: "charge_info_store_directory"
+
+- takeScreenshot: jm054_ac2_no_payment_ui
+
+# ── AC3: Back → wallet-hub ────────────────────────────────────────────────────
+- tapOn:
+    id: "charge_info_back_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet_available_balance"
+    timeout: 15000
+
+- takeScreenshot: jm054_ac3_back_to_wallet_hub

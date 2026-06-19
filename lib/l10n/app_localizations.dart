@@ -1034,6 +1034,15 @@ class AppLocalizations {
   String get offersErrorGeneric => _get('offersErrorGeneric');
   String get offersAcceptedBannerTitle => _get('offersAcceptedBannerTitle');
   String get offersAcceptedBannerBody => _get('offersAcceptedBannerBody');
+  // JM-028 offer-review additions.
+  String offerCardCashOnDelivery(String amount, String currency) =>
+      _get('offerCardCashOnDelivery')
+          .replaceFirst('{amount}', amount)
+          .replaceFirst('{currency}', currency);
+  String get offerReviewCancelCta => _get('offerReviewCancelCta');
+  // JM-030 cancel-request-confirm sheet body (D69). Getter added by JM-028 to
+  // unblock the shared cancel sheet it invokes; the JM-030 engineer owns it.
+  String get cancelRequestFreeNote => _get('cancelRequestFreeNote');
 
   String get offerSubmissionTitle => _get('offerSubmissionTitle');
   String get offerSubmissionIntro => _get('offerSubmissionIntro');
@@ -1832,4 +1841,203 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get settlementTotalPayout => _get('settlementTotalPayout');
   String settlementCommissionLabel(String amount) =>
       _get('settlementCommissionLabel').replaceFirst('{amount}', amount);
+
+  // ── WAVE 0 auth funnel (CTO-D1; JM-005/007/008/020/021/022/066) ───────────
+  // Integrator-batched keys (40_GUARDRAILS §9 S4). W0 screen engineers
+  // reference these; never inline-add a string in a widget.
+
+  // JM-007 — Login
+  String get loginTitle => _get('loginTitle');
+  String get loginEmailLabel => _get('loginEmailLabel');
+  String get loginEmailHint => _get('loginEmailHint');
+  String get loginPasswordLabel => _get('loginPasswordLabel');
+  String get loginPasswordHint => _get('loginPasswordHint');
+  String get loginContinueCta => _get('loginContinueCta');
+  String get loginForgotPasswordLink => _get('loginForgotPasswordLink');
+  String get loginSignupLink => _get('loginSignupLink');
+  String get loginBiometricAffordance => _get('loginBiometricAffordance');
+  String get loginInvalidCredentials => _get('loginInvalidCredentials');
+  String get loginNetworkError => _get('loginNetworkError');
+
+  // JM-008 — Sign up
+  String get signupTitle => _get('signupTitle');
+  String get signupNameLabel => _get('signupNameLabel');
+  String get signupNameHint => _get('signupNameHint');
+  String get signupEmailLabel => _get('signupEmailLabel');
+  String get signupEmailHint => _get('signupEmailHint');
+  String get signupPasswordLabel => _get('signupPasswordLabel');
+  String get signupPasswordHint => _get('signupPasswordHint');
+  String get signupPasswordStrengthWeak => _get('signupPasswordStrengthWeak');
+  String get signupPasswordStrengthMedium =>
+      _get('signupPasswordStrengthMedium');
+  String get signupPasswordStrengthStrong =>
+      _get('signupPasswordStrengthStrong');
+  String get signupSubmitCta => _get('signupSubmitCta');
+  String get signupLoginLink => _get('signupLoginLink');
+  String get signupEmailCollision => _get('signupEmailCollision');
+
+  // JM-020 — Recover password
+  String get recoverTitle => _get('recoverTitle');
+  String get recoverSubtitle => _get('recoverSubtitle');
+  String get recoverEmailLabel => _get('recoverEmailLabel');
+  String get recoverEmailHint => _get('recoverEmailHint');
+  String get recoverSubmitCta => _get('recoverSubmitCta');
+  String get recoverSignupLink => _get('recoverSignupLink');
+  String get recoverBackToSigninLink => _get('recoverBackToSigninLink');
+
+  // JM-021 — Verify recovery code
+  String get verifyCodeTitle => _get('verifyCodeTitle');
+  String get verifyCodeSubtitle => _get('verifyCodeSubtitle');
+  String get verifyCodeSubmitCta => _get('verifyCodeSubmitCta');
+  String get verifyCodeResendCta => _get('verifyCodeResendCta');
+  String get verifyCodeError => _get('verifyCodeError');
+
+  // JM-022 — Set password
+  String get setpwTitle => _get('setpwTitle');
+  String get setpwNewLabel => _get('setpwNewLabel');
+  String get setpwNewHint => _get('setpwNewHint');
+  String get setpwConfirmLabel => _get('setpwConfirmLabel');
+  String get setpwConfirmHint => _get('setpwConfirmHint');
+  String get setpwSubmitCta => _get('setpwSubmitCta');
+  String get setpwValidationError => _get('setpwValidationError');
+
+  // JM-066 — Account status
+  String get accountStatusTitle => _get('accountStatusTitle');
+  String get accountStatusBody => _get('accountStatusBody');
+  String get accountStatusSupportCta => _get('accountStatusSupportCta');
+  String get accountStatusSignoutCta => _get('accountStatusSignoutCta');
+
+  // JM-005 — Biometric unlock
+  String get biometricUnlockTitle => _get('biometricUnlockTitle');
+  String get biometricUnlockAuthenticateCta =>
+      _get('biometricUnlockAuthenticateCta');
+  String get biometricUnlockUsePasswordLink =>
+      _get('biometricUnlockUsePasswordLink');
+
+  // W1-INT (S3) — shell persistent header actions (wallet chip + bell)
+  String get shellWalletChipLabel => _get('shellWalletChipLabel');
+  String get shellBellLabel => _get('shellBellLabel');
+  String get shellComingSoon => _get('shellComingSoon');
+
+  // JM-031 — Order summary (CTO-D3 deep-link target)
+  String get orderSummaryTitle => _get('orderSummaryTitle');
+  String get orderSummaryOpenChat => _get('orderSummaryOpenChat');
+  String get orderSummaryTrack => _get('orderSummaryTrack');
+
+  // JM-050 — Address detail form
+  String get addressFormTitle => _get('addressFormTitle');
+  String get addressFormSaveCta => _get('addressFormSaveCta');
+
+  // JM-026 — Waiting / No-Coverage state (D48, D69)
+  String get waitingTitle => _get('waitingTitle');
+  String waitingCountdownLabel(String time) =>
+      _get('waitingCountdownLabel').replaceFirst('{time}', time);
+  String get waitingNoCoverageTitle => _get('waitingNoCoverageTitle');
+  String get waitingNoCoverageBody => _get('waitingNoCoverageBody');
+  String get waitingReviewOffersCta => _get('waitingReviewOffersCta');
+  String get waitingRetargetCta => _get('waitingRetargetCta');
+  String get waitingCancelCta => _get('waitingCancelCta');
+  String get waitingErrorBody => _get('waitingErrorBody');
+
+  // JM-033 — Confirm Receipt (Customer), delivered-receipt-confirm (D11, D3)
+  String get receiptTitle => _get('receiptTitle');
+  String get receiptPromptHeading => _get('receiptPromptHeading');
+  String receiptCashToJeeber(String amount, String jeeber) =>
+      _get('receiptCashToJeeber')
+          .replaceFirst('{amount}', amount)
+          .replaceFirst('{jeeber}', jeeber);
+  String get receiptJeeberFallback => _get('receiptJeeberFallback');
+  String get receiptProofPhotoLabel => _get('receiptProofPhotoLabel');
+  String get receiptConfirmCta => _get('receiptConfirmCta');
+  String get receiptNotYetCta => _get('receiptNotYetCta');
+  String get receiptRetryAction => _get('receiptRetryAction');
+  String get receiptErrorNetwork => _get('receiptErrorNetwork');
+  String get receiptErrorNotFound => _get('receiptErrorNotFound');
+  String get receiptErrorTransition => _get('receiptErrorTransition');
+  String get receiptErrorGeneric => _get('receiptErrorGeneric');
+
+  // JM-053 — Wallet Hub (wallet-hub)
+  String get walletHubTitle => _get('walletHubTitle');
+  String get walletAvailableBalanceLabel =>
+      _get('walletAvailableBalanceLabel');
+  String get walletTopUpCta => _get('walletTopUpCta');
+  String get walletHubLoadError => _get('walletHubLoadError');
+  String get walletHubRetry => _get('walletHubRetry');
+
+  // JM-054 — Wallet Charge Info (wallet-charge-info, static D92/D93)
+  String get chargeInfoTitle => _get('chargeInfoTitle');
+  String get chargeInfoStoreStep => _get('chargeInfoStoreStep');
+  String get chargeInfoIdentityStep => _get('chargeInfoIdentityStep');
+  String get chargeInfoPayCashStep => _get('chargeInfoPayCashStep');
+  String get chargeInfoAutoUpdateNote => _get('chargeInfoAutoUpdateNote');
+  String get chargeInfoFeeNote => _get('chargeInfoFeeNote');
+  String get chargeInfoBackCta => _get('chargeInfoBackCta');
+
+  // JM-041 — Onboarding Funding (onboarding-funding)
+  String get fundingTitle => _get('fundingTitle');
+  String get fundingStarterCreditBody => _get('fundingStarterCreditBody');
+  String get fundingReserveBody => _get('fundingReserveBody');
+  String get fundingTopupCta => _get('fundingTopupCta');
+  String get fundingContinueCta => _get('fundingContinueCta');
+
+  // JM-044 — Offer KYC Gate (offer-kyc-gate, D38)
+  String get offerKycGateTitle => _get('offerKycGateTitle');
+  String get offerKycGateHeadline => _get('offerKycGateHeadline');
+  String get offerKycGateBody => _get('offerKycGateBody');
+  String get gateTopupNote => _get('gateTopupNote');
+  String get gateStartKycCta => _get('gateStartKycCta');
+  String get gateRegisterLink => _get('gateRegisterLink');
+  String get gateBackCta => _get('gateBackCta');
+
+  // JM-043 — KYC Rejected (kyc-rejected, D52/D87 appeal-only)
+  String get kycRejectedTitle => _get('kycRejectedTitle');
+  String get kycRejectedHeadline => _get('kycRejectedHeadline');
+  String get kycRejectedBody => _get('kycRejectedBody');
+  String get kycRejectedAppealCta => _get('kycRejectedAppealCta');
+  String get kycRejectedBackCta => _get('kycRejectedBackCta');
+
+  // JM-047 — Jeeber Pending Offers (jeeber-pending-offers, D15)
+  String get pendingOffersTitle => _get('pendingOffersTitle');
+  String get pendingOffersEmptyTitle => _get('pendingOffersEmptyTitle');
+  String get pendingOffersEmptyBody => _get('pendingOffersEmptyBody');
+
+  // JM-055 — Wallet Activity List (wallet-activity-list, W2m typed ledger)
+  String get walletActivityTitle => _get('walletActivityTitle');
+  String get walletActivityEmptyTitle => _get('walletActivityEmptyTitle');
+  String get walletActivityEmptyBody => _get('walletActivityEmptyBody');
+  String get walletActivityBackCta => _get('walletActivityBackCta');
+
+  // JM-056 — Transaction Detail (transaction-detail, per-type W3m)
+  String get txnDetailTitle => _get('txnDetailTitle');
+  String get txnDetailBody => _get('txnDetailBody');
+  String get txnDetailOrderLink => _get('txnDetailOrderLink');
+  String get txnDetailDisputeLink => _get('txnDetailDisputeLink');
+
+  // JM-057 — Notifications List (notifications-list, header bell target, D84)
+  String get notificationsTitle => _get('notificationsTitle');
+  String get notificationsEmptyTitle => _get('notificationsEmptyTitle');
+  String get notificationsEmptyBody => _get('notificationsEmptyBody');
+
+  // JM-063 — Support Ticket / Contact Us (support-ticket, D76)
+  String get supportTitle => _get('supportTitle');
+  String get supportBody => _get('supportBody');
+  String get supportSubmitCta => _get('supportSubmitCta');
+  String get supportDisputeLink => _get('supportDisputeLink');
+
+  // JM-065 — Dispute Status (dispute-status, D2/D53)
+  String get disputeStatusTitle => _get('disputeStatusTitle');
+  String get disputeStatusOpenLabel => _get('disputeStatusOpenLabel');
+  String get disputeStatusBody => _get('disputeStatusBody');
+  String get disputeStatusSupportCta => _get('disputeStatusSupportCta');
+  String get disputeStatusBackCta => _get('disputeStatusBackCta');
+
+  // JM-068 — All Reviews list (reviews-list, D58/D59/D73)
+  String get reviewsTitle => _get('reviewsTitle');
+  String get reviewsEmptyTitle => _get('reviewsEmptyTitle');
+  String get reviewsEmptyBody => _get('reviewsEmptyBody');
+
+  // JM-061 — Password & Security (password-security, D90)
+  String get passwordSecurityTitle => _get('passwordSecurityTitle');
+  String get passwordSecurityBody => _get('passwordSecurityBody');
+  String get passwordSetEntryCta => _get('passwordSetEntryCta');
 }

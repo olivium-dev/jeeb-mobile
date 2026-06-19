@@ -1,0 +1,147 @@
+import 'package:flutter/widgets.dart';
+
+import '../../../l10n/app_localizations.dart';
+import '../domain/wallet_ledger_repository.dart';
+
+/// JM-056 transaction-detail localized copy resolver (R-F, 40_GUARDRAILS_ARCH §9
+/// l10n protocol; `wallet_hub_l10n.dart` / `offer_composer_l10n.dart` precedent).
+///
+/// The shared ARB files + the hand-authored `AppLocalizations` getter layer are
+/// integrator-owned (50_EXECUTION_PLAN §S4). The integrator batched FOUR
+/// transaction-detail keys (title / body / order-link / dispute-link), but the
+/// PER-TYPE copy (the seven ledger kinds), the fee_won breakdown labels (exact
+/// 10% + pinned price, D37), the amount sign affixes, and the field labels are
+/// NOT yet present. Per the JM-053/045 precedent, this resolver reuses the
+/// EXISTING localized getters where one fits and supplies the genuinely-missing
+/// strings from a feature-local EN/AR map until the integrator lands the
+/// dedicated keys (REQUESTED in 50_ROUTE_REQUESTS.md, "JM-056"). Maestro asserts
+/// on `Semantics(identifier:)` only, so the visible copy is cosmetic — this swaps
+/// to the real getters with no call-site change.
+///
+/// Delete this file (fold the `_pick` strings into the `txnDetail*` ARB getters)
+/// once the integrator lands the keys requested in `50_ROUTE_REQUESTS.md`.
+class TransactionDetailL10n {
+  TransactionDetailL10n(this._l10n, this._isArabic);
+
+  factory TransactionDetailL10n.of(BuildContext context) {
+    final locale = Localizations.localeOf(context);
+    return TransactionDetailL10n(
+      AppLocalizations.of(context),
+      locale.languageCode == 'ar',
+    );
+  }
+
+  final AppLocalizations _l10n;
+  final bool _isArabic;
+
+  String _pick(String en, String ar) => _isArabic ? ar : en;
+
+  // ── Present keys (integrator-landed). ───────────────────────────────────────
+  String get title => _l10n.txnDetailTitle;
+  String get orderLink => _l10n.txnDetailOrderLink;
+  String get disputeLink => _l10n.txnDetailDisputeLink;
+
+  // ── Per-type heading + explanatory body (replaces the generic txnDetailBody
+  //    for the typed variants; D37 fee_won / D2 refund-penalty / D1 reserve). ──
+  String typeHeading(WalletLedgerType type) {
+    switch (type) {
+      case WalletLedgerType.reserve:
+        return _pick('Offer reserve held', 'حجز العرض محتجز');
+      case WalletLedgerType.feeWon:
+        return _pick('Platform fee', 'رسوم المنصة');
+      case WalletLedgerType.released:
+        return _pick('Reserve released', 'تم تحرير الحجز');
+      case WalletLedgerType.refund:
+        return _pick('Dispute refund', 'استرداد نزاع');
+      case WalletLedgerType.penalty:
+        return _pick('Dispute penalty', 'غرامة نزاع');
+      case WalletLedgerType.topup:
+        return _pick('Wallet top-up', 'شحن المحفظة');
+      case WalletLedgerType.gift:
+        return _pick('Starter credit', 'رصيد بداية');
+      case WalletLedgerType.unknown:
+        return _pick('Transaction', 'معاملة');
+    }
+  }
+
+  String typeBody(WalletLedgerType type) {
+    switch (type) {
+      case WalletLedgerType.reserve:
+        return _pick(
+          'A 10% reserve is held against this offer. It is released if you '
+              'do not win, or captured as the fee if you do.',
+          'يُحتجز حجز ١٠٪ مقابل هذا العرض. يُعاد إن لم تفز، أو يُؤخذ كرسوم إن '
+              'فزت.',
+        );
+      case WalletLedgerType.feeWon:
+        return _pick(
+          'The flat 10% platform fee for an offer you won, taken from your '
+              'pre-charged balance.',
+          'رسوم المنصة الثابتة ١٠٪ عن عرض فزت به، تُؤخذ من رصيدك المشحون مسبقاً.',
+        );
+      case WalletLedgerType.released:
+        return _pick(
+          'The reserve held against this offer was returned to your '
+              'available balance.',
+          'أُعيد الحجز المحتجز مقابل هذا العرض إلى رصيدك المتاح.',
+        );
+      case WalletLedgerType.refund:
+        return _pick(
+          'A refund credited to your wallet from a resolved dispute.',
+          'مبلغ مسترد أُضيف إلى محفظتك من نزاع تم حله.',
+        );
+      case WalletLedgerType.penalty:
+        return _pick(
+          'A penalty charged to your wallet from a resolved dispute.',
+          'غرامة خُصمت من محفظتك من نزاع تم حله.',
+        );
+      case WalletLedgerType.topup:
+        return _pick(
+          'Funds you added to your wallet at an authorized store.',
+          'رصيد أضفته إلى محفظتك في متجر معتمد.',
+        );
+      case WalletLedgerType.gift:
+        return _pick(
+          'Non-refundable starter credit granted after verification.',
+          'رصيد بداية غير قابل للاسترداد مُنح بعد التحقق.',
+        );
+      case WalletLedgerType.unknown:
+        return _l10n.txnDetailBody;
+    }
+  }
+
+  // ── Field labels. ───────────────────────────────────────────────────────────
+  String get amountLabel => _pick('Amount', 'المبلغ');
+  String get dateLabel => _pick('Date', 'التاريخ');
+  String get referenceLabel => _pick('Reference', 'المرجع');
+  String get feeRateLabel => _pick('Platform fee', 'رسوم المنصة');
+  String get pinnedPriceLabel =>
+      _pick('Accepted price', 'السعر المقبول');
+  String get disputeRefLabel => _pick('Dispute', 'النزاع');
+
+  /// `+12.50 USD` / `-1.50 USD` — sign-prefixed amount (D41 sign convention).
+  String signedAmount(int sign, String formattedAmount, String currency) {
+    final prefix = sign < 0 ? '-' : '+';
+    final ccy = currency.isEmpty ? '' : ' $currency';
+    return '$prefix$formattedAmount$ccy';
+  }
+
+  /// `10%` — the exact platform-fee percent (D37). [percent] is e.g. `10.0`.
+  String feePercentText(double percent) {
+    final whole = percent == percent.roundToDouble()
+        ? percent.toStringAsFixed(0)
+        : percent.toStringAsFixed(1);
+    return '$whole%';
+  }
+
+  // ── Error-state copy (typed WalletTransactionFailure → message). ─────────────
+  String get loadErrorNotFound => _pick(
+        'This transaction could not be found.',
+        'تعذّر العثور على هذه المعاملة.',
+      );
+  String get loadErrorGeneric => _pick(
+        'We couldn’t load this transaction. Please try again.',
+        'تعذّر تحميل هذه المعاملة. حاول مرة أخرى.',
+      );
+  String get retry => _pick('Retry', 'إعادة المحاولة');
+}

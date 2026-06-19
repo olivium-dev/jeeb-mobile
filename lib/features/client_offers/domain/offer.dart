@@ -21,6 +21,7 @@ class Offer extends Equatable {
     required this.ratingCount,
     required this.submittedAt,
     this.avatarUrl,
+    this.note,
   });
 
   /// Server-issued offer id. Used in `POST /requests/{requestId}/offers/{id}/accept`.
@@ -48,6 +49,11 @@ class Offer extends Equatable {
 
   final String? avatarUrl;
 
+  /// Optional free-text note the Jeeber attached to the bid (the offer-service
+  /// `note` field, e.g. "On my way, can pick up now."). Surfaced as a secondary
+  /// line on the offer card when present; null when the gateway omits it.
+  final String? note;
+
   @override
   List<Object?> get props => [
         id,
@@ -61,5 +67,6 @@ class Offer extends Equatable {
         ratingCount,
         submittedAt,
         avatarUrl,
+        note,
       ];
 }

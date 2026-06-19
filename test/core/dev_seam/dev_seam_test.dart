@@ -68,6 +68,75 @@ void main() {
     });
   });
 
+  group('DevSeam journey seam (W1, 63_W1_TEST_PLAN §4)', () {
+    test('journeySeed merges field-wise (primary wins)', () async {
+      await DevSeam.resolve(sources: const [
+        _FakeSource(DevSeamConfig(journeySeed: JourneySeed.activeDelivery)),
+        _FakeSource(DevSeamConfig(journeySeed: JourneySeed.offersReceived)),
+      ]);
+      expect(DevSeam.current.journeySeed, JourneySeed.activeDelivery);
+    });
+
+    test('a journey with a route pin folds it into route when none is set',
+        () async {
+      await DevSeam.resolve(sources: const [
+        _FakeSource(DevSeamConfig(
+          sessionSeed: SessionSeed.customerLoggedIn,
+          journeySeed: JourneySeed.deliveryMarkedDone,
+        )),
+      ]);
+      expect(DevSeam.current.route,
+          '/orders/del-client-001-delivered/receipt');
+      expect(DevSeam.current.journeySeed, JourneySeed.deliveryMarkedDone);
+    });
+
+    test('active_delivery pins the tracking route', () async {
+      await DevSeam.resolve(sources: const [
+        _FakeSource(DevSeamConfig(journeySeed: JourneySeed.activeDelivery)),
+      ]);
+      expect(DevSeam.current.route,
+          '/orders/del-client-001-active/tracking');
+    });
+
+    test('jeeber_rating_pending pins the jeeber-mode mutual-rate route',
+        () async {
+      await DevSeam.resolve(sources: const [
+        _FakeSource(DevSeamConfig(journeySeed: JourneySeed.jeeberRatingPending)),
+      ]);
+      expect(DevSeam.current.route,
+          '/orders/del-jeeber-002-delivered/mutual-rate?mode=jeeber');
+    });
+
+    test('an explicit route wins over a journey route pin', () async {
+      await DevSeam.resolve(sources: const [
+        _FakeSource(DevSeamConfig(
+          route: '/custom',
+          journeySeed: JourneySeed.deliveryMarkedDone,
+        )),
+      ]);
+      expect(DevSeam.current.route, '/custom');
+    });
+
+    test('a journey with no route pin leaves route empty (lands on shell)',
+        () async {
+      await DevSeam.resolve(sources: const [
+        _FakeSource(DevSeamConfig(
+          sessionSeed: SessionSeed.customerLoggedIn,
+          journeySeed: JourneySeed.offersReceived,
+        )),
+      ]);
+      expect(DevSeam.current.route, isEmpty);
+      expect(DevSeam.current.journeySeed, JourneySeed.offersReceived);
+    });
+
+    test('has_saved_addresses leaves route empty', () async {
+      await DevSeam.resolve(sources: const [
+        _FakeSource(DevSeamConfig(journeySeed: JourneySeed.hasSavedAddresses)),
+      ]);
+      expect(DevSeam.current.route, isEmpty);
+    });
+  });
+
   group('DevSeam test helpers', () {
     test('debugOverride sets current; debugReset clears it', () {
       DevSeam.debugOverride(const DevSeamConfig(route: '/chat'));

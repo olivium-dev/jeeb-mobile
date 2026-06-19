@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
@@ -10,23 +11,27 @@ import '../application/kyc_wizard_cubit.dart';
 import '../application/kyc_wizard_state.dart';
 import '../domain/kyc_gateway.dart';
 import 'kyc_status_view.dart';
-import 'widgets/kyc_id_step.dart';
-import 'widgets/kyc_selfie_step.dart';
+import 'widgets/kyc_identity_step.dart';
 import 'widgets/kyc_submitting_view.dart';
-import 'widgets/kyc_tos_step.dart';
-import 'widgets/kyc_vehicle_step.dart';
 
-/// Hosts the KYC wizard at `/profile/kyc`.
+/// Hosts the KYC identity wizard at `/profile/kyc` (route name `kyc-status`).
 ///
-/// Starts with a schema-load step (AC1: fetches form schema on open).
-/// The four capture steps share a labeled stepper progress indicator.
-/// Step 5 (ToS) renders the contract template + signature pad.
+/// JM-040 (D20): the Vehicle step was removed. The flow is now
+/// `schema → identity → submitting → status`. The single identity screen
+/// collects gov-ID front/back + selfie + ToS acceptance, and `kyc_submit_cta`
+/// posts the submission.
+///
+/// On a FRESH successful submit the wizard chains to `onboarding-funding`
+/// (JM-041) rather than the standalone status view — the status view is kept
+/// only for RE-ENTRY (e.g. opening KYC again while already pending/approved/
+/// rejected from the profile or the funding screen's "Continue").
 class KycWizardScreen extends StatelessWidget {
   const KycWizardScreen({
     super.key,
     this.cubit,
     this.pickerService,
     this.gateway,
+    this.onSubmitted,
   }) : assert(
           cubit == null || (pickerService == null && gateway == null),
           'Provide either a cubit or the (pickerService, gateway) pair, not both.',
@@ -35,6 +40,11 @@ class KycWizardScreen extends StatelessWidget {
   final KycWizardCubit? cubit;
   final PhotoPickerService? pickerService;
   final KycGateway? gateway;
+
+  /// Navigation hook fired once when a fresh submit succeeds. Defaults to
+  /// `context.goNamed('onboarding-funding')`. Overridable so widget tests can
+  /// assert the chain without a full router.
+  final void Function(BuildContext context)? onSubmitted;
 
   static const Key rootKey = Key('kyc-wizard-root');
   static const Key progressKey = Key('kyc-wizard-progress');
@@ -46,7 +56,7 @@ class KycWizardScreen extends StatelessWidget {
     if (provided != null) {
       return BlocProvider<KycWizardCubit>.value(
         value: provided,
-        child: const _WizardScaffold(),
+        child: _WizardScaffold(onSubmitted: onSubmitted),
       );
     }
     return BlocProvider<KycWizardCubit>(
@@ -54,7 +64,7 @@ class KycWizardScreen extends StatelessWidget {
         pickerService: pickerService ?? _resolvePicker(),
         gateway: gateway ?? _resolveGateway(),
       )..loadStatus(),
-      child: const _WizardScaffold(),
+      child: _WizardScaffold(onSubmitted: onSubmitted),
     );
   }
 
@@ -70,7 +80,9 @@ class KycWizardScreen extends StatelessWidget {
 }
 
 class _WizardScaffold extends StatelessWidget {
-  const _WizardScaffold();
+  const _WizardScaffold({this.onSubmitted});
+
+  final void Function(BuildContext context)? onSubmitted;
 
   @override
   Widget build(BuildContext context) {
@@ -80,37 +92,46 @@ class _WizardScaffold extends StatelessWidget {
       appBar: OMDSAppBar(
         title: l10n.kycWizardTitle,
         centerTitle: false,
-        leading: BlocBuilder<KycWizardCubit, KycWizardState>(
-          buildWhen: (prev, curr) => prev.step != curr.step,
-          builder: (context, state) => _buildLeading(context, state, l10n),
-        ),
       ),
-      body: SafeArea(
-        child: BlocConsumer<KycWizardCubit, KycWizardState>(
-          listenWhen: (prev, curr) =>
-              prev.error != curr.error && curr.error != null,
-          listener: _surfaceError,
-          builder: (context, state) => _buildBody(context, state, l10n),
+      // `kyc_wizard_root` (65_W2_TEST_PLAN §2 JM-040): the asserted root id of
+      // the KYC wizard. Wraps the whole body so it is visible on every step.
+      body: Semantics(
+        identifier: 'kyc_wizard_root',
+        container: true,
+        child: SafeArea(
+          child: MultiBlocListener(
+            listeners: [
+              BlocListener<KycWizardCubit, KycWizardState>(
+                listenWhen: (prev, curr) =>
+                    !prev.justSubmitted && curr.justSubmitted,
+                listener: _onSubmitted,
+              ),
+              BlocListener<KycWizardCubit, KycWizardState>(
+                listenWhen: (prev, curr) =>
+                    prev.error != curr.error && curr.error != null,
+                listener: _surfaceError,
+              ),
+            ],
+            child: BlocBuilder<KycWizardCubit, KycWizardState>(
+              builder: (context, state) => _buildBody(context, state, l10n),
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildLeading(
-    BuildContext context,
-    KycWizardState state,
-    AppLocalizations l10n,
-  ) {
-    final canGoBack = state.step == KycWizardStep.selfie ||
-        state.step == KycWizardStep.vehicle ||
-        state.step == KycWizardStep.tos;
-    if (!canGoBack) return const BackButton();
-    return IconButton(
-      key: KycWizardScreen.backLeadingKey,
-      icon: const Icon(Icons.arrow_back),
-      tooltip: l10n.kycWizardBack,
-      onPressed: () => context.read<KycWizardCubit>().goBack(),
-    );
+  void _onSubmitted(BuildContext context, KycWizardState state) {
+    // Consume the one-shot signal so it cannot re-fire, then chain to funding.
+    context.read<KycWizardCubit>().acknowledgeNavigation();
+    final hook = onSubmitted;
+    if (hook != null) {
+      hook(context);
+      return;
+    }
+    // EDGE → onboarding-funding (JM-041, D42/D1). `kyc_submit_cta` lands here,
+    // NOT the standalone status view.
+    context.goNamed('onboarding-funding');
   }
 
   Widget _buildBody(
@@ -119,33 +140,19 @@ class _WizardScaffold extends StatelessWidget {
     AppLocalizations l10n,
   ) {
     if (state.step == KycWizardStep.status) return const KycStatusView();
+    if (state.step == KycWizardStep.submitting) {
+      return const KycSubmittingView();
+    }
     if (state.step == KycWizardStep.schema) {
       return _SchemaLoadingView(l10n: l10n, state: state);
     }
+    // identity
     return Column(
       children: [
         _ProgressHeader(state: state),
-        Expanded(child: _stepFor(state.step)),
+        const Expanded(child: KycIdentityStep()),
       ],
     );
-  }
-
-  Widget _stepFor(KycWizardStep step) {
-    switch (step) {
-      case KycWizardStep.id:
-        return const KycIdStep();
-      case KycWizardStep.selfie:
-        return const KycSelfieStep();
-      case KycWizardStep.vehicle:
-        return const KycVehicleStep();
-      case KycWizardStep.tos:
-        return const KycTosStep();
-      case KycWizardStep.submitting:
-        return const KycSubmittingView();
-      case KycWizardStep.schema:
-      case KycWizardStep.status:
-        return const SizedBox.shrink();
-    }
   }
 
   void _surfaceError(BuildContext context, KycWizardState state) {
@@ -155,9 +162,7 @@ class _WizardScaffold extends StatelessWidget {
     final cubit = context.read<KycWizardCubit>();
     final message = _messageFor(l10n, error);
     if (message != null) showOmdsSnackbar(context, message: message);
-    if (error != KycWizardError.vehicleRegistrationRequired) {
-      cubit.acknowledgeError();
-    }
+    cubit.acknowledgeError();
   }
 
   String? _messageFor(AppLocalizations l10n, KycWizardError error) {
@@ -172,8 +177,6 @@ class _WizardScaffold extends StatelessWidget {
         return l10n.kycErrorCompressionFailed;
       case KycWizardError.submitFailed:
         return l10n.kycErrorSubmitFailed;
-      case KycWizardError.vehicleRegistrationRequired:
-        return null;
       case KycWizardError.schemaLoadFailed:
         return l10n.kycErrorSchemaLoadFailed;
       case KycWizardError.contractLoadFailed:
@@ -232,27 +235,14 @@ class _ProgressHeader extends StatelessWidget {
 
   final KycWizardState state;
 
-  int _currentStepNumber() {
-    switch (state.step) {
-      case KycWizardStep.id:
-        return 1;
-      case KycWizardStep.selfie:
-        return 2;
-      case KycWizardStep.vehicle:
-      case KycWizardStep.submitting:
-        return 3;
-      case KycWizardStep.tos:
-      case KycWizardStep.status:
-        return KycWizardState.totalCaptureSteps;
-      case KycWizardStep.schema:
-        return 0;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final textTheme = Theme.of(context).textTheme;
+    // Display at least "Step 1 of 2" while the user is still capturing.
+    final displayStep = state.completedCaptureSteps < 1
+        ? 1
+        : state.completedCaptureSteps;
     return Padding(
       key: KycWizardScreen.progressKey,
       padding: const EdgeInsets.fromLTRB(
@@ -266,7 +256,7 @@ class _ProgressHeader extends StatelessWidget {
         children: [
           Text(
             l10n.kycWizardProgressLabel(
-              current: _currentStepNumber(),
+              current: displayStep,
               total: KycWizardState.totalCaptureSteps,
             ),
             style: textTheme.labelMedium,
@@ -278,7 +268,6 @@ class _ProgressHeader extends StatelessWidget {
             stepLabels: [
               l10n.kycWizardStepIdLabel,
               l10n.kycWizardStepSelfieLabel,
-              l10n.kycWizardStepVehicleLabel,
             ],
           ),
         ],

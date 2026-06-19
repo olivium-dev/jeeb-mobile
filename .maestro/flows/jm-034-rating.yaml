@@ -1,0 +1,152 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-034 — Rating (mutual; remove skip; wire submit)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given the mandatory rating, Then there is NO dismiss/skip control on the
+#        mandatory path; rating_skip_cta must NOT be visible; back is suppressed
+#        [D56]. rating_submit_cta is present.
+#   AC2: Given a customer submit, When rating_submit_cta tapped, Then route to
+#        customer-orders-home (orders_home_new_order_fab visible).
+#   AC3: Given a jeeber submit (?mode=jeeber), When rating_submit_cta tapped, Then
+#        route to the DELIVERY/Dashboard tab (shell_tab_dashboard visible).
+#   AC4: Reconcile /feedback vs /mutual-rate (mutual is compliant) — assert
+#        rating_root is visible on both route variants.
+#
+# Mock: POST /score-taking-service/v1/ratings/jeeb/submit,
+#       GET .../jeeb/:deliveryId/status
+# Seam:
+#   AC1/AC2 (customer): jeeb.seam.session=customer_logged_in +
+#        jeeb.seam.journey=delivery_marked_done (flows from receipt → rating)
+#   AC3 (jeeber): jeeb.seam.session=jeeber_logged_in +
+#        jeeb.seam.journey=jeeber_rating_pending
+#        (FLAGGED — needs a delivery in state=delivered for user-jeeber-002 so
+#         the mutual-rate screen is reachable in jeeber mode)
+#
+# STATUS: RED until JM-034 ships + seam seeds delivery_marked_done +
+#         jeeber_rating_pending exist (test-first). Decisions: D56, D6, D58, D59, D31.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-034-rating.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: No skip/dismiss control; rating_submit_cta present ──────────────────
+# REQUIRES seam seed: jeeb.seam.journey=delivery_marked_done (customer path)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "delivery_marked_done"
+
+- extendedWaitUntil:
+    visible:
+      id: "receipt_confirm_cta"
+    timeout: 30000
+
+- tapOn:
+    id: "receipt_confirm_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "rating_submit_cta"
+    timeout: 20000
+
+# AC1: No skip/dismiss — mandatory path
+- assertNotVisible:
+    id: "rating_skip_cta"
+
+- assertVisible:
+    id: "rating_submit_cta"
+
+- takeScreenshot: jm034_ac1_rating_no_skip
+
+# ── AC2: Customer submit → customer-orders-home ───────────────────────────────
+# The mandatory rating gates submit on stars > 0 (D56). The 5 stars are a Row of
+# GestureDetectors under the `mutual_rating_stars` container (no per-star id), so
+# tap by point to land on the 4th star (~38% width, ~21% height) and set a rating.
+- tapOn:
+    point: "38%,21%"
+
+- extendedWaitUntil:
+    visible:
+      id: "rating_submit_cta"
+    timeout: 5000
+
+- tapOn:
+    id: "rating_submit_cta"
+
+# The submit round-trips the rating then context.go('/') → shell → Requests tab.
+# Give the network submit + shell rebuild + home-tab load generous headroom (the
+# rating POST + getMe-style refresh can exceed 15s on a loaded emulator).
+- extendedWaitUntil:
+    visible:
+      id: "orders_home_new_order_fab"
+    timeout: 30000
+
+- takeScreenshot: jm034_ac2_customer_rating_to_home
+
+# ── AC3: Jeeber submit → Dashboard tab ───────────────────────────────────────
+# REQUIRES seam seed: jeeb.seam.journey=jeeber_rating_pending
+# (FLAGGED — needs delivery in state=delivered for user-jeeber-002)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.journey: "jeeber_rating_pending"
+
+- extendedWaitUntil:
+    visible:
+      id: "rating_submit_cta"
+    timeout: 30000
+
+# AC1 also applies in jeeber mode
+- assertNotVisible:
+    id: "rating_skip_cta"
+
+# Select a rating to enable the mandatory submit (stars > 0).
+- tapOn:
+    point: "38%,21%"
+
+- extendedWaitUntil:
+    visible:
+      id: "rating_submit_cta"
+    timeout: 5000
+
+- tapOn:
+    id: "rating_submit_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- takeScreenshot: jm034_ac3_jeeber_rating_to_dashboard
+
+# ── AC4: rating_root visible (confirms route is reachable) ───────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "delivery_marked_done"
+
+# This is the 4th heavy clearState relaunch in the flow; the splash + seam
+# bootstrap (seed POST + getMe) can run long on a loaded emulator, so give the
+# cold boot generous headroom before the receipt screen paints.
+- extendedWaitUntil:
+    visible:
+      id: "receipt_confirm_cta"
+    timeout: 60000
+
+- tapOn:
+    id: "receipt_confirm_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "rating_root"
+    timeout: 20000
+
+- takeScreenshot: jm034_ac4_rating_root_visible

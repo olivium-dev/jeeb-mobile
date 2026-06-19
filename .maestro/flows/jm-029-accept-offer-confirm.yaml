@@ -1,0 +1,136 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-029 — Accept Offer Confirmation sheet
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given an offer chosen, When the accept sheet shows, Then offer_accept_sheet
+#        displays "Accept X's offer?" + "Pay $N cash on delivery" + "Other offers
+#        will close" [D11/D71]; offer_accept_jeeber_name, offer_accept_price_label,
+#        offer_accept_other_offers_note are visible.
+#   AC2: offer_accept_confirm_cta → order-chat (order_chat_pinned_summary visible,
+#        fee captured, other offers closed) [JM-025].
+#   AC3: offer_accept_cancel_cta → back to offer-review-list
+#        (offer_review_list_root visible).
+#
+# Mock: POST /offer-service/v1/offers/:offerId/accept
+# Seam: jeeb.seam.session=customer_logged_in + jeeb.seam.journey=offers_received
+#       + jeeb.route=/requests/req-client-001-offers/offers
+#
+# Why the explicit route pin (AC3 root cause fix):
+#   Without it the Replies tab navigation opens request-replies-001 (base fixture,
+#   first in the offers-received list) instead of req-client-001-offers (journey
+#   seed). The base-fixture request has stale/no-window offers so offer_card_0
+#   appears with a disabled accept CTA (expired window). Fixing the flow to
+#   deep-link directly via jeeb.route bypasses the Replies→check-offers ordering
+#   ambiguity and lands on the seeded request's live-window offers every time.
+#   The offers_received journey seam is still passed so the mock holds offer-001/
+#   offer-002/offer-003 with fresh submittedAt (relative-now, per W2 mock fix).
+#
+# STATUS: Decisions: D11, D71, D69.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-029-accept-offer-confirm.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Sheet content visible (name, price, other-offers note) ──────────────
+# Route pin lands directly on /requests/req-client-001-offers/offers, bypassing
+# the Replies tab ordering ambiguity (base-fixture request-replies-001 would
+# otherwise be tapped first, with stale/no-window offers).
+# The offers_received journey seam ensures offer-001/002/003 carry fresh
+# submittedAt (relative-now per W2 mock fix) so the accept window is live.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "offers_received"
+      jeeb.route: "/requests/req-client-001-offers/offers"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_review_list_root"
+    timeout: 30000
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_card_0_accept_cta"
+    timeout: 20000
+
+- tapOn:
+    id: "offer_card_0_accept_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_accept_sheet"
+    timeout: 15000
+
+# AC1: Assert all content elements on the sheet
+- assertVisible:
+    id: "offer_accept_jeeber_name"
+
+- assertVisible:
+    id: "offer_accept_price_label"
+
+- assertVisible:
+    id: "offer_accept_other_offers_note"
+
+- assertVisible:
+    id: "offer_accept_confirm_cta"
+
+- assertVisible:
+    id: "offer_accept_cancel_cta"
+
+- takeScreenshot: jm029_ac1_accept_sheet_content
+
+# ── AC2: Confirm → order-chat with pinned summary ─────────────────────────────
+- tapOn:
+    id: "offer_accept_confirm_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "order_chat_pinned_summary"
+    timeout: 20000
+
+- takeScreenshot: jm029_ac2_confirmed_to_order_chat
+
+# ── AC3: Cancel → back to offer-review-list ──────────────────────────────────
+# AC2 accepted offer-001; re-launch with route pin + journey seam so the
+# offers_received seed overwrites back to 3 submitted offers (idempotent), and
+# we arrive on req-client-001-offers/offers directly (not via Replies tab).
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "offers_received"
+      jeeb.route: "/requests/req-client-001-offers/offers"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_review_list_root"
+    timeout: 30000
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_card_0_accept_cta"
+    timeout: 20000
+
+- tapOn:
+    id: "offer_card_0_accept_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_accept_sheet"
+    timeout: 15000
+
+- tapOn:
+    id: "offer_accept_cancel_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "offer_review_list_root"
+    timeout: 15000
+
+- takeScreenshot: jm029_ac3_cancel_back_to_offer_review

@@ -20,13 +20,15 @@ class _FakeEarningsRepository implements EarningsRepository {
 
   final EarningsErrorKind? failWith;
 
+  // Fee-only reframe (JM-052, D41/D44): total cash earned (net, off-wallet COD)
+  // + captured 10% fees + delivery count + member-since. No gross/commission/
+  // net-payout (the removed platform-takes-a-cut model).
   static const _sample = EarningsSummary(
-    totalEarnings: 1000,
-    currency: 'LBP',
+    totalCashEarned: 1000,
+    feesPaid: 100,
+    currency: 'USD',
     deliveryCount: 5,
-    commission: 100,
-    netPayout: 900,
-    periodLabel: 'This week',
+    memberSince: '2026-01-15T10:00:00Z',
   );
 
   @override
@@ -51,6 +53,79 @@ class _FakeEarningsRepository implements EarningsRepository {
 }
 
 void main() {
+  // JM-052 fee-only reframe (D41/D44/D37): EarningsSummary.fromJson against the
+  // REAL mock wire shape (GET /wallet-service/v1/jeeb/earnings). The endpoint
+  // returns net off-wallet COD entries only; the 10% fee (D37) is DERIVED.
+  group('EarningsSummary.fromJson — fee-only parse (real mock shape)', () {
+    // Verbatim mock payload for user-jeeber-002 (2 deliveries: 4.5 + 6 = 10.5).
+    final mockBody = <String, dynamic>{
+      'jeeberId': 'user-jeeber-002',
+      'totalEarnings': {'value': 10.5, 'currency': 'USD'},
+      'items': [
+        {
+          'id': 'earning-delivery-001',
+          'deliveryId': 'delivery-001',
+          'type': 'delivery',
+          'amount': {'value': 4.5, 'currency': 'USD'},
+          'syncedAt': '2026-05-18T15:00:00Z',
+        },
+        {
+          'id': 'earning-delivery-004',
+          'deliveryId': 'delivery-004',
+          'type': 'delivery',
+          'amount': {'value': 6, 'currency': 'USD'},
+          'syncedAt': '2026-05-18T16:30:00Z',
+        },
+      ],
+      'cursor': null,
+    };
+
+    test('total cash earned = sum of off-wallet COD (D41)', () {
+      final s = EarningsSummary.fromJson(mockBody);
+      expect(s.totalCashEarned, 10.5);
+      expect(s.currency, 'USD');
+      expect(s.deliveryCount, 2);
+    });
+
+    test('fees paid = derived flat 10% per delivery (D37)', () {
+      final s = EarningsSummary.fromJson(mockBody);
+      // 0.10 * (4.5 + 6) = 1.05.
+      expect(s.feesPaid, closeTo(1.05, 1e-9));
+      expect(s.deliveries.first.feePaid, closeTo(0.45, 1e-9));
+    });
+
+    test('net-per-offer = (cash - fees) / count (D44)', () {
+      final s = EarningsSummary.fromJson(mockBody);
+      // (10.5 - 1.05) / 2 = 4.725.
+      expect(s.netPerOffer, closeTo(4.725, 1e-9));
+    });
+
+    test('prefers an explicit fee total when the wire surfaces one', () {
+      final s = EarningsSummary.fromJson({...mockBody, 'feesPaid': 2.0});
+      expect(s.feesPaid, 2.0);
+    });
+
+    test('member-since is null when the wire omits it (never fabricated)', () {
+      expect(EarningsSummary.fromJson(mockBody).memberSince, isNull);
+      expect(
+        EarningsSummary.fromJson({...mockBody, 'memberSince': '2026-01-15'})
+            .memberSince,
+        '2026-01-15',
+      );
+    });
+
+    test('empty entries → zeroed summary, no divide-by-zero', () {
+      final s = EarningsSummary.fromJson({
+        'totalEarnings': {'value': 0, 'currency': 'USD'},
+        'items': <dynamic>[],
+      });
+      expect(s.totalCashEarned, 0);
+      expect(s.feesPaid, 0);
+      expect(s.netPerOffer, 0);
+      expect(s.deliveryCount, 0);
+    });
+  });
+
   group('EarningsCubit — initial load (constructor-triggered)', () {
     blocTest<EarningsCubit, EarningsState>(
       'emits ready with summary on success',

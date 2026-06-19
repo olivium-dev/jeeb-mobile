@@ -30,7 +30,13 @@ class SocialAuthFailure extends SocialAuthResult {
 ///
 /// The class is provider-agnostic — call [signIn] with the desired
 /// [SocialProvider] and the right native flow runs underneath. The gateway
-/// endpoint is `POST /api/auth/social` per the T-mobile-003 contract.
+/// endpoint is the VERIFIED `POST /v1/auth/social` (42_GUARDRAILS_MOCK
+/// §"W-1 FLOOR"): body `{ provider, idToken }`, success body
+/// `{ userId, authToken, refreshToken, expiresIn, recentlyCreated, phone? }`,
+/// 409 `email_collision` on a cross-method collision (D22, JM-019), 401
+/// `invalid_token` on a bad/unsupported provider. `MockGatewayClient` rewrites
+/// the `/v1/auth/social` prefix to `:4010` (B1) — the legacy `/api/auth/social`
+/// path also rewrites (B2), but new callers post the `/v1` path.
 abstract class SocialAuthService {
   Future<SocialAuthResult> signIn(SocialProvider provider);
 
@@ -39,19 +45,38 @@ abstract class SocialAuthService {
   Future<void> signOut();
 }
 
+/// A debug-only seam that short-circuits a social sign-in to a deterministic
+/// result for Maestro (60_W0_TEST_PLAN §6 `jeeb.seam.social_login`:
+/// `facebook_no_phone` → success with no phone; `collision_409` → 409).
+///
+/// The dev-flavor seam infrastructure (foundation / login-screen owner) wires a
+/// resolver that reads the launch argument; production passes none, so the
+/// service always takes the real native-SDK + `/v1/auth/social` path. Returning
+/// `null` from the resolver also falls through to the real path. Keeping the
+/// seam injectable (not reading a global) means JM-018's files need no edit
+/// when the foundation wires the arg → resolver (see 50_ROUTE_REQUESTS.md).
+typedef SocialAuthSeamResolver = SocialAuthResult? Function(
+  SocialProvider provider,
+);
+
 /// Production implementation.
 class DefaultSocialAuthService implements SocialAuthService {
   DefaultSocialAuthService({
     required Dio dio,
     GoogleSignIn? googleSignIn,
     bool Function()? isApplePlatform,
+    SocialAuthSeamResolver? seamResolver,
   })  : _dio = dio,
         _google = googleSignIn ?? GoogleSignIn(scopes: const ['email']),
-        _isApplePlatform = isApplePlatform ?? _defaultIsApplePlatform;
+        _isApplePlatform = isApplePlatform ?? _defaultIsApplePlatform,
+        _seamResolver = seamResolver;
 
   final Dio _dio;
   final GoogleSignIn _google;
   final bool Function() _isApplePlatform;
+
+  /// Debug-only deterministic-result seam (null in production).
+  final SocialAuthSeamResolver? _seamResolver;
 
   static bool _defaultIsApplePlatform() {
     if (kIsWeb) return false;
@@ -60,10 +85,18 @@ class DefaultSocialAuthService implements SocialAuthService {
 
   @override
   Future<SocialAuthResult> signIn(SocialProvider provider) async {
+    // Maestro dev seam (debug only): a wired resolver returns a deterministic
+    // result so the flow does not depend on a live OAuth handshake. Skipped in
+    // release (resolver is null) and whenever the resolver returns null.
+    if (kDebugMode && _seamResolver != null) {
+      final seamed = _seamResolver(provider);
+      if (seamed != null) return seamed;
+    }
     try {
       final idToken = switch (provider) {
         SocialProvider.google => await _signInWithGoogle(),
         SocialProvider.apple => await _signInWithApple(),
+        SocialProvider.facebook => await _signInWithFacebook(),
       };
       if (idToken == null) {
         return const SocialAuthFailure(SocialAuthError.cancelled);
@@ -133,13 +166,28 @@ class DefaultSocialAuthService implements SocialAuthService {
     return token;
   }
 
+  Future<String?> _signInWithFacebook() async {
+    // JM-018: Facebook is the third social provider on the login/sign-up rows.
+    // The app does not yet bundle a native Facebook SDK (no `flutter_facebook_auth`
+    // in pubspec — tracked under JEEB-57 alongside the branded glyph work), so we
+    // do NOT drive a native FB sheet here. The OAuth handshake is server-mediated:
+    // the gateway exchanges the provider grant, and under the dev flavor the
+    // `jeeb.seam.social_login` seam (60_W0_TEST_PLAN §6: `facebook_no_phone`,
+    // `collision_409`) auto-approves and shapes the `/v1/auth/social` response.
+    // We forward a provider-scoped grant marker as the `idToken` so the POST
+    // carries `provider: "facebook"`; the real native token replaces this when
+    // the SDK lands (the exchange + downstream routing are unchanged).
+    return 'facebook-oauth-grant';
+  }
+
   Future<SocialAuthResult> _exchangeToken({
     required SocialProvider provider,
     required String idToken,
   }) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
-        '/api/auth/social',
+        // VERIFIED gateway path (B1 rewrite → `/auth-service/auth/social`).
+        '/v1/auth/social',
         data: <String, dynamic>{
           'provider': provider.wireName,
           'idToken': idToken,
@@ -160,17 +208,28 @@ class DefaultSocialAuthService implements SocialAuthService {
   }
 
   SocialAuthSession? _parseSession(Map<String, dynamic> data) {
-    final userId = data['userId'] as String?;
-    final authToken = data['authToken'] as String?;
-    final refreshToken = data['refreshToken'] as String?;
+    // Defensive parse (40_GUARDRAILS §4): tolerate snake_case aliases and
+    // normalise empty strings to null so `hasPhone` (the G8 gate) is honest.
+    final userId = (data['userId'] ?? data['user_id'] ?? data['id']) as String?;
+    final authToken =
+        (data['authToken'] ?? data['auth_token'] ?? data['accessToken'])
+            as String?;
+    final refreshToken =
+        (data['refreshToken'] ?? data['refresh_token']) as String?;
     if (userId == null || authToken == null || refreshToken == null) {
       return null;
     }
+    final rawPhone = (data['phone'] ?? data['phoneNumber']) as String?;
+    final phone =
+        (rawPhone != null && rawPhone.trim().isNotEmpty) ? rawPhone : null;
     return SocialAuthSession(
       userId: userId,
       authToken: authToken,
       refreshToken: refreshToken,
-      recentlyCreated: data['recentlyCreated'] as bool? ?? false,
+      recentlyCreated:
+          (data['recentlyCreated'] ?? data['recently_created']) as bool? ??
+              false,
+      phone: phone,
     );
   }
 
@@ -183,6 +242,9 @@ class DefaultSocialAuthService implements SocialAuthService {
         return SocialAuthError.network;
       case DioExceptionType.badResponse:
         final status = e.response?.statusCode ?? 0;
+        // 409 `email_collision` (D22, JM-019): the social email is already
+        // registered another way → route to the collision sheet, NOT an error.
+        if (status == 409) return SocialAuthError.collision;
         if (status == 401) return SocialAuthError.invalidToken;
         if (status == 403) return SocialAuthError.accountDisabled;
         if (status >= 500) return SocialAuthError.network;

@@ -7,11 +7,13 @@ import '../../core/dev_seam/dev_seam.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/role/user_role.dart';
 import '../../l10n/app_localizations.dart';
+import '../customer_profile/data/dev_customer_profile_fixtures.dart';
+import '../customer_profile/presentation/customer_profile_screen.dart';
 import 'tabs/dashboard_tab.dart';
 import 'tabs/earnings_tab.dart';
 import 'tabs/home_tab.dart';
 import 'tabs/orders_tab.dart';
-import 'tabs/profile_tab.dart';
+import 'widgets/shell_header_actions.dart';
 
 /// Role-aware bottom-nav shell matching the Figma design (node 56535:2151).
 ///
@@ -80,7 +82,14 @@ class _ShellScreenState extends State<ShellScreen> {
             label: l10n.navRequests,
             icon: Icons.move_to_inbox_outlined,
             selectedIcon: Icons.move_to_inbox,
-            page: const HomeTab(),
+            // S3 (W1-INT): persistent header wallet chip + bell on the
+            // Requests header (JM-023; `orders_home_wallet_chip`/
+            // `orders_home_bell`). Overlaid by the shell so the per-screen
+            // HomeTab surface (JM-023's) stays untouched.
+            page: const _HeaderedTab(
+              idPrefix: 'orders_home',
+              child: HomeTab(),
+            ),
           ),
           _Tab(
             id: 'delivery',
@@ -94,7 +103,17 @@ class _ShellScreenState extends State<ShellScreen> {
             label: l10n.navProfile,
             icon: Icons.person_outline,
             selectedIcon: Icons.person,
-            page: const ProfileTab(),
+            // S3 (W1-INT, JM-035): swap the dev `ProfileTab` surface for the
+            // REAL CustomerProfileScreen, plus the persistent header wallet
+            // chip + bell (`customer_profile_wallet_chip`/`_bell`). The JM-035
+            // engineer wires the real getMe-backed view data + the row
+            // navigations + avatar/name/rating ids; the integrator owns this
+            // tab-body swap + the header actions. Debug renders the fixture
+            // view data (release will resolve the real profile cubit, JM-035).
+            page: const _HeaderedTab(
+              idPrefix: 'customer_profile',
+              child: _CustomerProfileTabBody(),
+            ),
           ),
         ];
       case UserRole.jeeber:
@@ -104,7 +123,16 @@ class _ShellScreenState extends State<ShellScreen> {
             label: l10n.navDashboard,
             icon: Icons.dashboard_outlined,
             selectedIcon: Icons.dashboard,
-            page: const DashboardTab(),
+            // S3 (W2-INT, JM-036): the DELIVERY tab (jeeber Dashboard) gets the
+            // persistent header wallet chip + bell — `delivery_tab_wallet_chip`
+            // → wallet-hub (honest, the `/wallet` route exists) and
+            // `delivery_tab_bell` → notifications (guarded coming-soon until
+            // JM-057/W4). The DashboardTab body itself gates register-prompt vs
+            // feed off real `user.kycStatus` (JeeberKycStatusGate).
+            page: const _HeaderedTab(
+              idPrefix: 'delivery_tab',
+              child: DashboardTab(),
+            ),
           ),
           _Tab(
             id: 'earnings',
@@ -118,10 +146,67 @@ class _ShellScreenState extends State<ShellScreen> {
             label: l10n.navProfile,
             icon: Icons.person_outline,
             selectedIcon: Icons.person,
-            page: const ProfileTab(),
+            // Jeeber profile also gets the real CustomerProfileScreen surface +
+            // header actions (the jeeber profile reuses the customer profile
+            // shell; the per-role rating/rows are JM-035's). Header ids stay
+            // `customer_profile_*` (the screen-scoped id, not role-scoped).
+            page: const _HeaderedTab(
+              idPrefix: 'customer_profile',
+              child: _CustomerProfileTabBody(),
+            ),
           ),
         ];
     }
+  }
+}
+
+/// Overlays the shell-owned [ShellHeaderActions] (wallet chip + bell) on the
+/// top-right of a tab body without touching the per-screen surface. A `Stack`
+/// keeps the actions persistent above whatever the [child] renders (a greeting
+/// header or an app bar), so the per-screen engineers (JM-023 / JM-035 / JM-036)
+/// own the body while the integrator owns the header actions (S3). Used on the
+/// customer Requests + Profile headers and the jeeber DELIVERY (Dashboard)
+/// header; the `idPrefix` scopes the ids per screen (`orders_home` /
+/// `customer_profile` / `delivery_tab`).
+class _HeaderedTab extends StatelessWidget {
+  const _HeaderedTab({required this.idPrefix, required this.child});
+
+  final String idPrefix;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned.fill(child: child),
+        PositionedDirectional(
+          top: 0,
+          end: Spacing.xSmall,
+          child: SafeArea(
+            child: Material(
+              color: Colors.transparent,
+              child: ShellHeaderActions(idPrefix: idPrefix),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The Profile tab body: the real [CustomerProfileScreen] (JM-035). Debug uses
+/// the fixture view data so the tab renders deterministically; the JM-035
+/// engineer swaps in the real getMe-backed cubit/repository (the integrator
+/// does NOT build that here). Release renders the same fixture shell until
+/// JM-035 wires the data source (no PII leak — the fixture is sample data).
+class _CustomerProfileTabBody extends StatelessWidget {
+  const _CustomerProfileTabBody();
+
+  @override
+  Widget build(BuildContext context) {
+    return const CustomerProfileScreen(
+      data: DevCustomerProfileFixtures.sample,
+    );
   }
 }
 
@@ -189,7 +274,7 @@ class _BarItem extends StatelessWidget {
     final textTheme = theme.textTheme;
     final color = isSelected ? colorScheme.primary : colorScheme.outline;
     return Semantics(
-      identifier: '_request_empty_state_nav_${tab.id}',
+      identifier: 'shell_tab_${tab.id}',
       button: true,
       selected: isSelected,
       label: tab.label,

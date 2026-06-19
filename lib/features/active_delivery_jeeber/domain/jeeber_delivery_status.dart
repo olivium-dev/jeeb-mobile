@@ -13,18 +13,23 @@ enum JeeberDeliveryStatus {
 
 extension JeeberDeliveryStatusX on JeeberDeliveryStatus {
   /// Gateway string for this status used in the POST body.
+  ///
+  /// JM-051: the real mock (`delivery-service.ts` SM-1 table) speaks the
+  /// CapitalCase form (`Ordered/Picked/InTransit/AtDoor/Done`); the
+  /// `POST /v1/delivery/status/transition` `to` field is matched against that
+  /// table exactly, so we emit CapitalCase here.
   String get apiValue {
     switch (this) {
       case JeeberDeliveryStatus.ordered:
-        return 'ordered';
+        return 'Ordered';
       case JeeberDeliveryStatus.picked:
-        return 'picked';
+        return 'Picked';
       case JeeberDeliveryStatus.inTransit:
-        return 'in_transit';
+        return 'InTransit';
       case JeeberDeliveryStatus.atDoor:
-        return 'at_door';
+        return 'AtDoor';
       case JeeberDeliveryStatus.done:
-        return 'done';
+        return 'Done';
     }
   }
 
@@ -38,15 +43,19 @@ extension JeeberDeliveryStatusX on JeeberDeliveryStatus {
 
   bool get isTerminal => this == JeeberDeliveryStatus.done;
 
+  /// Parse a gateway status. Tolerates both the real-mock CapitalCase form
+  /// (`InTransit`, `AtDoor`, `Done`) and the legacy lowercase/underscore form
+  /// (`in_transit`, `at_door`) so older fixtures + tests keep parsing. Unknown
+  /// → `ordered` (never crashes — 40_GUARDRAILS_ARCH §4 defensive parse).
   static JeeberDeliveryStatus fromApi(String value) {
-    switch (value) {
+    switch (value.toLowerCase().replaceAll('_', '')) {
       case 'ordered':
         return JeeberDeliveryStatus.ordered;
       case 'picked':
         return JeeberDeliveryStatus.picked;
-      case 'in_transit':
+      case 'intransit':
         return JeeberDeliveryStatus.inTransit;
-      case 'at_door':
+      case 'atdoor':
         return JeeberDeliveryStatus.atDoor;
       case 'done':
         return JeeberDeliveryStatus.done;

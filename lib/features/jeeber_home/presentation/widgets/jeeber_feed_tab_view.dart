@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/di/injection_container.dart';
+import '../../../../core/session/jeeber_kyc_status_gate.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/availability_cubit.dart';
 import '../../application/availability_state.dart';
 import '../../domain/entities/availability_status.dart';
 import '../../../jeeber_request_feed/cubit/request_feed_cubit.dart';
 import '../../../jeeber_request_feed/cubit/request_feed_state.dart';
+import '../../../jeeber_request_feed/cubit/submitted_offers_cubit.dart';
+import '../../../jeeber_request_feed/cubit/submitted_offers_state.dart';
 import '../../../jeeber_request_feed/data/request_feed_models.dart';
 import '../../../jeeber_request_feed/presentation/jeeber_feed_card.dart';
+import '../../../jeeber_request_feed/presentation/pending_offer_row.dart';
 import 'jeeber_home_greeting.dart';
 
 /// Tab the Jeeber feed view is currently filtered to, matching the three
@@ -43,6 +49,8 @@ class JeeberFeedTabView extends StatefulWidget {
     this.profileAvatarUrl,
     this.initialTab = JeeberFeedTab.requests,
     this.onOpenRequest,
+    this.onMakeOffer,
+    this.submittedOffersCubit,
   });
 
   static const Key rootKey = Key('jeeber-feed-tab-view-root');
@@ -50,6 +58,7 @@ class JeeberFeedTabView extends StatefulWidget {
   static const Key tabStripKey = Key('jeeber-feed-tab-view-tab-strip');
   static const Key tierStripKey = Key('jeeber-feed-tab-view-tier-strip');
   static const Key listKey = Key('jeeber-feed-tab-view-list');
+  static const Key pendingListKey = Key('jeeber-feed-tab-view-pending-list');
   static const Key offlineBannerKey = Key('jeeber-feed-tab-view-offline-banner');
 
   /// Profile display name for the shared greeting.
@@ -65,6 +74,18 @@ class JeeberFeedTabView extends StatefulWidget {
   /// to route into a request-detail page.
   final ValueChanged<DeliveryRequest>? onOpenRequest;
 
+  /// JM-048: optional override for the make-offer routing. When null the view
+  /// routes itself (KYC gate when unapproved → composer when approved) so the
+  /// shell does not need to wire it; tests pass a stub to assert the branch
+  /// without a router. See [_defaultMakeOffer].
+  final ValueChanged<DeliveryRequest>? onMakeOffer;
+
+  /// JM-048 AC3: optional cubit backing the Pending-Response sub-tab with the
+  /// jeeber's submitted offers (`GET /offer-service/v1/offers?jeeberId=`). When
+  /// null the Pending tab falls back to the request-feed-derived pending view
+  /// (dev-seam capture / tests), so this widget stays usable without DI.
+  final SubmittedOffersCubit? submittedOffersCubit;
+
   @override
   State<JeeberFeedTabView> createState() => _JeeberFeedTabViewState();
 }
@@ -75,10 +96,59 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
   String _query = '';
 
   @override
+  void initState() {
+    super.initState();
+    // Lazily warm the pending list if the view opens directly on the Pending
+    // tab (deep-link / dev-seam `initialTab`).
+    if (_activeTab == JeeberFeedTab.pendingResponse) {
+      _loadPendingOffers();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return BlocBuilder<AvailabilityCubit, AvailabilityViewState>(
       builder: (context, avState) => _buildBody(context, avState),
     );
+  }
+
+  void _loadPendingOffers() {
+    final cubit = widget.submittedOffersCubit;
+    if (cubit == null) return;
+    if (cubit.state.status == SubmittedOffersStatus.initial) {
+      cubit.load();
+    }
+  }
+
+  /// Self-contained make-offer routing (JM-044/048 D38 invariant) used when the
+  /// host does not supply [JeeberFeedTabView.onMakeOffer]: an UNAPPROVED jeeber
+  /// is routed through `offer-kyc-gate`; an APPROVED jeeber goes straight to the
+  /// composer (`jeeber-offer-submission`). Resolves the gate from DI with a
+  /// seam-backed fallback so a harness without the gate registered never throws
+  /// (mirrors `dashboard_tab.dart`). Guarded by `GoRouter.maybeOf` so it is a
+  /// no-op in a router-less widget test.
+  void _defaultMakeOffer(BuildContext context, DeliveryRequest request) {
+    if (GoRouter.maybeOf(context) == null) return;
+    final gate = sl.isRegistered<JeeberKycStatusGate>()
+        ? sl<JeeberKycStatusGate>()
+        : const SeamJeeberKycStatusGate();
+    if (gate.isApproved) {
+      context.pushNamed(
+        'jeeber-offer-submission',
+        pathParameters: {'id': request.id},
+      );
+    } else {
+      context.goNamed('offer-kyc-gate');
+    }
+  }
+
+  void _onMakeOffer(BuildContext context, DeliveryRequest request) {
+    final handler = widget.onMakeOffer;
+    if (handler != null) {
+      handler(request);
+      return;
+    }
+    _defaultMakeOffer(context, request);
   }
 
   Widget _buildBody(BuildContext context, AvailabilityViewState avState) {
@@ -113,17 +183,34 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
 
   Widget _feedContent(bool isOffline) {
     if (isOffline) return const _OfflineEmptyBody();
+    // JM-048 AC3: the Pending-Response sub-tab is backed by the jeeber's
+    // submitted offers (real data) when a [SubmittedOffersCubit] is supplied;
+    // otherwise it falls back to the request-feed-derived pending view.
+    if (_activeTab == JeeberFeedTab.pendingResponse &&
+        widget.submittedOffersCubit != null) {
+      return _PendingOffersList(
+        cubit: widget.submittedOffersCubit!,
+        // JM-047 AC4 (RD-2): the pending sub-tab's back edge → delivery-requests.
+        // Tabs are not routes here (the feed lives inside the shell), so "back"
+        // switches the active sub-tab back to Requests (jeeber-requests-home).
+        onBack: () => _onTabChanged(JeeberFeedTab.requests),
+      );
+    }
     return _FeedRequestList(
       activeTab: _activeTab,
       tierFilter: _tierFilter,
       query: _query,
       onOpenRequest: widget.onOpenRequest,
+      onMakeOffer: (req) => _onMakeOffer(context, req),
     );
   }
 
   void _onTabChanged(JeeberFeedTab? next) {
     if (next == null || next == _activeTab) return;
     setState(() => _activeTab = next);
+    if (next == JeeberFeedTab.pendingResponse) {
+      _loadPendingOffers();
+    }
   }
 
   void _onTierChanged(JeeberTierFilter? next) {
@@ -262,6 +349,13 @@ class _FeedSearchBar extends StatelessWidget {
   }
 }
 
+/// Feed sub-tab chips — Requests / Pending / Replies.
+///
+/// Built from individual [OmdsChip]s (not the monolithic [OmdsFilterChips])
+/// because JM-048 needs a per-chip Semantics identifier on the Pending chip
+/// (`jeeber_feed_pending_tab`) so the QA flow can tap it, which the bundled
+/// filter-chips widget does not expose. Each chip carries its own id; all three
+/// are queryable (honest), only `jeeber_feed_pending_tab` is contract-required.
 class _FeedTabStrip extends StatelessWidget {
   const _FeedTabStrip({required this.active, required this.onChanged});
 
@@ -271,34 +365,50 @@ class _FeedTabStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Padding(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.medium,
-      ),
-      child: OmdsFilterChips<JeeberFeedTab>(
-        key: JeeberFeedTabView.tabStripKey,
-        filters: _filters(l10n),
-        selectedValue: active,
-        onFilterChanged: onChanged,
-        showCounts: false,
+    return SingleChildScrollView(
+      key: JeeberFeedTabView.tabStripKey,
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsetsDirectional.symmetric(horizontal: Spacing.medium),
+      child: Row(
+        children: [
+          _tabChip(
+            identifier: 'jeeber_feed_requests_tab',
+            label: l10n.jeeberFeedFilterRequests,
+            tab: JeeberFeedTab.requests,
+          ),
+          const SizedBox(width: Spacing.small),
+          _tabChip(
+            identifier: 'jeeber_feed_pending_tab',
+            label: l10n.jeeberFeedFilterPendingResponse,
+            tab: JeeberFeedTab.pendingResponse,
+          ),
+          const SizedBox(width: Spacing.small),
+          _tabChip(
+            identifier: 'jeeber_feed_replies_tab',
+            label: l10n.jeeberFeedFilterReplies,
+            tab: JeeberFeedTab.replies,
+          ),
+        ],
       ),
     );
   }
 
-  List<OmdsFilterOption<JeeberFeedTab>> _filters(AppLocalizations l10n) => [
-        OmdsFilterOption<JeeberFeedTab>(
-          label: l10n.jeeberFeedFilterRequests,
-          value: JeeberFeedTab.requests,
-        ),
-        OmdsFilterOption<JeeberFeedTab>(
-          label: l10n.jeeberFeedFilterPendingResponse,
-          value: JeeberFeedTab.pendingResponse,
-        ),
-        OmdsFilterOption<JeeberFeedTab>(
-          label: l10n.jeeberFeedFilterReplies,
-          value: JeeberFeedTab.replies,
-        ),
-      ];
+  Widget _tabChip({
+    required String identifier,
+    required String label,
+    required JeeberFeedTab tab,
+  }) {
+    return Semantics(
+      identifier: identifier,
+      button: true,
+      selected: active == tab,
+      child: OmdsChip(
+        label: label,
+        isSelected: active == tab,
+        onTap: () => onChanged(tab),
+      ),
+    );
+  }
 }
 
 class _FeedRequestList extends StatelessWidget {
@@ -307,12 +417,14 @@ class _FeedRequestList extends StatelessWidget {
     required this.tierFilter,
     required this.query,
     required this.onOpenRequest,
+    required this.onMakeOffer,
   });
 
   final JeeberFeedTab activeTab;
   final JeeberTierFilter tierFilter;
   final String query;
   final ValueChanged<DeliveryRequest>? onOpenRequest;
+  final ValueChanged<DeliveryRequest> onMakeOffer;
 
   @override
   Widget build(BuildContext context) {
@@ -323,6 +435,7 @@ class _FeedRequestList extends StatelessWidget {
         tierFilter: tierFilter,
         query: query,
         onOpenRequest: onOpenRequest,
+        onMakeOffer: onMakeOffer,
       ),
     );
   }
@@ -335,6 +448,7 @@ class _FeedRequestListBody extends StatelessWidget {
     required this.tierFilter,
     required this.query,
     required this.onOpenRequest,
+    required this.onMakeOffer,
   });
 
   final RequestFeedState state;
@@ -342,6 +456,7 @@ class _FeedRequestListBody extends StatelessWidget {
   final JeeberTierFilter tierFilter;
   final String query;
   final ValueChanged<DeliveryRequest>? onOpenRequest;
+  final ValueChanged<DeliveryRequest> onMakeOffer;
 
   @override
   Widget build(BuildContext context) {
@@ -351,7 +466,11 @@ class _FeedRequestListBody extends StatelessWidget {
       onRefresh: () => context.read<RequestFeedCubit>().refresh(),
       child: visible.isEmpty
           ? _EmptyTabState(l10n: l10n)
-          : _FeedListView(requests: visible, onOpenRequest: onOpenRequest),
+          : _FeedListView(
+              requests: visible,
+              onOpenRequest: onOpenRequest,
+              onMakeOffer: onMakeOffer,
+            ),
     );
   }
 
@@ -396,28 +515,39 @@ class _FeedRequestListBody extends StatelessWidget {
 }
 
 class _FeedListView extends StatelessWidget {
-  const _FeedListView({required this.requests, required this.onOpenRequest});
+  const _FeedListView({
+    required this.requests,
+    required this.onOpenRequest,
+    required this.onMakeOffer,
+  });
 
   final List<DeliveryRequest> requests;
   final ValueChanged<DeliveryRequest>? onOpenRequest;
+  final ValueChanged<DeliveryRequest> onMakeOffer;
 
   @override
   Widget build(BuildContext context) {
     final cubit = context.read<RequestFeedCubit>();
+    // JM-048: the FIRST incoming row exposes the screen-level
+    // `feed_make_offer_cta` so the QA flow taps an unambiguous make-offer CTA.
+    final firstIncomingIndex = requests.indexWhere(
+      (r) => r.feedStatus == JeeberFeedItemStatus.incoming,
+    );
     return ListView.builder(
       key: JeeberFeedTabView.listKey,
       padding: const EdgeInsetsDirectional.symmetric(vertical: Spacing.small),
       itemCount: requests.length,
       itemBuilder: (_, index) => JeeberFeedCard(
         request: requests[index],
+        // JM-048: card tap opens detail; the "Offer" button routes through the
+        // KYC gate / composer (D38), distinct from a plain detail open.
         onTap: onOpenRequest == null
             ? null
             : () => onOpenRequest!(requests[index]),
         onIgnore: () => cubit.decline(requests[index].id),
-        onOffer: onOpenRequest == null
-            ? null
-            : () => onOpenRequest!(requests[index]),
+        onOffer: () => onMakeOffer(requests[index]),
         onAdvanceStatus: () => cubit.accept(requests[index].id),
+        exposeMakeOfferId: index == firstIncomingIndex,
       ),
     );
   }
@@ -439,6 +569,118 @@ class _EmptyTabState extends StatelessWidget {
             icon: Icons.inbox_outlined,
             title: l10n.jeeberFeedEmptyTitle,
             subtitle: l10n.jeeberFeedEmptySubtitle,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// JM-048 AC3 + JM-047: the Pending-Response sub-tab body, backed by the
+/// jeeber's submitted offers (`GET /offer-service/v1/offers?jeeberId=`). Renders
+/// `pending_offer_<index>` rows with the per-row withdraw control (D15); empty
+/// and loading states reuse the feed's chrome.
+class _PendingOffersList extends StatelessWidget {
+  const _PendingOffersList({required this.cubit, this.onBack});
+
+  final SubmittedOffersCubit cubit;
+
+  /// JM-047 AC4: invoked by the pending sub-tab's back control to return to the
+  /// Requests sub-tab (delivery-requests). Optional so the widget stays usable
+  /// in a harness that does not supply it.
+  final VoidCallback? onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider<SubmittedOffersCubit>.value(
+      value: cubit,
+      child: Column(
+        children: [
+          _PendingOffersBackBar(onBack: onBack),
+          Expanded(
+            child: BlocBuilder<SubmittedOffersCubit, SubmittedOffersState>(
+              bloc: cubit,
+              builder: (context, state) => OmdsPullToRefresh(
+                onRefresh: cubit.load,
+                child: _pendingBody(context, state),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pendingBody(BuildContext context, SubmittedOffersState state) {
+    if (state.status == SubmittedOffersStatus.loading && state.offers.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (state.offers.isEmpty) {
+      return _PendingEmptyState(
+        l10n: AppLocalizations.of(context),
+      );
+    }
+    return ListView.builder(
+      key: JeeberFeedTabView.pendingListKey,
+      padding: const EdgeInsetsDirectional.symmetric(vertical: Spacing.small),
+      itemCount: state.offers.length,
+      itemBuilder: (_, index) {
+        final offer = state.offers[index];
+        return PendingOfferRow(
+          index: index,
+          offer: offer,
+          isWithdrawing: state.isWithdrawing(offer.id),
+          onWithdraw: () => cubit.withdraw(offer.id),
+        );
+      },
+    );
+  }
+}
+
+/// JM-047 AC4 (RD-2): the pending sub-tab's back affordance. The feed lives
+/// inside the shell (no app bar of its own), so this leading row carries the
+/// `pending_offers_back` Semantics id — mirroring the standalone
+/// `jeeber-pending-offers` route's back idiom — and returns to the Requests
+/// sub-tab (delivery-requests / jeeber-requests-home). The asserted contract is
+/// the Semantics id, not visible text (i18n-safe, CTO brief §6.6); the back
+/// glyph's tooltip is framework-localized via [BackButton].
+class _PendingOffersBackBar extends StatelessWidget {
+  const _PendingOffersBackBar({this.onBack});
+
+  final VoidCallback? onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Semantics(
+        identifier: 'pending_offers_back',
+        button: true,
+        container: true,
+        child: BackButton(
+          onPressed: onBack ?? () {},
+        ),
+      ),
+    );
+  }
+}
+
+class _PendingEmptyState extends StatelessWidget {
+  const _PendingEmptyState({required this.l10n});
+
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: OmdsEmptyState(
+            icon: Icons.hourglass_empty_rounded,
+            title: l10n.pendingOffersEmptyTitle,
+            subtitle: l10n.pendingOffersEmptyBody,
           ),
         ),
       ),

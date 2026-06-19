@@ -5,159 +5,219 @@ import 'package:jeeb_mobile/features/notification_prefs/application/notification
 import 'package:jeeb_mobile/features/notification_prefs/domain/notification_prefs_model.dart';
 import 'package:jeeb_mobile/features/notification_prefs/domain/notification_prefs_repository.dart';
 
-/// Fake [NotificationPrefsRepository] for testing.
+/// In-memory [NotificationPrefsRepository] test seam (never registered in DI).
 class _FakePrefsRepo implements NotificationPrefsRepository {
   _FakePrefsRepo({
-    NotificationPrefs? initial,
-    bool failPatch = false,
-  })  : _stored = initial ??
-            const NotificationPrefs(
-              preferences: NotificationTopicPrefs(
-                offers: true,
-                chat: true,
-                statusChanges: true,
-                ratingReminders: true,
-              ),
-              alwaysOn: ['otp', 'system_critical'],
-            ),
-        _failPatch = failPatch;
+    NotificationCategoryPrefs? initial,
+    this.failSave = false,
+  }) : _stored = NotificationPrefs(
+          categories: initial ?? const NotificationCategoryPrefs(),
+        );
 
   NotificationPrefs _stored;
-  final bool _failPatch;
+  final bool failSave;
+
+  /// The last category map the cubit PUT to us (asserts the locked class is
+  /// never sent — the save() only carries the four toggleable categories).
+  NotificationCategoryPrefs? lastSaved;
 
   @override
   Future<NotificationPrefs> fetch() async => _stored;
 
   @override
-  Future<NotificationPrefs> patch(NotificationTopicPrefs prefs) async {
-    if (_failPatch) throw Exception('network error');
-    _stored = _stored.copyWith(preferences: prefs);
+  Future<NotificationPrefs> save(NotificationCategoryPrefs categories) async {
+    if (failSave) {
+      throw const NotificationPrefsRepositoryException(
+        NotificationPrefsFailure.network,
+      );
+    }
+    lastSaved = categories;
+    _stored = _stored.copyWith(categories: categories);
     return _stored;
   }
 }
 
+class _FailingFetchRepo implements NotificationPrefsRepository {
+  _FailingFetchRepo(this.failure);
+  final NotificationPrefsFailure failure;
+
+  @override
+  Future<NotificationPrefs> fetch() async =>
+      throw NotificationPrefsRepositoryException(failure);
+
+  @override
+  Future<NotificationPrefs> save(NotificationCategoryPrefs categories) async =>
+      throw NotificationPrefsRepositoryException(failure);
+}
+
+// Short debounce so PUTs land quickly under test.
+const _fastDebounce = Duration(milliseconds: 10);
+
 NotificationPrefsCubit _buildCubit({
-  NotificationPrefs? initial,
-  bool failPatch = false,
+  NotificationCategoryPrefs? initial,
+  bool failSave = false,
 }) {
   final cubit = NotificationPrefsCubit(
-    repository: _FakePrefsRepo(initial: initial, failPatch: failPatch),
+    repository: _FakePrefsRepo(initial: initial, failSave: failSave),
+    debounce: _fastDebounce,
   );
   addTearDown(cubit.close);
   return cubit;
 }
 
 void main() {
-  group('NotificationPrefsCubit — load (T-MOB-026 AC1)', () {
+  group('NotificationPrefsCubit — load (JM-058 AC)', () {
     test('starts in loading state before load() is called', () {
       final cubit = _buildCubit();
       expect(cubit.state, isA<NotificationPrefsLoading>());
     });
 
-    test('load() transitions to loaded with gateway prefs', () async {
+    test('load() → loaded with the four D64 categories', () async {
       final cubit = _buildCubit();
       await cubit.load();
 
-      final loaded = cubit.state;
-      expect(loaded, isA<NotificationPrefsLoaded>());
-      final l = loaded as NotificationPrefsLoaded;
-      expect(l.prefs.preferences.offers, isTrue);
-      expect(l.prefs.alwaysOn, contains('otp'));
+      final state = cubit.state;
+      expect(state, isA<NotificationPrefsLoaded>());
+      final loaded = state as NotificationPrefsLoaded;
+      // Operational categories default on; marketing defaults off (consent).
+      expect(loaded.prefs.categories.offers, isTrue);
+      expect(loaded.prefs.categories.orderStatus, isTrue);
+      expect(loaded.prefs.categories.wallet, isTrue);
+      expect(loaded.prefs.categories.marketing, isFalse);
+      // Transactional class is always locked (D64).
+      expect(loaded.prefs.transactionalLocked, isTrue);
     });
 
-    test('load() transitions to error when gateway throws', () async {
-      final repo = _FakeRepoThatFailsFetch();
-      final cubit = NotificationPrefsCubit(repository: repo);
+    test('load() → error (network) when the gateway throws', () async {
+      final cubit = NotificationPrefsCubit(
+        repository: _FailingFetchRepo(NotificationPrefsFailure.network),
+        debounce: _fastDebounce,
+      );
       addTearDown(cubit.close);
 
       await cubit.load();
-      expect(cubit.state, isA<NotificationPrefsError>());
+      final state = cubit.state;
+      expect(state, isA<NotificationPrefsError>());
+      expect(
+        (state as NotificationPrefsError).failure,
+        NotificationPrefsFailureView.network,
+      );
     });
   });
 
-  group('NotificationPrefsCubit — toggleTopic (T-MOB-026 AC1)', () {
-    test('toggleTopic optimistically updates UI', () async {
+  group('NotificationPrefsCubit — toggleCategory (JM-058 AC)', () {
+    test('optimistically updates the category in the UI', () async {
       final cubit = _buildCubit();
       await cubit.load();
 
-      cubit.toggleTopic('offers', false);
+      cubit.toggleCategory(NotificationCategory.offers, false);
 
       final loaded = cubit.state as NotificationPrefsLoaded;
-      expect(loaded.prefs.preferences.offers, isFalse);
+      expect(loaded.prefs.categories.offers, isFalse);
     });
 
-    test('toggleTopic schedules a debounced PATCH', () async {
-      final cubit = _buildCubit();
+    test('schedules a debounced PUT that confirms the server snapshot',
+        () async {
+      final repo = _FakePrefsRepo();
+      final cubit = NotificationPrefsCubit(
+        repository: repo,
+        debounce: _fastDebounce,
+      );
+      addTearDown(cubit.close);
       await cubit.load();
-      cubit.toggleTopic('chat', false);
 
-      // After debounce completes (500ms), state should reflect server response.
-      await Future<void>.delayed(const Duration(milliseconds: 600));
+      cubit.toggleCategory(NotificationCategory.marketing, true);
+      await Future<void>.delayed(const Duration(milliseconds: 40));
 
       final loaded = cubit.state as NotificationPrefsLoaded;
-      expect(loaded.prefs.preferences.chat, isFalse);
+      expect(loaded.prefs.categories.marketing, isTrue);
+      // The PUT carried only the four toggleable categories (no locked class).
+      expect(repo.lastSaved, isNotNull);
+      expect(repo.lastSaved!.marketing, isTrue);
+    });
+
+    test('rapid toggles debounce into a single PUT', () async {
+      final repo = _FakePrefsRepo();
+      final cubit = NotificationPrefsCubit(
+        repository: repo,
+        debounce: const Duration(milliseconds: 30),
+      );
+      addTearDown(cubit.close);
+      await cubit.load();
+
+      cubit.toggleCategory(NotificationCategory.wallet, false);
+      cubit.toggleCategory(NotificationCategory.wallet, true);
+      cubit.toggleCategory(NotificationCategory.wallet, false);
+      // Only the last value should be PUT after the debounce window.
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+
+      expect(repo.lastSaved!.wallet, isFalse);
     });
   });
 
-  group('NotificationPrefsCubit — revert-on-error (T-MOB-026 AC2)', () {
-    test('failed PATCH reverts UI and sets saveError flag', () async {
-      final cubit = _buildCubit(failPatch: true);
+  group('NotificationPrefsCubit — revert-on-error (D30)', () {
+    test('failed PUT reverts the category and sets saveError', () async {
+      final cubit = _buildCubit(failSave: true);
       await cubit.load();
 
-      final preToggle =
-          (cubit.state as NotificationPrefsLoaded).prefs.preferences.offers;
+      final before =
+          (cubit.state as NotificationPrefsLoaded).prefs.categories.offers;
 
-      cubit.toggleTopic('offers', !preToggle);
-
-      // Wait for debounce + patch to complete.
-      await Future<void>.delayed(const Duration(milliseconds: 600));
+      cubit.toggleCategory(NotificationCategory.offers, !before);
+      await Future<void>.delayed(const Duration(milliseconds: 40));
 
       final loaded = cubit.state as NotificationPrefsLoaded;
-      // Toggle should be reverted.
-      expect(loaded.prefs.preferences.offers, preToggle);
+      expect(loaded.prefs.categories.offers, before); // reverted
       expect(loaded.saveError, isTrue);
     });
 
-    test('acknowledgeError clears saveError flag', () async {
-      final cubit = _buildCubit(failPatch: true);
+    test('acknowledgeError clears the saveError flag', () async {
+      final cubit = _buildCubit(failSave: true);
       await cubit.load();
-      cubit.toggleTopic('offers', false);
-      await Future<void>.delayed(const Duration(milliseconds: 600));
+      cubit.toggleCategory(NotificationCategory.offers, false);
+      await Future<void>.delayed(const Duration(milliseconds: 40));
 
-      final beforeAck = cubit.state as NotificationPrefsLoaded;
-      expect(beforeAck.saveError, isTrue);
+      expect((cubit.state as NotificationPrefsLoaded).saveError, isTrue);
 
       cubit.acknowledgeError();
-      final afterAck = cubit.state as NotificationPrefsLoaded;
-      expect(afterAck.saveError, isFalse);
+      expect((cubit.state as NotificationPrefsLoaded).saveError, isFalse);
     });
   });
 
-  group('NotificationPrefsCubit — alwaysOn (T-MOB-026 AC3)', () {
-    test('alwaysOn topics are reflected in loaded prefs', () async {
-      final cubit = _buildCubit(
-        initial: const NotificationPrefs(
-          preferences: NotificationTopicPrefs(),
-          alwaysOn: ['otp', 'system_critical'],
-        ),
+  group('NotificationCategory wire contract (D64)', () {
+    test('order-status serialises to snake_case `order_status`', () {
+      expect(NotificationCategory.orderStatus.wireKey, 'order_status');
+    });
+
+    test('fromWire tolerates legacy camelCase status keys', () {
+      expect(
+        NotificationCategoryWire.fromWire('statusChanges'),
+        NotificationCategory.orderStatus,
       );
-      await cubit.load();
+      expect(
+        NotificationCategoryWire.fromWire('orderStatus'),
+        NotificationCategory.orderStatus,
+      );
+    });
 
-      final loaded = cubit.state as NotificationPrefsLoaded;
-      expect(loaded.prefs.isOtpAlwaysOn, isTrue);
-      expect(loaded.prefs.isSystemCriticalAlwaysOn, isTrue);
+    test('toTopicsJson round-trips through fromTopicsJson', () {
+      const prefs = NotificationCategoryPrefs(
+        offers: false,
+        orderStatus: true,
+        wallet: false,
+        marketing: true,
+      );
+      final parsed =
+          NotificationCategoryPrefs.fromTopicsJson(prefs.toTopicsJson());
+      expect(parsed, prefs);
+    });
+
+    test('fromTopicsJson falls back to defaults on empty / partial map', () {
+      final parsed = NotificationCategoryPrefs.fromTopicsJson(const {});
+      expect(parsed.offers, isTrue);
+      expect(parsed.orderStatus, isTrue);
+      expect(parsed.wallet, isTrue);
+      expect(parsed.marketing, isFalse);
     });
   });
-}
-
-class _FakeRepoThatFailsFetch implements NotificationPrefsRepository {
-  @override
-  Future<NotificationPrefs> fetch() async {
-    throw Exception('fetch failed');
-  }
-
-  @override
-  Future<NotificationPrefs> patch(NotificationTopicPrefs prefs) async {
-    throw Exception('patch failed');
-  }
 }

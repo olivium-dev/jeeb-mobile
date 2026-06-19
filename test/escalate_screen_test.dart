@@ -1,19 +1,23 @@
-// Widget tests for EscalateScreen (T-MOB-022).
+// Widget tests for EscalateScreen / dispute-open-evidence (JM-060; ex T-MOB-022).
 //
 // Verifies:
-//   - Reason options rendered.
-//   - Submit disabled until reason selected.
-//   - Success view shows case number.
-//   - Error view shows retry option.
+//   - Reason options + the blueprint identifiers render (dispute_reason,
+//     dispute_photos, dispute_voice, dispute_submit_cta, dispute_support_link,
+//     dispute_back).
+//   - Submit disabled until a reason is selected.
+//   - A successful submit routes to dispute-status (JM-065) with the dispute id.
+//   - Error view shows a retry option.
+//   - Arabic locale renders RTL.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:jeeb_mobile/features/escalate/application/escalate_cubit.dart';
-import 'package:jeeb_mobile/features/escalate/application/escalate_state.dart';
 import 'package:jeeb_mobile/features/escalate/domain/escalate_repository.dart';
 import 'package:jeeb_mobile/features/escalate/presentation/escalate_screen.dart';
+import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import 'support/sync_app_localizations.dart';
 
@@ -22,33 +26,90 @@ class _FakeRepo implements EscalateRepository {
   final EscalateErrorKind? failWith;
 
   @override
+  Future<EscalateEvidence> fetchEvidence({required String deliveryId}) async =>
+      const EscalateEvidence(
+        chatSnapshotUrl: 'https://cdn.jeeb.app/snapshots/conv-1.html',
+        chatMessageCount: 3,
+        timeline: [EscalateTimelineEntry(status: 'Ordered')],
+      );
+
+  @override
   Future<EscalateResult> submitEscalation({
     required String deliveryId,
     required EscalateReason reason,
     String? comment,
     List<String> photoPaths = const [],
+    String? voicePath,
+    EscalateEvidence evidence = EscalateEvidence.empty,
   }) async {
     if (failWith != null) throw EscalateException(failWith!);
-    return const EscalateResult(caseId: 'case-999', status: 'open');
+    return const EscalateResult(caseId: 'dispute-999', status: 'open');
   }
 }
 
-Widget _wrap({EscalateRepository? repo}) {
-  return wrapForTest(
-    BlocProvider<EscalateCubit>(
-      create: (_) => EscalateCubit(
-        repository: repo ?? const _FakeRepo(),
-        deliveryId: 'delivery-008',
+// A GoRouter so the success listener (goNamed dispute-status) + support link
+// (pushNamed support-ticket) resolve. The escalate screen is the initial route.
+GoRouter _router({EscalateRepository? repo}) {
+  return GoRouter(
+    initialLocation: '/orders/dlv-1/escalate',
+    routes: [
+      GoRoute(
+        path: '/orders/:id/escalate',
+        name: 'escalate',
+        builder: (context, state) => BlocProvider<EscalateCubit>(
+          create: (_) => EscalateCubit(
+            repository: repo ?? const _FakeRepo(),
+            deliveryId: state.pathParameters['id'] ?? '',
+          ),
+          child: const EscalateScreen(),
+        ),
       ),
-      child: const EscalateScreen(),
-    ),
+      GoRoute(
+        path: '/disputes/:id',
+        name: 'dispute-status',
+        builder: (context, state) => Scaffold(
+          body: Center(
+            child: Text('dispute-status:${state.pathParameters['id']}'),
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/support',
+        name: 'support-ticket',
+        builder: (context, state) =>
+            const Scaffold(body: Center(child: Text('support'))),
+      ),
+      GoRoute(
+        path: '/',
+        name: 'shell',
+        builder: (context, state) =>
+            const Scaffold(body: Center(child: Text('home'))),
+      ),
+    ],
   );
 }
 
 void main() {
+  // Reuse the sync localizations delegate list from the shared helper.
+  final delegates = (wrapForTest(const SizedBox()) as MaterialApp)
+      .localizationsDelegates!;
+
+  Widget build({EscalateRepository? repo, Locale locale = const Locale('en')}) {
+    final router = _router(repo: repo);
+    return MaterialApp.router(
+      theme: ThemeData.light(),
+      locale: locale,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: delegates,
+      routerConfig: router,
+    );
+  }
+
+  Finder byId(String id) => find.bySemanticsIdentifier(id);
+
   testWidgets('renders report title and reason options', (tester) async {
-    await tester.pumpWidget(_wrap());
-    await tester.pump();
+    await tester.pumpWidget(build());
+    await tester.pumpAndSettle();
 
     expect(find.text('Report an Issue'), findsOneWidget);
     expect(find.text('Damaged item'), findsOneWidget);
@@ -56,22 +117,37 @@ void main() {
     expect(find.text('Other'), findsOneWidget);
   });
 
-  testWidgets('submit button is disabled until reason selected', (tester) async {
-    await tester.pumpWidget(_wrap());
-    await tester.pump();
+  testWidgets('exposes the blueprint dispute identifiers', (tester) async {
+    await tester.pumpWidget(build());
+    await tester.pumpAndSettle();
 
-    final submitFinder = find.text('Submit Report');
-    expect(submitFinder, findsOneWidget);
-    // OmdsButton disables onTap when isEnabled=false — verify no state change.
-    await tester.tap(submitFinder, warnIfMissed: false);
-    await tester.pump();
+    for (final id in const [
+      'dispute_reason',
+      'dispute_photos',
+      'dispute_voice',
+      'dispute_submit_cta',
+      'dispute_support_link',
+      'dispute_back',
+    ]) {
+      expect(byId(id), findsWidgets, reason: 'missing identifier $id');
+    }
+  });
+
+  testWidgets('submit button is disabled until reason selected',
+      (tester) async {
+    await tester.pumpWidget(build());
+    await tester.pumpAndSettle();
+
+    // Tapping submit with no reason is a no-op (stays on the form).
+    await tester.tap(find.text('Submit Report'), warnIfMissed: false);
+    await tester.pumpAndSettle();
     expect(find.text('Submit Report'), findsOneWidget);
   });
 
-  testWidgets('selecting a reason and submitting shows confirmation',
+  testWidgets('selecting a reason and submitting routes to dispute-status',
       (tester) async {
-    await tester.pumpWidget(_wrap());
-    await tester.pump();
+    await tester.pumpWidget(build());
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Damaged item'));
     await tester.pump();
@@ -79,15 +155,14 @@ void main() {
     await tester.tap(find.text('Submit Report'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Report submitted'), findsOneWidget);
-    expect(find.textContaining('case-999'), findsOneWidget);
+    expect(find.text('dispute-status:dispute-999'), findsOneWidget);
   });
 
   testWidgets('server error shows error message', (tester) async {
     await tester.pumpWidget(
-      _wrap(repo: const _FakeRepo(failWith: EscalateErrorKind.server)),
+      build(repo: const _FakeRepo(failWith: EscalateErrorKind.server)),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('No-show'));
     await tester.pump();
@@ -98,19 +173,8 @@ void main() {
   });
 
   testWidgets('renders in Arabic locale', (tester) async {
-    await tester.pumpWidget(
-      wrapForTest(
-        BlocProvider<EscalateCubit>(
-          create: (_) => EscalateCubit(
-            repository: const _FakeRepo(),
-            deliveryId: 'dlv-1',
-          ),
-          child: const EscalateScreen(),
-        ),
-        locale: const Locale('ar'),
-      ),
-    );
-    await tester.pump();
+    await tester.pumpWidget(build(locale: const Locale('ar')));
+    await tester.pumpAndSettle();
 
     expect(find.text('الإبلاغ عن مشكلة'), findsOneWidget);
     expect(find.text('عنصر تالف'), findsOneWidget);

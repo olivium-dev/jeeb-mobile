@@ -8,13 +8,21 @@ import 'package:open_file/open_file.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../dev_seam/dev_seam.dart';
+import '../session/account_status_gate.dart';
 import '../session/session_gate.dart';
 import '../session/session_state.dart';
 import 'profile_unavailable_screen.dart';
+import '../../features/account_status/presentation/account_status_screen.dart';
+import '../../features/auth/presentation/login_screen.dart';
+import '../../features/auth/presentation/recover_password_screen.dart';
+import '../../features/auth/presentation/set_password_screen.dart';
+import '../../features/auth/presentation/sign_up_screen.dart';
+import '../../features/auth/presentation/verify_recovery_code_screen.dart';
 import '../../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../../features/biometric_auth/application/biometric_lock_state.dart';
 import '../../features/biometric_auth/presentation/biometric_lock_screen.dart';
 import '../../features/chat/presentation/dev_chat_preview_screen.dart';
+import '../../features/client_offers/presentation/client_offers_screen.dart';
 import '../../features/customer_profile/data/dev_customer_profile_fixtures.dart';
 import '../../features/customer_profile/domain/customer_profile_view_data.dart';
 import '../../features/customer_profile/presentation/customer_profile_screen.dart';
@@ -25,6 +33,21 @@ import '../../features/delivery_man_profile/presentation/delivery_man_profile_sc
 import '../../features/deep_link_targets/delivery_detail_screen.dart';
 import '../../features/deep_link_targets/rating_prompt_screen.dart';
 import '../../features/kyc/presentation/kyc_wizard_screen.dart';
+import '../../features/kyc_rejected/presentation/kyc_rejected_screen.dart';
+import '../../features/jeeber_onboarding_funding/presentation/onboarding_funding_screen.dart';
+import '../../features/jeeber_pending_offers/presentation/jeeber_pending_offers_screen.dart';
+import '../../features/offer_kyc_gate/presentation/delivery_register_prompt_screen.dart';
+import '../../features/offer_kyc_gate/presentation/offer_kyc_gate_screen.dart';
+import '../../features/wallet/presentation/transaction_detail_screen.dart';
+import '../../features/wallet/presentation/wallet_activity_list_screen.dart';
+import '../../features/wallet/presentation/wallet_charge_info_screen.dart';
+import '../../features/wallet/presentation/wallet_hub_screen.dart';
+import '../../features/dispute_status/presentation/dispute_status_screen.dart';
+import '../../features/language/presentation/screens/language_settings_screen.dart';
+import '../../features/notifications/presentation/notifications_list_screen.dart';
+import '../../features/password_security/presentation/password_security_screen.dart';
+import '../../features/reviews/presentation/reviews_list_screen.dart';
+import '../../features/support/presentation/support_ticket_screen.dart';
 import '../../features/escalate/application/escalate_cubit.dart';
 import '../../features/escalate/domain/escalate_repository.dart';
 import '../../features/escalate/presentation/escalate_screen.dart';
@@ -43,9 +66,13 @@ import '../../features/live_tracking/application/live_tracking_cubit.dart';
 import '../../features/live_tracking/data/demo_live_tracking_repository.dart';
 import '../../features/live_tracking/domain/live_tracking_repository.dart';
 import '../../features/live_tracking/presentation/live_tracking_screen.dart';
+import '../../features/delivery_receipt/presentation/delivery_receipt_screen.dart';
 import '../../features/location/presentation/capture_location_screen.dart';
 import '../../features/location/presentation/client_location_screen.dart';
+import '../../features/location/presentation/screens/address_detail_form_screen.dart';
 import '../../features/location/presentation/screens/location_picker_screen.dart';
+import '../../features/no_offer_timeout/presentation/no_offer_timeout_screen.dart';
+import '../../features/order_summary/presentation/order_summary_screen.dart';
 import '../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
 import '../../features/active_delivery_jeeber/presentation/active_delivery_jeeber_screen.dart';
 import '../../features/offers/domain/offer_submission_repository.dart';
@@ -72,6 +99,7 @@ import '../../features/location/presentation/saved_locations_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../../features/request_type/presentation/request_type_screen.dart';
 import '../../features/shell/shell_screen.dart';
+import '../../features/shell/tabs/earnings_tab.dart';
 import '../../features/transcription/domain/voice_clip.dart';
 import '../../features/transcription/presentation/transcription_screen.dart';
 import '../../features/voice_request/presentation/voice_request_screen.dart';
@@ -98,8 +126,32 @@ import '../onboarding/onboarding_cubit.dart';
 class AppRouter {
   AppRouter._();
 
-  static const Set<String> _preAuthRoutes = {'/onboarding', '/register'};
+  // Pre-auth destinations a logged-out user may reach WITHOUT the first-run
+  // session gate bouncing them back. The W0 auth funnel (CTO-D1) adds the new
+  // email-first screens alongside the legacy `/register` (kept as the reused
+  // phone-OTP verify step, JM-009). `/recover/verify` is nested under `/recover`
+  // and matched by prefix below (a `matchedLocation` startsWith check).
+  static const Set<String> _preAuthRoutes = {
+    '/onboarding',
+    '/register',
+    '/login',
+    '/sign-up',
+    '/recover',
+    '/set-password',
+  };
   static const String _lockRoute = '/lock';
+
+  /// JM-066 (D5): the account-status gate target. A blocked account
+  /// (`status ∈ {suspended, locked}`) is forced here and ALL tabs are blocked.
+  static const String _accountStatusRoute = '/account-status';
+
+  /// True when [loc] is one of the pre-auth funnel destinations (exact match or
+  /// nested under one, e.g. `/recover/verify` under `/recover`).
+  static bool _isPreAuth(String loc) {
+    if (_preAuthRoutes.contains(loc)) return true;
+    // Nested verify step lives at `/recover/verify`.
+    return loc.startsWith('/recover/');
+  }
 
   /// Debug-only chat-capture selector, resolved at RUNTIME from [DevSeam]
   /// (replaces the compile-time `JEEB_DEV_CHAT`). When non-empty the router
@@ -155,40 +207,80 @@ class AppRouter {
     return _noPin;
   }
 
-  /// First-run gate: onboarding (FR-P0-1) then session/JWT (FR-P0-3). Returns
-  /// the redirect target, or `null` to allow the current location.
+  /// First-run gate: onboarding (FR-P0-1) then session/JWT (FR-P0-3), then the
+  /// account-status gate (JM-066, D5). Returns the redirect target, or `null` to
+  /// allow the current location. Session-aware branches (JM-006):
   ///
   ///   * onboarding incomplete, not on a pre-auth route → `/onboarding`
   ///   * onboarding complete but on `/onboarding`        → `/`
   ///   * onboarding complete, NO valid token, not on a pre-auth route
-  ///       → `/register` (the login destination)
+  ///       → `/login` (the W0 email-first login destination, CTO-D1; replaces
+  ///       the legacy `/register` target)
+  ///   * onboarding complete, token present, account `status ∈ {suspended,
+  ///       locked}` → `/account-status` (D5; blocks ALL tabs, the only exits are
+  ///       support + sign-out)
+  ///
+  /// Logged-in routing to a SPECIFIC tab (customer → Requests last-tab D75;
+  /// jeeber → DELIVERY) is a `ShellScreen` + `RoleCubit` concern, not a route —
+  /// the gate lands authenticated, active users at `/` and the shell selects the
+  /// tab (CTO brief §4: tabs are not routes). The biometric branch (`/lock`,
+  /// JM-005) is the separate gate below.
   ///
   /// The session check uses [SessionGate.isUnauthenticated] (not
   /// `!isAuthenticated`) so the cold-start `unknown` phase is a no-op and we
-  /// never flash `/register` while the keystore read is in flight.
+  /// never flash `/login` while the keystore read is in flight. Likewise the
+  /// account-status gate keys on [AccountStatusGate.isBlocked] (false until the
+  /// status read resolves) so it never flashes `/account-status` on launch.
   static String? _firstRunRedirect(
     GoRouterState state,
     OnboardingCubit onboarding,
     SessionGate session,
+    AccountStatusGate accountStatus,
   ) {
     final completed = onboarding.state;
     final loc = state.matchedLocation;
-    final atPreAuth = _preAuthRoutes.contains(loc);
+    final atPreAuth = _isPreAuth(loc);
     if (!completed && !atPreAuth) return '/onboarding';
     if (completed && loc == '/onboarding') return '/';
     // FR-P0-3: onboarded-but-tokenless user must log in before reaching Home.
     if (completed && session.isUnauthenticated && !atPreAuth) {
-      return '/register';
+      return '/login';
+    }
+    // JM-066 / D5: a suspended/locked account is forced to `/account-status`
+    // and cannot reach any tab. Only evaluated once a session exists (a blocked
+    // account is, by definition, authenticated). The gate is a no-op
+    // (`isBlocked == false`) until the real status source resolves.
+    //
+    // The account-status screen's two documented exits MUST remain reachable
+    // (D5: "the only exits are support/signout"): `/support` (the support
+    // ticket, JM-066 AC2) and the logout sheet (a sheet over `/account-status`,
+    // not a route). So the gate allowlists `/support` (+ `/disputes/*`, reachable
+    // from support) in addition to `/account-status` itself; everything else
+    // bounces back.
+    if (completed &&
+        !session.isUnauthenticated &&
+        accountStatus.isBlocked &&
+        loc != _accountStatusRoute &&
+        !loc.startsWith('/support') &&
+        !loc.startsWith('/disputes')) {
+      return _accountStatusRoute;
     }
     return null;
   }
 
   /// Order-tracking (screen 16) needs a reachable gateway to render its ready
-  /// state. When the dev seam is driving a `/orders/.../tracking` capture, swap
-  /// in the deterministic demo repository so the screen renders offline; every
-  /// other run uses the real DI-registered repository.
+  /// state. When the dev seam is driving a `/orders/.../tracking` capture — OR
+  /// when any W1 journey seam is active (so a flow that NAVIGATES to tracking
+  /// from the pinned chat/summary, e.g. jm-031 AC3 `order_summary_track` or
+  /// jm-032's no-show re-routes, still lands on a populated stepper) — swap in
+  /// the deterministic demo repository so the screen renders offline; every
+  /// other run uses the real DI-registered repository. Debug-only: in release
+  /// `_devRoute` is empty and `DevSeam.current` is inert, so the real repo is
+  /// always used.
   static LiveTrackingRepository _trackingRepository() {
-    if (kDebugMode && _devRoute.contains('/tracking')) {
+    if (kDebugMode &&
+        (_devRoute.contains('/tracking') ||
+            DevSeam.current.hasJourneySeed)) {
       return const DemoLiveTrackingRepository();
     }
     return sl<LiveTrackingRepository>();
@@ -203,6 +295,13 @@ class AppRouter {
     // also a `Cubit` and is therefore added to `refreshListenable` below so a
     // login/logout re-runs the redirect.
     SessionGate session = const AlwaysAuthenticatedSessionGate(),
+    // JM-066 (D5): the account-status gate. Defaults to an inert, always-active
+    // gate so the account-status redirect is a NO-OP for every call site that
+    // doesn't (yet) wire a real status source — preserving prior behaviour. The
+    // JM-006/JM-066 engineer wires the real status cubit (GET /users/:id by the
+    // persisted userId, NOT /users/me); when it is a `Cubit` it is added to
+    // `refreshListenable` below so a status change re-runs the redirect.
+    AccountStatusGate accountStatus = const AlwaysActiveAccountStatusGate(),
   }) {
     // One-shot latch (per router instance) for the dev-seam route pin. The seam
     // must drive the INITIAL landing onto the pinned dev route, but must NOT
@@ -220,6 +319,13 @@ class AppRouter {
     // below, which blocks flow promotion, so we narrow via an explicit cast.
     final Cubit<SessionState>? sessionCubit =
         session is Cubit<SessionState> ? session as Cubit<SessionState> : null;
+    // JM-066: re-run redirects when the account status resolves/changes. The
+    // inert default gate is not a `Cubit` and contributes nothing; the real
+    // status cubit (JM-006/066) is a `BlocBase` and is bridged here.
+    final BlocBase<Object?>? accountStatusBloc =
+        accountStatus is BlocBase<Object?>
+            ? accountStatus as BlocBase<Object?>
+            : null;
     return GoRouter(
       initialLocation: '/',
       refreshListenable: _MergedRefreshListenable([
@@ -227,6 +333,8 @@ class AppRouter {
         _CubitRefreshListenable<BiometricLockState>(biometricLock),
         if (sessionCubit != null)
           _CubitRefreshListenable<SessionState>(sessionCubit),
+        if (accountStatusBloc != null)
+          _BlocRefreshListenable(accountStatusBloc),
       ]),
       redirect: (context, state) {
         // Debug capture aid: drop straight onto the fixtures-backed chat
@@ -257,7 +365,8 @@ class AppRouter {
         // First-run gate (FR-P0-1 onboarding + FR-P0-3 session). Runs for every
         // non-skip launch — including when a route is pinned WITHOUT
         // skipOnboarding, which is precisely how the silent bypass is closed.
-        final firstRun = _firstRunRedirect(state, onboarding, session);
+        final firstRun =
+            _firstRunRedirect(state, onboarding, session, accountStatus);
         if (firstRun != null) return firstRun;
 
         // Onboarded + authenticated. If a route is pinned (without skip) and the
@@ -274,10 +383,26 @@ class AppRouter {
         // the user on `/lock` until the cubit reports unlocked/disabled. The
         // gate is a no-op before evaluation finishes (phase == unknown) so we
         // don't flash the lock screen during cold start.
+        //
+        // RC-9 (W0 jm-007 AC6, 61_W0_QA_RESULTS): the lock gate must NOT
+        // capture a LOGGED-OUT user. A biometric-enrolled but token-less
+        // returning user (`biometric_enrolled_logged_out`, 62_SEAM_HARNESS §3)
+        // must land on `/login` — the first-run session gate above already
+        // returned `/login` for that user, but the biometric preference can
+        // still read `locked` from a prior session, so without this guard the
+        // lock gate would re-capture them onto `/lock` (a dead end: there is no
+        // session to unlock into). Guarding with `!session.isUnauthenticated`
+        // means a present session is required before `/lock` can hold; a
+        // logged-out user is left on `/login`. The `unknown` cold-start phase
+        // keeps `isUnauthenticated == false`, so an enrolled+logged-in user
+        // still locks normally (no regression to JM-005).
         final completed = onboarding.state;
         final loc = state.matchedLocation;
         final lockPhase = biometricLock.state.phase;
-        if (completed && lockPhase == BiometricLockPhase.locked && loc != _lockRoute) {
+        if (completed &&
+            !session.isUnauthenticated &&
+            lockPhase == BiometricLockPhase.locked &&
+            loc != _lockRoute) {
           return _lockRoute;
         }
         if (lockPhase != BiometricLockPhase.locked && loc == _lockRoute) {
@@ -304,7 +429,131 @@ class AppRouter {
         GoRoute(
           path: _lockRoute,
           name: 'biometric-lock',
+          // W0-INT (JM-005): real BiometricLockScreen (no longer the placeholder
+          // empty-state). The W0-A engineer fills in the cubit-driven body.
           builder: (context, state) => const BiometricLockScreen(),
+        ),
+        // ── WAVE 0 auth funnel (CTO-D1 email-first; 21_NAV_PLAN §B batch W0,
+        //    50_EXECUTION_PLAN §"Exact W0 integrator route additions"). These
+        //    register the routes + reach their stub roots; the W0 engineers
+        //    (JM-007/008/020/021/022) replace each screen body. `/register`
+        //    above is kept as the reused phone-OTP verify step (JM-009).
+        GoRoute(
+          path: '/login',
+          name: 'login',
+          builder: (context, state) => const LoginScreen(),
+        ),
+        GoRoute(
+          path: '/sign-up',
+          name: 'sign-up',
+          builder: (context, state) => const SignUpScreen(),
+        ),
+        GoRoute(
+          path: '/recover',
+          name: 'recover-password',
+          builder: (context, state) => const RecoverPasswordScreen(),
+          routes: [
+            // Nested verify-code step (JM-021). Email-based recovery, NOT
+            // phone-anchored.
+            GoRoute(
+              path: 'verify',
+              name: 'recover-verify',
+              builder: (context, state) => const VerifyRecoveryCodeScreen(),
+            ),
+          ],
+        ),
+        GoRoute(
+          path: '/set-password',
+          name: 'set-password',
+          // JM-022 / D90 dual exit: `?mode=recovery|in-app-social`. Defaults to
+          // recovery (the most common entry) when absent/unrecognised (R-F).
+          //
+          // Recovery identity forwarding (50_ROUTE_REQUESTS JM-022): the
+          // verify-code step (JM-021) hands `email` + `resetToken` to this route
+          // via BOTH the query string AND `extra` (a `Map<String, String>`). The
+          // recovery-mode submit needs `resetToken` to reach
+          // `POST /v1/auth/set-password` (401 `invalid_token` otherwise,
+          // 42_GUARDRAILS_MOCK W-1 FLOOR). We read the query params first (they
+          // survive a cold reload of the URL), then fall back to the typed
+          // `extra` Map; in-app-social mode supplies neither and renders fine.
+          builder: (context, state) {
+            final query = state.uri.queryParameters;
+            final extra = state.extra;
+            final extraMap =
+                extra is Map<String, String> ? extra : const <String, String>{};
+            final email = query['email'] ?? extraMap['email'] ?? '';
+            final resetToken = query['resetToken'] ?? extraMap['resetToken'];
+            return SetPasswordScreen(
+              mode: SetPasswordMode.fromQuery(query['mode']),
+              email: email,
+              resetToken: resetToken,
+            );
+          },
+        ),
+        // JM-066 (D5): account-status stub root. The redirect-gate PREDICATE
+        // lands in W0 (above, via [AccountStatusGate]); the full screen body is
+        // W4.
+        GoRoute(
+          path: _accountStatusRoute,
+          name: 'account-status',
+          builder: (context, state) => const AccountStatusScreen(),
+        ),
+        // ── WAVE 1 core-customer-journey routes (W1-INT batch;
+        //    21_NAV_PLAN §B batch W1; 50_EXECUTION_PLAN §"WAVE 1 (1)").
+        //    Registered centrally BEFORE the per-screen engineers wire their
+        //    call sites (CTO brief §6.7 navigation honesty + §7 isolation).
+        //    Sheets (JM-029 accept-confirm, JM-030 cancel-confirm) and the
+        //    JM-031 pinned header WIDGET are NOT routes.
+        //
+        // JM-028 offer-review-list: wire the orphaned ClientOffersScreen (it
+        // self-provides ClientOffersCubit over sl<OffersRepository>(), with a
+        // constructor test seam). `offerId` accept/cancel edges are the JM-028
+        // engineer's call-site work (→ JM-029/JM-030 sheets).
+        GoRoute(
+          path: '/requests/:id/offers',
+          name: 'offer-review',
+          builder: (context, state) => ClientOffersScreen(
+            requestId: state.pathParameters['id'] ?? '',
+          ),
+        ),
+        // JM-026 waiting-no-coverage: targets the orphaned
+        // no_offer_timeout_screen.dart for in-place REWRITE by the JM-026
+        // engineer (count+countdown, no-coverage variant, review-offers /
+        // retarget / cancel edges, signature id `waiting_no_coverage_root`).
+        // The route points at the existing widget now so the path resolves and
+        // the app compiles; the rewrite swaps the body without touching this
+        // registration.
+        GoRoute(
+          path: '/requests/:id/waiting',
+          name: 'waiting-no-coverage',
+          builder: (context, state) => NoOfferTimeoutScreen(
+            requestId: state.pathParameters['id'] ?? '',
+          ),
+        ),
+        // JM-033 delivered-receipt: targets the orphaned
+        // delivery_receipt_screen.dart for in-place REWRITE by the JM-033
+        // engineer (D3 proof photo + "Pay $N cash to <Jeeber>" + NO commission
+        // line; confirm → rate-jeeber, not-yet → dispute). Wrong contract today
+        // (it renders a commission/finance receipt); the route resolves now and
+        // the rewrite swaps the body.
+        GoRoute(
+          path: '/orders/:id/receipt',
+          name: 'delivered-receipt',
+          builder: (context, state) => DeliveryReceiptScreen(
+            deliveryId: state.pathParameters['id'] ?? '',
+          ),
+        ),
+        // JM-031 order-summary (CTO-D3): the pinned summary is PRIMARILY a
+        // header widget in chat+tracking; THIS optional route is only the
+        // navigable deep-link target for `transaction-detail →
+        // order-summary-pinned` (JM-056, W3). Stub root now; JM-031 fills the
+        // `extra`-driven body.
+        GoRoute(
+          path: '/orders/:id/summary',
+          name: 'order-summary',
+          builder: (context, state) => OrderSummaryScreen(
+            deliveryId: state.pathParameters['id'] ?? '',
+          ),
         ),
         GoRoute(
           path: '/orders/:id',
@@ -452,6 +701,20 @@ class AppRouter {
               name: 'settings-addresses',
               // T-MOB-025: replace placeholder with the real CRUD screen.
               builder: (context, state) => const SavedLocationsScreen(),
+              routes: [
+                // JM-050 address-detail-form (21_NAV_PLAN §B batch W1, P2).
+                // Promotes add_edit_location_sheet.dart to a full screen. Stub
+                // root now (`address_detail_form_root` + `address_form_save_cta`
+                // signature ids); the JM-050 engineer fills the form + save.
+                // `?id=` selects the edit path; absent = add.
+                GoRoute(
+                  path: 'edit',
+                  name: 'address-detail',
+                  builder: (context, state) => AddressDetailFormScreen(
+                    addressId: state.uri.queryParameters['id'],
+                  ),
+                ),
+              ],
             ),
             GoRoute(
               path: 'notifications',
@@ -759,6 +1022,16 @@ class AppRouter {
               onOpenOtp: () {
                 context.go('/orders/$deliveryId/otp?mode=jeeber');
               },
+              // JM-051 AC2 (C7 wiring gap, 66_W2_QA_RESULTS): once the delivery
+              // reaches `Done` the jeeber goes to the MANDATORY mutual rating
+              // (NOT OTP), in jeeber mode — matching the W1 journey contract
+              // (62 §W1-0 `/orders/:id/mutual-rate?mode=jeeber`). This was the
+              // missing leg: the screen fired `onMarkedDelivered` but the route
+              // passed no callback, so mark-delivered completed (stepper filled)
+              // yet never opened the rating screen (`rating_submit_cta`).
+              onMarkedDelivered: () {
+                context.go('/orders/$deliveryId/mutual-rate?mode=jeeber');
+              },
               // T-MOB-031 AC4: open destination in Google Maps via url_launcher.
               mapsUrlBuilder: (url) => launchUrl(
                 Uri.parse(url),
@@ -800,19 +1073,183 @@ class AppRouter {
           },
         ),
 
-        // T-MOB-024 AC3: Wallet deep-link destination.
-        // Shown after cancellation when a fee was charged and the user taps
-        // "View Wallet". A full wallet feature (balance + top-up) is tracked
-        // under T-MOB-035; this route provides a non-crashing landing page
-        // until that feature ships.
+        // ── WAVE 2 / 2.5 jeeber onboarding/offering + wallet routes (W2-INT
+        //    batch; 21_NAV_PLAN §B batch W2 + the W3 wallet routes front-loaded
+        //    so W2.5 runs inside W2; 50_EXECUTION_PLAN §WAVE 2 (1)). Registered
+        //    centrally BEFORE the per-screen engineers wire their call sites
+        //    (CTO brief §6.7 navigation honesty + §7 isolation). The bodies are
+        //    compiling integrator STUBS; the JM-041/043/044/047/053/054 engineers
+        //    fill them. Sheets (JM-046 insufficient-balance) and the JM-037/038/
+        //    039/040 D20/D51 wizard fixes are NOT routes (widget/cubit edits
+        //    inside the existing /jeeber/onboarding + /profile/kyc routes).
+
+        // JM-041 onboarding-funding — starter-credit explainer after KYC submit
+        // (D42/D1; Top up → wallet-charge-info; Continue → kyc-pending-status).
+        GoRoute(
+          path: '/jeeber/onboarding/funding',
+          name: 'onboarding-funding',
+          builder: (context, state) => const OnboardingFundingScreen(),
+        ),
+        // JM-044 offer-kyc-gate — the D38 interstitial routed through when an
+        // UNAPPROVED jeeber taps make-offer (approved skips it → composer).
+        GoRoute(
+          path: '/jeeber/offer-gate',
+          name: 'offer-kyc-gate',
+          builder: (context, state) => const OfferKycGateScreen(),
+        ),
+        // JM-044 delivery-register-prompt — the standalone register prompt the
+        // offer-KYC gate's `gate_register_link` navigates to (RD-1 fix). Renders
+        // `delivery_register_prompt` unconditionally (the DELIVERY tab body's
+        // prompt is gate-state-dependent, so a pop-back was wrong — 66 RD-1).
+        GoRoute(
+          path: '/jeeber/register-prompt',
+          name: 'delivery-register-prompt',
+          builder: (context, state) => const DeliveryRegisterPromptScreen(),
+        ),
+        // JM-043 kyc-rejected — appeal-via-support only, NO resubmit (D52/D87).
+        GoRoute(
+          path: '/kyc/rejected',
+          name: 'kyc-rejected',
+          builder: (context, state) => const KycRejectedScreen(),
+        ),
+        // JM-047 jeeber-pending-offers — submitted offers awaiting decision +
+        // withdraw (D15). The blueprint allows this as a feed sub-tab too
+        // (21_NAV_PLAN §A); the route is registered (per the work order) so the
+        // screen is reachable both ways.
+        GoRoute(
+          path: '/jeeber/pending-offers',
+          name: 'jeeber-pending-offers',
+          builder: (context, state) => const JeeberPendingOffersScreen(),
+        ),
+        // JM-053 wallet-hub — REPLACES the T-MOB-024 "Wallet — coming soon" stub
+        // (21_NAV_PLAN §A: exists-stub → REPLACE). Balance/affordability/
+        // reserved-now/gift (D1/D42/D43). Self-provides WalletHubCubit over
+        // sl<WalletRepository>() — the INTEGRATOR-STUB wallet repo until W1m
+        // lands (CTO-D2). The header wallet chip (`*_wallet_chip`) targets this
+        // route by name (`goNamed('wallet')`).
         GoRoute(
           path: '/wallet',
           name: 'wallet',
-          builder: (context, state) => const Scaffold(
-            body: Center(
-              child: Text('Wallet — coming soon'),
-            ),
+          builder: (context, state) => const WalletHubScreen(),
+        ),
+        // JM-054 wallet-charge-info — static, no-payment instructional screen
+        // (D92/D93). Every "+ Top up" CTA across the app targets this route.
+        GoRoute(
+          path: '/wallet/charge-info',
+          name: 'wallet-charge-info',
+          builder: (context, state) => const WalletChargeInfoScreen(),
+        ),
+        // JM-052 earnings — the earnings-fees dashboard as a standalone route
+        // (R-4, jm-053). The dashboard otherwise lives only as the jeeber
+        // Earnings shell tab; the wallet hub's `wallet_earnings_row` needs a
+        // named target (`goNamed('earnings')`), so the same [EarningsTab]
+        // (which wires EarningsCubit over sl<EarningsRepository>() with the
+        // session jeeber id) is mounted here. Single source of truth — no
+        // duplicated provider wiring, so the route can never drift from the tab.
+        GoRoute(
+          path: '/earnings',
+          name: 'earnings',
+          builder: (context, state) => const EarningsTab(),
+        ),
+
+        // ── WAVE 3 wallet ledger routes (W3-INT batch; 21_NAV_PLAN §B batch
+        //    W3; 50_EXECUTION_PLAN §"WAVE 3 (1)"). Registered centrally BEFORE
+        //    the per-screen engineers wire their call sites (CTO brief §6.7
+        //    navigation honesty + §7 isolation). The bodies are compiling
+        //    integrator STUBS; the JM-055/056 engineers fill them.
+
+        // JM-055 wallet-activity-list — the typed ledger (W2m LIVE on :4010 →
+        // real Dio in DI). Inbound: wallet-hub `wallet_see_all_activity`,
+        // earnings `earnings_activity_link`. Tap a row → transaction-detail.
+        GoRoute(
+          path: '/wallet/activity',
+          name: 'wallet-activity',
+          builder: (context, state) => const WalletActivityListScreen(),
+        ),
+        // JM-056 transaction-detail — per-type ledger row detail (W3m NOT live
+        // → INTEGRATOR-STUB repo, CTO-D2). `transaction-detail →
+        // order-summary-pinned` deep-link (JM-056) targets the optional
+        // `/orders/:id/summary` route added in W1 (CTO-D3).
+        GoRoute(
+          path: '/wallet/transactions/:id',
+          name: 'transaction-detail',
+          builder: (context, state) => TransactionDetailScreen(
+            transactionId: state.pathParameters['id'] ?? '',
           ),
+        ),
+
+        // ── WAVE 4 shared routes (W4-INT batch; 21_NAV_PLAN §B batch W4;
+        //    50_EXECUTION_PLAN §"WAVE 4 (1)"). Registered centrally BEFORE the
+        //    per-screen engineers wire their call sites. The bodies are
+        //    compiling integrator STUBS (JM-057/063/065/068) + the registered
+        //    existing language screen (JM-059) + the password stub (JM-061);
+        //    `/account-status` body (JM-066) was fleshed in
+        //    account_status_screen.dart (gate seeded in W0). Sheets/dialogs
+        //    (JM-062 logout-delete confirm) + native (JM-064 rate-the-app) are
+        //    NOT routes.
+
+        // JM-057 notifications-list — the shared inbox the header bell now
+        // routes to (the shell `*_bell` guard is removed; goNamed('notifications')
+        // is honest). Notification-service list+read LIVE → real Dio in DI.
+        GoRoute(
+          path: '/notifications',
+          name: 'notifications',
+          builder: (context, state) => const NotificationsListScreen(),
+        ),
+        // JM-063 support-ticket — contact-us / ticket (S1 NOT live →
+        // INTEGRATOR-STUB repo). Inbound: account-status, dispute-status,
+        // kyc-rejected, customer-profile contact row (D76).
+        GoRoute(
+          path: '/support',
+          name: 'support-ticket',
+          builder: (context, state) => const SupportTicketScreen(),
+        ),
+        // JM-065 dispute-status — Open/Resolved + outcome (D2). Disputes
+        // GET-by-id LIVE on :4010 → real Dio in DI.
+        GoRoute(
+          path: '/disputes/:id',
+          name: 'dispute-status',
+          builder: (context, state) => DisputeStatusScreen(
+            disputeId: state.pathParameters['id'] ?? '',
+          ),
+        ),
+        // JM-068 reviews-list — the All-reviews list (R1m NOT live →
+        // INTEGRATOR-STUB repo). Inbound: jeeber-profile-reviews
+        // `profile_view_all_reviews` (JM-067). `?jeeberId=` selects the jeeber.
+        GoRoute(
+          path: '/profile/delivery-man/reviews',
+          name: 'reviews-list',
+          builder: (context, state) => ReviewsListScreen(
+            jeeberId: state.uri.queryParameters['jeeberId'],
+          ),
+        ),
+        // JM-068 path-param form — the flow pins
+        // `/profile/delivery-man/<jeeberId>/reviews`. Same screen; the jeeber
+        // id comes from the path segment (or `?jeeberId=` if also present).
+        GoRoute(
+          path: '/profile/delivery-man/:jeeberId/reviews',
+          name: 'reviews-list-by-id',
+          builder: (context, state) => ReviewsListScreen(
+            jeeberId: state.pathParameters['jeeberId'] ??
+                state.uri.queryParameters['jeeberId'],
+          ),
+        ),
+        // JM-059 language-settings — register the EXISTING screen at its
+        // blueprint path. LocaleCubit is provided globally above the router
+        // (app.dart), so the screen resolves it from context. Note: distinct
+        // from the legacy `/settings/notifications` etc. nested under `/settings`
+        // — the blueprint models language as its own screen from customer-profile.
+        GoRoute(
+          path: '/settings/language',
+          name: 'language-settings',
+          builder: (context, state) => const LanguageSettingsScreen(),
+        ),
+        // JM-061 password-security — current/new/confirm + social-only "set
+        // password" entry → auth-set-password (D90). No mock dependency.
+        GoRoute(
+          path: '/settings/password',
+          name: 'password-security',
+          builder: (context, state) => const PasswordSecurityScreen(),
         ),
       ],
       errorBuilder: (context, state) => Scaffold(
@@ -830,6 +1267,24 @@ class _CubitRefreshListenable<T> extends ChangeNotifier {
   }
 
   late final StreamSubscription<T> _subscription;
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
+}
+
+/// Bridges any [BlocBase] (Cubit/Bloc of an unconstrained state type) to
+/// go_router's [Listenable]. Used for the account-status gate (JM-066), whose
+/// concrete cubit's state type is owned by the JM-006/066 engineer and is not
+/// known at the router layer.
+class _BlocRefreshListenable extends ChangeNotifier {
+  _BlocRefreshListenable(BlocBase<Object?> bloc) {
+    _subscription = bloc.stream.listen((_) => notifyListeners());
+  }
+
+  late final StreamSubscription<Object?> _subscription;
 
   @override
   void dispose() {

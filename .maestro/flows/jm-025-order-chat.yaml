@@ -1,0 +1,150 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-025 — Order Chat (compose=broadcast, pinned summary, dispute link)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given the chat compose state, When the first message is sent via
+#        order_chat_composer_send, Then the request broadcasts and routes to
+#        waiting-no-coverage (waiting_notified_count visible) [JM-026].
+#   AC2: Given an accepted order, Then order_chat_pinned_summary strip shows
+#        locked price/ETA/tier/ref [D71/D11] and order_chat_view_summary_link
+#        → order-summary-pinned (order_summary_pinned visible) [JM-031].
+#   AC3: Given an active order, Then order_chat_open_dispute → dispute-open-evidence
+#        (dispute_reason visible) [JM-060].
+#
+# Mock: POST /chat-service/v1/chat/jeeb/conversations,
+#       GET .../by-request/:requestId, GET .../:conversationId,
+#       GET/POST .../messages, GET .../snapshot
+# Seam:
+#   AC1: jeeb.seam.session=customer_logged_in + deep-link to fresh compose state
+#   AC2: jeeb.seam.session=customer_logged_in + jeeb.seam.journey=order_accepted
+#        (FLAGGED — seam key jeeb.seam.journey=order_accepted does not exist yet;
+#         needs a request in state=accepted with a conversation_id seeded for
+#         user-client-001 so the chat opens with pinned summary visible)
+#   AC3: jeeb.seam.session=customer_logged_in + jeeb.seam.journey=active_delivery
+#        (FLAGGED — seam key jeeb.seam.journey=active_delivery does not exist yet;
+#         needs a delivery in state=active for user-client-001)
+#
+# STATUS: RED until JM-025 ships + seam seeds order_accepted + active_delivery
+#         exist (test-first). Decisions: D83, D71, D11, D70.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-025-order-chat.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Send first message → broadcast → waiting-no-coverage ────────────────
+# Navigate to compose state via create flow (tier → location → chat)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- tapOn:
+    id: "orders_home_new_order_fab"
+
+- extendedWaitUntil:
+    visible:
+      id: "request_type_continue_cta"
+    timeout: 15000
+
+- tapOn:
+    id: "request_type_standard_radio"
+
+- tapOn:
+    id: "request_type_continue_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "location_select_confirm_cta"
+    timeout: 15000
+
+- tapOn:
+    id: "location_select_confirm_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "order_chat_composer_send"
+    timeout: 15000
+
+- takeScreenshot: jm025_ac1a_chat_compose_state
+
+# Type first message and send
+- tapOn:
+    id: "order_chat_composer_input"
+
+- inputText: "I need standard delivery from downtown to airport"
+
+- tapOn:
+    id: "order_chat_composer_send"
+
+- extendedWaitUntil:
+    visible:
+      id: "waiting_notified_count"
+    timeout: 20000
+
+- takeScreenshot: jm025_ac1b_after_broadcast_waiting_screen
+
+# ── AC2: Accepted order shows pinned summary + view-summary link → summary ───
+# REQUIRES seam seed: jeeb.seam.journey=order_accepted
+# (FLAGGED — needs request in state=accepted with conversation seeded)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "order_accepted"
+
+- extendedWaitUntil:
+    visible:
+      id: "order_chat_pinned_summary"
+    timeout: 30000
+
+- assertVisible:
+    id: "order_chat_view_summary_link"
+
+- takeScreenshot: jm025_ac2a_pinned_summary_visible
+
+- tapOn:
+    id: "order_chat_view_summary_link"
+
+- extendedWaitUntil:
+    visible:
+      id: "order_summary_pinned"
+    timeout: 15000
+
+- takeScreenshot: jm025_ac2b_order_summary_from_chat
+
+# ── AC3: Accepted order shows dispute link → dispute-open-evidence (JM-060 GREEN) ─
+# JM-060 (dispute-open-evidence) is now GREEN on-device (W4 closeout 06-19).
+# The `escalate` route is registered in app_router.dart and lands `dispute_root`.
+# Assert the real destination instead of the former AP-9 back+root-survives guard.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "order_accepted"
+
+- extendedWaitUntil:
+    visible:
+      id: "order_chat_open_dispute"
+    timeout: 30000
+
+- takeScreenshot: jm025_ac3a_dispute_cta_visible
+
+- tapOn:
+    id: "order_chat_open_dispute"
+
+- extendedWaitUntil:
+    visible:
+      id: "dispute_root"
+    timeout: 15000
+
+- takeScreenshot: jm025_ac3b_dispute_open_evidence_reached

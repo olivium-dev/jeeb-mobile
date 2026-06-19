@@ -11,17 +11,20 @@ class RoleCubit extends Cubit<UserRole> {
   RoleCubit({required SharedPreferences prefs, UserRole? initialRole})
       : _prefs = prefs,
         super(
-          initialRole ?? UserRole.fromStorage(prefs.getString(_kRolePrefKey)),
+          initialRole ?? UserRole.fromStorage(prefs.getString(rolePrefKey)),
         );
 
-  static const String _kRolePrefKey = 'app.role';
+  /// SharedPreferences key for the active role. Public so the debug-only
+  /// [SessionSeamBootstrap] seeds the SAME key this cubit reads in its
+  /// constructor (single source of truth — no parallel role store).
+  static const String rolePrefKey = 'app.role';
 
   final SharedPreferences _prefs;
 
   Future<void> setRole(UserRole role) async {
     if (role == state) return;
     emit(role);
-    await _prefs.setString(_kRolePrefKey, role.storageKey);
+    await _prefs.setString(rolePrefKey, role.storageKey);
   }
 
   Future<void> toggle() async {

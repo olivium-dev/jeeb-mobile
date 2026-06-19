@@ -1,0 +1,101 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-033 — Confirm Receipt (Customer) — rewrite
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given a delivered push, When the prompt shows, Then receipt_prompt reads
+#        "Did you receive your order?" + "Pay $N cash to <Jeeber>" + proof-of-delivery
+#        photo [D3]; receipt_confirm_cta and receipt_not_yet_cta both visible.
+#        NO commission/finance line shown (customer-facing only).
+#   AC2: receipt_confirm_cta → rate-jeeber (rating_submit_cta visible) or
+#        auto-complete on timeout → same destination [JM-034].
+#   AC3: receipt_not_yet_cta → dispute-open-evidence (dispute_reason visible).
+#   AC4: receipt_no_commission_line must NOT be visible (D11: no fee shown to customer).
+#
+# Mock: POST /delivery-service/v1/delivery/status/transition,
+#       POST /unified-payment-gateway/v1/payments/cod_jeeb/record,
+#       proof-photo sink (D1m — FLAGGED, backender must define)
+# Seam: jeeb.seam.session=customer_logged_in + jeeb.seam.journey=delivery_marked_done
+#       (FLAGGED — needs delivery in state=delivered/receipt_pending for
+#        user-client-001 so the receipt screen appears)
+#
+# STATUS: RED until JM-033 ships + seam seed delivery_marked_done exists + D1m
+#         proof-photo sink is defined (test-first). Decisions: D3, D11.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-033-confirm-receipt.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1 + AC4: Receipt screen content + no commission line ────────────────────
+# REQUIRES seam seed: jeeb.seam.journey=delivery_marked_done
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "delivery_marked_done"
+
+- extendedWaitUntil:
+    visible:
+      id: "receipt_prompt"
+    timeout: 30000
+
+# AC1: Core content elements
+- assertVisible:
+    id: "receipt_cash_to_jeeber_label"
+
+- assertVisible:
+    id: "receipt_proof_photo"
+
+- assertVisible:
+    id: "receipt_confirm_cta"
+
+- assertVisible:
+    id: "receipt_not_yet_cta"
+
+# AC4: No commission/fee line should appear (customer-facing)
+- assertNotVisible:
+    id: "receipt_no_commission_line"
+
+- takeScreenshot: jm033_ac1_receipt_content_no_commission
+
+# ── AC2: Confirm → rate-jeeber ────────────────────────────────────────────────
+- tapOn:
+    id: "receipt_confirm_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "rating_submit_cta"
+    timeout: 20000
+
+- takeScreenshot: jm033_ac2_confirm_to_rating
+
+# ── AC3: Not-yet CTA → dispute-open-evidence (JM-060 GREEN) ──────────────────
+# JM-060 (dispute-open-evidence) is now GREEN on-device (W4 closeout 06-19).
+# The `escalate` route is registered in app_router.dart and lands `dispute_root`.
+# Assert the real destination instead of the former AP-9 back+root-survives guard.
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+      jeeb.seam.journey: "delivery_marked_done"
+
+- extendedWaitUntil:
+    visible:
+      id: "receipt_not_yet_cta"
+    timeout: 30000
+
+- takeScreenshot: jm033_ac3a_not_yet_cta_visible
+
+- tapOn:
+    id: "receipt_not_yet_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "dispute_root"
+    timeout: 15000
+
+- takeScreenshot: jm033_ac3b_dispute_open_evidence_reached

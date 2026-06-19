@@ -1,7 +1,14 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../features/auth/data/dio_auth_repository.dart';
+import '../../features/auth/domain/auth_repository.dart';
+import '../../features/biometric_auth/application/biometric_lock_cubit.dart';
+import '../../features/biometric_auth/data/dev_biometric_gateway.dart';
+import '../../features/biometric_auth/data/shared_prefs_pin_repository.dart';
+import '../../features/biometric_auth/domain/biometric_gateway.dart';
 import '../../features/client_offers/data/dio_offers_repository.dart';
 import '../../features/client_offers/domain/offers_repository.dart';
 import '../../features/chat/domain/chat_gateway.dart';
@@ -34,10 +41,27 @@ import '../../features/registration/data/dio_otp_service.dart';
 import '../../features/registration/data/super_login_demo_user.dart';
 import '../../features/registration/data/super_login_service.dart';
 import '../../features/registration/domain/otp_service.dart';
+import '../../features/settings/data/repositories/biometric_preference_repository_impl.dart';
 import '../../features/settings/data/repositories/dio_role_switch_repository.dart';
 import '../../features/settings/domain/role_switch_repository.dart';
 import '../../features/tier_selection/data/tier_repository.dart';
 import '../../features/voice_request/data/voice_recording_repository.dart';
+import '../../features/wallet/data/dio_wallet_ledger_repository.dart';
+import '../../features/wallet/data/stub_wallet_repository.dart';
+import '../../features/wallet/data/stub_wallet_transaction_repository.dart';
+import '../../features/wallet/domain/wallet_ledger_repository.dart';
+import '../../features/wallet/domain/wallet_repository.dart';
+import '../../features/wallet/domain/wallet_transaction_repository.dart';
+import '../../features/notifications/data/dio_notifications_repository.dart';
+import '../../features/notifications/domain/notifications_repository.dart';
+import '../../features/support/data/stub_support_repository.dart';
+import '../../features/support/domain/support_repository.dart';
+import '../../features/dispute_status/data/dio_dispute_status_repository.dart';
+import '../../features/dispute_status/domain/dispute_status_repository.dart';
+import '../../features/reviews/data/stub_reviews_repository.dart';
+import '../../features/reviews/domain/reviews_repository.dart';
+import '../dev_seam/session_seam_bootstrap.dart';
+import '../session/jeeber_kyc_status_gate.dart';
 import '../../features/voice_request/domain/audioplayers_voice_player.dart';
 import '../../features/voice_request/domain/record_voice_recorder.dart';
 import '../../features/voice_request/domain/voice_player.dart';
@@ -75,6 +99,53 @@ void configureDependencies({
 
   sl.registerLazySingleton<OtpService>(
     () => DioOtpService(sl<Dio>(), sl<AuthTokenStore>()),
+  );
+
+  // W0-INT (JM-007/020/021/022, CTO-D1 email-first auth funnel). Real Dio-backed
+  // auth repo: login + recovery-request/verify + set-password. Posts the
+  // VERIFIED /v1/auth/* gateway paths (42_GUARDRAILS_MOCK "W-1 FLOOR CLOSED" —
+  // B1/B3 are GREEN, so these routes are NOT absent: no INTEGRATOR-STUB marker).
+  // Persists the JWT pair (incl. user.userId for splash routing, JM-006) via
+  // AuthTokenStore. The W0 screens resolve this from DI, with a constructor
+  // override for tests.
+  sl.registerLazySingleton<AuthRepository>(
+    () => DioAuthRepository(sl<Dio>(), sl<AuthTokenStore>()),
+  );
+
+  // W0-INT (JM-005): BiometricLockCubit + its deps, registered as a FACTORY so
+  // each `/lock` entry owns a fresh cubit (it queries the platform biometric /
+  // local PIN, a per-entry resource). app.dart still constructs its own
+  // instance for the router's refreshListenable; this registration lets the
+  // JM-005 screen + JM-006 splash resolve a real cubit from DI. The cubit's
+  // real evaluate()/authenticate() behaviour is the JM-005 engineer's to fill
+  // in (the type + wiring is real now).
+  // RC-3 (JM-005, demo-critical): the production [UnavailableBiometricGateway]
+  // always returns `false` from authenticate(), so on the emulator (no enrolled
+  // biometric) the `/lock` screen can never release → the shell is never
+  // reached. In DEBUG only we wire [DevBiometricGateway] whose authenticate()
+  // resolves `true`, so tapping `biometric_unlock_authenticate_cta` succeeds and
+  // [BiometricLockCubit] transitions `locked → unlocked` → router releases to
+  // `shell_tab_requests`. isAvailable() stays false on both, so the lock is
+  // still HELD on entry via the seam-seeded PIN (`hasPin → canChallenge`).
+  // RELEASE behaviour is unchanged (kDebugMode is a const false → the dev path
+  // is tree-shaken out).
+  sl.registerLazySingleton<BiometricGateway>(
+    () => kDebugMode
+        ? const DevBiometricGateway()
+        : const UnavailableBiometricGateway(),
+  );
+  sl.registerFactory<SharedPrefsPinRepository>(
+    () => SharedPrefsPinRepository(prefs: sl<SharedPreferences>()),
+  );
+  sl.registerFactory<BiometricPreferenceRepositoryImpl>(
+    () => BiometricPreferenceRepositoryImpl(prefs: sl<SharedPreferences>()),
+  );
+  sl.registerFactory<BiometricLockCubit>(
+    () => BiometricLockCubit(
+      preference: sl<BiometricPreferenceRepositoryImpl>(),
+      gateway: sl<BiometricGateway>(),
+      pinRepository: sl<SharedPrefsPinRepository>(),
+    ),
   );
 
   // FR-P0-4: super-login service POSTs the dev passcode to the gateway and
@@ -119,11 +190,36 @@ void configureDependencies({
     () => DioTierRepository(sl<Dio>()),
   );
 
-  // T-MOB-015: DioOffersRepository provides the real gateway path.
+  // T-MOB-015 / W1-INT (JM-028 offer-review): DioOffersRepository provides the
+  // real gateway path (GET /v1/offers?requestId=, POST /v1/offers/:id/accept →
+  // rewritten to /offer-service/v1/... on :4010, 42_GUARDRAILS_MOCK §1.2). The
+  // orphaned `/requests/:id/offers` route (W1-INT) resolves ClientOffersScreen,
+  // which self-provides ClientOffersCubit over THIS registration.
   // FakeOffersRepository is only acceptable as a test seam via constructor.
   sl.registerLazySingleton<OffersRepository>(
     () => DioOffersRepository(sl<Dio>()),
   );
+
+  // ── WAVE 1 (S2) integrator note — core customer journey (50_EXECUTION_PLAN
+  //    §"WAVE 1 (1) S2"). The delivery-service / offer-service / chat-service
+  //    surfaces the W1 screens read already route through `sl<Dio>()` =
+  //    MockGatewayClient.createDio() (B0/B1 GREEN, base URL :4010), so they are
+  //    bound to REAL Dio today — no stub needed:
+  //      • offer-review  → OffersRepository (above)            [JM-028]
+  //      • tracking      → LiveTrackingRepository (below)       [JM-032]
+  //      • chat          → ChatGateway / DioChatGateway (below) [JM-025]
+  //      • delivery/req  → ClientHomeRepository, OrderRepository,
+  //                        CancellationRepository, ActiveDeliveryRepository
+  //      • tiers (T1)    → TierRepository (above; the 5-tier DATA fix is a
+  //                        backender mock change, not an app DI change)
+  //    The waiting/matching (JM-026), delivered-receipt (JM-033), order-summary
+  //    (JM-031) and customer-profile/getMe (JM-035) repositories do NOT exist
+  //    as types yet — each per-screen engineer defines its `domain/<X>Repository`
+  //    + `data/Dio<X>Repository` (clean-arch: the domain contract is theirs to
+  //    author) and registers it HERE in its JM diff (e.g.
+  //    `sl.registerLazySingleton<WaitingRepository>(() =>
+  //    DioWaitingRepository(sl<Dio>()));`). The integrator does not pre-invent
+  //    those types (40_GUARDRAILS_ARCH §6 / DO-NOT: never invent a contract).
 
   // T-MOB-001: Register all previously missing repos in DI.
   // No screen may self-construct these outside DI in release builds.
@@ -251,5 +347,99 @@ void configureDependencies({
   // it from DI in release builds instead of self-constructing.
   sl.registerLazySingleton<VoiceRecordingRepository>(
     () => HttpVoiceRecordingRepository(dio: sl<Dio>()),
+  );
+
+  // ── WAVE 2 / 2.5 (S2) integrator registrations ───────────────────────────
+
+  // INTEGRATOR-STUB(JM-053/046): the wallet balance/affordability/reserved-now/
+  // gift endpoint (W1m `GET /v1/jeeb/wallet`) is backend-owned and NOT live on
+  // :4010 yet (CTO-D2). Bind the in-memory StubWalletRepository so the wallet
+  // UI shell (WalletHubScreen, JM-053) + every "+ Top up" CTA that routes
+  // through it build and render NOW. SWAP WHEN W1m LANDS: replace
+  // `StubWalletRepository()` with `DioWalletRepository(sl<Dio>())`
+  // (lib/features/wallet/data/dio_wallet_repository.dart) — no screen change.
+  sl.registerLazySingleton<WalletRepository>(
+    () => const StubWalletRepository(),
+  );
+
+  // JM-036: the DELIVERY-tab KYC gate source (register-prompt vs feed) + the
+  // offer gate (JM-044). The DELIVERY tab body reads `sl<JeeberKycStatusGate>()`
+  // .isApproved. SeamJeeberKycStatusGate is debug-aware (reads
+  // `jeeb.seam.kyc_status` so Maestro drives the branch) and production-safe
+  // (reports approved in release until the JM-036 engineer swaps in the real
+  // getMe/kyc-backed gate — GET /user-management/users/:userId/kyc, U1; it
+  // depends on the JeeberKycStatusGate interface, not this impl, so the swap is
+  // a one-line DI change with no tab-body edit).
+  sl.registerLazySingleton<JeeberKycStatusGate>(
+    () => const SeamJeeberKycStatusGate(),
+  );
+
+  // ── WAVE 3 (S2) integrator registrations — wallet ledger + transaction ─────
+
+  // JM-055 wallet-activity-list: the typed paginated ledger. W2m
+  // (`GET /v1/jeeb/wallet/ledger`) is LIVE on :4010 (42_GUARDRAILS_MOCK "W2 mock
+  // closeout"), so this binds the REAL Dio repo (NOT a stub). Reached through
+  // the `/v1/jeeb/wallet` rewrite key (W3-INT, mock_gateway_client.dart). The
+  // JM-055 engineer's WalletActivityListScreen resolves this from DI.
+  sl.registerLazySingleton<WalletLedgerRepository>(
+    () => DioWalletLedgerRepository(sl<Dio>()),
+  );
+
+  // INTEGRATOR-STUB(JM-056): the wallet transaction-by-id endpoint (W3m
+  // `GET /v1/jeeb/wallet/ledger/:id`) is backend-owned and NOT live on :4010 yet
+  // (CTO-D2). Bind the in-memory StubWalletTransactionRepository so the
+  // transaction-detail UI shell (TransactionDetailScreen, JM-056) + the inbound
+  // `wallet_activity_row_<id>` edge (JM-055) build and render NOW. SWAP WHEN W3m
+  // LANDS: replace `StubWalletTransactionRepository()` with
+  // `DioWalletTransactionRepository(sl<Dio>())` — no screen change.
+  sl.registerLazySingleton<WalletTransactionRepository>(
+    () => const StubWalletTransactionRepository(),
+  );
+
+  // ── WAVE 4 (S2) integrator registrations — notifications/support/dispute/
+  //    reviews (50_EXECUTION_PLAN §"WAVE 4 (1) S2"). ────────────────────────
+
+  // JM-057 notifications-list: the notification-service inbox (list + mark-read)
+  // is LIVE on :4010 (42_GUARDRAILS_MOCK §4 mock-ready), so this binds the REAL
+  // Dio repo. The `?userId=` defaults to the seeded customer id
+  // (SessionSeamBootstrap.customerUserId) until a real session-user-id provider
+  // lands (mirrors DioSubmittedOffersRepository, 50_ROUTE_REQUESTS JM-047); the
+  // JM-057 engineer swaps it for the live session user. The header bell now
+  // routes here (`goNamed('notifications')`, shell guard removed).
+  sl.registerLazySingleton<NotificationsRepository>(
+    () => DioNotificationsRepository(
+      dio: sl<Dio>(),
+      userId: SessionSeamBootstrap.customerUserId,
+    ),
+  );
+
+  // INTEGRATOR-STUB(JM-063): the support-ticket service (S1) is backend-owned
+  // and NOT yet mounted on :4010 (42_GUARDRAILS_MOCK §4). Bind the in-memory
+  // StubSupportRepository so the support form (SupportTicketScreen, JM-063) +
+  // every inbound edge (account-status / dispute-status / kyc-rejected →
+  // support, D76) build and render NOW. SWAP WHEN S1 LANDS: replace
+  // `StubSupportRepository()` with `DioSupportRepository(sl<Dio>())` (+ add the
+  // `/v1/support` rewrite key) — no screen change.
+  sl.registerLazySingleton<SupportRepository>(
+    () => const StubSupportRepository(),
+  );
+
+  // JM-065 dispute-status: the compliment-service dispute endpoints
+  // (`GET /v1/disputes/:disputeId`) are LIVE on :4010 (42_GUARDRAILS_MOCK §4
+  // mock-ready; the `/v1/disputes` rewrite key already exists), so this binds
+  // the REAL Dio repo. The JM-065 engineer's DisputeStatusScreen resolves this.
+  sl.registerLazySingleton<DisputeStatusRepository>(
+    () => DioDisputeStatusRepository(sl<Dio>()),
+  );
+
+  // INTEGRATOR-STUB(JM-068): the per-jeeber reviews source (R1m) is backend-owned
+  // and NOT live on :4010 (42_GUARDRAILS_MOCK §4: score-taking only reveals
+  // per-delivery state). Bind the in-memory StubReviewsRepository so the reviews
+  // list (ReviewsListScreen, JM-068) + the inbound `profile_view_all_reviews`
+  // edge (JM-067) build and render NOW. SWAP WHEN R1m LANDS: replace
+  // `StubReviewsRepository()` with `DioReviewsRepository(sl<Dio>())` — no screen
+  // change.
+  sl.registerLazySingleton<ReviewsRepository>(
+    () => const StubReviewsRepository(),
   );
 }

@@ -7,6 +7,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/dev_seam/dev_seam.dart';
+import '../core/dev_seam/session_seam_bootstrap.dart';
 import '../core/di/injection_container.dart';
 import '../core/observability/crash_reporter.dart';
 import '../core/observability/crash_reporting_initializer.dart';
@@ -55,6 +56,27 @@ class Bootstrap {
       // !kDebugMode). Must run before the router/locale read DevSeam.current.
       await DevSeam.resolve();
       final preferences = await SharedPreferences.getInstance();
+      // Debug-only W0 dev-seam session/journey harness (62_SEAM_HARNESS.md,
+      // RC-1 in 61_W0_QA_RESULTS.md). Seeds onboarding/role/token/biometric/
+      // account-status state from `jeeb.seam.session` into the REAL stores the
+      // root cubits read — BEFORE the first frame paints and BEFORE the router's
+      // first-run redirect fires — so a Maestro flow starts mid-journey
+      // deterministically. No-op + release-inert (gated by kDebugMode and an
+      // empty DevSeam in release).
+      //
+      // `awaitMockSeed: false` (LANDING-FIX, 66_W2_QA_RESULTS): the local
+      // session-state seed (the LANDING decider) is awaited inside `seed()` and
+      // completes in a few ms; the mock-side journey/kyc/wallet POSTs (which only
+      // make the mock hold rows the screens fetch AFTER first frame) are fired
+      // detached so a slow emulator network can NEVER hold the splash → app
+      // hand-off. This is what unblocks `shell_tab_requests` (and every seeded
+      // landing) inside the QA window on a re-launch. The POSTs are themselves
+      // bounded + fail-safe, and the rows are in the mock long before a flow
+      // navigates into them.
+      await SessionSeamBootstrap.seed(
+        prefs: preferences,
+        awaitMockSeed: false,
+      );
       final reporter =
           await (crashReporterFactory ?? _defaultCrashReporterFactory)();
       configureDependencies(
@@ -79,14 +101,28 @@ class Bootstrap {
     }
   }
 
+  /// Hard ceiling on the crash-reporter (Firebase) init that runs on the boot
+  /// critical path. LANDING-FIX (66_W2_QA_RESULTS): on a fresh `clearState`
+  /// install with no `google-services.json` (every dev/QA build), the native
+  /// `Firebase.initializeApp()` does NOT fail fast — it hangs/retries for ~40s
+  /// before throwing "Failed to load FirebaseOptions from resource". Because
+  /// [minimal] awaits the crash-reporter factory, that ~40s held the branded
+  /// splash past the 30s QA `extendedWaitUntil` window on cold-boot launches —
+  /// a SECOND boot-hold source alongside the seam mock POSTs. Bounding the init
+  /// makes it fall back to the Noop reporter in a few seconds; a healthy
+  /// production build (with google-services.json) initialises well within this.
+  static const Duration _crashReporterInitTimeout = Duration(seconds: 5);
+
   static Future<CrashReporter> _defaultCrashReporterFactory() async {
     try {
-      await Firebase.initializeApp();
+      await Firebase.initializeApp().timeout(_crashReporterInitTimeout);
       return FirebaseCrashlyticsReporter();
     } catch (error, stack) {
-      // Missing google-services.json on dev, or no network on first boot.
-      // We must never let observability tooling crash the app — fall back
-      // to the silent reporter and surface the failure to the console only.
+      // Missing google-services.json on dev, no network on first boot, OR the
+      // native init exceeded [_crashReporterInitTimeout]. We must never let
+      // observability tooling crash OR stall the app — fall back to the silent
+      // reporter and surface the failure to the console only. The bounded
+      // timeout guarantees boot is never held by a slow/hanging Firebase init.
       debugPrint('Crashlytics init failed; falling back to Noop: $error');
       debugPrint(stack.toString());
       return const NoopCrashReporter();

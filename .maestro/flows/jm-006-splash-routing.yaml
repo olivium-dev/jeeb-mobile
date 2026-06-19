@@ -1,0 +1,137 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-006 — Session-aware Splash Routing
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given first launch (onboarding incomplete), When app starts, Then route
+#        to walkthrough (/onboarding) — walkthrough_slide_1 visible on first
+#        frame; walkthrough_get_started_cta visible only after navigating to
+#        slide 3.
+#   AC2: Given a logged-in customer, When app starts, Then route to Requests tab
+#        (shell_tab_requests visible) [D75].
+#   AC3: Given a logged-in jeeber, When app starts, Then route to the jeeber
+#        Dashboard tab (shell_tab_dashboard visible).
+#   AC4: Given biometric enabled, When app starts, Then route to /lock
+#        (biometric_unlock_prompt visible) [JM-005].
+#   AC5: Given logged-out returning user, When app starts, Then route to /login
+#        (login_email_field visible) [JM-007].
+#   AC6: Given getMe.status == suspended, When app starts, Then route to
+#        /account-status (account_status_support_cta visible) [D5, JM-066].
+#
+# NOTE: Each scenario relaunches with a distinct seam argument so all six
+# branches are covered in one flow file.  The seam key jeeb.seam.session is
+# read by the dev-flavor MethodChannel seam in JeebBootstrap before the router
+# fires; it is a no-op in the release flavor.
+#
+# STATUS: RED until JM-006 ships (test-first)
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-006-splash-routing.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: First launch → Walkthrough slide 1 ──────────────────────────────────
+# First launch (no seam, clearState) lands on walkthrough slide 1.
+# walkthrough_get_started_cta only appears on slide 3 — assert slide_1 first,
+# then navigate next → next to reach slide 3 and assert the CTA.
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible:
+      id: "walkthrough_slide_1"
+    timeout: 30000
+
+- takeScreenshot: jm006_ac1_first_launch_walkthrough_slide1
+
+# Navigate to slide 3 to assert walkthrough_get_started_cta
+- tapOn:
+    id: "walkthrough_next_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "walkthrough_slide_2"
+    timeout: 8000
+
+- tapOn:
+    id: "walkthrough_next_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "walkthrough_slide_3"
+    timeout: 8000
+
+- assertVisible:
+    id: "walkthrough_get_started_cta"
+
+- takeScreenshot: jm006_ac1b_walkthrough_slide3_get_started_cta
+
+# ── AC2: Logged-in customer → Requests tab ───────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "customer_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_requests"
+    timeout: 30000
+
+- takeScreenshot: jm006_ac2_customer_requests_tab
+
+# ── AC3: Logged-in jeeber → Dashboard tab ────────────────────────────────────
+# Note: the jeeber shell tabs are dashboard/earnings/profile; shell_tab_delivery
+# is a customer tab and does not exist in the jeeber shell (62_SEAM_HARNESS §3).
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+
+- extendedWaitUntil:
+    visible:
+      id: "shell_tab_dashboard"
+    timeout: 30000
+
+- takeScreenshot: jm006_ac3_jeeber_dashboard_tab
+
+# ── AC4: Biometric enrolled → Lock screen ────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "biometric_enrolled"
+
+- extendedWaitUntil:
+    visible:
+      id: "biometric_unlock_prompt"
+    timeout: 30000
+
+- takeScreenshot: jm006_ac4_biometric_lock
+
+# ── AC5: Logged-out returning user → Login ───────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "logged_out_returning"
+
+- extendedWaitUntil:
+    visible:
+      id: "login_email_field"
+    timeout: 30000
+
+- takeScreenshot: jm006_ac5_login_screen
+
+# ── AC6: Suspended account → Account Status ──────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "suspended"
+
+- extendedWaitUntil:
+    visible:
+      id: "account_status_support_cta"
+    timeout: 30000
+
+- takeScreenshot: jm006_ac6_account_status_suspended

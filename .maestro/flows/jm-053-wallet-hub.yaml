@@ -1,0 +1,214 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JM-053 — Wallet Hub (balance, affordability, reserved-now, states)
+# ─────────────────────────────────────────────────────────────────────────────
+# ACs covered:
+#   AC1: Given the wallet, Then wallet_available_balance + wallet_gift_badge
+#        (post-KYC, D42) + wallet_affordability_card (state copy, D43) +
+#        wallet_reserved_now (sum of live reserves, D1) render.
+#   AC2: wallet_topup_cta → wallet-charge-info [JM-054]
+#        (charge_info_back_cta visible).
+#   AC3: wallet_how_fees_work → explainer (wallet_how_fees_explainer visible).
+#   AC4: wallet_earnings_row → earnings-fees-dashboard
+#        (earnings_total_cash visible) [JM-052].
+#   AC5: wallet_see_all_activity → wallet-activity-list
+#        (wallet_activity_row_root or wallet_activity_empty visible) [JM-055].
+#   AC6: State variants: healthy affordability copy visible when
+#        jeeb.seam.wallet_state=sufficient; low/empty copy visible when
+#        jeeb.seam.wallet_state=insufficient.
+#   AC7: KYC-pending banner (wallet_kyc_pending_banner) visible when
+#        jeeb.seam.kyc_status=pending.
+#
+# Mock:
+#   GET /wallet-service/v1/jeeb/wallet (mock-fix W1m: balance/affordability/
+#     reserved-now/gift — must be defined by backenders)
+#   GET /wallet-service/v1/jeeb/earnings
+# Seam:
+#   AC1/2/3/4/5: jeeb.seam.session=jeeber_logged_in
+#                + jeeb.seam.kyc_status=approved
+#                + jeeb.seam.wallet_state=sufficient
+#                + jeeb.route=/wallet
+#   AC6 (low):   jeeb.seam.session=jeeber_logged_in
+#                + jeeb.seam.kyc_status=approved
+#                + jeeb.seam.wallet_state=insufficient
+#                + jeeb.route=/wallet
+#   AC7 (KYC pending banner):
+#                jeeb.seam.session=jeeber_logged_in
+#                + jeeb.seam.kyc_status=pending
+#                + jeeb.seam.wallet_state=sufficient
+#                + jeeb.route=/wallet
+#
+# NEW SEAM KEYS REQUIRED:
+#   jeeb.seam.kyc_status: "approved" | "pending" (FLAG — see JM-036)
+#   jeeb.seam.wallet_state: "sufficient" | "insufficient" (FLAG — see JM-045)
+#   Mock-fix W1m: wallet balance/affordability/reserved-now/gift endpoint
+#
+# STATUS: RED until JM-053 ships + W1m mock-fix + all seam keys exist (test-first).
+#         Decisions: D1, D41, D43, D44, D42, D33, D92, D93, D35, D30.
+#
+# Run recipe:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device emulator-5554 test \
+#     -e APP_ID=app.jeeb.mobile.dev \
+#     .maestro/flows/jm-053-wallet-hub.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+
+# ── AC1: Wallet hub core elements visible (sufficient state) ──────────────────
+# REQUIRES: W1m mock-fix + jeeb.seam.wallet_state=sufficient (FLAG)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.wallet_state: "sufficient"
+      jeeb.route: "/wallet"
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet_available_balance"
+    timeout: 30000
+
+- assertVisible:
+    id: "wallet_gift_badge"
+
+- assertVisible:
+    id: "wallet_affordability_card"
+
+- assertVisible:
+    id: "wallet_reserved_now"
+
+- assertVisible:
+    id: "wallet_topup_cta"
+
+- takeScreenshot: jm053_ac1_wallet_hub_core_elements
+
+# ── AC2: Top-up → wallet-charge-info ─────────────────────────────────────────
+- tapOn:
+    id: "wallet_topup_cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "charge_info_back_cta"
+    timeout: 15000
+
+- takeScreenshot: jm053_ac2_topup_to_charge_info
+
+# ── AC3: How fees work → explainer visible ────────────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.wallet_state: "sufficient"
+      jeeb.route: "/wallet"
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet_how_fees_work"
+    timeout: 30000
+
+- tapOn:
+    id: "wallet_how_fees_work"
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet_how_fees_explainer"
+    timeout: 15000
+
+- takeScreenshot: jm053_ac3_how_fees_explainer
+
+# ── AC4: Earnings row → earnings-fees-dashboard ───────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.wallet_state: "sufficient"
+      jeeb.route: "/wallet"
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet_earnings_row"
+    timeout: 30000
+
+# JM-052 (earnings-fees-dashboard) is now GREEN on-device (W3+W4 closeout 06-19).
+# The earnings route is registered and `earnings_total_cash` is present.
+# Assert the real destination instead of the former AP-9 hub-survives guard.
+- tapOn:
+    id: "wallet_earnings_row"
+
+- extendedWaitUntil:
+    visible:
+      id: "earnings_total_cash"
+    timeout: 15000
+
+- takeScreenshot: jm053_ac4_earnings_row_to_dashboard
+
+# ── AC5: See all activity → wallet-activity-list ──────────────────────────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.wallet_state: "sufficient"
+      jeeb.route: "/wallet"
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet_see_all_activity"
+    timeout: 30000
+
+# JM-055 (wallet-activity-list) is now GREEN on-device (W3+W4 closeout 06-19).
+# The wallet-activity route is registered and `wallet_activity_root` is present.
+# Assert the real destination instead of the former AP-9 hub-survives guard.
+- tapOn:
+    id: "wallet_see_all_activity"
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet_activity_root"
+    timeout: 15000
+
+- takeScreenshot: jm053_ac5_see_all_activity_to_wallet_activity
+
+# ── AC6: Low/empty state → different affordability copy ───────────────────────
+# REQUIRES: jeeb.seam.wallet_state=insufficient (FLAG)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.seam.wallet_state: "insufficient"
+      jeeb.route: "/wallet"
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet_affordability_card"
+    timeout: 30000
+
+# The affordability card content differs; just assert it renders
+- assertVisible:
+    id: "wallet_affordability_card"
+
+- assertVisible:
+    id: "wallet_available_balance"
+
+- takeScreenshot: jm053_ac6_low_balance_state
+
+# ── AC7: KYC-pending banner visible ───────────────────────────────────────────
+# REQUIRES: jeeb.seam.kyc_status=pending (FLAG)
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "pending"
+      jeeb.seam.wallet_state: "sufficient"
+      jeeb.route: "/wallet"
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet_kyc_pending_banner"
+    timeout: 30000
+
+- takeScreenshot: jm053_ac7_kyc_pending_banner

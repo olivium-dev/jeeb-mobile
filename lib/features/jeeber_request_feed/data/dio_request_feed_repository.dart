@@ -7,13 +7,20 @@ import 'request_feed_repository.dart';
 
 /// Dio-backed [RequestFeedRepository].
 ///
-/// Uses REST polling (no WebSocket in this implementation) against Mockoon
-/// :3055 at `GET /v1/jeeber/feed`. Emits [FeedTransport.polling].
+/// Uses REST polling (no WebSocket in this implementation) against the W2
+/// delivery-service contract. Emits [FeedTransport.polling].
 ///
-/// Mock endpoint (useMockPrefixes=false, verified against :3055):
-///   GET /v1/jeeber/feed  → { "items": [...DeliveryRequest], "count": N }
+/// Mock endpoint (gateway path → `MockGatewayClient` rewrite → :4010
+/// `delivery-service`; JM-048 AC mock contract):
+///   GET  /v1/requests?status=pending  → { items: [...request], page, pageSize,
+///                                         totalCount }   (rewrites to
+///                                         `/delivery-service/v1/requests`)
 ///   POST /v1/delivery/requests/{id}/accept
 ///   POST /v1/delivery/requests/{id}/decline
+///
+/// The feed shows requests the jeeber can offer on: the W2 `pending` (open
+/// broadcast) bucket. Each item is mapped to an `incoming` [DeliveryRequest]
+/// so the feed's Requests tab renders the Ignore/Offer card (JM-048 AC1/AC2).
 class DioRequestFeedRepository implements RequestFeedRepository {
   DioRequestFeedRepository({
     required Dio dio,
@@ -23,6 +30,10 @@ class DioRequestFeedRepository implements RequestFeedRepository {
 
   final Dio _dio;
   final Duration _pollInterval;
+
+  /// The W2 delivery-service request feed (open broadcasts the jeeber may bid
+  /// on). `status=pending` is the offer-able bucket per `listRequestsHandler`.
+  static const String _feedPath = '/v1/requests?status=pending';
 
   final StreamController<DeliveryRequest> _requestsCtrl =
       StreamController<DeliveryRequest>.broadcast();
@@ -49,9 +60,7 @@ class DioRequestFeedRepository implements RequestFeedRepository {
   Future<List<DeliveryRequest>> refresh() async {
     _ensurePolling();
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
-        '/v1/jeeber/feed',
-      );
+      final response = await _dio.get<Map<String, dynamic>>(_feedPath);
       return _parseRequests(response.data ?? {});
     } on DioException {
       return const <DeliveryRequest>[];
@@ -99,9 +108,7 @@ class DioRequestFeedRepository implements RequestFeedRepository {
   Future<void> _poll() async {
     if (_disposed) return;
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
-        '/v1/jeeber/feed',
-      );
+      final response = await _dio.get<Map<String, dynamic>>(_feedPath);
       final requests = _parseRequests(response.data ?? {});
       for (final r in requests) {
         _requestsCtrl.add(r);
@@ -127,14 +134,22 @@ class DioRequestFeedRepository implements RequestFeedRepository {
     final dropoff = _parseLocation(json['dropoff'] as Map<String, dynamic>?);
     if (pickup == null || dropoff == null) return null;
     final tier = _parseTier(json['tier'] as String?);
-    final earnings = (json['potentialEarnings'] as num?)?.toDouble() ?? 0.0;
+    // W2 shape: `amount:{value,currency}` (the request budget) — the older
+    // shape used a flat `potentialEarnings` + `currency`. Tolerate both
+    // (40_GUARDRAILS_ARCH §4 defensive parse).
+    final amount = json['amount'];
+    final earnings = (json['potentialEarnings'] as num?)?.toDouble() ??
+        _amountValue(amount) ??
+        0.0;
+    final currency = (json['currency'] as String?) ?? _amountCurrency(amount) ?? 'USD';
     final distance = (json['estimatedDistanceKm'] as num?)?.toDouble() ?? 0.0;
-    final currency = json['currency'] as String? ?? 'USD';
-    final expiresRaw = json['expiresAt'] as String?;
+    final expiresRaw =
+        json['broadcastExpiresAt'] as String? ?? json['expiresAt'] as String?;
     final expires = expiresRaw != null
         ? DateTime.tryParse(expiresRaw) ??
             DateTime.now().add(const Duration(minutes: 5))
         : DateTime.now().add(const Duration(minutes: 5));
+    final createdRaw = json['createdAt'] as String?;
     return DeliveryRequest(
       id: id,
       pickup: pickup,
@@ -144,27 +159,56 @@ class DioRequestFeedRepository implements RequestFeedRepository {
       potentialEarnings: earnings,
       currency: currency,
       expiresAt: expires,
+      // W2 requests carry no separate sender name; the human-readable `title`
+      // (e.g. "Grocery pickup — Spinneys Dbayeh") is the card's summary line.
       senderName: json['senderName'] as String?,
       senderAvatarUrl: json['senderAvatarUrl'] as String?,
-      itemsSummary: json['itemsSummary'] as String?,
+      itemsSummary: json['itemsSummary'] as String? ?? json['title'] as String?,
+      receivedAt: createdRaw != null ? DateTime.tryParse(createdRaw) : null,
+      // All offer-able feed rows are `incoming` — the jeeber's own submitted
+      // offers live on the Pending sub-tab (a separate source, JM-047/048).
+      feedStatus: JeeberFeedItemStatus.incoming,
     );
   }
 
   RequestLocation? _parseLocation(Map<String, dynamic>? json) {
     if (json == null) return null;
-    final label = json['label'] as String?;
-    final lat = (json['latitude'] as num?)?.toDouble();
-    final lng = (json['longitude'] as num?)?.toDouble();
+    // W2 shape: `{ address, lat, lng }`; older shape: `{ label, latitude,
+    // longitude }`. Tolerate both.
+    final label = (json['address'] as String?) ?? json['label'] as String?;
+    final lat = (json['lat'] as num?)?.toDouble() ??
+        (json['latitude'] as num?)?.toDouble();
+    final lng = (json['lng'] as num?)?.toDouble() ??
+        (json['longitude'] as num?)?.toDouble();
     if (label == null || lat == null || lng == null) return null;
     return RequestLocation(label: label, latitude: lat, longitude: lng);
   }
 
+  double? _amountValue(Object? raw) {
+    if (raw is num) return raw.toDouble();
+    if (raw is Map && raw['value'] is num) return (raw['value'] as num).toDouble();
+    return null;
+  }
+
+  String? _amountCurrency(Object? raw) {
+    if (raw is Map && raw['currency'] is String) return raw['currency'] as String;
+    return null;
+  }
+
   JeeberRequestTier _parseTier(String? raw) {
     switch (raw) {
-      case 'flash': return JeeberRequestTier.flash;
-      case 'standard': return JeeberRequestTier.standard;
-      case 'bulk': return JeeberRequestTier.bulk;
-      default: return JeeberRequestTier.light;
+      case 'flash':
+        return JeeberRequestTier.flash;
+      // W2 tiers: the mock seeds `express` for the feed request. Map it to the
+      // app's `standard` tier (the JeeberFeedTabView tier filter treats
+      // `standard` as the "Express" chip).
+      case 'standard':
+      case 'express':
+        return JeeberRequestTier.standard;
+      case 'bulk':
+        return JeeberRequestTier.bulk;
+      default:
+        return JeeberRequestTier.light;
     }
   }
 }

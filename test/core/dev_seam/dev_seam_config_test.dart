@@ -64,6 +64,70 @@ void main() {
       expect(config, DevSeamConfig.empty);
       expect(config.isEmpty, isTrue);
     });
+
+    test('maps jeeb.seam.journey onto journeySeed (W1)', () {
+      final config = DevSeamConfig.fromMap({
+        'jeeb.seam.session': 'customer_logged_in',
+        'jeeb.seam.journey': 'delivery_marked_done',
+      });
+      expect(config.sessionSeed, SessionSeed.customerLoggedIn);
+      expect(config.journeySeed, JourneySeed.deliveryMarkedDone);
+      expect(config.hasJourneySeed, isTrue);
+      expect(config.isEmpty, isFalse);
+    });
+
+    test('unknown jeeb.seam.journey value → none (no crash)', () {
+      final config = DevSeamConfig.fromMap({'jeeb.seam.journey': 'bogus'});
+      expect(config.journeySeed, JourneySeed.none);
+      expect(config.hasJourneySeed, isFalse);
+    });
+  });
+
+  group('JourneySeed', () {
+    test('every value round-trips through fromWire', () {
+      for (final seed in JourneySeed.values) {
+        expect(JourneySeed.fromWire(seed.wireValue), seed);
+      }
+    });
+
+    test('route pins are set for deep-landing journeys, empty otherwise', () {
+      expect(JourneySeed.activeDelivery.routePin,
+          '/orders/del-client-001-active/tracking');
+      expect(JourneySeed.deliveryMarkedDone.routePin,
+          '/orders/del-client-001-delivered/receipt');
+      expect(JourneySeed.offersReceived.routePin, isEmpty);
+      expect(JourneySeed.hasSavedAddresses.routePin, isEmpty);
+      expect(JourneySeed.none.routePin, isEmpty);
+    });
+
+    test('W3/W4 journey pins match the seam contract (62 §W3-W4)', () {
+      // Deep-landing W4 shared journeys.
+      expect(JourneySeed.hasNotifications.routePin, '/notifications');
+      expect(JourneySeed.disputeOpen.routePin,
+          '/disputes/dispute-client-001-open');
+      // Shell-landing journeys (flow navigates from the shell).
+      expect(JourneySeed.jeeberHasReviews.routePin, isEmpty);
+      expect(JourneySeed.walletWithLedger.routePin, isEmpty);
+    });
+
+    test('W3/W4 wire values map via fromMap (no crash)', () {
+      expect(
+          DevSeamConfig.fromMap({'jeeb.seam.journey': 'has_notifications'})
+              .journeySeed,
+          JourneySeed.hasNotifications);
+      expect(
+          DevSeamConfig.fromMap({'jeeb.seam.journey': 'dispute_open'})
+              .journeySeed,
+          JourneySeed.disputeOpen);
+      expect(
+          DevSeamConfig.fromMap({'jeeb.seam.journey': 'jeeber_has_reviews'})
+              .journeySeed,
+          JourneySeed.jeeberHasReviews);
+      expect(
+          DevSeamConfig.fromMap({'jeeb.seam.journey': 'wallet_with_ledger'})
+              .journeySeed,
+          JourneySeed.walletWithLedger);
+    });
   });
 
   group('DevSeamConfig.fromJsonString', () {

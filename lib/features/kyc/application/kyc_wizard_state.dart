@@ -7,16 +7,18 @@ import '../domain/kyc_submission.dart';
 /// Which step the wizard is currently showing.
 ///
 /// Steps in order:
-///   schema → id → selfie → vehicle → tos → submitting → status
+///   schema → identity → submitting → status
 ///
 /// [schema] is the loading state while fetching the form schema from the server.
-/// [tos] shows the ToS contract + signature pad before final submit.
+/// [identity] is the single capture screen (gov-ID front/back + selfie + ToS
+/// acceptance) per the `kyc-identity` blueprint. The Vehicle step was removed
+/// under D20 (JM-040): the platform is COD/cash-on-delivery and never collected
+/// a vehicle. [submitting] is the in-flight upload; [status] is the terminal
+/// pending/approved/rejected view shown when re-entering an already-submitted
+/// KYC (the fresh-submit happy path instead chains to onboarding-funding).
 enum KycWizardStep {
   schema,
-  id,
-  selfie,
-  vehicle,
-  tos,
+  identity,
   submitting,
   status,
 }
@@ -30,7 +32,6 @@ enum KycWizardError {
   permissionDenied,
   unavailable,
   compressionFailed,
-  vehicleRegistrationRequired,
   submitFailed,
   schemaLoadFailed,
   contractLoadFailed,
@@ -46,13 +47,16 @@ class KycWizardState extends Equatable {
     this.formSchema,
     this.contractTemplate,
     this.tosAcceptedVersion,
+    this.tosAccepted = false,
     this.capturing,
     this.error,
     this.isLoadingStatus = false,
+    this.justSubmitted = false,
   });
 
-  /// Total capture steps (ID + selfie + vehicle) for the progress indicator.
-  static const int totalCaptureSteps = 3;
+  /// Total capture steps (ID + selfie) for the progress indicator. The Vehicle
+  /// step was removed under D20 (JM-040), dropping this from 3 → 2.
+  static const int totalCaptureSteps = 2;
 
   final KycWizardStep step;
   final KycSubmission submission;
@@ -60,11 +64,15 @@ class KycWizardState extends Equatable {
   /// Loaded schema — null until the gateway returns it.
   final KycFormSchema? formSchema;
 
-  /// Loaded ToS contract template — null until the ToS step loads it.
+  /// Loaded ToS contract template — null until the identity step loads it.
   final KycContractTemplate? contractTemplate;
 
   /// ToS version accepted by the user (populated after signing).
   final String? tosAcceptedVersion;
+
+  /// Whether the user has ticked the ToS acceptance control on the identity
+  /// screen. Gates the submit CTA together with the captured photos.
+  final bool tosAccepted;
 
   /// Non-null while a camera capture is in flight.
   final KycCaptureSlot? capturing;
@@ -74,6 +82,12 @@ class KycWizardState extends Equatable {
   /// True while [KycWizardCubit.loadStatus] is in flight.
   final bool isLoadingStatus;
 
+  /// One-shot flag set true when a FRESH submit succeeds, so the presentation
+  /// layer can navigate to `onboarding-funding` (JM-040 → JM-041) exactly once
+  /// instead of rendering the standalone status view. Re-entries that load an
+  /// already-submitted status leave this false.
+  final bool justSubmitted;
+
   bool get isCapturing => capturing != null;
   bool get hasSignedTos => tosAcceptedVersion != null;
 
@@ -81,25 +95,25 @@ class KycWizardState extends Equatable {
     switch (step) {
       case KycWizardStep.schema:
         return 0;
-      case KycWizardStep.id:
-        return submission.hasIdFront && submission.hasIdBack ? 1 : 0;
-      case KycWizardStep.selfie:
-        return 1;
-      case KycWizardStep.vehicle:
-        return 2;
-      case KycWizardStep.tos:
+      case KycWizardStep.identity:
+        final idDone = submission.hasIdFront && submission.hasIdBack;
+        final selfieDone = submission.hasSelfie;
+        if (idDone && selfieDone) return totalCaptureSteps;
+        if (idDone) return 1;
+        return 0;
       case KycWizardStep.submitting:
       case KycWizardStep.status:
         return totalCaptureSteps;
     }
   }
 
-  bool get canAdvanceFromId =>
-      submission.hasIdFront && submission.hasIdBack && !isCapturing;
-  bool get canAdvanceFromSelfie => submission.hasSelfie && !isCapturing;
-  bool get canAdvanceFromVehicle =>
-      submission.vehicleType != null &&
-      submission.vehicleRegistration.trim().isNotEmpty &&
+  /// Whether the identity screen has everything it needs to submit: both ID
+  /// sides, a selfie, and the ToS acceptance — and no capture in flight.
+  bool get canSubmitIdentity =>
+      submission.hasIdFront &&
+      submission.hasIdBack &&
+      submission.hasSelfie &&
+      tosAccepted &&
       !isCapturing;
 
   KycWizardState copyWith({
@@ -109,11 +123,13 @@ class KycWizardState extends Equatable {
     KycContractTemplate? contractTemplate,
     String? tosAcceptedVersion,
     bool clearTosVersion = false,
+    bool? tosAccepted,
     KycCaptureSlot? capturing,
     bool clearCapturing = false,
     KycWizardError? error,
     bool clearError = false,
     bool? isLoadingStatus,
+    bool? justSubmitted,
   }) {
     return KycWizardState(
       step: step ?? this.step,
@@ -123,9 +139,11 @@ class KycWizardState extends Equatable {
       tosAcceptedVersion: clearTosVersion
           ? null
           : (tosAcceptedVersion ?? this.tosAcceptedVersion),
+      tosAccepted: tosAccepted ?? this.tosAccepted,
       capturing: clearCapturing ? null : (capturing ?? this.capturing),
       error: clearError ? null : (error ?? this.error),
       isLoadingStatus: isLoadingStatus ?? this.isLoadingStatus,
+      justSubmitted: justSubmitted ?? this.justSubmitted,
     );
   }
 
@@ -136,8 +154,10 @@ class KycWizardState extends Equatable {
         formSchema,
         contractTemplate,
         tosAcceptedVersion,
+        tosAccepted,
         capturing,
         error,
         isLoadingStatus,
+        justSubmitted,
       ];
 }

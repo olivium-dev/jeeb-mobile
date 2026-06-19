@@ -1,10 +1,15 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/di/injection_container.dart';
+import '../../../core/dev_seam/session_seam_bootstrap.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../jeeber_request_feed/cubit/request_feed_cubit.dart';
 import '../../jeeber_request_feed/cubit/request_feed_state.dart';
+import '../../jeeber_request_feed/cubit/submitted_offers_cubit.dart';
+import '../../jeeber_request_feed/data/dio_submitted_offers_repository.dart';
 import '../application/availability_cubit.dart';
 import '../application/availability_state.dart';
 import '../domain/entities/availability_status.dart';
@@ -36,6 +41,8 @@ class JeeberHomeScreen extends StatefulWidget {
     this.isRegistered = true,
     this.profileName,
     this.requestFeedCubit,
+    this.registerCtaIdentifier,
+    this.submittedOffersCubitFactory,
   });
 
   static const Key scaffoldKey = Key('jeeber-home-screen-scaffold');
@@ -61,12 +68,33 @@ class JeeberHomeScreen extends StatefulWidget {
   /// via [BlocProvider.value] so the feed-tab view can read from it.
   final RequestFeedCubit? requestFeedCubit;
 
+  /// JM-036: optional extra Semantics identifier wrapped around the State-1
+  /// "Register now" CTA (in addition to the W0 `jeeber_unregistered_register_button`).
+  /// The DELIVERY-tab gate host passes `delivery_register_now_cta` so the
+  /// JM-036 flow can tap the register prompt's CTA by its coined screen id.
+  final String? registerCtaIdentifier;
+
+  /// JM-048 AC3: factory for the cubit backing the feed's Pending-Response
+  /// sub-tab (the jeeber's submitted offers). The screen owns the cubit's
+  /// lifecycle (closes it on dispose). When null it defaults to a DI-backed
+  /// [SubmittedOffersCubit] over `sl<Dio>()` if DI is configured, else null
+  /// (the Pending tab then falls back to the request-feed-derived view) so the
+  /// screen stays usable in tests / the dev-seam capture path without DI. Tests
+  /// inject a scripted factory to assert the real-data path.
+  final SubmittedOffersCubit Function()? submittedOffersCubitFactory;
+
   @override
   State<JeeberHomeScreen> createState() => _JeeberHomeScreenState();
 }
 
 class _JeeberHomeScreenState extends State<JeeberHomeScreen> {
   bool _bootstrapped = false;
+
+  /// JM-048 AC3: cubit backing the feed's Pending-Response sub-tab, owned by
+  /// this state (closed in [dispose]). Built lazily on first build so an
+  /// unregistered (State-1) screen never constructs it.
+  SubmittedOffersCubit? _submittedOffersCubit;
+  bool _submittedOffersResolved = false;
 
   @override
   void didChangeDependencies() {
@@ -83,6 +111,33 @@ class _JeeberHomeScreenState extends State<JeeberHomeScreen> {
     }
   }
 
+  /// Resolve the submitted-offers cubit once, for the registered path only.
+  /// Prefers the injected factory (tests), then a DI-backed default, then null
+  /// (no Dio in DI — Pending tab falls back to the request-feed-derived view).
+  SubmittedOffersCubit? _resolveSubmittedOffersCubit() {
+    if (_submittedOffersResolved) return _submittedOffersCubit;
+    _submittedOffersResolved = true;
+    if (!widget.isRegistered) return null;
+    final factory = widget.submittedOffersCubitFactory;
+    if (factory != null) {
+      _submittedOffersCubit = factory();
+    } else if (sl.isRegistered<Dio>()) {
+      _submittedOffersCubit = SubmittedOffersCubit(
+        repository: DioSubmittedOffersRepository(
+          dio: sl<Dio>(),
+          jeeberId: SessionSeamBootstrap.jeeberUserId,
+        ),
+      );
+    }
+    return _submittedOffersCubit;
+  }
+
+  @override
+  void dispose() {
+    _submittedOffersCubit?.close();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -95,6 +150,8 @@ class _JeeberHomeScreenState extends State<JeeberHomeScreen> {
         onRegister: widget.onRegister,
         onOpenFeedRequest: widget.onOpenFeedRequest,
         requestFeedCubit: widget.requestFeedCubit,
+        registerCtaIdentifier: widget.registerCtaIdentifier,
+        submittedOffersCubit: _resolveSubmittedOffersCubit(),
       ),
     );
   }
@@ -110,6 +167,8 @@ class _RootBody extends StatelessWidget {
     required this.onRegister,
     required this.onOpenFeedRequest,
     required this.requestFeedCubit,
+    required this.registerCtaIdentifier,
+    required this.submittedOffersCubit,
   });
 
   final bool isRegistered;
@@ -117,6 +176,8 @@ class _RootBody extends StatelessWidget {
   final VoidCallback? onRegister;
   final ValueChanged<FeedRequest>? onOpenFeedRequest;
   final RequestFeedCubit? requestFeedCubit;
+  final String? registerCtaIdentifier;
+  final SubmittedOffersCubit? submittedOffersCubit;
 
   @override
   Widget build(BuildContext context) {
@@ -124,12 +185,14 @@ class _RootBody extends StatelessWidget {
       return JeeberUnregisteredView(
         profileName: profileName,
         onRegister: onRegister ?? () {},
+        ctaIdentifier: registerCtaIdentifier,
       );
     }
     final body = _RegisteredBody(
       profileName: profileName,
       onOpenFeedRequest: onOpenFeedRequest,
       hasFeedCubit: requestFeedCubit != null,
+      submittedOffersCubit: submittedOffersCubit,
     );
     if (requestFeedCubit == null) return body;
     return BlocProvider<RequestFeedCubit>.value(
@@ -146,11 +209,13 @@ class _RegisteredBody extends StatelessWidget {
     required this.profileName,
     required this.onOpenFeedRequest,
     required this.hasFeedCubit,
+    required this.submittedOffersCubit,
   });
 
   final String? profileName;
   final ValueChanged<FeedRequest>? onOpenFeedRequest;
   final bool hasFeedCubit;
+  final SubmittedOffersCubit? submittedOffersCubit;
 
   @override
   Widget build(BuildContext context) {
@@ -162,6 +227,7 @@ class _RegisteredBody extends StatelessWidget {
         profileName: profileName,
         onOpenFeedRequest: onOpenFeedRequest,
         hasFeedCubit: hasFeedCubit,
+        submittedOffersCubit: submittedOffersCubit,
       ),
     );
   }
@@ -183,12 +249,14 @@ class _RegisteredViewSwitch extends StatelessWidget {
     required this.profileName,
     required this.onOpenFeedRequest,
     required this.hasFeedCubit,
+    required this.submittedOffersCubit,
   });
 
   final AvailabilityViewState view;
   final String? profileName;
   final ValueChanged<FeedRequest>? onOpenFeedRequest;
   final bool hasFeedCubit;
+  final SubmittedOffersCubit? submittedOffersCubit;
 
   @override
   Widget build(BuildContext context) {
@@ -202,6 +270,7 @@ class _RegisteredViewSwitch extends StatelessWidget {
       profileName: profileName,
       onOpenFeedRequest: onOpenFeedRequest,
       hasFeedCubit: hasFeedCubit,
+      submittedOffersCubit: submittedOffersCubit,
     );
   }
 }
@@ -212,12 +281,14 @@ class _AvailableBody extends StatelessWidget {
     required this.profileName,
     required this.onOpenFeedRequest,
     required this.hasFeedCubit,
+    required this.submittedOffersCubit,
   });
 
   final AvailabilityViewState view;
   final String? profileName;
   final ValueChanged<FeedRequest>? onOpenFeedRequest;
   final bool hasFeedCubit;
+  final SubmittedOffersCubit? submittedOffersCubit;
 
   @override
   Widget build(BuildContext context) {
@@ -230,6 +301,7 @@ class _AvailableBody extends StatelessWidget {
           : _FeedTabBody(
               profileName: profileName,
               onOpenFeedRequest: onOpenFeedRequest,
+              submittedOffersCubit: submittedOffersCubit,
             ),
     );
   }
@@ -257,20 +329,26 @@ class _FeedTabBody extends StatelessWidget {
   const _FeedTabBody({
     required this.profileName,
     required this.onOpenFeedRequest,
+    required this.submittedOffersCubit,
   });
 
   final String? profileName;
   final ValueChanged<FeedRequest>? onOpenFeedRequest;
+  final SubmittedOffersCubit? submittedOffersCubit;
 
   @override
   Widget build(BuildContext context) {
     return JeeberFeedTabView(
       profileName: profileName,
+      // JM-048: leave `onMakeOffer` null so the feed self-routes the make-offer
+      // CTA through the KYC gate / composer (the shell is not edited). The card
+      // tap still opens the request detail via the host callback.
       onOpenRequest: onOpenFeedRequest == null
           ? null
           : (req) => onOpenFeedRequest!(
                 FeedRequest(id: req.id, shortLabel: req.pickup.label),
               ),
+      submittedOffersCubit: submittedOffersCubit,
     );
   }
 }
