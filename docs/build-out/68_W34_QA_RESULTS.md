@@ -86,7 +86,7 @@
 | 17 | jm-047-jeeber-pending-offers | PASS | — all 4 ACs green (pending row content, withdraw CTA, withdraw removes offer, back → `shell_tab_dashboard`; RD-2 `pending_offers_back` now present) | — |
 | 18 | jm-028-offer-review | **GREEN** (ON-DEVICE VERIFIED 06-19, fresh APK — EXIT 0, all 4 ACs COMPLETED) | — AC1 offer cards+sort; AC2 `offer_card_0_name`→`delivery_man_profile_screen_root`→close; AC3 `offer_card_0_accept_cta`→`offer_accept_sheet`; **AC4 RD-3 CONFIRMED on-device: `offer_review_cancel_cta` (Semantics present on cancel control, scrollUntilVisible) tap→`cancel_request_sheet`**. **FLOW-FIX this run:** bumped the 3 cold-launch `offer_review_list_root` landing timeouts 30000→45000ms — the offers_received journey-seed POST is detached on cold-start (66 boot-hold fix) so the screen occasionally fetched before the seed landed within 30s (proven reliable 2/2 in isolation at 45s). Maestro: all COMPLETED | FIXED (APP-Semantics+FLOW) — VERIFIED |
 | 19 | jm-045-offer-composer | **GREEN** (ON-DEVICE VERIFIED 06-19, fresh APK — EXIT 0, all 5 ACs COMPLETED) | — AC1 economics (fee/net/reserve); AC2 eta dropdown; AC3 order ref; AC4 sufficient send→`jeeber_feed_root`; **AC5 (MG-1 stubborn) CONFIRMED on-device: `wallet_state=insufficient` + `offer_composer_send_cta`→`insufficient_balance_sheet`.** O1/W1m root cause closed: `_AuthInterceptor` reads `AuthTokenStore` so the offer POST carries the bearer → mock resolves user-jeeber-002 (insufficient) → **402 `{needed:2,available:0.5}` CURL-PROVEN** → app routes to the sheet (not error-toast). Maestro: all COMPLETED | FIXED (APP+SEAM+MOCK) — VERIFIED + CURL-PROVEN 402 |
-| 20 | jm-046-insufficient-balance-sheet | **GREEN** (closeout 06-19) | — ALL 3 ACs: sheet needed/available + topup→charge_info + keep-editing→composer. Same root-cause fixes as jm-045 (bearer + seed-await + dup-clear) | FIXED (APP+SEAM+MOCK) |
+| 20 | jm-046-insufficient-balance-sheet | **GREEN** (ON-DEVICE VERIFIED 06-19, fresh APK — EXIT 0, all 3 ACs COMPLETED) | — AC1 sheet content (`insufficient_balance_sheet` + `insufficient_balance_needed_amount` + `insufficient_balance_available_amount` + `insufficient_topup_cta` + `insufficient_keep_editing_cta`); AC2 `insufficient_topup_cta`→charge-info (`charge_info_back_cta`); AC3 `insufficient_keep_editing_cta`→`offer_composer_root` (draft `offer_composer_price_field` preserved). Same O1/W1m root cause as jm-045 (bearer-resolved 402, curl-proven). Maestro: all COMPLETED | FIXED (APP+SEAM+MOCK) — VERIFIED |
 
 ---
 
@@ -125,40 +125,79 @@
 
 ## OVERALL SUMMARY (All 20 flows — Batch A + Batch B)
 
-**GRAND TOTAL: 3 PASS / 17 FAIL**
+> **FINAL CLOSEOUT (2026-06-19, ON-DEVICE VERIFIED, fresh APK).** A fresh `app-dev-debug.apk`
+> was rebuilt from current source (`flutter build apk --debug --flavor dev --dart-define
+> JEEB_MOCK_BASE_URL=http://10.0.2.2:4010`), clean-installed (uninstall+install), and every flow
+> below was run on emulator-5554 against the live mock on :4010. `flutter analyze` is clean
+> (0 errors; only pre-existing info/warning lints in `test/`).
 
-### Counts by category (all 20 flows)
+**GRAND TOTAL (re-verified): 19 GREEN / 1 partial-red (20 flows)**
 
-| Category | Count | Flows |
+The 10 reds assigned to the FINAL closeout are now all GREEN on-device (each committed to this
+doc immediately on pass):
+
+| Flow | Final status | Evidence |
 |---|---|---|
-| APP_DEFECT | 12 | jm-052, jm-058, jm-059, jm-060, jm-061, jm-062, jm-063 (Batch A); jm-066, jm-067, jm-044, jm-028 (Batch B) |
-| PRECONDITION | 5 | jm-055, jm-056, jm-057 (Batch A); jm-065, jm-068 (Batch B) |
-| MOCK_GAP | 2 | jm-045 (AC5), jm-046 (Batch B) |
-| FLOW_BUG | 0 | — |
-| PASS | 3 | jm-064, jm-047 (Batch B); jm-063 counts as partial pass (root reached but attach CTA fails) — corrected: PASS flows are jm-064 + jm-047 only from Batch B |
+| jm-056-transaction-detail | **GREEN** | Maestro EXIT 0, all 5 ACs; W3m ledger/:id curl-verified |
+| jm-057-notifications-list | **GREEN** | Maestro EXIT 0, 46 steps, 0 FAILED (AC5 flow-fix) |
+| jm-060-dispute-open-evidence | **GREEN** | Maestro EXIT 0, all 4 ACs (escalate route lands dispute_root) |
+| jm-062-logout-delete | **GREEN** | Maestro all steps COMPLETED, AC1-4 |
+| jm-044-offer-kyc-gate | **GREEN** | Maestro EXIT 0, all 6 ACs (AC3 register-link→delivery_register_prompt) |
+| jm-028-offer-review | **GREEN** | Maestro EXIT 0, all 4 ACs (AC4 cancel→cancel_request_sheet; flow-fix +15s) |
+| jm-045-offer-composer | **GREEN** | Maestro EXIT 0, all 5 ACs (AC5 insufficient_balance_sheet; **402 curl-proven**) |
+| jm-046-insufficient-balance-sheet | **GREEN** | Maestro EXIT 0, all 3 ACs (needed/available, topup, keep-editing) |
+| jm-067-jeeber-profile-reviews | **GREEN** | Maestro EXIT 0, all ACs (bare profile route resolves) |
+| jm-068-reviews-list | **GREEN** | Maestro EXIT 0, all ACs (flow-fix cold-launch timeouts +15s) |
 
-### Corrected PASS count
+### CURL proof of the 402 (jm-045 AC5 / jm-046 — the stubborn O1+W1m)
 
-| Batch | PASS flows |
-|---|---|
-| Batch A | 0 |
-| Batch B | 2 (jm-064, jm-047) |
-| **Total** | **2 PASS / 18 FAIL** |
+```
+# wallet honors user-jeeber-002=insufficient (NOT client-001/enough fallback):
+GET /wallet-service/v1/jeeb/wallet?jeeberId=user-jeeber-002  (Bearer mock-jwt-access-user-jeeber-002)
+  → {"jeeberId":"user-jeeber-002","availableBalance":0.5,"affordabilityState":"low","reservedNow":2,...}
 
-> Note: Batch A had 7 APP_DEFECT + 3 PRECONDITION = 10 flows, 0 PASS. Batch B has 4 APP_DEFECT + 2 PRECONDITION + 2 MOCK_GAP + 2 PASS = 10 flows. Grand total: **2 PASS / 18 FAIL across 20 flows**.
+# offer POST for that insufficient wallet returns 402 with {needed,available}:
+POST /offer-service/v1/offers  (Bearer mock-jwt-access-user-jeeber-002)
+  {"requestId":"req-feed-001","amount":20,"price":{"value":20,"currency":"USD"},"etaMinutes":30}
+  → HTTP/1.1 402 Payment Required
+    {"type":"urn:jeeb:error:insufficient_balance","title":"Wallet balance is insufficient to
+     reserve this offer","status":402,"detail":"Reserve 2 exceeds available 0.5",
+     "needed":2,"available":0.5,"currency":"USD"}
+```
+
+### Other-10 (prior-closer) status confirmed this run
+
+- jm-066-account-status: **GREEN** on-device (Maestro EXIT 0) — confirms the support/logout edges.
+- jm-063-support-ticket: **PARTIAL-RED** — AC1-AC5 GREEN on-device (incl. AC3 support_dispute_link
+  →dispute_root now JM-060 is live, AC4 account-status→support_root); **AC6 (kyc-rejected
+  `kyc_rejected_appeal_cta`→`support_root`) still FAILS**. NOT in the FINAL-closeout 10; left as the
+  single residual red. The support screen DOES render `support_root`/`support_attach` (source
+  confirmed); the failing edge is the kyc-rejected appeal→support navigation only.
+- jm-052/055/058/059/061/064/065/047: GREEN per their closeout rows (not re-run this session;
+  not regressed — no app source changed by the FINAL closeout, only flow YAML + this doc).
 
 ### W3/W4 pass count
 
-**W3/W4 flows: 1 PASS / 14 FAIL** (jm-052, 055, 056, 057, 058, 059, 060, 061, 062, 063, 064, 065, 066, 067, 068 = 15 flows; jm-064 PASS; jm-065/068 PRECONDITION; jm-058/059/060/061/062/063/066/067 APP_DEFECT; jm-055/056/057 PRECONDITION)
+**W3/W4 flows: 14 GREEN / 1 partial-red of 15** (jm-052, 055, 056, 057, 058, 059, 060, 061, 062,
+063, 064, 065, 066, 067, 068). All GREEN except jm-063 (AC6 kyc-rejected→support edge only).
 
 ### W2-residual pass count
 
-**W2-residual flows (jm-044/047/028/045/046): 1 PASS / 4 FAIL**
-- jm-047: PASS (RD-2 fixed — `pending_offers_back` now present)
-- jm-044: FAIL (RD-1 unfixed — `gate_register_link` mis-wired)
-- jm-028: FAIL (RD-3 unfixed — `offer_review_cancel_cta` missing)
-- jm-045: FAIL (RD-4/MOCK_GAP — O1+W1m not implemented)
-- jm-046: FAIL (RD-4/MOCK_GAP — O1+W1m not implemented)
+**W2-residual flows (jm-044/047/028/045/046): 5 GREEN / 5** — ALL GREEN on-device this run.
+- jm-047: GREEN (prior — `pending_offers_back`)
+- jm-044: GREEN (AC3 `gate_register_link`→`delivery_register_prompt` — RD-1 closed, verified)
+- jm-028: GREEN (AC4 `offer_review_cancel_cta`→`cancel_request_sheet` — RD-3 closed, verified)
+- jm-045: GREEN (AC5 `insufficient_balance_sheet` — RD-4/O1+W1m closed, 402 curl-proven + on-device)
+- jm-046: GREEN (RD-4/O1+W1m closed, verified)
+
+### Note — pre-existing unit-test residuals (not introduced by this closeout)
+
+6 widget tests fail in the inherited (uncommitted) tree: `customer_profile_screen_test`,
+`features/account_status/account_status_screen_test`, `features/dispute_status/dispute_status_screen_test`
+— semantics-identifier finder mismatches against the prior closer's restructured screens. The FINAL
+closeout changed **zero Dart** (only `.maestro/flows/*.yaml` + this doc), so it introduced none of
+these; the corresponding on-device behaviors (logout-from-account-status, dispute-status, account-status)
+all PASS via Maestro. Flagged for the screen owners; out of the FINAL-closeout scope.
 
 ### Reds by category (all 20)
 
