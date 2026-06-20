@@ -954,7 +954,7 @@
   "@registrationPhoneTitle": {
     "description": "Title of the phone-entry step in registration"
   },
-  "registrationPhoneSubtitle": "We'll send a 6-digit code to verify it's you.",
+  "registrationPhoneSubtitle": "We'll send a 4-digit code to verify it's you.",
   "@registrationPhoneSubtitle": {
     "description": "Helper subtitle under the phone-entry title"
   },
@@ -962,7 +962,7 @@
   "@registrationPhoneHint": {
     "description": "Hint inside the phone number text field"
   },
-  "registrationPhoneInvalid": "Enter an 8-digit Lebanese phone number.",
+  "registrationPhoneInvalid": "Enter a valid Lebanese phone number.",
   "@registrationPhoneInvalid": {
     "description": "Inline error when phone digit count is wrong"
   },
@@ -978,7 +978,7 @@
   "@registrationOtpTitle": {
     "description": "Title of the OTP-entry step"
   },
-  "registrationOtpSubtitle": "We sent a 6-digit code to {phone}.",
+  "registrationOtpSubtitle": "We sent a 4-digit code to {phone}.",
   "@registrationOtpSubtitle": {
     "description": "Helper subtitle showing the destination phone number",
     "placeholders": {

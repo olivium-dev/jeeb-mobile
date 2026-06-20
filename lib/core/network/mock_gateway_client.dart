@@ -72,6 +72,12 @@ class MockGatewayClient {
     '/auth/otp': '/auth-service/auth/otp',
     '/auth/social': '/auth-service/auth/social',
     '/auth/refresh': '/auth-service/auth/refresh',
+    // The live gateway serves the getMe/profile read at `/v1/users/me`; the
+    // Express mock mounts user-management at `/user-management/users/me`. This
+    // bridge strips the `/v1` segment so `/v1/users/me` reaches the mock route.
+    // MUST precede the un-versioned `/users` sibling (first-match-wins); neither
+    // is a prefix of the other, so order between them is otherwise free.
+    '/v1/users': '/user-management/users',
     '/users': '/user-management/users',
     // W2 KYC (66_W2_QA_RESULTS C2): the Flutter KYC gateway
     // (`dio_kyc_gateway.dart`) speaks the gateway `/v1/kyc/*` contract

@@ -29,14 +29,24 @@ void main() {
   });
 
   group('LebanonPhone.tryParse', () {
-    test('returns null for too-short input', () {
-      expect(LebanonPhone.tryParse('711234'), isNull);
+    test('returns null for too-short input (< 7 national digits)', () {
+      expect(LebanonPhone.tryParse('711234'), isNull); // 6 digits
+      expect(LebanonPhone.tryParse('71123'), isNull); // 5 digits
     });
 
-    test('returns null for too-long input that does not start with +961/0', () {
-      // 9 digits, no recognisable prefix → after normalise still 9 → truncated
-      // to 8 → would parse, so this case must be one that genuinely fails:
-      expect(LebanonPhone.tryParse('1234567'), isNull);
+    test('accepts a 7-digit national number', () {
+      final p = LebanonPhone.tryParse('3000002');
+      expect(p, isNotNull);
+      expect(p!.digits, '3000002');
+      expect(p.e164, '+9613000002');
+    });
+
+    test('accepts the +9613000002 seed phone (7 national digits)', () {
+      // The valid seed phone the gateway issues OTP for — its national part is
+      // only 7 digits, which the old "exactly 8" gate wrongly rejected.
+      final p = LebanonPhone.tryParse('+9613000002');
+      expect(p, isNotNull);
+      expect(p!.e164, '+9613000002');
     });
 
     test('returns a valid LebanonPhone for a clean 8-digit national number',

@@ -5,9 +5,10 @@ import '../domain/customer_profile_view_data.dart';
 
 /// Dio-backed [CustomerProfileRepository] (JM-035).
 ///
-/// Endpoint (gateway contract; `MockGatewayClient` rewrites `/users` →
-/// `/user-management/users` for `:4010`, per `mock_gateway_client.dart`):
-///   GET /users/me  → the signed-in user (getMe)
+/// Endpoint (gateway contract; the live gateway serves `GET /v1/users/me`, and
+/// `MockGatewayClient` rewrites `/v1/users` → `/user-management/users` for
+/// `:4010`, per `mock_gateway_client.dart`):
+///   GET /v1/users/me  → the signed-in user (getMe)
 ///
 /// Verified getMe shape (`user-management.ts` `withStatuses`, seed
 /// `user-client-001`):
@@ -23,8 +24,9 @@ class DioCustomerProfileRepository implements CustomerProfileRepository {
   final Dio _dio;
 
   // Gateway-contract path. DO NOT hardcode the `:4010` service prefix — the
-  // MockGatewayClient interceptor rewrites `/users` → `/user-management/users`.
-  static const String _path = '/users/me';
+  // live gateway serves `GET /v1/users/me`; the MockGatewayClient interceptor
+  // rewrites `/v1/users` → `/user-management/users`.
+  static const String _path = '/v1/users/me';
 
   @override
   Future<CustomerProfileViewData> fetchProfile() async {
