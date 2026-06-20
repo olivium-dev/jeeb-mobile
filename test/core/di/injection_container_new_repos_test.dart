@@ -25,7 +25,7 @@ import 'package:jeeb_mobile/features/notifications/domain/notifications_reposito
 import 'package:jeeb_mobile/features/rating/domain/rating_repository.dart';
 import 'package:jeeb_mobile/features/reviews/data/dio_reviews_repository.dart';
 import 'package:jeeb_mobile/features/reviews/domain/reviews_repository.dart';
-import 'package:jeeb_mobile/features/support/data/stub_support_repository.dart';
+import 'package:jeeb_mobile/features/support/data/dio_support_repository.dart';
 import 'package:jeeb_mobile/features/support/domain/support_repository.dart';
 import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
 import 'package:jeeb_mobile/features/wallet/data/dio_wallet_ledger_repository.dart';
@@ -147,7 +147,8 @@ void main() {
   });
 
   // ── WAVE 4 (S2): notifications (real Dio, LIVE) + dispute-status (real Dio,
-  //    LIVE) + support (stub, S1 not live) + reviews (stub, R1m not live). ────
+  //    LIVE) + support (real Dio, S1 live, gateway #200) + reviews (real Dio,
+  //    R1m live). ────
 
   test('NotificationsRepository is registered and binds REAL Dio (LIVE)', () {
     expect(GetIt.I.isRegistered<NotificationsRepository>(), isTrue);
@@ -167,11 +168,11 @@ void main() {
     );
   });
 
-  test('SupportRepository is registered and binds the INTEGRATOR-STUB (S1 gap)',
+  test('SupportRepository is registered and binds REAL Dio (S1 live, gateway #200)',
       () {
     expect(GetIt.I.isRegistered<SupportRepository>(), isTrue);
     expect(() => GetIt.I<SupportRepository>(), returnsNormally);
-    expect(GetIt.I<SupportRepository>(), isA<StubSupportRepository>());
+    expect(GetIt.I<SupportRepository>(), isA<DioSupportRepository>());
   });
 
   test('ReviewsRepository is registered and binds REAL Dio (R1m live)', () {
