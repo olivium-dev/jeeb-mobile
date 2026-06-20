@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -6,8 +7,11 @@ import 'package:omds/omds.dart';
 
 import '../../../core/dev_seam/dev_seam.dart';
 import '../../../core/di/injection_container.dart';
+import '../../../core/session/greeting_profile_cubit.dart';
 import '../../../core/session/jeeber_kyc_status_gate.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../customer_profile/data/dio_customer_profile_repository.dart';
+import '../../customer_profile/domain/customer_profile_repository.dart';
 import '../../jeeber_home/application/availability_cubit.dart';
 import '../../jeeber_home/domain/entities/availability_status.dart';
 import '../../jeeber_home/domain/entities/feed_request.dart';
@@ -133,6 +137,19 @@ class _JeeberHomeHost extends StatelessWidget {
   bool get _unregistered =>
       destination != JeeberDeliveryTabDestination.feed;
 
+  /// The live profile source for the greeting. Self-provided off GetIt (no DI
+  /// edit), mirroring how [CustomerProfileScreen] resolves its repo; `null` in
+  /// a bare regression harness (no Dio registered) → the greeting stays generic.
+  CustomerProfileRepository? _resolveGreetingRepository() {
+    if (sl.isRegistered<CustomerProfileRepository>()) {
+      return sl<CustomerProfileRepository>();
+    }
+    if (sl.isRegistered<Dio>()) {
+      return DioCustomerProfileRepository(sl<Dio>());
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return MultiBlocProvider(
@@ -144,6 +161,15 @@ class _JeeberHomeHost extends StatelessWidget {
           create: (_) =>
               RequestFeedCubit(repository: sl<RequestFeedRepository>())
                 ..start(),
+        ),
+        // P0-X06: source the jeeber-home greeting (name + avatar) from the live
+        // `GET /users/me` (role-agnostic getMe) so the header shows the real
+        // name + avatar instead of "Welcome back" + "?". Falls back to the
+        // generic greeting when getMe is unreachable / the account is nameless.
+        BlocProvider<GreetingProfileCubit>(
+          create: (_) => GreetingProfileCubit(
+            repository: _resolveGreetingRepository(),
+          )..load(),
         ),
       ],
       child: Builder(

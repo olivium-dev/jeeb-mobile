@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -5,6 +6,10 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/dev_seam/dev_seam.dart';
+import '../../../core/session/greeting_profile_cubit.dart';
+import '../../customer_profile/data/dev_customer_profile_fixtures.dart';
+import '../../customer_profile/data/dio_customer_profile_repository.dart';
+import '../../customer_profile/domain/customer_profile_repository.dart';
 import '../../home_client/application/client_home_cubit.dart';
 import '../../home_client/application/client_home_state.dart';
 import '../../home_client/data/dev_client_home_fixtures.dart';
@@ -38,12 +43,29 @@ class HomeTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final devTab = _devSeamTab();
-    return BlocProvider(
+    final devSeed = devTab != null;
+    return MultiBlocProvider(
       key: const Key('home-tab-cubit'),
-      create: (_) => ClientHomeCubit(
-        repository: repository ?? _resolveRepository(devTab != null),
-        greetingNameProvider: greetingNameProvider ?? _resolveGreetingName,
-      ),
+      providers: [
+        BlocProvider(
+          create: (_) => ClientHomeCubit(
+            repository: repository ?? _resolveRepository(devSeed),
+            greetingNameProvider: greetingNameProvider ?? _resolveGreetingName,
+          ),
+        ),
+        // P0-X06: the personalized greeting (name + avatar) is sourced from the
+        // real `GET /users/me` (the same getMe the Profile tab reads), so the
+        // header shows "Hello, {name}" + the real avatar instead of the generic
+        // "Welcome back" + "?" placeholder. Under the dev seam it is seeded with
+        // the deterministic capture fixture; in release it refreshes from the
+        // live profile (or stays generic when getMe is unreachable / nameless).
+        BlocProvider(
+          create: (_) => GreetingProfileCubit(
+            repository: _resolveGreetingRepository(devSeed),
+            seed: _greetingSeed(devSeed),
+          )..load(),
+        ),
+      ],
       child: ClientHomeScreen(
         key: const Key('home-tab-root'),
         initialTab: devTab ?? ClientHomeTab.inProgress,
@@ -52,6 +74,34 @@ class HomeTab extends StatelessWidget {
         onTrack: (request) => _openTracking(context, request),
         onRecordVoice: () => _openVoiceRequest(context),
       ),
+    );
+  }
+
+  /// The live profile source for the greeting. In the dev-seam capture path we
+  /// skip the network (the seed already carries the Figma name/avatar); in
+  /// release we self-provide the Dio-backed getMe repo off GetIt — no DI edit,
+  /// mirroring how [CustomerProfileScreen] resolves its repo. A bare test (no
+  /// Dio registered) gets `null` → the greeting stays on its seed.
+  CustomerProfileRepository? _resolveGreetingRepository(bool devSeed) {
+    if (devSeed) return null;
+    final getIt = GetIt.instance;
+    if (getIt.isRegistered<CustomerProfileRepository>()) {
+      return getIt<CustomerProfileRepository>();
+    }
+    if (getIt.isRegistered<Dio>()) {
+      return DioCustomerProfileRepository(getIt<Dio>());
+    }
+    return null;
+  }
+
+  /// Seeds the greeting with the deterministic Figma profile under the dev seam
+  /// so a single capture APK renders "Hello, Sami" + the avatar without a live
+  /// fetch; empty otherwise (the live getMe populates it in release).
+  GreetingProfileState _greetingSeed(bool devSeed) {
+    if (!devSeed) return const GreetingProfileState();
+    return GreetingProfileState(
+      name: DevCustomerProfileFixtures.sample.name,
+      avatarUrl: DevCustomerProfileFixtures.sample.avatarUrl,
     );
   }
 
