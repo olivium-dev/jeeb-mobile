@@ -47,19 +47,18 @@ import '../../features/settings/domain/role_switch_repository.dart';
 import '../../features/tier_selection/data/tier_repository.dart';
 import '../../features/voice_request/data/voice_recording_repository.dart';
 import '../../features/wallet/data/dio_wallet_ledger_repository.dart';
-import '../../features/wallet/data/stub_wallet_repository.dart';
-import '../../features/wallet/data/stub_wallet_transaction_repository.dart';
+import '../../features/wallet/data/dio_wallet_repository.dart';
+import '../../features/wallet/data/dio_wallet_transaction_repository.dart';
 import '../../features/wallet/domain/wallet_ledger_repository.dart';
 import '../../features/wallet/domain/wallet_repository.dart';
 import '../../features/wallet/domain/wallet_transaction_repository.dart';
 import '../../features/notifications/data/dio_notifications_repository.dart';
 import '../../features/notifications/domain/notifications_repository.dart';
-import '../../features/support/data/stub_support_repository.dart';
+import '../../features/support/data/dio_support_repository.dart';
 import '../../features/support/domain/support_repository.dart';
 import '../../features/dispute_status/data/dio_dispute_status_repository.dart';
 import '../../features/dispute_status/domain/dispute_status_repository.dart';
 import '../../features/reviews/data/dio_reviews_repository.dart';
-import '../../features/reviews/data/stub_reviews_repository.dart';
 import '../../features/reviews/domain/reviews_repository.dart';
 import '../dev_seam/session_seam_bootstrap.dart';
 import '../session/jeeber_kyc_status_gate.dart';
@@ -352,15 +351,14 @@ void configureDependencies({
 
   // ── WAVE 2 / 2.5 (S2) integrator registrations ───────────────────────────
 
-  // INTEGRATOR-STUB(JM-053/046): the wallet balance/affordability/reserved-now/
-  // gift endpoint (W1m `GET /v1/jeeb/wallet`) is backend-owned and NOT live on
-  // :4010 yet (CTO-D2). Bind the in-memory StubWalletRepository so the wallet
-  // UI shell (WalletHubScreen, JM-053) + every "+ Top up" CTA that routes
-  // through it build and render NOW. SWAP WHEN W1m LANDS: replace
-  // `StubWalletRepository()` with `DioWalletRepository(sl<Dio>())`
-  // (lib/features/wallet/data/dio_wallet_repository.dart) — no screen change.
+  // LIVE(JM-053/046): the wallet balance/affordability/reserved-now/gift
+  // endpoint (`GET /v1/jeeb/wallet`) has landed (gateway PR #196), so this binds
+  // the REAL Dio repo. The wallet UI shell (WalletHubScreen, JM-053) + every
+  // "+ Top up" CTA that routes through it resolve this against `/v1/jeeb/wallet`.
+  // The in-memory StubWalletRepository remains as the integrator fallback and
+  // honors the same [WalletRepository] contract.
   sl.registerLazySingleton<WalletRepository>(
-    () => const StubWalletRepository(),
+    () => DioWalletRepository(sl<Dio>()),
   );
 
   // JM-036: the DELIVERY-tab KYC gate source (register-prompt vs feed) + the
@@ -386,15 +384,15 @@ void configureDependencies({
     () => DioWalletLedgerRepository(sl<Dio>()),
   );
 
-  // INTEGRATOR-STUB(JM-056): the wallet transaction-by-id endpoint (W3m
-  // `GET /v1/jeeb/wallet/ledger/:id`) is backend-owned and NOT live on :4010 yet
-  // (CTO-D2). Bind the in-memory StubWalletTransactionRepository so the
-  // transaction-detail UI shell (TransactionDetailScreen, JM-056) + the inbound
-  // `wallet_activity_row_<id>` edge (JM-055) build and render NOW. SWAP WHEN W3m
-  // LANDS: replace `StubWalletTransactionRepository()` with
-  // `DioWalletTransactionRepository(sl<Dio>())` — no screen change.
+  // LIVE(JM-056): the wallet transaction-by-id endpoint
+  // (`GET /v1/jeeb/wallet/ledger/:id`) has landed (gateway PR #196), so this
+  // binds the REAL Dio repo. The transaction-detail screen
+  // (TransactionDetailScreen, JM-056) + the inbound `wallet_activity_row_<id>`
+  // edge (JM-055) resolve this against `/v1/jeeb/wallet/ledger/:id`. The
+  // in-memory StubWalletTransactionRepository remains as the integrator fallback
+  // and honors the same [WalletTransactionRepository] contract.
   sl.registerLazySingleton<WalletTransactionRepository>(
-    () => const StubWalletTransactionRepository(),
+    () => DioWalletTransactionRepository(sl<Dio>()),
   );
 
   // ── WAVE 4 (S2) integrator registrations — notifications/support/dispute/
@@ -414,15 +412,19 @@ void configureDependencies({
     ),
   );
 
-  // INTEGRATOR-STUB(JM-063): the support-ticket service (S1) is backend-owned
-  // and NOT yet mounted on :4010 (42_GUARDRAILS_MOCK §4). Bind the in-memory
-  // StubSupportRepository so the support form (SupportTicketScreen, JM-063) +
-  // every inbound edge (account-status / dispute-status / kyc-rejected →
-  // support, D76) build and render NOW. SWAP WHEN S1 LANDS: replace
-  // `StubSupportRepository()` with `DioSupportRepository(sl<Dio>())` (+ add the
-  // `/v1/support` rewrite key) — no screen change.
+  // LIVE(JM-063): the support-ticket service (S1) has landed — the gateway now
+  // exposes the support routes (`POST /v1/support/tickets`, `GET .../{id}`,
+  // `GET .../tickets`, `GET .../categories`) backed by jeeb-state-service
+  // (gateway PR #200), and the `/v1/support` rewrite key is now declared
+  // (mock_gateway_client.dart), so this binds the REAL Dio repo. The support
+  // form (SupportTicketScreen, JM-063) + every inbound edge (account-status /
+  // dispute-status / kyc-rejected → support, D76) resolve this against
+  // `/v1/support/tickets`. Gateway #200 reconciles the DTO drift (tolerates the
+  // mobile `orderRef` field + the `delivery`/`kycAppeal` category enum), so no
+  // screen/DTO change is needed. The in-memory StubSupportRepository remains as
+  // the integrator fallback and honors the same [SupportRepository] contract.
   sl.registerLazySingleton<SupportRepository>(
-    () => const StubSupportRepository(),
+    () => DioSupportRepository(sl<Dio>()),
   );
 
   // JM-065 dispute-status: the compliment-service dispute endpoints
@@ -433,13 +435,11 @@ void configureDependencies({
     () => DioDisputeStatusRepository(sl<Dio>()),
   );
 
-  // INTEGRATOR-STUB(JM-068): the per-jeeber reviews source (R1m) is backend-owned
-  // and NOT live on :4010 (42_GUARDRAILS_MOCK §4: score-taking only reveals
-  // per-delivery state). Bind the in-memory StubReviewsRepository so the reviews
-  // list (ReviewsListScreen, JM-068) + the inbound `profile_view_all_reviews`
-  // edge (JM-067) build and render NOW. SWAP WHEN R1m LANDS: replace
-  // `StubReviewsRepository()` with `DioReviewsRepository(sl<Dio>())` — no screen
-  // change.
+  // LIVE(JM-068): R1m (the per-jeeber reviews source) has landed, so this binds
+  // the REAL Dio repo. The reviews list (ReviewsListScreen, JM-068) + the inbound
+  // `profile_view_all_reviews` edge (JM-067) resolve this against `/v1/...`.
+  // The in-memory StubReviewsRepository remains as the integrator fallback and
+  // honors the same [ReviewsRepository] contract.
   sl.registerLazySingleton<ReviewsRepository>(
     () => DioReviewsRepository(sl<Dio>()),
   );

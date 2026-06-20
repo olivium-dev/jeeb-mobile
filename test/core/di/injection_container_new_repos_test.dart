@@ -23,14 +23,16 @@ import 'package:jeeb_mobile/features/notification_prefs/domain/notification_pref
 import 'package:jeeb_mobile/features/notifications/data/dio_notifications_repository.dart';
 import 'package:jeeb_mobile/features/notifications/domain/notifications_repository.dart';
 import 'package:jeeb_mobile/features/rating/domain/rating_repository.dart';
-import 'package:jeeb_mobile/features/reviews/data/stub_reviews_repository.dart';
+import 'package:jeeb_mobile/features/reviews/data/dio_reviews_repository.dart';
 import 'package:jeeb_mobile/features/reviews/domain/reviews_repository.dart';
-import 'package:jeeb_mobile/features/support/data/stub_support_repository.dart';
+import 'package:jeeb_mobile/features/support/data/dio_support_repository.dart';
 import 'package:jeeb_mobile/features/support/domain/support_repository.dart';
 import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
 import 'package:jeeb_mobile/features/wallet/data/dio_wallet_ledger_repository.dart';
-import 'package:jeeb_mobile/features/wallet/data/stub_wallet_transaction_repository.dart';
+import 'package:jeeb_mobile/features/wallet/data/dio_wallet_repository.dart';
+import 'package:jeeb_mobile/features/wallet/data/dio_wallet_transaction_repository.dart';
 import 'package:jeeb_mobile/features/wallet/domain/wallet_ledger_repository.dart';
+import 'package:jeeb_mobile/features/wallet/domain/wallet_repository.dart';
 import 'package:jeeb_mobile/features/wallet/domain/wallet_transaction_repository.dart';
 
 class _MockSharedPreferences extends Mock implements SharedPreferences {}
@@ -110,8 +112,18 @@ void main() {
     );
   });
 
-  // ── WAVE 3 (S2): wallet ledger (real Dio, W2m LIVE) + transaction (stub,
-  //    W3m NOT live, CTO-D2). ────────────────────────────────────────────────
+  // ── WAVE 3 (S2): wallet balance + ledger + transaction — all REAL Dio now
+  //    that gateway PR #196 added GET /v1/jeeb/wallet, /ledger, /ledger/:id. ──
+
+  test('WalletRepository is registered and binds REAL Dio (gateway #196 live)',
+      () {
+    expect(GetIt.I.isRegistered<WalletRepository>(), isTrue);
+    expect(() => GetIt.I<WalletRepository>(), returnsNormally);
+    expect(
+      GetIt.I<WalletRepository>(),
+      isA<DioWalletRepository>(),
+    );
+  });
 
   test('WalletLedgerRepository is registered and binds REAL Dio (W2m live)',
       () {
@@ -124,18 +136,19 @@ void main() {
   });
 
   test(
-      'WalletTransactionRepository is registered and binds the INTEGRATOR-STUB '
-      '(W3m not live)', () {
+      'WalletTransactionRepository is registered and binds REAL Dio '
+      '(gateway #196 live)', () {
     expect(GetIt.I.isRegistered<WalletTransactionRepository>(), isTrue);
     expect(() => GetIt.I<WalletTransactionRepository>(), returnsNormally);
     expect(
       GetIt.I<WalletTransactionRepository>(),
-      isA<StubWalletTransactionRepository>(),
+      isA<DioWalletTransactionRepository>(),
     );
   });
 
   // ── WAVE 4 (S2): notifications (real Dio, LIVE) + dispute-status (real Dio,
-  //    LIVE) + support (stub, S1 not live) + reviews (stub, R1m not live). ────
+  //    LIVE) + support (real Dio, S1 live, gateway #200) + reviews (real Dio,
+  //    R1m live). ────
 
   test('NotificationsRepository is registered and binds REAL Dio (LIVE)', () {
     expect(GetIt.I.isRegistered<NotificationsRepository>(), isTrue);
@@ -155,17 +168,16 @@ void main() {
     );
   });
 
-  test('SupportRepository is registered and binds the INTEGRATOR-STUB (S1 gap)',
+  test('SupportRepository is registered and binds REAL Dio (S1 live, gateway #200)',
       () {
     expect(GetIt.I.isRegistered<SupportRepository>(), isTrue);
     expect(() => GetIt.I<SupportRepository>(), returnsNormally);
-    expect(GetIt.I<SupportRepository>(), isA<StubSupportRepository>());
+    expect(GetIt.I<SupportRepository>(), isA<DioSupportRepository>());
   });
 
-  test('ReviewsRepository is registered and binds the INTEGRATOR-STUB (R1m gap)',
-      () {
+  test('ReviewsRepository is registered and binds REAL Dio (R1m live)', () {
     expect(GetIt.I.isRegistered<ReviewsRepository>(), isTrue);
     expect(() => GetIt.I<ReviewsRepository>(), returnsNormally);
-    expect(GetIt.I<ReviewsRepository>(), isA<StubReviewsRepository>());
+    expect(GetIt.I<ReviewsRepository>(), isA<DioReviewsRepository>());
   });
 }
