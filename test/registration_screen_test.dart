@@ -88,6 +88,104 @@ void main() {
     expect(cubit.state.isPhoneReady, isTrue);
   });
 
+  testWidgets(
+      'REGRESSION (Maestro P0): typing then erasing digits keeps the phone '
+      'value intact, so 8 valid digits stay parseable and Send code stays '
+      'enabled (no state↔controller corruption)', (tester) async {
+    // The on-device defect: the listener mirrored the cubit's *normalised*
+    // phoneInput back into the field on every keystroke. Typing a 9th digit
+    // made `normalise` front-truncate to the first 8 and overwrite the field,
+    // so erasing the (now-wrong) trailing digit dropped a valid one — the field
+    // stuck below 8 digits, `LebanonPhone.tryParse` returned null, and
+    // `sendCode()` bailed at its guard. No OTP was ever requested → login
+    // impossible on-device.
+    when(() => otp.sendCode(any()))
+        .thenAnswer((_) async => OtpSendOutcome.sent);
+    final cubit = makeCubit();
+    await tester.pumpWidget(wrapForTest(
+      RegistrationScreen(cubit: cubit),
+    ));
+
+    final field = find.byKey(const Key('registration.phoneField'));
+
+    // 1) Type exactly 8 valid digits — controller and state must agree, and the
+    // field must hold all 8 (no per-keystroke overwrite dropping characters).
+    await tester.enterText(field, '71123456');
+    await tester.pump();
+    expect(cubit.state.phoneInput, '71123456');
+    expect(cubit.state.isPhoneReady, isTrue);
+    expect(
+      tester.widget<TextField>(field).controller!.text,
+      '71123456',
+      reason: 'the field must show the full 8 digits the user typed',
+    );
+
+    // 2) Erase one digit → exactly 7 remain (a single contiguous edit, never a
+    // corrupted/reordered value). Send code disables because 7 < 8.
+    await tester.enterText(field, '7112345');
+    await tester.pump();
+    expect(cubit.state.phoneInput, '7112345');
+    expect(cubit.state.isPhoneReady, isFalse);
+    expect(
+      tester
+          .widget<OmdsLoadingButton>(
+            find.byKey(const Key('registration.sendCode')),
+          )
+          .isEnabled,
+      isFalse,
+    );
+
+    // 3) Re-type the 8th digit → back to a valid 8-digit number. The value is
+    // NOT corrupted, Send code re-enables, and tapping it actually fires the
+    // OTP request (the path that was dead on-device).
+    await tester.enterText(field, '71123456');
+    await tester.pump();
+    expect(cubit.state.phoneInput, '71123456');
+    expect(cubit.state.isPhoneReady, isTrue);
+    expect(
+      tester
+          .widget<OmdsLoadingButton>(
+            find.byKey(const Key('registration.sendCode')),
+          )
+          .isEnabled,
+      isTrue,
+    );
+
+    await tester.tap(find.byKey(const Key('registration.sendCode')));
+    await tester.pump();
+    // The OTP request actually goes out with the correct E.164 number — the
+    // exact step that never happened with the corrupted value.
+    verify(() => otp.sendCode('+96171123456')).called(1);
+  });
+
+  testWidgets(
+      'REGRESSION (Maestro P0): typing a 9th digit then erasing the visible '
+      'trailing digit still recovers a sendable number', (tester) async {
+    // Pre-fix, typing a 9th digit front-truncated the value to the first 8 and
+    // overwrote the field; erasing the visibly-trailing digit then dropped a
+    // VALID digit, leaving 7 — unrecoverable without clearing the field. This
+    // asserts the field now holds what the user typed so a normal erase
+    // recovers a parseable 8-digit number.
+    when(() => otp.sendCode(any()))
+        .thenAnswer((_) async => OtpSendOutcome.sent);
+    final cubit = makeCubit();
+    await tester.pumpWidget(wrapForTest(
+      RegistrationScreen(cubit: cubit),
+    ));
+
+    final field = find.byKey(const Key('registration.phoneField'));
+    await tester.enterText(field, '711234567'); // 9 digits typed
+    await tester.pump();
+
+    // Erase the actual trailing character the user sees in the field.
+    final visible = tester.widget<TextField>(field).controller!.text;
+    await tester.enterText(field, visible.substring(0, visible.length - 1));
+    await tester.pump();
+
+    expect(cubit.state.phoneInput, '71123456');
+    expect(cubit.state.isPhoneReady, isTrue);
+  });
+
   testWidgets('Send code is disabled until 8 digits are typed', (tester) async {
     await tester.pumpWidget(wrapForTest(
       RegistrationScreen(cubit: makeCubit()),
