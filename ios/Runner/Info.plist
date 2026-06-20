@@ -4,6 +4,10 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Jeeb uses the camera to capture delivery proof photos and your identity documents for KYC verification.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Jeeb uses your photo library to attach delivery proof photos and identity documents for KYC verification.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

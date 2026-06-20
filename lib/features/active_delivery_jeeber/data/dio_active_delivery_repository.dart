@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 
 import '../domain/active_delivery_repository.dart';
@@ -67,14 +69,37 @@ class DioActiveDeliveryRepository implements ActiveDeliveryRepository {
   Future<String> uploadProofPhoto({
     required String deliveryId,
     required String filename,
+    Uint8List? bytes,
   }) async {
     try {
-      final response = await _dio.post<Map<String, dynamic>>(
-        '/v1/delivery/proof-photo',
-        data: <String, dynamic>{
+      // Real device capture → multipart upload to the cdn-service via the
+      // gateway (`POST /v1/delivery/proof-photo` carries the image part). The
+      // gateway proxies the bytes to cdn-service and returns the minted
+      // evidence URL. When no bytes are supplied (the in-memory mock seam that
+      // does not store bytes) we degrade to the legacy filename-only JSON post.
+      final Object payload;
+      if (bytes != null) {
+        payload = FormData.fromMap(<String, dynamic>{
+          'deliveryId': deliveryId,
+          'file': MultipartFile.fromBytes(
+            bytes,
+            filename: filename,
+            contentType: DioMediaType('image', 'jpeg'),
+          ),
+        });
+      } else {
+        payload = <String, dynamic>{
           'deliveryId': deliveryId,
           'filename': filename,
-        },
+        };
+      }
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/v1/delivery/proof-photo',
+        data: payload,
+        options: Options(
+          receiveTimeout: const Duration(seconds: 20),
+          sendTimeout: const Duration(seconds: 20),
+        ),
       );
       final url = response.data?['evidenceUrl'] as String? ??
           response.data?['url'] as String?;

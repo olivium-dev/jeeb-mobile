@@ -427,11 +427,11 @@ class _ReadyContent extends StatelessWidget {
   }
 }
 
-/// Pill-shaped read-only search placeholder backed by [OmdsSearchBar].
-///
-/// The home tab uses the search bar as a navigation affordance, not as a
-/// live filter — tapping is suppressed by [IgnorePointer] until the search
-/// destination ships in a future wave.
+/// Pill-shaped live search bar backed by [OmdsSearchBar]
+/// (home-disc-customer-home-search). Drives [ClientHomeCubit.setQuery] on every
+/// keystroke; the three home tabs render the query-filtered `visible*` lists.
+/// No [IgnorePointer] — the field is interactive and the clear button resets
+/// the filter.
 class _ClientHomeSearchBar extends StatelessWidget {
   const _ClientHomeSearchBar();
 
@@ -445,14 +445,14 @@ class _ClientHomeSearchBar extends StatelessWidget {
         identifier: 'orders_search_bar',
         textField: true,
         label: l10n.homeSearchHint,
-        child: IgnorePointer(
-          child: OmdsSearchBar(
-            key: const Key('client-home-search-bar'),
-            hintText: l10n.homeSearchHint,
-            fillColor: colorScheme.surfaceContainerHigh,
-            borderRadius: UIConstants.borderRadiusPill,
-            height: Sizes.fiveXLarge,
-          ),
+        child: OmdsSearchBar(
+          key: const Key('client-home-search-bar'),
+          hintText: l10n.homeSearchHint,
+          fillColor: colorScheme.surfaceContainerHigh,
+          borderRadius: UIConstants.borderRadiusPill,
+          height: Sizes.fiveXLarge,
+          onChanged: (q) => context.read<ClientHomeCubit>().setQuery(q),
+          onClear: () => context.read<ClientHomeCubit>().setQuery(''),
         ),
       ),
     );

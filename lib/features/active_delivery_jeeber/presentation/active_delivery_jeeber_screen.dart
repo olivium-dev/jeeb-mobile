@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/di/injection_container.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../photo_attachment/data/stub_photo_picker_service.dart';
+import '../../photo_attachment/domain/photo_picker_service.dart';
 import '../application/active_delivery_cubit.dart';
 import '../domain/active_delivery_repository.dart';
 import '../domain/jeeber_delivery.dart';
@@ -31,10 +34,16 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
     this.repository,
     this.cubit,
     this.mapsUrlBuilder,
+    this.photoPicker,
   });
 
   final String deliveryId;
   final VoidCallback onOpenChat;
+
+  /// Real device camera/gallery picker for the proof-of-delivery photo
+  /// (JM-051). Production resolves `sl<PhotoPickerService>()`
+  /// ([ImagePickerPhotoPickerService]); tests inject a deterministic stub.
+  final PhotoPickerService? photoPicker;
 
   /// JM-051 AC2: fired once the delivery reaches `Done` — routes to
   /// `feedback-rate-delivery` (mutual rating, `mode=jeeber`). When null (route
@@ -75,9 +84,11 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
       return const _Unavailable();
     }
     return BlocProvider<ActiveDeliveryCubit>(
-      create: (_) =>
-          ActiveDeliveryCubit(repository: repo, deliveryId: deliveryId)
-            ..loadDelivery(),
+      create: (_) => ActiveDeliveryCubit(
+        repository: repo,
+        deliveryId: deliveryId,
+        photoPicker: _resolvePhotoPicker(),
+      )..loadDelivery(),
       child: _Body(
         deliveryId: deliveryId,
         onOpenChat: onOpenChat,
@@ -85,6 +96,18 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
         mapsUrlBuilder: mapsUrlBuilder,
       ),
     );
+  }
+
+  /// Resolves the proof-photo picker: an explicit override (tests) → the
+  /// DI-registered real [PhotoPickerService] → an in-memory stub when GetIt is
+  /// not configured (bare widget tests). Mirrors the kyc/onboarding screens.
+  PhotoPickerService _resolvePhotoPicker() {
+    final explicit = photoPicker;
+    if (explicit != null) return explicit;
+    if (sl.isRegistered<PhotoPickerService>()) {
+      return sl<PhotoPickerService>();
+    }
+    return StubPhotoPickerService();
   }
 }
 
@@ -134,6 +157,21 @@ class _Body extends StatelessWidget {
       showOmdsSnackbar(context, message: state.transitionError!);
       context.read<ActiveDeliveryCubit>().acknowledgeTransitionError();
     }
+    // JM-051: surface a proof-photo camera/upload failure (permission vs IO).
+    // A `cancelled` capture never reaches here (the cubit treats it as a no-op).
+    final proofFailure = state.proofPhotoFailure;
+    if (proofFailure != null &&
+        proofFailure != ProofPhotoCaptureFailure.cancelled) {
+      final l10n = AppLocalizations.of(context);
+      showOmdsSnackbar(
+        context,
+        message:
+            proofFailure == ProofPhotoCaptureFailure.permissionDenied
+                ? l10n.proofPhotoPermissionDenied
+                : l10n.proofPhotoCaptureFailed,
+      );
+      context.read<ActiveDeliveryCubit>().acknowledgeProofPhotoFailure();
+    }
     // JM-051 AC2: done → mandatory rating (NOT OTP). One-shot signal.
     if (state.delivered) {
       context.read<ActiveDeliveryCubit>().acknowledgeDelivered();
@@ -181,9 +219,7 @@ class _Body extends StatelessWidget {
           onAdvance: () =>
               context.read<ActiveDeliveryCubit>().advanceStatus(),
           onCaptureProof: () =>
-              context.read<ActiveDeliveryCubit>().captureProofPhoto(
-                    'proof_${DateTime.now().millisecondsSinceEpoch}.jpg',
-                  ),
+              context.read<ActiveDeliveryCubit>().captureProofPhoto(),
           onNoteChanged: (v) =>
               context.read<ActiveDeliveryCubit>().setNote(v),
           onMarkDelivered: () =>

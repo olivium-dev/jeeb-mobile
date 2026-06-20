@@ -79,6 +79,10 @@ import '../../features/active_delivery_jeeber/domain/active_delivery_repository.
 import '../../features/offers/data/dio_offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
+import '../../features/photo_attachment/data/image_picker_photo_picker_service.dart';
+import '../../features/photo_attachment/domain/photo_picker_service.dart';
+import '../../features/customer_profile/data/dio_customer_profile_repository.dart';
+import '../../features/customer_profile/domain/customer_profile_repository.dart';
 import '../../features/settlement/data/dio_settlement_repository.dart';
 import '../../features/settlement/domain/settlement_repository.dart';
 import '../network/auth_token_store.dart';
@@ -349,6 +353,26 @@ void configureDependencies({
     () => HttpVoiceRecordingRepository(dio: sl<Dio>()),
   );
 
+  // JM-039 / JM-051 / kyc-identity: real device camera+gallery capture behind
+  // the [PhotoPickerService] port. The jeeber-onboarding photo step, the
+  // KYC-identity Gov-ID/selfie steps, and the mark-delivered proof photo all
+  // resolve this from DI (their screens fall back to StubPhotoPickerService
+  // only when GetIt is not configured — bare widget tests). Registered as a
+  // lazy singleton: ImagePicker is a thin platform-channel handle, safe to
+  // share. Tests inject their own StubPhotoPickerService via the cubit
+  // constructors, so this real binding never affects the unit-test seam.
+  sl.registerLazySingleton<PhotoPickerService>(
+    () => ImagePickerPhotoPickerService(),
+  );
+
+  // JM-035: customer-profile/getMe repository. Registered so the greeting
+  // (GreetingProfileCubit), the DELIVERY-tab greeting, AND the real
+  // getMe-backed JeeberKycStatusGate (JM-036, below) resolve a single shared
+  // `GET /users/me` source from DI instead of self-constructing a Dio repo.
+  sl.registerLazySingleton<CustomerProfileRepository>(
+    () => DioCustomerProfileRepository(sl<Dio>()),
+  );
+
   // ── WAVE 2 / 2.5 (S2) integrator registrations ───────────────────────────
 
   // LIVE(JM-053/046): the wallet balance/affordability/reserved-now/gift
@@ -369,8 +393,16 @@ void configureDependencies({
   // getMe/kyc-backed gate — GET /user-management/users/:userId/kyc, U1; it
   // depends on the JeeberKycStatusGate interface, not this impl, so the swap is
   // a one-line DI change with no tab-body edit).
+  // JM-036 SWAP: the REAL getMe-backed gate. Reads the signed-in user's actual
+  // `kycStatus` from `GET /users/me` (CustomerProfileRepository) and classifies
+  // none|pending|approved|rejected (D38/D52). In DEBUG a `jeeb.seam.kyc_status`
+  // seam still wins (existing Maestro flows stay deterministic); release reads
+  // live getMe. The DELIVERY-tab body depends on the JeeberKycStatusGate
+  // interface, not this impl — no tab-body edit.
   sl.registerLazySingleton<JeeberKycStatusGate>(
-    () => const SeamJeeberKycStatusGate(),
+    () => GetMeJeeberKycStatusGate(
+      repository: sl<CustomerProfileRepository>(),
+    ),
   );
 
   // ── WAVE 3 (S2) integrator registrations — wallet ledger + transaction ─────

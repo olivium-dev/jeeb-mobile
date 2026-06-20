@@ -37,7 +37,9 @@ class InProgressTab extends StatelessWidget {
   }
 
   static bool _rebuildWhen(ClientHomeState prev, ClientHomeState next) =>
-      prev.status != next.status || prev.inProgress != next.inProgress;
+      prev.status != next.status ||
+      prev.inProgress != next.inProgress ||
+      prev.query != next.query;
 
   static void _navigateToTracking(
     BuildContext context,
@@ -66,12 +68,18 @@ class _InProgressContent extends StatelessWidget {
     if (state.status == ClientHomeStatus.loading) {
       return const _InProgressLoading();
     }
-    if (state.inProgress.isEmpty) {
+    final visible = state.visibleInProgress;
+    if (visible.isEmpty) {
+      // A query that filters everything out shows a no-results state distinct
+      // from the cold "no orders yet" empty (which keeps its create-request CTA).
+      if (state.hasQuery && state.inProgress.isNotEmpty) {
+        return const _InProgressNoResults();
+      }
       return _InProgressEmpty(
         onCreateRequest: () => _openCreateRequest(context),
       );
     }
-    return _InProgressList(requests: state.inProgress, onTrack: onTrack);
+    return _InProgressList(requests: visible, onTrack: onTrack);
   }
 
   static void _openCreateRequest(BuildContext context) {
@@ -125,6 +133,23 @@ class _InProgressEmpty extends StatelessWidget {
       subtitle: l10n.homeInProgressEmpty,
       buttonText: l10n.homeEmptyCta,
       onButtonTap: onCreateRequest,
+    );
+  }
+}
+
+/// No-results state when an active search query filters every row out of this
+/// tab (distinct from the cold "no orders yet" empty — no create-request CTA).
+class _InProgressNoResults extends StatelessWidget {
+  const _InProgressNoResults();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return OmdsEmptyState(
+      key: const Key('in-progress-no-results'),
+      icon: Icons.search_off_outlined,
+      title: l10n.homeSearchNoResultsTitle,
+      subtitle: l10n.homeSearchNoResultsBody,
     );
   }
 }

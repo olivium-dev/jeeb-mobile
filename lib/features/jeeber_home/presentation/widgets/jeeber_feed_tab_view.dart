@@ -15,6 +15,7 @@ import '../../../jeeber_request_feed/cubit/submitted_offers_cubit.dart';
 import '../../../jeeber_request_feed/cubit/submitted_offers_state.dart';
 import '../../../jeeber_request_feed/data/request_feed_models.dart';
 import '../../../jeeber_request_feed/presentation/jeeber_feed_card.dart';
+import '../../../jeeber_request_feed/presentation/jeeber_feed_shimmer.dart';
 import '../../../jeeber_request_feed/presentation/pending_offer_row.dart';
 import 'jeeber_home_greeting.dart';
 
@@ -461,6 +462,12 @@ class _FeedRequestListBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // home-disc-jeeber-feed-loading: shimmer skeleton on the initial load
+    // (status=loading + no requests yet) instead of falling straight through
+    // to the empty state.
+    if (state.status == RequestFeedStatus.loading && state.requests.isEmpty) {
+      return const JeeberFeedShimmer();
+    }
     final visible = _visibleRequests(state.requests);
     return OmdsPullToRefresh(
       onRefresh: () => context.read<RequestFeedCubit>().refresh(),

@@ -58,7 +58,9 @@ class RepliesTab extends StatelessWidget {
   }
 
   static bool _rebuildWhen(ClientHomeState prev, ClientHomeState next) =>
-      prev.status != next.status || prev.replies != next.replies;
+      prev.status != next.status ||
+      prev.replies != next.replies ||
+      prev.query != next.query;
 
   /// JM-027 AC1: Check Offers → offer-review-list (JM-028), NOT chat.
   /// Routes to the registered `offer-review` route (`/requests/:id/offers`),
@@ -139,11 +141,15 @@ class _RepliesContent extends StatelessWidget {
     if (state.status == ClientHomeStatus.loading) {
       return const _RepliesLoading();
     }
-    if (state.replies.isEmpty) {
+    final visible = state.visibleReplies;
+    if (visible.isEmpty) {
+      if (state.hasQuery && state.replies.isNotEmpty) {
+        return const _RepliesNoResults();
+      }
       return const _RepliesEmpty();
     }
     return _RepliesList(
-      requests: state.replies,
+      requests: visible,
       onCheckOffers: onCheckOffers,
       onAccept: onAccept,
     );
@@ -192,6 +198,22 @@ class _RepliesEmpty extends StatelessWidget {
       icon: Icons.mark_chat_unread_outlined,
       title: l10n.homeEmptyTitle,
       subtitle: l10n.homeRepliesEmpty,
+    );
+  }
+}
+
+/// No-results state when an active search query filters every reply row out.
+class _RepliesNoResults extends StatelessWidget {
+  const _RepliesNoResults();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return OmdsEmptyState(
+      key: const Key('replies-no-results'),
+      icon: Icons.search_off_outlined,
+      title: l10n.homeSearchNoResultsTitle,
+      subtitle: l10n.homeSearchNoResultsBody,
     );
   }
 }

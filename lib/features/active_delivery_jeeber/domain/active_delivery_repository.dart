@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'jeeber_delivery.dart';
 import 'jeeber_delivery_status.dart';
 
@@ -26,12 +28,18 @@ abstract class ActiveDeliveryRepository {
     String? evidenceUrl,
   });
 
-  /// Upload a proof-of-delivery photo (D3, mock-fix D1m) and return the stable
-  /// evidence URL the mock minted. [filename] shapes the returned URL; the mock
-  /// does not store bytes. Throws [ActiveDeliveryException] on failure.
+  /// Upload a proof-of-delivery photo (D3) to the cdn-service via the gateway
+  /// and return the stable evidence URL the service minted.
+  ///
+  /// [bytes] are the real captured image bytes (camera/gallery via
+  /// `PhotoPickerService`); [filename] names the multipart part. When [bytes]
+  /// is `null` the repository degrades to the legacy filename-only JSON post
+  /// (the in-memory mock seam that does not store bytes). Throws
+  /// [ActiveDeliveryException] on failure.
   Future<String> uploadProofPhoto({
     required String deliveryId,
     required String filename,
+    Uint8List? bytes,
   });
 }
 

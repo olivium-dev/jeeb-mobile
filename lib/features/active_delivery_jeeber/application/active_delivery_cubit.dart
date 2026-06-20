@@ -1,6 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../photo_attachment/domain/photo_picker_service.dart';
 import '../domain/active_delivery_repository.dart';
 import '../domain/jeeber_delivery.dart';
 import '../domain/jeeber_delivery_status.dart';
@@ -11,6 +14,11 @@ enum ActiveDeliveryMode { loading, ready, transitioning, error }
 /// Lifecycle of the proof-of-delivery photo capture+upload (D3 / D1m, JM-051).
 enum ProofPhotoStatus { none, uploading, captured, failed }
 
+/// Where a proof-photo capture failed — distinguishes a user cancel (no error
+/// shown) from a permission / hardware fault (the screen surfaces copy + a
+/// settings affordance), mirroring [PhotoPickFailure].
+enum ProofPhotoCaptureFailure { cancelled, permissionDenied, unavailable }
+
 /// State emitted by [ActiveDeliveryCubit].
 class ActiveDeliveryState extends Equatable {
   const ActiveDeliveryState({
@@ -19,6 +27,7 @@ class ActiveDeliveryState extends Equatable {
     this.transitionError,
     this.errorMessage,
     this.proofPhotoStatus = ProofPhotoStatus.none,
+    this.proofPhotoFailure,
     this.note,
     this.delivered = false,
   });
@@ -34,6 +43,11 @@ class ActiveDeliveryState extends Equatable {
 
   /// Proof-of-delivery photo capture/upload lifecycle (JM-051 AC1).
   final ProofPhotoStatus proofPhotoStatus;
+
+  /// Why the last proof-photo capture failed (camera permission/cancel/IO), or
+  /// `null` when there is no outstanding capture failure. A `cancelled` failure
+  /// is benign (the user backed out) — the screen shows no error for it.
+  final ProofPhotoCaptureFailure? proofPhotoFailure;
 
   /// Optional Jeeber note attached to the delivery (JM-051 AC1).
   final String? note;
@@ -58,6 +72,8 @@ class ActiveDeliveryState extends Equatable {
     String? errorMessage,
     bool clearError = false,
     ProofPhotoStatus? proofPhotoStatus,
+    ProofPhotoCaptureFailure? proofPhotoFailure,
+    bool clearProofPhotoFailure = false,
     String? note,
     bool clearNote = false,
     bool? delivered,
@@ -70,6 +86,9 @@ class ActiveDeliveryState extends Equatable {
           : (transitionError ?? this.transitionError),
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       proofPhotoStatus: proofPhotoStatus ?? this.proofPhotoStatus,
+      proofPhotoFailure: clearProofPhotoFailure
+          ? null
+          : (proofPhotoFailure ?? this.proofPhotoFailure),
       note: clearNote ? null : (note ?? this.note),
       delivered: delivered ?? this.delivered,
     );
@@ -82,6 +101,7 @@ class ActiveDeliveryState extends Equatable {
         transitionError,
         errorMessage,
         proofPhotoStatus,
+        proofPhotoFailure,
         note,
         delivered,
       ];
@@ -99,11 +119,18 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
   ActiveDeliveryCubit({
     required ActiveDeliveryRepository repository,
     required this.deliveryId,
+    PhotoPickerService? photoPicker,
   })  : _repository = repository,
+        _photoPicker = photoPicker,
         super(const ActiveDeliveryState());
 
   final ActiveDeliveryRepository _repository;
   final String deliveryId;
+
+  /// Real device camera/gallery capture (JM-051). `null` in a bare regression
+  /// harness — [captureProofPhoto] then degrades to the legacy filename-only
+  /// upload (the in-memory mock seam) so existing tests keep their contract.
+  final PhotoPickerService? _photoPicker;
 
   Future<void> loadDelivery() async {
     emit(state.copyWith(mode: ActiveDeliveryMode.loading, clearError: true));
@@ -171,23 +198,59 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     }
   }
 
-  /// Capture + upload the proof-of-delivery photo (D3 / D1m, JM-051 AC1).
+  /// Capture + upload the proof-of-delivery photo (D3, JM-051 AC1).
   ///
-  /// [filename] names the captured image; the mock mints a stable evidence URL
+  /// Real flow: capture from the device camera via [PhotoPickerService], then
+  /// upload the bytes to the cdn-service via the gateway
+  /// (`POST /v1/delivery/proof-photo`). The service mints a stable evidence URL
   /// which is stamped onto the delivery so the thumbnail renders and the
   /// `AtDoor → Done` transition can carry it.
-  Future<void> captureProofPhoto(String filename) async {
+  ///
+  /// [filename] names the multipart part (defaults to a timestamped jpg). When
+  /// no picker is wired (a bare regression harness) the flow degrades to the
+  /// legacy filename-only upload against the in-memory mock seam. A user-
+  /// cancelled capture is a benign no-op (no error surfaced); a permission /
+  /// hardware fault sets [ActiveDeliveryState.proofPhotoFailure].
+  Future<void> captureProofPhoto([String? filename]) async {
     final current = state.delivery;
     if (current == null) return;
     if (state.isUploadingProof) return;
+
+    final name = filename ??
+        'proof_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+    // 1) Capture device bytes (skipped when no picker — legacy mock path).
+    Uint8List? bytes;
+    if (_photoPicker != null) {
+      try {
+        final raw = await _photoPicker.pickFromCamera();
+        bytes = raw.bytes;
+      } on PhotoPickException catch (e) {
+        if (e.failure == PhotoPickFailure.cancelled) {
+          // User backed out — leave the placeholder untouched, no error.
+          return;
+        }
+        emit(state.copyWith(
+          proofPhotoStatus: ProofPhotoStatus.failed,
+          proofPhotoFailure: e.failure == PhotoPickFailure.permissionDenied
+              ? ProofPhotoCaptureFailure.permissionDenied
+              : ProofPhotoCaptureFailure.unavailable,
+        ));
+        return;
+      }
+    }
+
+    // 2) Upload (real bytes via multipart, or the legacy filename-only post).
     emit(state.copyWith(
       proofPhotoStatus: ProofPhotoStatus.uploading,
       clearTransitionError: true,
+      clearProofPhotoFailure: true,
     ));
     try {
       final url = await _repository.uploadProofPhoto(
         deliveryId: deliveryId,
-        filename: filename,
+        filename: name,
+        bytes: bytes,
       );
       emit(state.copyWith(
         delivery: current.withProofPhoto(url),
@@ -196,9 +259,17 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     } on ActiveDeliveryException catch (e) {
       emit(state.copyWith(
         proofPhotoStatus: ProofPhotoStatus.failed,
+        proofPhotoFailure: ProofPhotoCaptureFailure.unavailable,
         transitionError: _mapTransitionError(e),
       ));
     }
+  }
+
+  /// Clear a one-shot proof-photo capture failure so a banner/snack doesn't
+  /// replay on rebuild.
+  void acknowledgeProofPhotoFailure() {
+    if (state.proofPhotoFailure == null) return;
+    emit(state.copyWith(clearProofPhotoFailure: true));
   }
 
   /// Record the optional Jeeber note (JM-051 AC1).

@@ -82,6 +82,8 @@ class AppLocalizations {
   String get homeRepliesEmpty => _get('homeRepliesEmpty');
   String get homeRepliesCheckOffersCta => _get('homeRepliesCheckOffersCta');
   String get homeSearchHint => _get('homeSearchHint');
+  String get homeSearchNoResultsTitle => _get('homeSearchNoResultsTitle');
+  String get homeSearchNoResultsBody => _get('homeSearchNoResultsBody');
   String get homeTrackOrderCta => _get('homeTrackOrderCta');
   String get homeStageOrdered => _get('homeStageOrdered');
   String get homeStagePicked => _get('homeStagePicked');
@@ -1948,6 +1950,8 @@ extension AppLocalizationsRestored on AppLocalizations {
           .replaceFirst('{jeeber}', jeeber);
   String get receiptJeeberFallback => _get('receiptJeeberFallback');
   String get receiptProofPhotoLabel => _get('receiptProofPhotoLabel');
+  String get proofPhotoCaptureFailed => _get('proofPhotoCaptureFailed');
+  String get proofPhotoPermissionDenied => _get('proofPhotoPermissionDenied');
   String get receiptConfirmCta => _get('receiptConfirmCta');
   String get receiptNotYetCta => _get('receiptNotYetCta');
   String get receiptRetryAction => _get('receiptRetryAction');
