@@ -126,6 +126,13 @@ void main() {
       );
     });
 
+    test('getMe (/v1/users/me) rewrites to user-management', () {
+      expect(
+        MockGatewayClient.rewritePath('/v1/users/me'),
+        '/user-management/users/me',
+      );
+    });
+
     test('offers rewrites to offer-service', () {
       expect(
         MockGatewayClient.rewritePath('/v1/offers'),

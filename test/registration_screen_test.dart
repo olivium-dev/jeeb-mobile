@@ -120,11 +120,12 @@ void main() {
       reason: 'the field must show the full 8 digits the user typed',
     );
 
-    // 2) Erase one digit → exactly 7 remain (a single contiguous edit, never a
-    // corrupted/reordered value). Send code disables because 7 < 8.
-    await tester.enterText(field, '7112345');
+    // 2) Erase down to 6 digits (a single contiguous edit, never a
+    // corrupted/reordered value). Send code disables because 6 < the 7-digit
+    // minimum (a Lebanese national number is 7 or 8 digits).
+    await tester.enterText(field, '711234');
     await tester.pump();
-    expect(cubit.state.phoneInput, '7112345');
+    expect(cubit.state.phoneInput, '711234');
     expect(cubit.state.isPhoneReady, isFalse);
     expect(
       tester
