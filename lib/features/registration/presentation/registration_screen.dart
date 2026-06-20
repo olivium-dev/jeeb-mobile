@@ -156,11 +156,25 @@ class _RegistrationViewState extends State<_RegistrationView> {
     super.dispose();
   }
 
-  void _syncControllerText(String normalised) {
-    if (_phoneController.text == normalised) return;
+  /// Re-seeds the phone field from cubit state. ONLY called on a step
+  /// transition (e.g. returning from the OTP step via "change number"), never
+  /// on a per-keystroke `phoneInput` change.
+  ///
+  /// DEFECT (Maestro real-backend P0): the previous build mirrored the cubit's
+  /// *normalised* `phoneInput` back into the controller on every keystroke. The
+  /// field is the source of truth while the user types, so that mirror-back
+  /// fought live editing: typing a 9th digit made `normalise` front-truncate to
+  /// the first 8 and overwrite the field, so erasing the (now wrong) trailing
+  /// digit dropped a valid one — the field stuck below 8 digits, `tryParse`
+  /// returned null, and `sendCode()` bailed at its guard, so no OTP was ever
+  /// requested (on-device login impossible). We now only re-seed on a genuine,
+  /// non-typing state change, and only when the text actually differs — the
+  /// equality guard preserves the user's live cursor/selection otherwise.
+  void _syncControllerText(String value) {
+    if (_phoneController.text == value) return;
     _phoneController.value = TextEditingValue(
-      text: normalised,
-      selection: TextSelection.collapsed(offset: normalised.length),
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
     );
   }
 
@@ -215,8 +229,13 @@ class _RegistrationViewState extends State<_RegistrationView> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return BlocConsumer<RegistrationCubit, RegistrationState>(
-      listenWhen: (prev, curr) =>
-          prev.step != curr.step || prev.phoneInput != curr.phoneInput,
+      // Listen on `step` ONLY. We deliberately do NOT listen on `phoneInput`:
+      // the text field owns its own text while the user types, and re-seeding it
+      // from the cubit's normalised value on every keystroke corrupted live
+      // editing (Maestro real-backend P0 — see `_syncControllerText`). We still
+      // re-seed the controller on a step transition so the field shows the right
+      // digits when the user returns from the OTP step ("change number").
+      listenWhen: (prev, curr) => prev.step != curr.step,
       listener: (context, state) async {
         _syncControllerText(state.phoneInput);
         if (state.step == RegistrationStep.otp && !_pushedOtp) {
@@ -595,10 +614,11 @@ class _PhoneField extends StatelessWidget {
       keyboardType: TextInputType.phone,
       // Keep digits, the `+` (for users who paste a `+961…` block), and
       // common separators (space, dash, parens). The cubit's `normalise`
-      // strips everything except the trailing 8 national digits and
-      // mirrors that canonical form back into the controller via
-      // `_syncControllerText` — so we don't enforce a max-length here, or
-      // we'd truncate the wrong end of a pasted +961 string.
+      // strips everything except the trailing 8 national digits for
+      // validation/sending; the field itself keeps what the user typed (we no
+      // longer mirror the normalised form back per-keystroke — that corrupted
+      // live editing, Maestro P0). No max-length here so a pasted +961 block
+      // isn't truncated at the wrong end before `normalise` sees it.
       inputFormatters: [
         FilteringTextInputFormatter.allow(RegExp(r'[\d+\s\-()]')),
       ],
