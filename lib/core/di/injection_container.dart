@@ -186,9 +186,7 @@ void configureDependencies({
 
   // T-MOB-010: DioTierRepository replaces FakeTierRepository as the DI default.
   // The screen still accepts a constructor-injected repo for widget tests.
-  sl.registerLazySingleton<TierRepository>(
-    () => DioTierRepository(sl<Dio>()),
-  );
+  sl.registerLazySingleton<TierRepository>(() => DioTierRepository(sl<Dio>()));
 
   // T-MOB-015 / W1-INT (JM-028 offer-review): DioOffersRepository provides the
   // real gateway path (GET /v1/offers?requestId=, POST /v1/offers/:id/accept →
@@ -230,10 +228,7 @@ void configureDependencies({
   // that need a per-conversation instance should call DioChatGateway directly
   // with their own resolved userId (see chat_detail_screen.dart).
   sl.registerFactory<ChatGateway>(
-    () => DioChatGateway(
-      dio: sl<Dio>(),
-      currentUserId: 'faketoken',
-    ),
+    () => DioChatGateway(dio: sl<Dio>(), currentUserId: 'faketoken'),
   );
 
   // Jeeber request feed — polling-backed until WS support is wired.
@@ -241,24 +236,15 @@ void configureDependencies({
     () => DioRequestFeedRepository(dio: sl<Dio>()),
   );
 
-  // T-MOB-FIX-001: ProhibitedItemReportService — resolved by app_router when
-  // building the jeeber-request-detail route. Without this registration the
-  // route builder's `sl<ProhibitedItemReportService>()` throws a GetIt "not
-  // registered" Bad state and red-screens the Jeeber leg (active delivery →
-  // OTP → mutual rating all unreachable). It is a pure/local, stateless
-  // service today, so it is a const lazy singleton — same shape as the sibling
-  // OfferSubmissionService that the adjacent jeeber-offer-submission route
-  // resolves. When the real prohibited-item flagging RPC lands it swaps to a
-  // Dio-backed impl here (mirroring the Dio* repositories above) without
-  // touching the route or screen.
+  // T-MOB-FIX-001 / iter3: ProhibitedItemReportService — gateway-backed
+  // POST /prohibited-items/reports. Keeping the service type stable preserves
+  // the route/test seam that originally fixed the GetIt registration crash.
   sl.registerLazySingleton<ProhibitedItemReportService>(
-    () => const ProhibitedItemReportService(),
+    () => ProhibitedItemReportService(sl<Dio>()),
   );
 
   // KYC — submit + status from auth-service via gateway.
-  sl.registerLazySingleton<KycGateway>(
-    () => DioKycGateway(sl<Dio>()),
-  );
+  sl.registerLazySingleton<KycGateway>(() => DioKycGateway(sl<Dio>()));
 
   // Rating — post-delivery star rating via score-taking-service.
   sl.registerLazySingleton<RatingRepository>(

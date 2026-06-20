@@ -19,7 +19,10 @@ class RequestSummaryScreen extends StatelessWidget {
       listeners: [
         BlocListener<RequestSummaryCubit, RequestSummaryState>(
           listenWhen: (p, c) => !p.isSubmitted && c.isSubmitted,
-          listener: (context, state) => context.go('/'),
+          listener: (context, state) {
+            showOmdsSnackbar(context, message: 'Request submitted');
+            context.go('/');
+          },
         ),
         BlocListener<RequestSummaryCubit, RequestSummaryState>(
           listenWhen: (p, c) => p.error == null && c.error != null,
@@ -68,10 +71,7 @@ class _RequestSummaryBody extends StatelessWidget {
         if (draft.pickupAddress != null)
           _SectionCard(title: 'Pickup', child: Text(draft.pickupAddress!)),
         if (draft.dropoffAddress != null)
-          _SectionCard(
-            title: 'Drop-off',
-            child: Text(draft.dropoffAddress!),
-          ),
+          _SectionCard(title: 'Drop-off', child: Text(draft.dropoffAddress!)),
         const SizedBox(height: Spacing.xLarge),
         _SubmitButton(isSubmitting: state.isSubmitting),
       ],

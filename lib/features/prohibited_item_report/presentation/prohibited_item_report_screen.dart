@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../jeeber_request_detail/domain/services/prohibited_item_report_service.dart';
+
 class ProhibitedItemReportScreen extends StatefulWidget {
-  const ProhibitedItemReportScreen({super.key, required this.requestId});
+  const ProhibitedItemReportScreen({
+    super.key,
+    required this.requestId,
+    this.reportService,
+  });
+
   final String requestId;
+  final ProhibitedItemReportService? reportService;
 
   @override
   State<ProhibitedItemReportScreen> createState() =>
@@ -13,6 +21,7 @@ class ProhibitedItemReportScreen extends StatefulWidget {
 class _ProhibitedItemReportScreenState
     extends State<ProhibitedItemReportScreen> {
   final _descriptionController = TextEditingController();
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -45,16 +54,39 @@ class _ProhibitedItemReportScreenState
               onTap: () {},
             ),
             const Spacer(),
-            OmdsPrimaryButton(
+            OmdsLoadingButton(
               text: 'Report Item',
+              isLoading: _isSubmitting,
               isEnabled: _descriptionController.text.isNotEmpty,
               backgroundColor: Theme.of(context).colorScheme.error,
-              onTap: () => Navigator.of(context).pop(true),
+              onTap: _submit,
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _submit() async {
+    final reason = _descriptionController.text.trim();
+    if (reason.isEmpty || _isSubmitting) return;
+    setState(() => _isSubmitting = true);
+    try {
+      await widget.reportService?.report(
+        requestId: widget.requestId,
+        reason: reason,
+      );
+      if (!mounted) return;
+      showOmdsSnackbar(context, message: 'Report submitted');
+      Navigator.of(context).pop(true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      showOmdsErrorSnackbar(
+        context,
+        message: 'Could not submit the report. Please try again.',
+      );
+    }
   }
 }
 

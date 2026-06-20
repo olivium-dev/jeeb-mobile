@@ -43,11 +43,10 @@ class _JeeberRequestDetailScreenState extends State<JeeberRequestDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: _RequestSummary(request: widget.request),
-            ),
+            Expanded(child: _RequestSummary(request: widget.request)),
             _ActionBar(
               onMakeOffer: _openOfferForm,
+              onReport: _openReportForm,
               onDecline: () => widget.onDeclined(widget.request.id),
             ),
           ],
@@ -59,6 +58,13 @@ class _JeeberRequestDetailScreenState extends State<JeeberRequestDetailScreen> {
   void _openOfferForm() {
     context.pushNamed(
       'jeeber-offer-submission',
+      pathParameters: {'id': widget.request.id},
+    );
+  }
+
+  void _openReportForm() {
+    context.pushNamed(
+      'prohibited-item-report',
       pathParameters: {'id': widget.request.id},
     );
   }
@@ -139,7 +145,9 @@ class _DetailRow extends StatelessWidget {
       children: [
         _DetailRowBadge(icon: icon),
         const SizedBox(width: Spacing.medium),
-        Expanded(child: _DetailRowText(label: label, value: value)),
+        Expanded(
+          child: _DetailRowText(label: label, value: value),
+        ),
       ],
     );
   }
@@ -184,8 +192,9 @@ class _DetailRowText extends StatelessWidget {
       children: [
         Text(
           label,
-          style: theme.textTheme.labelSmall
-              ?.copyWith(color: colorScheme.onSurfaceVariant),
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
         ),
         const SizedBox(height: Sizes.threeXSmall),
         Text(
@@ -203,9 +212,14 @@ class _DetailRowText extends StatelessWidget {
 /// Bottom action area: primary "Make offer" (the offer-form entry) and an
 /// outlined "Decline". Each CTA carries a Semantics identifier for Maestro QA.
 class _ActionBar extends StatelessWidget {
-  const _ActionBar({required this.onMakeOffer, required this.onDecline});
+  const _ActionBar({
+    required this.onMakeOffer,
+    required this.onReport,
+    required this.onDecline,
+  });
 
   final VoidCallback onMakeOffer;
+  final VoidCallback onReport;
   final VoidCallback onDecline;
 
   @override
@@ -232,6 +246,17 @@ class _ActionBar extends StatelessWidget {
               text: l10n.jeeberRequestDetailDeclineButton,
               variant: OmdsButtonVariant.outlined,
               onTap: onDecline,
+            ),
+          ),
+          const SizedBox(height: Spacing.small),
+          Semantics(
+            identifier: 'jeeber-request-detail-report-prohibited',
+            button: true,
+            child: OmdsPrimaryButton(
+              text: 'Report prohibited item',
+              variant: OmdsButtonVariant.text,
+              textColor: Theme.of(context).colorScheme.error,
+              onTap: onReport,
             ),
           ),
         ],

@@ -59,7 +59,9 @@ class JeeberFeedTabView extends StatefulWidget {
   static const Key tierStripKey = Key('jeeber-feed-tab-view-tier-strip');
   static const Key listKey = Key('jeeber-feed-tab-view-list');
   static const Key pendingListKey = Key('jeeber-feed-tab-view-pending-list');
-  static const Key offlineBannerKey = Key('jeeber-feed-tab-view-offline-banner');
+  static const Key offlineBannerKey = Key(
+    'jeeber-feed-tab-view-offline-banner',
+  );
 
   /// Profile display name for the shared greeting.
   final String? profileName;
@@ -170,16 +172,13 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
   }
 
   List<Widget> _feedControls() => [
-        _FeedSearchBar(onChanged: (q) => setState(() => _query = q)),
-        const SizedBox(height: Spacing.small),
-        _FeedTabStrip(active: _activeTab, onChanged: _onTabChanged),
-        const SizedBox(height: Spacing.small),
-        if (_activeTab == JeeberFeedTab.requests)
-          _TierFilterStrip(
-            active: _tierFilter,
-            onChanged: _onTierChanged,
-          ),
-      ];
+    _FeedSearchBar(onChanged: (q) => setState(() => _query = q)),
+    const SizedBox(height: Spacing.small),
+    _FeedTabStrip(active: _activeTab, onChanged: _onTabChanged),
+    const SizedBox(height: Spacing.small),
+    if (_activeTab == JeeberFeedTab.requests)
+      _TierFilterStrip(active: _tierFilter, onChanged: _onTierChanged),
+  ];
 
   Widget _feedContent(bool isOffline) {
     if (isOffline) return const _OfflineEmptyBody();
@@ -247,7 +246,9 @@ class _OfflineBannerContent extends StatelessWidget {
       children: [
         Icon(Icons.wifi_off, color: color, size: Sizes.large),
         const SizedBox(width: Spacing.small),
-        Expanded(child: _OfflineBannerText(l10n: l10n, color: color)),
+        Expanded(
+          child: _OfflineBannerText(l10n: l10n, color: color),
+        ),
       ],
     );
   }
@@ -319,11 +320,23 @@ class _TierFilterStrip extends StatelessWidget {
   }
 
   List<OmdsFilterOption<JeeberTierFilter>> _filters(AppLocalizations l10n) => [
-        OmdsFilterOption(label: l10n.jeeberFeedTierAll, value: JeeberTierFilter.all),
-        OmdsFilterOption(label: l10n.jeeberFeedTierFlash, value: JeeberTierFilter.flash),
-        OmdsFilterOption(label: l10n.jeeberFeedTierExpress, value: JeeberTierFilter.express),
-        OmdsFilterOption(label: l10n.jeeberFeedTierStandard, value: JeeberTierFilter.standard),
-      ];
+    OmdsFilterOption(
+      label: l10n.jeeberFeedTierAll,
+      value: JeeberTierFilter.all,
+    ),
+    OmdsFilterOption(
+      label: l10n.jeeberFeedTierFlash,
+      value: JeeberTierFilter.flash,
+    ),
+    OmdsFilterOption(
+      label: l10n.jeeberFeedTierExpress,
+      value: JeeberTierFilter.express,
+    ),
+    OmdsFilterOption(
+      label: l10n.jeeberFeedTierStandard,
+      value: JeeberTierFilter.standard,
+    ),
+  ];
 }
 
 class _FeedSearchBar extends StatelessWidget {
@@ -368,7 +381,9 @@ class _FeedTabStrip extends StatelessWidget {
     return SingleChildScrollView(
       key: JeeberFeedTabView.tabStripKey,
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsetsDirectional.symmetric(horizontal: Spacing.medium),
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: Spacing.medium,
+      ),
       child: Row(
         children: [
           _tabChip(
@@ -478,19 +493,21 @@ class _FeedRequestListBody extends StatelessWidget {
   /// query.
   List<DeliveryRequest> _visibleRequests(List<DeliveryRequest> source) {
     final lowered = query.trim().toLowerCase();
-    return source.where((r) {
-      if (lowered.isNotEmpty && !_matchesQuery(r, lowered)) return false;
-      if (r.feedStatus != _statusForTab(activeTab)) return false;
-      if (!_matchesTier(r)) return false;
-      return true;
-    }).toList(growable: false);
+    return source
+        .where((r) {
+          if (lowered.isNotEmpty && !_matchesQuery(r, lowered)) return false;
+          if (r.feedStatus != _statusForTab(activeTab)) return false;
+          if (!_matchesTier(r)) return false;
+          return true;
+        })
+        .toList(growable: false);
   }
 
   JeeberFeedItemStatus _statusForTab(JeeberFeedTab tab) => switch (tab) {
-        JeeberFeedTab.requests => JeeberFeedItemStatus.incoming,
-        JeeberFeedTab.pendingResponse => JeeberFeedItemStatus.pendingResponse,
-        JeeberFeedTab.replies => JeeberFeedItemStatus.accepted,
-      };
+    JeeberFeedTab.requests => JeeberFeedItemStatus.incoming,
+    JeeberFeedTab.pendingResponse => JeeberFeedItemStatus.pendingResponse,
+    JeeberFeedTab.replies => JeeberFeedItemStatus.accepted,
+  };
 
   /// Returns true when the request matches the selected tier filter (AC2).
   ///
@@ -499,11 +516,9 @@ class _FeedRequestListBody extends StatelessWidget {
     return switch (tierFilter) {
       JeeberTierFilter.all => true,
       JeeberTierFilter.flash => r.tier == JeeberRequestTier.flash,
-      JeeberTierFilter.express =>
-        r.tier == JeeberRequestTier.standard,
+      JeeberTierFilter.express => r.tier == JeeberRequestTier.standard,
       JeeberTierFilter.standard =>
-        r.tier == JeeberRequestTier.light ||
-            r.tier == JeeberRequestTier.bulk,
+        r.tier == JeeberRequestTier.light || r.tier == JeeberRequestTier.bulk,
     };
   }
 
@@ -539,16 +554,36 @@ class _FeedListView extends StatelessWidget {
       itemCount: requests.length,
       itemBuilder: (_, index) => JeeberFeedCard(
         request: requests[index],
-        // JM-048: card tap opens detail; the "Offer" button routes through the
-        // KYC gate / composer (D38), distinct from a plain detail open.
-        onTap: onOpenRequest == null
-            ? null
-            : () => onOpenRequest!(requests[index]),
+        // JM-048: incoming card tap opens detail; the "Offer" button routes
+        // through the KYC gate / composer (D38). Accepted cards are already
+        // delivery-scoped, so both row tap and the action pill open the active
+        // delivery screen instead of the make-offer detail.
+        onTap: () => _openRequest(context, requests[index]),
         onIgnore: () => cubit.decline(requests[index].id),
         onOffer: () => onMakeOffer(requests[index]),
-        onAdvanceStatus: () => cubit.accept(requests[index].id),
+        onAdvanceStatus: () => _openAcceptedDelivery(context, requests[index]),
         exposeMakeOfferId: index == firstIncomingIndex,
       ),
+    );
+  }
+
+  void _openRequest(BuildContext context, DeliveryRequest request) {
+    if (request.feedStatus == JeeberFeedItemStatus.accepted) {
+      _openAcceptedDelivery(context, request);
+      return;
+    }
+    onOpenRequest?.call(request);
+  }
+
+  void _openAcceptedDelivery(BuildContext context, DeliveryRequest request) {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) {
+      onOpenRequest?.call(request);
+      return;
+    }
+    context.pushNamed(
+      'jeeber-active-delivery',
+      pathParameters: {'id': request.id},
     );
   }
 }
@@ -616,9 +651,7 @@ class _PendingOffersList extends StatelessWidget {
       return const Center(child: CircularProgressIndicator());
     }
     if (state.offers.isEmpty) {
-      return _PendingEmptyState(
-        l10n: AppLocalizations.of(context),
-      );
+      return _PendingEmptyState(l10n: AppLocalizations.of(context));
     }
     return ListView.builder(
       key: JeeberFeedTabView.pendingListKey,
@@ -657,9 +690,7 @@ class _PendingOffersBackBar extends StatelessWidget {
         identifier: 'pending_offers_back',
         button: true,
         container: true,
-        child: BackButton(
-          onPressed: onBack ?? () {},
-        ),
+        child: BackButton(onPressed: onBack ?? () {}),
       ),
     );
   }

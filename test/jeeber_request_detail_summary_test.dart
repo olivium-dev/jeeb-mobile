@@ -20,19 +20,20 @@ import 'support/sync_app_localizations.dart';
 
 void main() {
   Widget harness({Locale locale = const Locale('en')}) => wrapForTest(
-        JeeberRequestDetailScreen(
-          request: const FeedRequest(
-            id: 'REQ-001',
-            shortLabel: '2kg tomatoes from the souq',
-          ),
-          reportService: const ProhibitedItemReportService(),
-          onDeclined: (_) {},
-        ),
-        locale: locale,
-      );
+    JeeberRequestDetailScreen(
+      request: const FeedRequest(
+        id: 'REQ-001',
+        shortLabel: '2kg tomatoes from the souq',
+      ),
+      reportService: const ProhibitedItemReportService(),
+      onDeclined: (_) {},
+    ),
+    locale: locale,
+  );
 
-  testWidgets('summary renders an OMDS section card (not a flat Text block)',
-      (tester) async {
+  testWidgets('summary renders an OMDS section card (not a flat Text block)', (
+    tester,
+  ) async {
     await tester.pumpWidget(harness());
     await tester.pumpAndSettle();
 
@@ -44,32 +45,36 @@ void main() {
   });
 
   testWidgets(
-      'surfaces BOTH present fields: pickup label + request reference',
-      (tester) async {
-    await tester.pumpWidget(harness());
-    await tester.pumpAndSettle();
+    'surfaces BOTH present fields: pickup label + request reference',
+    (tester) async {
+      await tester.pumpWidget(harness());
+      await tester.pumpAndSettle();
 
-    // shortLabel is the pickup, now under the "Pickup" row (was mislabelled
-    // under the description header).
-    expect(find.text('Pickup'), findsOneWidget);
-    expect(find.text('2kg tomatoes from the souq'), findsOneWidget);
+      // shortLabel is the pickup, now under the "Pickup" row (was mislabelled
+      // under the description header).
+      expect(find.text('Pickup'), findsOneWidget);
+      expect(find.text('2kg tomatoes from the souq'), findsOneWidget);
 
-    // FAIL-WITHOUT: the prior flat layout showed only shortLabel — it never
-    // surfaced the request reference. This asserts the id is now visible.
-    expect(find.text('Request reference'), findsOneWidget);
-    expect(find.text('REQ-001'), findsOneWidget);
-  });
+      // FAIL-WITHOUT: the prior flat layout showed only shortLabel — it never
+      // surfaced the request reference. This asserts the id is now visible.
+      expect(find.text('Request reference'), findsOneWidget);
+      expect(find.text('REQ-001'), findsOneWidget);
+    },
+  );
 
   testWidgets('the offer + decline CTAs remain intact', (tester) async {
     await tester.pumpWidget(harness());
     await tester.pumpAndSettle();
 
     // Both CTAs still present (enrichment must not regress the action bar).
-    expect(find.byType(OmdsPrimaryButton), findsNWidgets(2));
+    expect(find.text('Send your offer'), findsOneWidget);
+    expect(find.text('Decline request'), findsOneWidget);
+    expect(find.byType(OmdsPrimaryButton), findsAtLeastNWidgets(2));
   });
 
-  testWidgets('Arabic locale renders the localized field labels',
-      (tester) async {
+  testWidgets('Arabic locale renders the localized field labels', (
+    tester,
+  ) async {
     await tester.pumpWidget(harness(locale: const Locale('ar')));
     await tester.pumpAndSettle();
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
 
+import '../../../../core/widgets/jeeb_map_preview_canvas.dart';
 import '../../../../l10n/app_localizations.dart';
 
 /// Full-bleed map surface for the order-tracking screen (Figma 56560:1772).
@@ -25,28 +25,10 @@ class TrackingMapSurface extends StatelessWidget {
       identifier: 'tracking_map',
       image: true,
       label: l10n.trackingMapSemanticLabel,
-      child: Container(
+      child: const SizedBox.expand(
         key: rootKey,
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        alignment: Alignment.center,
-        child: const _MapPlaceholderMark(),
+        child: JeebMapPreviewCanvas(showRoute: true, showCenterMarker: true),
       ),
-    );
-  }
-}
-
-class _MapPlaceholderMark extends StatelessWidget {
-  const _MapPlaceholderMark();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final iconColor =
-        scheme.onSurfaceVariant.withValues(alpha: UIConstants.opacityMedium);
-    return Icon(
-      Icons.navigation_outlined,
-      size: Sizes.fiveXLarge,
-      color: iconColor,
     );
   }
 }
