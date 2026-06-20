@@ -25,20 +25,31 @@ class EarningsDeliveryItem extends Equatable {
   });
 
   factory EarningsDeliveryItem.fromJson(Map<String, dynamic> json) {
-    // Wire shape: `{ deliveryId, amount:{value,currency}, syncedAt }`. Tolerate
-    // both the nested `amount` object and a flat `value` (defensive parse, §4).
+    // LIVE wire shape (gateway `GET /v1/jeeb/earnings` entry, §6B-confirmed):
+    //   `{ deliveryId, gross, commission, net, currency, deliveredAt, tierName }`
+    // — `net` is the cash the Jeeber keeps for that delivery (after the platform
+    // commission), `commission` is the captured platform fee (D37). The legacy
+    // mock shape `{ amount:{value,currency}, syncedAt }` is still tolerated
+    // (defensive parse, §4) so the existing fixtures/tests keep passing.
     final amount = json['amount'];
-    final double cash = amount is Map<String, dynamic>
-        ? (amount['value'] as num?)?.toDouble() ?? 0
-        : (json['value'] as num?)?.toDouble() ?? 0;
-    final String currency = amount is Map<String, dynamic>
-        ? amount['currency'] as String? ?? 'USD'
-        : json['currency'] as String? ?? 'USD';
-    // Explicit fee if the backend ever surfaces one; otherwise derive (D37).
-    final explicitFee = (json['fee'] as num?)?.toDouble();
+    final double cash = (json['net'] as num?)?.toDouble() ??
+        (amount is Map<String, dynamic>
+            ? (amount['value'] as num?)?.toDouble() ?? 0
+            : (json['value'] as num?)?.toDouble() ?? 0);
+    final String currency = (json['currency'] as String?) ??
+        (amount is Map<String, dynamic>
+            ? amount['currency'] as String? ?? 'USD'
+            : 'USD');
+    // Explicit fee: the live `commission`, else a surfaced `fee`; otherwise
+    // derive (D37).
+    final explicitFee =
+        (json['commission'] as num?)?.toDouble() ?? (json['fee'] as num?)?.toDouble();
     return EarningsDeliveryItem(
       deliveryId: json['deliveryId'] as String? ?? '',
-      date: json['syncedAt'] as String? ?? json['date'] as String? ?? '',
+      date: json['deliveredAt'] as String? ??
+          json['syncedAt'] as String? ??
+          json['date'] as String? ??
+          '',
       cashCollected: cash,
       feePaid: explicitFee ?? _deriveFee(cash),
       currency: currency,
@@ -87,28 +98,40 @@ class EarningsSummary extends Equatable {
   });
 
   factory EarningsSummary.fromJson(Map<String, dynamic> json) {
-    final rawDeliveries = (json['items'] as List<dynamic>? ??
+    // LIVE wire shape (gateway `GET /v1/jeeb/earnings`, §6B-confirmed):
+    //   `{ rowCount, totalGross, totalCommission, totalNet, currency,
+    //      entries:[{ deliveryId, gross, commission, net, ... }] }`
+    // The previous parser keyed on `items`/`totalEarnings`/`feesPaid`/
+    // `deliveryCount`, NONE of which the gateway emits — so every value bound to
+    // 0 even though the 200 body carried real earnings (the §6B FAIL: net 115.37
+    // rendered as 0.00). Read the real keys, keeping the legacy mock keys as
+    // fallbacks so existing fixtures/tests are unaffected.
+    final rawDeliveries = (json['entries'] as List<dynamic>? ??
+            json['items'] as List<dynamic>? ??
             json['deliveries'] as List<dynamic>? ??
             const [])
         .whereType<Map<String, dynamic>>()
         .map(EarningsDeliveryItem.fromJson)
         .toList();
 
-    // Total cash earned (off-wallet COD): prefer the wire's `totalEarnings`
-    // rollup; fall back to summing the entries.
+    // Total cash the Jeeber keeps (net, off-wallet COD): prefer the live
+    // `totalNet` rollup, then the legacy `totalEarnings`, else sum the entries.
     final totalEarnings = json['totalEarnings'];
-    final double totalCash = totalEarnings is Map<String, dynamic>
-        ? (totalEarnings['value'] as num?)?.toDouble() ??
-            _sumCash(rawDeliveries)
-        : (totalEarnings as num?)?.toDouble() ?? _sumCash(rawDeliveries);
-    final String currency = totalEarnings is Map<String, dynamic>
-        ? totalEarnings['currency'] as String? ??
-            (rawDeliveries.isNotEmpty ? rawDeliveries.first.currency : 'USD')
-        : (rawDeliveries.isNotEmpty ? rawDeliveries.first.currency : 'USD');
+    final double totalCash = (json['totalNet'] as num?)?.toDouble() ??
+        (totalEarnings is Map<String, dynamic>
+            ? (totalEarnings['value'] as num?)?.toDouble() ??
+                _sumCash(rawDeliveries)
+            : (totalEarnings as num?)?.toDouble() ?? _sumCash(rawDeliveries));
+    final String currency = (json['currency'] as String?) ??
+        (totalEarnings is Map<String, dynamic>
+            ? totalEarnings['currency'] as String? ??
+                (rawDeliveries.isNotEmpty ? rawDeliveries.first.currency : 'USD')
+            : (rawDeliveries.isNotEmpty ? rawDeliveries.first.currency : 'USD'));
 
-    // Fees paid: prefer an explicit wire total (`feesPaid`/`totalFees`), else
-    // sum the per-delivery derived 10% (D37).
-    final explicitFees = (json['feesPaid'] as num?)?.toDouble() ??
+    // Platform fees: prefer the live `totalCommission` rollup, then a surfaced
+    // `feesPaid`/`totalFees`, else sum the per-delivery commission/derived fee.
+    final explicitFees = (json['totalCommission'] as num?)?.toDouble() ??
+        (json['feesPaid'] as num?)?.toDouble() ??
         ((json['totalFees'] as Map<String, dynamic>?)?['value'] as num?)
             ?.toDouble();
 
@@ -116,7 +139,9 @@ class EarningsSummary extends Equatable {
       totalCashEarned: totalCash,
       feesPaid: explicitFees ?? _sumFees(rawDeliveries),
       currency: currency,
-      deliveryCount: json['deliveryCount'] as int? ?? rawDeliveries.length,
+      deliveryCount: (json['rowCount'] as num?)?.toInt() ??
+          json['deliveryCount'] as int? ??
+          rawDeliveries.length,
       memberSince:
           json['memberSince'] as String? ?? json['createdAt'] as String?,
       deliveries: rawDeliveries,
