@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/session/greeting_profile_cubit.dart';
 import '../../../../l10n/app_localizations.dart';
 
 /// Greeting header shown at the top of every Jeeber home state.
@@ -10,6 +12,13 @@ import '../../../../l10n/app_localizations.dart';
 /// 56535:1525). The header is intentionally identical across the three
 /// Jeeber-home states (unregistered / available-no-requests /
 /// available-with-requests) — only the body below it changes.
+///
+/// P0-X06: when an ambient [GreetingProfileCubit] is provided above this widget
+/// (the DashboardTab shell wires it from the live `GET /users/me`), its real
+/// name + avatar take precedence over the threaded [name]/[avatarUrl] so the
+/// header shows "Hello, {name}" + the real avatar instead of "Welcome back" +
+/// a "?" placeholder. With no ambient cubit (bare widget tests, the
+/// unregistered upsell path) the threaded values apply unchanged.
 class JeeberHomeGreeting extends StatelessWidget {
   const JeeberHomeGreeting({super.key, this.name, this.avatarUrl});
 
@@ -25,6 +34,14 @@ class JeeberHomeGreeting extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final profile = _readGreetingProfile(context);
+    final resolvedName = (profile?.name?.trim().isNotEmpty ?? false)
+        ? profile!.name
+        : name;
+    final resolvedAvatar =
+        (profile?.avatarUrl?.trim().isNotEmpty ?? false)
+            ? profile!.avatarUrl
+            : avatarUrl;
     return Padding(
       key: rootKey,
       padding: const EdgeInsetsDirectional.fromSTEB(
@@ -36,12 +53,22 @@ class JeeberHomeGreeting extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _GreetingRow(name: name, avatarUrl: avatarUrl),
+          _GreetingRow(name: resolvedName, avatarUrl: resolvedAvatar),
           const SizedBox(height: Sizes.threeXSmall),
           const _GreetingHeadline(),
         ],
       ),
     );
+  }
+
+  /// Reads the ambient [GreetingProfileCubit] state, or `null` when no provider
+  /// is mounted above this widget (e.g. a bare widget test / the upsell path).
+  static GreetingProfileState? _readGreetingProfile(BuildContext context) {
+    try {
+      return context.watch<GreetingProfileCubit>().state;
+    } on Object {
+      return null;
+    }
   }
 }
 
@@ -111,7 +138,9 @@ class _GreetingLine extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final trimmed = name?.trim();
     if (trimmed == null || trimmed.isEmpty) return l10n.homeGreetingFallback;
-    return l10n.homeGreetingNamed(trimmed);
+    // Greet with the first name only ("Hello, Sami", not "Hello, Sami Fawaz").
+    final firstName = trimmed.split(RegExp(r'\s+')).first;
+    return l10n.homeGreetingNamed(firstName);
   }
 }
 

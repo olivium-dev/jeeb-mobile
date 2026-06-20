@@ -134,6 +134,30 @@ void main() {
     expect(find.bySemanticsIdentifier('notif_row_notif-005'), findsOneWidget);
   });
 
+  // P0-X08 regression: each row's eyebrow (category, derived from `kind`) must
+  // be DISTINCT from its title (the payload headline) — never the same string
+  // rendered twice (the "collapsed hierarchy" fixture bug). The `offer` kind
+  // eyebrow is "New offer"; the title is "title-notif-001". Both must render,
+  // and the eyebrow must NOT equal the title.
+  testWidgets('row eyebrow (category) is distinct from the title (P0-X08)',
+      (tester) async {
+    await pump(
+      tester,
+      _ScriptedRepository([
+        _item('notif-001', NotificationKind.offer),
+      ]),
+    );
+
+    // Eyebrow = the per-kind category label (independent of the payload title).
+    expect(find.text('New offer'), findsOneWidget);
+    // Title = the unique payload headline (NOT the category label).
+    expect(find.text('title-notif-001'), findsOneWidget);
+    // Body = the distinct payload body.
+    expect(find.text('body-notif-001'), findsOneWidget);
+    // The eyebrow string is never reused as the title (no duplicate render).
+    expect(find.text('New offer'), findsOneWidget);
+  });
+
   testWidgets('empty inbox shows the empty state (loaded sub-state)',
       (tester) async {
     await pump(tester, _ScriptedRepository(const []));
