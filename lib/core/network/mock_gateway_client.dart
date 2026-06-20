@@ -39,14 +39,22 @@ class MockGatewayClient {
     defaultValue: 'http://192.168.2.33:4010',
   );
 
-  /// When `true` (current) every gateway path is rewritten to the Express
-  /// mock's service-prefixed routes (`/auth-service/...`, `/offer-service/v1/...`)
+  /// When `true` every gateway path is rewritten to the Express mock's
+  /// service-prefixed routes (`/auth-service/...`, `/offer-service/v1/...`)
   /// and sent to [mockBaseUrl] = the Express mock on :4010.
   ///
-  /// When `false` every path passes through unchanged to a gateway-shaped mock
-  /// (e.g. Mockoon) that speaks the raw gateway contract (`/v1/auth/otp/request`).
-  /// If you flip this to `false`, also override [mockBaseUrl] to that mock's port.
-  static const bool useMockPrefixes = true;
+  /// When `false` (the production/device default) every path passes through
+  /// unchanged — the app speaks the raw gateway contract (`/v1/auth/otp/request`,
+  /// `/v1/jeeb/wallet`, …) directly to [mockBaseUrl], which must be a real
+  /// gateway (or Mockoon :3055) that serves those /v1/* paths.
+  ///
+  /// Controlled via dart-define at build time:
+  ///   --dart-define=JEEB_USE_MOCK_PREFIXES=true   → Express mock on :4010
+  ///   --dart-define=JEEB_USE_MOCK_PREFIXES=false  → real gateway (device builds)
+  /// Default is `false` so physical-device and CI builds default to live-gateway
+  /// mode; only explicit local-mock builds need to pass `true`.
+  static const bool useMockPrefixes =
+      bool.fromEnvironment('JEEB_USE_MOCK_PREFIXES', defaultValue: false);
 
   static const Map<String, String> _pathToServicePrefix = {
     // B1 (W-1) — gateway `/v1/auth/*` → Express mock `/auth-service/auth/*`.
