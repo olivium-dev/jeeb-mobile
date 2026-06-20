@@ -54,7 +54,7 @@ import '../../features/wallet/domain/wallet_repository.dart';
 import '../../features/wallet/domain/wallet_transaction_repository.dart';
 import '../../features/notifications/data/dio_notifications_repository.dart';
 import '../../features/notifications/domain/notifications_repository.dart';
-import '../../features/support/data/stub_support_repository.dart';
+import '../../features/support/data/dio_support_repository.dart';
 import '../../features/support/domain/support_repository.dart';
 import '../../features/dispute_status/data/dio_dispute_status_repository.dart';
 import '../../features/dispute_status/domain/dispute_status_repository.dart';
@@ -412,15 +412,19 @@ void configureDependencies({
     ),
   );
 
-  // INTEGRATOR-STUB(JM-063): the support-ticket service (S1) is backend-owned
-  // and NOT yet mounted on :4010 (42_GUARDRAILS_MOCK §4). Bind the in-memory
-  // StubSupportRepository so the support form (SupportTicketScreen, JM-063) +
-  // every inbound edge (account-status / dispute-status / kyc-rejected →
-  // support, D76) build and render NOW. SWAP WHEN S1 LANDS: replace
-  // `StubSupportRepository()` with `DioSupportRepository(sl<Dio>())` (+ add the
-  // `/v1/support` rewrite key) — no screen change.
+  // LIVE(JM-063): the support-ticket service (S1) has landed — the gateway now
+  // exposes the support routes (`POST /v1/support/tickets`, `GET .../{id}`,
+  // `GET .../tickets`, `GET .../categories`) backed by jeeb-state-service
+  // (gateway PR #200), and the `/v1/support` rewrite key is now declared
+  // (mock_gateway_client.dart), so this binds the REAL Dio repo. The support
+  // form (SupportTicketScreen, JM-063) + every inbound edge (account-status /
+  // dispute-status / kyc-rejected → support, D76) resolve this against
+  // `/v1/support/tickets`. Gateway #200 reconciles the DTO drift (tolerates the
+  // mobile `orderRef` field + the `delivery`/`kycAppeal` category enum), so no
+  // screen/DTO change is needed. The in-memory StubSupportRepository remains as
+  // the integrator fallback and honors the same [SupportRepository] contract.
   sl.registerLazySingleton<SupportRepository>(
-    () => const StubSupportRepository(),
+    () => DioSupportRepository(sl<Dio>()),
   );
 
   // JM-065 dispute-status: the compliment-service dispute endpoints

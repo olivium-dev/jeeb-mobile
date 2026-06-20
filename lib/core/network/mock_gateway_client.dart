@@ -102,6 +102,12 @@ class MockGatewayClient {
     '/v1/contracts': '/contract-signing-service/v1/templates',
     '/v1/moderation/jeeb': '/ban-service/v1/moderation/jeeb',
     '/v1/disputes': '/compliment-service/v1/disputes',
+    // JM-063 (S1 LIVE): the support-ticket routes are now mounted (gateway PR
+    // #200). ONE key covers create (`POST /v1/support/tickets`), get-by-id,
+    // list and categories — all share the `/v1/support` prefix. It is a SIBLING
+    // of every other `/v1/*` key (none is a prefix of the other), so declaration
+    // order is safe (first-match-wins, 42_GUARDRAILS_MOCK §1.2).
+    '/v1/support': '/support-service/v1/support',
     '/v1/payments/cod_jeeb': '/unified-payment-gateway/v1/payments/cod_jeeb',
     // W3-INT (JM-053/055/056): the wallet read model lives on the wallet-service
     // alongside earnings. ONE key covers the W1m balance (`/v1/jeeb/wallet`), the
