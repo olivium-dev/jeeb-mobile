@@ -6,7 +6,9 @@
 // AUTH seam provably reaches :4010.
 //
 // Verifies that:
-//   1. mockBaseUrl defaults to 10.0.2.2:4010 (Express mock on the emulator).
+//   1. mockBaseUrl defaults to the host LAN IP on :4010 (#37 — reachable from
+//      iOS sims/devices, not just the Android-emulator loopback). Port stays
+//      :4010 to match useMockPrefixes = true.
 //   2. useMockPrefixes is true (paths are rewritten to service prefixes).
 //   3. webSocketUrl targets port 3056 (companion WebSocket shim).
 //   4. rewritePath maps the app's /v1/auth/* paths onto /auth-service/auth/*.
@@ -17,8 +19,11 @@ import 'package:jeeb_mobile/core/network/mock_gateway_client.dart';
 
 void main() {
   group('MockGatewayClient config (W-1 foundation)', () {
-    test('mockBaseUrl defaults to Android emulator loopback on port 4010', () {
-      expect(MockGatewayClient.mockBaseUrl, 'http://10.0.2.2:4010');
+    test('mockBaseUrl defaults to the host LAN IP on port 4010 (#37)', () {
+      // #37: default swapped from the Android-emulator-only 10.0.2.2 loopback
+      // to the host LAN IP so iOS sims and physical devices reach the mock
+      // out of the box. Port stays :4010 (B0/W-1) to match useMockPrefixes.
+      expect(MockGatewayClient.mockBaseUrl, 'http://192.168.2.33:4010');
     });
 
     test('useMockPrefixes is true — paths are rewritten to service prefixes', () {

@@ -130,11 +130,13 @@ void main() {
         findsNothing,
       );
 
-      // Tap the 4th star then submit.
-      final stars = find.byIcon(Icons.star);
-      await tester.ensureVisible(stars.at(3));
+      // Tap the 4th star then submit. The OMDS [OmdsStarRating] renders empty
+      // stars as `Icons.star_border` until selected (filled = `Icons.star`), so
+      // with the initial rating of 0 the tappable stars are the borders.
+      final emptyStars = find.byIcon(Icons.star_border);
+      await tester.ensureVisible(emptyStars.at(3));
       await tester.pump();
-      await tester.tap(stars.at(3));
+      await tester.tap(emptyStars.at(3));
       await tester.pump();
       await tester.tap(find.bySemanticsIdentifier('rating_submit_cta'));
       await tester.pumpAndSettle();
