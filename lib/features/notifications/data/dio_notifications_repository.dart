@@ -55,6 +55,26 @@ class DioNotificationsRepository implements NotificationsRepository {
     }
   }
 
+  @override
+  Future<void> confirmReceipt(String deliveryId) async {
+    // Inline confirm-receipt (notif-inline-confirm-receipt, D70): transition
+    // the delivery to Done with the customer-confirmed trigger. The platform
+    // commission / COD ledger is a server concern (D11) — the inline action
+    // never sends a fee, mirroring the delivered-receipt screen's contract.
+    try {
+      await _dio.post<Map<String, dynamic>>(
+        '/v1/delivery/status/transition',
+        data: <String, dynamic>{
+          'deliveryId': deliveryId,
+          'to': 'Done',
+          'trigger': 'customer_confirmed_receipt',
+        },
+      );
+    } on DioException catch (e) {
+      throw NotificationsRepositoryException(_map(e), e.message);
+    }
+  }
+
   NotificationItem _item(Map<String, dynamic> json) {
     return NotificationItem(
       id: _str(json['id']) ?? '',

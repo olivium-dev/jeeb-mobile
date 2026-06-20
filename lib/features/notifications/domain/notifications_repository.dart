@@ -81,4 +81,12 @@ abstract class NotificationsRepository {
 
   /// Mark a single notification read (`PATCH /v1/notifications/:id/read`).
   Future<void> markRead(String id);
+
+  /// Inline confirm-receipt (notif-inline-confirm-receipt, D70): the customer
+  /// confirms they received the delivery directly from a `confirm_receipt`
+  /// notification row, without opening the full delivered-receipt screen.
+  /// [deliveryId] is the row's `ref`. Transitions the delivery to `Done`
+  /// (`POST /v1/delivery/status/transition`, trigger `customer_confirmed_receipt`).
+  /// Throws [NotificationsRepositoryException] on failure.
+  Future<void> confirmReceipt(String deliveryId);
 }

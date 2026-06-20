@@ -17,6 +17,7 @@ class ClientHomeState extends Equatable {
     this.pending = const [],
     this.replies = const [],
     this.recentDeliveries = const [],
+    this.query = '',
   });
 
   /// Coarse load phase the screen renders off.
@@ -41,6 +42,12 @@ class ClientHomeState extends Equatable {
   /// shows at most one — the cubit caps this on emit.
   final List<RecentDeliverySummary> recentDeliveries;
 
+  /// Free-text search query (home-disc-customer-home-search). Empty = no
+  /// filter. The raw [inProgress]/[pending]/[replies] lists stay unfiltered
+  /// (the server-owned snapshot); the `visible*` getters apply the query so a
+  /// re-emit isn't needed when the query changes — only the query itself.
+  final String query;
+
   /// Backward-compat alias — older tests read `activeRequests`.
   List<ClientHomeRequest> get activeRequests => inProgress;
 
@@ -48,7 +55,20 @@ class ClientHomeState extends Equatable {
   bool get isPendingEmpty => pending.isEmpty;
   bool get isRepliesEmpty => replies.isEmpty;
 
-  /// Returns the list backing the supplied tab.
+  /// True when a non-empty search query is active.
+  bool get hasQuery => query.trim().isNotEmpty;
+
+  /// The [inProgress] list filtered by [query] (case-insensitive substring over
+  /// title / items / destination / Jeeber name).
+  List<ClientHomeRequest> get visibleInProgress => _filter(inProgress);
+
+  /// The [pending] list filtered by [query].
+  List<ClientHomeRequest> get visiblePending => _filter(pending);
+
+  /// The [replies] list filtered by [query].
+  List<ClientHomeRequest> get visibleReplies => _filter(replies);
+
+  /// Returns the RAW (unfiltered) list backing the supplied tab.
   List<ClientHomeRequest> listFor(ClientHomeTab tab) {
     switch (tab) {
       case ClientHomeTab.inProgress:
@@ -58,6 +78,32 @@ class ClientHomeState extends Equatable {
       case ClientHomeTab.replies:
         return replies;
     }
+  }
+
+  /// Returns the FILTERED (query-applied) list backing the supplied tab.
+  List<ClientHomeRequest> visibleFor(ClientHomeTab tab) {
+    switch (tab) {
+      case ClientHomeTab.inProgress:
+        return visibleInProgress;
+      case ClientHomeTab.pendingRequests:
+        return visiblePending;
+      case ClientHomeTab.replies:
+        return visibleReplies;
+    }
+  }
+
+  List<ClientHomeRequest> _filter(List<ClientHomeRequest> source) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return source;
+    return source.where((r) => _matches(r, q)).toList(growable: false);
+  }
+
+  bool _matches(ClientHomeRequest r, String q) {
+    return r.title.toLowerCase().contains(q) ||
+        (r.itemsSummary?.toLowerCase().contains(q) ?? false) ||
+        r.destinationLabel.toLowerCase().contains(q) ||
+        (r.jeeberName?.toLowerCase().contains(q) ?? false) ||
+        (r.displayId?.toLowerCase().contains(q) ?? false);
   }
 
   /// Legacy alias used by older callers — true when the In Progress list is
@@ -71,6 +117,7 @@ class ClientHomeState extends Equatable {
     List<ClientHomeRequest>? pending,
     List<ClientHomeRequest>? replies,
     List<RecentDeliverySummary>? recentDeliveries,
+    String? query,
   }) {
     return ClientHomeState(
       status: status ?? this.status,
@@ -81,6 +128,7 @@ class ClientHomeState extends Equatable {
       pending: pending ?? this.pending,
       replies: replies ?? this.replies,
       recentDeliveries: recentDeliveries ?? this.recentDeliveries,
+      query: query ?? this.query,
     );
   }
 
@@ -92,6 +140,7 @@ class ClientHomeState extends Equatable {
         pending,
         replies,
         recentDeliveries,
+        query,
       ];
 }
 

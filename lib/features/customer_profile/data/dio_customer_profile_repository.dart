@@ -70,6 +70,9 @@ class DioCustomerProfileRepository implements CustomerProfileRepository {
       ratingCount: ratingCount,
       activeRole: activeRole,
       availableRoles: availableRoles,
+      // Jeeber KYC status (D38/D52) — drives the real DELIVERY-tab gate
+      // (JM-036). Defensive: both camelCase + snake_case, `''`→`null`.
+      kycStatus: _str(json['kycStatus'] ?? json['kyc_status']),
     );
   }
 

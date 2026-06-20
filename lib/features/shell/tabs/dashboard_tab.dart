@@ -76,6 +76,12 @@ class DashboardTab extends StatelessWidget {
     final gate = sl.isRegistered<JeeberKycStatusGate>()
         ? sl<JeeberKycStatusGate>()
         : const SeamJeeberKycStatusGate();
+    // JM-036: re-pull live getMe on tab entry so a mid-session KYC approval /
+    // role-switch reflects on the next Dashboard build. Fire-and-forget + never
+    // throws (the gate swallows errors); a no-op for the seam-backed default.
+    if (gate is GetMeJeeberKycStatusGate) {
+      gate.refresh();
+    }
     return _JeeberHomeHost(
       destination: JeeberDeliveryTabDestination.forStatus(gate.status),
     );
