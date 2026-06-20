@@ -112,8 +112,13 @@ import '../onboarding/onboarding_cubit.dart';
 ///   1. While [OnboardingCubit.state] is `false`, the user is kept on
 ///      `/onboarding` or `/register` (the only pre-auth destinations).
 ///   2. Once onboarding completes, the [SessionGate] gate keeps an
-///      onboarded-but-tokenless user on `/register` until a valid token exists,
-///      so Home is unreachable without logging in.
+///      onboarded-but-tokenless user on `/register` (the phone-OTP entry,
+///      DEFECT-3) until a valid token exists, so Home is unreachable without
+///      authenticating. `/register` is the reachable auth entry because the
+///      LIVE gateway only implements phone-OTP (`/v1/auth/otp/request` →
+///      `/v1/auth/otp/verify`); the email `/login` + `/sign-up` screens are
+///      kept (a later gateway fix may add those routes) and remain reachable
+///      from `/register`, but they no longer force the entry.
 /// Once the user finishes onboarding AND has a valid session the redirect lets
 /// `/` (the shell) render normally. `refreshListenable` re-evaluates redirects
 /// whenever onboarding, the biometric lock, or the session emits.
@@ -214,8 +219,14 @@ class AppRouter {
   ///   * onboarding incomplete, not on a pre-auth route → `/onboarding`
   ///   * onboarding complete but on `/onboarding`        → `/`
   ///   * onboarding complete, NO valid token, not on a pre-auth route
-  ///       → `/login` (the W0 email-first login destination, CTO-D1; replaces
-  ///       the legacy `/register` target)
+  ///       → `/register` (the phone-OTP entry, DEFECT-3). The phone-OTP flow
+  ///       (`POST /v1/auth/otp/request` → `/v1/auth/otp/verify`) is the ONLY
+  ///       auth that works against the LIVE gateway, which has no
+  ///       `/v1/auth/login` or `/v1/auth/signup` route (email login/signup
+  ///       dead-ends there). So the tokenless first-run gate lands the user on
+  ///       the reachable, working auth. The email `/login` + `/sign-up` screens
+  ///       are kept (a later gateway fix may add those routes) and are still
+  ///       reachable from `/register`, but they are no longer the forced entry.
   ///   * onboarding complete, token present, account `status ∈ {suspended,
   ///       locked}` → `/account-status` (D5; blocks ALL tabs, the only exits are
   ///       support + sign-out)
@@ -242,9 +253,13 @@ class AppRouter {
     final atPreAuth = _isPreAuth(loc);
     if (!completed && !atPreAuth) return '/onboarding';
     if (completed && loc == '/onboarding') return '/';
-    // FR-P0-3: onboarded-but-tokenless user must log in before reaching Home.
+    // FR-P0-3 / DEFECT-3: onboarded-but-tokenless user must authenticate before
+    // reaching Home. The destination is the phone-OTP `/register` flow — the
+    // only auth that works against the LIVE gateway (email `/login`/`/sign-up`
+    // 401 there). The email screens stay reachable from `/register` for a later
+    // gateway fix, but phone-OTP is the reachable entry.
     if (completed && session.isUnauthenticated && !atPreAuth) {
-      return '/login';
+      return '/register';
     }
     // JM-066 / D5: a suspended/locked account is forced to `/account-status`
     // and cannot reach any tab. Only evaluated once a session exists (a blocked

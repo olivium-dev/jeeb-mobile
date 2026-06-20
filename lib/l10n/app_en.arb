@@ -3682,6 +3682,8 @@
   "@loginForgotPasswordLink": { "description": "JM-007 forgot-password link → /recover." },
   "loginSignupLink": "Don't have an account? Sign up",
   "@loginSignupLink": { "description": "JM-007 sign-up link → /sign-up." },
+  "loginPhoneEntryLink": "Sign in with phone instead",
+  "@loginPhoneEntryLink": { "description": "DEFECT-3 link from email login → the phone-OTP entry (/register), the auth that works against the live gateway." },
   "loginBiometricAffordance": "Use biometric unlock",
   "@loginBiometricAffordance": { "description": "JM-007 biometric affordance for enrolled returning users (D23)." },
   "loginInvalidCredentials": "Email or password is incorrect.",
