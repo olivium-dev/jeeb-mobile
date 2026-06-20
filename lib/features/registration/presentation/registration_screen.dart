@@ -247,7 +247,10 @@ class _RegistrationViewState extends State<_RegistrationView> {
         }
       },
       builder: (context, state) {
-        return Scaffold(
+        return Semantics(
+          identifier: 'registration_root',
+          container: true,
+          child: Scaffold(
           appBar: OMDSAppBar(
             title: l10n.registrationPhoneTitle,
             centerTitle: false,
@@ -263,6 +266,7 @@ class _RegistrationViewState extends State<_RegistrationView> {
                 onSuperLoginPlus: () => _openSuperLoginPlus(context),
               ),
             ),
+          ),
           ),
         );
       },

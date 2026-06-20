@@ -112,11 +112,15 @@ class _CustomerProfileView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: BlocBuilder<CustomerProfileCubit, CustomerProfileState>(
-          builder: (context, state) =>
-              _Body(data: state.data, reviewLauncher: reviewLauncher),
+    return Semantics(
+      identifier: 'customer_profile_root',
+      container: true,
+      child: Scaffold(
+        body: SafeArea(
+          child: BlocBuilder<CustomerProfileCubit, CustomerProfileState>(
+            builder: (context, state) =>
+                _Body(data: state.data, reviewLauncher: reviewLauncher),
+          ),
         ),
       ),
     );

@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/dev_seam/dev_seam.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/registration_cubit.dart';
 import '../application/registration_state.dart';
@@ -63,6 +65,42 @@ class OtpVerificationScreen extends StatefulWidget {
 
 class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   String _enteredCode = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _maybeAutoSubmitSeamCode();
+  }
+
+  /// DEBUG-ONLY OTP test-seam (62_SEAM_HARNESS.md `jeeb.seam.otp_code`).
+  ///
+  /// When an automated / on-device driver sets the `jeeb.seam.otp_code` seam
+  /// (e.g. the run-branch's known code `1234`), this auto-submits it through
+  /// the same [RegistrationCubit.verifyCode] path the user's keypad would
+  /// drive — so a Maestro / integration test can advance past the phone-OTP
+  /// verify step deterministically without typing into the per-cell input.
+  ///
+  /// Release-inert by construction: gated on [kDebugMode] AND a non-empty seam
+  /// value, and [DevSeam.current] is always [DevSeamConfig.empty] in release
+  /// (its `resolve` short-circuits when `!kDebugMode`). It therefore introduces
+  /// NO production behaviour change — in a release build both guards are false
+  /// and this is a no-op. It also stays inert in debug unless the seam is set,
+  /// so the normal manual-entry flow (and the widget tests that drive
+  /// `verifyCode` themselves) are untouched.
+  void _maybeAutoSubmitSeamCode() {
+    if (!kDebugMode) return;
+    final seamCode = DevSeam.current.otpCode;
+    if (seamCode.isEmpty) return;
+    // Defer to the first frame: the cubit/state must be mounted before we
+    // submit, and we only fire while the flow is genuinely on the OTP step.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final cubit = context.read<RegistrationCubit>();
+      if (cubit.state.step != RegistrationStep.otp) return;
+      setState(() => _enteredCode = seamCode);
+      cubit.verifyCode(seamCode);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

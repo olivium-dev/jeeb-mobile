@@ -75,7 +75,10 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
         );
       },
       builder: (context, state) {
-        return Column(
+        return Semantics(
+          identifier: 'order_history_root',
+          container: true,
+          child: Column(
           children: [
             _FilterBar(
               range: state.dateRange,
@@ -99,6 +102,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
               ),
             ),
           ],
+          ),
         );
       },
     );
