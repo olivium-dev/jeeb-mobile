@@ -1198,6 +1198,7 @@
   "loginContinueCta": "تسجيل الدخول",
   "loginForgotPasswordLink": "هل نسيت كلمة المرور؟",
   "loginSignupLink": "ليس لديك حساب؟ أنشئ حساباً",
+  "loginPhoneEntryLink": "سجّل الدخول برقم الهاتف بدلاً من ذلك",
   "loginBiometricAffordance": "استخدم الفتح بالبصمة",
   "loginInvalidCredentials": "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
   "loginNetworkError": "تعذّر الوصول إلى الخادم. تحقق من اتصالك وحاول مجدداً.",

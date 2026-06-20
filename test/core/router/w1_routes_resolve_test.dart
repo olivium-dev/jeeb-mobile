@@ -14,7 +14,7 @@
 //
 // Plus RC-9 (W0 jm-007 AC6, 61_W0_QA_RESULTS): the biometric gate must NOT
 // capture a LOGGED-OUT user onto /lock — an enrolled-but-tokenless returning
-// user lands /login (62_SEAM_HARNESS §3 `biometric_enrolled_logged_out`).
+// user lands on the auth entry (`/register`, DEFECT-3 phone-OTP), never /lock.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -23,6 +23,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:jeeb_mobile/core/di/injection_container.dart';
 import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
 import 'package:jeeb_mobile/core/onboarding/onboarding_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_cubit.dart';
@@ -35,6 +36,8 @@ import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_reposi
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
 import 'package:jeeb_mobile/features/delivery_receipt/presentation/delivery_receipt_screen.dart';
 import 'package:jeeb_mobile/features/order_summary/presentation/order_summary_screen.dart';
+import 'package:jeeb_mobile/features/registration/data/fake_otp_service.dart';
+import 'package:jeeb_mobile/features/registration/domain/otp_service.dart';
 import 'package:jeeb_mobile/features/settings/data/repositories/biometric_preference_repository_impl.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
@@ -111,6 +114,9 @@ Widget _harness(_Built built) {
       // Provide the app-level BiometricLockCubit (as app.dart does) so the
       // real BiometricLockScreen renders when the gate holds `/lock`.
       BlocProvider<BiometricLockCubit>.value(value: built.lock),
+      // The tokenless redirect now lands on `/register` (DEFECT-3 phone-OTP),
+      // whose RegistrationScreen reads OnboardingCubit in its verify callbacks.
+      BlocProvider<OnboardingCubit>.value(value: built.onboarding),
       BlocProvider<RoleCubit>.value(value: built.role),
       BlocProvider<RoleEligibilityCubit>.value(value: built.roleEligibility),
       BlocProvider<LocaleCubit>.value(value: built.locale),
@@ -130,6 +136,20 @@ Widget _harness(_Built built) {
 
 void main() {
   late _Built built;
+
+  setUp(() async {
+    // The `/register` redirect (RC-9 logged-out test) mounts RegistrationScreen,
+    // which resolves `sl<OtpService>()` at build. Register the in-repo fake so
+    // the destination renders without the real auth-service client.
+    await sl.reset();
+    sl.registerLazySingleton<OtpService>(
+      () => const FakeOtpService(latency: Duration.zero),
+    );
+  });
+
+  tearDown(() async {
+    await sl.reset();
+  });
 
   Future<void> pump(
     WidgetTester tester, {
@@ -254,7 +274,7 @@ void main() {
 
   group('RC-9 — biometric gate honours the session', () {
     testWidgets(
-        'enrolled BUT logged-out → /login, never /lock (RC-9, jm-007 AC6)',
+        'enrolled BUT logged-out → /register, never /lock (RC-9, jm-007 AC6)',
         (tester) async {
       // biometric_enrolled_logged_out: enrolled (locked phase) AND no token.
       await pump(
@@ -263,9 +283,10 @@ void main() {
         biometricEnrolled: true,
       );
       // The lock cubit really reports `locked` (the pre-RC-9 gate would have
-      // captured /lock); the session gate forces /login first.
+      // captured /lock); the session gate forces the auth entry first. DEFECT-3:
+      // that entry is now the phone-OTP `/register`, not `/login`.
       expect(built.lock.state.phase, BiometricLockPhase.locked);
-      expect(location(), '/login');
+      expect(location(), '/register');
       expect(location(), isNot('/lock'));
     });
 

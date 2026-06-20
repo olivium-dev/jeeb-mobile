@@ -1830,6 +1830,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get loginContinueCta => _get('loginContinueCta');
   String get loginForgotPasswordLink => _get('loginForgotPasswordLink');
   String get loginSignupLink => _get('loginSignupLink');
+  String get loginPhoneEntryLink => _get('loginPhoneEntryLink');
   String get loginBiometricAffordance => _get('loginBiometricAffordance');
   String get loginInvalidCredentials => _get('loginInvalidCredentials');
   String get loginNetworkError => _get('loginNetworkError');

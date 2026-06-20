@@ -161,7 +161,7 @@ void main() {
       expect(await tokens.userId, SessionSeamBootstrap.jeeberUserId);
     });
 
-    test('logged_out_returning → onboarded + NO token (→ /login)', () async {
+    test('logged_out_returning → onboarded + NO token (→ /register)', () async {
       if (!kDebugMode) return;
       await resolveSeam(
           const DevSeamConfig(sessionSeed: SessionSeed.loggedOutReturning));
@@ -171,7 +171,8 @@ void main() {
       await SessionSeamBootstrap.seed(prefs: prefs, tokenStore: tokens);
 
       expect(OnboardingCubit(prefs: prefs).isCompleted, isTrue);
-      // No token → SessionGate.isUnauthenticated → redirect to /login.
+      // No token → SessionGate.isUnauthenticated → redirect to the phone-OTP
+      // entry `/register` (DEFECT-3).
       expect(await tokens.hasToken, isFalse);
     });
 
@@ -192,7 +193,7 @@ void main() {
     });
 
     test('biometric_enrolled_logged_out → onboarded + NO token + biometric '
-        'enabled (→ /login + affordance)', () async {
+        'enabled (→ /register; affordance is on /login)', () async {
       if (!kDebugMode) return;
       await resolveSeam(const DevSeamConfig(
           sessionSeed: SessionSeed.biometricEnrolledLoggedOut));
