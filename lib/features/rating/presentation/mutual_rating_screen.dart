@@ -67,15 +67,120 @@ class MutualRatingScreen extends StatelessWidget {
         return const Center(child: OmdsLoadingState());
       case MutualRatingPhase.error:
         return const _ErrorView();
-      // The blind-reveal phases are server-owned (T-BE-025 cron) and are not
-      // reached on the mandatory JM-034 path; fall back to the input view so a
-      // stale state never strands the user without a submit affordance.
+      // feedback-double-blind-reveal (SC-043/SC-093): the blind-reveal phases
+      // are reached only on the standalone reveal path (revealMode=true). The
+      // mandatory JM-034 path never enters them (submit → submitted → shell).
+      // The counterpart's rating is rendered ONLY once the SERVER reports
+      // revealed / autoRevealed — never inferred client-side.
       case MutualRatingPhase.awaitingOther:
       case MutualRatingPhase.polling:
+        return const _AwaitingRevealView();
       case MutualRatingPhase.revealed:
       case MutualRatingPhase.autoRevealed:
-        return _InputView(state: state);
+        return _RevealedView(state: state);
     }
+  }
+}
+
+/// Shown after the user has rated but the server has NOT yet revealed both
+/// sides (double-blind). The counterpart's rating stays hidden here.
+class _AwaitingRevealView extends StatelessWidget {
+  const _AwaitingRevealView();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(Spacing.xLarge),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.hourglass_top,
+              size: Sizes.twoXLarge,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(height: Spacing.large),
+            Text(
+              l10n.mutualRatingAwaitingTitle,
+              style: theme.textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: Spacing.small),
+            Text(
+              l10n.mutualRatingAwaitingBody,
+              style: theme.textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown once the SERVER reveals both ratings (or the 7-day auto-reveal fired).
+/// The counterpart's stars become visible here for the first time.
+class _RevealedView extends StatelessWidget {
+  const _RevealedView({required this.state});
+
+  final MutualRatingState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final counterpart = state.counterpartRating;
+    final isAuto = state.phase == MutualRatingPhase.autoRevealed;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(Spacing.xLarge),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.visibility,
+              size: Sizes.twoXLarge,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(height: Spacing.large),
+            Text(
+              isAuto
+                  ? l10n.mutualRatingAutoRevealedTitle
+                  : l10n.mutualRatingRevealedTitle,
+              style: theme.textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: Spacing.medium),
+            Text(
+              counterpart == null
+                  ? l10n.mutualRatingNoCounterRating
+                  : l10n.mutualRatingTheirStars(counterpart.stars),
+              key: const Key('mutual-rating-counterpart'),
+              style: theme.textTheme.bodyLarge
+                  ?.copyWith(fontWeight: FontWeight.w600),
+              textAlign: TextAlign.center,
+            ),
+            if (counterpart?.comment != null &&
+                counterpart!.comment!.isNotEmpty) ...[
+              const SizedBox(height: Spacing.small),
+              Text(
+                counterpart.comment!,
+                style: theme.textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+            ],
+            const SizedBox(height: Spacing.xLarge),
+            OmdsPrimaryButton(
+              text: l10n.mutualRatingDone,
+              onTap: () => Navigator.of(context).maybePop(),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

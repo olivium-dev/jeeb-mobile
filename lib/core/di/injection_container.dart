@@ -19,7 +19,14 @@ import '../../features/home_client/data/dio_client_home_repository.dart';
 import '../../features/home_client/domain/client_home_repository.dart';
 import '../../features/jeeber_home/data/dio_availability_gateway.dart';
 import '../../features/jeeber_home/domain/services/availability_gateway.dart';
+import '../../features/jeeber_request_detail/data/dio_prohibited_item_report_service.dart';
 import '../../features/jeeber_request_detail/domain/services/prohibited_item_report_service.dart';
+import '../../features/masked_call/data/dio_masked_call_repository.dart';
+import '../../features/masked_call/domain/masked_call_repository.dart';
+import '../../features/rate_app/data/in_app_review_launcher.dart';
+import '../../features/rate_app/domain/app_review_launcher.dart';
+import '../notifications/data/dio_push_token_repository.dart';
+import '../notifications/domain/push_token_repository.dart';
 import '../../features/jeeber_request_feed/data/dio_request_feed_repository.dart';
 import '../../features/jeeber_request_feed/data/request_feed_repository.dart';
 import '../../features/kyc/data/dio_kyc_gateway.dart';
@@ -251,8 +258,32 @@ void configureDependencies({
   // resolves. When the real prohibited-item flagging RPC lands it swaps to a
   // Dio-backed impl here (mirroring the Dio* repositories above) without
   // touching the route or screen.
+  // orders-prohibited-item-report / disputes-prohibited-item-report: the real
+  // flagging RPC. POST /v1/deliveries/{id}/prohibited-report (gateway built in
+  // parallel — jeeb-backend-feature-services; client speaks the documented
+  // expected contract). Was a const no-op stub with an empty report() body.
   sl.registerLazySingleton<ProhibitedItemReportService>(
-    () => const ProhibitedItemReportService(),
+    () => DioProhibitedItemReportService(sl<Dio>()),
+  );
+
+  // orders-masked-call: masked/anonymised call session broker.
+  // POST /v1/deliveries/{id}/masked-call (gateway built in parallel). The cubit
+  // dials the returned proxy number via the native dialer.
+  sl.registerLazySingleton<MaskedCallRepository>(
+    () => DioMaskedCallRepository(sl<Dio>()),
+  );
+
+  // profile-rate-the-app / feedback-rate-the-app / support-rate-the-app:
+  // native OS store-review sheet via in_app_review (was NoopAppReviewLauncher).
+  sl.registerLazySingleton<AppReviewLauncher>(
+    () => const InAppReviewLauncher(),
+  );
+
+  // notif-push-token-registration: register the FCM device token with the
+  // gateway. POST /v1/devices (MockGatewayClient → /push-notification/v1/devices).
+  // The push handler calls this on token resolve/refresh.
+  sl.registerLazySingleton<PushTokenRepository>(
+    () => DioPushTokenRepository(sl<Dio>(), tokenStore: sl<AuthTokenStore>()),
   );
 
   // KYC — submit + status from auth-service via gateway.

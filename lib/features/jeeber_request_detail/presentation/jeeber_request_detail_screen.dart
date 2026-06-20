@@ -31,6 +31,11 @@ class JeeberRequestDetailScreen extends StatefulWidget {
 }
 
 class _JeeberRequestDetailScreenState extends State<JeeberRequestDetailScreen> {
+  /// True once the Jeeber has filed a prohibited-item report for this request.
+  /// Flips the Decline CTA to "Decline without penalty" and shows the flagged
+  /// banner (orders-prohibited-item-report).
+  bool _reported = false;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -43,11 +48,14 @@ class _JeeberRequestDetailScreenState extends State<JeeberRequestDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (_reported) _ReportedBanner(l10n: l10n),
             Expanded(
               child: _RequestSummary(request: widget.request),
             ),
             _ActionBar(
+              reported: _reported,
               onMakeOffer: _openOfferForm,
+              onReport: _openReport,
               onDecline: () => widget.onDeclined(widget.request.id),
             ),
           ],
@@ -60,6 +68,55 @@ class _JeeberRequestDetailScreenState extends State<JeeberRequestDetailScreen> {
     context.pushNamed(
       'jeeber-offer-submission',
       pathParameters: {'id': widget.request.id},
+    );
+  }
+
+  /// orders-prohibited-item-report: open the report form. On a successful
+  /// submit (pop `true`) flag the request locally so the decline becomes
+  /// penalty-free and the banner appears.
+  Future<void> _openReport() async {
+    final result = await context.pushNamed<bool>(
+      'prohibited-item-report',
+      pathParameters: {'id': widget.request.id},
+    );
+    if (!mounted) return;
+    if (result == true) {
+      setState(() => _reported = true);
+    }
+  }
+}
+
+/// Banner shown after a successful prohibited-item report (the request is now
+/// flagged for admin review and can be declined without penalty).
+class _ReportedBanner extends StatelessWidget {
+  const _ReportedBanner({required this.l10n});
+
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      key: const Key('jeeber-request-detail-reported-banner'),
+      width: double.infinity,
+      color: theme.colorScheme.errorContainer,
+      padding: const EdgeInsets.all(Spacing.medium),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.jeeberRequestDetailReportedTitle,
+            style: theme.textTheme.titleSmall
+                ?.copyWith(color: theme.colorScheme.onErrorContainer),
+          ),
+          const SizedBox(height: Sizes.threeXSmall),
+          Text(
+            l10n.jeeberRequestDetailReportedBody,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onErrorContainer),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -200,12 +257,21 @@ class _DetailRowText extends StatelessWidget {
   }
 }
 
-/// Bottom action area: primary "Make offer" (the offer-form entry) and an
-/// outlined "Decline". Each CTA carries a Semantics identifier for Maestro QA.
+/// Bottom action area: primary "Make offer" (the offer-form entry), the
+/// "Report — Prohibited item" entry (orders-prohibited-item-report), and an
+/// outlined "Decline" (penalty-free once a report was filed). Each CTA carries
+/// a Semantics identifier for Maestro QA.
 class _ActionBar extends StatelessWidget {
-  const _ActionBar({required this.onMakeOffer, required this.onDecline});
+  const _ActionBar({
+    required this.reported,
+    required this.onMakeOffer,
+    required this.onReport,
+    required this.onDecline,
+  });
 
+  final bool reported;
   final VoidCallback onMakeOffer;
+  final VoidCallback onReport;
   final VoidCallback onDecline;
 
   @override
@@ -225,11 +291,32 @@ class _ActionBar extends StatelessWidget {
             ),
           ),
           const SizedBox(height: Spacing.small),
+          // orders-prohibited-item-report: report entry. Hidden once filed (the
+          // banner + penalty-free decline take over).
+          if (!reported) ...[
+            Semantics(
+              identifier: 'jeeber-request-detail-report',
+              button: true,
+              child: OmdsPrimaryButton(
+                text: l10n.jeeberRequestDetailReportButton,
+                variant: OmdsButtonVariant.outlined,
+                icon: Icon(
+                  Icons.flag_outlined,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                textColor: Theme.of(context).colorScheme.error,
+                onTap: onReport,
+              ),
+            ),
+            const SizedBox(height: Spacing.small),
+          ],
           Semantics(
             identifier: 'jeeber-request-detail-decline',
             button: true,
             child: OmdsPrimaryButton(
-              text: l10n.jeeberRequestDetailDeclineButton,
+              text: reported
+                  ? l10n.jeeberRequestDetailDeclineWithoutPenaltyButton
+                  : l10n.jeeberRequestDetailDeclineButton,
               variant: OmdsButtonVariant.outlined,
               onTap: onDecline,
             ),
