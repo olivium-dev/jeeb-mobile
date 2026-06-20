@@ -1,0 +1,53 @@
+# Uncomment this line to define a global platform for your project
+# platform :ios, '13.0'
+
+# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+# Pin the Firebase iOS SDK to the last 11.x that compiles on Xcode 15.4 / Swift 5.10.
+# The latest Firebase (11.15+/12.x) uses the Swift 6 `sending` keyword and requires
+# Xcode 16. 11.4.0 matches this app's declared `firebase_core: ^3.6.0` baseline.
+$FirebaseSDKVersion = '11.4.0'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
+  end
+
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    return matches[1].strip if matches
+  end
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
+end
+
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+
+flutter_ios_podfile_setup
+
+target 'Runner' do
+  use_frameworks!
+
+  # FirebaseCore only requires FirebaseCoreInternal `~> 11.0`, so it otherwise
+  # floats to 11.15.0 — the version carrying the Swift 6 `sending` code that
+  # Xcode 15.4 can't compile. Pin it to the 11.4 cohort to match $FirebaseSDKVersion.
+  pod 'FirebaseCoreInternal', '11.4.0'
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+  target 'RunnerTests' do
+    inherit! :search_paths
+  end
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+  end
+end
