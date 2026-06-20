@@ -120,11 +120,12 @@ void main() {
       reason: 'the field must show the full 8 digits the user typed',
     );
 
-    // 2) Erase one digit → exactly 7 remain (a single contiguous edit, never a
-    // corrupted/reordered value). Send code disables because 7 < 8.
-    await tester.enterText(field, '7112345');
+    // 2) Erase down to 6 digits (a single contiguous edit, never a
+    // corrupted/reordered value). Send code disables because 6 < the 7-digit
+    // minimum (a Lebanese national number is 7 or 8 digits).
+    await tester.enterText(field, '711234');
     await tester.pump();
-    expect(cubit.state.phoneInput, '7112345');
+    expect(cubit.state.phoneInput, '711234');
     expect(cubit.state.isPhoneReady, isFalse);
     expect(
       tester
@@ -239,6 +240,61 @@ void main() {
     expect(cubit.state.phoneError, isNull);
     verify(() => otp.sendCode('+96171123456')).called(1);
     verifyNever(() => otp.sendCode('+96171000000'));
+  });
+
+  testWidgets(
+      'BUG-1 (customer-spine P0): a phone value present in the rendered field '
+      'but NOT mirrored into cubit state still sends — Send reads the live '
+      'controller text, not a stale state.phoneInput', (tester) async {
+    // The on-device divergence: the field owns its text while the user types
+    // (PR #45 stopped mirroring the normalised value back). Any path that sets
+    // the controller text WITHOUT routing through `onChanged`/`phoneChanged`
+    // (programmatic seed, platform autofill, certain paste paths) leaves
+    // `state.phoneInput` empty while the field shows a valid number. The old
+    // `sendCode()` validated the empty `state.phoneInput`, flipped the field red
+    // and emitted ZERO OTP requests. With the fix, Send reads the rendered
+    // controller text, so a valid rendered number sends.
+    when(() => otp.sendCode(any()))
+        .thenAnswer((_) async => OtpSendOutcome.sent);
+    final cubit = makeCubit();
+    await tester.pumpWidget(wrapForTest(
+      RegistrationScreen(cubit: cubit),
+    ));
+
+    final field = find.byKey(const Key('registration.phoneField'));
+
+    // 1) Type a first valid number normally so state + field agree and the CTA
+    // is live.
+    await tester.enterText(field, '71123456');
+    await tester.pump();
+    expect(cubit.state.phoneInput, '71123456');
+
+    // 2) Now a DIFFERENT valid value lands in the field WITHOUT firing onChanged
+    // (platform autofill / programmatic seed): mutate ONLY the controller. No
+    // rebuild, no `phoneChanged` — so the cubit's `phoneInput` is now STALE
+    // relative to the rendered field. This is the exact divergence that, with
+    // the old `sendCode()` (which read `state.phoneInput`), would either send
+    // the WRONG number or — when state was empty — flip the field red and emit
+    // zero OTP rows.
+    final controller = tester.widget<TextField>(field).controller!;
+    controller.text = '+9613000002';
+
+    expect(
+      cubit.state.phoneInput,
+      '71123456',
+      reason: 'reproduces the divergence: state lags the rendered field',
+    );
+
+    // The CTA was enabled at the last build; its onTap closure reads the LIVE
+    // controller text. Tapping must fire the OTP request for the number the user
+    // ACTUALLY sees (`3000002`), not the stale state value.
+    await tester.tap(find.byKey(const Key('registration.sendCode')));
+    await tester.pump();
+
+    verify(() => otp.sendCode('+9613000002')).called(1);
+    verifyNever(() => otp.sendCode('+96171123456'));
+    expect(cubit.state.phoneError, isNull,
+        reason: 'no invalid-phone error — the field is valid');
   });
 
   testWidgets('Send code is disabled until 8 digits are typed', (tester) async {

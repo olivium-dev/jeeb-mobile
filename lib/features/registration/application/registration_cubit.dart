@@ -48,8 +48,24 @@ class RegistrationCubit extends Cubit<RegistrationState> {
 
   /// Tap on the "Send code" CTA. Validates, sends, transitions to
   /// [RegistrationStep.otp], starts the resend countdown.
-  Future<void> sendCode() async {
-    final phone = LebanonPhone.tryParse(state.phoneInput);
+  ///
+  /// [renderedPhone] is the live text of the phone [TextEditingController] as
+  /// the user actually sees it. The screen MUST pass it: the field — not the
+  /// cubit — is the source of truth while typing (PR #45 stopped mirroring the
+  /// normalised value back per-keystroke), so `state.phoneInput` can lag or
+  /// diverge from the rendered text on any path that doesn't route through
+  /// `phoneChanged` (programmatic seed, autofill, paste). Reading the rendered
+  /// text here — and re-syncing it into `phoneInput` — means Send always
+  /// validates and sends the number the user is looking at, instead of a stale
+  /// cubit value that flipped the field red and emitted zero OTP requests
+  /// (BUG-1, customer-spine blocker). Cubit-only callers (tests) may omit it.
+  Future<void> sendCode({String? renderedPhone}) async {
+    final source = renderedPhone ?? state.phoneInput;
+    final normalised = LebanonPhone.normalise(source);
+    if (normalised != state.phoneInput) {
+      emit(state.copyWith(phoneInput: normalised));
+    }
+    final phone = LebanonPhone.tryParse(normalised);
     if (phone == null) {
       emit(state.copyWith(phoneError: RegistrationPhoneError.invalid));
       return;

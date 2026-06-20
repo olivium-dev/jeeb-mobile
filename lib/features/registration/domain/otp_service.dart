@@ -1,3 +1,10 @@
+/// Number of digits in the customer sign-in OTP code.
+///
+/// Single source of truth: the live gateway (`/v1/auth/otp/verify`) issues a
+/// 4-digit code (e.g. seed `1234`). The phone-OTP input and any "code is
+/// complete" gate read from here so the canonical code is enterable.
+const int kCustomerOtpLength = 4;
+
 /// Outcome of an OTP send request. The cubit maps each value to a state
 /// transition; the screen layer renders snackbars/inline errors off the
 /// resulting state, not off this enum directly.
