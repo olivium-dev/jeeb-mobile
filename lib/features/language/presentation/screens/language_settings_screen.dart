@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/locale/locale_cubit.dart';
@@ -35,12 +36,29 @@ class LanguageSettingsScreen extends StatelessWidget {
       child: Scaffold(
         appBar: OMDSAppBar(
           title: l10n.settingsLanguage,
-          showBackButton: true,
+          showBackButton: false,
           leading: Semantics(
             identifier: 'language_back',
             button: true,
-            container: true,
-            child: const BackButton(),
+            onTap: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/');
+              }
+            },
+            child: ExcludeSemantics(
+              child: IconButton(
+                icon: const BackButtonIcon(),
+                onPressed: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/');
+                  }
+                },
+              ),
+            ),
           ),
         ),
         body: ListView(

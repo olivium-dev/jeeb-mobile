@@ -163,7 +163,7 @@ class _TrackingBody extends StatelessWidget {
           ),
           if (info.jeeber != null) _TrackingJeeberSection(jeeber: info.jeeber!),
           if (isAtDoor)
-            Expanded(flex: 1, child: OtpAtDoorCard(deliveryId: deliveryId))
+            OtpAtDoorCard(deliveryId: deliveryId)
           else
             _TrackingPanelSection(info: info),
           // JM-032 AC3/AC4: dispute + no-show CTAs.

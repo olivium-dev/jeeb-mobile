@@ -58,6 +58,7 @@ import '../../features/support/data/stub_support_repository.dart';
 import '../../features/support/domain/support_repository.dart';
 import '../../features/dispute_status/data/dio_dispute_status_repository.dart';
 import '../../features/dispute_status/domain/dispute_status_repository.dart';
+import '../../features/reviews/data/dio_reviews_repository.dart';
 import '../../features/reviews/data/stub_reviews_repository.dart';
 import '../../features/reviews/domain/reviews_repository.dart';
 import '../dev_seam/session_seam_bootstrap.dart';
@@ -440,6 +441,6 @@ void configureDependencies({
   // `StubReviewsRepository()` with `DioReviewsRepository(sl<Dio>())` — no screen
   // change.
   sl.registerLazySingleton<ReviewsRepository>(
-    () => const StubReviewsRepository(),
+    () => DioReviewsRepository(sl<Dio>()),
   );
 }

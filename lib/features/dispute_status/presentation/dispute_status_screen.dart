@@ -150,18 +150,39 @@ class _ErrorBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      identifier: 'dispute_status_error',
-      container: true,
-      child: Center(
-        child: Semantics(
-          identifier: 'dispute_status_retry_cta',
-          button: true,
-          child: OmdsErrorState(
-            message: _message(copy, failure),
-            retryLabel: copy.retry,
-            onRetry: () => context.read<DisputeStatusCubit>().refresh(),
-          ),
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(Spacing.large),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline,
+                size: 64, color: theme.colorScheme.error),
+            const SizedBox(height: Spacing.medium),
+            Semantics(
+              identifier: 'dispute_status_error',
+              container: true,
+              child: Text(
+                _message(copy, failure),
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            const SizedBox(height: Spacing.large),
+            Semantics(
+              identifier: 'dispute_status_retry_cta',
+              button: true,
+              container: true,
+              child: FilledButton.icon(
+                onPressed: () => context.read<DisputeStatusCubit>().refresh(),
+                icon: const Icon(Icons.refresh),
+                label: Text(copy.retry),
+              ),
+            ),
+          ],
         ),
       ),
     );

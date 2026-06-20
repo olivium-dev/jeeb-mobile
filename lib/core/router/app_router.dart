@@ -269,18 +269,21 @@ class AppRouter {
   }
 
   /// Order-tracking (screen 16) needs a reachable gateway to render its ready
-  /// state. When the dev seam is driving a `/orders/.../tracking` capture — OR
-  /// when any W1 journey seam is active (so a flow that NAVIGATES to tracking
-  /// from the pinned chat/summary, e.g. jm-031 AC3 `order_summary_track` or
-  /// jm-032's no-show re-routes, still lands on a populated stepper) — swap in
-  /// the deterministic demo repository so the screen renders offline; every
-  /// other run uses the real DI-registered repository. Debug-only: in release
+  /// state. When the dev seam is driving a `/orders/.../tracking` capture
+  /// WITHOUT a journey seed — so a flow that navigates to tracking from a
+  /// pinned chat/summary renders the stepper offline — swap in the deterministic
+  /// demo repository. When a journey seed IS present the mock is already seeded
+  /// with the correct delivery state (e.g. `delivery_marked_done` → AtDoor) so
+  /// the REAL repository is used to fetch that live status from the mock; using
+  /// the demo repo here would hard-code InTransit and block journey-specific
+  /// states such as the SC-041 OTP-at-door card. Every other run (no seam /
+  /// release) uses the real DI-registered repository. Debug-only: in release
   /// `_devRoute` is empty and `DevSeam.current` is inert, so the real repo is
   /// always used.
   static LiveTrackingRepository _trackingRepository() {
     if (kDebugMode &&
-        (_devRoute.contains('/tracking') ||
-            DevSeam.current.hasJourneySeed)) {
+        _devRoute.contains('/tracking') &&
+        !DevSeam.current.hasJourneySeed) {
       return const DemoLiveTrackingRepository();
     }
     return sl<LiveTrackingRepository>();
