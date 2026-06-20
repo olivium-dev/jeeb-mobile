@@ -59,7 +59,6 @@ import '../../features/support/domain/support_repository.dart';
 import '../../features/dispute_status/data/dio_dispute_status_repository.dart';
 import '../../features/dispute_status/domain/dispute_status_repository.dart';
 import '../../features/reviews/data/dio_reviews_repository.dart';
-import '../../features/reviews/data/stub_reviews_repository.dart';
 import '../../features/reviews/domain/reviews_repository.dart';
 import '../dev_seam/session_seam_bootstrap.dart';
 import '../session/jeeber_kyc_status_gate.dart';
@@ -433,13 +432,11 @@ void configureDependencies({
     () => DioDisputeStatusRepository(sl<Dio>()),
   );
 
-  // INTEGRATOR-STUB(JM-068): the per-jeeber reviews source (R1m) is backend-owned
-  // and NOT live on :4010 (42_GUARDRAILS_MOCK §4: score-taking only reveals
-  // per-delivery state). Bind the in-memory StubReviewsRepository so the reviews
-  // list (ReviewsListScreen, JM-068) + the inbound `profile_view_all_reviews`
-  // edge (JM-067) build and render NOW. SWAP WHEN R1m LANDS: replace
-  // `StubReviewsRepository()` with `DioReviewsRepository(sl<Dio>())` — no screen
-  // change.
+  // LIVE(JM-068): R1m (the per-jeeber reviews source) has landed, so this binds
+  // the REAL Dio repo. The reviews list (ReviewsListScreen, JM-068) + the inbound
+  // `profile_view_all_reviews` edge (JM-067) resolve this against `/v1/...`.
+  // The in-memory StubReviewsRepository remains as the integrator fallback and
+  // honors the same [ReviewsRepository] contract.
   sl.registerLazySingleton<ReviewsRepository>(
     () => DioReviewsRepository(sl<Dio>()),
   );

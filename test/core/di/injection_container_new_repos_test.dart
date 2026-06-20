@@ -23,7 +23,7 @@ import 'package:jeeb_mobile/features/notification_prefs/domain/notification_pref
 import 'package:jeeb_mobile/features/notifications/data/dio_notifications_repository.dart';
 import 'package:jeeb_mobile/features/notifications/domain/notifications_repository.dart';
 import 'package:jeeb_mobile/features/rating/domain/rating_repository.dart';
-import 'package:jeeb_mobile/features/reviews/data/stub_reviews_repository.dart';
+import 'package:jeeb_mobile/features/reviews/data/dio_reviews_repository.dart';
 import 'package:jeeb_mobile/features/reviews/domain/reviews_repository.dart';
 import 'package:jeeb_mobile/features/support/data/stub_support_repository.dart';
 import 'package:jeeb_mobile/features/support/domain/support_repository.dart';
@@ -162,10 +162,9 @@ void main() {
     expect(GetIt.I<SupportRepository>(), isA<StubSupportRepository>());
   });
 
-  test('ReviewsRepository is registered and binds the INTEGRATOR-STUB (R1m gap)',
-      () {
+  test('ReviewsRepository is registered and binds REAL Dio (R1m live)', () {
     expect(GetIt.I.isRegistered<ReviewsRepository>(), isTrue);
     expect(() => GetIt.I<ReviewsRepository>(), returnsNormally);
-    expect(GetIt.I<ReviewsRepository>(), isA<StubReviewsRepository>());
+    expect(GetIt.I<ReviewsRepository>(), isA<DioReviewsRepository>());
   });
 }
