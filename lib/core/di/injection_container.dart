@@ -47,8 +47,8 @@ import '../../features/settings/domain/role_switch_repository.dart';
 import '../../features/tier_selection/data/tier_repository.dart';
 import '../../features/voice_request/data/voice_recording_repository.dart';
 import '../../features/wallet/data/dio_wallet_ledger_repository.dart';
-import '../../features/wallet/data/stub_wallet_repository.dart';
-import '../../features/wallet/data/stub_wallet_transaction_repository.dart';
+import '../../features/wallet/data/dio_wallet_repository.dart';
+import '../../features/wallet/data/dio_wallet_transaction_repository.dart';
 import '../../features/wallet/domain/wallet_ledger_repository.dart';
 import '../../features/wallet/domain/wallet_repository.dart';
 import '../../features/wallet/domain/wallet_transaction_repository.dart';
@@ -351,15 +351,14 @@ void configureDependencies({
 
   // ── WAVE 2 / 2.5 (S2) integrator registrations ───────────────────────────
 
-  // INTEGRATOR-STUB(JM-053/046): the wallet balance/affordability/reserved-now/
-  // gift endpoint (W1m `GET /v1/jeeb/wallet`) is backend-owned and NOT live on
-  // :4010 yet (CTO-D2). Bind the in-memory StubWalletRepository so the wallet
-  // UI shell (WalletHubScreen, JM-053) + every "+ Top up" CTA that routes
-  // through it build and render NOW. SWAP WHEN W1m LANDS: replace
-  // `StubWalletRepository()` with `DioWalletRepository(sl<Dio>())`
-  // (lib/features/wallet/data/dio_wallet_repository.dart) — no screen change.
+  // LIVE(JM-053/046): the wallet balance/affordability/reserved-now/gift
+  // endpoint (`GET /v1/jeeb/wallet`) has landed (gateway PR #196), so this binds
+  // the REAL Dio repo. The wallet UI shell (WalletHubScreen, JM-053) + every
+  // "+ Top up" CTA that routes through it resolve this against `/v1/jeeb/wallet`.
+  // The in-memory StubWalletRepository remains as the integrator fallback and
+  // honors the same [WalletRepository] contract.
   sl.registerLazySingleton<WalletRepository>(
-    () => const StubWalletRepository(),
+    () => DioWalletRepository(sl<Dio>()),
   );
 
   // JM-036: the DELIVERY-tab KYC gate source (register-prompt vs feed) + the
@@ -385,15 +384,15 @@ void configureDependencies({
     () => DioWalletLedgerRepository(sl<Dio>()),
   );
 
-  // INTEGRATOR-STUB(JM-056): the wallet transaction-by-id endpoint (W3m
-  // `GET /v1/jeeb/wallet/ledger/:id`) is backend-owned and NOT live on :4010 yet
-  // (CTO-D2). Bind the in-memory StubWalletTransactionRepository so the
-  // transaction-detail UI shell (TransactionDetailScreen, JM-056) + the inbound
-  // `wallet_activity_row_<id>` edge (JM-055) build and render NOW. SWAP WHEN W3m
-  // LANDS: replace `StubWalletTransactionRepository()` with
-  // `DioWalletTransactionRepository(sl<Dio>())` — no screen change.
+  // LIVE(JM-056): the wallet transaction-by-id endpoint
+  // (`GET /v1/jeeb/wallet/ledger/:id`) has landed (gateway PR #196), so this
+  // binds the REAL Dio repo. The transaction-detail screen
+  // (TransactionDetailScreen, JM-056) + the inbound `wallet_activity_row_<id>`
+  // edge (JM-055) resolve this against `/v1/jeeb/wallet/ledger/:id`. The
+  // in-memory StubWalletTransactionRepository remains as the integrator fallback
+  // and honors the same [WalletTransactionRepository] contract.
   sl.registerLazySingleton<WalletTransactionRepository>(
-    () => const StubWalletTransactionRepository(),
+    () => DioWalletTransactionRepository(sl<Dio>()),
   );
 
   // ── WAVE 4 (S2) integrator registrations — notifications/support/dispute/
