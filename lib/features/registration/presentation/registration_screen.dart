@@ -371,7 +371,7 @@ class _PhoneEntryBody extends StatelessWidget {
               context.read<RegistrationCubit>().phoneChanged(raw),
         ),
         const SizedBox(height: Spacing.large),
-        _SendCodeButton(state: state),
+        _SendCodeButton(state: state, phoneController: phoneController),
         // SECURITY: the super-login dev affordance is compiled out of release
         // builds (only mounted under `kDebugMode`). It opens a server-validated
         // credential sheet instead of the old gate-less `mock-jwt-*` mint
@@ -393,9 +393,10 @@ class _PhoneEntryBody extends StatelessWidget {
 /// Phone send-code CTA — upgraded to [OmdsLoadingButton] for an in-button
 /// spinner (Rahma/Salehly parity) over the old label-swap.
 class _SendCodeButton extends StatelessWidget {
-  const _SendCodeButton({required this.state});
+  const _SendCodeButton({required this.state, required this.phoneController});
 
   final RegistrationState state;
+  final TextEditingController phoneController;
 
   @override
   Widget build(BuildContext context) {
@@ -405,7 +406,21 @@ class _SendCodeButton extends StatelessWidget {
       text: l10n.registrationSendCode,
       isLoading: state.isSendingCode,
       isEnabled: state.isPhoneReady && !state.isSendingCode,
-      onTap: () => context.read<RegistrationCubit>().sendCode(),
+      // SUBMIT-PATH FIX (run-2 on-device P0): commit the field's *current*
+      // committed text into the cubit immediately before sending, so the value
+      // `sendCode()` validates is the exact text the user sees (and that the
+      // enable-check above read). The field is the source of truth while the
+      // user types, but `onChanged` can lag the final committed value on device
+      // (Android IME composing/autocorrect finalisation): the button enables off
+      // a fresh rebuild while `state.phoneInput` still held an earlier value, so
+      // `sendCode`'s `tryParse(state.phoneInput)` guard failed and no OTP left
+      // the device though the screen looked valid. Re-committing here makes the
+      // validated value and the displayed value ONE source of truth at submit.
+      onTap: () {
+        final cubit = context.read<RegistrationCubit>();
+        cubit.phoneChanged(phoneController.text);
+        cubit.sendCode();
+      },
     );
   }
 }

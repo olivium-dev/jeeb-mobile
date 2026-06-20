@@ -186,6 +186,61 @@ void main() {
     expect(cubit.state.isPhoneReady, isTrue);
   });
 
+  testWidgets(
+      'REGRESSION (run-2 on-device P0): Send validates+sends the field\'s '
+      'CURRENT text, not a stale cubit phoneInput (submit-path divergence fix)',
+      (tester) async {
+    // On-device defect: "Send code" enabled off a fresh rebuild (which reflects
+    // the field/controller), but `state.phoneInput` could lag the final
+    // committed keystroke (Android IME composing/autocorrect finalisation does
+    // not always re-fire `onChanged` with the last value). So the button looked
+    // valid yet `sendCode()`'s `tryParse(state.phoneInput)` guard saw a stale
+    // value, flipped the field red, and sent NOTHING — login impossible
+    // on-device. The fix re-commits the controller text into the cubit at tap
+    // time, so the value Send validates == the value the user sees/typed.
+    //
+    // Faithful model of the divergence while keeping the button enabled (the
+    // on-device symptom): the cubit holds a VALID-but-STALE 8-digit number
+    // (button enabled) while the controller/display holds a DIFFERENT, current
+    // 8-digit number (what the user actually typed last). Send must use the
+    // CONTROLLER's number — proving the field is the source of truth at submit.
+    when(() => otp.sendCode(any()))
+        .thenAnswer((_) async => OtpSendOutcome.sent);
+    final cubit = makeCubit();
+    await tester.pumpWidget(wrapForTest(
+      RegistrationScreen(cubit: cubit),
+    ));
+    await tester.pump();
+
+    final field = find.byKey(const Key('registration.phoneField'));
+    final controller = tester.widget<TextField>(field).controller!;
+
+    // Cubit has a valid (so the button is ENABLED) but STALE number...
+    cubit.phoneChanged('71000000');
+    await tester.pump();
+    expect(cubit.state.isPhoneReady, isTrue,
+        reason: 'precondition: button is enabled (stale value is still valid)');
+
+    // ...while the field/display holds the DIFFERENT number the user last typed,
+    // set WITHOUT routing through `onChanged` (the on-device lag).
+    controller.text = '71123456';
+    await tester.pump();
+    expect(controller.text, '71123456');
+    expect(cubit.state.phoneInput, '71000000',
+        reason: 'precondition: cubit phoneInput is stale, diverged from field');
+
+    // Tap Send. Pre-fix it would have sent the STALE +96171000000 (or, when the
+    // stale value was short, bailed entirely). Post-fix it commits the field
+    // first and sends the CURRENT +96171123456 — the field is the one truth.
+    await tester.tap(find.byKey(const Key('registration.sendCode')));
+    await tester.pump();
+
+    expect(cubit.state.phoneInput, '71123456');
+    expect(cubit.state.phoneError, isNull);
+    verify(() => otp.sendCode('+96171123456')).called(1);
+    verifyNever(() => otp.sendCode('+96171000000'));
+  });
+
   testWidgets('Send code is disabled until 8 digits are typed', (tester) async {
     await tester.pumpWidget(wrapForTest(
       RegistrationScreen(cubit: makeCubit()),
