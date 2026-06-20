@@ -174,6 +174,46 @@ class SessionSeamBootstrap {
           await _logIn(tokens, customerUserId);
           await prefs.setBool(kAccountBlockedKey, true);
           // onboarded + token + account blocked → `/account-status`.
+
+        case SessionSeed.superLoginPlus:
+          // QA-only seam: write a REAL gateway JWT (minted via /auth/tokens) into
+          // AuthTokenStore so the app makes authenticated /v1/* calls against the
+          // LIVE gateway as the seeded user — without OTP.
+          //
+          // GUARD: this case is only reachable when kDebugMode is true (the entire
+          // seed() method short-circuits when !kDebugMode). The token is supplied
+          // at launch time via `adb am start -e 'jeeb.seam.super_login_token'
+          // '<JWT>'` and is NEVER baked into the binary.
+          //
+          // Falls back gracefully: if the token extra is absent (empty), the seam
+          // completes onboarding + role but writes no token → the router lands on
+          // `/login` (the user sees the login screen rather than crashing).
+          await _completeOnboarding(prefs);
+          await _setRole(prefs, UserRole.client);
+          final realToken = DevSeam.current.superLoginToken;
+          if (realToken.isNotEmpty) {
+            final refreshToken = DevSeam.current.superLoginRefreshToken
+                    .isNotEmpty
+                ? DevSeam.current.superLoginRefreshToken
+                : realToken; // fallback: use access token as refresh placeholder
+            final userId = DevSeam.current.superLoginUserId.isNotEmpty
+                ? DevSeam.current.superLoginUserId
+                : null; // null → AuthTokenStore.save skips writing userId
+            await tokens.save(
+              accessToken: realToken,
+              refreshToken: refreshToken,
+              userId: userId,
+            );
+            debugPrint(
+              'SessionSeamBootstrap super_login_plus: real gateway token '
+              'written for userId=$userId',
+            );
+          } else {
+            debugPrint(
+              'SessionSeamBootstrap super_login_plus: no token supplied '
+              '(jeeb.seam.super_login_token absent) — landing on /login',
+            );
+          }
       }
       if (seed != SessionSeed.none) {
         debugPrint('SessionSeamBootstrap seeded session: ${seed.name}');
