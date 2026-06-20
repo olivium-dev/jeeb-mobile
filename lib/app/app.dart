@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -16,8 +17,11 @@ import '../core/locale/locale_cubit.dart';
 import '../core/notifications/application/badge_count_cubit.dart';
 import '../core/notifications/application/notification_dispatcher.dart';
 import '../core/notifications/application/push_notification_handler.dart';
+import '../core/notifications/data/firebase_messaging_transport.dart';
 import '../core/notifications/data/push_transport.dart';
 import '../core/notifications/domain/notification_deep_link.dart';
+import '../core/notifications/domain/push_token_repository.dart';
+import '../core/di/injection_container.dart';
 import '../core/notifications/presentation/push_banner_host.dart';
 import '../core/observability/crash_context_bridge.dart';
 import '../core/observability/crash_reporter.dart';
@@ -38,6 +42,10 @@ import '../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../features/biometric_auth/data/dev_biometric_gateway.dart';
 import '../features/biometric_auth/data/shared_prefs_pin_repository.dart';
 import '../features/biometric_auth/domain/biometric_gateway.dart';
+import '../features/offline_mode/application/offline_cubit.dart';
+import '../features/offline_mode/data/connectivity_plus_source.dart';
+import '../features/offline_mode/domain/connectivity_source.dart';
+import '../features/offline_mode/presentation/offline_banner.dart';
 import '../features/settings/data/repositories/biometric_preference_repository_impl.dart';
 import '../l10n/app_localizations.dart';
 
@@ -59,6 +67,7 @@ class JeebApp extends StatefulWidget {
     this.biometricGateway,
     this.localizationsDelegateOverride,
     this.sessionGate,
+    this.connectivitySource,
   });
 
   final SharedPreferences preferences;
@@ -95,6 +104,12 @@ class JeebApp extends StatefulWidget {
   /// [AlwaysAuthenticatedSessionGate]) so they don't need a keystore. When an
   /// override is supplied it is NOT owned by this widget (no dispose).
   final SessionGate? sessionGate;
+
+  /// Optional override for the connectivity source driving the global offline
+  /// banner (global-offline-banner / SC-129). Production binds
+  /// [ConnectivityPlusSource]; widget tests pass `null` (source-less cubit,
+  /// online default, no platform channel) or inject a fake to drive the banner.
+  final ConnectivitySource? connectivitySource;
 
   @override
   State<JeebApp> createState() => _JeebAppState();
@@ -182,6 +197,16 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   // BadgeCountCubit is cheap (in-memory Cubit<int>) and is read by the
   // MultiBlocProvider on first build, so it stays eager.
   late final BadgeCountCubit _badgeCount = BadgeCountCubit();
+
+  // global-offline-banner (SC-129): one app-level OfflineCubit driven by a real
+  // connectivity source, provided to the whole tree so the global OfflineBanner
+  // (and wallet-hub's offline read) reflect airplane mode. Production binds
+  // ConnectivityPlusSource; widget tests pass `connectivitySource: null` so the
+  // cubit stays source-less (online default, no platform channel) and
+  // deterministic.
+  late final OfflineCubit _offline = OfflineCubit(
+    connectivity: widget.connectivitySource ?? ConnectivityPlusSource(),
+  );
   late final CrashContextBridge _crashContext = CrashContextBridge(
     reporter: widget.crashReporter,
     roleCubit: _role,
@@ -264,21 +289,68 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) _syncRole();
   }
 
-  void _initPushChain() {
+  Future<void> _initPushChain() async {
     if (!mounted) return;
-    final transport = widget.pushTransport ?? FakePushTransport();
+    // notif-push-* (T-mobile-032): production binds the real
+    // FirebaseMessagingTransport and bootstraps it, replacing the inert
+    // FakePushTransport. A test-injected transport always wins. When the
+    // Firebase config (google-services.json / GoogleService-Info.plist) hasn't
+    // been provisioned yet, `Firebase.apps` is empty (bootstrap fell back to
+    // the Noop crash reporter) — we keep the FakePushTransport so the app never
+    // crashes; the real pipeline lights up automatically once the config lands.
+    final transport = widget.pushTransport ?? await _resolveTransport();
     final handler = PushNotificationHandler(
       transport: transport,
       badgeCount: _badgeCount,
+      tokenRepository: _resolveTokenRepository(),
     );
+    // notif-deep-link-cold-start: pass the transport's cold-start message so a
+    // tray-tap that launched the app from terminated routes once init resolves.
     final dispatcher = NotificationDispatcher(
       handler: handler,
       router: _router,
+      initialMessage: transport.initialMessage(),
     );
+    if (!mounted) {
+      // Widget was disposed mid-init — tear down what we built.
+      unawaited(dispatcher.dispose());
+      unawaited(handler.dispose());
+      return;
+    }
     setState(() {
       _pushHandler = handler;
       _dispatcher = dispatcher;
     });
+  }
+
+  /// Builds the production push transport. Uses the real
+  /// [FirebaseMessagingTransport] when a Firebase app is initialized; otherwise
+  /// falls back to the inert [FakePushTransport] so a missing Firebase config
+  /// (still being provisioned) can never crash the app (T-mobile-032).
+  Future<PushTransport> _resolveTransport() async {
+    if (Firebase.apps.isEmpty) {
+      return FakePushTransport();
+    }
+    try {
+      final transport = FirebaseMessagingTransport();
+      await transport.initialize();
+      return transport;
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('FirebaseMessagingTransport init failed; using fake: $error');
+      }
+      return FakePushTransport();
+    }
+  }
+
+  /// Resolves the gateway token-registration repo from DI when available, so
+  /// the handler can `POST /v1/devices` on token resolve/refresh. Null in
+  /// widget tests that don't configure GetIt (registration becomes a no-op).
+  PushTokenRepository? _resolveTokenRepository() {
+    if (sl.isRegistered<PushTokenRepository>()) {
+      return sl<PushTokenRepository>();
+    }
+    return null;
   }
 
   @override
@@ -288,6 +360,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     _dispatcher?.dispose();
     _pushHandler?.dispose();
     _badgeCount.close();
+    _offline.close();
     _biometricLock.close();
     _roleEligibility.close();
     _roleAvailability.close();
@@ -310,6 +383,10 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
         BlocProvider.value(value: _onboarding),
         BlocProvider.value(value: _biometricLock),
         BlocProvider.value(value: _badgeCount),
+        // global-offline-banner (SC-129): app-level OfflineCubit so the global
+        // OfflineBanner overlay (mounted in the MaterialApp builder below) and
+        // wallet-hub's offline read see the same connectivity-driven state.
+        BlocProvider.value(value: _offline),
         // FR-P0-3 (defect DEF-1): expose the production SessionCubit to the
         // tree so a successful login (OTP verify / super-login) can call
         // `refresh()` — that emit drives `refreshListenable` and re-runs the
@@ -345,7 +422,19 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
               ],
               routerConfig: _router,
               builder: (context, child) {
-                final content = child ?? const SizedBox.shrink();
+                final routed = child ?? const SizedBox.shrink();
+                // global-offline-banner (SC-129): the global OfflineBanner sits
+                // above the routed content (a MaterialBanner pushed down from
+                // the top) so airplane mode surfaces it on EVERY screen, not
+                // just wallet-hub / jeeber-feed. It collapses to a zero-size box
+                // when online or dismissed.
+                final content = Column(
+                  mainAxisSize: MainAxisSize.max,
+                  children: [
+                    const OfflineBanner(),
+                    Expanded(child: routed),
+                  ],
+                );
                 final handler = _pushHandler;
                 // Until the push chain finishes initializing post-first-frame,
                 // render the router content directly — no banner host. Once

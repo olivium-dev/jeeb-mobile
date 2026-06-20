@@ -98,6 +98,21 @@ dependencies:
   firebase_messaging: ^15.1.3
   flutter_local_notifications: ^17.2.3
 
+  # Native store-review prompt (JM-064 / profile-rate-the-app, feedback-rate-the-app,
+  # support-rate-the-app). `in_app_review` raises the OS-owned review sheet
+  # (App Store SKStoreReviewController / Play In-App Review) behind the
+  # `AppReviewLauncher` port. The OS rate-limits the sheet; the call is
+  # best-effort and never user-facing on failure.
+  in_app_review: ^2.0.10
+
+  # Connectivity source (global-offline-banner / SC-129). `connectivity_plus`
+  # emits a stream of online/offline transitions that drives
+  # `OfflineCubit.setOffline()/setOnline()` so the global `OfflineBanner` can
+  # actually appear from airplane mode (previously dead UI: no source called
+  # setOffline). Wrapped behind the `ConnectivitySource` port so the cubit and
+  # tests stay platform-free.
+  connectivity_plus: ^6.0.5
+
   # Hashing for the fallback PIN store (T-mobile-005). crypto already
   # ships transitively via flutter; pinning it explicitly so the import is
   # not load-bearing on someone else's dependency graph.
@@ -129,6 +144,12 @@ dev_dependencies:
   # (chat_connection_cubit_test.dart). Ships transitively with flutter_test but
   # imported directly, so declared explicitly per depend_on_referenced_packages.
   fake_async: ^1.3.3
+  # in_app_review's platform interface + the base PlatformInterface, imported
+  # directly by in_app_review_launcher_test.dart to mock the OS review sheet
+  # (JM-064). Both ship transitively via in_app_review; declared explicitly per
+  # depend_on_referenced_packages (same rationale as fake_async above).
+  in_app_review_platform_interface: ^2.0.5
+  plugin_platform_interface: ^2.1.8
 
 flutter:
   uses-material-design: true

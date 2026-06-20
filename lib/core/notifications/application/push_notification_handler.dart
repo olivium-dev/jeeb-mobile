@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../data/push_transport.dart';
 import '../domain/notification_message.dart';
+import '../domain/push_token_repository.dart';
 import 'badge_count_cubit.dart';
 
 /// View-model state surfaced to [PushBannerHost] and the dispatcher.
@@ -63,20 +64,30 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
   PushNotificationHandler({
     required PushTransport transport,
     required BadgeCountCubit badgeCount,
+    PushTokenRepository? tokenRepository,
     int historyLimit = 20,
   })  : _transport = transport,
         _badgeCount = badgeCount,
+        _tokenRepository = tokenRepository,
         _historyLimit = historyLimit,
         super(const PushNotificationState()) {
     _foregroundSub = transport.onForegroundMessage.listen(_onForeground);
     _openedSub = transport.onMessageOpenedApp.listen(_opensCtl.add);
-    _tokenSub = transport.onTokenRefresh.listen(
-      (token) => emit(state.copyWith(token: token)),
-    );
+    _tokenSub = transport.onTokenRefresh.listen((token) {
+      emit(state.copyWith(token: token));
+      // notif-push-token-registration: re-register on every rotation
+      // (reinstall / restore from backup).
+      unawaited(_registerToken(token));
+    });
   }
 
   final PushTransport _transport;
   final BadgeCountCubit _badgeCount;
+
+  /// notif-push-token-registration: registers the FCM token with the gateway
+  /// (`POST /v1/devices`). Null in unit tests / before the repo lands — then
+  /// registration is a no-op and the token still surfaces in state.
+  final PushTokenRepository? _tokenRepository;
   final int _historyLimit;
   final _opensCtl = StreamController<NotificationMessage>.broadcast();
   final _seenIds = Queue<String>();
@@ -98,6 +109,24 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     final permission = await _transport.requestPermission();
     final token = await _transport.getToken();
     emit(state.copyWith(permission: permission, token: token));
+    // notif-push-token-registration: register the resolved token with the
+    // gateway so server-side notifications can target this install. Best-effort
+    // — a failure here must not break the push chain.
+    if (token != null) {
+      await _registerToken(token);
+    }
+  }
+
+  /// POSTs the token to the gateway via [PushTokenRepository]. Swallows errors
+  /// (offline / route not yet served) — the next token-refresh re-registers.
+  Future<void> _registerToken(String token) async {
+    final repo = _tokenRepository;
+    if (repo == null || token.isEmpty) return;
+    try {
+      await repo.register(token);
+    } catch (_) {
+      // Best-effort: device registration is non-blocking for the push chain.
+    }
   }
 
   /// Dismiss the foreground banner without performing the deep-link.

@@ -18,6 +18,17 @@ import 'package:jeeb_mobile/features/jeeber_request_detail/presentation/jeeber_r
 
 import 'support/sync_app_localizations.dart';
 
+class _FakeReportService implements ProhibitedItemReportService {
+  const _FakeReportService();
+
+  @override
+  Future<void> report({
+    required String requestId,
+    required String reason,
+    String? photoUrl,
+  }) async {}
+}
+
 void main() {
   Widget harness({Locale locale = const Locale('en')}) => wrapForTest(
         JeeberRequestDetailScreen(
@@ -25,7 +36,7 @@ void main() {
             id: 'REQ-001',
             shortLabel: '2kg tomatoes from the souq',
           ),
-          reportService: const ProhibitedItemReportService(),
+          reportService: const _FakeReportService(),
           onDeclined: (_) {},
         ),
         locale: locale,
@@ -60,12 +71,14 @@ void main() {
     expect(find.text('REQ-001'), findsOneWidget);
   });
 
-  testWidgets('the offer + decline CTAs remain intact', (tester) async {
+  testWidgets('the offer + report + decline CTAs are present', (tester) async {
     await tester.pumpWidget(harness());
     await tester.pumpAndSettle();
 
-    // Both CTAs still present (enrichment must not regress the action bar).
-    expect(find.byType(OmdsPrimaryButton), findsNWidgets(2));
+    // orders-prohibited-item-report added the "Report — Prohibited item" CTA
+    // between the offer + decline CTAs, so the action bar now has three.
+    expect(find.byType(OmdsPrimaryButton), findsNWidgets(3));
+    expect(find.text('Report — Prohibited item'), findsOneWidget);
   });
 
   testWidgets('Arabic locale renders the localized field labels',

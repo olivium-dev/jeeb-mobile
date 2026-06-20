@@ -947,6 +947,10 @@ class AppLocalizations {
           .replaceFirst('{distance}', distance);
   String get jeeberRequestDetailReportButton =>
       _get('jeeberRequestDetailReportButton');
+  String get maskedCallButton => _get('maskedCallButton');
+  String get maskedCallErrorNetwork => _get('maskedCallErrorNetwork');
+  String get maskedCallErrorUnavailable => _get('maskedCallErrorUnavailable');
+  String get maskedCallErrorDialer => _get('maskedCallErrorDialer');
   String get jeeberRequestDetailReportHint =>
       _get('jeeberRequestDetailReportHint');
   String get jeeberRequestDetailDeclineButton =>

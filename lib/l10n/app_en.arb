@@ -1732,6 +1732,22 @@
   "@jeeberRequestDetailReportButton": {
     "description": "Primary report CTA on the Jeeber request-detail screen"
   },
+  "maskedCallButton": "Call",
+  "@maskedCallButton": {
+    "description": "CTA that initiates a masked/anonymised call for COD coordination (orders-masked-call)"
+  },
+  "maskedCallErrorNetwork": "Couldn't start the call. Check your connection and try again.",
+  "@maskedCallErrorNetwork": {
+    "description": "Error shown when the masked-call session request fails on the network"
+  },
+  "maskedCallErrorUnavailable": "Calling isn't available right now. Please use chat.",
+  "@maskedCallErrorUnavailable": {
+    "description": "Error shown when the gateway can't broker a masked-call session"
+  },
+  "maskedCallErrorDialer": "We couldn't open your phone's dialer.",
+  "@maskedCallErrorDialer": {
+    "description": "Error shown when the device has no dialer to place the masked call"
+  },
   "jeeberRequestDetailReportHint": "Spotted weapons, drugs, hazardous goods, or other prohibited items? Flag the request for admin review.",
   "@jeeberRequestDetailReportHint": {
     "description": "Helper copy beneath the report button explaining when to use it"

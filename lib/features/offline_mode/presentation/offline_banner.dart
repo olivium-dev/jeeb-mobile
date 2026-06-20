@@ -10,7 +10,7 @@ class OfflineBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<OfflineCubit, OfflineState>(
       builder: (context, state) {
-        if (state.status == ConnectivityStatus.online) {
+        if (!state.showBanner) {
           return const SizedBox.shrink();
         }
         return const _OfflineMaterialBanner();
@@ -40,7 +40,7 @@ class _OfflineMaterialBanner extends StatelessWidget {
           text: 'DISMISS',
           variant: OmdsButtonVariant.text,
           textColor: theme.colorScheme.onErrorContainer,
-          onTap: () {},
+          onTap: () => context.read<OfflineCubit>().dismissBanner(),
         ),
       ],
     );

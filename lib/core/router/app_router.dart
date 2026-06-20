@@ -62,6 +62,7 @@ import '../../features/jeeber_onboarding/presentation/dm_onboarding_screen.dart'
 import '../../features/jeeber_request_detail/domain/services/prohibited_item_report_service.dart';
 import '../../features/jeeber_request_detail/presentation/jeeber_request_detail_screen.dart';
 import '../../features/jeeber_request_detail/presentation/jeeber_request_unavailable_screen.dart';
+import '../../features/prohibited_item_report/presentation/prohibited_item_report_screen.dart';
 import '../../features/live_tracking/application/live_tracking_cubit.dart';
 import '../../features/live_tracking/data/demo_live_tracking_repository.dart';
 import '../../features/live_tracking/domain/live_tracking_repository.dart';
@@ -916,6 +917,18 @@ class AppRouter {
                 if (context.canPop()) context.pop();
               },
             );
+          },
+        ),
+        // orders-prohibited-item-report / disputes-prohibited-item-report: the
+        // report form, reachable from the request-detail "Report — Prohibited
+        // item" CTA and from order chat. Submits via the gateway report RPC
+        // (DI-bound DioProhibitedItemReportService).
+        GoRoute(
+          path: '/deliveries/:id/prohibited-report',
+          name: 'prohibited-item-report',
+          builder: (context, state) {
+            final id = state.pathParameters['id'] ?? '';
+            return ProhibitedItemReportScreen(requestId: id);
           },
         ),
         GoRoute(
