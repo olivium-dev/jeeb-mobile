@@ -697,7 +697,6 @@ class AppLocalizations {
           .replaceFirst('{total}', '$total');
   String get kycWizardStepIdLabel => _get('kycWizardStepIdLabel');
   String get kycWizardStepSelfieLabel => _get('kycWizardStepSelfieLabel');
-  String get kycWizardStepVehicleLabel => _get('kycWizardStepVehicleLabel');
   String get kycWizardBack => _get('kycWizardBack');
   String get kycWizardNext => _get('kycWizardNext');
   String get kycWizardSubmit => _get('kycWizardSubmit');
@@ -722,33 +721,18 @@ class AppLocalizations {
   String get kycSelfieRetake => _get('kycSelfieRetake');
   String get kycSelfieCaptureCta => _get('kycSelfieCaptureCta');
 
-  String get kycVehicleStepTitle => _get('kycVehicleStepTitle');
-  String get kycVehicleStepSubtitle => _get('kycVehicleStepSubtitle');
-  String get kycVehicleTypeScooter => _get('kycVehicleTypeScooter');
-  String get kycVehicleTypeCar => _get('kycVehicleTypeCar');
-  String get kycVehicleTypeBicycle => _get('kycVehicleTypeBicycle');
-  String get kycVehicleTypeOnFoot => _get('kycVehicleTypeOnFoot');
-  String get kycVehicleRegistrationLabel =>
-      _get('kycVehicleRegistrationLabel');
-  String get kycVehicleRegistrationHint => _get('kycVehicleRegistrationHint');
-  String get kycVehicleRegistrationRequired =>
-      _get('kycVehicleRegistrationRequired');
-
   String get kycStatusPendingTitle => _get('kycStatusPendingTitle');
   String get kycStatusPendingBody => _get('kycStatusPendingBody');
   String get kycStatusApprovedTitle => _get('kycStatusApprovedTitle');
   String get kycStatusApprovedBody => _get('kycStatusApprovedBody');
   String get kycStatusRejectedTitle => _get('kycStatusRejectedTitle');
   String get kycStatusRejectedBody => _get('kycStatusRejectedBody');
-  String get kycStatusResubmitCta => _get('kycStatusResubmitCta');
   String get kycStatusBackToProfileCta => _get('kycStatusBackToProfileCta');
 
   String get kycRejectionReasonIdUnreadable =>
       _get('kycRejectionReasonIdUnreadable');
   String get kycRejectionReasonSelfieMismatch =>
       _get('kycRejectionReasonSelfieMismatch');
-  String get kycRejectionReasonVehicleDocumentMissing =>
-      _get('kycRejectionReasonVehicleDocumentMissing');
   String get kycRejectionReasonExpired =>
       _get('kycRejectionReasonExpired');
   String get kycRejectionReasonOther => _get('kycRejectionReasonOther');
@@ -1554,10 +1538,6 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('dmOnboardingAddressStreetLabel');
   String get dmOnboardingAddressStreetHint =>
       _get('dmOnboardingAddressStreetHint');
-  String get dmOnboardingAddressVehicleNumberLabel =>
-      _get('dmOnboardingAddressVehicleNumberLabel');
-  String get dmOnboardingAddressVehicleNumberHint =>
-      _get('dmOnboardingAddressVehicleNumberHint');
   String get dmOnboardingAddressAddressLabel =>
       _get('dmOnboardingAddressAddressLabel');
   String get dmOnboardingAddressAddressHint =>
@@ -1574,11 +1554,6 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('dmOnboardingServiceAreaLocationFieldLabel');
   String get dmOnboardingServiceAreaLocationPlaceholder =>
       _get('dmOnboardingServiceAreaLocationPlaceholder');
-  String get dmOnboardingServiceAreaDistanceLabel =>
-      _get('dmOnboardingServiceAreaDistanceLabel');
-  String dmOnboardingServiceAreaDistanceValue(int distance) =>
-      _get('dmOnboardingServiceAreaDistanceValue')
-          .replaceFirst('{distance}', '$distance');
   String get dmOnboardingContinue => _get('dmOnboardingContinue');
   String dmOnboardingStepProgressLabel({
     required int current,

@@ -1,0 +1,210 @@
+// Regression locks for the live decision-violation fixes carried on
+// `temp-overall-run-1` (catalog FEATURE_CATALOG.md §F.4 + iter3-dispatch-plan
+// mobile-1 items P5/P7/P8/P9). Each test pins one decision so a future edit
+// cannot silently reintroduce the violation:
+//
+//   * D56  — the mandatory rating offers NO close/skip/dismiss affordance and
+//            the system back gesture is suppressed (PopScope canPop:false).
+//   * D52  — a FINAL KYC rejection offers NO resubmit CTA (appeal via support
+//            only); `kyc_rejected_resubmit_cta` must never surface.
+//   * D20  — the personal-details + KYC contract no longer carries any
+//            "Vehicle number" string (the stale per-screen contract strings
+//            were removed to align with the removed field).
+//   * Earnings framing — the per-delivery settlement line is framed fee-only
+//            ("Platform fee", D41/D44), never the misleading "Commission"
+//            (platform-takes-a-cut) framing.
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+
+import 'package:jeeb_mobile/features/kyc/domain/kyc_gateway.dart';
+import 'package:jeeb_mobile/features/kyc_rejected/presentation/kyc_rejected_screen.dart';
+import 'package:jeeb_mobile/features/rating/application/mutual_rating_cubit.dart';
+import 'package:jeeb_mobile/features/rating/domain/entities/rating_status.dart';
+import 'package:jeeb_mobile/features/rating/domain/rating_repository.dart';
+import 'package:jeeb_mobile/features/rating/presentation/mutual_rating_screen.dart';
+import 'package:jeeb_mobile/features/settlement/domain/settlement_statement.dart';
+import 'package:jeeb_mobile/features/settlement/presentation/settlement_detail_screen.dart';
+import 'package:jeeb_mobile/l10n/app_localizations.dart';
+
+import 'support/sync_app_localizations.dart';
+
+class _NoopRatingRepo implements RatingRepository {
+  const _NoopRatingRepo();
+
+  @override
+  Future<void> submitRating({
+    required String deliveryId,
+    required int stars,
+    required bool isClient,
+    String? comment,
+    List<String>? tags,
+  }) async {}
+
+  @override
+  Future<RatingStatus> fetchRatingStatus({required String deliveryId}) {
+    throw UnimplementedError();
+  }
+}
+
+/// Router shell carrying the named routes the kyc-rejected CTAs target, so the
+/// screen's `goNamed` edges resolve without throwing.
+Widget _routerHarness(Widget screen) {
+  final router = GoRouter(
+    initialLocation: '/kyc/rejected',
+    routes: [
+      GoRoute(
+        path: '/kyc/rejected',
+        builder: (_, __) => screen,
+      ),
+      GoRoute(
+        name: 'support-ticket',
+        path: '/support',
+        builder: (_, __) => const Scaffold(body: Text('SUPPORT')),
+      ),
+      GoRoute(
+        name: 'customer-profile',
+        path: '/profile',
+        builder: (_, __) => const Scaffold(body: Text('PROFILE')),
+      ),
+    ],
+  );
+  return MaterialApp.router(
+    theme: ThemeData.light(),
+    supportedLocales: AppLocalizations.supportedLocales,
+    localizationsDelegates: const [
+      SyncAppLocalizationsDelegate(),
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    routerConfig: router,
+  );
+}
+
+void main() {
+  group('D56 — mandatory rating has no escape affordance', () {
+    testWidgets('MutualRatingScreen suppresses back and offers no close/skip',
+        (tester) async {
+      final cubit = MutualRatingCubit(
+        repository: const _NoopRatingRepo(),
+        deliveryId: 'DLV-1',
+        isClient: true,
+      );
+      addTearDown(cubit.close);
+
+      await tester.pumpWidget(
+        wrapForTest(
+          BlocProvider<MutualRatingCubit>.value(
+            value: cubit,
+            child: const MutualRatingScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // The mandatory terminal renders (signature id present).
+      expect(find.bySemanticsIdentifier('rating_root'), findsOneWidget);
+
+      // D56: the system back gesture is suppressed via PopScope(canPop:false).
+      final popScope = tester.widget<PopScope>(find.byType(PopScope));
+      expect(popScope.canPop, isFalse);
+
+      // D56: no leading back/close and no skip control of any kind.
+      expect(find.byType(BackButton), findsNothing);
+      expect(find.byType(CloseButton), findsNothing);
+      expect(find.bySemanticsIdentifier('rating_close_cta'), findsNothing);
+      expect(find.text('Skip'), findsNothing);
+    });
+  });
+
+  group('D52 — final KYC rejection has no resubmit CTA', () {
+    testWidgets('KycRejectedScreen shows appeal + back, never a resubmit CTA',
+        (tester) async {
+      await tester.pumpWidget(
+        _routerHarness(KycRejectedScreen(gateway: FakeKycGateway())),
+      );
+      await tester.pump();
+
+      expect(find.bySemanticsIdentifier('kyc_rejected_root'), findsOneWidget);
+
+      // The only forward paths are appeal-via-support and back-to-profile.
+      expect(
+        find.bySemanticsIdentifier('kyc_rejected_appeal_cta'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('kyc_rejected_back_cta'),
+        findsOneWidget,
+      );
+
+      // D52: a FINAL rejection must NEVER offer resubmit.
+      expect(
+        find.bySemanticsIdentifier('kyc_rejected_resubmit_cta'),
+        findsNothing,
+      );
+      expect(find.textContaining('Resubmit'), findsNothing);
+      expect(find.textContaining('resubmit'), findsNothing);
+    });
+  });
+
+  group('D20 — vehicle is not part of the contract', () {
+    test('the en/ar ARB carry no "Vehicle number" contract strings', () {
+      final en = File('lib/l10n/app_en.arb').readAsStringSync();
+      final ar = File('lib/l10n/app_ar.arb').readAsStringSync();
+      // The stale per-screen contract keys were removed to align with the
+      // already-removed field (catalog line 53).
+      for (final key in const [
+        'dmOnboardingAddressVehicleNumberLabel',
+        'dmOnboardingAddressVehicleNumberHint',
+        'kycWizardStepVehicleLabel',
+        'kycVehicleStepTitle',
+        'kycVehicleRegistrationLabel',
+        'kycStatusResubmitCta',
+        'dmOnboardingServiceAreaDistanceLabel',
+      ]) {
+        expect(en.contains('"$key"'), isFalse, reason: '$key must be gone (en)');
+        expect(ar.contains('"$key"'), isFalse, reason: '$key must be gone (ar)');
+      }
+    });
+  });
+
+  group('Earnings framing — fee-only, not gross/commission', () {
+    testWidgets('settlement detail labels the per-delivery cut as a platform fee',
+        (tester) async {
+      const statement = SettlementStatement(
+        id: 'stmt-1',
+        weekLabel: 'Week 1',
+        totalPayout: 90.0,
+        currency: 'USD',
+        status: SettlementStatus.paid,
+        deliveries: [
+          SettlementDeliveryLine(
+            deliveryId: 'd-1',
+            date: '2026-06-18',
+            tier: 'Express',
+            fare: 100.0,
+            commission: 10.0,
+            net: 90.0,
+            currency: 'USD',
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        wrapForTest(const SettlementDetailScreen(statement: statement)),
+      );
+      await tester.pump();
+
+      // Fee-only framing (D41/D44): the line reads "Platform fee", and the
+      // misleading "Commission" framing must not appear.
+      expect(find.textContaining('Platform fee'), findsOneWidget);
+      expect(find.textContaining('Commission'), findsNothing);
+      expect(find.text('Total cash kept'), findsOneWidget);
+    });
+  });
+}

@@ -1313,13 +1313,12 @@
   },
   "kycWizardStepIdLabel": "ID",
   "kycWizardStepSelfieLabel": "Selfie",
-  "kycWizardStepVehicleLabel": "Vehicle",
   "kycWizardBack": "Back",
   "kycWizardNext": "Next",
   "kycWizardSubmit": "Submit for review",
   "kycWizardSubmitting": "Submitting…",
   "kycSubmittingTitle": "Submitting your documents",
-  "kycSubmittingBody": "Hang tight — we're uploading your ID, selfie, and vehicle details. This usually takes a few seconds.",
+  "kycSubmittingBody": "Hang tight — we're uploading your ID and selfie. This usually takes a few seconds.",
   "kycIdStepTitle": "Upload your national ID",
   "kycIdStepSubtitle": "We need a clear photo of both sides. Make sure the text is legible and the corners are visible.",
   "kycIdAlignmentGuideTitle": "Align your ID inside the frame",
@@ -1335,26 +1334,15 @@
   "kycSelfieLivenessSmile": "Smile gently right after the blink",
   "kycSelfieRetake": "Retake selfie",
   "kycSelfieCaptureCta": "Capture selfie",
-  "kycVehicleStepTitle": "Tell us about your vehicle",
-  "kycVehicleStepSubtitle": "Pick the vehicle you'll deliver with and enter its registration or plate number.",
-  "kycVehicleTypeScooter": "Scooter",
-  "kycVehicleTypeCar": "Car",
-  "kycVehicleTypeBicycle": "Bicycle",
-  "kycVehicleTypeOnFoot": "On-foot",
-  "kycVehicleRegistrationLabel": "Registration / plate number",
-  "kycVehicleRegistrationHint": "e.g. 123456",
-  "kycVehicleRegistrationRequired": "Enter a registration or plate number to continue.",
   "kycStatusPendingTitle": "Submission received",
   "kycStatusPendingBody": "Our team is reviewing your documents. This usually takes up to 24 hours — we'll notify you here when there's an update.",
   "kycStatusApprovedTitle": "You're approved",
   "kycStatusApprovedBody": "Welcome aboard! You can now switch to the Jeeber role from your profile and start delivering.",
   "kycStatusRejectedTitle": "We need a second look",
-  "kycStatusRejectedBody": "Your submission was rejected for the reason below. Retake the affected step and resubmit.",
-  "kycStatusResubmitCta": "Resubmit verification",
+  "kycStatusRejectedBody": "Your submission was rejected for the reason below. This decision is final — you can appeal through support.",
   "kycStatusBackToProfileCta": "Back to profile",
   "kycRejectionReasonIdUnreadable": "We couldn't read the ID photos. Make sure both sides are sharp and well-lit.",
   "kycRejectionReasonSelfieMismatch": "Your selfie didn't match the ID photo. Retake the selfie in better lighting.",
-  "kycRejectionReasonVehicleDocumentMissing": "We need a clearer vehicle registration / plate number.",
   "kycRejectionReasonExpired": "Your ID looks expired. Submit a current document.",
   "kycRejectionReasonOther": "Please review your details and resubmit.",
   "kycTosStepTitle": "Terms of Service",
@@ -2864,14 +2852,6 @@
   "@dmOnboardingAddressStreetHint": {
     "description": "Placeholder for the street input on the DM onboarding address step (Figma 56591:4131)."
   },
-  "dmOnboardingAddressVehicleNumberLabel": "Vehicle number",
-  "@dmOnboardingAddressVehicleNumberLabel": {
-    "description": "Field label for the vehicle-number input on the DM onboarding address step (Figma 56591:4137)."
-  },
-  "dmOnboardingAddressVehicleNumberHint": "G279424",
-  "@dmOnboardingAddressVehicleNumberHint": {
-    "description": "Placeholder for the vehicle-number input on the DM onboarding address step (Figma 56591:4139)."
-  },
   "dmOnboardingAddressAddressLabel": "Address",
   "@dmOnboardingAddressAddressLabel": {
     "description": "Field label for the full-address input on the DM onboarding address step (Figma 56591:4145)."
@@ -2903,17 +2883,6 @@
   "dmOnboardingServiceAreaLocationPlaceholder": "Select",
   "@dmOnboardingServiceAreaLocationPlaceholder": {
     "description": "Placeholder shown in the primary-location selector while no location is chosen."
-  },
-  "dmOnboardingServiceAreaDistanceLabel": "Distance Preference",
-  "@dmOnboardingServiceAreaDistanceLabel": {
-    "description": "Label above the distance slider on the service-area step. Figma layer has a typo 'Distance Preferencce'; corrected here (flag F-22-1)."
-  },
-  "dmOnboardingServiceAreaDistanceValue": "{distance} km",
-  "@dmOnboardingServiceAreaDistanceValue": {
-    "description": "Distance value shown next to the slider on the service-area step (Figma 56591:5337 content).",
-    "placeholders": {
-      "distance": { "type": "int", "example": "80" }
-    }
   },
   "dmOnboardingContinue": "Continue",
   "@dmOnboardingContinue": {
@@ -3617,13 +3586,13 @@
   "@settlementBreakdownTitle": {
     "description": "T-MOB-032 AC2: Section header for the per-delivery breakdown list."
   },
-  "settlementTotalPayout": "Total Payout",
+  "settlementTotalPayout": "Total cash kept",
   "@settlementTotalPayout": {
-    "description": "T-MOB-032 AC2: Label for total payout in detail screen."
+    "description": "T-MOB-032 AC2: Label for the total cash the Jeeber kept this period (fee-only framing, D41/D44 — Jeeb never pays a payout; cash is off-wallet COD net of the platform fee)."
   },
-  "settlementCommissionLabel": "Commission: {amount}",
+  "settlementCommissionLabel": "Platform fee: {amount}",
   "@settlementCommissionLabel": {
-    "description": "T-MOB-032 AC2: Per-delivery commission label.",
+    "description": "T-MOB-032 AC2: Per-delivery platform fee paid by the Jeeber (fee-only framing, D41/D44 — the flat 10% fee charged from the pre-funded wallet, NOT a commission Jeeb deducts from a payout).",
     "placeholders": {
       "amount": { "type": "String" }
     }
