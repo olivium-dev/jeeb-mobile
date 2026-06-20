@@ -33,7 +33,7 @@ class _FakeEarningsRepository implements EarningsRepository {
 
   @override
   Future<EarningsSummary> fetchEarnings({
-    required String jeeberId,
+    String jeeberId = '',
     EarningsPeriod period = EarningsPeriod.week,
   }) async {
     await Future<void>.delayed(Duration.zero);
@@ -43,7 +43,7 @@ class _FakeEarningsRepository implements EarningsRepository {
 
   @override
   Future<String> exportEarningsPdf({
-    required String jeeberId,
+    String jeeberId = '',
     EarningsPeriod period = EarningsPeriod.week,
   }) async {
     await Future<void>.delayed(Duration.zero);
