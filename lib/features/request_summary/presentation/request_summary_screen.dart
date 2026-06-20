@@ -10,16 +10,38 @@ class RequestSummaryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // On a successful submit, return to the Requests tab (`/`). The submit
-    // cubit only flips isSubmitted once, so listenWhen fires exactly on the
-    // false → true edge. A failed submit surfaces an OMDS error snackbar on
-    // the null → non-null `error` edge and leaves the screen in place so the
+    // orders-compose-request-in-chat (P1, SC-030/SC-031, D83): on a successful
+    // submit the created request now opens the ORDER-CHAT COMPOSE surface
+    // (`/chat/<requestId>`, the `chat-detail` route) instead of dead-ending
+    // back at the Requests tab (`/`). This is the missing compose-the-request-
+    // in-chat ENTRY: `ChatDetailScreen` resolves the not-yet-matched request
+    // into its compose state, where the FIRST message the customer sends fires
+    // the broadcast hook (`POST /v1/matching/find-jeebers` + `/v1/matching/
+    // broadcast`, via the live gateway → :10090) and routes to
+    // `waiting-no-coverage` (JM-026). `goNamed` (not push) so the create-flow
+    // stack — request-type → request-summary — is cleared behind the chat.
+    //
+    // The submit cubit only flips isSubmitted once, so listenWhen fires exactly
+    // on the false → true edge. A failed submit surfaces an OMDS error snackbar
+    // on the null → non-null `error` edge and leaves the screen in place so the
     // user can retry.
     return MultiBlocListener(
       listeners: [
         BlocListener<RequestSummaryCubit, RequestSummaryState>(
           listenWhen: (p, c) => !p.isSubmitted && c.isSubmitted,
-          listener: (context, state) => context.go('/'),
+          listener: (context, state) {
+            final requestId = state.requestId;
+            if (requestId != null && requestId.isNotEmpty) {
+              context.goNamed(
+                'chat-detail',
+                pathParameters: {'id': requestId},
+              );
+            } else {
+              // Defensive: a created request with no id can't open a compose
+              // chat, so fall back to the Requests tab rather than `/chat/`.
+              context.go('/');
+            }
+          },
         ),
         BlocListener<RequestSummaryCubit, RequestSummaryState>(
           listenWhen: (p, c) => p.error == null && c.error != null,
