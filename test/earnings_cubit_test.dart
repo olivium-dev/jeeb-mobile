@@ -126,6 +126,70 @@ void main() {
     });
   });
 
+  // §6B real-app regression: the LIVE gateway `GET /v1/jeeb/earnings` body keys
+  // on `entries`/`totalNet`/`totalCommission`/`rowCount` — NONE of which the
+  // prior parser read, so the screen bound 0.00/0 despite a real 200. This is
+  // the VERBATIM body the S22 received for c23efd76 (net 115.37 over 3 rows).
+  group('EarningsSummary.fromJson — LIVE gateway shape (§6B)', () {
+    final liveBody = <String, dynamic>{
+      'jeeberId': 'c23efd76-6fa4-40cf-814c-116f67ea5e95',
+      'period': 'weekly',
+      'currency': 'USD',
+      'rowCount': 3,
+      'totalGross': 137.5,
+      'totalCommission': 22.13,
+      'totalNet': 115.37,
+      'entries': [
+        {
+          'deliveryId': '22222222-2222-2222-2222-222222222222',
+          'tierName': 'express',
+          'gross': 62.5,
+          'commission': 9.38,
+          'net': 53.12,
+          'currency': 'USD',
+          'deliveredAt': '2026-06-20T14:00:00Z',
+        },
+        {
+          'deliveryId': '11111111-1111-1111-1111-111111111111',
+          'tierName': 'standard',
+          'gross': 45.0,
+          'commission': 6.75,
+          'net': 38.25,
+          'currency': 'USD',
+          'deliveredAt': '2026-06-20T10:00:00Z',
+        },
+        {
+          'deliveryId': '33333333-3333-3333-3333-333333333333',
+          'tierName': 'flash',
+          'gross': 30.0,
+          'commission': 6.0,
+          'net': 24.0,
+          'currency': 'USD',
+          'deliveredAt': '2026-06-15T09:00:00Z',
+        },
+      ],
+    };
+
+    test('binds totalNet → totalCashEarned (the §6B 115.37 headline)', () {
+      final s = EarningsSummary.fromJson(liveBody);
+      expect(s.totalCashEarned, 115.37);
+      expect(s.currency, 'USD');
+    });
+
+    test('binds rowCount → deliveryCount and entries → deliveries', () {
+      final s = EarningsSummary.fromJson(liveBody);
+      expect(s.deliveryCount, 3);
+      expect(s.deliveries.length, 3);
+      expect(s.deliveries.first.cashCollected, 53.12); // entry `net`
+      expect(s.deliveries.first.feePaid, 9.38); // entry `commission`
+    });
+
+    test('binds totalCommission → feesPaid', () {
+      final s = EarningsSummary.fromJson(liveBody);
+      expect(s.feesPaid, 22.13);
+    });
+  });
+
   group('EarningsCubit — initial load (constructor-triggered)', () {
     blocTest<EarningsCubit, EarningsState>(
       'emits ready with summary on success',

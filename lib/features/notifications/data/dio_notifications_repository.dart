@@ -9,25 +9,27 @@ import '../domain/notifications_repository.dart';
 ///             `/notification-service/v1/notifications` (existing map key)
 ///   mark-read PATCH `/v1/notifications/:id/read`
 ///
-/// This IS the DI default (the endpoints exist). The `?userId=` is supplied at
-/// construction (the seeded session user, mirroring DioSubmittedOffersRepository
-/// / 50_ROUTE_REQUESTS JM-047) until a real session-user-id provider lands; the
-/// JM-057 engineer swaps it for the live session user. DO NOT hardcode a service
-/// prefix here (40_GUARDRAILS_ARCH §4 / DO-NOT).
+/// This IS the DI default (the endpoints exist). It scopes the inbox to the
+/// AUTHENTICATED user via the bearer token: the gateway derives the owner from
+/// the JWT `sub` claim and IGNORES any `?userId=` param (§6B-confirmed). A prior
+/// build hardcoded `?userId=user-client-001` (a mock fixture id) at construction
+/// — a §6B FAIL: the screen rendered the wrong user's inbox (empty) instead of
+/// the real authenticated user's notifications. Dropping the param lets the
+/// gateway scope to the token `sub`, so the real user's rows render. DO NOT
+/// hardcode a service prefix here (40_GUARDRAILS_ARCH §4 / DO-NOT).
 class DioNotificationsRepository implements NotificationsRepository {
-  const DioNotificationsRepository({required Dio dio, required String userId})
-      : _dio = dio,
-        _userId = userId;
+  const DioNotificationsRepository({required Dio dio}) : _dio = dio;
 
   final Dio _dio;
-  final String _userId;
 
   @override
   Future<List<NotificationItem>> fetchNotifications() async {
     try {
+      // No `userId` param: the gateway scopes the inbox to the authenticated
+      // token `sub`. Passing a client-side id (mock or otherwise) is both
+      // ignored by the gateway and semantically wrong, so it is omitted.
       final res = await _dio.get<Map<String, dynamic>>(
         '/v1/notifications',
-        queryParameters: <String, Object>{'userId': _userId},
       );
       final data = res.data ?? const <String, dynamic>{};
       final raw = data['items'] ?? data['notifications'];
