@@ -11,7 +11,7 @@
 // Tests run with NO dart-define, so they exercise the default (live) seam:
 //   1. mockBaseUrl defaults to the host LAN IP on :4010.
 //   2. useMockPrefixes defaults to FALSE (live-gateway / device default).
-//   3. webSocketUrl targets port 3056 (companion WebSocket shim).
+//   3. webSocketUrl targets the live realtime service (:5804 /socket/websocket).
 //   4. rewritePath is a PASS-THROUGH for the default build — the very property
 //      the on-device build relies on so its `/v1/*` paths reach the live gateway
 //      verbatim (the bug 1717166 fixed: prefixes were hardcoded true, rewriting
@@ -38,10 +38,25 @@ void main() {
       expect(MockGatewayClient.useMockPrefixes, isFalse);
     });
 
-    test('webSocketUrl targets port 3056', () {
+    test('webSocketUrl targets the live realtime service (:5804 socket path)',
+        () {
+      // CHAT-FIX (iter6 / ws): the WS base was repointed off the dead `:3056`
+      // mock shim onto the live realtime-comunication-service (LiveComm,
+      // Phoenix `:5804` `/socket/websocket`). With no JEEB_REALTIME_BASE_URL
+      // define the host derives from the gateway base on the standard port.
       final wsUrl = MockGatewayClient.webSocketUrl;
-      expect(wsUrl, contains('3056'));
+      expect(wsUrl, contains(':${MockGatewayClient.realtimePort}'));
+      expect(wsUrl, contains('/socket/websocket'));
       expect(wsUrl, startsWith('ws://'));
+      expect(wsUrl, isNot(contains('3056')));
+    });
+
+    test('realtimeHttpBase derives from the gateway host on the realtime port '
+        'when no define is set', () {
+      final base = MockGatewayClient.realtimeHttpBase;
+      expect(base.port, MockGatewayClient.realtimePort);
+      // Same host as the mock/gateway base (co-located default).
+      expect(base.host, Uri.parse(MockGatewayClient.mockBaseUrl).host);
     });
   });
 

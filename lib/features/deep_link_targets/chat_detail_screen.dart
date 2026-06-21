@@ -5,6 +5,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../core/network/auth_token_store.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/role/user_role.dart';
 import '../chat/data/dev_chat_fixture_gateway.dart';
@@ -45,6 +46,11 @@ class ChatDetailScreen extends StatefulWidget {
 }
 
 class _ChatDetailScreenState extends State<ChatDetailScreen> {
+  /// The create-flow compose sentinel id the location step hands off
+  /// (`client_location_screen` → `pushNamed('chat-detail', {'id': 'new'})`).
+  /// ONLY this entry is allowed to broadcast on the first message (JM-025 AC1).
+  static const String _composeSentinelId = 'new';
+
   String _resolvedConversationId = '';
   String _counterpartName = '';
 
@@ -169,9 +175,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       summary = await _resolveSummary(dio, requestId, conversationId);
     }
 
+    // CHAT-FIX (iter6): bind the gateway to the REAL authenticated user id so
+    // `senderId == currentUserId` correctly aligns the local user's own bubbles
+    // to the right (`me`) and the counterpart's to the left (`them`). The prior
+    // hard-coded `user-client-001` never matched the live bearer's id, so the
+    // client's OWN sent messages rendered as incoming (left/grey). Falls back to
+    // the legacy literal only if no user id is persisted (isolated hosts/tests).
+    final currentUserId =
+        (await AuthTokenStore().userId) ?? 'user-client-001';
     final gateway = DioChatGateway(
       dio: dio,
-      currentUserId: 'user-client-001',
+      currentUserId: currentUserId,
     );
     if (!mounted) return;
     _finalize(
@@ -284,11 +298,34 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ? _resolvedRequestId
           : _resolvedConversationId;
 
-  /// JM-025 AC1: compose state — a client thread that has NOT yet matched a
-  /// Jeeber (broadcasting / unknown phase, no winner). The first message
-  /// broadcasts the request and routes to `waiting-no-coverage`.
+  /// True only when this screen was entered through the create-request flow
+  /// (`client_location_screen` → `pushNamed('chat-detail', {'id': 'new'})`),
+  /// i.e. the documented `new` compose sentinel (50_ROUTE_REQUESTS — JM-024 →
+  /// JM-025 hand-off). The create leg routes here with the literal id `new`
+  /// and there is no pre-existing conversation to resolve, so the resolved id
+  /// stays `new`. ONLY this entry may broadcast on the first message.
+  ///
+  /// CHAT-FIX (iter6): a conversation's `broadcasting` PHASE is NOT the same as
+  /// the create-flow compose entry. Every conversation starts (and stays) in
+  /// `broadcasting` until an offer is accepted, so keying compose purely on
+  /// `phase != accepted/closed` made EVERY first message into an EXISTING
+  /// broadcasting thread (opened from the chat tab / replies / live-tracking)
+  /// re-broadcast the request and route to `waiting-no-coverage` — yanking the
+  /// user out of a working chat with "We couldn't load your request status".
+  /// Gating compose on the `new` sentinel restores normal chatting in a
+  /// broadcasting conversation while preserving the genuine create→broadcast
+  /// leg (JM-025 AC1).
+  bool get _isCreateFlow =>
+      widget.chatId == _composeSentinelId ||
+      _resolvedConversationId == _composeSentinelId;
+
+  /// JM-025 AC1: compose state — the create-flow first message broadcasts the
+  /// request and routes to `waiting-no-coverage`. Restricted to the genuine
+  /// create entry (`_isCreateFlow`); an EXISTING broadcasting conversation is
+  /// a normal chat thread, never a compose/broadcast surface.
   bool _isComposeState(bool isJeeber) =>
       !isJeeber &&
+      _isCreateFlow &&
       !_hasWinner &&
       _phase != ConversationPhase.accepted &&
       _phase != ConversationPhase.closed;
