@@ -83,7 +83,16 @@ class _NotificationsListView extends StatelessWidget {
       identifier: 'notifications_root',
       container: true,
       child: Scaffold(
-        appBar: OMDSAppBar(title: copy.title, showBackButton: true),
+        appBar: OMDSAppBar(
+          title: copy.title,
+          showBackButton: true,
+          // The bell reaches this screen via stack-REPLACING `goNamed(
+          // 'notifications')`, so there is usually nothing to pop. Pop when we
+          // can (pushed entry), else return to the shell — never pop the last
+          // page (which would leave an empty Navigator → black surface).
+          onBackPressed: () =>
+              context.canPop() ? context.pop() : context.go('/'),
+        ),
         body: BlocBuilder<NotificationsListCubit, NotificationsListState>(
           builder: (context, state) {
             switch (state.status) {
