@@ -11,7 +11,9 @@ import 'saved_location.dart';
 /// Pure Dart — no Flutter / Dio / GetIt (40_GUARDRAILS_ARCH §1).
 abstract class AddressFormRepository {
   /// Creates a new saved address.
-  /// Endpoint: `POST /users/:userId/saved-locations` (201).
+  /// Endpoint: `POST /api/users/me/saved-locations` (201) — the LIVE gateway
+  /// `me`-scoped BFF (identity from the bearer token; iter6 D-ADDRESS-SAVE).
+  /// [userId] is retained as a test seam only and is NOT used in the path.
   /// Throws [AddressFormException] on failure.
   Future<SavedLocation> create({
     required String userId,
@@ -19,7 +21,8 @@ abstract class AddressFormRepository {
   });
 
   /// Updates an existing saved address.
-  /// Endpoint: `PUT /users/:userId/saved-locations/:id`.
+  /// Endpoint: `PUT /api/users/me/saved-locations/:id` (the `me`-scoped BFF).
+  /// [userId] is retained as a test seam only and is NOT used in the path.
   /// Throws [AddressFormException] on failure.
   Future<SavedLocation> update({
     required String userId,
