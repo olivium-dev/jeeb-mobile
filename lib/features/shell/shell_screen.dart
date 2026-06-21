@@ -1,14 +1,21 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../core/dev_seam/dev_seam.dart';
+import '../../core/di/injection_container.dart';
+import '../../core/role/role_availability_cubit.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/role/user_role.dart';
 import '../../l10n/app_localizations.dart';
 import '../customer_profile/data/dev_customer_profile_fixtures.dart';
 import '../customer_profile/presentation/customer_profile_screen.dart';
+import '../settings/application/role_switch_cubit.dart';
+import '../settings/data/repositories/dio_role_switch_repository.dart';
+import '../settings/domain/role_switch_repository.dart';
+import '../settings/presentation/widgets/role_toggle_setting.dart';
 import 'tabs/dashboard_tab.dart';
 import 'tabs/earnings_tab.dart';
 import 'tabs/home_tab.dart';
@@ -194,20 +201,102 @@ class _HeaderedTab extends StatelessWidget {
   }
 }
 
-/// The Profile tab body: the real [CustomerProfileScreen] (JM-035). Debug uses
-/// the fixture view data so the tab renders deterministically; the JM-035
-/// engineer swaps in the real getMe-backed cubit/repository (the integrator
-/// does NOT build that here). Release renders the same fixture shell until
-/// JM-035 wires the data source (no PII leak — the fixture is sample data).
+/// The Profile tab body: the real [CustomerProfileScreen] (JM-035), with the
+/// DEFECT-C in-app role toggle mounted ABOVE it for dual-role users.
+///
+/// The shell renders THIS for the Profile tab in both roles. Before DEFECT-C
+/// the role toggle ([RoleToggleSetting]) lived only in the unreachable
+/// `ProfileTab`/`SettingsScreen` surface, so a dual-role user had no UI path to
+/// driver mode. We now mount it here, gated on [RoleAvailabilityCubit.isDualRole]
+/// (populated from getMe `available_roles` by [RoleSync]). The toggle is
+/// server-backed: selecting Jeeber POSTs `/v1/users/me/role/switch` (keeping the
+/// OTP session, per the iter5 DEFECT-1 fix), then mirrors to [RoleCubit] so the
+/// shell rebuilds onto the jeeber surface — and is fully reversible back to
+/// client. Single-role clients see no toggle (the section renders nothing).
+///
+/// Debug uses the fixture profile view data so the tab renders deterministically.
 class _CustomerProfileTabBody extends StatelessWidget {
   const _CustomerProfileTabBody();
 
   @override
   Widget build(BuildContext context) {
-    return const CustomerProfileScreen(
+    // Optional provider: a bare shell harness (e.g. shell_role_tabs_test) may
+    // not register RoleAvailabilityCubit. When absent, render the profile alone
+    // (no toggle) — the toggle is an additive dual-role affordance, never a
+    // hard dependency of the Profile tab.
+    final availabilityCubit = context.watch<RoleAvailabilityCubit?>();
+    const profile = CustomerProfileScreen(
       data: DevCustomerProfileFixtures.sample,
     );
+    final availability = availabilityCubit?.state;
+    if (availability == null || !availability.isDualRole) return profile;
+    return Column(
+      children: [
+        _ShellRoleToggle(availableRoles: availability.roles),
+        const Expanded(child: profile),
+      ],
+    );
   }
+}
+
+/// Hosts the server-backed [RoleToggleSetting] for the dual-role user, wired to
+/// a fresh [RoleSwitchCubit] over the shared Dio. Seeds the cubit's active role
+/// from the current [RoleCubit] state so the segmented control reflects the
+/// surface the user is on. On selection the cubit POSTs the role switch and
+/// (via the widget's existing `_switchRole`) mirrors to [RoleCubit], flipping
+/// the shell to the matching surface.
+class _ShellRoleToggle extends StatefulWidget {
+  const _ShellRoleToggle({required this.availableRoles});
+
+  final List<String> availableRoles;
+
+  @override
+  State<_ShellRoleToggle> createState() => _ShellRoleToggleState();
+}
+
+class _ShellRoleToggleState extends State<_ShellRoleToggle> {
+  late final RoleSwitchCubit _cubit = RoleSwitchCubit(
+    repository: _resolveRepository(),
+    initialRole:
+        context.read<RoleCubit>().state == UserRole.jeeber ? 'jeeber' : 'client',
+  );
+
+  RoleSwitchRepository _resolveRepository() {
+    // Mirror CustomerProfileScreen: self-provide over the shared Dio without a
+    // DI registration. Falls back to a no-op repo in bare widget tests (no DI).
+    if (sl.isRegistered<Dio>()) {
+      return DioRoleSwitchRepository(sl<Dio>());
+    }
+    return const _NoopRoleSwitchRepository();
+  }
+
+  @override
+  void dispose() {
+    _cubit.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      bottom: false,
+      child: RoleToggleSetting(
+        availableRoles: widget.availableRoles,
+        cubit: _cubit,
+      ),
+    );
+  }
+}
+
+/// Inert role-switch repository for the no-DI (bare widget test) fall-through —
+/// reports success without a network call so the toggle still mirrors to
+/// [RoleCubit]. Production always resolves the Dio-backed repo.
+class _NoopRoleSwitchRepository implements RoleSwitchRepository {
+  const _NoopRoleSwitchRepository();
+
+  @override
+  Future<RoleSwitchResult> switchRole(String role) async =>
+      RoleSwitchResult.success;
 }
 
 class _JeebBottomBar extends StatelessWidget {
