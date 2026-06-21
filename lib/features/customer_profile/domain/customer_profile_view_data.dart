@@ -16,6 +16,8 @@ class CustomerProfileViewData extends Equatable {
     this.isJeeber = false,
     this.rating,
     this.ratingCount = 0,
+    this.activeRole,
+    this.availableRoles = const <String>[],
   });
 
   /// Display name (dynamic data). `null` renders the initials avatar fallback
@@ -49,6 +51,24 @@ class CustomerProfileViewData extends Equatable {
   /// True when the account has at least one rating to display.
   bool get hasRating => rating != null && ratingCount > 0;
 
+  /// The server-side ACTIVE role for this user from getMe (`activeRole`),
+  /// e.g. `'client'` or `'jeeber'`. `null` when getMe did not surface it (the
+  /// role state then keeps its persisted value). DEFECT-C: the app syncs the
+  /// [RoleCubit] to this on login/resume so a returning dual-role user lands on
+  /// the surface the server says they were last on.
+  final String? activeRole;
+
+  /// All role identifiers this user MAY act as from getMe (`availableRoles`),
+  /// e.g. `['client', 'jeeber']` for a dual-role user. DEFECT-C: gates whether
+  /// the in-app role toggle is shown — only a user whose list contains BOTH
+  /// `client` and `jeeber` sees the toggle (single-role clients never do).
+  final List<String> availableRoles;
+
+  /// True when the user can act as BOTH client and jeeber, so the in-app role
+  /// toggle (DEFECT-C, [RoleToggleSetting]) should be mounted for them.
+  bool get isDualRole =>
+      availableRoles.contains('client') && availableRoles.contains('jeeber');
+
   CustomerProfileViewData copyWith({
     String? name,
     String? email,
@@ -57,6 +77,8 @@ class CustomerProfileViewData extends Equatable {
     bool? isJeeber,
     double? rating,
     int? ratingCount,
+    String? activeRole,
+    List<String>? availableRoles,
     bool clearRating = false,
   }) {
     return CustomerProfileViewData(
@@ -67,10 +89,21 @@ class CustomerProfileViewData extends Equatable {
       isJeeber: isJeeber ?? this.isJeeber,
       rating: clearRating ? null : (rating ?? this.rating),
       ratingCount: ratingCount ?? this.ratingCount,
+      activeRole: activeRole ?? this.activeRole,
+      availableRoles: availableRoles ?? this.availableRoles,
     );
   }
 
   @override
-  List<Object?> get props =>
-      [name, email, avatarUrl, isVerified, isJeeber, rating, ratingCount];
+  List<Object?> get props => [
+        name,
+        email,
+        avatarUrl,
+        isVerified,
+        isJeeber,
+        rating,
+        ratingCount,
+        activeRole,
+        availableRoles,
+      ];
 }
