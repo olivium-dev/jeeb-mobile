@@ -1791,6 +1791,10 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('activeDeliveryStatusInTransit');
   String get activeDeliveryStatusAtDoor => _get('activeDeliveryStatusAtDoor');
   String get activeDeliveryStatusDone => _get('activeDeliveryStatusDone');
+  String get jeeberActiveDeliveriesTitle => _get('jeeberActiveDeliveriesTitle');
+  String get jeeberActiveDeliveriesFallbackTitle => _get('jeeberActiveDeliveriesFallbackTitle');
+  String get jeeberActiveDeliveriesOpenChat => _get('jeeberActiveDeliveriesOpenChat');
+  String get jeeberActiveDeliveriesManage => _get('jeeberActiveDeliveriesManage');
   String get activeDeliveryMarkPicked => _get('activeDeliveryMarkPicked');
   String get activeDeliveryMarkInTransit => _get('activeDeliveryMarkInTransit');
   String get activeDeliveryMarkAtDoor => _get('activeDeliveryMarkAtDoor');
