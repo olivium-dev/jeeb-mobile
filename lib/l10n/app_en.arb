@@ -1248,6 +1248,22 @@
   "@clientLocationAddSemantic": {
     "description": "Accessibility label for the circular add-location button"
   },
+  "recipientPhoneLabel": "Recipient phone",
+  "@recipientPhoneLabel": {
+    "description": "Label for the recipient-phone field on the location-confirm step of the create-request flow"
+  },
+  "recipientPhoneHint": "Phone number",
+  "@recipientPhoneHint": {
+    "description": "Hint text for the recipient-phone input"
+  },
+  "recipientPhoneHelper": "The Jeeber confirms delivery with a code sent to this number.",
+  "@recipientPhoneHelper": {
+    "description": "Helper text explaining why the recipient phone is collected (at-door OTP handover)"
+  },
+  "recipientPhoneInvalid": "Enter a valid Lebanese phone number.",
+  "@recipientPhoneInvalid": {
+    "description": "Validation error shown when the recipient phone is not a valid Lebanese number"
+  },
   "captureLocationTitle": "Location",
   "@captureLocationTitle": {
     "description": "Navbar title on the Capture Location map screen (Figma 56546:2303)"

@@ -68,8 +68,11 @@ import '../../features/voice_request/domain/voice_recorder.dart';
 import '../../features/prohibited_acknowledgment/data/prohibited_acknowledgment_repository_impl.dart';
 import '../../features/prohibited_acknowledgment/domain/prohibited_acknowledgment_repository.dart';
 import '../../features/request_summary/application/compose_request_controller.dart';
+import '../../features/request_summary/data/chained_recipient_phone_resolver.dart';
 import '../../features/request_summary/data/dio_recipient_phone_resolver.dart';
 import '../../features/request_summary/data/dio_request_submission_service.dart';
+import '../../features/request_summary/data/shared_prefs_recipient_phone_resolver.dart';
+import '../../features/request_summary/domain/recipient_phone_resolver.dart';
 import '../../features/request_summary/domain/request_submission_service.dart';
 import '../../features/cancellation/data/dio_cancellation_repository.dart';
 import '../../features/cancellation/domain/cancellation_repository.dart';
@@ -322,17 +325,35 @@ void configureDependencies({
   // Resolved by app_router when building the /request-summary route so the
   // RequestSummaryCubit submits over Dio instead of the prior stub.
   //
-  // T-BE-019 / JEB-55: pass a DioRecipientPhoneResolver so the create body
-  // carries a `recipientPhone` (defaulted to the signed-in client's own phone
-  // from `GET /v1/users/me`) — the gateway request-store row then has a non-null
-  // RecipientPhone and the at-door handover OTP (`POST /deliveries/{id}/otp/verify
-  // {code:"1234"}`) can dispatch/validate instead of returning 400
-  // recipient-phone-missing. Best-effort: a resolver miss degrades to omitting
-  // the field, so the create is never blocked by it.
+  // T-BE-019 / JEB-55 (+ iter6 OTP-phone v2): the create body carries a
+  // `recipientPhone` so the gateway request-store row has a non-null
+  // RecipientPhone and the at-door handover OTP (`POST /deliveries/{id}/otp/
+  // verify {code:"1234"}`) can dispatch/validate instead of returning 400
+  // recipient-phone-missing.
+  //
+  // ROOT-CAUSE FIX (v2): the #67 default source — `GET /v1/users/me` `phone` —
+  // does NOT exist in the LIVE gateway `UsersMeResponse` contract, so that lone
+  // resolver always returned null and the OTP kept 400-ing. We now resolve the
+  // DEFAULT phone from a CHAIN, first non-null wins:
+  //   1. SharedPrefsRecipientPhoneResolver — the LOCALLY-persisted registration
+  //      profile phone (`UserProfile.phoneE164`), which the live `/me` does not
+  //      surface. This is the reliable on-device default for phone-OTP users.
+  //   2. DioRecipientPhoneResolver — the gateway `GET /v1/users/me` `phone`,
+  //      kept as a best-effort fallback for a future gateway that adds it.
+  // The explicit compose-form recipient phone (RequestDraft.recipientPhone)
+  // still wins over BOTH defaults inside the submission service. Best-effort:
+  // if every source misses, the field is omitted and the create is never
+  // blocked.
+  sl.registerLazySingleton<RecipientPhoneResolver>(
+    () => ChainedRecipientPhoneResolver(<RecipientPhoneResolver>[
+      SharedPrefsRecipientPhoneResolver(),
+      DioRecipientPhoneResolver(sl<Dio>()),
+    ]),
+  );
   sl.registerLazySingleton<RequestSubmissionService>(
     () => DioRequestSubmissionService(
       sl<Dio>(),
-      phoneResolver: DioRecipientPhoneResolver(sl<Dio>()),
+      phoneResolver: sl<RecipientPhoneResolver>(),
     ),
   );
 
