@@ -39,8 +39,15 @@ class DioCustomerProfileRepository implements CustomerProfileRepository {
   }
 
   CustomerProfileViewData _parse(Map<String, dynamic> json) {
-    final roles = (json['availableRoles'] ?? json['available_roles']);
-    final isJeeber = roles is List && roles.contains('jeeber');
+    final rolesRaw = (json['availableRoles'] ?? json['available_roles']);
+    final availableRoles = rolesRaw is List
+        ? rolesRaw.whereType<String>().toList(growable: false)
+        : const <String>[];
+    final isJeeber = availableRoles.contains('jeeber');
+
+    // DEFECT-C: surface the server's ACTIVE role so the app can sync the
+    // RoleCubit at login/resume (snake_case + camelCase both accepted, U1).
+    final activeRole = _str(json['activeRole'] ?? json['active_role']);
 
     final ratingRaw = json['rating'] ?? json['averageRating'];
     final rating = (ratingRaw is num) ? ratingRaw.toDouble() : null;
@@ -61,6 +68,8 @@ class DioCustomerProfileRepository implements CustomerProfileRepository {
       isJeeber: isJeeber,
       rating: rating,
       ratingCount: ratingCount,
+      activeRole: activeRole,
+      availableRoles: availableRoles,
     );
   }
 
