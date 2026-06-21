@@ -7,7 +7,7 @@ import '../../client_offers/domain/offers_repository.dart' show OfferAcceptResul
 import '../domain/chat_gateway.dart';
 import '../domain/chat_socket.dart';
 import '../domain/delivery_chat_message.dart';
-import 'web_socket_chat_socket.dart';
+import 'live_realtime_chat_socket.dart';
 
 /// Dio + Phoenix-channel backed [ChatGateway].
 ///
@@ -204,8 +204,19 @@ class DioChatGateway implements ChatGateway {
     unawaited(_connectAndJoin(socket, conversationId));
   }
 
+  /// CHAT-FIX (iter6 / ws): default to the LIVE realtime socket
+  /// ([LiveRealtimeChatSocket]) instead of the dead `:3056` mock shim. It mints
+  /// a `live_comm` token, connects the `:5804` Phoenix socket, joins the
+  /// `jeeb:chat` topic, and keeps only the frames addressed to this user's
+  /// `user:{currentUserId}` fan-out stream — so the other party's messages
+  /// append to the open thread in real time. On any connect failure
+  /// [_connectAndJoin] swallows the error and the thread degrades to
+  /// HTTP-history only (unchanged).
   ChatSocket _defaultSocketFor(String _) =>
-      WebSocketChatSocket(uri: _socketBaseUri);
+      LiveRealtimeChatSocket(
+        currentUserId: currentUserId,
+        wsUri: _socketBaseUri,
+      );
 
   Future<void> _connectAndJoin(ChatSocket socket, String conversationId) async {
     try {
