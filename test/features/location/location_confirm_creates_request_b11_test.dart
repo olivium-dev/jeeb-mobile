@@ -1,16 +1,14 @@
-// JM-024 — the request-type "Continue" CTA advances to `location-select`.
+// iter6 B11 — the create gating fix.
 //
-// SUPERSEDES the W0-era FIX-B test (Continue → /request-summary): JM-024
-// re-points the customer create flow to the blueprint graph
-// tier → location-select → map-pin → order-chat (20_GAP_MAP customer domain;
-// 30_BACKLOG JM-024 AC1). The screen now OWNS this edge (it self-navigates to
-// the `client-location` route, 40_GUARDRAILS_ARCH §10.8) and no longer routes
-// to the `request-summary` card. The legacy router `onTierSelected`/`onContinue`
-// `→ /request-summary` closures are dead (50_ROUTE_REQUESTS — JM-024 cleanup).
-//
-// This test drives the REAL `AppRouter.create(...)` graph to `/request-type`,
-// taps the Continue CTA (id `request_type_continue_cta`), and proves it lands
-// on `location-select` (`ClientLocationScreen`, `location_select_confirm_cta`).
+// REGRESSION LOCK for the on-device defect: the create flow used to hand off
+// the literal placeholder id `'new'` from `location-select` to `order-chat`,
+// which then broadcast `requestId='new'` WITHOUT ever calling `POST /requests`
+// → no request was ever created on-device (matching 422 / chat 404). This test
+// drives the REAL `AppRouter.create(...)` graph to `/client-location`, taps the
+// Confirm CTA, and proves:
+//   1. the location-confirm step CALLS RequestSubmissionService.submit()
+//      (i.e. POST /requests is invoked — submitCount == 1), and
+//   2. it routes order-chat with the REAL server-minted id, NEVER `'new'`.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -28,12 +26,11 @@ import 'package:jeeb_mobile/core/router/app_router.dart';
 import 'package:jeeb_mobile/features/biometric_auth/application/biometric_lock_cubit.dart';
 import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_repository.dart';
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
+import 'package:jeeb_mobile/features/deep_link_targets/chat_detail_screen.dart';
 import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
 import 'package:jeeb_mobile/features/location/domain/location_select_repository.dart';
-import 'package:jeeb_mobile/features/location/presentation/client_location_screen.dart';
 import 'package:jeeb_mobile/features/request_summary/application/compose_request_controller.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/request_submission_service.dart';
-import 'package:jeeb_mobile/features/request_type/presentation/request_type_screen.dart';
 import 'package:jeeb_mobile/features/settings/data/repositories/biometric_preference_repository_impl.dart';
 import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
@@ -62,8 +59,6 @@ Future<({
   final roleEligibility = RoleEligibilityCubit();
   final locale = LocaleCubit(prefs: prefs);
 
-  // Default session gate is AlwaysAuthenticatedSessionGate, so the FR-P0-3
-  // login redirect is inert and protected routes (`/request-type`) render.
   final router = AppRouter.create(onboarding: onboarding, biometricLock: lock);
   return (
     router: router,
@@ -99,29 +94,23 @@ Widget _harness(
 }
 
 void main() {
-  group('JM-024 — /request-type Continue CTA advances to location-select', () {
+  group('iter6 B11 — location-confirm CREATES the request (POST /requests)', () {
+    late FakeRequestSubmissionService submission;
+
     setUp(() async {
       await sl.reset();
-      // `/request-type` resolves TierRepository via sl (pre-selects Flash so the
-      // Continue CTA is enabled on first paint).
-      sl.registerLazySingleton<TierRepository>(FakeTierRepository.new);
-      // `/client-location` self-provides LocationSelectCubit; it resolves a
-      // DioLocationSelectRepository when sl<Dio> is present. We DON'T register
-      // Dio here, so it falls back to the in-memory seam — but register the
-      // fake explicitly for determinism (no network in this widget test).
-      sl.registerLazySingleton<LocationSelectRepository>(
-        FakeLocationSelectRepository.new,
-      );
-      // Kept registered in case any sibling builder resolves it.
-      sl.registerLazySingleton<RequestSubmissionService>(
-        FakeRequestSubmissionService.new,
-      );
-      // iter6 B11: the request-type Continue CTA records the chosen tier in the
-      // compose controller before navigating. Register it so the screen's
-      // guarded write resolves (the screen no-ops when it is absent).
+      submission =
+          FakeRequestSubmissionService(requestId: 'real-server-id-9999');
+      sl.registerLazySingleton<RequestSubmissionService>(() => submission);
       sl.registerLazySingleton<ComposeRequestController>(
         () => ComposeRequestController(sl<RequestSubmissionService>()),
       );
+      sl.registerLazySingleton<LocationSelectRepository>(
+        FakeLocationSelectRepository.new,
+      );
+      // The request-type step resolves TierRepository via sl and pre-selects
+      // Flash, so the Continue CTA is enabled on first paint.
+      sl.registerLazySingleton<TierRepository>(FakeTierRepository.new);
     });
 
     tearDown(() async {
@@ -129,10 +118,11 @@ void main() {
     });
 
     testWidgets(
-      'tapping Continue (default-selected Flash tier) lands on the '
-      'location-select screen (NOT the request-summary card)',
+      'full flow tier→location→Confirm calls submit() once and routes '
+      'order-chat with the REAL request id (never the placeholder "new")',
       (tester) async {
         final built = await _buildRouter();
+        // Drive the REAL on-device path: request-type → Continue → location.
         built.router.go('/request-type');
         await tester.pumpWidget(
           _harness(built.router, built.role, built.roleEligibility,
@@ -140,27 +130,50 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // The request-type screen is up; Continue is enabled (Flash pre-selected).
-        expect(find.byType(RequestTypeScreen), findsOneWidget);
+        // Step 1: pick a tier (Flash pre-selected) + Continue → location-select.
         final continueCta =
             find.bySemanticsIdentifier('request_type_continue_cta');
         expect(continueCta, findsOneWidget);
         await tester.ensureVisible(continueCta);
-
         await tester.tap(continueCta);
         await tester.pumpAndSettle();
 
-        // JM-024 AC1: Continue → location-select.
+        // Step 2: confirm the location → must CREATE the request (B11 fix).
+        final confirm =
+            find.bySemanticsIdentifier('location_select_confirm_cta');
+        expect(confirm, findsOneWidget);
+        await tester.ensureVisible(confirm);
+        await tester.tap(confirm);
+        await tester.pumpAndSettle();
+
+        // (1) POST /requests was actually called — exactly once.
         expect(
-          find.byType(ClientLocationScreen),
-          findsOneWidget,
-          reason: 'Continue must advance to location-select (the blueprint '
-              'create flow), not the legacy /request-summary card.',
+          submission.submitCount,
+          1,
+          reason: 'Confirm must call POST /requests (the B11 fix); the old '
+              'flow never called it and broadcast requestId="new".',
+        );
+        expect(submission.lastDraft, isNotNull);
+
+        // (2) The draft submitted carried the create payload (so a real
+        //     `POST /requests` body was assembled — not a `'new'` broadcast).
+        expect(submission.lastDraft!.tierName, isNotNull,
+            reason: 'the submitted draft must carry the chosen tier');
+
+        // (3) order-chat (ChatDetailScreen) is now mounted, bound to the REAL
+        //     server-minted id — NEVER the literal "new" (the B11 root cause).
+        final chatScreen =
+            tester.widget<ChatDetailScreen>(find.byType(ChatDetailScreen));
+        expect(
+          chatScreen.chatId,
+          'real-server-id-9999',
+          reason: 'order-chat must be routed with the server-minted id.',
         );
         expect(
-          find.bySemanticsIdentifier('location_select_confirm_cta'),
-          findsOneWidget,
-          reason: 'The location-select Confirm CTA must be on screen.',
+          chatScreen.chatId,
+          isNot('new'),
+          reason: 'the placeholder "new" hand-off (B11 root cause) must be '
+              'gone.',
         );
         expect(tester.takeException(), isNull);
       },
