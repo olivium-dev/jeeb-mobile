@@ -32,6 +32,7 @@ import '../core/router/app_router.dart';
 import '../core/session/account_status_gate.dart';
 import '../core/session/session_cubit.dart';
 import '../core/session/session_gate.dart';
+import '../core/session/session_state.dart';
 import '../core/theme/app_theme.dart';
 import '../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../features/biometric_auth/data/dev_biometric_gateway.dart';
@@ -192,6 +193,14 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   PushNotificationHandler? _pushHandler;
   NotificationDispatcher? _dispatcher;
 
+  /// DEFECT-C2: subscription to the owned [SessionCubit] so a successful login
+  /// (OTP verify / super-login calls `session.refresh()`, which transitions the
+  /// session to authenticated) re-fires [RoleSync.sync] IMMEDIATELY — without
+  /// waiting for a background/foreground cycle. Only created when WE own the
+  /// session (a test-injected bare [SessionGate] is not a cubit and has no
+  /// stream); null otherwise. Closed in [dispose].
+  StreamSubscription<SessionState>? _sessionSub;
+
   @override
   void initState() {
     super.initState();
@@ -201,6 +210,13 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     // during the keystore read; once this resolves, an onboarded-but-tokenless
     // user is redirected to login via `refreshListenable`.
     _ownedSession?.refresh();
+    // DEFECT-C2: cold-start role-sync runs pre-auth (getMe 401s) and resume only
+    // re-fires on background/foreground; neither fires on login completion. The
+    // OTP-verify / super-login path calls `session.refresh()`, transitioning the
+    // SessionCubit to `authenticated` — listen for that transition and re-sync
+    // the role so the toggle appears + the shell lands on the server's active
+    // role right after the first login, no background/foreground needed.
+    _wireSessionRoleSync();
     SchedulerBinding.instance.addPostFrameCallback((_) {
       _initPushChain();
       // DEFECT-C: sync the active role + available_roles from getMe after the
@@ -216,6 +232,27 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   void _syncRole() {
     if (_seamPinsRole) return;
     unawaited(_roleSync.sync());
+  }
+
+  /// DEFECT-C2: re-run [_syncRole] on every transition INTO the authenticated
+  /// session state. This is the login-completion trigger DEFECT-C was missing:
+  /// the cold-start sync fires pre-auth (getMe 401s) and resume only fires on
+  /// background/foreground, so before this the role toggle stayed hidden and the
+  /// shell sat on the `client` default until the user backgrounded the app once.
+  ///
+  /// We only listen when WE own the session — a test-injected bare [SessionGate]
+  /// is not a [SessionCubit] and exposes no stream. The first authenticated
+  /// emission (e.g. an already-logged-in cold start) also re-syncs, which is
+  /// harmless: [RoleSync.sync] is idempotent and now runs post-auth (getMe
+  /// succeeds), so it strictly improves on the pre-auth cold-start attempt. All
+  /// DEFECT-C fail-safes live in [RoleSync.sync] and the `_seamPinsRole` guard
+  /// in [_syncRole] is preserved.
+  void _wireSessionRoleSync() {
+    final session = _ownedSession;
+    if (session == null) return;
+    _sessionSub = session.stream.listen((state) {
+      if (state.isAuthenticated) _syncRole();
+    });
   }
 
   /// DEFECT-C: re-sync the role on app-resume so a role switched on another
@@ -256,6 +293,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     _roleAvailability.close();
     _role.close();
     _onboarding.close();
+    _sessionSub?.cancel();
     _ownedSession?.close();
     _router.dispose();
     super.dispose();
