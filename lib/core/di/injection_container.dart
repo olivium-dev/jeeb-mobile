@@ -67,7 +67,12 @@ import '../../features/voice_request/domain/voice_player.dart';
 import '../../features/voice_request/domain/voice_recorder.dart';
 import '../../features/prohibited_acknowledgment/data/prohibited_acknowledgment_repository_impl.dart';
 import '../../features/prohibited_acknowledgment/domain/prohibited_acknowledgment_repository.dart';
+import '../../features/request_summary/application/compose_request_controller.dart';
+import '../../features/request_summary/data/chained_recipient_phone_resolver.dart';
+import '../../features/request_summary/data/dio_recipient_phone_resolver.dart';
 import '../../features/request_summary/data/dio_request_submission_service.dart';
+import '../../features/request_summary/data/shared_prefs_recipient_phone_resolver.dart';
+import '../../features/request_summary/domain/recipient_phone_resolver.dart';
 import '../../features/request_summary/domain/request_submission_service.dart';
 import '../../features/cancellation/data/dio_cancellation_repository.dart';
 import '../../features/cancellation/domain/cancellation_repository.dart';
@@ -280,8 +285,10 @@ void configureDependencies({
   );
 
   // T-MOB-028: Role-switch repository — POST /v1/users/me/role/switch.
+  // D-ROLE-TOGGLE: adopts the re-minted token pair from the 200 body via
+  // AuthTokenStore so jeeber routes stop 403-ing after an in-app toggle.
   sl.registerLazySingleton<RoleSwitchRepository>(
-    () => DioRoleSwitchRepository(sl<Dio>()),
+    () => DioRoleSwitchRepository(sl<Dio>(), sl<AuthTokenStore>()),
   );
 
   // T-MOB-012: Saved locations — GET/POST /v1/users/me/saved-locations.
@@ -317,8 +324,46 @@ void configureDependencies({
   // T-MOB-REQSUBMIT: real request-create RPC — POST /requests → 201 {id}.
   // Resolved by app_router when building the /request-summary route so the
   // RequestSummaryCubit submits over Dio instead of the prior stub.
+  //
+  // T-BE-019 / JEB-55 (+ iter6 OTP-phone v2): the create body carries a
+  // `recipientPhone` so the gateway request-store row has a non-null
+  // RecipientPhone and the at-door handover OTP (`POST /deliveries/{id}/otp/
+  // verify {code:"1234"}`) can dispatch/validate instead of returning 400
+  // recipient-phone-missing.
+  //
+  // ROOT-CAUSE FIX (v2): the #67 default source — `GET /v1/users/me` `phone` —
+  // does NOT exist in the LIVE gateway `UsersMeResponse` contract, so that lone
+  // resolver always returned null and the OTP kept 400-ing. We now resolve the
+  // DEFAULT phone from a CHAIN, first non-null wins:
+  //   1. SharedPrefsRecipientPhoneResolver — the LOCALLY-persisted registration
+  //      profile phone (`UserProfile.phoneE164`), which the live `/me` does not
+  //      surface. This is the reliable on-device default for phone-OTP users.
+  //   2. DioRecipientPhoneResolver — the gateway `GET /v1/users/me` `phone`,
+  //      kept as a best-effort fallback for a future gateway that adds it.
+  // The explicit compose-form recipient phone (RequestDraft.recipientPhone)
+  // still wins over BOTH defaults inside the submission service. Best-effort:
+  // if every source misses, the field is omitted and the create is never
+  // blocked.
+  sl.registerLazySingleton<RecipientPhoneResolver>(
+    () => ChainedRecipientPhoneResolver(<RecipientPhoneResolver>[
+      SharedPrefsRecipientPhoneResolver(),
+      DioRecipientPhoneResolver(sl<Dio>()),
+    ]),
+  );
   sl.registerLazySingleton<RequestSubmissionService>(
-    () => DioRequestSubmissionService(sl<Dio>()),
+    () => DioRequestSubmissionService(
+      sl<Dio>(),
+      phoneResolver: sl<RecipientPhoneResolver>(),
+    ),
+  );
+
+  // iter6 B11: shared compose controller — carries the chosen tier from the
+  // request-type step to the location-confirm step and performs the actual
+  // POST /requests there (so the create flow mints a REAL request id instead of
+  // handing off the placeholder 'new' to order-chat). Singleton so both steps,
+  // which own separate cubits with no common widget-tree ancestor, share it.
+  sl.registerLazySingleton<ComposeRequestController>(
+    () => ComposeRequestController(sl<RequestSubmissionService>()),
   );
 
   // T-MOB-031: Active delivery (Jeeber) — GET /v1/deliveries/{id} +

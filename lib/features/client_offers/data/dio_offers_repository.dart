@@ -38,7 +38,16 @@ class DioOffersRepository implements OffersRepository {
   /// Offer statuses that are still live (a client can accept them). Withdrawn /
   /// superseded / expired / accepted offers are filtered out of the review list
   /// — the screen only shows pending bids.
-  static const Set<String> _liveStatuses = {'submitted', 'edited'};
+  ///
+  /// The LIVE gateway BFF (`GET /v1/offers?requestId=`, `UpstreamPendingOffersStore`)
+  /// COLLAPSES the offer-service's seven-state vocabulary onto three states and
+  /// reports a live bid as `pending` (offer-service `submitted`/`edited`/`pending`
+  /// → gateway `pending`). The mock / journey-seed bodies still emit the raw
+  /// `submitted`/`edited`. We accept ALL three so a real on-device offer renders
+  /// its card instead of being silently dropped into the "Waiting for offers"
+  /// empty-state (iter6 offer-card render gap — STATE/iter6-FINAL-PROOF.md
+  /// STEP-3). `accepted`/`superseded`/`withdrawn` stay filtered out.
+  static const Set<String> _liveStatuses = {'submitted', 'edited', 'pending'};
 
   @override
   Future<OffersSnapshot> fetchOffers(String requestId) async {

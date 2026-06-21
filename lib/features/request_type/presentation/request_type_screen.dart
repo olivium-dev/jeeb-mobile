@@ -10,6 +10,7 @@ import '../../tier_selection/cubit/tier_selection_state.dart';
 import '../../tier_selection/data/tier_repository.dart';
 import '../../tier_selection/domain/tier.dart';
 import '../../location/presentation/widgets/delivery_create_layout.dart';
+import '../../request_summary/application/compose_request_controller.dart';
 import '../../request_summary/domain/request_draft.dart';
 import 'request_type_radio_id.dart';
 import 'request_tier_card.dart';
@@ -151,11 +152,20 @@ class _ContinueFooter extends StatelessWidget {
 
   void _onContinue(BuildContext context, bool hasSelection) {
     if (!hasSelection) return;
+    // iter6 B11: record the chosen tier (carries the live gateway UUID on
+    // `Tier.wireId`) in the shared compose controller so the location-confirm
+    // step can build the request payload and call POST /requests with it. The
+    // tier cubit is scoped to THIS screen and is gone once we navigate, so the
+    // selection must be lifted into the singleton controller here.
+    final tier = state.selectedTier;
+    if (tier != null && sl.isRegistered<ComposeRequestController>()) {
+      sl<ComposeRequestController>().setTier(tier);
+    }
     // EDGE: request-type-selection → location-select (21_NAV_PLAN.md §C,
     // JM-024 AC1 — replaces the divergent W0-era `→ /request-summary`). The
     // screen owns this edge (40_GUARDRAILS_ARCH §10.8); the selected tier lives
-    // in the cubit and is carried forward to order-chat through the location
-    // leg (JM-025).
+    // in the compose controller and is carried forward to order-chat through
+    // the location leg (JM-025).
     context.pushNamed('client-location');
   }
 }

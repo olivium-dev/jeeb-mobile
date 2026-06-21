@@ -36,6 +36,21 @@ class OtpHandoverCubit extends Cubit<OtpHandoverState> {
         handoverCode: code,
       ));
     } on OtpHandoverException catch (e) {
+      // iter6 OTP-phone v2: the LIVE gateway `GET /v1/deliveries/{id}/otp` does
+      // NOT return a `code` field (it returns {deliveryId, triggered, message}),
+      // so the client has nothing to DISPLAY. Rather than dead-end on a generic
+      // "Something went wrong", let the client ENTER the code (server-validated)
+      // and submit verify — the handover still completes. A genuine network
+      // fault still surfaces the retryable error.
+      if (e.kind == OtpHandoverErrorKind.parse ||
+          e.kind == OtpHandoverErrorKind.server) {
+        emit(state.copyWith(
+          mode: OtpHandoverViewMode.ready,
+          allowManualEntry: true,
+          clearError: true,
+        ));
+        return;
+      }
       emit(state.copyWith(
         mode: OtpHandoverViewMode.error,
         errorMessage: _mapError(e.kind),

@@ -1,11 +1,17 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../registration/domain/lebanon_phone.dart';
+import '../../request_summary/application/compose_request_controller.dart';
+import '../../request_summary/domain/request_submission_service.dart';
+import '../../settings/data/shared_prefs_profile_repository.dart';
 import '../application/location_select_cubit.dart';
 import '../application/location_select_state.dart';
 import '../data/dio_location_select_repository.dart';
@@ -212,6 +218,16 @@ class _Body extends StatelessWidget {
           addSemanticLabel: l10n.clientLocationAddSemantic,
           onTap: () => _onAdd(context),
         ),
+        const SizedBox(height: Spacing.xLarge),
+        // iter6 OTP-phone v2: recipient-phone capture. The gateway needs a
+        // non-null `recipientPhone` on the request so the at-door handover OTP
+        // (`POST /deliveries/{id}/otp/verify {code:"1234"}`) can be issued/
+        // verified — without it the verify returns 400 recipient-phone-missing.
+        // The field is pre-filled from the locally-stored profile phone when
+        // present and writes its E.164 value into the shared
+        // ComposeRequestController, which threads it into the POST /requests
+        // body. It is the correct delivery UX (who receives + their phone).
+        const _RecipientPhoneField(),
       ],
     );
   }
@@ -445,7 +461,7 @@ class _ConfirmFooter extends StatelessWidget {
     );
   }
 
-  void _onConfirm(BuildContext context) {
+  Future<void> _onConfirm(BuildContext context) async {
     // EDGE: location-select → order-chat compose (21_NAV_PLAN.md §C, JM-024
     // AC4 → JM-025). The optional callback REPLACES the default nav for tests /
     // the dev seam.
@@ -454,11 +470,195 @@ class _ConfirmFooter extends StatelessWidget {
       override();
       return;
     }
-    // Hand off to order-chat in COMPOSE state. JM-025 owns the compose=broadcast
-    // behavior keyed on the `new` sentinel id (see 50_ROUTE_REQUESTS — JM-024
-    // → JM-025 hand-off). The chat route resolves `new` to an empty thread that
-    // renders the composer (`order_chat_composer_send`).
-    context.pushNamed('chat-detail', pathParameters: {'id': 'new'});
+
+    // iter6 B11 — THE create gating fix. The old flow handed off the literal
+    // placeholder id `'new'` to order-chat, which then broadcast
+    // `requestId='new'` WITHOUT ever calling POST /requests → no request was
+    // created on-device (matching 422 / chat 404). Now we CREATE the request
+    // here first (POST /requests → 201 {id}) and route order-chat with the REAL
+    // server-minted id so broadcast/chat operate on a request that exists.
+    //
+    // If the compose controller is not registered (isolated host / a test
+    // without DI), fall back to the prior `'new'` hand-off so non-app-rooted
+    // hosts degrade exactly as before rather than throw.
+    if (!sl.isRegistered<ComposeRequestController>()) {
+      context.pushNamed('chat-detail', pathParameters: {'id': 'new'});
+      return;
+    }
+
+    final controller = sl<ComposeRequestController>();
+    // Capture the navigation + messenger handles BEFORE the async gap: this
+    // footer lives in a BlocBuilder, so `context` may be rebuilt (and become
+    // unmounted) by the time the create call returns. The GoRouter / messenger
+    // instances stay valid, so we drive navigation off them instead of a stale
+    // BuildContext.
+    final router = GoRouter.of(context);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final l10n = AppLocalizations.of(context);
+    try {
+      final requestId = await controller.submitFromLocation(state);
+      // logcat proof anchor: confirms the create call succeeded with a REAL id
+      // (NOT 'new') before we route to order-chat.
+      debugPrint('[compose-b11] POST /requests OK → requestId=$requestId');
+      // Route order-chat with the REAL request id (no more 'new'). The compose
+      // thread broadcasts THIS id, and the chat resolves the conversation by it.
+      router.pushNamed('chat-detail', pathParameters: {'id': requestId});
+    } on RequestSubmissionException catch (e) {
+      debugPrint('[compose-b11] POST /requests FAILED: $e');
+      // Stay on the location step and surface a retryable error — never hand
+      // off `'new'` (that is exactly the broken path B11 removes).
+      messenger?.showSnackBar(
+        SnackBar(content: Text(l10n.requestSummaryErrorNetwork)),
+      );
+    }
+  }
+}
+
+/// iter6 OTP-phone v2 — recipient-phone capture on the location-confirm step.
+///
+/// WHY: the at-door handover OTP issue/verify reads `recipientPhone` from the
+/// gateway request-store row. The compose flow had no way to attach one (the
+/// only #67 default — `GET /v1/users/me.phone` — does not exist in the live
+/// gateway contract), so the on-device create produced a phone-less request and
+/// the in-app code-`1234` verify returned 400 `recipient-phone-missing`. This
+/// field is the reliable source: the customer enters (or confirms the
+/// pre-filled) recipient phone, validated as a Lebanese E.164 number, and the
+/// value is written into the shared [ComposeRequestController] so it lands in
+/// the `POST /requests` body.
+///
+/// Pre-fill: when a local registration/profile phone exists
+/// ([SharedPrefsProfileRepository] `phoneE164`) it is loaded as the default, so
+/// a real phone-OTP user does not have to re-type their number (the requester
+/// is the default recipient). The +961 prefix is pinned; the field carries the
+/// 8 national digits, mirroring the registration phone entry.
+class _RecipientPhoneField extends StatefulWidget {
+  const _RecipientPhoneField();
+
+  @override
+  State<_RecipientPhoneField> createState() => _RecipientPhoneFieldState();
+}
+
+class _RecipientPhoneFieldState extends State<_RecipientPhoneField> {
+  final TextEditingController _controller = TextEditingController();
+  String? _errorText;
+  bool _touched = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _prefillFromProfile();
+  }
+
+  /// Best-effort: load the locally-persisted profile phone and seed the field +
+  /// the controller with it, so the create already carries a valid phone even
+  /// if the user just taps Confirm without editing. Never throws.
+  Future<void> _prefillFromProfile() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final profile =
+          await SharedPrefsProfileRepository(prefs: prefs).load();
+      final phone = LebanonPhone.tryParse(profile?.phoneE164 ?? '');
+      if (phone == null || !mounted) return;
+      // Only seed if the user has not started typing.
+      if (_controller.text.trim().isEmpty) {
+        _controller.text = phone.digits;
+        _commit(phone.digits);
+      }
+    } catch (_) {
+      // No local phone is fine — the field stays empty and the resolver default
+      // (or a manual entry) supplies the phone.
+    }
+  }
+
+  /// Normalises [raw] to the national digits, validates, writes the E.164 value
+  /// (or null) into the shared compose controller, and surfaces an inline error
+  /// once the field has been touched.
+  void _commit(String raw) {
+    final phone = LebanonPhone.tryParse(raw);
+    if (sl.isRegistered<ComposeRequestController>()) {
+      sl<ComposeRequestController>().setRecipientPhone(phone?.e164);
+    }
+    final l10n = AppLocalizations.of(context);
+    setState(() {
+      _errorText = (_touched && raw.trim().isNotEmpty && phone == null)
+          ? l10n.recipientPhoneInvalid
+          : null;
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.recipientPhoneLabel,
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: theme.colorScheme.primary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: Spacing.small),
+        Semantics(
+          identifier: 'recipient_phone_input',
+          textField: true,
+          label: l10n.recipientPhoneLabel,
+          child: TextField(
+            key: const Key('clientLocation.recipientPhoneField'),
+            controller: _controller,
+            keyboardType: TextInputType.phone,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[\d+\s\-()]')),
+            ],
+            style: theme.textTheme.bodyLarge,
+            onChanged: (v) {
+              _touched = true;
+              _commit(v);
+            },
+            decoration: InputDecoration(
+              hintText: l10n.recipientPhoneHint,
+              errorText: _errorText,
+              filled: true,
+              fillColor: theme.colorScheme.surfaceContainerHighest,
+              prefixIcon: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: Spacing.medium,
+                  vertical: Spacing.small,
+                ),
+                child: Text(
+                  LebanonPhone.dialCode,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w500,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+              ),
+              prefixIconConstraints:
+                  const BoxConstraints(minWidth: 0, minHeight: 0),
+              border: const OutlineInputBorder(
+                borderRadius: OmdsBorderRadius.medium,
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: Spacing.xSmall),
+        Text(
+          l10n.recipientPhoneHelper,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
   }
 }
 
