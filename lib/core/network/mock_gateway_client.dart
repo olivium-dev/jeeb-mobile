@@ -183,12 +183,47 @@ class MockGatewayClient {
     return dio;
   }
 
-  /// WebSocket URL for the realtime shim at port 3056.
-  /// The companion shim handles Phoenix/SSE channels alongside the REST mock.
-  static String get webSocketUrl {
+  /// Base URL of the LIVE realtime-comunication-service (Elixir/Phoenix
+  /// "LiveComm"). Configurable via dart-define so the WS endpoint is never a
+  /// build-time hard-code:
+  ///   --dart-define=JEEB_REALTIME_BASE_URL=http://192.168.2.33:5804
+  ///
+  /// CHAT-FIX (iter6 / ws): the prior `webSocketUrl` getter pointed the chat
+  /// socket at a dead mock shim (`ws://<host>:3056/socket/websocket`) that does
+  /// not exist against the live backend, so inbound live push never arrived.
+  /// The live realtime service serves the Phoenix socket at `:5804`
+  /// (`/socket/websocket`), the open token minter at `POST /api/auth/token`, and
+  /// fans Jeeb chat out on the `jeeb:chat` topic / `user:{recipientId}` stream.
+  ///
+  /// When the define is absent the default derives the realtime host from
+  /// [mockBaseUrl] (same machine) on the standard realtime port `5804` — so a
+  /// device build that already targets a reachable gateway host reaches the
+  /// co-located realtime service out of the box, with the define as the override
+  /// for any split deployment.
+  static const String realtimeBaseUrl = String.fromEnvironment(
+    'JEEB_REALTIME_BASE_URL',
+    defaultValue: '',
+  );
+
+  /// Standard realtime-comunication-service port (LiveComm Phoenix endpoint).
+  static const int realtimePort = 5804;
+
+  /// HTTP(S) base of the realtime service: the explicit
+  /// [realtimeBaseUrl] define when set, otherwise the gateway host on
+  /// [realtimePort]. Used for the token-mint REST call.
+  static Uri get realtimeHttpBase {
+    if (realtimeBaseUrl.isNotEmpty) return Uri.parse(realtimeBaseUrl);
     final base = Uri.parse(mockBaseUrl);
+    return base.replace(port: realtimePort);
+  }
+
+  /// WebSocket URL for the LIVE realtime Phoenix socket
+  /// (`ws(s)://<realtime-host>:<port>/socket/websocket`). The token + `vsn`
+  /// query params are appended by the socket at connect time.
+  static String get webSocketUrl {
+    final base = realtimeHttpBase;
     final wsScheme = base.scheme == 'https' ? 'wss' : 'ws';
-    return '$wsScheme://${base.host}:3056/socket/websocket';
+    return '$wsScheme://${base.host}:${base.port}/socket/websocket';
   }
 }
 

@@ -129,6 +129,11 @@ dev_dependencies:
   # (chat_connection_cubit_test.dart). Ships transitively with flutter_test but
   # imported directly, so declared explicitly per depend_on_referenced_packages.
   fake_async: ^1.3.3
+  # Provides StreamChannelMixin for the in-memory WebSocketChannel fake in
+  # live_realtime_chat_socket_test.dart. Ships transitively with
+  # web_socket_channel but imported directly, so declared explicitly per
+  # depend_on_referenced_packages.
+  stream_channel: ^2.1.4
 
 flutter:
   uses-material-design: true
