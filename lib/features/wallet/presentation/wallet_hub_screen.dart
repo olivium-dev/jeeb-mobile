@@ -79,7 +79,16 @@ class _WalletHubView extends StatelessWidget {
       identifier: 'wallet_hub_root',
       container: true,
       child: Scaffold(
-        appBar: OMDSAppBar(title: copy.title, showBackButton: true),
+        appBar: OMDSAppBar(
+          title: copy.title,
+          showBackButton: true,
+          // The wallet chip reaches this hub via stack-REPLACING `goNamed(
+          // 'wallet')`, so there is usually nothing to pop. Pop when we can
+          // (pushed entry), else return to the shell — never pop the last page
+          // (which would leave an empty Navigator → black surface).
+          onBackPressed: () =>
+              context.canPop() ? context.pop() : context.go('/'),
+        ),
         body: BlocBuilder<WalletHubCubit, WalletHubState>(
           builder: (context, state) {
             switch (state.status) {
