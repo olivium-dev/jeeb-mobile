@@ -3987,5 +3987,13 @@
   "passwordSecurityBody": "Change your password or set one if you signed up with a social account.",
   "@passwordSecurityBody": { "description": "JM-061 stub body — the JM-061 engineer fills current/new/confirm fields + validation (D90)." },
   "passwordSetEntryCta": "Set a password",
-  "@passwordSetEntryCta": { "description": "JM-061 social-only entry (password_set_entry) → auth-set-password?mode=in-app-social (D90)." }
+  "@passwordSetEntryCta": { "description": "JM-061 social-only entry (password_set_entry) → auth-set-password?mode=in-app-social (D90)." },
+  "jeeberActiveDeliveriesTitle": "Your active deliveries",
+  "@jeeberActiveDeliveriesTitle": {"description": "iter6: section title above the jeeber dashboard active-deliveries list (accepted orders the jeeber is driving)."},
+  "jeeberActiveDeliveriesFallbackTitle": "Delivery",
+  "@jeeberActiveDeliveriesFallbackTitle": {"description": "iter6: fallback row title for an active delivery with no request title."},
+  "jeeberActiveDeliveriesOpenChat": "Open chat",
+  "@jeeberActiveDeliveriesOpenChat": {"description": "iter6: primary CTA on an active-delivery row — opens the order chat."},
+  "jeeberActiveDeliveriesManage": "Manage delivery",
+  "@jeeberActiveDeliveriesManage": {"description": "iter6: secondary CTA on an active-delivery row — opens the active-delivery (Ordered→…→AtDoor) screen."}
 }

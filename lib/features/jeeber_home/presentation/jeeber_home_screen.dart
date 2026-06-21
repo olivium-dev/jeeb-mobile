@@ -43,6 +43,7 @@ class JeeberHomeScreen extends StatefulWidget {
     this.requestFeedCubit,
     this.registerCtaIdentifier,
     this.submittedOffersCubitFactory,
+    this.activeDeliveriesBanner,
   });
 
   static const Key scaffoldKey = Key('jeeber-home-screen-scaffold');
@@ -82,6 +83,13 @@ class JeeberHomeScreen extends StatefulWidget {
   /// screen stays usable in tests / the dev-seam capture path without DI. Tests
   /// inject a scripted factory to assert the real-data path.
   final SubmittedOffersCubit Function()? submittedOffersCubitFactory;
+
+  /// iter6 real-flow blocker fix: an optional banner the host (the Dashboard
+  /// tab) builds for the jeeber's ACCEPTED/active deliveries. Rendered at the
+  /// top of the registered body (above the pending feed / no-requests view) so
+  /// a freshly-accepted order has a real-UI entry to its chat + delivery. Null
+  /// in the unregistered (State-1) path and in bare harnesses.
+  final Widget? activeDeliveriesBanner;
 
   @override
   State<JeeberHomeScreen> createState() => _JeeberHomeScreenState();
@@ -155,6 +163,7 @@ class _JeeberHomeScreenState extends State<JeeberHomeScreen> {
         requestFeedCubit: widget.requestFeedCubit,
         registerCtaIdentifier: widget.registerCtaIdentifier,
         submittedOffersCubit: _resolveSubmittedOffersCubit(),
+        activeDeliveriesBanner: widget.activeDeliveriesBanner,
       ),
       ),
     );
@@ -173,6 +182,7 @@ class _RootBody extends StatelessWidget {
     required this.requestFeedCubit,
     required this.registerCtaIdentifier,
     required this.submittedOffersCubit,
+    required this.activeDeliveriesBanner,
   });
 
   final bool isRegistered;
@@ -182,6 +192,7 @@ class _RootBody extends StatelessWidget {
   final RequestFeedCubit? requestFeedCubit;
   final String? registerCtaIdentifier;
   final SubmittedOffersCubit? submittedOffersCubit;
+  final Widget? activeDeliveriesBanner;
 
   @override
   Widget build(BuildContext context) {
@@ -192,12 +203,23 @@ class _RootBody extends StatelessWidget {
         ctaIdentifier: registerCtaIdentifier,
       );
     }
-    final body = _RegisteredBody(
+    final registered = _RegisteredBody(
       profileName: profileName,
       onOpenFeedRequest: onOpenFeedRequest,
       hasFeedCubit: requestFeedCubit != null,
       submittedOffersCubit: submittedOffersCubit,
     );
+    // iter6 real-flow blocker fix: stack the accepted/active-deliveries banner
+    // above the pending-feed body. The banner self-hides when there are no
+    // active deliveries, so the feed/no-requests states render unchanged when
+    // the jeeber has nothing accepted. `Expanded` keeps the feed scrollable.
+    final banner = activeDeliveriesBanner;
+    final body = banner == null
+        ? registered
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [banner, Expanded(child: registered)],
+          );
     if (requestFeedCubit == null) return body;
     return BlocProvider<RequestFeedCubit>.value(
       value: requestFeedCubit!,
