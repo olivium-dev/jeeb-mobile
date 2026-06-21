@@ -20,4 +20,7 @@ class EmptyNotificationsRepository implements NotificationsRepository {
 
   @override
   Future<void> markRead(String id) async {}
+
+  @override
+  Future<void> confirmReceipt(String deliveryId) async {}
 }

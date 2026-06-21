@@ -93,7 +93,17 @@ class _NotificationsListView extends StatelessWidget {
           onBackPressed: () =>
               context.canPop() ? context.pop() : context.go('/'),
         ),
-        body: BlocBuilder<NotificationsListCubit, NotificationsListState>(
+        body: BlocConsumer<NotificationsListCubit, NotificationsListState>(
+          listenWhen: (prev, next) =>
+              prev.confirmReceiptFailedId != next.confirmReceiptFailedId &&
+              next.confirmReceiptFailedId != null,
+          listener: (context, state) {
+            // notif-inline-confirm-receipt: surface a one-shot retry snackbar.
+            showOmdsSnackbar(context, message: copy.confirmReceiptError);
+            context
+                .read<NotificationsListCubit>()
+                .acknowledgeConfirmReceiptError();
+          },
           builder: (context, state) {
             switch (state.status) {
               case NotificationsListStatus.initial:
@@ -112,7 +122,7 @@ class _NotificationsListView extends StatelessWidget {
                       context.read<NotificationsListCubit>().refresh(),
                   child: !state.hasItems
                       ? _EmptyBody(copy: copy)
-                      : _LoadedList(items: state.items, copy: copy),
+                      : _LoadedList(items: state.items, copy: copy, state: state),
                 );
             }
           },
@@ -157,10 +167,15 @@ class _EmptyBody extends StatelessWidget {
 }
 
 class _LoadedList extends StatelessWidget {
-  const _LoadedList({required this.items, required this.copy});
+  const _LoadedList({
+    required this.items,
+    required this.copy,
+    required this.state,
+  });
 
   final List<NotificationItem> items;
   final NotificationsL10n copy;
+  final NotificationsListState state;
 
   @override
   Widget build(BuildContext context) {
@@ -175,9 +190,22 @@ class _LoadedList extends StatelessWidget {
           item: item,
           copy: copy,
           onTap: () => _onRowTap(context, item),
+          // notif-inline-confirm-receipt: wire the per-row confirm action +
+          // its in-flight / confirmed state for `confirm_receipt` rows.
+          onConfirmReceipt: () => _onConfirmReceipt(context, item),
+          isConfirmingReceipt: state.isConfirmingReceipt(item.id),
+          isReceiptConfirmed: state.isReceiptConfirmed(item.id),
         );
       },
     );
+  }
+
+  void _onConfirmReceipt(BuildContext context, NotificationItem item) {
+    final ref = item.ref;
+    if (ref == null || ref.isEmpty) return;
+    context
+        .read<NotificationsListCubit>()
+        .confirmReceipt(id: item.id, deliveryId: ref);
   }
 
   /// (a) mark read (optimistic; cubit owns the flag), then (b) dispatch the

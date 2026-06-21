@@ -6,6 +6,8 @@
 //   - advanceStatus reverts and sets transitionError on 422 (AC3).
 //   - Network failure on load emits error mode.
 
+import 'dart:typed_data';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -13,6 +15,9 @@ import 'package:jeeb_mobile/features/active_delivery_jeeber/application/active_d
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/active_delivery_repository.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
+import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
+import 'package:jeeb_mobile/features/photo_attachment/domain/photo_attachment.dart';
+import 'package:jeeb_mobile/features/photo_attachment/domain/photo_picker_service.dart';
 
 const _dropOff = DropOffAddress(label: 'Verdun', lat: 33.88, lng: 35.49);
 
@@ -60,11 +65,16 @@ class _FakeRepo implements ActiveDeliveryRepository {
     return transitionResult ?? to;
   }
 
+  /// Records the bytes handed to [uploadProofPhoto] (JM-051 real-capture check).
+  Uint8List? lastUploadBytes;
+
   @override
   Future<String> uploadProofPhoto({
     required String deliveryId,
     required String filename,
+    Uint8List? bytes,
   }) async {
+    lastUploadBytes = bytes;
     if (uploadThrows != null) throw uploadThrows!;
     return uploadResult ?? 'https://cdn.jeeb.app/proof/$deliveryId.jpg';
   }
@@ -220,6 +230,92 @@ void main() {
         ),
       ],
     );
+
+    test('captureProofPhoto uploads REAL camera bytes to the repo (JM-051)',
+        () async {
+      final repo = _FakeRepo(
+        uploadResult: 'https://cdn.jeeb.app/proof/DLV-770001.jpg',
+      );
+      final bytes = Uint8List.fromList(List<int>.filled(64, 7));
+      final cubit = ActiveDeliveryCubit(
+        repository: repo,
+        deliveryId: 'DLV-770001',
+        photoPicker: StubPhotoPickerService(cameraPayload: bytes),
+      )
+        ..emit(ActiveDeliveryState(
+          mode: ActiveDeliveryMode.ready,
+          delivery: _delivery(JeeberDeliveryStatus.atDoor),
+        ));
+
+      await cubit.captureProofPhoto();
+
+      // The bytes captured from the camera reached the repository (not a
+      // synthetic-filename-only post).
+      expect(repo.lastUploadBytes, equals(bytes));
+      expect(cubit.state.proofPhotoStatus, ProofPhotoStatus.captured);
+      expect(
+        cubit.state.delivery?.proofPhotoUrl,
+        'https://cdn.jeeb.app/proof/DLV-770001.jpg',
+      );
+      await cubit.close();
+    });
+
+    test('captureProofPhoto: a cancelled camera pick is a benign no-op',
+        () async {
+      final repo = _FakeRepo();
+      final cubit = ActiveDeliveryCubit(
+        repository: repo,
+        deliveryId: 'DLV-770001',
+        photoPicker: StubPhotoPickerService(
+          cameraFailure: PhotoPickFailure.cancelled,
+        ),
+      )
+        ..emit(ActiveDeliveryState(
+          mode: ActiveDeliveryMode.ready,
+          delivery: _delivery(JeeberDeliveryStatus.atDoor),
+        ));
+
+      await cubit.captureProofPhoto();
+
+      // No upload, no failure surfaced, status untouched.
+      expect(repo.lastUploadBytes, isNull);
+      expect(cubit.state.proofPhotoStatus, ProofPhotoStatus.none);
+      expect(cubit.state.proofPhotoFailure, isNull);
+      await cubit.close();
+    });
+
+    test('captureProofPhoto: a permission-denied pick surfaces the failure',
+        () async {
+      final cubit = ActiveDeliveryCubit(
+        repository: _FakeRepo(),
+        deliveryId: 'DLV-770001',
+        photoPicker: StubPhotoPickerService(
+          cameraFailure: PhotoPickFailure.permissionDenied,
+        ),
+      )
+        ..emit(ActiveDeliveryState(
+          mode: ActiveDeliveryMode.ready,
+          delivery: _delivery(JeeberDeliveryStatus.atDoor),
+        ));
+
+      await cubit.captureProofPhoto();
+
+      expect(cubit.state.proofPhotoStatus, ProofPhotoStatus.failed);
+      expect(
+        cubit.state.proofPhotoFailure,
+        ProofPhotoCaptureFailure.permissionDenied,
+      );
+      await cubit.close();
+    });
+
+    test('RawPhoto camera source bytes flow through unchanged', () {
+      final raw = RawPhoto(
+        bytes: Uint8List.fromList(const [1, 2, 3]),
+        source: PhotoSource.camera,
+      );
+      expect(raw.source, PhotoSource.camera);
+      expect(raw.bytes, Uint8List.fromList(const [1, 2, 3]));
+    });
 
     blocTest<ActiveDeliveryCubit, ActiveDeliveryState>(
       'markDelivered transitions AtDoor → Done and emits delivered (AC2)',

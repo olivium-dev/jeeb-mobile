@@ -18,6 +18,7 @@ class CustomerProfileViewData extends Equatable {
     this.ratingCount = 0,
     this.activeRole,
     this.availableRoles = const <String>[],
+    this.kycStatus,
   });
 
   /// Display name (dynamic data). `null` renders the initials avatar fallback
@@ -47,6 +48,12 @@ class CustomerProfileViewData extends Equatable {
   /// Number of ratings backing [rating] (`ratingCount` on getMe). `0` when the
   /// account has not been rated yet (drives the cold-start copy, D59-consistent).
   final int ratingCount;
+
+  /// Raw jeeber KYC status from getMe (`kycStatus` ∈ `none|pending|approved|
+  /// rejected`, D38/D52). `null` when getMe omits it (e.g. a non-jeeber account
+  /// the backend doesn't stamp). The DELIVERY-tab gate (JM-036) maps this onto
+  /// its [JeeberKycStatus] enum; the profile header itself does not render it.
+  final String? kycStatus;
 
   /// True when the account has at least one rating to display.
   bool get hasRating => rating != null && ratingCount > 0;
@@ -80,6 +87,7 @@ class CustomerProfileViewData extends Equatable {
     String? activeRole,
     List<String>? availableRoles,
     bool clearRating = false,
+    String? kycStatus,
   }) {
     return CustomerProfileViewData(
       name: name ?? this.name,
@@ -91,6 +99,7 @@ class CustomerProfileViewData extends Equatable {
       ratingCount: ratingCount ?? this.ratingCount,
       activeRole: activeRole ?? this.activeRole,
       availableRoles: availableRoles ?? this.availableRoles,
+      kycStatus: kycStatus ?? this.kycStatus,
     );
   }
 
@@ -105,5 +114,6 @@ class CustomerProfileViewData extends Equatable {
         ratingCount,
         activeRole,
         availableRoles,
+        kycStatus,
       ];
 }

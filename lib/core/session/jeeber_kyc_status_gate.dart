@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../dev_seam/dev_seam.dart';
 import '../dev_seam/dev_seam_config.dart';
+import '../../features/customer_profile/domain/customer_profile_repository.dart';
 
 /// The narrow view of jeeber KYC status the DELIVERY-tab gate (JM-036) and the
 /// offer gate (JM-044) need to decide register-prompt-vs-feed and
@@ -22,6 +25,39 @@ import '../dev_seam/dev_seam_config.dart';
 /// engineer's to write. It swaps [SeamJeeberKycStatusGate] in DI without
 /// touching the tab body (it depends on this interface, not the impl).
 enum JeeberKycStatus { none, pending, approved, rejected }
+
+/// Maps a raw getMe `kycStatus` wire value onto [JeeberKycStatus]. Defensive
+/// (40_GUARDRAILS §4): unknown / null / `''` degrade to [fallback] (the gate's
+/// production-safe default) rather than throwing, so a malformed getMe body
+/// never red-screens the DELIVERY tab.
+JeeberKycStatus jeeberKycStatusFromWire(
+  String? raw, {
+  JeeberKycStatus fallback = JeeberKycStatus.approved,
+}) {
+  switch (raw?.trim().toLowerCase()) {
+    case 'none':
+    case 'unregistered':
+    case 'not_started':
+    case 'notstarted':
+      return JeeberKycStatus.none;
+    case 'pending':
+    case 'submitted':
+    case 'in_review':
+    case 'inreview':
+    case 'review':
+      return JeeberKycStatus.pending;
+    case 'approved':
+    case 'verified':
+    case 'active':
+      return JeeberKycStatus.approved;
+    case 'rejected':
+    case 'denied':
+    case 'declined':
+      return JeeberKycStatus.rejected;
+    default:
+      return fallback;
+  }
+}
 
 /// What the DELIVERY tab body should render for a given KYC status (JM-036,
 /// reconciled with D38). D38 gates **offering**, not feed-browsing: a jeeber who
@@ -115,6 +151,85 @@ class SeamJeeberKycStatusGate implements JeeberKycStatusGate {
         }
         return JeeberKycStatus.approved;
     }
+  }
+
+  @override
+  bool get isApproved => status == JeeberKycStatus.approved;
+}
+
+/// The REAL getMe-backed gate (JM-036). Replaces [SeamJeeberKycStatusGate] in
+/// production DI: the DELIVERY-tab destination + the offer gate now read the
+/// signed-in user's actual `kycStatus` from `GET /users/me` (the same getMe the
+/// profile/greeting use), classified `none|pending|approved|rejected`
+/// (D38/D52).
+///
+/// The [JeeberKycStatusGate] interface is synchronous (the router redirect + the
+/// DELIVERY-tab `build()` read `status` without an await), so this gate caches
+/// the last-resolved status and exposes a fire-and-forget [refresh] that
+/// re-pulls getMe. Hydration:
+///   * eager — [refresh] is kicked once when the gate is constructed (DI), so
+///     the cache is typically warm by the time a jeeber reaches the tab;
+///   * on-entry — the shell re-kicks [refresh] when the jeeber Dashboard tab is
+///     built, so a role-switch / KYC-approval mid-session reflects on the next
+///     tab entry.
+///
+/// In DEBUG the seam still wins (so existing Maestro flows that drive
+/// `jeeb.seam.kyc_status` stay deterministic and don't depend on a live getMe):
+/// when a kyc-status seam is present this gate defers to [SeamJeeberKycStatusGate].
+/// Until the first getMe resolves (and in any fail-safe case — no repository,
+/// network error, getMe omits `kycStatus`) the cache holds [_fallback]
+/// (`approved` → feed), preserving the prior production-safe default so the
+/// swap never REGRESSES the existing jeeber feed.
+class GetMeJeeberKycStatusGate implements JeeberKycStatusGate {
+  GetMeJeeberKycStatusGate({
+    required CustomerProfileRepository repository,
+    JeeberKycStatus fallback = JeeberKycStatus.approved,
+    bool hydrateOnCreate = true,
+  })  : _repository = repository,
+        _fallback = fallback,
+        _cached = fallback {
+    if (hydrateOnCreate) {
+      // Fire-and-forget warm-up; never awaited (the interface is synchronous).
+      unawaited(refresh());
+    }
+  }
+
+  final CustomerProfileRepository _repository;
+  final JeeberKycStatus _fallback;
+  final SeamJeeberKycStatusGate _seam = const SeamJeeberKycStatusGate();
+
+  JeeberKycStatus _cached;
+
+  /// Re-pull getMe and update the cache. Fail-safe: a network/parse error keeps
+  /// the current cache (never downgrades a known status to the fallback on a
+  /// transient blip), and never throws — so a fire-and-forget call can't crash
+  /// the caller.
+  Future<void> refresh() async {
+    try {
+      final profile = await _repository.fetchProfile();
+      _cached = jeeberKycStatusFromWire(profile.kycStatus, fallback: _fallback);
+    } on CustomerProfileRepositoryException {
+      // Keep the last-known status (or the fallback) — a flaky getMe must not
+      // bounce a registered jeeber out of the feed.
+    } catch (_) {
+      // Same fail-safe behaviour for any unexpected error.
+    }
+  }
+
+  @override
+  JeeberKycStatus get status {
+    // DEBUG: an explicit `jeeb.seam.kyc_status` seam (or the legacy
+    // `home_tab=unregistered` flag) wins so Maestro flows stay deterministic.
+    if (kDebugMode && _seamIsDriving) return _seam.status;
+    return _cached;
+  }
+
+  /// True when a debug seam is actively driving the KYC branch (so the live
+  /// getMe cache should be bypassed). Release always returns false.
+  bool get _seamIsDriving {
+    if (!kDebugMode) return false;
+    if (DevSeam.current.kycStatusSeed != KycStatusSeed.none) return true;
+    return DevSeam.current.homeTab == 'unregistered';
   }
 
   @override

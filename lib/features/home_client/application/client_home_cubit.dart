@@ -38,6 +38,15 @@ class ClientHomeCubit extends Cubit<ClientHomeState> {
     await _fetch();
   }
 
+  /// Updates the free-text search query (home-disc-customer-home-search). The
+  /// raw request lists stay as the server snapshot; the screen renders the
+  /// query-filtered `visible*` views. A no-op emit is avoided so an unchanged
+  /// query doesn't churn the bloc.
+  void setQuery(String value) {
+    if (value == state.query) return;
+    emit(state.copyWith(query: value));
+  }
+
   /// Triggered by pull-to-refresh + the post-action handlers (e.g. after a
   /// new request is created or one finishes). Keeps the previously-rendered
   /// data visible while the network call is in flight to avoid a jarring

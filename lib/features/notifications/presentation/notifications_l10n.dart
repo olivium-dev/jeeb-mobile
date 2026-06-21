@@ -50,6 +50,19 @@ class NotificationsL10n {
       );
   String get retry => _pick('Retry', 'إعادة المحاولة');
 
+  // ── notif-inline-confirm-receipt (D70) ─────────────────────────────────────
+  /// Inline action button on a `confirm_receipt` row.
+  String get confirmReceiptAction => _pick('Confirm receipt', 'تأكيد الاستلام');
+
+  /// Affordance shown once the inline confirm-receipt succeeded.
+  String get confirmReceiptDone => _pick('Confirmed', 'تم التأكيد');
+
+  /// Snackbar when the inline confirm-receipt fails.
+  String get confirmReceiptError => _pick(
+        "Couldn't confirm receipt. Please try again.",
+        'تعذّر تأكيد الاستلام. يرجى المحاولة مرة أخرى.',
+      );
+
   /// Per-kind category label rendered as the row's leading line (cosmetic — the
   /// row's actual `title`/`body` come from the notification payload). Mirrors
   /// the D84 dispatch classes.

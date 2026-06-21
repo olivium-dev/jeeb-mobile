@@ -79,6 +79,14 @@ dependencies:
   record: ^6.2.1
   audioplayers: ^6.7.1
 
+  # Device camera / gallery capture (JM-051 proof-photo + JM-039 onboarding /
+  # KYC identity photos). Wrapped behind the `PhotoPickerService` port so the
+  # cubits, screens, and tests stay platform-free (the in-memory
+  # StubPhotoPickerService remains the unit-test / Maestro seam). 1.0.x line is
+  # pinned because image_picker 1.1+ raises its Dart SDK floor above this app's
+  # Dart 3.10.8 / Flutter 3.38.9 toolchain.
+  image_picker: ^1.0.7
+
   # Internationalisation
   intl: ^0.20.2
 

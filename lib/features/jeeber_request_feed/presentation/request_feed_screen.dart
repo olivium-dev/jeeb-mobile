@@ -9,6 +9,7 @@ import '../cubit/request_feed_cubit.dart';
 import '../cubit/request_feed_state.dart';
 import '../data/request_feed_models.dart';
 import '../data/request_feed_repository.dart';
+import 'jeeber_feed_shimmer.dart';
 import 'request_card.dart';
 
 /// Jeeber-mode realtime delivery request feed (JEEB-66 / T-mobile-013).
@@ -139,7 +140,9 @@ class _FeedBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state.status == RequestFeedStatus.loading && state.requests.isEmpty) {
-      return const Center(child: OmdsLoadingState());
+      // home-disc-jeeber-feed-loading: shimmer skeleton on initial load
+      // (project guideline prescribes list skeletons over a bare spinner).
+      return const JeeberFeedShimmer();
     }
     if (state.status == RequestFeedStatus.error && state.requests.isEmpty) {
       return OmdsErrorState(

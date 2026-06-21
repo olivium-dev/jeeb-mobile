@@ -26,6 +26,7 @@ class _ScriptedRepository implements NotificationsRepository {
   final List<NotificationItem> _items;
   final NotificationsFailure? fetchThrows;
   final List<String> markedRead = <String>[];
+  final List<String> confirmedReceipts = <String>[];
 
   @override
   Future<List<NotificationItem>> fetchNotifications() async {
@@ -36,6 +37,10 @@ class _ScriptedRepository implements NotificationsRepository {
 
   @override
   Future<void> markRead(String id) async => markedRead.add(id);
+
+  @override
+  Future<void> confirmReceipt(String deliveryId) async =>
+      confirmedReceipts.add(deliveryId);
 }
 
 NotificationItem _item(
@@ -284,6 +289,49 @@ void main() {
         (tester) async {
       await tapKind(tester, NotificationKind.confirmReceipt,
           expectRootId: 'notifications_root');
+    });
+  });
+
+  group('notif-inline-confirm-receipt', () {
+    testWidgets(
+        'confirm_receipt row with ref shows the inline button; tapping it '
+        'confirms the delivery and swaps to Confirmed', (tester) async {
+      final repo = _ScriptedRepository([
+        _item('notif-cr', NotificationKind.confirmReceipt, ref: 'DLV-77'),
+      ]);
+      await pump(tester, repo);
+
+      final button =
+          find.bySemanticsIdentifier('notif_row_notif-cr_confirm_receipt');
+      expect(button, findsOneWidget);
+
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+
+      expect(repo.confirmedReceipts, ['DLV-77']);
+      // The action swaps to the confirmed affordance.
+      expect(
+        find.bySemanticsIdentifier('notif_row_notif-cr_confirm_receipt_done'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('notif_row_notif-cr_confirm_receipt'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('a non-confirm_receipt row has NO inline confirm button',
+        (tester) async {
+      await pump(
+        tester,
+        _ScriptedRepository([
+          _item('notif-001', NotificationKind.offer, ref: 'DLV-1'),
+        ]),
+      );
+      expect(
+        find.bySemanticsIdentifier('notif_row_notif-001_confirm_receipt'),
+        findsNothing,
+      );
     });
   });
 }

@@ -20,6 +20,9 @@ class NotificationRow extends StatelessWidget {
     required this.copy,
     required this.onTap,
     this.now,
+    this.onConfirmReceipt,
+    this.isConfirmingReceipt = false,
+    this.isReceiptConfirmed = false,
   });
 
   final NotificationItem item;
@@ -28,6 +31,25 @@ class NotificationRow extends StatelessWidget {
 
   /// Injectable clock for the relative timestamp (deterministic in tests).
   final DateTime? now;
+
+  /// notif-inline-confirm-receipt: fired by the per-row "Confirm receipt"
+  /// button (rendered only for `confirm_receipt` rows with a `ref`). `null`
+  /// hides the inline action (the whole-row tap → delivered-receipt still works).
+  final VoidCallback? onConfirmReceipt;
+
+  /// True while this row's inline confirm-receipt is in flight (spinner).
+  final bool isConfirmingReceipt;
+
+  /// True once this row's inline confirm-receipt succeeded (shows "Confirmed").
+  final bool isReceiptConfirmed;
+
+  /// Render the inline confirm-receipt action only for a `confirm_receipt` row
+  /// that has a deliveryId (`ref`) AND a handler wired (notif-inline-confirm-
+  /// receipt). Other kinds keep their whole-row tap dispatch unchanged.
+  bool get _showConfirmReceipt =>
+      item.kind == NotificationKind.confirmReceipt &&
+      (item.ref?.isNotEmpty ?? false) &&
+      onConfirmReceipt != null;
 
   @override
   Widget build(BuildContext context) {
@@ -99,6 +121,16 @@ class NotificationRow extends StatelessWidget {
                         ),
                       ),
                     ],
+                    if (_showConfirmReceipt) ...[
+                      const SizedBox(height: Spacing.small),
+                      _ConfirmReceiptAction(
+                        notificationId: item.id,
+                        copy: copy,
+                        onConfirm: onConfirmReceipt!,
+                        isConfirming: isConfirmingReceipt,
+                        isConfirmed: isReceiptConfirmed,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -120,6 +152,73 @@ class NotificationRow extends StatelessWidget {
                 ),
               ],
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Inline confirm-receipt action (notif-inline-confirm-receipt, D70). Renders
+/// the per-row "Confirm receipt" button, an in-flight spinner, or — once
+/// confirmed — a static "Confirmed" affordance. Carries the dynamic
+/// `notif_row_<id>_confirm_receipt` id so a flow can tap it without leaving the
+/// inbox.
+class _ConfirmReceiptAction extends StatelessWidget {
+  const _ConfirmReceiptAction({
+    required this.notificationId,
+    required this.copy,
+    required this.onConfirm,
+    required this.isConfirming,
+    required this.isConfirmed,
+  });
+
+  final String notificationId;
+  final NotificationsL10n copy;
+  final VoidCallback onConfirm;
+  final bool isConfirming;
+  final bool isConfirmed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    if (isConfirmed) {
+      return Semantics(
+        identifier: 'notif_row_${notificationId}_confirm_receipt_done',
+        label: copy.confirmReceiptDone,
+        container: true,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.check_circle_outline,
+                size: Sizes.medium, color: colors.primary),
+            const SizedBox(width: Spacing.twoXSmall),
+            Text(
+              copy.confirmReceiptDone,
+              style: theme.textTheme.labelLarge?.copyWith(color: colors.primary),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Semantics(
+      identifier: 'notif_row_${notificationId}_confirm_receipt',
+      button: true,
+      enabled: !isConfirming,
+      label: copy.confirmReceiptAction,
+      onTap: isConfirming ? null : onConfirm,
+      child: ExcludeSemantics(
+        child: SizedBox(
+          width: 180,
+          child: OmdsLoadingButton(
+            text: copy.confirmReceiptAction,
+            isLoading: isConfirming,
+            isEnabled: !isConfirming,
+            height: Sizes.fourXLarge,
+            onTap: onConfirm,
           ),
         ),
       ),

@@ -9,6 +9,7 @@
 //   T-MOB-032 AC2: tap-row behaviour — onTapStatement callback fires.
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -79,6 +80,7 @@ class _LoggingDeliveryRepo implements ActiveDeliveryRepository {
   Future<String> uploadProofPhoto({
     required String deliveryId,
     required String filename,
+    Uint8List? bytes,
   }) async =>
       'https://cdn.jeeb.app/proof/$deliveryId.jpg';
 }

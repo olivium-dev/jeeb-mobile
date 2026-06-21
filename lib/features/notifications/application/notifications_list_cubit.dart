@@ -86,6 +86,47 @@ class NotificationsListCubit extends Cubit<NotificationsListState> {
     } catch (_) {/* same — swallow */}
   }
 
+  /// Inline confirm-receipt (notif-inline-confirm-receipt, D70). Marks [id]'s
+  /// action in flight (per-row spinner), POSTs the delivery `Done` transition
+  /// for [deliveryId], then records the row as confirmed on success. On failure
+  /// it clears the in-flight flag and raises a one-shot
+  /// [NotificationsListState.confirmReceiptFailedId] so the screen can offer a
+  /// retry. Re-entry is guarded (an in-flight or already-confirmed row no-ops).
+  Future<void> confirmReceipt({
+    required String id,
+    required String deliveryId,
+  }) async {
+    if (deliveryId.isEmpty) return;
+    if (state.isConfirmingReceipt(id) || state.isReceiptConfirmed(id)) return;
+    emit(state.copyWith(
+      confirmingReceiptIds: {...state.confirmingReceiptIds, id},
+      clearConfirmReceiptFailedId: true,
+    ));
+    try {
+      await _repository.confirmReceipt(deliveryId);
+      emit(state.copyWith(
+        confirmingReceiptIds: {...state.confirmingReceiptIds}..remove(id),
+        confirmedReceiptIds: {...state.confirmedReceiptIds, id},
+      ));
+    } on NotificationsRepositoryException {
+      emit(state.copyWith(
+        confirmingReceiptIds: {...state.confirmingReceiptIds}..remove(id),
+        confirmReceiptFailedId: id,
+      ));
+    } catch (_) {
+      emit(state.copyWith(
+        confirmingReceiptIds: {...state.confirmingReceiptIds}..remove(id),
+        confirmReceiptFailedId: id,
+      ));
+    }
+  }
+
+  /// One-shot confirm-receipt error acknowledgement so a snackbar doesn't loop.
+  void acknowledgeConfirmReceiptError() {
+    if (state.confirmReceiptFailedId == null) return;
+    emit(state.copyWith(clearConfirmReceiptFailedId: true));
+  }
+
   /// One-shot error acknowledgement so a banner replay doesn't loop (§2.2).
   void acknowledgeError() {
     if (state.error == null) return;

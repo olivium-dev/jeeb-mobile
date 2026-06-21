@@ -17,12 +17,15 @@ class _ScriptedRepository implements NotificationsRepository {
     List<NotificationItem>? items,
     this.fetchThrows,
     this.markThrows = false,
+    this.confirmReceiptThrows = false,
   }) : _items = items ?? const <NotificationItem>[];
 
   List<NotificationItem> _items;
   final NotificationsFailure? fetchThrows;
   final bool markThrows;
+  final bool confirmReceiptThrows;
   final List<String> markedRead = <String>[];
+  final List<String> confirmedReceipts = <String>[];
 
   void seed(List<NotificationItem> items) => _items = items;
 
@@ -39,6 +42,14 @@ class _ScriptedRepository implements NotificationsRepository {
       throw const NotificationsRepositoryException(NotificationsFailure.network);
     }
     markedRead.add(id);
+  }
+
+  @override
+  Future<void> confirmReceipt(String deliveryId) async {
+    if (confirmReceiptThrows) {
+      throw const NotificationsRepositoryException(NotificationsFailure.network);
+    }
+    confirmedReceipts.add(deliveryId);
   }
 }
 
@@ -160,6 +171,72 @@ void main() {
       await cubit.load();
       await cubit.markRead('a');
       expect(repo.markedRead, isEmpty);
+      await cubit.close();
+    });
+  });
+
+  group('NotificationsListCubit.confirmReceipt (notif-inline-confirm-receipt)',
+      () {
+    test('confirms the delivery and marks the row confirmed', () async {
+      final repo = _ScriptedRepository(items: [
+        _item('n1', kind: NotificationKind.confirmReceipt, ref: 'DLV-9'),
+      ]);
+      final cubit = NotificationsListCubit(repository: repo);
+      await cubit.load();
+
+      await cubit.confirmReceipt(id: 'n1', deliveryId: 'DLV-9');
+
+      expect(repo.confirmedReceipts, ['DLV-9']);
+      expect(cubit.state.isReceiptConfirmed('n1'), isTrue);
+      expect(cubit.state.isConfirmingReceipt('n1'), isFalse);
+      expect(cubit.state.confirmReceiptFailedId, isNull);
+      await cubit.close();
+    });
+
+    test('a failed confirm raises the one-shot failed id, not confirmed',
+        () async {
+      final repo = _ScriptedRepository(
+        items: [
+          _item('n1', kind: NotificationKind.confirmReceipt, ref: 'DLV-9'),
+        ],
+        confirmReceiptThrows: true,
+      );
+      final cubit = NotificationsListCubit(repository: repo);
+      await cubit.load();
+
+      await cubit.confirmReceipt(id: 'n1', deliveryId: 'DLV-9');
+
+      expect(cubit.state.isReceiptConfirmed('n1'), isFalse);
+      expect(cubit.state.confirmReceiptFailedId, 'n1');
+
+      cubit.acknowledgeConfirmReceiptError();
+      expect(cubit.state.confirmReceiptFailedId, isNull);
+      await cubit.close();
+    });
+
+    test('empty deliveryId is a no-op (no call, no state churn)', () async {
+      final repo = _ScriptedRepository(items: [
+        _item('n1', kind: NotificationKind.confirmReceipt),
+      ]);
+      final cubit = NotificationsListCubit(repository: repo);
+      await cubit.load();
+
+      await cubit.confirmReceipt(id: 'n1', deliveryId: '');
+
+      expect(repo.confirmedReceipts, isEmpty);
+      expect(cubit.state.isConfirmingReceipt('n1'), isFalse);
+      await cubit.close();
+    });
+
+    test('a second confirm on an already-confirmed row is a no-op', () async {
+      final repo = _ScriptedRepository(items: [
+        _item('n1', kind: NotificationKind.confirmReceipt, ref: 'DLV-9'),
+      ]);
+      final cubit = NotificationsListCubit(repository: repo);
+      await cubit.load();
+      await cubit.confirmReceipt(id: 'n1', deliveryId: 'DLV-9');
+      await cubit.confirmReceipt(id: 'n1', deliveryId: 'DLV-9');
+      expect(repo.confirmedReceipts, ['DLV-9']);
       await cubit.close();
     });
   });

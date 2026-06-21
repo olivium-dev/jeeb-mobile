@@ -41,7 +41,9 @@ class PendingRequestsTab extends StatelessWidget {
   }
 
   static bool _rebuildWhen(ClientHomeState prev, ClientHomeState next) =>
-      prev.status != next.status || prev.pending != next.pending;
+      prev.status != next.status ||
+      prev.pending != next.pending ||
+      prev.query != next.query;
 }
 
 class _PendingContent extends StatelessWidget {
@@ -60,12 +62,16 @@ class _PendingContent extends StatelessWidget {
     if (state.status == ClientHomeStatus.loading) {
       return const _PendingLoading();
     }
-    if (state.pending.isEmpty) {
+    final visible = state.visiblePending;
+    if (visible.isEmpty) {
+      if (state.hasQuery && state.pending.isNotEmpty) {
+        return const _PendingNoResults();
+      }
       return _PendingEmpty(
         onCreateRequest: () => _openCreateRequest(context),
       );
     }
-    return _PendingList(requests: state.pending, onTap: onTap);
+    return _PendingList(requests: visible, onTap: onTap);
   }
 
   static void _openCreateRequest(BuildContext context) {
@@ -119,6 +125,22 @@ class _PendingEmpty extends StatelessWidget {
       subtitle: l10n.homePendingEmpty,
       buttonText: l10n.homeEmptyCta,
       onButtonTap: onCreateRequest,
+    );
+  }
+}
+
+/// No-results state when an active search query filters every pending row out.
+class _PendingNoResults extends StatelessWidget {
+  const _PendingNoResults();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return OmdsEmptyState(
+      key: const Key('pending-no-results'),
+      icon: Icons.search_off_outlined,
+      title: l10n.homeSearchNoResultsTitle,
+      subtitle: l10n.homeSearchNoResultsBody,
     );
   }
 }
