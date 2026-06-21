@@ -23,10 +23,14 @@ import 'dev_chat_detail_fixtures.dart';
 
 /// Deep-link entry point for `/chat/:id` — the `order-chat` surface (JM-025).
 ///
-/// The route param can be a conversation id **or** a delivery/request id.
-/// When given a delivery/request id (e.g. from the In Progress tab or the
-/// create-flow `location_select_confirm_cta`), the screen resolves the linked
-/// conversation via the `by-request` endpoint before constructing the gateway.
+/// The route param is the REQUEST id (the order / create-flow
+/// `location_select_confirm_cta` push it — see `client_location_screen`). The
+/// request id is the conversation's CORRELATION KEY, never the conversation id.
+/// CHAT-CONTRACT (iter6): the screen resolves it to the server-minted
+/// `conversation_id` via `POST /v1/chat/jeeb/conversations` (create-or-get) — or
+/// `GET /v1/conversations?correlationKey={request_id}` — BEFORE constructing the
+/// gateway, so every message path uses the real conversation id (no more
+/// request-id-as-conversation-id 404, no non-existent `by-request` route).
 ///
 /// The resolved conversation phase + winner drive the JM-025 order-chat states:
 ///   * **compose / broadcasting** (client, no winner): the first message the
@@ -129,43 +133,43 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
 
     final dio = getIt<Dio>();
-    var conversationId = widget.chatId;
+
+    // CHAT-CONTRACT (iter6): the route param `widget.chatId` is the REQUEST id
+    // (the create-flow / order routes push it — see client_location_screen).
+    // The request id is NOT a conversation id — it is the conversation's
+    // CORRELATION KEY only. We MUST resolve it to the server-minted
+    // `conversation_id` BEFORE any messaging (the prior code used the request
+    // id directly as the conversation id → POST .../conversations/<REQUEST_ID>
+    // → 404, and the `by-request` route does not exist on the gateway).
+    //
+    // Bind the gateway to the REAL authenticated user id so the local user's
+    // own bubbles align right (`senderId == currentUserId`). It is also the
+    // `client_user_id` the create-or-get needs.
+    final currentUserId =
+        (await AuthTokenStore().userId) ?? 'user-client-001';
+    final requestId = widget.chatId;
+
+    // CREATE-FLOW sentinel (`new`): the compose leg lands here BEFORE a request
+    // exists (it broadcasts on the first message — JM-025 AC1), so there is no
+    // request_id to resolve a conversation by. Skip the resolve and keep the
+    // sentinel; `_isCreateFlow` gates the broadcast-on-first-message path.
     Map<String, dynamic>? conversationData;
-
-    // Try the id as a conversation id first.
-    try {
-      final resp = await dio.get<Map<String, dynamic>>(
-        '/v1/chat/jeeb/conversations/$conversationId',
-      );
-      conversationData = resp.data;
-    } on DioException catch (e) {
-      if (e.response?.statusCode == 404) {
-        // Not a conversation id — try as a request/delivery id.
-        try {
-          final byReq = await dio.get<Map<String, dynamic>>(
-            '/v1/chat/jeeb/conversations/by-request/${widget.chatId}',
-          );
-          conversationData = byReq.data;
-          conversationId = conversationData?['id'] as String? ?? widget.chatId;
-        } on DioException {
-          // Neither worked — proceed with the original id (fresh compose: the
-          // create-leg may have routed here with a request id whose
-          // conversation is created lazily on first send).
-        }
-      }
+    if (requestId != _composeSentinelId) {
+      // Resolve correlation(request_id) → conversation_id (+ phase +
+      // participants) via the canonical create-or-get. Returns null when the
+      // surface is unavailable (flag off / transport) — we degrade rather than
+      // 404 a send.
+      conversationData =
+          await _resolveConversation(dio, requestId, currentUserId);
     }
+    final conversationId =
+        conversationData?['conversation_id'] as String? ?? widget.chatId;
 
-    final title = await _resolveTitle(dio, conversationData);
-    // Mock convention: deliveryId == accepted-request-id. Prefer the
-    // conversation's requestId; the jeeber's "Start delivery" CTA + the pinned
-    // summary fetch + the broadcast/waiting route use this value (build()
-    // falls back to the resolved conversation id when absent).
-    final requestId = conversationData?['requestId'] as String? ?? '';
+    final title = await _resolveTitle(dio, requestId, conversationData);
     final phase = ConversationPhase.fromWire(
       conversationData?['phase'] as String?,
     );
-    final winnerId = conversationData?['winnerJeeberId'] as String?;
-    final hasWinner = winnerId != null && winnerId.isNotEmpty;
+    final hasWinner = _hasWinningJeeber(conversationData);
 
     // JM-025 AC2: resolve the locked pinned summary for an accepted order. The
     // fetch is best-effort — a failure leaves `_summary` null and the strip
@@ -175,14 +179,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       summary = await _resolveSummary(dio, requestId, conversationId);
     }
 
-    // CHAT-FIX (iter6): bind the gateway to the REAL authenticated user id so
-    // `senderId == currentUserId` correctly aligns the local user's own bubbles
-    // to the right (`me`) and the counterpart's to the left (`them`). The prior
-    // hard-coded `user-client-001` never matched the live bearer's id, so the
-    // client's OWN sent messages rendered as incoming (left/grey). Falls back to
-    // the legacy literal only if no user id is persisted (isolated hosts/tests).
-    final currentUserId =
-        (await AuthTokenStore().userId) ?? 'user-client-001';
+    // The gateway is bound to the REAL bearer id (resolved above) and the REAL
+    // server-minted `conversationId` — so `send`/`loadHistory`/`subscribe` all
+    // hit `/v1/conversations/{conversationId}/...` (canonical), and the local
+    // user's own bubbles align right (`senderId == currentUserId`).
     final gateway = DioChatGateway(
       dio: dio,
       currentUserId: currentUserId,
@@ -199,15 +199,74 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
+  /// CHAT-CONTRACT (iter6): create-or-get the conversation for [requestId].
+  ///
+  /// Canonical sequence (the same create→id sequencing rahma-fe uses):
+  ///   1. `POST /v1/chat/jeeb/conversations {request_id, client_user_id}`
+  ///      (Idempotency-Key == request_id) — idempotent get-or-create that
+  ///      returns the distinct `{conversation_id, phase, participants[]}`.
+  ///   2. If create is rejected (e.g. the caller is the jeeber, not the owner),
+  ///      fall back to `GET /v1/conversations?correlationKey={request_id}` to
+  ///      resolve the existing conversation_id.
+  /// Returns null only when neither resolves (surface unavailable) — the screen
+  /// then degrades to the original id rather than blocking the thread.
+  Future<Map<String, dynamic>?> _resolveConversation(
+    Dio dio,
+    String requestId,
+    String clientUserId,
+  ) async {
+    // 1) create-or-get.
+    try {
+      final resp = await dio.post<Map<String, dynamic>>(
+        '/v1/chat/jeeb/conversations',
+        data: <String, Object?>{
+          'request_id': requestId,
+          'client_user_id': clientUserId,
+        },
+        options: Options(
+          headers: <String, Object?>{'Idempotency-Key': requestId},
+        ),
+      );
+      final data = resp.data;
+      if (data != null && data['conversation_id'] != null) return data;
+    } on DioException {
+      // Fall through to the correlation lookup.
+    }
+
+    // 2) resolve by correlation key (request id).
+    try {
+      final resp = await dio.get<Map<String, dynamic>>(
+        '/v1/conversations',
+        queryParameters: <String, Object?>{'correlationKey': requestId},
+      );
+      final data = resp.data;
+      if (data != null && data['conversation_id'] != null) return data;
+    } on DioException {
+      // Neither path resolved — degrade.
+    }
+    return null;
+  }
+
+  /// True when the conversation has a winning jeeber participant
+  /// (`role_in_convo == jeeber_winner`) — the canonical post-accept signal that
+  /// replaces the old `winnerJeeberId` projection.
+  bool _hasWinningJeeber(Map<String, dynamic>? conversationData) {
+    final participants = conversationData?['participants'];
+    if (participants is! List) return false;
+    return participants.whereType<Map>().any((p) {
+      final role = p['role_in_convo'] as String?;
+      final removedAt = p['removed_at'];
+      return role == 'jeeber_winner' && removedAt == null;
+    });
+  }
+
   Future<String> _resolveTitle(
     Dio dio,
+    String requestId,
     Map<String, dynamic>? conversationData,
   ) async {
-    if (conversationData == null) return '';
-
     // Try the request title.
-    final requestId = conversationData['requestId'] as String?;
-    if (requestId != null && requestId.isNotEmpty) {
+    if (requestId.isNotEmpty && requestId != _composeSentinelId) {
       try {
         final resp = await dio.get<Map<String, dynamic>>(
           '/v1/requests/$requestId',
@@ -219,8 +278,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
     }
 
-    // Fall back to the winner jeeber name.
-    final winnerId = conversationData['winnerJeeberId'] as String?;
+    // Fall back to the winning jeeber's name (canonical participants[]).
+    final winnerId = _winningJeeberId(conversationData);
     if (winnerId != null && winnerId.isNotEmpty) {
       try {
         final resp = await dio.get<Map<String, dynamic>>(
@@ -233,6 +292,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
 
     return '';
+  }
+
+  /// The `user_id` of the active winning jeeber participant, or null.
+  String? _winningJeeberId(Map<String, dynamic>? conversationData) {
+    final participants = conversationData?['participants'];
+    if (participants is! List) return null;
+    for (final p in participants.whereType<Map>()) {
+      if (p['role_in_convo'] == 'jeeber_winner' && p['removed_at'] == null) {
+        return p['user_id'] as String?;
+      }
+    }
+    return null;
   }
 
   /// Fetches the locked pinned summary for the accepted order. Self-provides a

@@ -1,57 +1,79 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:dio/dio.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import '../../../core/network/mock_gateway_client.dart';
 import '../domain/chat_socket.dart';
 
 /// [ChatSocket] backed by the LIVE realtime-comunication-service
-/// (Elixir/Phoenix "LiveComm", `:5804`).
+/// (Elixir/Phoenix), joining the **per-conversation** topic with a
+/// **gateway-minted membership ticket**.
 ///
-/// CHAT-FIX (iter6 / ws): the default [WebSocketChatSocket] spoke a mock
-/// Phoenix shim shape (object frames, topic `jeeb:chat:{conversationId}`,
-/// `new_msg` event, no auth) against a dead `:3056` host. The live service
-/// uses a different, confirmed contract (probed on MSI):
+/// CHAT-CONTRACT (iter6 — canonical rewrite): the prior socket joined the
+/// GLOBAL `topic:jeeb:chat` topic and kept only the frames whose
+/// `stream == user:{currentUserId}` (a client-side per-recipient filter), and
+/// it self-minted a `live_comm` token via the open dev minter. Both deviate
+/// from the canonical contract:
 ///
-///   1. **Token** — `POST /api/auth/token` `{user_id, role, scopes, topics}`
-///      → `{token}`. The dev minter issues a `live_comm` JWT for any caller; we
-///      request `subscribe` scope on the `jeeb:chat` topic.
-///   2. **Connect** — `ws://<host>:5804/socket/websocket?token=<jwt>&vsn=2.0.0`.
-///   3. **Join** — Phoenix v2 array frame
-///      `[joinRef, ref, "topic:jeeb:chat", "phx_join", {}]`.
-///   4. **Inbound** — `[joinRef, ref, "topic:jeeb:chat", "event",
-///      {stream: "user:{recipientId}", data: {...}, ...}]`. We keep only the
-///      frame whose `stream` equals our own `user:{currentUserId}` (the
-///      per-recipient fan-out filter) and project the gateway's fan-out
-///      `data` (`{messageId, senderId, type, body, sentAt}`) onto the
-///      normalized `{event:'new_msg', payload:{id, senderId, kind, body,
-///      createdAt}}` shape that [DioChatGateway]'s frame handler already
-///      consumes — so the gateway/cubit/UI append path is unchanged.
+///   * the canonical realtime topic is **PER-CONVERSATION**
+///     (`jeeb_conversation:<conversation_id>` — the topic the gateway's
+///     `/v1/realtime/jeeb:chat:{id}` descriptor hands back). Per-recipient
+///     fan-out is the SERVER's decision (chat-service VisibilityFilter), NOT a
+///     client `stream` filter;
+///   * the join is membership-authorized by a **gateway-minted ticket**
+///     (`RealtimeChannelDescriptor.ticket`, a short-lived signed JWT scoped to
+///     `(conversation, viewer, role)`), NOT a self-minted token.
 ///
-/// One-shot, mirrors [WebSocketChatSocket]'s lifecycle so [DioChatGateway] can
-/// swap it in transparently. Any failure in [connect] (token mint, handshake)
-/// throws, and [DioChatGateway._connectAndJoin] degrades to HTTP-history only.
+/// This socket therefore takes the resolved [topic] + [ticket] from the
+/// caller (the gateway resolves them via the `/v1/realtime/jeeb:chat:{id}`
+/// pre-check) and:
+///   1. **Connect** — `ws(s)://<host>/socket/websocket?vsn=2.0.0`
+///      (`&ticket=<jwt>` is appended so a Phoenix `connect/3` that authorizes
+///      on the socket params also passes).
+///   2. **Join** — Phoenix v2 array frame
+///      `[joinRef, ref, "<topic>", "phx_join", {"ticket": "<jwt>"}]` — the
+///      ticket travels in the join params (canonical), so the channel
+///      `join/3` membership check passes.
+///   3. **Inbound** — `[joinRef, ref, "<topic>", "<event>", <payload>]`. Every
+///      frame on the per-conversation topic is for this thread (the server
+///      already targeted the subscriber), so there is NO client-side stream
+///      filter. We normalize the message envelope onto the
+///      `{id, senderId, kind, body, createdAt}` shape [DioChatGateway] consumes
+///      and emit it as `{event:'new_msg', payload}`.
+///
+/// One-shot, mirrors the [ChatSocket] lifecycle so [DioChatGateway] can swap it
+/// in transparently. Any failure in [connect] throws and [DioChatGateway]
+/// degrades to HTTP-history only (degrade-don't-fail).
 class LiveRealtimeChatSocket implements ChatSocket {
   LiveRealtimeChatSocket({
+    required this.conversationId,
     required this.currentUserId,
-    Uri? wsUri,
-    Uri? httpBase,
-    Dio? tokenDio,
+    required this.topic,
+    required this.ticket,
+    required Uri wsUri,
     WebSocketChannel Function(Uri uri)? channelFactory,
-  })  : _wsUri = wsUri ?? Uri.parse(MockGatewayClient.webSocketUrl),
-        _httpBase = httpBase ?? MockGatewayClient.realtimeHttpBase,
-        _tokenDio = tokenDio,
+  })  : _wsUri = wsUri,
         _channelFactory = channelFactory ?? WebSocketChannel.connect;
 
-  /// The local user id; the realtime fan-out stream we keep is
-  /// `user:{currentUserId}` (the gateway encodes the recipient there).
+  /// The server-minted conversation id this socket is scoped to.
+  final String conversationId;
+
+  /// The local user id — used to fold inbound message authorship (`me` vs
+  /// `them`) downstream; NOT used to filter frames (the per-conversation topic
+  /// is already scoped server-side).
   final String currentUserId;
 
+  /// The realtime topic to join, from the gateway descriptor
+  /// (`jeeb_conversation:<conversation_id>`).
+  final String topic;
+
+  /// The gateway-minted membership ticket presented on the WS join params.
+  /// May be empty only when the gateway could not mint one — the join still
+  /// attempts (the realtime channel rejects an unauthorized join, which
+  /// degrades to HTTP-history).
+  final String ticket;
+
   final Uri _wsUri;
-  final Uri _httpBase;
-  final Dio? _tokenDio;
   final WebSocketChannel Function(Uri uri) _channelFactory;
 
   WebSocketChannel? _channel;
@@ -62,9 +84,6 @@ class LiveRealtimeChatSocket implements ChatSocket {
   final StreamController<Object> _errors = StreamController.broadcast();
   bool _closed = false;
   int _ref = 0;
-
-  /// The recipient stream this socket cares about (`user:{currentUserId}`).
-  String get _myStream => 'user:$currentUserId';
 
   @override
   Stream<Map<String, Object?>> get events => _events.stream;
@@ -77,11 +96,12 @@ class LiveRealtimeChatSocket implements ChatSocket {
     if (_channel != null) {
       throw StateError('LiveRealtimeChatSocket already connected');
     }
-    final token = await _mintToken();
     final uri = _wsUri.replace(queryParameters: <String, String>{
       ..._wsUri.queryParameters,
-      'token': token,
       'vsn': '2.0.0',
+      // The ticket also rides the connect params so a realtime `connect/3`
+      // that authorizes the socket (rather than the channel) accepts it.
+      if (ticket.isNotEmpty) 'ticket': ticket,
     });
     final channel = _channelFactory(uri);
     _channel = channel;
@@ -96,40 +116,28 @@ class LiveRealtimeChatSocket implements ChatSocket {
     );
     // Phoenix heartbeat so the server doesn't reap the connection.
     _heartbeat = Timer.periodic(const Duration(seconds: 30), (_) {
-      _sendRaw(<Object?>[null, '${++_ref}', 'phoenix', 'heartbeat', <String, Object?>{}]);
+      _sendRaw(<Object?>[
+        null,
+        '${++_ref}',
+        'phoenix',
+        'heartbeat',
+        <String, Object?>{}
+      ]);
     });
   }
 
-  /// Mint a `live_comm` subscribe token for [currentUserId] on the `jeeb:chat`
-  /// topic via the open dev minter. Throws on failure so the gateway degrades.
-  Future<String> _mintToken() async {
-    final dio = _tokenDio ??
-        Dio(BaseOptions(
-          baseUrl: _httpBase.toString(),
-          connectTimeout: const Duration(seconds: 8),
-          receiveTimeout: const Duration(seconds: 8),
-          headers: const {'Content-Type': 'application/json'},
-        ));
-    final response = await dio.post<Map<String, dynamic>>(
-      '/api/auth/token',
-      data: <String, Object?>{
-        'user_id': currentUserId,
-        'role': 'client',
-        'scopes': const <String>['subscribe'],
-        'topics': const <String>['jeeb:chat'],
-      },
-    );
-    final token = response.data?['token'] as String?;
-    if (token == null || token.isEmpty) {
-      throw StateError('realtime token mint returned no token');
-    }
-    return token;
-  }
-
-  /// Phoenix v2 join: `[joinRef, ref, "topic:jeeb:chat", "phx_join", {}]`.
+  /// Phoenix v2 join on the PER-CONVERSATION topic, presenting the
+  /// gateway-minted ticket in the join params:
+  /// `[joinRef, ref, "<topic>", "phx_join", {"ticket": "<jwt>"}]`.
   void join() {
     final joinRef = '${++_ref}';
-    _sendRaw(<Object?>[joinRef, joinRef, 'topic:jeeb:chat', 'phx_join', <String, Object?>{}]);
+    _sendRaw(<Object?>[
+      joinRef,
+      joinRef,
+      topic,
+      'phx_join',
+      <String, Object?>{if (ticket.isNotEmpty) 'ticket': ticket},
+    ]);
   }
 
   void _onFrame(dynamic frame) {
@@ -139,16 +147,28 @@ class LiveRealtimeChatSocket implements ChatSocket {
       final decoded = jsonDecode(raw);
       // Phoenix v2 frames are arrays: [joinRef, ref, topic, event, payload].
       if (decoded is! List || decoded.length < 5) return;
+      final frameTopic = decoded[2] as String?;
+      // Only frames on OUR per-conversation topic (defensive; this socket joins
+      // exactly one topic).
+      if (frameTopic != null && frameTopic != topic) return;
       final event = decoded[3] as String?;
-      if (event != 'event') return; // ignore phx_reply / presence_* / heartbeat
+      // Ignore lifecycle/control frames — phx_reply / presence_* / heartbeat.
+      if (event == null ||
+          event == 'phx_reply' ||
+          event == 'phx_close' ||
+          event == 'phx_error' ||
+          event.startsWith('presence')) {
+        return;
+      }
       final payload = decoded[4];
       if (payload is! Map) return;
-      // Per-recipient filter: only frames addressed to MY stream.
-      final stream = payload['stream'] as String?;
-      if (stream != null && stream != _myStream) return;
-      final data = payload['data'];
-      if (data is! Map) return;
-      final normalized = _normalize(data.cast<String, Object?>());
+      // The product message payload may be the frame payload itself, or nested
+      // under `data` (the gateway fan-out envelope). Accept both.
+      final nested = payload['data'];
+      final Map<String, Object?> data = nested is Map
+          ? nested.cast<String, Object?>()
+          : payload.cast<String, Object?>();
+      final normalized = _normalize(data);
       if (normalized == null) return;
       _events.add(<String, Object?>{
         'event': 'new_msg',
@@ -159,16 +179,19 @@ class LiveRealtimeChatSocket implements ChatSocket {
     }
   }
 
-  /// Project the gateway fan-out `data`
-  /// (`{messageId, senderId, type, body, sentAt}`) onto the normalized message
-  /// shape [DioChatGateway._parseMessage] expects
-  /// (`{id, senderId, kind, body, createdAt}`). `body` may be a string (text)
-  /// or an already-structured object.
+  /// Project the inbound message envelope onto the normalized message shape
+  /// [DioChatGateway]'s frame handler expects
+  /// (`{id, senderId, kind, body, createdAt}`). Accepts both the canonical
+  /// chat-service envelope (`{message_id, author_id, kind, body, created_at}`)
+  /// and the legacy gateway fan-out shape (`{messageId, senderId, type, body,
+  /// sentAt}`). `body` may be a string (text) or an already-structured object.
   Map<String, Object?>? _normalize(Map<String, Object?> data) {
-    final id = (data['messageId'] ?? data['id']) as String?;
-    final senderId = data['senderId'] as String?;
+    final id =
+        (data['message_id'] ?? data['messageId'] ?? data['id']) as String?;
+    final senderId =
+        (data['author_id'] ?? data['senderId'] ?? data['sender_id']) as String?;
     if (id == null || senderId == null) return null;
-    final kind = (data['type'] ?? data['kind']) as String? ?? 'text';
+    final kind = (data['kind'] ?? data['type']) as String? ?? 'text';
     final rawBody = data['body'];
     final Map<String, Object?> body;
     if (rawBody is Map) {
@@ -178,7 +201,8 @@ class LiveRealtimeChatSocket implements ChatSocket {
     } else {
       body = const <String, Object?>{};
     }
-    final createdAt = (data['sentAt'] ?? data['createdAt']) as String? ??
+    final createdAt = (data['created_at'] ?? data['sentAt'] ?? data['createdAt'])
+            as String? ??
         DateTime.now().toUtc().toIso8601String();
     return <String, Object?>{
       'id': id,
@@ -189,11 +213,9 @@ class LiveRealtimeChatSocket implements ChatSocket {
     };
   }
 
-  /// [DioChatGateway] calls [send] with the old object-frame join envelope
-  /// (`{event:'phx_join', topic:'jeeb:chat:{id}', ...}`). We ignore that legacy
-  /// shape and issue the correct Phoenix v2 [join] on the live topic instead —
-  /// the conversation scoping happens via the recipient stream filter, not the
-  /// topic, on the live service.
+  /// [DioChatGateway] calls [send] with the legacy object-frame join envelope
+  /// (`{event:'phx_join', ...}`). We interpret that as the trigger to issue the
+  /// correct Phoenix v2 [join] on the resolved per-conversation [topic].
   @override
   void send(Map<String, Object?> envelope) {
     if (_channel == null || _closed) {
