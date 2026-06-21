@@ -3,7 +3,15 @@ import 'package:dio/dio.dart';
 import '../domain/order_repository.dart';
 import '../domain/order_summary.dart';
 
-/// Dio-backed [OrderRepository] hitting `GET /api/requests`.
+/// Dio-backed [OrderRepository] hitting `GET /v1/requests`.
+///
+/// §6B DEFECT-A (S22 re-capture): this used to hit the dead `GET /api/requests`
+/// prefix, which the gateway has NO controller for (`RequestsController` is
+/// `[Route("requests")]` → `/requests` / `/v1/requests`). The jeeber Delivery
+/// (order-history) tab therefore 404'd ("Couldn't load orders"), while the
+/// CUSTOMER list — which already calls the contract `/v1/requests` path — loaded
+/// fine. Corrected to the gateway-contract `/v1/requests` (caller-scoped by the
+/// bearer token, like the customer list; `status`/`page`/`pageSize` forwarded).
 ///
 /// The gateway returns a JSON envelope of the shape:
 /// ```json
@@ -21,7 +29,7 @@ class DioOrderRepository implements OrderRepository {
 
   final Dio _dio;
 
-  static const _path = '/api/requests';
+  static const _path = '/v1/requests';
 
   @override
   Future<OrderPage> fetchPage({

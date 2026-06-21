@@ -8,7 +8,7 @@ import 'package:equatable/equatable.dart';
 /// request state machine here).
 enum OrderHistoryTab { active, completed, cancelled }
 
-/// Wire-level status values returned by `GET /api/requests`.
+/// Wire-level status values returned by `GET /v1/requests`.
 ///
 /// The full state machine lives in jeeb-gateway; this enum only enumerates
 /// the values the order-history screen needs to render. Anything outside
