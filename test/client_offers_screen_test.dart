@@ -1,6 +1,8 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/client_offers/application/client_offers_cubit.dart';
+import 'package:jeeb_mobile/features/client_offers/data/dio_offers_repository.dart';
 import 'package:jeeb_mobile/features/client_offers/domain/jeeber_vehicle.dart';
 import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart';
 import 'package:jeeb_mobile/features/client_offers/presentation/client_offers_screen.dart';
@@ -8,6 +10,22 @@ import 'package:jeeb_mobile/features/client_offers/presentation/client_offers_sc
 import 'support/offers_fixtures.dart';
 import 'support/scripted_offers_repository.dart';
 import 'support/sync_app_localizations.dart';
+
+/// A [Dio] whose interceptor resolves every request with [body] (status 200) so
+/// a test can drive the REAL [DioOffersRepository] off a canned wire payload —
+/// no mock-server, no network. Used to reproduce the exact LIVE gateway
+/// `GET /v1/offers?requestId=` envelope on the on-device path.
+Dio _dioRespond(Object? body) {
+  final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+  dio.interceptors.add(
+    InterceptorsWrapper(
+      onRequest: (options, handler) => handler.resolve(
+        Response(data: body, statusCode: 200, requestOptions: options),
+      ),
+    ),
+  );
+  return dio;
+}
 
 /// Builds a cubit with the live ticker streams swapped for empty streams so
 /// the test binding doesn't complain about pending timers.
@@ -218,5 +236,65 @@ void main() {
     expect(find.text('17.50'), findsOneWidget);
     expect(find.text('22 min ETA'), findsOneWidget);
     expect(find.text('Bicycle'), findsOneWidget);
+  });
+
+  testWidgets(
+      'ClientOffersScreen — renders the offer CARD (not "Waiting for offers") '
+      'for a LIVE gateway "pending" offer, with a working Accept CTA '
+      '(iter6 offer-card render gap, STATE/iter6-FINAL-PROOF.md STEP-3)',
+      (tester) async {
+    // The EXACT live gateway `GET /v1/offers?requestId=` body the on-device app
+    // received in logcat: the flat OfferDto inside { items: [...] } with the
+    // gateway-collapsed `status: "pending"` (offer-service submitted/edited/
+    // pending → gateway pending). Drives the REAL DioOffersRepository → cubit →
+    // screen so this is the genuine on-device parse+render path, not a fixture.
+    final now = DateTime.now().toUtc().toIso8601String();
+    final repo = DioOffersRepository(
+      _dioRespond({
+        'items': [
+          {
+            'id': 'a7e85c0b-real-offer',
+            'requestId': '7299b700-real-request',
+            'jeeberId': 'd1000000-0000-4000-8000-000000000002',
+            'status': 'pending',
+            'fee': 6.5,
+            'etaMinutes': 18,
+            'note': 'Karim here, on my way',
+            'createdAt': now,
+          },
+        ],
+      }),
+    );
+    await tester.pumpWidget(
+      wrapForTest(
+        ClientOffersScreen(
+          requestId: '7299b700-real-request',
+          repository: repo,
+          cubitFactory: _testCubitFactory,
+        ),
+      ),
+    );
+    // The real DioOffersRepository resolves its GET asynchronously through the
+    // Dio interceptor microtask chain, so let the load() future settle.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+
+    // The offer CARD renders (was previously dropped → empty-state bug)...
+    expect(
+      find.byKey(const Key('offer-card-a7e85c0b-real-offer')),
+      findsOneWidget,
+      reason: 'the pending offer must surface as a card',
+    );
+    // ...and its Accept CTA is present (the in-app Accept button, now reachable).
+    expect(
+      find.byKey(const Key('offer-card-accept-a7e85c0b-real-offer')),
+      findsOneWidget,
+      reason: 'the in-app Accept button must display on the card',
+    );
+    // The "Waiting for offers" empty-state must NOT show when items is non-empty.
+    expect(find.byKey(const Key('offer-empty-state')), findsNothing);
+    // The parsed fee surfaces on the card (6.5 → "6.50").
+    expect(find.text('6.50'), findsWidgets);
   });
 }

@@ -92,6 +92,46 @@ void main() {
         expect(snapshot.requestIsOpen, isTrue);
       });
 
+      test(
+          'renders a LIVE gateway offer whose status is "pending" '
+          '(iter6 offer-card render gap)', () async {
+        // The LIVE gateway BFF collapses offer-service submitted/edited/pending
+        // → "pending" and emits the flat OfferDto shape inside { items: [...] }.
+        // Before the fix the repo's live-status set was {submitted, edited}, so
+        // this real on-device offer was silently dropped → the Choose-a-Jeeber
+        // screen showed "Waiting for offers" even though the body had the offer.
+        final now = DateTime.now().toUtc().toIso8601String();
+        final repo = DioOffersRepository(
+          _dioRespond({
+            'items': [
+              {
+                'id': 'a7e85c0b-real-offer',
+                'requestId': '7299b700-real-request',
+                'jeeberId': 'd1000000-0000-4000-8000-000000000002',
+                'status': 'pending',
+                'fee': 6.5,
+                'etaMinutes': 18,
+                'note': 'Karim here, on my way',
+                'createdAt': now,
+              },
+            ],
+          }),
+        );
+
+        final snapshot = await repo.fetchOffers('7299b700-real-request');
+
+        // The pending offer survives the filter and surfaces as a card-ready
+        // Offer with the jeeber's fee / ETA / note parsed.
+        expect(snapshot.offers, hasLength(1));
+        expect(snapshot.offers.first.id, 'a7e85c0b-real-offer');
+        expect(snapshot.offers.first.jeeberId,
+            'd1000000-0000-4000-8000-000000000002');
+        expect(snapshot.offers.first.fee, 6.5);
+        expect(snapshot.offers.first.etaMinutes, 18);
+        expect(snapshot.offers.first.note, 'Karim here, on my way');
+        expect(snapshot.requestIsOpen, isTrue);
+      });
+
       test('marks request closed when an accepted offer is present', () async {
         final now = DateTime.now().toUtc().toIso8601String();
         final repo = DioOffersRepository(
