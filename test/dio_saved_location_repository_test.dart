@@ -86,25 +86,27 @@ Dio _capturingDio(Object? responseBody) {
 }
 
 void main() {
-  group('DioSavedLocationRepository — JM-049 W1 endpoint contract', () {
-    // JM-049 repoint: the journey-honest userId path (NOT `/v1/users/me/...`).
-    // `/users` rewrites to `/user-management/users` (mock_gateway_client.dart);
-    // the persisted userId is the `:userId` the mock keys the seed by
-    // (42_GUARDRAILS_MOCK §4 — `/me` returns an empty list).
-    test('GET uses /users/<persistedUserId>/saved-locations', () async {
+  group('DioSavedLocationRepository — iter6 me-scoped live route', () {
+    // iter6 D-ADDRESS-SAVE repoint: the LIVE gateway `me`-scoped BFF. Identity
+    // comes from the bearer (the gateway resolves `me`), so there is NO userId
+    // path segment and NO hardcoded `user-client-001`. `/api/users` is not in
+    // the mock rewrite table, so the path passes through to the live gateway.
+    test('GET uses /api/users/me/saved-locations (no userId segment)', () async {
       _capturedPath = null;
       final repo = DioSavedLocationRepository(
         _capturingDio(<dynamic>[]),
-        tokenStore: _FakeTokenStore('user-client-001'),
+        tokenStore: _FakeTokenStore('any-id'),
       );
 
       await repo.fetchSavedLocations();
 
-      expect(_capturedPath, '/users/user-client-001/saved-locations');
+      expect(_capturedPath, '/api/users/me/saved-locations');
+      expect(_capturedPath, isNot(contains('user-client-001')));
       expect(_capturedMethod, 'GET');
     });
 
-    test('POST uses /users/<persistedUserId>/saved-locations', () async {
+    test('POST uses /api/users/me/saved-locations (no userId segment)',
+        () async {
       _capturedPath = null;
       final repo = DioSavedLocationRepository(
         _capturingDio(<String, dynamic>{
@@ -114,7 +116,7 @@ void main() {
           'longitude': 35.5,
           'category': 'home',
         }),
-        tokenStore: _FakeTokenStore('user-client-001'),
+        tokenStore: _FakeTokenStore('any-id'),
       );
 
       await repo.saveLocation(
@@ -124,11 +126,13 @@ void main() {
         category: SavedLocationCategory.home,
       );
 
-      expect(_capturedPath, '/users/user-client-001/saved-locations');
+      expect(_capturedPath, '/api/users/me/saved-locations');
+      expect(_capturedPath, isNot(contains('user-client-001')));
       expect(_capturedMethod, 'POST');
     });
 
-    test('falls back to user-client-001 when no userId is persisted', () async {
+    test('path never depends on a persisted userId (null token store)',
+        () async {
       _capturedPath = null;
       final repo = DioSavedLocationRepository(
         _capturingDio(<dynamic>[]),
@@ -137,7 +141,8 @@ void main() {
 
       await repo.fetchSavedLocations();
 
-      expect(_capturedPath, '/users/user-client-001/saved-locations');
+      expect(_capturedPath, '/api/users/me/saved-locations');
+      expect(_capturedPath, isNot(contains('user-client-001')));
     });
 
     test('parses array response correctly', () async {
