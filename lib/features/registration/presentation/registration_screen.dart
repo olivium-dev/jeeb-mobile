@@ -247,7 +247,10 @@ class _RegistrationViewState extends State<_RegistrationView> {
         }
       },
       builder: (context, state) {
-        return Scaffold(
+        return Semantics(
+          identifier: 'registration_root',
+          container: true,
+          child: Scaffold(
           appBar: OMDSAppBar(
             title: l10n.registrationPhoneTitle,
             centerTitle: false,
@@ -263,6 +266,7 @@ class _RegistrationViewState extends State<_RegistrationView> {
                 onSuperLoginPlus: () => _openSuperLoginPlus(context),
               ),
             ),
+          ),
           ),
         );
       },
@@ -371,7 +375,7 @@ class _PhoneEntryBody extends StatelessWidget {
               context.read<RegistrationCubit>().phoneChanged(raw),
         ),
         const SizedBox(height: Spacing.large),
-        _SendCodeButton(state: state),
+        _SendCodeButton(state: state, phoneController: phoneController),
         // SECURITY: the super-login dev affordance is compiled out of release
         // builds (only mounted under `kDebugMode`). It opens a server-validated
         // credential sheet instead of the old gate-less `mock-jwt-*` mint
@@ -393,19 +397,38 @@ class _PhoneEntryBody extends StatelessWidget {
 /// Phone send-code CTA — upgraded to [OmdsLoadingButton] for an in-button
 /// spinner (Rahma/Salehly parity) over the old label-swap.
 class _SendCodeButton extends StatelessWidget {
-  const _SendCodeButton({required this.state});
+  const _SendCodeButton({required this.state, required this.phoneController});
 
   final RegistrationState state;
+  final TextEditingController phoneController;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // BUG-1 (customer-spine blocker): the phone field — not the cubit — owns the
+    // text while the user types (PR #45). Read the live controller text here and
+    // hand it to `sendCode` so Send validates/sends the number actually rendered,
+    // never a stale `state.phoneInput` that diverged and flipped the field red
+    // while emitting zero OTP requests. Enablement also reads the live text so
+    // the CTA can't be wrongly disabled when the controller leads the cubit.
+    final renderedReady =
+        LebanonPhone.tryParse(phoneController.text) != null || state.isPhoneReady;
     return OmdsLoadingButton(
       key: const Key('registration.sendCode'),
       text: l10n.registrationSendCode,
       isLoading: state.isSendingCode,
-      isEnabled: state.isPhoneReady && !state.isSendingCode,
-      onTap: () => context.read<RegistrationCubit>().sendCode(),
+      // Enablement reads the live controller text (or the cubit's ready flag)
+      // so the CTA can't be wrongly disabled when the field leads the cubit
+      // (PR #45 made the field the source of truth while typing).
+      isEnabled: renderedReady && !state.isSendingCode,
+      // BUG-1 fix: pass the field's live text to `sendCode`, which re-syncs it
+      // into `state.phoneInput` and validates/sends the exact number the user
+      // sees — never a stale cubit value that flipped the field red and emitted
+      // zero OTP requests (also covers the run-2 on-device submit-path P0, since
+      // the cubit re-commits the rendered text at submit before validating).
+      onTap: () => context
+          .read<RegistrationCubit>()
+          .sendCode(renderedPhone: phoneController.text),
     );
   }
 }

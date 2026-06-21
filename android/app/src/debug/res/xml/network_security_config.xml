@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only network security config.
+
+  Allows cleartext (plain HTTP) traffic to the loopback address (localhost /
+  127.0.0.1) so `adb reverse`-tunnelled requests to the live gateway reach the
+  MacBook socat forwarder over the USB cable. This is intentionally scoped to
+  localhost only — production and staging builds do NOT include this file and
+  therefore keep the Android 9+ default (HTTPS-only for non-local addresses).
+
+  Wired into the debug AndroidManifest below via android:networkSecurityConfig.
+  Safe to commit: debug-only, localhost-scoped, no credentials.
+-->
+<network-security-config>
+  <domain-config cleartextTrafficPermitted="true">
+    <domain includeSubdomains="false">localhost</domain>
+    <domain includeSubdomains="false">127.0.0.1</domain>
+    <domain includeSubdomains="false">10.0.2.2</domain>
+  </domain-config>
+</network-security-config>

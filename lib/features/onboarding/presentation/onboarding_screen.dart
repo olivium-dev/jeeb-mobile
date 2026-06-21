@@ -21,12 +21,16 @@ import '../../../l10n/app_localizations.dart';
 /// swipeable back layer; the text + controls float over the scrim
 /// (`IgnorePointer` on the copy so swipes still reach the carousel).
 ///
-/// JM-010 destination (CTO-D1, email-first funnel): "Get Started" on the last
-/// slide AND "Skip" from any slide route to **sign-up** (`/sign-up`,
-/// `signup_name_field`), NOT the legacy phone-first `/register`. The
-/// phone-first `/register` is now reachable only as the phone-OTP verify step
-/// behind sign-up/social (JM-009). See `docs/build-out/01_CTO_DECISIONS.md`
-/// CTO-D1 and `30_BACKLOG.md` JM-010.
+/// JM-010 destination (DEFECT-3, phone-OTP entry): "Get Started" on the last
+/// slide AND "Skip" from any slide route to the **phone-OTP** flow
+/// (`/register`, `registration_root`), NOT the email-first `/sign-up`. The LIVE
+/// gateway has no `/v1/auth/login` or `/v1/auth/signup` route, so the email
+/// funnel dead-ends (both 401); the phone-OTP flow
+/// (`/v1/auth/otp/request` → `/v1/auth/otp/verify`) is the only auth that
+/// authenticates against it. The email `/login` + `/sign-up` screens are kept
+/// (a later gateway fix may add those routes) and stay reachable FROM
+/// `/register`, but they are no longer the forced entry. (Previously routed to
+/// `/sign-up` under the CTO-D1 email-first funnel.)
 ///
 /// Semantics contract (`docs/build-out/60_W0_TEST_PLAN.md` §2.2; coined §4):
 ///   - `walkthrough_slide_1` / `_slide_2` / `_slide_3` — the per-slide root
@@ -56,7 +60,8 @@ class OnboardingScreen extends StatefulWidget {
 
   /// Optional override for navigation. Tests inject this so the screen
   /// does not need a GoRouter in scope. Production leaves it null and
-  /// `context.goNamed('sign-up')` handles navigation (CTO-D1).
+  /// `context.goNamed('register')` (the phone-OTP entry) handles navigation
+  /// (DEFECT-3).
   final VoidCallback? onComplete;
 
   @override
@@ -93,10 +98,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (onComplete != null) {
       onComplete();
     } else {
-      // JM-010 / CTO-D1: Get Started + Skip both land on the email-first
-      // sign-up screen (`signup_name_field`), not the phone-first `/register`.
+      // DEFECT-3: Get Started + Skip land on the phone-OTP entry (`/register`,
+      // `registration_root`), NOT the email-first `/sign-up`. The LIVE gateway
+      // has no `/v1/auth/login` or `/v1/auth/signup` route, so the email funnel
+      // dead-ends; the phone-OTP flow (`/v1/auth/otp/request` →
+      // `/v1/auth/otp/verify`) is the only auth that works. The email screens
+      // remain reachable from `/register` for a later gateway fix.
       // ignore: use_build_context_synchronously
-      context.goNamed('sign-up');
+      context.goNamed('register');
     }
   }
 
@@ -414,8 +423,8 @@ class _BottomPanel extends StatelessWidget {
 ///     `walkthrough_next_cta` on slides 1–2, `walkthrough_get_started_cta` on
 ///     the last slide (60_W0_TEST_PLAN §2.2 — "Next … becomes Get Started on
 ///     slide 3" / "Get Started … visible on last slide only").
-/// On the last slide the tap routes to sign-up (CTO-D1); on earlier slides it
-/// advances the carousel.
+/// On the last slide the tap routes to the phone-OTP entry (`/register`,
+/// DEFECT-3); on earlier slides it advances the carousel.
 class _OnboardingCtaButton extends StatelessWidget {
   const _OnboardingCtaButton({
     required this.isLast,
@@ -455,8 +464,9 @@ class _OnboardingCtaButton extends StatelessWidget {
 /// The Skip affordance, present from slide 1.
 ///
 /// Carries the JM-010 coined id `walkthrough_skip_cta` (60_W0_TEST_PLAN §2.2/§4)
-/// and routes to sign-up (CTO-D1). The legacy `Key('onboarding.skip')` is kept
-/// for the existing widget tests that find it by key.
+/// and routes to the phone-OTP entry (`/register`, DEFECT-3). The legacy
+/// `Key('onboarding.skip')` is kept for the existing widget tests that find it
+/// by key.
 class _OnboardingSkipButton extends StatelessWidget {
   const _OnboardingSkipButton({required this.label, required this.onTap});
 

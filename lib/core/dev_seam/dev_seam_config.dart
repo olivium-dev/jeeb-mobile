@@ -33,7 +33,17 @@ enum SessionSeed {
   biometricEnrolledLoggedOut('biometric_enrolled_logged_out'),
 
   /// Onboarding done + valid token + account-status blocked → `/account-status`.
-  suspended('suspended');
+  suspended('suspended'),
+
+  /// Onboarding done + REAL gateway JWT (from intent extra
+  /// `jeeb.seam.super_login_token`) written into [AuthTokenStore] → live
+  /// gateway session for QA against /v1/* without OTP.
+  ///
+  /// GUARD: this case is only reachable in debug builds (the switch is inside
+  /// a `kDebugMode`-gated path). The token is never baked into the binary; it
+  /// is supplied at launch time via `adb am start -e` and is ephemerally stored
+  /// in the Keystore-backed [AuthTokenStore] for the duration of the QA session.
+  superLoginPlus('super_login_plus');
 
   const SessionSeed([this.wireValue = '']);
 
@@ -382,6 +392,10 @@ class DevSeamConfig {
     this.recoveryCode = '',
     this.recoveryCountdownExpired = false,
     this.setPasswordMode = '',
+    // super-login+ seam fields (QA-only; debug-gated end-to-end).
+    this.superLoginToken = '',
+    this.superLoginRefreshToken = '',
+    this.superLoginUserId = '',
   });
 
   /// Builds a config from a flat string map (intent extras or decoded JSON).
@@ -411,6 +425,11 @@ class DevSeamConfig {
       recoveryCountdownExpired:
           _asBool(map['jeeb.seam.recovery_countdown_expired']),
       setPasswordMode: map['jeeb.seam.set_password_mode']?.trim() ?? '',
+      // super-login+ seam: real gateway JWT injected via intent extras.
+      superLoginToken: map['jeeb.seam.super_login_token']?.trim() ?? '',
+      superLoginRefreshToken:
+          map['jeeb.seam.super_login_refresh']?.trim() ?? '',
+      superLoginUserId: map['jeeb.seam.super_login_user_id']?.trim() ?? '',
     );
   }
 
@@ -558,6 +577,27 @@ class DevSeamConfig {
   /// `jeeb.seam.set_password_mode`. Empty in release.
   final String setPasswordMode;
 
+  // ── super-login+ seam (QA-only; debug-gated end-to-end) ─────────────────
+  // Passed via intent extras at launch time — never baked into the binary.
+  // Consumed by [SessionSeamBootstrap] when sessionSeed == superLoginPlus.
+
+  /// Real gateway access JWT to write into [AuthTokenStore] so the app
+  /// authenticates against the live /v1/* API as the seeded user without OTP.
+  /// Keyed `jeeb.seam.super_login_token`. Empty in release.
+  final String superLoginToken;
+
+  /// Optional refresh token paired with [superLoginToken]. Falls back to
+  /// [superLoginToken] when absent (gateway refresh endpoint may accept the
+  /// access token as a refresh in dev). Keyed `jeeb.seam.super_login_refresh`.
+  /// Empty in release.
+  final String superLoginRefreshToken;
+
+  /// UUID of the user the minted token belongs to (e.g.
+  /// `c23efd76-6fa4-40cf-814c-116f67ea5e95`). Written to [AuthTokenStore] as
+  /// `auth.userId` so account-status / profile lookups use the correct id.
+  /// Keyed `jeeb.seam.super_login_user_id`. Empty in release.
+  final String superLoginUserId;
+
   /// The inert default. The only instance a release build ever sees.
   static const DevSeamConfig empty = DevSeamConfig();
 
@@ -600,7 +640,10 @@ class DevSeamConfig {
       socialLogin.isEmpty &&
       recoveryCode.isEmpty &&
       !recoveryCountdownExpired &&
-      setPasswordMode.isEmpty;
+      setPasswordMode.isEmpty &&
+      superLoginToken.isEmpty &&
+      superLoginRefreshToken.isEmpty &&
+      superLoginUserId.isEmpty;
 
   static bool _asBool(String? value) {
     final v = value?.trim().toLowerCase();
@@ -627,10 +670,13 @@ class DevSeamConfig {
       other.socialLogin == socialLogin &&
       other.recoveryCode == recoveryCode &&
       other.recoveryCountdownExpired == recoveryCountdownExpired &&
-      other.setPasswordMode == setPasswordMode;
+      other.setPasswordMode == setPasswordMode &&
+      other.superLoginToken == superLoginToken &&
+      other.superLoginRefreshToken == superLoginRefreshToken &&
+      other.superLoginUserId == superLoginUserId;
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
         route,
         chatSelector,
         forcedLocale,
@@ -649,7 +695,10 @@ class DevSeamConfig {
         recoveryCode,
         recoveryCountdownExpired,
         setPasswordMode,
-      );
+        superLoginToken,
+        superLoginRefreshToken,
+        superLoginUserId,
+      ]);
 
   @override
   String toString() => 'DevSeamConfig(route: $route, chat: $chatSelector, '
@@ -663,5 +712,7 @@ class DevSeamConfig {
       'signupCollision: $signupCollision, socialLogin: $socialLogin, '
       'recoveryCode: $recoveryCode, '
       'recoveryCountdownExpired: $recoveryCountdownExpired, '
-      'setPasswordMode: $setPasswordMode)';
+      'setPasswordMode: $setPasswordMode, '
+      'superLoginToken: ${superLoginToken.isNotEmpty ? '[present]' : '[absent]'}, '
+      'superLoginUserId: $superLoginUserId)';
 }

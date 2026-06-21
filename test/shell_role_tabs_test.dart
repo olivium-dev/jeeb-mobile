@@ -22,7 +22,7 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 class _StubEarningsRepository implements EarningsRepository {
   @override
   Future<EarningsSummary> fetchEarnings({
-    required String jeeberId,
+    String jeeberId = '',
     EarningsPeriod period = EarningsPeriod.week,
   }) async =>
       const EarningsSummary(
@@ -34,7 +34,7 @@ class _StubEarningsRepository implements EarningsRepository {
 
   @override
   Future<String> exportEarningsPdf({
-    required String jeeberId,
+    String jeeberId = '',
     EarningsPeriod period = EarningsPeriod.week,
   }) async =>
       '/tmp/earnings.pdf';

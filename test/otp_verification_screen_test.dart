@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:omds/omds.dart';
 
+import 'package:jeeb_mobile/core/dev_seam/dev_seam.dart';
+import 'package:jeeb_mobile/core/dev_seam/dev_seam_config.dart';
 import 'package:jeeb_mobile/features/registration/application/registration_cubit.dart';
 import 'package:jeeb_mobile/features/registration/domain/otp_service.dart';
 import 'package:jeeb_mobile/features/registration/domain/registration_attempt_policy.dart';
@@ -28,6 +30,7 @@ void main() {
 
   tearDown(() async {
     await ticker.close();
+    DevSeam.debugReset();
   });
 
   /// Drives the cubit from the initial phone-entry state through `sendCode`
@@ -55,18 +58,19 @@ void main() {
     );
   }
 
-  testWidgets('renders the 6-digit OTP input and the initial 60s countdown',
+  testWidgets('renders the 4-digit OTP input and the initial 60s countdown',
       (tester) async {
     final cubit = await primedOnOtpStep();
     await tester.pumpWidget(hostScreen(cubit));
     await tester.pump();
     expect(find.byKey(const Key('registration.otpField')), findsOneWidget);
-    // P0-3 / defect D1: the input length must match the live 6-digit
-    // gateway contract (DioOtpService + FakeOtpService '123456' + ARB copy).
+    // The input length must match the live 4-digit gateway contract
+    // (`/v1/auth/otp/verify` issues a 4-digit code, e.g. seed `1234`),
+    // sourced from kCustomerOtpLength.
     final otpInput = tester.widget<OmdsOtpInput>(
       find.byKey(const Key('registration.otpField')),
     );
-    expect(otpInput.length, 6);
+    expect(otpInput.length, 4);
     expect(
       find.byKey(const Key('registration.resendCountdown')),
       findsOneWidget,
@@ -141,6 +145,48 @@ void main() {
     await tester.pump();
 
     expect(verified, isTrue);
+    await cubit.close();
+  });
+
+  testWidgets(
+      'OTP test-seam auto-submits jeeb.seam.otp_code through verifyCode',
+      (tester) async {
+    // The debug-only `jeeb.seam.otp_code` seam lets an automated / on-device
+    // driver inject the known code (here the run-branch `1234`) so the verify
+    // step advances deterministically without typing into the per-cell input.
+    when(() => otp.verifyCode(
+          e164Phone: any(named: 'e164Phone'),
+          code: any(named: 'code'),
+        )).thenAnswer((_) async => OtpVerifyOutcome.verified);
+    DevSeam.debugOverride(const DevSeamConfig(otpCode: '1234'));
+    final cubit = await primedOnOtpStep();
+    var verified = false;
+    await tester.pumpWidget(
+      hostScreen(cubit, onVerified: () => verified = true),
+    );
+    // Post-frame callback fires the seam submit; let it settle.
+    await tester.pump();
+    await tester.pump();
+
+    verify(() => otp.verifyCode(
+          e164Phone: any(named: 'e164Phone'),
+          code: '1234',
+        )).called(1);
+    expect(verified, isTrue);
+    await cubit.close();
+  });
+
+  testWidgets('no OTP seam set → does NOT auto-submit any code',
+      (tester) async {
+    final cubit = await primedOnOtpStep();
+    await tester.pumpWidget(hostScreen(cubit));
+    await tester.pump();
+    await tester.pump();
+
+    verifyNever(() => otp.verifyCode(
+          e164Phone: any(named: 'e164Phone'),
+          code: any(named: 'code'),
+        ));
     await cubit.close();
   });
 }

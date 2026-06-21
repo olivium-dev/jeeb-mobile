@@ -370,6 +370,25 @@ class _LoginViewState extends State<_LoginView> {
                       ),
                     ),
                   ),
+
+                  // ── Phone-OTP entry link (DEFECT-3) ────────────────────
+                  // The LIVE gateway has no `/v1/auth/login` or `/v1/auth/signup`
+                  // route, so this email screen (and the sign-up link above)
+                  // 401 against it. The phone-OTP flow (`/register`,
+                  // `POST /v1/auth/otp/request` → `/v1/auth/otp/verify`) is the
+                  // ONLY auth that works. The email screens are kept for a later
+                  // gateway fix, but this link keeps the working phone-OTP entry
+                  // reachable from `/login` too.
+                  Center(
+                    child: Semantics(
+                      identifier: 'login_phone_entry_link',
+                      button: true,
+                      child: TextButton(
+                        onPressed: () => context.goNamed('register'),
+                        child: Text(l10n.loginPhoneEntryLink),
+                      ),
+                    ),
+                  ),
                 ],
               );
             },

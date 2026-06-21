@@ -18,8 +18,13 @@ class LebanonPhone {
   /// The fixed Lebanese dial code.
   static const String dialCode = '+961';
 
-  /// Required length of the national subscriber number (mobile).
+  /// Maximum length of the national subscriber number (mobile).
   static const int nationalDigitCount = 8;
+
+  /// Minimum length of a valid Lebanese national subscriber number. Some valid
+  /// numbers (incl. the +9613000002 seed) carry only 7 national digits, so we
+  /// accept 7 or 8.
+  static const int minNationalDigitCount = 7;
 
   /// Strips everything that isn't a digit, then drops a `+961`, `961`, or a
   /// leading `0` that callers commonly paste. Returns the up-to-8 trailing
@@ -39,12 +44,14 @@ class LebanonPhone {
     return rest;
   }
 
-  /// Returns a [LebanonPhone] if [raw] normalises to exactly 8 digits,
-  /// otherwise `null`. Callers use this for the "ready to send" gate on the
-  /// phone-entry CTA.
+  /// Returns a [LebanonPhone] if [raw] normalises to a valid Lebanese national
+  /// number (7 or 8 digits), otherwise `null`. Callers use this for the
+  /// "ready to send" gate on the phone-entry CTA.
   static LebanonPhone? tryParse(String raw) {
     final n = normalise(raw);
-    if (n.length != nationalDigitCount) return null;
+    if (n.length < minNationalDigitCount || n.length > nationalDigitCount) {
+      return null;
+    }
     return LebanonPhone._(n);
   }
 

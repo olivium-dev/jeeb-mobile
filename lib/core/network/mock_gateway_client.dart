@@ -39,14 +39,22 @@ class MockGatewayClient {
     defaultValue: 'http://192.168.2.33:4010',
   );
 
-  /// When `true` (current) every gateway path is rewritten to the Express
-  /// mock's service-prefixed routes (`/auth-service/...`, `/offer-service/v1/...`)
+  /// When `true` every gateway path is rewritten to the Express mock's
+  /// service-prefixed routes (`/auth-service/...`, `/offer-service/v1/...`)
   /// and sent to [mockBaseUrl] = the Express mock on :4010.
   ///
-  /// When `false` every path passes through unchanged to a gateway-shaped mock
-  /// (e.g. Mockoon) that speaks the raw gateway contract (`/v1/auth/otp/request`).
-  /// If you flip this to `false`, also override [mockBaseUrl] to that mock's port.
-  static const bool useMockPrefixes = true;
+  /// When `false` (the production/device default) every path passes through
+  /// unchanged — the app speaks the raw gateway contract (`/v1/auth/otp/request`,
+  /// `/v1/jeeb/wallet`, …) directly to [mockBaseUrl], which must be a real
+  /// gateway (or Mockoon :3055) that serves those /v1/* paths.
+  ///
+  /// Controlled via dart-define at build time:
+  ///   --dart-define=JEEB_USE_MOCK_PREFIXES=true   → Express mock on :4010
+  ///   --dart-define=JEEB_USE_MOCK_PREFIXES=false  → real gateway (device builds)
+  /// Default is `false` so physical-device and CI builds default to live-gateway
+  /// mode; only explicit local-mock builds need to pass `true`.
+  static const bool useMockPrefixes =
+      bool.fromEnvironment('JEEB_USE_MOCK_PREFIXES', defaultValue: false);
 
   static const Map<String, String> _pathToServicePrefix = {
     // B1 (W-1) — gateway `/v1/auth/*` → Express mock `/auth-service/auth/*`.
@@ -72,6 +80,12 @@ class MockGatewayClient {
     '/auth/otp': '/auth-service/auth/otp',
     '/auth/social': '/auth-service/auth/social',
     '/auth/refresh': '/auth-service/auth/refresh',
+    // The live gateway serves the getMe/profile read at `/v1/users/me`; the
+    // Express mock mounts user-management at `/user-management/users/me`. This
+    // bridge strips the `/v1` segment so `/v1/users/me` reaches the mock route.
+    // MUST precede the un-versioned `/users` sibling (first-match-wins); neither
+    // is a prefix of the other, so order between them is otherwise free.
+    '/v1/users': '/user-management/users',
     '/users': '/user-management/users',
     // W2 KYC (66_W2_QA_RESULTS C2): the Flutter KYC gateway
     // (`dio_kyc_gateway.dart`) speaks the gateway `/v1/kyc/*` contract

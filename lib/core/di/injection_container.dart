@@ -60,7 +60,6 @@ import '../../features/dispute_status/data/dio_dispute_status_repository.dart';
 import '../../features/dispute_status/domain/dispute_status_repository.dart';
 import '../../features/reviews/data/dio_reviews_repository.dart';
 import '../../features/reviews/domain/reviews_repository.dart';
-import '../dev_seam/session_seam_bootstrap.dart';
 import '../session/jeeber_kyc_status_gate.dart';
 import '../../features/voice_request/domain/audioplayers_voice_player.dart';
 import '../../features/voice_request/domain/record_voice_recorder.dart';
@@ -400,16 +399,13 @@ void configureDependencies({
 
   // JM-057 notifications-list: the notification-service inbox (list + mark-read)
   // is LIVE on :4010 (42_GUARDRAILS_MOCK §4 mock-ready), so this binds the REAL
-  // Dio repo. The `?userId=` defaults to the seeded customer id
-  // (SessionSeamBootstrap.customerUserId) until a real session-user-id provider
-  // lands (mirrors DioSubmittedOffersRepository, 50_ROUTE_REQUESTS JM-047); the
-  // JM-057 engineer swaps it for the live session user. The header bell now
-  // routes here (`goNamed('notifications')`, shell guard removed).
+  // Dio repo. The inbox is scoped to the AUTHENTICATED user via the bearer token
+  // (the gateway derives the owner from the JWT `sub` and ignores any `?userId=`
+  // param, §6B-confirmed) — so NO client-side userId is passed. (Was previously
+  // hardcoded to the mock fixture id `user-client-001`, a §6B FAIL.) The header
+  // bell now routes here (`goNamed('notifications')`, shell guard removed).
   sl.registerLazySingleton<NotificationsRepository>(
-    () => DioNotificationsRepository(
-      dio: sl<Dio>(),
-      userId: SessionSeamBootstrap.customerUserId,
-    ),
+    () => DioNotificationsRepository(dio: sl<Dio>()),
   );
 
   // LIVE(JM-063): the support-ticket service (S1) has landed — the gateway now

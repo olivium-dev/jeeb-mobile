@@ -89,6 +89,9 @@ class DevSeam {
       recoveryCode: config.recoveryCode,
       recoveryCountdownExpired: config.recoveryCountdownExpired,
       setPasswordMode: config.setPasswordMode,
+      superLoginToken: config.superLoginToken,
+      superLoginRefreshToken: config.superLoginRefreshToken,
+      superLoginUserId: config.superLoginUserId,
     );
   }
 
@@ -144,6 +147,17 @@ class DevSeam {
       setPasswordMode: primary.setPasswordMode.isNotEmpty
           ? primary.setPasswordMode
           : fallback.setPasswordMode,
+      // super-login+ seam: higher-priority source wins on any token/userId it
+      // supplies; falls back to the lower-priority source when absent.
+      superLoginToken: primary.superLoginToken.isNotEmpty
+          ? primary.superLoginToken
+          : fallback.superLoginToken,
+      superLoginRefreshToken: primary.superLoginRefreshToken.isNotEmpty
+          ? primary.superLoginRefreshToken
+          : fallback.superLoginRefreshToken,
+      superLoginUserId: primary.superLoginUserId.isNotEmpty
+          ? primary.superLoginUserId
+          : fallback.superLoginUserId,
     );
   }
 

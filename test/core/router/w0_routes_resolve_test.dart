@@ -15,8 +15,9 @@
 //   /account-status   → AccountStatusScreen        (JM-066)
 //
 // The redirect gate is exercised in fr_gating_first_run_test.dart
-// (logged-out → /login) and the account-status branch defaults to a no-op gate,
-// so navigation to these pre-auth routes is allowed here.
+// (logged-out → /register, the DEFECT-3 phone-OTP entry) and the
+// account-status branch defaults to a no-op gate, so navigation to these
+// pre-auth routes is allowed here.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

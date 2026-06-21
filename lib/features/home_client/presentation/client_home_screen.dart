@@ -117,7 +117,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         // scrollable body via a Stack rather than rendered inside the list.
         // (The tab is a body inside the shell's IndexedStack — there is no
         // Scaffold here to host a `floatingActionButton`.)
-        return Stack(
+        return Semantics(
+          identifier: 'client_home_root',
+          container: true,
+          explicitChildNodes: true,
+          child: Stack(
           children: [
             Positioned.fill(
               child: OmdsPullToRefresh(
@@ -137,6 +141,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             ),
             _ClientHomeNewOrderFab(onCreateRequest: widget.onCreateRequest),
           ],
+          ),
         );
       },
     );

@@ -6,13 +6,17 @@ import 'earnings_state.dart';
 class EarningsCubit extends Cubit<EarningsState> {
   EarningsCubit({
     required EarningsRepository repository,
-    required this.jeeberId,
+    this.jeeberId = '',
   })  : _repository = repository,
         super(const EarningsState()) {
     loadEarnings();
   }
 
   final EarningsRepository _repository;
+
+  /// DEFECT-B: optional. The live gateway scopes earnings to the authenticated
+  /// token and ignores `?jeeberId=`, so production leaves this empty; the mock
+  /// seam / tests may supply a fixture id.
   final String jeeberId;
 
   Future<void> loadEarnings({EarningsPeriod? period}) async {

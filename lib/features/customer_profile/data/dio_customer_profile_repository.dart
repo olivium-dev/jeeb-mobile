@@ -5,9 +5,10 @@ import '../domain/customer_profile_view_data.dart';
 
 /// Dio-backed [CustomerProfileRepository] (JM-035).
 ///
-/// Endpoint (gateway contract; `MockGatewayClient` rewrites `/users` →
-/// `/user-management/users` for `:4010`, per `mock_gateway_client.dart`):
-///   GET /users/me  → the signed-in user (getMe)
+/// Endpoint (gateway contract; the live gateway serves `GET /v1/users/me`, and
+/// `MockGatewayClient` rewrites `/v1/users` → `/user-management/users` for
+/// `:4010`, per `mock_gateway_client.dart`):
+///   GET /v1/users/me  → the signed-in user (getMe)
 ///
 /// Verified getMe shape (`user-management.ts` `withStatuses`, seed
 /// `user-client-001`):
@@ -23,8 +24,9 @@ class DioCustomerProfileRepository implements CustomerProfileRepository {
   final Dio _dio;
 
   // Gateway-contract path. DO NOT hardcode the `:4010` service prefix — the
-  // MockGatewayClient interceptor rewrites `/users` → `/user-management/users`.
-  static const String _path = '/users/me';
+  // live gateway serves `GET /v1/users/me`; the MockGatewayClient interceptor
+  // rewrites `/v1/users` → `/user-management/users`.
+  static const String _path = '/v1/users/me';
 
   @override
   Future<CustomerProfileViewData> fetchProfile() async {
@@ -37,8 +39,15 @@ class DioCustomerProfileRepository implements CustomerProfileRepository {
   }
 
   CustomerProfileViewData _parse(Map<String, dynamic> json) {
-    final roles = (json['availableRoles'] ?? json['available_roles']);
-    final isJeeber = roles is List && roles.contains('jeeber');
+    final rolesRaw = (json['availableRoles'] ?? json['available_roles']);
+    final availableRoles = rolesRaw is List
+        ? rolesRaw.whereType<String>().toList(growable: false)
+        : const <String>[];
+    final isJeeber = availableRoles.contains('jeeber');
+
+    // DEFECT-C: surface the server's ACTIVE role so the app can sync the
+    // RoleCubit at login/resume (snake_case + camelCase both accepted, U1).
+    final activeRole = _str(json['activeRole'] ?? json['active_role']);
 
     final ratingRaw = json['rating'] ?? json['averageRating'];
     final rating = (ratingRaw is num) ? ratingRaw.toDouble() : null;
@@ -59,6 +68,8 @@ class DioCustomerProfileRepository implements CustomerProfileRepository {
       isJeeber: isJeeber,
       rating: rating,
       ratingCount: ratingCount,
+      activeRole: activeRole,
+      availableRoles: availableRoles,
     );
   }
 

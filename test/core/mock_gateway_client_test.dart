@@ -1,18 +1,22 @@
-// Tests for mock_gateway_client.dart guardrail values + the auth-rewrite seam.
+// Tests for mock_gateway_client.dart guardrail values + the path-rewrite seam.
 //
-// The working tree intentionally ships `useMockPrefixes = true` targeting the
-// service-prefixed Express mock on :4010 (CTO brief §4 + 42_GUARDRAILS_MOCK B0).
-// These tests pin that configuration and the W-1 B1/B2 auth rewrite map so the
-// AUTH seam provably reaches :4010.
+// useMockPrefixes is wired to bool.fromEnvironment('JEEB_USE_MOCK_PREFIXES',
+// defaultValue: false) (network fix 1717166): physical-device and CI builds
+// default to LIVE-gateway mode, where every path passes through `rewritePath`
+// UNCHANGED and the app speaks the raw gateway contract (`/v1/auth/otp/request`,
+// `/v1/users/me`, …) directly. The Express-mock service-prefix rewrite
+// (`/auth-service/auth/*`, …) only engages when a build explicitly passes
+// `--dart-define=JEEB_USE_MOCK_PREFIXES=true`.
 //
-// Verifies that:
-//   1. mockBaseUrl defaults to the host LAN IP on :4010 (#37 — reachable from
-//      iOS sims/devices, not just the Android-emulator loopback). Port stays
-//      :4010 to match useMockPrefixes = true.
-//   2. useMockPrefixes is true (paths are rewritten to service prefixes).
+// Tests run with NO dart-define, so they exercise the default (live) seam:
+//   1. mockBaseUrl defaults to the host LAN IP on :4010.
+//   2. useMockPrefixes defaults to FALSE (live-gateway / device default).
 //   3. webSocketUrl targets port 3056 (companion WebSocket shim).
-//   4. rewritePath maps the app's /v1/auth/* paths onto /auth-service/auth/*.
-//   5. social /api/auth/social rewrites to the mock social handler.
+//   4. rewritePath is a PASS-THROUGH for the default build — the very property
+//      the on-device build relies on so its `/v1/*` paths reach the live gateway
+//      verbatim (the bug 1717166 fixed: prefixes were hardcoded true, rewriting
+//      `/v1/auth/otp` → `/auth-service/...` against a gateway that only knows
+//      `/v1/*`).
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/network/mock_gateway_client.dart';
@@ -22,12 +26,16 @@ void main() {
     test('mockBaseUrl defaults to the host LAN IP on port 4010 (#37)', () {
       // #37: default swapped from the Android-emulator-only 10.0.2.2 loopback
       // to the host LAN IP so iOS sims and physical devices reach the mock
-      // out of the box. Port stays :4010 (B0/W-1) to match useMockPrefixes.
+      // out of the box.
       expect(MockGatewayClient.mockBaseUrl, 'http://192.168.2.33:4010');
     });
 
-    test('useMockPrefixes is true — paths are rewritten to service prefixes', () {
-      expect(MockGatewayClient.useMockPrefixes, isTrue);
+    test('useMockPrefixes defaults to false (live-gateway / device default)',
+        () {
+      // 1717166: useMockPrefixes reads JEEB_USE_MOCK_PREFIXES (default false) so
+      // device/CI builds hit the live gateway. With no dart-define in tests the
+      // default applies.
+      expect(MockGatewayClient.useMockPrefixes, isFalse);
     });
 
     test('webSocketUrl targets port 3056', () {
@@ -37,132 +45,44 @@ void main() {
     });
   });
 
-  group('rewritePath — B1 auth seam (/v1/auth/* → /auth-service/auth/*)', () {
-    test('OTP request rewrites to the auth-service prefix', () {
-      expect(
-        MockGatewayClient.rewritePath('/v1/auth/otp/request'),
-        '/auth-service/auth/otp/request',
-      );
-    });
+  // With useMockPrefixes=false (the default these tests run under), rewritePath
+  // short-circuits and returns its input unchanged. This is the contract the
+  // live on-device build depends on: every gateway path reaches the gateway
+  // verbatim. Pin it across the auth seam, the getMe/profile read, and the
+  // broader /v1/* surface so a regression that re-enables rewriting by default
+  // (the 1717166 bug) is caught.
+  group('rewritePath — default (live) build passes paths through unchanged', () {
+    const passthroughPaths = <String>[
+      // B1 auth seam
+      '/v1/auth/otp/request',
+      '/v1/auth/otp/verify',
+      '/v1/auth/login',
+      '/v1/auth/signup',
+      '/v1/auth/recovery/request',
+      '/v1/auth/recovery/verify',
+      '/v1/auth/set-password',
+      '/v1/auth/refresh',
+      '/v1/auth/logout',
+      // B2 social seam (gateway + legacy shapes)
+      '/v1/auth/social',
+      '/api/auth/social',
+      // getMe / profile read
+      '/users/me',
+      '/v1/users/me',
+      // broader /v1/* surface
+      '/v1/offers',
+      '/v1/notifications/send',
+      '/v1/notifications',
+      // W2 KYC
+      '/v1/kyc/status',
+      '/v1/kyc/jeeb/form-schema',
+      '/v1/kyc/submit',
+    ];
 
-    test('OTP verify rewrites to the auth-service prefix', () {
-      expect(
-        MockGatewayClient.rewritePath('/v1/auth/otp/verify'),
-        '/auth-service/auth/otp/verify',
-      );
-    });
-
-    test('email/password login rewrites to the auth-service prefix', () {
-      expect(
-        MockGatewayClient.rewritePath('/v1/auth/login'),
-        '/auth-service/auth/login',
-      );
-    });
-
-    test('email-first signup rewrites to the auth-service prefix', () {
-      expect(
-        MockGatewayClient.rewritePath('/v1/auth/signup'),
-        '/auth-service/auth/signup',
-      );
-    });
-
-    test('recovery request rewrites to the auth-service prefix', () {
-      expect(
-        MockGatewayClient.rewritePath('/v1/auth/recovery/request'),
-        '/auth-service/auth/recovery/request',
-      );
-    });
-
-    test('recovery verify rewrites to the auth-service prefix', () {
-      expect(
-        MockGatewayClient.rewritePath('/v1/auth/recovery/verify'),
-        '/auth-service/auth/recovery/verify',
-      );
-    });
-
-    test('set-password rewrites to the auth-service prefix', () {
-      expect(
-        MockGatewayClient.rewritePath('/v1/auth/set-password'),
-        '/auth-service/auth/set-password',
-      );
-    });
-
-    test('refresh rewrites to the auth-service prefix', () {
-      expect(
-        MockGatewayClient.rewritePath('/v1/auth/refresh'),
-        '/auth-service/auth/refresh',
-      );
-    });
-
-    test('logout rewrites to the auth-service prefix', () {
-      expect(
-        MockGatewayClient.rewritePath('/v1/auth/logout'),
-        '/auth-service/auth/logout',
-      );
-    });
-  });
-
-  group('rewritePath — B2 social seam', () {
-    test('gateway /v1/auth/social rewrites to the social handler', () {
-      expect(
-        MockGatewayClient.rewritePath('/v1/auth/social'),
-        '/auth-service/auth/social',
-      );
-    });
-
-    test('legacy /api/auth/social rewrites to the same social handler', () {
-      expect(
-        MockGatewayClient.rewritePath('/api/auth/social'),
-        '/auth-service/auth/social',
-      );
-    });
-  });
-
-  group('rewritePath — non-auth surface still rewrites correctly', () {
-    test('getMe (/users/me) rewrites to user-management', () {
-      expect(
-        MockGatewayClient.rewritePath('/users/me'),
-        '/user-management/users/me',
-      );
-    });
-
-    test('offers rewrites to offer-service', () {
-      expect(
-        MockGatewayClient.rewritePath('/v1/offers'),
-        '/offer-service/v1/offers',
-      );
-    });
-
-    test('the more specific /v1/notifications/send precedes /v1/notifications', () {
-      expect(
-        MockGatewayClient.rewritePath('/v1/notifications/send'),
-        '/notification-service/v1/notifications/send',
-      );
-      expect(
-        MockGatewayClient.rewritePath('/v1/notifications'),
-        '/notification-service/v1/notifications',
-      );
-    });
-
-    // W2 KYC (66_W2_QA_RESULTS C2): the KYC gateway speaks `/v1/kyc/*`; the mock
-    // mounts it under `/user-management`. Without this rewrite the app hit
-    // `:4010/v1/kyc/status` → 404 and the KYC status view never resolved.
-    test('KYC status rewrites to user-management', () {
-      expect(
-        MockGatewayClient.rewritePath('/v1/kyc/status'),
-        '/user-management/v1/kyc/status',
-      );
-    });
-
-    test('KYC form-schema + submit rewrite to user-management', () {
-      expect(
-        MockGatewayClient.rewritePath('/v1/kyc/jeeb/form-schema'),
-        '/user-management/v1/kyc/jeeb/form-schema',
-      );
-      expect(
-        MockGatewayClient.rewritePath('/v1/kyc/submit'),
-        '/user-management/v1/kyc/submit',
-      );
-    });
+    for (final path in passthroughPaths) {
+      test('$path is passed through unchanged', () {
+        expect(MockGatewayClient.rewritePath(path), path);
+      });
+    }
   });
 }

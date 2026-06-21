@@ -141,7 +141,10 @@ class _JeeberHomeScreenState extends State<JeeberHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
+    return Semantics(
+      identifier: 'jeeber_home_root',
+      container: true,
+      child: Scaffold(
       key: JeeberHomeScreen.scaffoldKey,
       appBar: OMDSAppBar(title: l10n.availabilityHomeTitle, centerTitle: false),
       body: _RootBody(
@@ -152,6 +155,7 @@ class _JeeberHomeScreenState extends State<JeeberHomeScreen> {
         requestFeedCubit: widget.requestFeedCubit,
         registerCtaIdentifier: widget.registerCtaIdentifier,
         submittedOffersCubit: _resolveSubmittedOffersCubit(),
+      ),
       ),
     );
   }
