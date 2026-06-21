@@ -67,6 +67,7 @@ import '../../features/voice_request/domain/voice_player.dart';
 import '../../features/voice_request/domain/voice_recorder.dart';
 import '../../features/prohibited_acknowledgment/data/prohibited_acknowledgment_repository_impl.dart';
 import '../../features/prohibited_acknowledgment/domain/prohibited_acknowledgment_repository.dart';
+import '../../features/request_summary/application/compose_request_controller.dart';
 import '../../features/request_summary/data/dio_request_submission_service.dart';
 import '../../features/request_summary/domain/request_submission_service.dart';
 import '../../features/cancellation/data/dio_cancellation_repository.dart';
@@ -321,6 +322,15 @@ void configureDependencies({
   // RequestSummaryCubit submits over Dio instead of the prior stub.
   sl.registerLazySingleton<RequestSubmissionService>(
     () => DioRequestSubmissionService(sl<Dio>()),
+  );
+
+  // iter6 B11: shared compose controller — carries the chosen tier from the
+  // request-type step to the location-confirm step and performs the actual
+  // POST /requests there (so the create flow mints a REAL request id instead of
+  // handing off the placeholder 'new' to order-chat). Singleton so both steps,
+  // which own separate cubits with no common widget-tree ancestor, share it.
+  sl.registerLazySingleton<ComposeRequestController>(
+    () => ComposeRequestController(sl<RequestSubmissionService>()),
   );
 
   // T-MOB-031: Active delivery (Jeeber) — GET /v1/deliveries/{id} +
