@@ -132,5 +132,44 @@ void main() {
         throwsA(isA<RequestSubmissionException>()),
       );
     });
+
+    // iter6 OTP-phone v2 — the recipient phone the customer enters on the
+    // location-confirm step must reach the create draft so the gateway
+    // request-store row is non-null and the at-door OTP-1234 verify works.
+    test('threads the entered recipientPhone into the draft', () async {
+      controller.setTier(_flash(wireId: 'uuid'));
+      controller.setRecipientPhone('+9613000001');
+
+      await controller.submitFromLocation(
+        const LocationSelectState(status: LocationSelectStatus.loaded),
+      );
+
+      expect(submission.lastDraft!.recipientPhone, '+9613000001');
+    });
+
+    test('blank recipientPhone is treated as null (resolver default applies)',
+        () async {
+      controller.setTier(_flash(wireId: 'uuid'));
+      controller.setRecipientPhone('   ');
+
+      await controller.submitFromLocation(
+        const LocationSelectState(status: LocationSelectStatus.loaded),
+      );
+
+      expect(submission.lastDraft!.recipientPhone, isNull);
+    });
+
+    test('setTier resets a stale recipientPhone from a prior compose', () async {
+      controller.setTier(_flash(wireId: 'uuid'));
+      controller.setRecipientPhone('+9613000001');
+      // New compose session starts — tier re-selected.
+      controller.setTier(_flash(wireId: 'uuid2'));
+
+      await controller.submitFromLocation(
+        const LocationSelectState(status: LocationSelectStatus.loaded),
+      );
+
+      expect(submission.lastDraft!.recipientPhone, isNull);
+    });
   });
 }

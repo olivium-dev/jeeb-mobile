@@ -48,6 +48,55 @@ void main() {
       expect(cubit.state.mode, OtpHandoverViewMode.error);
       await cubit.close();
     });
+
+    // iter6 OTP-phone v2: the LIVE gateway GET /otp returns no `code`, so the
+    // repo throws `parse`. The client must NOT dead-end on error — it falls to
+    // a usable code-ENTRY (allowManualEntry) so it can submit the code itself.
+    test('parse miss (no live code) → ready + allowManualEntry, not error',
+        () async {
+      when(() => repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))
+          .thenThrow(const OtpHandoverException(OtpHandoverErrorKind.parse));
+
+      final cubit = _clientCubit();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.state.mode, OtpHandoverViewMode.ready);
+      expect(cubit.state.allowManualEntry, isTrue);
+      expect(cubit.state.handoverCode, isNull);
+      await cubit.close();
+    });
+
+    test('server miss → ready + allowManualEntry', () async {
+      when(() => repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))
+          .thenThrow(const OtpHandoverException(OtpHandoverErrorKind.server));
+
+      final cubit = _clientCubit();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.state.mode, OtpHandoverViewMode.ready);
+      expect(cubit.state.allowManualEntry, isTrue);
+      await cubit.close();
+    });
+
+    test('manual-entry client can submit a code → success', () async {
+      when(() => repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))
+          .thenThrow(const OtpHandoverException(OtpHandoverErrorKind.parse));
+      when(() => repo.submitOtp(
+            deliveryId: any(named: 'deliveryId'),
+            otp: any(named: 'otp'),
+          )).thenAnswer((_) async => const OtpHandoverResult(success: true));
+
+      final cubit = _clientCubit();
+      await Future<void>.delayed(Duration.zero);
+      expect(cubit.state.allowManualEntry, isTrue);
+
+      await cubit.submitOtp('1234');
+
+      expect(cubit.state.mode, OtpHandoverViewMode.success);
+      verify(() => repo.submitOtp(deliveryId: 'DLV-770001', otp: '1234'))
+          .called(1);
+      await cubit.close();
+    });
   });
 
   group('Jeeber view', () {

@@ -214,14 +214,20 @@ class _ReadyBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // iter6 OTP-phone v2: when the client has no code to DISPLAY (the live
+    // gateway `GET /otp` returns none → `allowManualEntry`), render the same
+    // code-ENTRY surface the Jeeber uses so the client can type the handover
+    // code (the live demo `1234`) and submit verify. Otherwise show the large
+    // code display (when a code WAS returned).
+    final showEntry = !isClient || state.allowManualEntry;
     return Padding(
       padding: const EdgeInsets.all(Spacing.xLarge),
-      child: isClient
-          ? _ClientOtpDisplay(
+      child: showEntry
+          ? _JeeberOtpEntry(state: state)
+          : _ClientOtpDisplay(
               code: state.handoverCode ?? '----',
               deliveryId: deliveryId,
-            )
-          : _JeeberOtpEntry(state: state),
+            ),
     );
   }
 }

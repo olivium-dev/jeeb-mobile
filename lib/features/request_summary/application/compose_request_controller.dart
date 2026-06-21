@@ -35,6 +35,14 @@ class ComposeRequestController {
   /// see iter6 B2 / PR #64). Null until the tier step records a selection.
   Tier? _tier;
 
+  /// The recipient phone (E.164) the customer entered on the location-confirm
+  /// step (iter6 OTP-phone v2). Threaded into [RequestDraft.recipientPhone],
+  /// which the submission service sends as the gateway `recipientPhone` — the
+  /// EXACT value the at-door handover OTP issue/verify reads from the request
+  /// store. Null until the location step records one; the submission service
+  /// then falls back to the resolver default (the client's own profile phone).
+  String? _recipientPhone;
+
   /// Beirut downtown — the safe non-null fallback when the chosen location
   /// carries no coordinates (the "current location" / freshly-pinned options do
   /// not capture a real lat/lng in the installed build — there is no GPS/map
@@ -47,9 +55,22 @@ class ComposeRequestController {
   static const double _fallbackLng = 35.4955;
 
   /// Records the tier the customer selected on the `request-type` step. Called
-  /// by the Continue CTA before navigating to `location-select`.
+  /// by the Continue CTA before navigating to `location-select`. Resets the
+  /// per-compose recipient phone so a stale value from a previous (abandoned)
+  /// compose session does not leak into this one — the location step re-seeds
+  /// it from the profile pre-fill / user entry.
   void setTier(Tier tier) {
     _tier = tier;
+    _recipientPhone = null;
+  }
+
+  /// Records the recipient phone the customer entered on the location-confirm
+  /// step (iter6 OTP-phone v2). [e164] should be a normalised E.164 string
+  /// (`+961XXXXXXXX`) or null to clear. Empty/blank is treated as null so the
+  /// submission service falls back to the resolved default phone.
+  void setRecipientPhone(String? e164) {
+    final trimmed = e164?.trim();
+    _recipientPhone = (trimmed == null || trimmed.isEmpty) ? null : trimmed;
   }
 
   /// The wire-side tier id request-create must echo. Prefers the server UUID
@@ -97,6 +118,11 @@ class ComposeRequestController {
       dropoffLng: lng,
       pickupAddress: address,
       dropoffAddress: address,
+      // iter6 OTP-phone v2: the recipient phone the customer entered on the
+      // location-confirm step. The submission service sends it as the gateway
+      // `recipientPhone` (winning over the resolver default) so the request
+      // store row — which the at-door OTP issue/verify reads — is non-null.
+      recipientPhone: _recipientPhone,
     );
   }
 

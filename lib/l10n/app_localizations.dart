@@ -659,6 +659,12 @@ class AppLocalizations {
   String get clientLocationNewOption => _get('clientLocationNewOption');
   String get clientLocationAddSemantic => _get('clientLocationAddSemantic');
 
+  // Recipient-phone capture on the location-confirm step (iter6 OTP-phone v2).
+  String get recipientPhoneLabel => _get('recipientPhoneLabel');
+  String get recipientPhoneHint => _get('recipientPhoneHint');
+  String get recipientPhoneHelper => _get('recipientPhoneHelper');
+  String get recipientPhoneInvalid => _get('recipientPhoneInvalid');
+
   // Capture Location screen (Figma 56546:2303)
   String get captureLocationTitle => _get('captureLocationTitle');
   String get captureLocationPinCta => _get('captureLocationPinCta');
