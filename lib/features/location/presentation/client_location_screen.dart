@@ -6,6 +6,8 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../request_summary/application/compose_request_controller.dart';
+import '../../request_summary/domain/request_submission_service.dart';
 import '../application/location_select_cubit.dart';
 import '../application/location_select_state.dart';
 import '../data/dio_location_select_repository.dart';
@@ -445,7 +447,7 @@ class _ConfirmFooter extends StatelessWidget {
     );
   }
 
-  void _onConfirm(BuildContext context) {
+  Future<void> _onConfirm(BuildContext context) async {
     // EDGE: location-select → order-chat compose (21_NAV_PLAN.md §C, JM-024
     // AC4 → JM-025). The optional callback REPLACES the default nav for tests /
     // the dev seam.
@@ -454,11 +456,47 @@ class _ConfirmFooter extends StatelessWidget {
       override();
       return;
     }
-    // Hand off to order-chat in COMPOSE state. JM-025 owns the compose=broadcast
-    // behavior keyed on the `new` sentinel id (see 50_ROUTE_REQUESTS — JM-024
-    // → JM-025 hand-off). The chat route resolves `new` to an empty thread that
-    // renders the composer (`order_chat_composer_send`).
-    context.pushNamed('chat-detail', pathParameters: {'id': 'new'});
+
+    // iter6 B11 — THE create gating fix. The old flow handed off the literal
+    // placeholder id `'new'` to order-chat, which then broadcast
+    // `requestId='new'` WITHOUT ever calling POST /requests → no request was
+    // created on-device (matching 422 / chat 404). Now we CREATE the request
+    // here first (POST /requests → 201 {id}) and route order-chat with the REAL
+    // server-minted id so broadcast/chat operate on a request that exists.
+    //
+    // If the compose controller is not registered (isolated host / a test
+    // without DI), fall back to the prior `'new'` hand-off so non-app-rooted
+    // hosts degrade exactly as before rather than throw.
+    if (!sl.isRegistered<ComposeRequestController>()) {
+      context.pushNamed('chat-detail', pathParameters: {'id': 'new'});
+      return;
+    }
+
+    final controller = sl<ComposeRequestController>();
+    // Capture the navigation + messenger handles BEFORE the async gap: this
+    // footer lives in a BlocBuilder, so `context` may be rebuilt (and become
+    // unmounted) by the time the create call returns. The GoRouter / messenger
+    // instances stay valid, so we drive navigation off them instead of a stale
+    // BuildContext.
+    final router = GoRouter.of(context);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final l10n = AppLocalizations.of(context);
+    try {
+      final requestId = await controller.submitFromLocation(state);
+      // logcat proof anchor: confirms the create call succeeded with a REAL id
+      // (NOT 'new') before we route to order-chat.
+      debugPrint('[compose-b11] POST /requests OK → requestId=$requestId');
+      // Route order-chat with the REAL request id (no more 'new'). The compose
+      // thread broadcasts THIS id, and the chat resolves the conversation by it.
+      router.pushNamed('chat-detail', pathParameters: {'id': requestId});
+    } on RequestSubmissionException catch (e) {
+      debugPrint('[compose-b11] POST /requests FAILED: $e');
+      // Stay on the location step and surface a retryable error — never hand
+      // off `'new'` (that is exactly the broken path B11 removes).
+      messenger?.showSnackBar(
+        SnackBar(content: Text(l10n.requestSummaryErrorNetwork)),
+      );
+    }
   }
 }
 
