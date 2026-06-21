@@ -280,8 +280,10 @@ void configureDependencies({
   );
 
   // T-MOB-028: Role-switch repository — POST /v1/users/me/role/switch.
+  // D-ROLE-TOGGLE: adopts the re-minted token pair from the 200 body via
+  // AuthTokenStore so jeeber routes stop 403-ing after an in-app toggle.
   sl.registerLazySingleton<RoleSwitchRepository>(
-    () => DioRoleSwitchRepository(sl<Dio>()),
+    () => DioRoleSwitchRepository(sl<Dio>(), sl<AuthTokenStore>()),
   );
 
   // T-MOB-012: Saved locations — GET/POST /v1/users/me/saved-locations.

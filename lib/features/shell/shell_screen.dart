@@ -6,6 +6,7 @@ import 'package:omds/omds.dart';
 
 import '../../core/dev_seam/dev_seam.dart';
 import '../../core/di/injection_container.dart';
+import '../../core/network/auth_token_store.dart';
 import '../../core/role/role_availability_cubit.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/role/user_role.dart';
@@ -264,8 +265,10 @@ class _ShellRoleToggleState extends State<_ShellRoleToggle> {
   RoleSwitchRepository _resolveRepository() {
     // Mirror CustomerProfileScreen: self-provide over the shared Dio without a
     // DI registration. Falls back to a no-op repo in bare widget tests (no DI).
+    // D-ROLE-TOGGLE: thread AuthTokenStore so the re-minted token pair is
+    // adopted on switch (otherwise jeeber routes 403 until re-login).
     if (sl.isRegistered<Dio>()) {
-      return DioRoleSwitchRepository(sl<Dio>());
+      return DioRoleSwitchRepository(sl<Dio>(), sl<AuthTokenStore>());
     }
     return const _NoopRoleSwitchRepository();
   }
