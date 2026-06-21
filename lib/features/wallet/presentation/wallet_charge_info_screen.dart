@@ -34,7 +34,17 @@ class WalletChargeInfoScreen extends StatelessWidget {
       identifier: 'charge_info_root',
       container: true,
       child: Scaffold(
-        appBar: OMDSAppBar(title: l10n.chargeInfoTitle, showBackButton: true),
+        appBar: OMDSAppBar(
+          title: l10n.chargeInfoTitle,
+          showBackButton: true,
+          // Mirror the body `charge_info_back_cta` destination contract: pop to
+          // the caller when pushed (+Top up flows), else go to wallet-hub when
+          // launched standalone. Never pop the last page (empty Navigator →
+          // black surface).
+          onBackPressed: () => context.canPop()
+              ? context.pop()
+              : context.goNamed('wallet'),
+        ),
         body: ListView(
           padding: const EdgeInsetsDirectional.fromSTEB(
             Spacing.medium,
