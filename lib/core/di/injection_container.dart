@@ -68,6 +68,7 @@ import '../../features/voice_request/domain/voice_recorder.dart';
 import '../../features/prohibited_acknowledgment/data/prohibited_acknowledgment_repository_impl.dart';
 import '../../features/prohibited_acknowledgment/domain/prohibited_acknowledgment_repository.dart';
 import '../../features/request_summary/application/compose_request_controller.dart';
+import '../../features/request_summary/data/dio_recipient_phone_resolver.dart';
 import '../../features/request_summary/data/dio_request_submission_service.dart';
 import '../../features/request_summary/domain/request_submission_service.dart';
 import '../../features/cancellation/data/dio_cancellation_repository.dart';
@@ -320,8 +321,19 @@ void configureDependencies({
   // T-MOB-REQSUBMIT: real request-create RPC — POST /requests → 201 {id}.
   // Resolved by app_router when building the /request-summary route so the
   // RequestSummaryCubit submits over Dio instead of the prior stub.
+  //
+  // T-BE-019 / JEB-55: pass a DioRecipientPhoneResolver so the create body
+  // carries a `recipientPhone` (defaulted to the signed-in client's own phone
+  // from `GET /v1/users/me`) — the gateway request-store row then has a non-null
+  // RecipientPhone and the at-door handover OTP (`POST /deliveries/{id}/otp/verify
+  // {code:"1234"}`) can dispatch/validate instead of returning 400
+  // recipient-phone-missing. Best-effort: a resolver miss degrades to omitting
+  // the field, so the create is never blocked by it.
   sl.registerLazySingleton<RequestSubmissionService>(
-    () => DioRequestSubmissionService(sl<Dio>()),
+    () => DioRequestSubmissionService(
+      sl<Dio>(),
+      phoneResolver: DioRecipientPhoneResolver(sl<Dio>()),
+    ),
   );
 
   // iter6 B11: shared compose controller — carries the chosen tier from the
