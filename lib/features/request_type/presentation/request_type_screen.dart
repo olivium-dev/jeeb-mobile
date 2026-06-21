@@ -246,6 +246,18 @@ class _LocationSection extends StatelessWidget {
   }
 
   void _onChange(BuildContext context) {
+    // iter6 LIVE fix (tier-required): the "Change location" row jumps straight
+    // to `client-location`, the SAME destination the Continue CTA reaches — but
+    // unlike Continue it never recorded the chosen tier in the shared compose
+    // controller. So a customer who picks a tier then taps "Change location"
+    // (instead of Continue) lost `tierId`, and the location-confirm
+    // `POST /requests` came back 400 `tier-required` (surfaced as a misleading
+    // "Couldn't reach Jeeb"). Carry the selected tier through this path too, so
+    // both routes feed the create with a non-null tier.
+    final tier = context.read<TierSelectionCubit>().state.selectedTier;
+    if (tier != null && sl.isRegistered<ComposeRequestController>()) {
+      sl<ComposeRequestController>().setTier(tier);
+    }
     // EDGE: request-type-selection → location-select (the same destination the
     // Continue CTA uses, JM-024 AC1). The optional callback REPLACES the
     // default nav for tests / the dev seam.
