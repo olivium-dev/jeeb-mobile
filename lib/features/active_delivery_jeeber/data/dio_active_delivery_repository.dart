@@ -29,6 +29,12 @@ class DioActiveDeliveryRepository implements ActiveDeliveryRepository {
   // (iter6 close-tail; the same path #68 proved on the gateway).
   static const _deliveriesPath = '/deliveries';
 
+  // GET /v1/deliveries/{id}/otp → get-or-issue the handover OTP (the same path
+  // the recipient's "Show OTP" uses). Called issue-on-demand before verify so a
+  // code_hash always exists even when the jeeber completes before the recipient
+  // opens Show-OTP (iter6 jeeber door-OTP fix).
+  static const _v1DeliveriesPath = '/v1/deliveries';
+
   @override
   Future<JeeberDelivery> fetchDelivery(String deliveryId) async {
     try {
@@ -78,6 +84,23 @@ class DioActiveDeliveryRepository implements ActiveDeliveryRepository {
     required String code,
   }) async {
     try {
+      // ISSUE-ON-DEMAND (iter6 jeeber door-OTP fix): the jeeber-side complete
+      // flow can reach this verify BEFORE the recipient ever opens "Show OTP",
+      // in which case no handover OTP has been issued (code_hash empty) and the
+      // verify 401s ("Incorrect code") even for the right code. Trigger the SAME
+      // issuance the recipient's "Show OTP" path uses (`GET /v1/deliveries/{id}/
+      // otp` — idempotent get-or-issue) first, so a code_hash always exists, then
+      // verify. The returned code is the recipient's to read out; we DON'T use it
+      // (the jeeber types what the recipient tells them) — we only need issuance.
+      // Best-effort: if issuance hiccups, the verify still runs (it succeeds when
+      // the recipient already issued via Show-OTP).
+      try {
+        await _dio.get<Map<String, dynamic>>(
+          '$_v1DeliveriesPath/$deliveryId/otp',
+        );
+      } on DioException {
+        // Degrade — proceed to verify; it works when the OTP was already issued.
+      }
       final response = await _dio.post<Map<String, dynamic>>(
         '$_deliveriesPath/$deliveryId/otp/verify',
         data: <String, dynamic>{'code': code},

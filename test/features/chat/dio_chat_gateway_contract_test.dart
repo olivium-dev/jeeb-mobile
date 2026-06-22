@@ -6,12 +6,15 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/chat/data/chat_realtime_resolver.dart';
 import 'package:jeeb_mobile/features/chat/data/dio_chat_gateway.dart';
+import 'package:jeeb_mobile/features/chat/data/live_realtime_chat_socket.dart';
 import 'package:jeeb_mobile/features/chat/domain/chat_socket.dart';
 import 'package:jeeb_mobile/features/chat/domain/delivery_chat_message.dart';
 
-/// CHAT-CONTRACT (iter6): the gateway operates on a REAL server-minted
-/// conversation_id — NOT the request id — and uses the canonical
-/// `/v1/conversations/{id}/messages` routes, dropping senderId from the body.
+/// CHAT-CONTRACT (iter6 route fix): the gateway operates on a REAL server-minted
+/// conversation_id — NOT the request id — and uses the canonical FAN-OUT routes
+/// `/v1/chat/jeeb/conversations/{id}/messages` (the JeebChatMessagesController
+/// BFF that persists AND live-pushes to the counterpart). send posts a NESTED
+/// `body` object (the BFF's MobileSendMessageBody contract), dropping senderId.
 void main() {
   group('DioChatGateway — canonical conversation routes', () {
     late _RecordingAdapter adapter;
@@ -23,24 +26,26 @@ void main() {
         ..httpClientAdapter = adapter;
     });
 
-    test('loadHistory lists from /v1/conversations/{conversationId}/messages '
-        'and parses the canonical {messages:[{message_id,author_id,...}]} shape',
-        () async {
+    test('loadHistory lists from the canonical fan-out route '
+        '/v1/chat/jeeb/conversations/{conversationId}/messages and parses the '
+        'mobile {items:[{id,senderId,body:{...}}]} shape', () async {
+      // The fan-out BFF returns the mobile envelope key `items` and projects
+      // each message as {id, senderId, body:{...nested...}}.
       adapter.onGet = (path) => _json({
-            'messages': [
+            'items': [
               {
-                'message_id': 'm-1',
-                'author_id': 'me-id',
+                'id': 'm-1',
+                'senderId': 'me-id',
                 'kind': 'text',
-                'body': 'hi from me',
-                'created_at': '2026-06-21T10:00:00Z',
+                'body': {'text': 'hi from me'},
+                'createdAt': '2026-06-21T10:00:00Z',
               },
               {
-                'message_id': 'm-2',
-                'author_id': 'them-id',
+                'id': 'm-2',
+                'senderId': 'them-id',
                 'kind': 'text',
-                'body': 'hi back',
-                'created_at': '2026-06-21T10:01:00Z',
+                'body': {'text': 'hi back'},
+                'createdAt': '2026-06-21T10:01:00Z',
               },
             ],
           });
@@ -48,23 +53,27 @@ void main() {
 
       final history = await gateway.loadHistory('conv-XYZ');
 
-      // Hit the conversation-id route, NOT the request id, NOT the legacy
-      // /v1/chat/jeeb/conversations/{id}/messages path.
-      expect(adapter.lastGetPath, '/v1/conversations/conv-XYZ/messages');
+      // Hit the canonical fan-out conversation-id route — NOT the legacy
+      // /v1/conversations/{id}/messages path (which has no live push).
+      expect(
+        adapter.lastGetPath,
+        '/v1/chat/jeeb/conversations/conv-XYZ/messages',
+      );
       expect(history, hasLength(2));
       // Server-side per-viewer (no client filtering): both items returned.
       expect(history.first.author, ChatAuthor.me);
       expect(history.last.author, ChatAuthor.them);
     });
 
-    test('send POSTs /v1/conversations/{conversationId}/messages with '
-        '{kind, audience, body} and NO senderId', () async {
+    test('send POSTs the canonical fan-out route '
+        '/v1/chat/jeeb/conversations/{conversationId}/messages with '
+        '{kind, body:{text}} (nested body) and NO senderId', () async {
       adapter.onPost = (path, data) => _json({
-            'message_id': 'srv-1',
-            'author_id': 'me-id',
+            'id': 'srv-1',
+            'senderId': 'me-id',
             'kind': 'text',
-            'body': 'hello',
-            'created_at': '2026-06-21T10:00:00Z',
+            'body': {'text': 'hello'},
+            'createdAt': '2026-06-21T10:00:00Z',
           });
       final gateway = DioChatGateway(dio: dio, currentUserId: 'me-id');
 
@@ -79,11 +88,17 @@ void main() {
         ),
       );
 
-      expect(adapter.lastPostPath, '/v1/conversations/conv-XYZ/messages');
+      // The send MUST hit the fan-out route (live push), NOT the legacy
+      // /v1/conversations/{id}/messages path.
+      expect(
+        adapter.lastPostPath,
+        '/v1/chat/jeeb/conversations/conv-XYZ/messages',
+      );
       final body = adapter.lastPostBody! as Map;
       expect(body['kind'], 'text');
-      expect(body['body'], 'hello');
-      expect(body['audience'], 'all');
+      // Nested body object (MobileSendMessageBody contract) — the gateway
+      // JSON-encodes it into chat-service's flat string and decodes it back.
+      expect(body['body'], <String, Object?>{'text': 'hello'});
       // The author is stamped from the bearer server-side — senderId is DROPPED.
       expect(body.containsKey('senderId'), isFalse);
       expect(ack.status, MessageStatus.sent);
@@ -115,6 +130,40 @@ void main() {
       expect(descriptor, isNotNull);
       expect(descriptor!.topic, 'jeeb_conversation:conv-XYZ');
       expect(descriptor.ticket, 'mint-ticket-jwt');
+    });
+
+    test('connect() REMAPS the descriptor topic jeeb_conversation:{id} to the '
+        'A1-bridged jeeb:chat:{id} (the only channel the REST fan-out reaches)',
+        () async {
+      // The gateway descriptor returns the legacy V1 topic; the socket must join
+      // the V2 bridged channel or it receives ZERO live frames (proven on the
+      // wire). The connect-token mint targets the realtime minter (unreachable
+      // here) and degrades to '' — the socket is still built with the remapped
+      // topic + the gateway ticket.
+      final adapter = _RecordingAdapter()
+        ..onGet = (path) => _json({
+              'conversationId': 'conv-XYZ',
+              'topic': 'jeeb_conversation:conv-XYZ',
+              'roleInConvo': 'client',
+              'ticket': 'mint-ticket-jwt',
+            });
+      final dio = Dio(BaseOptions(baseUrl: 'http://gw.test'))
+        ..httpClientAdapter = adapter;
+
+      final resolver = ChatRealtimeResolver(
+        dio: dio,
+        currentUserId: 'me-id',
+        socketBaseUri: Uri.parse('ws://realtime.test/socket/websocket'),
+      );
+
+      final socket = await resolver.connect('conv-XYZ');
+
+      expect(socket, isA<LiveRealtimeChatSocket>());
+      final live = socket! as LiveRealtimeChatSocket;
+      // Remapped to the bridged V2 topic — NOT the descriptor's V1 topic.
+      expect(live.topic, 'jeeb:chat:conv-XYZ');
+      // The gateway membership ticket is carried through for the V2 ticket-auth.
+      expect(live.ticket, 'mint-ticket-jwt');
     });
 
     test('a non-member 403 resolves to null (degrade to HTTP history)',
