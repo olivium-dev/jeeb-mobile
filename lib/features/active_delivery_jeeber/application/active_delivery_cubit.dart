@@ -21,6 +21,9 @@ class ActiveDeliveryState extends Equatable {
     this.proofPhotoStatus = ProofPhotoStatus.none,
     this.note,
     this.delivered = false,
+    this.otpRequired = false,
+    this.isVerifyingOtp = false,
+    this.otpError,
   });
 
   final ActiveDeliveryMode mode;
@@ -42,6 +45,18 @@ class ActiveDeliveryState extends Equatable {
   /// `feedback-rate-delivery` (JM-051 AC2 / JM-034 / D56), NOT the OTP handover.
   final bool delivered;
 
+  /// iter6 close-tail: true once `AtDoor → Done` came back **422 `otp_required`**
+  /// — the delivery carries a recipient phone, so the screen surfaces a
+  /// door-OTP entry. The recipient gives the jeeber the code; the jeeber enters
+  /// it and [ActiveDeliveryCubit.submitDoorOtp] completes the delivery.
+  final bool otpRequired;
+
+  /// True while a submitted door OTP is being verified against the gateway.
+  final bool isVerifyingOtp;
+
+  /// Inline error under the door-OTP field (wrong code / locked / network).
+  final String? otpError;
+
   bool get isTransitioning => mode == ActiveDeliveryMode.transitioning;
 
   bool get isUploadingProof => proofPhotoStatus == ProofPhotoStatus.uploading;
@@ -61,6 +76,10 @@ class ActiveDeliveryState extends Equatable {
     String? note,
     bool clearNote = false,
     bool? delivered,
+    bool? otpRequired,
+    bool? isVerifyingOtp,
+    String? otpError,
+    bool clearOtpError = false,
   }) {
     return ActiveDeliveryState(
       mode: mode ?? this.mode,
@@ -72,6 +91,9 @@ class ActiveDeliveryState extends Equatable {
       proofPhotoStatus: proofPhotoStatus ?? this.proofPhotoStatus,
       note: clearNote ? null : (note ?? this.note),
       delivered: delivered ?? this.delivered,
+      otpRequired: otpRequired ?? this.otpRequired,
+      isVerifyingOtp: isVerifyingOtp ?? this.isVerifyingOtp,
+      otpError: clearOtpError ? null : (otpError ?? this.otpError),
     );
   }
 
@@ -84,6 +106,9 @@ class ActiveDeliveryState extends Equatable {
         proofPhotoStatus,
         note,
         delivered,
+        otpRequired,
+        isVerifyingOtp,
+        otpError,
       ];
 }
 
@@ -253,6 +278,20 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
         delivered: from == JeeberDeliveryStatus.done,
       ));
     } on ActiveDeliveryException catch (e) {
+      // iter6 close-tail: a phone-bearing delivery answers the terminal
+      // `AtDoor → Done` with 422 `otp_required`. Don't show "transition not
+      // allowed" — surface the door-OTP entry instead. The delivery is held at
+      // `AtDoor` (the last confirmed stage) so the recipient OTP can complete it.
+      if (e.failure == ActiveDeliveryFailure.otpRequired) {
+        emit(state.copyWith(
+          mode: ActiveDeliveryMode.ready,
+          delivery: _withStatus(original, from),
+          otpRequired: true,
+          clearTransitionError: true,
+          clearOtpError: true,
+        ));
+        return;
+      }
       emit(state.copyWith(
         mode: ActiveDeliveryMode.ready,
         delivery: original,
@@ -261,8 +300,53 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     }
   }
 
+  /// iter6 close-tail: verify the recipient's door OTP to complete a
+  /// phone-bearing delivery `AtDoor → Done` (the gateway path #68 proved:
+  /// `POST /deliveries/{id}/otp/verify {code}`). The recipient hands the jeeber
+  /// the code at the door; the jeeber enters it on the complete screen.
+  ///
+  /// On success emits `delivered: true` so the screen chains to the mandatory
+  /// rating (JM-034 / D56). A wrong code keeps the entry open with an inline
+  /// error; a network fault is retryable.
+  Future<void> submitDoorOtp(String code) async {
+    final current = state.delivery;
+    if (current == null) return;
+    if (state.isVerifyingOtp) return;
+    final trimmed = code.trim();
+    if (trimmed.length < 4) {
+      emit(state.copyWith(otpError: 'Enter the 4-digit delivery code'));
+      return;
+    }
+    emit(state.copyWith(isVerifyingOtp: true, clearOtpError: true));
+    try {
+      final status = await _repository.verifyDoorOtp(
+        deliveryId: deliveryId,
+        code: trimmed,
+      );
+      _logTransition(JeeberDeliveryStatus.atDoor, status);
+      final done = status == JeeberDeliveryStatus.done;
+      emit(state.copyWith(
+        isVerifyingOtp: false,
+        delivery: _withStatus(current, status),
+        otpRequired: !done,
+        delivered: done,
+        clearOtpError: true,
+      ));
+    } on ActiveDeliveryException catch (e) {
+      emit(state.copyWith(
+        isVerifyingOtp: false,
+        otpError: _mapOtpError(e),
+      ));
+    }
+  }
+
   void acknowledgeTransitionError() {
     emit(state.copyWith(clearTransitionError: true));
+  }
+
+  /// Clear the inline door-OTP error after the snackbar/field rebuild reads it.
+  void acknowledgeOtpError() {
+    emit(state.copyWith(clearOtpError: true));
   }
 
   /// Acknowledge the one-shot `delivered` navigation signal so a rebuild does
@@ -295,6 +379,12 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
   }
 
   String _mapTransitionError(ActiveDeliveryException e) {
+    if (e.failure == ActiveDeliveryFailure.otpRequired) {
+      // Defensive: markDelivered handles otpRequired before this maps it, so
+      // this is only hit if an EARLY step somehow returns the gate. Point the
+      // jeeber at the code rather than the misleading "not allowed".
+      return 'Enter the delivery OTP from the recipient to complete';
+    }
     if (e.failure == ActiveDeliveryFailure.invalidTransition) {
       return 'That transition is not allowed';
     }
@@ -302,6 +392,23 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
       return 'No internet connection';
     }
     return 'Unable to update status';
+  }
+
+  String _mapOtpError(ActiveDeliveryException e) {
+    switch (e.failure) {
+      case ActiveDeliveryFailure.invalidOtp:
+        return 'Incorrect code — ask the recipient and try again';
+      case ActiveDeliveryFailure.otpLocked:
+        return 'Too many attempts — contact support';
+      case ActiveDeliveryFailure.network:
+        return 'No internet connection';
+      case ActiveDeliveryFailure.notFound:
+        return 'Delivery not found';
+      case ActiveDeliveryFailure.otpRequired:
+      case ActiveDeliveryFailure.invalidTransition:
+      case ActiveDeliveryFailure.server:
+        return 'Unable to verify the code';
+    }
   }
 
   // AC7: delivery.status_transition log

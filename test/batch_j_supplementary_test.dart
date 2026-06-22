@@ -76,6 +76,13 @@ class _LoggingDeliveryRepo implements ActiveDeliveryRepository {
   }
 
   @override
+  Future<JeeberDeliveryStatus> verifyDoorOtp({
+    required String deliveryId,
+    required String code,
+  }) async =>
+      JeeberDeliveryStatus.done;
+
+  @override
   Future<String> uploadProofPhoto({
     required String deliveryId,
     required String filename,

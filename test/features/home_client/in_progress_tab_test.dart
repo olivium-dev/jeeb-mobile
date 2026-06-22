@@ -23,6 +23,7 @@ import '../../support/sync_app_localizations.dart';
 Widget _harness({
   required ClientHomeRepository repo,
   void Function(ClientHomeRequest)? onTrack,
+  void Function(ClientHomeRequest)? onOpenChat,
   Locale locale = const Locale('en'),
 }) {
   return MaterialApp(
@@ -38,7 +39,10 @@ Widget _harness({
           repository: repo,
           greetingNameProvider: () => 'Sami',
         )..load(),
-        child: InProgressTab(onTrack: onTrack ?? (_) {}),
+        child: InProgressTab(
+          onTrack: onTrack ?? (_) {},
+          onOpenChat: onOpenChat ?? (_) {},
+        ),
       ),
     ),
   );
@@ -139,6 +143,33 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tracked?.id, 'ip-track');
+    });
+
+    testWidgets(
+        'iter6 close-tail: tapping Open chat invokes onOpenChat with the request',
+        (tester) async {
+      ClientHomeRequest? chatted;
+      final request = _activeRequest(
+        id: 'ip-chat',
+        status: ClientRequestStatus.accepted,
+        progressStep: 0,
+      );
+      final repo = InMemoryClientHomeRepository.fromSnapshot(
+        ClientHomeSnapshot(inProgress: [request]),
+        latency: Duration.zero,
+      );
+      await tester.pumpWidget(_harness(
+        repo: repo,
+        onOpenChat: (r) => chatted = r,
+      ));
+      await tester.pumpAndSettle();
+
+      final chatCta = find.byKey(const Key('active-open-chat-ip-chat'));
+      expect(chatCta, findsOneWidget);
+      await tester.tap(chatCta);
+      await tester.pumpAndSettle();
+
+      expect(chatted?.id, 'ip-chat');
     });
 
     testWidgets('AC6: error banner with retry on failed load', (tester) async {

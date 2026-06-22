@@ -19,10 +19,17 @@ class ActiveOrderCard extends StatelessWidget {
     super.key,
     required this.request,
     required this.onTap,
+    this.onOpenChat,
   });
 
   final ClientHomeRequest request;
   final VoidCallback onTap;
+
+  /// iter6 close-tail: opens the order conversation for this accepted/in-progress
+  /// request (`/chat/<request.id>`). Without it the client's In-Progress card was
+  /// a status-tracker with no tap-to-chat affordance, so the client could not
+  /// re-reach the accepted-order chat. When null the chat button is hidden.
+  final VoidCallback? onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +53,7 @@ class ActiveOrderCard extends StatelessWidget {
         child: _ActiveOrderColumn(
           request: request,
           onTap: onTap,
+          onOpenChat: onOpenChat,
           divider: Divider(height: 1, color: colorScheme.outlineVariant),
         ),
       ),
@@ -58,17 +66,19 @@ class _ActiveOrderColumn extends StatelessWidget {
     required this.request,
     required this.onTap,
     required this.divider,
+    this.onOpenChat,
   });
 
   final ClientHomeRequest request;
   final VoidCallback onTap;
+  final VoidCallback? onOpenChat;
   final Widget divider;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _ActiveOrderRow(request: request, onTap: onTap),
+        _ActiveOrderRow(request: request, onTap: onTap, onOpenChat: onOpenChat),
         Padding(
           padding: const EdgeInsetsDirectional.only(top: Spacing.xSmall),
           child: divider,
@@ -79,10 +89,15 @@ class _ActiveOrderColumn extends StatelessWidget {
 }
 
 class _ActiveOrderRow extends StatelessWidget {
-  const _ActiveOrderRow({required this.request, required this.onTap});
+  const _ActiveOrderRow({
+    required this.request,
+    required this.onTap,
+    this.onOpenChat,
+  });
 
   final ClientHomeRequest request;
   final VoidCallback onTap;
+  final VoidCallback? onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +107,11 @@ class _ActiveOrderRow extends StatelessWidget {
         _ActiveOrderAvatar(initial: _initial(request.title)),
         const SizedBox(width: Spacing.twoXSmall),
         Expanded(
-          child: _ActiveOrderBody(request: request, onTap: onTap),
+          child: _ActiveOrderBody(
+            request: request,
+            onTap: onTap,
+            onOpenChat: onOpenChat,
+          ),
         ),
       ],
     );
@@ -122,13 +141,23 @@ class _ActiveOrderAvatar extends StatelessWidget {
 }
 
 class _ActiveOrderBody extends StatelessWidget {
-  const _ActiveOrderBody({required this.request, required this.onTap});
+  const _ActiveOrderBody({
+    required this.request,
+    required this.onTap,
+    this.onOpenChat,
+  });
 
   final ClientHomeRequest request;
   final VoidCallback onTap;
+  final VoidCallback? onOpenChat;
 
   @override
   Widget build(BuildContext context) {
+    final canTrack = _canTrack(request.status);
+    // iter6 close-tail: the chat affordance shows for any engaged order
+    // (accepted / at-pickup / en-route) so the client can re-reach the SAME
+    // accepted-order conversation to message the jeeber and receive replies.
+    final showChat = onOpenChat != null && canTrack;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -139,8 +168,12 @@ class _ActiveOrderBody extends StatelessWidget {
         _ActiveOrderProgressBar(progressStep: request.progressStep),
         const SizedBox(height: Spacing.small),
         const _ActiveOrderProgressLabels(),
-        if (_canTrack(request.status))
-          _TrackOrderButton(requestId: request.id, onTap: onTap),
+        if (canTrack || showChat)
+          _ActiveOrderActions(
+            requestId: request.id,
+            onTrack: canTrack ? onTap : null,
+            onOpenChat: showChat ? onOpenChat : null,
+          ),
       ],
     );
   }
@@ -152,6 +185,70 @@ class _ActiveOrderBody extends StatelessWidget {
       s == ClientRequestStatus.accepted ||
       s == ClientRequestStatus.atPickup ||
       s == ClientRequestStatus.enRoute;
+}
+
+/// iter6 close-tail: the trailing action row on the In-Progress card — the
+/// "Open chat" affordance (so the client can re-reach the accepted-order
+/// conversation) next to "Track my order". Both render as end-aligned pills.
+class _ActiveOrderActions extends StatelessWidget {
+  const _ActiveOrderActions({
+    required this.requestId,
+    required this.onTrack,
+    required this.onOpenChat,
+  });
+
+  final String requestId;
+  final VoidCallback? onTrack;
+  final VoidCallback? onOpenChat;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(top: Spacing.small),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          if (onOpenChat != null) ...[
+            _OpenChatButton(requestId: requestId, onTap: onOpenChat!),
+            const SizedBox(width: Spacing.small),
+          ],
+          if (onTrack != null)
+            _TrackOrderButton(requestId: requestId, onTap: onTrack!),
+        ],
+      ),
+    );
+  }
+}
+
+/// `orders_open_chat_button_<id>` — opens the order conversation for an
+/// accepted/in-progress request (`/chat/<request.id>`). Mirrors the Track CTA's
+/// content-hugging pill shape.
+class _OpenChatButton extends StatelessWidget {
+  const _OpenChatButton({required this.requestId, required this.onTap});
+
+  final String requestId;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IntrinsicWidth(
+      child: SizedBox(
+        height: Sizes.twoXLarge,
+        child: Semantics(
+          identifier: 'orders_open_chat_button_$requestId',
+          button: true,
+          child: OmdsPrimaryButton(
+            key: Key('active-open-chat-$requestId'),
+            text: AppLocalizations.of(context).homeOpenChatCta,
+            variant: OmdsButtonVariant.outlined,
+            icon: const Icon(Icons.chat_bubble_outline, size: 16),
+            onTap: onTap,
+            borderRadius: OmdsBorderRadius.pill,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _ActiveOrderHeader extends StatelessWidget {
@@ -327,27 +424,22 @@ class _TrackOrderButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Same content-hugging end-aligned pill as the Replies "Check Offers" CTA.
-    // `OmdsPrimaryButton` expands to fill bounded width, so `Align(centerEnd)`
-    // needs `IntrinsicWidth` to feed it a tight content-width constraint —
-    // otherwise the Track CTA renders full-width instead of a trailing pill.
-    return Align(
-      alignment: AlignmentDirectional.centerEnd,
-      child: Padding(
-        padding: const EdgeInsetsDirectional.only(top: Spacing.small),
-        child: IntrinsicWidth(
-          child: SizedBox(
-            height: Sizes.twoXLarge,
-            child: Semantics(
-              identifier: 'orders_track_order_button_$requestId',
-              button: true,
-              child: OmdsPrimaryButton(
-                key: Key('active-track-order-$requestId'),
-                text: AppLocalizations.of(context).homeTrackOrderCta,
-                onTap: onTap,
-                borderRadius: OmdsBorderRadius.pill,
-              ),
-            ),
+    // Content-hugging end-aligned pill (same shape as the Replies "Check Offers"
+    // CTA). `OmdsPrimaryButton` expands to fill bounded width, so `IntrinsicWidth`
+    // feeds it a tight content-width constraint — otherwise the Track CTA renders
+    // full-width instead of a trailing pill. The trailing alignment + top padding
+    // are now owned by the enclosing `_ActiveOrderActions` row.
+    return IntrinsicWidth(
+      child: SizedBox(
+        height: Sizes.twoXLarge,
+        child: Semantics(
+          identifier: 'orders_track_order_button_$requestId',
+          button: true,
+          child: OmdsPrimaryButton(
+            key: Key('active-track-order-$requestId'),
+            text: AppLocalizations.of(context).homeTrackOrderCta,
+            onTap: onTap,
+            borderRadius: OmdsBorderRadius.pill,
           ),
         ),
       ),
