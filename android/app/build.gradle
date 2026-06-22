@@ -2,6 +2,12 @@ plugins {
     id "com.android.application"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
+    // PUSH-FIX (iter6): apply the Google Services plugin so the bundled
+    // android/app/google-services.json is processed into FirebaseOptions
+    // (values.xml). Without this, Firebase.initializeApp() throws
+    // "Failed to load FirebaseOptions from resource" -> no FCM token -> no push.
+    id "com.google.gms.google-services"
+    id "com.google.firebase.crashlytics"
 }
 
 def localProperties = new Properties()
