@@ -66,11 +66,11 @@ class DioChatGateway implements ChatGateway {
     // response shape is `{messages: [{message_id, author_id, body, kind,
     // created_at, ...}]}`.
     final response = await _dio.get<Map<String, dynamic>>(
-      '/v1/conversations/$conversationId/messages',
+      '/v1/chat/jeeb/conversations/$conversationId/messages',
     );
     final data = response.data;
     if (data == null) return const <DeliveryChatMessage>[];
-    final items = data['messages'] ?? data['items'];
+    final items = data['items'] ?? data['messages'];
     if (items is! List) return const <DeliveryChatMessage>[];
     return items
         .whereType<Map<String, dynamic>>()
@@ -93,19 +93,24 @@ class DioChatGateway implements ChatGateway {
     String conversationId,
     DeliveryChatMessage message,
   ) async {
-    // CANONICAL append body: {kind, subtype, audience, body, payload}. `body`
-    // is a free-text string for text messages; structured kinds carry their
-    // shape in `payload`. author_id is stamped from the bearer server-side —
-    // we DROP any senderId (it would be ignored anyway).
-    final (body, payload) = _wireBodyFor(message);
+    // CANONICAL fan-out append (iter6 route fix): POST to
+    // `/v1/chat/jeeb/conversations/{id}/messages` — the JeebChatMessagesController
+    // BFF that PERSISTS to chat-service AND fans the message out live over
+    // realtime (`:5804`) to the counterpart. The prior `/v1/conversations/{id}/
+    // messages` route (JeebConversationsController) only persisted — no live
+    // push — so the counterpart never received the message without a reload.
+    //
+    // WIRE SHAPE: the fan-out BFF (`MobileSendMessageBody`) expects a NESTED
+    // `body` object (`{text}` / `{url,caption}` / `{lat,lng,label}` / ...), NOT a
+    // flat string. The gateway JSON-encodes that nested object into chat-service's
+    // flat body string and decodes it back on read/fan-out, so live == reload.
+    // author_id is stamped from the bearer server-side — we DROP any senderId.
     final data = <String, Object?>{
       'kind': message.kind.wireName,
-      'audience': 'all',
+      'body': _nestedBodyFor(message),
     };
-    if (body != null) data['body'] = body;
-    if (payload != null) data['payload'] = payload;
     final response = await _dio.post<Map<String, dynamic>>(
-      '/v1/conversations/$conversationId/messages',
+      '/v1/chat/jeeb/conversations/$conversationId/messages',
       data: data,
       options: Options(
         headers: <String, Object?>{
@@ -114,7 +119,7 @@ class DioChatGateway implements ChatGateway {
       ),
     );
     final ack = response.data;
-    final serverId = (ack?['message_id'] ?? ack?['id']) as String?;
+    final serverId = (ack?['id'] ?? ack?['message_id']) as String?;
     // Once the server acknowledges, the message is at-least `sent`. The
     // delivered/read receipts arrive over the socket later.
     return message.copyWith(status: MessageStatus.sent).._serverIdProbe(serverId);
@@ -245,47 +250,44 @@ class DioChatGateway implements ChatGateway {
   // Wire ↔ domain mapping
   // ---------------------------------------------------------------------------
 
-  /// Build the canonical append `(body, payload)` pair for [message].
-  /// Text-shaped kinds send a free-text `body` string; structured kinds send a
-  /// `payload` map. Returns `(null, null)` for server-emitted kinds the client
-  /// never posts.
-  (String?, Map<String, Object?>?) _wireBodyFor(DeliveryChatMessage message) {
+  /// Build the NESTED `body` object the canonical fan-out send route
+  /// (`POST /v1/chat/jeeb/conversations/{id}/messages` → `MobileSendMessageBody`)
+  /// expects. The gateway JSON-encodes this object verbatim into chat-service's
+  /// flat body string and decodes it back on read/fan-out, so the keys here are
+  /// exactly the ones the read/normalize paths consume (`text` / `url` /
+  /// `caption` / `durationMs` / `lat` / `lng` / `label`) — guaranteeing the live
+  /// fan-out bubble and the reloaded bubble render identically.
+  Map<String, Object?> _nestedBodyFor(DeliveryChatMessage message) {
     switch (message.kind) {
       case MessageKind.text:
-        return (message.text, null);
+        return <String, Object?>{'text': message.text};
       case MessageKind.image:
-        return (
-          message.text.isNotEmpty ? message.text : null,
-          <String, Object?>{
-            'url': message.imageUrl ?? '',
-            if (message.text.isNotEmpty) 'caption': message.text,
-          },
-        );
+        return <String, Object?>{
+          'url': message.imageUrl ?? '',
+          if (message.text.isNotEmpty) 'caption': message.text,
+        };
       case MessageKind.voice:
-        return (
-          null,
-          <String, Object?>{
-            'url': message.voiceUrl ?? '',
-            'durationMs': message.voiceDurationMs ?? 0,
-          },
-        );
+        return <String, Object?>{
+          'url': message.voiceUrl ?? '',
+          'durationMs': message.voiceDurationMs ?? 0,
+        };
       case MessageKind.location:
-        return (
-          message.text.isNotEmpty ? message.text : null,
-          <String, Object?>{
-            'lat': message.latitude ?? 0,
-            'lng': message.longitude ?? 0,
-            if (message.text.isNotEmpty) 'label': message.text,
-          },
-        );
+        return <String, Object?>{
+          'lat': message.latitude ?? 0,
+          'lng': message.longitude ?? 0,
+          if (message.text.isNotEmpty) 'label': message.text,
+        };
       case MessageKind.photo:
-        return (message.text.isNotEmpty ? message.text : null, null);
+        return <String, Object?>{
+          if (message.text.isNotEmpty) 'caption': message.text,
+        };
       case MessageKind.system:
       case MessageKind.offerCard:
       case MessageKind.offerAccepted:
       case MessageKind.offerRejected:
-        // Server-emitted; the client doesn't post them.
-        return (message.text.isNotEmpty ? message.text : null, null);
+        // Server-emitted; the client doesn't post them — but if one is ever
+        // dispatched, carry its text so it still renders.
+        return <String, Object?>{'text': message.text};
     }
   }
 

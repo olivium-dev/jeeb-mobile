@@ -43,10 +43,12 @@ class DioDeliveryReceiptRepository implements DeliveryReceiptRepository {
 
   @override
   Future<void> confirmReceipt(DeliveryReceipt receipt) async {
+    // 1) Record the cash-on-delivery settlement (D11). The customer pays the
+    //    Jeeber in person; this stamps the COD ledger. No fee is sent — the
+    //    platform commission is a server/jeeber concern, never the customer's.
+    //    This is the load-bearing step for rating: once it 2xx's, the customer
+    //    has confirmed receipt and MUST reach the star-rating screen.
     try {
-      // 1) Record the cash-on-delivery settlement (D11). The customer pays the
-      //    Jeeber in person; this stamps the COD ledger. No fee is sent — the
-      //    platform commission is a server/jeeber concern, never the customer's.
       await _dio.post<Map<String, dynamic>>(
         '/v1/payments/cod_jeeb/record',
         data: <String, dynamic>{
@@ -58,7 +60,20 @@ class DioDeliveryReceiptRepository implements DeliveryReceiptRepository {
           },
         },
       );
-      // 2) Transition the delivery to Done (SM-1 `AtDoor → Done`, D70).
+    } on DioException catch (e) {
+      // COD-record failure is the only HARD failure that blocks rating.
+      _rethrowDio(e);
+    }
+
+    // 2) Transition the delivery to Done (SM-1 `AtDoor → Done`, D70).
+    //    IDEMPOTENT: in the real two-sided flow the delivery is frequently
+    //    ALREADY `Done` by the time the customer confirms receipt (the handover
+    //    OTP path drives `AtDoor → Done` server-side). Re-issuing the transition
+    //    then returns 422 `transition_not_allowed`. That 422 is NOT a failure —
+    //    it means the delivery is already in the confirmed terminal state we
+    //    were transitioning toward, so we treat it as success and let the
+    //    customer proceed to rate. We only surface non-422 transition errors.
+    try {
       await _dio.post<Map<String, dynamic>>(
         '/v1/delivery/status/transition',
         data: <String, dynamic>{
@@ -68,7 +83,12 @@ class DioDeliveryReceiptRepository implements DeliveryReceiptRepository {
         },
       );
     } on DioException catch (e) {
-      _rethrowTransition(e);
+      // 422 = already Done / not in a transitionable state → idempotent success.
+      // Any other transition error (5xx, transport) still surfaces.
+      if (e.response?.statusCode == 422) {
+        return;
+      }
+      _rethrowDio(e);
     }
   }
 
@@ -150,12 +170,4 @@ class DioDeliveryReceiptRepository implements DeliveryReceiptRepository {
     );
   }
 
-  Never _rethrowTransition(DioException e) {
-    if (e.response?.statusCode == 422) {
-      throw const DeliveryReceiptRepositoryException(
-        DeliveryReceiptFailure.transitionNotAllowed,
-      );
-    }
-    _rethrowDio(e);
-  }
 }

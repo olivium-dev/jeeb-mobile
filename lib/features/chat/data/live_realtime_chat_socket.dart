@@ -51,6 +51,7 @@ class LiveRealtimeChatSocket implements ChatSocket {
     required this.topic,
     required this.ticket,
     required Uri wsUri,
+    this.connectToken = '',
     WebSocketChannel Function(Uri uri)? channelFactory,
   })  : _wsUri = wsUri,
         _channelFactory = channelFactory ?? WebSocketChannel.connect;
@@ -72,6 +73,15 @@ class LiveRealtimeChatSocket implements ChatSocket {
   /// attempts (the realtime channel rejects an unauthorized join, which
   /// degrades to HTTP-history).
   final String ticket;
+
+  /// The realtime CONNECT token (Guardian) minted by the resolver from the
+  /// realtime open minter (`POST /api/auth/token`). REQUIRED on the socket
+  /// upgrade — the Phoenix `connect/3` establishes `user_id` from this `token`
+  /// query param; without it the upgrade is rejected `missing_token` and NO
+  /// live frame ever arrives (the membership ticket alone authorizes only the
+  /// channel JOIN, not the socket CONNECT). May be empty when minting failed —
+  /// the connect still attempts and degrades to HTTP-history on rejection.
+  final String connectToken;
 
   final Uri _wsUri;
   final WebSocketChannel Function(Uri uri) _channelFactory;
@@ -99,8 +109,13 @@ class LiveRealtimeChatSocket implements ChatSocket {
     final uri = _wsUri.replace(queryParameters: <String, String>{
       ..._wsUri.queryParameters,
       'vsn': '2.0.0',
+      // The Guardian connect token establishes `user_id` on the socket — the
+      // realtime `connect/3` REQUIRES it (a ticket-only connect is rejected
+      // `missing_token`). Without it no inbound frame ever arrives.
+      if (connectToken.isNotEmpty) 'token': connectToken,
       // The ticket also rides the connect params so a realtime `connect/3`
-      // that authorizes the socket (rather than the channel) accepts it.
+      // that authorizes the socket (rather than the channel) accepts it; it is
+      // re-presented on the channel join (below) for the V2 ticket-auth path.
       if (ticket.isNotEmpty) 'ticket': ticket,
     });
     final channel = _channelFactory(uri);
