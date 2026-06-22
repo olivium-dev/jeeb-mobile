@@ -7,14 +7,21 @@ import '../domain/recent_delivery_summary.dart';
 /// Dio-backed [ClientHomeRepository] hitting the mock (jeeb-gateway in prod).
 ///
 /// Three calls in parallel, one per home-tab list the Figma renders:
-///   - `GET /deliveries?stage=active`        → In Progress  (D5 contract)
+///   - `GET /v1/deliveries?stage=active`     → In Progress  (live gateway)
 ///   - `GET /v1/requests?role=client`        → Pending Requests + Replies
 ///   - `GET /v1/requests?role=client`        → Replies (+6 stack)
 ///
 /// BLOCKER-1 fix (2026-06-13): corrected path from the non-existent
-/// `/v1/delivery/active` to the real gateway contract
-/// `GET /deliveries?stage=active&limit=50` (ShipmentsListDto).
-/// Response items are keyed on `currentStage`, not `status`.
+/// `/v1/delivery/active` to the gateway list contract.
+///
+/// LIVE-ROUTE fix (iter6, 2026-06-22): the path was still the mock-era
+/// `/deliveries` (no `/v1`), which the LIVE gateway answers with the empty
+/// legacy `ShipmentsListDto` `{"shipments":[],"count":0}` — so the "In Progress"
+/// tab never populated. Repointed to the live
+/// `JeebOrdersListController.ListDeliveries` route `GET /v1/deliveries?stage=active`
+/// → `{ items: [ OrderListItem ], page, pageSize, totalCount, totalPages }`
+/// (verified live on :10090 against an accepted delivery). Items are keyed on
+/// `status` (the parser still tolerates the legacy `currentStage`).
 ///
 /// BLOCKER-2 note: the real gateway `GET /requests` filters by `role`, not
 /// `status`. Until the gateway exposes a `status` filter the client-side
@@ -28,8 +35,10 @@ class DioClientHomeRepository implements ClientHomeRepository {
 
   final Dio _dio;
 
-  // D5 contract: GET /deliveries?stage=<stage>&limit=<n>
-  static const _activeDeliveriesPath = '/deliveries';
+  // Live gateway list contract: GET /v1/deliveries?stage=<stage>&limit=<n>
+  // (the bare `/deliveries` path is the mock-era route the LIVE gateway answers
+  // with an empty `{"shipments":[],"count":0}` — see the class doc).
+  static const _activeDeliveriesPath = '/v1/deliveries';
   static const _requestsPath = '/v1/requests';
 
   @override
