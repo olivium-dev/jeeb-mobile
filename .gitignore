@@ -84,3 +84,6 @@ docs/figma-cache/
 /maestro_android/
 /org/
 /samples/
+
+# Firebase build input (secret) — never commit
+android/app/google-services.json
