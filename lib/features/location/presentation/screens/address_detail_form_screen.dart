@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/network/auth_token_store.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/address_form_cubit.dart';
 import '../../application/address_form_state.dart';
@@ -38,14 +39,9 @@ class AddressDetailFormScreen extends StatelessWidget {
     super.key,
     this.addressId,
     this.existing,
-    this.userId = _defaultUserId,
+    this.userId,
     this.repository,
   });
-
-  /// Mock convention: the `authStub` resolves any bearer token to
-  /// `user-client-001`, and the W1 journey seeds target that id
-  /// (42_GUARDRAILS_MOCK §4). Mirrors `client_location_screen.dart`.
-  static const String _defaultUserId = 'user-client-001';
 
   /// Optional saved-address id passed as `?id=` for the edit path; absent for
   /// the add path. When present the cubit issues a PUT.
@@ -57,23 +53,57 @@ class AddressDetailFormScreen extends StatelessWidget {
   /// 50_ROUTE_REQUESTS edge note for the router-side `extra` forwarding.
   final SavedLocation? existing;
 
-  /// Owning user id (default = mock convention). Injectable for tests.
-  final String userId;
+  /// Owning user id. When null (the live router mount), it is resolved from
+  /// the authenticated session ([AuthTokenStore]) at build time — no mock
+  /// fallback. Injectable for tests / dev seams. The save is `me`-scoped
+  /// (identity from the bearer token), so this id never appears in the path.
+  final String? userId;
 
   /// Constructor test seam (40_GUARDRAILS_ARCH §5/§6). Never the DI default.
   final AddressFormRepository? repository;
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<AddressFormCubit>(
-      create: (_) => AddressFormCubit(
-        repository: repository ?? _resolveRepository(),
-        userId: userId,
-        editId: addressId ?? existing?.id,
-      ),
-      child: _AddressFormView(existing: existing),
+    final editId = addressId ?? existing?.id;
+    // DEFECT A: never default to the mock `user-client-001`. Use the injected
+    // id when a test/dev seam provides one, else resolve the authenticated id
+    // from [AuthTokenStore]. The save is `me`-scoped (identity from the bearer
+    // token), so the id is not used in the path — but it must be the REAL user.
+    final injected = userId;
+    if (injected != null) {
+      return BlocProvider<AddressFormCubit>(
+        create: (_) => AddressFormCubit(
+          repository: repository ?? _resolveRepository(),
+          userId: injected,
+          editId: editId,
+        ),
+        child: _AddressFormView(existing: existing),
+      );
+    }
+    return FutureBuilder<String?>(
+      future: _authTokenStore().userId,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(body: Center(child: OmdsLoadingState()));
+        }
+        final resolvedId = snapshot.data ?? '';
+        return BlocProvider<AddressFormCubit>(
+          create: (_) => AddressFormCubit(
+            repository: repository ?? _resolveRepository(),
+            userId: resolvedId,
+            editId: editId,
+          ),
+          child: _AddressFormView(existing: existing),
+        );
+      },
     );
   }
+
+  /// Resolves [AuthTokenStore] from DI when registered (so tests can mock it),
+  /// else news one — the same pattern the logout sheet uses. NEVER a mock id.
+  AuthTokenStore _authTokenStore() => sl.isRegistered<AuthTokenStore>()
+      ? sl<AuthTokenStore>()
+      : AuthTokenStore();
 
   AddressFormRepository _resolveRepository() {
     // Prefer the real Dio impl over the registered Dio (real :4010 gateway);

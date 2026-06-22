@@ -67,6 +67,9 @@ void main() {
       (tester) async {
     await tester.pumpWidget(
       _harness(const ClientLocationScreen(
+        // DEFECT A: inject the user id so the screen uses the test seam instead
+        // of resolving from AuthTokenStore (secure storage, unavailable here).
+        userId: 'user-client-001',
         repository: FakeLocationSelectRepository(),
       )),
     );
@@ -99,6 +102,7 @@ void main() {
     var addedNew = false;
     await tester.pumpWidget(
       _harness(ClientLocationScreen(
+        userId: 'user-client-001',
         repository: const FakeLocationSelectRepository(),
         onConfirm: () => confirmed = true,
         onOpenSavedAddresses: () => openedSaved = true,
@@ -127,6 +131,7 @@ void main() {
       (tester) async {
     await tester.pumpWidget(
       _harness(const ClientLocationScreen(
+        userId: 'user-client-001',
         repository: FakeLocationSelectRepository(
           failWith: LocationSelectFailure.network,
         ),

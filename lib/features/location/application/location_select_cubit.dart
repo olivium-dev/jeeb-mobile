@@ -4,7 +4,9 @@ import '../domain/location_select_repository.dart';
 import 'location_select_state.dart';
 
 /// Drives the `location-select` step (JM-024). Loads the user's saved addresses
-/// (`GET /users/:userId/saved-locations`) so a returning customer can pick one,
+/// (`GET /api/users/me/saved-locations`, the canonical `me`-scoped path
+/// shared with the JM-049 manager + JM-050 form; iter6 DEFECT-B) so a
+/// returning customer can pick one,
 /// and tracks the current selection (current GPS / a saved address / a freshly
 /// pinned point) that the Confirm CTA forwards to order-chat.
 ///
