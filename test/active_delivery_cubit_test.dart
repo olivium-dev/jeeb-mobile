@@ -30,6 +30,8 @@ class _FakeRepo implements ActiveDeliveryRepository {
     this.transitionThrows,
     this.uploadResult,
     this.uploadThrows,
+    this.verifyOtpResult,
+    this.verifyOtpThrows,
   });
 
   final JeeberDelivery? fetchResult;
@@ -38,9 +40,14 @@ class _FakeRepo implements ActiveDeliveryRepository {
   final ActiveDeliveryException? transitionThrows;
   final String? uploadResult;
   final ActiveDeliveryException? uploadThrows;
+  final JeeberDeliveryStatus? verifyOtpResult;
+  final ActiveDeliveryException? verifyOtpThrows;
 
   /// Records the last evidenceUrl handed to [transition] (JM-051 chain check).
   String? lastEvidenceUrl;
+
+  /// Records the last code handed to [verifyDoorOtp] (iter6 close-tail check).
+  String? lastOtpCode;
 
   @override
   Future<JeeberDelivery> fetchDelivery(String deliveryId) async {
@@ -58,6 +65,16 @@ class _FakeRepo implements ActiveDeliveryRepository {
     lastEvidenceUrl = evidenceUrl;
     if (transitionThrows != null) throw transitionThrows!;
     return transitionResult ?? to;
+  }
+
+  @override
+  Future<JeeberDeliveryStatus> verifyDoorOtp({
+    required String deliveryId,
+    required String code,
+  }) async {
+    lastOtpCode = code;
+    if (verifyOtpThrows != null) throw verifyOtpThrows!;
+    return verifyOtpResult ?? JeeberDeliveryStatus.done;
   }
 
   @override
@@ -318,6 +335,117 @@ void main() {
           'delivered cleared',
         ),
       ],
+    );
+  });
+
+  group('ActiveDeliveryCubit — door OTP (iter6 close-tail)', () {
+    blocTest<ActiveDeliveryCubit, ActiveDeliveryState>(
+      'markDelivered on 422 otp_required surfaces the OTP entry '
+      '(NOT "transition not allowed")',
+      build: () => ActiveDeliveryCubit(
+        repository: _FakeRepo(
+          transitionThrows: const ActiveDeliveryException(
+            ActiveDeliveryFailure.otpRequired,
+          ),
+        ),
+        deliveryId: 'DLV-770001',
+      ),
+      seed: () => ActiveDeliveryState(
+        mode: ActiveDeliveryMode.ready,
+        delivery: _delivery(JeeberDeliveryStatus.atDoor),
+      ),
+      act: (c) => c.markDelivered(),
+      expect: () => [
+        predicate<ActiveDeliveryState>(
+          (s) => s.isTransitioning,
+          'transitioning (optimistic)',
+        ),
+        predicate<ActiveDeliveryState>(
+          (s) =>
+              s.otpRequired &&
+              s.transitionError == null &&
+              s.delivery?.status == JeeberDeliveryStatus.atDoor,
+          'otpRequired surfaced, held at AtDoor, no misleading snackbar',
+        ),
+      ],
+    );
+
+    blocTest<ActiveDeliveryCubit, ActiveDeliveryState>(
+      'submitDoorOtp with a valid code completes to Done and fires the '
+      'rating signal',
+      build: () => ActiveDeliveryCubit(
+        repository: _FakeRepo(verifyOtpResult: JeeberDeliveryStatus.done),
+        deliveryId: 'DLV-770001',
+      ),
+      seed: () => ActiveDeliveryState(
+        mode: ActiveDeliveryMode.ready,
+        delivery: _delivery(JeeberDeliveryStatus.atDoor),
+        otpRequired: true,
+      ),
+      act: (c) => c.submitDoorOtp('1234'),
+      expect: () => [
+        predicate<ActiveDeliveryState>(
+          (s) => s.isVerifyingOtp,
+          'verifying',
+        ),
+        predicate<ActiveDeliveryState>(
+          (s) =>
+              !s.isVerifyingOtp &&
+              s.delivered &&
+              !s.otpRequired &&
+              s.delivery?.status == JeeberDeliveryStatus.done,
+          'Done + delivered:true (rating chain)',
+        ),
+      ],
+    );
+
+    blocTest<ActiveDeliveryCubit, ActiveDeliveryState>(
+      'submitDoorOtp with a wrong code keeps the entry open with an inline error',
+      build: () => ActiveDeliveryCubit(
+        repository: _FakeRepo(
+          verifyOtpThrows: const ActiveDeliveryException(
+            ActiveDeliveryFailure.invalidOtp,
+          ),
+        ),
+        deliveryId: 'DLV-770001',
+      ),
+      seed: () => ActiveDeliveryState(
+        mode: ActiveDeliveryMode.ready,
+        delivery: _delivery(JeeberDeliveryStatus.atDoor),
+        otpRequired: true,
+      ),
+      act: (c) => c.submitDoorOtp('0000'),
+      expect: () => [
+        predicate<ActiveDeliveryState>(
+          (s) => s.isVerifyingOtp,
+          'verifying',
+        ),
+        predicate<ActiveDeliveryState>(
+          (s) =>
+              !s.isVerifyingOtp &&
+              !s.delivered &&
+              s.otpRequired &&
+              s.otpError != null,
+          'still otpRequired with an inline error, not delivered',
+        ),
+      ],
+    );
+
+    blocTest<ActiveDeliveryCubit, ActiveDeliveryState>(
+      'submitDoorOtp forwards the entered code to the repository',
+      build: () => ActiveDeliveryCubit(
+        repository: _FakeRepo(verifyOtpResult: JeeberDeliveryStatus.done),
+        deliveryId: 'DLV-770001',
+      ),
+      seed: () => ActiveDeliveryState(
+        mode: ActiveDeliveryMode.ready,
+        delivery: _delivery(JeeberDeliveryStatus.atDoor),
+        otpRequired: true,
+      ),
+      act: (c) => c.submitDoorOtp('1234'),
+      verify: (c) {
+        expect((c.state.delivery)?.status, JeeberDeliveryStatus.done);
+      },
     );
   });
 }

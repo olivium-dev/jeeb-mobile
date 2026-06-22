@@ -14,6 +14,12 @@ import '../../domain/jeeber_delivery.dart';
 ///   - `mark_delivered_cta` — "Mark as delivered"; drives `AtDoor → Done` and
 ///     the chain to `feedback-rate-delivery` (NOT OTP, D56).
 ///
+/// iter6 close-tail: a phone-bearing delivery answers `AtDoor → Done` with
+/// **422 `otp_required`**. When [otpRequired] the panel swaps its "Complete
+/// Delivery" CTA for a door-OTP entry (`mark_delivered_otp_input`) +
+/// `mark_delivered_otp_submit` — the recipient gives the jeeber the code, the
+/// jeeber enters it, and the delivery completes to Done via the verify path.
+///
 /// Dumb widget: data in via constructor, events out via callbacks
 /// (40_GUARDRAILS_ARCH §1 — no `sl`/`context.go` here).
 class MarkDeliveredPanel extends StatelessWidget {
@@ -26,6 +32,10 @@ class MarkDeliveredPanel extends StatelessWidget {
     required this.onNoteChanged,
     required this.onMarkDelivered,
     required this.l10n,
+    this.otpRequired = false,
+    this.isVerifyingOtp = false,
+    this.otpError,
+    this.onSubmitOtp,
   });
 
   final JeeberDelivery delivery;
@@ -35,6 +45,18 @@ class MarkDeliveredPanel extends StatelessWidget {
   final ValueChanged<String> onNoteChanged;
   final VoidCallback onMarkDelivered;
   final AppLocalizations l10n;
+
+  /// iter6 close-tail: the recipient OTP is required to complete `AtDoor → Done`.
+  final bool otpRequired;
+
+  /// True while a submitted door OTP is verifying.
+  final bool isVerifyingOtp;
+
+  /// Inline error under the door-OTP field (wrong code / locked / network).
+  final String? otpError;
+
+  /// Submits the typed recipient OTP. Non-null whenever [otpRequired] is wired.
+  final ValueChanged<String>? onSubmitOtp;
 
   @override
   Widget build(BuildContext context) {
@@ -58,10 +80,108 @@ class MarkDeliveredPanel extends StatelessWidget {
         const SizedBox(height: Spacing.medium),
         _CashNote(delivery: delivery, l10n: l10n),
         const SizedBox(height: Spacing.large),
-        _MarkDeliveredCta(
-          isMarking: isMarking,
-          onTap: onMarkDelivered,
-          l10n: l10n,
+        // iter6 close-tail: when the gateway demands the recipient OTP, swap the
+        // "Complete Delivery" CTA for the door-OTP entry that finishes the job.
+        if (otpRequired)
+          _DoorOtpEntry(
+            isVerifying: isVerifyingOtp,
+            errorText: otpError,
+            onSubmit: onSubmitOtp,
+            l10n: l10n,
+          )
+        else
+          _MarkDeliveredCta(
+            isMarking: isMarking,
+            onTap: onMarkDelivered,
+            l10n: l10n,
+          ),
+      ],
+    );
+  }
+}
+
+/// iter6 close-tail: the door-OTP entry surfaced when `AtDoor → Done` returns
+/// `otp_required`. The recipient gives the jeeber the 4-digit code; the jeeber
+/// types it and submits to complete the delivery to Done. Mirrors the proven
+/// `otp_handover_input` shape (per-cell editable ids) so a UI driver can fill
+/// each cell.
+class _DoorOtpEntry extends StatefulWidget {
+  const _DoorOtpEntry({
+    required this.isVerifying,
+    required this.errorText,
+    required this.onSubmit,
+    required this.l10n,
+  });
+
+  final bool isVerifying;
+  final String? errorText;
+  final ValueChanged<String>? onSubmit;
+  final AppLocalizations l10n;
+
+  @override
+  State<_DoorOtpEntry> createState() => _DoorOtpEntryState();
+}
+
+class _DoorOtpEntryState extends State<_DoorOtpEntry> {
+  String _code = '';
+
+  void _submit() {
+    final onSubmit = widget.onSubmit;
+    if (onSubmit == null || widget.isVerifying) return;
+    onSubmit(_code);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasError = widget.errorText != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          widget.l10n.activeDeliveryOtpTitle,
+          style: theme.textTheme.titleMedium,
+        ),
+        const SizedBox(height: Spacing.xSmall),
+        Text(
+          widget.l10n.activeDeliveryOtpInstruction,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: Spacing.medium),
+        Semantics(
+          identifier: 'mark_delivered_otp_input',
+          container: true,
+          child: OmdsOtpInput(
+            key: const Key('markDelivered.otpInput'),
+            length: 4,
+            identifier: 'mark_delivered_otp_input',
+            hasError: hasError,
+            onChanged: (v) => setState(() => _code = v),
+            onCompleted: (_) => _submit(),
+          ),
+        ),
+        if (hasError) ...[
+          const SizedBox(height: Spacing.small),
+          Text(
+            widget.errorText!,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          ),
+        ],
+        const SizedBox(height: Spacing.large),
+        Semantics(
+          identifier: 'mark_delivered_otp_submit',
+          container: true,
+          child: OmdsLoadingButton(
+            key: const Key('markDelivered.otpSubmit'),
+            text: widget.l10n.activeDeliveryOtpSubmit,
+            isLoading: widget.isVerifying,
+            isEnabled: _code.length == 4 && !widget.isVerifying,
+            onTap: _submit,
+          ),
         ),
       ],
     );
