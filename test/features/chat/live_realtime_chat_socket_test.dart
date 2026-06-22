@@ -1,46 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
-import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/chat/data/live_realtime_chat_socket.dart';
 import 'package:stream_channel/stream_channel.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-/// A [Dio] whose `/api/auth/token` POST returns a canned token without a real
-/// network call, so the socket's token-mint step is deterministic in tests.
-Dio _stubTokenDio({String token = 'tok-123'}) {
-  final dio = Dio(BaseOptions(baseUrl: 'http://realtime.test'));
-  dio.httpClientAdapter = _FakeAdapter(token);
-  return dio;
-}
-
-class _FakeAdapter implements HttpClientAdapter {
-  _FakeAdapter(this.token);
-  final String token;
-  @override
-  void close({bool force = false}) {}
-  @override
-  Future<ResponseBody> fetch(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-    Future<void>? cancelFuture,
-  ) async {
-    return ResponseBody.fromString(
-      jsonEncode({'token': token, 'user_id': 'u', 'topics': const ['jeeb:chat']}),
-      200,
-      headers: {
-        Headers.contentTypeHeader: [Headers.jsonContentType],
-      },
-    );
-  }
-}
-
+/// CHAT-CONTRACT (iter6): the realtime socket joins the PER-CONVERSATION topic
+/// (`jeeb_conversation:<conversation_id>`) with the GATEWAY-MINTED ticket — no
+/// self-minted token, no global topic, no `user:{id}` client filter.
 void main() {
-  group('LiveRealtimeChatSocket', () {
-    // serverToClient: frames the fake server pushes down to the socket.
-    // clientToServer: frames the socket sends up (captured into sentByClient).
+  group('LiveRealtimeChatSocket (per-conversation topic + gateway ticket)', () {
     late StreamController<dynamic> serverToClient;
     late StreamController<dynamic> clientToServer;
     late List<String> sentByClient;
@@ -50,57 +20,87 @@ void main() {
       await clientToServer.close();
     });
 
-    LiveRealtimeChatSocket build(String userId) {
+    LiveRealtimeChatSocket build({
+      String conversationId = 'conv-1',
+      String userId = 'user-A',
+      String ticket = 'ticket-jwt',
+    }) {
       serverToClient = StreamController<dynamic>.broadcast();
       clientToServer = StreamController<dynamic>.broadcast();
       sentByClient = <String>[];
       clientToServer.stream.listen((dynamic m) => sentByClient.add(m as String));
       return LiveRealtimeChatSocket(
+        conversationId: conversationId,
         currentUserId: userId,
-        wsUri: Uri.parse('ws://realtime.test:5804/socket/websocket'),
-        tokenDio: _stubTokenDio(),
+        topic: 'jeeb_conversation:$conversationId',
+        ticket: ticket,
+        wsUri: Uri.parse('ws://realtime.test/socket/websocket'),
         channelFactory: (_) =>
             _ReadyChannel(serverToClient.stream, clientToServer.sink),
       );
     }
 
-    test('connect mints token, appends token+vsn, and issues a v2 phx_join '
-        'on the jeeb:chat topic', () async {
-      final socket = build('user-A');
+    test('connect appends the ticket + vsn to the WS uri', () async {
+      Uri? connectedUri;
+      serverToClient = StreamController<dynamic>.broadcast();
+      clientToServer = StreamController<dynamic>.broadcast();
+      sentByClient = <String>[];
+      clientToServer.stream.listen((dynamic m) => sentByClient.add(m as String));
+      final socket = LiveRealtimeChatSocket(
+        conversationId: 'conv-9',
+        currentUserId: 'user-A',
+        topic: 'jeeb_conversation:conv-9',
+        ticket: 'tkt-9',
+        wsUri: Uri.parse('ws://realtime.test/socket/websocket'),
+        channelFactory: (uri) {
+          connectedUri = uri;
+          return _ReadyChannel(serverToClient.stream, clientToServer.sink);
+        },
+      );
       await socket.connect();
-      // The join is issued via the legacy send() envelope DioChatGateway uses.
-      socket.send(<String, Object?>{'event': 'phx_join'});
-      await Future<void>.delayed(Duration.zero);
-
-      expect(sentByClient, isNotEmpty);
-      final join = jsonDecode(sentByClient.first) as List<dynamic>;
-      // [joinRef, ref, topic, event, payload]
-      expect(join[2], 'topic:jeeb:chat');
-      expect(join[3], 'phx_join');
+      expect(connectedUri!.queryParameters['ticket'], 'tkt-9');
+      expect(connectedUri!.queryParameters['vsn'], '2.0.0');
       await socket.close();
     });
 
-    test('inbound event addressed to MY stream is normalized to new_msg', () async {
-      final socket = build('user-A');
+    test('issues a v2 phx_join on the PER-CONVERSATION topic carrying the '
+        'gateway ticket in the join params', () async {
+      final socket = build(conversationId: 'conv-1', ticket: 'tkt-1');
+      await socket.connect();
+      // The join is triggered via the legacy send() envelope DioChatGateway uses.
+      socket.send(<String, Object?>{'event': 'phx_join'});
+      await Future<void>.delayed(Duration.zero);
+
+      // First non-heartbeat client frame is the join.
+      final joinRaw = sentByClient.firstWhere((f) => f.contains('phx_join'));
+      final join = jsonDecode(joinRaw) as List<dynamic>;
+      // [joinRef, ref, topic, event, payload]
+      expect(join[2], 'jeeb_conversation:conv-1');
+      expect(join[3], 'phx_join');
+      expect((join[4] as Map)['ticket'], 'tkt-1');
+      await socket.close();
+    });
+
+    test('inbound event on the per-conversation topic is normalized to new_msg '
+        '(no client-side stream filter)', () async {
+      final socket = build(conversationId: 'conv-1');
       final received = <Map<String, Object?>>[];
       socket.events.listen(received.add);
       await socket.connect();
 
-      // Server pushes a fan-out event on user-A's stream.
+      // The server already targeted this subscriber — there is NO `stream`
+      // field and NO client filtering. Canonical chat-service envelope.
       serverToClient.add(jsonEncode([
         null,
         null,
-        'topic:jeeb:chat',
-        'event',
+        'jeeb_conversation:conv-1',
+        'message_created',
         {
-          'stream': 'user:user-A',
-          'data': {
-            'messageId': 'm-1',
-            'senderId': 'other-party',
-            'type': 'text',
-            'body': 'hello-live',
-            'sentAt': '2026-06-21T10:00:00Z',
-          },
+          'message_id': 'm-1',
+          'author_id': 'other-party',
+          'kind': 'text',
+          'body': 'hello-live',
+          'created_at': '2026-06-21T10:00:00Z',
         },
       ]));
       await Future<void>.delayed(const Duration(milliseconds: 10));
@@ -115,9 +115,9 @@ void main() {
       await socket.close();
     });
 
-    test('inbound event addressed to ANOTHER user\'s stream is filtered out',
-        () async {
-      final socket = build('user-A');
+    test('inbound event nested under `data` (gateway fan-out shape) also '
+        'normalizes', () async {
+      final socket = build(conversationId: 'conv-1');
       final received = <Map<String, Object?>>[];
       socket.events.listen(received.add);
       await socket.connect();
@@ -125,17 +125,39 @@ void main() {
       serverToClient.add(jsonEncode([
         null,
         null,
-        'topic:jeeb:chat',
+        'jeeb_conversation:conv-1',
         'event',
         {
-          'stream': 'user:user-B', // not us
           'data': {
             'messageId': 'm-2',
-            'senderId': 'x',
+            'senderId': 'other',
             'type': 'text',
-            'body': 'not-for-me',
+            'body': 'nested',
+            'sentAt': '2026-06-21T11:00:00Z',
           },
         },
+      ]));
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      expect(received, hasLength(1));
+      final payload = received.first['payload']! as Map<String, Object?>;
+      expect(payload['id'], 'm-2');
+      expect((payload['body']! as Map)['text'], 'nested');
+      await socket.close();
+    });
+
+    test('frames on a DIFFERENT topic are ignored', () async {
+      final socket = build(conversationId: 'conv-1');
+      final received = <Map<String, Object?>>[];
+      socket.events.listen(received.add);
+      await socket.connect();
+
+      serverToClient.add(jsonEncode([
+        null,
+        null,
+        'jeeb_conversation:OTHER-conv',
+        'message_created',
+        {'message_id': 'm-x', 'author_id': 'z', 'kind': 'text', 'body': 'nope'},
       ]));
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
@@ -144,15 +166,15 @@ void main() {
     });
 
     test('phx_reply / presence frames are ignored', () async {
-      final socket = build('user-A');
+      final socket = build(conversationId: 'conv-1');
       final received = <Map<String, Object?>>[];
       socket.events.listen(received.add);
       await socket.connect();
 
       serverToClient.add(jsonEncode(
-          ['1', '1', 'topic:jeeb:chat', 'phx_reply', {'status': 'ok'}]));
+          ['1', '1', 'jeeb_conversation:conv-1', 'phx_reply', {'status': 'ok'}]));
       serverToClient.add(jsonEncode(
-          [null, null, 'topic:jeeb:chat', 'presence_state', {}]));
+          [null, null, 'jeeb_conversation:conv-1', 'presence_state', {}]));
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
       expect(received, isEmpty);
@@ -161,11 +183,7 @@ void main() {
   });
 }
 
-/// Minimal [WebSocketChannel] fake whose `ready` resolves immediately (the real
-/// channel awaits the handshake). Reads from [_stream] (server→client), writes
-/// to [_sink] (client→server). [StreamChannelMixin] supplies the
-/// transform/change boilerplate; it is re-exported by `web_socket_channel`, so
-/// this needs no direct `stream_channel` dependency.
+/// Minimal [WebSocketChannel] fake whose `ready` resolves immediately.
 class _ReadyChannel extends StreamChannelMixin<dynamic>
     implements WebSocketChannel {
   _ReadyChannel(this._stream, this._sink);

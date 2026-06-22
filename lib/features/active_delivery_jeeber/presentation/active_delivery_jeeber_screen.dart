@@ -188,6 +188,10 @@ class _Body extends StatelessWidget {
               context.read<ActiveDeliveryCubit>().setNote(v),
           onMarkDelivered: () =>
               context.read<ActiveDeliveryCubit>().markDelivered(),
+          // iter6 close-tail: submit the recipient door OTP to complete the
+          // phone-bearing delivery `AtDoor → Done` (then the rating chain fires).
+          onSubmitOtp: (code) =>
+              context.read<ActiveDeliveryCubit>().submitDoorOtp(code),
           onOpenChat: onOpenChat,
           onOpenMaps: () => _launchMaps(delivery),
           l10n: l10n,
@@ -216,6 +220,7 @@ class _ReadyContent extends StatelessWidget {
     required this.onCaptureProof,
     required this.onNoteChanged,
     required this.onMarkDelivered,
+    required this.onSubmitOtp,
     required this.onOpenChat,
     required this.onOpenMaps,
     required this.l10n,
@@ -227,6 +232,7 @@ class _ReadyContent extends StatelessWidget {
   final VoidCallback onCaptureProof;
   final ValueChanged<String> onNoteChanged;
   final VoidCallback onMarkDelivered;
+  final ValueChanged<String> onSubmitOtp;
   final VoidCallback onOpenChat;
   final VoidCallback onOpenMaps;
   final AppLocalizations l10n;
@@ -262,6 +268,12 @@ class _ReadyContent extends StatelessWidget {
             onCaptureProof: onCaptureProof,
             onNoteChanged: onNoteChanged,
             onMarkDelivered: onMarkDelivered,
+            // iter6 close-tail: surface the door-OTP entry when the gateway
+            // demands the recipient code to complete `AtDoor → Done`.
+            otpRequired: state.otpRequired,
+            isVerifyingOtp: state.isVerifyingOtp,
+            otpError: state.otpError,
+            onSubmitOtp: onSubmitOtp,
             l10n: l10n,
           ),
           const SizedBox(height: Spacing.large),

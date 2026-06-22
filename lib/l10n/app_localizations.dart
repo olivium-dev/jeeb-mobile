@@ -83,6 +83,7 @@ class AppLocalizations {
   String get homeRepliesCheckOffersCta => _get('homeRepliesCheckOffersCta');
   String get homeSearchHint => _get('homeSearchHint');
   String get homeTrackOrderCta => _get('homeTrackOrderCta');
+  String get homeOpenChatCta => _get('homeOpenChatCta');
   String get homeStageOrdered => _get('homeStageOrdered');
   String get homeStagePicked => _get('homeStagePicked');
   String get homeStageInTransit => _get('homeStageInTransit');
@@ -1791,10 +1792,18 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('activeDeliveryStatusInTransit');
   String get activeDeliveryStatusAtDoor => _get('activeDeliveryStatusAtDoor');
   String get activeDeliveryStatusDone => _get('activeDeliveryStatusDone');
+  String get jeeberActiveDeliveriesTitle => _get('jeeberActiveDeliveriesTitle');
+  String get jeeberActiveDeliveriesFallbackTitle => _get('jeeberActiveDeliveriesFallbackTitle');
+  String get jeeberActiveDeliveriesOpenChat => _get('jeeberActiveDeliveriesOpenChat');
+  String get jeeberActiveDeliveriesManage => _get('jeeberActiveDeliveriesManage');
   String get activeDeliveryMarkPicked => _get('activeDeliveryMarkPicked');
   String get activeDeliveryMarkInTransit => _get('activeDeliveryMarkInTransit');
   String get activeDeliveryMarkAtDoor => _get('activeDeliveryMarkAtDoor');
   String get activeDeliveryMarkDone => _get('activeDeliveryMarkDone');
+  String get activeDeliveryOtpTitle => _get('activeDeliveryOtpTitle');
+  String get activeDeliveryOtpInstruction =>
+      _get('activeDeliveryOtpInstruction');
+  String get activeDeliveryOtpSubmit => _get('activeDeliveryOtpSubmit');
   String get activeDeliveryOpenMapsButton => _get('activeDeliveryOpenMapsButton');
   String get activeDeliveryOpenChatButton => _get('activeDeliveryOpenChatButton');
   String get activeDeliveryUnavailable => _get('activeDeliveryUnavailable');

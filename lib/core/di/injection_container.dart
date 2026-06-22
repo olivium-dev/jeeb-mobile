@@ -79,6 +79,8 @@ import '../../features/cancellation/domain/cancellation_repository.dart';
 import '../../features/location/data/dio_saved_location_repository.dart';
 import '../../features/location/domain/saved_location_repository.dart';
 import '../../features/active_delivery_jeeber/data/dio_active_delivery_repository.dart';
+import '../../features/jeeber_active_deliveries/data/dio_active_deliveries_repository.dart';
+import '../../features/jeeber_active_deliveries/domain/active_deliveries_repository.dart';
 import '../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
 import '../../features/offers/data/dio_offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_repository.dart';
@@ -370,6 +372,14 @@ void configureDependencies({
   // POST /v1/deliveries/{id}/transition.
   sl.registerLazySingleton<ActiveDeliveryRepository>(
     () => DioActiveDeliveryRepository(sl<Dio>()),
+  );
+
+  // iter6 real-flow blocker fix: the jeeber's ACCEPTED/active deliveries list —
+  // GET /v1/deliveries?role=jeeber (gateway JeebOrdersListController). Powers
+  // the dashboard active-deliveries banner so a jeeber whose offer was accepted
+  // can reach the order's chat + drive the delivery.
+  sl.registerLazySingleton<ActiveDeliveriesRepository>(
+    () => DioActiveDeliveriesRepository(sl<Dio>()),
   );
 
   // T-MOB-032: Settlement statements — GET /v1/wallet/jeeb/earnings/statements.

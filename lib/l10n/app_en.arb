@@ -51,6 +51,7 @@
   "homeRepliesCheckOffersCta": "Check Offers",
   "homeSearchHint": "Search...",
   "homeTrackOrderCta": "Track my order",
+  "homeOpenChatCta": "Open chat",
   "homeStageOrdered": "Ordered",
   "homeStagePicked": "Picked",
   "homeStageInTransit": "In Transit",
@@ -3530,6 +3531,18 @@
   "@activeDeliveryMarkDone": {
     "description": "T-MOB-031: CTA button to advance status to done."
   },
+  "activeDeliveryOtpTitle": "Enter delivery code",
+  "@activeDeliveryOtpTitle": {
+    "description": "iter6 close-tail: title above the door-OTP entry shown when the gateway requires the recipient code to complete the delivery."
+  },
+  "activeDeliveryOtpInstruction": "Ask the recipient for their 4-digit delivery code and enter it to complete the delivery.",
+  "@activeDeliveryOtpInstruction": {
+    "description": "iter6 close-tail: instruction under the door-OTP title — the jeeber enters the recipient's code."
+  },
+  "activeDeliveryOtpSubmit": "Complete Delivery",
+  "@activeDeliveryOtpSubmit": {
+    "description": "iter6 close-tail: submit button for the door-OTP entry that completes AtDoor to Done."
+  },
   "activeDeliveryOpenMapsButton": "Open in Maps",
   "@activeDeliveryOpenMapsButton": {
     "description": "T-MOB-031 AC4: Button that deep-links to Google Maps."
@@ -3987,5 +4000,13 @@
   "passwordSecurityBody": "Change your password or set one if you signed up with a social account.",
   "@passwordSecurityBody": { "description": "JM-061 stub body — the JM-061 engineer fills current/new/confirm fields + validation (D90)." },
   "passwordSetEntryCta": "Set a password",
-  "@passwordSetEntryCta": { "description": "JM-061 social-only entry (password_set_entry) → auth-set-password?mode=in-app-social (D90)." }
+  "@passwordSetEntryCta": { "description": "JM-061 social-only entry (password_set_entry) → auth-set-password?mode=in-app-social (D90)." },
+  "jeeberActiveDeliveriesTitle": "Your active deliveries",
+  "@jeeberActiveDeliveriesTitle": {"description": "iter6: section title above the jeeber dashboard active-deliveries list (accepted orders the jeeber is driving)."},
+  "jeeberActiveDeliveriesFallbackTitle": "Delivery",
+  "@jeeberActiveDeliveriesFallbackTitle": {"description": "iter6: fallback row title for an active delivery with no request title."},
+  "jeeberActiveDeliveriesOpenChat": "Open chat",
+  "@jeeberActiveDeliveriesOpenChat": {"description": "iter6: primary CTA on an active-delivery row — opens the order chat."},
+  "jeeberActiveDeliveriesManage": "Manage delivery",
+  "@jeeberActiveDeliveriesManage": {"description": "iter6: secondary CTA on an active-delivery row — opens the active-delivery (Ordered→…→AtDoor) screen."}
 }

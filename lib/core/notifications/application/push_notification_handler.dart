@@ -64,20 +64,26 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     required PushTransport transport,
     required BadgeCountCubit badgeCount,
     int historyLimit = 20,
+    Future<void> Function(String token)? onToken,
   })  : _transport = transport,
         _badgeCount = badgeCount,
         _historyLimit = historyLimit,
+        _onToken = onToken,
         super(const PushNotificationState()) {
     _foregroundSub = transport.onForegroundMessage.listen(_onForeground);
     _openedSub = transport.onMessageOpenedApp.listen(_opensCtl.add);
-    _tokenSub = transport.onTokenRefresh.listen(
-      (token) => emit(state.copyWith(token: token)),
-    );
+    // PUSH-FIX (iter6): on every token rotation, re-register the new token
+    // with the backend so server-side pushes keep targeting this install.
+    _tokenSub = transport.onTokenRefresh.listen((token) {
+      emit(state.copyWith(token: token));
+      _registerToken(token);
+    });
   }
 
   final PushTransport _transport;
   final BadgeCountCubit _badgeCount;
   final int _historyLimit;
+  final Future<void> Function(String token)? _onToken;
   final _opensCtl = StreamController<NotificationMessage>.broadcast();
   final _seenIds = Queue<String>();
   // Bound the dedup set so a noisy server can't grow this without limit.
@@ -98,6 +104,20 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     final permission = await _transport.requestPermission();
     final token = await _transport.getToken();
     emit(state.copyWith(permission: permission, token: token));
+    // PUSH-FIX (iter6): register the freshly-fetched token with the backend
+    // so the push-notification service has a (device -> token) row to send to.
+    if (token != null) {
+      await _registerToken(token);
+    }
+  }
+
+  /// Best-effort backend registration hop. Never throws — a failure (e.g. the
+  /// user is not authenticated yet) is swallowed by [_onToken]; the token is
+  /// re-registered on the next bootstrap / refresh.
+  Future<void> _registerToken(String token) async {
+    final reg = _onToken;
+    if (reg == null || token.isEmpty) return;
+    await reg(token);
   }
 
   /// Dismiss the foreground banner without performing the deep-link.

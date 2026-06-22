@@ -18,12 +18,19 @@ import '../widgets/active_request_card.dart';
 ///
 /// Mock endpoint: GET /v1/delivery/active  (Mockoon :3055, useMockPrefixes=false)
 class InProgressTab extends StatelessWidget {
-  const InProgressTab({super.key, this.onTrack});
+  const InProgressTab({super.key, this.onTrack, this.onOpenChat});
 
   /// Called when the Track CTA is tapped. If null the tab navigates to the
   /// tracking route directly via GoRouter; pass a callback in tests to avoid
   /// the router dependency.
   final void Function(ClientHomeRequest request)? onTrack;
+
+  /// iter6 close-tail: called when the "Open chat" CTA is tapped — opens the
+  /// order conversation for the accepted/in-progress request so the client can
+  /// re-reach the SAME chat (resolved server-side from the request id via the
+  /// create-or-get). If null the tab navigates to `chat-detail` directly via
+  /// GoRouter; pass a callback in tests to avoid the router dependency.
+  final void Function(ClientHomeRequest request)? onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +39,7 @@ class InProgressTab extends StatelessWidget {
       builder: (context, state) => _InProgressContent(
         state: state,
         onTrack: onTrack ?? (r) => _navigateToTracking(context, r),
+        onOpenChat: onOpenChat ?? (r) => _navigateToChat(context, r),
       ),
     );
   }
@@ -48,13 +56,32 @@ class InProgressTab extends StatelessWidget {
       pathParameters: {'id': request.id},
     );
   }
+
+  static void _navigateToChat(
+    BuildContext context,
+    ClientHomeRequest request,
+  ) {
+    if (request.id.isEmpty) return;
+    // `chat-detail` (/chat/:id) resolves the request id → the server-minted
+    // conversation via create-or-get (#69), landing the client back in the SAME
+    // accepted-order conversation.
+    GoRouter.of(context).pushNamed(
+      'chat-detail',
+      pathParameters: {'id': request.id},
+    );
+  }
 }
 
 class _InProgressContent extends StatelessWidget {
-  const _InProgressContent({required this.state, required this.onTrack});
+  const _InProgressContent({
+    required this.state,
+    required this.onTrack,
+    required this.onOpenChat,
+  });
 
   final ClientHomeState state;
   final void Function(ClientHomeRequest) onTrack;
+  final void Function(ClientHomeRequest) onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +98,11 @@ class _InProgressContent extends StatelessWidget {
         onCreateRequest: () => _openCreateRequest(context),
       );
     }
-    return _InProgressList(requests: state.inProgress, onTrack: onTrack);
+    return _InProgressList(
+      requests: state.inProgress,
+      onTrack: onTrack,
+      onOpenChat: onOpenChat,
+    );
   }
 
   static void _openCreateRequest(BuildContext context) {
@@ -130,10 +161,15 @@ class _InProgressEmpty extends StatelessWidget {
 }
 
 class _InProgressList extends StatelessWidget {
-  const _InProgressList({required this.requests, required this.onTrack});
+  const _InProgressList({
+    required this.requests,
+    required this.onTrack,
+    required this.onOpenChat,
+  });
 
   final List<ClientHomeRequest> requests;
   final void Function(ClientHomeRequest) onTrack;
+  final void Function(ClientHomeRequest) onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -146,6 +182,7 @@ class _InProgressList extends StatelessWidget {
             child: ActiveOrderCard(
               request: r,
               onTap: () => onTrack(r),
+              onOpenChat: () => onOpenChat(r),
             ),
           ),
       ],

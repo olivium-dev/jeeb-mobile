@@ -16,7 +16,11 @@ import '../core/locale/locale_cubit.dart';
 import '../core/notifications/application/badge_count_cubit.dart';
 import '../core/notifications/application/notification_dispatcher.dart';
 import '../core/notifications/application/push_notification_handler.dart';
+import '../core/notifications/data/firebase_messaging_transport.dart';
+import '../core/notifications/data/push_device_registrar.dart';
 import '../core/notifications/data/push_transport.dart';
+import '../core/notifications/domain/notification_message.dart';
+import '../core/network/mock_gateway_client.dart';
 import '../core/notifications/domain/notification_deep_link.dart';
 import '../core/notifications/presentation/push_banner_host.dart';
 import '../core/observability/crash_context_bridge.dart';
@@ -266,14 +270,61 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
 
   void _initPushChain() {
     if (!mounted) return;
-    final transport = widget.pushTransport ?? FakePushTransport();
+    unawaited(_initPushChainAsync());
+  }
+
+  /// PUSH-FIX (iter6): wire the REAL FCM transport in production.
+  ///
+  /// Before this, the chain always fell back to [FakePushTransport] (the real
+  /// [FirebaseMessagingTransport] was never instantiated and `initialize()`
+  /// was never called), so no FCM token, channel, or background handler ever
+  /// existed and no push could land. We now:
+  ///   1. build [FirebaseMessagingTransport] (unless a test injected one),
+  ///   2. `await initialize()` — registers the background handler, creates the
+  ///      Android channel, hooks the foreground/onMessageOpenedApp listeners,
+  ///   3. register the FCM token with jeeb-gateway via [PushDeviceRegistrar]
+  ///      (on bootstrap + on every token refresh), and
+  ///   4. route the cold-start [initialMessage] tap through the dispatcher.
+  /// Any failure here (e.g. Firebase not configured on a dev build) degrades to
+  /// the in-process [FakePushTransport] so cold start is never broken.
+  Future<void> _initPushChainAsync() async {
+    if (!mounted) return;
+    PushTransport transport;
+    Future<NotificationMessage?>? initialMessage;
+    if (widget.pushTransport != null) {
+      transport = widget.pushTransport!;
+    } else {
+      try {
+        final fcm = FirebaseMessagingTransport();
+        await fcm.initialize();
+        transport = fcm;
+        initialMessage = fcm.initialMessage();
+      } catch (error) {
+        debugPrint('[push] FCM transport init failed; using fake: $error');
+        transport = FakePushTransport();
+      }
+    }
+    if (!mounted) {
+      await transport.dispose();
+      return;
+    }
+
+    // The backend device-registrar shares the gateway Dio so the
+    // _AuthInterceptor attaches the logged-in user's bearer; the gateway reads
+    // the user_id from that JWT. Skipped for the fake transport (tests/dev).
+    final registrar = transport is FirebaseMessagingTransport
+        ? PushDeviceRegistrar(dio: MockGatewayClient.createDio())
+        : null;
+
     final handler = PushNotificationHandler(
       transport: transport,
       badgeCount: _badgeCount,
+      onToken: registrar?.register,
     );
     final dispatcher = NotificationDispatcher(
       handler: handler,
       router: _router,
+      initialMessage: initialMessage,
     );
     setState(() {
       _pushHandler = handler;

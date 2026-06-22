@@ -24,6 +24,7 @@
   "homeRepliesCheckOffersCta": "عرض العروض",
   "homeSearchHint": "بحث...",
   "homeTrackOrderCta": "تتبّع طلبي",
+  "homeOpenChatCta": "فتح المحادثة",
   "homeStageOrdered": "تم الطلب",
   "homeStagePicked": "تم الاستلام",
   "homeStageInTransit": "قيد التوصيل",
@@ -1136,6 +1137,9 @@
   "activeDeliveryMarkInTransit": "تحديد كـ: في الطريق",
   "activeDeliveryMarkAtDoor": "تحديد كـ: عند الباب",
   "activeDeliveryMarkDone": "إتمام التوصيل",
+  "activeDeliveryOtpTitle": "أدخل رمز التسليم",
+  "activeDeliveryOtpInstruction": "اطلب من المستلم رمز التسليم المكوّن من 4 أرقام وأدخله لإتمام التوصيل.",
+  "activeDeliveryOtpSubmit": "إتمام التوصيل",
   "activeDeliveryOpenMapsButton": "فتح في الخرائط",
   "activeDeliveryOpenChatButton": "فتح المحادثة",
   "activeDeliveryUnavailable": "تفاصيل التوصيل غير متاحة.",
@@ -1359,5 +1363,13 @@
 
   "passwordSecurityTitle": "كلمة المرور والأمان",
   "passwordSecurityBody": "غيّر كلمة المرور أو عيّن واحدة إذا سجّلت عبر حساب اجتماعي.",
-  "passwordSetEntryCta": "تعيين كلمة مرور"
+  "passwordSetEntryCta": "تعيين كلمة مرور",
+  "jeeberActiveDeliveriesTitle": "توصيلاتك النشطة",
+  "@jeeberActiveDeliveriesTitle": {"description": "iter6: section title above the jeeber dashboard active-deliveries list (accepted orders the jeeber is driving)."},
+  "jeeberActiveDeliveriesFallbackTitle": "توصيلة",
+  "@jeeberActiveDeliveriesFallbackTitle": {"description": "iter6: fallback row title for an active delivery with no request title."},
+  "jeeberActiveDeliveriesOpenChat": "فتح المحادثة",
+  "@jeeberActiveDeliveriesOpenChat": {"description": "iter6: primary CTA on an active-delivery row — opens the order chat."},
+  "jeeberActiveDeliveriesManage": "إدارة التوصيل",
+  "@jeeberActiveDeliveriesManage": {"description": "iter6: secondary CTA on an active-delivery row — opens the active-delivery (Ordered→…→AtDoor) screen."}
 }
