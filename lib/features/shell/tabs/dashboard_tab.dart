@@ -23,6 +23,11 @@ import '../../jeeber_request_feed/cubit/request_feed_cubit.dart';
 import '../../jeeber_request_feed/data/dev_jeeber_feed_fixtures.dart';
 import '../../jeeber_request_feed/data/request_feed_models.dart';
 import '../../jeeber_request_feed/data/request_feed_repository.dart';
+import '../../jeeber_active_deliveries/application/active_deliveries_cubit.dart';
+import '../../jeeber_active_deliveries/data/dio_active_deliveries_repository.dart';
+import '../../jeeber_active_deliveries/domain/active_deliveries_repository.dart';
+import '../../jeeber_active_deliveries/domain/active_delivery_summary.dart';
+import '../../jeeber_active_deliveries/presentation/active_deliveries_banner.dart';
 
 /// Selector for the deliveryman feed variant the dev seam should render
 /// (Figma screens 23-26). Debug capture aid only — never reached in release.
@@ -140,6 +145,20 @@ class _JeeberHomeHost extends StatelessWidget {
   /// The live profile source for the greeting. Self-provided off GetIt (no DI
   /// edit), mirroring how [CustomerProfileScreen] resolves its repo; `null` in
   /// a bare regression harness (no Dio registered) → the greeting stays generic.
+  /// Resolve the active-deliveries repo from DI, mirroring the sibling repos.
+  /// Falls back to a bare Dio-backed instance when only Dio is registered, and
+  /// (in a bare harness with no Dio) to an empty repo so the banner self-hides
+  /// rather than throwing a GetIt "not registered" on entry.
+  ActiveDeliveriesRepository _resolveActiveDeliveriesRepository() {
+    if (sl.isRegistered<ActiveDeliveriesRepository>()) {
+      return sl<ActiveDeliveriesRepository>();
+    }
+    if (sl.isRegistered<Dio>()) {
+      return DioActiveDeliveriesRepository(sl<Dio>());
+    }
+    return const _EmptyActiveDeliveriesRepository();
+  }
+
   CustomerProfileRepository? _resolveGreetingRepository() {
     if (sl.isRegistered<CustomerProfileRepository>()) {
       return sl<CustomerProfileRepository>();
@@ -161,6 +180,15 @@ class _JeeberHomeHost extends StatelessWidget {
           create: (_) =>
               RequestFeedCubit(repository: sl<RequestFeedRepository>())
                 ..start(),
+        ),
+        // iter6 real-flow blocker fix: poll the jeeber's ACCEPTED/active
+        // deliveries (`GET /v1/deliveries?role=jeeber`) so a freshly-accepted
+        // offer surfaces a real-UI entry to its chat + delivery without leaving
+        // the dashboard. Self-hides when the jeeber has none.
+        BlocProvider<ActiveDeliveriesCubit>(
+          create: (_) => ActiveDeliveriesCubit(
+            repository: _resolveActiveDeliveriesRepository(),
+          )..start(),
         ),
         // P0-X06: source the jeeber-home greeting (name + avatar) from the live
         // `GET /users/me` (role-agnostic getMe) so the header shows the real
@@ -186,6 +214,20 @@ class _JeeberHomeHost extends StatelessWidget {
             // id is preserved underneath for the screen-19 flow).
             registerCtaIdentifier: 'delivery_register_now_cta',
             requestFeedCubit: context.read<RequestFeedCubit>(),
+            // iter6 real-flow blocker fix: the accepted/active-deliveries banner
+            // is built HERE (the host owns navigation) and rendered at the top
+            // of the registered jeeber home. Tapping a row opens the order chat
+            // (`/chat/:id`, conversation already exists) — which is role-aware
+            // for a jeeber and exposes Start delivery → `/jeeber/deliveries/:id/
+            // active`. "Manage delivery" opens that active-delivery screen
+            // directly.
+            activeDeliveriesBanner: _unregistered
+                ? null
+                : ActiveDeliveriesBanner(
+                    onOpenChat: (d) => context.push('/chat/${d.chatRouteId}'),
+                    onManageDelivery: (d) =>
+                        context.push('/jeeber/deliveries/${d.id}/active'),
+                  ),
             // JM-036 AC1b / JM-039: the register-prompt CTA chains into the
             // delivery-man onboarding wizard (photo step). The wizard's own
             // `dm_onboarding_continue` / `dm_onboarding_back` ids are JM-039's.
@@ -362,4 +404,16 @@ class _DevFeedBody extends StatelessWidget {
         _DevFeedView.replies => JeeberFeedTab.replies,
         _DevFeedView.requests || _DevFeedView.empty => JeeberFeedTab.requests,
       };
+}
+
+
+/// Inert [ActiveDeliveriesRepository] for the no-DI (bare widget test) path —
+/// reports no active deliveries so the banner self-hides without a network
+/// call. Production always resolves the Dio-backed repo.
+class _EmptyActiveDeliveriesRepository implements ActiveDeliveriesRepository {
+  const _EmptyActiveDeliveriesRepository();
+
+  @override
+  Future<List<ActiveDeliverySummary>> listActive() async =>
+      const <ActiveDeliverySummary>[];
 }
