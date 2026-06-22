@@ -69,6 +69,7 @@ class ChatScreen extends StatelessWidget {
     this.onOpenDispute,
     this.isOrderChat = false,
     this.onFirstMessageBroadcast,
+    this.initialPhase = ConversationPhase.accepted,
   }) : assert(
          cubit == null || (gateway == null && pickerService == null),
          'Provide either a cubit or the (gateway, pickerService) pair, not both.',
@@ -148,6 +149,15 @@ class ChatScreen extends StatelessWidget {
   /// the accepted/active thread (no compose entry).
   final void Function(String requestId)? onFirstMessageBroadcast;
 
+  /// Conversation phase the host already resolved (create-or-get response).
+  /// Seeds the [ChatCubit]'s first-paint phase when this screen owns the cubit
+  /// lifecycle (the [gateway] branch), so a `broadcasting`/`pending`
+  /// (no-jeeber-yet) conversation never momentarily shows the accepted-only
+  /// "Offer accepted!" banner before `load()` resolves. Ignored when a
+  /// pre-built [cubit] is supplied (that cubit already owns its phase).
+  /// Defaults to `accepted` to preserve legacy 1:1 photo-chat call sites.
+  final ConversationPhase initialPhase;
+
   static const Key rootKey = Key('chat-screen-root');
   static const Key messageListKey = Key('chat-screen-message-list');
   static const Key emptyStateKey = Key('chat-screen-empty');
@@ -180,6 +190,9 @@ class ChatScreen extends StatelessWidget {
         deliveryId: deliveryId,
         gateway: gateway ?? InMemoryChatGateway(),
         pickerService: pickerService ?? StubPhotoPickerService(),
+        // Seed first-paint phase from the host so a not-yet-accepted
+        // conversation never flashes the "Offer accepted!" banner.
+        initialPhase: initialPhase,
       )..load(),
       child: _ChatScaffold(
         deliveryId: deliveryId,

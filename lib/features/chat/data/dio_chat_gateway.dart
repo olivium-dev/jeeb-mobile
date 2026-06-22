@@ -39,12 +39,24 @@ class DioChatGateway implements ChatGateway {
     required this.currentUserId,
     ChatRealtimeResolver? realtimeResolver,
     ChatSocket Function(String conversationId)? socketFactory,
+    ConversationPhase initialPhase = ConversationPhase.accepted,
   })  : _dio = dio,
+        _initialPhase = initialPhase,
         _realtimeResolver = realtimeResolver ??
             ChatRealtimeResolver(dio: dio, currentUserId: currentUserId),
         _socketFactory = socketFactory;
 
   final Dio _dio;
+
+  /// The conversation phase [ChatDetailScreen] resolved up front (from the
+  /// create-or-get response). The per-message list route carries NO phase, so
+  /// this is the gateway's only authoritative source: [loadPhase] returns it.
+  /// Defaults to `accepted` so legacy callers that never resolved a phase keep
+  /// the prior 1:1 behaviour. A `broadcasting`/`unknown` value here prevents
+  /// the premature "Offer accepted!" banner on a not-yet-accepted conversation;
+  /// the live `PhaseChanged(accepted)` event (emitted on accept + over realtime)
+  /// then flips the cubit to `accepted` reactively.
+  final ConversationPhase _initialPhase;
 
   /// Id of the local user. Used to derive [ChatAuthor.me] vs `them` when
   /// folding inbound/historical messages. author_id on a posted message is
@@ -81,11 +93,14 @@ class DioChatGateway implements ChatGateway {
   @override
   Future<ConversationPhase> loadPhase(String conversationId) async {
     // The conversation phase is resolved up front at [ChatDetailScreen] (from
-    // the create-or-get response). The per-message list route carries no phase,
-    // so the gateway-level fetch is a no-op that keeps the cubit's first paint
-    // unchanged (`accepted` preserves the existing 1:1 behaviour); the screen
-    // already threads the authoritative phase into the UI.
-    return ConversationPhase.accepted;
+    // the create-or-get response) and threaded in via [_initialPhase]. The
+    // per-message list route carries no phase, so we echo the host-resolved
+    // value here instead of a hardcoded `accepted` — otherwise a `broadcasting`
+    // (no-jeeber-yet) conversation would report `accepted` and the chat would
+    // flash the premature "Offer accepted!" banner. The live
+    // `PhaseChanged(accepted)` event (this gateway emits it on accept, and it
+    // also arrives over realtime) advances the cubit reactively from there.
+    return _initialPhase;
   }
 
   @override

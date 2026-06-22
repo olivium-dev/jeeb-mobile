@@ -186,6 +186,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final gateway = DioChatGateway(
       dio: dio,
       currentUserId: currentUserId,
+      // Thread the authoritative create-or-get phase into the gateway so its
+      // `loadPhase` echoes the REAL phase (the per-message route carries none).
+      // A `broadcasting`/`unknown` (no-jeeber-yet) conversation must NOT report
+      // `accepted`, or the chat flashes the premature "Offer accepted!" banner.
+      initialPhase: phase,
     );
     if (!mounted) return;
     _finalize(
@@ -465,6 +470,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       counterpartName: _counterpartName,
       gateway: _gateway!,
       pickerService: StubPhotoPickerService(),
+      // Seed the cubit's first-paint phase with the authoritative phase this
+      // screen already resolved (create-or-get), so a not-yet-accepted
+      // (`broadcasting`/`pending`, no jeeber) conversation shows the honest
+      // waiting state — NOT the premature "Offer accepted!" banner. The live
+      // `PhaseChanged(accepted)` event then flips it to accepted reactively.
+      initialPhase: _phase,
       // JM-025: this is the customer order-chat surface → expose the
       // `order_chat_composer_*` ids the W1 flow drives.
       isOrderChat: !isJeeber,
