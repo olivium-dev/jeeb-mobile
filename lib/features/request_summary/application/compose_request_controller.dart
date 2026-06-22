@@ -98,7 +98,20 @@ class ComposeRequestController {
     final saved = _selectedSaved(location);
     final lat = saved?.latitude ?? _fallbackLat;
     final lng = saved?.longitude ?? _fallbackLng;
-    final address = saved?.address ?? saved?.label;
+    // ADDRESS (iter6 feed-drop fix): the gateway stores pickup/dropoff `address`
+    // and the jeeber feed parser (`dio_request_feed_repository._parseLocation`)
+    // DROPS any row whose location has a null `address` — so an order created
+    // via "Current Location" / the map pin (no Saved address selected) used to
+    // get a null address and vanish from every jeeber's feed (no jeeber could
+    // ever see it). A Saved address yields its real label/address; for the
+    // current/pinned path we have no reverse-geocode plugin wired, so we carry a
+    // sensible human-readable label that embeds the coordinates. This keeps the
+    // address non-null so the feed parser retains the row, and the label still
+    // tells the jeeber where the point is (lat,lng) until reverse-geocoding
+    // lands. NOTE: replace `_currentLocationLabel` with a real reverse-geocoded
+    // street address once a maps/geocoding key is available.
+    final address =
+        saved?.address ?? saved?.label ?? _currentLocationLabel(lat, lng);
 
     return RequestDraft(
       // The order detail is composed as the first order-chat message after the
@@ -125,6 +138,15 @@ class ComposeRequestController {
       recipientPhone: _recipientPhone,
     );
   }
+
+  /// A non-null, human-readable address label for the current-location / pinned
+  /// path (no Saved address selected, no reverse-geocode plugin wired). Embeds
+  /// the coordinates so (a) the gateway stores a non-null `address` — the jeeber
+  /// feed parser keeps the row instead of dropping it — and (b) the jeeber can
+  /// still see where the point is. Coordinates are formatted to 4 dp (~11 m),
+  /// enough to identify a pickup without implying false precision.
+  static String _currentLocationLabel(double lat, double lng) =>
+      'Current location (${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)})';
 
   /// The selected saved address, or null when the choice is current/pinned (or
   /// no saved address matches the selected id).

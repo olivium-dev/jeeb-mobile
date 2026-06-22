@@ -2,14 +2,18 @@ import 'package:equatable/equatable.dart';
 
 /// Domain contract for submitting a Jeeber offer.
 ///
-/// Endpoint verified against the mock gateway (`/v1/offers` → :4010
-/// `/offer-service/v1/offers`, `MockGatewayClient`):
-///   → 201 {offerId, conversationId, …} on success (10% reserved, D1)
+/// Endpoint (LIVE gateway, iter6 offer-405 fix — `RequestOffersController`
+/// `POST /requests/{requestId}/offers`, body `{ fee, etaMinutes, note? }`):
+///   → 201 OfferDto `{ id, requestId, jeeberId, status, fee, etaMinutes, … }`
+///         on success. `id` is the offerId; the body carries NO conversationId
+///         (the jeeber is seated on the request's conversation server-side,
+///         keyed by requestId), so the result's conversationId falls back to
+///         the requestId — consistent with the chat-contract rewrite (PR #69).
 ///   → 402 {needed, available, currency} when the wallet can't cover the 10%
 ///         reserve (O1, JM-046) — NOT a generic error; routes to the
 ///         insufficient-balance sheet (42_GUARDRAILS_MOCK §5.1)
-///   → 409                            when the request was already claimed
-///   → 422                            client-side validation failure (echo)
+///   → 404/409/410                    request gone / no longer accepting offers
+///   → 422                            offer-service rejected the payload
 abstract class OfferSubmissionRepository {
   /// Submit an offer for [requestId].
   ///
@@ -23,7 +27,7 @@ abstract class OfferSubmissionRepository {
   });
 }
 
-/// Shape returned by a successful POST /v1/offers call.
+/// Shape returned by a successful `POST /requests/{requestId}/offers` call.
 class OfferSubmissionResult {
   const OfferSubmissionResult({
     required this.offerId,

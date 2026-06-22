@@ -119,6 +119,53 @@ void main() {
       },
     );
 
+    // iter6 feed-drop fix — an order created via "Current Location" (no Saved
+    // address) must carry a NON-NULL pickup/dropoff address, else the jeeber
+    // feed parser (`dio_request_feed_repository._parseLocation`) drops the row
+    // and no jeeber can ever see the order. The label must embed the coords so
+    // the jeeber can still locate the point until reverse-geocoding lands.
+    test(
+      'current-location order carries a non-null address (so the jeeber feed '
+      'parser keeps the row)',
+      () async {
+        controller.setTier(_flash(wireId: 'uuid'));
+
+        await controller.submitFromLocation(
+          const LocationSelectState(
+            status: LocationSelectStatus.loaded,
+            choiceKind: LocationChoiceKind.current,
+          ),
+        );
+
+        final draft = submission.lastDraft!;
+        expect(draft.pickupAddress, isNotNull,
+            reason: 'a null address makes the jeeber feed drop the order');
+        expect(draft.dropoffAddress, isNotNull);
+        expect(draft.pickupAddress, isNotEmpty);
+        // The label embeds the fallback coordinates so the jeeber still knows
+        // roughly where the pickup is.
+        expect(draft.pickupAddress, contains('33.8886'));
+        expect(draft.pickupAddress, contains('35.4955'));
+      },
+    );
+
+    // A freshly-pinned map point (no Saved address) takes the same address-label
+    // path as current-location — it must also carry a non-null address.
+    test('pinned map-point order also carries a non-null address', () async {
+      controller.setTier(_flash(wireId: 'uuid'));
+
+      await controller.submitFromLocation(
+        const LocationSelectState(
+          status: LocationSelectStatus.loaded,
+          choiceKind: LocationChoiceKind.pinned,
+        ),
+      );
+
+      final draft = submission.lastDraft!;
+      expect(draft.pickupAddress, isNotNull);
+      expect(draft.dropoffAddress, isNotNull);
+    });
+
     test('propagates a RequestSubmissionException on failure', () async {
       submission.error = const RequestSubmissionException(
         RequestSubmissionFailure.invalidInput,
