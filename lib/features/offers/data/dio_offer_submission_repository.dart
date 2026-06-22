@@ -4,22 +4,49 @@ import '../domain/offer_submission_repository.dart';
 
 /// Dio-backed [OfferSubmissionRepository].
 ///
-/// Endpoint contract (mock gateway `/v1/offers` → :4010
-/// `/offer-service/v1/offers`, `MockGatewayClient`):
-///   POST /v1/offers
-///   body: { requestId, priceUsd, etaMinutes, note }
-///   201 → { offerId, conversationId, … } (10% reserved, D1)
-///   402 → { type, title, status, detail, needed, available, currency } (O1) —
-///         insufficient balance; mapped to [OfferSubmissionFailure.
-///         insufficientBalance] + [InsufficientBalanceInfo] (JM-046)
-///   409 → request already claimed (race)
-///   422 → validation echo
+/// LIVE gateway contract (iter6 offer-405 fix — `RequestOffersController.cs:98`,
+/// `[HttpPost("requests/{requestId}/offers")]`, verified against the live
+/// gateway on :10090):
+///   POST /requests/{requestId}/offers
+///   body: { fee, etaMinutes, note? }            ← gateway `CreateOfferBody`
+///          field names: `fee` (gross, in the client's currency, >= $1),
+///          `etaMinutes` (positive int), optional `note` (<= 500 chars). The
+///          gateway re-validates every field; the cubit floors price/eta > 0
+///          client-side first.
+///   201 Created → OfferDto
+///          { id, requestId, jeeberId, status, fee, etaMinutes, note,
+///            createdAt, updatedAt }
+///        — `id` is the server-minted offerId. The 201 body does NOT carry a
+///          `conversationId`: the gateway seats the offering jeeber on the
+///          request's conversation server-side (`SeatOfferingJeeberAsync`,
+///          keyed by `correlation_key == requestId`), so the subsequent chat is
+///          resolved by the requestId — consistent with the chat-contract
+///          rewrite (PR #69). We still parse a `conversationId` defensively if
+///          the gateway ever adds one; otherwise we fall back to the requestId.
+///   400 → ProblemDetails (fee-too-low / eta-invalid / note-too-long) — surfaced
+///         as a generic submit failure (the cubit floors fee/eta first).
+///   402 → insufficient balance (legacy O1) — still mapped to
+///         [OfferSubmissionFailure.insufficientBalance] if ever returned.
+///   404 → request not found (treated as requestGone).
+///   409 → no longer accepting offers / duplicate live offer / cap reached —
+///         mapped to [OfferSubmissionFailure.requestGone] (bounce to feed).
+///   422 → offer-service rejected the payload.
+///
+/// PRE-FIX (the iter6 405 blocker): this repo POSTed to the MOCK route
+/// `/v1/offers {requestId, priceUsd, etaMinutes}` (the :4010
+/// `/offer-service/v1/offers` shape). The LIVE gateway has no bare
+/// `POST /v1/offers` action, so the authenticated POST returned 405 and the
+/// jeeber could never submit an offer. Repointed to the live request-scoped
+/// route above.
 class DioOfferSubmissionRepository implements OfferSubmissionRepository {
   const DioOfferSubmissionRepository(this._dio);
 
   final Dio _dio;
 
-  static const String _path = '/v1/offers';
+  /// The live request-scoped submit path:
+  /// `POST /requests/{requestId}/offers` (no `/v1` prefix — the gateway
+  /// `RequestOffersController` route is `requests/{requestId}/offers`).
+  static String _pathFor(String requestId) => '/requests/$requestId/offers';
 
   @override
   Future<OfferSubmissionResult> submitOffer({
@@ -30,32 +57,48 @@ class DioOfferSubmissionRepository implements OfferSubmissionRepository {
   }) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
-        _path,
-        data: _buildBody(requestId, priceUsd, etaMinutes, note),
+        _pathFor(requestId),
+        data: _buildBody(priceUsd, etaMinutes, note),
       );
-      return _parseResult(response.data);
+      return _parseResult(response.data, requestId);
     } on DioException catch (e) {
       throw _mapDioError(e);
     }
   }
 
   Map<String, dynamic> _buildBody(
-    String requestId,
     double priceUsd,
     int etaMinutes,
     String? note,
   ) {
     return {
-      'requestId': requestId,
-      'priceUsd': priceUsd,
+      // Gateway `CreateOfferBody`: `fee` (gross, client currency), `etaMinutes`,
+      // optional `note`. NOT `priceUsd`/`requestId` — those were the mock-only
+      // shape; the requestId now travels in the URL path.
+      'fee': priceUsd,
       'etaMinutes': etaMinutes,
       if (note != null && note.isNotEmpty) 'note': note,
     };
   }
 
-  OfferSubmissionResult _parseResult(Map<String, dynamic>? data) {
-    final offerId = data?['offerId'] as String? ?? '';
-    final conversationId = data?['conversationId'] as String? ?? '';
+  OfferSubmissionResult _parseResult(
+    Map<String, dynamic>? data,
+    String requestId,
+  ) {
+    // The live `OfferDto` returns the offer id as `id`; tolerate `offerId` too
+    // (older mock shape) for safety.
+    final offerId =
+        (data?['id'] as String?) ?? (data?['offerId'] as String?) ?? '';
+    // The live 201 does NOT carry a conversationId (the jeeber is seated on the
+    // request's conversation server-side, keyed by requestId). Parse it
+    // defensively if present, else fall back to the requestId so the subsequent
+    // chat resolves the server-minted conversation by its correlation key —
+    // consistent with the chat-contract rewrite (PR #69).
+    final rawConversationId = (data?['conversationId'] as String?)?.trim();
+    final conversationId = (rawConversationId != null &&
+            rawConversationId.isNotEmpty)
+        ? rawConversationId
+        : requestId;
     return OfferSubmissionResult(
       offerId: offerId,
       conversationId: conversationId,
@@ -75,7 +118,10 @@ class DioOfferSubmissionRepository implements OfferSubmissionRepository {
         balance: _parseBalance(e.response?.data),
       );
     }
-    if (status == 409) {
+    // 404 (request not found), 409 (no longer accepting offers / duplicate live
+    // offer / cap reached) and 410 (expired) all mean the auction is gone for
+    // this jeeber — bounce the user back to the feed.
+    if (status == 404 || status == 409 || status == 410) {
       return const OfferSubmissionException(OfferSubmissionFailure.requestGone);
     }
     if (e.type == DioExceptionType.connectionError ||
