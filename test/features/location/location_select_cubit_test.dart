@@ -1,8 +1,9 @@
 // JM-024 — location-select data wiring (LocationSelectCubit +
 // DioLocationSelectRepository). Pins (a) the cubit lifecycle (load → loaded /
-// failed, selection transitions), and (b) the Dio repo parsing the
-// journey-honest `GET /users/:userId/saved-locations` shape — including the
-// seeded nested `geo:{lat,lng}` form (42_GUARDRAILS_MOCK §4 / `has_saved_addresses`).
+// failed, selection transitions), and (b) the Dio repo parsing the canonical
+// `me`-scoped `GET /api/users/me/saved-locations` shape (DEFECT-B path
+// consolidation) — including the seeded nested `geo:{lat,lng}` form
+// (42_GUARDRAILS_MOCK §4 / `has_saved_addresses`).
 //
 // Dio is mocked with the repo-standard `InterceptorsWrapper` resolve/reject
 // pattern (see dio_saved_location_repository_test.dart) — no extra dependency.
@@ -114,12 +115,16 @@ void main() {
   });
 
   group('DioLocationSelectRepository', () {
-    test('uses the gateway path /users/:userId/saved-locations', () async {
+    test(
+        'uses the canonical me-scoped path /api/users/me/saved-locations '
+        '(ignores the userId arg in the path)', () async {
       _capturedPath = null;
       final repo = DioLocationSelectRepository(_dioReplying(<dynamic>[]));
+      // DEFECT-B: the picker now shares the ONE canonical saved-locations path
+      // with the JM-049 manager + JM-050 form. Identity is `me`-scoped (from the
+      // bearer token), so the userId arg never appears in the path.
       await repo.fetchSavedAddresses('user-client-001');
-      // Rewrites to /user-management/users/... via MockGatewayClient at runtime.
-      expect(_capturedPath, '/users/user-client-001/saved-locations');
+      expect(_capturedPath, '/api/users/me/saved-locations');
     });
 
     test('parses the seeded { items: [...] } with nested geo:{lat,lng}',

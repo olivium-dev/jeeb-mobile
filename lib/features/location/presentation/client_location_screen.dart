@@ -7,6 +7,7 @@ import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/auth_token_store.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../registration/domain/lebanon_phone.dart';
 import '../../request_summary/application/compose_request_controller.dart';
@@ -41,7 +42,7 @@ class ClientLocationScreen extends StatelessWidget {
   const ClientLocationScreen({
     super.key,
     this.repository,
-    this.userId = _defaultUserId,
+    this.userId,
     this.onAddLocation,
     this.onConfirm,
     this.onOpenSavedAddresses,
@@ -52,13 +53,12 @@ class ClientLocationScreen extends StatelessWidget {
     this.onSelectCurrent,
   });
 
-  /// Mock convention: the `authStub` middleware resolves any bearer token to
-  /// `user-client-001` and the W1 journey seeds target that id
-  /// (42_GUARDRAILS_MOCK §4). Mirrors `chat_detail_screen.dart`.
-  static const String _defaultUserId = 'user-client-001';
-
   final LocationSelectRepository? repository;
-  final String userId;
+
+  /// Owning user id. When null (the live router mount), it is resolved from
+  /// the authenticated session ([AuthTokenStore]) at build time — no mock
+  /// fallback. Injectable for tests / dev seams.
+  final String? userId;
 
   /// REPLACES the default `location-map-pin` navigation when provided.
   final VoidCallback? onAddLocation;
@@ -75,20 +75,54 @@ class ClientLocationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<LocationSelectCubit>(
-      create: (_) => LocationSelectCubit(
-        repository: repository ?? _resolveRepository(),
-        userId: userId,
-      )..load(),
-      child: _Scaffold(
-        onAddLocation: onAddLocation,
-        onConfirm: onConfirm,
-        onOpenSavedAddresses: onOpenSavedAddresses,
-        legacyCurrentSelected: currentSelected,
-        onSelectCurrent: onSelectCurrent,
-      ),
+    final scaffold = _Scaffold(
+      onAddLocation: onAddLocation,
+      onConfirm: onConfirm,
+      onOpenSavedAddresses: onOpenSavedAddresses,
+      legacyCurrentSelected: currentSelected,
+      onSelectCurrent: onSelectCurrent,
+    );
+    // DEFECT A: never default to the mock `user-client-001`. When the caller
+    // did not inject an explicit [userId] (the live router mount), resolve the
+    // authenticated id from [AuthTokenStore] before building the cubit. The
+    // saved-locations read is `me`-scoped (identity from the bearer token), so
+    // this id is for logging/selection coherence — but it must be the REAL
+    // user, never a hardcoded mock.
+    final injected = userId;
+    if (injected != null) {
+      return BlocProvider<LocationSelectCubit>(
+        create: (_) => LocationSelectCubit(
+          repository: repository ?? _resolveRepository(),
+          userId: injected,
+        )..load(),
+        child: scaffold,
+      );
+    }
+    return FutureBuilder<String?>(
+      future: _authTokenStore().userId,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(body: Center(child: OmdsLoadingState()));
+        }
+        // Empty string when the session has no stored id; the `me` route still
+        // resolves identity from the bearer token, so the list loads correctly.
+        final resolvedId = snapshot.data ?? '';
+        return BlocProvider<LocationSelectCubit>(
+          create: (_) => LocationSelectCubit(
+            repository: repository ?? _resolveRepository(),
+            userId: resolvedId,
+          )..load(),
+          child: scaffold,
+        );
+      },
     );
   }
+
+  /// Resolves [AuthTokenStore] from DI when registered (so tests can mock it),
+  /// else news one — the same pattern the logout sheet uses. NEVER a mock id.
+  AuthTokenStore _authTokenStore() => sl.isRegistered<AuthTokenStore>()
+      ? sl<AuthTokenStore>()
+      : AuthTokenStore();
 
   LocationSelectRepository _resolveRepository() {
     // Prefer a DI-registered interface when present (integrator may register it
