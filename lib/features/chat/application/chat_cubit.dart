@@ -26,12 +26,19 @@ class ChatCubit extends Cubit<ChatState> {
     required PhotoPickerService pickerService,
     PhotoCompressor compressor = const HalvingPhotoCompressor(),
     DateTime Function() clock = _defaultClock,
+    // Phase the host already resolved for this conversation (the create-or-get
+    // response on [ChatDetailScreen]). Seeds the cubit's FIRST-PAINT phase so a
+    // `broadcasting`/`pending` (no-jeeber-yet) conversation never momentarily
+    // renders the accepted-only "Offer accepted!" banner before `load()`
+    // resolves. Defaults to `accepted` to preserve the legacy 1:1 photo-chat
+    // call sites that never wired a phase (see [ChatState.phase]).
+    ConversationPhase initialPhase = ConversationPhase.accepted,
   }) : _deliveryId = deliveryId,
        _gateway = gateway,
        _pickerService = pickerService,
        _compressor = compressor,
        _clock = clock,
-       super(const ChatState());
+       super(ChatState(phase: initialPhase));
 
   final String _deliveryId;
   final ChatGateway _gateway;
