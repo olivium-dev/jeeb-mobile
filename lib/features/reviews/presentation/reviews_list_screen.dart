@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/auth_token_store.dart';
 import '../application/reviews_cubit.dart';
 import '../application/reviews_state.dart';
 import '../data/empty_reviews_repository.dart';
@@ -32,11 +33,18 @@ import 'widgets/review_row.dart';
 ///  - D57 — NO Helpful/Reply controls on the rows (immutable reviews) — enforced
 ///    in [ReviewRow] (`showActions: false`).
 ///
-/// Data: reads the jeeber's reviews via `sl<ReviewsRepository>()` — the
-/// INTEGRATOR-STUB today (R1m wired in `DioReviewsRepository`, swapped in DI once
-/// verified on :4010, 42_GUARDRAILS_MOCK "FINAL WAVE … R1m"). [repository] is a
-/// constructor test seam (§5.4); an unconfigured GetIt (router-resolution widget
-/// tests) falls back to an empty repo (mirrors JM-055/JM-057).
+/// Data: reads the jeeber's reviews via `sl<ReviewsRepository>()` — the LIVE
+/// `DioReviewsRepository` (`GET /v1/ratings/jeeb/reviews?jeeberId=`, wired in DI).
+/// [repository] is a constructor test seam (§5.4); an unconfigured GetIt
+/// (router-resolution widget tests) falls back to an empty repo (mirrors
+/// JM-055/JM-057).
+///
+/// Identity (SC-097 defect fix): when the route has NO explicit `?jeeberId=`
+/// the jeeber is viewing their OWN reviews, so the id is the AUTHENTICATED user
+/// — resolved from [AuthTokenStore.userId] (the persisted `auth.userId`, the
+/// same source `DioRatingRepository` reads). It is NEVER the seeded mock
+/// `user-jeeber-002`; that hard-coded fallback made a real driver's screen show
+/// the mock's empty "No reviews yet" instead of their own reviews / cold-start.
 ///
 /// Semantics identifiers exposed (EXACT — 30_BACKLOG JM-068, 67_W34_TEST_PLAN
 /// §JM-068, 41_GUARDRAILS_TESTING):
@@ -52,20 +60,26 @@ import 'widgets/review_row.dart';
 ///   `reviews_load_more`            — in-list next-page skeleton (D73 infinite)
 ///   `reviews_back`                 — → jeeber-profile-reviews
 class ReviewsListScreen extends StatelessWidget {
-  const ReviewsListScreen({super.key, this.jeeberId, this.repository});
+  const ReviewsListScreen({
+    super.key,
+    this.jeeberId,
+    this.repository,
+    this.tokenStore,
+  });
 
-  /// The jeeber whose reviews are listed (from `?jeeberId=` when present). When
-  /// null/empty the screen resolves the seeded default jeeber so a deep-link /
-  /// cold-start (no `extra`) still renders content (R-F).
+  /// The jeeber whose reviews are listed — passed explicitly via `?jeeberId=`
+  /// (or the `:jeeberId` path segment) when viewing ANOTHER jeeber. When
+  /// null/empty the jeeber is viewing their OWN reviews and the id is resolved
+  /// from the authenticated session (see [_resolveJeeberId]).
   final String? jeeberId;
 
   /// Constructor test seam (40_GUARDRAILS_ARCH §5.4) — defaults to DI.
   final ReviewsRepository? repository;
 
-  /// The seeded jeeber the seam ships reviews for (62_SEAM_HARNESS
-  /// `jeeber_has_reviews` → `user-jeeber-002`). Used when the route has no
-  /// `?jeeberId=` so the screen is never blank on a cold deep-link.
-  static const String _defaultJeeberId = 'user-jeeber-002';
+  /// Constructor test seam for the authenticated-user source (§5.4) — defaults
+  /// to the DI singleton, then `AuthTokenStore()` (same keychain-backed store
+  /// `DioRatingRepository` reads).
+  final AuthTokenStore? tokenStore;
 
   /// Resolves the repo: an explicit override (tests) → the registered DI binding
   /// → an empty fallback when GetIt is not configured (router-resolution widget
@@ -79,19 +93,81 @@ class ReviewsListScreen extends StatelessWidget {
     return const EmptyReviewsRepository();
   }
 
-  String get _resolvedJeeberId {
-    final id = jeeberId?.trim();
-    return (id == null || id.isEmpty) ? _defaultJeeberId : id;
+  /// The keychain-backed session store. Mirrors `DioRatingRepository`'s
+  /// `tokenStore ?? AuthTokenStore()` seam: an explicit override (tests) → the
+  /// registered DI singleton → a fresh `AuthTokenStore()` (reads the same
+  /// `auth.userId`).
+  AuthTokenStore _resolveTokenStore() {
+    final explicit = tokenStore;
+    if (explicit != null) return explicit;
+    if (sl.isRegistered<AuthTokenStore>()) {
+      return sl<AuthTokenStore>();
+    }
+    return AuthTokenStore();
+  }
+
+  /// SC-097: an explicit `?jeeberId=`/`:jeeberId` WINS (viewing another jeeber);
+  /// otherwise the AUTHENTICATED user id from [AuthTokenStore.userId] (viewing
+  /// own reviews). NEVER the mock `user-jeeber-002`. Returns null when there is
+  /// neither an explicit id nor a session — the screen then surfaces the empty
+  /// state rather than another jeeber's list.
+  Future<String?> _resolveJeeberId() async {
+    final explicit = jeeberId?.trim();
+    if (explicit != null && explicit.isNotEmpty) return explicit;
+    final authed = (await _resolveTokenStore().userId)?.trim();
+    return (authed == null || authed.isEmpty) ? null : authed;
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<ReviewsCubit>(
-      create: (_) => ReviewsCubit(
-        repository: _resolveRepository(),
-        jeeberId: _resolvedJeeberId,
-      )..load(),
-      child: const _ReviewsView(),
+    // The authed id is read from secure storage (async), so resolve it before
+    // building the cubit; show the first-load skeleton while it resolves.
+    return FutureBuilder<String?>(
+      future: _resolveJeeberId(),
+      builder: (context, snapshot) {
+        final copy = ReviewsL10n.of(context);
+        if (snapshot.connectionState != ConnectionState.done) {
+          return _shell(context, copy, _LoadingSkeletons(copy: copy));
+        }
+        final resolvedId = snapshot.data;
+        if (resolvedId == null || resolvedId.isEmpty) {
+          // No explicit id and no session — render the empty state instead of
+          // falling back to a mock/other jeeber's reviews.
+          return _shell(context, copy, _EmptyBody(copy: copy));
+        }
+        return BlocProvider<ReviewsCubit>(
+          create: (_) => ReviewsCubit(
+            repository: _resolveRepository(),
+            jeeberId: resolvedId,
+          )..load(),
+          child: const _ReviewsView(),
+        );
+      },
+    );
+  }
+
+  /// The bare reviews scaffold (root + back affordance + title) used while the
+  /// authed id resolves and for the no-session empty state — so those edge
+  /// states keep the `reviews_root`/`reviews_back` nodes the full screen exposes.
+  Widget _shell(BuildContext context, ReviewsL10n copy, Widget body) {
+    return Semantics(
+      identifier: 'reviews_root',
+      container: true,
+      child: Scaffold(
+        appBar: OMDSAppBar(
+          title: copy.title,
+          leading: Semantics(
+            identifier: 'reviews_back',
+            button: true,
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () =>
+                  context.canPop() ? context.pop() : context.go('/'),
+            ),
+          ),
+        ),
+        body: body,
+      ),
     );
   }
 }
