@@ -20,7 +20,7 @@ import '../core/notifications/data/firebase_messaging_transport.dart';
 import '../core/notifications/data/push_device_registrar.dart';
 import '../core/notifications/data/push_transport.dart';
 import '../core/notifications/domain/notification_message.dart';
-import '../core/network/mock_gateway_client.dart';
+import '../core/di/injection_container.dart';
 import '../core/notifications/domain/notification_deep_link.dart';
 import '../core/notifications/presentation/push_banner_host.dart';
 import '../core/observability/crash_context_bridge.dart';
@@ -313,7 +313,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     // _AuthInterceptor attaches the logged-in user's bearer; the gateway reads
     // the user_id from that JWT. Skipped for the fake transport (tests/dev).
     final registrar = transport is FirebaseMessagingTransport
-        ? PushDeviceRegistrar(dio: MockGatewayClient.createDio())
+        ? PushDeviceRegistrar(dio: resolveGatewayDio())
         : null;
 
     final handler = PushNotificationHandler(
