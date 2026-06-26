@@ -183,7 +183,7 @@ class AppRouter {
   /// forcing a redirect right now" — distinct from `null`, which go_router
   /// treats as "stay here". Using a sentinel lets the caller tell "no opinion"
   /// apart from "explicitly allow".
-  static const String _noPin = ' __no_pin__';
+  static const String _noPin = '__no_pin__';
 
   /// The DevSeam route-pin's initial-landing-only redirect, extracted so it can
   /// be applied either before (skipOnboarding) or after (deep-capture of an

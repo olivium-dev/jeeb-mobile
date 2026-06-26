@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
+import '../../../l10n/app_localizations.dart';
 import '../application/biometric_cubit.dart';
 
 class BiometricPromptScreen extends StatelessWidget {
@@ -65,7 +66,10 @@ class _PromptHeader extends StatelessWidget {
           color: theme.colorScheme.primary,
         ),
         const SizedBox(height: Spacing.xLarge),
-        Text('Use Biometrics', style: theme.textTheme.headlineMedium),
+        Text(
+          AppLocalizations.of(context).useBiometrics,
+          style: theme.textTheme.headlineMedium,
+        ),
         const SizedBox(height: Spacing.small),
         Text(
           'Sign in quickly with your fingerprint or face',
@@ -94,7 +98,7 @@ class _PromptAction extends StatelessWidget {
       return const OmdsLoadingState();
     }
     if (state == BiometricState.unavailable) {
-      return const Text('Biometric authentication not available');
+      return Text(AppLocalizations.of(context).biometricNotAvailable);
     }
     return const SizedBox.shrink();
   }

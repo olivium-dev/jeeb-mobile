@@ -319,6 +319,8 @@ class AppLocalizations {
   String savedAddressDeleteConfirmBody(String label) =>
       _get('savedAddressDeleteConfirmBody').replaceFirst('{label}', label);
 
+  String get useBiometrics => _get('useBiometrics');
+  String get biometricNotAvailable => _get('biometricNotAvailable');
   String get biometricRowTitle => _get('biometricRowTitle');
   String get biometricRowSubtitle => _get('biometricRowSubtitle');
   String get biometricLockTitle => _get('biometricLockTitle');
@@ -938,6 +940,8 @@ class AppLocalizations {
   String get requestSummaryUnavailableBody =>
       _get('requestSummaryUnavailableBody');
 
+  String requestNoLongerAvailable(String requestId) =>
+      _get('requestNoLongerAvailable').replaceFirst('{requestId}', requestId);
   String get jeeberRequestDetailTitle => _get('jeeberRequestDetailTitle');
   String get jeeberRequestDetailSectionPickup =>
       _get('jeeberRequestDetailSectionPickup');

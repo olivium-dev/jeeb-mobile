@@ -437,6 +437,21 @@
       }
     }
   },
+  "useBiometrics": "Use Biometrics",
+  "@useBiometrics": {
+    "description": "Heading on the biometric enrolment prompt screen offering biometric sign-in."
+  },
+  "biometricNotAvailable": "Biometric authentication not available",
+  "@biometricNotAvailable": {
+    "description": "Shown on the biometric prompt screen when the device has no usable biometric sensor."
+  },
+  "requestNoLongerAvailable": "Request {requestId} is no longer available.",
+  "@requestNoLongerAvailable": {
+    "description": "Shown on the jeeber request-unavailable screen when a deep-linked request was matched, cancelled, or expired.",
+    "placeholders": {
+      "requestId": { "type": "String" }
+    }
+  },
   "biometricRowTitle": "Sign in with biometrics",
   "biometricRowSubtitle": "Use Face ID or fingerprint when available",
   "biometricLockTitle": "Unlock Jeeb",

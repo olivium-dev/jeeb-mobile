@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
+import '../../../l10n/app_localizations.dart';
 
 /// Stub created by sanity-build pass (2026-05-17). Shown when the router
 /// can't resolve a FeedRequest for `/jeeber/requests/:id` (cold deep link
@@ -22,7 +23,7 @@ class JeeberRequestUnavailableScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('Request $requestId is no longer available.'),
+            Text(AppLocalizations.of(context).requestNoLongerAvailable(requestId)),
             const SizedBox(height: Spacing.medium),
             OmdsPrimaryButton(text: 'Back', onTap: onBack),
           ],

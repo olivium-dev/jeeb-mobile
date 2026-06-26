@@ -46,9 +46,8 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Install Flutter dependencies (optional — needed only for runtime tests)
+      - name: Install Flutter dependencies (needed for runtime parity tests)
         id: pub_get
-        continue-on-error: true
         run: flutter pub get
 
       - name: Static 4-set parity (AC1, AC3, AC5) — static only when pub get unavailable
