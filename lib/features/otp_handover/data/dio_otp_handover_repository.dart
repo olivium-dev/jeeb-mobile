@@ -10,20 +10,24 @@ import '../domain/otp_handover_result.dart';
 ///   → OtpStatusDto { deliveryId, triggered, code, expiresAt, attemptsRemaining }
 ///   (wave-11 alias; `code` is the 4-digit string the client displays)
 ///
-/// POST /deliveries/{id}/otp/verify
+/// POST /v1/deliveries/{id}/otp/verify
 ///   body: { code: "1234" }
 ///   → OtpHandoverVerificationResponse { deliveryId, verified, status, message }
 ///   200 = success; 401 = wrong code; 423 = locked (3 attempts exhausted)
+///
+/// S7: both paths use the `/v1/deliveries` prefix so the single
+/// `MockGatewayClient` rewrite key (`/v1/deliveries` →
+/// `/delivery-service/v1/deliveries`) catches them. The verify path previously
+/// used an un-versioned `/deliveries` that is NOT a rewrite key, so it bypassed
+/// the rewrite and 404'd against the Express mock on :4010.
 class DioOtpHandoverRepository implements OtpHandoverRepository {
   DioOtpHandoverRepository(this._dio);
 
   final Dio _dio;
 
-  // GET /v1/deliveries/{id}/otp → returns code for client display (wave-11)
+  // GET  /v1/deliveries/{id}/otp        → returns code for client display
+  // POST /v1/deliveries/{id}/otp/verify → Jeeber submits the code
   static const _v1DeliveriesPath = '/v1/deliveries';
-
-  // POST /deliveries/{id}/otp/verify → Jeeber submits the code
-  static const _deliveriesPath = '/deliveries';
 
   @override
   Future<String> fetchHandoverCode({required String deliveryId}) async {
@@ -53,7 +57,7 @@ class DioOtpHandoverRepository implements OtpHandoverRepository {
   }) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
-        '$_deliveriesPath/$deliveryId/otp/verify',
+        '$_v1DeliveriesPath/$deliveryId/otp/verify',
         data: {'code': otp},
       );
       final data = response.data ?? {};
