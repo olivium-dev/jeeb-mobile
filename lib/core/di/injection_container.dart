@@ -97,6 +97,31 @@ import '../observability/crash_reporter.dart';
 
 final sl = GetIt.instance;
 
+/// Resolves the ONE configured gateway [Dio] for call sites that build a
+/// repository/service outside [configureDependencies] (e.g. a screen's
+/// no-DI test fallback, or `app.dart`'s push registrar).
+///
+/// DI-FIRST: when [configureDependencies] has run (production, Maestro, the
+/// app) this returns the registered singleton — the AppConfig-driven
+/// [DioClient] (or the [MockGatewayClient] when `--dart-define=USE_MOCK_GATEWAY=
+/// true`) with the bearer-attach + 401-refresh interceptors. Every caller then
+/// shares the SAME client, so a logged-in session's token is attached uniformly.
+///
+/// FALLBACK: when GetIt is NOT configured (the `w0_routes_resolve_test.dart`
+/// route table mounts screens without `configureDependencies()`), it mirrors
+/// the exact same AppConfig selection the DI registration uses — it never
+/// hardcodes a base URL and never bypasses [AppConfig].
+Dio resolveGatewayDio() {
+  if (sl.isRegistered<Dio>()) return sl<Dio>();
+  return AppConfig.useMockGateway
+      ? MockGatewayClient.createDio()
+      : DioClient.createDio(
+          AppConfig.gatewayBaseUrl,
+          tokenStore:
+              sl.isRegistered<AuthTokenStore>() ? sl<AuthTokenStore>() : null,
+        );
+}
+
 void configureDependencies({
   required SharedPreferences sharedPreferences,
   required CrashReporter crashReporter,
