@@ -409,11 +409,22 @@ class _EditButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The enclosing tile is itself an `InkWell` button. A button-flagged
+    // Semantics node with no *action* of its own is treated as decorative
+    // content and gets absorbed (merged) into that parent button — which
+    // destroyed this node's `identifier` whenever the row also carried the
+    // `saved_address_default_badge` (the default row), leaving
+    // `saved_address_<index>_edit` unreachable to Maestro and widget tests.
+    // Giving the Semantics a real `onTap` action makes it a first-class
+    // actionable node (like the sibling `_MoreButton`), so it stays separate
+    // and keeps its identifier. `ExcludeSemantics` still hides the inner
+    // IconButton's duplicate node.
     return Semantics(
       identifier: 'saved_address_${index}_edit',
       button: true,
       enabled: onTap != null,
       label: label,
+      onTap: onTap,
       child: ExcludeSemantics(
         child: IconButton(
           icon: const Icon(Icons.edit_outlined),
