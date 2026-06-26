@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:open_file/open_file.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../dev_seam/dev_seam.dart';
 import '../session/account_status_gate.dart';
 import '../session/session_gate.dart';
@@ -1154,8 +1155,10 @@ class AppRouter {
             if (extra is SettlementStatement) {
               return SettlementDetailScreen(statement: extra);
             }
-            return const Scaffold(
-              body: Center(child: Text('Statement not found')),
+            return Scaffold(
+              body: Center(
+                child: Text(AppLocalizations.of(context).statementNotFound),
+              ),
             );
           },
         ),
@@ -1340,7 +1343,11 @@ class AppRouter {
         ),
       ],
       errorBuilder: (context, state) => Scaffold(
-        body: Center(child: Text('Route not found: ${state.uri}')),
+        body: Center(
+          child: Text(
+            AppLocalizations.of(context).routeNotFound('${state.uri}'),
+          ),
+        ),
       ),
     );
   }

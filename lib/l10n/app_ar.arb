@@ -560,6 +560,8 @@
   "requestSummarySectionDropoff": "نقطة التسليم",
   "requestSummaryDescriptionEmpty": "لم تضف وصفًا",
   "requestSummaryPhotosEmpty": "لا توجد صور مرفقة",
+  "requestSummarySectionTranscription": "النص المحوّل",
+  "requestSummaryPhotosAttached": "{count} صورة مرفقة",
   "requestSummarySubmit": "إرسال الطلب",
   "requestSummaryRetry": "إعادة المحاولة",
   "requestSummaryErrorNetwork": "تعذّر الاتصال بجيب. تحقق من الإنترنت وحاول مجددًا.",
@@ -1388,5 +1390,22 @@
   "jeeberActiveDeliveriesOpenChat": "فتح المحادثة",
   "@jeeberActiveDeliveriesOpenChat": {"description": "iter6: primary CTA on an active-delivery row — opens the order chat."},
   "jeeberActiveDeliveriesManage": "إدارة التوصيل",
-  "@jeeberActiveDeliveriesManage": {"description": "iter6: secondary CTA on an active-delivery row — opens the active-delivery (Ordered→…→AtDoor) screen."}
+  "@jeeberActiveDeliveriesManage": {"description": "iter6: secondary CTA on an active-delivery row — opens the active-delivery (Ordered→…→AtDoor) screen."},
+
+  "goodsCostTitle": "إدخال تكلفة البضائع",
+  "goodsCostHeadline": "كم كانت تكلفة البضائع؟",
+  "goodsCostBody": "أدخل المبلغ الذي يجب على العميل دفعه مقابل البضائع المشتراة.",
+  "goodsCostFieldLabel": "تكلفة البضائع ({currency})",
+  "goodsCostFieldLabelNeutral": "تكلفة البضائع",
+  "goodsCostSubmit": "تأكيد التكلفة",
+  "goodsCostErrorNetwork": "تعذّر الوصول إلى الخادم. تحقق من اتصالك وحاول مجددًا.",
+  "goodsCostErrorNotFound": "تعذّر العثور على هذه التوصيلة.",
+  "goodsCostErrorValidation": "أدخل مبلغًا صالحًا وحاول مجددًا.",
+  "goodsCostErrorGeneric": "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
+
+  "statementNotFound": "لم يتم العثور على الكشف",
+  "routeNotFound": "المسار غير موجود: {uri}",
+
+  "savedAddressLatitudeLabel": "خط العرض",
+  "savedAddressLongitudeLabel": "خط الطول"
 }

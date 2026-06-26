@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../application/request_summary_cubit.dart';
 
 class RequestSummaryScreen extends StatelessWidget {
@@ -32,7 +33,7 @@ class RequestSummaryScreen extends StatelessWidget {
           final draft = state.draft;
           if (draft == null) return const OmdsLoadingState();
           return Scaffold(
-            appBar: const OMDSAppBar(title: 'Review Request'),
+            appBar: OMDSAppBar(title: AppLocalizations.of(context).requestSummaryTitle),
             body: _RequestSummaryBody(state: state),
           );
         },
@@ -49,27 +50,37 @@ class _RequestSummaryBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final draft = state.draft!;
+    final l10n = AppLocalizations.of(context);
     return ListView(
       padding: const EdgeInsets.all(Spacing.medium),
       children: [
-        _SectionCard(title: 'Description', child: Text(draft.description)),
+        _SectionCard(
+          title: l10n.requestSummarySectionDescription,
+          child: Text(draft.description),
+        ),
         if (draft.transcription != null)
           _SectionCard(
-            title: 'Transcription',
+            title: l10n.requestSummarySectionTranscription,
             child: Text(draft.transcription!),
           ),
         if (draft.photoUrls.isNotEmpty)
           _SectionCard(
-            title: 'Photos',
-            child: Text('${draft.photoUrls.length} photo(s) attached'),
+            title: l10n.requestSummarySectionPhotos,
+            child: Text(l10n.requestSummaryPhotosAttached(draft.photoUrls.length)),
           ),
         if (draft.tierName != null)
-          _SectionCard(title: 'Delivery Tier', child: Text(draft.tierName!)),
+          _SectionCard(
+            title: l10n.requestSummarySectionTier,
+            child: Text(draft.tierName!),
+          ),
         if (draft.pickupAddress != null)
-          _SectionCard(title: 'Pickup', child: Text(draft.pickupAddress!)),
+          _SectionCard(
+            title: l10n.requestSummarySectionPickup,
+            child: Text(draft.pickupAddress!),
+          ),
         if (draft.dropoffAddress != null)
           _SectionCard(
-            title: 'Drop-off',
+            title: l10n.requestSummarySectionDropoff,
             child: Text(draft.dropoffAddress!),
           ),
         const SizedBox(height: Spacing.xLarge),
@@ -91,7 +102,7 @@ class _SubmitButton extends StatelessWidget {
       button: true,
       child: OmdsLoadingButton(
         key: const Key('request_summary.submit'),
-        text: 'Submit Request',
+        text: AppLocalizations.of(context).requestSummarySubmit,
         isLoading: isSubmitting,
         onTap: () => context.read<RequestSummaryCubit>().submit(),
       ),

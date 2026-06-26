@@ -132,8 +132,8 @@ class _PreviewBody extends StatelessWidget {
             ),
           ),
         ),
-        Positioned(
-          left: Spacing.small,
+        PositionedDirectional(
+          start: Spacing.small,
           bottom: Spacing.small,
           child: Container(
             padding: const EdgeInsets.symmetric(

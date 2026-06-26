@@ -101,9 +101,9 @@ class _CentreOnMeButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Positioned(
+    return PositionedDirectional(
       bottom: Spacing.large,
-      right: Spacing.large,
+      end: Spacing.large,
       child: Semantics(
         identifier: 'capture_location_my_location',
         button: true,

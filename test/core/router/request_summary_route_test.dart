@@ -159,7 +159,7 @@ void main() {
         // RequestSummaryScreen renders an `OmdsLoadingButton` (OMDS sweep
         // replaced the raw FilledButton). The button is "enabled" when
         // `isLoading == false` and `isEnabled == true`.
-        final submit = find.widgetWithText(OmdsLoadingButton, 'Submit Request');
+        final submit = find.widgetWithText(OmdsLoadingButton, 'Send request');
         expect(submit, findsOneWidget);
         final submitButton = tester.widget<OmdsLoadingButton>(submit);
         expect(submitButton.isLoading, isFalse);
@@ -196,7 +196,7 @@ void main() {
         // Submit button should not be present in the fallback path — there
         // is no draft to submit.
         expect(
-          find.widgetWithText(OmdsLoadingButton, 'Submit Request'),
+          find.widgetWithText(OmdsLoadingButton, 'Send request'),
           findsNothing,
           reason: 'Fallback path must not render the populated summary '
               'screen with a Submit button.',
@@ -229,7 +229,7 @@ void main() {
         );
 
         expect(
-          find.widgetWithText(OmdsLoadingButton, 'Submit Request'),
+          find.widgetWithText(OmdsLoadingButton, 'Send request'),
           findsNothing,
         );
 

@@ -886,6 +886,10 @@ class AppLocalizations {
   String get requestSummaryDescriptionEmpty =>
       _get('requestSummaryDescriptionEmpty');
   String get requestSummaryPhotosEmpty => _get('requestSummaryPhotosEmpty');
+  String get requestSummarySectionTranscription =>
+      _get('requestSummarySectionTranscription');
+  String requestSummaryPhotosAttached(int count) =>
+      _get('requestSummaryPhotosAttached').replaceFirst('{count}', '$count');
   String get requestSummarySubmit => _get('requestSummarySubmit');
   String get requestSummaryRetry => _get('requestSummaryRetry');
   String get requestSummaryErrorNetwork => _get('requestSummaryErrorNetwork');
@@ -2039,4 +2043,26 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get passwordSecurityTitle => _get('passwordSecurityTitle');
   String get passwordSecurityBody => _get('passwordSecurityBody');
   String get passwordSetEntryCta => _get('passwordSetEntryCta');
+
+  // Goods cost (jeeber goods-cost entry, Sprint 5 RTL/l10n pass)
+  String get goodsCostTitle => _get('goodsCostTitle');
+  String get goodsCostHeadline => _get('goodsCostHeadline');
+  String get goodsCostBody => _get('goodsCostBody');
+  String goodsCostFieldLabel(String currency) =>
+      _get('goodsCostFieldLabel').replaceFirst('{currency}', currency);
+  String get goodsCostFieldLabelNeutral => _get('goodsCostFieldLabelNeutral');
+  String get goodsCostSubmit => _get('goodsCostSubmit');
+  String get goodsCostErrorNetwork => _get('goodsCostErrorNetwork');
+  String get goodsCostErrorNotFound => _get('goodsCostErrorNotFound');
+  String get goodsCostErrorValidation => _get('goodsCostErrorValidation');
+  String get goodsCostErrorGeneric => _get('goodsCostErrorGeneric');
+
+  // Router fallbacks (Sprint 5 RTL/l10n pass)
+  String get statementNotFound => _get('statementNotFound');
+  String routeNotFound(String uri) =>
+      _get('routeNotFound').replaceFirst('{uri}', uri);
+
+  // Saved-location add/edit coordinate fields (Sprint 5 RTL/l10n pass)
+  String get savedAddressLatitudeLabel => _get('savedAddressLatitudeLabel');
+  String get savedAddressLongitudeLabel => _get('savedAddressLongitudeLabel');
 }

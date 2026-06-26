@@ -165,7 +165,7 @@ class _PeriodPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(right: Spacing.xSmall),
+      padding: const EdgeInsetsDirectional.only(end: Spacing.xSmall),
       child: Semantics(
         identifier: 'earnings_period_${period.name}',
         button: true,
