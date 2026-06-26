@@ -212,6 +212,45 @@ void main() {
       expect(state.canTrackDelivery, isFalse);
     });
 
+    test(
+        'seeds the tracking deliveryId from initialDeliveryId (client accepted '
+        'from the review-list sheet) — Track CTA reachable on load', () async {
+      // The client accepted the offer in OfferAcceptSheet, which routed here
+      // with the accept response deliveryId. The cubit must surface tracking
+      // immediately, without an in-chat accept.
+      final gw = _AcceptGateway(acceptDeliveryId: null);
+      final cubit = ChatCubit(
+        deliveryId: 'conv-track-001',
+        gateway: gw,
+        pickerService: StubPhotoPickerService(),
+        initialDeliveryId: 'delivery-from-sheet-1',
+      );
+      addTearDown(cubit.close);
+      addTearDown(gw.dispose);
+
+      await cubit.load();
+
+      expect(cubit.state.acceptedDeliveryId, 'delivery-from-sheet-1');
+      expect(cubit.state.canTrackDelivery, isTrue);
+    });
+
+    test('an empty initialDeliveryId leaves tracking off', () async {
+      final gw = _AcceptGateway(acceptDeliveryId: null);
+      final cubit = ChatCubit(
+        deliveryId: 'conv-track-001',
+        gateway: gw,
+        pickerService: StubPhotoPickerService(),
+        initialDeliveryId: '',
+      );
+      addTearDown(cubit.close);
+      addTearDown(gw.dispose);
+
+      await cubit.load();
+
+      expect(cubit.state.acceptedDeliveryId, isNull);
+      expect(cubit.state.canTrackDelivery, isFalse);
+    });
+
     test('captures deliveryId carried on a PhaseChanged event', () async {
       final gw = _AcceptGateway(
         acceptDeliveryId: null,

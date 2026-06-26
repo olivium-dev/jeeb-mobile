@@ -41,9 +41,20 @@ import 'dev_chat_detail_fixtures.dart';
 ///     `order-summary-pinned` (JM-031), and `order_chat_open_dispute` →
 ///     `dispute-open-evidence` (the `escalate` route, JM-060) — AC2/AC3.
 class ChatDetailScreen extends StatefulWidget {
-  const ChatDetailScreen({super.key, required this.chatId});
+  const ChatDetailScreen({
+    super.key,
+    required this.chatId,
+    this.initialDeliveryId,
+  });
 
   final String chatId;
+
+  /// Server-created delivery id forwarded by the offer-accept-confirm sheet
+  /// (`OfferAcceptSheet`) when the client accepted from the review list and was
+  /// routed straight to the order-chat. Seeds the chat's tracking id so the
+  /// client "Track order" CTA is reachable for an already-accepted order. Null
+  /// for every other entry (the in-chat accept path captures the id itself).
+  final String? initialDeliveryId;
 
   @override
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
@@ -479,6 +490,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       onTrackOrder: isJeeber
           ? null
           : (deliveryId) => context.push('/orders/$deliveryId/tracking'),
+      // Seed the tracking id when the client arrived here straight from the
+      // offer-accept sheet (it carries the accept response's deliveryId). The
+      // in-chat accept path leaves this null and captures the id from the
+      // accept response itself.
+      initialTrackingDeliveryId: isJeeber ? null : widget.initialDeliveryId,
       // JM-025 AC1 (D83): compose → broadcast → waiting-no-coverage. Only wired
       // for the client compose state; null otherwise (no compose entry).
       onFirstMessageBroadcast:

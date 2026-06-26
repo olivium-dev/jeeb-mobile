@@ -26,12 +26,24 @@ class ChatCubit extends Cubit<ChatState> {
     required PhotoPickerService pickerService,
     PhotoCompressor compressor = const HalvingPhotoCompressor(),
     DateTime Function() clock = _defaultClock,
+    String? initialDeliveryId,
   }) : _deliveryId = deliveryId,
        _gateway = gateway,
        _pickerService = pickerService,
        _compressor = compressor,
        _clock = clock,
-       super(const ChatState());
+       // Seed the tracking delivery id when the host already knows it (e.g. the
+       // client accepted the offer from the review-list sheet and landed here
+       // with the server-created `deliveryId`). Without this, an order accepted
+       // outside the chat would have no delivery id to track until an in-chat
+       // accept / PhaseChanged event — leaving the "Track order" CTA hidden on
+       // an already-accepted order.
+       super(ChatState(
+         acceptedDeliveryId: (initialDeliveryId != null &&
+                 initialDeliveryId.isNotEmpty)
+             ? initialDeliveryId
+             : null,
+       ));
 
   final String _deliveryId;
   final ChatGateway _gateway;

@@ -69,6 +69,7 @@ class ChatScreen extends StatelessWidget {
     this.onOpenDispute,
     this.isOrderChat = false,
     this.onFirstMessageBroadcast,
+    this.initialTrackingDeliveryId,
   }) : assert(
          cubit == null || (gateway == null && pickerService == null),
          'Provide either a cubit or the (gateway, pickerService) pair, not both.',
@@ -148,6 +149,16 @@ class ChatScreen extends StatelessWidget {
   /// the accepted/active thread (no compose entry).
   final void Function(String requestId)? onFirstMessageBroadcast;
 
+  /// Server-created delivery id known to the host BEFORE the chat loads — set
+  /// when the client accepted the offer from the review-list sheet and was
+  /// routed here with the accept response's `deliveryId`. Seeds the cubit's
+  /// tracking id so the client "Track order" CTA is reachable on an
+  /// already-accepted order (the in-chat accept path captures it from the
+  /// accept response instead). Null on the broadcasting/compose entry and the
+  /// Jeeber variant. Ignored when an explicit [cubit] is supplied (tests own
+  /// the lifecycle).
+  final String? initialTrackingDeliveryId;
+
   static const Key rootKey = Key('chat-screen-root');
   static const Key messageListKey = Key('chat-screen-message-list');
   static const Key emptyStateKey = Key('chat-screen-empty');
@@ -180,6 +191,7 @@ class ChatScreen extends StatelessWidget {
         deliveryId: deliveryId,
         gateway: gateway ?? InMemoryChatGateway(),
         pickerService: pickerService ?? StubPhotoPickerService(),
+        initialDeliveryId: initialTrackingDeliveryId,
       )..load(),
       child: _ChatScaffold(
         deliveryId: deliveryId,
