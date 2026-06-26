@@ -21,6 +21,7 @@ class VoiceRecordingKeys {
   const VoiceRecordingKeys._();
 
   static const Key micButton = Key('voice_request_mic_button');
+  static const Key blockedState = Key('voice_request_blocked_state');
   static const Key recordingWaveform = Key('voice_request_recording_waveform');
   static const Key cancelButton = Key('voice_request_cancel_button');
   static const Key playbackToggle = Key('voice_request_playback_toggle');
@@ -126,7 +127,15 @@ class _VoiceRecordingView extends StatelessWidget {
               onSent?.call(state.result!.id, state.result!.transcript);
             }
             final error = state.error;
-            if (error != null) {
+            if (error != null && !_isBlockingError(error)) {
+              // Transient errors (too-short, max-duration, upload failures) get
+              // a one-shot snackbar, then are acknowledged so the same copy
+              // doesn't re-render. The blocking pre-conditions (mic permission
+              // denied, recorder unavailable) are deliberately NOT snackbar'd:
+              // a transient toast is a dead-end the user can't act on. They
+              // persist in state so the idle surface can render a recoverable
+              // OmdsErrorState with a "Try again" action (see [_MicSurface]).
+              //
               // EXEMPT: OMDS does not export a standalone snackbar/toast
               // widget; ScaffoldMessenger.showSnackBar is the approved
               // fleet pattern for transient error feedback (T-MOB-011).
@@ -266,6 +275,14 @@ class _MicSurface extends StatelessWidget {
     if (state.isRecording) {
       return _buildWaveformBar(context, cubit, l10n);
     }
+    // Blocking pre-condition (mic permission denied / recorder unavailable):
+    // render a recoverable, OMDS-consistent error surface instead of the idle
+    // mic, so the user gets guidance + a retry rather than a silent no-op or a
+    // transient snackbar dead-end.
+    final error = state.error;
+    if (error != null && _isBlockingError(error)) {
+      return _BlockedSurface(error: error, onRetry: cubit.startRecording);
+    }
     return _buildIdleMic(context, cubit, l10n);
   }
 
@@ -318,6 +335,41 @@ class _MicSurface extends StatelessWidget {
           style: Theme.of(context).textTheme.bodyMedium,
         ),
       ],
+    );
+  }
+}
+
+/// Recoverable blocking state for the mic pre-conditions (permission denied /
+/// recorder unavailable). Uses [OmdsErrorState] for fleet consistency and wires
+/// "Try again" back to [VoiceRecordingCubit.startRecording], which re-requests
+/// the OS permission / re-checks the recorder. Honest: no backend call, no
+/// dead-end — the user can always retry from here once they grant access.
+class _BlockedSurface extends StatelessWidget {
+  const _BlockedSurface({required this.error, required this.onRetry});
+
+  final VoiceRecordingError error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final isPermission = error == VoiceRecordingError.permissionDenied;
+    return Semantics(
+      identifier: 'voice_request_blocked_state',
+      container: true,
+      child: OmdsErrorState(
+        key: VoiceRecordingKeys.blockedState,
+        icon: Icons.mic_off_outlined,
+        iconColor: Theme.of(context).colorScheme.primary,
+        title: isPermission
+            ? l10n.voiceRecordingPermissionTitle
+            : l10n.voiceRecordingUnavailableTitle,
+        message: isPermission
+            ? l10n.voiceRecordingPermissionBody
+            : l10n.voiceRecordingErrorUnavailable,
+        retryLabel: l10n.voiceRecordingRetry,
+        onRetry: onRetry,
+      ),
     );
   }
 }
@@ -569,6 +621,14 @@ class _ActionRow extends StatelessWidget {
     }
   }
 }
+
+/// Errors that block recording until the user acts (grants mic permission, or
+/// frees the recorder). These persist on screen as a recoverable
+/// [OmdsErrorState] instead of a transient snackbar so the user is never left
+/// in a dead-end tap-deny-tap loop.
+bool _isBlockingError(VoiceRecordingError error) =>
+    error == VoiceRecordingError.permissionDenied ||
+    error == VoiceRecordingError.recorderUnavailable;
 
 String _formatDuration(Duration duration) {
   final clamped = duration.isNegative ? Duration.zero : duration;

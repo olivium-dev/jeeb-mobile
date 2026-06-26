@@ -523,26 +523,15 @@ class _EmptyView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // OMDS-consistent zero-state (was a hand-rolled Icon+Text column). The Add
+    // CTA stays on the screen FAB, so this surface is guidance-only — honest:
+    // there is genuinely nothing saved yet.
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.place_outlined, size: 64),
-          const SizedBox(height: Spacing.medium),
-          Text(
-            l10n.savedAddressesEmptyTitle,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: Spacing.small),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.xLarge),
-            child: Text(
-              l10n.savedAddressesEmptyBody,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          ),
-        ],
+      key: const Key('saved-locations-empty'),
+      child: OmdsEmptyState(
+        icon: Icons.place_outlined,
+        title: l10n.savedAddressesEmptyTitle,
+        subtitle: l10n.savedAddressesEmptyBody,
       ),
     );
   }
@@ -556,19 +545,16 @@ class _ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // OMDS-consistent error state with retry (was a hand-rolled column reusing
+    // the unrelated `earningsLoadRetry` label). [onRetry] re-runs the real
+    // saved-locations load — no fabricated data.
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error_outline, size: 48),
-          const SizedBox(height: Spacing.medium),
-          Text(l10n.savedLocationsError),
-          const SizedBox(height: Spacing.medium),
-          OmdsPrimaryButton(
-            text: l10n.earningsLoadRetry,
-            onTap: onRetry,
-          ),
-        ],
+      key: const Key('saved-locations-error'),
+      child: OmdsErrorState(
+        icon: Icons.cloud_off_outlined,
+        message: l10n.savedLocationsError,
+        retryLabel: l10n.savedLocationsRetry,
+        onRetry: onRetry,
       ),
     );
   }

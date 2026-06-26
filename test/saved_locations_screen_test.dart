@@ -7,6 +7,7 @@ import 'package:jeeb_mobile/features/location/domain/saved_location.dart';
 import 'package:jeeb_mobile/features/location/domain/saved_location_repository.dart';
 import 'package:jeeb_mobile/features/location/presentation/saved_locations_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
+import 'package:omds/omds.dart';
 
 import 'support/sync_app_localizations.dart';
 
@@ -63,6 +64,24 @@ class _FakeRepo implements SavedLocationRepository {
 
   @override
   Future<void> deleteLocation(String id) async {}
+}
+
+/// Repo whose first load throws, then (if [recoverWith] is set) succeeds — lets
+/// the error-state test prove the OmdsErrorState retry re-runs the real load.
+class _FlakyRepo extends _FakeRepo {
+  _FlakyRepo({this.recoverWith = const []}) : super(const []);
+
+  final List<SavedLocation> recoverWith;
+  int fetchCalls = 0;
+
+  @override
+  Future<List<SavedLocation>> fetchSavedLocations() async {
+    fetchCalls++;
+    if (fetchCalls == 1) {
+      throw Exception('load failed');
+    }
+    return recoverWith;
+  }
 }
 
 /// Sentinel form screen so the `address-detail` route is assertable + carries
@@ -199,6 +218,48 @@ void main() {
         find.bySemanticsIdentifier('address_form_save_cta'),
         findsOneWidget,
       );
+    });
+
+    // Sprint-6 Stream-B polish: empty/error states use the OMDS feedback
+    // widgets (was hand-rolled Icon+Text columns) for fleet consistency.
+    testWidgets('empty state uses OmdsEmptyState with honest zero-state copy',
+        (tester) async {
+      await tester.pumpWidget(_harness(_router(_FakeRepo(const []))));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('saved-locations-empty')), findsOneWidget);
+      expect(find.byType(OmdsEmptyState), findsOneWidget);
+      expect(find.text('No saved addresses yet'), findsOneWidget);
+    });
+
+    testWidgets('error state uses OmdsErrorState and retry re-runs the load',
+        (tester) async {
+      final repo = _FlakyRepo(
+        recoverWith: const [
+          SavedLocation(
+            id: 'addr-1',
+            label: 'Home',
+            latitude: 0,
+            longitude: 0,
+            category: SavedLocationCategory.home,
+          ),
+        ],
+      );
+      await tester.pumpWidget(_harness(_router(repo)));
+      await tester.pumpAndSettle();
+
+      // First load threw → OMDS error surface with retry.
+      expect(find.byKey(const Key('saved-locations-error')), findsOneWidget);
+      expect(find.byType(OmdsErrorState), findsOneWidget);
+      expect(find.text('Try again'), findsOneWidget);
+
+      // Retry re-runs the real load (no fabricated data); second load recovers.
+      await tester.tap(find.text('Try again'));
+      await tester.pumpAndSettle();
+
+      expect(repo.fetchCalls, 2);
+      expect(find.byKey(const Key('saved-locations-error')), findsNothing);
+      expect(find.text('Home'), findsOneWidget);
     });
   });
 }

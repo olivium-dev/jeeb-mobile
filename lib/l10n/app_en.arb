@@ -3087,6 +3087,22 @@
   "@voiceRecordingBroadcastingHint": {
     "description": "T-MOB-011 AC3: Sub-line shown below sent confirmation while request is broadcasting to nearby Jeebers (SM-1 Broadcasting phase)."
   },
+  "voiceRecordingPermissionTitle": "Microphone access needed",
+  "@voiceRecordingPermissionTitle": {
+    "description": "Title of the persistent blocking state shown when mic permission is denied so the user is not left in a dead-end snackbar loop."
+  },
+  "voiceRecordingPermissionBody": "Jeeb needs microphone access to record your request. Enable it in your device settings, then try again.",
+  "@voiceRecordingPermissionBody": {
+    "description": "Guidance body for the mic-permission-denied blocking state."
+  },
+  "voiceRecordingUnavailableTitle": "Microphone unavailable",
+  "@voiceRecordingUnavailableTitle": {
+    "description": "Title of the persistent blocking state shown when the recorder hardware is unavailable/busy."
+  },
+  "voiceRecordingRetry": "Try again",
+  "@voiceRecordingRetry": {
+    "description": "Retry action on the voice-request blocking state (re-requests mic permission / re-checks the recorder)."
+  },
   "savedLocationsTitle": "Saved locations",
   "@savedLocationsTitle": {
     "description": "T-MOB-012: Section header for the saved locations chip row on the capture-location screen."
@@ -3474,6 +3490,10 @@
   "savedLocationsError": "Could not load saved locations. Please try again.",
   "@savedLocationsError": {
     "description": "T-MOB-025: Error state message"
+  },
+  "savedLocationsRetry": "Try again",
+  "@savedLocationsRetry": {
+    "description": "Retry action on the saved-locations error state (OmdsErrorState retry label)."
   },
   "savedLocationsDeleteError": "Could not delete location. Please try again.",
   "@savedLocationsDeleteError": {
