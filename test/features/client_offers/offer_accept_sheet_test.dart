@@ -21,6 +21,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
@@ -211,6 +212,90 @@ void main() {
       // navigation then falls back to the requestId for the chat target.
       expect(reported?.conversationId, isNull);
       expect(reported?.deliveryId, isNull);
+    });
+
+    testWidgets(
+        'T-APP-1 — show() opens chat-detail by the REQUEST id, NOT the '
+        'phantom conversationId the accept response carries', (tester) async {
+      // SHARED CHAT CONTRACT: after accept there is ONE real conversation keyed
+      // by requestId, joined by BOTH the customer and the winning jeeber. The
+      // accept response may carry a PHANTOM conversationId (`conv-for-<reqId>`)
+      // the gateway mints before the real conversation exists. The app must open
+      // chat by REQUEST id (resolve-or-create), never by trusting that phantom.
+      const requestId = 'req-client-001-offers';
+      const phantom = 'conv-for-$requestId';
+      final repo = _repo(conversationId: phantom, deliveryId: 'dlv-1');
+
+      String? routedChatId;
+      String? routedDeliveryId;
+      final router = GoRouter(
+        initialLocation: '/offers',
+        routes: [
+          GoRoute(
+            path: '/offers',
+            builder: (context, state) => Scaffold(
+              body: Builder(
+                builder: (context) => Center(
+                  child: TextButton(
+                    key: const Key('open-accept-sheet'),
+                    onPressed: () => OfferAcceptSheet.show(
+                      context,
+                      offer: _offer(),
+                      requestId: requestId,
+                      repository: repo,
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          GoRoute(
+            name: 'chat-detail',
+            path: '/chat/:id',
+            builder: (context, state) {
+              routedChatId = state.pathParameters['id'];
+              routedDeliveryId = state.uri.queryParameters['deliveryId'];
+              return const Scaffold(
+                body: Center(child: Text('chat', key: Key('chat-screen'))),
+              );
+            },
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(
+          theme: AppTheme.light(),
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: [
+            _syncDelegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          routerConfig: router,
+        ),
+      );
+      await tester.pump();
+
+      // Open the sheet, then confirm the accept.
+      await tester.tap(find.byKey(const Key('open-accept-sheet')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.bySemanticsIdentifier('offer_accept_confirm_cta'));
+      await tester.pump(); // submitting
+      await tester.pump(); // succeeded → listener navigates
+      await tester.pumpAndSettle();
+
+      expect(repo.acceptCalls, 1);
+      expect(find.byKey(const Key('chat-screen')), findsOneWidget);
+      // The load-bearing assertion: chat opened by the REQUEST id, never the
+      // phantom conversationId from the accept response.
+      expect(routedChatId, requestId);
+      expect(routedChatId, isNot(phantom));
+      // The real delivery id is still forwarded so the Track-order CTA works.
+      expect(routedDeliveryId, 'dlv-1');
     });
 
     testWidgets('AC3 — cancel dismisses and does NOT accept', (tester) async {

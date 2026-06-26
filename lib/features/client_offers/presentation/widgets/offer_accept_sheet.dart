@@ -85,15 +85,18 @@ class OfferAcceptSheet extends StatelessWidget {
   ///
   /// EDGE (21_NAV_PLAN §C, JM-029, D11/D71): the confirm path resolves to
   /// `chat-detail` (`/chat/:id`) — the `order-chat` blueprint surface — keyed on
-  /// the server `conversationId`. When the gateway omits one we fall back to the
-  /// [requestId]; `ChatDetailScreen` resolves either (it accepts a conversation
-  /// id OR a delivery/request id and walks `by-request`). The accept response
-  /// now ALSO carries the server-created `deliveryId` (the accepted offer is a
-  /// real active delivery); we forward it as the `deliveryId` query param so the
-  /// order-chat's "Track order" CTA (G5, `OfferAcceptedBanner`) is reachable for
-  /// an offer accepted straight from the review list — the conversation phase is
-  /// `accepted` on load but the chat would otherwise have no delivery id to
-  /// track.
+  /// the [requestId], NEVER on `result.conversationId`. CHAT-CONTRACT
+  /// (sprint-8f, T-APP-1): the accept response's conversationId can be a PHANTOM
+  /// (`conv-for-<requestId>`) the gateway mints before the real conversation
+  /// exists; routing on it lands the client in a thread the winning jeeber never
+  /// joins. So we route by request id and let `ChatDetailScreen` resolve-or-
+  /// create the REAL conversation by request id (the one shared by BOTH the
+  /// customer and the winning jeeber). The accept response also carries the
+  /// server-created `deliveryId` (the accepted offer is a real active delivery);
+  /// we forward it as the `deliveryId` query param so the order-chat's "Track
+  /// order" CTA (G5, `OfferAcceptedBanner`) is reachable for an offer accepted
+  /// straight from the review list — the conversation phase is `accepted` on
+  /// load but the chat would otherwise have no delivery id to track.
   static Future<void> show(
     BuildContext context, {
     required Offer offer,
@@ -119,15 +122,21 @@ class OfferAcceptSheet extends StatelessWidget {
         repository: repository,
         onConfirmed: (result) {
           Navigator.of(sheetContext).pop();
-          final conversationId = result.conversationId;
-          final chatId =
-              (conversationId != null && conversationId.isNotEmpty)
-                  ? conversationId
-                  : requestId;
+          // CHAT-CONTRACT (sprint-8f, T-APP-1): open the order-chat by the
+          // REQUEST id, NEVER by `result.conversationId`. The accept response's
+          // conversationId may be a PHANTOM (`conv-for-<requestId>`) the gateway
+          // synthesises before the real conversation exists; trusting it routes
+          // the client into a chat that is not the one the winning jeeber joins,
+          // so the two participants never share a thread. `ChatDetailScreen`
+          // treats the route param as the conversation's CORRELATION KEY and
+          // resolve-or-creates the REAL server conversation by request id (the
+          // single conversation BOTH the customer and the winning jeeber are
+          // participants of, regardless of when the jeeber offered). So we hand
+          // it the request id and discard the (possibly phantom) conversationId.
           final deliveryId = result.deliveryId;
           rootContext.goNamed(
             'chat-detail',
-            pathParameters: {'id': chatId},
+            pathParameters: {'id': requestId},
             queryParameters: {
               if (deliveryId != null && deliveryId.isNotEmpty)
                 'deliveryId': deliveryId,

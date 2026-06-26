@@ -265,6 +265,180 @@ void main() {
     });
   });
 
+  group('ChatCubit — own-message WS echo dedupe (T-APP-2)', () {
+    test(
+      "the sender's own message echoed back over the WS with a different "
+      'SERVER id is NOT shown twice — it reconciles onto the optimistic bubble',
+      () async {
+        final gateway = _TestChatGateway();
+        final cubit = _build(gateway: gateway);
+        await cubit.load();
+
+        cubit.composerChanged('on my way');
+        await cubit.sendText();
+        // One optimistic own bubble with the local outbox id.
+        expect(cubit.state.messages, hasLength(1));
+        final optimisticId = cubit.state.messages.single.id;
+        expect(cubit.state.messages.single.author, ChatAuthor.me);
+
+        // The mock fans the sender's OWN message back out over the WS with the
+        // canonical SERVER id (different from the optimistic local id) and
+        // author resolved to `me` (senderId == currentUserId on the gateway).
+        gateway.push(
+          IncomingMessage(
+            DeliveryChatMessage.text(
+              id: 'srv-msg-7',
+              author: ChatAuthor.me,
+              sentAt: DateTime(2026, 5, 17, 10, 30, 1),
+              status: MessageStatus.delivered,
+              text: 'on my way',
+            ),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        // STILL one bubble — the echo did not create a duplicate.
+        expect(
+          cubit.state.messages,
+          hasLength(1),
+          reason: "own-message echo must not duplicate the sender's bubble",
+        );
+        final reconciled = cubit.state.messages.single;
+        expect(reconciled.text, 'on my way');
+        expect(reconciled.author, ChatAuthor.me);
+        // The bubble adopted the SERVER id so later receipts (keyed by it) land.
+        expect(reconciled.id, 'srv-msg-7');
+        expect(reconciled.id, isNot(optimisticId));
+        // The further-along status is kept (echo `delivered` > optimistic `sent`).
+        expect(reconciled.status, MessageStatus.delivered);
+      },
+    );
+
+    test(
+      'a delivery receipt keyed by the reconciled SERVER id promotes the '
+      'own bubble (proves the id was adopted from the echo)',
+      () async {
+        final gateway = _TestChatGateway();
+        final cubit = _build(gateway: gateway);
+        await cubit.load();
+
+        cubit.composerChanged('ping');
+        await cubit.sendText();
+        gateway.push(
+          IncomingMessage(
+            DeliveryChatMessage.text(
+              id: 'srv-ping-1',
+              author: ChatAuthor.me,
+              sentAt: DateTime(2026, 5, 17, 10, 30, 2),
+              status: MessageStatus.sent,
+              text: 'ping',
+            ),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        gateway.push(const ReadReceipt('srv-ping-1'));
+        await Future<void>.delayed(Duration.zero);
+
+        expect(cubit.state.messages, hasLength(1));
+        expect(cubit.state.messages.single.status, MessageStatus.read);
+      },
+    );
+
+    test(
+      'a repeated identical echo (same SERVER id) is an idempotent no-op',
+      () async {
+        final gateway = _TestChatGateway();
+        final cubit = _build(gateway: gateway);
+        await cubit.load();
+
+        cubit.composerChanged('hi');
+        await cubit.sendText();
+        final echo = IncomingMessage(
+          DeliveryChatMessage.text(
+            id: 'srv-hi-1',
+            author: ChatAuthor.me,
+            sentAt: DateTime(2026, 5, 17, 10, 30, 3),
+            status: MessageStatus.delivered,
+            text: 'hi',
+          ),
+        );
+        gateway
+          ..push(echo)
+          ..push(echo);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(cubit.state.messages, hasLength(1));
+      },
+    );
+
+    test(
+      'a genuine counterpart message is always appended (never collapsed by '
+      'the own-echo path)',
+      () async {
+        final gateway = _TestChatGateway();
+        final cubit = _build(gateway: gateway);
+        await cubit.load();
+
+        cubit.composerChanged('same words');
+        await cubit.sendText();
+        // The counterpart happens to send the IDENTICAL text — it must still
+        // appear as its own (them) bubble; the dedupe is for `me` echoes only.
+        gateway.push(
+          IncomingMessage(
+            DeliveryChatMessage.text(
+              id: 'srv-them-1',
+              author: ChatAuthor.them,
+              sentAt: DateTime(2026, 5, 17, 10, 30, 4),
+              status: MessageStatus.delivered,
+              text: 'same words',
+            ),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(cubit.state.messages, hasLength(2));
+        expect(
+          cubit.state.messages.where((m) => m.author == ChatAuthor.them),
+          hasLength(1),
+        );
+      },
+    );
+
+    test(
+      'a distinct own message (different text) is NOT collapsed into a prior '
+      'own bubble',
+      () async {
+        final gateway = _TestChatGateway();
+        final cubit = _build(gateway: gateway);
+        await cubit.load();
+
+        cubit.composerChanged('first');
+        await cubit.sendText();
+        // A genuinely different own message arriving over the WS (not an echo
+        // of `first`) must append as a second bubble.
+        gateway.push(
+          IncomingMessage(
+            DeliveryChatMessage.text(
+              id: 'srv-second-1',
+              author: ChatAuthor.me,
+              sentAt: DateTime(2026, 5, 17, 10, 30, 5),
+              status: MessageStatus.delivered,
+              text: 'second',
+            ),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(cubit.state.messages, hasLength(2));
+        expect(
+          cubit.state.messages.map((m) => m.text).toList(),
+          ['first', 'second'],
+        );
+      },
+    );
+  });
+
   group('ChatCubit — photo attachments', () {
     test(
       'sendPhotoFromCamera appends a photo message and clears isAttaching',
