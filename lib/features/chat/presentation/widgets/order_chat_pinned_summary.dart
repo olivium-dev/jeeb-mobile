@@ -83,6 +83,12 @@ class OrderChatPinnedSummary extends StatelessWidget {
       child: Semantics(
         identifier: 'order_summary_pinned',
         container: true,
+        // explicitChildNodes so the descendant field ids (order_summary_price /
+        // _jeeber_name / _eta / _tier / _cash_label) and the view-summary link
+        // each form their OWN first-class semantics node. Without it the default
+        // (false) merges every descendant's label + identifier UP into this one
+        // container node, folding those ids away (JM-049 merge class).
+        explicitChildNodes: true,
         child: Container(
         width: double.infinity,
         decoration: BoxDecoration(
@@ -200,8 +206,15 @@ class OrderChatPinnedSummary extends StatelessWidget {
             // surfaces.
             Semantics(
               identifier: 'order_chat_cash_label',
+              container: true,
+              // Both ids are container nodes (mirroring the
+              // order_chat_pinned_summary > order_summary_pinned pair above) so
+              // each is a first-class, separately-findable node. Two nested
+              // container:false annotations would collapse onto one node and
+              // only one identifier would survive (JM-049 merge class).
               child: Semantics(
                 identifier: 'order_summary_cash_label',
+                container: true,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
