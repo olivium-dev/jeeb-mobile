@@ -17,4 +17,15 @@ class LiveTrackingException implements Exception {
       'LiveTrackingException(${kind.name}${cause == null ? '' : ', $cause'})';
 }
 
-enum LiveTrackingErrorKind { network, server, parse }
+enum LiveTrackingErrorKind {
+  network,
+  server,
+
+  /// The delivery row does not exist (HTTP 404). Distinct from a transient
+  /// [server] error: it usually means the screen was opened with the wrong id
+  /// (e.g. a request id instead of the server delivery id) OR the accept-minted
+  /// delivery has not propagated yet. Surfaced as a dedicated empty/error
+  /// state with a retry, never a crash.
+  notFound,
+  parse,
+}

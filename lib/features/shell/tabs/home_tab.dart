@@ -168,9 +168,20 @@ class HomeTab extends StatelessWidget {
   /// open the conversation. The tracking screen defends its own empty/invalid
   /// state, so an empty id is a no-op here.
   void _openTracking(BuildContext context, ClientHomeRequest request) {
-    if (request.id.isEmpty) return;
-    GoRouter.of(context)
-        .pushNamed('live-tracking', pathParameters: {'id': request.id});
+    if (request.trackingId.isEmpty) return;
+    // S9 live-tracking fix: navigate with the SERVER delivery id
+    // (`delivery-<offerId>`) so `GET /v1/delivery/<id>` resolves instead of
+    // 404'ing on a request id. The router prefers `?deliveryId=` over `:id`;
+    // we still set the path id (delivery id when known, else request id as a
+    // best-effort fallback via [ClientHomeRequest.trackingId]).
+    GoRouter.of(context).pushNamed(
+      'live-tracking',
+      pathParameters: {'id': request.trackingId},
+      queryParameters: {
+        if (request.deliveryId != null && request.deliveryId!.isNotEmpty)
+          'deliveryId': request.deliveryId!,
+      },
+    );
   }
 
   /// Opens the voice-request capture flow (`/voice-request`, route

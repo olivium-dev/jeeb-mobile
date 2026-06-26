@@ -136,6 +136,28 @@ import '../onboarding/onboarding_cubit.dart';
 /// session gates when [DevSeamConfig.skipOnboarding] is explicitly set — a bare
 /// `jeeb.route=/` / `JEEB_DEV_HOME=true` on a fresh install now lands on
 /// `/onboarding`, not Home.
+/// Resolves the id the live-tracking surface must read
+/// (`GET /v1/delivery/<id>`).
+///
+/// S9 live-tracking fix: the server-created delivery id (`delivery-<offerId>`)
+/// is surfaced in the accept/offer response and forwarded by CTAs as the
+/// `?deliveryId=` query param. It takes precedence over the path `:id`, which
+/// for many entry points carries the parent REQUEST id — a value the
+/// delivery-service answers with 404 ("Delivery not found"). Falls back to the
+/// path id when no query param is present (legacy callers + dev seam).
+///
+/// Pure + side-effect free so the precedence rule is unit-testable without
+/// booting the router.
+String resolveTrackingDeliveryId({
+  required String? routeId,
+  required String? queryDeliveryId,
+}) {
+  if (queryDeliveryId != null && queryDeliveryId.isNotEmpty) {
+    return queryDeliveryId;
+  }
+  return routeId ?? '';
+}
+
 class AppRouter {
   AppRouter._();
 
@@ -985,7 +1007,18 @@ class AppRouter {
           path: '/orders/:id/tracking',
           name: 'live-tracking',
           builder: (context, state) {
-            final deliveryId = state.pathParameters['id'] ?? '';
+            // S9 live-tracking fix: the delivery's REAL server-created id
+            // (`delivery-<offerId>`) is returned in the accept/offer response
+            // and is NOT derivable from the request id the path `:id` often
+            // carries. `GET /v1/delivery/<requestId>` 404s. Callers that hold
+            // the server id pass it as `?deliveryId=`; it takes precedence over
+            // `:id` so the delivery-service lookup resolves. Falls back to the
+            // path `:id` for legacy callers + the dev seam. Mirrors the
+            // `chat-detail` route's `deliveryId` query-param plumbing.
+            final deliveryId = resolveTrackingDeliveryId(
+              routeId: state.pathParameters['id'],
+              queryDeliveryId: state.uri.queryParameters['deliveryId'],
+            );
             // T-MOB-017: render the deterministic placeholder (not a live
             // GoogleMap) when the dev seam is driving a `/tracking` capture —
             // no Maps key / unstable emulator on that path. Every other run

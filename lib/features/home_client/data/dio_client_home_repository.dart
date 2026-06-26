@@ -158,8 +158,20 @@ class DioClientHomeRepository implements ClientHomeRepository {
     // D5 ShipmentsListDto uses 'currentStage', not 'status'.
     final stage =
         json['currentStage'] as String? ?? json['status'] as String?;
+    // S9 live-tracking fix: the live-tracking surface reads
+    // `GET /v1/delivery/<deliveryId>`. The In-Progress list item's `id` may be
+    // the parent REQUEST/order id (the live gateway models orders by request),
+    // which 404s that lookup. Prefer an explicit delivery-id field when the
+    // gateway surfaces one (`deliveryId`/`delivery_id`); leave null otherwise
+    // so [ClientHomeRequest.trackingId] falls back to `id` (correct when the
+    // list endpoint already keys items on the delivery id).
+    final deliveryId =
+        (json['deliveryId'] ?? json['delivery_id']) as String?;
     return ClientHomeRequest(
       id: id,
+      deliveryId: (deliveryId != null && deliveryId.isNotEmpty)
+          ? deliveryId
+          : null,
       displayId: json['displayId'] as String?,
       title: json['title'] as String? ?? 'Delivery $id',
       status: _mapDeliveryStatus(stage),

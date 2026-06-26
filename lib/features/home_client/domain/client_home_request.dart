@@ -65,10 +65,32 @@ class ClientHomeRequest extends Equatable {
     this.conversationId,
     this.displayId,
     this.ttlSeconds,
+    this.deliveryId,
   });
 
   /// Server-side identifier; also used as the deep-link key.
+  ///
+  /// For In-Progress cards this is the parent REQUEST/order id — NOT the
+  /// delivery row id. The delivery the accept created is keyed separately
+  /// (`delivery-<offerId>`); see [deliveryId].
   final String id;
+
+  /// The server-created delivery row id (`delivery-<offerId>`) for an
+  /// accepted/in-progress order, when the list endpoint surfaces it.
+  ///
+  /// S9 live-tracking fix: the live-tracking surface reads
+  /// `GET /v1/delivery/<deliveryId>`, which 404s on a request id. The
+  /// In-Progress "Track my order" CTA must navigate with THIS id, not [id].
+  /// Null when the gateway list item does not carry a distinct delivery id;
+  /// callers then fall back to [id] via [trackingId] (correct only when the
+  /// list endpoint already keys items on the delivery id).
+  final String? deliveryId;
+
+  /// The id the live-tracking surface (`/orders/:id/tracking`,
+  /// `GET /v1/delivery/<id>`) must be opened with: the server delivery id when
+  /// known, else the request id as a best-effort fallback.
+  String get trackingId =>
+      (deliveryId != null && deliveryId!.isNotEmpty) ? deliveryId! : id;
 
   /// Human-readable order id (e.g. `ORD-23748`) used in the chat header /
   /// Replies card title. Falls back to [id] when the server omits it.
@@ -142,6 +164,7 @@ class ClientHomeRequest extends Equatable {
     Object? conversationId = _sentinel,
     Object? displayId = _sentinel,
     Object? ttlSeconds = _sentinel,
+    Object? deliveryId = _sentinel,
   }) {
     return ClientHomeRequest(
       id: id ?? this.id,
@@ -170,6 +193,9 @@ class ClientHomeRequest extends Equatable {
       ttlSeconds: identical(ttlSeconds, _sentinel)
           ? this.ttlSeconds
           : ttlSeconds as int?,
+      deliveryId: identical(deliveryId, _sentinel)
+          ? this.deliveryId
+          : deliveryId as String?,
     );
   }
 
@@ -189,6 +215,7 @@ class ClientHomeRequest extends Equatable {
         offerAvatarUrls,
         conversationId,
         ttlSeconds,
+        deliveryId,
       ];
 }
 
