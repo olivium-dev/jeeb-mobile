@@ -289,12 +289,13 @@ class _CoordinateRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Row(
       children: [
         Expanded(
           child: OmdsTextField(
             controller: latController,
-            labelText: 'Latitude',
+            labelText: l10n.savedAddressLatitudeLabel,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             onChanged: (_) => onChanged(),
           ),
@@ -303,7 +304,7 @@ class _CoordinateRow extends StatelessWidget {
         Expanded(
           child: OmdsTextField(
             controller: lngController,
-            labelText: 'Longitude',
+            labelText: l10n.savedAddressLongitudeLabel,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             onChanged: (_) => onChanged(),
           ),

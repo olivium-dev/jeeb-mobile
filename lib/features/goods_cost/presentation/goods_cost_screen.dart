@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../l10n/app_localizations.dart';
 import '../application/goods_cost_cubit.dart';
 import '../application/goods_cost_state.dart';
 import '../data/dio_goods_cost_repository.dart';
@@ -64,9 +65,9 @@ class _GoodsCostView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      appBar: OMDSAppBar(title: 'Enter Goods Cost'),
-      body: Padding(
+    return Scaffold(
+      appBar: OMDSAppBar(title: AppLocalizations.of(context).goodsCostTitle),
+      body: const Padding(
         padding: EdgeInsets.all(Spacing.medium),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -87,16 +88,17 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'How much did the goods cost?',
+          l10n.goodsCostHeadline,
           style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: Spacing.xSmall),
         Text(
-          'Enter the amount the Client needs to pay for the purchased goods.',
+          l10n.goodsCostBody,
           style: theme.textTheme.bodyMedium,
         ),
       ],
@@ -131,13 +133,14 @@ class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
   /// so the delivery's currency from the gateway is the source of truth; until
   /// it resolves (or if the best-effort read failed) the label degrades to a
   /// neutral "Goods Cost".
-  String _label(String? currency) =>
+  String _label(AppLocalizations l10n, String? currency) =>
       (currency != null && currency.isNotEmpty)
-          ? 'Goods Cost ($currency)'
-          : 'Goods Cost';
+          ? l10n.goodsCostFieldLabel(currency)
+          : l10n.goodsCostFieldLabelNeutral;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return BlocConsumer<GoodsCostCubit, GoodsCostState>(
       listenWhen: (prev, next) =>
           prev.submitStatus != next.submitStatus &&
@@ -157,7 +160,7 @@ class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
           children: [
             OmdsTextField(
               controller: _controller,
-              labelText: _label(state.currency),
+              labelText: _label(l10n, state.currency),
               keyboardType: TextInputType.number,
               prefixIcon: const Icon(Icons.attach_money),
               enabled: !submitting,
@@ -172,7 +175,7 @@ class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
             if (state.submitStatus == GoodsCostSubmitStatus.failed) ...[
               const SizedBox(height: Spacing.small),
               Text(
-                _errorCopy(state.submitError),
+                _errorCopy(l10n, state.submitError),
                 key: const Key('goods-cost-error'),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.error,
@@ -181,7 +184,7 @@ class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
             ],
             const Spacer(),
             OmdsLoadingButton(
-              text: 'Confirm Cost',
+              text: l10n.goodsCostSubmit,
               isLoading: submitting,
               isEnabled: _controller.text.trim().isNotEmpty && !submitting,
               onTap: _submit,
@@ -192,17 +195,17 @@ class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
     );
   }
 
-  static String _errorCopy(GoodsCostFailure? failure) {
+  static String _errorCopy(AppLocalizations l10n, GoodsCostFailure? failure) {
     switch (failure) {
       case GoodsCostFailure.network:
-        return "Couldn't reach the server. Check your connection and try again.";
+        return l10n.goodsCostErrorNetwork;
       case GoodsCostFailure.notFound:
-        return 'This delivery could not be found.';
+        return l10n.goodsCostErrorNotFound;
       case GoodsCostFailure.validation:
-        return 'Enter a valid amount and try again.';
+        return l10n.goodsCostErrorValidation;
       case GoodsCostFailure.unknown:
       case null:
-        return 'Something went wrong. Please try again.';
+        return l10n.goodsCostErrorGeneric;
     }
   }
 }

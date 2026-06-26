@@ -1638,6 +1638,17 @@
   "@requestSummaryPhotosEmpty": {
     "description": "Placeholder body shown when no photos were attached"
   },
+  "requestSummarySectionTranscription": "Transcription",
+  "@requestSummarySectionTranscription": {
+    "description": "Card title for the voice-note transcription section on the summary screen"
+  },
+  "requestSummaryPhotosAttached": "{count} photo(s) attached",
+  "@requestSummaryPhotosAttached": {
+    "description": "Body showing how many photos were attached on the summary screen",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
   "requestSummarySubmit": "Send request",
   "@requestSummarySubmit": {
     "description": "Primary submit CTA on the summary screen"
@@ -4057,5 +4068,36 @@
   "searchLoadError": "Something went wrong. Please try again.",
   "@searchLoadError": { "description": "Sprint-5 Stream C: generic failure error-state message." },
   "searchRetry": "Retry",
-  "@searchRetry": { "description": "Sprint-5 Stream C: error / unavailable retry CTA." }
+  "@searchRetry": { "description": "Sprint-5 Stream C: error / unavailable retry CTA." },
+
+  "goodsCostTitle": "Enter goods cost",
+  "@goodsCostTitle": {"description": "App bar title for the Jeeber goods-cost entry screen."},
+  "goodsCostHeadline": "How much did the goods cost?",
+  "@goodsCostHeadline": {"description": "Headline prompting the Jeeber to enter the goods cost."},
+  "goodsCostBody": "Enter the amount the Client needs to pay for the purchased goods.",
+  "@goodsCostBody": {"description": "Body explaining the goods-cost amount the Client reimburses."},
+  "goodsCostFieldLabel": "Goods cost ({currency})",
+  "@goodsCostFieldLabel": {"description": "Goods-cost text-field label with the gateway-authoritative currency.", "placeholders": {"currency": {"type": "String"}}},
+  "goodsCostFieldLabelNeutral": "Goods cost",
+  "@goodsCostFieldLabelNeutral": {"description": "Goods-cost text-field label fallback when the currency has not resolved."},
+  "goodsCostSubmit": "Confirm cost",
+  "@goodsCostSubmit": {"description": "Primary submit CTA on the goods-cost screen."},
+  "goodsCostErrorNetwork": "Couldn't reach the server. Check your connection and try again.",
+  "@goodsCostErrorNetwork": {"description": "Goods-cost submit error — network failure."},
+  "goodsCostErrorNotFound": "This delivery could not be found.",
+  "@goodsCostErrorNotFound": {"description": "Goods-cost submit error — delivery not found."},
+  "goodsCostErrorValidation": "Enter a valid amount and try again.",
+  "@goodsCostErrorValidation": {"description": "Goods-cost submit error — invalid amount."},
+  "goodsCostErrorGeneric": "Something went wrong. Please try again.",
+  "@goodsCostErrorGeneric": {"description": "Goods-cost submit error — generic fallback."},
+
+  "statementNotFound": "Statement not found",
+  "@statementNotFound": {"description": "Fallback body shown when a wallet statement route cannot resolve its statement."},
+  "routeNotFound": "Route not found: {uri}",
+  "@routeNotFound": {"description": "Fallback body shown by the router when no route matches the requested URI.", "placeholders": {"uri": {"type": "String"}}},
+
+  "savedAddressLatitudeLabel": "Latitude",
+  "@savedAddressLatitudeLabel": {"description": "Label for the latitude field on the add/edit saved-location sheet."},
+  "savedAddressLongitudeLabel": "Longitude",
+  "@savedAddressLongitudeLabel": {"description": "Label for the longitude field on the add/edit saved-location sheet."}
 }
