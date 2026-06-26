@@ -35,6 +35,8 @@ import '../../features/otp_handover/data/dio_otp_handover_repository.dart';
 import '../../features/otp_handover/domain/otp_handover_repository.dart';
 import '../../features/escalate/data/dio_escalate_repository.dart';
 import '../../features/escalate/domain/escalate_repository.dart';
+import '../../features/goods_cost/data/dio_goods_cost_repository.dart';
+import '../../features/goods_cost/domain/goods_cost_repository.dart';
 import '../../features/rating/data/dio_rating_repository.dart';
 import '../../features/rating/domain/rating_repository.dart';
 import '../../features/registration/data/dio_otp_service.dart';
@@ -318,6 +320,19 @@ void configureDependencies({
   // T-MOB-022: Escalate — dispute submission via delivery-service.
   sl.registerLazySingleton<EscalateRepository>(
     () => DioEscalateRepository(sl<Dio>()),
+  );
+
+  // Sprint 2 Stream G (goods-cost): the Jeeber's goods-cost declaration —
+  // GET /v1/delivery/:id (currency label) + POST /v1/delivery/:id/goods-cost.
+  // GoodsCostScreen self-resolves this binding (sl.isRegistered<
+  // GoodsCostRepository>()); with this explicit registration it no longer
+  // falls through to the defensive `DioGoodsCostRepository(sl<Dio>())` /
+  // FakeGoodsCostRepository branches. The GoodsCostCubit is provided by the
+  // screen's own BlocProvider (mirroring RequestSummaryCubit), so it is not
+  // registered here. FakeGoodsCostRepository stays the widget-test seam via the
+  // screen's `repository` constructor override.
+  sl.registerLazySingleton<GoodsCostRepository>(
+    () => DioGoodsCostRepository(sl<Dio>()),
   );
 
   // Availability toggle — Jeeber online/offline state via geolocation-service.
