@@ -1158,6 +1158,7 @@
   "activeDeliveryOtpSubmit": "إتمام التوصيل",
   "activeDeliveryOpenMapsButton": "فتح في الخرائط",
   "activeDeliveryOpenChatButton": "فتح المحادثة",
+  "activeDeliveryEnterGoodsCostButton": "إدخال تكلفة البضائع",
   "activeDeliveryUnavailable": "تفاصيل التوصيل غير متاحة.",
   "activeDeliveryLoadError": "تعذّر تحميل تفاصيل التوصيل.",
   "activeDeliveryStepperA11y": "الحالة الحالية: {current}. التالية: {next}",

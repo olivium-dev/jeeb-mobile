@@ -28,6 +28,7 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
     required this.onOpenChat,
     this.onMarkedDelivered,
     this.onOpenOtp,
+    this.onEnterGoodsCost,
     this.repository,
     this.cubit,
     this.mapsUrlBuilder,
@@ -35,6 +36,11 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
 
   final String deliveryId;
   final VoidCallback onOpenChat;
+
+  /// Sprint 2 Stream G: opens the goods-cost declaration for this delivery
+  /// (the amount the Client reimburses on receipt, D11). Optional — when null
+  /// the action button is hidden, so existing callers/tests are unaffected.
+  final VoidCallback? onEnterGoodsCost;
 
   /// JM-051 AC2: fired once the delivery reaches `Done` — routes to
   /// `feedback-rate-delivery` (mutual rating, `mode=jeeber`). When null (route
@@ -66,6 +72,7 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
           deliveryId: deliveryId,
           onOpenChat: onOpenChat,
           onMarkedDelivered: onMarkedDelivered,
+          onEnterGoodsCost: onEnterGoodsCost,
           mapsUrlBuilder: mapsUrlBuilder,
         ),
       );
@@ -82,6 +89,7 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
         deliveryId: deliveryId,
         onOpenChat: onOpenChat,
         onMarkedDelivered: onMarkedDelivered,
+        onEnterGoodsCost: onEnterGoodsCost,
         mapsUrlBuilder: mapsUrlBuilder,
       ),
     );
@@ -111,12 +119,14 @@ class _Body extends StatelessWidget {
     required this.deliveryId,
     required this.onOpenChat,
     this.onMarkedDelivered,
+    this.onEnterGoodsCost,
     this.mapsUrlBuilder,
   });
 
   final String deliveryId;
   final VoidCallback onOpenChat;
   final VoidCallback? onMarkedDelivered;
+  final VoidCallback? onEnterGoodsCost;
   final Future<void> Function(String url)? mapsUrlBuilder;
 
   @override
@@ -194,6 +204,7 @@ class _Body extends StatelessWidget {
               context.read<ActiveDeliveryCubit>().submitDoorOtp(code),
           onOpenChat: onOpenChat,
           onOpenMaps: () => _launchMaps(delivery),
+          onEnterGoodsCost: onEnterGoodsCost,
           l10n: l10n,
         );
     }
@@ -224,6 +235,7 @@ class _ReadyContent extends StatelessWidget {
     required this.onOpenChat,
     required this.onOpenMaps,
     required this.l10n,
+    this.onEnterGoodsCost,
   });
 
   final ActiveDeliveryState state;
@@ -235,6 +247,7 @@ class _ReadyContent extends StatelessWidget {
   final ValueChanged<String> onSubmitOtp;
   final VoidCallback onOpenChat;
   final VoidCallback onOpenMaps;
+  final VoidCallback? onEnterGoodsCost;
   final AppLocalizations l10n;
 
   @override
@@ -281,6 +294,7 @@ class _ReadyContent extends StatelessWidget {
         _ActionButtons(
           onOpenMaps: onOpenMaps,
           onOpenChat: onOpenChat,
+          onEnterGoodsCost: onEnterGoodsCost,
           l10n: l10n,
         ),
       ],
@@ -333,15 +347,18 @@ class _ActionButtons extends StatelessWidget {
     required this.onOpenMaps,
     required this.onOpenChat,
     required this.l10n,
+    this.onEnterGoodsCost,
   });
 
   final VoidCallback onOpenMaps;
   final VoidCallback onOpenChat;
+  final VoidCallback? onEnterGoodsCost;
   final AppLocalizations l10n;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final enterGoodsCost = onEnterGoodsCost;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -361,6 +378,18 @@ class _ActionButtons extends StatelessWidget {
           icon: const Icon(Icons.chat_bubble_outline),
           onTap: onOpenChat,
         ),
+        // Sprint 2 Stream G: goods-cost entry point (D11). Only shown when the
+        // caller wired the navigation closure — keeps existing tests/callers
+        // (which omit it) rendering exactly the prior two buttons.
+        if (enterGoodsCost != null) ...[
+          const SizedBox(height: Spacing.small),
+          OmdsPrimaryButton(
+            text: l10n.activeDeliveryEnterGoodsCostButton,
+            variant: OmdsButtonVariant.outlined,
+            icon: const Icon(Icons.receipt_long_outlined),
+            onTap: enterGoodsCost,
+          ),
+        ],
       ],
     );
   }

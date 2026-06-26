@@ -19,24 +19,31 @@ class MockGatewayClient {
   /// Single source of truth for mock backend URL.
   ///
   /// The run/build ALWAYS passes `--dart-define=JEEB_MOCK_BASE_URL=...` so this
-  /// default is only the fallback when no define is given. It points at the
-  /// host machine's LAN IP so iOS simulators and physical devices reach the
-  /// mock directly out of the box (#37):
-  ///   iOS sim / device / Android emulator: the LAN-IP default below works for all.
-  ///   Android emulator alt: --dart-define=JEEB_MOCK_BASE_URL=http://10.0.2.2:4010
-  ///                         (host loopback alias → host :4010)
+  /// default is only the fallback when no define is given. It points at
+  /// `localhost` (host loopback) — correct for the host machine and iOS
+  /// simulators; other targets pass their reachable host address via dart-define:
+  ///   Host machine / iOS sim: the `localhost` default below works out of the box.
+  ///   Android emulator:       --dart-define=JEEB_MOCK_BASE_URL=http://10.0.2.2:4010
+  ///                           (host loopback alias → host :4010)
+  ///   Physical device on LAN: --dart-define=JEEB_MOCK_BASE_URL=`http://<host-lan-ip>:4010`
   ///
   /// B0 (W-1): the default MUST point at the Express mock on **:4010** to stay
   /// internally consistent with `useMockPrefixes = true` below. It previously
   /// defaulted to the Mockoon port (:3055), which — combined with the
   /// service-prefix rewrite — sent rewritten `:4010`-shaped paths to a mock
   /// that speaks a different contract. The default stays on :4010 so the pair
-  /// (mockBaseUrl, useMockPrefixes) is coherent even without a dart-define; #37
-  /// only swaps the Android-emulator-only `10.0.2.2` loopback for the LAN IP so
-  /// iOS sims and physical devices are reachable too.
+  /// (mockBaseUrl, useMockPrefixes) is coherent even without a dart-define. The
+  /// host is `localhost` (no LAN IP baked into the binary); emulators and
+  /// physical devices supply their reachable host via the dart-define above.
+  // Default dev mock URL — override with --dart-define=JEEB_MOCK_BASE_URL=...
+  // Mock-only (gated behind useMockPrefixes/useMockGateway=false in prod), so a
+  // localhost default is correct out of the box for the host machine and the
+  // Android-emulator alias `10.0.2.2`; physical iOS/Android devices on the LAN
+  // pass their host's reachable address via the dart-define above (no hard-coded
+  // LAN IP baked into the binary).
   static const String mockBaseUrl = String.fromEnvironment(
     'JEEB_MOCK_BASE_URL',
-    defaultValue: 'http://192.168.2.33:4010',
+    defaultValue: 'http://localhost:4010',
   );
 
   /// When `true` every gateway path is rewritten to the Express mock's
@@ -186,7 +193,7 @@ class MockGatewayClient {
   /// Base URL of the LIVE realtime-comunication-service (Elixir/Phoenix
   /// "LiveComm"). Configurable via dart-define so the WS endpoint is never a
   /// build-time hard-code:
-  ///   --dart-define=JEEB_REALTIME_BASE_URL=http://192.168.2.33:5804
+  ///   --dart-define=JEEB_REALTIME_BASE_URL=`http://<host>:5804`
   ///
   /// CHAT-FIX (iter6 / ws): the prior `webSocketUrl` getter pointed the chat
   /// socket at a dead mock shim (`ws://<host>:3056/socket/websocket`) that does

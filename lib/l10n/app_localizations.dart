@@ -1812,6 +1812,8 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get activeDeliveryOtpSubmit => _get('activeDeliveryOtpSubmit');
   String get activeDeliveryOpenMapsButton => _get('activeDeliveryOpenMapsButton');
   String get activeDeliveryOpenChatButton => _get('activeDeliveryOpenChatButton');
+  String get activeDeliveryEnterGoodsCostButton =>
+      _get('activeDeliveryEnterGoodsCostButton');
   String get activeDeliveryUnavailable => _get('activeDeliveryUnavailable');
   String get activeDeliveryLoadError => _get('activeDeliveryLoadError');
   String activeDeliveryStepperA11y(String current, String next) =>
