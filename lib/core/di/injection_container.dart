@@ -60,6 +60,8 @@ import '../../features/wallet/domain/wallet_repository.dart';
 import '../../features/wallet/domain/wallet_transaction_repository.dart';
 import '../../features/notifications/data/dio_notifications_repository.dart';
 import '../../features/notifications/domain/notifications_repository.dart';
+import '../../features/search/data/dio_search_repository.dart';
+import '../../features/search/domain/search_repository.dart';
 import '../../features/support/data/dio_support_repository.dart';
 import '../../features/support/domain/support_repository.dart';
 import '../../features/dispute_status/data/dio_dispute_status_repository.dart';
@@ -541,6 +543,15 @@ void configureDependencies({
   // bell now routes here (`goNamed('notifications')`, shell guard removed).
   sl.registerLazySingleton<NotificationsRepository>(
     () => DioNotificationsRepository(dio: sl<Dio>()),
+  );
+
+  // Sprint-5 Stream C search: the gateway free-text search BFF
+  // (GET /v1/search?q=). The route is not live yet, so the Dio repo maps a 404
+  // to SearchFailure.unavailable → the results screen renders an honest
+  // "search isn't available yet" empty state (no dead-end). Same code path
+  // returns real hits once the BFF lands.
+  sl.registerLazySingleton<SearchRepository>(
+    () => DioSearchRepository(dio: sl<Dio>()),
   );
 
   // LIVE(JM-063): the support-ticket service (S1) has landed — the gateway now

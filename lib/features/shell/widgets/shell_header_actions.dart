@@ -37,6 +37,22 @@ class ShellHeaderActions extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Semantics(
+          identifier: '${idPrefix}_search',
+          button: true,
+          container: true,
+          label: l10n.shellSearchLabel,
+          child: IconButton(
+            tooltip: l10n.shellSearchLabel,
+            icon: Icon(
+              Icons.search,
+              color: colorScheme.onSurface,
+            ),
+            // Sprint-5 Stream C: the search compose surface (`/search`,
+            // `search_root`) IS registered — honest navigation.
+            onPressed: () => context.goNamed('search'),
+          ),
+        ),
+        Semantics(
           identifier: '${idPrefix}_wallet_chip',
           button: true,
           container: true,
