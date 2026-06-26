@@ -29,6 +29,14 @@ class DioDeliveryReceiptRepository implements DeliveryReceiptRepository {
   /// SM-1 terminal reached when the customer confirms receipt (D70).
   static const String _confirmedStatus = 'Done';
 
+  /// Whether [status] is an SM-1 terminal state in which a confirm-receipt
+  /// transition would be an illegal self-move (S10 Defect B). Case-insensitive
+  /// + trimmed so the gateway's `Done` and any tolerant variant match.
+  static bool _isTerminalStatus(String status) {
+    final s = status.trim().toLowerCase();
+    return s == 'done' || s == 'delivered' || s == 'completed';
+  }
+
   @override
   Future<DeliveryReceipt> fetchReceipt(String deliveryId) async {
     try {
@@ -73,6 +81,19 @@ class DioDeliveryReceiptRepository implements DeliveryReceiptRepository {
     //    it means the delivery is already in the confirmed terminal state we
     //    were transitioning toward, so we treat it as success and let the
     //    customer proceed to rate. We only surface non-422 transition errors.
+    //
+    // S10 Defect B — DO NOT fire an illegal `Done → Done` transition. When the
+    // loaded receipt is ALREADY terminal (the OTP handover completed it before
+    // the customer tapped "Yes, I received it"), skip the transition POST
+    // entirely: the frozen SM-1 table correctly rejects `Done → Done` with 422,
+    // so the request is wasted round-trip + error-log noise. The COD record
+    // above (idempotent, load-bearing) still runs; the 422 swallow below stays
+    // as a belt-and-braces guard for the race where the server flips to Done
+    // between fetchReceipt and confirm. We never relax SM-1 or touch the
+    // backend 422 — we just stop asking for an invalid transition.
+    if (_isTerminalStatus(receipt.status)) {
+      return;
+    }
     try {
       await _dio.post<Map<String, dynamic>>(
         '/v1/delivery/status/transition',

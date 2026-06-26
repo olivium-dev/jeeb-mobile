@@ -7,27 +7,31 @@ import 'package:jeeb_mobile/features/delivery_receipt/data/dio_delivery_receipt_
 import 'package:jeeb_mobile/features/delivery_receipt/domain/delivery_receipt.dart';
 import 'package:jeeb_mobile/features/delivery_receipt/domain/delivery_receipt_repository.dart';
 
-/// RATING-UNBLOCK (iter6): confirm-receipt must be IDEMPOTENT. In the real
-/// two-sided flow the delivery is frequently ALREADY `Done` by the time the
-/// customer confirms receipt (the handover-OTP path drove `AtDoor → Done`
-/// server-side). The redundant transition then returns 422
-/// `transition_not_allowed`. That 422 is NOT a failure — the COD record (the
-/// load-bearing step that unblocks rating) already 2xx'd, so confirmReceipt must
-/// SUCCEED and let the customer reach the star-rating screen.
+/// RATING-UNBLOCK (iter6) + S10 Defect B: confirm-receipt must be IDEMPOTENT.
+/// In the real two-sided flow the delivery is frequently ALREADY `Done` by the
+/// time the customer confirms receipt (the handover-OTP path drove
+/// `AtDoor → Done` server-side).
+///
+/// S10 Defect B hardens this: when the LOADED receipt is already terminal, the
+/// repository SKIPS the `Done → Done` transition POST entirely (the frozen SM-1
+/// table correctly rejects it with 422 — no point firing it). The COD record
+/// (the load-bearing step that unblocks rating) still runs. The legacy 422
+/// swallow is retained as a belt-and-braces guard for the race where the server
+/// flips to Done between fetchReceipt and confirm — verified below.
 void main() {
-  group('DioDeliveryReceiptRepository.confirmReceipt — idempotent on 422', () {
+  group('DioDeliveryReceiptRepository.confirmReceipt — idempotent', () {
     late _RecordingAdapter adapter;
     late Dio dio;
     late DioDeliveryReceiptRepository repo;
 
-    const receipt = DeliveryReceipt(
-      deliveryId: 'd-1',
-      jeeberName: 'Sami',
-      jeeberId: 'j-1',
-      cashAmount: 5.0,
-      currency: 'USD',
-      status: 'Done',
-    );
+    DeliveryReceipt receiptWith(String status) => DeliveryReceipt(
+          deliveryId: 'd-1',
+          jeeberName: 'Sami',
+          jeeberId: 'j-1',
+          cashAmount: 5.0,
+          currency: 'USD',
+          status: status,
+        );
 
     setUp(() {
       adapter = _RecordingAdapter();
@@ -36,24 +40,39 @@ void main() {
       repo = DioDeliveryReceiptRepository(dio);
     });
 
-    test('records COD then transitions; both 2xx → succeeds (happy path)',
-        () async {
+    test(
+        'non-terminal (AtDoor): records COD then transitions; both 2xx → '
+        'succeeds (happy path)', () async {
       adapter.codStatus = 200;
       adapter.transitionStatus = 200;
 
-      await repo.confirmReceipt(receipt);
+      await repo.confirmReceipt(receiptWith('AtDoor'));
 
       expect(adapter.codHit, isTrue);
       expect(adapter.transitionHit, isTrue);
     });
 
-    test('COD 200 but transition 422 (already Done) → SUCCEEDS (idempotent), '
-        'so the customer reaches the rating screen', () async {
+    test(
+        'S10 Defect B — already Done: records COD but SKIPS the transition '
+        '(no illegal Done → Done), still succeeds → customer reaches rating',
+        () async {
       adapter.codStatus = 200;
-      adapter.transitionStatus = 422; // delivery already Done
+      adapter.transitionStatus = 200;
+
+      await repo.confirmReceipt(receiptWith('Done'));
+
+      expect(adapter.codHit, isTrue);
+      expect(adapter.transitionHit, isFalse);
+    });
+
+    test(
+        'race guard: non-terminal load but server returns transition 422 → '
+        'SUCCEEDS (idempotent swallow)', () async {
+      adapter.codStatus = 200;
+      adapter.transitionStatus = 422; // server flipped to Done mid-confirm
 
       // Must NOT throw — the redundant transition 422 is an idempotent success.
-      await repo.confirmReceipt(receipt);
+      await repo.confirmReceipt(receiptWith('AtDoor'));
 
       expect(adapter.codHit, isTrue);
       expect(adapter.transitionHit, isTrue);
@@ -65,20 +84,21 @@ void main() {
       adapter.transitionStatus = 200;
 
       await expectLater(
-        repo.confirmReceipt(receipt),
+        repo.confirmReceipt(receiptWith('AtDoor')),
         throwsA(isA<DeliveryReceiptRepositoryException>()),
       );
       // We never even attempt the transition if COD failed.
       expect(adapter.transitionHit, isFalse);
     });
 
-    test('transition 500 (real server error, not already-Done) → throws',
-        () async {
+    test(
+        'non-terminal transition 500 (real server error, not already-Done) → '
+        'throws', () async {
       adapter.codStatus = 200;
       adapter.transitionStatus = 500;
 
       await expectLater(
-        repo.confirmReceipt(receipt),
+        repo.confirmReceipt(receiptWith('AtDoor')),
         throwsA(isA<DeliveryReceiptRepositoryException>()),
       );
     });
