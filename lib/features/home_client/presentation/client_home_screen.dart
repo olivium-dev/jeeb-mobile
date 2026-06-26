@@ -5,6 +5,7 @@ import 'package:omds/omds.dart';
 
 import '../../../core/layout/bottom_inset.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../shell/tab_visibility.dart';
 import '../application/client_home_cubit.dart';
 import '../application/client_home_state.dart';
 import '../domain/client_home_request.dart';
@@ -70,6 +71,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   /// the affordance so it never fights a manual selection on later rebuilds.
   bool _tabResolved = false;
 
+  /// Last-observed shell-tab visibility, used to detect the off-screen →
+  /// on-screen transition. `null` until the first [didChangeDependencies] so we
+  /// never auto-refresh on the very first frame ([initState] owns that load).
+  bool? _wasVisible;
+
   @override
   void initState() {
     super.initState();
@@ -79,6 +85,28 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       if (cubit.state.status == ClientHomeStatus.initial) {
         cubit.load();
       }
+    });
+  }
+
+  /// S13 auto-refresh: the Requests tab is an [IndexedStack] child, so
+  /// re-entering it from the bottom nav (or returning from a create/accept
+  /// flow that left the shell mounted) does NOT re-run [initState]. Watch the
+  /// shell-provided [TabVisibility] and, whenever this tab goes off-screen →
+  /// on-screen, silently re-pull so a freshly created/accepted order surfaces
+  /// without a manual pull-to-refresh. [ClientHomeCubit.refresh] keeps the
+  /// current data painted (no loading flash) and drops re-entrant calls.
+  /// Outside the shell (bare tests / deep links) [TabVisibility.maybeOf] is
+  /// null → treated as always-visible → this affordance is inert.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final isVisible = TabVisibility.maybeOf(context)?.isVisible ?? true;
+    final becameVisible = _wasVisible == false && isVisible;
+    _wasVisible = isVisible;
+    if (!becameVisible) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<ClientHomeCubit>().refresh();
     });
   }
 

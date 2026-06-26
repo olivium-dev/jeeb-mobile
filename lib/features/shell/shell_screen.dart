@@ -17,6 +17,7 @@ import '../settings/application/role_switch_cubit.dart';
 import '../settings/data/repositories/dio_role_switch_repository.dart';
 import '../settings/domain/role_switch_repository.dart';
 import '../settings/presentation/widgets/role_toggle_setting.dart';
+import 'tab_visibility.dart';
 import 'tabs/dashboard_tab.dart';
 import 'tabs/earnings_tab.dart';
 import 'tabs/home_tab.dart';
@@ -57,7 +58,18 @@ class _ShellScreenState extends State<ShellScreen> {
             bottom: false,
             child: IndexedStack(
               index: safeIndex,
-              children: tabs.map((t) => t.page).toList(growable: false),
+              // Wrap each child in a TabVisibility so a tab body can react to
+              // (re)becoming the selected page even though IndexedStack keeps
+              // every child mounted. Used by ClientHomeScreen (S13) to
+              // silently re-pull on refocus. updateShouldNotify only fires
+              // for the tab whose visibility actually flips.
+              children: [
+                for (var i = 0; i < tabs.length; i++)
+                  TabVisibility(
+                    isVisible: i == safeIndex,
+                    child: tabs[i].page,
+                  ),
+              ],
             ),
           ),
           bottomNavigationBar: _JeebBottomBar(
