@@ -61,6 +61,7 @@ class JeebApp extends StatefulWidget {
     required this.preferences,
     this.crashReporter = const NoopCrashReporter(),
     this.pushTransport,
+    this.pushDeviceRegistrar,
     this.biometricGateway,
     this.localizationsDelegateOverride,
     this.sessionGate,
@@ -87,6 +88,14 @@ class JeebApp extends StatefulWidget {
   /// null and we fall back to the in-process fake until the native bridge
   /// lands (separate ticket).
   final PushTransport? pushTransport;
+
+  /// Optional override for the backend device-registrar (PUSH-FIX iter7).
+  /// Production builds a real [PushDeviceRegistrar] over [resolveGatewayDio]
+  /// for ANY transport that yields a token; integration tests inject a
+  /// registrar over a recording Dio so the app → gateway register hop can be
+  /// asserted end-to-end without a live network. When supplied it is NOT owned
+  /// by this widget (the registrar holds no disposable resources anyway).
+  final PushDeviceRegistrar? pushDeviceRegistrar;
 
   /// Optional override for the biometric prompt (T-mobile-005). Production
   /// defers to [UnavailableBiometricGateway] until the `local_auth` plugin
@@ -315,15 +324,27 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     // only when --dart-define=USE_MOCK_GATEWAY=true) with the bearer-attach +
     // 401-refresh interceptors. This routes registration through jeeb-gateway
     // (no direct push-notification-service call) and lets the gateway read the
-    // user_id from the attached JWT. Skipped for the fake transport (tests/dev).
-    final registrar = transport is FirebaseMessagingTransport
-        ? PushDeviceRegistrar(dio: resolveGatewayDio())
-        : null;
+    // user_id from the attached JWT.
+    //
+    // PUSH-FIX (iter7): the registrar is now attached for ANY transport, not
+    // only [FirebaseMessagingTransport]. The previous `is FirebaseMessagingTransport`
+    // gate meant that every build without real Firebase credentials (the mock-
+    // gateway dev build, integration harnesses) fell back to [FakePushTransport]
+    // and so NEVER ran the app → gateway register hop — the (device → token) row
+    // was never created server-side. Decoupling registration from the concrete
+    // transport class makes the hop fire whenever a token actually exists:
+    //   - real Firebase build  -> real FCM token        -> registers,
+    //   - injected token transport (E2E) -> token        -> registers,
+    //   - bare fallback fake   -> getToken() == null      -> register(null) no-op.
+    // `register(null/'')` is already a guarded no-op, so the bare fallback path
+    // behaves exactly as before (no spurious calls).
+    final registrar =
+        widget.pushDeviceRegistrar ?? PushDeviceRegistrar(dio: resolveGatewayDio());
 
     final handler = PushNotificationHandler(
       transport: transport,
       badgeCount: _badgeCount,
-      onToken: registrar?.register,
+      onToken: registrar.register,
     );
     final dispatcher = NotificationDispatcher(
       handler: handler,
