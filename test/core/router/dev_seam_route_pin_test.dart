@@ -47,7 +47,6 @@ import 'package:jeeb_mobile/features/deep_link_targets/chat_detail_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/capture_location_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/client_location_screen.dart';
 import 'package:jeeb_mobile/features/settings/data/repositories/biometric_preference_repository_impl.dart';
-import 'package:jeeb_mobile/features/settings/presentation/screens/settings_screen.dart';
 import 'package:jeeb_mobile/features/shell/shell_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
@@ -208,13 +207,20 @@ void main() {
         // Lands on the shell, not forced anywhere by a (non-existent) pin.
         expect(find.byType(ShellScreen), findsOneWidget);
 
-        // A push to a normal route is honoured (no dev-seam interference).
-        built.router.push('/settings');
+        // A push to a normal route is honoured (no dev-seam interference). We
+        // push /capture-location: a self-contained authenticated route that
+        // mounts without the full DI graph, so this router-pin guard stays
+        // focused on redirect behaviour rather than coupling to a screen's
+        // service dependencies (e.g. SettingsScreen now resolves
+        // ProfileRepository/AccountService from GetIt, which an isolated router
+        // test deliberately does not wire).
+        built.router.push('/capture-location');
         await tester.pumpAndSettle();
         expect(
-          find.byType(SettingsScreen),
+          find.byType(CaptureLocationScreen),
           findsOneWidget,
-          reason: 'With no dev route pinned, production routing is unchanged.',
+          reason: 'With no dev route pinned, production routing is unchanged: '
+              'a user-pushed route mounts and is never bounced by the seam.',
         );
       },
     );
