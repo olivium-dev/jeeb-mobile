@@ -79,17 +79,31 @@ dependencies:
   record: ^6.2.1
   audioplayers: ^6.7.1
 
-  # Live tracking map + device location (Sprint 1 Stream B, T-MOB-017).
-  # google_maps_flutter renders the courier puck + route polyline on the
-  # order-tracking surface (TrackingMapSurface); the Android key is injected
-  # via the ${MAPS_API_KEY} manifest placeholder and the iOS key via
-  # AppDelegate / Info.plist (never committed). geolocator owns the GPS fix +
-  # runtime location-permission prompt behind the feature's location port.
-  google_maps_flutter: ^2.9.0
-  geolocator: ^13.0.0
+  # Maps + GPS for the map screens (T-MOB-012 drop-off pin capture +
+  # T-MOB-017 live tracking). `google_maps_flutter` is the app-facing facade
+  # that renders the courier puck + route polyline on the order-tracking
+  # surface (TrackingMapSurface) and the drop-off picker; `geolocator` owns the
+  # device GPS fix + runtime location-permission prompt for the "centre on me"
+  # button. Both sit behind the `MapPickerLauncher` / `GeocaptureGateway` ports
+  # so the cubits/screens never import the plugins directly — the Fakes stay
+  # the unit-test seam and `dart analyze` stays green without a key. The Android
+  # Maps key is injected via the ${MAPS_API_KEY} manifest placeholder and the
+  # iOS key via AppDelegate / Info.plist (never committed).
+  #
+  # SDK-PIN (same discipline as `record` 6.x above): this app is on
+  # Dart 3.10.8 / Flutter 3.38.9. The federated Android impl
+  # `google_maps_flutter_android` 2.19.11+ requires Dart >=3.12 / Flutter
+  # >=3.44, so pinning ONLY the facade lets pub resolve an incompatible Android
+  # impl. The facade is pinned to the last 3.38-compatible minor and the Android
+  # impl is constrained explicitly to <2.19.11 (2.19.10 is the last that
+  # declares sdk: ^3.10.0 / flutter: >=3.38.0). iOS impl 2.18.x is fine.
+  google_maps_flutter: 2.17.1
+  google_maps_flutter_android: ">=2.19.9 <2.19.11"
+  geolocator: ^14.0.0
 
-  # Image capture/selection for proof-of-delivery + profile-avatar flows.
-  # Intended to sit behind a port so the cubits/screens stay platform-free.
+  # Image capture/selection for proof-of-delivery + profile-avatar flows
+  # (Sprint 1 Stream B). Intended to sit behind a port so the cubits/screens
+  # stay platform-free.
   image_picker: ^1.1.2
 
   # Internationalisation

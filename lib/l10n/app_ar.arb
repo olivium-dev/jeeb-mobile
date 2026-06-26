@@ -441,6 +441,7 @@
   "captureLocationMapSemantic": "الخريطة، حرّكها لوضع الدبوس فوق موقعك",
   "captureLocationPinSemantic": "دبوس الموقع المحدد",
   "captureLocationMapPreview": "معاينة الخريطة",
+  "captureLocationMyLocation": "التمركز على موقعي",
   "tierSelectionOnTheWayMvpNote": "المطابقة الذكية للمسار قريبًا — تُعامَل حاليًا مثل الفئة العادية.",
   "tierSelectionCardSemanticLabel": "فئة {name}. {sla}، {radius}، السعر التقديري {price}.",
   "tierSelectionCardSelectedHint": "محدد",

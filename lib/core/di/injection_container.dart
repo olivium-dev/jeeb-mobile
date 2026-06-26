@@ -84,6 +84,8 @@ import '../../features/active_delivery_jeeber/data/dio_active_delivery_repositor
 import '../../features/jeeber_active_deliveries/data/dio_active_deliveries_repository.dart';
 import '../../features/jeeber_active_deliveries/domain/active_deliveries_repository.dart';
 import '../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
+import '../../features/background_gps/data/geolocator_geocapture_gateway.dart';
+import '../../features/background_gps/domain/geocapture_gateway.dart';
 import '../../features/offers/data/dio_offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
@@ -510,5 +512,18 @@ void configureDependencies({
   // honors the same [ReviewsRepository] contract.
   sl.registerLazySingleton<ReviewsRepository>(
     () => DioReviewsRepository(sl<Dio>()),
+  );
+
+  // T-MOB-012 / T-MOB-017 (feat/maps): device GPS behind the GeocaptureGateway
+  // port. GeolocatorGeocaptureGateway wraps the `geolocator` plugin; the cubit,
+  // map picker, and capture screen never import the plugin directly.
+  // Registered as the concrete type too so the GoogleMap "centre on me"
+  // button can call currentFix() (not on the port, which streams).
+  // FakeGeocaptureGateway remains the unit-test seam via constructor.
+  sl.registerLazySingleton<GeolocatorGeocaptureGateway>(
+    () => GeolocatorGeocaptureGateway(),
+  );
+  sl.registerLazySingleton<GeocaptureGateway>(
+    () => sl<GeolocatorGeocaptureGateway>(),
   );
 }

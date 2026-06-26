@@ -1300,6 +1300,10 @@
   "@captureLocationMapPreview": {
     "description": "Placeholder caption shown on the Capture Location map surface until live tiles load"
   },
+  "captureLocationMyLocation": "Centre on my location",
+  "@captureLocationMyLocation": {
+    "description": "Accessibility label + tooltip for the 'centre map on current GPS location' button on the Capture Location screen"
+  },
   "tierSelectionOnTheWayMvpNote": "Smart route matching coming soon — matched like Standard for now.",
   "@tierSelectionOnTheWayMvpNote": {
     "description": "Info note on the On-the-way tier card explaining the MVP Standard-fallback behavior (T-mobile-042)"

@@ -67,12 +67,16 @@ import '../../features/live_tracking/data/demo_live_tracking_repository.dart';
 import '../../features/live_tracking/domain/live_tracking_repository.dart';
 import '../../features/live_tracking/presentation/live_tracking_screen.dart';
 import '../../features/delivery_receipt/presentation/delivery_receipt_screen.dart';
+import '../../features/background_gps/data/geolocator_geocapture_gateway.dart';
+import '../../features/location/data/location_repository.dart';
 import '../../features/location/presentation/capture_location_screen.dart';
 import '../../features/location/presentation/client_location_screen.dart';
 import '../../features/location/presentation/screens/address_detail_form_screen.dart';
 import '../../features/location/presentation/screens/location_picker_screen.dart';
 import '../../features/no_offer_timeout/presentation/no_offer_timeout_screen.dart';
 import '../../features/order_summary/presentation/order_summary_screen.dart';
+import '../../features/location/presentation/widgets/google_map_capture_view.dart';
+import '../../features/location/presentation/widgets/map_capture_controller.dart';
 import '../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
 import '../../features/active_delivery_jeeber/presentation/active_delivery_jeeber_screen.dart';
 import '../../features/offers/domain/offer_submission_repository.dart';
@@ -303,6 +307,17 @@ class AppRouter {
     }
     return sl<LiveTrackingRepository>();
   }
+
+  /// T-MOB-012: builds the live `GoogleMap` viewport injected into
+  /// [CaptureLocationScreen] at the `/capture-location` route. A fresh
+  /// [MapCaptureController] is created per build (one per screen entry) seeded
+  /// at Beirut downtown — the same canonical default the in-memory location
+  /// repo centres on. The screen's centre pin overlays this; the controller
+  /// tracks the parked coordinate for the "Pin Location" CTA.
+  static MapCaptureController _newCaptureController() =>
+      MapCaptureController(
+        initial: const LocationPoint(latitude: 33.8938, longitude: 35.5018),
+      );
 
   static GoRouter create({
     required OnboardingCubit onboarding,
@@ -812,11 +827,30 @@ class AppRouter {
         GoRoute(
           path: '/capture-location',
           name: 'capture-location',
-          builder: (context, state) => CaptureLocationScreen(
-            onPinned: () {
-              if (context.canPop()) context.pop();
-            },
-          ),
+          // T-MOB-012: inject the live GoogleMap viewport. The controller is
+          // created per build and tracks the centre under the fixed pin; the
+          // "Pin Location" CTA returns that coordinate via `extra` on pop so
+          // the upstream draft flow can read it. The screen's centre pin +
+          // CTA chrome are owned by CaptureLocationScreen.
+          builder: (context, state) {
+            final controller = _newCaptureController();
+            // The "centre on me" GPS button is only wired when DI is up
+            // (production / integration). Router-only tests build the router
+            // without configureDependencies(), so resolve the gateway
+            // defensively — the map still renders, just without the GPS FAB.
+            final gateway = sl.isRegistered<GeolocatorGeocaptureGateway>()
+                ? sl<GeolocatorGeocaptureGateway>()
+                : null;
+            return CaptureLocationScreen(
+              mapBuilder: (mapContext) => GoogleMapCaptureView(
+                controller: controller,
+                gateway: gateway,
+              ),
+              onPinned: () {
+                if (context.canPop()) context.pop(controller.center);
+              },
+            );
+          },
         ),
         GoRoute(
           path: '/voice-request/transcription',
@@ -944,12 +978,21 @@ class AppRouter {
           name: 'live-tracking',
           builder: (context, state) {
             final deliveryId = state.pathParameters['id'] ?? '';
+            // T-MOB-017: render the deterministic placeholder (not a live
+            // GoogleMap) when the dev seam is driving a `/tracking` capture —
+            // no Maps key / unstable emulator on that path. Every other run
+            // renders the live polyline + marker map.
+            final useLiveMap =
+                !(kDebugMode && _devRoute.contains('/tracking'));
             return BlocProvider<LiveTrackingCubit>(
               create: (_) => LiveTrackingCubit(
                 repository: _trackingRepository(),
                 deliveryId: deliveryId,
               ),
-              child: LiveTrackingScreen(deliveryId: deliveryId),
+              child: LiveTrackingScreen(
+                deliveryId: deliveryId,
+                useLiveMap: useLiveMap,
+              ),
             );
           },
         ),

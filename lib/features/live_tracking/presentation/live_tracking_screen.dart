@@ -31,9 +31,19 @@ import 'widgets/otp_at_door_card.dart';
 /// beneath the stepper. Navigation side-effects live in the `BlocListener`
 /// (gated by `listenWhen`), never the builder (40_GUARDRAILS_ARCH §3).
 class LiveTrackingScreen extends StatelessWidget {
-  const LiveTrackingScreen({super.key, required this.deliveryId});
+  const LiveTrackingScreen({
+    super.key,
+    required this.deliveryId,
+    this.useLiveMap = true,
+  });
 
   final String deliveryId;
+
+  /// T-MOB-017: when false the deterministic map placeholder is rendered
+  /// instead of a live GoogleMap. The router sets this false for the dev-seam
+  /// `/tracking` capture (no Maps key / unstable emulator) and tests rely on
+  /// the default-false widget-test path; production renders the live map.
+  final bool useLiveMap;
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +60,7 @@ class LiveTrackingScreen extends StatelessWidget {
         builder: (context, state) => _TrackingStateView(
           state: state,
           deliveryId: deliveryId,
+          useLiveMap: useLiveMap,
         ),
       ),
     );
@@ -85,10 +96,12 @@ class _TrackingStateView extends StatelessWidget {
   const _TrackingStateView({
     required this.state,
     required this.deliveryId,
+    required this.useLiveMap,
   });
 
   final LiveTrackingState state;
   final String deliveryId;
+  final bool useLiveMap;
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +118,7 @@ class _TrackingStateView extends StatelessWidget {
           info: state.trackingInfo!,
           isAtDoor: state.isAtDoor,
           deliveryId: deliveryId,
+          useLiveMap: useLiveMap,
         );
     }
   }
@@ -115,11 +129,13 @@ class _TrackingBody extends StatelessWidget {
     required this.info,
     required this.isAtDoor,
     required this.deliveryId,
+    required this.useLiveMap,
   });
 
   final DeliveryTrackingInfo info;
   final bool isAtDoor;
   final String deliveryId;
+  final bool useLiveMap;
 
   @override
   Widget build(BuildContext context) {
@@ -160,10 +176,7 @@ class _TrackingBody extends StatelessWidget {
           // courier GPS fix + route polyline straight from the tracking feed.
           Expanded(
             flex: isAtDoor ? 1 : 2,
-            child: TrackingMapSurface(
-              jeeberPosition: info.jeeberPosition,
-              routePoints: info.polyline,
-            ),
+            child: TrackingMapSurface(info: info, useLiveMap: useLiveMap),
           ),
           if (info.jeeber != null) _TrackingJeeberSection(jeeber: info.jeeber!),
           if (isAtDoor)
