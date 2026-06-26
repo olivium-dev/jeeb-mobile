@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../config/app_config.dart';
 import 'auth_token_store.dart';
 
 /// Maps gateway-style paths to the mock backend's per-service prefix paths.
@@ -58,10 +59,23 @@ class MockGatewayClient {
   /// Controlled via dart-define at build time:
   ///   --dart-define=JEEB_USE_MOCK_PREFIXES=true   → Express mock on :4010
   ///   --dart-define=JEEB_USE_MOCK_PREFIXES=false  → real gateway (device builds)
-  /// Default is `false` so physical-device and CI builds default to live-gateway
-  /// mode; only explicit local-mock builds need to pass `true`.
-  static const bool useMockPrefixes =
-      bool.fromEnvironment('JEEB_USE_MOCK_PREFIXES', defaultValue: false);
+  ///
+  /// SINGLE-SWITCH (sprint-7 step-login): the default is now
+  /// [AppConfig.useMockGateway] — exactly mirroring how
+  /// [AppConfig.emailPasswordAuthEnabled] tracks the same flag. This collapses
+  /// the prior two-flag footgun: a `--dart-define=USE_MOCK_GATEWAY=true` build
+  /// already selects this client in DI ([resolveGatewayDio]/[configureDependencies]),
+  /// and now ALSO installs the service-prefix rewrite interceptor by default, so
+  /// the app's gateway-contract paths (`/v1/auth/otp/request`, …) reach the
+  /// Express mock's service routes (`/auth-service/auth/otp/request`) without a
+  /// second `JEEB_USE_MOCK_PREFIXES=true` define. Previously `USE_MOCK_GATEWAY`
+  /// alone pointed Dio at the mock host but left paths un-rewritten → raw `/v1/*`
+  /// 404. Pass `JEEB_USE_MOCK_PREFIXES=false` explicitly to point the mock client
+  /// at a real-contract gateway (e.g. Mockoon :3055) while still using this Dio.
+  static const bool useMockPrefixes = bool.fromEnvironment(
+    'JEEB_USE_MOCK_PREFIXES',
+    defaultValue: AppConfig.useMockGateway,
+  );
 
   static const Map<String, String> _pathToServicePrefix = {
     // B1 (W-1) — gateway `/v1/auth/*` → Express mock `/auth-service/auth/*`.

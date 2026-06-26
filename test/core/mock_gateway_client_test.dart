@@ -19,6 +19,7 @@
 //      `/v1/*`).
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/config/app_config.dart';
 import 'package:jeeb_mobile/core/network/mock_gateway_client.dart';
 
 void main() {
@@ -32,10 +33,23 @@ void main() {
 
     test('useMockPrefixes defaults to false (live-gateway / device default)',
         () {
-      // 1717166: useMockPrefixes reads JEEB_USE_MOCK_PREFIXES (default false) so
-      // device/CI builds hit the live gateway. With no dart-define in tests the
-      // default applies.
+      // 1717166: useMockPrefixes reads JEEB_USE_MOCK_PREFIXES. sprint-7
+      // step-login: its default is now AppConfig.useMockGateway (single-switch).
+      // With NO dart-define in tests, USE_MOCK_GATEWAY is false → useMockPrefixes
+      // is false, so device/CI builds still hit the live gateway. Unchanged.
       expect(MockGatewayClient.useMockPrefixes, isFalse);
+    });
+
+    test('useMockPrefixes default tracks AppConfig.useMockGateway '
+        '(single-switch invariant)', () {
+      // sprint-7 step-login coupling fix: a `--dart-define=USE_MOCK_GATEWAY=true`
+      // build must ALSO install the service-prefix rewrite interceptor without a
+      // second JEEB_USE_MOCK_PREFIXES define. Pin the invariant so a regression
+      // that decouples the two flags (re-introducing the silent raw-/v1 404 on
+      // the mock host) is caught. Holds for both build modes: when no
+      // JEEB_USE_MOCK_PREFIXES override is passed, the prefix toggle equals the
+      // mock-gateway toggle.
+      expect(MockGatewayClient.useMockPrefixes, AppConfig.useMockGateway);
     });
 
     test('webSocketUrl targets the live realtime service (:5804 socket path)',

@@ -64,7 +64,12 @@ class DioOtpService implements OtpService {
     final access = body['accessToken'] as String?;
     final refresh = body['refreshToken'] as String?;
     final user = body['user'] as Map<String, dynamic>?;
-    final userId = user?['userId'] as String?;
+    // The gateway/auth contract returns the identity under `userId`, but the
+    // Express mock's OTP-verify handler emits it as `user.id` (it creates the
+    // user with `id: uuidv4()`). Accept both so the OTP login path persists a
+    // non-null userId on either backend — the auth-repo path already had this
+    // `?? id` fallback; the OTP path silently dropped it (userId → null).
+    final userId = (user?['userId'] ?? user?['id']) as String?;
     if (access == null || refresh == null) return;
     await _tokenStore.save(
       accessToken: access,
