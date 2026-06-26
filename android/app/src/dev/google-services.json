@@ -1,0 +1,30 @@
+{
+  "__comment": "COMMITTED-SAFE PLACEHOLDER — NOT a real Firebase config. This file exists ONLY so the `dev` product flavor (applicationId app.jeeb.mobile.dev) can compile: the com.google.gms.google-services Gradle plugin requires a client whose package_name matches the variant applicationId, and the real android/app/google-services.json (gitignored) only carries the production package app.jeeb.mobile. Every value below is an intentionally fake placeholder and carries NO live credential. Because the google-services plugin resolves per-flavor source sets (src/<flavor>/ takes priority over app/), the `dev` flavor uses this placeholder while `production`/`staging` still use the real, gitignored android/app/google-services.json. RUNTIME NOTE: with this fake api_key, Firebase.initializeApp() parses fine and the app boots, but FCM token retrieval and Crashlytics upload will log a benign 'invalid API key' warning. To get real FCM/Crashlytics on dev, drop a real google-services.json (with an app.jeeb.mobile.dev client) here or at android/app/google-services.json — it stays gitignored. NEVER replace these placeholder values in this committed file with a real key.",
+  "project_info": {
+    "project_number": "000000000000",
+    "project_id": "jeeb-mobile-dev-placeholder",
+    "storage_bucket": "jeeb-mobile-dev-placeholder.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+        "android_client_info": {
+          "package_name": "app.jeeb.mobile.dev"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDUMMY-DEV-PLACEHOLDER-KEY-NOT-REAL-000"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
