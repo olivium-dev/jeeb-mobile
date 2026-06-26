@@ -1918,6 +1918,21 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get shellBellLabel => _get('shellBellLabel');
   String get shellComingSoon => _get('shellComingSoon');
 
+  // Sprint-5 Stream C — free-text search (compose + results screens).
+  String get shellSearchLabel => _get('shellSearchLabel');
+  String get searchTitle => _get('searchTitle');
+  String get searchHint => _get('searchHint');
+  String get searchPromptTitle => _get('searchPromptTitle');
+  String get searchPromptBody => _get('searchPromptBody');
+  String get searchResultsTitle => _get('searchResultsTitle');
+  String get searchNoResultsTitle => _get('searchNoResultsTitle');
+  String get searchNoResultsBody => _get('searchNoResultsBody');
+  String get searchUnavailableTitle => _get('searchUnavailableTitle');
+  String get searchUnavailableBody => _get('searchUnavailableBody');
+  String get searchNetworkError => _get('searchNetworkError');
+  String get searchLoadError => _get('searchLoadError');
+  String get searchRetry => _get('searchRetry');
+
   // JM-031 — Order summary (CTO-D3 deep-link target)
   String get orderSummaryTitle => _get('orderSummaryTitle');
   String get orderSummaryOpenChat => _get('orderSummaryOpenChat');

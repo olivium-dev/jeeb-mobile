@@ -1388,5 +1388,18 @@
   "jeeberActiveDeliveriesOpenChat": "فتح المحادثة",
   "@jeeberActiveDeliveriesOpenChat": {"description": "iter6: primary CTA on an active-delivery row — opens the order chat."},
   "jeeberActiveDeliveriesManage": "إدارة التوصيل",
-  "@jeeberActiveDeliveriesManage": {"description": "iter6: secondary CTA on an active-delivery row — opens the active-delivery (Ordered→…→AtDoor) screen."}
+  "@jeeberActiveDeliveriesManage": {"description": "iter6: secondary CTA on an active-delivery row — opens the active-delivery (Ordered→…→AtDoor) screen."},
+  "shellSearchLabel": "بحث",
+  "searchTitle": "بحث",
+  "searchHint": "ابحث في الطلبات والمحادثات",
+  "searchPromptTitle": "ابحث في جيب",
+  "searchPromptBody": "اعثر على طلباتك وتوصيلاتك ومحادثاتك.",
+  "searchResultsTitle": "النتائج",
+  "searchNoResultsTitle": "لا توجد نتائج",
+  "searchNoResultsBody": "لم نعثر على أي شيء يطابق بحثك.",
+  "searchUnavailableTitle": "البحث غير متاح بعد",
+  "searchUnavailableBody": "سيتم تفعيل البحث قريبًا. يرجى المحاولة لاحقًا.",
+  "searchNetworkError": "لا يوجد اتصال. تحقّق من الشبكة وحاول مجددًا.",
+  "searchLoadError": "حدث خطأ ما. يرجى المحاولة مجددًا.",
+  "searchRetry": "إعادة المحاولة"
 }
