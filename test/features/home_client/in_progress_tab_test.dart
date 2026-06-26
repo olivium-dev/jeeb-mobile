@@ -5,18 +5,30 @@
 // wired via the parent cubit), AC4 (a11y label on each row), and AC6
 // (error banner on failure).
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
+import 'package:jeeb_mobile/features/home_client/data/dio_client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/data/in_memory_client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_request.dart';
 import 'package:jeeb_mobile/features/home_client/presentation/tabs/in_progress_tab.dart';
 
 import '../../support/sync_app_localizations.dart';
+
+class _MockDio extends Mock implements Dio {}
+
+Response<Map<String, dynamic>> _ok(Map<String, dynamic> data) =>
+    Response<Map<String, dynamic>>(
+      requestOptions: RequestOptions(path: ''),
+      statusCode: 200,
+      data: data,
+    );
 
 /// Thin MaterialApp wrapper seeding a [ClientHomeCubit] so InProgressTab
 /// can BlocRead without a GoRouter dependency in tests.
@@ -238,6 +250,106 @@ void main() {
       // Use a standard test that confirms the error is visible.
       // (Full coverage via client_home_cubit_test.dart bloc_test.)
       expect(cubit.state.status.name, 'initial');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // S12 END-TO-END REGRESSION (Lead-QA gap closure).
+  //
+  // The four T-MOB-006/S12 widget tests above build `_activeRequest(status:
+  // ClientRequestStatus.accepted)` directly via InMemoryClientHomeRepository,
+  // so they NEVER route a real `'Ordered'` delivery payload through
+  // DioClientHomeRepository._mapDeliveryStatus. A regression of that mapping
+  // (`'Ordered' => accepted` reverting to `=> searching`) would NOT fail at the
+  // widget layer — the gap this test closes.
+  //
+  // This drives a REAL-shaped `GET /v1/deliveries?stage=active` body (the live
+  // `JeebOrdersListController.ListDeliveries` `OrderListItem` envelope verified
+  // on mock :4010 — `{items,totalCount}` with per-row `requestId`/`status:
+  // 'Ordered'`/`progressStep`/`deliveryId`/`delivery_id`) through the actual
+  // DioClientHomeRepository parse+merge path → ClientHomeCubit → InProgressTab,
+  // and asserts the brand-new order renders its "Track my order" CTA. If
+  // `_mapDeliveryStatus('Ordered')` regresses to `searching`, the CTA gate
+  // (ActiveOrderCard._canTrack) closes and this fails at the widget layer.
+  // ---------------------------------------------------------------------------
+  group('InProgressTab — S12 end-to-end Ordered→trackable regression', () {
+    late _MockDio dio;
+    late DioClientHomeRepository repo;
+
+    setUp(() {
+      dio = _MockDio();
+      repo = DioClientHomeRepository(dio);
+    });
+
+    // Real-shaped active-deliveries envelope (matches mock :4010 verbatim):
+    // a single brand-new order whose delivery row is in the `Ordered` stage.
+    final orderedDeliveriesBody = <String, dynamic>{
+      'items': <Map<String, dynamic>>[
+        {
+          'id': 'delivery-x',
+          'requestId': 'req-x',
+          'clientId': 'user-client-001',
+          'status': 'Ordered',
+          'currentStage': 'Ordered',
+          'progressStep': 0,
+          'deliveryId': 'delivery-x',
+          'delivery_id': 'delivery-x',
+          'tier': 'express',
+          'title': 'Pharmacy → Ashrafieh',
+          'dropoff': {'address': 'Sassine Square, Ashrafieh'},
+        },
+      ],
+      'totalCount': 1,
+    };
+
+    // Matching client-scoped requests body. The parent request is deduped by
+    // the delivery row's `requestId`, so In-Progress = exactly the delivery row.
+    final matchedRequestsBody = <String, dynamic>{
+      'items': <Map<String, dynamic>>[
+        {
+          'id': 'req-x',
+          'clientId': 'user-client-001',
+          'status': 'matched',
+          'deliveryId': 'delivery-x',
+          'title': 'Pharmacy → Ashrafieh',
+          'offersCount': 1,
+        },
+      ],
+      'totalCount': 1,
+    };
+
+    void stubGateway() {
+      when(() => dio.get<Map<String, dynamic>>(
+            '/v1/deliveries',
+            queryParameters: any(named: 'queryParameters'),
+          )).thenAnswer((_) async => _ok(orderedDeliveriesBody));
+      when(() => dio.get<Map<String, dynamic>>(
+            '/v1/requests',
+            queryParameters: any(named: 'queryParameters'),
+          )).thenAnswer((_) async => _ok(matchedRequestsBody));
+    }
+
+    testWidgets(
+        'a real `Ordered` delivery payload renders the Track-order CTA '
+        '(drives DioClientHomeRepository._mapDeliveryStatus end-to-end)',
+        (tester) async {
+      stubGateway();
+
+      await tester.pumpWidget(_harness(repo: repo));
+      await tester.pumpAndSettle();
+
+      // The brand-new order's row is present...
+      expect(
+        find.byKey(const Key('active-request-card-delivery-x')),
+        findsOneWidget,
+      );
+      // ...and — THE REGRESSION GUARD — it is trackable: `Ordered` mapped to
+      // `accepted`, opening the CTA gate. Reverting the mapping to `searching`
+      // removes this CTA and fails the test at the widget layer.
+      expect(
+        find.byKey(const Key('active-track-order-delivery-x')),
+        findsOneWidget,
+      );
     });
   });
 }
