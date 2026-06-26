@@ -37,10 +37,32 @@ class LocationSelectState extends Equatable {
 
   bool get hasSavedAddresses => savedAddresses.isNotEmpty;
 
-  /// A location is always confirmable: "Current Location" is the safe default,
-  /// so the Confirm CTA is reachable on first paint (JM-024 AC4). The selection
-  /// only changes WHICH location is forwarded to order-chat.
-  bool get canConfirm => status == LocationSelectStatus.loaded;
+  /// True once the customer has actually PICKED a location to deliver to.
+  /// "Current Location" is the safe default selection ([LocationChoiceKind.current]),
+  /// so a valid pickup+dropoff origin exists on first paint (JM-024 AC4); a
+  /// freshly-pinned point ([LocationChoiceKind.pinned]) also counts, and a saved
+  /// address counts only once its [selectedSavedId] is set. This is the SINGLE
+  /// confirmed point the compose step seeds into both `pickupLocation` and
+  /// `dropoffLocation` (see ComposeRequestController._buildDraft).
+  bool get hasPickedLocation =>
+      choiceKind == LocationChoiceKind.current ||
+      choiceKind == LocationChoiceKind.pinned ||
+      (choiceKind == LocationChoiceKind.saved && selectedSavedId != null);
+
+  /// The Confirm CTA's enablement depends ONLY on the customer having picked a
+  /// pickup+dropoff location ([hasPickedLocation]) — NOT on the saved-locations
+  /// fetch succeeding.
+  ///
+  /// The saved-locations read (`GET /api/users/me/saved-locations`) is a pure
+  /// convenience: it can 404, error, or come back empty without blocking a
+  /// create. Gating Confirm on `status == loaded` was the defect — a failed
+  /// fetch ([LocationSelectStatus.failed]) left the CTA permanently disabled and
+  /// the customer could never create a request even though "Current Location"
+  /// is a valid default pick. So we deliberately do NOT require `loaded` here;
+  /// the screen's footer still hides itself during the cold-load spinner
+  /// (initial/loading), and on `failed` it shows the retry banner while the
+  /// Confirm CTA stays enabled.
+  bool get canConfirm => hasPickedLocation;
 
   bool isSavedSelected(String id) =>
       choiceKind == LocationChoiceKind.saved && selectedSavedId == id;

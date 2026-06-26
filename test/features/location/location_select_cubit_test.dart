@@ -77,7 +77,11 @@ void main() {
 
       expect(cubit.state.status, LocationSelectStatus.failed);
       expect(cubit.state.error, LocationSelectFailure.network);
-      expect(cubit.state.canConfirm, isFalse);
+      // The saved-locations fetch failing MUST NOT disable Confirm: "Current
+      // Location" is still a valid picked pickup+dropoff origin, so the customer
+      // can still create a request. canConfirm depends ONLY on hasPickedLocation.
+      expect(cubit.state.hasPickedLocation, isTrue);
+      expect(cubit.state.canConfirm, isTrue);
     });
 
     test('selectSaved / selectCurrent / markPinned toggle the choice',
