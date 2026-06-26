@@ -37,11 +37,16 @@ class CustomerProfileRating extends StatelessWidget {
         ? l10n.deliveryManProfileRatingSummary(ratingText, ratingCount)
         : l10n.deliveryManProfileEmptyReviewsTitle;
 
+    // Identifier-only + `container: true`, mirroring the proven
+    // `DeliveryManMetaRow` pattern. A competing explicit `label` on this wrapper
+    // fights the text-emitting child below for the accessible name, which folds
+    // the `customer_profile_rating` identifier away when it merges up into the
+    // header node (the name node then swallows it). `container: true` forces a
+    // first-class node so the identifier survives; the visible `Text` already
+    // exposes the rating summary as the readable label.
     return Semantics(
       identifier: 'customer_profile_rating',
-      label: _hasRating
-          ? l10n.deliveryManProfileRatingStarsLabel(ratingText)
-          : l10n.deliveryManProfileEmptyReviewsTitle,
+      container: true,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
