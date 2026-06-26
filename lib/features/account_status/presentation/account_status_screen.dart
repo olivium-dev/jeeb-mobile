@@ -158,6 +158,11 @@ class _BlockedBody extends StatelessWidget {
             // Reason — server reason verbatim, else localized per-state copy.
             Semantics(
               identifier: 'account_status_reason',
+              // container so the reason owns its own node, mirroring the banner
+              // above. Without it the default explicitChildNodes:false annotation
+              // merges this identifier up into account_status_root (which already
+              // owns that node), folding the reason id away (JM-049 merge class).
+              container: true,
               child: Text(
                 reason,
                 textAlign: TextAlign.center,
