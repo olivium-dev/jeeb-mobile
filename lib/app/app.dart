@@ -10,6 +10,7 @@ import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/accessibility/accessibility.dart';
+import '../core/deep_link/deep_link_route_information_parser.dart';
 import '../core/dev_seam/dev_seam.dart';
 import '../core/dev_seam/session_seam_bootstrap.dart';
 import '../core/locale/locale_cubit.dart';
@@ -394,7 +395,20 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
                 GlobalWidgetsLocalizations.delegate,
                 GlobalCupertinoLocalizations.delegate,
               ],
-              routerConfig: _router,
+              // Sprint 3 (deeplink): instead of `routerConfig: _router`, the
+              // router's own pieces are wired explicitly so the inbound parser
+              // can be wrapped. [DeepLinkRouteInformationParser] folds a
+              // custom-scheme `jeeb://orders/d-1` (host `orders`, path `/d-1`)
+              // back into `/orders/d-1` BEFORE go_router matches; the auth gate
+              // + id validation then apply via the router redirect and the
+              // resolver. Delegate / provider / back-button dispatcher are the
+              // router's own — only the parser is wrapped.
+              routeInformationParser: DeepLinkRouteInformationParser(
+                inner: _router.routeInformationParser,
+              ),
+              routerDelegate: _router.routerDelegate,
+              routeInformationProvider: _router.routeInformationProvider,
+              backButtonDispatcher: _router.backButtonDispatcher,
               builder: (context, child) {
                 final content = child ?? const SizedBox.shrink();
                 final handler = _pushHandler;

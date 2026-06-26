@@ -6,5 +6,20 @@
 	     "production" for App Store / TestFlight release builds. -->
 	<key>aps-environment</key>
 	<string>development</string>
+	<!--
+	    Sprint 3 (deeplink): iOS Universal Links. PLACEHOLDER domain — the real
+	    apex/marketing domain is owner-owned and may differ from `jeeb.app`.
+	    DEFERRED: infra MUST host the Apple App Site Association (AASA) file at
+	    https://<domain>/.well-known/apple-app-site-association listing
+	    "<TEAMID>.<bundleId>" with the `/orders/*`, `/chat/*`, `/wallet/*`, …
+	    components before Universal Links verify on device. Until the AASA is
+	    hosted, only the jeeb:// custom scheme (no domain verification needed)
+	    resolves; this entitlement is inert without it. The custom-scheme path
+	    needs NO entitlement — it is handled by the Info.plist CFBundleURLTypes /
+	    the Flutter deep-link channel. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:jeeb.app</string>
+	</array>
 </dict>
 </plist>
