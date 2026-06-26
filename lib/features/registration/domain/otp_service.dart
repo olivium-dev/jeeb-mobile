@@ -21,6 +21,13 @@ enum OtpSendOutcome {
 enum OtpVerifyOutcome {
   verified,
   invalidCode,
+
+  /// The gateway rate-limited the verify attempt (HTTP 429). Distinct from
+  /// `invalidCode` (which counts against the attempt budget): a 429 is a
+  /// "slow down / try again later" signal, not a wrong code, so the screen
+  /// surfaces a lockout/cooldown rather than burning an attempt. Mirrors the
+  /// existing `OtpSendOutcome.rateLimited` on the send leg.
+  rateLimited,
   expired,
   networkError,
 }

@@ -51,7 +51,9 @@ class DioOtpService implements OtpService {
     } on DioException catch (e) {
       final status = e.response?.statusCode;
       if (status == 401) return OtpVerifyOutcome.invalidCode;
-      if (status == 429) return OtpVerifyOutcome.invalidCode;
+      // 429 is rate-limiting, NOT a wrong code — map to rateLimited so it does
+      // not burn an attempt (consistent with sendCode's 429 handling above).
+      if (status == 429) return OtpVerifyOutcome.rateLimited;
       if (status == 410) return OtpVerifyOutcome.expired;
       return OtpVerifyOutcome.networkError;
     }
