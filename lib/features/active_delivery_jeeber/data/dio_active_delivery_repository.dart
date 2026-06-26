@@ -14,9 +14,13 @@ import '../domain/jeeber_delivery_status.dart';
 ///   POST /v1/delivery/status/transition → body { deliveryId, to, evidenceUrl? }
 ///                                          200 → delivery | 422 → bad transition
 ///                                          (422 `otp_required` → otpRequired)
-///   POST /deliveries/{id}/otp/verify    → body { code } — completes a
+///   POST /v1/deliveries/{id}/otp/verify → body { code } — completes a
 ///                                          phone-bearing delivery to Done
-///                                          (iter6 close-tail door-OTP path #68)
+///                                          (iter6 close-tail door-OTP path #68;
+///                                          S7 re-versioned so the
+///                                          `/v1/deliveries` rewrite key catches
+///                                          it instead of 404'ing on the
+///                                          un-versioned `/deliveries`)
 ///   POST /v1/delivery/proof-photo       → body { deliveryId, filename }
 ///                                          201 → { url, evidenceUrl, deliveryId }
 class DioActiveDeliveryRepository implements ActiveDeliveryRepository {
@@ -24,15 +28,17 @@ class DioActiveDeliveryRepository implements ActiveDeliveryRepository {
 
   final Dio _dio;
 
-  // POST /deliveries/{id}/otp/verify → the gateway path that completes a
-  // phone-bearing delivery `AtDoor → Done` once the recipient OTP is verified
-  // (iter6 close-tail; the same path #68 proved on the gateway).
-  static const _deliveriesPath = '/deliveries';
-
-  // GET /v1/deliveries/{id}/otp → get-or-issue the handover OTP (the same path
-  // the recipient's "Show OTP" uses). Called issue-on-demand before verify so a
-  // code_hash always exists even when the jeeber completes before the recipient
-  // opens Show-OTP (iter6 jeeber door-OTP fix).
+  // GET  /v1/deliveries/{id}/otp        → get-or-issue the handover OTP (the
+  //                                        same path the recipient's "Show OTP"
+  //                                        uses). Called issue-on-demand before
+  //                                        verify so a code always exists even
+  //                                        when the jeeber completes before the
+  //                                        recipient opens Show-OTP.
+  // POST /v1/deliveries/{id}/otp/verify → completes a phone-bearing delivery
+  //                                        `AtDoor → Done` once the recipient
+  //                                        OTP is verified. S7: both share the
+  //                                        `/v1/deliveries` prefix so the single
+  //                                        rewrite key catches them.
   static const _v1DeliveriesPath = '/v1/deliveries';
 
   @override
@@ -102,7 +108,7 @@ class DioActiveDeliveryRepository implements ActiveDeliveryRepository {
         // Degrade — proceed to verify; it works when the OTP was already issued.
       }
       final response = await _dio.post<Map<String, dynamic>>(
-        '$_deliveriesPath/$deliveryId/otp/verify',
+        '$_v1DeliveriesPath/$deliveryId/otp/verify',
         data: <String, dynamic>{'code': code},
       );
       final data = response.data ?? const <String, dynamic>{};
