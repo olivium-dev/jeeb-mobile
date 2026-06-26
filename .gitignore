@@ -85,5 +85,10 @@ docs/figma-cache/
 /org/
 /samples/
 
-# Firebase build input (secret) — never commit
+# Firebase build input (secret) — never commit. Copy the committed
+# *.template files alongside these paths and fill in real values, or run
+# `flutterfire configure`.
 android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+# FlutterFire-generated real options (placeholder template stays committed).
+lib/core/firebase/firebase_options.g.dart

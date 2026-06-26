@@ -2,6 +2,31 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Sprint 1 Stream B (T-MOB-017): location usage descriptions. Required
+	     before iOS will surface the geolocator permission prompt. -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Jeeb needs your location to show pickup and delivery points</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Jeeb needs location to track your delivery</string>
+	<!-- Push (FCM/APNs) background delivery + silent content pushes. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<!-- Custom-scheme deep links (jeeb://…) for push payloads + share links. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>app.jeeb.mobile</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>jeeb</string>
+			</array>
+		</dict>
+	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

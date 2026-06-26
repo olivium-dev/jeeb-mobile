@@ -1,0 +1,30 @@
+{
+  "__comment": "TEMPLATE ONLY — NOT a real Firebase config. Copy this file to android/app/google-services.json (which is gitignored) and replace every TODO_* placeholder with the values from the Firebase console (Project settings → Your apps → Android app → google-services.json), or run `flutterfire configure`. NEVER commit the real google-services.json — it carries the live API key + project ids.",
+  "project_info": {
+    "project_number": "TODO_PROJECT_NUMBER",
+    "project_id": "TODO_PROJECT_ID",
+    "storage_bucket": "TODO_PROJECT_ID.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "TODO_ANDROID_APP_ID",
+        "android_client_info": {
+          "package_name": "app.jeeb.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "TODO_ANDROID_API_KEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
