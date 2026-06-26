@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../core/router/root_aware_back_scope.dart';
 import '../../l10n/app_localizations.dart';
 
 /// Client order-detail action hub (B-P0).
@@ -37,15 +38,22 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: OMDSAppBar(
-        title: l10n.deliveryDetailsTitle,
-        showBackButton: true,
-      ),
-      body: ListView(
-        key: const Key('delivery-detail-list'),
-        padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
-        children: _buildChildren(context, l10n),
+    // BACK-nav defect fix: reached in-app via `context.push('/orders/:id')` (has
+    // a parent) BUT also as the stack ROOT from a delivery push-notification /
+    // deep link (`GoRouter.go('/orders/:id')`). The root-aware scope pops to the
+    // parent when there is one and otherwise lands on Home instead of exiting.
+    return RootAwareBackScope(
+      fallbackLocation: '/',
+      child: Scaffold(
+        appBar: OMDSAppBar(
+          title: l10n.deliveryDetailsTitle,
+          showBackButton: true,
+        ),
+        body: ListView(
+          key: const Key('delivery-detail-list'),
+          padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
+          children: _buildChildren(context, l10n),
+        ),
       ),
     );
   }
