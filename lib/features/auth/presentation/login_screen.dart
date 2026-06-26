@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/config/app_config.dart';
 import '../../../core/dev_seam/social_auth_seam.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
@@ -233,6 +234,15 @@ class _LoginViewState extends State<_LoginView> {
                   Spacing.xLarge,
                 ),
                 children: [
+                  // ── Email + password funnel (F3 guard) ─────────────────
+                  // The LIVE gateway does not serve POST /v1/auth/login (it
+                  // 401s), so this email/password funnel is a dead-end against
+                  // the real backend. It renders only when email auth is
+                  // enabled (AppConfig.emailPasswordAuthEnabled — true against
+                  // the local mock that DOES serve the route); otherwise the
+                  // screen promotes the working phone-OTP path as the primary
+                  // action so the app stays honest.
+                  if (AppConfig.emailPasswordAuthEnabled) ...[
                   // ── Email ──────────────────────────────────────────────
                   Semantics(
                     identifier: 'login_email_field',
@@ -307,14 +317,23 @@ class _LoginViewState extends State<_LoginView> {
                       isEnabled: state.canSubmit,
                       onTap: cubit.submit,
                       child: state.isSubmitting
-                          ? const SizedBox(
-                              height: Sizes.large,
-                              width: Sizes.large,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
+                          ? const OmdsButtonLoading()
                           : null,
                     ),
                   ),
+                  ] else ...[
+                    // Honest fallback (F3): email auth is not served by the
+                    // live gateway, so surface the working phone-OTP funnel as
+                    // the primary action instead of a form that always 401s.
+                    Semantics(
+                      identifier: 'login_phone_primary_cta',
+                      button: true,
+                      child: OmdsPrimaryButton(
+                        text: l10n.loginPhoneEntryLink,
+                        onTap: () => context.goNamed('register'),
+                      ),
+                    ),
+                  ],
 
                   // ── D23 biometric affordance (enrolled returning users) ─
                   if (_biometricEnrolled == true) ...[
@@ -358,18 +377,23 @@ class _LoginViewState extends State<_LoginView> {
 
                   const SizedBox(height: Spacing.large),
 
-                  // ── Sign-up link ───────────────────────────────────────
-                  Center(
-                    child: Semantics(
-                      identifier: 'login_signup_link',
-                      button: true,
-                      child: TextButton(
-                        // EDGE: login → sign-up (60 nav matrix, JM-008).
-                        onPressed: () => context.goNamed('sign-up'),
-                        child: Text(l10n.loginSignupLink),
+                  // ── Sign-up link (F3 guard) ────────────────────────────
+                  // POST /v1/auth/signup 401s on the live gateway, so the
+                  // sign-up link is a dead-end there. Show it only when email
+                  // auth is enabled; the phone-OTP entry below is the honest
+                  // account-creation path against the real backend.
+                  if (AppConfig.emailPasswordAuthEnabled)
+                    Center(
+                      child: Semantics(
+                        identifier: 'login_signup_link',
+                        button: true,
+                        child: TextButton(
+                          // EDGE: login → sign-up (60 nav matrix, JM-008).
+                          onPressed: () => context.goNamed('sign-up'),
+                          child: Text(l10n.loginSignupLink),
+                        ),
                       ),
                     ),
-                  ),
 
                   // ── Phone-OTP entry link (DEFECT-3) ────────────────────
                   // The LIVE gateway has no `/v1/auth/login` or `/v1/auth/signup`

@@ -613,7 +613,7 @@ class _PendingOffersList extends StatelessWidget {
 
   Widget _pendingBody(BuildContext context, SubmittedOffersState state) {
     if (state.status == SubmittedOffersStatus.loading && state.offers.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: OmdsLoadingState());
     }
     if (state.offers.isEmpty) {
       return _PendingEmptyState(

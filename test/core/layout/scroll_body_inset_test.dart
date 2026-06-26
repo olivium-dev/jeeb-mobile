@@ -15,10 +15,10 @@ import 'package:jeeb_mobile/features/home_client/data/dev_client_home_fixtures.d
 import 'package:jeeb_mobile/features/home_client/data/in_memory_client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/presentation/client_home_screen.dart';
 import 'package:jeeb_mobile/features/settings/application/settings_cubit.dart';
-import 'package:jeeb_mobile/features/settings/data/in_memory_profile_repository.dart';
-import 'package:jeeb_mobile/features/settings/domain/account_service.dart';
 import 'package:jeeb_mobile/features/settings/presentation/screens/settings_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
+
+import '../../support/settings_fakes.dart';
 
 /// Representative 3-button soft-nav inset (~48dp). Any correct edge-to-edge
 /// fix must reserve at least this much at the bottom of a scroll body so the

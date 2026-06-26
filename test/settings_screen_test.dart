@@ -9,11 +9,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/settings/application/settings_cubit.dart';
-import 'package:jeeb_mobile/features/settings/data/in_memory_profile_repository.dart';
-import 'package:jeeb_mobile/features/settings/domain/account_service.dart';
 import 'package:jeeb_mobile/features/settings/domain/user_profile.dart';
 import 'package:jeeb_mobile/features/settings/presentation/screens/settings_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
+
+import 'support/settings_fakes.dart';
 
 class _SyncDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _SyncDelegate(this._arbByTag);
