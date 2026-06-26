@@ -9,9 +9,12 @@ import '../domain/recent_delivery_summary.dart';
 /// Parallel calls, one per home-tab list the Figma renders:
 ///   - `GET /v1/deliveries?stage=active`     → In Progress  (delivery rows)
 ///   - `GET /v1/requests?role=client`        → Pending Requests + Replies
-///   - `GET /v1/requests?role=client`        → in-flight requests merged into
-///       In Progress so a freshly-accepted order surfaces even when the
-///       deliveries-only source omits it (S10 Defect A — see [_mergeInProgress])
+///   - `GET /v1/requests?status=active&role=client` → in-flight requests merged
+///       into In Progress so a freshly-accepted order surfaces even when the
+///       deliveries-only source omits it (S10 Defect A — see [_mergeInProgress]).
+///       S11 fix: the merge param is `status=active` (the live-proven filter the
+///       order-history Active tab uses), NOT the S10 `role=client`-only query
+///       that the live gateway did not surface the matched request through.
 ///
 /// BLOCKER-1 fix (2026-06-13): corrected path from the non-existent
 /// `/v1/delivery/active` to the gateway list contract.
@@ -142,7 +145,26 @@ class DioClientHomeRepository implements ClientHomeRepository {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         _requestsPath,
-        queryParameters: {'role': 'client', 'page': 1, 'pageSize': 50},
+        // S11 Defect-A LIVE fix: the prior `role=client`-only query did NOT
+        // surface the freshly-matched request on the live gateway. The field
+        // logcat + backend correlation showed the in-flight (`matched`) order
+        // is returned by the gateway through the `status=active` filter — the
+        // same param the order-history Active tab already uses
+        // (dio_order_repository.dart:77 `OrderHistoryTab.active → 'active'`).
+        // The S10 fix queried `role=client`, so when the deliveries-only
+        // source lagged (no `delivery-<offerId>` row minted yet) the merge
+        // fallback hit the wrong filter and the new order was DROPPED. We now
+        // send `status=active` (load-bearing — proven to return the row) AND
+        // keep `role=client` (belt-and-braces for a backend that scopes by
+        // role), so the matched order is surfaced regardless of which filter
+        // the gateway honors. Verified on mock :4010: `?status=active` returns
+        // only non-terminal requests, including the new `matched` row.
+        queryParameters: {
+          'status': 'active',
+          'role': 'client',
+          'page': 1,
+          'pageSize': 50,
+        },
       );
       final data = response.data;
       if (data == null) return const [];
