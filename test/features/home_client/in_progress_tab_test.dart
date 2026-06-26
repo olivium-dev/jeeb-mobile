@@ -9,6 +9,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
@@ -350,6 +351,136 @@ void main() {
         find.byKey(const Key('active-track-order-delivery-x')),
         findsOneWidget,
       );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // S13 DEFECT 1 — "Open chat" must open the order's EXISTING thread.
+  //
+  // For an In-Progress *delivery* row the card's `id` is the DELIVERY id
+  // (`delivery-<offerId>`), while the order's conversation is correlated on the
+  // parent REQUEST id. The chat-detail route (`/chat/:id`) treats its path id as
+  // the conversation CORRELATION KEY, so navigating with the delivery id
+  // create-or-gets a brand-new EMPTY conversation instead of the thread that
+  // holds the messages + Track CTA.
+  //
+  // This drives the REAL `GET /v1/deliveries?stage=active` envelope through the
+  // actual DioClientHomeRepository parse+merge path → ClientHomeCubit →
+  // InProgressTab → the DEFAULT `_navigateToChat` (no onOpenChat override) over
+  // a live GoRouter, then asserts the navigated chat-detail route carries the
+  // parent request id `req-x` (NOT the delivery id `delivery-x`) AND the
+  // delivery id as a `deliveryId=delivery-x` query param (so the in-chat
+  // "Track order" CTA still resolves). Against the unfixed code the path id is
+  // `delivery-x` and there is no query param, so both assertions fail.
+  // ---------------------------------------------------------------------------
+  group('InProgressTab — S13 Defect 1 Open-chat routes to existing thread', () {
+    late _MockDio dio;
+    late DioClientHomeRepository repo;
+
+    setUp(() {
+      dio = _MockDio();
+      repo = DioClientHomeRepository(dio);
+    });
+
+    // A delivery row whose `id` is the delivery id and whose parent request id
+    // (`requestId`) DIVERGES from it — the runtime-order case the seed masks.
+    final deliveriesBody = <String, dynamic>{
+      'items': <Map<String, dynamic>>[
+        {
+          'id': 'delivery-x',
+          'requestId': 'req-x',
+          'clientId': 'user-client-001',
+          'status': 'InTransit',
+          'currentStage': 'InTransit',
+          'progressStep': 2,
+          'tier': 'express',
+          'title': 'Pharmacy → Ashrafieh',
+          'dropoff': {'address': 'Sassine Square, Ashrafieh'},
+        },
+      ],
+      'totalCount': 1,
+    };
+
+    // Matching client-scoped request; deduped by the delivery row's `requestId`
+    // so In-Progress = exactly the one delivery row.
+    final requestsBody = <String, dynamic>{
+      'items': <Map<String, dynamic>>[
+        {
+          'id': 'req-x',
+          'clientId': 'user-client-001',
+          'status': 'en_route',
+          'title': 'Pharmacy → Ashrafieh',
+          'offersCount': 1,
+        },
+      ],
+      'totalCount': 1,
+    };
+
+    testWidgets(
+        'tapping Open chat navigates to chat-detail with the parent request id '
+        '(req-x), not the delivery id, and forwards deliveryId=delivery-x',
+        (tester) async {
+      when(() => dio.get<Map<String, dynamic>>(
+            '/v1/deliveries',
+            queryParameters: any(named: 'queryParameters'),
+          )).thenAnswer((_) async => _ok(deliveriesBody));
+      when(() => dio.get<Map<String, dynamic>>(
+            '/v1/requests',
+            queryParameters: any(named: 'queryParameters'),
+          )).thenAnswer((_) async => _ok(requestsBody));
+
+      String? navigatedId;
+      String? navigatedDeliveryId;
+
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, _) => Scaffold(
+              body: BlocProvider(
+                create: (_) => ClientHomeCubit(
+                  repository: repo,
+                  greetingNameProvider: () => 'Sami',
+                )..load(),
+                // No onOpenChat → exercises the real _navigateToChat router path.
+                child: const InProgressTab(),
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/chat/:id',
+            name: 'chat-detail',
+            builder: (_, state) {
+              navigatedId = state.pathParameters['id'];
+              navigatedDeliveryId = state.uri.queryParameters['deliveryId'];
+              return const Scaffold(body: Text('chat'));
+            },
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(
+          theme: AppTheme.light(),
+          locale: const Locale('en'),
+          supportedLocales: const [Locale('en'), Locale('ar')],
+          localizationsDelegates: const [SyncAppLocalizationsDelegate()],
+          routerConfig: router,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final chatCta = find.byKey(const Key('active-open-chat-delivery-x'));
+      expect(chatCta, findsOneWidget);
+      await tester.tap(chatCta);
+      await tester.pumpAndSettle();
+
+      // THE FIX: the chat thread opens on the parent REQUEST id (correlation
+      // key), never the delivery id — so the existing conversation resolves.
+      expect(navigatedId, 'req-x');
+      // ...and the delivery id rides along so the in-chat Track CTA resolves.
+      expect(navigatedDeliveryId, 'delivery-x');
     });
   });
 }

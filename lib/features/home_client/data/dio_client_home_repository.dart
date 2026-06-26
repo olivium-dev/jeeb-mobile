@@ -269,10 +269,18 @@ class DioClientHomeRepository implements ClientHomeRepository {
     // list endpoint already keys items on the delivery id).
     final deliveryId =
         (json['deliveryId'] ?? json['delivery_id']) as String?;
+    // S13 Defect 1: capture the parent REQUEST id so the "Open chat" CTA opens
+    // the order's EXISTING conversation (correlated on the request id), not a
+    // fresh empty thread keyed on the delivery row's `id`. Null when the
+    // gateway item omits it — `chatThreadId` then falls back to `id`.
+    final requestId = (json['requestId'] ?? json['request_id']) as String?;
     return ClientHomeRequest(
       id: id,
       deliveryId: (deliveryId != null && deliveryId.isNotEmpty)
           ? deliveryId
+          : null,
+      chatCorrelationId: (requestId != null && requestId.isNotEmpty)
+          ? requestId
           : null,
       displayId: json['displayId'] as String?,
       title: json['title'] as String? ?? 'Delivery $id',
@@ -336,11 +344,18 @@ class DioClientHomeRepository implements ClientHomeRepository {
         ? (dropoff['address'] as String? ?? '')
         : '';
     final deliveryId = (json['deliveryId'] ?? json['delivery_id']) as String?;
+    // S13 Defect 1 parity: an active-request row IS already keyed on the
+    // request id, but a backend may also echo it under `requestId`. Capture it
+    // explicitly so the chat thread correlates on the request id regardless of
+    // which field the gateway uses; falls back to the row's own `id`.
+    final requestId =
+        (json['requestId'] ?? json['request_id']) as String? ?? id;
     return ClientHomeRequest(
       id: id,
       deliveryId: (deliveryId != null && deliveryId.isNotEmpty)
           ? deliveryId
           : null,
+      chatCorrelationId: requestId.isNotEmpty ? requestId : null,
       displayId: json['displayId'] as String?,
       title: json['title'] as String? ?? 'Request $id',
       status: status,

@@ -66,6 +66,7 @@ class ClientHomeRequest extends Equatable {
     this.displayId,
     this.ttlSeconds,
     this.deliveryId,
+    this.chatCorrelationId,
   });
 
   /// Server-side identifier; also used as the deep-link key.
@@ -91,6 +92,28 @@ class ClientHomeRequest extends Equatable {
   /// known, else the request id as a best-effort fallback.
   String get trackingId =>
       (deliveryId != null && deliveryId!.isNotEmpty) ? deliveryId! : id;
+
+  /// The parent REQUEST/order id this card's chat thread is keyed on.
+  ///
+  /// S13 Defect 1: for an In-Progress *delivery* row [id] is the delivery id
+  /// (`delivery-<offerId>`), but the order's conversation is correlated on the
+  /// parent request id (the chat-detail create-or-get uses the route id as the
+  /// conversation CORRELATION KEY). Opening chat with the delivery id mints a
+  /// fresh empty conversation instead of the order's existing thread. The
+  /// gateway active-list item carries the parent id under `requestId`/
+  /// `request_id`; we capture it here so the "Open chat" CTA routes to the
+  /// correct existing thread. Null when the row genuinely lacks one (then
+  /// callers fall back to [id] via [chatThreadId]).
+  final String? chatCorrelationId;
+
+  /// The id the order-chat surface (`/chat/:id`, `chat-detail`) must be opened
+  /// with: the parent request/correlation id when known, else [id] as a
+  /// best-effort fallback (preserves the pre-S13 behavior for rows that carry
+  /// no distinct parent id).
+  String get chatThreadId =>
+      (chatCorrelationId != null && chatCorrelationId!.isNotEmpty)
+          ? chatCorrelationId!
+          : id;
 
   /// Human-readable order id (e.g. `ORD-23748`) used in the chat header /
   /// Replies card title. Falls back to [id] when the server omits it.
@@ -165,6 +188,7 @@ class ClientHomeRequest extends Equatable {
     Object? displayId = _sentinel,
     Object? ttlSeconds = _sentinel,
     Object? deliveryId = _sentinel,
+    Object? chatCorrelationId = _sentinel,
   }) {
     return ClientHomeRequest(
       id: id ?? this.id,
@@ -196,6 +220,9 @@ class ClientHomeRequest extends Equatable {
       deliveryId: identical(deliveryId, _sentinel)
           ? this.deliveryId
           : deliveryId as String?,
+      chatCorrelationId: identical(chatCorrelationId, _sentinel)
+          ? this.chatCorrelationId
+          : chatCorrelationId as String?,
     );
   }
 
@@ -216,6 +243,7 @@ class ClientHomeRequest extends Equatable {
         conversationId,
         ttlSeconds,
         deliveryId,
+        chatCorrelationId,
       ];
 }
 
