@@ -1,9 +1,66 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/di/injection_container.dart';
+import '../application/goods_cost_cubit.dart';
+import '../application/goods_cost_state.dart';
+import '../data/dio_goods_cost_repository.dart';
+import '../data/fake_goods_cost_repository.dart';
+import '../domain/goods_cost.dart';
+import '../domain/goods_cost_repository.dart';
+
+/// "Enter Goods Cost" — the Jeeber declares how much the purchased goods cost
+/// for a delivery (the amount the Client reimburses on receipt). Submitting
+/// records the cost on the gateway and pops with the gateway-confirmed
+/// [GoodsCost] (amount + currency verbatim).
+///
+/// [repository] is optional — production resolves [GoodsCostRepository] from
+/// GetIt when registered, else constructs the Dio impl over the shared
+/// `sl<Dio>()` so the running app reaches the real gateway; a DI-less
+/// widget/router test falls back to the in-memory fake. Mirrors
+/// `DeliveryReceiptScreen`'s self-resolving pattern.
 class GoodsCostScreen extends StatelessWidget {
-  const GoodsCostScreen({super.key, required this.deliveryId});
+  const GoodsCostScreen({
+    super.key,
+    required this.deliveryId,
+    this.repository,
+  });
+
   final String deliveryId;
+
+  /// Optional repository override. Production leaves this null; widget tests
+  /// inject a scripted instance.
+  final GoodsCostRepository? repository;
+
+  GoodsCostRepository _resolveRepository() {
+    final explicit = repository;
+    if (explicit != null) return explicit;
+    if (sl.isRegistered<GoodsCostRepository>()) {
+      return sl<GoodsCostRepository>();
+    }
+    if (sl.isRegistered<Dio>()) {
+      return DioGoodsCostRepository(sl<Dio>());
+    }
+    return FakeGoodsCostRepository();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = _resolveRepository();
+    return BlocProvider<GoodsCostCubit>(
+      create: (_) => GoodsCostCubit(
+        repository: repo,
+        deliveryId: deliveryId,
+      )..loadCurrency(),
+      child: const _GoodsCostView(),
+    );
+  }
+}
+
+class _GoodsCostView extends StatelessWidget {
+  const _GoodsCostView();
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +113,6 @@ class _CostFieldAndSubmit extends StatefulWidget {
 
 class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
   final _controller = TextEditingController();
-  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -64,33 +120,89 @@ class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
     super.dispose();
   }
 
-  Future<void> _submit() async {
-    setState(() => _isSubmitting = true);
-    await Future<void>.delayed(const Duration(seconds: 1));
-    if (!mounted) return;
-    Navigator.of(context).pop(double.tryParse(_controller.text));
+  void _submit() {
+    final amount = double.tryParse(_controller.text.trim());
+    if (amount == null) return;
+    context.read<GoodsCostCubit>().submit(amount);
   }
+
+  /// Entry-field label using the gateway-authoritative currency (no hardcoded
+  /// currency — 40_GUARDRAILS_ARCH §5). There is no user/config currency field,
+  /// so the delivery's currency from the gateway is the source of truth; until
+  /// it resolves (or if the best-effort read failed) the label degrades to a
+  /// neutral "Goods Cost".
+  String _label(String? currency) =>
+      (currency != null && currency.isNotEmpty)
+          ? 'Goods Cost ($currency)'
+          : 'Goods Cost';
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        OmdsTextField(
-          controller: _controller,
-          labelText: 'Goods Cost (LBP)',
-          keyboardType: TextInputType.number,
-          prefixIcon: const Icon(Icons.attach_money),
-          onChanged: (_) => setState(() {}),
-        ),
-        const Spacer(),
-        OmdsLoadingButton(
-          text: 'Confirm Cost',
-          isLoading: _isSubmitting,
-          isEnabled: _controller.text.isNotEmpty,
-          onTap: _submit,
-        ),
-      ],
+    return BlocConsumer<GoodsCostCubit, GoodsCostState>(
+      listenWhen: (prev, next) =>
+          prev.submitStatus != next.submitStatus &&
+          next.submitStatus == GoodsCostSubmitStatus.succeeded,
+      listener: (context, state) {
+        // Side effect ONLY in the listener (40_GUARDRAILS_ARCH §3): pop with the
+        // gateway-confirmed record (amount + currency verbatim).
+        final GoodsCost? recorded = state.recorded;
+        if (recorded != null) {
+          Navigator.of(context).pop(recorded);
+        }
+      },
+      builder: (context, state) {
+        final submitting = state.isSubmitting;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            OmdsTextField(
+              controller: _controller,
+              labelText: _label(state.currency),
+              keyboardType: TextInputType.number,
+              prefixIcon: const Icon(Icons.attach_money),
+              enabled: !submitting,
+              onChanged: (_) {
+                if (state.submitStatus == GoodsCostSubmitStatus.failed) {
+                  context.read<GoodsCostCubit>().acknowledgeError();
+                } else {
+                  setState(() {});
+                }
+              },
+            ),
+            if (state.submitStatus == GoodsCostSubmitStatus.failed) ...[
+              const SizedBox(height: Spacing.small),
+              Text(
+                _errorCopy(state.submitError),
+                key: const Key('goods-cost-error'),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+              ),
+            ],
+            const Spacer(),
+            OmdsLoadingButton(
+              text: 'Confirm Cost',
+              isLoading: submitting,
+              isEnabled: _controller.text.trim().isNotEmpty && !submitting,
+              onTap: _submit,
+            ),
+          ],
+        );
+      },
     );
+  }
+
+  static String _errorCopy(GoodsCostFailure? failure) {
+    switch (failure) {
+      case GoodsCostFailure.network:
+        return "Couldn't reach the server. Check your connection and try again.";
+      case GoodsCostFailure.notFound:
+        return 'This delivery could not be found.';
+      case GoodsCostFailure.validation:
+        return 'Enter a valid amount and try again.';
+      case GoodsCostFailure.unknown:
+      case null:
+        return 'Something went wrong. Please try again.';
+    }
   }
 }
