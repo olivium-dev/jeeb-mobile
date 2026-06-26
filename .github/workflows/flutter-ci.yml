@@ -36,23 +36,24 @@ jobs:
 
       - name: Install dependencies
         id: pub_get
-        continue-on-error: true
         run: flutter pub get
 
       - name: Analyze
-        if: steps.pub_get.outcome == 'success'
-        run: flutter analyze --fatal-infos
+        # `dart analyze` avoids the `flutter analyze` exit-code-64 crash that
+        # happens while bootstrapping native-assets in CI. --fatal-infos keeps
+        # the prior strictness.
+        run: dart analyze --fatal-infos .
 
       - name: Run tests
-        if: steps.pub_get.outcome == 'success'
         run: flutter test --coverage
 
-      - name: Build APK (debug)
-        if: steps.pub_get.outcome == 'success'
-        run: flutter build apk --flavor dev --debug
-
-      - name: Skipped flutter steps notice
-        if: steps.pub_get.outcome != 'success'
+      - name: Coverage summary (lcov)
+        # Surfaces aggregate line coverage from coverage/lcov.info produced above.
+        # Raise the failure threshold here once a baseline is agreed (e.g. add
+        # `lcov --fail-under-lines <N> lcov.info`).
         run: |
-          echo "::warning::Flutter analyze/test/build skipped — omds path dep (../omds-flutter/omds_library) unavailable in CI."
-          echo "Fix: configure secrets.OMDS_FLUTTER_PAT in olivium-dev org or publish omds@0.0.3 to pub.fds-4.site."
+          sudo apt-get update && sudo apt-get install -y lcov
+          lcov --summary coverage/lcov.info
+
+      - name: Build APK (debug)
+        run: flutter build apk --flavor dev --debug

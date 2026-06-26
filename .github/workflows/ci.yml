@@ -42,17 +42,14 @@ jobs:
 
       - name: Install dependencies
         id: pub_get
-        continue-on-error: true
         run: flutter pub get
 
       - name: Analyze
-        if: steps.pub_get.outcome == 'success'
-        run: flutter analyze --fatal-infos
-
-      - name: Skipped analyze notice
-        if: steps.pub_get.outcome != 'success'
-        run: |
-          echo "::warning::flutter analyze skipped — omds-flutter not accessible from CI (path dep ../omds-flutter/omds_library missing). Configure secrets.OMDS_FLUTTER_PAT or publish omds to pub.fds-4.site to re-enable."
+        # `dart analyze` instead of `flutter analyze`: flutter analyze crashes
+        # with exit code 64 while bootstrapping native-assets in CI. dart analyze
+        # performs the same static analysis without that codepath. --fatal-infos
+        # preserves the previous strictness (infos + warnings fail the build).
+        run: dart analyze --fatal-infos .
 
   test:
     name: Test
@@ -83,16 +80,10 @@ jobs:
 
       - name: Install dependencies
         id: pub_get
-        continue-on-error: true
         run: flutter pub get
 
       - name: Run tests
-        if: steps.pub_get.outcome == 'success'
         run: flutter test --reporter=expanded
-
-      - name: Skipped tests notice
-        if: steps.pub_get.outcome != 'success'
-        run: echo "::warning::flutter test skipped — omds-flutter unavailable in CI."
 
   build-apk:
     name: Build APK (dev)
@@ -128,13 +119,7 @@ jobs:
 
       - name: Install dependencies
         id: pub_get
-        continue-on-error: true
         run: flutter pub get
 
       - name: Build APK
-        if: steps.pub_get.outcome == 'success'
         run: flutter build apk --flavor dev --debug --dart-define=APP_FLAVOR=dev
-
-      - name: Skipped build notice
-        if: steps.pub_get.outcome != 'success'
-        run: echo "::warning::flutter build apk skipped — omds-flutter unavailable in CI."

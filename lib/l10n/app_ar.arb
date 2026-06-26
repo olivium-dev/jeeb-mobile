@@ -195,6 +195,21 @@
   "savedAddressLineLabel": "العنوان",
   "savedAddressDeleteConfirmTitle": "حذف العنوان المحفوظ؟",
   "savedAddressDeleteConfirmBody": "سيُحذف {label} من قائمتك المحفوظة.",
+  "useBiometrics": "استخدام القياسات الحيوية",
+  "@useBiometrics": {
+    "description": "Heading on the biometric enrolment prompt screen offering biometric sign-in."
+  },
+  "biometricNotAvailable": "المصادقة بالقياسات الحيوية غير متاحة",
+  "@biometricNotAvailable": {
+    "description": "Shown on the biometric prompt screen when the device has no usable biometric sensor."
+  },
+  "requestNoLongerAvailable": "لم يعد الطلب {requestId} متاحًا.",
+  "@requestNoLongerAvailable": {
+    "description": "Shown on the jeeber request-unavailable screen when a deep-linked request was matched, cancelled, or expired.",
+    "placeholders": {
+      "requestId": { "type": "String" }
+    }
+  },
   "biometricRowTitle": "تسجيل الدخول بالقياسات الحيوية",
   "biometricRowSubtitle": "استخدم Face ID أو البصمة عند توفرها",
   "biometricLockTitle": "افتح جيب",
