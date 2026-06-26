@@ -79,6 +79,11 @@ class DmOnboardingScreen extends StatelessWidget {
   /// real Dio gateway when DI is configured, falling back to the in-memory fake
   /// on cold deep links / boot tests so the wizard still renders + advances.
   DmOnboardingGateway _resolveGateway() {
+    // S6 Stream C: prefer the DI-registered gateway (the canonical release
+    // default).
+    if (sl.isRegistered<DmOnboardingGateway>()) {
+      return sl<DmOnboardingGateway>();
+    }
     if (sl.isRegistered<Dio>()) {
       return DioDmOnboardingGateway(sl<Dio>());
     }
