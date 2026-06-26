@@ -106,6 +106,17 @@ class MockGatewayClient {
     // `/v1/kyc`.
     '/v1/kyc': '/user-management/v1/kyc',
     '/v1/chat/jeeb': '/chat-service/v1/chat/jeeb',
+    // CHAT-CONTRACT (sprint-7): the conversation-resolve fallback
+    // (`GET /v1/conversations?correlationKey=…`) and the realtime descriptor
+    // pre-check (`GET /v1/realtime/jeeb:chat:{id}`) are mounted on the
+    // chat-service / realtime-comunication-service respectively. Both MUST
+    // precede the broader `/v1/*` siblings (first-match-wins) — neither is a
+    // prefix of the other so order between them is otherwise free. Without these
+    // the create-or-get fallback and the WS membership pre-check 404'd, so
+    // request-id deep links never resolved a conversation and live receive never
+    // established (the socket was never built).
+    '/v1/conversations': '/chat-service/v1/conversations',
+    '/v1/realtime': '/realtime-comunication-service/v1/realtime',
     '/v1/offers': '/offer-service/v1/offers',
     '/v1/delivery': '/delivery-service/v1/delivery',
     '/v1/tiers': '/delivery-service/v1/tiers',
@@ -221,16 +232,31 @@ class MockGatewayClient {
   static Uri get realtimeHttpBase {
     if (realtimeBaseUrl.isNotEmpty) return Uri.parse(realtimeBaseUrl);
     final base = Uri.parse(mockBaseUrl);
+    // MOCK MODE (sprint-7): the Express mock co-locates the
+    // realtime-comunication-service on the SAME :4010 origin (its WS upgrade +
+    // `/realtime-comunication-service/*` routes), so the realtime base is the
+    // mock base verbatim — NOT the live Phoenix `:5804` port. In live-gateway
+    // mode (the device default) the realtime service is a separate process on
+    // [realtimePort], so derive the host on that port.
+    if (useMockPrefixes) return base;
     return base.replace(port: realtimePort);
   }
 
-  /// WebSocket URL for the LIVE realtime Phoenix socket
-  /// (`ws(s)://<realtime-host>:<port>/socket/websocket`). The token + `vsn`
+  /// WebSocket path of the realtime Phoenix socket. In mock mode the socket is
+  /// served behind the Express service-prefix mount
+  /// (`/realtime-comunication-service/socket/websocket`); the live realtime
+  /// service serves the raw Phoenix endpoint (`/socket/websocket`).
+  static String get webSocketPath => useMockPrefixes
+      ? '/realtime-comunication-service/socket/websocket'
+      : '/socket/websocket';
+
+  /// WebSocket URL for the realtime Phoenix socket
+  /// (`ws(s)://<realtime-host>:<port><webSocketPath>`). The token + `vsn`
   /// query params are appended by the socket at connect time.
   static String get webSocketUrl {
     final base = realtimeHttpBase;
     final wsScheme = base.scheme == 'https' ? 'wss' : 'ws';
-    return '$wsScheme://${base.host}:${base.port}/socket/websocket';
+    return '$wsScheme://${base.host}:${base.port}$webSocketPath';
   }
 }
 

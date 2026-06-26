@@ -44,6 +44,16 @@ abstract class ChatGateway {
   /// transitions.
   Stream<ChatEvent> subscribe(String conversationId);
 
+  /// Whether the cubit should run an HTTP-history POLL fallback alongside the
+  /// live [subscribe] stream. Only the real network gateway ([DioChatGateway])
+  /// needs it — its live transport is a WebSocket that may never establish
+  /// against the mock backend (or a non-member / flaky socket), so a periodic
+  /// re-pull of history is the inbound safety net. The in-memory / fixture
+  /// gateways drive their own deterministic event streams (and run inside
+  /// widget tests under `FakeAsync`, where a forever-periodic timer would trip
+  /// the pending-timer assertion), so they default to `false`.
+  bool get supportsPolling => false;
+
   /// Accept a Jeeber's offer from inside the broadcasting chat. Drives the
   /// offer-service saga (winning offer accepted, losers superseded, phase
   /// flipped, system message appended). The gateway is responsible for the
