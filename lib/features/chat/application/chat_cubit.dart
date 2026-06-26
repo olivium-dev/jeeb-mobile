@@ -357,6 +357,23 @@ class ChatCubit extends Cubit<ChatState> {
         // same server message; whichever arrives first wins, the other is a
         // no-op.
         if (state.messages.any((e) => e.id == m.id)) return;
+        // OWN-MESSAGE ECHO dedupe (T-APP-2): the mock backend (and the
+        // chat-service) fan the sender's OWN message back out over the WS. That
+        // echo carries the SERVER message id, which never matches the optimistic
+        // local id (`msg-<deliveryId>-N`) the send path assigned — so an
+        // id-only check appends a SECOND copy of the user's own bubble (the
+        // double-send artifact seen in the E2E). When an inbound message is mine
+        // we reconcile it onto the optimistic bubble it echoes (matched by
+        // content) instead of appending: adopt the server id so later
+        // delivery/read receipts (keyed by the server id) land, and keep the
+        // higher of the two statuses.
+        if (m.isMine) {
+          final echoIndex = _indexOfUnreconciledOwnEcho(m);
+          if (echoIndex != -1) {
+            _reconcileOwnEcho(echoIndex, m);
+            return;
+          }
+        }
         emit(
           state.copyWith(messages: List.unmodifiable([...state.messages, m])),
         );
@@ -367,6 +384,67 @@ class ChatCubit extends Cubit<ChatState> {
       case PhaseChanged(phase: final phase, deliveryId: final deliveryId):
         emit(state.copyWith(phase: phase, acceptedDeliveryId: deliveryId));
     }
+  }
+
+  /// Index of an optimistic OWN message that the inbound [echo] is a server
+  /// fan-out of, or -1 when none matches. Matched by content (the server echo
+  /// carries a different id than the optimistic local one, so an id compare
+  /// can't find it). Iterates earliest-first and skips any candidate that
+  /// already bears the echo's server id, so a repeated identical echo is a
+  /// no-op rather than re-reconciling.
+  int _indexOfUnreconciledOwnEcho(DeliveryChatMessage echo) {
+    for (var i = 0; i < state.messages.length; i++) {
+      final candidate = state.messages[i];
+      if (!candidate.isMine) continue;
+      if (candidate.id == echo.id) continue;
+      if (_isEchoOfOwnMessage(candidate, echo)) return i;
+    }
+    return -1;
+  }
+
+  /// True when [echo] (an inbound `isMine` WS message) is the server fan-out of
+  /// the already-shown optimistic [optimistic] message — same kind + same
+  /// load-bearing content. Defensive on kind so an echo of one kind never
+  /// collapses a bubble of another.
+  bool _isEchoOfOwnMessage(
+    DeliveryChatMessage optimistic,
+    DeliveryChatMessage echo,
+  ) {
+    if (optimistic.kind != echo.kind) return false;
+    switch (echo.kind) {
+      case MessageKind.text:
+        return echo.text.isNotEmpty && optimistic.text == echo.text;
+      case MessageKind.voice:
+        return optimistic.voiceDurationMs == echo.voiceDurationMs;
+      case MessageKind.photo:
+      case MessageKind.image:
+        return optimistic.text == echo.text;
+      case MessageKind.location:
+        return optimistic.latitude == echo.latitude &&
+            optimistic.longitude == echo.longitude;
+      case MessageKind.system:
+      case MessageKind.offerCard:
+      case MessageKind.offerAccepted:
+      case MessageKind.offerRejected:
+        return false;
+    }
+  }
+
+  /// Replace the optimistic own message at [index] with its server [echo] so
+  /// the bubble adopts the canonical server id (later delivery/read receipts,
+  /// keyed by that id, then land) — keeping whichever of the two statuses is
+  /// further along the lifecycle so an already-`sent`/`delivered` optimistic
+  /// bubble is never demoted by the echo.
+  void _reconcileOwnEcho(int index, DeliveryChatMessage echo) {
+    final optimistic = state.messages[index];
+    final keepStatus =
+        _statusOrder[optimistic.status]! >= _statusOrder[echo.status]!
+            ? optimistic.status
+            : echo.status;
+    final reconciled = echo.copyWith(status: keepStatus);
+    final updated = List<DeliveryChatMessage>.from(state.messages);
+    updated[index] = reconciled;
+    emit(state.copyWith(messages: List.unmodifiable(updated)));
   }
 
   void _updateMessage(String id, MessageStatus status) {
