@@ -2,12 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Sprint 1 Stream B (T-MOB-017): location usage descriptions. Required
-	     before iOS will surface the geolocator permission prompt. -->
+	<!-- Sprint 1 Stream B (T-MOB-017) / Sprint 2 Stream G: location usage
+	     descriptions. Required before iOS will surface the geolocator permission
+	     prompt — Apple rejects any build that uses location without these keys. -->
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Jeeb needs your location to show pickup and delivery points</string>
+	<string>Jeeb needs your location to track deliveries and pick up your packages.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Jeeb needs location to track your delivery</string>
+	<string>Jeeb needs your location in the background to provide real-time delivery tracking.</string>
 	<!-- Push (FCM/APNs) background delivery + silent content pushes. -->
 	<key>UIBackgroundModes</key>
 	<array>

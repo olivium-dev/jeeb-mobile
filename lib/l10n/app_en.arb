@@ -3570,6 +3570,10 @@
   "@activeDeliveryOpenChatButton": {
     "description": "T-MOB-031: Button that opens the chat with the client."
   },
+  "activeDeliveryEnterGoodsCostButton": "Enter Goods Cost",
+  "@activeDeliveryEnterGoodsCostButton": {
+    "description": "Sprint 2 Stream G: Button that opens the goods-cost declaration (the amount the Client reimburses on receipt, D11)."
+  },
   "activeDeliveryUnavailable": "Delivery details unavailable.",
   "@activeDeliveryUnavailable": {
     "description": "T-MOB-031: Message shown when no repository is provided."

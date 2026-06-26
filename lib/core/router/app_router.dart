@@ -67,6 +67,7 @@ import '../../features/live_tracking/data/demo_live_tracking_repository.dart';
 import '../../features/live_tracking/domain/live_tracking_repository.dart';
 import '../../features/live_tracking/presentation/live_tracking_screen.dart';
 import '../../features/delivery_receipt/presentation/delivery_receipt_screen.dart';
+import '../../features/goods_cost/presentation/goods_cost_screen.dart';
 import '../../features/background_gps/data/geolocator_geocapture_gateway.dart';
 import '../../features/location/data/location_repository.dart';
 import '../../features/location/presentation/capture_location_screen.dart';
@@ -1083,6 +1084,14 @@ class AppRouter {
               onOpenOtp: () {
                 context.go('/orders/$deliveryId/otp?mode=jeeber');
               },
+              // Sprint 2 Stream G: the Jeeber declares the goods cost for this
+              // delivery (the amount the Client reimburses on receipt, D11).
+              // Pushes the goods-cost screen, which pops with the
+              // gateway-confirmed [GoodsCost]; we don't need the result here
+              // beyond confirming entry, so the future is fire-and-forget.
+              onEnterGoodsCost: () {
+                context.push('/orders/$deliveryId/goods-cost');
+              },
               // JM-051 AC2 (C7 wiring gap, 66_W2_QA_RESULTS): once the delivery
               // reaches `Done` the jeeber goes to the MANDATORY mutual rating
               // (NOT OTP), in jeeber mode — matching the W1 journey contract
@@ -1100,6 +1109,23 @@ class AppRouter {
               ),
             );
           },
+        ),
+
+        // Sprint 2 Stream G (goods-cost): the Jeeber declares how much the
+        // purchased goods cost for a delivery (the amount the Client reimburses
+        // on receipt — D11). Delivery-scoped, so it sits with the other
+        // `/orders/:id/...` jeeber-action routes. The screen self-provides
+        // GoodsCostCubit and self-resolves GoodsCostRepository from DI (now
+        // registered in injection_container.dart) — falling back to the Dio
+        // impl over sl<Dio>() when the explicit binding is absent. It pops with
+        // the gateway-confirmed [GoodsCost] (amount + currency verbatim), which
+        // the caller (active-delivery action) reads off the push() future.
+        GoRoute(
+          path: '/orders/:id/goods-cost',
+          name: 'goods-cost',
+          builder: (context, state) => GoodsCostScreen(
+            deliveryId: state.pathParameters['id'] ?? '',
+          ),
         ),
 
         // T-MOB-032: Settlement statement list.
