@@ -79,6 +79,19 @@ dependencies:
   record: ^6.2.1
   audioplayers: ^6.7.1
 
+  # Live tracking map + device location (Sprint 1 Stream B, T-MOB-017).
+  # google_maps_flutter renders the courier puck + route polyline on the
+  # order-tracking surface (TrackingMapSurface); the Android key is injected
+  # via the ${MAPS_API_KEY} manifest placeholder and the iOS key via
+  # AppDelegate / Info.plist (never committed). geolocator owns the GPS fix +
+  # runtime location-permission prompt behind the feature's location port.
+  google_maps_flutter: ^2.9.0
+  geolocator: ^13.0.0
+
+  # Image capture/selection for proof-of-delivery + profile-avatar flows.
+  # Intended to sit behind a port so the cubits/screens stay platform-free.
+  image_picker: ^1.1.2
+
   # Internationalisation
   intl: ^0.20.2
 

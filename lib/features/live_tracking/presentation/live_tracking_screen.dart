@@ -156,10 +156,14 @@ class _TrackingBody extends StatelessWidget {
             ),
             child: OrderTrackingStepper(currentStep: info.trackingStepIndex4),
           ),
-          // T-MOB-017: live map (half-collapsed at_door).
+          // T-MOB-017: live map (half-collapsed at_door). Fed the latest
+          // courier GPS fix + route polyline straight from the tracking feed.
           Expanded(
             flex: isAtDoor ? 1 : 2,
-            child: const TrackingMapSurface(),
+            child: TrackingMapSurface(
+              jeeberPosition: info.jeeberPosition,
+              routePoints: info.polyline,
+            ),
           ),
           if (info.jeeber != null) _TrackingJeeberSection(jeeber: info.jeeber!),
           if (isAtDoor)

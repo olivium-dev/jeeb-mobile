@@ -29,6 +29,16 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
 
+    <!--
+        Sprint 1 Stream B (T-MOB-017): live-tracking map + device location.
+        - ACCESS_FINE_LOCATION / ACCESS_COARSE_LOCATION back the geolocator GPS
+          fix that feeds the courier puck. The runtime prompt is triggered from
+          Dart via Geolocator.requestPermission() behind the location port;
+          denial degrades to the gateway-supplied last-known position.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"
@@ -56,6 +66,17 @@
                 <action android:name="FLUTTER_NOTIFICATION_CLICK"/>
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
+            <!--
+                Sprint 1 Stream B: custom-scheme deep links (jeeb://…) used by
+                push payloads + share links to route into the app
+                (flutter_deep_linking / go_router resolves the path).
+            -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="jeeb"/>
+            </intent-filter>
         </activity>
 
         <!--
@@ -66,6 +87,29 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="jeeb_default"/>
+
+        <!--
+            Sprint 1 Stream B (T-MOB-017): Google Maps SDK API key. The value
+            is injected at build time from the ${MAPS_API_KEY} manifest
+            placeholder (android/app/build.gradle ← -PMAPS_API_KEY / gradle.
+            properties / CI secret). NEVER hardcode a real key here.
+        -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}"/>
+
+        <!--
+            Explicit FCM service registration. firebase_messaging merges its
+            own service via manifest-merger, but declaring it here keeps the
+            merged picture stable for lint and documents the contract.
+        -->
+        <service
+            android:name="com.google.firebase.messaging.FirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
+            </intent-filter>
+        </service>
 
         <meta-data
             android:name="flutterEmbedding"
