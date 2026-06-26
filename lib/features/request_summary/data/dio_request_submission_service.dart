@@ -7,8 +7,11 @@ import '../domain/request_submission_service.dart';
 /// Dio-backed [RequestSubmissionService] — POSTs the assembled draft to the
 /// gateway create-request RPC and returns the server-minted request id.
 ///
-/// Endpoint contract (Mockoon :3055, `useMockPrefixes=false`):
-///   POST /requests  → 201 { id, status, ... }
+/// Endpoint contract (jeeb-gateway `JeebRequestsController.Create`):
+///   POST /v1/requests  → 201 { id, status, ... }
+/// The `MockGatewayClient` rewrite map maps `/v1/requests` →
+/// `/delivery-service/v1/requests` for the :4010 Express mock; the bare
+/// `/requests` gateway controller this replaces is [Obsolete].
 ///
 /// T-BE-019 / JEB-55 (compose recipient-phone): the body now carries
 /// `recipientPhone` so the gateway request-store row gets a non-null
@@ -33,7 +36,7 @@ class DioRequestSubmissionService implements RequestSubmissionService {
   /// that always supply an explicit draft phone — then no fallback is attempted.
   final RecipientPhoneResolver? _phoneResolver;
 
-  static const String _path = '/requests';
+  static const String _path = '/v1/requests';
 
   @override
   Future<String> submit(RequestDraft draft) async {
