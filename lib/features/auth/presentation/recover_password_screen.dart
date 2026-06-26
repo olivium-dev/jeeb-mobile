@@ -5,7 +5,6 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
-import '../../../core/network/mock_gateway_client.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/recover_password_cubit.dart';
 import '../application/recover_password_state.dart';
@@ -33,7 +32,7 @@ class RecoverPasswordScreen extends StatelessWidget {
   /// and never touched until a submit fires.
   AuthRepository _resolveAuthRepository() {
     if (sl.isRegistered<AuthRepository>()) return sl<AuthRepository>();
-    return DioAuthRepository(MockGatewayClient.createDio(), AuthTokenStore());
+    return DioAuthRepository(resolveGatewayDio(), AuthTokenStore());
   }
 
   @override

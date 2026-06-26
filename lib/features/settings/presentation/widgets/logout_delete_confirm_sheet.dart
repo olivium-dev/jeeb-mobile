@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -6,7 +5,6 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/network/auth_token_store.dart';
-import '../../../../core/network/mock_gateway_client.dart';
 import '../../../../core/session/session_cubit.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../data/dio_account_session_terminator.dart';
@@ -129,10 +127,11 @@ class _LogoutDeleteConfirmSheetState extends State<LogoutDeleteConfirmSheet> {
   AccountSessionTerminator _resolveTerminator() {
     final explicit = widget.terminator;
     if (explicit != null) return explicit;
-    // Self-provide over the shared Dio + keystore (MockGatewayClient → :4010).
-    // Falls back to a fresh Dio/keystore if GetIt is not configured (a dev-seam
-    // / deep-link entry before the DI batch lands) so the sheet never crashes.
-    final dio = sl.isRegistered<Dio>() ? sl<Dio>() : MockGatewayClient.createDio();
+    // Self-provide over the shared gateway Dio + keystore. resolveGatewayDio()
+    // returns the registered singleton when DI is configured and otherwise
+    // mirrors the AppConfig selection (a dev-seam / deep-link entry before the
+    // DI batch lands) so the sheet never crashes.
+    final dio = resolveGatewayDio();
     final tokenStore =
         sl.isRegistered<AuthTokenStore>() ? sl<AuthTokenStore>() : AuthTokenStore();
     return DioAccountSessionTerminator(dio, tokenStore);

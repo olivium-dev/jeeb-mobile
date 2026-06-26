@@ -8,7 +8,6 @@ import '../../../core/config/app_config.dart';
 import '../../../core/dev_seam/social_auth_seam.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
-import '../../../core/network/mock_gateway_client.dart';
 import '../../../core/onboarding/onboarding_cubit.dart';
 import '../../../core/session/session_cubit.dart';
 import '../../../l10n/app_localizations.dart';
@@ -85,7 +84,7 @@ class LoginScreen extends StatelessWidget {
       return BlocProvider<SocialAuthCubit>(
         create: (_) => SocialAuthCubit(
           service: DefaultSocialAuthService(
-            dio: MockGatewayClient.createDio(),
+            dio: resolveGatewayDio(),
             // DEBUG-ONLY (62_SEAM_HARNESS.md): `jeeb.seam.social_login` drives a
             // deterministic social result (no live OAuth). No-op in release.
             seamResolver: SocialAuthSeam.resolver,
@@ -110,11 +109,11 @@ class LoginScreen extends StatelessWidget {
   /// constructed Dio-backed impl when GetIt is not configured (e.g. the
   /// integrator's `w0_routes_resolve_test.dart`, which mounts the route table
   /// without `configureDependencies()`), mirroring `registration_screen.dart`'s
-  /// `MockGatewayClient.createDio()` fallback for its social cubit. The Dio +
+  /// `resolveGatewayDio()` fallback for its social cubit. The Dio +
   /// token store are cheap to construct and never touched until a submit fires.
   AuthRepository _resolveAuthRepository() {
     if (sl.isRegistered<AuthRepository>()) return sl<AuthRepository>();
-    return DioAuthRepository(MockGatewayClient.createDio(), AuthTokenStore());
+    return DioAuthRepository(resolveGatewayDio(), AuthTokenStore());
   }
 }
 

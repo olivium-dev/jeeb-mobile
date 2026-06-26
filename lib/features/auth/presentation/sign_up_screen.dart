@@ -6,7 +6,6 @@ import 'package:omds/omds.dart';
 import '../../../core/dev_seam/social_auth_seam.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
-import '../../../core/network/mock_gateway_client.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/sign_up_cubit.dart';
 import '../application/sign_up_state.dart';
@@ -66,7 +65,7 @@ class SignUpScreen extends StatelessWidget {
     // mounts the route table without `configureDependencies()`), mirroring
     // `login_screen.dart`'s `_resolveAuthRepository()`.
     if (sl.isRegistered<AuthRepository>()) return sl<AuthRepository>();
-    return DioAuthRepository(MockGatewayClient.createDio(), AuthTokenStore());
+    return DioAuthRepository(resolveGatewayDio(), AuthTokenStore());
   }
 
   @override
@@ -450,7 +449,7 @@ class _SocialRow extends StatelessWidget {
     return BlocProvider<SocialAuthCubit>(
       create: (_) => SocialAuthCubit(
         service: DefaultSocialAuthService(
-          dio: MockGatewayClient.createDio(),
+          dio: resolveGatewayDio(),
           // DEBUG-ONLY (62_SEAM_HARNESS.md): `jeeb.seam.social_login` drives a
           // deterministic social result (no live OAuth). No-op in release.
           seamResolver: SocialAuthSeam.resolver,

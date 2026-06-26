@@ -4,7 +4,6 @@ import 'package:get_it/get_it.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
-import '../../../core/network/mock_gateway_client.dart';
 import '../../../l10n/app_localizations.dart';
 import '../cubit/voice_recording_cubit.dart';
 import '../cubit/voice_recording_state.dart';
@@ -91,7 +90,7 @@ class VoiceRecordingScreen extends StatelessWidget {
     final VoiceRecordingRepository repository =
         di.isRegistered<VoiceRecordingRepository>()
             ? di<VoiceRecordingRepository>()
-            : HttpVoiceRecordingRepository(dio: MockGatewayClient.createDio());
+            : HttpVoiceRecordingRepository(dio: resolveGatewayDio());
     return VoiceRecordingCubit(
       recorder: recorder,
       player: player,

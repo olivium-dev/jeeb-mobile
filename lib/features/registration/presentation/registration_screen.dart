@@ -9,7 +9,6 @@ import 'package:omds/omds.dart';
 import '../../../core/dev_seam/dev_seam.dart';
 import '../../../core/dev_seam/social_auth_seam.dart';
 import '../../../core/di/injection_container.dart';
-import '../../../core/network/mock_gateway_client.dart';
 import '../../../core/onboarding/onboarding_cubit.dart';
 import '../../../core/session/session_cubit.dart';
 import '../../../l10n/app_localizations.dart';
@@ -97,7 +96,7 @@ class RegistrationScreen extends StatelessWidget {
       return BlocProvider<SocialAuthCubit>(
         create: (_) => SocialAuthCubit(
           service: DefaultSocialAuthService(
-            dio: MockGatewayClient.createDio(),
+            dio: resolveGatewayDio(),
             // DEBUG-ONLY (62_SEAM_HARNESS.md): `jeeb.seam.social_login` drives a
             // deterministic social result (no live OAuth). No-op in release.
             seamResolver: SocialAuthSeam.resolver,
