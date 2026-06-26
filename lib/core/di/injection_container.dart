@@ -41,8 +41,12 @@ import '../../features/registration/data/dio_otp_service.dart';
 import '../../features/registration/data/super_login_demo_user.dart';
 import '../../features/registration/data/super_login_service.dart';
 import '../../features/registration/domain/otp_service.dart';
+import '../../features/settings/data/dio_account_service.dart';
 import '../../features/settings/data/repositories/biometric_preference_repository_impl.dart';
 import '../../features/settings/data/repositories/dio_role_switch_repository.dart';
+import '../../features/settings/data/shared_prefs_profile_repository.dart';
+import '../../features/settings/domain/account_service.dart';
+import '../../features/settings/domain/profile_repository.dart';
 import '../../features/settings/domain/role_switch_repository.dart';
 import '../../features/tier_selection/data/tier_repository.dart';
 import '../../features/voice_request/data/voice_recording_repository.dart';
@@ -303,6 +307,23 @@ void configureDependencies({
   // Remote notification prefs — syncs with gateway notification-service.
   sl.registerLazySingleton<NotificationPrefsRepository>(
     () => DioNotificationPrefsRepository(sl<Dio>()),
+  );
+
+  // T-mobile-031 (Sprint 2 Stream F): real settings seams. The settings screen
+  // previously self-constructed InMemoryProfileRepository + FakeAccountService
+  // inline (DI bypassed), so release builds never touched persistence or the
+  // gateway. Those fakes now live under test/ only; production resolves these:
+  //   • ProfileRepository → SharedPrefsProfileRepository — the documented
+  //     production impl (profile is an on-device cache; the live gateway does
+  //     not surface a profile read/write contract, so this is NOT a Dio repo).
+  //   • AccountService → DioAccountService — real POST /v1/auth/logout +
+  //     PATCH /users/{id}/status, mapping transport failures to networkError
+  //     so the settings UI can render the error banner.
+  sl.registerLazySingleton<ProfileRepository>(
+    () => SharedPrefsProfileRepository(prefs: sl<SharedPreferences>()),
+  );
+  sl.registerLazySingleton<AccountService>(
+    () => DioAccountService(sl<Dio>(), sl<AuthTokenStore>()),
   );
 
   // T-MOB-028: Role-switch repository — POST /v1/users/me/role/switch.

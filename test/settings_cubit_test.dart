@@ -3,9 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/settings/application/settings_cubit.dart';
 import 'package:jeeb_mobile/features/settings/application/settings_state.dart';
-import 'package:jeeb_mobile/features/settings/data/in_memory_profile_repository.dart';
 import 'package:jeeb_mobile/features/settings/domain/account_service.dart';
 import 'package:jeeb_mobile/features/settings/domain/user_profile.dart';
+
+import 'support/settings_fakes.dart';
 
 class _ScriptedAccountService implements AccountService {
   _ScriptedAccountService({

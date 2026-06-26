@@ -3,14 +3,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/di/injection_container.dart';
 import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/locale/locale_cubit.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/role_switch_cubit.dart';
 import '../../application/settings_cubit.dart';
 import '../../application/settings_state.dart';
-import '../../data/in_memory_profile_repository.dart';
 import '../../domain/account_service.dart';
+import '../../domain/profile_repository.dart';
 import '../widgets/logout_delete_confirm_sheet.dart';
 import '../widgets/role_toggle_setting.dart';
 
@@ -66,10 +67,13 @@ class SettingsScreen extends StatelessWidget {
     if (cubit != null) {
       return BlocProvider<SettingsCubit>.value(value: cubit!, child: view);
     }
+    // Production wiring (Sprint 2 Stream F): resolve the real persistence +
+    // account seams from DI instead of self-constructing in-memory fakes. The
+    // fakes now live under test/ and are injected via the [cubit] seam above.
     return BlocProvider<SettingsCubit>(
       create: (_) => SettingsCubit(
-        profileRepository: InMemoryProfileRepository(),
-        accountService: const FakeAccountService(),
+        profileRepository: sl<ProfileRepository>(),
+        accountService: sl<AccountService>(),
       )..load(),
       child: view,
     );

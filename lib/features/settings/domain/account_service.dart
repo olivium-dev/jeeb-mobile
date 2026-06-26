@@ -19,19 +19,3 @@ abstract class AccountService {
   /// invalidate refresh tokens.
   Future<AccountActionOutcome> signOut();
 }
-
-/// Default no-network implementation used during MVP and in widget tests
-/// that don't care about the network outcome. Always returns success.
-class FakeAccountService implements AccountService {
-  const FakeAccountService();
-
-  @override
-  Future<AccountActionOutcome> requestAccountDeletion() async {
-    return AccountActionOutcome.success;
-  }
-
-  @override
-  Future<AccountActionOutcome> signOut() async {
-    return AccountActionOutcome.success;
-  }
-}
