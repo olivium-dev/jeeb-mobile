@@ -174,7 +174,17 @@ class MockGatewayClient {
 
   static String rewritePath(String path) {
     if (!useMockPrefixes) return path;
+    return mapToServicePrefix(path);
+  }
 
+  /// Pure mock-prefix mapping — applies the service-prefix routing table to
+  /// [path] UNCONDITIONALLY (independent of the compile-time [useMockPrefixes]
+  /// flag). [rewritePath] gates this behind the flag; tests call it directly so
+  /// the chat-routing seams are verified for real under a plain `flutter test`
+  /// (no `--dart-define`), instead of silently skipping when the flag defaults
+  /// to `false`. Production behaviour is unchanged — only [rewritePath] is
+  /// wired into the request interceptor.
+  static String mapToServicePrefix(String path) {
     for (final entry in _pathToServicePrefix.entries) {
       if (path.startsWith(entry.key)) {
         return path.replaceFirst(entry.key, entry.value);
@@ -243,7 +253,14 @@ class MockGatewayClient {
   /// HTTP(S) base of the realtime service: the explicit
   /// [realtimeBaseUrl] define when set, otherwise the gateway host on
   /// [realtimePort]. Used for the token-mint REST call.
-  static Uri get realtimeHttpBase {
+  static Uri get realtimeHttpBase =>
+      resolveRealtimeHttpBase(mockMode: useMockPrefixes);
+
+  /// Flag-independent resolution of the realtime HTTP base. The getter passes
+  /// the compile-time [useMockPrefixes]; tests pass an explicit [mockMode] so
+  /// the mock-mode co-location contract (realtime on the :4010 origin, NOT the
+  /// live Phoenix :5804) is verified under a plain `flutter test`.
+  static Uri resolveRealtimeHttpBase({required bool mockMode}) {
     if (realtimeBaseUrl.isNotEmpty) return Uri.parse(realtimeBaseUrl);
     final base = Uri.parse(mockBaseUrl);
     // MOCK MODE (sprint-7): the Express mock co-locates the
@@ -252,7 +269,7 @@ class MockGatewayClient {
     // mock base verbatim — NOT the live Phoenix `:5804` port. In live-gateway
     // mode (the device default) the realtime service is a separate process on
     // [realtimePort], so derive the host on that port.
-    if (useMockPrefixes) return base;
+    if (mockMode) return base;
     return base.replace(port: realtimePort);
   }
 
@@ -260,17 +277,27 @@ class MockGatewayClient {
   /// served behind the Express service-prefix mount
   /// (`/realtime-comunication-service/socket/websocket`); the live realtime
   /// service serves the raw Phoenix endpoint (`/socket/websocket`).
-  static String get webSocketPath => useMockPrefixes
+  static String get webSocketPath =>
+      resolveWebSocketPath(mockMode: useMockPrefixes);
+
+  /// Flag-independent resolution of [webSocketPath].
+  static String resolveWebSocketPath({required bool mockMode}) => mockMode
       ? '/realtime-comunication-service/socket/websocket'
       : '/socket/websocket';
 
   /// WebSocket URL for the realtime Phoenix socket
   /// (`ws(s)://<realtime-host>:<port><webSocketPath>`). The token + `vsn`
   /// query params are appended by the socket at connect time.
-  static String get webSocketUrl {
-    final base = realtimeHttpBase;
+  static String get webSocketUrl =>
+      resolveWebSocketUrl(mockMode: useMockPrefixes);
+
+  /// Flag-independent resolution of [webSocketUrl] — see [mapToServicePrefix]
+  /// for why the mock-mode contract is exposed to tests without the dart-define.
+  static String resolveWebSocketUrl({required bool mockMode}) {
+    final base = resolveRealtimeHttpBase(mockMode: mockMode);
     final wsScheme = base.scheme == 'https' ? 'wss' : 'ws';
-    return '$wsScheme://${base.host}:${base.port}$webSocketPath';
+    return '$wsScheme://${base.host}:${base.port}'
+        '${resolveWebSocketPath(mockMode: mockMode)}';
   }
 }
 

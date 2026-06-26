@@ -62,11 +62,23 @@ class _FakeSecureStorage extends Fake implements FlutterSecureStorage {
   }
 }
 
+/// The REAL `push-notification` register route answers `204 No Content` with
+/// an EMPTY body (verified in the backend's `push-e2e.test.ts` and the service
+/// handler). The prior fixture invented `201 {'message':'registered'}` — a
+/// response the backend never sends (TEST-INTEGRITY-AUDIT #3). The registrar
+/// only cares that the status is 2xx, so 204/empty is the faithful fixture.
 Response<dynamic> _ok() => Response<dynamic>(
       requestOptions: RequestOptions(path: ''),
-      statusCode: 201,
-      data: {'message': 'registered'},
+      statusCode: 204,
+      data: null,
     );
+
+/// Stable per-install device id shape emitted by `PushDeviceRegistrar`:
+/// a UUID-v4-style `8-4-4-4-12` hex string with the version nibble pinned to
+/// `4` and the variant nibble pinned to `a` (see `_generateId`).
+final _deviceIdPattern = RegExp(
+  r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-a[0-9a-f]{3}-[0-9a-f]{12}$',
+);
 
 void main() {
   late _FakeDio dio;
@@ -88,10 +100,18 @@ void main() {
     expect(dio.lastData?['fcmToken'], 'fcm-token-abc');
     // Platform discriminator present (android/ios/unknown on the test VM).
     expect(dio.lastData?['platform'], isA<String>());
-    // A stable per-install deviceId is sent and persisted.
+    expect(
+      dio.lastData?['platform'],
+      anyOf('android', 'ios', 'unknown'),
+    );
+    // A stable per-install deviceId is sent — assert its exact UUID-v4 shape,
+    // not merely that it is non-empty (the weak prior assertion would pass for
+    // any junk string).
     final deviceId = dio.lastData?['deviceId'] as String?;
     expect(deviceId, isNotNull);
-    expect(deviceId, isNotEmpty);
+    expect(deviceId, matches(_deviceIdPattern));
+    // The same id is persisted to secure storage for reuse across launches.
+    expect(await storage.read(key: 'push.deviceId'), deviceId);
   });
 
   test('is idempotent — a repeat call with the same token is skipped', () async {
