@@ -59,6 +59,7 @@ class OrderSummaryPinned extends StatelessWidget {
     return Semantics(
       identifier: 'order_summary_pinned',
       container: true,
+      explicitChildNodes: true,
       child: Container(
         margin: EdgeInsetsDirectional.all(dense ? Spacing.small : Spacing.medium),
         padding: const EdgeInsetsDirectional.all(Spacing.medium),
@@ -129,6 +130,7 @@ class OrderSummaryPinned extends StatelessWidget {
             // ── Pay-cash-on-delivery reminder (D11) ───────────────────────
             Semantics(
               identifier: 'order_summary_cash_label',
+              container: true,
               child: Row(
                 children: [
                   Icon(
@@ -211,6 +213,7 @@ class _JeeberBlock extends StatelessWidget {
       children: [
         Semantics(
           identifier: 'order_summary_jeeber_name',
+          container: true,
           child: Text(
             summary.jeeberName,
             style: theme.textTheme.titleMedium?.copyWith(
@@ -252,6 +255,7 @@ class _PriceBlock extends StatelessWidget {
     final colors = theme.colorScheme;
     return Semantics(
       identifier: 'order_summary_price',
+      container: true,
       child: Container(
         padding: const EdgeInsetsDirectional.symmetric(
           horizontal: Spacing.small,
@@ -309,6 +313,7 @@ class _Fact extends StatelessWidget {
     final colors = theme.colorScheme;
     return Semantics(
       identifier: identifier,
+      container: true,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
