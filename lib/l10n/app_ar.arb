@@ -1016,6 +1016,10 @@
   "jeeberFeedOfflineBannerSubtitle": "اتصل لرؤية الطلبات المتاحة.",
   "jeeberFeedRowSemantic": "طلب {tier}، على بُعد {distance} كم، العائد المتوقع ~ {payout}",
   "voiceRecordingBroadcastingHint": "جارٍ البحث عن جيبر…",
+  "voiceRecordingPermissionTitle": "نحتاج إلى إذن الميكروفون",
+  "voiceRecordingPermissionBody": "يحتاج جيب إلى إذن الميكروفون لتسجيل طلبك. فعّله من إعدادات جهازك ثم حاول مرة أخرى.",
+  "voiceRecordingUnavailableTitle": "الميكروفون غير متاح",
+  "voiceRecordingRetry": "حاول مرة أخرى",
   "savedLocationsTitle": "المواقع المحفوظة",
   "savedLocationsChipHome": "المنزل",
   "savedLocationsChipWork": "العمل",
@@ -1132,6 +1136,7 @@
   },
   "savedLocationsCapReached": "يمكنك حفظ ما يصل إلى 10 عناوين.",
   "savedLocationsError": "تعذّر تحميل المواقع المحفوظة. حاول مرة أخرى.",
+  "savedLocationsRetry": "حاول مرة أخرى",
   "savedLocationsDeleteError": "تعذّر حذف الموقع. حاول مرة أخرى.",
   "savedLocationsSaveError": "تعذّر حفظ الموقع. حاول مرة أخرى.",
 

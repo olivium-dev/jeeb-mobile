@@ -1442,6 +1442,10 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get voiceRecordingMicSemantic => _get('voiceRecordingMicSemantic');
   String get voiceRecordingPause => _get('voiceRecordingPause');
   String get voiceRecordingPlay => _get('voiceRecordingPlay');
+  String get voiceRecordingPermissionTitle => _get('voiceRecordingPermissionTitle');
+  String get voiceRecordingPermissionBody => _get('voiceRecordingPermissionBody');
+  String get voiceRecordingUnavailableTitle => _get('voiceRecordingUnavailableTitle');
+  String get voiceRecordingRetry => _get('voiceRecordingRetry');
   String get voiceRecordingRecordAnother => _get('voiceRecordingRecordAnother');
   String get voiceRecordingReleaseToStop => _get('voiceRecordingReleaseToStop');
   String get voiceRecordingSend => _get('voiceRecordingSend');
@@ -1780,6 +1784,7 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('savedLocationsDeleteConfirmBody').replaceFirst('{label}', label);
   String get savedLocationsCapReached => _get('savedLocationsCapReached');
   String get savedLocationsError => _get('savedLocationsError');
+  String get savedLocationsRetry => _get('savedLocationsRetry');
   String get savedLocationsDeleteError => _get('savedLocationsDeleteError');
   String get savedLocationsSaveError => _get('savedLocationsSaveError');
 
