@@ -27,11 +27,13 @@ class ChatCubit extends Cubit<ChatState> {
     PhotoCompressor compressor = const HalvingPhotoCompressor(),
     DateTime Function() clock = _defaultClock,
     String? initialDeliveryId,
+    Duration pollInterval = const Duration(seconds: 5),
   }) : _deliveryId = deliveryId,
        _gateway = gateway,
        _pickerService = pickerService,
        _compressor = compressor,
        _clock = clock,
+       _pollInterval = pollInterval,
        // Seed the tracking delivery id when the host already knows it (e.g. the
        // client accepted the offer from the review-list sheet and landed here
        // with the server-created `deliveryId`). Without this, an order accepted
@@ -51,7 +53,17 @@ class ChatCubit extends Cubit<ChatState> {
   final PhotoCompressor _compressor;
   final DateTime Function() _clock;
 
+  /// Cadence of the HTTP-history POLL fallback. The live transport is the WS
+  /// subscription, but against the mock backend (and any flaky/unauthorized WS)
+  /// the socket may never establish — so we also re-pull history on this
+  /// interval and merge any inbound messages the socket missed. Keeps inbound
+  /// working even with zero live frames ("live == within one poll").
+  final Duration _pollInterval;
+
   StreamSubscription<ChatEvent>? _subscription;
+
+  /// Periodic HTTP-history poll timer (the WS-independent inbound fallback).
+  Timer? _pollTimer;
 
   /// Monotonic counter feeding outgoing message ids. Combined with the
   /// delivery id to stay unique across two cubits running in the same
@@ -85,6 +97,51 @@ class ChatCubit extends Cubit<ChatState> {
         isLoadingHistory: false,
       ));
     }
+    // Start the HTTP-history poll fallback regardless of the initial load
+    // outcome — it is the inbound path that does NOT depend on a live socket,
+    // so it must run even if the first history fetch failed (recovery) or the
+    // WS never connects (mock / non-member / transport).
+    _startPolling();
+  }
+
+  /// Arm the periodic HTTP-history poll. Idempotent — repeated [load] calls
+  /// reuse the single timer. Only the network gateway opts in (see
+  /// [ChatGateway.supportsPolling]); in-memory / fixture gateways drive their
+  /// own event streams and must not spawn a forever-periodic timer (it would
+  /// trip the `FakeAsync` pending-timer assertion in widget tests).
+  void _startPolling() {
+    if (!_gateway.supportsPolling) return;
+    _pollTimer ??= Timer.periodic(_pollInterval, (_) => _pollHistory());
+  }
+
+  /// Re-pull history and merge any inbound messages not already shown. Inbound
+  /// only: messages authored by the local user are owned optimistically by the
+  /// send path (they carry client ids the server never echoes back), so we skip
+  /// them to avoid duplicate own-bubbles; counterpart/system messages are
+  /// matched by server id, so a message already delivered over the WS is not
+  /// re-appended.
+  Future<void> _pollHistory() async {
+    try {
+      final latest = await _gateway.loadHistory(_deliveryId);
+      _mergeInbound(latest);
+    } catch (_) {
+      // Transient fetch failure — the next tick retries. Never surface an error
+      // for a background poll.
+    }
+  }
+
+  void _mergeInbound(List<DeliveryChatMessage> latest) {
+    if (isClosed) return;
+    final existingIds = state.messages.map((m) => m.id).toSet();
+    final additions = latest
+        .where((m) => !m.isMine && !existingIds.contains(m.id))
+        .toList(growable: false);
+    if (additions.isEmpty) return;
+    emit(
+      state.copyWith(
+        messages: List.unmodifiable([...state.messages, ...additions]),
+      ),
+    );
   }
 
   /// Accept the Jeeber whose offer card is identified by [offerId].
@@ -243,6 +300,8 @@ class ChatCubit extends Cubit<ChatState> {
 
   @override
   Future<void> close() async {
+    _pollTimer?.cancel();
+    _pollTimer = null;
     await _subscription?.cancel();
     return super.close();
   }
@@ -294,6 +353,10 @@ class ChatCubit extends Cubit<ChatState> {
   void _handleEvent(ChatEvent event) {
     switch (event) {
       case IncomingMessage(message: final m):
+        // Dedupe by id: the WS push and the poll fallback can both surface the
+        // same server message; whichever arrives first wins, the other is a
+        // no-op.
+        if (state.messages.any((e) => e.id == m.id)) return;
         emit(
           state.copyWith(messages: List.unmodifiable([...state.messages, m])),
         );

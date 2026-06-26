@@ -131,6 +131,13 @@ class DioChatGateway implements ChatGateway {
     return _events.stream;
   }
 
+  /// The network gateway's live transport is the realtime WebSocket, which may
+  /// never establish against the mock backend (no live push), or for a
+  /// non-member / flaky socket. So the cubit also runs an HTTP-history poll
+  /// fallback — inbound still works ("live == within one poll").
+  @override
+  bool get supportsPolling => true;
+
   @override
   Future<OfferAcceptResult> acceptOffer(
     String conversationId,
