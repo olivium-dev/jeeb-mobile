@@ -12,18 +12,30 @@ import '../core/di/injection_container.dart';
 import '../core/observability/crash_reporter.dart';
 import '../core/observability/crash_reporting_initializer.dart';
 import '../core/observability/firebase_crashlytics_reporter.dart';
+import '../core/observability/swappable_crash_reporter.dart';
 
-/// Two-phase cold-start bootstrap (T-mobile-047, extended in T-mobile-049).
+/// Two-phase cold-start bootstrap (T-mobile-047, extended in T-mobile-049,
+/// hardened against the cold-start ANR in Sprint 5).
 ///
 /// Phase 1 — [minimal] runs before the first frame. It loads ONLY what the
-/// root widget tree needs to render: [SharedPreferences], the synchronous DI
-/// registrations, and **the crash reporter** — because we want to capture
-/// crashes that happen during the rest of bootstrap. Target wall-clock:
+/// root widget tree needs to render: [SharedPreferences] and the synchronous DI
+/// registrations. It NEVER touches the network and NEVER awaits a native
+/// initializer, so the first frame paints immediately. Target wall-clock:
 /// < 250 ms on a Galaxy A14.
 ///
+/// It hands the tree a [SwappableCrashReporter] (Noop delegate) and installs the
+/// error hooks on it right away, so crashes during the rest of boot are caught
+/// by a stable reporter whose delegate upgrades transparently later.
+///
 /// Phase 2 — [deferred] runs from `addPostFrameCallback` after the first
-/// frame paints. It performs work that is convenient-but-not-critical
-/// (`initializeDateFormatting()` etc.).
+/// frame paints. It performs work that is convenient-but-not-critical:
+/// `initializeDateFormatting()` AND — critically — `Firebase.initializeApp()` +
+/// the real Crashlytics reporter. Firebase init is moved OFF the boot critical
+/// path because on a dev/QA build with no `google-services.json` the native
+/// call hangs/retries for ~40s on the platform main thread, which is what
+/// triggered the cold-start ANR ("Jeeb Dev isn't responding"). A Dart-side
+/// `.timeout()` could stop the await but not unblock the native main thread, so
+/// the only safe fix is to never run it before first frame.
 ///
 /// Both phases emit Dart-VM `Timeline` events so Flutter DevTools' CPU
 /// profiler can attribute cost back to a named phase.
@@ -33,14 +45,12 @@ class Bootstrap {
   /// Critical-path init. Resolves with the [BootstrapResult] the root widget
   /// needs to start rendering real content (post-splash).
   ///
-  /// [firebaseInitializer] is exposed as a seam — widget tests inject a
-  /// fake that resolves immediately, so they don't need a real Firebase
-  /// app config. The default calls [Firebase.initializeApp] and, on failure
-  /// (e.g. missing google-services.json in dev), falls back to a Noop
-  /// reporter rather than crashing bootstrap.
-  static Future<BootstrapResult> minimal({
-    Future<CrashReporter> Function()? crashReporterFactory,
-  }) async {
+  /// This phase performs NO network I/O and awaits NO native initializer — the
+  /// crash reporter starts as a Noop-backed [SwappableCrashReporter] and is
+  /// upgraded to Crashlytics in [deferred], after the first frame. That keeps
+  /// the splash→app hand-off bounded by local prefs + DI only (a few ms), so a
+  /// missing/slow Firebase config can never hold (or ANR) the cold start.
+  static Future<BootstrapResult> minimal() async {
     developer.Timeline.startSync('Bootstrap.minimal');
     try {
       // Fonts are bundled locally (static Inter instances in assets/fonts/).
@@ -77,8 +87,14 @@ class Bootstrap {
         prefs: preferences,
         awaitMockSeed: false,
       );
-      final reporter =
-          await (crashReporterFactory ?? _defaultCrashReporterFactory)();
+      // COLD-START ANR FIX (Sprint 5): the crash reporter is a Noop-backed
+      // [SwappableCrashReporter] at first frame. NO `Firebase.initializeApp()`
+      // runs here — that native call hangs ~40s without google-services.json and
+      // blocks the platform main thread → ANR. [deferred] upgrades the delegate
+      // to Crashlytics post-first-frame. The hooks are installed on the stable
+      // swappable instance now, so a boot-time error is still routed to whatever
+      // delegate is live (Noop now, Crashlytics after the swap).
+      final reporter = SwappableCrashReporter();
       configureDependencies(
         sharedPreferences: preferences,
         crashReporter: reporter,
@@ -92,24 +108,59 @@ class Bootstrap {
 
   /// Post-first-frame init. Safe to skip (returned future ignored) when the
   /// caller only wants fire-and-forget warm-up.
-  static Future<void> deferred() async {
+  ///
+  /// Runs the convenient-but-not-critical warm-up (`initializeDateFormatting`)
+  /// AND the crash-reporter (Firebase/Crashlytics) init that used to sit on the
+  /// boot critical path. When [crashReporter] is a [SwappableCrashReporter], a
+  /// successful (timeboxed) Firebase init upgrades its delegate to the real
+  /// [FirebaseCrashlyticsReporter]; on failure/timeout it stays Noop. Every step
+  /// is fail-safe — this future is fired-and-forgotten from `addPostFrameCallback`
+  /// and must never crash the app.
+  ///
+  /// [crashReporterFactory] is a test seam — widget/unit tests inject a fake that
+  /// resolves immediately so they don't need a real Firebase app config.
+  static Future<void> deferred({
+    CrashReporter? crashReporter,
+    Future<CrashReporter> Function()? crashReporterFactory,
+  }) async {
     developer.Timeline.startSync('Bootstrap.deferred');
     try {
-      await initializeDateFormatting();
+      await _initDateFormatting();
+      await _upgradeCrashReporter(crashReporter, crashReporterFactory);
     } finally {
       developer.Timeline.finishSync();
     }
   }
 
-  /// Hard ceiling on the crash-reporter (Firebase) init that runs on the boot
-  /// critical path. LANDING-FIX (66_W2_QA_RESULTS): on a fresh `clearState`
-  /// install with no `google-services.json` (every dev/QA build), the native
-  /// `Firebase.initializeApp()` does NOT fail fast — it hangs/retries for ~40s
-  /// before throwing "Failed to load FirebaseOptions from resource". Because
-  /// [minimal] awaits the crash-reporter factory, that ~40s held the branded
-  /// splash past the 30s QA `extendedWaitUntil` window on cold-boot launches —
-  /// a SECOND boot-hold source alongside the seam mock POSTs. Bounding the init
-  /// makes it fall back to the Noop reporter in a few seconds; a healthy
+  static Future<void> _initDateFormatting() async {
+    try {
+      await initializeDateFormatting();
+    } catch (error) {
+      // Non-critical warm-up — never let it crash the deferred phase.
+      debugPrint('initializeDateFormatting failed (non-fatal): $error');
+    }
+  }
+
+  /// Upgrades a [SwappableCrashReporter] to the real reporter once Firebase
+  /// init resolves. No-op when [crashReporter] is not swappable (e.g. a test
+  /// passed a fixed reporter, or none).
+  static Future<void> _upgradeCrashReporter(
+    CrashReporter? crashReporter,
+    Future<CrashReporter> Function()? crashReporterFactory,
+  ) async {
+    if (crashReporter is! SwappableCrashReporter) return;
+    final real =
+        await (crashReporterFactory ?? _defaultCrashReporterFactory)();
+    crashReporter.setDelegate(real);
+  }
+
+  /// Hard ceiling on the crash-reporter (Firebase) init. It now runs in the
+  /// DEFERRED phase (post-first-frame), so a slow/hanging init no longer holds
+  /// the splash or ANRs the cold start — this bound is belt-and-braces so the
+  /// reporter falls back to Noop promptly rather than retrying for ~40s. On a
+  /// dev/QA build with no `google-services.json` the native
+  /// `Firebase.initializeApp()` does NOT fail fast (it hangs/retries ~40s before
+  /// throwing "Failed to load FirebaseOptions from resource"); a healthy
   /// production build (with google-services.json) initialises well within this.
   static const Duration _crashReporterInitTimeout = Duration(seconds: 5);
 
@@ -120,9 +171,8 @@ class Bootstrap {
     } catch (error, stack) {
       // Missing google-services.json on dev, no network on first boot, OR the
       // native init exceeded [_crashReporterInitTimeout]. We must never let
-      // observability tooling crash OR stall the app — fall back to the silent
-      // reporter and surface the failure to the console only. The bounded
-      // timeout guarantees boot is never held by a slow/hanging Firebase init.
+      // observability tooling crash the app — fall back to the silent reporter
+      // and surface the failure to the console only.
       debugPrint('Crashlytics init failed; falling back to Noop: $error');
       debugPrint(stack.toString());
       return const NoopCrashReporter();
@@ -139,5 +189,9 @@ class BootstrapResult {
   });
 
   final SharedPreferences preferences;
+
+  /// The stable crash reporter the widget tree holds. In production this is a
+  /// [SwappableCrashReporter] whose delegate is upgraded from Noop to Crashlytics
+  /// by [Bootstrap.deferred] after the first frame; tests may pass a fixed one.
   final CrashReporter crashReporter;
 }
