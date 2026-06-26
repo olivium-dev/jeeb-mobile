@@ -60,6 +60,8 @@ import '../../features/dispute_status/data/dio_dispute_status_repository.dart';
 import '../../features/dispute_status/domain/dispute_status_repository.dart';
 import '../../features/reviews/data/dio_reviews_repository.dart';
 import '../../features/reviews/domain/reviews_repository.dart';
+import '../config/app_config.dart';
+import '../network/dio_client.dart';
 import '../session/jeeber_kyc_status_gate.dart';
 import '../../features/voice_request/domain/audioplayers_voice_player.dart';
 import '../../features/voice_request/domain/record_voice_recorder.dart';
@@ -100,8 +102,23 @@ void configureDependencies({
   sl.registerSingleton<SharedPreferences>(sharedPreferences);
   sl.registerSingleton<CrashReporter>(crashReporter);
 
-  sl.registerLazySingleton<Dio>(() => MockGatewayClient.createDio());
   sl.registerLazySingleton<AuthTokenStore>(() => AuthTokenStore());
+
+  // Sprint 1 Stream A: the DI default is now the REAL gateway Dio client
+  // (DioClient → AppConfig.gatewayBaseUrl), with bearer-attach + single-shot
+  // 401-refresh interceptors and a DEBUG-only PII log gate. The local Express
+  // mock (MockGatewayClient, service-prefix rewrite, :4010) is retained intact
+  // and selected only when an explicit `--dart-define=USE_MOCK_GATEWAY=true`
+  // build sets [AppConfig.useMockGateway]. Production/device/CI builds (no
+  // define) default to the real impl.
+  sl.registerLazySingleton<Dio>(
+    () => AppConfig.useMockGateway
+        ? MockGatewayClient.createDio()
+        : DioClient.createDio(
+            AppConfig.gatewayBaseUrl,
+            tokenStore: sl<AuthTokenStore>(),
+          ),
+  );
 
   sl.registerLazySingleton<OtpService>(
     () => DioOtpService(sl<Dio>(), sl<AuthTokenStore>()),

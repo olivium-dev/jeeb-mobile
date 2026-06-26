@@ -154,6 +154,17 @@ class RegistrationCubit extends Cubit<RegistrationState> {
             otpError: RegistrationOtpError.invalid,
           ));
         }
+      case OtpVerifyOutcome.rateLimited:
+        // Gateway rate-limited the verify (429). Treat as a cooldown: enter the
+        // lockout step with its countdown instead of burning an attempt.
+        _stopResendCountdown();
+        emit(state.copyWith(
+          isVerifying: false,
+          otpError: null,
+          step: RegistrationStep.lockedOut,
+          lockoutSecondsRemaining: _policy.lockoutDuration.inSeconds,
+        ));
+        _startLockoutCountdown();
       case OtpVerifyOutcome.expired:
         emit(state.copyWith(
           isVerifying: false,
