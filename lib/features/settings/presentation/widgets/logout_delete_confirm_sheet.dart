@@ -127,6 +127,11 @@ class _LogoutDeleteConfirmSheetState extends State<LogoutDeleteConfirmSheet> {
   AccountSessionTerminator _resolveTerminator() {
     final explicit = widget.terminator;
     if (explicit != null) return explicit;
+    // S6 Stream C: prefer the DI-registered terminator (the canonical release
+    // default) when DI is configured; the self-provide below is the no-DI seam.
+    if (sl.isRegistered<AccountSessionTerminator>()) {
+      return sl<AccountSessionTerminator>();
+    }
     // Self-provide over the shared gateway Dio + keystore. resolveGatewayDio()
     // returns the registered singleton when DI is configured and otherwise
     // mirrors the AppConfig selection (a dev-seam / deep-link entry before the

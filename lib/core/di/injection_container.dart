@@ -68,6 +68,28 @@ import '../../features/dispute_status/data/dio_dispute_status_repository.dart';
 import '../../features/dispute_status/domain/dispute_status_repository.dart';
 import '../../features/reviews/data/dio_reviews_repository.dart';
 import '../../features/reviews/domain/reviews_repository.dart';
+// Sprint 6 Stream C — fake-fallback debt reduction: register the real Dio impls
+// (which already exist + hit a real gateway/mock route) as the release default
+// so the per-screen Fake/Stub/InMemory fallback is reached ONLY by the no-DI
+// route-resolve test harness, never in release.
+import '../../features/settings/data/dio_account_session_terminator.dart';
+import '../../features/settings/domain/account_session_terminator.dart';
+import '../../features/cancel_request/data/dio_cancel_request_repository.dart';
+import '../../features/cancel_request/domain/cancel_request_repository.dart';
+import '../../features/location/data/dio_location_select_repository.dart';
+import '../../features/location/domain/location_select_repository.dart';
+import '../../features/location/data/dio_address_form_repository.dart';
+import '../../features/location/domain/address_form_repository.dart';
+import '../../features/account_status/data/dio_account_status_repository.dart';
+import '../../features/account_status/domain/account_status_repository.dart';
+import '../../features/no_offer_timeout/data/dio_waiting_repository.dart';
+import '../../features/no_offer_timeout/domain/waiting_repository.dart';
+import '../../features/jeeber_onboarding/data/dio_dm_onboarding_gateway.dart';
+import '../../features/jeeber_onboarding/domain/dm_onboarding_gateway.dart';
+import '../../features/order_summary/data/dio_order_summary_repository.dart';
+import '../../features/order_summary/domain/order_summary_repository.dart';
+import '../../features/delivery_receipt/data/dio_delivery_receipt_repository.dart';
+import '../../features/delivery_receipt/domain/delivery_receipt_repository.dart';
 import '../config/app_config.dart';
 import '../network/dio_client.dart';
 import '../session/jeeber_kyc_status_gate.dart';
@@ -597,5 +619,69 @@ void configureDependencies({
   );
   sl.registerLazySingleton<GeocaptureGateway>(
     () => sl<GeolocatorGeocaptureGateway>(),
+  );
+
+  // ── SPRINT 6 STREAM C — fake-fallback debt reduction ──────────────────────
+  // Each repo/service/gateway below already had a real Dio impl AND a real
+  // gateway/mock route, but was NOT registered in DI — so its screen's
+  // `_resolve*()` either (a) made the Fake the RELEASE default (cancel-request,
+  // order-summary) or (b) self-constructed the Dio impl per-screen via an
+  // `sl<Dio>()` middle-tier (account-status, waiting, delivery-receipt,
+  // location-select, address-form, dm-onboarding, account-session-terminator).
+  // Registering them HERE makes the real impl the canonical release default and
+  // demotes the Fake/Stub/InMemory to its intended role: the no-DI
+  // route-resolve test-harness fallback only. No Fake/Stub class is deleted.
+  // (SubmittedOffersRepository is intentionally NOT registered — it is
+  // parametrized by a per-screen jeeberId and already self-constructs the real
+  // Dio impl; see FAKE-FALLBACK-AUDIT.md.)
+
+  // cancel-request → POST /v1/delivery/cancel. (Was: FakeCancelRequestRepository
+  // as the release default — no Dio middle-tier in the sheet.)
+  sl.registerLazySingleton<CancelRequestRepository>(
+    () => DioCancelRequestRepository(sl<Dio>()),
+  );
+
+  // order-summary → GET /v1/delivery/:id + /v1/requests/:id + /users/:id +
+  // /v1/offers. (Was: FakeOrderSummaryRepository as the release default.)
+  sl.registerLazySingleton<OrderSummaryRepository>(
+    () => DioOrderSummaryRepository(sl<Dio>()),
+  );
+
+  // account-status → GET /v1/users/me.
+  sl.registerLazySingleton<AccountStatusRepository>(
+    () => DioAccountStatusRepository(sl<Dio>()),
+  );
+
+  // no-offer-timeout / waiting → GET /v1/requests + /v1/offers.
+  sl.registerLazySingleton<WaitingRepository>(
+    () => DioWaitingRepository(sl<Dio>()),
+  );
+
+  // delivery-receipt → GET /v1/delivery/:id + POST /v1/payments/cod_jeeb/record
+  // + POST /v1/delivery/status/transition.
+  sl.registerLazySingleton<DeliveryReceiptRepository>(
+    () => DioDeliveryReceiptRepository(sl<Dio>()),
+  );
+
+  // location-select + address-form → the `me`-scoped Saved-Locations BFF
+  // (/api/users/me/saved-locations) — the SAME path as the already-registered
+  // DioSavedLocationRepository, so the route is proven-live.
+  sl.registerLazySingleton<LocationSelectRepository>(
+    () => DioLocationSelectRepository(sl<Dio>()),
+  );
+  sl.registerLazySingleton<AddressFormRepository>(
+    () => DioAddressFormRepository(sl<Dio>()),
+  );
+
+  // jeeber dm-onboarding service-area probe → POST /v1/matching/find-jeebers.
+  sl.registerLazySingleton<DmOnboardingGateway>(
+    () => DioDmOnboardingGateway(sl<Dio>()),
+  );
+
+  // account-session-terminator (logout + delete) → POST /v1/auth/logout +
+  // POST /v1/devices/unregister + PATCH /users/:id/status. Needs the keystore
+  // too (token attach + clear on logout).
+  sl.registerLazySingleton<AccountSessionTerminator>(
+    () => DioAccountSessionTerminator(sl<Dio>(), sl<AuthTokenStore>()),
   );
 }
