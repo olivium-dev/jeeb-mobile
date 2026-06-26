@@ -71,6 +71,7 @@ class _SearchResultsView extends StatelessWidget {
     return Semantics(
       identifier: 'search_results_root',
       container: true,
+      explicitChildNodes: true,
       child: Scaffold(
         appBar: OMDSAppBar(
           title: copy.resultsTitle,

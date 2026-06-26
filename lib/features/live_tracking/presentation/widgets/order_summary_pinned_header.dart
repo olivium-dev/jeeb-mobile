@@ -45,6 +45,7 @@ class OrderSummaryPinnedHeader extends StatelessWidget {
     return Semantics(
       identifier: 'order_summary_pinned',
       container: true,
+      explicitChildNodes: true,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsetsDirectional.all(Spacing.medium),

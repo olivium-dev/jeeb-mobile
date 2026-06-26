@@ -63,6 +63,7 @@ class _NotificationPrefsScreenState extends State<NotificationPrefsScreen> {
     return Semantics(
       identifier: 'notif_prefs_root',
       container: true,
+      explicitChildNodes: true,
       child: Scaffold(
         appBar: OMDSAppBar(
           title: l10n.notificationPreferencesTitle,

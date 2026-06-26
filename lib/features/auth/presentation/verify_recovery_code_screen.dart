@@ -119,6 +119,7 @@ class _VerifyRecoveryCodeView extends StatelessWidget {
         return Semantics(
           identifier: 'verify_code_root',
           container: true,
+          explicitChildNodes: true,
           child: Scaffold(
             appBar: OMDSAppBar(
               title: l10n.verifyCodeTitle,

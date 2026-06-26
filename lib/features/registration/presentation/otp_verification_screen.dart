@@ -130,6 +130,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         return Semantics(
           identifier: 'phone_otp_root',
           container: true,
+          explicitChildNodes: true,
           child: Scaffold(
           appBar: OMDSAppBar(
             title: l10n.registrationOtpTitle,

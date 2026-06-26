@@ -76,6 +76,7 @@ class _OnboardingFundingScreenState extends State<OnboardingFundingScreen> {
       body: Semantics(
         identifier: 'funding_explainer',
         container: true,
+        explicitChildNodes: true,
         child: ListView(
           padding: const EdgeInsetsDirectional.fromSTEB(
             Spacing.medium,

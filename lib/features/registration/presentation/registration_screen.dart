@@ -447,6 +447,7 @@ class _RegisterHero extends StatelessWidget {
     return Semantics(
       identifier: '_register_hero',
       container: true,
+      explicitChildNodes: true,
       child: Container(
         height: Sizes.tenXLarge,
         decoration: BoxDecoration(

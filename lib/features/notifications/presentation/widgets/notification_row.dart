@@ -42,6 +42,7 @@ class NotificationRow extends StatelessWidget {
       identifier: 'notif_row_${item.id}',
       button: true,
       container: true,
+      explicitChildNodes: true,
       child: InkWell(
         onTap: onTap,
         borderRadius: OmdsBorderRadius.small,

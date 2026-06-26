@@ -119,6 +119,7 @@ class _PasswordSecurityViewState extends State<_PasswordSecurityView> {
     return Semantics(
       identifier: 'password_security_root',
       container: true,
+      explicitChildNodes: true,
       child: Scaffold(
         appBar: OMDSAppBar(
           title: l10n.passwordSecurityTitle,

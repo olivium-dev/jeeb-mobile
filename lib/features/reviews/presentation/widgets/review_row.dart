@@ -36,6 +36,7 @@ class ReviewRow extends StatelessWidget {
       // Per-row container so a flow can scope assertions to one review.
       identifier: 'review_${review.id}',
       container: true,
+      explicitChildNodes: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

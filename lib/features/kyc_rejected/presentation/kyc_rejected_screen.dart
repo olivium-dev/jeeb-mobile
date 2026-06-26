@@ -64,6 +64,7 @@ class _KycRejectedView extends StatelessWidget {
     return Semantics(
       identifier: 'kyc_rejected_root',
       container: true,
+      explicitChildNodes: true,
       child: Scaffold(
         appBar: OMDSAppBar(title: l10n.kycRejectedTitle, showBackButton: true),
         body: ListView(

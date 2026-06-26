@@ -217,6 +217,7 @@ class _LoginViewState extends State<_LoginView> {
       child: Semantics(
         identifier: 'login_root',
         container: true,
+        explicitChildNodes: true,
         child: Scaffold(
           appBar: OMDSAppBar(title: l10n.loginTitle, centerTitle: false),
         body: SafeArea(

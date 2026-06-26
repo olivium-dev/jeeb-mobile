@@ -33,6 +33,7 @@ class LanguageSettingsScreen extends StatelessWidget {
     return Semantics(
       identifier: 'language_settings_root',
       container: true,
+      explicitChildNodes: true,
       child: Scaffold(
         appBar: OMDSAppBar(
           title: l10n.settingsLanguage,
