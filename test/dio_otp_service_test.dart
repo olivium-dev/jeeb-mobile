@@ -139,6 +139,43 @@ void main() {
           )).called(1);
     });
 
+    // Regression (sprint-7 step-login): the LIVE Express mock's OTP-verify
+    // handler returns the identity as `user.id` (uuid), NOT `user.userId`. The
+    // prior fixture used `{'userId': ...}` and so masked the defect where
+    // _persistTokens read `user['userId']` only → userId persisted as null on
+    // the real OTP login path. This fixture mirrors the mock exactly and asserts
+    // the userId is still persisted (via the `?? user['id']` fallback).
+    test('persists userId from mock user.id shape (not userId)', () async {
+      when(() => tokenStore.save(
+            accessToken: any(named: 'accessToken'),
+            refreshToken: any(named: 'refreshToken'),
+            userId: any(named: 'userId'),
+          )).thenAnswer((_) async {});
+
+      dio.nextResponse = Response(
+        requestOptions: RequestOptions(path: ''),
+        statusCode: 200,
+        data: {
+          'accessToken': 'mock-jwt-access-user-123',
+          'refreshToken': 'mock-jwt-refresh-user-123',
+          'expiresIn': 3600,
+          'user': {'id': 'user-123', 'phone': '+96170000001', 'activeRole': 'client'},
+        },
+      );
+
+      final outcome = await sut.verifyCode(
+        e164Phone: '+96170000001',
+        code: '1234',
+      );
+
+      expect(outcome, OtpVerifyOutcome.verified);
+      verify(() => tokenStore.save(
+            accessToken: 'mock-jwt-access-user-123',
+            refreshToken: 'mock-jwt-refresh-user-123',
+            userId: 'user-123',
+          )).called(1);
+    });
+
     test('returns invalidCode on 401', () async {
       dio.nextError = DioException(
         requestOptions: RequestOptions(path: ''),
