@@ -118,13 +118,16 @@ class _JeebBootstrapState extends State<JeebBootstrap> {
     super.dispose();
   }
 
-  void _scheduleDeferred() {
+  void _scheduleDeferred(BootstrapResult result) {
     if (_deferredScheduled) return;
     _deferredScheduled = true;
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      // Fire-and-forget — failures here must not crash the app since this
-      // is, by definition, non-critical init.
-      Bootstrap.deferred();
+      // Fire-and-forget — failures here must not crash the app since this is,
+      // by definition, non-critical init. Pass the bootstrap crash reporter so
+      // the deferred phase can upgrade its delegate from Noop to Crashlytics
+      // once the (off-critical-path, timeboxed) Firebase init resolves — the
+      // cold-start ANR fix keeps that native call out of [Bootstrap.minimal].
+      Bootstrap.deferred(crashReporter: result.crashReporter);
     });
   }
 
@@ -151,8 +154,8 @@ class _JeebBootstrapState extends State<JeebBootstrap> {
         if (bootstrapping || !_minHoldElapsed || _holdSplash) {
           return const _SplashApp();
         }
-        _scheduleDeferred();
         final result = snapshot.requireData;
+        _scheduleDeferred(result);
         return JeebApp(
           preferences: result.preferences,
           crashReporter: result.crashReporter,
