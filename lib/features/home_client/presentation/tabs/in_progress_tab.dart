@@ -71,13 +71,26 @@ class InProgressTab extends StatelessWidget {
     BuildContext context,
     ClientHomeRequest request,
   ) {
-    if (request.id.isEmpty) return;
-    // `chat-detail` (/chat/:id) resolves the request id → the server-minted
-    // conversation via create-or-get (#69), landing the client back in the SAME
-    // accepted-order conversation.
+    // S13 Defect 1: `chat-detail` (/chat/:id) treats the route id as the
+    // conversation CORRELATION KEY (the parent REQUEST id), not the delivery
+    // id. For an In-Progress *delivery* row `request.id` is the delivery id
+    // (`delivery-<offerId>`); opening chat with it create-or-gets a fresh EMPTY
+    // conversation instead of the order's existing thread. Route by the parent
+    // request id ([ClientHomeRequest.chatThreadId], captured from the gateway
+    // item's `requestId`), falling back to `id` for rows that carry no parent
+    // id (pre-S13 behavior). Also pass the order's delivery id as `?deliveryId=`
+    // so the in-chat "Track order" CTA still resolves the right delivery (the
+    // route forwards it to `ChatDetailScreen.initialDeliveryId`).
+    final threadId = request.chatThreadId;
+    if (threadId.isEmpty) return;
+    final deliveryId = request.trackingId;
     GoRouter.of(context).pushNamed(
       'chat-detail',
-      pathParameters: {'id': request.id},
+      pathParameters: {'id': threadId},
+      queryParameters: {
+        if (deliveryId.isNotEmpty && deliveryId != threadId)
+          'deliveryId': deliveryId,
+      },
     );
   }
 }
