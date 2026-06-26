@@ -70,12 +70,15 @@ Offer _offer() => Offer(
 
 ScriptedOffersRepository _repo({
   String? conversationId,
+  String? deliveryId,
   OffersFailure? acceptFailure,
 }) {
   final repo = ScriptedOffersRepository(
     snapshots: const <OffersSnapshot>[],
     acceptFailure: acceptFailure,
-  )..acceptConversationId = conversationId;
+  )
+    ..acceptConversationId = conversationId
+    ..acceptDeliveryId = deliveryId;
   return repo;
 }
 
@@ -141,8 +144,11 @@ void main() {
     testWidgets(
         'AC2 — confirm accepts the offer and reports the order-chat '
         'conversationId', (tester) async {
-      final repo = _repo(conversationId: 'conv-journey-accepted');
-      String? reportedConversationId;
+      final repo = _repo(
+        conversationId: 'conv-journey-accepted',
+        deliveryId: 'delivery-journey-001',
+      );
+      OfferAcceptResult? reported;
       var confirmedCount = 0;
 
       await tester.pumpWidget(
@@ -151,9 +157,9 @@ void main() {
             offer: _offer(),
             requestId: 'req-client-001-offers',
             repository: repo,
-            onConfirmed: (id) {
+            onConfirmed: (result) {
               confirmedCount++;
-              reportedConversationId = id;
+              reported = result;
             },
           ),
         ),
@@ -168,13 +174,17 @@ void main() {
       expect(repo.lastAcceptedRequestId, 'req-client-001-offers');
       expect(repo.lastAcceptedOfferId, 'offer-001');
       expect(confirmedCount, 1);
-      expect(reportedConversationId, 'conv-journey-accepted');
+      expect(reported?.conversationId, 'conv-journey-accepted');
+      // The accept now creates an active delivery; its id is surfaced so the
+      // order-chat "Track order" CTA is reachable.
+      expect(reported?.deliveryId, 'delivery-journey-001');
     });
 
     testWidgets('AC2b — a null conversationId is reported (requestId fallback)',
         (tester) async {
       final repo = _repo();
-      String? reported = 'sentinel';
+      OfferAcceptResult? reported;
+      var confirmedCount = 0;
 
       await tester.pumpWidget(
         _harness(
@@ -182,7 +192,10 @@ void main() {
             offer: _offer(),
             requestId: 'req-client-001-offers',
             repository: repo,
-            onConfirmed: (id) => reported = id,
+            onConfirmed: (result) {
+              confirmedCount++;
+              reported = result;
+            },
           ),
         ),
       );
@@ -193,7 +206,11 @@ void main() {
       await tester.pump();
 
       expect(repo.acceptCalls, 1);
-      expect(reported, isNull);
+      expect(confirmedCount, 1);
+      // A gateway that surfaces neither id reports a result with both null —
+      // navigation then falls back to the requestId for the chat target.
+      expect(reported?.conversationId, isNull);
+      expect(reported?.deliveryId, isNull);
     });
 
     testWidgets('AC3 — cancel dismisses and does NOT accept', (tester) async {

@@ -58,10 +58,12 @@ class OfferAcceptSheet extends StatelessWidget {
   /// inject a scripted instance.
   final OffersRepository? repository;
 
-  /// Fired once the accept call succeeds, with the resolved order-chat
-  /// conversation id (or null when the gateway surfaced none). [show] wires the
-  /// default `order-chat` navigation; an explicit callback is for tests.
-  final void Function(String? conversationId)? onConfirmed;
+  /// Fired once the accept call succeeds, with the full [OfferAcceptResult] —
+  /// the server `conversationId` (order-chat target) AND the `deliveryId` of the
+  /// active delivery the accept just created (used to make live tracking
+  /// reachable). Either may be null when the gateway surfaces none. [show] wires
+  /// the default `order-chat` navigation; an explicit callback is for tests.
+  final void Function(OfferAcceptResult result)? onConfirmed;
 
   /// Fired when the user cancels (or the accept fails and they back out). [show]
   /// wires the default dismiss; an explicit callback is for tests.
@@ -85,7 +87,13 @@ class OfferAcceptSheet extends StatelessWidget {
   /// `chat-detail` (`/chat/:id`) — the `order-chat` blueprint surface — keyed on
   /// the server `conversationId`. When the gateway omits one we fall back to the
   /// [requestId]; `ChatDetailScreen` resolves either (it accepts a conversation
-  /// id OR a delivery/request id and walks `by-request`).
+  /// id OR a delivery/request id and walks `by-request`). The accept response
+  /// now ALSO carries the server-created `deliveryId` (the accepted offer is a
+  /// real active delivery); we forward it as the `deliveryId` query param so the
+  /// order-chat's "Track order" CTA (G5, `OfferAcceptedBanner`) is reachable for
+  /// an offer accepted straight from the review list — the conversation phase is
+  /// `accepted` on load but the chat would otherwise have no delivery id to
+  /// track.
   static Future<void> show(
     BuildContext context, {
     required Offer offer,
@@ -109,14 +117,21 @@ class OfferAcceptSheet extends StatelessWidget {
         offer: offer,
         requestId: requestId,
         repository: repository,
-        onConfirmed: (conversationId) {
+        onConfirmed: (result) {
           Navigator.of(sheetContext).pop();
-          final chatId = (conversationId != null && conversationId.isNotEmpty)
-              ? conversationId
-              : requestId;
+          final conversationId = result.conversationId;
+          final chatId =
+              (conversationId != null && conversationId.isNotEmpty)
+                  ? conversationId
+                  : requestId;
+          final deliveryId = result.deliveryId;
           rootContext.goNamed(
             'chat-detail',
             pathParameters: {'id': chatId},
+            queryParameters: {
+              if (deliveryId != null && deliveryId.isNotEmpty)
+                'deliveryId': deliveryId,
+            },
           );
         },
         onCancelled: () => Navigator.of(sheetContext).pop(),
@@ -150,7 +165,7 @@ class _OfferAcceptView extends StatelessWidget {
   });
 
   final Offer offer;
-  final void Function(String? conversationId)? onConfirmed;
+  final void Function(OfferAcceptResult result)? onConfirmed;
   final VoidCallback? onCancelled;
 
   @override
@@ -164,8 +179,10 @@ class _OfferAcceptView extends StatelessWidget {
           next.status == OfferAcceptStatus.succeeded,
       listener: (context, state) {
         // Side effect only in the listener (never the builder) per
-        // 40_GUARDRAILS_ARCH §3.
-        onConfirmed?.call(state.result?.conversationId);
+        // 40_GUARDRAILS_ARCH §3. Forward the full result so the navigation can
+        // route to order-chat (conversationId) AND surface the tracking entry
+        // (deliveryId).
+        onConfirmed?.call(state.result ?? OfferAcceptResult.empty);
       },
       builder: (context, state) {
         return Semantics(

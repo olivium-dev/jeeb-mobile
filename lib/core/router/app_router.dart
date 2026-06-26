@@ -639,6 +639,10 @@ class AppRouter {
           name: 'chat-detail',
           builder: (context, state) => ChatDetailScreen(
             chatId: state.pathParameters['id'] ?? '',
+            // Forwarded by the offer-accept-confirm sheet so the client's
+            // "Track order" CTA is reachable on an order accepted from the
+            // review list (the accept response's server-created deliveryId).
+            initialDeliveryId: state.uri.queryParameters['deliveryId'],
           ),
         ),
         // Debug-only chat-capture seam; gated by [_devChat] in the redirect
