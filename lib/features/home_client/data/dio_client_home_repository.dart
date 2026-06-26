@@ -406,7 +406,15 @@ class DioClientHomeRepository implements ClientHomeRepository {
   static ClientRequestStatus _mapDeliveryStatus(String? status) {
     switch (status) {
       case 'Ordered':
-        return ClientRequestStatus.searching;
+        // S12 fix: a delivery row only exists once a Jeeber is assigned / the
+        // order is placed, so `Ordered` is the FIRST trackable stage —
+        // `accepted`, never `searching`. Mapping it to `searching` rendered a
+        // brand-new order as a non-trackable row with no "Track my order" /
+        // "Open chat" CTA (ActiveOrderCard._canTrack rejects `searching`), so a
+        // freshly-created request could not be tracked. The visual stage is read
+        // independently from `progressStep` (parsed at _parseActiveDelivery), so
+        // the stepper stays at step 0 "Ordered" — only the CTA gate opens.
+        return ClientRequestStatus.accepted;
       case 'Picked':
         return ClientRequestStatus.atPickup;
       case 'InTransit':

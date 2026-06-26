@@ -181,4 +181,80 @@ void main() {
         snapshot.inProgress.firstWhere((r) => r.id == 'request-fresh-1');
     expect(fresh.status, ClientRequestStatus.accepted);
   });
+
+  // ---------------------------------------------------------------------------
+  // S12 — a brand-new order's delivery row in the `Ordered` state must surface
+  // as a TRACKABLE (accepted) In-Progress row, NOT a non-trackable `searching`
+  // row. A delivery row only exists once a Jeeber is assigned / the order is
+  // placed, so its coarse status is `accepted` (the Track / Open-chat CTA gate
+  // opens) while `progressStep` keeps the stepper visually at step 0 "Ordered".
+  // This fixture is REAL-SHAPED: the `{items, totalCount}` envelope with a
+  // per-row `requestId` / `status:'Ordered'` / `progressStep` matches the live
+  // `JeebOrdersListController.ListDeliveries` `OrderListItem` contract the
+  // parser reads (`currentStage ?? status`, `progressStep`).
+  // ---------------------------------------------------------------------------
+  final orderedDeliveryBody = <String, dynamic>{
+    'items': <Map<String, dynamic>>[
+      {
+        'id': 'delivery-x',
+        'requestId': 'req-x',
+        'clientId': 'user-client-001',
+        'status': 'Ordered',
+        'progressStep': 0,
+        'title': 'Brand-new order',
+      },
+    ],
+    'totalCount': 1,
+  };
+
+  final matchedRequestBody = <String, dynamic>{
+    'items': <Map<String, dynamic>>[
+      {
+        'id': 'req-x',
+        'clientId': 'user-client-001',
+        'status': 'matched',
+        'deliveryId': 'delivery-x',
+        'title': 'Brand-new order',
+        'offersCount': 1,
+      },
+    ],
+    'totalCount': 1,
+  };
+
+  test(
+      'S12: an `Ordered` delivery row maps to accepted (trackable), not '
+      'searching — and progressStep stays 0 so the stepper is unchanged',
+      () async {
+    stubDeliveries(orderedDeliveryBody);
+    stubRequests(matchedRequestBody);
+
+    final snapshot = await repo.loadSnapshot();
+    final row = snapshot.inProgress.firstWhere((r) => r.id == 'delivery-x');
+
+    // THE FIX: `Ordered` → accepted so the "Track my order" / "Open chat" CTA
+    // gate (ActiveOrderCard._canTrack) opens. Pre-fix this was `searching`,
+    // which the gate rejects → no CTA → a brand-new order can't be tracked.
+    expect(row.status, ClientRequestStatus.accepted);
+    // The visual stage is read independently from `progressStep`, so the
+    // stepper stays at step 0 "Ordered" even though the CTA now appears.
+    expect(row.progressStep, 0);
+  });
+
+  test(
+      'S12 guard: a delivery row carrying `requestId` yields exactly ONE '
+      'trackable row for that order (no duplicate from the request path)',
+      () async {
+    stubDeliveries(orderedDeliveryBody);
+    stubRequests(matchedRequestBody);
+
+    final snapshot = await repo.loadSnapshot();
+    final forOrder = snapshot.inProgress
+        .where((r) => r.id == 'delivery-x' || r.id == 'req-x')
+        .toList();
+
+    // Exactly one row, and it's the delivery-backed (tracking-id-bearing) row —
+    // the request-path row (`req-x`) was deduped out via `coveredRequestIds`.
+    expect(forOrder.length, 1);
+    expect(forOrder.single.id, 'delivery-x');
+  });
 }

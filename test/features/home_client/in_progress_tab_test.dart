@@ -172,6 +172,54 @@ void main() {
       expect(chatted?.id, 'ip-chat');
     });
 
+    // S12 — a brand-new order (delivery row in `Ordered` → ClientRequestStatus
+    // .accepted) is trackable: the Track CTA gate (ActiveOrderCard._canTrack)
+    // opens for `accepted`, so the row exposes `active-track-order-<id>`. This
+    // locks the gate semantics from the trackable side.
+    testWidgets('S12: an accepted (Ordered) row shows the Track-order CTA',
+        (tester) async {
+      final request = _activeRequest(
+        id: 'ip-ordered',
+        status: ClientRequestStatus.accepted,
+        progressStep: 0,
+      );
+      final repo = InMemoryClientHomeRepository.fromSnapshot(
+        ClientHomeSnapshot(inProgress: [request]),
+        latency: Duration.zero,
+      );
+      await tester.pumpWidget(_harness(repo: repo));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('active-track-order-ip-ordered')),
+        findsOneWidget,
+      );
+    });
+
+    // S12 — the OTHER side of the gate: a genuinely-pending row still searching
+    // for a Jeeber (`searching`) has nothing to track, so the Track CTA must be
+    // ABSENT. This is why the fix lives in the status mapping, not in widening
+    // `_canTrack` — a `searching` row must never offer a Track CTA (it 404s).
+    testWidgets('S12: a still-searching row (no Jeeber) hides the Track CTA',
+        (tester) async {
+      final request = _activeRequest(
+        id: 'ip-searching',
+        status: ClientRequestStatus.searching,
+        progressStep: 0,
+      );
+      final repo = InMemoryClientHomeRepository.fromSnapshot(
+        ClientHomeSnapshot(inProgress: [request]),
+        latency: Duration.zero,
+      );
+      await tester.pumpWidget(_harness(repo: repo));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('active-track-order-ip-searching')),
+        findsNothing,
+      );
+    });
+
     testWidgets('AC6: error banner with retry on failed load', (tester) async {
       // Cubit pre-seeded to failed state via a throwing repository.
       final repo = InMemoryClientHomeRepository.fromSnapshot(
