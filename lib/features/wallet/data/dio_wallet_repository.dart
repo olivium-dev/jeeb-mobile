@@ -43,6 +43,11 @@ class DioWalletRepository implements WalletRepository {
       ),
       reservedNow: _num(json['reservedNow'] ?? json['reserved_now']),
       giftCredit: _num(json['giftCredit'] ?? json['gift_credit']),
+      // Currency is gateway-verbatim (40_GUARDRAILS_ARCH §5). TODO(backender):
+      // the wallet balance response should ALWAYS include an explicit
+      // `currency` so the client never has to default. The current `'SAR'`
+      // fallback is also inconsistent with the `'USD'` default used by the
+      // other wallet/order/offer data sources — unify on the gateway value.
       currency: _str(json['currency']) ?? 'SAR',
     );
   }
