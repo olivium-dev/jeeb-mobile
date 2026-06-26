@@ -163,7 +163,10 @@ class _Body extends StatelessWidget {
           onNotifications: () => context.pushNamed('settings-notifications'),
           // AC2: addresses → saved-addresses. `settings-addresses` is the
           // registered real `SavedLocationsScreen` (`saved_address_add_cta`).
-          onAddresses: () => context.goNamed('settings-addresses'),
+          // `push` (not `go`) so system BACK (`saved_addresses` has no in-screen
+          // back stack under `go`) pops back to this Profile tab instead of
+          // exiting the app — matches the sibling notifications/password rows.
+          onAddresses: () => context.pushNamed('settings-addresses'),
           // ── W4 targets — now registered, wired honestly ──────────────────
           // JM-061: password-security. `push` so back (`password_back`) pops
           // back to this profile tab, where `customer_profile_wallet_chip`

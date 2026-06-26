@@ -9,6 +9,7 @@ import '../../../core/dev_seam/social_auth_seam.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
 import '../../../core/onboarding/onboarding_cubit.dart';
+import '../../../core/router/root_aware_back_scope.dart';
 import '../../../core/session/session_cubit.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../settings/data/repositories/biometric_preference_repository_impl.dart';
@@ -204,11 +205,20 @@ class _LoginViewState extends State<_LoginView> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Semantics(
-      identifier: 'login_root',
-      container: true,
-      child: Scaffold(
-        appBar: OMDSAppBar(title: l10n.loginTitle, centerTitle: false),
+    // BACK-nav defect fix: the auth funnel reaches `/login` via
+    // `context.goNamed('login')` (sign-up / recover / set-password /
+    // biometric-lock), which REPLACES the stack — so a logged-out user landing
+    // on Login as the stack root would otherwise exit the app on BACK. The
+    // root-aware scope instead lands on `/register` (the canonical phone-OTP
+    // auth entry); when Login was pushed from another auth screen it pops there
+    // normally.
+    return RootAwareBackScope(
+      fallbackLocation: '/register',
+      child: Semantics(
+        identifier: 'login_root',
+        container: true,
+        child: Scaffold(
+          appBar: OMDSAppBar(title: l10n.loginTitle, centerTitle: false),
         body: SafeArea(
           child: BlocConsumer<LoginCubit, LoginState>(
             listenWhen: (prev, curr) => prev.status != curr.status,
@@ -416,6 +426,7 @@ class _LoginViewState extends State<_LoginView> {
               );
             },
           ),
+        ),
         ),
       ),
     );

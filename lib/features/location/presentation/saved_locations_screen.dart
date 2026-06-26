@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/router/root_aware_back_scope.dart';
 import '../../../l10n/app_localizations.dart';
 import '../data/dio_saved_location_repository.dart';
 import '../domain/saved_location.dart';
@@ -82,18 +83,27 @@ class _SavedLocationsView extends StatelessWidget {
       listenWhen: _shouldListen,
       listener: _onStateChange,
       builder: (context, state) {
-        return Scaffold(
-          appBar: OMDSAppBar(
-            title: l10n.savedAddressesTitle,
-            showBackButton: true,
-          ),
-          body: _buildBody(context, state),
-          floatingActionButton: _AddAddressFab(
-            // The Add CTA is the screen's signature id — present in EVERY
-            // non-fatal state (incl. empty), per the jm-049 flow (AC2/AC5
-            // assert it directly after opening the manager).
-            enabled: !_isMutating(state) && state is! SavedLocationsLoading,
-            onPressed: () => _onAdd(context),
+        // BACK-nav defect fix: this manager is reached via
+        // `context.goNamed('settings-addresses')` from `customer-profile` (and
+        // the address-form `goNamed` on save), which REPLACES the stack — so as
+        // the stack root, BACK exited the app. The root-aware scope pops to
+        // `/settings` (its route parent) when there is no back stack, and pops
+        // normally when it was `push`ed (settings / location-select entries).
+        return RootAwareBackScope(
+          fallbackLocation: '/settings',
+          child: Scaffold(
+            appBar: OMDSAppBar(
+              title: l10n.savedAddressesTitle,
+              showBackButton: true,
+            ),
+            body: _buildBody(context, state),
+            floatingActionButton: _AddAddressFab(
+              // The Add CTA is the screen's signature id — present in EVERY
+              // non-fatal state (incl. empty), per the jm-049 flow (AC2/AC5
+              // assert it directly after opening the manager).
+              enabled: !_isMutating(state) && state is! SavedLocationsLoading,
+              onPressed: () => _onAdd(context),
+            ),
           ),
         );
       },
