@@ -130,8 +130,13 @@ void main() {
 
     expect(find.bySemanticsIdentifier('jeeber_pending_offers_root'),
         findsOneWidget);
-    // OmdsErrorState renders a FilledButton.icon retry control.
-    expect(find.byType(FilledButton), findsOneWidget);
+    // OmdsErrorState renders a FilledButton.icon retry control. The `.icon`
+    // factory yields a private _FilledButtonWithIcon subclass, so match on the
+    // FilledButton supertype rather than the exact runtime type.
+    expect(
+      find.byWidgetPredicate((w) => w is FilledButton),
+      findsOneWidget,
+    );
     expect(find.byIcon(Icons.refresh), findsOneWidget);
   });
 }
