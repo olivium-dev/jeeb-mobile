@@ -122,6 +122,20 @@
             </intent-filter>
         </service>
 
+        <!--
+            Sprint 3 (deeplink): route inbound platform links (the jeeb://
+            custom-scheme intent-filter above, and any future https App Links)
+            through the Flutter framework so go_router's RouteInformationParser
+            receives the full URI. DeepLinkRouteInformationParser then folds the
+            custom-scheme host into the path (jeeb://orders/d-1 → /orders/d-1)
+            and the router's auth gate + resolver id-validation apply. Without
+            this flag the framework swallows the intent and lands on the default
+            route, so the deep link never reaches the resolver.
+        -->
+        <meta-data
+            android:name="flutter_deeplinking_enabled"
+            android:value="true"/>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
