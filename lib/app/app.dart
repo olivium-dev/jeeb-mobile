@@ -21,7 +21,7 @@ import '../core/notifications/data/firebase_messaging_transport.dart';
 import '../core/notifications/data/push_device_registrar.dart';
 import '../core/notifications/data/push_transport.dart';
 import '../core/notifications/domain/notification_message.dart';
-import '../core/di/injection_container.dart';
+import '../core/di/injection_container.dart' show resolveGatewayDio;
 import '../core/notifications/domain/notification_deep_link.dart';
 import '../core/notifications/presentation/push_banner_host.dart';
 import '../core/observability/crash_context_bridge.dart';
@@ -310,9 +310,12 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       return;
     }
 
-    // The backend device-registrar shares the gateway Dio so the
-    // _AuthInterceptor attaches the logged-in user's bearer; the gateway reads
-    // the user_id from that JWT. Skipped for the fake transport (tests/dev).
+    // The backend device-registrar shares the ONE configured gateway Dio via
+    // [resolveGatewayDio] — the AppConfig-driven [DioClient] (or the mock client
+    // only when --dart-define=USE_MOCK_GATEWAY=true) with the bearer-attach +
+    // 401-refresh interceptors. This routes registration through jeeb-gateway
+    // (no direct push-notification-service call) and lets the gateway read the
+    // user_id from the attached JWT. Skipped for the fake transport (tests/dev).
     final registrar = transport is FirebaseMessagingTransport
         ? PushDeviceRegistrar(dio: resolveGatewayDio())
         : null;

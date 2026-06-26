@@ -1,27 +1,34 @@
+import "dart:io" show Platform;
+
 import "package:dio/dio.dart";
 import "package:flutter/foundation.dart";
 import "package:flutter_secure_storage/flutter_secure_storage.dart";
 
 /// Registers this install's FCM token with jeeb-gateway so server-side
-/// events can target the device.
+/// events (delivery updates, chat, KYC, ratings) can target the device.
 ///
-/// PUSH-FIX (iter6): the FCM transport already mints a token, but nothing was
-/// ever sending it to the backend — so the `push-notification` service had no
+/// The FCM transport mints a token but nothing forwards it to the backend on
+/// its own — without this hop the `push-notification` service has no
 /// `(device_id -> fcm_token)` row to send to. This closes that gap.
 ///
-/// Wire contract (verified live on the gateway :10090):
-///   PUT /api/PushNotification/register
-///     headers: Authorization: Bearer `<jwt>`   (added by the shared
-///              _AuthInterceptor on the gateway Dio)
-///     body: { "fcmToken": "`<token>`", "deviceId": "`<stable-install-id>`" }
-///   201 -> RegisterResponse { message }
-/// The gateway extracts the user_id from the JWT and resolves the FCM topic
-/// from the caller's active_role, then forwards to the push-notification
-/// service's PUT /api/v1/register.
+/// Wire contract (gateway BFF — no direct push-notification-service call):
+///   POST /v1/devices/register
+///     headers: Authorization: Bearer `<jwt>`   (attached by the shared
+///              bearer interceptor on the gateway Dio — see resolveGatewayDio)
+///     body: { "fcmToken": "`<token>`", "platform": "android|ios",
+///             "deviceId": "`<stable-install-id>`" }
+///     2xx -> registered
+/// The gateway extracts the user_id from the JWT and resolves the push topic
+/// from the caller's active role, then forwards to the push-notification
+/// service. The mock backend rewrites this to `/push-notification/v1/devices/
+/// register` (see MockGatewayClient._pathToServicePrefix '/v1/devices').
 ///
-/// `deviceId` is a per-install UUID persisted in the platform keystore so it
-/// survives app restarts (the gateway enforces one-row-per-device, so a stable
-/// id keeps a single live token per install instead of orphaning rows).
+/// `deviceId` is a per-install id persisted in the platform keystore so it
+/// survives app restarts (the backend keeps one live token per device, so a
+/// stable id avoids orphaning rows on each launch).
+///
+/// PII: the FCM token is a device identifier — it is NEVER logged. Only the
+/// HTTP status code (and exception type) is ever emitted, and only in debug.
 class PushDeviceRegistrar {
   PushDeviceRegistrar({
     required Dio dio,
@@ -33,23 +40,25 @@ class PushDeviceRegistrar {
   final FlutterSecureStorage _storage;
 
   static const String _deviceIdKey = "push.deviceId";
-  static const String _registerPath = "/api/PushNotification/register";
+  static const String _registerPath = "/v1/devices/register";
 
   String? _lastRegisteredToken;
 
   /// Register (or refresh) [token] with the backend. Idempotent: a repeat
   /// call with an unchanged token is skipped. Best-effort — a failure here
-  /// (no auth yet, transient network) never throws to the caller; it just
-  /// logs and will be retried on the next bootstrap / token-refresh.
+  /// (not authenticated yet, transient network, Firebase not configured) never
+  /// throws to the caller; it logs a status (never the token) and is retried on
+  /// the next bootstrap / token-refresh.
   Future<void> register(String? token) async {
     if (token == null || token.isEmpty) return;
     if (token == _lastRegisteredToken) return;
     try {
       final deviceId = await _deviceId();
-      final res = await _dio.put<dynamic>(
+      final res = await _dio.post<dynamic>(
         _registerPath,
         data: <String, dynamic>{
           "fcmToken": token,
+          "platform": _platform(),
           "deviceId": deviceId,
         },
       );
@@ -57,6 +66,7 @@ class PushDeviceRegistrar {
       if (code >= 200 && code < 300) {
         _lastRegisteredToken = token;
         if (kDebugMode) {
+          // NEVER log the token value (PII). Status code only.
           debugPrint("[push] device registered with gateway ($code)");
         }
       } else if (kDebugMode) {
@@ -64,15 +74,27 @@ class PushDeviceRegistrar {
       }
     } on DioException catch (e) {
       // 401 here just means the user is not authenticated yet — the token
-      // will be re-registered on the next bootstrap after login. Never fatal.
+      // will be re-registered on the next bootstrap after login. Never fatal,
+      // and the token is never included in the log line.
       if (kDebugMode) {
         debugPrint(
-          "[push] device register failed: ${e.response?.statusCode} ${e.message}",
+          "[push] device register failed: ${e.response?.statusCode} ${e.type}",
         );
       }
     } catch (e) {
-      if (kDebugMode) debugPrint("[push] device register error: $e");
+      if (kDebugMode) {
+        debugPrint("[push] device register error: ${e.runtimeType}");
+      }
     }
+  }
+
+  /// Wire value for the `platform` discriminator the push-notification service
+  /// keys topic resolution on. `dart:io` is safe here — Jeeb ships iOS/Android
+  /// only (no web target).
+  String _platform() {
+    if (Platform.isIOS) return "ios";
+    if (Platform.isAndroid) return "android";
+    return "unknown";
   }
 
   Future<String> _deviceId() async {
