@@ -76,6 +76,7 @@ class OrderChatPinnedSummary extends StatelessWidget {
     return Semantics(
       identifier: 'order_chat_pinned_summary',
       container: true,
+      explicitChildNodes: true,
       // JM-031 AC4: this strip is the chat-context rendering of the
       // `order-summary-pinned` widget — expose the JM-031 signature id alongside
       // the chat signature id so the same pinned summary is assertable in both
@@ -207,6 +208,7 @@ class OrderChatPinnedSummary extends StatelessWidget {
             Semantics(
               identifier: 'order_chat_cash_label',
               container: true,
+              explicitChildNodes: true,
               // Both ids are container nodes (mirroring the
               // order_chat_pinned_summary > order_summary_pinned pair above) so
               // each is a first-class, separately-findable node. Two nested

@@ -102,6 +102,7 @@ class _PendingOffersView extends StatelessWidget {
     return Semantics(
       identifier: 'jeeber_pending_offers_root',
       container: true,
+      explicitChildNodes: true,
       child: Scaffold(
         appBar: OMDSAppBar(
           title: l10n.pendingOffersTitle,

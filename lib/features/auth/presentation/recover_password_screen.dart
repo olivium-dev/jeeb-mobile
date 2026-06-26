@@ -83,6 +83,7 @@ class _RecoverPasswordViewState extends State<_RecoverPasswordView> {
     return Semantics(
       identifier: 'recover_root',
       container: true,
+      explicitChildNodes: true,
       child: Scaffold(
         appBar: OMDSAppBar(title: l10n.recoverTitle, showBackButton: true),
         body: SafeArea(

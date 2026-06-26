@@ -34,6 +34,7 @@ class BiometricLockScreen extends StatelessWidget {
     return Semantics(
       identifier: 'biometric_unlock_prompt',
       container: true,
+      explicitChildNodes: true,
       child: Scaffold(
         body: SafeArea(
           // Nav is NOT handled in a listener:

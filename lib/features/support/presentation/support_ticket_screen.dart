@@ -455,9 +455,11 @@ class _ConfirmationView extends StatelessWidget {
     return Semantics(
       identifier: 'support_confirmation',
       container: true,
+      explicitChildNodes: true,
       child: Semantics(
       identifier: 'support_success',
       container: true,
+      explicitChildNodes: true,
       child: Padding(
         padding: const EdgeInsetsDirectional.all(Spacing.xLarge),
         child: Column(
@@ -491,6 +493,7 @@ class _ConfirmationView extends StatelessWidget {
               identifier: 'support_confirmation_back_cta',
               button: true,
               container: true,
+              explicitChildNodes: true,
               child: Semantics(
                 identifier: 'support_success_done_cta',
                 button: true,
@@ -521,6 +524,7 @@ class _ErrorView extends StatelessWidget {
     return Semantics(
       identifier: 'support_error',
       container: true,
+      explicitChildNodes: true,
       child: Padding(
         padding: const EdgeInsetsDirectional.all(Spacing.large),
         child: Column(

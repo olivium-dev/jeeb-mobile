@@ -144,6 +144,7 @@ class _SetPasswordViewState extends State<_SetPasswordView> {
     return Semantics(
       identifier: 'setpw_root',
       container: true,
+      explicitChildNodes: true,
       child: Scaffold(
         appBar: OMDSAppBar(title: l10n.setpwTitle, showBackButton: true),
         body: BlocConsumer<SetPasswordCubit, SetPasswordState>(

@@ -83,6 +83,7 @@ class _TransactionDetailView extends StatelessWidget {
       // legacy `txn_detail_root`. Nest both so neither regresses.
       identifier: 'txn_detail',
       container: true,
+      explicitChildNodes: true,
       child: Semantics(
       identifier: 'txn_detail_root',
       container: true,
@@ -160,6 +161,7 @@ class _LoadedBody extends StatelessWidget {
         Semantics(
           identifier: 'txn_detail_type_label',
           container: true,
+          explicitChildNodes: true,
           child: Semantics(
           identifier: 'txn_detail_type_summary',
           container: true,
@@ -215,6 +217,7 @@ class _LoadedBody extends StatelessWidget {
             Semantics(
               identifier: 'txn_detail_fee_percentage_label',
               container: true,
+              explicitChildNodes: true,
               child: Semantics(
                 identifier: 'txn_detail_fee_rate',
                 container: true,

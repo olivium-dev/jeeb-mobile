@@ -58,6 +58,7 @@ class TrackingNoShowSheet extends StatelessWidget {
     return Semantics(
       identifier: 'tracking_noshow_sheet',
       container: true,
+      explicitChildNodes: true,
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(Spacing.large),

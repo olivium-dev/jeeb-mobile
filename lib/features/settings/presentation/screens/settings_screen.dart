@@ -385,6 +385,7 @@ class _AccountSection extends StatelessWidget {
     return Semantics(
       identifier: 'logout_delete_account_root',
       container: true,
+      explicitChildNodes: true,
       child: OmdsSettingsSection(
         title: l10n.settingsAccountSection,
         children: [

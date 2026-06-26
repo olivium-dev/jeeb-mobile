@@ -105,6 +105,7 @@ class _ReviewsView extends StatelessWidget {
     return Semantics(
       identifier: 'reviews_root',
       container: true,
+      explicitChildNodes: true,
       child: Scaffold(
         appBar: OMDSAppBar(
           title: copy.title,

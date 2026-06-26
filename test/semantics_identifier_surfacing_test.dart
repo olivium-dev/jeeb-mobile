@@ -55,6 +55,12 @@ import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_model
 import 'package:jeeb_mobile/features/jeeber_request_feed/presentation/jeeber_feed_card.dart';
 import 'package:jeeb_mobile/features/delivery_man_profile/presentation/widgets/delivery_man_meta_row.dart';
 
+// --- Sprint-6 a11y sweep (JM-049 class) additions ---
+import 'package:jeeb_mobile/features/live_tracking/presentation/widgets/order_summary_pinned_header.dart';
+import 'package:jeeb_mobile/features/reviews/domain/reviews_repository.dart';
+import 'package:jeeb_mobile/features/reviews/presentation/reviews_l10n.dart';
+import 'package:jeeb_mobile/features/reviews/presentation/widgets/review_row.dart';
+
 class _SyncDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _SyncDelegate(this._arbByTag);
   final Map<String, String> _arbByTag;
@@ -554,6 +560,120 @@ void main() {
           findsOneWidget,
           reason: 'The availability identifier must be queryable as its own '
               'node (identifier-only + container lock).',
+        );
+      },
+    );
+  });
+
+  // ── Sprint-6 a11y sweep (JM-049 class) ─────────────────────────────────
+  //
+  // C1 (screen 32 live-tracking / JM-031+JM-032) — REPRODUCING swallow.
+  // `OrderSummaryPinnedHeader` wraps a `container: true` root
+  // (`order_summary_pinned`) around DISPLAY-LEAF `Semantics(identifier:)`
+  // nodes (`order_summary_price` / `_eta` / `_tier` / `_jeeber_name` /
+  // `_cash_label`) that have NO `container: true` of their own. On the
+  // pre-fix source the root container (lacking `explicitChildNodes`) folds
+  // every leaf id up into the `order_summary_pinned` node, so each leaf id
+  // is swallowed (`findsNothing`). The Sprint-6 fix adds
+  // `explicitChildNodes: true` to the root so each leaf surfaces as its own
+  // queryable node. (Verified: `findsNothing` pre-fix → `findsOneWidget`
+  // post-fix for the display leaves.)
+  group('C1 OrderSummaryPinnedHeader leaves (screen 32 / JM-031)', () {
+    testWidgets(
+      'surfaces the root id AND every display-leaf field id as distinct nodes',
+      (tester) async {
+        await tester.pumpWidget(
+          _harness(
+            const OrderSummaryPinnedHeader(
+              info: DeliveryTrackingInfo(
+                deliveryId: 'd-32',
+                currentStage: TrackingStage.inTransit,
+                stageTimestamps: {},
+                price: 12.5,
+                currency: 'USD',
+                jeeberName: 'Kamal',
+                tier: 'express',
+                etaMinutes: 8,
+                itemSummary: 'painkillers',
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Root container id preserved.
+        expect(
+          find.bySemanticsIdentifier('order_summary_pinned'),
+          findsOneWidget,
+          reason: 'The pinned-summary root id must remain queryable.',
+        );
+        // Previously-swallowed display-leaf ids now surface (no container of
+        // their own; recovered only by the root explicitChildNodes boundary).
+        for (final id in const [
+          'order_summary_jeeber_name',
+          'order_summary_price',
+          'order_summary_tier',
+          'order_summary_eta',
+          'order_summary_cash_label',
+        ]) {
+          expect(
+            find.bySemanticsIdentifier(id),
+            findsOneWidget,
+            reason: '$id is a display leaf — it must surface as its own node, '
+                'not be folded into order_summary_pinned (JM-049 class).',
+          );
+        }
+      },
+    );
+  });
+
+  // C2 (JM-068 reviews) — REPRODUCING swallow. The per-row `container: true`
+  // root (`review_<id>`) wraps a DISPLAY-LEAF attribution node
+  // (`review_<id>_reviewer_name`, a bare `Semantics` over `Text`). Pre-fix the
+  // row container folds it in (`findsNothing`); the Sprint-6
+  // `explicitChildNodes: true` boundary keeps it queryable. The report CTA
+  // (`review_<id>_report_cta`) wraps a real button, so it survives either way —
+  // asserted here as a co-located lock.
+  group('C2 ReviewRow attribution leaf (JM-068)', () {
+    testWidgets(
+      'surfaces the row id, the display-leaf reviewer-name id, and the '
+      'report CTA id as distinct nodes',
+      (tester) async {
+        await tester.pumpWidget(
+          _harness(
+            Builder(
+              builder: (context) => ReviewRow(
+                review: const ReviewItem(
+                  id: 'rev-9',
+                  reviewerFirstName: 'Sara',
+                  score: 5,
+                  timestamp: '2026-06-20T10:00:00Z',
+                  body: 'Fast and friendly',
+                ),
+                copy: ReviewsL10n.of(context),
+                onReport: () {},
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.bySemanticsIdentifier('review_rev-9'),
+          findsOneWidget,
+          reason: 'The per-row id must remain queryable.',
+        );
+        // Previously-swallowed display-leaf attribution id now surfaces.
+        expect(
+          find.bySemanticsIdentifier('review_rev-9_reviewer_name'),
+          findsOneWidget,
+          reason: 'The reviewer-name display leaf must surface as its own node '
+              '(was folded into review_rev-9 before the fix).',
+        );
+        expect(
+          find.bySemanticsIdentifier('review_rev-9_report_cta'),
+          findsOneWidget,
+          reason: 'The D27 report CTA must surface as its own node.',
         );
       },
     );

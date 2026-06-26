@@ -158,6 +158,7 @@ class _LoadedBody extends StatelessWidget {
         Semantics(
           identifier: 'wallet_available_balance',
           container: true,
+          explicitChildNodes: true,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

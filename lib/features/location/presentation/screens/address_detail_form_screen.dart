@@ -364,6 +364,7 @@ class _PinPreview extends StatelessWidget {
     return Semantics(
       identifier: 'address_form_map_pin',
       container: true,
+      explicitChildNodes: true,
       label: hasPin ? f.pinPlaceholder : f.pinMissing,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

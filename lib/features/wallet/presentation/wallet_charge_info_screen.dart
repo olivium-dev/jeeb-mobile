@@ -33,6 +33,7 @@ class WalletChargeInfoScreen extends StatelessWidget {
     return Semantics(
       identifier: 'charge_info_root',
       container: true,
+      explicitChildNodes: true,
       child: Scaffold(
         appBar: OMDSAppBar(
           title: l10n.chargeInfoTitle,
