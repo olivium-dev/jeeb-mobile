@@ -21,12 +21,18 @@ class LiveTrackingState extends Equatable {
     this.mode = LiveTrackingViewMode.loading,
     this.trackingInfo,
     this.errorMessage,
+    this.errorTitle,
     this.pendingEvent = LiveTrackingEvent.none,
   });
 
   final LiveTrackingViewMode mode;
   final DeliveryTrackingInfo? trackingInfo;
   final String? errorMessage;
+
+  /// Optional heading rendered above [errorMessage] in the error state — set
+  /// for the distinct 404 "delivery not found" case so it reads differently
+  /// from a transient server/GPS error. Null for the generic error states.
+  final String? errorTitle;
 
   /// T-MOB-017: One-shot event for the screen listener (AC3 + AC4).
   final LiveTrackingEvent pendingEvent;
@@ -38,6 +44,7 @@ class LiveTrackingState extends Equatable {
     LiveTrackingViewMode? mode,
     DeliveryTrackingInfo? trackingInfo,
     String? errorMessage,
+    String? errorTitle,
     bool clearError = false,
     LiveTrackingEvent? pendingEvent,
   }) {
@@ -45,11 +52,12 @@ class LiveTrackingState extends Equatable {
       mode: mode ?? this.mode,
       trackingInfo: trackingInfo ?? this.trackingInfo,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      errorTitle: clearError ? null : (errorTitle ?? this.errorTitle),
       pendingEvent: pendingEvent ?? LiveTrackingEvent.none,
     );
   }
 
   @override
   List<Object?> get props =>
-      [mode, trackingInfo, errorMessage, pendingEvent];
+      [mode, trackingInfo, errorMessage, errorTitle, pendingEvent];
 }

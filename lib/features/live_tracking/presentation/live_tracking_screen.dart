@@ -111,6 +111,7 @@ class _TrackingStateView extends StatelessWidget {
       case LiveTrackingViewMode.error:
         return _TrackingErrorBody(
           message: state.errorMessage,
+          title: state.errorTitle,
           onRetry: () => context.read<LiveTrackingCubit>().retry(),
         );
       case LiveTrackingViewMode.ready:
@@ -302,18 +303,35 @@ class _TrackingPanelSection extends StatelessWidget {
 }
 
 class _TrackingErrorBody extends StatelessWidget {
-  const _TrackingErrorBody({required this.message, required this.onRetry});
+  const _TrackingErrorBody({
+    required this.message,
+    required this.onRetry,
+    this.title,
+  });
 
   final String? message;
+
+  /// Distinct heading for the 404 "delivery not found" state; null renders the
+  /// generic GPS/server error layout.
+  final String? title;
   final VoidCallback onRetry;
+
+  static const Key errorStateKey = Key('live-tracking-error-state');
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final isNotFound = title != null;
     return Center(
       child: OmdsErrorState(
+        key: errorStateKey,
+        title: title,
         message: message ?? l10n.trackingGpsLostBody,
-        icon: Icons.location_off_outlined,
+        // A 404 is a "nothing to track yet" state — use a neutral box icon
+        // rather than the GPS-lost crosshair so it doesn't read as a fault.
+        icon: isNotFound
+            ? Icons.inbox_outlined
+            : Icons.location_off_outlined,
         onRetry: onRetry,
         retryLabel: l10n.trackingGpsLostRetry,
       ),

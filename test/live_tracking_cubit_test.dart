@@ -51,6 +51,39 @@ void main() {
     await cubit.close();
   });
 
+  test(
+      'S9: a 404 (delivery not found) emits a distinct error state with a '
+      'title, never crashes', () async {
+    // A genuine 404 — e.g. tracking opened with a request id instead of the
+    // server delivery id, or the accept-minted delivery not yet propagated.
+    when(() => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
+        .thenThrow(const LiveTrackingException(LiveTrackingErrorKind.notFound));
+
+    final cubit = _cubit();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.state.mode, LiveTrackingViewMode.error);
+    // Distinct from the generic server/network error: it carries a heading and
+    // a calmer "not found yet" message rather than "Server error".
+    expect(cubit.state.errorTitle, 'Delivery not found');
+    expect(cubit.state.errorMessage, isNot(contains('Server error')));
+    expect(cubit.state.errorMessage, contains("can't find this delivery"));
+    await cubit.close();
+  });
+
+  test('S9: a generic server error carries no errorTitle', () async {
+    when(() => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
+        .thenThrow(const LiveTrackingException(LiveTrackingErrorKind.server));
+
+    final cubit = _cubit();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(cubit.state.mode, LiveTrackingViewMode.error);
+    expect(cubit.state.errorTitle, isNull);
+    expect(cubit.state.errorMessage, 'Server error. Please try again.');
+    await cubit.close();
+  });
+
   test('emits jeeberOnTheWay event on inTransit transition', () async {
     var callCount = 0;
     when(() => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))

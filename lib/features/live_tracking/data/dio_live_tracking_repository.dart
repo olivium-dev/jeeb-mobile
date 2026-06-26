@@ -36,12 +36,21 @@ class DioLiveTrackingRepository implements LiveTrackingRepository {
       }
       return DeliveryTrackingInfo.fromDeliveryJson(deliveryId, data);
     } on DioException catch (e) {
-      throw LiveTrackingException(
-        e.response == null
-            ? LiveTrackingErrorKind.network
-            : LiveTrackingErrorKind.server,
-        e,
-      );
+      // S9 live-tracking fix: a 404 means the delivery row was not found —
+      // typically the surface was opened with a request id instead of the
+      // server delivery id (`delivery-<offerId>`), or the accept-minted row has
+      // not propagated yet. Map it to a dedicated kind so the screen renders a
+      // distinct empty/error state with a retry instead of a generic
+      // "Server error".
+      final LiveTrackingErrorKind kind;
+      if (e.response == null) {
+        kind = LiveTrackingErrorKind.network;
+      } else if (e.response!.statusCode == 404) {
+        kind = LiveTrackingErrorKind.notFound;
+      } else {
+        kind = LiveTrackingErrorKind.server;
+      }
+      throw LiveTrackingException(kind, e);
     } on FormatException catch (e) {
       throw LiveTrackingException(LiveTrackingErrorKind.parse, e);
     }

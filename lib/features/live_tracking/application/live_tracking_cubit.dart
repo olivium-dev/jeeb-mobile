@@ -45,6 +45,7 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
           emit(state.copyWith(
             mode: LiveTrackingViewMode.error,
             errorMessage: _mapError(e.kind),
+            errorTitle: _mapErrorTitle(e.kind),
           ));
         }
       }
@@ -87,8 +88,27 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
         return 'Unable to connect. Check your internet.';
       case LiveTrackingErrorKind.server:
         return 'Server error. Please try again.';
+      case LiveTrackingErrorKind.notFound:
+        // S9 live-tracking fix: a 404 is a genuine "no delivery to track yet"
+        // state, not a server fault. Keep it calm and offer a retry (the
+        // accept-minted delivery may still be propagating).
+        return "We can't find this delivery yet. It may still be getting "
+            'ready — pull to retry in a moment.';
       case LiveTrackingErrorKind.parse:
         return 'Unexpected response format.';
+    }
+  }
+
+  /// A distinct heading for the 404 empty/error state; null for the generic
+  /// errors (which read fine with just a message).
+  String? _mapErrorTitle(LiveTrackingErrorKind kind) {
+    switch (kind) {
+      case LiveTrackingErrorKind.notFound:
+        return 'Delivery not found';
+      case LiveTrackingErrorKind.network:
+      case LiveTrackingErrorKind.server:
+      case LiveTrackingErrorKind.parse:
+        return null;
     }
   }
 

@@ -51,9 +51,19 @@ class InProgressTab extends StatelessWidget {
     BuildContext context,
     ClientHomeRequest request,
   ) {
+    // S9 live-tracking fix: open tracking with the SERVER delivery id
+    // (`delivery-<offerId>`), not the request id — `GET /v1/delivery/<id>`
+    // 404s on a request id. The router reads `?deliveryId=` in preference to
+    // the path `:id` (app_router live-tracking route). When the gateway list
+    // item carries no distinct delivery id, [ClientHomeRequest.trackingId]
+    // falls back to `id` and we omit the query param.
     GoRouter.of(context).pushNamed(
       'live-tracking',
-      pathParameters: {'id': request.id},
+      pathParameters: {'id': request.trackingId},
+      queryParameters: {
+        if (request.deliveryId != null && request.deliveryId!.isNotEmpty)
+          'deliveryId': request.deliveryId!,
+      },
     );
   }
 
