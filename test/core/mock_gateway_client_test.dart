@@ -9,7 +9,7 @@
 // `--dart-define=JEEB_USE_MOCK_PREFIXES=true`.
 //
 // Tests run with NO dart-define, so they exercise the default (live) seam:
-//   1. mockBaseUrl defaults to the host LAN IP on :4010.
+//   1. mockBaseUrl defaults to localhost on :4010 (LAN IP scrubbed in Sprint 2).
 //   2. useMockPrefixes defaults to FALSE (live-gateway / device default).
 //   3. webSocketUrl targets the live realtime service (:5804 /socket/websocket).
 //   4. rewritePath is a PASS-THROUGH for the default build — the very property
@@ -23,11 +23,11 @@ import 'package:jeeb_mobile/core/network/mock_gateway_client.dart';
 
 void main() {
   group('MockGatewayClient config (W-1 foundation)', () {
-    test('mockBaseUrl defaults to the host LAN IP on port 4010 (#37)', () {
-      // #37: default swapped from the Android-emulator-only 10.0.2.2 loopback
-      // to the host LAN IP so iOS sims and physical devices reach the mock
-      // out of the box.
-      expect(MockGatewayClient.mockBaseUrl, 'http://192.168.2.33:4010');
+    test('mockBaseUrl defaults to localhost on port 4010 (#37)', () {
+      // #37 originally swapped the default to a host LAN IP; Sprint 2 scrubbed
+      // the hardcoded LAN IP back to `localhost` so the default carries no
+      // machine-specific address (overridable via --dart-define=JEEB_MOCK_BASE_URL).
+      expect(MockGatewayClient.mockBaseUrl, 'http://localhost:4010');
     });
 
     test('useMockPrefixes defaults to false (live-gateway / device default)',
