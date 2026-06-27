@@ -16,12 +16,71 @@ import 'push_transport.dart';
 /// will throw if it's an instance method or anonymous closure.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // The background isolate is short-lived and has no UI; the only
-  // meaningful work is letting the OS know we handled the wakeup. The
-  // actual display path is owned by Android's NotificationManager via
-  // the FCM SDK when `notification` is present in the payload.
   if (kDebugMode) {
     debugPrint('[push] background message: ${message.messageId}');
+  }
+  // When jeeb-gateway sends a NOTIFICATION block (its EventPushNotifier path
+  // does, via `messaging.Notification(title, body)`), Android's
+  // NotificationManager renders the system-tray entry itself while the app is
+  // backgrounded/terminated — rendering again here would DOUBLE-notify the
+  // recipient. So only render for a DATA-ONLY message (no notification block),
+  // which keeps the closed-app heads-up working if/when a future event push is
+  // sent data-only. Best-effort: this MUST never throw out of the background
+  // isolate, so the whole render is guarded.
+  if (message.notification != null) return;
+  await _renderDataOnlyBackgroundNotification(message);
+}
+
+/// Renders a heads-up local notification for a DATA-ONLY background push.
+///
+/// The background isolate has its own memory, so the local-notifications
+/// plugin and the Android channel must be (re)initialised here — they are not
+/// shared with the foreground [FirebaseMessagingTransport] instance. iOS
+/// surfaces data-only pushes via its own mechanism, so this is Android-only.
+@pragma('vm:entry-point')
+Future<void> _renderDataOnlyBackgroundNotification(
+  RemoteMessage message,
+) async {
+  if (!Platform.isAndroid) return;
+  try {
+    final data = message.data;
+    final title = (data['title'] ?? 'New notification').toString();
+    final body = (data['body'] ?? '').toString();
+    if (title.isEmpty && body.isEmpty) return;
+
+    final plugin = FlutterLocalNotificationsPlugin();
+    await plugin.initialize(
+      const InitializationSettings(
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      ),
+    );
+    final androidImpl = plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await androidImpl?.createNotificationChannel(jeebDefaultChannel);
+
+    final tag = message.messageId ??
+        data['messageId'] ??
+        '${DateTime.now().microsecondsSinceEpoch}';
+    await plugin.show(
+      tag.hashCode,
+      title,
+      body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          jeebDefaultChannel.id,
+          jeebDefaultChannel.name,
+          channelDescription: jeebDefaultChannel.description,
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+      ),
+      payload: tag,
+    );
+  } catch (e) {
+    // Swallow — a background-isolate failure must not crash the wakeup.
+    if (kDebugMode) {
+      debugPrint('[push] data-only background render failed: $e');
+    }
   }
 }
 
@@ -175,7 +234,11 @@ class FirebaseMessagingTransport implements PushTransport {
     return NotificationMessage(
       id: message.messageId ??
           'fcm-${DateTime.now().microsecondsSinceEpoch}',
-      category: NotificationCategory.fromKey(data['category']),
+      // Resolve from the full data map: jeeb-gateway event pushes carry the
+      // discriminator on `type` (e.g. `type=chat`), not `category`. Using
+      // `fromData` is what stops a chat push being bucketed as `other` and
+      // becoming un-routable on tap.
+      category: NotificationCategory.fromData(data),
       title: message.notification?.title ?? data['title'] ?? '',
       body: message.notification?.body ?? data['body'] ?? '',
       receivedAt: message.sentTime ?? DateTime.now(),

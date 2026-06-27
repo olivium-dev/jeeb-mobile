@@ -11,17 +11,33 @@ import 'notification_message.dart';
 String? deepLinkForMessage(NotificationMessage message) {
   switch (message.category) {
     case NotificationCategory.delivery:
-      final id = message.data['delivery_id'] ?? message.data['order_id'];
+      // jeeb-gateway EventPushNotifier emits camelCase ids: a delivery-status
+      // push carries `deliveryId`; an offer / offer-accept push carries
+      // `requestId` (mock convention: deliveryId == accepted-request-id). The
+      // snake_case keys are kept for legacy/admin payloads.
+      final id = message.data['deliveryId'] ??
+          message.data['requestId'] ??
+          message.data['delivery_id'] ??
+          message.data['order_id'];
       if (id == null || id.isEmpty) return null;
       return '/orders/$id';
     case NotificationCategory.chat:
-      final id = message.data['chat_id'] ?? message.data['conversation_id'];
+      // jeeb-gateway chat fan-out push carries `conversationId` (camelCase).
+      // `/chat/:id` resolves its param as the conversation correlation key and
+      // degrades to using the id directly as the conversation id, so routing
+      // by `conversationId` lands on the ORIGINAL thread. snake_case + the
+      // legacy `chat_id` are accepted as fallbacks.
+      final id = message.data['conversationId'] ??
+          message.data['conversation_id'] ??
+          message.data['chat_id'];
       if (id == null || id.isEmpty) return null;
       return '/chat/$id';
     case NotificationCategory.kyc:
       return '/profile/kyc';
     case NotificationCategory.rating:
-      final id = message.data['delivery_id'] ?? message.data['order_id'];
+      final id = message.data['deliveryId'] ??
+          message.data['delivery_id'] ??
+          message.data['order_id'];
       if (id == null || id.isEmpty) return null;
       return '/orders/$id/rate';
     case NotificationCategory.settings:
