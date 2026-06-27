@@ -24,11 +24,19 @@ abstract class ChatGateway {
 
   /// Conversation phase ([ConversationPhase.broadcasting] / `accepted` /
   /// `closed`) the cubit needs to render the right UI shell (composer on/off,
-  /// offer-card list vs 1:1 timeline). Optional — gateways that don't carry
-  /// a phase (the MVP in-memory echo) can return [ConversationPhase.accepted]
-  /// to retain the existing 1:1 behaviour.
+  /// offer-card list vs 1:1 timeline).
+  ///
+  /// NEW-BUG-01 (Sprint-2 Contract 5c): the default MUST NOT claim
+  /// [ConversationPhase.accepted]. A hard-coded `accepted` default made the app
+  /// render the "Offer accepted! You are now chatting" banner + counterpart
+  /// header for a conversation that is still `broadcasting` (request pending, no
+  /// winner) — a false positive that let an acceptance run read success before
+  /// any offer was accepted. The safe default is `broadcasting`: compose/waiting
+  /// UI only, never a winner. The network gateway ([DioChatGateway]) overrides
+  /// this with a REAL read of the conversation aggregate; demo/fixture gateways
+  /// that genuinely model a 1:1 thread override it explicitly.
   Future<ConversationPhase> loadPhase(String conversationId) async =>
-      ConversationPhase.accepted;
+      ConversationPhase.broadcasting;
 
   /// Push an outgoing message. Returns the same message with its status
   /// promoted to at-least [MessageStatus.sent]; the caller swaps the optimistic

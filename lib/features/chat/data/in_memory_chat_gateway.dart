@@ -50,6 +50,16 @@ class InMemoryChatGateway extends ChatGateway {
     return const <DeliveryChatMessage>[];
   }
 
+  /// The in-memory echo demo models a genuine 1:1 thread (it is the legacy
+  /// photo-chat / no-backend MVP surface, not a broadcasting auction), so it
+  /// keeps the `accepted` 1:1 behaviour explicitly. NEW-BUG-01 moved the
+  /// ABSTRACT default to `broadcasting` to stop the network path falsely
+  /// claiming accepted; this controlled in-memory fixture opts back in to the
+  /// 1:1 shell on purpose — it can never produce a real-backend false positive.
+  @override
+  Future<ConversationPhase> loadPhase(String deliveryId) async =>
+      ConversationPhase.accepted;
+
   @override
   Future<DeliveryChatMessage> send(
     String deliveryId,
