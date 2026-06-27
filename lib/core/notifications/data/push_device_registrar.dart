@@ -4,6 +4,8 @@ import "package:dio/dio.dart";
 import "package:flutter/foundation.dart";
 import "package:flutter_secure_storage/flutter_secure_storage.dart";
 
+import "../../network/auth_token_store.dart";
+
 /// Registers this install's FCM token with jeeb-gateway so server-side
 /// events (delivery updates, chat, KYC, ratings) can target the device.
 ///
@@ -27,31 +29,63 @@ import "package:flutter_secure_storage/flutter_secure_storage.dart";
 /// survives app restarts (the backend keeps one live token per device, so a
 /// stable id avoids orphaning rows on each launch).
 ///
+/// IDENTITY (S0-PUSH-03 / S0-PUSH-04 — "keyed by the real UUID, kill the
+/// split-token-store"): the body carries NO userId — the gateway derives the
+/// owner SERVER-SIDE from the bearer JWT, so the token always lands under the
+/// authenticated session UUID, never a mock/hardcoded id. But the dedup that
+/// makes [register] idempotent must therefore be keyed by `(sessionUserId,
+/// token)`, NOT by the token alone. Two live-run defects this fixes:
+///   1. The FIRST register attempt on a fresh login runs BEFORE the OTP/super
+///      -login lands a bearer (the cold-start bootstrap fires pre-auth) — that
+///      attempt 401s under a null identity and is (correctly) not cached, but
+///      once the SAME token is re-offered post-auth the identity flips
+///      null -> real-UUID, so the key changes and the token is finally
+///      registered under the authenticated UUID instead of being skipped as
+///      "already sent".
+///   2. A second user signing in on the same install reuses the same stable
+///      FCM token; keying by token alone would SKIP their registration, so
+///      pushes for user B would keep targeting user A's server-side row (the
+///      split-token-store trap). Keying by `(userId, token)` re-registers the
+///      token under B.
+/// The session UUID is read from [AuthTokenStore] (the SAME keystore the bearer
+/// interceptor reads), never a `SessionSeamBootstrap` constant.
+///
 /// PII: the FCM token is a device identifier — it is NEVER logged. Only the
 /// HTTP status code (and exception type) is ever emitted, and only in debug.
 class PushDeviceRegistrar {
   PushDeviceRegistrar({
     required Dio dio,
     FlutterSecureStorage? storage,
+    AuthTokenStore? authTokenStore,
   })  : _dio = dio,
-        _storage = storage ?? const FlutterSecureStorage();
+        _storage = storage ?? const FlutterSecureStorage(),
+        _authTokenStore = authTokenStore ?? AuthTokenStore();
 
   final Dio _dio;
   final FlutterSecureStorage _storage;
+  final AuthTokenStore _authTokenStore;
 
   static const String _deviceIdKey = "push.deviceId";
   static const String _registerPath = "/v1/devices/register";
 
-  String? _lastRegisteredToken;
+  /// The `(sessionUserId, token)` pair last confirmed (2xx) with the gateway.
+  /// Keyed by identity so a login as a different user — or the first
+  /// authenticated offer of a token whose pre-auth attempt 401'd — is never
+  /// skipped as a duplicate (S0-PUSH-03).
+  String? _lastRegisteredKey;
 
-  /// Register (or refresh) [token] with the backend. Idempotent: a repeat
-  /// call with an unchanged token is skipped. Best-effort — a failure here
-  /// (not authenticated yet, transient network, Firebase not configured) never
+  /// Register (or refresh) [token] with the backend. Idempotent PER IDENTITY: a
+  /// repeat call with the same `(sessionUserId, token)` pair is skipped, but a
+  /// change in EITHER the token (rotation) or the authenticated user (login /
+  /// account switch) re-registers. Best-effort — a failure here (not
+  /// authenticated yet, transient network, Firebase not configured) never
   /// throws to the caller; it logs a status (never the token) and is retried on
-  /// the next bootstrap / token-refresh.
+  /// the next bootstrap / token-refresh / login.
   Future<void> register(String? token) async {
     if (token == null || token.isEmpty) return;
-    if (token == _lastRegisteredToken) return;
+    final userId = await _currentUserId();
+    final key = "${userId ?? ''}::$token";
+    if (key == _lastRegisteredKey) return;
     try {
       final deviceId = await _deviceId();
       final res = await _dio.post<dynamic>(
@@ -64,9 +98,9 @@ class PushDeviceRegistrar {
       );
       final code = res.statusCode ?? 0;
       if (code >= 200 && code < 300) {
-        _lastRegisteredToken = token;
+        _lastRegisteredKey = key;
         if (kDebugMode) {
-          // NEVER log the token value (PII). Status code only.
+          // NEVER log the token value or the userId (PII). Status code only.
           debugPrint("[push] device registered with gateway ($code)");
         }
       } else if (kDebugMode) {
@@ -85,6 +119,22 @@ class PushDeviceRegistrar {
       if (kDebugMode) {
         debugPrint("[push] device register error: ${e.runtimeType}");
       }
+    }
+  }
+
+  /// The authenticated session UUID this registration is keyed against, read
+  /// from the SAME [AuthTokenStore] the bearer interceptor reads. Returns
+  /// `null` when the user is not authenticated yet (pre-login bootstrap) or the
+  /// keystore is unavailable (e.g. the pure-Dart test VM) — a null identity is
+  /// a valid dedup key and is intentionally distinct from any real UUID, so the
+  /// first post-login offer of the same token re-registers it under the bearer.
+  Future<String?> _currentUserId() async {
+    try {
+      final id = await _authTokenStore.userId;
+      return (id != null && id.isNotEmpty) ? id : null;
+    } catch (_) {
+      // No keystore channel (test VM) / read failure -> treat as anonymous.
+      return null;
     }
   }
 
