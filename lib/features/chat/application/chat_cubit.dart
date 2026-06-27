@@ -169,7 +169,13 @@ class ChatCubit extends Cubit<ChatState> {
       final phase = results[1] as ConversationPhase;
       emit(
         state.copyWith(
-          messages: List.unmodifiable(history),
+          // Ordering (S0-CHAT-04): run the accept re-fetch through the SAME
+          // chronological sort the load/poll/WS paths use. A backend that
+          // returns the post-accept history unsorted (newest-first paging, or
+          // the system `offerAccepted` row appended out of band) would
+          // otherwise paint the timeline out of order on the very screen the
+          // accepted 1:1 chat lands on.
+          messages: _ordered(history),
           phase: phase,
           // Null when the gateway did not surface a delivery id — copyWith
           // keeps any id already captured (e.g. from a PhaseChanged event).
@@ -503,20 +509,29 @@ class ChatCubit extends Cubit<ChatState> {
     emit(state.copyWith(messages: List.unmodifiable(updated)));
   }
 
-  /// Stable chronological ordering (S0-CHAT-04). Returns an unmodifiable copy of
-  /// [input] sorted by server `created_at` (`sentAt`) ascending, breaking ties
-  /// by the message's existing position so equal-timestamped or same-instant
-  /// messages keep their arrival order (Dart's `List.sort` is NOT stable, so we
-  /// decorate with the original index). The contract's canonical timeline is
-  /// "oldest first, sorted by the server clock" — applied on every inbound merge
-  /// so live (WS), polled (HTTP), and reloaded order all agree.
+  /// Stable, deterministic chronological ordering (S0-CHAT-04). Returns an
+  /// unmodifiable copy of [input] sorted by the server `created_at` (`sentAt`)
+  /// ascending. Equal-`sentAt` ties break on the SERVER-STABLE message [id]
+  /// (the server sequence) — NOT on the client clock and NOT on arrival
+  /// position. This is the load-bearing fix: a tie-break by arrival index made
+  /// the rendered order depend on WHICH path a same-instant pair arrived by (WS
+  /// frame vs HTTP poll vs cold-load history), so the live order and the
+  /// reloaded order could disagree. Sorting equal timestamps by id makes the
+  /// timeline identical regardless of the transport. The original index is kept
+  /// only as a final, defensive tie-break for the impossible case of two equal
+  /// ids (Dart's `List.sort` is NOT stable). The contract's canonical timeline
+  /// is "oldest first, sorted by the server clock" — applied on every inbound
+  /// merge so live (WS), polled (HTTP), and reloaded order all agree.
   static List<DeliveryChatMessage> _ordered(List<DeliveryChatMessage> input) {
     final indexed = <MapEntry<int, DeliveryChatMessage>>[
       for (var i = 0; i < input.length; i++) MapEntry(i, input[i]),
     ];
     indexed.sort((a, b) {
       final byTime = a.value.sentAt.compareTo(b.value.sentAt);
-      return byTime != 0 ? byTime : a.key.compareTo(b.key);
+      if (byTime != 0) return byTime;
+      final byId = a.value.id.compareTo(b.value.id);
+      if (byId != 0) return byId;
+      return a.key.compareTo(b.key);
     });
     return List.unmodifiable(indexed.map((e) => e.value));
   }
