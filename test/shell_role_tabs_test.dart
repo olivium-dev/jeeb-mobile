@@ -8,16 +8,22 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:jeeb_mobile/core/di/injection_container.dart';
 import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
+import 'package:jeeb_mobile/core/role/role_availability_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_eligibility_cubit.dart';
-import 'package:jeeb_mobile/core/role/user_role.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/earnings/domain/earnings_repository.dart';
 import 'package:jeeb_mobile/features/earnings/domain/earnings_summary.dart';
 import 'package:jeeb_mobile/features/jeeber_home/domain/services/availability_gateway.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_repository.dart';
 import 'package:jeeb_mobile/features/shell/shell_screen.dart';
+import 'package:jeeb_mobile/features/shell/widgets/jeeber_tab_empty_state.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
+
+/// UX LAW (S0-E2E-08): the shell is ADDITIVE, not role-gated. Every user sees
+/// the same five destinations — Requests / Delivery / Dashboard / Earnings /
+/// Profile. A non-jeeber sees the jeeber tabs with EMPTY STATES; a jeeber sees
+/// their live bodies. There is NO role switch and NO disappearing tab set.
 
 class _StubEarningsRepository implements EarningsRepository {
   @override
@@ -72,13 +78,14 @@ void _loadArbFromDisk() {
 Widget _harness({
   required SharedPreferences prefs,
   Locale locale = const Locale('en'),
+  List<String>? availableRoles,
 }) {
-  // NOTE: the shell deliberately does NOT provide a global AvailabilityCubit.
-  // The Jeeber dashboard (DashboardTab) self-provides one from DI
-  // (sl<AvailabilityGateway>()), screen-scoped with its own idle ticker.
-  // This harness therefore registers the gateway in DI (see setUp) and does
-  // NOT inject a top-level cubit — matching production, so the role-switch
-  // path is exercised exactly as it runs on device.
+  // The shell deliberately does NOT provide a global AvailabilityCubit; the
+  // Jeeber dashboard (DashboardTab) self-provides one from DI. This harness
+  // therefore registers the gateway in DI (see setUp). [availableRoles], when
+  // supplied, provides a RoleAvailabilityCubit so the additive jeeber tabs
+  // render their LIVE bodies (when the list contains `jeeber`) vs the empty
+  // state (when it does not / the cubit is absent).
   return MultiBlocProvider(
     providers: [
       BlocProvider(
@@ -89,6 +96,11 @@ Widget _harness({
       ),
       BlocProvider(create: (_) => RoleCubit(prefs: prefs)),
       BlocProvider(create: (_) => RoleEligibilityCubit()),
+      if (availableRoles != null)
+        BlocProvider(
+          create: (_) =>
+              RoleAvailabilityCubit(RoleAvailability(roles: availableRoles)),
+        ),
     ],
     child: BlocBuilder<LocaleCubit, Locale>(
       builder: (context, l) => MaterialApp(
@@ -113,18 +125,14 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     sl.registerFactory<EarningsRepository>(() => _StubEarningsRepository());
-    // DashboardTab now self-provides AvailabilityCubit from DI, so the
-    // gateway it resolves must be registered — exactly as production does in
-    // injection_container.dart. An in-memory gateway keeps cold-start offline
-    // and deterministic.
+    // DashboardTab self-provides AvailabilityCubit from DI, so the gateway it
+    // resolves must be registered — exactly as production does. An in-memory
+    // gateway keeps cold-start offline and deterministic.
     sl.registerLazySingleton<AvailabilityGateway>(
       InMemoryAvailabilityGateway.new,
     );
-    // JEEBER-LOOP F3: DashboardTab now also self-provides a RequestFeedCubit
-    // from a DI-registered RequestFeedRepository (so the Jeeber home shows the
-    // active-delivery feed), so the repository it resolves must be registered
-    // here too. An empty seeded feed keeps this shell/role test focused on
-    // tab-swap behaviour.
+    // DashboardTab also self-provides a RequestFeedCubit from a DI-registered
+    // RequestFeedRepository; an empty seeded feed keeps the test focused.
     sl.registerLazySingleton<RequestFeedRepository>(
       () => SeededRequestFeedRepository(const []),
     );
@@ -134,35 +142,85 @@ void main() {
     await sl.reset();
   });
 
-  testWidgets('Client role shows Requests/DELIVERY/Profile tabs',
+  testWidgets('shell shows all five additive destinations for every user',
       (tester) async {
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(_harness(prefs: prefs));
     await tester.pumpAndSettle();
 
+    // The regular-user surfaces.
     expect(find.text('Requests'), findsWidgets);
     expect(find.text('Delivery'), findsWidgets);
     expect(find.text('Profile'), findsWidgets);
-    // Jeeber-only tabs must NOT be present.
-    expect(find.text('Dashboard'), findsNothing);
-    expect(find.text('Earnings'), findsNothing);
+    // The ADDITIVE jeeber tabs are present for a regular user too (UX LAW),
+    // never hidden behind a role switch.
+    expect(find.text('Dashboard'), findsWidgets);
+    expect(find.text('Earnings'), findsWidgets);
   });
 
-  testWidgets('Switching to jeeber swaps to Dashboard/Earnings/Profile',
+  testWidgets('non-jeeber sees the jeeber tabs as EMPTY STATES (no live body)',
+      (tester) async {
+    final prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(
+      _harness(prefs: prefs, availableRoles: const ['client']),
+    );
+    await tester.pumpAndSettle();
+
+    // Both jeeber tab bodies (Dashboard + Earnings) render the become-a-jeeber
+    // empty state. They are kept offstage by the shell's IndexedStack while
+    // another tab is selected, so include offstage in the match.
+    expect(
+      find.byType(JeeberTabEmptyState, skipOffstage: false),
+      findsNWidgets(2),
+    );
+    // ...and NOT the live jeeber dashboard.
+    expect(
+      find.byKey(const Key('dashboard-tab-root'), skipOffstage: false),
+      findsNothing,
+    );
+  });
+
+  testWidgets('jeeber sees the LIVE jeeber dashboard body (no empty state)',
+      (tester) async {
+    final prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(
+      _harness(prefs: prefs, availableRoles: const ['client', 'jeeber']),
+    );
+    await tester.pumpAndSettle();
+
+    // The live jeeber home is rendered (its root key is present in the
+    // additive Dashboard tab, kept offstage while Requests is selected) and
+    // the empty state is gone.
+    expect(
+      find.byKey(const Key('dashboard-tab-root'), skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(
+      find.byType(JeeberTabEmptyState, skipOffstage: false),
+      findsNothing,
+    );
+    // The tab set is unchanged — all five destinations are still present.
+    expect(find.text('Requests'), findsWidgets);
+    expect(find.text('Dashboard'), findsWidgets);
+    expect(find.text('Earnings'), findsWidgets);
+  });
+
+  testWidgets('switching the Jeeber tab into view does not change the tab set',
       (tester) async {
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(_harness(prefs: prefs));
     await tester.pumpAndSettle();
 
-    final BuildContext ctx = tester.element(find.byType(ShellScreen));
-    await ctx.read<RoleCubit>().setRole(UserRole.jeeber);
+    // Tap the additive Dashboard destination (index 2).
+    await tester.tap(find.text('Dashboard').last);
     await tester.pumpAndSettle();
 
+    // All five destinations are still present — additive, never swapped.
+    expect(find.text('Requests'), findsWidgets);
+    expect(find.text('Delivery'), findsWidgets);
     expect(find.text('Dashboard'), findsWidgets);
     expect(find.text('Earnings'), findsWidgets);
     expect(find.text('Profile'), findsWidgets);
-    expect(find.text('Requests'), findsNothing);
-    expect(find.text('Delivery'), findsNothing);
   });
 
   testWidgets('Arabic locale renders RTL bottom-nav labels in Arabic',
@@ -177,23 +235,5 @@ void main() {
 
     final BuildContext ctx = tester.element(find.byType(ShellScreen));
     expect(Directionality.of(ctx), TextDirection.rtl);
-  });
-
-  testWidgets('Role switch resets selected tab to 0 so we never land on a removed tab',
-      (tester) async {
-    final prefs = await SharedPreferences.getInstance();
-    await tester.pumpWidget(_harness(prefs: prefs));
-    await tester.pumpAndSettle();
-
-    // Tap the Delivery destination (client-only, index 1).
-    await tester.tap(find.text('Delivery').last);
-    await tester.pumpAndSettle();
-
-    final BuildContext ctx = tester.element(find.byType(ShellScreen));
-    await ctx.read<RoleCubit>().setRole(UserRole.jeeber);
-    await tester.pumpAndSettle();
-
-    // After switching to jeeber, tab 0 (Dashboard) should be active.
-    expect(find.byKey(const Key('dashboard-tab-root')), findsOneWidget);
   });
 }

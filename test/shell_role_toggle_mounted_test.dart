@@ -11,7 +11,6 @@ import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_availability_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_eligibility_cubit.dart';
-import 'package:jeeb_mobile/core/role/user_role.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/earnings/domain/earnings_repository.dart';
 import 'package:jeeb_mobile/features/earnings/domain/earnings_summary.dart';
@@ -19,11 +18,14 @@ import 'package:jeeb_mobile/features/jeeber_home/domain/services/availability_ga
 import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_repository.dart';
 import 'package:jeeb_mobile/features/settings/presentation/widgets/role_toggle_setting.dart';
 import 'package:jeeb_mobile/features/shell/shell_screen.dart';
+import 'package:jeeb_mobile/features/shell/widgets/jeeber_tab_empty_state.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
-/// DEFECT-C: the in-app role toggle must be MOUNTED and REACHABLE in the
-/// rendered shell's Profile tab for a dual-role user (and hidden for a
-/// single-role client), so they can switch client <-> jeeber via the UI.
+/// UX LAW (S0-E2E-08): the jeeber surfaces are ADDITIVE tabs, not a mode the
+/// user flips into. The in-app role *switch* (the old DEFECT-C [RoleToggleSetting]
+/// mounted in the Profile tab) is therefore REMOVED — neither a single-role
+/// client nor a dual-role user sees it. The dual-role user simply gets the LIVE
+/// jeeber tab bodies; the single-role user gets the same tabs with EMPTY STATES.
 
 class _StubEarningsRepository implements EarningsRepository {
   @override
@@ -114,7 +116,7 @@ void main() {
 
   tearDown(() async => sl.reset());
 
-  testWidgets('dual-role user sees the role toggle in the Profile tab',
+  testWidgets('dual-role user does NOT see a role toggle in the Profile tab',
       (tester) async {
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(
@@ -123,14 +125,11 @@ void main() {
     await tester.pumpAndSettle();
     await _openProfile(tester);
 
-    // The server-backed Active-Role toggle section is mounted and reachable.
-    expect(find.byKey(RoleToggleSetting.rootKey), findsOneWidget);
-    // Its Client/Jeeber segments are present (OmdsFilterChips labels).
-    expect(find.widgetWithText(RoleToggleSetting, 'Jeeber'), findsOneWidget);
-    expect(find.widgetWithText(RoleToggleSetting, 'Client'), findsOneWidget);
+    // The role SWITCH is gone (UX LAW: additive tabs, no mode flip).
+    expect(find.byKey(RoleToggleSetting.rootKey), findsNothing);
   });
 
-  testWidgets('single-role client does NOT see the role toggle',
+  testWidgets('single-role client does NOT see a role toggle either',
       (tester) async {
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(
@@ -142,7 +141,7 @@ void main() {
     expect(find.byKey(RoleToggleSetting.rootKey), findsNothing);
   });
 
-  testWidgets('toggling to jeeber flips the shell to the jeeber surface',
+  testWidgets('dual-role user gets the LIVE jeeber tab bodies (no empty state)',
       (tester) async {
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(
@@ -150,25 +149,36 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Start on client surface.
-    expect(find.text('Requests'), findsWidgets);
-
-    await _openProfile(tester);
-    // Tap the Jeeber segment of the mounted Active-Role toggle. Scope the text
-    // finder to the toggle section so we hit the chip itself, not the bottom
-    // bar "Jeeber"-less labels.
-    final jeeberChip = find.descendant(
-      of: find.byKey(RoleToggleSetting.rootKey),
-      matching: find.text('Jeeber'),
+    // The additive Dashboard tab is kept offstage while Requests is selected,
+    // so include offstage in the match.
+    expect(
+      find.byKey(const Key('dashboard-tab-root'), skipOffstage: false),
+      findsOneWidget,
     );
-    expect(jeeberChip, findsOneWidget);
-    await tester.tap(jeeberChip);
+    expect(
+      find.byType(JeeberTabEmptyState, skipOffstage: false),
+      findsNothing,
+    );
+  });
+
+  testWidgets('single-role client gets the jeeber tabs as EMPTY STATES',
+      (tester) async {
+    final prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(
+      _harness(prefs: prefs, availableRoles: const ['client']),
+    );
     await tester.pumpAndSettle();
 
-    final ctx = tester.element(find.byType(ShellScreen));
-    expect(ctx.read<RoleCubit>().state, UserRole.jeeber);
-    // Shell rebuilt onto the jeeber tab-set.
-    expect(find.text('Dashboard'), findsWidgets);
-    expect(find.text('Earnings'), findsWidgets);
+    // Both additive jeeber tab bodies (Dashboard + Earnings) show the
+    // become-a-jeeber empty state; the live dashboard is absent. They are kept
+    // offstage by the IndexedStack while Requests is selected.
+    expect(
+      find.byType(JeeberTabEmptyState, skipOffstage: false),
+      findsNWidgets(2),
+    );
+    expect(
+      find.byKey(const Key('dashboard-tab-root'), skipOffstage: false),
+      findsNothing,
+    );
   });
 }
