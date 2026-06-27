@@ -4,7 +4,7 @@
 /// gateway host and the mock toggle are never hard-coded in the binary and
 /// can be flipped per build/CI lane:
 ///
-///   --dart-define=GATEWAY_BASE_URL=https://api.jeeb.app/v1
+///   --dart-define=GATEWAY_BASE_URL=https://api.jeeb.app   # ORIGIN ONLY, no /v1
 ///   --dart-define=USE_MOCK_GATEWAY=true   # local Express-mock dev only
 ///
 /// The defaults are production-safe: a release/device build with no defines
@@ -14,9 +14,21 @@ class AppConfig {
 
   /// Base URL of the live jeeb-gateway BFF. The app speaks ONLY to the gateway
   /// (never a backend service directly). Defaults to the production gateway.
+  ///
+  /// FROZEN (ARCH-01 / INFRA-01): this is ORIGIN-ONLY — scheme + host + (port),
+  /// with NO `/v1` path segment and NO trailing slash. Every feature request
+  /// path carries its own single `/v1` (e.g. `/v1/users/me`,
+  /// `/v1/jeebers/me/availability`), so Dio's `baseUrl + path` concatenation
+  /// yields exactly one `/v1`. The prior default (`https://api.jeeb.app/v1`)
+  /// doubled it to `/v1/v1/...` against the real gateway — the S16 availability
+  /// NO-GO root cause — and only escaped notice because the mock base is
+  /// origin-only. Keep this origin-only; never re-add `/v1` here. The anti-drift
+  /// contract test (`test/core/config/base_url_convention_test.dart`) asserts
+  /// this default does NOT end in `/v1` and that a representative resolved URL
+  /// contains exactly one `/v1`.
   static const String gatewayBaseUrl = String.fromEnvironment(
     'GATEWAY_BASE_URL',
-    defaultValue: 'https://api.jeeb.app/v1',
+    defaultValue: 'https://api.jeeb.app',
   );
 
   /// When `true`, DI registers the local Express-mock-backed [Dio] client
