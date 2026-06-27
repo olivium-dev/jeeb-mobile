@@ -1,0 +1,68 @@
+import 'package:dio/dio.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/config/app_config.dart';
+
+/// ANTI-DRIFT contract for ARCH-01 / INFRA-01 (the S16 `/v1/v1` doubling NO-GO).
+///
+/// FROZEN convention: `AppConfig.gatewayBaseUrl` is ORIGIN-ONLY (scheme + host +
+/// port, NO `/v1`, no trailing slash) and EVERY request path carries exactly one
+/// `/v1`. Dio merges `baseUrl + path`, so this yields exactly one `/v1` per URL.
+///
+/// Guard proof (per the lessons honesty rule — a test must catch the bug):
+///   * revert the default to `https://api.jeeb.app/v1` → the "does not end in
+///     /v1" assertion FAILS and the resolved URLs gain a second `/v1` → the
+///     "exactly one /v1" assertions FAIL.
+///   * restore origin-only → all PASS.
+int _countV1(String url) => '/v1'.allMatches(url).length;
+
+/// Resolves the full URL Dio would request for [path] under the configured
+/// origin-only base, exactly as the real client does (`baseUrl + path`).
+String _resolve(String path) =>
+    RequestOptions(baseUrl: AppConfig.gatewayBaseUrl, path: path)
+        .uri
+        .toString();
+
+void main() {
+  group('ARCH-01/INFRA-01 base-URL convention', () {
+    test('gatewayBaseUrl is origin-only — does NOT end in /v1 or a slash', () {
+      expect(
+        AppConfig.gatewayBaseUrl.endsWith('/v1'),
+        isFalse,
+        reason: 'Base must be origin-only; the /v1 belongs on each path. '
+            'A /v1 here doubles to /v1/v1 (the S16 availability NO-GO).',
+      );
+      expect(
+        AppConfig.gatewayBaseUrl.endsWith('/'),
+        isFalse,
+        reason: 'Base must have no trailing slash.',
+      );
+      expect(AppConfig.gatewayBaseUrl, 'https://api.jeeb.app');
+    });
+
+    test('representative core-flow paths resolve to exactly one /v1', () {
+      const paths = <String>[
+        '/v1/users/me',
+        '/v1/jeebers/me/availability',
+        '/v1/auth/otp/request',
+        '/v1/requests',
+        '/v1/offers',
+        '/v1/conversations',
+      ];
+      for (final path in paths) {
+        final url = _resolve(path);
+        expect(
+          _countV1(url),
+          1,
+          reason: 'Expected exactly one /v1 in "$url" (base + path = "$path").',
+        );
+        expect(url.contains('/v1/v1'), isFalse, reason: 'No doubling in $url.');
+      }
+    });
+
+    test('me-scoped availability route carries no userId and one /v1', () {
+      final url = _resolve('/v1/jeebers/me/availability');
+      expect(url, 'https://api.jeeb.app/v1/jeebers/me/availability');
+      expect(url.contains('user-jeeber-002'), isFalse);
+    });
+  });
+}

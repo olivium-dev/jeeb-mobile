@@ -32,7 +32,7 @@ class DioAccountService implements AccountService {
       final userId = await _tokenStore.userId;
       if (userId == null) return AccountActionOutcome.networkError;
       await _dio.patch<void>(
-        '/users/$userId/status',
+        '/v1/users/$userId/status',
         data: const <String, dynamic>{'status': 'deleted'},
       );
       return AccountActionOutcome.success;

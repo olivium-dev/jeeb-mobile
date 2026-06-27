@@ -7,7 +7,7 @@
 //                              requestId, conversationId fallback
 //   * GET /v1/requests/:id   → conversationId + item/price fallback
 //   * GET /v1/offers?req=    → accepted-offer etaMinutes (delivery row omits it)
-//   * GET /users/:jeeberId   → jeeber rating + ratingCount (D6)
+//   * GET /v1/users/:jeeberId → jeeber rating + ratingCount (D6)
 // Plus failure mapping: 404 → notFound, connectionError → network. Secondary
 // (enrichment) fetches NEVER fail the summary — a thrown request/offer/user
 // fetch still yields the core delivery-derived fields.
@@ -106,7 +106,7 @@ void main() {
       if (path == '/v1/requests/req-client-001-accepted') {
         return _ok(_requestRow());
       }
-      if (path == '/users/user-jeeber-002') {
+      if (path == '/v1/users/user-jeeber-002') {
         return _ok(_userRow());
       }
       throw _dio(404);

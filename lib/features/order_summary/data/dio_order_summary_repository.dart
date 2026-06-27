@@ -53,7 +53,8 @@ class DioOrderSummaryRepository implements OrderSummaryRepository {
     // Best-effort enrichment — none of these may fail the whole summary.
     final request = await _tryFetch('/v1/requests/$requestId');
     final acceptedEta = await _tryAcceptedOfferEta(requestId);
-    final jeeber = jeeberId == null ? null : await _tryFetch('/users/$jeeberId');
+    final jeeber =
+        jeeberId == null ? null : await _tryFetch('/v1/users/$jeeberId');
 
     final conversationId = _str(
           delivery['conversationId'] ??

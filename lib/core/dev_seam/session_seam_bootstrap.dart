@@ -186,10 +186,21 @@ class SessionSeamBootstrap {
           // '<JWT>'` and is NEVER baked into the binary.
           //
           // Falls back gracefully: if the token extra is absent (empty), the seam
-          // completes onboarding + role but writes no token → the router lands on
+          // completes onboarding but writes no token → the router lands on
           // `/login` (the user sees the login screen rather than crashing).
+          //
+          // S0-SEAM-03 / ARCH-07: this is a REAL-GATEWAY path (it writes a real
+          // bearer the app uses for live `/v1/*` calls), so the active role MUST
+          // come from `getMe.active_role` via `RoleSync` — NOT a manual
+          // `flutter.app.role` flip. Previously this hard-pinned
+          // `UserRole.client`, so a jeeber super-login landed on the CLIENT shell
+          // and only flipped after a background/foreground cycle. We now leave the
+          // role pref UNSET: `RoleCubit` defaults to `client` transiently, then
+          // `RoleSync.sync()` (fired by `app.dart` the moment the session goes
+          // authenticated) adopts the server's `active_role` — landing a jeeber in
+          // the JEEBER shell. `_devSeamRole`/`_seamPinsRole` is null for this seam
+          // (it is not a `hasFeed` capture), so RoleSync is free to reconcile.
           await _completeOnboarding(prefs);
-          await _setRole(prefs, UserRole.client);
           final realToken = DevSeam.current.superLoginToken;
           if (realToken.isNotEmpty) {
             final refreshToken = DevSeam.current.superLoginRefreshToken

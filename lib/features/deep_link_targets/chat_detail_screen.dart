@@ -294,7 +294,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     if (winnerId != null && winnerId.isNotEmpty) {
       try {
         final resp = await dio.get<Map<String, dynamic>>(
-          '/users/$winnerId',
+          '/v1/users/$winnerId',
         );
         return resp.data?['name'] as String? ?? '';
       } on DioException {
