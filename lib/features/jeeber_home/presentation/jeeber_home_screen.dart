@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
-import '../../../core/dev_seam/session_seam_bootstrap.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../jeeber_request_feed/cubit/request_feed_cubit.dart';
 import '../../jeeber_request_feed/cubit/request_feed_state.dart';
@@ -130,11 +129,10 @@ class _JeeberHomeScreenState extends State<JeeberHomeScreen> {
     if (factory != null) {
       _submittedOffersCubit = factory();
     } else if (sl.isRegistered<Dio>()) {
+      // S0-OAD-03: the repo resolves the REAL authenticated session jeeber id
+      // from AuthTokenStore — never a hardcoded `user-jeeber-002` fixture id.
       _submittedOffersCubit = SubmittedOffersCubit(
-        repository: DioSubmittedOffersRepository(
-          dio: sl<Dio>(),
-          jeeberId: SessionSeamBootstrap.jeeberUserId,
-        ),
+        repository: DioSubmittedOffersRepository(dio: sl<Dio>()),
       );
     }
     return _submittedOffersCubit;
