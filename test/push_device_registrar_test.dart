@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/network/auth_token_store.dart';
 import 'package:jeeb_mobile/core/notifications/data/push_device_registrar.dart';
 
 /// Stub Dio that records the last POST and returns a canned response/error.
@@ -172,5 +173,85 @@ void main() {
     dio.nextResponse = _ok();
     await sut.register('token-x');
     expect(dio.calls, 2);
+  });
+
+  group('identity-keyed dedup (S0-PUSH-03 / S0-PUSH-04)', () {
+    // The body NEVER carries a userId — the gateway derives the owner from the
+    // bearer. These tests prove the CLIENT-SIDE dedup is keyed by the real
+    // session UUID so a token is (re)registered under the authenticated user,
+    // never skipped because a *different* identity already sent it.
+
+    test(
+        'the register body never carries a userId — identity is server-derived '
+        'from the bearer, never a mock/hardcoded id', () async {
+      final storage = _FakeSecureStorage();
+      await storage.write(key: 'auth.userId', value: 'uuid-real');
+      final sut = PushDeviceRegistrar(
+        dio: dio,
+        storage: storage,
+        authTokenStore: AuthTokenStore(storage: storage),
+      );
+      dio.nextResponse = _ok();
+
+      await sut.register('fcm-token');
+
+      expect(dio.lastData!.containsKey('userId'), isFalse);
+      expect(dio.lastData!.keys, containsAll(['fcmToken', 'platform', 'deviceId']));
+    });
+
+    test(
+        're-registers the SAME token under the authenticated UUID after a '
+        'pre-auth attempt (kills the "already sent" skip on fresh login)',
+        () async {
+      final storage = _FakeSecureStorage();
+      final tokenStore = AuthTokenStore(storage: storage);
+      final sut = PushDeviceRegistrar(
+        dio: dio,
+        storage: storage,
+        authTokenStore: tokenStore,
+      );
+      dio.nextResponse = _ok();
+
+      // Pre-auth bootstrap: no session UUID yet. Registers under the anonymous
+      // (null) identity key.
+      await sut.register('fcm-stable');
+      expect(dio.calls, 1);
+
+      // Login lands the real UUID in the same keystore the bearer reads.
+      await storage.write(key: 'auth.userId', value: 'uuid-after-login');
+
+      // Re-bootstrap offers the UNCHANGED token. Token-only dedup would skip
+      // this — the identity flipped null -> uuid, so it MUST re-register so the
+      // server-side row is keyed by the authenticated UUID.
+      await sut.register('fcm-stable');
+      expect(dio.calls, 2);
+      expect(dio.lastData!['fcmToken'], 'fcm-stable');
+    });
+
+    test(
+        'a second user on the same install re-registers the shared token '
+        '(no split-token-store leak to the first user)', () async {
+      final storage = _FakeSecureStorage();
+      await storage.write(key: 'auth.userId', value: 'uuid-A');
+      final sut = PushDeviceRegistrar(
+        dio: dio,
+        storage: storage,
+        authTokenStore: AuthTokenStore(storage: storage),
+      );
+      dio.nextResponse = _ok();
+
+      await sut.register('shared-fcm');
+      expect(dio.calls, 1);
+
+      // Same token is idempotent for the SAME user.
+      await sut.register('shared-fcm');
+      expect(dio.calls, 1);
+
+      // User B signs in on the same device (same stable FCM token). Must
+      // re-register so pushes for B target B's row, not A's.
+      await storage.write(key: 'auth.userId', value: 'uuid-B');
+      await sut.register('shared-fcm');
+      expect(dio.calls, 2);
+    });
   });
 }

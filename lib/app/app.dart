@@ -286,8 +286,30 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     final session = _ownedSession;
     if (session == null) return;
     _sessionSub = session.stream.listen((state) {
-      if (state.isAuthenticated) _syncRole();
+      if (state.isAuthenticated) {
+        _syncRole();
+        // S0-PUSH-04: the FCM device-register hop must run UNDER the real
+        // session UUID. The cold-start push bootstrap fires pre-auth, so on a
+        // fresh OTP/super-login the first register attempt 401s under a null
+        // identity and never lands. Re-running [bootstrap] on the
+        // authenticated transition re-offers the (unchanged) FCM token now that
+        // the bearer exists; the registrar's identity-keyed dedup lets it
+        // through and the token is registered under the authenticated UUID.
+        // Idempotent for an already-registered identity (registrar skips), and
+        // null-safe before the push chain has built.
+        _reRegisterPushDeviceForSession();
+      }
     });
+  }
+
+  /// S0-PUSH-04: re-fetch + re-register the FCM token after login so the
+  /// device-register lands under the authenticated session UUID. No-op until
+  /// [_initPushChain] has built the handler (the cold-start bootstrap covers
+  /// the already-authenticated returning-user case).
+  void _reRegisterPushDeviceForSession() {
+    final handler = _pushHandler;
+    if (handler == null) return;
+    unawaited(handler.bootstrap());
   }
 
   /// DEFECT-C: re-sync the role on app-resume so a role switched on another
