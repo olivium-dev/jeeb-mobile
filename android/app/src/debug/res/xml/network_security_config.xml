@@ -8,7 +8,7 @@
       Express mock on :4010.
     - 192.168.2.39 (MSI native backend, S16): the dev-debug acceptance build
       targets the native jeeb-gateway on the LAN host over plain HTTP
-      (--dart-define=GATEWAY_BASE_URL=http://192.168.2.39:10090,
+      (dart-define GATEWAY_BASE_URL=http://192.168.2.39:10090,
        USE_MOCK_GATEWAY=false). The MSI host serves the raw gateway contract
       (/v1/auth/otp/*, /v1/deliveries, /v1/devices/register, /api/User/*) over
       cleartext on the private network; without this entry every gateway call
