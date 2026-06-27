@@ -1,0 +1,125 @@
+import 'dart:async';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:jeeb_mobile/app/app.dart';
+import 'package:jeeb_mobile/core/notifications/data/push_transport.dart';
+import 'package:jeeb_mobile/core/session/session_gate.dart';
+
+import 'support/sync_app_localizations.dart';
+
+/// S14 cold-start init-ordering regression.
+///
+/// The bug: `_initPushChainAsync` constructed/initialized the real
+/// [FirebaseMessagingTransport] (whose ctor reaches `FirebaseMessaging.instance`
+/// → `Firebase.app()`) BEFORE the deferred `Firebase.initializeApp()` had
+/// completed. On a cold/slow boot that threw `[core/no-app]`, the catch silently
+/// degraded to [FakePushTransport], and the app got no real FCM token and
+/// received no push.
+///
+/// These tests pin the ordering through the [JeebApp.firebaseInitializer] and
+/// [JeebApp.fcmTransportBuilder] seams: the FCM transport must NOT be built
+/// until the Firebase-init guard has resolved. The first test FAILS against the
+/// pre-fix ordering (transport built immediately, before the guard) and PASSES
+/// once the chain awaits the guard first.
+void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'app.onboarding.completed': true,
+    });
+  });
+
+  testWidgets(
+      'push chain does NOT build the FCM transport until Firebase init completes',
+      (tester) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // The deferred Firebase.initializeApp() future, held open by the test.
+    final firebaseGate = Completer<void>();
+    var firebaseInitialized = false;
+
+    // Observes WHEN the FCM transport is constructed relative to Firebase init.
+    var builderCalled = false;
+    var builtBeforeFirebaseInit = false;
+
+    await tester.pumpWidget(
+      JeebApp(
+        preferences: prefs,
+        localizationsDelegateOverride: const SyncAppLocalizationsDelegate(),
+        sessionGate: const AlwaysAuthenticatedSessionGate(),
+        // pushTransport intentionally NOT injected → exercises the real FCM
+        // branch of _initPushChainAsync.
+        firebaseInitializer: () =>
+            firebaseGate.future.then((_) => firebaseInitialized = true),
+        fcmTransportBuilder: () async {
+          builderCalled = true;
+          // Models the `[core/no-app]` precondition: building the FCM transport
+          // before Firebase init is the defect.
+          if (!firebaseInitialized) builtBeforeFirebaseInit = true;
+          return FakePushTransport(token: 'fcm-real-token');
+        },
+      ),
+    );
+
+    // first frame → schedules the post-frame _initPushChain.
+    await tester.pump();
+    // run the post-frame callback + start _initPushChainAsync.
+    await tester.pump();
+
+    // CORE ORDERING ASSERTION: with Firebase init still pending, the FCM
+    // transport must not have been built yet. Pre-fix, the chain builds it
+    // immediately and this fails.
+    expect(
+      builderCalled,
+      isFalse,
+      reason: 'FCM transport was constructed before Firebase init resolved',
+    );
+
+    // Resolve the deferred Firebase init, then let the chain continue.
+    firebaseGate.complete();
+    await tester.pump();
+    await tester.pump();
+
+    // Now the transport is built — and only after Firebase init.
+    expect(builderCalled, isTrue,
+        reason: 'FCM transport should be built once Firebase init completed');
+    expect(
+      builtBeforeFirebaseInit,
+      isFalse,
+      reason: 'transport must be built strictly AFTER Firebase init',
+    );
+
+    // Drain the client-home snapshot timer (150ms in-memory load) the
+    // authenticated shell schedules, so the binding tears down cleanly.
+    await tester.pump(const Duration(milliseconds: 250));
+  });
+
+  testWidgets(
+      'a genuine FCM build failure still degrades to the fake fallback',
+      (tester) async {
+    // Guards the catch-branch: the fix must not remove the legitimate
+    // FakePushTransport fallback for real errors (only stop it firing merely
+    // because init had not finished yet).
+    final prefs = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(
+      JeebApp(
+        preferences: prefs,
+        localizationsDelegateOverride: const SyncAppLocalizationsDelegate(),
+        sessionGate: const AlwaysAuthenticatedSessionGate(),
+        firebaseInitializer: () async {}, // resolves immediately
+        fcmTransportBuilder: () async =>
+            throw StateError('simulated FCM bridge failure'),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump();
+    // Drain the client-home snapshot timer the authenticated shell schedules.
+    await tester.pump(const Duration(milliseconds: 250));
+
+    // No exception escaped the chain; the app survived a genuine FCM failure.
+    expect(tester.takeException(), isNull);
+  });
+}
