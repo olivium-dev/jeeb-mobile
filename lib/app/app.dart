@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -65,6 +66,8 @@ class JeebApp extends StatefulWidget {
     this.biometricGateway,
     this.localizationsDelegateOverride,
     this.sessionGate,
+    this.firebaseInitializer,
+    this.fcmTransportBuilder,
   });
 
   final SharedPreferences preferences;
@@ -109,6 +112,24 @@ class JeebApp extends StatefulWidget {
   /// [AlwaysAuthenticatedSessionGate]) so they don't need a keystore. When an
   /// override is supplied it is NOT owned by this widget (no dispose).
   final SessionGate? sessionGate;
+
+  /// S14 COLD-START ORDERING seam. The push chain awaits this BEFORE it touches
+  /// FCM, guaranteeing the default Firebase app exists first (see
+  /// [_initPushChainAsync]). Production leaves this null and uses the idempotent
+  /// [Firebase.initializeApp]; tests inject a controllable future so the
+  /// build-only-after-Firebase ordering can be asserted deterministically
+  /// without a real Firebase platform channel. NOT owned by this widget.
+  @visibleForTesting
+  final Future<void> Function()? firebaseInitializer;
+
+  /// S14 test seam for the concrete FCM transport build+initialize step.
+  /// Production leaves this null and builds a real [FirebaseMessagingTransport]
+  /// (whose constructor reaches [FirebaseMessaging.instance] → [Firebase.app],
+  /// which is exactly why it must run only after Firebase init). Tests inject a
+  /// recording builder to observe WHEN the transport is constructed relative to
+  /// [firebaseInitializer].
+  @visibleForTesting
+  final Future<PushTransport> Function()? fcmTransportBuilder;
 
   @override
   State<JeebApp> createState() => _JeebAppState();
@@ -305,8 +326,18 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       transport = widget.pushTransport!;
     } else {
       try {
-        final fcm = FirebaseMessagingTransport();
-        await fcm.initialize();
+        // S14 COLD-START ORDERING FIX: Firebase.initializeApp() runs in the
+        // DEFERRED bootstrap phase, fire-and-forget (jeeb_bootstrap.dart). On a
+        // cold/slow boot this push chain could win that race and construct
+        // FirebaseMessagingTransport() — whose ctor reaches FirebaseMessaging
+        // .instance → Firebase.app() — BEFORE the default app existed, throwing
+        // `[core/no-app]`. The catch then silently degraded to FakePushTransport,
+        // so the app got no real FCM token and received no push. We now AWAIT a
+        // Firebase-init completion guard first; Firebase.initializeApp() is
+        // idempotent (returns the existing app when already initialized), so the
+        // already-warm path costs nothing while the cold path is made correct.
+        await _ensureFirebaseInitialized();
+        final fcm = await _buildAndInitFcmTransport();
         transport = fcm;
         initialMessage = fcm.initialMessage();
       } catch (error) {
@@ -355,6 +386,24 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       _pushHandler = handler;
       _dispatcher = dispatcher;
     });
+  }
+
+  /// S14: the Firebase-init completion guard the FCM branch awaits before
+  /// touching FCM. Production calls the idempotent [Firebase.initializeApp]
+  /// (a no-op returning the existing app once the deferred phase has run);
+  /// tests inject [JeebApp.firebaseInitializer] to control resolution timing.
+  Future<void> _ensureFirebaseInitialized() =>
+      (widget.firebaseInitializer ?? () => Firebase.initializeApp())();
+
+  /// S14: builds + initializes the real FCM transport, or defers to the
+  /// injected [JeebApp.fcmTransportBuilder] in tests. Kept separate so the
+  /// construction step is observable relative to [_ensureFirebaseInitialized].
+  Future<PushTransport> _buildAndInitFcmTransport() async {
+    final builder = widget.fcmTransportBuilder;
+    if (builder != null) return builder();
+    final fcm = FirebaseMessagingTransport();
+    await fcm.initialize();
+    return fcm;
   }
 
   @override
