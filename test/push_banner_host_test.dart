@@ -59,6 +59,90 @@ void main() {
     expect(find.text('Order #42'), findsOneWidget);
   });
 
+  testWidgets('exposes capturable push_banner keys for sender + message',
+      (tester) async {
+    await pumpHost(tester);
+    await tester.runAsync(() async {
+      // Chat push: gateway sends title=sender, body=message.
+      transport.emitForeground(
+        NotificationMessage(
+          id: 'c1',
+          category: NotificationCategory.chat,
+          title: 'Karim',
+          body: 'On my way 🚗',
+          receivedAt: DateTime.utc(2026, 5, 17),
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    });
+    await tester.pump();
+
+    expect(find.byKey(const Key('push_banner_title')), findsOneWidget);
+    expect(find.byKey(const Key('push_banner_body')), findsOneWidget);
+    final title = tester.widget<Text>(find.byKey(const Key('push_banner_title')));
+    final body = tester.widget<Text>(find.byKey(const Key('push_banner_body')));
+    expect(title.data, 'Karim');
+    expect(body.data, 'On my way 🚗');
+  });
+
+  testWidgets('permission prompt overlays only when opted-in AND denied',
+      (tester) async {
+    final deniedTransport =
+        FakePushTransport(permission: PushPermissionStatus.denied);
+    final deniedBadge = BadgeCountCubit();
+    final deniedHandler = PushNotificationHandler(
+      transport: deniedTransport,
+      badgeCount: deniedBadge,
+    );
+    addTearDown(() async {
+      await deniedHandler.close();
+      await deniedBadge.close();
+    });
+
+    var enableTaps = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: PushBannerHost(
+        handler: deniedHandler,
+        showPermissionPrompt: true,
+        onEnablePermission: () => enableTaps++,
+        child: const Scaffold(body: SizedBox.expand()),
+      ),
+    ));
+
+    // Not shown until the handler resolves a non-granted status.
+    expect(find.byKey(const Key('notif_perm_enable')), findsNothing);
+
+    await deniedHandler.bootstrap();
+    await tester.pump();
+
+    expect(find.byKey(const Key('notif_perm_enable')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('notif_perm_enable')));
+    await tester.pump();
+    expect(enableTaps, 1);
+
+    // "Not now" hides it for the session.
+    await tester.tap(find.byKey(const Key('notif_perm_dismiss')));
+    await tester.pump();
+    expect(find.byKey(const Key('notif_perm_enable')), findsNothing);
+  });
+
+  testWidgets('permission prompt stays hidden when permission is granted',
+      (tester) async {
+    // Default transport is granted; opting in must not surface the prompt.
+    await tester.pumpWidget(MaterialApp(
+      home: PushBannerHost(
+        handler: handler,
+        showPermissionPrompt: true,
+        onEnablePermission: () {},
+        child: const Scaffold(body: SizedBox.expand()),
+      ),
+    ));
+    await handler.bootstrap();
+    await tester.pump();
+
+    expect(find.byKey(const Key('notif_perm_enable')), findsNothing);
+  });
+
   testWidgets('tap fires onBannerTap with the underlying message',
       (tester) async {
     NotificationMessage? tapped;
