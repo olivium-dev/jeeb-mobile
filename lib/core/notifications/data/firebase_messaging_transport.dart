@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../domain/notification_message.dart';
+import '../domain/push_render_mapping.dart';
 import 'push_transport.dart';
 
 /// Background isolate entry-point.
@@ -43,10 +44,13 @@ Future<void> _renderDataOnlyBackgroundNotification(
 ) async {
   if (!Platform.isAndroid) return;
   try {
-    final data = message.data;
-    final title = (data['title'] ?? 'New notification').toString();
-    final body = (data['body'] ?? '').toString();
-    if (title.isEmpty && body.isEmpty) return;
+    // Route through the SAME pure mapper the foreground path uses so the
+    // closed-app heads-up is byte-identical to the in-app one (Contract 9c).
+    final fields = PushRenderFields.fromData(
+      message.data.map((k, v) => MapEntry(k.toString(), v?.toString() ?? '')),
+      messageId: message.messageId,
+    );
+    if (fields.title.isEmpty && fields.body.isEmpty) return;
 
     final plugin = FlutterLocalNotificationsPlugin();
     await plugin.initialize(
@@ -58,13 +62,12 @@ Future<void> _renderDataOnlyBackgroundNotification(
         AndroidFlutterLocalNotificationsPlugin>();
     await androidImpl?.createNotificationChannel(jeebDefaultChannel);
 
-    final tag = message.messageId ??
-        data['messageId'] ??
+    final tag = fields.dedupTag ??
         '${DateTime.now().microsecondsSinceEpoch}';
     await plugin.show(
       tag.hashCode,
-      title,
-      body,
+      fields.title,
+      fields.body,
       NotificationDetails(
         android: AndroidNotificationDetails(
           jeebDefaultChannel.id,
@@ -165,10 +168,12 @@ class FirebaseMessagingTransport implements PushTransport {
     // local notification ourselves so the user still sees a heads-up.
     // On iOS the OS handles display via setForegroundNotificationPresentationOptions.
     if (Platform.isAndroid) {
+      // SAME mapper the background isolate uses (Contract 9c): fg ≡ bg.
+      final fields = PushRenderFields.fromMessage(domain);
       _localNotifications.show(
-        domain.id.hashCode,
-        domain.title,
-        domain.body,
+        (fields.dedupTag ?? domain.id).hashCode,
+        fields.title,
+        fields.body,
         NotificationDetails(
           android: AndroidNotificationDetails(
             jeebDefaultChannel.id,
