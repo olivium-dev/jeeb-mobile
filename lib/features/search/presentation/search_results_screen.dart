@@ -148,6 +148,7 @@ class _ResultsBody extends StatelessWidget {
       builder: (context, state) {
         switch (state.status) {
           case SearchStatus.idle:
+            return _PromptBody(copy: copy);
           case SearchStatus.loading:
             return const OmdsLoadingState();
           case SearchStatus.failed:
@@ -158,6 +159,26 @@ class _ResultsBody extends StatelessWidget {
                 : _NoResultsBody(copy: copy);
         }
       },
+    );
+  }
+}
+
+/// `idle` (a blank / trimmed-empty query — e.g. the refine bar cleared and
+/// submitted, or a blank-`q` `/search-results` deep link) is the PROMPT
+/// surface, NOT a spinner: the cubit never fired a request, so there is nothing
+/// to load. Mirrors the compose `/search` screen prompt so the two surfaces
+/// read identically.
+class _PromptBody extends StatelessWidget {
+  const _PromptBody({required this.copy});
+
+  final SearchL10n copy;
+
+  @override
+  Widget build(BuildContext context) {
+    return OmdsEmptyState(
+      icon: Icons.search_outlined,
+      title: copy.promptTitle,
+      subtitle: copy.promptBody,
     );
   }
 }

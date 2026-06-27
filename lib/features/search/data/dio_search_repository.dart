@@ -31,9 +31,13 @@ class DioSearchRepository implements SearchRepository {
       final list = raw is List ? raw : const <dynamic>[];
       final out = <SearchResult>[];
       for (final item in list) {
-        if (item is Map) {
-          out.add(_result(item.cast<String, dynamic>()));
-        }
+        if (item is! Map) continue;
+        final result = _result(item.cast<String, dynamic>());
+        // Drop id-less hits: an empty `id` yields a dead-tap row (no
+        // addressable refId) AND collides on the `search_result_<id>`
+        // semantics identifier with every other id-less row. Never surface one.
+        if (result.id.isEmpty) continue;
+        out.add(result);
       }
       return out;
     } on DioException catch (e) {
