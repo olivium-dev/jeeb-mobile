@@ -11,13 +11,23 @@ enum NotificationCategory {
   settings,
   other;
 
-  /// Wire value comes from the `category` data field on the FCM payload
-  /// (jeeb-gateway sends it explicitly so the client doesn't have to
-  /// guess from the topic). Unknown values fall back to [other] — that
-  /// path renders the banner but no-ops on tap rather than crashing.
+  /// Maps a single wire discriminator value to a category.
+  ///
+  /// Accepts BOTH the legacy/admin `category` value AND the values
+  /// jeeb-gateway's `EventPushNotifier` actually emits on its `type`
+  /// routing key (verified against the iter6 gateway source — chat-send
+  /// fan-out emits `type=chat`; new-offer `type=offer`; offer-accept
+  /// `type=accept`; delivery status `type=delivery`). `offer`/`accept`
+  /// both land on the order surface (the request/delivery), so they map
+  /// to [delivery]. Unknown values fall back to [other] — that path
+  /// renders the banner but no-ops on tap rather than crashing.
   static NotificationCategory fromKey(String? key) {
     switch (key) {
       case 'delivery':
+      // jeeb-gateway EventPushNotifier `type` values that resolve to the
+      // order/delivery surface (`/orders/:id`).
+      case 'offer':
+      case 'accept':
         return NotificationCategory.delivery;
       case 'chat':
         return NotificationCategory.chat;
@@ -31,6 +41,19 @@ enum NotificationCategory {
         return NotificationCategory.other;
     }
   }
+
+  /// Resolves the category from the FULL FCM `data` map.
+  ///
+  /// jeeb-gateway's `EventPushNotifier` flattens the whole payload into the
+  /// FCM `data` map and uses `type` as the routing discriminator (the push
+  /// service does `data = {k: str(v) for k,v in payload}` — so there is no
+  /// `category` key on event pushes, only `type`). Older/admin payloads may
+  /// still carry an explicit `category`. Precedence: explicit `category`
+  /// first, then the gateway `type`. This is the single entry point the
+  /// transport should use so a chat push (`type=chat`) is never mis-bucketed
+  /// as [other] and silently un-routable on tap.
+  static NotificationCategory fromData(Map<String, String> data) =>
+      fromKey(data['category'] ?? data['type']);
 }
 
 /// Transport-agnostic envelope for a push payload.
