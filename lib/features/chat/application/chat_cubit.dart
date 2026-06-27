@@ -84,7 +84,10 @@ class ChatCubit extends Cubit<ChatState> {
       final phase = results[1] as ConversationPhase;
       emit(
         state.copyWith(
-          messages: List.unmodifiable(history),
+          // Ordering (S0-CHAT-04): present history sorted by server time so a
+          // backend that returns rows unsorted (or a paged read that interleaves
+          // batches) still paints oldest→newest.
+          messages: _ordered(history),
           phase: phase,
           isLoadingHistory: false,
         ),
@@ -139,7 +142,11 @@ class ChatCubit extends Cubit<ChatState> {
     if (additions.isEmpty) return;
     emit(
       state.copyWith(
-        messages: List.unmodifiable([...state.messages, ...additions]),
+        // Ordering (S0-CHAT-04): a poll can surface a counterpart message whose
+        // server `created_at` predates a bubble already shown (late delivery,
+        // clock skew between parties). Re-sort the merged list by server time so
+        // the timeline stays chronological instead of appending out of order.
+        messages: _ordered([...state.messages, ...additions]),
       ),
     );
   }
@@ -375,7 +382,10 @@ class ChatCubit extends Cubit<ChatState> {
           }
         }
         emit(
-          state.copyWith(messages: List.unmodifiable([...state.messages, m])),
+          // Ordering (S0-CHAT-04): a live `new_msg` frame can arrive after a
+          // later-timestamped message already landed via the poll; sort the
+          // merged list by server time so live and reloaded order agree.
+          state.copyWith(messages: _ordered([...state.messages, m])),
         );
       case DeliveryReceipt(messageId: final id):
         _promoteAtLeast(id, MessageStatus.delivered);
@@ -491,6 +501,24 @@ class ChatCubit extends Cubit<ChatState> {
       if (m.id == throughId) hit = true;
     }
     emit(state.copyWith(messages: List.unmodifiable(updated)));
+  }
+
+  /// Stable chronological ordering (S0-CHAT-04). Returns an unmodifiable copy of
+  /// [input] sorted by server `created_at` (`sentAt`) ascending, breaking ties
+  /// by the message's existing position so equal-timestamped or same-instant
+  /// messages keep their arrival order (Dart's `List.sort` is NOT stable, so we
+  /// decorate with the original index). The contract's canonical timeline is
+  /// "oldest first, sorted by the server clock" — applied on every inbound merge
+  /// so live (WS), polled (HTTP), and reloaded order all agree.
+  static List<DeliveryChatMessage> _ordered(List<DeliveryChatMessage> input) {
+    final indexed = <MapEntry<int, DeliveryChatMessage>>[
+      for (var i = 0; i < input.length; i++) MapEntry(i, input[i]),
+    ];
+    indexed.sort((a, b) {
+      final byTime = a.value.sentAt.compareTo(b.value.sentAt);
+      return byTime != 0 ? byTime : a.key.compareTo(b.key);
+    });
+    return List.unmodifiable(indexed.map((e) => e.value));
   }
 
   String _nextId() => 'msg-$_deliveryId-${_outboxCounter++}';
