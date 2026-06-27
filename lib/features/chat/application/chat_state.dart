@@ -21,7 +21,7 @@ class ChatState extends Equatable {
     this.composerText = '',
     this.isLoadingHistory = false,
     this.isAttaching = false,
-    this.phase = ConversationPhase.accepted,
+    this.phase = ConversationPhase.broadcasting,
     this.acceptingOfferId,
     this.acceptedDeliveryId,
     this.declinedOfferIds = const <String>{},
@@ -43,9 +43,13 @@ class ChatState extends Equatable {
   /// button so a second tap can't race with the first.
   final bool isAttaching;
 
-  /// Phase the underlying conversation is in. Defaults to `accepted` so
-  /// legacy 1:1 photo-chat call sites (which don't know about phases) keep
-  /// the composer visible without any code change.
+  /// Phase the underlying conversation is in. NEW-BUG-01 (Sprint-2 Contract 5c):
+  /// defaults to `broadcasting`, NEVER `accepted`. The old `accepted` default
+  /// rendered the "Offer accepted!" banner + counterpart header before the cubit
+  /// loaded a real phase (and whenever a gateway returned no phase), falsely
+  /// signalling a closed auction. `broadcasting` is the safe compose/waiting
+  /// shell — the composer stays visible (`isComposerVisible` only hides on
+  /// `closed`) while no winner/header/banner renders until `phase == accepted`.
   final ConversationPhase phase;
 
   /// Offer id currently being accepted via [ChatCubit.acceptOffer]. The

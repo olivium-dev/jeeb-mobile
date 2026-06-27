@@ -1,7 +1,7 @@
 // iter6 offer-405 fix — DioOfferSubmissionRepository unit tests.
 //
-// Proves the jeeber offer-submit now hits the LIVE gateway route
-// `POST /requests/{requestId}/offers` (NOT the dead mock route `/v1/offers`
+// Proves the jeeber offer-submit now hits the FROZEN gateway route
+// `POST /v1/requests/{requestId}/offers` (NOT the dead mock route `/v1/offers`
 // that returned 405), sends the gateway `CreateOfferBody` field names
 // (`fee`/`etaMinutes`/`note`), and parses the 201 `OfferDto` `id` as the
 // offerId + resolves the conversationId (falling back to the requestId, since
@@ -63,8 +63,9 @@ void main() {
       };
 
   group('submitOffer — route + body (the 405 fix)', () {
-    test('POSTs to the LIVE request-scoped route /requests/{id}/offers '
-        '(NOT the mock /v1/offers)', () async {
+    test('POSTs to the FROZEN request-scoped route /v1/requests/{id}/offers '
+        '(Contract 4a; NOT the mock /v1/offers, NOT the /v1-less variant)',
+        () async {
       String? capturedPath;
       when(() => dio.post<Map<String, dynamic>>(
             any(),
@@ -80,9 +81,13 @@ void main() {
         etaMinutes: 10,
       );
 
-      expect(capturedPath, '/requests/req-fcb53e13/offers');
+      // ARCH-01 / Contract 4a: origin-only base ⇒ the path carries exactly one
+      // `/v1`. Pins the post-ARCH-01 regression where the path dropped `/v1`.
+      expect(capturedPath, '/v1/requests/req-fcb53e13/offers');
       expect(capturedPath, isNot(contains('/v1/offers')),
           reason: 'the bare /v1/offers route 405s on the live gateway');
+      expect('/v1'.allMatches(capturedPath!).length, 1,
+          reason: 'exactly one /v1 segment (origin-only base, ARCH-01)');
     });
 
     test('sends the gateway CreateOfferBody field names (fee/etaMinutes/note) '

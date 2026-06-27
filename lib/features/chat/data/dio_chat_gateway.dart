@@ -80,12 +80,60 @@ class DioChatGateway implements ChatGateway {
 
   @override
   Future<ConversationPhase> loadPhase(String conversationId) async {
-    // The conversation phase is resolved up front at [ChatDetailScreen] (from
-    // the create-or-get response). The per-message list route carries no phase,
-    // so the gateway-level fetch is a no-op that keeps the cubit's first paint
-    // unchanged (`accepted` preserves the existing 1:1 behaviour); the screen
-    // already threads the authoritative phase into the UI.
-    return ConversationPhase.accepted;
+    // NEW-BUG-01 (Sprint-2 Contract 5c / 5b): READ the REAL phase from the
+    // conversation aggregate instead of returning a hard-coded `accepted`. The
+    // old no-op default made EVERY conversation read `accepted`, so the cubit
+    // showed the "Offer accepted!" banner + counterpart header while the request
+    // was still `broadcasting` (pending, no winner) — a false positive.
+    //
+    // Source of truth: `GET /v1/conversations?correlationKey={requestId}` →
+    // `JeebConversationResponse { phase, participants:[{role_in_convo,
+    // removed_at}] }` (snake_case, Contract 5b). By the auto-conversation-per-
+    // request convention `conversation_id == correlation_key == requestId`, so
+    // the conversation id this gateway is bound to IS the correlation key.
+    //
+    // GATING (Contract 5c item 3): only surface `accepted` when the wire phase
+    // is `accepted` AND an active `jeeber_winner` participant is present. A
+    // phase that claims `accepted` with no winner (mid-advance / partial saga)
+    // degrades to `broadcasting` — never a false "accepted". On ANY failure
+    // (flag-off 503, transport, non-map body) we degrade to `broadcasting`, the
+    // safe compose/waiting state — NEVER `accepted` (that was the bug).
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/v1/conversations',
+        queryParameters: <String, Object?>{'correlationKey': conversationId},
+      );
+      final data = response.data;
+      if (data == null) return ConversationPhase.broadcasting;
+      final phase = ConversationPhase.fromWire(data['phase'] as String?);
+      if (phase == ConversationPhase.accepted && !_hasActiveWinner(data)) {
+        // Backend says accepted but no winner is seated yet — treat as still
+        // broadcasting so the accepted UI never renders without a winner.
+        return ConversationPhase.broadcasting;
+      }
+      return phase == ConversationPhase.unknown
+          ? ConversationPhase.broadcasting
+          : phase;
+    } on DioException {
+      return ConversationPhase.broadcasting;
+    } catch (_) {
+      return ConversationPhase.broadcasting;
+    }
+  }
+
+  /// True when the conversation aggregate carries an ACTIVE winning jeeber
+  /// participant (`role_in_convo == jeeber_winner`, `removed_at == null`) — the
+  /// canonical post-accept signal (Contract 5b). Mirrors the resolver in
+  /// `chat_detail_screen._hasWinningJeeber` so the gateway-level phase read and
+  /// the screen-level resolve agree on what "accepted" means.
+  bool _hasActiveWinner(Map<String, dynamic> data) {
+    final participants = data['participants'];
+    if (participants is! List) return false;
+    return participants.whereType<Map>().any((p) {
+      final role = p['role_in_convo'] as String?;
+      final removedAt = p['removed_at'];
+      return role == 'jeeber_winner' && removedAt == null;
+    });
   }
 
   @override
@@ -143,12 +191,15 @@ class DioChatGateway implements ChatGateway {
     String conversationId,
     String offerId,
   ) async {
+    // Contract 4e (FROZEN): the accept carries NO body — the acting identity is
+    // resolved server-side from the bearer (ARCH-01 Contract 3: no userId in any
+    // body or path). We intentionally DROP the old `{acceptedAt, acceptedBy:
+    // currentUserId}` body (the gateway ignored it, and `acceptedBy` leaked a
+    // client-supplied user id, which the identity-from-bearer rule forbids). The
+    // gateway mints `accept-{actor}-{offer}` when no Idempotency-Key is sent; we
+    // still send a stable per-offer key so a retried accept de-dupes.
     final response = await _dio.post<Map<String, dynamic>>(
       '/v1/offers/$offerId/accept',
-      data: <String, Object?>{
-        'acceptedAt': DateTime.now().toUtc().toIso8601String(),
-        'acceptedBy': currentUserId,
-      },
       options: Options(
         headers: <String, Object?>{
           'Idempotency-Key': 'accept-$offerId',

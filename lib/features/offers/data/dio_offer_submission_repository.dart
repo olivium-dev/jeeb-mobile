@@ -43,10 +43,18 @@ class DioOfferSubmissionRepository implements OfferSubmissionRepository {
 
   final Dio _dio;
 
-  /// The live request-scoped submit path:
-  /// `POST /requests/{requestId}/offers` (no `/v1` prefix — the gateway
-  /// `RequestOffersController` route is `requests/{requestId}/offers`).
-  static String _pathFor(String requestId) => '/requests/$requestId/offers';
+  /// The live request-scoped submit path (Sprint-2 Contract 4a, FROZEN):
+  /// `POST /v1/requests/{requestId}/offers`.
+  ///
+  /// ARCH-01 / Contract 4a: the Dio base is ORIGIN-ONLY (no `/v1`), so EVERY
+  /// path must carry exactly one `/v1` (e.g. the accept path
+  /// `/v1/offers/{offerId}/accept`). The earlier `/requests/{id}/offers` value
+  /// dropped the `/v1` — it only worked back when the Dio base still ended in
+  /// `/v1`; once ARCH-01 moved the base to origin-only it silently resolved to
+  /// `:10090/requests/{id}/offers` (missing `/v1`), the same class of defect as
+  /// the S16 `/v1/v1` availability NO-GO. Restored to the single-`/v1` contract
+  /// path.
+  static String _pathFor(String requestId) => '/v1/requests/$requestId/offers';
 
   @override
   Future<OfferSubmissionResult> submitOffer({
