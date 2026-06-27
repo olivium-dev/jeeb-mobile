@@ -153,6 +153,24 @@ void main() {
   });
 
   group('SearchResultsScreen', () {
+    testWidgets(
+        'blank-query deep-link (/search-results, no q) → idle PROMPT surface, '
+        'NOT a permanent loading spinner (FIX #1)', (tester) async {
+      // A blank/absent `q` makes the cubit emit idle (never fires a request).
+      // The idle arm must render the prompt/empty surface — distinct from the
+      // loading spinner. Single pump() (NOT pumpAndSettle): if idle still
+      // collapsed into the OmdsLoadingState arm, the infinite
+      // CircularProgressIndicator ticker would hang pumpAndSettle.
+      await tester.pumpWidget(_harness(initialLocation: '/search-results'));
+      await tester.pump();
+
+      expect(find.bySemanticsIdentifier('search_results_root'), findsOneWidget);
+      // Idle is the prompt surface (matches the compose /search screen prompt).
+      expect(find.text('Search Jeeb'), findsOneWidget);
+      // No fake/permanent loading spinner on a blank query.
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
     testWidgets('loaded → renders search_result_<id> rows', (tester) async {
       final repo = _ScriptedRepository([
         _result('r1', SearchResultKind.order, refId: 'ord-1'),
