@@ -496,6 +496,15 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
                           final path = deepLinkForMessage(message);
                           if (path != null) _router.go(path);
                         },
+                        // Surface the branded, capturable POST_NOTIFICATIONS
+                        // priming card after a prior denial; "Enable" re-runs
+                        // bootstrap (which deep-links to settings on Android
+                        // once the system dialog can no longer be shown). Never
+                        // races the first-run OS dialog — the host only renders
+                        // it for the resolved `denied` state.
+                        showPermissionPrompt: true,
+                        onEnablePermission: () =>
+                            unawaited(handler.bootstrap()),
                         child: content,
                       );
                 return jeebA11yBuilder(context, wrapped);
