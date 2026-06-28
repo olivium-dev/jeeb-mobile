@@ -5,6 +5,8 @@ import 'package:omds/omds.dart';
 
 import '../../core/dev_seam/dev_seam.dart';
 import '../../core/role/role_availability_cubit.dart';
+import '../../core/role/role_cubit.dart';
+import '../../core/role/user_role.dart';
 import '../../l10n/app_localizations.dart';
 import '../customer_profile/data/dev_customer_profile_fixtures.dart';
 import '../customer_profile/presentation/customer_profile_screen.dart';
@@ -45,40 +47,51 @@ class ShellScreen extends StatefulWidget {
 }
 
 class _ShellScreenState extends State<ShellScreen> {
-  int _index = 0;
+  /// The tab the user explicitly tapped. `null` until the first manual tap, so
+  /// before any navigation the shell follows the role-driven LANDING tab (a
+  /// jeeber lands on Dashboard, a client on Requests). After a tap we honor the
+  /// user's choice and never auto-move again — this is initial FOCUS, never a
+  /// mode-switch (every tab stays present + selectable for every user).
+  int? _selectedIndex;
 
   @override
   Widget build(BuildContext context) {
     // The tab SET never changes — additive, not role-gated. Only the jeeber
     // tab BODIES (live vs empty state) react to the user's available roles.
     final availability = context.watch<RoleAvailabilityCubit?>()?.state;
+    final activeRole = context.watch<RoleCubit?>()?.state;
     final tabs = _tabs(showJeeberContent: _showJeeberContent(availability));
-    final safeIndex = _index.clamp(0, tabs.length - 1);
+    final safeIndex = _effectiveIndex(tabs, activeRole);
     return Scaffold(
       body: SafeArea(
         bottom: false,
-        child: IndexedStack(
-          index: safeIndex,
-          // Wrap each child in a TabVisibility so a tab body can react to
-          // (re)becoming the selected page even though IndexedStack keeps
-          // every child mounted. Used by ClientHomeScreen (S13) to silently
-          // re-pull on refocus. updateShouldNotify only fires for the tab
-          // whose visibility actually flips.
-          children: [
-            for (var i = 0; i < tabs.length; i++)
-              TabVisibility(
-                isVisible: i == safeIndex,
-                child: tabs[i].page,
-              ),
-          ],
-        ),
+        child: _ShellBody(tabs: tabs, selectedIndex: safeIndex),
       ),
       bottomNavigationBar: _JeebBottomBar(
         tabs: tabs,
         selectedIndex: safeIndex,
-        onTap: (i) => setState(() => _index = i),
+        onTap: (i) => setState(() => _selectedIndex = i),
       ),
     );
+  }
+
+  /// The page to show: the user's explicit pick once they've tapped, otherwise
+  /// the role-driven landing tab. Always clamped to a valid tab.
+  int _effectiveIndex(List<_Tab> tabs, UserRole? role) {
+    final index = _selectedIndex ?? _landingIndex(tabs, role);
+    return index.clamp(0, tabs.length - 1);
+  }
+
+  /// DEFECT-C: the tab a freshly-resolved user lands on. A `jeeber` active_role
+  /// (from getMe → [RoleCubit], reconciled post-login by `RoleSync`) lands on
+  /// the Dashboard surface so Karim opens onto his jeeber feed, not the client
+  /// Requests default; everyone else lands on Requests. Reactive: the moment
+  /// `RoleSync` flips the role to jeeber the landing tab follows, with no manual
+  /// role flip and no tab ever hidden.
+  int _landingIndex(List<_Tab> tabs, UserRole? role) {
+    if (role != UserRole.jeeber) return 0;
+    final dashboard = tabs.indexWhere((t) => t.id == 'dashboard');
+    return dashboard < 0 ? 0 : dashboard;
   }
 
   /// True when the Jeeber + Earnings tabs should render their LIVE bodies
@@ -165,6 +178,31 @@ class _ShellScreenState extends State<ShellScreen> {
         ),
       ),
     ];
+  }
+}
+
+/// The shell page stack. Keeps every tab mounted via [IndexedStack] and wraps
+/// each child in a [TabVisibility] so a body can react to (re)becoming the
+/// selected page (e.g. ClientHomeScreen silently re-pulls on refocus);
+/// `updateShouldNotify` only fires for the tab whose visibility flips.
+class _ShellBody extends StatelessWidget {
+  const _ShellBody({required this.tabs, required this.selectedIndex});
+
+  final List<_Tab> tabs;
+  final int selectedIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    return IndexedStack(
+      index: selectedIndex,
+      children: [
+        for (var i = 0; i < tabs.length; i++)
+          TabVisibility(
+            isVisible: i == selectedIndex,
+            child: tabs[i].page,
+          ),
+      ],
+    );
   }
 }
 

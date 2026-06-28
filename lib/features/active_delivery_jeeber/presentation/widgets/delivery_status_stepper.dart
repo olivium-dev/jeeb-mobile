@@ -56,18 +56,30 @@ class _StepsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     const statuses = JeeberDeliveryStatus.values;
     final l10n = AppLocalizations.of(context);
+    // JM-051: stable `delivery_status_stepper` root for Maestro to locate the
+    // progress indicator, plus a state marker that flips to
+    // `delivery_status_delivered` at the terminal stage so the core-flow E2E
+    // can assert the delivery reached its completed/delivered final state
+    // (rather than matching localized stage labels).
     return Semantics(
+      identifier: 'delivery_status_stepper',
+      container: true,
       label: _semanticsLabel(currentStatus, l10n),
-      child: Row(
-        children: List.generate(statuses.length * 2 - 1, (i) {
-          if (i.isOdd) return const Expanded(child: Divider(height: 2));
-          final status = statuses[i ~/ 2];
-          return _StepDot(
-            status: status,
-            isCurrent: status == currentStatus,
-            isDone: status.index < currentStatus.index,
-          );
-        }),
+      child: Semantics(
+        identifier: currentStatus.isTerminal
+            ? 'delivery_status_delivered'
+            : 'delivery_status_in_progress',
+        child: Row(
+          children: List.generate(statuses.length * 2 - 1, (i) {
+            if (i.isOdd) return const Expanded(child: Divider(height: 2));
+            final status = statuses[i ~/ 2];
+            return _StepDot(
+              status: status,
+              isCurrent: status == currentStatus,
+              isDone: status.index < currentStatus.index,
+            );
+          }),
+        ),
       ),
     );
   }
