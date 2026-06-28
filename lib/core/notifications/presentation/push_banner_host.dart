@@ -237,8 +237,18 @@ class _BannerCard extends StatelessWidget {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close),
-                  tooltip: 'Dismiss',
+                  key: const Key('push_banner_dismiss'),
+                  // NO `tooltip:` here. PushBannerHost is mounted ABOVE the
+                  // Navigator in app.dart, so there is no `Overlay` ancestor.
+                  // Since Flutter 3.10 `Tooltip` builds an `OverlayPortal`,
+                  // which calls `Overlay.of(context)` during build and throws
+                  // "No Overlay widget found" when none exists — that crash
+                  // (caught upstream) silently dropped the entire foreground
+                  // banner on device (sprint-05 push-proof §1d). The dismiss
+                  // control keeps its accessible label via `Icon.semanticLabel`
+                  // (a Semantics node, not an Overlay), so screen readers still
+                  // announce "Dismiss" with no Overlay dependency.
+                  icon: const Icon(Icons.close, semanticLabel: 'Dismiss'),
                   onPressed: onDismiss,
                 ),
               ],

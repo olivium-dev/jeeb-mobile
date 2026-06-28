@@ -5,7 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/network/auth_token_store.dart';
 import 'package:jeeb_mobile/core/notifications/data/push_device_registrar.dart';
 
-/// Stub Dio that records the last POST and returns a canned response/error.
+/// Stub Dio that records the last PUT and returns a canned response/error.
+/// The registrar uses `PUT /api/PushNotification/register` (the gateway
+/// controller is `[HttpPut]`), so we override `put` — overriding `post` would
+/// no longer be exercised and the un-stubbed `put` would throw on the Fake.
 class _FakeDio extends Fake implements Dio {
   String? lastPath;
   Map<String, dynamic>? lastData;
@@ -14,7 +17,7 @@ class _FakeDio extends Fake implements Dio {
   DioException? nextError;
 
   @override
-  Future<Response<T>> post<T>(
+  Future<Response<T>> put<T>(
     String path, {
     Object? data,
     Map<String, dynamic>? queryParameters,
@@ -92,12 +95,15 @@ void main() {
     sut = PushDeviceRegistrar(dio: dio, storage: storage);
   });
 
-  test('registers via the gateway-contract POST /v1/devices/register', () async {
+  test('registers via the gateway-contract PUT /api/PushNotification/register',
+      () async {
     dio.nextResponse = _ok();
 
     await sut.register('fcm-token-abc');
 
-    expect(dio.lastPath, '/v1/devices/register');
+    // The live gateway BFF route (sprint-05 push-proof §1f): the prior
+    // `/v1/devices/register` 404s on :10090 and silently dropped every token.
+    expect(dio.lastPath, '/api/PushNotification/register');
     expect(dio.lastData?['fcmToken'], 'fcm-token-abc');
     // Platform discriminator present (android/ios/unknown on the test VM).
     expect(dio.lastData?['platform'], isA<String>());
@@ -155,7 +161,7 @@ void main() {
   test('a failed (unauthenticated) register never throws and is retried',
       () async {
     dio.nextError = DioException(
-      requestOptions: RequestOptions(path: '/v1/devices/register'),
+      requestOptions: RequestOptions(path: '/api/PushNotification/register'),
       response: Response<dynamic>(
         requestOptions: RequestOptions(path: ''),
         statusCode: 401,

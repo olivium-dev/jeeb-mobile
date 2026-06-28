@@ -14,7 +14,7 @@ import "../../network/auth_token_store.dart";
 /// `(device_id -> fcm_token)` row to send to. This closes that gap.
 ///
 /// Wire contract (gateway BFF — no direct push-notification-service call):
-///   POST /v1/devices/register
+///   PUT /api/PushNotification/register
 ///     headers: Authorization: Bearer `<jwt>`   (attached by the shared
 ///              bearer interceptor on the gateway Dio — see resolveGatewayDio)
 ///     body: { "fcmToken": "`<token>`", "platform": "android|ios",
@@ -22,8 +22,22 @@ import "../../network/auth_token_store.dart";
 ///     2xx -> registered
 /// The gateway extracts the user_id from the JWT and resolves the push topic
 /// from the caller's active role, then forwards to the push-notification
-/// service. The mock backend rewrites this to `/push-notification/v1/devices/
-/// register` (see MockGatewayClient._pathToServicePrefix '/v1/devices').
+/// service. This is STILL a gateway BFF hop (the controller is
+/// `PushNotificationController.RegisterDevice`, `[Authorize]`, deriving the
+/// owner server-side from the bearer) — the app never calls the
+/// push-notification service directly, so the no-inter-service-coupling law
+/// holds.
+///
+/// ROUTE-DEBT (sprint-05 push-proof §1f): the app PREVIOUSLY called
+/// `POST /v1/devices/register`, which 404s on the live gateway (:10090) — so
+/// the FCM token was never stored and every push was a `NoDevices` no-op (the
+/// root cause push never worked on device). The route that actually answers is
+/// the existing `PUT /api/PushNotification/register` controller, so we point at
+/// it to unblock real push NOW. FOLLOW-UP for the gateway team: expose a
+/// versioned `PUT /v1/devices/register` BFF alias (same controller, same
+/// bearer-derived identity) so the mobile contract matches the rest of the
+/// `/v1/...` gateway surface and we don't pin the app to the `/api/[controller]`
+/// MVC default route. Verb is PUT (not POST) — the controller is `[HttpPut]`.
 ///
 /// `deviceId` is a per-install id persisted in the platform keystore so it
 /// survives app restarts (the backend keeps one live token per device, so a
@@ -66,7 +80,12 @@ class PushDeviceRegistrar {
   final AuthTokenStore _authTokenStore;
 
   static const String _deviceIdKey = "push.deviceId";
-  static const String _registerPath = "/v1/devices/register";
+
+  /// Live gateway BFF route for device registration. PUT (the controller is
+  /// `[HttpPut("register")]` under `[Route("api/[controller]")]`). See the
+  /// ROUTE-DEBT note above: a `/v1/devices/register` alias is the preferred
+  /// long-term contract once the gateway team adds it.
+  static const String _registerPath = "/api/PushNotification/register";
 
   /// The `(sessionUserId, token)` pair last confirmed (2xx) with the gateway.
   /// Keyed by identity so a login as a different user — or the first
@@ -88,7 +107,7 @@ class PushDeviceRegistrar {
     if (key == _lastRegisteredKey) return;
     try {
       final deviceId = await _deviceId();
-      final res = await _dio.post<dynamic>(
+      final res = await _dio.put<dynamic>(
         _registerPath,
         data: <String, dynamic>{
           "fcmToken": token,
