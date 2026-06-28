@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../domain/entities/availability_status.dart';
+import '../domain/online_location_fix.dart';
 import '../domain/services/availability_gateway.dart';
 
 /// Dio-backed [AvailabilityGateway].
@@ -32,9 +33,17 @@ class DioAvailabilityGateway implements AvailabilityGateway {
     this.zone = _defaultZone,
     this.latitude,
     this.longitude,
-  });
+    OnlineLocationFix? locationFix,
+  }) : _locationFix = locationFix;
 
   final Dio _dio;
+
+  /// Resolves a real device GPS fix to attach to the GO ONLINE body so the
+  /// jeeber row keeps a non-null `last_lat/last_lng` and survives delivery's
+  /// `ListOnline` filter (SPRINT-003). Null in tests / mock lanes that pass an
+  /// explicit [latitude]/[longitude] (or none); a fix that resolves to null
+  /// falls back to the injected [latitude]/[longitude].
+  final OnlineLocationFix? _locationFix;
 
   /// Vehicle type sent on GO ONLINE. Required by the gateway when `online:true`
   /// (one of car|motorbike|bicycle|scooter|walk). Injectable so a future
@@ -80,7 +89,7 @@ class DioAvailabilityGateway implements AvailabilityGateway {
     try {
       final response = await _dio.patch<Map<String, dynamic>>(
         _path,
-        data: goOnline ? _goOnlineBody() : const {'online': false},
+        data: goOnline ? await _goOnlineBody() : const {'online': false},
       );
       return _parse(response.data ?? {});
     } on DioException catch (e) {
@@ -89,14 +98,34 @@ class DioAvailabilityGateway implements AvailabilityGateway {
   }
 
   /// GO ONLINE body. `online` + `vehicleType` are required and `zone` must be
-  /// non-empty (gateway 400s otherwise); `latitude`/`longitude` may be null.
-  Map<String, dynamic> _goOnlineBody() => {
-        'online': true,
-        'vehicleType': vehicleType,
-        'zone': zone,
-        'latitude': latitude,
-        'longitude': longitude,
-      };
+  /// non-empty (gateway 400s otherwise). We acquire a REAL device GPS fix first
+  /// so `latitude`/`longitude` are populated — delivery's `ListOnline` drops
+  /// rows with null coordinates, so going online without them makes the jeeber
+  /// invisible to matching (SPRINT-003). A failed/absent fix degrades to the
+  /// injected [latitude]/[longitude] (which may be null) rather than blocking
+  /// the toggle.
+  Future<Map<String, dynamic>> _goOnlineBody() async {
+    final fix = await _resolveFix();
+    return {
+      'online': true,
+      'vehicleType': vehicleType,
+      'zone': zone,
+      'latitude': fix?.latitude ?? latitude,
+      'longitude': fix?.longitude ?? longitude,
+    };
+  }
+
+  /// Resolves a one-shot device fix, swallowing any failure (the toggle must
+  /// never fail because location could not be read).
+  Future<OnlineCoordinates?> _resolveFix() async {
+    final provider = _locationFix;
+    if (provider == null) return null;
+    try {
+      return await provider.resolve();
+    } catch (_) {
+      return null;
+    }
+  }
 
   AvailabilityStatus _parse(Map<String, dynamic> json) {
     // Canonical `AvailabilityResponse` uses `online` (bool); tolerate the mock's

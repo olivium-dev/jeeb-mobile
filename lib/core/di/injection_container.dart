@@ -116,6 +116,8 @@ import '../../features/jeeber_active_deliveries/domain/active_deliveries_reposit
 import '../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
 import '../../features/background_gps/data/geolocator_geocapture_gateway.dart';
 import '../../features/background_gps/domain/geocapture_gateway.dart';
+import '../../features/jeeber_home/data/geocapture_online_location_fix.dart';
+import '../../features/jeeber_home/domain/online_location_fix.dart';
 import '../../features/offers/data/dio_offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
@@ -363,9 +365,23 @@ void configureDependencies({
     () => DioGoodsCostRepository(sl<Dio>()),
   );
 
+  // SPRINT-003: one-shot device GPS resolver shared by the GO ONLINE toggle and
+  // the client current-location request-create path. Wraps the existing
+  // geolocator-backed gateway (reuse) so both surfaces attach REAL coordinates
+  // — delivery's `ListOnline` drops null-coordinate rows, so a jeeber must go
+  // online WITH coords to be matchable. Lazily resolves GeolocatorGeocapture
+  // Gateway (registered below in the same init()).
+  sl.registerLazySingleton<OnlineLocationFix>(
+    () => GeocaptureOnlineLocationFix(sl<GeolocatorGeocaptureGateway>()),
+  );
+
   // Availability toggle — Jeeber online/offline state via geolocation-service.
+  // SPRINT-003: inject the GPS resolver so GO ONLINE carries latitude/longitude.
   sl.registerLazySingleton<AvailabilityGateway>(
-    () => DioAvailabilityGateway(sl<Dio>()),
+    () => DioAvailabilityGateway(
+      sl<Dio>(),
+      locationFix: sl<OnlineLocationFix>(),
+    ),
   );
 
   // Remote notification prefs — syncs with gateway notification-service.
@@ -469,7 +485,12 @@ void configureDependencies({
   // handing off the placeholder 'new' to order-chat). Singleton so both steps,
   // which own separate cubits with no common widget-tree ancestor, share it.
   sl.registerLazySingleton<ComposeRequestController>(
-    () => ComposeRequestController(sl<RequestSubmissionService>()),
+    () => ComposeRequestController(
+      sl<RequestSubmissionService>(),
+      // SPRINT-003: real device GPS for the current-location pickup so a
+      // co-located jeeber falls inside the 25 km match radius.
+      locationFix: sl<OnlineLocationFix>(),
+    ),
   );
 
   // T-MOB-031: Active delivery (Jeeber) — GET /v1/deliveries/{id} +
