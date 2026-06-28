@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DEV/QA ONLY network security config.
+
+  Android 9+ (API 28) blocks cleartext (HTTP) traffic by default. The QA
+  real-backend run targets the local gateway at http://192.168.2.39:10090, so
+  we permit cleartext for THAT host only via a scoped domain-config. We do NOT
+  set a global cleartextTrafficPermitted / android:usesCleartextTraffic="true";
+  the app-wide default stays secure (HTTPS-only) so production traffic to
+  api.jeeb.app is unaffected.
+
+  Run unblocked by this file:
+    flutter run --flavor dev -d <device> \
+      --dart-define=GATEWAY_BASE_URL=http://192.168.2.39:10090 \
+      --dart-define=USE_MOCK_GATEWAY=false
+
+  Remove or keep behind the dev flavor before any Play Store release.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">192.168.2.39</domain>
+    </domain-config>
+</network-security-config>
