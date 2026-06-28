@@ -156,8 +156,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // Bind the gateway to the REAL authenticated user id so the local user's
     // own bubbles align right (`senderId == currentUserId`). It is also the
     // `client_user_id` the create-or-get needs.
-    final currentUserId =
-        (await AuthTokenStore().userId) ?? 'user-client-001';
+    //
+    // S0-CHAT-05: resolve the id from the authenticated session ONLY — NEVER
+    // fall back to a hardcoded `user-client-001` fixture id (that id, baked into
+    // a live request, breaks the real run: the gateway would mint/scope the
+    // conversation against a foreign user). When the session has no id (only
+    // possible while unauthenticated, where no chat exists) we degrade to an
+    // empty id; the gateway re-scopes ownership from the bearer `sub` anyway.
+    final currentUserId = (await AuthTokenStore().userId) ?? '';
     final requestId = widget.chatId;
 
     // CREATE-FLOW sentinel (`new`): the compose leg lands here BEFORE a request

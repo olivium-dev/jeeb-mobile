@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/auth_token_store.dart';
 import '../application/reviews_cubit.dart';
 import '../application/reviews_state.dart';
 import '../data/empty_reviews_repository.dart';
@@ -52,20 +53,26 @@ import 'widgets/review_row.dart';
 ///   `reviews_load_more`            — in-list next-page skeleton (D73 infinite)
 ///   `reviews_back`                 — → jeeber-profile-reviews
 class ReviewsListScreen extends StatelessWidget {
-  const ReviewsListScreen({super.key, this.jeeberId, this.repository});
+  const ReviewsListScreen({
+    super.key,
+    this.jeeberId,
+    this.repository,
+    this.authTokenStore,
+  });
 
   /// The jeeber whose reviews are listed (from `?jeeberId=` when present). When
-  /// null/empty the screen resolves the seeded default jeeber so a deep-link /
-  /// cold-start (no `extra`) still renders content (R-F).
+  /// null/empty the screen resolves the REAL authenticated session user's own
+  /// id (the jeeber viewing their own reviews) so a deep-link / cold-start (no
+  /// `extra`) still renders content (R-F) — NEVER a hardcoded `user-jeeber-002`
+  /// fixture id (S0-OAD-03).
   final String? jeeberId;
 
   /// Constructor test seam (40_GUARDRAILS_ARCH §5.4) — defaults to DI.
   final ReviewsRepository? repository;
 
-  /// The seeded jeeber the seam ships reviews for (62_SEAM_HARNESS
-  /// `jeeber_has_reviews` → `user-jeeber-002`). Used when the route has no
-  /// `?jeeberId=` so the screen is never blank on a cold deep-link.
-  static const String _defaultJeeberId = 'user-jeeber-002';
+  /// Session/auth source for the cold-deep-link id resolution. Test seam —
+  /// defaults to the real [AuthTokenStore].
+  final AuthTokenStore? authTokenStore;
 
   /// Resolves the repo: an explicit override (tests) → the registered DI binding
   /// → an empty fallback when GetIt is not configured (router-resolution widget
@@ -79,19 +86,31 @@ class ReviewsListScreen extends StatelessWidget {
     return const EmptyReviewsRepository();
   }
 
-  String get _resolvedJeeberId {
-    final id = jeeberId?.trim();
-    return (id == null || id.isEmpty) ? _defaultJeeberId : id;
-  }
+  Widget _buildFor(String resolvedJeeberId) => BlocProvider<ReviewsCubit>(
+        create: (_) => ReviewsCubit(
+          repository: _resolveRepository(),
+          jeeberId: resolvedJeeberId,
+        )..load(),
+        child: const _ReviewsView(),
+      );
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<ReviewsCubit>(
-      create: (_) => ReviewsCubit(
-        repository: _resolveRepository(),
-        jeeberId: _resolvedJeeberId,
-      )..load(),
-      child: const _ReviewsView(),
+    final explicit = jeeberId?.trim();
+    if (explicit != null && explicit.isNotEmpty) {
+      // `?jeeberId=` present — view that jeeber's public reviews directly.
+      return _buildFor(explicit);
+    }
+    // No `?jeeberId=` (cold deep-link): resolve the REAL authenticated session
+    // user's own reviews from the auth source — never a hardcoded fixture id.
+    return FutureBuilder<String?>(
+      future: (authTokenStore ?? AuthTokenStore()).userId,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(body: Center(child: OmdsLoadingState()));
+        }
+        return _buildFor((snapshot.data ?? '').trim());
+      },
     );
   }
 }
