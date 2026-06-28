@@ -1,3 +1,4 @@
+import '../../jeeber_home/domain/online_location_fix.dart';
 import '../../location/application/location_select_state.dart';
 import '../../location/domain/saved_location.dart';
 import '../../tier_selection/domain/tier.dart';
@@ -26,9 +27,19 @@ import '../domain/request_submission_service.dart';
 /// through the saved-addresses / capture-location sub-navigations where it
 /// would be lost.
 class ComposeRequestController {
-  ComposeRequestController(this._submission);
+  ComposeRequestController(this._submission, {OnlineLocationFix? locationFix})
+      : _locationFix = locationFix;
 
   final RequestSubmissionService _submission;
+
+  /// One-shot device GPS resolver (SPRINT-003). Used ONLY for the GPS-less
+  /// "current location" path — when neither a saved address nor a map-pinned
+  /// coordinate is present — so the request pickup carries the client's REAL
+  /// location instead of silently defaulting to Beirut. A co-located jeeber is
+  /// then within the 25 km match radius. Null in tests / mock lanes; the
+  /// Beirut fallback still guarantees the gateway's required-coordinates
+  /// contract is met when no fix is available.
+  final OnlineLocationFix? _locationFix;
 
   /// The tier the customer picked on `request-type` (carries the live
   /// gateway UUID on [Tier.wireId] — the exact value request-create echoes,
@@ -84,12 +95,12 @@ class ComposeRequestController {
   ///
   /// Throws [RequestSubmissionException] on failure (the caller surfaces an
   /// error and stays on the location step rather than handing off `'new'`).
-  Future<String> submitFromLocation(LocationSelectState location) {
-    final draft = _buildDraft(location);
+  Future<String> submitFromLocation(LocationSelectState location) async {
+    final draft = await _buildDraft(location);
     return _submission.submit(draft);
   }
 
-  RequestDraft _buildDraft(LocationSelectState location) {
+  Future<RequestDraft> _buildDraft(LocationSelectState location) async {
     // Resolve coordinates from the confirmed location. A selected saved address
     // carries real gateway coordinates (`GET /users/:id/saved-locations`); the
     // current-location / pinned options have none captured in the installed
@@ -104,8 +115,20 @@ class ComposeRequestController {
     //      coordinate exists (e.g. the GPS-less "Current Location" default), so
     //      the gateway's required-coordinates contract is still satisfied.
     final saved = _selectedSaved(location);
-    final lat = saved?.latitude ?? location.pinnedLat ?? _fallbackLat;
-    final lng = saved?.longitude ?? location.pinnedLng ?? _fallbackLng;
+    // Precedence (SPRINT-003 adds step 3): 1) saved address coords, 2) the
+    // real map-pinned coordinate, 3) a one-shot device GPS fix for the
+    // "current location" path, 4) the Beirut constant ONLY when no real
+    // coordinate is available. The device fix is attempted ONLY when neither a
+    // saved nor a pinned coordinate exists, to avoid an unnecessary GPS read.
+    final device = (saved == null && location.pinnedLat == null)
+        ? await _resolveDeviceFix()
+        : null;
+    final lat =
+        saved?.latitude ?? location.pinnedLat ?? device?.latitude ?? _fallbackLat;
+    final lng = saved?.longitude ??
+        location.pinnedLng ??
+        device?.longitude ??
+        _fallbackLng;
     // ADDRESS (iter6 feed-drop fix): the gateway stores pickup/dropoff `address`
     // and the jeeber feed parser (`dio_request_feed_repository._parseLocation`)
     // DROPS any row whose location has a null `address` — so an order created
@@ -166,6 +189,19 @@ class ComposeRequestController {
       if (a.id == id) return a;
     }
     return null;
+  }
+
+  /// One-shot device fix for the current-location path, swallowing any failure
+  /// so the create never fails because GPS could not be read (the Beirut
+  /// fallback then applies).
+  Future<OnlineCoordinates?> _resolveDeviceFix() async {
+    final provider = _locationFix;
+    if (provider == null) return null;
+    try {
+      return await provider.resolve();
+    } catch (_) {
+      return null;
+    }
   }
 
   String _titleCase(String s) =>
