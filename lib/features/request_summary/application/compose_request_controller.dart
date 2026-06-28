@@ -95,9 +95,17 @@ class ComposeRequestController {
     // current-location / pinned options have none captured in the installed
     // build, so we fall back to the Beirut constant to satisfy the gateway's
     // required-coordinates contract.
+    // Coordinate precedence (S0-REQ-03):
+    //   1. a selected SAVED address's real gateway coordinates;
+    //   2. the REAL map-PINNED coordinate the customer dropped on
+    //      capture-location (now carried on the state — previously dropped, so
+    //      the pin silently became Beirut);
+    //   3. the Beirut constant, used ONLY when neither a saved nor a pinned
+    //      coordinate exists (e.g. the GPS-less "Current Location" default), so
+    //      the gateway's required-coordinates contract is still satisfied.
     final saved = _selectedSaved(location);
-    final lat = saved?.latitude ?? _fallbackLat;
-    final lng = saved?.longitude ?? _fallbackLng;
+    final lat = saved?.latitude ?? location.pinnedLat ?? _fallbackLat;
+    final lng = saved?.longitude ?? location.pinnedLng ?? _fallbackLng;
     // ADDRESS (iter6 feed-drop fix): the gateway stores pickup/dropoff `address`
     // and the jeeber feed parser (`dio_request_feed_repository._parseLocation`)
     // DROPS any row whose location has a null `address` — so an order created

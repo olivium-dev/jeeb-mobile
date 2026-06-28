@@ -66,30 +66,45 @@ class LocationSelectCubit extends Cubit<LocationSelectState> {
     }
   }
 
-  /// Selects the "Current Location" option (the default).
+  /// Selects the "Current Location" option (the default). Clears any
+  /// previously-pinned coordinate so a stale pin from an abandoned map step
+  /// cannot leak into a subsequent current-location create.
   void selectCurrent() {
     if (state.choiceKind == LocationChoiceKind.current) return;
     emit(state.copyWith(
       choiceKind: LocationChoiceKind.current,
       clearSelectedSaved: true,
+      clearPinned: true,
     ));
   }
 
-  /// Selects a saved address by id.
+  /// Selects a saved address by id. Clears any previously-pinned coordinate so
+  /// the saved address's own coordinates win unambiguously downstream.
   void selectSaved(String id) {
     if (state.isSavedSelected(id)) return;
     emit(state.copyWith(
       choiceKind: LocationChoiceKind.saved,
       selectedSavedId: id,
+      clearPinned: true,
     ));
   }
 
   /// Records that the customer confirmed a freshly-pinned point from the
-  /// map-pin step (capture-location → back here).
-  void markPinned() {
+  /// map-pin step (capture-location → back here). S0-REQ-03: the [latitude] /
+  /// [longitude] the map returned are now CARRIED on the state (they used to be
+  /// dropped), so the compose step seeds the create with the real pin instead
+  /// of the Beirut fallback. Both are optional so a transport/GPS-less path that
+  /// confirms a pin without a resolvable coordinate still records the `pinned`
+  /// choice (the compose step then falls back) — but the live map path passes
+  /// the real coordinate and it is preserved end to end.
+  void markPinned({double? latitude, double? longitude}) {
+    final hasCoord = latitude != null && longitude != null;
     emit(state.copyWith(
       choiceKind: LocationChoiceKind.pinned,
       clearSelectedSaved: true,
+      pinnedLat: latitude,
+      pinnedLng: longitude,
+      clearPinned: !hasCoord,
     ));
   }
 }

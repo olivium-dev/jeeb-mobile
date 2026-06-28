@@ -16,6 +16,7 @@ import '../../settings/data/shared_prefs_profile_repository.dart';
 import '../application/location_select_cubit.dart';
 import '../application/location_select_state.dart';
 import '../data/dio_location_select_repository.dart';
+import '../data/location_repository.dart' show LocationPoint;
 import '../data/fake_location_select_repository.dart';
 import '../domain/location_select_repository.dart';
 import '../domain/saved_location.dart';
@@ -282,8 +283,17 @@ class _Body extends StatelessWidget {
     final cubit = context.read<LocationSelectCubit>();
     // capture-location pops back here; treat the return as a freshly-pinned
     // point so the Confirm CTA forwards it (JM-024 AC3 "pin confirms back").
-    await context.pushNamed('capture-location');
-    cubit.markPinned();
+    // S0-REQ-03: the capture route pops the pinned `LocationPoint` via `extra`
+    // ("Pin Location" → `context.pop(controller.center)`). Capture that
+    // coordinate and thread it into `markPinned` so the REAL pin reaches the
+    // create draft — it used to be discarded here, collapsing every pinned
+    // pickup to the Beirut fallback.
+    final result = await context.pushNamed<Object?>('capture-location');
+    final point = result is LocationPoint ? result : null;
+    cubit.markPinned(
+      latitude: point?.latitude,
+      longitude: point?.longitude,
+    );
   }
 
   void _onOpenSaved(BuildContext context) {
