@@ -12,14 +12,15 @@ import 'package:jeeb_mobile/core/session/session_gate.dart';
 
 import 'support/sync_app_localizations.dart';
 
-/// Records every POST so the test can assert the app → gateway register hop
-/// actually fired with the right contract body.
+/// Records every PUT so the test can assert the app → gateway register hop
+/// actually fired with the right contract body. The registrar uses
+/// `PUT /api/PushNotification/register`, so we override `put`.
 class _RecordingDio extends Fake implements Dio {
   final List<String> paths = <String>[];
   final List<Map<String, dynamic>> bodies = <Map<String, dynamic>>[];
 
   @override
-  Future<Response<T>> post<T>(
+  Future<Response<T>> put<T>(
     String path, {
     Object? data,
     Map<String, dynamic>? queryParameters,
@@ -88,7 +89,7 @@ void main() {
 
       await handler.bootstrap();
 
-      expect(dio.paths, ['/v1/devices/register']);
+      expect(dio.paths, ['/api/PushNotification/register']);
       expect(dio.bodies.single['fcmToken'], 'fcm-real-token');
       expect(dio.bodies.single['deviceId'], isNotEmpty);
       expect(dio.bodies.single['platform'], isA<String>());
@@ -114,7 +115,8 @@ void main() {
       transport.emitTokenRefresh('fcm-2');
       await Future<void>.delayed(Duration.zero);
 
-      expect(dio.paths, ['/v1/devices/register', '/v1/devices/register']);
+      expect(dio.paths,
+          ['/api/PushNotification/register', '/api/PushNotification/register']);
       expect(dio.bodies.first['fcmToken'], 'fcm-1');
       expect(dio.bodies.last['fcmToken'], 'fcm-2');
       // Same install -> same stable deviceId across both registrations.
@@ -158,7 +160,7 @@ void main() {
       // Dispatcher ctor calls handler.bootstrap() asynchronously; drain it.
       await tester.pump(const Duration(milliseconds: 200));
 
-      expect(dio.paths, contains('/v1/devices/register'));
+      expect(dio.paths, contains('/api/PushNotification/register'));
       expect(dio.bodies.first['fcmToken'], 'fcm-app-token');
     });
   });
