@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import 'package:dio/dio.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -12,8 +16,11 @@ import '../core/dev_seam/dev_seam.dart';
 import '../core/dev_seam/session_seam_bootstrap.dart';
 import '../core/locale/locale_cubit.dart';
 import '../core/notifications/application/badge_count_cubit.dart';
+import '../core/di/injection_container.dart';
 import '../core/notifications/application/notification_dispatcher.dart';
 import '../core/notifications/application/push_notification_handler.dart';
+import '../core/notifications/data/device_token_registrar.dart';
+import '../core/notifications/data/firebase_messaging_transport.dart';
 import '../core/notifications/data/push_transport.dart';
 import '../core/notifications/domain/notification_deep_link.dart';
 import '../core/notifications/presentation/push_banner_host.dart';
@@ -168,6 +175,7 @@ class _JeebAppState extends State<JeebApp> {
   // already cascades into `transport.dispose()`.
   PushNotificationHandler? _pushHandler;
   NotificationDispatcher? _dispatcher;
+  DeviceTokenRegistrar? _deviceRegistrar;
 
   @override
   void initState() {
@@ -182,7 +190,7 @@ class _JeebAppState extends State<JeebApp> {
 
   void _initPushChain() {
     if (!mounted) return;
-    final transport = widget.pushTransport ?? FakePushTransport();
+    final transport = widget.pushTransport ?? _defaultPushTransport();
     final handler = PushNotificationHandler(
       transport: transport,
       badgeCount: _badgeCount,
@@ -190,16 +198,50 @@ class _JeebAppState extends State<JeebApp> {
     final dispatcher = NotificationDispatcher(
       handler: handler,
       router: _router,
+      // Cold-start: route the tap that launched the app from a terminated
+      // state (the jeeber's chat-push entry point) once the router is built.
+      initialMessage: transport.initialMessage(),
     );
+    // PUSH-WIRING: with a real FCM transport, register this install's token
+    // with the gateway so server-side chat/delivery pushes can target it.
+    // The fake transport (tests / Firebase-uninit builds) has no real token,
+    // so registration is skipped.
+    if (transport is FirebaseMessagingTransport) {
+      final registrar = DeviceTokenRegistrar(
+        dio: sl<Dio>(),
+        tokenStore: sl<AuthTokenStore>(),
+        transport: transport,
+        prefs: widget.preferences,
+      );
+      unawaited(registrar.start());
+      _deviceRegistrar = registrar;
+    }
     setState(() {
       _pushHandler = handler;
       _dispatcher = dispatcher;
     });
   }
 
+  /// Production push transport. Firebase only has an app when
+  /// `Firebase.initializeApp()` succeeded in [Bootstrap.minimal] — which now
+  /// happens on dev/QA builds because `google-services.json` is bundled and
+  /// the gms plugin is applied. In widget tests (and any build where init fell
+  /// back to the Noop reporter) `Firebase.apps` is empty, so we use the
+  /// in-memory fake and nothing touches the FCM platform channel.
+  PushTransport _defaultPushTransport() {
+    if (Firebase.apps.isEmpty) return FakePushTransport();
+    final transport = FirebaseMessagingTransport();
+    // initialize() wires the background handler, the Android channel, and the
+    // foreground listeners. Idempotent + async; the handler subscribes to the
+    // transport's broadcast streams immediately, so ordering is safe.
+    unawaited(transport.initialize());
+    return transport;
+  }
+
   @override
   void dispose() {
     _crashContext.dispose();
+    _deviceRegistrar?.dispose();
     _dispatcher?.dispose();
     _pushHandler?.dispose();
     _badgeCount.close();

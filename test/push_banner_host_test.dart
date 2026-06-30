@@ -104,7 +104,7 @@ void main() {
     await tester.pump();
     expect(find.text('Banner Headline'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Dismiss'));
+    await tester.tap(find.byIcon(Icons.close));
     await tester.pump();
 
     expect(tapped, isNull);

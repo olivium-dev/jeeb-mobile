@@ -335,12 +335,19 @@ void main() {
       final gw = _ComposeGateway();
       addTearDown(gw.dispose);
       final broadcasts = <String>[];
+      final messages = <String>[];
       await t.pumpWidget(_host(ChatScreen(
         deliveryId: 'req-client-001-new',
         counterpartName: '',
         cubit: _cubit(gw, id: 'req-client-001-new')..load(),
         isOrderChat: true,
-        onFirstMessageBroadcast: broadcasts.add,
+        // New signature: (requestId, firstMessage) -> Future<bool>. Returning
+        // true keeps the one-shot guard armed (mirrors a successful create).
+        onFirstMessageBroadcast: (requestId, firstMessage) async {
+          broadcasts.add(requestId);
+          messages.add(firstMessage);
+          return true;
+        },
       )));
       await t.pumpAndSettle();
 
@@ -360,6 +367,9 @@ void main() {
       await t.pumpAndSettle();
 
       expect(broadcasts, ['req-client-001-new']);
+      // AC1: the composed first message is forwarded as the request
+      // description (the create-leg's only required field).
+      expect(messages, ['I need standard delivery from downtown to airport']);
 
       // A second send must NOT re-broadcast (one-shot guard).
       await t.enterText(

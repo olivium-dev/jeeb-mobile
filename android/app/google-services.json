@@ -1,0 +1,111 @@
+{
+  "project_info": {
+    "project_number": "1051234312170",
+    "project_id": "jeeb-5a293",
+    "storage_bucket": "jeeb-5a293.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1051234312170:android:3cbb5f318510879923dc93",
+        "android_client_info": {
+          "package_name": "app.jeeb.mobile"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1051234312170-8hbgasvbfmerg6h2rk3vgu80ojh4hq3d.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAkf3yIvW8U0w3artJ7ZAeoWBu1F6LT4Us"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1051234312170-8hbgasvbfmerg6h2rk3vgu80ojh4hq3d.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1051234312170-q1mjbv7s37sgv2s2ols57m0jehn2di40.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "app.jeeb.jeebMobile"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1051234312170:android:3cbb5f318510879923dc93",
+        "android_client_info": {
+          "package_name": "app.jeeb.mobile.dev"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1051234312170-8hbgasvbfmerg6h2rk3vgu80ojh4hq3d.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAkf3yIvW8U0w3artJ7ZAeoWBu1F6LT4Us"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1051234312170-8hbgasvbfmerg6h2rk3vgu80ojh4hq3d.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1051234312170-q1mjbv7s37sgv2s2ols57m0jehn2di40.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "app.jeeb.jeebMobile"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1051234312170:android:3cbb5f318510879923dc93",
+        "android_client_info": {
+          "package_name": "app.jeeb.mobile.pushtest"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1051234312170-8hbgasvbfmerg6h2rk3vgu80ojh4hq3d.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAkf3yIvW8U0w3artJ7ZAeoWBu1F6LT4Us"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1051234312170-8hbgasvbfmerg6h2rk3vgu80ojh4hq3d.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

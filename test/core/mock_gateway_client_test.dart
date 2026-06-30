@@ -23,11 +23,16 @@ import 'package:jeeb_mobile/core/network/mock_gateway_client.dart';
 
 void main() {
   group('MockGatewayClient config (W-1 foundation)', () {
-    test('mockBaseUrl defaults to the host LAN IP on port 4010 (#37)', () {
-      // #37: default swapped from the Android-emulator-only 10.0.2.2 loopback
-      // to the host LAN IP so iOS sims and physical devices reach the mock
-      // out of the box.
-      expect(MockGatewayClient.mockBaseUrl, 'http://192.168.2.33:4010');
+    test('mockBaseUrl defaults to the live DEV GATEWAY in debug (no define)',
+        () {
+      // super-login hardening: with NO --dart-define, a debug build now defaults
+      // to the live dev gateway (which serves the raw /v1/* + /api/* contract
+      // incl. super-login) instead of the :4010 Express mock, so a plain
+      // `flutter run` is coherent and the dev super-login flow works out of the
+      // box. Tests run in debug, so this default applies here. A build can still
+      // override via --dart-define=JEEB_MOCK_BASE_URL=...; release keeps the
+      // historical :4010 fallback.
+      expect(MockGatewayClient.mockBaseUrl, 'http://192.168.2.39:10090');
     });
 
     test('useMockPrefixes defaults to false (live-gateway / device default)',

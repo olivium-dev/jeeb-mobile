@@ -19,10 +19,17 @@ class ActiveOrderCard extends StatelessWidget {
     super.key,
     required this.request,
     required this.onTap,
+    this.onOpenChat,
   });
 
   final ClientHomeRequest request;
   final VoidCallback onTap;
+
+  /// Post-accept "Open chat" entry point. When non-null (and the order is
+  /// trackable, i.e. a Jeeber is engaged), the card surfaces an "Open chat"
+  /// CTA that re-opens the accepted order's conversation. Null on surfaces
+  /// without a conversation (and in existing widget tests), where it hides.
+  final VoidCallback? onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +53,7 @@ class ActiveOrderCard extends StatelessWidget {
         child: _ActiveOrderColumn(
           request: request,
           onTap: onTap,
+          onOpenChat: onOpenChat,
           divider: Divider(height: 1, color: colorScheme.outlineVariant),
         ),
       ),
@@ -58,17 +66,19 @@ class _ActiveOrderColumn extends StatelessWidget {
     required this.request,
     required this.onTap,
     required this.divider,
+    this.onOpenChat,
   });
 
   final ClientHomeRequest request;
   final VoidCallback onTap;
+  final VoidCallback? onOpenChat;
   final Widget divider;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _ActiveOrderRow(request: request, onTap: onTap),
+        _ActiveOrderRow(request: request, onTap: onTap, onOpenChat: onOpenChat),
         Padding(
           padding: const EdgeInsetsDirectional.only(top: Spacing.xSmall),
           child: divider,
@@ -79,10 +89,15 @@ class _ActiveOrderColumn extends StatelessWidget {
 }
 
 class _ActiveOrderRow extends StatelessWidget {
-  const _ActiveOrderRow({required this.request, required this.onTap});
+  const _ActiveOrderRow({
+    required this.request,
+    required this.onTap,
+    this.onOpenChat,
+  });
 
   final ClientHomeRequest request;
   final VoidCallback onTap;
+  final VoidCallback? onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +107,11 @@ class _ActiveOrderRow extends StatelessWidget {
         _ActiveOrderAvatar(initial: _initial(request.title)),
         const SizedBox(width: Spacing.twoXSmall),
         Expanded(
-          child: _ActiveOrderBody(request: request, onTap: onTap),
+          child: _ActiveOrderBody(
+            request: request,
+            onTap: onTap,
+            onOpenChat: onOpenChat,
+          ),
         ),
       ],
     );
@@ -122,13 +141,20 @@ class _ActiveOrderAvatar extends StatelessWidget {
 }
 
 class _ActiveOrderBody extends StatelessWidget {
-  const _ActiveOrderBody({required this.request, required this.onTap});
+  const _ActiveOrderBody({
+    required this.request,
+    required this.onTap,
+    this.onOpenChat,
+  });
 
   final ClientHomeRequest request;
   final VoidCallback onTap;
+  final VoidCallback? onOpenChat;
 
   @override
   Widget build(BuildContext context) {
+    final onOpenChat = this.onOpenChat;
+    final showChat = _canTrack(request.status) && onOpenChat != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -139,8 +165,12 @@ class _ActiveOrderBody extends StatelessWidget {
         _ActiveOrderProgressBar(progressStep: request.progressStep),
         const SizedBox(height: Spacing.small),
         const _ActiveOrderProgressLabels(),
-        if (_canTrack(request.status))
-          _TrackOrderButton(requestId: request.id, onTap: onTap),
+        if (_canTrack(request.status) || showChat)
+          _ActiveOrderActions(
+            requestId: request.id,
+            onTrack: _canTrack(request.status) ? onTap : null,
+            onOpenChat: showChat ? onOpenChat : null,
+          ),
       ],
     );
   }
@@ -319,6 +349,53 @@ class _ProgressStepLabel extends StatelessWidget {
   }
 }
 
+/// End-aligned action row for the accepted/in-progress card: an "Open chat"
+/// re-entry pill (post-accept conversation re-entry — JM-025) alongside the
+/// "Track my order" pill. Either may be absent (null callback) and simply does
+/// not render, so existing surfaces that only pass `onTap` are unchanged.
+class _ActiveOrderActions extends StatelessWidget {
+  const _ActiveOrderActions({
+    required this.requestId,
+    this.onTrack,
+    this.onOpenChat,
+  });
+
+  final String requestId;
+  final VoidCallback? onTrack;
+  final VoidCallback? onOpenChat;
+
+  @override
+  Widget build(BuildContext context) {
+    final onOpenChat = this.onOpenChat;
+    final onTrack = this.onTrack;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(top: Spacing.small),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          if (onOpenChat != null) ...[
+            SizedBox(
+              height: Sizes.twoXLarge,
+              child: Semantics(
+                identifier: 'orders_open_chat_button_$requestId',
+                button: true,
+                child: OMDSOutlinedButton(
+                  key: Key('active-open-chat-$requestId'),
+                  text: AppLocalizations.of(context).orderSummaryOpenChat,
+                  onTap: onOpenChat,
+                ),
+              ),
+            ),
+            const SizedBox(width: Spacing.small),
+          ],
+          if (onTrack != null)
+            _TrackOrderButton(requestId: requestId, onTap: onTrack),
+        ],
+      ),
+    );
+  }
+}
+
 class _TrackOrderButton extends StatelessWidget {
   const _TrackOrderButton({required this.requestId, required this.onTap});
 
@@ -327,27 +404,21 @@ class _TrackOrderButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Same content-hugging end-aligned pill as the Replies "Check Offers" CTA.
-    // `OmdsPrimaryButton` expands to fill bounded width, so `Align(centerEnd)`
-    // needs `IntrinsicWidth` to feed it a tight content-width constraint —
+    // Content-hugging trailing pill. `OmdsPrimaryButton` expands to fill bounded
+    // width, so `IntrinsicWidth` feeds it a tight content-width constraint —
     // otherwise the Track CTA renders full-width instead of a trailing pill.
-    return Align(
-      alignment: AlignmentDirectional.centerEnd,
-      child: Padding(
-        padding: const EdgeInsetsDirectional.only(top: Spacing.small),
-        child: IntrinsicWidth(
-          child: SizedBox(
-            height: Sizes.twoXLarge,
-            child: Semantics(
-              identifier: 'orders_track_order_button_$requestId',
-              button: true,
-              child: OmdsPrimaryButton(
-                key: Key('active-track-order-$requestId'),
-                text: AppLocalizations.of(context).homeTrackOrderCta,
-                onTap: onTap,
-                borderRadius: OmdsBorderRadius.pill,
-              ),
-            ),
+    // Alignment + top padding are owned by the parent [_ActiveOrderActions] row.
+    return IntrinsicWidth(
+      child: SizedBox(
+        height: Sizes.twoXLarge,
+        child: Semantics(
+          identifier: 'orders_track_order_button_$requestId',
+          button: true,
+          child: OmdsPrimaryButton(
+            key: Key('active-track-order-$requestId'),
+            text: AppLocalizations.of(context).homeTrackOrderCta,
+            onTap: onTap,
+            borderRadius: OmdsBorderRadius.pill,
           ),
         ),
       ),

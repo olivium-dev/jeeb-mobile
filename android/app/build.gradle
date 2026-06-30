@@ -2,6 +2,12 @@ plugins {
     id "com.android.application"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
+    // PUSH-WIRING: apply the Google Services plugin (declared apply-false in
+    // settings.gradle v4.4.2) so the bundled google-services.json is merged
+    // into the per-flavor applicationId (app.jeeb.mobile.dev) and
+    // Firebase.initializeApp() loads FirebaseOptions from the generated
+    // resource instead of falling back to the Noop reporter.
+    id "com.google.gms.google-services"
 }
 
 def localProperties = new Properties()

@@ -81,6 +81,11 @@ class FirebaseMessagingTransport implements PushTransport {
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
         iOS: DarwinInitializationSettings(),
       ),
+      // Foreground messages are shown via a LOCAL notification (FCM does not
+      // auto-display them on Android). Route a tap on that local notification
+      // through the same opened-app path so foreground-arrived chat pushes
+      // navigate to the conversation just like background ones.
+      onDidReceiveNotificationResponse: _onLocalNotificationTap,
     );
 
     final androidImpl = _localNotifications.resolvePlatformSpecificImplementation<
@@ -99,9 +104,21 @@ class FirebaseMessagingTransport implements PushTransport {
     });
   }
 
+  /// Maps the local-notification id (`domain.id`) back to the domain message
+  /// so a foreground-notification tap can be re-routed via [_opened].
+  final Map<String, NotificationMessage> _foregroundShown = {};
+
+  void _onLocalNotificationTap(NotificationResponse response) {
+    final id = response.payload;
+    if (id == null) return;
+    final message = _foregroundShown.remove(id);
+    if (message != null) _opened.add(message);
+  }
+
   void _handleForeground(RemoteMessage message) {
     final domain = _toDomain(message);
     _foreground.add(domain);
+    _foregroundShown[domain.id] = domain;
     // On Android the OS won't render foreground messages — surface a
     // local notification ourselves so the user still sees a heads-up.
     // On iOS the OS handles display via setForegroundNotificationPresentationOptions.
@@ -172,14 +189,78 @@ class FirebaseMessagingTransport implements PushTransport {
     final data = message.data.map(
       (key, value) => MapEntry(key.toString(), value?.toString() ?? ''),
     );
+    // The live jeeb-gateway chat push nests the routing fields inside a single
+    // stringified `data` field — e.g. `data:
+    // "{'conversationId':'…','requestId':'…','type':'chat'}"` — instead of
+    // emitting them as flat top-level FCM data entries, and serializes it as a
+    // single-quote (Python-style) pseudo-JSON, NOT valid JSON. Flatten any
+    // routing keys found in that blob up to the top level (without clobbering
+    // a real flat field) so category resolution + deepLinkForMessage see
+    // `type`/`conversationId`/`requestId`. Tolerant regex extraction avoids the
+    // single-vs-double-quote JSON pitfall.
+    hoistNestedRoutingFields(data);
+    if (kDebugMode) {
+      // Diagnostic: keys + flags only (no values) so we can see the live
+      // payload shape (e.g. conversationId/type) without leaking content.
+      debugPrint('[push] rx keys=${data.keys.toList()} '
+          'hasNotif=${message.notification != null} '
+          'cat=${data['category'] ?? data['type']}');
+    }
     return NotificationMessage(
       id: message.messageId ??
           'fcm-${DateTime.now().microsecondsSinceEpoch}',
-      category: NotificationCategory.fromKey(data['category']),
+      // jeeb-gateway's canonical payload uses `category`; the chat-message
+      // push trigger (gateway patch 0009) instead sends `type` (e.g.
+      // `type:"chat"`). Accept either so a chat push routes regardless of
+      // which field the emitting service stamps.
+      category: NotificationCategory.fromKey(
+        data['category'] ?? data['type'],
+      ),
       title: message.notification?.title ?? data['title'] ?? '',
       body: message.notification?.body ?? data['body'] ?? '',
       receivedAt: message.sentTime ?? DateTime.now(),
       data: data,
     );
+  }
+}
+
+/// Routing keys the gateway may bury inside the stringified `data` blob.
+const List<String> kNestedRoutingKeys = <String>[
+  'category',
+  'type',
+  'conversationId',
+  'conversation_id',
+  'chat_id',
+  'requestId',
+  'request_id',
+  'delivery_id',
+  'order_id',
+];
+
+/// Extracts [kNestedRoutingKeys] from a nested `data` field (single- OR
+/// double-quote pseudo-JSON) and hoists them to the top level of [data].
+///
+/// The live jeeb-gateway chat push nests routing fields inside a single
+/// stringified `data` entry — e.g.
+/// `data: "{'conversationId':'…','requestId':'…','type':'chat'}"` — serialized
+/// as a single-quote (Python-style) pseudo-JSON that is NOT valid JSON. Without
+/// hoisting, `category`/`type`/`conversationId` are invisible to category
+/// resolution and [deepLinkForMessage], so a chat push routes nowhere.
+///
+/// Existing flat keys win (this only fills gaps); no-op when there is no nested
+/// blob, so a correct flat payload is unaffected. Tolerant regex extraction
+/// avoids the single-vs-double-quote JSON pitfall.
+void hoistNestedRoutingFields(Map<String, String> data) {
+  final blob = data['data'];
+  if (blob == null || blob.isEmpty || !blob.contains(':')) return;
+  for (final key in kNestedRoutingKeys) {
+    if ((data[key] ?? '').isNotEmpty) continue; // a real flat field wins
+    final m = RegExp(
+      '''["']?$key["']?\\s*:\\s*["']?([^,"'}\\s]+)["']?''',
+    ).firstMatch(blob);
+    final value = m?.group(1);
+    if (value != null && value.isNotEmpty && value != 'null') {
+      data[key] = value;
+    }
   }
 }

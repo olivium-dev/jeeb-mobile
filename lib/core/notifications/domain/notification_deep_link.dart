@@ -15,7 +15,14 @@ String? deepLinkForMessage(NotificationMessage message) {
       if (id == null || id.isEmpty) return null;
       return '/orders/$id';
     case NotificationCategory.chat:
-      final id = message.data['chat_id'] ?? message.data['conversation_id'];
+      // Canonical client keys are snake_case; gateway patch 0009 emits the
+      // camelCase `conversationId` (+ `requestId`). Accept all so the tap
+      // resolves the conversation regardless of which the backend stamps.
+      final id = message.data['chat_id'] ??
+          message.data['conversation_id'] ??
+          message.data['conversationId'] ??
+          message.data['requestId'] ??
+          message.data['request_id'];
       if (id == null || id.isEmpty) return null;
       return '/chat/$id';
     case NotificationCategory.kyc:

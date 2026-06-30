@@ -60,7 +60,6 @@ import '../../features/dispute_status/data/dio_dispute_status_repository.dart';
 import '../../features/dispute_status/domain/dispute_status_repository.dart';
 import '../../features/reviews/data/dio_reviews_repository.dart';
 import '../../features/reviews/domain/reviews_repository.dart';
-import '../dev_seam/session_seam_bootstrap.dart';
 import '../session/jeeber_kyc_status_gate.dart';
 import '../../features/voice_request/domain/audioplayers_voice_player.dart';
 import '../../features/voice_request/domain/record_voice_recorder.dart';
@@ -81,6 +80,7 @@ import '../../features/offers/domain/offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
 import '../../features/settlement/data/dio_settlement_repository.dart';
 import '../../features/settlement/domain/settlement_repository.dart';
+import '../config/app_config.dart';
 import '../network/auth_token_store.dart';
 import '../network/mock_gateway_client.dart';
 import '../observability/crash_reporter.dart';
@@ -154,10 +154,15 @@ void configureDependencies({
     () => DefaultSuperLoginService(dio: sl<Dio>()),
   );
 
-  // "Super user login plus": fetches the predefined demo-user roster the picker
-  // lists (debug-only). Same Dio client as every other gateway data source.
+  // "Super user login plus": lists ALL active users via the passcode-gated
+  // POST /api/User/super-login/users (debug-only). Same Dio client as every
+  // other gateway data source; the SuperAdmin passcode comes from AppConfig
+  // (build-time --dart-define or the debug fallback).
   sl.registerLazySingleton<SuperLoginDemoUserService>(
-    () => DefaultSuperLoginDemoUserService(dio: sl<Dio>()),
+    () => DefaultSuperLoginDemoUserService(
+      dio: sl<Dio>(),
+      superAdminPassCode: AppConfig.superAdminPassCode,
+    ),
   );
 
   sl.registerLazySingleton<OrderRepository>(
@@ -186,9 +191,7 @@ void configureDependencies({
 
   // T-MOB-010: DioTierRepository replaces FakeTierRepository as the DI default.
   // The screen still accepts a constructor-injected repo for widget tests.
-  sl.registerLazySingleton<TierRepository>(
-    () => DioTierRepository(sl<Dio>()),
-  );
+  sl.registerLazySingleton<TierRepository>(() => DioTierRepository(sl<Dio>()));
 
   // T-MOB-015 / W1-INT (JM-028 offer-review): DioOffersRepository provides the
   // real gateway path (GET /v1/offers?requestId=, POST /v1/offers/:id/accept →
@@ -230,10 +233,7 @@ void configureDependencies({
   // that need a per-conversation instance should call DioChatGateway directly
   // with their own resolved userId (see chat_detail_screen.dart).
   sl.registerFactory<ChatGateway>(
-    () => DioChatGateway(
-      dio: sl<Dio>(),
-      currentUserId: 'faketoken',
-    ),
+    () => DioChatGateway(dio: sl<Dio>(), currentUserId: 'faketoken'),
   );
 
   // Jeeber request feed — polling-backed until WS support is wired.
@@ -256,9 +256,7 @@ void configureDependencies({
   );
 
   // KYC — submit + status from auth-service via gateway.
-  sl.registerLazySingleton<KycGateway>(
-    () => DioKycGateway(sl<Dio>()),
-  );
+  sl.registerLazySingleton<KycGateway>(() => DioKycGateway(sl<Dio>()));
 
   // Rating — post-delivery star rating via score-taking-service.
   sl.registerLazySingleton<RatingRepository>(
@@ -272,7 +270,7 @@ void configureDependencies({
 
   // Availability toggle — Jeeber online/offline state via geolocation-service.
   sl.registerLazySingleton<AvailabilityGateway>(
-    () => DioAvailabilityGateway(sl<Dio>()),
+    () => DioAvailabilityGateway(sl<Dio>(), tokenStore: sl<AuthTokenStore>()),
   );
 
   // Remote notification prefs — syncs with gateway notification-service.
@@ -400,15 +398,13 @@ void configureDependencies({
 
   // JM-057 notifications-list: the notification-service inbox (list + mark-read)
   // is LIVE on :4010 (42_GUARDRAILS_MOCK §4 mock-ready), so this binds the REAL
-  // Dio repo. The `?userId=` defaults to the seeded customer id
-  // (SessionSeamBootstrap.customerUserId) until a real session-user-id provider
-  // lands (mirrors DioSubmittedOffersRepository, 50_ROUTE_REQUESTS JM-047); the
-  // JM-057 engineer swaps it for the live session user. The header bell now
-  // routes here (`goNamed('notifications')`, shell guard removed).
+  // Dio repo. The `?userId=` is resolved from AuthTokenStore, which the real
+  // login and super_login_plus seam both write. The header bell now routes here
+  // (`goNamed('notifications')`, shell guard removed).
   sl.registerLazySingleton<NotificationsRepository>(
     () => DioNotificationsRepository(
       dio: sl<Dio>(),
-      userId: SessionSeamBootstrap.customerUserId,
+      tokenStore: sl<AuthTokenStore>(),
     ),
   );
 

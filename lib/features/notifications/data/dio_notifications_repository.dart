@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/auth_token_store.dart';
 import '../domain/notifications_repository.dart';
 
 /// Dio-backed [NotificationsRepository] (JM-057) — the notification-service
@@ -15,19 +16,24 @@ import '../domain/notifications_repository.dart';
 /// JM-057 engineer swaps it for the live session user. DO NOT hardcode a service
 /// prefix here (40_GUARDRAILS_ARCH §4 / DO-NOT).
 class DioNotificationsRepository implements NotificationsRepository {
-  const DioNotificationsRepository({required Dio dio, required String userId})
-      : _dio = dio,
-        _userId = userId;
+  const DioNotificationsRepository({
+    required Dio dio,
+    AuthTokenStore? tokenStore,
+  }) : _dio = dio,
+       _tokenStore = tokenStore;
 
   final Dio _dio;
-  final String _userId;
+  final AuthTokenStore? _tokenStore;
 
   @override
   Future<List<NotificationItem>> fetchNotifications() async {
     try {
+      final userId = await _tokenStore?.userId;
       final res = await _dio.get<Map<String, dynamic>>(
         '/v1/notifications',
-        queryParameters: <String, Object>{'userId': _userId},
+        queryParameters: userId == null || userId.isEmpty
+            ? null
+            : <String, Object>{'userId': userId},
       );
       final data = res.data ?? const <String, dynamic>{};
       final raw = data['items'] ?? data['notifications'];
@@ -59,7 +65,8 @@ class DioNotificationsRepository implements NotificationsRepository {
       kind: _kind(json['type'] ?? json['kind']),
       title: _str(json['title']) ?? '',
       body: _str(json['body'] ?? json['message']) ?? '',
-      timestamp: _str(json['ts'] ?? json['timestamp'] ?? json['createdAt']) ?? '',
+      timestamp:
+          _str(json['ts'] ?? json['timestamp'] ?? json['createdAt']) ?? '',
       read: json['read'] == true,
       ref: _str(json['ref'] ?? json['targetId'] ?? json['deliveryId']),
     );

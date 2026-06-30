@@ -10,39 +10,45 @@ import 'request_feed_repository.dart';
 /// Uses REST polling (no WebSocket in this implementation) against the W2
 /// delivery-service contract. Emits [FeedTransport.polling].
 ///
-/// Mock endpoint (gateway path → `MockGatewayClient` rewrite → :4010
-/// `delivery-service`; JM-048 AC mock contract):
-///   GET  /v1/requests?status=pending  → { items: [...request], page, pageSize,
-///                                         totalCount }   (rewrites to
-///                                         `/delivery-service/v1/requests`)
+/// Live jeeb-gateway endpoint (Contract B — `jeeb-gateway/jeeber-feed`
+/// v1.0.0, FROZEN, request-centric):
+///   GET  /v1/jeebers/me/feed?status=pending  → 200 `JeeberFeedResponse`
+///          { items: [JeeberFeedItem...], totalCount }
 ///   POST /v1/delivery/requests/{id}/accept
 ///   POST /v1/delivery/requests/{id}/decline
 ///
-/// The feed shows requests the jeeber can offer on: the W2 `pending` (open
-/// broadcast) bucket. Each item is mapped to an `incoming` [DeliveryRequest]
-/// so the feed's Requests tab renders the Ignore/Offer card (JM-048 AC1/AC2).
+/// The feed returns the PENDING delivery requests an ONLINE jeeber may bid on
+/// (server-side visibility predicate: online + status=pending + clientId !=
+/// jeeberId). It is online-gated — an offline jeeber receives `{items:[],
+/// totalCount:0}`. Each `JeeberFeedItem` is keyed by `requestId` and annotated
+/// with this jeeber's existing `myOffer` (nullable). Items with no `myOffer`
+/// render as `incoming` (Ignore/Offer card, JM-048 AC1/AC2); items already
+/// annotated render as `pendingResponse`.
+///
+/// NOTE: this previously polled `GET /requests?status=pending`, which returns
+/// the CALLER'S OWN client requests and ignores status → a jeeber always saw 0
+/// rows. Pointed at the correct request-centric feed per the S02 freeze.
 class DioRequestFeedRepository implements RequestFeedRepository {
   DioRequestFeedRepository({
     required Dio dio,
     Duration pollInterval = const Duration(seconds: 10),
-  })  : _dio = dio,
-        _pollInterval = pollInterval;
+  }) : _dio = dio,
+       _pollInterval = pollInterval;
 
   final Dio _dio;
   final Duration _pollInterval;
 
-  /// The W2 delivery-service request feed (open broadcasts the jeeber may bid
-  /// on). `status=pending` is the offer-able bucket per `listRequestsHandler`.
-  static const String _feedPath = '/v1/requests?status=pending';
+  /// The jeeb-gateway request-centric discovery feed (Contract B). Online-gated
+  /// pending requests the jeeber may bid on. Was `/requests?status=pending`
+  /// (returned the caller's own requests → always 0 for a jeeber).
+  static const String _feedPath = '/v1/jeebers/me/feed?status=pending';
 
   final StreamController<DeliveryRequest> _requestsCtrl =
       StreamController<DeliveryRequest>.broadcast();
   final StreamController<String> _cancellationsCtrl =
       StreamController<String>.broadcast();
   final StreamController<FeedTransportUpdate> _transportCtrl =
-      StreamController<FeedTransportUpdate>.broadcast(
-    onListen: () {},
-  );
+      StreamController<FeedTransportUpdate>.broadcast(onListen: () {});
 
   Timer? _pollTimer;
   bool _disposed = false;
@@ -60,7 +66,7 @@ class DioRequestFeedRepository implements RequestFeedRepository {
   Future<List<DeliveryRequest>> refresh() async {
     _ensurePolling();
     try {
-      final response = await _dio.get<Map<String, dynamic>>(_feedPath);
+      final response = await _dio.get<dynamic>(_feedPath);
       return _parseRequests(response.data ?? {});
     } on DioException {
       return const <DeliveryRequest>[];
@@ -108,7 +114,7 @@ class DioRequestFeedRepository implements RequestFeedRepository {
   Future<void> _poll() async {
     if (_disposed) return;
     try {
-      final response = await _dio.get<Map<String, dynamic>>(_feedPath);
+      final response = await _dio.get<dynamic>(_feedPath);
       final requests = _parseRequests(response.data ?? {});
       for (final r in requests) {
         _requestsCtrl.add(r);
@@ -118,8 +124,12 @@ class DioRequestFeedRepository implements RequestFeedRepository {
     }
   }
 
-  List<DeliveryRequest> _parseRequests(Map<String, dynamic> data) {
-    final items = data['items'] as List? ?? const <dynamic>[];
+  List<DeliveryRequest> _parseRequests(Object? data) {
+    final items = data is List
+        ? data
+        : data is Map<String, dynamic> && data['items'] is List
+        ? data['items'] as List
+        : const <dynamic>[];
     return items
         .whereType<Map<String, dynamic>>()
         .map(_parseRequest)
@@ -128,26 +138,55 @@ class DioRequestFeedRepository implements RequestFeedRepository {
   }
 
   DeliveryRequest? _parseRequest(Map<String, dynamic> json) {
-    final id = json['id'] as String?;
+    // Contract B `JeeberFeedItem` is keyed by `requestId`. Tolerate the legacy
+    // `/requests` `id` key so the parser is shape-agnostic.
+    final id = (json['requestId'] as String?) ?? (json['id'] as String?);
     if (id == null) return null;
-    final pickup = _parseLocation(json['pickup'] as Map<String, dynamic>?);
-    final dropoff = _parseLocation(json['dropoff'] as Map<String, dynamic>?);
-    if (pickup == null || dropoff == null) return null;
-    final tier = _parseTier(json['tier'] as String?);
-    // W2 shape: `amount:{value,currency}` (the request budget) — the older
-    // shape used a flat `potentialEarnings` + `currency`. Tolerate both
-    // (40_GUARDRAILS_ARCH §4 defensive parse).
+    // `pickup`/`dropoff` are RECOMMENDED-nullable in the frozen feed (§3.3).
+    // Parse the FeedLocation shape `{ address, location:{lat,lng} }` (and the
+    // legacy flat shape), but DEGRADE-DON'T-DROP: fall back to an unknown
+    // location so the request card still renders for an online jeeber even
+    // when routing fields are absent. Dropping here was a second cause of the
+    // empty feed.
+    final pickup =
+        _parseFeedLocation(json['pickup']) ??
+        _parseLiveLocation(json, 'pickup') ??
+        const RequestLocation(label: '', latitude: 0, longitude: 0);
+    final dropoff =
+        _parseFeedLocation(json['dropoff']) ??
+        _parseLiveLocation(json, 'dropoff') ??
+        const RequestLocation(label: '', latitude: 0, longitude: 0);
+    final tier = _parseTier(
+      json['tierId'] as String? ?? json['tier'] as String?,
+    );
+    // `myOffer` (nullable) = this jeeber's existing offer on the request. When
+    // present the jeeber has already bid → render the Pending affordance and
+    // surface the offered fee (`feeCents`) as the card earnings line.
+    final myOffer = json['myOffer'];
+    final hasOffer = myOffer is Map<String, dynamic>;
+    final feedStatus = hasOffer
+        ? JeeberFeedItemStatus.pendingResponse
+        : JeeberFeedItemStatus.incoming;
+    // The frozen feed item carries no request budget; earnings is only known
+    // once the jeeber has offered (`myOffer.feeCents`, cents). Tolerate legacy
+    // `potentialEarnings`/`amount` shapes too.
     final amount = json['amount'];
-    final earnings = (json['potentialEarnings'] as num?)?.toDouble() ??
+    final earnings =
+        (json['potentialEarnings'] as num?)?.toDouble() ??
         _amountValue(amount) ??
-        0.0;
-    final currency = (json['currency'] as String?) ?? _amountCurrency(amount) ?? 'USD';
-    final distance = (json['estimatedDistanceKm'] as num?)?.toDouble() ?? 0.0;
+        (hasOffer
+            ? ((myOffer['feeCents'] as num?)?.toDouble() ?? 0.0) / 100.0
+            : 0.0);
+    final currency =
+        (json['currency'] as String?) ?? _amountCurrency(amount) ?? 'USD';
+    // `distanceMeters` (feed) = jeeber→pickup distance → the "away from you"
+    // line; `estimatedDistanceKm` is the legacy end-to-end value.
+    final distanceMeters = (json['distanceMeters'] as num?)?.toDouble();
     final expiresRaw =
         json['broadcastExpiresAt'] as String? ?? json['expiresAt'] as String?;
     final expires = expiresRaw != null
         ? DateTime.tryParse(expiresRaw) ??
-            DateTime.now().add(const Duration(minutes: 5))
+              DateTime.now().add(const Duration(minutes: 5))
         : DateTime.now().add(const Duration(minutes: 5));
     final createdRaw = json['createdAt'] as String?;
     return DeliveryRequest(
@@ -155,43 +194,87 @@ class DioRequestFeedRepository implements RequestFeedRepository {
       pickup: pickup,
       dropoff: dropoff,
       tier: tier,
-      estimatedDistanceKm: distance,
+      estimatedDistanceKm:
+          (json['estimatedDistanceKm'] as num?)?.toDouble() ?? 0.0,
       potentialEarnings: earnings,
       currency: currency,
       expiresAt: expires,
-      // W2 requests carry no separate sender name; the human-readable `title`
-      // (e.g. "Grocery pickup — Spinneys Dbayeh") is the card's summary line.
-      senderName: json['senderName'] as String?,
+      // Privacy: the feed strips `clientId`; `senderName` is only present on
+      // the legacy shape.
+      senderName: json['senderName'] as String? ?? json['clientId'] as String?,
       senderAvatarUrl: json['senderAvatarUrl'] as String?,
-      itemsSummary: json['itemsSummary'] as String? ?? json['title'] as String?,
+      // `description` is the deliverable summary the client authored for
+      // jeebers (the card body line).
+      itemsSummary:
+          json['description'] as String? ??
+          json['itemsSummary'] as String? ??
+          json['title'] as String?,
+      distanceFromYouKm: distanceMeters != null
+          ? distanceMeters / 1000.0
+          : (json['distanceFromYouKm'] as num?)?.toDouble(),
       receivedAt: createdRaw != null ? DateTime.tryParse(createdRaw) : null,
-      // All offer-able feed rows are `incoming` — the jeeber's own submitted
-      // offers live on the Pending sub-tab (a separate source, JM-047/048).
-      feedStatus: JeeberFeedItemStatus.incoming,
+      feedStatus: feedStatus,
     );
   }
 
-  RequestLocation? _parseLocation(Map<String, dynamic>? json) {
-    if (json == null) return null;
-    // W2 shape: `{ address, lat, lng }`; older shape: `{ label, latitude,
-    // longitude }`. Tolerate both.
-    final label = (json['address'] as String?) ?? json['label'] as String?;
-    final lat = (json['lat'] as num?)?.toDouble() ??
-        (json['latitude'] as num?)?.toDouble();
-    final lng = (json['lng'] as num?)?.toDouble() ??
-        (json['longitude'] as num?)?.toDouble();
+  /// Parses a Contract B `FeedLocation` (`{ address, location:{lat,lng} }`),
+  /// tolerating the legacy flat `{ address|label, lat|latitude, lng|longitude }`
+  /// shape. Returns `null` when no usable coordinates are present.
+  RequestLocation? _parseFeedLocation(Object? raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    final label =
+        (raw['address'] as String?) ?? (raw['label'] as String?) ?? '';
+    final loc = raw['location'];
+    if (loc is Map) {
+      final lat =
+          (loc['lat'] as num?)?.toDouble() ??
+          (loc['latitude'] as num?)?.toDouble();
+      final lng =
+          (loc['lng'] as num?)?.toDouble() ??
+          (loc['longitude'] as num?)?.toDouble();
+      if (lat != null && lng != null) {
+        return RequestLocation(label: label, latitude: lat, longitude: lng);
+      }
+    }
+    // Legacy flat shape.
+    final lat =
+        (raw['lat'] as num?)?.toDouble() ??
+        (raw['latitude'] as num?)?.toDouble();
+    final lng =
+        (raw['lng'] as num?)?.toDouble() ??
+        (raw['longitude'] as num?)?.toDouble();
+    if (lat != null && lng != null) {
+      return RequestLocation(label: label, latitude: lat, longitude: lng);
+    }
+    return null;
+  }
+
+  RequestLocation? _parseLiveLocation(Map<String, dynamic> json, String key) {
+    final loc = json['${key}Location'];
+    if (loc is! Map<String, dynamic>) return null;
+    final label = json['${key}Address'] as String?;
+    final lat =
+        (loc['lat'] as num?)?.toDouble() ??
+        (loc['latitude'] as num?)?.toDouble();
+    final lng =
+        (loc['lng'] as num?)?.toDouble() ??
+        (loc['longitude'] as num?)?.toDouble();
     if (label == null || lat == null || lng == null) return null;
     return RequestLocation(label: label, latitude: lat, longitude: lng);
   }
 
   double? _amountValue(Object? raw) {
     if (raw is num) return raw.toDouble();
-    if (raw is Map && raw['value'] is num) return (raw['value'] as num).toDouble();
+    if (raw is Map && raw['value'] is num) {
+      return (raw['value'] as num).toDouble();
+    }
     return null;
   }
 
   String? _amountCurrency(Object? raw) {
-    if (raw is Map && raw['currency'] is String) return raw['currency'] as String;
+    if (raw is Map && raw['currency'] is String) {
+      return raw['currency'] as String;
+    }
     return null;
   }
 
@@ -199,11 +282,13 @@ class DioRequestFeedRepository implements RequestFeedRepository {
     switch (raw) {
       case 'flash':
         return JeeberRequestTier.flash;
-      // W2 tiers: the mock seeds `express` for the feed request. Map it to the
-      // app's `standard` tier (the JeeberFeedTabView tier filter treats
-      // `standard` as the "Express" chip).
+      // Feed tiers: flash/express/standard/on_the_way/eco. Map express/standard
+      // /on_the_way/eco onto the app's `standard` tier (the JeeberFeedTabView
+      // tier filter treats `standard` as the "Express" chip).
       case 'standard':
       case 'express':
+      case 'on_the_way':
+      case 'eco':
         return JeeberRequestTier.standard;
       case 'bulk':
         return JeeberRequestTier.bulk;

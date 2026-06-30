@@ -146,6 +146,19 @@ class _InProgressList extends StatelessWidget {
             child: ActiveOrderCard(
               request: r,
               onTap: () => onTrack(r),
+              // Post-accept conversation re-entry (JM-025). Prefer the resolved
+              // conversationId; fall back to the request id (== correlationKey),
+              // which ChatDetailScreen resolves against the live gateway. Inert
+              // when neither identifies a conversation yet.
+              onOpenChat: () => GoRouter.of(context).pushNamed(
+                'chat-detail',
+                pathParameters: {
+                  'id': (r.conversationId != null &&
+                          r.conversationId!.isNotEmpty)
+                      ? r.conversationId!
+                      : r.id,
+                },
+              ),
             ),
           ),
       ],

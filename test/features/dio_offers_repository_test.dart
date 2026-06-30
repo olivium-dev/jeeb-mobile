@@ -61,6 +61,43 @@ void main() {
       expect(snapshot.requestIsOpen, isTrue);
     });
 
+    test('renders a LIVE-gateway offer with status "pending" (regression)',
+        () async {
+      // The live jeeb-gateway/offer-service stamps a fresh acceptable offer as
+      // status:"pending" (the :4010 mock used "submitted"). Before the fix the
+      // client filtered "pending" out, leaving "Choose a Jeeber" stuck on
+      // "Waiting for offers" even though the offer arrived 200. This is the
+      // exact wire shape captured from the live gateway on 2026-06-30.
+      when(() => mockDio.get<dynamic>(
+            any(),
+            queryParameters: any(named: 'queryParameters'),
+          )).thenAnswer(
+        (_) async => Response<dynamic>(
+          requestOptions: RequestOptions(path: ''),
+          data: const {
+            'items': [
+              {
+                'id': '667355d6-9a43-472c-a4b0-bec7c5151741',
+                'requestId': '3f8ec2e4-b6b1-4fb9-83e3-243a5326de7f',
+                'jeeberId': 'd1000000-0000-4000-8000-000000000002',
+                'status': 'pending',
+                'fee': 15,
+                'etaMinutes': 15,
+                'note': null,
+              },
+            ],
+          },
+          statusCode: 200,
+        ),
+      );
+
+      final snapshot = await repo.fetchOffers('3f8ec2e4');
+      expect(snapshot.offers, hasLength(1));
+      expect(snapshot.offers.first.id, '667355d6-9a43-472c-a4b0-bec7c5151741');
+      expect(snapshot.offers.first.fee, 15.0);
+      expect(snapshot.requestIsOpen, isTrue);
+    });
+
     test('throws OffersRepositoryException(network) on DioException', () {
       when(() => mockDio.get<dynamic>(
             any(),

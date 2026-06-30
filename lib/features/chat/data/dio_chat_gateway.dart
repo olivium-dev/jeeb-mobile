@@ -11,11 +11,26 @@ import 'web_socket_chat_socket.dart';
 
 /// Dio + Phoenix-channel backed [ChatGateway].
 ///
-/// HTTP side:
-///   GET  /v1/chat/jeeb/conversations/{id}              → conversation row
-///   GET  /v1/chat/jeeb/conversations/{id}/messages      → history (loadHistory)
-///   POST /v1/chat/jeeb/conversations/{id}/messages      → send
-///   POST /v1/offers/{offerId}/accept                    → acceptOffer
+/// HTTP side — paths aligned to the routes the gateway actually mounts
+/// (`jeeb-gateway` `JeebConversationsController`, cited in
+/// `docs/sprints/sprint-006/order-create-trace.md` §3 & §6):
+///   GET  /v1/conversations?correlationKey={id}          → conversation row
+///                                                          (`[HttpGet("v1/conversations")]`,
+///                                                          `GetConversationByCorrelation`,
+///                                                          correlationKey == request_id) → loadPhase
+///   GET  /v1/conversations/{id}/messages                → history (loadHistory)
+///                                                          (`[HttpGet("v1/conversations/{conversationId}/messages")]`)
+///   POST /v1/conversations/{id}/messages                → send
+///                                                          (`[HttpPost("v1/conversations/{conversationId}/messages")]`)
+///   POST /v1/offers/{offerId}/accept                    → acceptOffer (JeebOffersController)
+///
+/// HISTORICAL BUG (fixed here): these three id-scoped calls previously targeted
+/// the `/v1/chat/jeeb/conversations/{id}[/messages]` prefix, which the gateway
+/// mounts ONLY for conversation *create* (`[HttpPost("v1/chat/jeeb/conversations")]`),
+/// not for messages or per-conversation reads. The same bogus id returned 404
+/// at `/v1/chat/jeeb/conversations/{id}/messages` but 400 at
+/// `/v1/conversations/{id}/messages` — i.e. the latter route exists and parses
+/// the id (trace doc §5.2 / §6). Every in-thread message was therefore dropped.
 ///
 /// WebSocket side:
 ///   Joins topic `jeeb:chat:{conversationId}` on
@@ -53,13 +68,29 @@ class DioChatGateway implements ChatGateway {
 
   @override
   Future<List<DeliveryChatMessage>> loadHistory(String conversationId) async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      '/v1/chat/jeeb/conversations/$conversationId/messages',
+    // No conversation exists yet for the compose sentinel / empty id — a fresh
+    // request has no conversation until a Jeeber accepts. Skip the guaranteed
+    // 404 round-trip to `/v1/conversations/new/messages` (trace doc §5.1).
+    if (_isUnresolvedConversation(conversationId)) {
+      return const <DeliveryChatMessage>[];
+    }
+    final response = await _dio.get<dynamic>(
+      '/v1/conversations/$conversationId/messages',
     );
     final data = response.data;
-    if (data == null) return const <DeliveryChatMessage>[];
-    final items = data['items'];
-    if (items is! List) return const <DeliveryChatMessage>[];
+    // Tolerate every envelope the gateway/mock can emit: a bare array, or a
+    // `{ items | messages | data: [...] }` wrapper.
+    final List<dynamic> items;
+    if (data is List) {
+      items = data;
+    } else if (data is Map) {
+      items = (data['items'] as List?) ??
+          (data['messages'] as List?) ??
+          (data['data'] as List?) ??
+          const <dynamic>[];
+    } else {
+      items = const <dynamic>[];
+    }
     return items
         .whereType<Map<String, dynamic>>()
         .map(_parseMessage)
@@ -68,9 +99,20 @@ class DioChatGateway implements ChatGateway {
 
   @override
   Future<ConversationPhase> loadPhase(String conversationId) async {
+    // A fresh request (compose sentinel / empty id) has no conversation row to
+    // read — it is, by definition, still broadcasting. Return that directly
+    // instead of issuing a 404 GET.
+    if (_isUnresolvedConversation(conversationId)) {
+      return ConversationPhase.broadcasting;
+    }
     try {
+      // The gateway reads a conversation by its correlation key (== request id,
+      // auto-conversation-per-request) via `GET /v1/conversations`; there is no
+      // per-id `GET /v1/conversations/{id}` route. The response
+      // (`JeebConversationResponse`) carries `phase`.
       final response = await _dio.get<Map<String, dynamic>>(
-        '/v1/chat/jeeb/conversations/$conversationId',
+        '/v1/conversations',
+        queryParameters: <String, Object?>{'correlationKey': conversationId},
       );
       return ConversationPhase.fromWire(response.data?['phase'] as String?);
     } on DioException {
@@ -83,13 +125,33 @@ class DioChatGateway implements ChatGateway {
     String conversationId,
     DeliveryChatMessage message,
   ) async {
-    final body = _bodyFor(message);
+    // THE COMPOSE-SENTINEL DROP (fixed): in the order-compose flow the chat
+    // screen mounts with the literal `new` route id and the cubit optimistically
+    // dispatches the first composed line before any request/conversation exists.
+    // Posting it to `/v1/conversations/new/messages` is a guaranteed 404, so the
+    // opening message was silently dropped. We must NEVER send to the sentinel:
+    // the first message's CONTENT is not lost — `OrderComposeCoordinator` carries
+    // it as the created request's description (POST /v1/requests), and real chat
+    // sends resume against the SERVER-MINTED conversation id once the Jeeber
+    // accepts. Here we locally ack the optimistic bubble (no HTTP) so the UI
+    // resolves cleanly and the compose→broadcast hook drives the create.
+    if (_isUnresolvedConversation(conversationId)) {
+      return message.copyWith(status: MessageStatus.sent);
+    }
+    // FROZEN Contract E (`AppendMessageBody`): `body` is a STRING for a text
+    // message (`{ "kind":"text", "body":"on my way" }`); structured content for
+    // non-text kinds rides in `payload`. The client previously sent `body` as an
+    // object `{text:...}` for every kind → the gateway rejected it 400
+    // (`$.body: could not be converted to System.String`), so NO chat message
+    // ever persisted. `author_id` is stamped from the bearer JWT — never the
+    // body — so the old `senderId` field was both wrong (`user-client-001`) and
+    // ignored; it is dropped.
+    final isText = message.kind == MessageKind.text;
     final response = await _dio.post<Map<String, dynamic>>(
-      '/v1/chat/jeeb/conversations/$conversationId/messages',
+      '/v1/conversations/$conversationId/messages',
       data: <String, Object?>{
         'kind': message.kind.wireName,
-        'senderId': currentUserId,
-        'body': body,
+        if (isText) 'body': message.text else 'payload': _bodyFor(message),
       },
       options: Options(
         // Server-side idempotency in the mock keys off this header; bumping
@@ -142,6 +204,14 @@ class DioChatGateway implements ChatGateway {
     }
     return OfferAcceptResult(deliveryId: deliveryId);
   }
+
+  /// True when [conversationId] does not yet identify a real backend
+  /// conversation — the compose sentinel ([kComposeConversationSentinel]) or an
+  /// empty id. Every id-scoped chat HTTP call short-circuits on this so the
+  /// client never emits a request to a `/new` path that has no gateway route.
+  bool _isUnresolvedConversation(String conversationId) =>
+      conversationId.isEmpty ||
+      conversationId == kComposeConversationSentinel;
 
   /// Defensive read of the server-created delivery id from the accept body.
   /// Accepts both `deliveryId` and snake_case `delivery_id`; anything else
@@ -277,15 +347,38 @@ class DioChatGateway implements ChatGateway {
   }
 
   DeliveryChatMessage _parseMessage(Map<String, dynamic> json) {
-    final id = json['id'] as String? ?? '';
-    final senderId = json['senderId'] as String? ?? '';
+    // FROZEN `JeebMessageResponse` uses snake_case (`message_id`, `author_id`)
+    // and a string `body` for text — DISTINCT from the camelCase the client
+    // originally assumed. Tolerate BOTH wire shapes so messages render whether
+    // the gateway emits snake_case (live) or the legacy camelCase (mock/socket).
+    final id =
+        (json['message_id'] as String?) ?? (json['id'] as String?) ?? '';
+    final senderId =
+        (json['author_id'] as String?) ?? (json['senderId'] as String?) ?? '';
     final author = senderId == currentUserId ? ChatAuthor.me : ChatAuthor.them;
-    final sentAt =
-        DateTime.tryParse(json['createdAt'] as String? ?? '')?.toLocal() ??
+    final sentAt = DateTime.tryParse(
+              (json['createdAt'] ??
+                      json['created_at'] ??
+                      json['sentAt'] ??
+                      json['sent_at'] ??
+                      '')
+                  as String? ??
+                  '',
+            )?.toLocal() ??
             DateTime.now();
     final kind = MessageKind.fromWire(json['kind'] as String?);
-    final body = (json['body'] as Map?)?.cast<String, Object?>() ??
-        const <String, Object?>{};
+    // `body` is a plain string for text (frozen contract); structured payloads
+    // arrive under `payload` (or a legacy map `body`). Normalize to the map the
+    // builder consumes.
+    final rawBody = json['body'] ?? json['payload'];
+    final Map<String, Object?> body;
+    if (rawBody is Map) {
+      body = rawBody.cast<String, Object?>();
+    } else if (rawBody is String) {
+      body = <String, Object?>{'text': rawBody};
+    } else {
+      body = const <String, Object?>{};
+    }
     return _buildMessage(
       id: id,
       author: author,

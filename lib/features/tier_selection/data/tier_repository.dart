@@ -24,18 +24,29 @@ abstract class TierRepository {
   Future<List<Tier>> fetchTiers();
 }
 
-/// Dio-backed implementation. Talks to `GET /tiers` on jeeb-gateway (Mockoon
-/// mock at :3055) and decodes the JSON envelope.
+/// Dio-backed implementation. Talks to `GET /tiers` on jeeb-gateway and decodes
+/// the JSON envelope.
 ///
-/// Mock contract (verified against Mockoon :3055 route `GET /tiers`,
-/// scenario `s05-order-prohibited-items`):
+/// Two server shapes are supported, identity resolved by display `name`
+/// (case-insensitive) and falling back to the `id` slug:
+///
+/// LIVE gateway (192.168.2.39:10090, authoritative) — `id` is a UUID, the
+/// human label lives in `name`, and `priceHint` is a free-text band:
+/// ```json
+/// { "items": [ { "id": "0be308ce-…", "name": "Flash", "slaHours": 1,
+///   "radiusKm": 3, "commissionRate": 0.25, "priceHint": "Within 30 minutes" } ] }
+/// ```
+///
+/// Mockoon mock (:3055, legacy) — `id` is a slug and `priceHint` is a `$` band:
 /// ```json
 /// { "items": [ { "id": "flash", "name": "Flash", "slaHours": 1,
 ///   "radiusKm": 3.0, "commissionRate": 0.15, "priceHint": "$$$" } ] }
 /// ```
-/// Since `useMockPrefixes=false` the path `/tiers` passes through unchanged.
-/// The production gateway will expose this on `/v1/delivery/tiers` (T-BE-008);
-/// update `_path` when gateway is promoted to prod.
+///
+/// Resolving by `name` (with a slug fallback) keeps BOTH shapes parsing: the
+/// previous slug-only `switch` dropped every live row (UUID id ∉ slug set),
+/// producing an empty tier list and a dead "Choose your request" screen.
+/// The gateway UUID is preserved on [Tier.serverId] for the create RPC.
 class DioTierRepository implements TierRepository {
   const DioTierRepository(this._dio);
 
@@ -72,26 +83,39 @@ class DioTierRepository implements TierRepository {
   }
 
   Tier? _parseTier(Map<String, dynamic> json) {
-    final id = _parseId(json['id'] as Object?);
+    final id = _resolveTierId(json);
     if (id == null) return null;
     final slaHours = (json['slaHours'] as num?)?.toInt();
     final slaMinutes = slaHours != null ? slaHours * 60 : null;
     final priceHint = json['priceHint'] as String? ?? '';
-    final vehicle = _vehicleForTier(id);
     final prices = _pricesForHint(priceHint);
     return Tier(
       id: id,
+      serverId: json['id'] as String?,
       priceLow: prices.$1,
       priceHigh: prices.$2,
       currency: 'USD',
-      vehicleClass: vehicle,
+      vehicleClass: _vehicleForTier(id),
       slaMinutes: slaMinutes,
       recommended: id == TierId.flash,
     );
   }
 
-  TierId? _parseId(Object? raw) {
-    switch (raw) {
+  /// Resolves the stable [TierId] from a gateway item. Tries the display
+  /// `name` first (live shape: `name: "Flash"`, `id: <uuid>`), then falls back
+  /// to the `id` slug (mock shape: `id: "flash"`). Returns null only when
+  /// neither maps to a known tier, so unrecognised rows are skipped rather than
+  /// poisoning the list.
+  TierId? _resolveTierId(Map<String, dynamic> json) {
+    return _tierIdFromLabel(json['name'] as Object?) ??
+        _tierIdFromLabel(json['id'] as Object?);
+  }
+
+  /// Case-insensitive label → [TierId]. Accepts both the human label ("Flash",
+  /// "On-the-way") and the slug ("flash", "on_the_way").
+  TierId? _tierIdFromLabel(Object? raw) {
+    if (raw is! String) return null;
+    switch (raw.trim().toLowerCase()) {
       case 'flash':
         return TierId.flash;
       case 'express':
@@ -99,7 +123,9 @@ class DioTierRepository implements TierRepository {
       case 'standard':
         return TierId.standard;
       case 'on_the_way':
-      case 'onTheWay':
+      case 'ontheway':
+      case 'on-the-way':
+      case 'on the way':
         return TierId.onTheWay;
       case 'eco':
         return TierId.eco;

@@ -40,7 +40,18 @@ class LocationSelectState extends Equatable {
   /// A location is always confirmable: "Current Location" is the safe default,
   /// so the Confirm CTA is reachable on first paint (JM-024 AC4). The selection
   /// only changes WHICH location is forwarded to order-chat.
-  bool get canConfirm => status == LocationSelectStatus.loaded;
+  ///
+  /// The saved-addresses fetch (`GET /users/:id/saved-locations`) can fail
+  /// independently — the LIVE gateway 404s a customer with no saved addresses.
+  /// That failure must only degrade the saved-addresses sub-list; it must NOT
+  /// block confirming Current Location / a freshly-pinned point. Gating solely
+  /// on `loaded` violated the AC4 invariant above and dead-ended order creation
+  /// (tier → location → [BLOCKED]). So `failed` stays confirmable UNLESS the
+  /// user explicitly chose a saved address (which by definition never loaded).
+  bool get canConfirm =>
+      status == LocationSelectStatus.loaded ||
+      (status == LocationSelectStatus.failed &&
+          choiceKind != LocationChoiceKind.saved);
 
   bool isSavedSelected(String id) =>
       choiceKind == LocationChoiceKind.saved && selectedSavedId == id;

@@ -56,7 +56,7 @@ const _draft = RequestDraft(
 );
 
 void main() {
-  group('DioRequestSubmissionService — T-MOB-REQSUBMIT POST /requests', () {
+  group('DioRequestSubmissionService — T-MOB-REQSUBMIT POST /v1/requests', () {
     test('parses id from 201 response body', () async {
       final service = DioRequestSubmissionService(
         _dioRespond({'id': 'req-7c636340', 'status': 'pending'}),
@@ -67,7 +67,8 @@ void main() {
       expect(id, 'req-7c636340');
     });
 
-    test('POSTs to /requests with the assembled gateway body shape', () async {
+    test('POSTs to /v1/requests with the assembled gateway body shape',
+        () async {
       String? capturedPath;
       String? capturedMethod;
       Map<String, dynamic>? capturedBody;
@@ -91,7 +92,7 @@ void main() {
 
       await DioRequestSubmissionService(dio).submit(_draft);
 
-      expect(capturedPath, '/requests');
+      expect(capturedPath, '/v1/requests');
       expect(capturedMethod, 'POST');
       expect(capturedBody?['description'], _draft.description);
       expect(capturedBody?['transcription'], 'voice text');

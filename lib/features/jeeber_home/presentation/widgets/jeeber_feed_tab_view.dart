@@ -537,13 +537,23 @@ class _FeedListView extends StatelessWidget {
       key: JeeberFeedTabView.listKey,
       padding: const EdgeInsetsDirectional.symmetric(vertical: Spacing.small),
       itemCount: requests.length,
-      itemBuilder: (_, index) => JeeberFeedCard(
+      itemBuilder: (context, index) => JeeberFeedCard(
         request: requests[index],
         // JM-048: card tap opens detail; the "Offer" button routes through the
         // KYC gate / composer (D38), distinct from a plain detail open.
-        onTap: onOpenRequest == null
-            ? null
-            : () => onOpenRequest!(requests[index]),
+        // POST-ACCEPT ENTRY POINT: an ACCEPTED (Replies-tab) card is the
+        // jeeber's surface for a delivery whose offer the customer accepted —
+        // tapping it opens the order conversation (chat-detail keyed on the
+        // request id == correlationKey, resolved against the live gateway),
+        // NOT the pre-offer make-offer/decline detail.
+        onTap: requests[index].feedStatus == JeeberFeedItemStatus.accepted
+            ? () => GoRouter.of(context).pushNamed(
+                  'chat-detail',
+                  pathParameters: {'id': requests[index].id},
+                )
+            : onOpenRequest == null
+                ? null
+                : () => onOpenRequest!(requests[index]),
         onIgnore: () => cubit.decline(requests[index].id),
         onOffer: () => onMakeOffer(requests[index]),
         onAdvanceStatus: () => cubit.accept(requests[index].id),

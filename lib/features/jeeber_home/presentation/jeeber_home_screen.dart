@@ -4,7 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
-import '../../../core/dev_seam/session_seam_bootstrap.dart';
+import '../../../core/network/auth_token_store.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../jeeber_request_feed/cubit/request_feed_cubit.dart';
 import '../../jeeber_request_feed/cubit/request_feed_state.dart';
@@ -125,7 +125,9 @@ class _JeeberHomeScreenState extends State<JeeberHomeScreen> {
       _submittedOffersCubit = SubmittedOffersCubit(
         repository: DioSubmittedOffersRepository(
           dio: sl<Dio>(),
-          jeeberId: SessionSeamBootstrap.jeeberUserId,
+          tokenStore: sl.isRegistered<AuthTokenStore>()
+              ? sl<AuthTokenStore>()
+              : null,
         ),
       );
     }
@@ -145,17 +147,20 @@ class _JeeberHomeScreenState extends State<JeeberHomeScreen> {
       identifier: 'jeeber_home_root',
       container: true,
       child: Scaffold(
-      key: JeeberHomeScreen.scaffoldKey,
-      appBar: OMDSAppBar(title: l10n.availabilityHomeTitle, centerTitle: false),
-      body: _RootBody(
-        isRegistered: widget.isRegistered,
-        profileName: widget.profileName,
-        onRegister: widget.onRegister,
-        onOpenFeedRequest: widget.onOpenFeedRequest,
-        requestFeedCubit: widget.requestFeedCubit,
-        registerCtaIdentifier: widget.registerCtaIdentifier,
-        submittedOffersCubit: _resolveSubmittedOffersCubit(),
-      ),
+        key: JeeberHomeScreen.scaffoldKey,
+        appBar: OMDSAppBar(
+          title: l10n.availabilityHomeTitle,
+          centerTitle: false,
+        ),
+        body: _RootBody(
+          isRegistered: widget.isRegistered,
+          profileName: widget.profileName,
+          onRegister: widget.onRegister,
+          onOpenFeedRequest: widget.onOpenFeedRequest,
+          requestFeedCubit: widget.requestFeedCubit,
+          registerCtaIdentifier: widget.registerCtaIdentifier,
+          submittedOffersCubit: _resolveSubmittedOffersCubit(),
+        ),
       ),
     );
   }
@@ -350,8 +355,8 @@ class _FeedTabBody extends StatelessWidget {
       onOpenRequest: onOpenFeedRequest == null
           ? null
           : (req) => onOpenFeedRequest!(
-                FeedRequest(id: req.id, shortLabel: req.pickup.label),
-              ),
+              FeedRequest(id: req.id, shortLabel: req.pickup.label),
+            ),
       submittedOffersCubit: submittedOffersCubit,
     );
   }
@@ -401,8 +406,11 @@ class _LoadErrorContent extends StatelessWidget {
           color: theme.colorScheme.onSurfaceVariant,
         ),
         const SizedBox(height: Spacing.medium),
-        Text(title, textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.titleMedium,
+        ),
         const SizedBox(height: Spacing.medium),
         OmdsPrimaryButton(
           key: JeeberHomeScreen.loadErrorRetryKey,

@@ -108,8 +108,10 @@ void main() {
     test('member-since is null when the wire omits it (never fabricated)', () {
       expect(EarningsSummary.fromJson(mockBody).memberSince, isNull);
       expect(
-        EarningsSummary.fromJson({...mockBody, 'memberSince': '2026-01-15'})
-            .memberSince,
+        EarningsSummary.fromJson({
+          ...mockBody,
+          'memberSince': '2026-01-15',
+        }).memberSince,
         '2026-01-15',
       );
     });
@@ -123,6 +125,44 @@ void main() {
       expect(s.feesPaid, 0);
       expect(s.netPerOffer, 0);
       expect(s.deliveryCount, 0);
+    });
+
+    test('parses live gateway entries/totals shape', () {
+      final s = EarningsSummary.fromJson({
+        'jeeberId': 'c23efd76-6fa4-40cf-814c-116f67ea5e95',
+        'period': 'weekly',
+        'currency': 'USD',
+        'rowCount': 3,
+        'totalGross': 137.50,
+        'totalCommission': 22.13,
+        'totalNet': 115.37,
+        'entries': [
+          {
+            'earningId': '90debfac-22c9-435a-941c-d806aeb0f8ae',
+            'transactionId': 'seed-tx-2',
+            'deliveryId': '22222222-2222-2222-2222-222222222222',
+            'tierName': 'express',
+            'gross': 62.50,
+            'commission': 9.38,
+            'net': 53.12,
+            'currency': 'USD',
+            'deliveredAt': '2026-06-20T14:00:00Z',
+          },
+        ],
+      });
+
+      expect(s.totalCashEarned, 137.50);
+      expect(s.feesPaid, 22.13);
+      expect(s.currency, 'USD');
+      expect(s.deliveryCount, 3);
+      expect(s.netPerOffer, closeTo(38.4566666667, 1e-9));
+      expect(
+        s.deliveries.single.deliveryId,
+        '22222222-2222-2222-2222-222222222222',
+      );
+      expect(s.deliveries.single.cashCollected, 62.50);
+      expect(s.deliveries.single.feePaid, 9.38);
+      expect(s.deliveries.single.date, '2026-06-20T14:00:00Z');
     });
   });
 

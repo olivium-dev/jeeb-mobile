@@ -3,7 +3,7 @@ import 'package:dio/dio.dart';
 import '../domain/order_repository.dart';
 import '../domain/order_summary.dart';
 
-/// Dio-backed [OrderRepository] hitting `GET /api/requests`.
+/// Dio-backed [OrderRepository] hitting `GET /requests`.
 ///
 /// The gateway returns a JSON envelope of the shape:
 /// ```json
@@ -21,7 +21,7 @@ class DioOrderRepository implements OrderRepository {
 
   final Dio _dio;
 
-  static const _path = '/api/requests';
+  static const _path = '/requests';
 
   @override
   Future<OrderPage> fetchPage({
@@ -31,7 +31,7 @@ class DioOrderRepository implements OrderRepository {
     OrderDateRange range = const OrderDateRange(),
   }) async {
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
+      final response = await _dio.get<dynamic>(
         _path,
         queryParameters: {
           'status': _statusParam(tab),
@@ -42,11 +42,7 @@ class DioOrderRepository implements OrderRepository {
           if (range.to != null) 'toDate': range.to!.toUtc().toIso8601String(),
         },
       );
-      final data = response.data;
-      if (data == null) {
-        throw const OrderRepositoryException(OrderRepositoryErrorKind.parse);
-      }
-      return _parsePage(data, page, pageSize);
+      return _parsePage(response.data, page, pageSize);
     } on DioException catch (e) {
       throw OrderRepositoryException(
         e.response == null
@@ -74,13 +70,9 @@ class DioOrderRepository implements OrderRepository {
     }
   }
 
-  static OrderPage _parsePage(
-    Map<String, dynamic> json,
-    int requestedPage,
-    int pageSize,
-  ) {
-    final rawItems = json['items'];
-    if (rawItems is! List) {
+  static OrderPage _parsePage(Object? data, int requestedPage, int pageSize) {
+    final rawItems = _items(data);
+    if (rawItems.isEmpty && data is! List) {
       throw const FormatException('items missing or not a list');
     }
     final items = <OrderSummary>[];
@@ -102,16 +94,19 @@ class DioOrderRepository implements OrderRepository {
     final dropoff = json['dropoff'];
     return OrderSummary(
       id: json['id'] as String? ?? '',
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+      createdAt:
+          DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
       pickupAddress: pickup is Map<String, dynamic>
           ? (pickup['address'] as String? ?? '')
-          : '',
+          : (json['pickupAddress'] as String? ?? ''),
       dropoffAddress: dropoff is Map<String, dynamic>
           ? (dropoff['address'] as String? ?? '')
-          : '',
+          : (json['dropoffAddress'] as String? ?? ''),
       status: OrderRequestStatus.parse(json['status'] as String?),
-      tier: OrderTier.parse(json['tier'] as String?),
+      tier: OrderTier.parse(
+        json['tier'] as String? ?? json['tierId'] as String?,
+      ),
       amountMinor: amount is Map<String, dynamic>
           ? (amount['minorUnits'] as int? ?? 0)
           : 0,
@@ -119,5 +114,13 @@ class DioOrderRepository implements OrderRepository {
           ? (amount['currency'] as String? ?? 'USD')
           : 'USD',
     );
+  }
+
+  static List<dynamic> _items(Object? data) {
+    if (data is List) return data;
+    if (data is Map<String, dynamic> && data['items'] is List) {
+      return data['items'] as List;
+    }
+    return const <dynamic>[];
   }
 }

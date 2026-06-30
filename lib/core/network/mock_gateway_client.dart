@@ -34,10 +34,30 @@ class MockGatewayClient {
   /// (mockBaseUrl, useMockPrefixes) is coherent even without a dart-define; #37
   /// only swaps the Android-emulator-only `10.0.2.2` loopback for the LAN IP so
   /// iOS sims and physical devices are reachable too.
-  static const String mockBaseUrl = String.fromEnvironment(
-    'JEEB_MOCK_BASE_URL',
-    defaultValue: 'http://192.168.2.33:4010',
-  );
+  static String get mockBaseUrl {
+    if (_baseUrlDefine.isNotEmpty) return _baseUrlDefine;
+    // RELIABILITY (super-login hardening): when NO --dart-define is passed, a
+    // debug build defaults to the live DEV GATEWAY (which serves the raw `/v1/*`
+    // and `/api/*` contract incl. super-login) instead of the :4010 Express
+    // mock, so a plain `flutter run`/`--debug` build is coherent and the dev
+    // super-login flow works out of the box. Release keeps the historical
+    // fallback (release builds always pass the define anyway).
+    if (kDebugMode) return _devGatewayBaseUrl;
+    return _releaseFallbackBaseUrl;
+  }
+
+  /// Build-time override (`--dart-define=JEEB_MOCK_BASE_URL=...`). Empty when
+  /// not passed.
+  static const String _baseUrlDefine =
+      String.fromEnvironment('JEEB_MOCK_BASE_URL');
+
+  /// Debug no-define default: the live dev gateway (BFF) on the LAN. Serves the
+  /// raw gateway contract, so `useMockPrefixes` stays `false`.
+  static const String _devGatewayBaseUrl = 'http://192.168.2.39:10090';
+
+  /// Release no-define fallback (historical value; release builds pass the
+  /// define explicitly so this is rarely hit).
+  static const String _releaseFallbackBaseUrl = 'http://192.168.2.33:4010';
 
   /// When `true` every gateway path is rewritten to the Express mock's
   /// service-prefixed routes (`/auth-service/...`, `/offer-service/v1/...`)

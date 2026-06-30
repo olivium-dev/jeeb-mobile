@@ -3,6 +3,24 @@ import 'dart:async';
 import '../../client_offers/domain/offers_repository.dart' show OfferAcceptResult;
 import 'delivery_chat_message.dart';
 
+/// Route/id sentinel used by the order-compose flow BEFORE a real
+/// request/conversation exists. The client pushes `chat-detail` with this
+/// literal id (`client_location_screen.dart`), and the compose coordinator
+/// replaces it with the SERVER-MINTED request id on first send.
+///
+/// It is NOT a valid backend conversation id: there is no
+/// `/v1/conversations/new...` route on the gateway (trace doc §4 — grep of
+/// every gateway route attribute for the segment `new` → zero matches), and a
+/// fresh request has no conversation at all until a Jeeber accepts (the
+/// conversation is provisioned post-accept). Therefore any id-scoped chat HTTP
+/// call MUST short-circuit on this sentinel rather than emit a guaranteed-404
+/// request to `/v1/conversations/new/messages`.
+///
+/// Canonical home so the gateway (data layer) and the coordinator (application
+/// layer) share one source of truth — see
+/// `OrderComposeCoordinator.composeSentinel`, which aliases this.
+const String kComposeConversationSentinel = 'new';
+
 /// Outbound contract for chat transport. The cubit handles optimistic UI
 /// (every outgoing message lands as [MessageStatus.sending] immediately and
 /// then transitions on the gateway's acknowledgement), so the gateway only

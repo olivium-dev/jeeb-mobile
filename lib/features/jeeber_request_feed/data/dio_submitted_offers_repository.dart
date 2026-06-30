@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/auth_token_store.dart';
 import '../domain/submitted_offer.dart';
 import '../domain/submitted_offers_repository.dart';
 
@@ -19,21 +20,27 @@ import '../domain/submitted_offers_repository.dart';
 class DioSubmittedOffersRepository implements SubmittedOffersRepository {
   const DioSubmittedOffersRepository({
     required Dio dio,
-    required String jeeberId,
-  })  : _dio = dio,
-        _jeeberId = jeeberId;
+    String? jeeberId,
+    AuthTokenStore? tokenStore,
+  }) : _dio = dio,
+       _jeeberId = jeeberId,
+       _tokenStore = tokenStore;
 
   final Dio _dio;
-  final String _jeeberId;
+  final String? _jeeberId;
+  final AuthTokenStore? _tokenStore;
 
   static const String _path = '/v1/offers';
 
   @override
   Future<List<SubmittedOffer>> listSubmitted() async {
     try {
+      final jeeberId = _jeeberId ?? await _tokenStore?.userId;
       final response = await _dio.get<Map<String, dynamic>>(
         _path,
-        queryParameters: {'jeeberId': _jeeberId},
+        queryParameters: jeeberId == null || jeeberId.isEmpty
+            ? null
+            : {'jeeberId': jeeberId},
       );
       return _parse(response.data ?? const {});
     } on DioException {
@@ -84,12 +91,16 @@ class DioSubmittedOffersRepository implements SubmittedOffersRepository {
   /// (defensive parse, 40_GUARDRAILS_ARCH §4).
   double? _amount(Object? raw) {
     if (raw is num) return raw.toDouble();
-    if (raw is Map && raw['value'] is num) return (raw['value'] as num).toDouble();
+    if (raw is Map && raw['value'] is num) {
+      return (raw['value'] as num).toDouble();
+    }
     return null;
   }
 
   String? _currency(Object? raw) {
-    if (raw is Map && raw['currency'] is String) return raw['currency'] as String;
+    if (raw is Map && raw['currency'] is String) {
+      return raw['currency'] as String;
+    }
     return null;
   }
 }

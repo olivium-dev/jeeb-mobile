@@ -127,10 +127,7 @@ enum JourneySeed {
   /// KYC just submitted (status=pending), no delivery/request row; enables the
   /// onboarding-funding screen as a valid landing (JM-041). Pins
   /// `/jeeber/onboarding/funding` so the funding explainer shows on first frame.
-  jeeberKycSubmitted(
-    'jeeber_kyc_submitted',
-    '/jeeber/onboarding/funding',
-  ),
+  jeeberKycSubmitted('jeeber_kyc_submitted', '/jeeber/onboarding/funding'),
 
   /// 1 open request visible to user-jeeber-002 in the delivery feed (JM-044,
   /// JM-045, JM-046, JM-048). Stable id: req-feed-001. No route pin — the flow
@@ -396,6 +393,7 @@ class DevSeamConfig {
     this.superLoginToken = '',
     this.superLoginRefreshToken = '',
     this.superLoginUserId = '',
+    this.superLoginRole = '',
   });
 
   /// Builds a config from a flat string map (intent extras or decoded JSON).
@@ -422,14 +420,16 @@ class DevSeamConfig {
       signupCollision: _asBool(map['jeeb.seam.signup_collision']),
       socialLogin: map['jeeb.seam.social_login']?.trim() ?? '',
       recoveryCode: map['jeeb.seam.recovery_code']?.trim() ?? '',
-      recoveryCountdownExpired:
-          _asBool(map['jeeb.seam.recovery_countdown_expired']),
+      recoveryCountdownExpired: _asBool(
+        map['jeeb.seam.recovery_countdown_expired'],
+      ),
       setPasswordMode: map['jeeb.seam.set_password_mode']?.trim() ?? '',
       // super-login+ seam: real gateway JWT injected via intent extras.
       superLoginToken: map['jeeb.seam.super_login_token']?.trim() ?? '',
       superLoginRefreshToken:
           map['jeeb.seam.super_login_refresh']?.trim() ?? '',
       superLoginUserId: map['jeeb.seam.super_login_user_id']?.trim() ?? '',
+      superLoginRole: map['jeeb.seam.super_login_role']?.trim() ?? '',
     );
   }
 
@@ -598,6 +598,12 @@ class DevSeamConfig {
   /// Keyed `jeeb.seam.super_login_user_id`. Empty in release.
   final String superLoginUserId;
 
+  /// Optional local role to seed with [SessionSeed.superLoginPlus]. Values:
+  /// `client`/`customer` or `jeeber`/`driver`. Keyed
+  /// `jeeb.seam.super_login_role`. Empty defaults to client for backward
+  /// compatibility with PR #56.
+  final String superLoginRole;
+
   /// The inert default. The only instance a release build ever sees.
   static const DevSeamConfig empty = DevSeamConfig();
 
@@ -643,7 +649,8 @@ class DevSeamConfig {
       setPasswordMode.isEmpty &&
       superLoginToken.isEmpty &&
       superLoginRefreshToken.isEmpty &&
-      superLoginUserId.isEmpty;
+      superLoginUserId.isEmpty &&
+      superLoginRole.isEmpty;
 
   static bool _asBool(String? value) {
     final v = value?.trim().toLowerCase();
@@ -673,35 +680,38 @@ class DevSeamConfig {
       other.setPasswordMode == setPasswordMode &&
       other.superLoginToken == superLoginToken &&
       other.superLoginRefreshToken == superLoginRefreshToken &&
-      other.superLoginUserId == superLoginUserId;
+      other.superLoginUserId == superLoginUserId &&
+      other.superLoginRole == superLoginRole;
 
   @override
   int get hashCode => Object.hashAll([
-        route,
-        chatSelector,
-        forcedLocale,
-        homeTab,
-        feed,
-        holdSplash,
-        skipOnboarding,
-        sessionSeed,
-        journeySeed,
-        kycStatusSeed,
-        walletStateSeed,
-        otpCode,
-        otpCountdownExpired,
-        signupCollision,
-        socialLogin,
-        recoveryCode,
-        recoveryCountdownExpired,
-        setPasswordMode,
-        superLoginToken,
-        superLoginRefreshToken,
-        superLoginUserId,
-      ]);
+    route,
+    chatSelector,
+    forcedLocale,
+    homeTab,
+    feed,
+    holdSplash,
+    skipOnboarding,
+    sessionSeed,
+    journeySeed,
+    kycStatusSeed,
+    walletStateSeed,
+    otpCode,
+    otpCountdownExpired,
+    signupCollision,
+    socialLogin,
+    recoveryCode,
+    recoveryCountdownExpired,
+    setPasswordMode,
+    superLoginToken,
+    superLoginRefreshToken,
+    superLoginUserId,
+    superLoginRole,
+  ]);
 
   @override
-  String toString() => 'DevSeamConfig(route: $route, chat: $chatSelector, '
+  String toString() =>
+      'DevSeamConfig(route: $route, chat: $chatSelector, '
       'locale: $forcedLocale, homeTab: $homeTab, feed: $feed, '
       'holdSplash: $holdSplash, skipOnboarding: $skipOnboarding, '
       'sessionSeed: ${sessionSeed.name}, journeySeed: ${journeySeed.name}, '
@@ -714,5 +724,6 @@ class DevSeamConfig {
       'recoveryCountdownExpired: $recoveryCountdownExpired, '
       'setPasswordMode: $setPasswordMode, '
       'superLoginToken: ${superLoginToken.isNotEmpty ? '[present]' : '[absent]'}, '
-      'superLoginUserId: $superLoginUserId)';
+      'superLoginUserId: $superLoginUserId, '
+      'superLoginRole: $superLoginRole)';
 }

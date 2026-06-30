@@ -6,11 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:omds/omds.dart';
 
-import 'package:jeeb_mobile/core/di/injection_container.dart';
-import 'package:jeeb_mobile/core/network/auth_token_store.dart';
 import 'package:jeeb_mobile/features/registration/application/registration_cubit.dart';
-import 'package:jeeb_mobile/features/registration/data/super_login_demo_user.dart';
-import 'package:jeeb_mobile/features/registration/data/super_login_service.dart';
 import 'package:jeeb_mobile/features/registration/domain/lebanon_phone.dart';
 import 'package:jeeb_mobile/features/registration/domain/otp_service.dart';
 import 'package:jeeb_mobile/features/registration/presentation/registration_screen.dart';
@@ -18,33 +14,6 @@ import 'package:jeeb_mobile/features/registration/presentation/registration_scre
 import 'support/sync_app_localizations.dart';
 
 class _MockOtpService extends Mock implements OtpService {}
-
-class _MockAuthTokenStore extends Mock implements AuthTokenStore {}
-
-/// Fake roster service registered into `sl` so the screen's picker resolves it.
-class _FakeDemoUserService implements SuperLoginDemoUserService {
-  _FakeDemoUserService(this.users);
-  final List<SuperLoginDemoUser> users;
-  @override
-  Future<List<SuperLoginDemoUser>> fetchDemoUsers() async => users;
-}
-
-/// Fake super-login service so the pre-filled sheet's DI-built cubit resolves.
-class _FakeSuperLoginService implements SuperLoginService {
-  @override
-  Future<SuperLoginResult> signIn({
-    required String userId,
-    required String passcode,
-  }) async =>
-      const SuperLoginFailure(SuperLoginError.invalidCredentials);
-}
-
-const _demoUser = SuperLoginDemoUser(
-  userId: '44444444-4444-4444-8444-444444444444',
-  name: 'Nour',
-  role: 'client',
-  passcode: 'demo-nour',
-);
 
 void main() {
   late _MockOtpService otp;
@@ -341,19 +310,22 @@ void main() {
   });
 
   testWidgets(
-      'super-login backdoor is gated behind kDebugMode '
-      '(present in debug/test, compiled out of release)', (tester) async {
+      'super-login entry points were RELOCATED to the login screen — the '
+      'registration screen no longer mounts them (see login_screen_test.dart)',
+      (tester) async {
     await tester.pumpWidget(wrapForTest(
       RegistrationScreen(cubit: makeCubit()),
     ));
     await tester.pump();
 
-    // `flutter test` runs under kDebugMode=true, so the dev seam is mounted.
-    // The same `if (kDebugMode)` guard removes it entirely from release
-    // builds (P0-2 / defect D2) — the super-login entry can never reach a
-    // production user.
+    // P1 MOVE: the two super-login affordances now live on the LOGIN screen.
+    // `flutter test` runs under kDebugMode=true, yet neither link is present
+    // here — proving the MOVE removed them from registration (no duplicate).
     expect(kDebugMode, isTrue);
-    expect(find.byKey(const Key('registration.superLogin')), findsOneWidget);
+    expect(find.byKey(const Key('registration.superLogin')), findsNothing);
+    expect(find.byKey(const Key('registration.superLoginPlus')), findsNothing);
+    expect(find.bySemanticsIdentifier('_super_login_link'), findsNothing);
+    expect(find.bySemanticsIdentifier('super_login_plus_button'), findsNothing);
   });
 
   testWidgets(
@@ -420,95 +392,6 @@ void main() {
     expect(find.text('مرحباً بك في جيب'), findsOneWidget);
   });
 
-  group('Super user login plus (debug-only picker → pre-filled sheet)', () {
-    tearDown(() async {
-      await sl.reset();
-    });
-
-    Future<void> registerRoster(List<SuperLoginDemoUser> users) async {
-      await sl.reset();
-      sl.registerLazySingleton<SuperLoginDemoUserService>(
-        () => _FakeDemoUserService(users),
-      );
-      // The pre-filled sheet builds its cubit from DI, so these must resolve.
-      sl.registerLazySingleton<SuperLoginService>(
-        () => _FakeSuperLoginService(),
-      );
-      sl.registerLazySingleton<AuthTokenStore>(() => _MockAuthTokenStore());
-    }
-
-    testWidgets(
-        'the "Super user login plus" button is mounted in debug NEXT TO the '
-        'original super-login link', (tester) async {
-      await registerRoster(const [_demoUser]);
-      await tester.pumpWidget(wrapForTest(
-        RegistrationScreen(cubit: makeCubit()),
-      ));
-      await tester.pump();
-
-      // Both links present — the original is NOT removed.
-      expect(kDebugMode, isTrue);
-      expect(find.byKey(const Key('registration.superLogin')), findsOneWidget);
-      expect(
-        find.byKey(const Key('registration.superLoginPlus')),
-        findsOneWidget,
-      );
-      // The new button carries the QA addressability id required by the ticket.
-      expect(
-        find.bySemanticsIdentifier('super_login_plus_button'),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets(
-        'tapping the plus button lists the (mocked) users; selecting one '
-        'opens the super-login sheet pre-filled with submit enabled',
-        (tester) async {
-      await registerRoster(const [_demoUser]);
-      await tester.pumpWidget(wrapForTest(
-        RegistrationScreen(cubit: makeCubit()),
-      ));
-      await tester.pump();
-
-      // The plus link sits at the bottom of a scroll view — bring it on-screen
-      // (ensureVisible scrolls the nearest Scrollable; scrollUntilVisible is
-      // ambiguous here because the tree has more than one Scrollable).
-      final plus = find.byKey(const Key('registration.superLoginPlus'));
-      await tester.ensureVisible(plus);
-      await tester.pump();
-      await tester.tap(plus);
-      await tester.pump(); // start the picker route
-      await tester.pump(const Duration(milliseconds: 350)); // slide-up done
-      await tester.pump(); // resolve the roster future
-
-      // Picker lists the mocked user.
-      expect(find.byKey(const Key('superLoginPlus.pickerList')), findsOneWidget);
-      expect(find.text('Nour'), findsOneWidget);
-
-      // Select the user → picker pops, sheet opens pre-filled. The picker has no
-      // live ticker so pumpAndSettle safely drains its pop transition; the sheet
-      // (OmdsLoadingButton live AnimatedSwitcher) is then driven by bare pumps.
-      await tester.tap(find.byKey(Key('superLoginPlus.user.${_demoUser.userId}')));
-      await tester.pumpAndSettle(); // picker pops fully
-      await tester.pump(); // microtask resolves → sheet route is pushed
-      await tester.pump(const Duration(milliseconds: 400)); // sheet open done
-
-      // The pre-filled sheet is up with submit ENABLED.
-      expect(find.byKey(const Key('superLogin.submit')), findsOneWidget);
-      expect(
-        tester
-            .widget<OmdsLoadingButton>(find.byKey(const Key('superLogin.submit')))
-            .isEnabled,
-        isTrue,
-        reason: 'picking a user must open the sheet submit-ready',
-      );
-      expect(
-        tester
-            .widget<OmdsTextField>(find.byKey(const Key('superLogin.userId')))
-            .controller!
-            .text,
-        _demoUser.userId,
-      );
-    });
-  });
+  // The "Super user login plus" picker→sheet placement tests moved with the
+  // feature to test/login_screen_test.dart (P1 MOVE).
 }

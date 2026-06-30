@@ -76,6 +76,39 @@ void main() {
 
       expect(cubit.state.status, LocationSelectStatus.failed);
       expect(cubit.state.error, LocationSelectFailure.network);
+      // P0 REGRESSION (order-create blocker): a failed saved-addresses fetch
+      // must NOT block confirming Current Location (the default choice). The
+      // live gateway 404s `GET /users/:id/saved-locations` for a customer with
+      // no saved addresses; gating Confirm on `loaded` dead-ended order
+      // creation (tier → location → Confirm disabled). Current/pinned stay
+      // confirmable on `failed`; only an explicit saved choice does not.
+      expect(cubit.state.choiceKind, LocationChoiceKind.current);
+      expect(
+        cubit.state.canConfirm,
+        isTrue,
+        reason: 'Current Location must remain confirmable after a 404/save-load '
+            'failure (JM-024 AC4)',
+      );
+    });
+
+    test('failed + explicitly-selected saved address is NOT confirmable',
+        () async {
+      // Guard the other half of the fix: if the user had picked a saved address
+      // (which by definition could not have loaded on a failed fetch), Confirm
+      // must stay disabled rather than forward a phantom selection.
+      final cubit = LocationSelectCubit(
+        repository: const FakeLocationSelectRepository(
+          failWith: LocationSelectFailure.network,
+        ),
+        userId: 'user-client-001',
+      );
+      addTearDown(cubit.close);
+
+      await cubit.load();
+      cubit.selectSaved('addr-client-001-home');
+
+      expect(cubit.state.status, LocationSelectStatus.failed);
+      expect(cubit.state.choiceKind, LocationChoiceKind.saved);
       expect(cubit.state.canConfirm, isFalse);
     });
 

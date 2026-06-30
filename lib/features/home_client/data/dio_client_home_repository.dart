@@ -30,7 +30,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
 
   // D5 contract: GET /deliveries?stage=<stage>&limit=<n>
   static const _activeDeliveriesPath = '/deliveries';
-  static const _requestsPath = '/v1/requests';
+  static const _requestsPath = '/requests';
 
   @override
   Future<ClientHomeSnapshot> loadSnapshot() async {
@@ -51,14 +51,11 @@ class DioClientHomeRepository implements ClientHomeRepository {
 
   Future<List<ClientHomeRequest>> _fetchInProgress() async {
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
+      final response = await _dio.get<dynamic>(
         _activeDeliveriesPath,
         queryParameters: {'stage': 'active', 'limit': 50},
       );
-      final data = response.data;
-      if (data == null) return const [];
-      final rawItems = data['items'];
-      if (rawItems is! List) return const [];
+      final rawItems = _items(response.data, fallbackKey: 'shipments');
       final items = <ClientHomeRequest>[];
       for (final raw in rawItems) {
         if (raw is Map<String, dynamic>) {
@@ -83,24 +80,20 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// pending. The [bucket] parameter drives which subset is returned.
   Future<List<ClientHomeRequest>> _fetchByStatus(String bucket) async {
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
+      final response = await _dio.get<dynamic>(
         _requestsPath,
         // Use role=client (documented D3 filter). Do NOT pass status= — the
         // gateway ignores it and both tabs would show identical data.
         queryParameters: {'role': 'client', 'page': 1, 'pageSize': 50},
       );
-      final data = response.data;
-      if (data == null) return const [];
-      final rawItems = data['items'];
-      if (rawItems is! List) return const [];
+      final rawItems = _items(response.data);
       final items = <ClientHomeRequest>[];
       for (final raw in rawItems) {
         if (raw is Map<String, dynamic>) {
           final request = _parseRequest(raw, status: bucket);
           if (request != null) {
             // Client-side bucket assignment: offers-received ↔ offersCount > 0
-            final isReply =
-                ((raw['offersCount'] as num?)?.toInt() ?? 0) > 0;
+            final isReply = ((raw['offersCount'] as num?)?.toInt() ?? 0) > 0;
             final wantReply = bucket == 'offers-received';
             if (isReply == wantReply) items.add(request);
           }
@@ -116,14 +109,11 @@ class DioClientHomeRepository implements ClientHomeRepository {
 
   Future<List<RecentDeliverySummary>> _fetchRecentDeliveries() async {
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
+      final response = await _dio.get<dynamic>(
         _requestsPath,
         queryParameters: {'role': 'client', 'page': 1, 'pageSize': 10},
       );
-      final data = response.data;
-      if (data == null) return const [];
-      final rawItems = data['items'];
-      if (rawItems is! List) return const [];
+      final rawItems = _items(response.data);
       final items = <RecentDeliverySummary>[];
       for (final raw in rawItems) {
         if (raw is Map<String, dynamic>) {
@@ -145,19 +135,23 @@ class DioClientHomeRepository implements ClientHomeRepository {
     final dropoff = json['dropoff'];
     final destination = dropoff is Map<String, dynamic>
         ? (dropoff['address'] as String? ?? '')
-        : '';
+        : (json['dropoffAddress'] as String? ?? '');
     // D5 ShipmentsListDto uses 'currentStage', not 'status'.
-    final stage =
-        json['currentStage'] as String? ?? json['status'] as String?;
+    final stage = json['currentStage'] as String? ?? json['status'] as String?;
     return ClientHomeRequest(
       id: id,
       displayId: json['displayId'] as String?,
-      title: json['title'] as String? ?? 'Delivery $id',
+      title:
+          json['title'] as String? ??
+          json['description'] as String? ??
+          'Delivery $id',
       status: _mapDeliveryStatus(stage),
       destinationLabel: destination,
       etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
       jeeberName: json['jeeberName'] as String?,
-      tier: ClientRequestTier.parse(json['tier'] as String?),
+      tier: ClientRequestTier.parse(
+        json['tier'] as String? ?? json['tierId'] as String?,
+      ),
       progressStep: (json['progressStep'] as num?)?.toInt() ?? 0,
       conversationId: json['conversationId'] as String?,
     );
@@ -172,7 +166,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
     final dropoff = json['dropoff'];
     final destination = dropoff is Map<String, dynamic>
         ? (dropoff['address'] as String? ?? '')
-        : '';
+        : (json['dropoffAddress'] as String? ?? '');
     final offerAvatars = json['offerAvatars'];
     final offerAvatarUrls = offerAvatars is List
         ? offerAvatars.whereType<String>().toList(growable: false)
@@ -180,12 +174,17 @@ class DioClientHomeRepository implements ClientHomeRepository {
     return ClientHomeRequest(
       id: id,
       displayId: json['displayId'] as String?,
-      title: json['title'] as String? ?? 'Request $id',
+      title:
+          json['title'] as String? ??
+          json['description'] as String? ??
+          'Request $id',
       status: status == 'offers-received'
           ? ClientRequestStatus.offersReceived
           : ClientRequestStatus.searching,
       destinationLabel: destination,
-      tier: ClientRequestTier.parse(json['tier'] as String?),
+      tier: ClientRequestTier.parse(
+        json['tier'] as String? ?? json['tierId'] as String?,
+      ),
       offerCount: (json['offersCount'] as num?)?.toInt() ?? 0,
       offerAvatarUrls: offerAvatarUrls,
       conversationId: json['conversationId'] as String?,
@@ -193,18 +192,24 @@ class DioClientHomeRepository implements ClientHomeRepository {
     );
   }
 
-  static RecentDeliverySummary? _parseRecentDelivery(Map<String, dynamic> json) {
+  static RecentDeliverySummary? _parseRecentDelivery(
+    Map<String, dynamic> json,
+  ) {
     final id = json['id'] as String?;
     if (id == null) return null;
     final dropoff = json['dropoff'];
     final destination = dropoff is Map<String, dynamic>
         ? (dropoff['address'] as String? ?? '')
-        : '';
+        : (json['dropoffAddress'] as String? ?? '');
     return RecentDeliverySummary(
       id: id,
-      title: json['title'] as String? ?? 'Delivery $id',
+      title:
+          json['title'] as String? ??
+          json['description'] as String? ??
+          'Delivery $id',
       destinationLabel: destination,
-      completedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
+      completedAt:
+          DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
           DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.now(),
     );
@@ -229,5 +234,14 @@ class DioClientHomeRepository implements ClientHomeRepository {
       default:
         return ClientRequestStatus.searching;
     }
+  }
+
+  static List<dynamic> _items(Object? data, {String fallbackKey = 'items'}) {
+    if (data is List) return data;
+    if (data is Map<String, dynamic>) {
+      final raw = data['items'] ?? data[fallbackKey];
+      if (raw is List) return raw;
+    }
+    return const <dynamic>[];
   }
 }

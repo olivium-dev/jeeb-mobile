@@ -23,8 +23,6 @@ import '../domain/lebanon_phone.dart';
 import '../domain/otp_service.dart';
 import '../domain/registration_attempt_policy.dart';
 import 'otp_verification_screen.dart';
-import 'super_login/super_login_picker.dart';
-import 'super_login/super_login_sheet.dart';
 
 /// Entry point for the phone+OTP registration flow (T-mobile-002).
 ///
@@ -262,8 +260,6 @@ class _RegistrationViewState extends State<_RegistrationView> {
                 state: state,
                 phoneController: _phoneController,
                 onSocialAuthenticated: () => _onSocialAuthenticated(context),
-                onSuperLogin: () => _openSuperLogin(context),
-                onSuperLoginPlus: () => _openSuperLoginPlus(context),
               ),
             ),
           ),
@@ -281,74 +277,25 @@ class _RegistrationViewState extends State<_RegistrationView> {
       context.go('/');
     }
   }
-
-  /// Opens the FR-P0-4 credential sheet. On a server-validated success the
-  /// sheet pops `true`; we then mark onboarding complete and land on home —
-  /// using the **real** tokens the sheet persisted, never a client mint.
-  Future<void> _openSuperLogin(BuildContext context) async {
-    final signedIn = await showSuperLoginSheet(context);
-    if (signedIn != true || !context.mounted) return;
-    await context.read<OnboardingCubit>().complete();
-    if (!context.mounted) return;
-    final onVerified = widget.onVerified;
-    if (onVerified != null) {
-      onVerified();
-      return;
-    }
-    // FR-P0-3 (defect DEF-1): the sheet persisted the real tokens, but the
-    // router's session gate still reads `unauthenticated` until the SessionCubit
-    // re-reads the keystore. Refresh it FIRST so `context.go('/')` lands on Home
-    // immediately (previously the redirect bounced back to `/register` and Home
-    // only appeared after a relaunch).
-    await _refreshSession(context);
-    if (!context.mounted) return;
-    context.go('/');
-  }
-
-  /// "Super user login plus": first opens the demo-user picker, then opens the
-  /// SAME credential sheet pre-filled with the chosen user's userId + passcode.
-  /// The user still taps "Sign in" → the sheet POSTs to the gateway for real
-  /// server-side validation, then the post-success path is identical to
-  /// [_openSuperLogin] (onboarding complete → session refresh → home).
-  Future<void> _openSuperLoginPlus(BuildContext context) async {
-    final user = await showSuperLoginPicker(context);
-    if (user == null || !context.mounted) return;
-    final signedIn = await showSuperLoginSheet(
-      context,
-      initialUserId: user.userId,
-      initialPasscode: user.passcode,
-    );
-    if (signedIn != true || !context.mounted) return;
-    await context.read<OnboardingCubit>().complete();
-    if (!context.mounted) return;
-    final onVerified = widget.onVerified;
-    if (onVerified != null) {
-      onVerified();
-      return;
-    }
-    await _refreshSession(context);
-    if (!context.mounted) return;
-    context.go('/');
-  }
 }
 
 /// The phone-entry composition: branded hero → welcome → social → "or"
-/// divider → phone field → send-code CTA → (debug) super-login link. Mirrors
-/// the Rahma/Salehly layout grouping while keeping Jeeb's phone+OTP + OMDS.
+/// divider → phone field → send-code CTA. Mirrors the Rahma/Salehly layout
+/// grouping while keeping Jeeb's phone+OTP + OMDS.
+///
+/// NOTE: the debug-only super-login entry points were RELOCATED to the login
+/// screen (`lib/features/auth/presentation/login_screen.dart`) — P1 owner
+/// request. They no longer live here.
 class _PhoneEntryBody extends StatelessWidget {
   const _PhoneEntryBody({
     required this.state,
     required this.phoneController,
     required this.onSocialAuthenticated,
-    required this.onSuperLogin,
-    required this.onSuperLoginPlus,
   });
 
   final RegistrationState state;
   final TextEditingController phoneController;
   final VoidCallback onSocialAuthenticated;
-  final VoidCallback onSuperLogin;
-  final VoidCallback onSuperLoginPlus;
 
   @override
   Widget build(BuildContext context) {
@@ -376,19 +323,6 @@ class _PhoneEntryBody extends StatelessWidget {
         ),
         const SizedBox(height: Spacing.large),
         _SendCodeButton(state: state, phoneController: phoneController),
-        // SECURITY: the super-login dev affordance is compiled out of release
-        // builds (only mounted under `kDebugMode`). It opens a server-validated
-        // credential sheet instead of the old gate-less `mock-jwt-*` mint
-        // (FR-P0-4). Full removal is owner-gated (JEEB-PLAN.md §6, defect #2).
-        if (kDebugMode) ...[
-          const SizedBox(height: Spacing.twoXLarge),
-          _SuperLoginLink(onTap: onSuperLogin),
-          const SizedBox(height: Spacing.medium),
-          // "Super user login plus": opens a demo-user picker first, then the
-          // SAME credential sheet pre-filled with the chosen user. Sits NEXT TO
-          // the original link; both share the debug-only gate.
-          _SuperLoginPlusLink(onTap: onSuperLoginPlus),
-        ],
       ],
     );
   }
@@ -527,72 +461,6 @@ class _OrDivider extends StatelessWidget {
         ),
         Expanded(child: Divider(color: colorScheme.outlineVariant)),
       ],
-    );
-  }
-}
-
-/// Debug-only "Super User Login" text link that opens the credential sheet.
-class _SuperLoginLink extends StatelessWidget {
-  const _SuperLoginLink({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context);
-    return Center(
-      child: Semantics(
-        identifier: '_super_login_link',
-        button: true,
-        label: l10n.superLoginTitle,
-        child: GestureDetector(
-          key: const Key('registration.superLogin'),
-          onTap: onTap,
-          child: Text(
-            l10n.superLoginTitle,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colorScheme.primary
-                      .withValues(alpha: UIConstants.opacityMedium),
-                  decoration: TextDecoration.underline,
-                ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Debug-only "Super user login plus" text link. Opens a demo-user picker that
-/// pre-fills the credential sheet. Rendered next to [_SuperLoginLink]; the
-/// existing direct-sheet link is kept unchanged.
-class _SuperLoginPlusLink extends StatelessWidget {
-  const _SuperLoginPlusLink({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context);
-    return Center(
-      child: Semantics(
-        identifier: 'super_login_plus_button',
-        button: true,
-        label: l10n.superLoginPlusTitle,
-        child: GestureDetector(
-          key: const Key('registration.superLoginPlus'),
-          onTap: onTap,
-          child: Text(
-            l10n.superLoginPlusTitle,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colorScheme.primary
-                      .withValues(alpha: UIConstants.opacityMedium),
-                  decoration: TextDecoration.underline,
-                ),
-          ),
-        ),
-      ),
     );
   }
 }

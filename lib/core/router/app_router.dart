@@ -96,7 +96,7 @@ import '../../features/settings/presentation/screens/notification_preferences_sc
 import '../../features/settings/presentation/screens/profile_edit_screen.dart';
 import '../../features/cancellation/presentation/cancellation_screen.dart';
 import '../../features/location/presentation/saved_locations_screen.dart';
-import '../../features/settings/presentation/screens/settings_screen.dart';
+import '../../features/settings/presentation/screens/live_settings_screen.dart';
 import '../../features/request_type/presentation/request_type_screen.dart';
 import '../../features/shell/shell_screen.dart';
 import '../../features/shell/tabs/earnings_tab.dart';
@@ -158,8 +158,7 @@ class AppRouter {
   /// lands on the full-screen [DevChatPreviewScreen] for the requested chat
   /// state — `broadcasting`, `accepted`, `dm`, `dm-order-picked`,
   /// `dm-confirm-picking`, `dm-confirm-heading-off`. Empty in release.
-  static String get _devChat =>
-      kDebugMode ? DevSeam.current.chatSelector : '';
+  static String get _devChat => kDebugMode ? DevSeam.current.chatSelector : '';
 
   /// Debug-only route override, resolved at RUNTIME from [DevSeam] (generalises
   /// the old `JEEB_DEV_HOME=true` → `/`). When non-empty the router lands
@@ -320,15 +319,16 @@ class AppRouter {
     // the real `SessionCubit` is a `Cubit`; the inert default gate has no stream
     // so it contributes nothing. `session` is captured by the `redirect` closure
     // below, which blocks flow promotion, so we narrow via an explicit cast.
-    final Cubit<SessionState>? sessionCubit =
-        session is Cubit<SessionState> ? session as Cubit<SessionState> : null;
+    final Cubit<SessionState>? sessionCubit = session is Cubit<SessionState>
+        ? session as Cubit<SessionState>
+        : null;
     // JM-066: re-run redirects when the account status resolves/changes. The
     // inert default gate is not a `Cubit` and contributes nothing; the real
     // status cubit (JM-006/066) is a `BlocBase` and is bridged here.
     final BlocBase<Object?>? accountStatusBloc =
         accountStatus is BlocBase<Object?>
-            ? accountStatus as BlocBase<Object?>
-            : null;
+        ? accountStatus as BlocBase<Object?>
+        : null;
     return GoRouter(
       initialLocation: '/',
       refreshListenable: _MergedRefreshListenable([
@@ -359,8 +359,11 @@ class AppRouter {
         // from a single APK without seeding prefs or a token. This branch
         // returns early in every sub-case, exactly like the pre-FR-P0-1 code.
         if (_devRoute.isNotEmpty && _devSkipOnboarding) {
-          final pinRedirect = _devRoutePinRedirect(state, () => devSeamLanded,
-              (v) => devSeamLanded = v);
+          final pinRedirect = _devRoutePinRedirect(
+            state,
+            () => devSeamLanded,
+            (v) => devSeamLanded = v,
+          );
           // _noPin → not forcing → allow (null). Otherwise force the pin path.
           return pinRedirect == _noPin ? null : pinRedirect;
         }
@@ -368,8 +371,12 @@ class AppRouter {
         // First-run gate (FR-P0-1 onboarding + FR-P0-3 session). Runs for every
         // non-skip launch — including when a route is pinned WITHOUT
         // skipOnboarding, which is precisely how the silent bypass is closed.
-        final firstRun =
-            _firstRunRedirect(state, onboarding, session, accountStatus);
+        final firstRun = _firstRunRedirect(
+          state,
+          onboarding,
+          session,
+          accountStatus,
+        );
         if (firstRun != null) return firstRun;
 
         // Onboarded + authenticated. If a route is pinned (without skip) and the
@@ -377,8 +384,11 @@ class AppRouter {
         // deep-capture of authenticated screens still works on a device whose
         // onboarding is already complete.
         if (_devRoute.isNotEmpty && !_devSkipOnboarding) {
-          final pinRedirect = _devRoutePinRedirect(state, () => devSeamLanded,
-              (v) => devSeamLanded = v);
+          final pinRedirect = _devRoutePinRedirect(
+            state,
+            () => devSeamLanded,
+            (v) => devSeamLanded = v,
+          );
           if (pinRedirect != _noPin) return pinRedirect;
         }
 
@@ -482,8 +492,9 @@ class AppRouter {
           builder: (context, state) {
             final query = state.uri.queryParameters;
             final extra = state.extra;
-            final extraMap =
-                extra is Map<String, String> ? extra : const <String, String>{};
+            final extraMap = extra is Map<String, String>
+                ? extra
+                : const <String, String>{};
             final email = query['email'] ?? extraMap['email'] ?? '';
             final resetToken = query['resetToken'] ?? extraMap['resetToken'];
             return SetPasswordScreen(
@@ -515,9 +526,8 @@ class AppRouter {
         GoRoute(
           path: '/requests/:id/offers',
           name: 'offer-review',
-          builder: (context, state) => ClientOffersScreen(
-            requestId: state.pathParameters['id'] ?? '',
-          ),
+          builder: (context, state) =>
+              ClientOffersScreen(requestId: state.pathParameters['id'] ?? ''),
         ),
         // JM-026 waiting-no-coverage: targets the orphaned
         // no_offer_timeout_screen.dart for in-place REWRITE by the JM-026
@@ -529,9 +539,8 @@ class AppRouter {
         GoRoute(
           path: '/requests/:id/waiting',
           name: 'waiting-no-coverage',
-          builder: (context, state) => NoOfferTimeoutScreen(
-            requestId: state.pathParameters['id'] ?? '',
-          ),
+          builder: (context, state) =>
+              NoOfferTimeoutScreen(requestId: state.pathParameters['id'] ?? ''),
         ),
         // JM-033 delivered-receipt: targets the orphaned
         // delivery_receipt_screen.dart for in-place REWRITE by the JM-033
@@ -554,9 +563,8 @@ class AppRouter {
         GoRoute(
           path: '/orders/:id/summary',
           name: 'order-summary',
-          builder: (context, state) => OrderSummaryScreen(
-            deliveryId: state.pathParameters['id'] ?? '',
-          ),
+          builder: (context, state) =>
+              OrderSummaryScreen(deliveryId: state.pathParameters['id'] ?? ''),
         ),
         GoRoute(
           path: '/orders/:id',
@@ -570,12 +578,8 @@ class AppRouter {
           name: 'delivery-cancel',
           builder: (context, state) {
             final id = state.pathParameters['id'] ?? '';
-            final isJeeber =
-                state.uri.queryParameters['role'] == 'jeeber';
-            return CancellationScreen(
-              deliveryId: id,
-              isJeeber: isJeeber,
-            );
+            final isJeeber = state.uri.queryParameters['role'] == 'jeeber';
+            return CancellationScreen(deliveryId: id, isJeeber: isJeeber);
           },
         ),
         GoRoute(
@@ -596,24 +600,21 @@ class AppRouter {
             final suffix = query.isEmpty ? '' : '?$query';
             return '/orders/$id/mutual-rate$suffix';
           },
-          builder: (context, state) => RatingPromptScreen(
-            deliveryId: state.pathParameters['id'] ?? '',
-          ),
+          builder: (context, state) =>
+              RatingPromptScreen(deliveryId: state.pathParameters['id'] ?? ''),
         ),
         GoRoute(
           path: '/chat/:id',
           name: 'chat-detail',
-          builder: (context, state) => ChatDetailScreen(
-            chatId: state.pathParameters['id'] ?? '',
-          ),
+          builder: (context, state) =>
+              ChatDetailScreen(chatId: state.pathParameters['id'] ?? ''),
         ),
         // Debug-only chat-capture seam; gated by [_devChat] in the redirect
         // above so it is unreachable in release builds.
         GoRoute(
           path: '/dev-chat',
           name: 'dev-chat',
-          builder: (context, state) =>
-              DevChatPreviewScreen(selector: _devChat),
+          builder: (context, state) => DevChatPreviewScreen(selector: _devChat),
         ),
         GoRoute(
           path: '/profile/kyc',
@@ -692,7 +693,7 @@ class AppRouter {
         GoRoute(
           path: '/settings',
           name: 'settings',
-          builder: (context, state) => const SettingsScreen(),
+          builder: (context, state) => const LiveSettingsScreen(),
           routes: [
             GoRoute(
               path: 'profile',
@@ -781,10 +782,8 @@ class AppRouter {
             // selection and hands it here; forward it to the SAME destination
             // the tier-card tap uses (`/request-summary`). No double-navigate:
             // tapping a card and pressing Continue are distinct user actions.
-            onContinue: (draft) => context.push(
-              '/request-summary',
-              extra: draft,
-            ),
+            onContinue: (draft) =>
+                context.push('/request-summary', extra: draft),
           ),
         ),
         GoRoute(
@@ -878,7 +877,8 @@ class AppRouter {
             final id = state.pathParameters['id'] ?? '';
             final extra = state.extra;
             final fromExtra = extra is FeedRequest ? extra : null;
-            final resolved = fromExtra ??
+            final resolved =
+                fromExtra ??
                 (sl.isRegistered<RequestFeedService>()
                     ? sl<RequestFeedService>().findById(id)
                     : null);
@@ -1019,9 +1019,16 @@ class AppRouter {
             return ActiveDeliveryJeeberScreen(
               deliveryId: deliveryId,
               repository: sl<ActiveDeliveryRepository>(),
-              onOpenChat: () {
-                if (context.canPop()) context.pop();
-              },
+              // Post-accept entry point from the ACTIVE delivery surface: open
+              // the order conversation. chat-detail resolves the conversation
+              // against the live gateway from this delivery id (== request id
+              // == correlationKey). Previously this only popped, assuming the
+              // jeeber always arrived from chat — leaving the button a dead end
+              // when reached from the feed.
+              onOpenChat: () => context.pushNamed(
+                'chat-detail',
+                pathParameters: {'id': deliveryId},
+              ),
               onOpenOtp: () {
                 context.go('/orders/$deliveryId/otp?mode=jeeber');
               },
@@ -1212,9 +1219,8 @@ class AppRouter {
         GoRoute(
           path: '/disputes/:id',
           name: 'dispute-status',
-          builder: (context, state) => DisputeStatusScreen(
-            disputeId: state.pathParameters['id'] ?? '',
-          ),
+          builder: (context, state) =>
+              DisputeStatusScreen(disputeId: state.pathParameters['id'] ?? ''),
         ),
         // JM-068 reviews-list — the All-reviews list (R1m NOT live →
         // INTEGRATOR-STUB repo). Inbound: jeeber-profile-reviews
@@ -1233,7 +1239,8 @@ class AppRouter {
           path: '/profile/delivery-man/:jeeberId/reviews',
           name: 'reviews-list-by-id',
           builder: (context, state) => ReviewsListScreen(
-            jeeberId: state.pathParameters['jeeberId'] ??
+            jeeberId:
+                state.pathParameters['jeeberId'] ??
                 state.uri.queryParameters['jeeberId'],
           ),
         ),
@@ -1255,9 +1262,8 @@ class AppRouter {
           builder: (context, state) => const PasswordSecurityScreen(),
         ),
       ],
-      errorBuilder: (context, state) => Scaffold(
-        body: Center(child: Text('Route not found: ${state.uri}')),
-      ),
+      errorBuilder: (context, state) =>
+          Scaffold(body: Center(child: Text('Route not found: ${state.uri}'))),
     );
   }
 }

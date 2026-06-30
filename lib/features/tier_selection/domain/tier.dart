@@ -24,11 +24,21 @@ class Tier extends Equatable {
     required this.priceHigh,
     required this.currency,
     required this.vehicleClass,
+    this.serverId,
     this.slaMinutes,
     this.recommended = false,
   });
 
   final TierId id;
+
+  /// Gateway-minted identifier for this tier. The live jeeb-gateway keys tiers
+  /// by a UUID in the `id` field (with the display label in `name`); the
+  /// Mockoon mock keys by slug. Preserved verbatim so the create-request RPC
+  /// (`POST /requests` → `tierId`) can send the exact identifier the gateway
+  /// expects, rather than re-deriving it from the [id] enum. Null for the
+  /// bundled [FakeTierRepository] catalog used in offline fallback / tests.
+  final String? serverId;
+
   final int priceLow;
   final int priceHigh;
   final String currency;
@@ -44,6 +54,7 @@ class Tier extends Equatable {
   @override
   List<Object?> get props => [
         id,
+        serverId,
         priceLow,
         priceHigh,
         currency,

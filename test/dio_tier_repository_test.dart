@@ -132,6 +132,66 @@ void main() {
       expect(eco.slaMinutes, 48 * 60);
     });
 
+    // P0 REGRESSION (BUG-tier-parse) — the LIVE jeeb-gateway
+    // (192.168.2.39:10090 GET /tiers) returns 200 with items shaped
+    // {"id":"<uuid>","name":"Flash", ...} — the label is in `name`, the `id`
+    // is a UUID, and `priceHint` is free text ("Within 30 minutes"). The old
+    // `_parseId` switched on the `id` slug only, so every live row fell through
+    // to null → `.whereType<Tier>()` dropped all 3 → empty tier list → ZERO
+    // tier cards on "Choose your request" → Continue disabled → no order could
+    // be created. This test feeds the EXACT live payload and asserts all 3
+    // tiers parse, resolved by `name`, with the gateway UUID preserved on
+    // `serverId` for the create-request RPC. It is RED on the pre-fix code
+    // (returns 0 tiers) and GREEN on the fix.
+    test('parses LIVE gateway shape (uuid id + name label + free-text '
+        'priceHint), mapping by name and preserving the uuid', () async {
+      final dio = _dioWith({
+        'items': [
+          {
+            'id': '0be308ce-01b5-5cb9-a3e8-9adb60668d9c',
+            'name': 'Flash',
+            'slaHours': 1,
+            'radiusKm': 3,
+            'commissionRate': 0.25,
+            'priceHint': 'Within 30 minutes',
+          },
+          {
+            'id': 'efe0629b-0b50-555c-b182-4bd41fcd6507',
+            'name': 'Express',
+            'slaHours': 2,
+            'radiusKm': 10,
+            'commissionRate': 0.2,
+            'priceHint': 'Within 2 hours',
+          },
+          {
+            'id': '2bd0d5df-db76-5d14-9e4d-741d60b2fa12',
+            'name': 'Standard',
+            'slaHours': 24,
+            'radiusKm': 25,
+            'commissionRate': 0.15,
+            'priceHint': 'Same-day delivery',
+          },
+        ],
+      });
+      final repo = DioTierRepository(dio);
+
+      final tiers = await repo.fetchTiers();
+
+      // The bug: this was 0 before the fix.
+      expect(tiers.length, 3, reason: 'all 3 live tiers must parse by name');
+      expect(
+        tiers.map((t) => t.id).toList(),
+        const [TierId.flash, TierId.express, TierId.standard],
+      );
+      // SLA still converts hours → minutes off the live payload.
+      expect(tiers[0].slaMinutes, 60);
+      expect(tiers[2].slaMinutes, 24 * 60);
+      // The gateway UUID is preserved verbatim for POST /requests → tierId.
+      expect(tiers[0].serverId, '0be308ce-01b5-5cb9-a3e8-9adb60668d9c');
+      expect(tiers[1].serverId, 'efe0629b-0b50-555c-b182-4bd41fcd6507');
+      expect(tiers[0].recommended, isTrue);
+    });
+
     test('accepts bare array response', () async {
       final dio = _dioWith([
         {'id': 'flash', 'slaHours': 1, 'priceHint': r'$$$'},

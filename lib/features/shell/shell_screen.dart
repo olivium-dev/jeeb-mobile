@@ -7,7 +7,7 @@ import '../../core/dev_seam/dev_seam.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/role/user_role.dart';
 import '../../l10n/app_localizations.dart';
-import '../customer_profile/data/dev_customer_profile_fixtures.dart';
+import '../customer_profile/domain/customer_profile_view_data.dart';
 import '../customer_profile/presentation/customer_profile_screen.dart';
 import 'tabs/dashboard_tab.dart';
 import 'tabs/earnings_tab.dart';
@@ -86,10 +86,7 @@ class _ShellScreenState extends State<ShellScreen> {
             // Requests header (JM-023; `orders_home_wallet_chip`/
             // `orders_home_bell`). Overlaid by the shell so the per-screen
             // HomeTab surface (JM-023's) stays untouched.
-            page: const _HeaderedTab(
-              idPrefix: 'orders_home',
-              child: HomeTab(),
-            ),
+            page: const _HeaderedTab(idPrefix: 'orders_home', child: HomeTab()),
           ),
           _Tab(
             id: 'delivery',
@@ -194,19 +191,17 @@ class _HeaderedTab extends StatelessWidget {
   }
 }
 
-/// The Profile tab body: the real [CustomerProfileScreen] (JM-035). Debug uses
-/// the fixture view data so the tab renders deterministically; the JM-035
-/// engineer swaps in the real getMe-backed cubit/repository (the integrator
-/// does NOT build that here). Release renders the same fixture shell until
-/// JM-035 wires the data source (no PII leak — the fixture is sample data).
+/// The Profile tab body: the real [CustomerProfileScreen] (JM-035).
+///
+/// The seed is intentionally empty. The screen must populate from live
+/// `GET /v1/users/me`; if that read fails, the profile should look incomplete
+/// rather than displaying a sample person and being mistaken for real data.
 class _CustomerProfileTabBody extends StatelessWidget {
   const _CustomerProfileTabBody();
 
   @override
   Widget build(BuildContext context) {
-    return const CustomerProfileScreen(
-      data: DevCustomerProfileFixtures.sample,
-    );
+    return const CustomerProfileScreen(data: CustomerProfileViewData());
   }
 }
 

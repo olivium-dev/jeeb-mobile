@@ -146,7 +146,13 @@ class ChatScreen extends StatelessWidget {
   /// `waiting-no-coverage` (JM-026). Invoked exactly once, after the first
   /// successful send, with the request/conversation id to broadcast. Null on
   /// the accepted/active thread (no compose entry).
-  final void Function(String requestId)? onFirstMessageBroadcast;
+  /// Invoked with the request/conversation id to broadcast AND the text of the
+  /// composed first message (used as the created request's description when no
+  /// real request exists yet — JM-024 → JM-025). Returns `true` when the host
+  /// resolved a real request and routed onward; `false` lets the composer
+  /// re-arm so the user can retry (e.g. a failed create).
+  final Future<bool> Function(String requestId, String firstMessage)?
+      onFirstMessageBroadcast;
 
   static const Key rootKey = Key('chat-screen-root');
   static const Key messageListKey = Key('chat-screen-message-list');
@@ -229,7 +235,13 @@ class _ChatScaffold extends StatefulWidget {
   final VoidCallback? onViewSummary;
   final VoidCallback? onOpenDispute;
   final bool isOrderChat;
-  final void Function(String requestId)? onFirstMessageBroadcast;
+  /// Invoked with the request/conversation id to broadcast AND the text of the
+  /// composed first message (used as the created request's description when no
+  /// real request exists yet — JM-024 → JM-025). Returns `true` when the host
+  /// resolved a real request and routed onward; `false` lets the composer
+  /// re-arm so the user can retry (e.g. a failed create).
+  final Future<bool> Function(String requestId, String firstMessage)?
+      onFirstMessageBroadcast;
 
   @override
   State<_ChatScaffold> createState() => _ChatScaffoldState();
@@ -403,10 +415,25 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
   void _maybeBroadcastFirstMessage(ChatState state) {
     final broadcast = widget.onFirstMessageBroadcast;
     if (broadcast == null || _broadcastFired) return;
-    final hasOutgoing = state.messages.any((m) => m.isMine);
-    if (!hasOutgoing) return;
+    // The first outgoing message is the composed request description: create
+    // the request from it (JM-024 → JM-025 AC1). There is exactly one `isMine`
+    // message at this point (the optimistic append that triggered this call).
+    String? firstMessage;
+    for (final m in state.messages) {
+      if (m.isMine) {
+        firstMessage = m.text;
+        break;
+      }
+    }
+    if (firstMessage == null) return;
     _broadcastFired = true;
-    broadcast(widget.deliveryId);
+    // Re-arm the one-shot guard if the host could not resolve a real request
+    // (e.g. the create failed), so the next send retries instead of dead-ending.
+    broadcast(widget.deliveryId, firstMessage).then((resolved) {
+      if (!resolved && mounted) {
+        setState(() => _broadcastFired = false);
+      }
+    });
   }
 
   String? _messageFor(AppLocalizations l10n, ChatError error) {

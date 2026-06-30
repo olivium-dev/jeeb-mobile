@@ -4,8 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
-import '../../../core/dev_seam/session_seam_bootstrap.dart';
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/auth_token_store.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../jeeber_request_feed/cubit/submitted_offers_cubit.dart';
 import '../../jeeber_request_feed/cubit/submitted_offers_state.dart';
@@ -38,11 +38,7 @@ import '../../jeeber_request_feed/presentation/pending_offer_row.dart';
 /// `WalletHubScreen`). The optional [repository]/[jeeberId] are constructor test
 /// seams (40_GUARDRAILS_ARCH §5.4).
 class JeeberPendingOffersScreen extends StatelessWidget {
-  const JeeberPendingOffersScreen({
-    super.key,
-    this.repository,
-    this.jeeberId,
-  });
+  const JeeberPendingOffersScreen({super.key, this.repository, this.jeeberId});
 
   /// Test seam — defaults to a Dio-backed repo over the shared gateway.
   final SubmittedOffersRepository? repository;
@@ -56,9 +52,9 @@ class JeeberPendingOffersScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider<SubmittedOffersCubit>(
-      create: (_) => SubmittedOffersCubit(
-        repository: repository ?? _resolveRepository(),
-      )..load(),
+      create: (_) =>
+          SubmittedOffersCubit(repository: repository ?? _resolveRepository())
+            ..load(),
       child: const _PendingOffersView(),
     );
   }
@@ -72,7 +68,10 @@ class JeeberPendingOffersScreen extends StatelessWidget {
     if (sl.isRegistered<Dio>()) {
       return DioSubmittedOffersRepository(
         dio: sl<Dio>(),
-        jeeberId: jeeberId ?? SessionSeamBootstrap.jeeberUserId,
+        jeeberId: jeeberId,
+        tokenStore: sl.isRegistered<AuthTokenStore>()
+            ? sl<AuthTokenStore>()
+            : null,
       );
     }
     return const _EmptySubmittedOffersRepository();

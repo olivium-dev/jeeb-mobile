@@ -6,14 +6,20 @@ import '../domain/request_submission_service.dart';
 /// Dio-backed [RequestSubmissionService] — POSTs the assembled draft to the
 /// gateway create-request RPC and returns the server-minted request id.
 ///
-/// Endpoint contract (Mockoon :3055, `useMockPrefixes=false`):
-///   POST /requests  → 201 { id, status, ... }
+/// Endpoint contract — the canonical gateway create-request path. Verified
+/// LIVE against the dev gateway (`http://192.168.2.39:10090`):
+///   POST /v1/requests  → 201 { id, clientId, status:"pending", ... }
+/// `description` is the only required field; `tierId` + locations are optional.
+/// `/v1/requests` (not the un-prefixed `/requests`) is used because it is the
+/// path the rest of the app speaks AND the only one the local-mock
+/// `MockGatewayClient` rewrites to `/delivery-service/v1/requests` — so the
+/// same code creates a request against both the live gateway and the mock.
 class DioRequestSubmissionService implements RequestSubmissionService {
   const DioRequestSubmissionService(this._dio);
 
   final Dio _dio;
 
-  static const String _path = '/requests';
+  static const String _path = '/v1/requests';
 
   @override
   Future<String> submit(RequestDraft draft) async {
