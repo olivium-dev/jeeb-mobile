@@ -104,6 +104,40 @@ void main() {
       expect(find.text('Expired'), findsOneWidget);
     });
 
+    testWidgets(
+        'BUG-3: an EXPIRED pending card stays tappable (cosmetic timer must '
+        'not dead-lock the offer surface while pending server-side)',
+        (tester) async {
+      var tapped = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          locale: const Locale('en'),
+          supportedLocales: const [Locale('en'), Locale('ar')],
+          localizationsDelegates: const [
+            SyncAppLocalizationsDelegate(),
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: Scaffold(
+            body: PendingCountdownCard(
+              request: _pendingRequest(ttlSeconds: 0),
+              onTap: () => tapped++,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // The cosmetic "Expired" label renders…
+      expect(find.text('Expired'), findsOneWidget);
+      // …but the row is NOT dead — tapping still routes (re-enters the offers
+      // surface), so the customer can still reach/accept a server-side offer.
+      await tester.tap(find.byKey(const Key('pending-countdown-card-pen-1')));
+      expect(tapped, 1);
+    });
+
     testWidgets('AC2: countdown decrements from 2 to 1 after 1s tick',
         (tester) async {
       final repo = InMemoryClientHomeRepository.fromSnapshot(
@@ -158,10 +192,10 @@ void main() {
 
     testWidgets('reconnect banner hidden when visible=false', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          locale: const Locale('en'),
-          supportedLocales: const [Locale('en')],
-          localizationsDelegates: const [
+        const MaterialApp(
+          locale: Locale('en'),
+          supportedLocales: [Locale('en')],
+          localizationsDelegates: [
             SyncAppLocalizationsDelegate(),
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
@@ -177,10 +211,10 @@ void main() {
 
     testWidgets('reconnect banner visible when visible=true', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          locale: const Locale('en'),
-          supportedLocales: const [Locale('en')],
-          localizationsDelegates: const [
+        const MaterialApp(
+          locale: Locale('en'),
+          supportedLocales: [Locale('en')],
+          localizationsDelegates: [
             SyncAppLocalizationsDelegate(),
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
