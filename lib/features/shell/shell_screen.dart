@@ -4,28 +4,49 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../core/dev_seam/dev_seam.dart';
-import '../../core/role/role_cubit.dart';
-import '../../core/role/user_role.dart';
+import '../../core/role/role_availability_cubit.dart';
 import '../../l10n/app_localizations.dart';
 import '../customer_profile/domain/customer_profile_view_data.dart';
 import '../customer_profile/presentation/customer_profile_screen.dart';
+import 'tab_visibility.dart';
 import 'tabs/dashboard_tab.dart';
 import 'tabs/earnings_tab.dart';
 import 'tabs/home_tab.dart';
 import 'tabs/orders_tab.dart';
+import 'widgets/jeeber_tab_empty_state.dart';
 import 'widgets/shell_header_actions.dart';
 
-/// Role-aware bottom-nav shell matching the Figma design (node 56535:2151).
+/// Unified bottom-nav shell implementing the CORE UX RULE (`docs/orchestrator/
+/// 05-constraints-and-ground-truth.md`): **a jeeber is also a user.**
 ///
-/// Figma shows 3 tabs:
-/// - [UserRole.client]: Requests / Delivery / Profile
-/// - [UserRole.jeeber]: Dashboard / Earnings / Profile
+/// There is NO role switch and NO role-gated tab set. EVERY user sees the same
+/// five additive destinations:
 ///
-/// The bottom bar uses a white background with backdrop blur,
-/// Urbanist font for labels, and the Jeeb navy/brown color scheme.
+///   Requests · Delivery · Jeeber(Dashboard) · Earnings · Profile
 ///
-/// Reuses Salehly's role-toggle pattern: mode is session-local state
-/// toggled from the Profile tab, resetting to tab 0 on switch.
+/// The first two + Profile are the regular-user surfaces; **Dashboard** (the
+/// availability + request feed) and **Earnings** are the jeeber surfaces, added
+/// to every user's shell. A regular (non-jeeber) user sees the SAME jeeber-tab
+/// scaffolding but with EMPTY STATES ([JeeberTabEmptyState]) inviting them to
+/// become a jeeber — never a mode switch. Whether the live jeeber body or the
+/// empty state renders is decided purely by the signed-in user's
+/// `available_roles` (gateway Auth/Capabilities surface, getMe →
+/// [RoleAvailabilityCubit]); it is additive and reactive, so a user who
+/// completes jeeber onboarding lights up the live bodies in place without any
+/// in-app role flip.
+///
+/// BUG-1 (`docs/sprints/sprint-008` Lane B / known-bug #1): the shell must LAND
+/// a dual-role jeeber (seed `..0002` Karim) on the **Jeeber surface**, not the
+/// client surface. The landing tab is derived from the resolved capabilities
+/// ([RoleAvailabilityCubit] ∋ `jeeber`), NOT a hardcoded index: a jeeber lands
+/// on the Dashboard tab (so the incoming-request feed — Core Flow step 2 — is
+/// the first thing they see) while a plain client lands on Requests. Once the
+/// user manually taps a tab their choice sticks, so a late getMe resolution
+/// never yanks the page out from under them.
+///
+/// The bottom bar uses the surface color with a soft top shadow, the Jeeb
+/// navy/brown color scheme, and per-tab stable Semantics ids (`shell_tab_*`)
+/// so QA can target tabs without matching localized labels.
 class ShellScreen extends StatefulWidget {
   const ShellScreen({super.key});
 
@@ -34,137 +55,163 @@ class ShellScreen extends StatefulWidget {
 }
 
 class _ShellScreenState extends State<ShellScreen> {
-  int _index = 0;
+  /// The locale-independent id of the Jeeber surface tab — the landing target
+  /// for a user whose capabilities include `jeeber` (BUG-1).
+  static const String _jeeberLandingTabId = 'dashboard';
+
+  /// `null` until the user manually selects a tab. While null the shell lands
+  /// on the capability-derived initial tab (see [_landingIndex]); once the user
+  /// taps a destination this holds their explicit choice so a later capability
+  /// resolution (async getMe) never moves them.
+  int? _selectedIndex;
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<RoleCubit, UserRole>(
-      listenWhen: (prev, curr) => prev != curr,
-      listener: (_, _) => setState(() => _index = 0),
-      builder: (context, role) {
-        final tabs = _tabsForRole(_effectiveRole(role));
-        final safeIndex = _index.clamp(0, tabs.length - 1);
-        return Scaffold(
-          body: SafeArea(
-            bottom: false,
-            child: IndexedStack(
-              index: safeIndex,
-              children: tabs.map((t) => t.page).toList(growable: false),
-            ),
-          ),
-          bottomNavigationBar: _JeebBottomBar(
-            tabs: tabs,
-            selectedIndex: safeIndex,
-            onTap: (i) => setState(() => _index = i),
-          ),
-        );
-      },
+    // The tab SET never changes — additive, not role-gated. Only the jeeber
+    // tab BODIES (live vs empty state) AND the landing tab react to the user's
+    // available roles (gateway Auth/Capabilities → RoleAvailabilityCubit).
+    final availability = context.watch<RoleAvailabilityCubit?>()?.state;
+    final showJeeberContent = _showJeeberContent(availability);
+    final tabs = _tabs(showJeeberContent: showJeeberContent);
+    final landingIndex = _landingIndex(tabs, isJeeber: showJeeberContent);
+    final safeIndex = (_selectedIndex ?? landingIndex).clamp(0, tabs.length - 1);
+    return Scaffold(
+      body: SafeArea(
+        bottom: false,
+        child: IndexedStack(
+          index: safeIndex,
+          // Wrap each child in a TabVisibility so a tab body can react to
+          // (re)becoming the selected page even though IndexedStack keeps every
+          // child mounted. Used by ClientHomeScreen to silently re-pull on
+          // refocus. updateShouldNotify only fires for the tab whose visibility
+          // actually flips.
+          children: [
+            for (var i = 0; i < tabs.length; i++)
+              TabVisibility(
+                isVisible: i == safeIndex,
+                child: tabs[i].page,
+              ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: _JeebBottomBar(
+        tabs: tabs,
+        selectedIndex: safeIndex,
+        onTap: (i) => setState(() => _selectedIndex = i),
+      ),
     );
   }
 
-  /// Debug-only: the dev seam can force the jeeber role so the Delivery-tab
-  /// upsell (screen 19, hosted by [DashboardTab]) renders deterministically for
-  /// capture without a UI role toggle. Always the cubit's role in release.
-  UserRole _effectiveRole(UserRole role) {
-    if (kDebugMode && DevSeam.current.homeTab == 'unregistered') {
-      return UserRole.jeeber;
-    }
-    return role;
+  /// BUG-1: the tab the shell lands on before the user navigates. A jeeber (by
+  /// capability) lands on the additive Jeeber surface ([_jeeberLandingTabId]);
+  /// everyone else lands on the first (Requests) tab. Derived from resolved
+  /// capabilities, never hardcoded — and falls back to `0` if the jeeber tab is
+  /// somehow absent so the shell can never strand on an out-of-range index.
+  int _landingIndex(List<_Tab> tabs, {required bool isJeeber}) {
+    if (!isJeeber) return 0;
+    final jeeberIndex =
+        tabs.indexWhere((t) => t.id == _jeeberLandingTabId);
+    return jeeberIndex >= 0 ? jeeberIndex : 0;
   }
 
-  List<_Tab> _tabsForRole(UserRole role) {
-    final l10n = AppLocalizations.of(context);
-    switch (role) {
-      case UserRole.client:
-        return [
-          _Tab(
-            id: 'requests',
-            label: l10n.navRequests,
-            icon: Icons.move_to_inbox_outlined,
-            selectedIcon: Icons.move_to_inbox,
-            // S3 (W1-INT): persistent header wallet chip + bell on the
-            // Requests header (JM-023; `orders_home_wallet_chip`/
-            // `orders_home_bell`). Overlaid by the shell so the per-screen
-            // HomeTab surface (JM-023's) stays untouched.
-            page: const _HeaderedTab(idPrefix: 'orders_home', child: HomeTab()),
-          ),
-          _Tab(
-            id: 'delivery',
-            label: l10n.navDelivery,
-            icon: Icons.local_shipping_outlined,
-            selectedIcon: Icons.local_shipping,
-            page: const OrdersTab(),
-          ),
-          _Tab(
-            id: 'profile',
-            label: l10n.navProfile,
-            icon: Icons.person_outline,
-            selectedIcon: Icons.person,
-            // S3 (W1-INT, JM-035): swap the dev `ProfileTab` surface for the
-            // REAL CustomerProfileScreen, plus the persistent header wallet
-            // chip + bell (`customer_profile_wallet_chip`/`_bell`). The JM-035
-            // engineer wires the real getMe-backed view data + the row
-            // navigations + avatar/name/rating ids; the integrator owns this
-            // tab-body swap + the header actions. Debug renders the fixture
-            // view data (release will resolve the real profile cubit, JM-035).
-            page: const _HeaderedTab(
-              idPrefix: 'customer_profile',
-              child: _CustomerProfileTabBody(),
-            ),
-          ),
-        ];
-      case UserRole.jeeber:
-        return [
-          _Tab(
-            id: 'dashboard',
-            label: l10n.navDashboard,
-            icon: Icons.dashboard_outlined,
-            selectedIcon: Icons.dashboard,
-            // S3 (W2-INT, JM-036): the DELIVERY tab (jeeber Dashboard) gets the
-            // persistent header wallet chip + bell — `delivery_tab_wallet_chip`
-            // → wallet-hub (honest, the `/wallet` route exists) and
-            // `delivery_tab_bell` → notifications (guarded coming-soon until
-            // JM-057/W4). The DashboardTab body itself gates register-prompt vs
-            // feed off real `user.kycStatus` (JeeberKycStatusGate).
-            page: const _HeaderedTab(
-              idPrefix: 'delivery_tab',
-              child: DashboardTab(),
-            ),
-          ),
-          _Tab(
-            id: 'earnings',
-            label: l10n.navEarnings,
-            icon: Icons.payments_outlined,
-            selectedIcon: Icons.payments,
-            page: const EarningsTab(),
-          ),
-          _Tab(
-            id: 'profile',
-            label: l10n.navProfile,
-            icon: Icons.person_outline,
-            selectedIcon: Icons.person,
-            // Jeeber profile also gets the real CustomerProfileScreen surface +
-            // header actions (the jeeber profile reuses the customer profile
-            // shell; the per-role rating/rows are JM-035's). Header ids stay
-            // `customer_profile_*` (the screen-scoped id, not role-scoped).
-            page: const _HeaderedTab(
-              idPrefix: 'customer_profile',
-              child: _CustomerProfileTabBody(),
-            ),
-          ),
-        ];
+  /// True when the Jeeber + Earnings tabs should render their LIVE bodies
+  /// (availability toggle / feed / earnings dashboard) rather than the
+  /// [JeeberTabEmptyState] invitation — and, per BUG-1, when the shell should
+  /// land on the Jeeber surface.
+  ///
+  /// Source of truth is the signed-in user's `available_roles` from the gateway
+  /// Auth/Capabilities surface (getMe → [RoleAvailabilityCubit]) — a `jeeber`
+  /// membership lights up the live bodies. Never a hardcoded id and never an
+  /// in-app role flip.
+  ///
+  /// Debug-only: the dev seam can force the live jeeber bodies so a single
+  /// capture APK renders the feed screens deterministically (the register
+  /// prompt via `jeeb.home_tab=unregistered`, the feed variants via
+  /// `jeeb.feed=<view>`) without a real getMe round-trip. Always the real
+  /// available-roles signal in release.
+  bool _showJeeberContent(RoleAvailability? availability) {
+    if (kDebugMode) {
+      final seam = DevSeam.current;
+      if (seam.feed.isNotEmpty || seam.homeTab == 'unregistered') return true;
     }
+    return availability?.roles.contains('jeeber') ?? false;
+  }
+
+  List<_Tab> _tabs({required bool showJeeberContent}) {
+    final l10n = AppLocalizations.of(context);
+    return [
+      _Tab(
+        id: 'requests',
+        label: l10n.navRequests,
+        icon: Icons.move_to_inbox_outlined,
+        selectedIcon: Icons.move_to_inbox,
+        // Persistent header wallet chip + bell on the Requests header
+        // (`orders_home_wallet_chip`/`orders_home_bell`), overlaid by the shell
+        // so the per-screen HomeTab surface stays untouched.
+        page: const _HeaderedTab(
+          idPrefix: 'orders_home',
+          child: HomeTab(),
+        ),
+      ),
+      _Tab(
+        id: 'delivery',
+        label: l10n.navDelivery,
+        icon: Icons.local_shipping_outlined,
+        selectedIcon: Icons.local_shipping,
+        page: const OrdersTab(),
+      ),
+      // ADDITIVE jeeber tab #1 — the Jeeber dashboard (availability + feed).
+      // A jeeber sees the live [DashboardTab] (with the persistent header
+      // actions); a regular user sees the [JeeberTabEmptyState] invitation.
+      _Tab(
+        id: _jeeberLandingTabId,
+        label: l10n.navDashboard,
+        icon: Icons.dashboard_outlined,
+        selectedIcon: Icons.dashboard,
+        page: showJeeberContent
+            ? const _HeaderedTab(
+                idPrefix: 'delivery_tab',
+                child: DashboardTab(),
+              )
+            : const JeeberTabEmptyState.dashboard(),
+      ),
+      // ADDITIVE jeeber tab #2 — Earnings. A jeeber sees the live earnings
+      // dashboard; a regular user sees the same become-a-jeeber empty state.
+      _Tab(
+        id: 'earnings',
+        label: l10n.navEarnings,
+        icon: Icons.payments_outlined,
+        selectedIcon: Icons.payments,
+        page: showJeeberContent
+            ? const EarningsTab()
+            : const JeeberTabEmptyState.earnings(),
+      ),
+      _Tab(
+        id: 'profile',
+        label: l10n.navProfile,
+        icon: Icons.person_outline,
+        selectedIcon: Icons.person,
+        // The real CustomerProfileScreen surface + header actions. Shared by
+        // every user (a jeeber's per-role rating/rows are the profile screen's
+        // own concern). Header ids stay `customer_profile_*` (screen-scoped).
+        // The seed is intentionally empty: the screen must populate from live
+        // `GET /v1/users/me`; on a failed read the profile should look
+        // incomplete rather than show a sample person mistaken for real data.
+        page: const _HeaderedTab(
+          idPrefix: 'customer_profile',
+          child: _CustomerProfileTabBody(),
+        ),
+      ),
+    ];
   }
 }
 
 /// Overlays the shell-owned [ShellHeaderActions] (wallet chip + bell) on the
 /// top-right of a tab body without touching the per-screen surface. A `Stack`
 /// keeps the actions persistent above whatever the [child] renders (a greeting
-/// header or an app bar), so the per-screen engineers (JM-023 / JM-035 / JM-036)
-/// own the body while the integrator owns the header actions (S3). Used on the
-/// customer Requests + Profile headers and the jeeber DELIVERY (Dashboard)
-/// header; the `idPrefix` scopes the ids per screen (`orders_home` /
-/// `customer_profile` / `delivery_tab`).
+/// header or an app bar), so the per-screen surfaces own the body while the
+/// shell owns the header actions; the `idPrefix` scopes the ids per screen
+/// (`orders_home` / `customer_profile` / `delivery_tab`).
 class _HeaderedTab extends StatelessWidget {
   const _HeaderedTab({required this.idPrefix, required this.child});
 
@@ -191,7 +238,11 @@ class _HeaderedTab extends StatelessWidget {
   }
 }
 
-/// The Profile tab body: the real [CustomerProfileScreen] (JM-035).
+/// The Profile tab body: the real [CustomerProfileScreen].
+///
+/// Per the CORE UX RULE there is no in-app role *switch* — the jeeber surfaces
+/// are additive tabs, not a mode the user flips into from here — so the Profile
+/// tab no longer hosts a role toggle.
 ///
 /// The seed is intentionally empty. The screen must populate from live
 /// `GET /v1/users/me`; if that read fails, the profile should look incomplete

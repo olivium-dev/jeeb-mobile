@@ -4,12 +4,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/network/auth_token_store.dart';
 import '../../../../core/role/role_cubit.dart';
 import '../../../../core/role/user_role.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/role_switch_cubit.dart';
 import '../../application/settings_cubit.dart';
-import '../../domain/account_service.dart';
+import '../../data/dio_account_service.dart';
 import '../../domain/profile_repository.dart';
 import '../../domain/role_switch_repository.dart';
 import '../../domain/user_profile.dart';
@@ -75,7 +76,11 @@ class _LoadedLiveSettings extends StatefulWidget {
 class _LoadedLiveSettingsState extends State<_LoadedLiveSettings> {
   late final SettingsCubit _settingsCubit = SettingsCubit(
     profileRepository: _SnapshotProfileRepository(widget.snapshot.profile),
-    accountService: const FakeAccountService(),
+    // Real Dio-backed account service (the test-only `FakeAccountService`
+    // lives under `test/support/` and must never be referenced from `lib/`).
+    // Shares the same DI gateway Dio as the profile read above so destructive
+    // settings actions hit the live jeeb-gateway, not an always-success stub.
+    accountService: DioAccountService(sl<Dio>(), AuthTokenStore()),
   )..load();
 
   late final RoleSwitchCubit _roleSwitchCubit = RoleSwitchCubit(

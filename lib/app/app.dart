@@ -28,13 +28,16 @@ import '../core/observability/crash_context_bridge.dart';
 import '../core/observability/crash_reporter.dart';
 import '../core/network/auth_token_store.dart';
 import '../core/onboarding/onboarding_cubit.dart';
+import '../core/role/role_availability_cubit.dart';
 import '../core/role/role_cubit.dart';
 import '../core/role/role_eligibility_cubit.dart';
+import '../core/role/role_sync.dart';
 import '../core/role/user_role.dart';
 import '../core/router/app_router.dart';
 import '../core/session/account_status_gate.dart';
 import '../core/session/session_cubit.dart';
 import '../core/session/session_gate.dart';
+import '../core/session/session_state.dart';
 import '../core/theme/app_theme.dart';
 import '../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../features/biometric_auth/data/dev_biometric_gateway.dart';
@@ -102,7 +105,7 @@ class JeebApp extends StatefulWidget {
   State<JeebApp> createState() => _JeebAppState();
 }
 
-class _JeebAppState extends State<JeebApp> {
+class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   late final OnboardingCubit _onboarding =
       OnboardingCubit(prefs: widget.preferences);
   late final RoleCubit _role = RoleCubit(
@@ -110,11 +113,33 @@ class _JeebAppState extends State<JeebApp> {
     initialRole: _devSeamRole,
   );
 
+  /// BUG-1 / CORE UX RULE: the user's resolved `available_roles` from the
+  /// gateway Auth/Capabilities surface (getMe). The additive shell watches this
+  /// to (a) light up the jeeber tab bodies vs their empty states and (b) LAND a
+  /// dual-role jeeber on the Jeeber surface instead of the client surface.
+  /// Empty until the first [RoleSync.sync] resolves, so a plain client never
+  /// flashes jeeber content.
+  late final RoleAvailabilityCubit _roleAvailability = RoleAvailabilityCubit();
+
+  /// BUG-1: login→capability sync. Reads getMe and publishes `available_roles`
+  /// (and the server `active_role`) to [_roleAvailability] / [_role]. Resolves
+  /// the getMe repo over the shared Dio (no DI edit) and is a safe no-op in
+  /// widget tests / when unauthenticated. Skipped while a dev seam pins the
+  /// role for a capture build (the seam owns the surface then).
+  late final RoleSync _roleSync = RoleSync(
+    roleCubit: _role,
+    availabilityCubit: _roleAvailability,
+  );
+
   /// Debug-only: the `jeeb.feed` dev seam captures the deliveryman (jeeber)
   /// feed, so force the jeeber role when it's set. `null` in release and when
   /// the seam isn't driving the feed, preserving the persisted role.
   UserRole? get _devSeamRole =>
       kDebugMode && DevSeam.current.hasFeed ? UserRole.jeeber : null;
+
+  /// True when a dev seam is pinning the role for a deterministic capture; the
+  /// getMe capability-sync must NOT fight it then.
+  bool get _seamPinsRole => _devSeamRole != null;
   late final RoleEligibilityCubit _roleEligibility = RoleEligibilityCubit();
   // Mirrors RoleCubit/OnboardingCubit — built directly from the prefs the
   // bootstrap handed us so widget tests don't need to configure GetIt. The
@@ -177,15 +202,64 @@ class _JeebAppState extends State<JeebApp> {
   NotificationDispatcher? _dispatcher;
   DeviceTokenRegistrar? _deviceRegistrar;
 
+  /// BUG-1: subscription to the owned [SessionCubit] so a successful login
+  /// (OTP verify / super-login calls `session.refresh()`, transitioning the
+  /// session to authenticated) re-fires [RoleSync.sync] IMMEDIATELY — without
+  /// waiting for a background/foreground cycle. Only created when WE own the
+  /// session (a test-injected bare [SessionGate] is not a cubit and has no
+  /// stream); null otherwise. Closed in [dispose].
+  StreamSubscription<SessionState>? _sessionSub;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // FR-P0-3: evaluate the session AFTER first frame. The cubit starts in the
     // `unknown` phase (router gate is a no-op) so we never flash `/register`
     // during the keystore read; once this resolves, an onboarded-but-tokenless
     // user is redirected to login via `refreshListenable`.
     _ownedSession?.refresh();
-    SchedulerBinding.instance.addPostFrameCallback((_) => _initPushChain());
+    // BUG-1: the OTP-verify / super-login path calls `session.refresh()`,
+    // transitioning the SessionCubit to `authenticated` — listen for that
+    // transition and (re-)resolve capabilities so the shell lands a jeeber on
+    // the Jeeber surface right after the first login, no background cycle.
+    _wireSessionRoleSync();
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _initPushChain();
+      // BUG-1: resolve `available_roles` from getMe after the first frame
+      // paints (never blocks cold start). A returning dual-role jeeber lands on
+      // the Jeeber surface; a plain client stays on the client surface.
+      _syncRole();
+    });
+  }
+
+  /// BUG-1: reconcile local capability state with the gateway. No-op while a
+  /// dev seam pins the role for a capture build.
+  void _syncRole() {
+    if (_seamPinsRole) return;
+    unawaited(_roleSync.sync());
+  }
+
+  /// BUG-1: re-run [_syncRole] on every transition INTO the authenticated
+  /// session state — the login-completion trigger. We only listen when WE own
+  /// the session (a test-injected bare [SessionGate] exposes no stream). The
+  /// first authenticated emission also re-syncs, which is harmless:
+  /// [RoleSync.sync] is idempotent and now runs post-auth (getMe succeeds).
+  void _wireSessionRoleSync() {
+    final session = _ownedSession;
+    if (session == null) return;
+    _sessionSub = session.stream.listen((state) {
+      if (state.isAuthenticated) _syncRole();
+    });
+  }
+
+  /// BUG-1: re-resolve capabilities on app-resume so a role granted on another
+  /// device (or after a backgrounded session) reflects when the app returns to
+  /// the foreground.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) _syncRole();
   }
 
   void _initPushChain() {
@@ -240,6 +314,7 @@ class _JeebAppState extends State<JeebApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _crashContext.dispose();
     _deviceRegistrar?.dispose();
     _dispatcher?.dispose();
@@ -247,8 +322,10 @@ class _JeebAppState extends State<JeebApp> {
     _badgeCount.close();
     _biometricLock.close();
     _roleEligibility.close();
+    _roleAvailability.close();
     _role.close();
     _onboarding.close();
+    _sessionSub?.cancel();
     _ownedSession?.close();
     _router.dispose();
     super.dispose();
@@ -260,6 +337,7 @@ class _JeebAppState extends State<JeebApp> {
       providers: [
         BlocProvider(create: (_) => LocaleCubit(prefs: widget.preferences)),
         BlocProvider.value(value: _role),
+        BlocProvider.value(value: _roleAvailability),
         BlocProvider.value(value: _roleEligibility),
         BlocProvider.value(value: _onboarding),
         BlocProvider.value(value: _biometricLock),
