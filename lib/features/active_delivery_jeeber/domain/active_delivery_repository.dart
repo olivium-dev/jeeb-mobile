@@ -9,9 +9,15 @@ import 'jeeber_delivery_status.dart';
 ///   GET  /v1/delivery/{id}              → JeeberDelivery snapshot
 ///   POST /v1/delivery/status/transition → updated delivery; 422 on bad transition
 ///                                          (422 `otp_required` → [ActiveDeliveryFailure.otpRequired])
-///   POST /deliveries/{id}/otp/verify    → { verified, status } — completes a
+///   GET  /v1/deliveries/{id}/otp        → issue/trigger the handover OTP
+///   POST /v1/deliveries/{id}/otp/verify → { verified, status } — completes a
 ///                                          phone-bearing delivery `AtDoor → Done`
-///                                          when the recipient OTP is supplied
+///                                          when the recipient OTP is supplied.
+///                                          ⚠️ MUST be the `/v1` plural
+///                                          `otp/verify` path — the legacy
+///                                          un-versioned `/deliveries/{id}/
+///                                          verify-otp` is DEAD on live :10090
+///                                          (400 otp-not-in-handover-state).
 ///   POST /v1/delivery/proof-photo       → { url, evidenceUrl, deliveryId } (D1m)
 abstract class ActiveDeliveryRepository {
   /// Fetch the current snapshot for [deliveryId].
@@ -34,10 +40,11 @@ abstract class ActiveDeliveryRepository {
   });
 
   /// Complete a phone-bearing delivery to `Done` by verifying the recipient's
-  /// door OTP (iter6 close-tail — the door-OTP completion path #68 proved on the
-  /// gateway: `POST /deliveries/{id}/otp/verify {code}`). The recipient gives the
-  /// jeeber the code at the door; the jeeber enters it here. On success the
-  /// delivery transitions to `Done`.
+  /// door OTP (iter6 close-tail — live :10090 ground truth, request driven to
+  /// Done: `GET /v1/deliveries/{id}/otp` to issue, then
+  /// `POST /v1/deliveries/{id}/otp/verify {code}` → 200 { verified, status:Done }).
+  /// The recipient gives the jeeber the code at the door; the jeeber enters it
+  /// here. On success the delivery transitions to `Done`.
   ///
   /// Returns the resulting [JeeberDeliveryStatus] (`Done` on success).
   /// Throws [ActiveDeliveryException] with

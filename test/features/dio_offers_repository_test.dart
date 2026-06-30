@@ -123,6 +123,32 @@ void main() {
   });
 
   group('acceptOffer', () {
+    test('POSTs to the live accept route /v1/offers/{offerId}/accept with '
+        'NO body (preserve S07: do not leak status into the accept DTO)',
+        () async {
+      String? capturedPath;
+      Map<Symbol, dynamic>? capturedNamed;
+      when(() => mockDio.post<dynamic>(any())).thenAnswer((invocation) async {
+        capturedPath = invocation.positionalArguments.first as String;
+        capturedNamed = invocation.namedArguments;
+        return Response<dynamic>(
+          requestOptions: RequestOptions(path: ''),
+          data: const {'id': 'req-1', 'status': 'accepted'},
+          statusCode: 200,
+        );
+      });
+
+      await repo.acceptOffer(requestId: 'req-1', offerId: 'offer-9');
+
+      // Accept IS /v1-prefixed (V1/JeebOffersController), asymmetric with the
+      // /v1-less offer-create route.
+      expect(capturedPath, '/v1/offers/offer-9/accept');
+      // S07 fix: the accept call carries NO request body (data is null), so no
+      // client-minted status (e.g. "accepted") can leak into the accept DTO.
+      expect(capturedNamed?[#data], isNull,
+          reason: 'accept sends no body — status must not be leaked client-side');
+    });
+
     test('returns result (deliveryId null) on 200 with no delivery field',
         () async {
       when(() => mockDio.post<dynamic>(any())).thenAnswer(

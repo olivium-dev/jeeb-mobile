@@ -50,10 +50,15 @@ class DioClientHomeRepository implements ClientHomeRepository {
     final recentDeliveries = results[2] as List<RecentDeliverySummary>;
 
     // Merge accepted orders into In Progress, deduped against any live shipment
-    // by id so the same order never renders twice.
-    final shipmentIds = shipments.map((r) => r.id).toSet();
+    // by id so the same order never renders twice. A delivery that already
+    // reached its terminal `Done` state (V3 step 7) is NOT in progress — drop
+    // it from the active list so a completed order never lingers as "active".
+    final activeShipments = shipments
+        .where((r) => r.status != ClientRequestStatus.delivered)
+        .toList(growable: false);
+    final shipmentIds = activeShipments.map((r) => r.id).toSet();
     final inProgress = <ClientHomeRequest>[
-      ...shipments,
+      ...activeShipments,
       ...buckets.accepted.where((a) => !shipmentIds.contains(a.id)),
     ];
 
@@ -264,8 +269,16 @@ class DioClientHomeRepository implements ClientHomeRepository {
         return ClientRequestStatus.enRoute;
       case 'AtDoor':
         return ClientRequestStatus.enRoute;
+      // V3 `Done` is the delivered/completed TERMINAL (Core Flow step 7). It
+      // must NOT collapse back to `accepted` (which reads as in-progress and
+      // never clears) — surface it as the delivered final state. Tolerate the
+      // legacy lowercase `delivered`/`completed` aliases too.
       case 'Done':
-        return ClientRequestStatus.accepted;
+      case 'delivered':
+      case 'Delivered':
+      case 'completed':
+      case 'Completed':
+        return ClientRequestStatus.delivered;
       case 'FailedNeedsEscalation':
         return ClientRequestStatus.accepted;
       case 'Cancelled':

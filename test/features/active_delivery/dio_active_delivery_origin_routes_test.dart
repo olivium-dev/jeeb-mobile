@@ -189,6 +189,49 @@ void main() {
       expect(body['code'], '1234');
       expect(status, JeeberDeliveryStatus.done);
     });
+
+    // LIVE :10090 ground truth (request driven to Done): the handover sequence
+    // is GET /v1/deliveries/{id}/otp (issue/trigger) → POST .../otp/verify
+    // { code }. Pin the EXACT verb+path of BOTH calls so a future refactor can't
+    // silently drop the issue-on-demand GET or drift the verify verb/body.
+    test('verifyDoorOtp issues GET /v1/deliveries/{id}/otp THEN POSTs '
+        'otp/verify {code} — exact verbs+paths, in order', () async {
+      adapter.onGet = (path) => _json({'triggered': true, 'code': '1234'});
+      adapter.onPost = (path, data) => _json({'verified': true, 'status': 'Done'});
+
+      await originRepo().verifyDoorOtp(deliveryId: _deliveryId, code: '1234');
+
+      expect(
+        adapter.calls,
+        [
+          ('GET', '/v1/deliveries/$_deliveryId/otp'),
+          ('POST', '/v1/deliveries/$_deliveryId/otp/verify'),
+        ],
+        reason: 'issue-on-demand GET must precede the verify POST',
+      );
+    });
+
+    // The legacy POST /v1/deliveries/{id}/verify-otp is DEAD on the live
+    // upstream-flagged binary (400 otp-not-in-handover-state). Guard against any
+    // regression back to that suffix: NO call may target `verify-otp`, and the
+    // verify must use the `otp/verify` suffix.
+    test('verifyDoorOtp never touches the DEAD legacy verify-otp route',
+        () async {
+      adapter.onGet = (path) => _json({'triggered': true, 'code': '1234'});
+      adapter.onPost = (path, data) => _json({'verified': true, 'status': 'Done'});
+
+      await originRepo().verifyDoorOtp(deliveryId: _deliveryId, code: '1234');
+
+      expect(
+        adapter.calls.any((c) => c.$2.contains('verify-otp')),
+        isFalse,
+        reason: 'the un-versioned /deliveries/{id}/verify-otp path is dead',
+      );
+      expect(
+        adapter.calls.any((c) => c.$1 == 'POST' && c.$2.endsWith('/otp/verify')),
+        isTrue,
+      );
+    });
   });
 
   group('Legacy :4010 mock routes — PRESERVED (no regression)', () {
@@ -245,6 +288,10 @@ class _RecordingAdapter implements HttpClientAdapter {
   String? lastGetPath;
   Object? lastBody;
 
+  /// Ordered (method, path) log of every call — lets a test assert the exact
+  /// issue→verify sequence and guard against dead-route regressions.
+  final List<(String, String)> calls = <(String, String)>[];
+
   @override
   void close({bool force = false}) {}
 
@@ -256,6 +303,7 @@ class _RecordingAdapter implements HttpClientAdapter {
   ) async {
     lastMethod = options.method;
     lastPath = options.path;
+    calls.add((options.method, options.path));
     if (options.method == 'GET') {
       lastGetPath = options.path;
       return onGet?.call(options.path) ?? _json(const {});
