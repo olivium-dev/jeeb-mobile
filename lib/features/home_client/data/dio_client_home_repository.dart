@@ -13,8 +13,24 @@ import '../domain/recent_delivery_summary.dart';
 ///       * In Progress — rows with `status == accepted` (an offer was accepted
 ///         but no active shipment exists yet). These carry the `conversationId`
 ///         used for chat re-entry.
-///       * Replies      — non-accepted rows with `offersCount > 0`.
-///       * Pending      — non-accepted rows with `offersCount == 0`.
+///       * Replies      — non-accepted rows that HAVE ≥1 live offer.
+///       * Pending      — non-accepted rows with no live offer yet.
+///
+/// BUG-3 (deterministic offer discovery): the LIVE `GET /requests?role=client`
+/// payload carries NO offer indicator — `offersCount`/`offerCount`/`jeeberId`
+/// come back `null` even when a jeeber has already offered (confirmed by a
+/// read-only probe against `:10090` as the seed customer). The old logic keyed
+/// replies-vs-pending purely on the row's denormalised `offersCount`, so EVERY
+/// offer-bearing request fell into Pending and the Replies tab read "No replies
+/// yet" — the customer could never reach/accept the offer, and the local
+/// search-window timer eventually expired the (still-pending-server-side)
+/// request. Discovery was effectively PUSH-ONLY: if the FCM offer push didn't
+/// land in-window, the offer stayed invisible. We now make discovery
+/// DETERMINISTIC: for each non-accepted request we authoritatively resolve the
+/// live offer count via `GET /v1/offers?requestId=<id>` and bucket on that
+/// (taking `max(payloadCount, liveCount)` so a denormalised count still counts).
+/// The probe is best-effort + concurrent + capped: any failure degrades to the
+/// payload count and never breaks the home load.
 ///
 /// S007-P1B: before this fix the accepted order fell through every bucket — it
 /// is absent from `/deliveries?stage=active` (no shipment yet) and, with
@@ -36,6 +52,23 @@ class DioClientHomeRepository implements ClientHomeRepository {
   // D5 contract: GET /deliveries?stage=<stage>&limit=<n>
   static const _activeDeliveriesPath = '/deliveries';
   static const _requestsPath = '/requests';
+
+  /// Customer-readable offers-list route (BUG-3). The `requestId` query
+  /// parameter is REQUIRED (the live gateway 400s without it, 404s for an
+  /// unknown id) — `MockGatewayClient` rewrites the `/v1/offers` prefix to the
+  /// offer-service. This is the same route `DioOffersRepository.fetchOffers`
+  /// and `DioWaitingRepository.fetchOfferCount` use.
+  static const _offersPath = '/v1/offers';
+
+  /// Upper bound on per-request offer probes per home load, to cap the fan-out
+  /// (a customer realistically has a handful of open requests). Beyond this we
+  /// fall back to the payload's denormalised `offersCount`.
+  static const int _maxOfferProbes = 10;
+
+  /// Offer statuses that still count as a live, acceptable bid (mirrors
+  /// `DioOffersRepository._liveStatuses`). Withdrawn/expired/accepted/superseded
+  /// offers must NOT flip a request into Replies.
+  static const Set<String> _liveOfferStatuses = {'pending', 'submitted', 'edited'};
 
   @override
   Future<ClientHomeSnapshot> loadSnapshot() async {
@@ -93,11 +126,16 @@ class DioClientHomeRepository implements ClientHomeRepository {
   }
 
   /// Single `GET /requests?role=client` call, partitioned client-side into the
-  /// accepted / replies / pending buckets (S007-P1B). The gateway only filters
-  /// by `role`, so the status/offers split is done here:
+  /// accepted / replies / pending buckets (S007-P1B, BUG-3). The gateway only
+  /// filters by `role`, so the split is done here:
   ///   * `status == accepted` → In Progress (chat re-entry).
-  ///   * else `offersCount > 0` → Replies.
+  ///   * else live offer count > 0 → Replies.
   ///   * else → Pending.
+  ///
+  /// BUG-3: the live `role=client` payload omits any offer indicator, so the
+  /// replies-vs-pending decision is driven by an authoritative per-request
+  /// `GET /v1/offers?requestId` probe (best-effort, concurrent, capped) rather
+  /// than the row's (absent) `offersCount`.
   Future<_ClientRequestBuckets> _fetchClientRequests() async {
     try {
       final response = await _dio.get<dynamic>(
@@ -106,11 +144,37 @@ class DioClientHomeRepository implements ClientHomeRepository {
       );
       final rawItems = _items(response.data);
       final accepted = <ClientHomeRequest>[];
-      final pending = <ClientHomeRequest>[];
-      final replies = <ClientHomeRequest>[];
+      final candidates = <Map<String, dynamic>>[];
       for (final raw in rawItems) {
         if (raw is! Map<String, dynamic>) continue;
-        _classify(raw, accepted: accepted, pending: pending, replies: replies);
+        if (DioAcceptedConversationsRepository.isAcceptedStatus(raw['status'])) {
+          final request = _parseRequest(raw, status: 'accepted');
+          if (request != null) accepted.add(request);
+        } else {
+          candidates.add(raw);
+        }
+      }
+
+      // Resolve the live offer count for each non-accepted request so an
+      // offer-bearing request surfaces in Replies deterministically — not only
+      // when an FCM push happened to update a denormalised count.
+      final offerCounts = await _resolveOfferCounts(candidates);
+
+      final pending = <ClientHomeRequest>[];
+      final replies = <ClientHomeRequest>[];
+      for (var i = 0; i < candidates.length; i++) {
+        final raw = candidates[i];
+        final payloadCount = (raw['offersCount'] as num?)?.toInt() ?? 0;
+        final liveCount = offerCounts[i];
+        final offerCount = liveCount > payloadCount ? liveCount : payloadCount;
+        final isReply = offerCount > 0;
+        final request = _parseRequest(
+          raw,
+          status: isReply ? 'offers-received' : 'pending',
+          offerCountOverride: offerCount,
+        );
+        if (request == null) continue;
+        (isReply ? replies : pending).add(request);
       }
       return _ClientRequestBuckets(
         accepted: accepted,
@@ -124,22 +188,61 @@ class DioClientHomeRepository implements ClientHomeRepository {
     }
   }
 
-  void _classify(
-    Map<String, dynamic> raw, {
-    required List<ClientHomeRequest> accepted,
-    required List<ClientHomeRequest> pending,
-    required List<ClientHomeRequest> replies,
-  }) {
-    if (DioAcceptedConversationsRepository.isAcceptedStatus(raw['status'])) {
-      final request = _parseRequest(raw, status: 'accepted');
-      if (request != null) accepted.add(request);
-      return;
+  /// Live offer count per candidate request, aligned by index. Probes run
+  /// concurrently and are capped at [_maxOfferProbes]; each probe is
+  /// best-effort (a failure leaves the payload's denormalised count in place),
+  /// so a degraded/erroring offers endpoint never breaks the home load.
+  Future<List<int>> _resolveOfferCounts(
+    List<Map<String, dynamic>> candidates,
+  ) async {
+    final counts = List<int>.generate(
+      candidates.length,
+      (i) => (candidates[i]['offersCount'] as num?)?.toInt() ?? 0,
+      growable: false,
+    );
+    final probes = <Future<void>>[];
+    for (var i = 0; i < candidates.length && i < _maxOfferProbes; i++) {
+      final id = candidates[i]['id'] as String?;
+      if (id == null || id.isEmpty) continue;
+      final index = i;
+      probes.add(_fetchLiveOfferCount(id).then((live) {
+        if (live != null && live > counts[index]) counts[index] = live;
+      }));
     }
-    final isReply = ((raw['offersCount'] as num?)?.toInt() ?? 0) > 0;
-    final request =
-        _parseRequest(raw, status: isReply ? 'offers-received' : 'pending');
-    if (request == null) return;
-    (isReply ? replies : pending).add(request);
+    if (probes.isNotEmpty) await Future.wait(probes);
+    return counts;
+  }
+
+  /// Count the live (acceptable) offers for [requestId] via
+  /// `GET /v1/offers?requestId`. Returns `null` (NOT 0) on any failure so the
+  /// caller keeps the payload's count rather than wrongly zeroing it — the
+  /// enrichment must never tear down an already-known reply. The broad catch is
+  /// intentional: this is a best-effort signal on the home critical path and
+  /// must not surface as an error or crash the load.
+  Future<int?> _fetchLiveOfferCount(String requestId) async {
+    try {
+      final response = await _dio.get<dynamic>(
+        _offersPath,
+        queryParameters: {'requestId': requestId},
+      );
+      final data = response.data;
+      final List<dynamic> items;
+      if (data is List) {
+        items = data;
+      } else if (data is Map<String, dynamic>) {
+        items = (data['items'] as List?) ??
+            (data['offers'] as List?) ??
+            const <dynamic>[];
+      } else {
+        return null;
+      }
+      return items.whereType<Map<String, dynamic>>().where((o) {
+        final status = o['status'] as String?;
+        return status == null || _liveOfferStatuses.contains(status);
+      }).length;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<List<RecentDeliverySummary>> _fetchRecentDeliveries() async {
@@ -195,6 +298,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
   static ClientHomeRequest? _parseRequest(
     Map<String, dynamic> json, {
     required String status,
+    int? offerCountOverride,
   }) {
     final id = json['id'] as String?;
     if (id == null) return null;
@@ -218,7 +322,8 @@ class DioClientHomeRepository implements ClientHomeRepository {
       tier: ClientRequestTier.parse(
         json['tier'] as String? ?? json['tierId'] as String?,
       ),
-      offerCount: (json['offersCount'] as num?)?.toInt() ?? 0,
+      offerCount:
+          offerCountOverride ?? (json['offersCount'] as num?)?.toInt() ?? 0,
       offerAvatarUrls: offerAvatarUrls,
       conversationId: json['conversationId'] as String?,
       ttlSeconds: (json['ttlSeconds'] as num?)?.toInt(),

@@ -224,7 +224,13 @@ class _PendingCountdownCardState extends State<PendingCountdownCard> {
       label: _semanticsLabel(context, isExpired),
       child: InkWell(
         key: Key('pending-countdown-card-${widget.request.id}'),
-        onTap: isExpired ? null : widget.onTap,
+        // BUG-3: the local TTL is a COSMETIC client countdown, not the server's
+        // truth. The backend may still hold the request `pending` with a live
+        // offer after this hits 0, so expiry must NOT dead-lock the row — keep
+        // it tappable so the customer can re-enter the waiting/offers surface
+        // (which re-polls `GET /v1/offers?requestId`) instead of being trapped
+        // on a dead "Expired" card while an acceptable offer waits server-side.
+        onTap: widget.onTap,
         child: _PendingCardBody(
           request: widget.request,
           remaining: _remaining,
