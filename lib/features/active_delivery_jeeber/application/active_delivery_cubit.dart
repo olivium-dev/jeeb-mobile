@@ -301,9 +301,10 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
   }
 
   /// iter6 close-tail: verify the recipient's door OTP to complete a
-  /// phone-bearing delivery `AtDoor → Done` (the gateway path #68 proved:
-  /// `POST /deliveries/{id}/otp/verify {code}`). The recipient hands the jeeber
-  /// the code at the door; the jeeber enters it on the complete screen.
+  /// phone-bearing delivery `AtDoor → Done` (live :10090 ground truth:
+  /// `POST /v1/deliveries/{id}/otp/verify {code}` → 200 { verified, status:Done }).
+  /// The recipient hands the jeeber the code at the door; the jeeber enters it
+  /// on the complete screen.
   ///
   /// On success emits `delivered: true` so the screen chains to the mandatory
   /// rating (JM-034 / D56). A wrong code keeps the entry open with an inline
