@@ -66,6 +66,14 @@ class DioChatGateway implements ChatGateway {
   final StreamController<ChatEvent> _events =
       StreamController<ChatEvent>.broadcast();
 
+  /// The live transport is a WebSocket that may never establish against the
+  /// mock backend (or a non-member / flaky socket), so the cubit runs a periodic
+  /// HTTP-history re-pull as the inbound safety net. Only the real network
+  /// gateway opts in (the in-memory / fixture gateways drive deterministic
+  /// streams under `FakeAsync` and keep the [ChatGateway] default of `false`).
+  @override
+  bool get supportsPolling => true;
+
   @override
   Future<List<DeliveryChatMessage>> loadHistory(String conversationId) async {
     // No conversation exists yet for the compose sentinel / empty id — a fresh

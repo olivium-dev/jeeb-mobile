@@ -9,6 +9,29 @@ class AppConfig {
   AppConfig._();
 
   // ---------------------------------------------------------------------------
+  // Auth funnel feature flags
+  // ---------------------------------------------------------------------------
+
+  /// Whether the email + password auth funnel (login `POST /v1/auth/login` and
+  /// sign-up `POST /v1/auth/signup`) is reachable from the UI.
+  ///
+  /// The LIVE jeeb-gateway (MSI native, `192.168.2.39:10090`) does not serve
+  /// these routes — they `401` in production — so the email login form and the
+  /// sign-up link are dead-ends against the real backend. The phone-OTP funnel
+  /// (`/register`, `POST /v1/auth/otp/request` → `/v1/auth/otp/verify`) is the
+  /// only auth that works there, so when this flag is `false` the email
+  /// surfaces are hidden and the login screen promotes phone-OTP as the primary
+  /// action, keeping the app honest.
+  ///
+  /// Defaults to `false` (the real gateway is the ground-truth backend). A
+  /// build that points at a mock which DOES serve the email routes can flip it
+  /// on with `--dart-define=EMAIL_PASSWORD_AUTH_ENABLED=true`.
+  static const bool emailPasswordAuthEnabled = bool.fromEnvironment(
+    'EMAIL_PASSWORD_AUTH_ENABLED',
+    defaultValue: false,
+  );
+
+  // ---------------------------------------------------------------------------
   // SuperAdmin passcode (DEBUG-ONLY dev surface)
   // ---------------------------------------------------------------------------
 

@@ -44,6 +44,7 @@ class JeeberHomeScreen extends StatefulWidget {
     this.requestFeedCubit,
     this.registerCtaIdentifier,
     this.submittedOffersCubitFactory,
+    this.activeDeliveriesBanner,
   });
 
   static const Key scaffoldKey = Key('jeeber-home-screen-scaffold');
@@ -83,6 +84,14 @@ class JeeberHomeScreen extends StatefulWidget {
   /// screen stays usable in tests / the dev-seam capture path without DI. Tests
   /// inject a scripted factory to assert the real-data path.
   final SubmittedOffersCubit Function()? submittedOffersCubitFactory;
+
+  /// Optional host-injected active-deliveries banner rendered above the
+  /// no-requests state for a registered jeeber. The Dashboard host
+  /// ([DashboardTab]) builds it so it owns navigation (open chat / manage
+  /// delivery) and the [ActiveDeliveriesCubit] lifecycle. When null the screen
+  /// falls back to the self-contained [JeeberActiveDeliveriesBanner] so callers
+  /// that do not inject one (and widget tests) keep the prior behaviour.
+  final Widget? activeDeliveriesBanner;
 
   @override
   State<JeeberHomeScreen> createState() => _JeeberHomeScreenState();
@@ -161,6 +170,7 @@ class _JeeberHomeScreenState extends State<JeeberHomeScreen> {
           requestFeedCubit: widget.requestFeedCubit,
           registerCtaIdentifier: widget.registerCtaIdentifier,
           submittedOffersCubit: _resolveSubmittedOffersCubit(),
+          activeDeliveriesBanner: widget.activeDeliveriesBanner,
         ),
       ),
     );
@@ -179,6 +189,7 @@ class _RootBody extends StatelessWidget {
     required this.requestFeedCubit,
     required this.registerCtaIdentifier,
     required this.submittedOffersCubit,
+    required this.activeDeliveriesBanner,
   });
 
   final bool isRegistered;
@@ -188,6 +199,7 @@ class _RootBody extends StatelessWidget {
   final RequestFeedCubit? requestFeedCubit;
   final String? registerCtaIdentifier;
   final SubmittedOffersCubit? submittedOffersCubit;
+  final Widget? activeDeliveriesBanner;
 
   @override
   Widget build(BuildContext context) {
@@ -203,6 +215,7 @@ class _RootBody extends StatelessWidget {
       onOpenFeedRequest: onOpenFeedRequest,
       hasFeedCubit: requestFeedCubit != null,
       submittedOffersCubit: submittedOffersCubit,
+      activeDeliveriesBanner: activeDeliveriesBanner,
     );
     if (requestFeedCubit == null) return body;
     return BlocProvider<RequestFeedCubit>.value(
@@ -220,12 +233,14 @@ class _RegisteredBody extends StatelessWidget {
     required this.onOpenFeedRequest,
     required this.hasFeedCubit,
     required this.submittedOffersCubit,
+    required this.activeDeliveriesBanner,
   });
 
   final String? profileName;
   final ValueChanged<FeedRequest>? onOpenFeedRequest;
   final bool hasFeedCubit;
   final SubmittedOffersCubit? submittedOffersCubit;
+  final Widget? activeDeliveriesBanner;
 
   @override
   Widget build(BuildContext context) {
@@ -238,6 +253,7 @@ class _RegisteredBody extends StatelessWidget {
         onOpenFeedRequest: onOpenFeedRequest,
         hasFeedCubit: hasFeedCubit,
         submittedOffersCubit: submittedOffersCubit,
+        activeDeliveriesBanner: activeDeliveriesBanner,
       ),
     );
   }
@@ -260,6 +276,7 @@ class _RegisteredViewSwitch extends StatelessWidget {
     required this.onOpenFeedRequest,
     required this.hasFeedCubit,
     required this.submittedOffersCubit,
+    required this.activeDeliveriesBanner,
   });
 
   final AvailabilityViewState view;
@@ -267,6 +284,7 @@ class _RegisteredViewSwitch extends StatelessWidget {
   final ValueChanged<FeedRequest>? onOpenFeedRequest;
   final bool hasFeedCubit;
   final SubmittedOffersCubit? submittedOffersCubit;
+  final Widget? activeDeliveriesBanner;
 
   @override
   Widget build(BuildContext context) {
@@ -281,6 +299,7 @@ class _RegisteredViewSwitch extends StatelessWidget {
       onOpenFeedRequest: onOpenFeedRequest,
       hasFeedCubit: hasFeedCubit,
       submittedOffersCubit: submittedOffersCubit,
+      activeDeliveriesBanner: activeDeliveriesBanner,
     );
   }
 }
@@ -292,6 +311,7 @@ class _AvailableBody extends StatelessWidget {
     required this.onOpenFeedRequest,
     required this.hasFeedCubit,
     required this.submittedOffersCubit,
+    required this.activeDeliveriesBanner,
   });
 
   final AvailabilityViewState view;
@@ -299,15 +319,24 @@ class _AvailableBody extends StatelessWidget {
   final ValueChanged<FeedRequest>? onOpenFeedRequest;
   final bool hasFeedCubit;
   final SubmittedOffersCubit? submittedOffersCubit;
+  final Widget? activeDeliveriesBanner;
 
   @override
   Widget build(BuildContext context) {
     if (!hasFeedCubit || view.status.state != AvailabilityState.online) {
-      return _NoRequestsScope(view: view, profileName: profileName);
+      return _NoRequestsScope(
+        view: view,
+        profileName: profileName,
+        activeDeliveriesBanner: activeDeliveriesBanner,
+      );
     }
     return BlocBuilder<RequestFeedCubit, RequestFeedState>(
       builder: (context, feedState) => feedState.requests.isEmpty
-          ? _NoRequestsScope(view: view, profileName: profileName)
+          ? _NoRequestsScope(
+              view: view,
+              profileName: profileName,
+              activeDeliveriesBanner: activeDeliveriesBanner,
+            )
           : _FeedTabBody(
               profileName: profileName,
               onOpenFeedRequest: onOpenFeedRequest,
@@ -318,20 +347,28 @@ class _AvailableBody extends StatelessWidget {
 }
 
 class _NoRequestsScope extends StatelessWidget {
-  const _NoRequestsScope({required this.view, required this.profileName});
+  const _NoRequestsScope({
+    required this.view,
+    required this.profileName,
+    required this.activeDeliveriesBanner,
+  });
 
   final AvailabilityViewState view;
   final String? profileName;
+  final Widget? activeDeliveriesBanner;
 
   @override
   Widget build(BuildContext context) {
     final cubit = context.read<AvailabilityCubit>();
-    // S007-P1B: surface the jeeber's ACCEPTED (won) order chats above the
-    // no-requests state so they are reachable in-app, not push-only. The banner
-    // renders nothing when there are none, so the prior layout is unchanged.
+    // S007-P1B + iter6: surface the jeeber's ACCEPTED (won) deliveries above the
+    // no-requests state so they are reachable in-app, not push-only. Prefer the
+    // host-injected banner (Dashboard owns navigation + the ActiveDeliveriesCubit
+    // lifecycle); fall back to the self-contained banner for callers/tests that
+    // do not inject one. Either renders nothing when there are none, so the prior
+    // layout is unchanged.
     return Column(
       children: [
-        const JeeberActiveDeliveriesBanner(),
+        activeDeliveriesBanner ?? const JeeberActiveDeliveriesBanner(),
         Expanded(
           child: JeeberNoRequestsView(
             view: view,

@@ -87,6 +87,21 @@ import '../observability/crash_reporter.dart';
 
 final sl = GetIt.instance;
 
+/// Resolves the ONE configured gateway [Dio] for call sites that build a
+/// repository directly (the auth / registration / settings / voice screens
+/// self-provide their repo for testability) instead of pulling it from DI.
+///
+/// Returns the DI-registered gateway [Dio] once [configureDependencies] has
+/// run (the production + integration path, so every direct-build repo shares
+/// the SAME bearer-attaching client as the DI graph). Falls back to a fresh
+/// [MockGatewayClient] Dio — the exact client DI itself registers — when DI is
+/// not yet initialised (a bare widget test that pumps one of these screens),
+/// so those call sites never throw a "Dio not registered" at construction.
+Dio resolveGatewayDio() {
+  if (sl.isRegistered<Dio>()) return sl<Dio>();
+  return MockGatewayClient.createDio();
+}
+
 void configureDependencies({
   required SharedPreferences sharedPreferences,
   required CrashReporter crashReporter,
@@ -280,7 +295,7 @@ void configureDependencies({
 
   // T-MOB-028: Role-switch repository — POST /v1/users/me/role/switch.
   sl.registerLazySingleton<RoleSwitchRepository>(
-    () => DioRoleSwitchRepository(sl<Dio>()),
+    () => DioRoleSwitchRepository(sl<Dio>(), sl<AuthTokenStore>()),
   );
 
   // T-MOB-012: Saved locations — GET/POST /api/users/me/saved-locations (live).

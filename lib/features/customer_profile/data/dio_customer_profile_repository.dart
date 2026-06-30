@@ -41,6 +41,13 @@ class DioCustomerProfileRepository implements CustomerProfileRepository {
   CustomerProfileViewData _parse(Map<String, dynamic> json) {
     final roles = (json['availableRoles'] ?? json['available_roles']);
     final activeRole = json['activeRole'] ?? json['active_role'];
+    // BUG-1: carry the gateway Auth/Capabilities surface through to the view
+    // model so RoleSync can publish them to RoleAvailabilityCubit and the shell
+    // can LAND a dual-role jeeber on the Jeeber surface. Roles are normalised to
+    // the canonical `client` / `jeeber` vocab so `driver`/`delivery` aliases the
+    // gateway may emit still resolve to `jeeber` downstream.
+    final availableRoles = _normaliseRoles(roles);
+    final normalisedActiveRole = _normaliseRole(activeRole);
     final isJeeber =
         _isJeeberRole(activeRole) ||
         roles is List &&
@@ -69,7 +76,31 @@ class DioCustomerProfileRepository implements CustomerProfileRepository {
       isJeeber: isJeeber,
       rating: rating,
       ratingCount: ratingCount,
+      activeRole: normalisedActiveRole,
+      availableRoles: availableRoles,
     );
+  }
+
+  /// Normalise the getMe `availableRoles` list to the canonical `client` /
+  /// `jeeber` vocab, de-duped and order-stable, dropping anything unrecognised.
+  /// A non-list (older/malformed gateway) yields an empty list so the additive
+  /// shell falls back to the client surface rather than crashing.
+  List<String> _normaliseRoles(Object? roles) {
+    if (roles is! List) return const <String>[];
+    final out = <String>[];
+    for (final role in roles) {
+      final canonical = _normaliseRole(role);
+      if (canonical != null && !out.contains(canonical)) out.add(canonical);
+    }
+    return List<String>.unmodifiable(out);
+  }
+
+  /// Map a single raw role value to canonical `client` / `jeeber`, or `null`
+  /// when it is empty / unrecognised.
+  String? _normaliseRole(Object? value) {
+    if (_isJeeberRole(value)) return 'jeeber';
+    final normalized = value is String ? value.trim().toLowerCase() : '';
+    return normalized == 'client' ? 'client' : null;
   }
 
   bool _isJeeberRole(Object? value) {
