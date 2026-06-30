@@ -146,16 +146,32 @@ void main() {
   });
 
   group('drift detection — a renamed or dropped field breaks the contract', () {
-    test('renaming `conversationId` makes the chat push un-routable (null route)',
+    test('a chat push is un-routable only when EVERY recognized routing key '
+        'drifts (requestId is the proven primary key; conversationId a fallback)',
         () async {
-      final drifted = _loadContractFixture()
+      // Proven sprint-006/007 routing (notification_deep_link.dart): the chat
+      // thread resolves by requestId FIRST — the chat-detail screen looks the
+      // conversation up via correlationKey == requestId, and routing by the
+      // conversationId 404s that first probe. conversationId / snake-case
+      // variants remain accepted fallbacks. So renaming conversationId ALONE is
+      // NOT un-routable: requestId still resolves the thread (resilience).
+      final partialDrift = _loadContractFixture()
         ..['conversationIdX'] = '11111111-1111-4111-8111-111111111111'
         ..remove('conversationId');
+      final resilient = await _decodeThroughTransport(partialDrift);
+      expect(resilient.category, NotificationCategory.chat);
+      expect(deepLinkForMessage(resilient),
+          '/chat/${partialDrift['requestId']}');
 
-      final message = await _decodeThroughTransport(drifted);
-
+      // A push is genuinely un-routable only when EVERY recognized routing key
+      // drifts/drops — the real contract regression this guard protects against.
+      final fullDrift = _loadContractFixture()
+        ..remove('conversationId')
+        ..remove('requestId');
+      final message = await _decodeThroughTransport(fullDrift);
       expect(message.category, NotificationCategory.chat);
-      // No camelCase/snake/legacy key present → cannot resolve the thread.
+      // No requestId / conversationId / snake / legacy key present → cannot
+      // resolve the thread.
       expect(deepLinkForMessage(message), isNull);
     });
 
