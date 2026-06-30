@@ -31,8 +31,8 @@ import '../../support/sync_app_localizations.dart';
 /// Builds the screen with a deterministic cubit: the scripted [repository]
 /// snapshot + empty tick streams (no leaking timers). The injected clock is
 /// fixed so the countdown is stable.
-NoOfferTimeoutScreen _screen(WaitingRequest seed) {
-  final fixedNow = DateTime.utc(2026, 6, 18, 9, 0, 0);
+NoOfferTimeoutScreen _screen(WaitingRequest seed, {DateTime? now}) {
+  final fixedNow = now ?? DateTime.utc(2026, 6, 18, 9, 0, 0);
   return NoOfferTimeoutScreen(
     requestId: seed.requestId,
     repository: FakeWaitingRepository(seed: seed),
@@ -95,19 +95,76 @@ void main() {
           findsNothing);
     });
 
-    testWidgets('AC1b — 0 notified shows the no-coverage variant',
-        (tester) async {
+    // BUG-4 / JM-026 false-no-coverage: the gateway never populates
+    // notifiedCount (jeebers pull `GET /v1/jeebers/me/feed`, there is no
+    // push-notify counter), so it is effectively always 0. A 0-notified
+    // snapshot WHILE broadcasting within the window must NOT collapse to the
+    // no-offers-yet state — it must stay on the optimistic broadcast header.
+    testWidgets(
+        'AC1b — 0 notified within the broadcast window keeps the broadcast '
+        'header, never the no-offers-yet state', (tester) async {
       await tester.pumpWidget(wrapForTest(_screen(_broadcast(notified: 0))));
+      await tester.pump();
+      await tester.pump();
+
+      // Broadcast signature node is present (with neutral reassurance copy).
+      expect(find.bySemanticsIdentifier('waiting_notified_count'),
+          findsOneWidget);
+      expect(find.bySemanticsIdentifier('waiting_countdown'), findsOneWidget);
+      // The no-offers-yet / no-coverage state must NOT appear mid-window.
+      expect(find.bySemanticsIdentifier('waiting_no_coverage_state'),
+          findsNothing);
+      // Re-target + cancel remain available so the user is never stuck.
+      expect(find.bySemanticsIdentifier('waiting_retarget_cta'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('waiting_cancel_cta'), findsOneWidget);
+    });
+
+    // The ONLY place a no-coverage-style state appears: the broadcast window
+    // has fully elapsed (injected now >= broadcastExpiresAt) and zero offers
+    // are in. Clock-driven via WaitingState.remaining == zero.
+    testWidgets(
+        'AC1c — broadcast window elapsed + 0 offers shows the no-offers-yet '
+        'state', (tester) async {
+      // broadcastExpiresAt is 09:04:30; advance now to exactly the deadline so
+      // remaining clamps to zero.
+      final elapsed = DateTime.utc(2026, 6, 18, 9, 4, 30);
+      await tester.pumpWidget(
+        wrapForTest(_screen(_broadcast(notified: 0), now: elapsed)),
+      );
       await tester.pump();
       await tester.pump();
 
       expect(find.bySemanticsIdentifier('waiting_no_coverage_state'),
           findsOneWidget);
-      // The broadcast count line is replaced by the no-coverage header.
+      // Broadcast count line is replaced by the no-offers-yet header.
       expect(find.bySemanticsIdentifier('waiting_notified_count'), findsNothing);
       // Re-target + cancel remain available so the user is never stuck.
       expect(find.bySemanticsIdentifier('waiting_retarget_cta'), findsOneWidget);
       expect(find.bySemanticsIdentifier('waiting_cancel_cta'), findsOneWidget);
+    });
+
+    // Regression: the contradictory screenshot state (no-coverage header AND a
+    // Review-offers CTA on screen at once) must never happen. notifiedCount: 0
+    // with offers in -> review CTA shows, no-offers-yet state absent — even if
+    // the clock were elapsed, hasOffers wins.
+    testWidgets(
+        'AC1d — 0 notified WITH offers shows the review CTA and never the '
+        'no-offers-yet state', (tester) async {
+      // Past the deadline AND offers in: hasOffers must keep the no-offers-yet
+      // state suppressed (isNoOffersYet requires !hasOffers).
+      final elapsed = DateTime.utc(2026, 6, 18, 9, 4, 30);
+      await tester.pumpWidget(
+        wrapForTest(
+          _screen(_broadcast(notified: 0, offers: 2), now: elapsed),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.bySemanticsIdentifier('waiting_review_offers_cta'),
+          findsOneWidget);
+      expect(find.bySemanticsIdentifier('waiting_no_coverage_state'),
+          findsNothing);
     });
 
     testWidgets('AC2 — offers arrived surfaces the review-offers CTA',

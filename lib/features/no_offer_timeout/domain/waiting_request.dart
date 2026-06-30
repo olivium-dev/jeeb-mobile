@@ -37,8 +37,12 @@ class WaitingRequest extends Equatable {
   /// Coarse phase the screen branches on.
   final WaitingRequestPhase phase;
 
-  /// Number of nearby Jeebers the matching service notified. `0` drives the
-  /// no-coverage variant (63 §2.6 `waiting_no_coverage_state`).
+  /// Informational count of nearby Jeebers the gateway claims to have notified.
+  /// NOTE: jeebers discover requests by pulling `GET /v1/jeebers/me/feed`, not
+  /// via a push-notify counter, so the gateway never populates this — it is
+  /// effectively always `0`. It therefore MUST NOT gate any no-coverage / "no
+  /// offers" UI state (see BUG-4 / JM-026 false-no-coverage). It is kept purely
+  /// as informational copy ("Notified N nearby Jeebers") when `> 0`.
   final int notifiedCount;
 
   /// Number of offers received so far. `> 0` flips the screen to the
@@ -59,9 +63,6 @@ class WaitingRequest extends Equatable {
 
   /// Short request title.
   final String? title;
-
-  /// True when zero Jeebers were notified — the no-coverage variant.
-  bool get hasNoCoverage => notifiedCount <= 0;
 
   /// True once at least one offer has arrived.
   bool get hasOffers =>

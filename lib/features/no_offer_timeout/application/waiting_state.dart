@@ -29,8 +29,13 @@ class WaitingState extends Equatable {
       status == WaitingScreenStatus.loading ||
       status == WaitingScreenStatus.initial;
 
-  /// True once zero Jeebers were notified — drives the no-coverage variant.
-  bool get isNoCoverage => (request?.hasNoCoverage ?? false);
+  /// True once the broadcast window has fully elapsed with zero offers in —
+  /// the ONLY signal that drives the softened "No offers yet" state. Clock-aware
+  /// (uses [remaining], which is derived from the injected [now]) and decoupled
+  /// from [WaitingRequest.notifiedCount], which the gateway never populates
+  /// (jeebers pull `GET /v1/jeebers/me/feed`; there is no push-notify counter).
+  bool get isNoOffersYet =>
+      request != null && !hasOffers && remaining == Duration.zero;
 
   /// True once at least one offer has arrived — drives the review-offers CTA.
   bool get hasOffers => (request?.hasOffers ?? false);

@@ -1957,6 +1957,7 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('waitingCountdownLabel').replaceFirst('{time}', time);
   String get waitingNoCoverageTitle => _get('waitingNoCoverageTitle');
   String get waitingNoCoverageBody => _get('waitingNoCoverageBody');
+  String get waitingReachingOutLabel => _get('waitingReachingOutLabel');
   String get waitingReviewOffersCta => _get('waitingReviewOffersCta');
   String get waitingRetargetCta => _get('waitingRetargetCta');
   String get waitingCancelCta => _get('waitingCancelCta');

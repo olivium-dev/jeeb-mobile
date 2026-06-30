@@ -29,9 +29,12 @@ typedef WaitingCubitFactory = WaitingCubit Function(
 /// real pre-accept waiting surface:
 ///
 ///  - **Broadcast state:** `waiting_notified_count` + `waiting_countdown` render
-///    while the matching service fans the request out (AC1).
-///  - **No-coverage variant:** when 0 Jeebers were notified, the
-///    `waiting_no_coverage_state` container shows instead (AC1b).
+///    while the matching service fans the request out (AC1). `waiting_notified_count`
+///    shows neutral reassurance copy when the gateway never populated the
+///    counter (notifiedCount <= 0) rather than a false "No Jeebers nearby".
+///  - **No-offers-yet variant:** ONLY once the broadcast window has elapsed with
+///    zero offers in, the `waiting_no_coverage_state` container shows instead
+///    (clock-driven, never gated on notifiedCount — BUG-4 / JM-026).
 ///  - **Offers arrived:** the cubit polls; once an offer lands the screen flips
 ///    live to `waiting_review_offers_cta` → `offer-review` (AC2, JM-028).
 ///  - `waiting_retarget_cta` → `request-type` (re-target, D48; AC3).
@@ -204,8 +207,13 @@ class _WaitingLoaded extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: Spacing.large),
-          if (state.isNoCoverage)
-            const _NoCoverageHeader()
+          // Header is re-driven off REAL signals — offers, phase, and the
+          // broadcast countdown — never off notifiedCount (BUG-4 / JM-026
+          // false-no-coverage). The softened "No offers yet" state appears ONLY
+          // once the broadcast window has fully elapsed with zero offers in;
+          // while offers exist or the clock is still running we stay optimistic.
+          if (state.isNoOffersYet)
+            const _NoOffersYetHeader()
           else
             _BroadcastHeader(
               notifiedCount: notifiedCount,
@@ -283,12 +291,18 @@ class _BroadcastHeader extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: Spacing.medium),
-        // waiting_notified_count — broadcast-state signature id (63 §2.6). Uses
-        // the existing i18n-safe plural getter for the count copy.
+        // waiting_notified_count — broadcast-state signature id (63 §2.6). The
+        // node is ALWAYS present (Maestro flows resolve it), but its text is
+        // re-driven: with a real count we show "Notified N nearby Jeebers";
+        // when the gateway never populated the counter (notifiedCount <= 0) we
+        // show neutral reassurance copy instead of "No Jeebers nearby yet"
+        // (BUG-4 / JM-026 false-no-coverage).
         Semantics(
           identifier: 'waiting_notified_count',
           child: Text(
-            l10n.requestSummaryFindingNotifiedCount(notifiedCount),
+            notifiedCount > 0
+                ? l10n.requestSummaryFindingNotifiedCount(notifiedCount)
+                : l10n.waitingReachingOutLabel,
             style: theme.textTheme.titleMedium,
             textAlign: TextAlign.center,
           ),
@@ -318,16 +332,22 @@ class _BroadcastHeader extends StatelessWidget {
   }
 }
 
-/// No-coverage variant — 0 Jeebers notified (AC1b).
-class _NoCoverageHeader extends StatelessWidget {
-  const _NoCoverageHeader();
+/// Softened "No offers yet" variant — shown ONLY once the broadcast window has
+/// fully elapsed with zero offers in (clock-driven via [WaitingState.remaining]
+/// == zero). It never renders while offers exist or the countdown is running,
+/// and it is no longer gated on `notifiedCount` (BUG-4 / JM-026
+/// false-no-coverage). The Semantics id is intentionally kept as
+/// `waiting_no_coverage_state` so existing Maestro flows still resolve it.
+class _NoOffersYetHeader extends StatelessWidget {
+  const _NoOffersYetHeader();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     // waiting_no_coverage_state — variant root (63 §2.6, coined). Container so a
-    // Maestro flow can assert the whole no-coverage block is present.
+    // Maestro flow can assert the whole no-offers-yet block is present. Id kept
+    // unchanged on purpose so existing flows keep resolving it.
     return Semantics(
       identifier: 'waiting_no_coverage_state',
       container: true,

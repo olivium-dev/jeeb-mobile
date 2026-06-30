@@ -1296,8 +1296,9 @@
 
   "waitingTitle": "نبحث عن جيبر",
   "waitingCountdownLabel": "{time} متبقٍّ للعثور على جيبر",
-  "waitingNoCoverageTitle": "لا يوجد جيبرز قريبون الآن",
-  "waitingNoCoverageBody": "لم نتمكّن من الوصول إلى أي جيبر قرب نقطة الاستلام بعد. جرّب إعادة توجيه طلبك أو ألغِه — الإلغاء مجاني ولن يُحتسب أي رسوم.",
+  "waitingNoCoverageTitle": "لا توجد عروض بعد",
+  "waitingNoCoverageBody": "الجيبرز القريبون منك ما زالوا يراجعون طلبك. واصل الانتظار، أو أعد توجيه طلبك، أو ألغِه — الإلغاء مجاني ولن يُحتسب أي رسوم.",
+  "waitingReachingOutLabel": "نتواصل مع الجيبرز القريبين منك...",
   "waitingReviewOffersCta": "مراجعة العروض",
   "waitingRetargetCta": "إعادة توجيه الطلب",
   "waitingCancelCta": "إلغاء الطلب",
