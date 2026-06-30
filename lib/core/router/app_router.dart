@@ -123,6 +123,23 @@ import '../onboarding/onboarding_cubit.dart';
 /// session gates when [DevSeamConfig.skipOnboarding] is explicitly set — a bare
 /// `jeeb.route=/` / `JEEB_DEV_HOME=true` on a fresh install now lands on
 /// `/onboarding`, not Home.
+
+/// S007-P1B: normalizes an inbound custom-scheme chat deep link into the
+/// canonical `/chat/:id` route.
+///
+/// A `VIEW` intent like `jeeb://chat/<conversationId>` parses to
+/// `scheme=jeeb, host=chat, path=/<conversationId>`, so go_router would
+/// otherwise try to match `/<conversationId>` and miss `chat-detail`. We detect
+/// the `host == 'chat'` shape and rewrite it to `/chat/<id>`. Returns `null`
+/// for everything else — in-app navigation (`host == ''`) and HTTPS App Links
+/// (`https://<domain>/chat/<id>`, already path-shaped) are untouched.
+@visibleForTesting
+String? normalizeChatDeepLink(Uri uri) {
+  if (uri.host != 'chat') return null;
+  final id = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
+  return id.isEmpty ? null : '/chat/$id';
+}
+
 class AppRouter {
   AppRouter._();
 
@@ -340,6 +357,15 @@ class AppRouter {
           _BlocRefreshListenable(accountStatusBloc),
       ]),
       redirect: (context, state) {
+        // S007-P1B: a custom-scheme VIEW intent `jeeb://chat/<id>` arrives with
+        // the chat id as the URI host+segment; normalize it to `/chat/:id` so
+        // `chat-detail` resolves the accepted conversation in-app. Inert for
+        // in-app navigation and https App Links (already `/chat/<id>`).
+        final chatDeepLink = normalizeChatDeepLink(state.uri);
+        if (chatDeepLink != null && state.matchedLocation != chatDeepLink) {
+          return chatDeepLink;
+        }
+
         // Debug capture aid: drop straight onto the fixtures-backed chat
         // (chat selector wins over a generic route override).
         if (_devChat.isNotEmpty) {

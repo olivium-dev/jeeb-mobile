@@ -4,12 +4,11 @@ import 'saved_location.dart';
 /// user's saved addresses (so a returning customer can pick one in a tap) plus
 /// the always-present "Current Location" + "New Location" affordances.
 ///
-/// Distinct from [SavedLocationRepository] (the JM-049 CRUD manager, which
-/// speaks the legacy `/v1/users/me/saved-locations` shape): this read-only
-/// source speaks the **journey-honest** mock contract
-/// `GET /user-management/users/:userId/saved-locations` (via the gateway path
-/// `/users/:userId/saved-locations`, 42_GUARDRAILS_MOCK §4 / `has_saved_addresses`
-/// seed) so the W1 seeded addresses actually surface in the picker.
+/// Reads the SAME saved-locations collection as [SavedLocationRepository] (the
+/// JM-049 CRUD manager); both resolve the path via
+/// `MockGatewayClient.savedLocationsPath`, which emits the VERIFIED live gateway
+/// contract `GET /api/users/me/saved-locations` (and the `:userId`-keyed mock
+/// shape only in mock mode, where it surfaces the `has_saved_addresses` seed).
 ///
 /// PURE Dart — no Flutter / Dio / GetIt (40_GUARDRAILS_ARCH §1).
 abstract class LocationSelectRepository {

@@ -14,6 +14,7 @@ import '../application/availability_cubit.dart';
 import '../application/availability_state.dart';
 import '../domain/entities/availability_status.dart';
 import '../domain/entities/feed_request.dart';
+import 'widgets/jeeber_active_deliveries_banner.dart';
 import 'widgets/jeeber_feed_tab_view.dart';
 import 'widgets/jeeber_no_requests_view.dart';
 import 'widgets/jeeber_unregistered_view.dart';
@@ -325,11 +326,21 @@ class _NoRequestsScope extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cubit = context.read<AvailabilityCubit>();
-    return JeeberNoRequestsView(
-      view: view,
-      profileName: profileName,
-      onToggle: cubit.toggle,
-      onExtendActivity: cubit.extendActivity,
+    // S007-P1B: surface the jeeber's ACCEPTED (won) order chats above the
+    // no-requests state so they are reachable in-app, not push-only. The banner
+    // renders nothing when there are none, so the prior layout is unchanged.
+    return Column(
+      children: [
+        const JeeberActiveDeliveriesBanner(),
+        Expanded(
+          child: JeeberNoRequestsView(
+            view: view,
+            profileName: profileName,
+            onToggle: cubit.toggle,
+            onExtendActivity: cubit.extendActivity,
+          ),
+        ),
+      ],
     );
   }
 }

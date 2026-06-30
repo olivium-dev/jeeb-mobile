@@ -1,14 +1,16 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/mock_gateway_client.dart';
 import '../domain/location_select_repository.dart';
 import '../domain/saved_location.dart';
 
 /// Dio-backed [LocationSelectRepository] for the JM-024 location-select step.
 ///
-/// Speaks the gateway-contract path `/users/:userId/saved-locations`; the
-/// `MockGatewayClient` `/users` → `/user-management/users` rewrite carries it to
-/// the live mock route `GET /user-management/users/:userId/saved-locations`
-/// (verified in `user-management.ts`; 42_GUARDRAILS_MOCK §4). Never hardcodes a
+/// Resolves the saved-locations base path via
+/// [MockGatewayClient.savedLocationsPath]: the live gateway serves it me-keyed
+/// under `/api` (`GET /api/users/me/saved-locations`, VERIFIED 200 on :10090),
+/// while the `:4010` Express mock serves the `:userId`-keyed `/users/…` shape
+/// via the `/users` → `/user-management/users` rewrite. Never hardcodes a
 /// `:4010` host or service prefix (40_GUARDRAILS_ARCH §4/§11).
 ///
 /// Parses defensively (40_GUARDRAILS_ARCH §4): tolerates a bare list or
@@ -23,7 +25,9 @@ class DioLocationSelectRepository implements LocationSelectRepository {
   @override
   Future<List<SavedLocation>> fetchSavedAddresses(String userId) async {
     try {
-      final res = await _dio.get<dynamic>('/users/$userId/saved-locations');
+      final res = await _dio.get<dynamic>(
+        MockGatewayClient.savedLocationsPath(userId: userId),
+      );
       return _parseList(res.data);
     } on DioException catch (e) {
       throw LocationSelectException(_map(e), e.message);

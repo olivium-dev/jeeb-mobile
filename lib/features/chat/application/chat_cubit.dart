@@ -75,6 +75,35 @@ class ChatCubit extends Cubit<ChatState> {
     }
   }
 
+  /// Re-fetch history + phase for an ALREADY-loaded thread (the chat-detail
+  /// screen resuming from the background within a live session). The
+  /// screen-scoped cubit is retained in memory across an app background, so the
+  /// one-shot create-time [load] never re-runs and any messages the counterpart
+  /// sent while we were away would otherwise stay invisible until an app
+  /// restart. Unlike [load] this is non-destructive: a transient failure leaves
+  /// the visible thread intact (stale-but-present beats blank) and it never
+  /// re-creates the inbound subscription (already established by [load]).
+  Future<void> refresh() async {
+    if (isClosed) return;
+    try {
+      final results = await Future.wait([
+        _gateway.loadHistory(_deliveryId),
+        _gateway.loadPhase(_deliveryId),
+      ]);
+      if (isClosed) return;
+      final history = results[0] as List<DeliveryChatMessage>;
+      final phase = results[1] as ConversationPhase;
+      emit(
+        state.copyWith(
+          messages: List.unmodifiable(history),
+          phase: phase,
+        ),
+      );
+    } catch (_) {
+      // Keep the current thread on a transient refresh failure.
+    }
+  }
+
   /// Accept the Jeeber whose offer card is identified by [offerId].
   ///
   /// Optimistic: the accepting state flips immediately. On 409 (race: another

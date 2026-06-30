@@ -56,7 +56,42 @@
                 <action android:name="FLUTTER_NOTIFICATION_CLICK"/>
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
+            <!--
+                S007-P1B: in-app deep links into the go_router tree so the
+                accepted-order chat is reachable WITHOUT tapping a push.
+                Flutter's built-in deep linking (flutter_deeplinking_enabled
+                below) hands the VIEW intent's URI to go_router, which matches
+                on the PATH.
+                  * Custom scheme `jeeb://chat/<conversationId>` — no domain
+                    verification needed (host == "chat"); AppRouter normalises
+                    the host-form to the canonical `/chat/:id` route.
+                  * HTTPS App Link `https://jeeb.app/chat/<conversationId>` —
+                    path is already `/chat/<id>` so go_router matches directly.
+                    Requires hosting `/.well-known/assetlinks.json` (infra).
+            -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="jeeb.app"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="jeeb"/>
+            </intent-filter>
         </activity>
+
+        <!--
+            S007-P1B: enable Flutter's built-in deep linking so the VIEW
+            intents above are delivered to go_router (the initial route on a
+            cold start, and pushRouteInformation while running). Orthogonal to
+            FCM, which is handled in Dart via firebase_messaging callbacks.
+        -->
+        <meta-data
+            android:name="flutter_deeplinking_enabled"
+            android:value="true"/>
 
         <!--
             Default channel id for FCM. Lets the FCM SDK display

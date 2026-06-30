@@ -283,7 +283,7 @@ void configureDependencies({
     () => DioRoleSwitchRepository(sl<Dio>()),
   );
 
-  // T-MOB-012: Saved locations — GET/POST /v1/users/me/saved-locations.
+  // T-MOB-012: Saved locations — GET/POST /api/users/me/saved-locations (live).
   sl.registerLazySingleton<SavedLocationRepository>(
     () => DioSavedLocationRepository(sl<Dio>()),
   );

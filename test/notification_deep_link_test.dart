@@ -50,6 +50,48 @@ void main() {
       expect(path, '/chat/c-1');
     });
 
+    test('chat prefers requestId over conversationId (correlationKey == '
+        'request id, so the GET /v1/conversations?correlationKey lookup '
+        'resolves 200 instead of 404)', () {
+      final path = deepLinkForMessage(_msg(
+        category: NotificationCategory.chat,
+        data: const {
+          'conversationId': 'conv-abc',
+          'requestId': 'req-xyz',
+          'type': 'chat',
+        },
+      ));
+      expect(path, '/chat/req-xyz');
+    });
+
+    test('chat uses snake_case request_id when present', () {
+      final path = deepLinkForMessage(_msg(
+        category: NotificationCategory.chat,
+        data: const {
+          'conversation_id': 'conv-1',
+          'request_id': 'req-1',
+        },
+      ));
+      expect(path, '/chat/req-1');
+    });
+
+    test('chat falls back to conversationId when no request id is present '
+        '(the chat-detail messages probe then resolves it — no regression)',
+        () {
+      final path = deepLinkForMessage(_msg(
+        category: NotificationCategory.chat,
+        data: const {'conversationId': 'conv-only'},
+      ));
+      expect(path, '/chat/conv-only');
+    });
+
+    test('chat without any id returns null (no crash)', () {
+      final path = deepLinkForMessage(_msg(
+        category: NotificationCategory.chat,
+      ));
+      expect(path, isNull);
+    });
+
     test('kyc routes to /profile/kyc regardless of payload', () {
       final path = deepLinkForMessage(_msg(category: NotificationCategory.kyc));
       expect(path, '/profile/kyc');

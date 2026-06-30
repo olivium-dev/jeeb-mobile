@@ -15,14 +15,22 @@ String? deepLinkForMessage(NotificationMessage message) {
       if (id == null || id.isEmpty) return null;
       return '/orders/$id';
     case NotificationCategory.chat:
-      // Canonical client keys are snake_case; gateway patch 0009 emits the
-      // camelCase `conversationId` (+ `requestId`). Accept all so the tap
-      // resolves the conversation regardless of which the backend stamps.
-      final id = message.data['chat_id'] ??
+      // The chat-detail screen resolves the conversation via
+      // `GET /v1/conversations?correlationKey={id}`, where the gateway's
+      // correlationKey == the REQUEST id (auto-conversation-per-request), NOT
+      // the conversation id. So prefer the request id for the `/chat/:id` route
+      // param: routing with the `conversationId` 404s that first lookup and
+      // forces a fallthrough to the `/messages` probe. The live chat push
+      // (gateway patch 0009) carries BOTH `conversationId` and `requestId`, so
+      // ordering matters. The snake_case `chat_id` and the conversation-id keys
+      // remain accepted fallbacks so a tap still resolves to a route when the
+      // backend stamps only a conversation id (the screen's messages probe then
+      // resolves it).
+      final id = message.data['requestId'] ??
+          message.data['request_id'] ??
+          message.data['chat_id'] ??
           message.data['conversation_id'] ??
-          message.data['conversationId'] ??
-          message.data['requestId'] ??
-          message.data['request_id'];
+          message.data['conversationId'];
       if (id == null || id.isEmpty) return null;
       return '/chat/$id';
     case NotificationCategory.kyc:

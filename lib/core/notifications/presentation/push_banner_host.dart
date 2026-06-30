@@ -161,7 +161,6 @@ class _BannerCard extends StatelessWidget {
               ),
               IconButton(
                 icon: const Icon(Icons.close),
-                tooltip: 'Dismiss',
                 onPressed: onDismiss,
               ),
             ],

@@ -87,11 +87,13 @@ Dio _capturingDio(Object? responseBody) {
 
 void main() {
   group('DioSavedLocationRepository — JM-049 W1 endpoint contract', () {
-    // JM-049 repoint: the journey-honest userId path (NOT `/v1/users/me/...`).
-    // `/users` rewrites to `/user-management/users` (mock_gateway_client.dart);
-    // the persisted userId is the `:userId` the mock keys the seed by
-    // (42_GUARDRAILS_MOCK §4 — `/me` returns an empty list).
-    test('GET uses /users/<persistedUserId>/saved-locations', () async {
+    // The repo resolves its path via MockGatewayClient.savedLocationsPath. In
+    // `flutter test`, useMockPrefixes defaults to false, so the helper emits the
+    // VERIFIED live gateway contract `/api/users/me/saved-locations` (me-keyed,
+    // /api prefix). In mock mode it would emit `/users/:userId/...` (rewritten to
+    // /user-management/users). The persisted userId no longer changes the LIVE
+    // path — the gateway keys the collection on `me`.
+    test('GET uses the live /api/users/me/saved-locations contract', () async {
       _capturedPath = null;
       final repo = DioSavedLocationRepository(
         _capturingDio(<dynamic>[]),
@@ -100,11 +102,11 @@ void main() {
 
       await repo.fetchSavedLocations();
 
-      expect(_capturedPath, '/users/user-client-001/saved-locations');
+      expect(_capturedPath, '/api/users/me/saved-locations');
       expect(_capturedMethod, 'GET');
     });
 
-    test('POST uses /users/<persistedUserId>/saved-locations', () async {
+    test('POST uses the live /api/users/me/saved-locations contract', () async {
       _capturedPath = null;
       final repo = DioSavedLocationRepository(
         _capturingDio(<String, dynamic>{
@@ -124,11 +126,15 @@ void main() {
         category: SavedLocationCategory.home,
       );
 
-      expect(_capturedPath, '/users/user-client-001/saved-locations');
+      expect(_capturedPath, '/api/users/me/saved-locations');
       expect(_capturedMethod, 'POST');
     });
 
-    test('falls back to user-client-001 when no userId is persisted', () async {
+    test('null persisted userId still resolves the live me-keyed path',
+        () async {
+      // A null userId falls back internally to user-client-001 (used only for
+      // mock-mode + the log line); on the live gateway the path is `me`
+      // regardless, so a missing userId must not crash or change the path.
       _capturedPath = null;
       final repo = DioSavedLocationRepository(
         _capturingDio(<dynamic>[]),
@@ -137,7 +143,7 @@ void main() {
 
       await repo.fetchSavedLocations();
 
-      expect(_capturedPath, '/users/user-client-001/saved-locations');
+      expect(_capturedPath, '/api/users/me/saved-locations');
     });
 
     test('parses array response correctly', () async {

@@ -1,8 +1,8 @@
 // JM-024 — location-select data wiring (LocationSelectCubit +
 // DioLocationSelectRepository). Pins (a) the cubit lifecycle (load → loaded /
-// failed, selection transitions), and (b) the Dio repo parsing the
-// journey-honest `GET /users/:userId/saved-locations` shape — including the
-// seeded nested `geo:{lat,lng}` form (42_GUARDRAILS_MOCK §4 / `has_saved_addresses`).
+// failed, selection transitions), and (b) the Dio repo parsing the VERIFIED
+// live gateway `GET /api/users/me/saved-locations` shape — including the seeded
+// nested `geo:{lat,lng}` form (42_GUARDRAILS_MOCK §4 / `has_saved_addresses`).
 //
 // Dio is mocked with the repo-standard `InterceptorsWrapper` resolve/reject
 // pattern (see dio_saved_location_repository_test.dart) — no extra dependency.
@@ -77,11 +77,12 @@ void main() {
       expect(cubit.state.status, LocationSelectStatus.failed);
       expect(cubit.state.error, LocationSelectFailure.network);
       // P0 REGRESSION (order-create blocker): a failed saved-addresses fetch
-      // must NOT block confirming Current Location (the default choice). The
-      // live gateway 404s `GET /users/:id/saved-locations` for a customer with
-      // no saved addresses; gating Confirm on `loaded` dead-ended order
-      // creation (tier → location → Confirm disabled). Current/pinned stay
-      // confirmable on `failed`; only an explicit saved choice does not.
+      // (a GENUINE transport error — offline / 5xx) must NOT block confirming
+      // Current Location (the default choice). Gating Confirm on `loaded`
+      // dead-ended order creation (tier → location → Confirm disabled).
+      // Current/pinned stay confirmable on `failed`; only an explicit saved
+      // choice does not. (An EMPTY customer is NOT a failure — the live gateway
+      // returns 200 {items:[]}, so the screen reaches `loaded` with no rows.)
       expect(cubit.state.choiceKind, LocationChoiceKind.current);
       expect(
         cubit.state.canConfirm,
@@ -147,12 +148,14 @@ void main() {
   });
 
   group('DioLocationSelectRepository', () {
-    test('uses the gateway path /users/:userId/saved-locations', () async {
+    test('uses the live /api/users/me/saved-locations contract', () async {
       _capturedPath = null;
       final repo = DioLocationSelectRepository(_dioReplying(<dynamic>[]));
       await repo.fetchSavedAddresses('user-client-001');
-      // Rewrites to /user-management/users/... via MockGatewayClient at runtime.
-      expect(_capturedPath, '/users/user-client-001/saved-locations');
+      // useMockPrefixes is false under `flutter test`, so the helper emits the
+      // VERIFIED live gateway path (me-keyed, /api). In mock mode it would emit
+      // /users/:userId/... (rewritten to /user-management/users at runtime).
+      expect(_capturedPath, '/api/users/me/saved-locations');
     });
 
     test('parses the seeded { items: [...] } with nested geo:{lat,lng}',
@@ -203,7 +206,7 @@ void main() {
         () async {
       final repo = DioLocationSelectRepository(
         _dioThrowing(DioException.connectionError(
-          requestOptions: RequestOptions(path: '/users/u/saved-locations'),
+          requestOptions: RequestOptions(path: '/api/users/me/saved-locations'),
           reason: 'offline',
         )),
       );

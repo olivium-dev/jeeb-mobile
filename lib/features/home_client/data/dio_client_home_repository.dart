@@ -1,28 +1,33 @@
 import 'package:dio/dio.dart';
 
+import '../../chat/data/dio_accepted_conversations_repository.dart';
 import '../domain/client_home_repository.dart';
 import '../domain/client_home_request.dart';
 import '../domain/recent_delivery_summary.dart';
 
-/// Dio-backed [ClientHomeRepository] hitting the mock (jeeb-gateway in prod).
+/// Dio-backed [ClientHomeRepository] hitting the jeeb-gateway.
 ///
-/// Three calls in parallel, one per home-tab list the Figma renders:
-///   - `GET /deliveries?stage=active`        → In Progress  (D5 contract)
-///   - `GET /v1/requests?role=client`        → Pending Requests + Replies
-///   - `GET /v1/requests?role=client`        → Replies (+6 stack)
+/// Two endpoints back the three home-tab lists the Figma renders:
+///   - `GET /deliveries?stage=active`  → In Progress (active shipments, D5).
+///   - `GET /requests?role=client`     → partitioned client-side into:
+///       * In Progress — rows with `status == accepted` (an offer was accepted
+///         but no active shipment exists yet). These carry the `conversationId`
+///         used for chat re-entry.
+///       * Replies      — non-accepted rows with `offersCount > 0`.
+///       * Pending      — non-accepted rows with `offersCount == 0`.
 ///
-/// BLOCKER-1 fix (2026-06-13): corrected path from the non-existent
-/// `/v1/delivery/active` to the real gateway contract
-/// `GET /deliveries?stage=active&limit=50` (ShipmentsListDto).
-/// Response items are keyed on `currentStage`, not `status`.
+/// S007-P1B: before this fix the accepted order fell through every bucket — it
+/// is absent from `/deliveries?stage=active` (no shipment yet) and, with
+/// `offersCount == 0`, the old logic dropped it into Pending where its TTL
+/// expired into a dead "Expired" card; In Progress and Replies stayed empty.
+/// It is now surfaced in In Progress with an "Open chat" CTA, so the accepted
+/// conversation is reachable in-app without a push notification. Verified
+/// against the dev gateway: `GET /requests?role=client` returns the accepted
+/// order as `{ status: "accepted", conversationId, title, displayId }` while
+/// `GET /deliveries?stage=active` returns no shipment for it.
 ///
-/// BLOCKER-2 note: the real gateway `GET /requests` filters by `role`, not
-/// `status`. Until the gateway exposes a `status` filter the client-side
-/// parser distinguishes pending vs offers-received by the `offersCount` field:
-/// items with offersCount > 0 are treated as replies.
-///
-/// The [MockGatewayClient] interceptor rewrites these to their
-/// service-prefixed mock counterparts automatically.
+/// The [MockGatewayClient] interceptor rewrites these paths to their
+/// service-prefixed counterparts automatically.
 class DioClientHomeRepository implements ClientHomeRepository {
   DioClientHomeRepository(this._dio);
 
@@ -36,16 +41,27 @@ class DioClientHomeRepository implements ClientHomeRepository {
   Future<ClientHomeSnapshot> loadSnapshot() async {
     final results = await Future.wait([
       _fetchInProgress(),
-      _fetchByStatus('pending'),
-      _fetchByStatus('offers-received'),
+      _fetchClientRequests(),
       _fetchRecentDeliveries(),
     ]);
 
+    final shipments = results[0] as List<ClientHomeRequest>;
+    final buckets = results[1] as _ClientRequestBuckets;
+    final recentDeliveries = results[2] as List<RecentDeliverySummary>;
+
+    // Merge accepted orders into In Progress, deduped against any live shipment
+    // by id so the same order never renders twice.
+    final shipmentIds = shipments.map((r) => r.id).toSet();
+    final inProgress = <ClientHomeRequest>[
+      ...shipments,
+      ...buckets.accepted.where((a) => !shipmentIds.contains(a.id)),
+    ];
+
     return ClientHomeSnapshot(
-      inProgress: results[0] as List<ClientHomeRequest>,
-      pending: results[1] as List<ClientHomeRequest>,
-      replies: results[2] as List<ClientHomeRequest>,
-      recentDeliveries: results[3] as List<RecentDeliverySummary>,
+      inProgress: inProgress,
+      pending: buckets.pending,
+      replies: buckets.replies,
+      recentDeliveries: recentDeliveries,
     );
   }
 
@@ -71,40 +87,54 @@ class DioClientHomeRepository implements ClientHomeRepository {
     }
   }
 
-  /// Fetches client requests filtered by [bucket].
-  ///
-  /// BLOCKER-2 (2026-06-13): the real gateway GET /requests only supports a
-  /// `role` filter, not a `status` filter. We pass `role=client` for both tabs
-  /// and disambiguate locally: items with offersCount > 0 are classified as
-  /// replies (offers-received), items with offersCount == 0 are classified as
-  /// pending. The [bucket] parameter drives which subset is returned.
-  Future<List<ClientHomeRequest>> _fetchByStatus(String bucket) async {
+  /// Single `GET /requests?role=client` call, partitioned client-side into the
+  /// accepted / replies / pending buckets (S007-P1B). The gateway only filters
+  /// by `role`, so the status/offers split is done here:
+  ///   * `status == accepted` → In Progress (chat re-entry).
+  ///   * else `offersCount > 0` → Replies.
+  ///   * else → Pending.
+  Future<_ClientRequestBuckets> _fetchClientRequests() async {
     try {
       final response = await _dio.get<dynamic>(
         _requestsPath,
-        // Use role=client (documented D3 filter). Do NOT pass status= — the
-        // gateway ignores it and both tabs would show identical data.
         queryParameters: {'role': 'client', 'page': 1, 'pageSize': 50},
       );
       final rawItems = _items(response.data);
-      final items = <ClientHomeRequest>[];
+      final accepted = <ClientHomeRequest>[];
+      final pending = <ClientHomeRequest>[];
+      final replies = <ClientHomeRequest>[];
       for (final raw in rawItems) {
-        if (raw is Map<String, dynamic>) {
-          final request = _parseRequest(raw, status: bucket);
-          if (request != null) {
-            // Client-side bucket assignment: offers-received ↔ offersCount > 0
-            final isReply = ((raw['offersCount'] as num?)?.toInt() ?? 0) > 0;
-            final wantReply = bucket == 'offers-received';
-            if (isReply == wantReply) items.add(request);
-          }
-        }
+        if (raw is! Map<String, dynamic>) continue;
+        _classify(raw, accepted: accepted, pending: pending, replies: replies);
       }
-      return items;
+      return _ClientRequestBuckets(
+        accepted: accepted,
+        pending: pending,
+        replies: replies,
+      );
     } on DioException {
-      return const [];
+      return const _ClientRequestBuckets.empty();
     } on FormatException {
-      return const [];
+      return const _ClientRequestBuckets.empty();
     }
+  }
+
+  void _classify(
+    Map<String, dynamic> raw, {
+    required List<ClientHomeRequest> accepted,
+    required List<ClientHomeRequest> pending,
+    required List<ClientHomeRequest> replies,
+  }) {
+    if (DioAcceptedConversationsRepository.isAcceptedStatus(raw['status'])) {
+      final request = _parseRequest(raw, status: 'accepted');
+      if (request != null) accepted.add(request);
+      return;
+    }
+    final isReply = ((raw['offersCount'] as num?)?.toInt() ?? 0) > 0;
+    final request =
+        _parseRequest(raw, status: isReply ? 'offers-received' : 'pending');
+    if (request == null) return;
+    (isReply ? replies : pending).add(request);
   }
 
   Future<List<RecentDeliverySummary>> _fetchRecentDeliveries() async {
@@ -178,9 +208,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
           json['title'] as String? ??
           json['description'] as String? ??
           'Request $id',
-      status: status == 'offers-received'
-          ? ClientRequestStatus.offersReceived
-          : ClientRequestStatus.searching,
+      status: _mapRequestStatus(status),
       destinationLabel: destination,
       tier: ClientRequestTier.parse(
         json['tier'] as String? ?? json['tierId'] as String?,
@@ -190,6 +218,17 @@ class DioClientHomeRepository implements ClientHomeRepository {
       conversationId: json['conversationId'] as String?,
       ttlSeconds: (json['ttlSeconds'] as num?)?.toInt(),
     );
+  }
+
+  static ClientRequestStatus _mapRequestStatus(String bucket) {
+    switch (bucket) {
+      case 'accepted':
+        return ClientRequestStatus.accepted;
+      case 'offers-received':
+        return ClientRequestStatus.offersReceived;
+      default:
+        return ClientRequestStatus.searching;
+    }
   }
 
   static RecentDeliverySummary? _parseRecentDelivery(
@@ -244,4 +283,23 @@ class DioClientHomeRepository implements ClientHomeRepository {
     }
     return const <dynamic>[];
   }
+}
+
+/// The three client-request buckets partitioned from a single
+/// `GET /requests?role=client` call (S007-P1B).
+class _ClientRequestBuckets {
+  const _ClientRequestBuckets({
+    required this.accepted,
+    required this.pending,
+    required this.replies,
+  });
+
+  const _ClientRequestBuckets.empty()
+      : accepted = const [],
+        pending = const [],
+        replies = const [];
+
+  final List<ClientHomeRequest> accepted;
+  final List<ClientHomeRequest> pending;
+  final List<ClientHomeRequest> replies;
 }

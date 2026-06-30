@@ -171,6 +171,31 @@ class MockGatewayClient {
     return path;
   }
 
+  /// Canonical saved-locations collection base path for the ACTIVE backend.
+  ///
+  /// VERIFIED against the live dev gateway (`:10090`) on 2026-06-30 with a real
+  /// super-login JWT:
+  ///   GET    /api/users/me/saved-locations      -> 200 {userId, items, defaultId}
+  ///   POST   /api/users/me/saved-locations      -> 201 (top-level latitude/longitude)
+  ///   DELETE /api/users/me/saved-locations/:id  -> 204
+  /// The live BFF keys the collection on the AUTHENTICATED user (`me`) under the
+  /// `/api` prefix — NOT on a path `:userId`, and NOT under `/v1`. The previous
+  /// `/users/:userId/saved-locations` shape returned a *no-route* 404 on the live
+  /// gateway (empty body, no content-type — a routing miss, not an app 404). That
+  /// 404 was earlier misread as "the gateway 404s a customer with no saved
+  /// addresses"; in fact the real route returns `200 {items:[]}` for an empty
+  /// customer, so saved locations never loaded and could never be selected.
+  ///
+  /// The `:4010` Express mock instead keys the collection by `:userId` and is
+  /// reached only via the `/users` -> `/user-management/users` rewrite, which
+  /// runs solely when [useMockPrefixes] is `true`. So in mock mode we keep
+  /// emitting the rewriteable `/users/:userId/...` shape; against the live
+  /// gateway we emit the real `/api/users/me/...` contract. One helper keeps
+  /// BOTH targets green.
+  static String savedLocationsPath({required String userId}) => useMockPrefixes
+      ? '/users/$userId/saved-locations'
+      : '/api/users/me/saved-locations';
+
   static Dio createDio({String? baseUrl}) {
     final effectiveBaseUrl = baseUrl ?? mockBaseUrl;
 

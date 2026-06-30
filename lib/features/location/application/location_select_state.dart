@@ -41,13 +41,18 @@ class LocationSelectState extends Equatable {
   /// so the Confirm CTA is reachable on first paint (JM-024 AC4). The selection
   /// only changes WHICH location is forwarded to order-chat.
   ///
-  /// The saved-addresses fetch (`GET /users/:id/saved-locations`) can fail
-  /// independently — the LIVE gateway 404s a customer with no saved addresses.
-  /// That failure must only degrade the saved-addresses sub-list; it must NOT
-  /// block confirming Current Location / a freshly-pinned point. Gating solely
-  /// on `loaded` violated the AC4 invariant above and dead-ended order creation
-  /// (tier → location → [BLOCKED]). So `failed` stays confirmable UNLESS the
+  /// The saved-addresses fetch (`GET /api/users/me/saved-locations`) can still
+  /// fail on a GENUINE transport error (offline / 5xx). That failure must only
+  /// degrade the saved-addresses sub-list; it must NOT block confirming Current
+  /// Location / a freshly-pinned point — gating solely on `loaded` would violate
+  /// the AC4 invariant above and dead-end order creation (tier → location →
+  /// [BLOCKED]) on any network blip. So `failed` stays confirmable UNLESS the
   /// user explicitly chose a saved address (which by definition never loaded).
+  ///
+  /// NOTE (post-fix): an EMPTY customer is NOT a failure. The live gateway
+  /// returns `200 {items:[]}` for a customer with no saved addresses, so the
+  /// screen reaches `loaded` with an empty list (the old `/users/:id/...` path
+  /// 404'd here — that was the saved-locations-404 bug, since corrected).
   bool get canConfirm =>
       status == LocationSelectStatus.loaded ||
       (status == LocationSelectStatus.failed &&

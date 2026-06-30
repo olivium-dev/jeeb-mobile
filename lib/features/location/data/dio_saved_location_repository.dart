@@ -1,27 +1,26 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/network/mock_gateway_client.dart';
 import '../domain/saved_location.dart';
 import '../domain/saved_location_repository.dart';
 
 /// Dio-backed implementation of [SavedLocationRepository] (T-MOB-012 / JM-049).
 ///
-/// **W1 path correction (JM-049).** The endpoint is the journey-honest
-/// `/users/:userId/saved-locations` — the SAME gateway-contract path JM-024's
-/// `DioLocationSelectRepository` speaks. The `MockGatewayClient` `/users` →
-/// `/user-management/users` rewrite carries it to the live mock route
-/// `GET|POST /user-management/users/:userId/saved-locations` (verified in
-/// `user-management.ts`; 42_GUARDRAILS_MOCK §4). The previous `/v1/users/me/...`
-/// path did NOT match the rewrite map (the key is `/users`, not `/v1/users`)
-/// and the mock has no `/me` row (the route is keyed by **userId**), so the
-/// `has_saved_addresses` seed (seeded under `user-client-001`) was invisible to
-/// this manager — see the JM-024 contract-gap note in 50_ROUTE_REQUESTS.md.
+/// **Path source of truth.** The base path comes from
+/// [MockGatewayClient.savedLocationsPath]. The LIVE gateway serves the
+/// collection me-keyed under `/api` (`GET|POST /api/users/me/saved-locations`,
+/// `PUT|DELETE …/:id`) — VERIFIED 200/201/204 on `:10090` (2026-06-30). The
+/// `:4010` Express mock instead keys it by `:userId` and is reached via the
+/// `/users` → `/user-management/users` rewrite; the helper emits that shape only
+/// in mock mode. The earlier `/users/:userId/...` (and the older `/v1/users/me/…`)
+/// shapes 404'd on the live gateway — that was the saved-locations-404 bug.
 ///
-/// The `:userId` is resolved from the persisted [AuthTokenStore] (the id the
-/// session was logged in with). When absent — bare tests / a not-yet-logged-in
-/// boot — it falls back to the mock's `authStub` convention (`user-client-001`),
-/// the same default `ClientLocationScreen` uses (42_GUARDRAILS_MOCK §4). Never
-/// hardcodes a `:4010` host or service prefix (40_GUARDRAILS_ARCH §4/§11).
+/// The `:userId` (used only for the mock-mode path + the observability log) is
+/// resolved from the persisted [AuthTokenStore]. When absent — bare tests / a
+/// not-yet-logged-in boot — it falls back to the mock's `authStub` convention
+/// (`user-client-001`). On the live gateway the path is `me` regardless of this
+/// id. Never hardcodes a `:4010` host or service prefix (40_GUARDRAILS_ARCH §4/§11).
 ///
 /// Parsing is defensive (40_GUARDRAILS_ARCH §4): tolerates a bare list or
 /// `{ items: [...] }`, the seeded nested `geo:{lat,lng}` shape AND a top-level
@@ -46,7 +45,8 @@ class DioSavedLocationRepository implements SavedLocationRepository {
     return (id == null || id.isEmpty) ? _fallbackUserId : id;
   }
 
-  Future<String> _basePath() async => '/users/${await _userId()}/saved-locations';
+  Future<String> _basePath() async =>
+      MockGatewayClient.savedLocationsPath(userId: await _userId());
 
   @override
   Future<List<SavedLocation>> fetchSavedLocations() async {

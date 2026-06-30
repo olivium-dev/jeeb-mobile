@@ -247,7 +247,8 @@ class _ChatScaffold extends StatefulWidget {
   State<_ChatScaffold> createState() => _ChatScaffoldState();
 }
 
-class _ChatScaffoldState extends State<_ChatScaffold> {
+class _ChatScaffoldState extends State<_ChatScaffold>
+    with WidgetsBindingObserver {
   final ScrollController _scrollController = ScrollController();
   bool _bannerDismissed = false;
 
@@ -257,9 +258,28 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
   bool _broadcastFired = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Observe app lifecycle so a thread left open while the app was
+    // backgrounded refetches on resume. The screen-scoped ChatCubit survives a
+    // background (the process is not killed), so its one-shot create-time
+    // load() never re-runs — without this the thread shows stale messages until
+    // an app restart (BUG-chat-cache-staleness).
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      context.read<ChatCubit>().refresh();
+    }
   }
 
   void _scheduleScrollToBottom() {

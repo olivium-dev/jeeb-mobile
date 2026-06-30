@@ -1,22 +1,18 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/mock_gateway_client.dart';
 import '../domain/address_form_repository.dart';
 import '../domain/saved_location.dart';
 
 /// Dio-backed [AddressFormRepository] (JM-050).
 ///
-/// Speaks the gateway-contract path `/users/:userId/saved-locations`; the
-/// `MockGatewayClient` `/users` → `/user-management/users` rewrite carries it to
-/// the live mock route `POST/PUT /user-management/users/:userId/saved-locations`
-/// (the SAME working path JM-024's `DioLocationSelectRepository` reads — verified
-/// in `user-management.ts`, which spreads `...req.body`). Never hardcodes a
-/// `:4010` host or a service prefix (40_GUARDRAILS_ARCH §4/§11).
-///
-/// > Contract note: the JM-049 `DioSavedLocationRepository` speaks the legacy
-/// > Mockoon `/v1/users/me/saved-locations` shape, for which the gateway has NO
-/// > rewrite key (only `/users` → `/user-management/users`). This impl uses the
-/// > rewriteable `/users/:userId/...` form so the form's save actually reaches
-/// > the mock and the JM-049 list reflects it. Flagged in 50_ROUTE_REQUESTS.
+/// Resolves the base path via [MockGatewayClient.savedLocationsPath]: the live
+/// gateway serves create/update me-keyed under `/api`
+/// (`POST /api/users/me/saved-locations`, `PUT …/:id`) — the create path is
+/// VERIFIED 201 on `:10090` (2026-06-30); the `:userId`-keyed `/users/…` shape
+/// is emitted only in mock mode (reached via the `/users` →
+/// `/user-management/users` rewrite). Never hardcodes a `:4010` host or a
+/// service prefix (40_GUARDRAILS_ARCH §4/§11).
 ///
 /// The POST body carries the full address-detail field set; field names mirror
 /// the `has_saved_addresses` seed (`building`, `floorApt`, `deliveryNotes`,
@@ -28,7 +24,8 @@ class DioAddressFormRepository implements AddressFormRepository {
 
   final Dio _dio;
 
-  String _basePath(String userId) => '/users/$userId/saved-locations';
+  String _basePath(String userId) =>
+      MockGatewayClient.savedLocationsPath(userId: userId);
 
   @override
   Future<SavedLocation> create({

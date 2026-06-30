@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -39,10 +38,10 @@ void main() {
   // as the `builder:` of MaterialApp.router. That makes the host the PARENT
   // of the Navigator and therefore ABOVE the Navigator's Overlay. Anything
   // the banner builds that needs an Overlay ancestor (a Tooltip mounts an
-  // OverlayPortal on show) has none here — which is exactly the topology
-  // that produced the P1 crash:
-  //   "No Overlay widget found. Tooltip widgets require an Overlay ancestor".
-  // autoDismiss is zeroed so the banner stays pinned and leaks no timer.
+  // OverlayPortal on show) has none here — the exact topology that produced
+  // the P1 crash: "No Overlay widget found. Tooltip widgets require an
+  // Overlay widget ancestor". autoDismiss is zeroed so the banner stays
+  // pinned and leaks no timer.
   Future<void> pumpProductionHost(WidgetTester tester) async {
     final router = GoRouter(
       initialLocation: '/',
@@ -78,11 +77,6 @@ void main() {
     'foreground banner mounted above the Navigator does not require an '
     'Overlay ancestor (regression: BUG-P1a "No Overlay widget found")',
     (tester) async {
-      final errors = <FlutterErrorDetails>[];
-      final previousOnError = FlutterError.onError;
-      FlutterError.onError = errors.add;
-      addTearDown(() => FlutterError.onError = previousOnError);
-
       await pumpProductionHost(tester);
       await emitForeground(tester, 'overlay-regression');
 
@@ -91,27 +85,24 @@ void main() {
       expect(find.byIcon(Icons.close), findsOneWidget);
 
       // Long-press forces a Tooltip (if present) to mount its OverlayPortal
-      // and look up an Overlay that does not exist above PushBannerHost.
-      // With the `tooltip:` parameter removed there is nothing to show.
+      // and look up an Overlay that does not exist above PushBannerHost,
+      // which is what threw the P1 error. Without the `tooltip:` parameter
+      // there is nothing to show, so the interaction is inert.
       await tester.longPress(find.byIcon(Icons.close));
       await tester.pump(const Duration(seconds: 1));
       await tester.pump();
 
-      final overlayErrors = errors
-          .where((d) {
-            final s = d.exceptionAsString();
-            return s.contains('No Overlay widget found') ||
-                s.contains('require an Overlay');
-          })
-          .map((d) => d.exceptionAsString())
-          .toList();
-
+      // takeException() reads the binding's pending-exception slot, which is
+      // where both FlutterError.onError and zone (Timer) errors land — the
+      // tooltip overlay error is thrown from a Timer, so this is the channel
+      // that actually catches it.
+      final exception = tester.takeException();
       expect(
-        overlayErrors,
-        isEmpty,
+        exception,
+        isNull,
         reason: 'PushBannerHost is injected via MaterialApp.router.builder, '
             'so it sits ABOVE the Navigator Overlay. No banner descendant may '
-            'depend on an Overlay ancestor. Got: ${overlayErrors.join("; ")}',
+            'depend on an Overlay ancestor. Got: $exception',
       );
     },
   );

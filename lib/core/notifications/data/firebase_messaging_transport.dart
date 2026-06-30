@@ -189,16 +189,6 @@ class FirebaseMessagingTransport implements PushTransport {
     final data = message.data.map(
       (key, value) => MapEntry(key.toString(), value?.toString() ?? ''),
     );
-    // The live jeeb-gateway chat push nests the routing fields inside a single
-    // stringified `data` field — e.g. `data:
-    // "{'conversationId':'…','requestId':'…','type':'chat'}"` — instead of
-    // emitting them as flat top-level FCM data entries, and serializes it as a
-    // single-quote (Python-style) pseudo-JSON, NOT valid JSON. Flatten any
-    // routing keys found in that blob up to the top level (without clobbering
-    // a real flat field) so category resolution + deepLinkForMessage see
-    // `type`/`conversationId`/`requestId`. Tolerant regex extraction avoids the
-    // single-vs-double-quote JSON pitfall.
-    hoistNestedRoutingFields(data);
     if (kDebugMode) {
       // Diagnostic: keys + flags only (no values) so we can see the live
       // payload shape (e.g. conversationId/type) without leaking content.
