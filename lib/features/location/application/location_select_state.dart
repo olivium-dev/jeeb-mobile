@@ -20,6 +20,8 @@ class LocationSelectState extends Equatable {
     this.savedAddresses = const [],
     this.choiceKind = LocationChoiceKind.current,
     this.selectedSavedId,
+    this.pinnedLat,
+    this.pinnedLng,
     this.error,
   });
 
@@ -31,6 +33,12 @@ class LocationSelectState extends Equatable {
 
   /// Set only when [choiceKind] is [LocationChoiceKind.saved].
   final String? selectedSavedId;
+
+  /// The freshly-pinned map coordinate (capture-location -> markPinned), set
+  /// only when [choiceKind] is [LocationChoiceKind.pinned]. Threaded into the
+  /// create draft as the REAL pickup coordinate (S0-REQ-03); null otherwise.
+  final double? pinnedLat;
+  final double? pinnedLng;
 
   /// Non-null only when [status] is [LocationSelectStatus.failed].
   final LocationSelectFailure? error;
@@ -67,6 +75,9 @@ class LocationSelectState extends Equatable {
     LocationChoiceKind? choiceKind,
     String? selectedSavedId,
     bool clearSelectedSaved = false,
+    double? pinnedLat,
+    double? pinnedLng,
+    bool clearPinned = false,
     LocationSelectFailure? error,
     bool clearError = false,
   }) {
@@ -76,6 +87,8 @@ class LocationSelectState extends Equatable {
       choiceKind: choiceKind ?? this.choiceKind,
       selectedSavedId:
           clearSelectedSaved ? null : (selectedSavedId ?? this.selectedSavedId),
+      pinnedLat: clearPinned ? null : (pinnedLat ?? this.pinnedLat),
+      pinnedLng: clearPinned ? null : (pinnedLng ?? this.pinnedLng),
       error: clearError ? null : (error ?? this.error),
     );
   }
@@ -86,6 +99,8 @@ class LocationSelectState extends Equatable {
         savedAddresses,
         choiceKind,
         selectedSavedId,
+        pinnedLat,
+        pinnedLng,
         error,
       ];
 }

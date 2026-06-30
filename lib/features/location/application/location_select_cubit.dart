@@ -70,6 +70,7 @@ class LocationSelectCubit extends Cubit<LocationSelectState> {
     emit(state.copyWith(
       choiceKind: LocationChoiceKind.current,
       clearSelectedSaved: true,
+      clearPinned: true,
     ));
   }
 
@@ -79,15 +80,19 @@ class LocationSelectCubit extends Cubit<LocationSelectState> {
     emit(state.copyWith(
       choiceKind: LocationChoiceKind.saved,
       selectedSavedId: id,
+      clearPinned: true,
     ));
   }
 
   /// Records that the customer confirmed a freshly-pinned point from the
   /// map-pin step (capture-location → back here).
-  void markPinned() {
+  void markPinned({double? latitude, double? longitude}) {
     emit(state.copyWith(
       choiceKind: LocationChoiceKind.pinned,
       clearSelectedSaved: true,
+      pinnedLat: latitude,
+      pinnedLng: longitude,
+      clearPinned: latitude == null && longitude == null,
     ));
   }
 }

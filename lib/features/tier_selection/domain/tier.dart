@@ -51,6 +51,11 @@ class Tier extends Equatable {
 
   final bool recommended;
 
+  /// Wire-side identifier the create-request RPC echoes (`POST /requests` ->
+  /// `tierId`): the gateway-minted [serverId] when present (live gateway
+  /// shape, PR #64), else null so the caller falls back to the [id] enum slug.
+  String? get wireId => serverId;
+
   @override
   List<Object?> get props => [
         id,
