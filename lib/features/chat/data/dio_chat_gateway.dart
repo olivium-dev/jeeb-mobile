@@ -113,19 +113,62 @@ class DioChatGateway implements ChatGateway {
     if (_isUnresolvedConversation(conversationId)) {
       return ConversationPhase.broadcasting;
     }
+    // NEW-BUG-01 (Sprint-2 Contract 5c) — RESTORED after the sprint-006/007
+    // merge (bd86ab3) regressed this file to the un-hardened pre-fix loadPhase.
+    // The gateway reads a conversation by its correlation key (== request id,
+    // auto-conversation-per-request) via `GET /v1/conversations`; there is no
+    // per-id `GET /v1/conversations/{id}` route. The response
+    // (`JeebConversationResponse`) carries `phase` + `participants`.
+    //
+    // GATING (Contract 5c item 3): only surface `accepted` when the wire phase
+    // is `accepted` AND an active `jeeber_winner` participant is seated. A phase
+    // that claims `accepted` with no winner (mid-advance / partial saga)
+    // degrades to `broadcasting` — never a false "Offer accepted!". On ANY
+    // failure (flag-off 503, transport, non-map body, unknown phase) we degrade
+    // to `broadcasting`, the safe compose/waiting state — NEVER `accepted`.
     try {
-      // The gateway reads a conversation by its correlation key (== request id,
-      // auto-conversation-per-request) via `GET /v1/conversations`; there is no
-      // per-id `GET /v1/conversations/{id}` route. The response
-      // (`JeebConversationResponse`) carries `phase`.
       final response = await _dio.get<Map<String, dynamic>>(
         '/v1/conversations',
         queryParameters: <String, Object?>{'correlationKey': conversationId},
       );
-      return ConversationPhase.fromWire(response.data?['phase'] as String?);
+      final data = response.data;
+      if (data == null) return ConversationPhase.broadcasting;
+      final phase = ConversationPhase.fromWire(data['phase'] as String?);
+      // Gate the `accepted` phase on an ACTIVE winner, but only when the
+      // aggregate actually carries a `participants` roster (the live
+      // `JeebConversationResponse` always does). A response that omits the
+      // roster entirely (degenerate / partial body) is trusted at its wire
+      // phase — so a bare `{phase:"accepted"}` is not second-guessed, while an
+      // aggregate that lists participants without a seated winner correctly
+      // degrades to `broadcasting` (NEW-BUG-01).
+      if (phase == ConversationPhase.accepted &&
+          data['participants'] is List &&
+          !_hasActiveWinner(data)) {
+        return ConversationPhase.broadcasting;
+      }
+      return phase == ConversationPhase.unknown
+          ? ConversationPhase.broadcasting
+          : phase;
     } on DioException {
-      return ConversationPhase.unknown;
+      return ConversationPhase.broadcasting;
+    } catch (_) {
+      return ConversationPhase.broadcasting;
     }
+  }
+
+  /// True when the conversation aggregate seats an ACTIVE `jeeber_winner`
+  /// participant (role `jeeber_winner` and not yet `removed_at`). Gates the
+  /// `accepted` phase so the accepted UI never renders without a real winner
+  /// (NEW-BUG-01). Defensive on shape: a missing/non-list `participants` or a
+  /// removed winner counts as "no active winner".
+  bool _hasActiveWinner(Map<String, dynamic> data) {
+    final participants = data['participants'];
+    if (participants is! List) return false;
+    return participants.whereType<Map>().any((p) {
+      final role = p['role_in_convo'] as String?;
+      final removedAt = p['removed_at'];
+      return role == 'jeeber_winner' && removedAt == null;
+    });
   }
 
   @override
@@ -182,6 +225,15 @@ class DioChatGateway implements ChatGateway {
     _ensureSocket(conversationId);
     return _events.stream;
   }
+
+  /// The real network gateway opts INTO the cubit's HTTP-history poll fallback:
+  /// its live transport is a WebSocket that may never establish against the
+  /// mock backend (or a non-member / flaky socket), so the periodic re-pull of
+  /// history is the inbound safety net. `DioChatGateway implements ChatGateway`
+  /// (not `extends`), so the interface's default body is NOT inherited — this
+  /// override must be declared explicitly or the class does not compile.
+  @override
+  bool get supportsPolling => true;
 
   @override
   Future<OfferAcceptResult> acceptOffer(
