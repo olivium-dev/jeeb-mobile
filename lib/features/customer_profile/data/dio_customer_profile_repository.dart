@@ -39,15 +39,14 @@ class DioCustomerProfileRepository implements CustomerProfileRepository {
   }
 
   CustomerProfileViewData _parse(Map<String, dynamic> json) {
-    final rolesRaw = (json['availableRoles'] ?? json['available_roles']);
-    final availableRoles = rolesRaw is List
-        ? rolesRaw.whereType<String>().toList(growable: false)
-        : const <String>[];
-    final isJeeber = availableRoles.contains('jeeber');
-
-    // DEFECT-C: surface the server's ACTIVE role so the app can sync the
-    // RoleCubit at login/resume (snake_case + camelCase both accepted, U1).
-    final activeRole = _str(json['activeRole'] ?? json['active_role']);
+    final roles = (json['availableRoles'] ?? json['available_roles']);
+    final activeRole = json['activeRole'] ?? json['active_role'];
+    final isJeeber =
+        _isJeeberRole(activeRole) ||
+        roles is List &&
+            roles.any((role) {
+              return _isJeeberRole(role);
+            });
 
     final ratingRaw = json['rating'] ?? json['averageRating'];
     final rating = (ratingRaw is num) ? ratingRaw.toDouble() : null;
@@ -63,14 +62,23 @@ class DioCustomerProfileRepository implements CustomerProfileRepository {
     return CustomerProfileViewData(
       name: _str(json['name'] ?? json['fullName'] ?? json['displayName']),
       email: _str(json['email']),
-      avatarUrl: _str(json['avatarUrl'] ?? json['avatar_url'] ?? json['photoUrl']),
+      avatarUrl: _str(
+        json['avatarUrl'] ?? json['avatar_url'] ?? json['photoUrl'],
+      ),
       isVerified: status == 'active',
       isJeeber: isJeeber,
       rating: rating,
       ratingCount: ratingCount,
-      activeRole: activeRole,
-      availableRoles: availableRoles,
     );
+  }
+
+  bool _isJeeberRole(Object? value) {
+    final normalized = value is String ? value.trim().toLowerCase() : '';
+    return normalized == 'jeeber' ||
+        normalized == 'driver' ||
+        normalized == 'delivery' ||
+        normalized == 'deliveryman' ||
+        normalized == 'delivery_man';
   }
 
   /// Normalise a JSON value to a non-empty trimmed `String`, else `null`.

@@ -92,6 +92,7 @@ class DevSeam {
       superLoginToken: config.superLoginToken,
       superLoginRefreshToken: config.superLoginRefreshToken,
       superLoginUserId: config.superLoginUserId,
+      superLoginRole: config.superLoginRole,
     );
   }
 
@@ -109,8 +110,7 @@ class DevSeam {
       forcedLocale: primary.forcedLocale.isNotEmpty
           ? primary.forcedLocale
           : fallback.forcedLocale,
-      homeTab:
-          primary.homeTab.isNotEmpty ? primary.homeTab : fallback.homeTab,
+      homeTab: primary.homeTab.isNotEmpty ? primary.homeTab : fallback.homeTab,
       feed: primary.feed.isNotEmpty ? primary.feed : fallback.feed,
       holdSplash: primary.holdSplash || fallback.holdSplash,
       skipOnboarding: primary.skipOnboarding || fallback.skipOnboarding,
@@ -158,6 +158,9 @@ class DevSeam {
       superLoginUserId: primary.superLoginUserId.isNotEmpty
           ? primary.superLoginUserId
           : fallback.superLoginUserId,
+      superLoginRole: primary.superLoginRole.isNotEmpty
+          ? primary.superLoginRole
+          : fallback.superLoginRole,
     );
   }
 

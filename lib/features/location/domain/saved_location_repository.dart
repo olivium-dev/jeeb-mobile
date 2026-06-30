@@ -2,19 +2,22 @@ import 'saved_location.dart';
 
 /// Repository for saved locations (T-MOB-012 / T-MOB-025).
 ///
-/// Endpoints per Mockoon :3055 contract (d1-auth-identity.contract.md):
-///   GET    /v1/users/me/saved-locations
-///   POST   /v1/users/me/saved-locations
-///   PUT    /v1/users/me/saved-locations/{id}
-///   DELETE /v1/users/me/saved-locations/{id}
+/// Endpoints — VERIFIED against the live gateway `:10090` (2026-06-30). The
+/// live BFF keys the collection on the authenticated user (`me`) under `/api`;
+/// the concrete path is resolved by `MockGatewayClient.savedLocationsPath`
+/// (mock mode emits the `:userId`-keyed `/users/…` shape instead):
+///   GET    /api/users/me/saved-locations        -> 200 {userId, items, defaultId}
+///   POST   /api/users/me/saved-locations        -> 201 (top-level latitude/longitude)
+///   PUT    /api/users/me/saved-locations/{id}
+///   DELETE /api/users/me/saved-locations/{id}    -> 204
 abstract class SavedLocationRepository {
   /// Fetches the user's saved locations.
-  /// Endpoint: `GET /v1/users/me/saved-locations`
+  /// Endpoint: `GET /api/users/me/saved-locations`
   Future<List<SavedLocation>> fetchSavedLocations();
 
   /// Creates a new saved location (returns HTTP 201).
-  /// Endpoint: `POST /v1/users/me/saved-locations`
-  /// Throws [SavedLocationCapReachedException] on HTTP 409 (cap of 10).
+  /// Endpoint: `POST /api/users/me/saved-locations`
+  /// Throws [SavedLocationCapReachedException] on HTTP 409/422 (cap of 10).
   Future<SavedLocation> saveLocation({
     required double latitude,
     required double longitude,
@@ -24,7 +27,7 @@ abstract class SavedLocationRepository {
   });
 
   /// Updates an existing saved location.
-  /// Endpoint: `PUT /v1/users/me/saved-locations/{id}`
+  /// Endpoint: `PUT /api/users/me/saved-locations/{id}`
   Future<SavedLocation> updateLocation({
     required String id,
     required double latitude,
@@ -35,7 +38,7 @@ abstract class SavedLocationRepository {
   });
 
   /// Deletes a saved location.
-  /// Endpoint: `DELETE /v1/users/me/saved-locations/{id}`
+  /// Endpoint: `DELETE /api/users/me/saved-locations/{id}`
   /// Returns `204 No Content` on success.
   Future<void> deleteLocation(String id);
 }

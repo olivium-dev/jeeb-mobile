@@ -24,26 +24,20 @@ class Tier extends Equatable {
     required this.priceHigh,
     required this.currency,
     required this.vehicleClass,
-    this.wireId,
+    this.serverId,
     this.slaMinutes,
     this.recommended = false,
   });
 
   final TierId id;
 
-  /// The EXACT id string the gateway's `GET /v1/tiers` handed back for this
-  /// tier — a server-minted **UUID** on the live gateway (e.g.
-  /// `0be308ce-...`), or the legacy slug (`flash`) on the Mockoon mock. The
-  /// catalog UI keys, icons and copy all run off the [id] enum, but the
-  /// wire-side request-create call must echo this value verbatim (NOT the
-  /// enum name) so the gateway can resolve the tier.
-  ///
-  /// NOTE (iter6 B2): at the time of this fix the request-create service still
-  /// rejects the UUID `tierId` ("tierId does not match any active delivery
-  /// tier"). The gateway-side B2 fix must accept this exact value. We preserve
-  /// it here rather than re-deriving a slug so there is a single, faithful
-  /// source of truth — do NOT fabricate or hardcode a tier id downstream.
-  final String? wireId;
+  /// Gateway-minted identifier for this tier. The live jeeb-gateway keys tiers
+  /// by a UUID in the `id` field (with the display label in `name`); the
+  /// Mockoon mock keys by slug. Preserved verbatim so the create-request RPC
+  /// (`POST /requests` → `tierId`) can send the exact identifier the gateway
+  /// expects, rather than re-deriving it from the [id] enum. Null for the
+  /// bundled [FakeTierRepository] catalog used in offline fallback / tests.
+  final String? serverId;
 
   final int priceLow;
   final int priceHigh;
@@ -60,7 +54,7 @@ class Tier extends Equatable {
   @override
   List<Object?> get props => [
         id,
-        wireId,
+        serverId,
         priceLow,
         priceHigh,
         currency,

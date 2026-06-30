@@ -11,15 +11,13 @@ import '../domain/earnings_repository.dart';
 import '../domain/earnings_summary.dart';
 import 'earnings_dashboard_l10n.dart';
 
-/// JM-052 — Earnings & Fees Dashboard (fee-only reframe, D41/D44).
+/// JM-052 — Earnings & Fees Dashboard.
 ///
-/// The Earnings tab body. The economics are framed **fee-only**, NOT
-/// gross/commission/net-payout (the platform-takes-a-cut model the previous
-/// screen used, which violated D41/D44 — removed here):
-///   * `earnings_total_cash` — "net, off-wallet COD" (D41): the cash the Jeeber
-///     collected directly from customers; this never moves through Jeeb.
-///   * `earnings_fees_paid` — "captured 10%" (D37): the flat platform fees the
-///     Jeeber paid from their pre-charged wallet on won offers.
+/// The Earnings tab body:
+///   * `earnings_total_cash` — the cash the Jeeber collected directly from
+///     customers; this never moves through Jeeb.
+///   * `earnings_fees_paid` — platform fees the Jeeber paid from their
+///     pre-charged wallet on won offers.
 ///   * `earnings_net_per_offer` — average cash kept per delivery after the fee
 ///     (D44).
 ///   * `earnings_member_since` — the Jeeber's join date (only when the wire
@@ -142,11 +140,13 @@ class _PeriodFilterRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: EarningsPeriod.values
-          .map((p) => _PeriodPill(
-                period: p,
-                selected: p == selectedPeriod,
-                copy: copy,
-              ))
+          .map(
+            (p) => _PeriodPill(
+              period: p,
+              selected: p == selectedPeriod,
+              copy: copy,
+            ),
+          )
           .toList(),
     );
   }
@@ -214,8 +214,9 @@ class _TotalCashCard extends StatelessWidget {
               const SizedBox(height: Spacing.xSmall),
               Text(
                 '$value ${summary.currency}',
-                style: theme.textTheme.displaySmall
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.displaySmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
                 semanticsLabel: '$value ${summary.currency}',
               ),
               const SizedBox(height: Spacing.twoXSmall),
@@ -233,7 +234,7 @@ class _TotalCashCard extends StatelessWidget {
   }
 }
 
-/// `earnings_fees_paid` — total captured 10% platform fees (D37).
+/// `earnings_fees_paid` — total captured platform fees.
 class _FeesPaidCard extends StatelessWidget {
   const _FeesPaidCard({required this.summary, required this.copy});
   final EarningsSummary summary;
@@ -251,15 +252,16 @@ class _FeesPaidCard extends StatelessWidget {
           padding: const EdgeInsets.all(Spacing.large),
           child: Row(
             children: [
-              Icon(Icons.percent_outlined,
-                  color: theme.colorScheme.onSurfaceVariant),
+              Icon(
+                Icons.percent_outlined,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
               const SizedBox(width: Spacing.small),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(copy.feesPaidLabel,
-                        style: theme.textTheme.titleSmall),
+                    Text(copy.feesPaidLabel, style: theme.textTheme.titleSmall),
                     const SizedBox(height: Spacing.twoXSmall),
                     Text(
                       copy.feesPaidHint,
@@ -273,8 +275,9 @@ class _FeesPaidCard extends StatelessWidget {
               const SizedBox(width: Spacing.small),
               Text(
                 '$value ${summary.currency}',
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
                 semanticsLabel: '$value ${summary.currency}',
               ),
             ],
@@ -340,13 +343,17 @@ class _StatCard extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: Spacing.twoXSmall),
-              Text(subtitle,
-                  style: theme.textTheme.labelSmall, textAlign: TextAlign.center),
+              Text(
+                subtitle,
+                style: theme.textTheme.labelSmall,
+                textAlign: TextAlign.center,
+              ),
               if (hint != null) ...[
                 const SizedBox(height: Spacing.twoXSmall),
                 Text(
@@ -381,15 +388,19 @@ class _MemberSinceRow extends StatelessWidget {
       container: true,
       child: Row(
         children: [
-          Icon(Icons.event_available_outlined,
-              size: 18, color: theme.colorScheme.onSurfaceVariant),
+          Icon(
+            Icons.event_available_outlined,
+            size: 18,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
           const SizedBox(width: Spacing.xSmall),
           Text(copy.memberSinceLabel, style: theme.textTheme.bodyMedium),
           const SizedBox(width: Spacing.xSmall),
           Text(
             formatted,
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(fontWeight: FontWeight.w600),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),

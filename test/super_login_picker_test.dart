@@ -29,14 +29,14 @@ class _FakeDemoUserService implements SuperLoginDemoUserService {
 const _client = SuperLoginDemoUser(
   userId: '11111111-1111-4111-8111-111111111111',
   name: 'Sami',
-  role: 'client',
-  passcode: 'super-demo',
+  role: 'customer',
+  availableRoles: ['customer'],
 );
 const _jeeber = SuperLoginDemoUser(
   userId: '22222222-2222-4222-8222-222222222222',
   name: 'Kamal',
-  role: 'jeeber',
-  passcode: 'demo-kamal',
+  role: 'driver',
+  availableRoles: ['customer', 'driver'],
 );
 
 void main() {
@@ -76,29 +76,48 @@ void main() {
   }
 
   group('SuperLoginDemoUser model', () {
-    test('fromJson parses a well-formed row', () {
+    test('fromJson maps username->name, active_role->role (LIST contract)', () {
       final user = SuperLoginDemoUser.fromJson(const {
         'userId': 'u1',
-        'name': 'Nour',
-        'role': 'client',
-        'passcode': 'demo-nour',
+        'username': 'Nour',
+        'active_role': 'customer',
+        'available_roles': ['customer'],
       });
       expect(user, isNotNull);
       expect(user!.userId, 'u1');
+      expect(user.name, 'Nour');
+      expect(user.role, 'customer');
       expect(user.isJeeber, isFalse);
     });
 
-    test('isJeeber is true for a jeeber row', () {
+    test('isJeeber is true when active_role is driver', () {
       expect(_jeeber.isJeeber, isTrue);
     });
 
-    test('fromJson drops a row with a missing/blank field', () {
+    test('isJeeber is true when available_roles contains driver', () {
+      final user = SuperLoginDemoUser.fromJson(const {
+        'userId': 'u2',
+        'username': 'Rima',
+        'active_role': 'customer',
+        'available_roles': ['customer', 'driver'],
+      });
+      expect(user!.isJeeber, isTrue);
+    });
+
+    test('fromJson drops a row with a missing/blank userId or username', () {
       expect(
         SuperLoginDemoUser.fromJson(const {
           'userId': '',
-          'name': 'Nour',
-          'role': 'client',
-          'passcode': 'demo-nour',
+          'username': 'Nour',
+          'active_role': 'customer',
+        }),
+        isNull,
+      );
+      expect(
+        SuperLoginDemoUser.fromJson(const {
+          'userId': 'u1',
+          'username': '',
+          'active_role': 'customer',
         }),
         isNull,
       );
@@ -169,7 +188,6 @@ void main() {
 
       expect(result, isNotNull);
       expect(result!.userId, _jeeber.userId);
-      expect(result!.passcode, 'demo-kamal');
       // Picker dismissed.
       expect(find.byKey(const Key('superLoginPlus.pickerList')), findsNothing);
     });

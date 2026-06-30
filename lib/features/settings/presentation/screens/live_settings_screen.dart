@@ -1,0 +1,223 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:omds/omds.dart';
+
+import '../../../../core/di/injection_container.dart';
+import '../../../../core/role/role_cubit.dart';
+import '../../../../core/role/user_role.dart';
+import '../../../../l10n/app_localizations.dart';
+import '../../application/role_switch_cubit.dart';
+import '../../application/settings_cubit.dart';
+import '../../domain/account_service.dart';
+import '../../domain/profile_repository.dart';
+import '../../domain/role_switch_repository.dart';
+import '../../domain/user_profile.dart';
+import 'settings_screen.dart';
+
+/// Live-backed settings entry used by the app route.
+///
+/// The generic [SettingsScreen] remains a testable presentation surface with
+/// injectable seams. This host supplies those seams from the real gateway:
+/// `GET /v1/users/me` for profile/role metadata and
+/// `POST /v1/users/me/role/switch` through [RoleSwitchCubit].
+class LiveSettingsScreen extends StatefulWidget {
+  const LiveSettingsScreen({super.key});
+
+  @override
+  State<LiveSettingsScreen> createState() => _LiveSettingsScreenState();
+}
+
+class _LiveSettingsScreenState extends State<LiveSettingsScreen> {
+  late Future<_SettingsAccountSnapshot> _snapshot = _loadSnapshot();
+
+  Future<_SettingsAccountSnapshot> _loadSnapshot() async {
+    final response = await sl<Dio>().get<Map<String, dynamic>>('/v1/users/me');
+    return _SettingsAccountSnapshot.fromJson(
+      response.data ?? const <String, dynamic>{},
+    );
+  }
+
+  void _retry() {
+    setState(() => _snapshot = _loadSnapshot());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return FutureBuilder<_SettingsAccountSnapshot>(
+      future: _snapshot,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          return _LoadedLiveSettings(snapshot: snapshot.requireData);
+        }
+        if (snapshot.hasError) {
+          return _LiveSettingsError(onRetry: _retry);
+        }
+        return Scaffold(
+          appBar: OMDSAppBar(title: l10n.settingsTitle),
+          body: const Center(child: CircularProgressIndicator()),
+        );
+      },
+    );
+  }
+}
+
+class _LoadedLiveSettings extends StatefulWidget {
+  const _LoadedLiveSettings({required this.snapshot});
+
+  final _SettingsAccountSnapshot snapshot;
+
+  @override
+  State<_LoadedLiveSettings> createState() => _LoadedLiveSettingsState();
+}
+
+class _LoadedLiveSettingsState extends State<_LoadedLiveSettings> {
+  late final SettingsCubit _settingsCubit = SettingsCubit(
+    profileRepository: _SnapshotProfileRepository(widget.snapshot.profile),
+    accountService: const FakeAccountService(),
+  )..load();
+
+  late final RoleSwitchCubit _roleSwitchCubit = RoleSwitchCubit(
+    repository: sl<RoleSwitchRepository>(),
+    initialRole: _initialRole,
+  );
+
+  String get _initialRole {
+    final active = widget.snapshot.activeRole;
+    if (active != null && active.isNotEmpty) return active;
+    return context.read<RoleCubit>().state.storageKey;
+  }
+
+  @override
+  void dispose() {
+    _roleSwitchCubit.close();
+    _settingsCubit.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingsScreen(
+      cubit: _settingsCubit,
+      roleSwitchCubit: _roleSwitchCubit,
+      availableRoles: widget.snapshot.availableRoles,
+    );
+  }
+}
+
+class _LiveSettingsError extends StatelessWidget {
+  const _LiveSettingsError({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: OMDSAppBar(title: l10n.settingsTitle),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(Spacing.xLarge),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.cloud_off_outlined,
+                size: Sizes.sixXLarge,
+                color: theme.colorScheme.error,
+              ),
+              const SizedBox(height: Spacing.medium),
+              Text(
+                l10n.settingsNetworkError,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium,
+              ),
+              const SizedBox(height: Spacing.large),
+              FilledButton(onPressed: onRetry, child: Text(l10n.kycRetry)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SnapshotProfileRepository implements ProfileRepository {
+  _SnapshotProfileRepository(this._profile);
+
+  UserProfile _profile;
+
+  @override
+  Future<UserProfile?> load() async => _profile;
+
+  @override
+  Future<void> save(UserProfile profile) async {
+    _profile = profile;
+  }
+
+  @override
+  Future<void> clear() async {
+    _profile = const UserProfile.empty();
+  }
+}
+
+class _SettingsAccountSnapshot {
+  const _SettingsAccountSnapshot({
+    required this.profile,
+    required this.availableRoles,
+    required this.activeRole,
+  });
+
+  final UserProfile profile;
+  final List<String> availableRoles;
+  final String? activeRole;
+
+  static _SettingsAccountSnapshot fromJson(Map<String, dynamic> json) {
+    final roles = _roles(json['availableRoles'] ?? json['available_roles']);
+    final activeRole = _role(json['activeRole'] ?? json['active_role']);
+    final availableRoles = <String>{...roles};
+    if (activeRole != null) {
+      availableRoles.add(activeRole);
+    }
+    return _SettingsAccountSnapshot(
+      profile: UserProfile(
+        phoneE164:
+            _str(json['phoneE164'] ?? json['phone'] ?? json['phoneNumber']) ??
+            '',
+        name: _str(json['name'] ?? json['fullName'] ?? json['displayName']),
+        photoUrl: _str(
+          json['avatarUrl'] ?? json['avatar_url'] ?? json['photoUrl'],
+        ),
+      ),
+      availableRoles: availableRoles.toList(growable: false),
+      activeRole: activeRole,
+    );
+  }
+
+  static List<String> _roles(Object? value) {
+    if (value is! List) return const <String>[];
+    final normalized = value.map(_role).whereType<String>().toSet();
+    return normalized.toList(growable: false);
+  }
+
+  static String? _role(Object? value) {
+    final raw = _str(value)?.toLowerCase();
+    return switch (raw) {
+      'client' || 'customer' || 'user' => UserRole.client.storageKey,
+      'jeeber' ||
+      'driver' ||
+      'delivery' ||
+      'deliveryman' ||
+      'delivery_man' => UserRole.jeeber.storageKey,
+      _ => null,
+    };
+  }
+
+  static String? _str(Object? value) {
+    if (value is! String) return null;
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+}

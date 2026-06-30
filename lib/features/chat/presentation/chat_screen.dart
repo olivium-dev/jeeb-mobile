@@ -147,7 +147,13 @@ class ChatScreen extends StatelessWidget {
   /// `waiting-no-coverage` (JM-026). Invoked exactly once, after the first
   /// successful send, with the request/conversation id to broadcast. Null on
   /// the accepted/active thread (no compose entry).
-  final void Function(String requestId)? onFirstMessageBroadcast;
+  /// Invoked with the request/conversation id to broadcast AND the text of the
+  /// composed first message (used as the created request's description when no
+  /// real request exists yet — JM-024 → JM-025). Returns `true` when the host
+  /// resolved a real request and routed onward; `false` lets the composer
+  /// re-arm so the user can retry (e.g. a failed create).
+  final Future<bool> Function(String requestId, String firstMessage)?
+      onFirstMessageBroadcast;
 
   /// Server-created delivery id known to the host BEFORE the chat loads — set
   /// when the client accepted the offer from the review-list sheet and was
@@ -241,13 +247,20 @@ class _ChatScaffold extends StatefulWidget {
   final VoidCallback? onViewSummary;
   final VoidCallback? onOpenDispute;
   final bool isOrderChat;
-  final void Function(String requestId)? onFirstMessageBroadcast;
+  /// Invoked with the request/conversation id to broadcast AND the text of the
+  /// composed first message (used as the created request's description when no
+  /// real request exists yet — JM-024 → JM-025). Returns `true` when the host
+  /// resolved a real request and routed onward; `false` lets the composer
+  /// re-arm so the user can retry (e.g. a failed create).
+  final Future<bool> Function(String requestId, String firstMessage)?
+      onFirstMessageBroadcast;
 
   @override
   State<_ChatScaffold> createState() => _ChatScaffoldState();
 }
 
-class _ChatScaffoldState extends State<_ChatScaffold> {
+class _ChatScaffoldState extends State<_ChatScaffold>
+    with WidgetsBindingObserver {
   final ScrollController _scrollController = ScrollController();
   bool _bannerDismissed = false;
 
@@ -257,9 +270,28 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
   bool _broadcastFired = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Observe app lifecycle so a thread left open while the app was
+    // backgrounded refetches on resume. The screen-scoped ChatCubit survives a
+    // background (the process is not killed), so its one-shot create-time
+    // load() never re-runs — without this the thread shows stale messages until
+    // an app restart (BUG-chat-cache-staleness).
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      context.read<ChatCubit>().refresh();
+    }
   }
 
   void _scheduleScrollToBottom() {
@@ -415,10 +447,25 @@ class _ChatScaffoldState extends State<_ChatScaffold> {
   void _maybeBroadcastFirstMessage(ChatState state) {
     final broadcast = widget.onFirstMessageBroadcast;
     if (broadcast == null || _broadcastFired) return;
-    final hasOutgoing = state.messages.any((m) => m.isMine);
-    if (!hasOutgoing) return;
+    // The first outgoing message is the composed request description: create
+    // the request from it (JM-024 → JM-025 AC1). There is exactly one `isMine`
+    // message at this point (the optimistic append that triggered this call).
+    String? firstMessage;
+    for (final m in state.messages) {
+      if (m.isMine) {
+        firstMessage = m.text;
+        break;
+      }
+    }
+    if (firstMessage == null) return;
     _broadcastFired = true;
-    broadcast(widget.deliveryId);
+    // Re-arm the one-shot guard if the host could not resolve a real request
+    // (e.g. the create failed), so the next send retries instead of dead-ending.
+    broadcast(widget.deliveryId, firstMessage).then((resolved) {
+      if (!resolved && mounted) {
+        setState(() => _broadcastFired = false);
+      }
+    });
   }
 
   String? _messageFor(AppLocalizations l10n, ChatError error) {

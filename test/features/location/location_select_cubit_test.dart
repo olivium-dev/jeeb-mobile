@@ -1,9 +1,8 @@
 // JM-024 — location-select data wiring (LocationSelectCubit +
 // DioLocationSelectRepository). Pins (a) the cubit lifecycle (load → loaded /
-// failed, selection transitions), and (b) the Dio repo parsing the canonical
-// `me`-scoped `GET /api/users/me/saved-locations` shape (DEFECT-B path
-// consolidation) — including the seeded nested `geo:{lat,lng}` form
-// (42_GUARDRAILS_MOCK §4 / `has_saved_addresses`).
+// failed, selection transitions), and (b) the Dio repo parsing the VERIFIED
+// live gateway `GET /api/users/me/saved-locations` shape — including the seeded
+// nested `geo:{lat,lng}` form (42_GUARDRAILS_MOCK §4 / `has_saved_addresses`).
 //
 // Dio is mocked with the repo-standard `InterceptorsWrapper` resolve/reject
 // pattern (see dio_saved_location_repository_test.dart) — no extra dependency.
@@ -77,11 +76,41 @@ void main() {
 
       expect(cubit.state.status, LocationSelectStatus.failed);
       expect(cubit.state.error, LocationSelectFailure.network);
-      // The saved-locations fetch failing MUST NOT disable Confirm: "Current
-      // Location" is still a valid picked pickup+dropoff origin, so the customer
-      // can still create a request. canConfirm depends ONLY on hasPickedLocation.
-      expect(cubit.state.hasPickedLocation, isTrue);
-      expect(cubit.state.canConfirm, isTrue);
+      // P0 REGRESSION (order-create blocker): a failed saved-addresses fetch
+      // (a GENUINE transport error — offline / 5xx) must NOT block confirming
+      // Current Location (the default choice). Gating Confirm on `loaded`
+      // dead-ended order creation (tier → location → Confirm disabled).
+      // Current/pinned stay confirmable on `failed`; only an explicit saved
+      // choice does not. (An EMPTY customer is NOT a failure — the live gateway
+      // returns 200 {items:[]}, so the screen reaches `loaded` with no rows.)
+      expect(cubit.state.choiceKind, LocationChoiceKind.current);
+      expect(
+        cubit.state.canConfirm,
+        isTrue,
+        reason: 'Current Location must remain confirmable after a 404/save-load '
+            'failure (JM-024 AC4)',
+      );
+    });
+
+    test('failed + explicitly-selected saved address is NOT confirmable',
+        () async {
+      // Guard the other half of the fix: if the user had picked a saved address
+      // (which by definition could not have loaded on a failed fetch), Confirm
+      // must stay disabled rather than forward a phantom selection.
+      final cubit = LocationSelectCubit(
+        repository: const FakeLocationSelectRepository(
+          failWith: LocationSelectFailure.network,
+        ),
+        userId: 'user-client-001',
+      );
+      addTearDown(cubit.close);
+
+      await cubit.load();
+      cubit.selectSaved('addr-client-001-home');
+
+      expect(cubit.state.status, LocationSelectStatus.failed);
+      expect(cubit.state.choiceKind, LocationChoiceKind.saved);
+      expect(cubit.state.canConfirm, isFalse);
     });
 
     test('selectSaved / selectCurrent / markPinned toggle the choice',
@@ -119,15 +148,13 @@ void main() {
   });
 
   group('DioLocationSelectRepository', () {
-    test(
-        'uses the canonical me-scoped path /api/users/me/saved-locations '
-        '(ignores the userId arg in the path)', () async {
+    test('uses the live /api/users/me/saved-locations contract', () async {
       _capturedPath = null;
       final repo = DioLocationSelectRepository(_dioReplying(<dynamic>[]));
-      // DEFECT-B: the picker now shares the ONE canonical saved-locations path
-      // with the JM-049 manager + JM-050 form. Identity is `me`-scoped (from the
-      // bearer token), so the userId arg never appears in the path.
       await repo.fetchSavedAddresses('user-client-001');
+      // useMockPrefixes is false under `flutter test`, so the helper emits the
+      // VERIFIED live gateway path (me-keyed, /api). In mock mode it would emit
+      // /users/:userId/... (rewritten to /user-management/users at runtime).
       expect(_capturedPath, '/api/users/me/saved-locations');
     });
 
@@ -179,7 +206,7 @@ void main() {
         () async {
       final repo = DioLocationSelectRepository(
         _dioThrowing(DioException.connectionError(
-          requestOptions: RequestOptions(path: '/users/u/saved-locations'),
+          requestOptions: RequestOptions(path: '/api/users/me/saved-locations'),
           reason: 'offline',
         )),
       );

@@ -1,60 +1,71 @@
 import 'package:dio/dio.dart';
 
-/// A predefined demo-user roster row used by the "Super user login plus"
-/// picker (debug-only). Each row carries the credential the picker pre-fills
-/// into the existing super-login sheet.
+/// One active-user row used by the "Super user login plus" picker (debug-only).
 ///
-/// SECURITY: these are obviously-fake dev passcodes (e.g. `demo-nour`), never
-/// the org secret. The whole surface is compiled out of release builds — the
-/// picker is only ever mounted under `kDebugMode`.
+/// Sourced from the passcode-gated `POST /api/User/super-login/users` LIST
+/// endpoint. A row carries ONLY identity + role display data — it deliberately
+/// carries NO passcode. On tap the picker logs in with the tapped row's
+/// [userId] + the single real SuperAdmin passcode (from `AppConfig`), never a
+/// per-user secret. The whole surface is compiled out of release builds (the
+/// links are `kDebugMode`-gated on the registration screen).
 class SuperLoginDemoUser {
   const SuperLoginDemoUser({
     required this.userId,
     required this.name,
     required this.role,
-    required this.passcode,
+    this.availableRoles = const <String>[],
   });
 
-  /// Pinned UUIDv4 the picker pre-fills into the sheet's userId field.
+  /// Real backend user id (UUID) the picker logs in as.
   final String userId;
 
-  /// Display name shown in the picker row (e.g. "Nour").
+  /// Display name shown in the picker row — the backend `username`.
   final String name;
 
-  /// `"client"` or `"jeeber"` — drives the OMDS role badge colour.
+  /// The user's `active_role` (e.g. `customer`, `driver`); drives the badge.
   final String role;
 
-  /// Dev passcode the picker pre-fills into the sheet's passcode field. The
-  /// sheet still POSTs this to the gateway for real server-side validation;
-  /// it is NEVER compared client-side.
-  final String passcode;
+  /// All roles the account can assume (`available_roles`). Used so a customer
+  /// who can also drive is badged as a jeeber.
+  final List<String> availableRoles;
 
-  /// True when the row represents a jeeber (dual-role) user; drives the badge.
-  bool get isJeeber => role.toLowerCase() == 'jeeber';
+  /// True when the row represents a jeeber/driver (dual-role) user; drives the
+  /// OMDS role-badge colour. Any `driver`/`jeeber` in the active or available
+  /// roles flips it.
+  bool get isJeeber {
+    bool isJeeberToken(String v) {
+      final t = v.toLowerCase();
+      return t == 'jeeber' || t == 'driver';
+    }
 
-  /// Parses one roster row from the `GET /api/User/demo-users` payload. Returns
-  /// `null` when a required field is missing or blank so a malformed row is
+    return isJeeberToken(role) || availableRoles.any(isJeeberToken);
+  }
+
+  /// Parses one row from the `POST /api/User/super-login/users` payload:
+  /// `{ userId, username, active_role, available_roles:[String] }`. Returns
+  /// `null` when `userId`/`username` is missing or blank so a malformed row is
   /// dropped rather than crashing the whole picker.
   static SuperLoginDemoUser? fromJson(Map<String, dynamic> json) {
     final userId = json['userId'] as String?;
-    final name = json['name'] as String?;
-    final role = json['role'] as String?;
-    final passcode = json['passcode'] as String?;
+    final username = json['username'] as String?;
+    final activeRole = json['active_role'] as String?;
+    final rawRoles = json['available_roles'];
+    final availableRoles = rawRoles is List
+        ? rawRoles.whereType<String>().toList(growable: false)
+        : const <String>[];
     if (userId == null ||
         userId.isEmpty ||
-        name == null ||
-        name.isEmpty ||
-        role == null ||
-        role.isEmpty ||
-        passcode == null ||
-        passcode.isEmpty) {
+        username == null ||
+        username.isEmpty) {
       return null;
     }
     return SuperLoginDemoUser(
       userId: userId,
-      name: name,
-      role: role,
-      passcode: passcode,
+      name: username,
+      role: (activeRole == null || activeRole.isEmpty)
+          ? (availableRoles.isNotEmpty ? availableRoles.first : 'customer')
+          : activeRole,
+      availableRoles: availableRoles,
     );
   }
 }
@@ -74,46 +85,83 @@ class SuperLoginDemoUserException implements Exception {
   String toString() => 'SuperLoginDemoUserException($error)';
 }
 
-/// Fetches the predefined demo-user roster the picker lists. Mirrors
-/// [SuperLoginService] in shape so the two dev/auth data sources share one
-/// mental model.
+/// Fetches ALL active users the picker lists. Paginates through the
+/// passcode-gated LIST endpoint until `hasMore == false`.
 ///
-/// Contract: `GET /api/User/demo-users` →
-/// `{ "users": [ { "userId", "name", "role", "passcode" }, ... ] }`.
-/// The endpoint is a dev/demo surface (anon-accessible, no auth header).
+/// Contract: `POST /api/User/super-login/users` (anonymous, no bearer) with
+/// body `{ superAdminPassCode, skip, limit, onActive:true }` →
+/// `{ users:[{userId, username, active_role, available_roles}], totalCount,
+/// skip, limit, hasMore }`.
 abstract class SuperLoginDemoUserService {
   Future<List<SuperLoginDemoUser>> fetchDemoUsers();
 }
 
-/// [Dio]-backed implementation talking to the mock gateway (`:3055`) via the
-/// app's shared client. Reuses the same `Dio` instance every other gateway
-/// data source uses (DI `sl<Dio>()`).
+/// [Dio]-backed implementation talking to the live gateway via the app's
+/// shared client. Reuses the same `Dio` instance every other gateway data
+/// source uses (DI `sl<Dio>()`). The SuperAdmin passcode is injected from
+/// `AppConfig` (build-time `--dart-define` or the debug fallback); it is sent
+/// in the POST body and is NEVER logged.
 class DefaultSuperLoginDemoUserService implements SuperLoginDemoUserService {
-  DefaultSuperLoginDemoUserService({required Dio dio}) : _dio = dio;
+  DefaultSuperLoginDemoUserService({
+    required Dio dio,
+    required String superAdminPassCode,
+  })  : _dio = dio,
+        _passcode = superAdminPassCode;
 
   final Dio _dio;
+  final String _passcode;
 
-  static const String _endpoint = '/api/User/demo-users';
+  static const String _endpoint = '/api/User/super-login/users';
+
+  /// Page size; the contract caps `limit` at 100.
+  static const int _pageLimit = 100;
+
+  /// Safety cap so a misbehaving `hasMore` can never loop forever
+  /// (50 pages * 100 = 5000 users, far above the ~56 active expected).
+  static const int _maxPages = 50;
 
   @override
   Future<List<SuperLoginDemoUser>> fetchDemoUsers() async {
+    final all = <SuperLoginDemoUser>[];
     try {
-      final response = await _dio.get<Map<String, dynamic>>(_endpoint);
-      final raw = response.data?['users'];
-      if (raw is! List) {
-        throw const SuperLoginDemoUserException(
-          SuperLoginDemoUserError.unknown,
-        );
+      for (var page = 0, skip = 0;
+          page < _maxPages;
+          page++, skip += _pageLimit) {
+        final data = await _fetchPage(skip);
+        all.addAll(_parseRows(data));
+        if (data['hasMore'] != true) break;
       }
-      return raw
-          .whereType<Map<String, dynamic>>()
-          .map(SuperLoginDemoUser.fromJson)
-          .whereType<SuperLoginDemoUser>()
-          .toList(growable: false);
     } on DioException {
-      throw const SuperLoginDemoUserException(
-        SuperLoginDemoUserError.network,
-      );
+      throw const SuperLoginDemoUserException(SuperLoginDemoUserError.network);
     }
+    return List<SuperLoginDemoUser>.unmodifiable(all);
+  }
+
+  Future<Map<String, dynamic>> _fetchPage(int skip) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      _endpoint,
+      data: <String, dynamic>{
+        'superAdminPassCode': _passcode,
+        'skip': skip,
+        'limit': _pageLimit,
+        'onActive': true,
+      },
+    );
+    final data = response.data;
+    if (data == null) {
+      throw const SuperLoginDemoUserException(SuperLoginDemoUserError.unknown);
+    }
+    return data;
+  }
+
+  Iterable<SuperLoginDemoUser> _parseRows(Map<String, dynamic> data) {
+    final raw = data['users'];
+    if (raw is! List) {
+      throw const SuperLoginDemoUserException(SuperLoginDemoUserError.unknown);
+    }
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map(SuperLoginDemoUser.fromJson)
+        .whereType<SuperLoginDemoUser>();
   }
 }

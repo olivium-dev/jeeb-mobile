@@ -1,50 +1,32 @@
 import 'package:dio/dio.dart';
 
-import '../domain/recipient_phone_resolver.dart';
 import '../domain/request_draft.dart';
 import '../domain/request_submission_service.dart';
 
 /// Dio-backed [RequestSubmissionService] — POSTs the assembled draft to the
 /// gateway create-request RPC and returns the server-minted request id.
 ///
-/// Endpoint contract (jeeb-gateway `JeebRequestsController.Create`):
-///   POST /v1/requests  → 201 { id, status, ... }
-/// The `MockGatewayClient` rewrite map maps `/v1/requests` →
-/// `/delivery-service/v1/requests` for the :4010 Express mock; the bare
-/// `/requests` gateway controller this replaces is [Obsolete].
-///
-/// T-BE-019 / JEB-55 (compose recipient-phone): the body now carries
-/// `recipientPhone` so the gateway request-store row gets a non-null
-/// `RecipientPhone`. The gateway OTP issue/verify path reads the phone from
-/// THAT store row (not the delivery-service row), so without it the at-door
-/// `POST /deliveries/{id}/otp/verify {code:"1234"}` returns 400
-/// `recipient-phone-missing`. The compose flow does not (yet) prompt for a
-/// recipient phone, so we default to the signed-in client's own profile phone
-/// via [_phoneResolver] — the requester is the default recipient. The field is
-/// additive and optional end-to-end (the gateway `CreateRequestBody.RecipientPhone`
-/// is nullable), so omitting it keeps today's behaviour.
+/// Endpoint contract — the canonical gateway create-request path. Verified
+/// LIVE against the dev gateway (`http://192.168.2.39:10090`):
+///   POST /v1/requests  → 201 { id, clientId, status:"pending", ... }
+/// `description` is the only required field; `tierId` + locations are optional.
+/// `/v1/requests` (not the un-prefixed `/requests`) is used because it is the
+/// path the rest of the app speaks AND the only one the local-mock
+/// `MockGatewayClient` rewrites to `/delivery-service/v1/requests` — so the
+/// same code creates a request against both the live gateway and the mock.
 class DioRequestSubmissionService implements RequestSubmissionService {
-  const DioRequestSubmissionService(
-    this._dio, {
-    RecipientPhoneResolver? phoneResolver,
-  }) : _phoneResolver = phoneResolver;
+  const DioRequestSubmissionService(this._dio);
 
   final Dio _dio;
-
-  /// Resolves the DEFAULT recipient phone (the signed-in client's own phone)
-  /// when the [RequestDraft] does not carry one. Null in tests / call sites
-  /// that always supply an explicit draft phone — then no fallback is attempted.
-  final RecipientPhoneResolver? _phoneResolver;
 
   static const String _path = '/v1/requests';
 
   @override
   Future<String> submit(RequestDraft draft) async {
     try {
-      final recipientPhone = await _resolveRecipientPhone(draft);
       final response = await _dio.post<Map<String, dynamic>>(
         _path,
-        data: _buildBody(draft, recipientPhone),
+        data: _buildBody(draft),
       );
       return _parseId(response.data);
     } on DioException catch (e) {
@@ -52,30 +34,7 @@ class DioRequestSubmissionService implements RequestSubmissionService {
     }
   }
 
-  /// The draft phone wins; otherwise fall back to the signed-in client's own
-  /// profile phone. A resolver failure (offline / no profile) degrades to null
-  /// — the create must NEVER fail just because the default recipient phone
-  /// could not be resolved (the gateway field is optional; only the at-door OTP
-  /// needs it).
-  Future<String?> _resolveRecipientPhone(RequestDraft draft) async {
-    final fromDraft = _normalize(draft.recipientPhone);
-    if (fromDraft != null) return fromDraft;
-    final resolver = _phoneResolver;
-    if (resolver == null) return null;
-    try {
-      return _normalize(await resolver.resolve());
-    } catch (_) {
-      return null;
-    }
-  }
-
-  String? _normalize(String? value) {
-    if (value == null) return null;
-    final trimmed = value.trim();
-    return trimmed.isEmpty ? null : trimmed;
-  }
-
-  Map<String, dynamic> _buildBody(RequestDraft draft, String? recipientPhone) {
+  Map<String, dynamic> _buildBody(RequestDraft draft) {
     return <String, dynamic>{
       'description': draft.description,
       if (draft.transcription != null) 'transcription': draft.transcription,
@@ -86,7 +45,6 @@ class DioRequestSubmissionService implements RequestSubmissionService {
       ..._location('dropoff', draft.dropoffLat, draft.dropoffLng),
       if (draft.pickupAddress != null) 'pickupAddress': draft.pickupAddress,
       if (draft.dropoffAddress != null) 'dropoffAddress': draft.dropoffAddress,
-      'recipientPhone': ?recipientPhone,
     };
   }
 

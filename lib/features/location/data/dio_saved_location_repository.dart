@@ -1,52 +1,57 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/network/mock_gateway_client.dart';
 import '../domain/saved_location.dart';
 import '../domain/saved_location_repository.dart';
 
 /// Dio-backed implementation of [SavedLocationRepository] (T-MOB-012 / JM-049).
 ///
-/// **iter6 D-ADDRESS-SAVE repoint.** Targets the LIVE gateway's `me`-scoped
-/// Saved-Locations BFF `GET/POST/PUT/DELETE /api/users/me/saved-locations`
-/// (ACCT-04 / REQ-02). Identity is derived from the bearer claim by the gateway,
-/// so there is **no `:userId` path segment** and **no hardcoded `user-client-001`**;
-/// the Dio `_AuthInterceptor` already attaches the JWT. `/api/users` is NOT in
-/// the mock rewrite table (keys are `/users` and `/v1/users`), so this path
-/// passes through to the live gateway unrewritten. Never hardcodes a `:4010`
-/// host or service prefix (40_GUARDRAILS_ARCH §4/§11). The previous impl read
-/// from the mock-only `/users/<id>/saved-locations` with a hardcoded
-/// `user-client-001`, which 404s on the live gateway (iter6 root-cause;
-/// STATE/iter6-emu-captures-batch1.md). This MUST move together with
-/// `DioAddressFormRepository` so add↔list stay coherent on the live path.
+/// **Path source of truth.** The base path comes from
+/// [MockGatewayClient.savedLocationsPath]. The LIVE gateway serves the
+/// collection me-keyed under `/api` (`GET|POST /api/users/me/saved-locations`,
+/// `PUT|DELETE …/:id`) — VERIFIED 200/201/204 on `:10090` (2026-06-30). The
+/// `:4010` Express mock instead keys it by `:userId` and is reached via the
+/// `/users` → `/user-management/users` rewrite; the helper emits that shape only
+/// in mock mode. The earlier `/users/:userId/...` (and the older `/v1/users/me/…`)
+/// shapes 404'd on the live gateway — that was the saved-locations-404 bug.
 ///
-/// The optional [AuthTokenStore] is retained for constructor compatibility (and
-/// existing tests) but is **no longer used to build the path** — the `me` route
-/// resolves identity from the token.
+/// The `:userId` (used only for the mock-mode path + the observability log) is
+/// resolved from the persisted [AuthTokenStore]. When absent — bare tests / a
+/// not-yet-logged-in boot — it falls back to the mock's `authStub` convention
+/// (`user-client-001`). On the live gateway the path is `me` regardless of this
+/// id. Never hardcodes a `:4010` host or service prefix (40_GUARDRAILS_ARCH §4/§11).
 ///
 /// Parsing is defensive (40_GUARDRAILS_ARCH §4): tolerates a bare list or
-/// `{ items: [...] }` (the gateway list shape), the nested `geo:{lat,lng}` shape
-/// AND a top-level `latitude/longitude`, both `isDefault` and `is_default`, and
-/// degrades a malformed row to its best-effort fields rather than crashing on a
-/// cast.
+/// `{ items: [...] }`, the seeded nested `geo:{lat,lng}` shape AND a top-level
+/// `latitude/longitude`, both `isDefault` and `is_default`, and degrades a
+/// malformed row to its best-effort fields rather than crashing on a cast.
 ///
 /// Observability: logs `saved_location.<op>` per AC5 (T-MOB-025).
 class DioSavedLocationRepository implements SavedLocationRepository {
-  /// [tokenStore] is accepted for source/DI/test compatibility but is
-  /// intentionally unused: the `me` route resolves identity from the bearer the
-  /// Dio `_AuthInterceptor` attaches, so the path no longer derives from a
-  /// stored userId (iter6 D-ADDRESS-SAVE).
-  DioSavedLocationRepository(this._dio, {AuthTokenStore? tokenStore});
+  DioSavedLocationRepository(this._dio, {AuthTokenStore? tokenStore})
+      : _tokenStore = tokenStore ?? AuthTokenStore();
 
-  /// LIVE `me`-scoped Saved-Locations BFF. Identity comes from the bearer token
-  /// (the gateway resolves `me`), so no `:userId` segment is needed.
-  static const String _basePath = '/api/users/me/saved-locations';
+  /// Mock `authStub` convention: any bearer resolves to `user-client-001`, and
+  /// the W1 journey seeds target that id (42_GUARDRAILS_MOCK §4). Used only when
+  /// the persisted userId is absent (bare test / pre-login).
+  static const String _fallbackUserId = 'user-client-001';
 
   final Dio _dio;
+  final AuthTokenStore _tokenStore;
+
+  Future<String> _userId() async {
+    final id = await _tokenStore.userId;
+    return (id == null || id.isEmpty) ? _fallbackUserId : id;
+  }
+
+  Future<String> _basePath() async =>
+      MockGatewayClient.savedLocationsPath(userId: await _userId());
 
   @override
   Future<List<SavedLocation>> fetchSavedLocations() async {
     _log('list');
-    final response = await _dio.get<dynamic>(_basePath);
+    final response = await _dio.get<dynamic>(await _basePath());
     return _parseList(response.data);
   }
 
@@ -61,7 +66,7 @@ class DioSavedLocationRepository implements SavedLocationRepository {
     _log('create');
     try {
       final response = await _dio.post<dynamic>(
-        _basePath,
+        await _basePath(),
         data: _buildBody(label, latitude, longitude, category, address),
       );
       return _parseItem(response.data as Map<String, dynamic>);
@@ -82,7 +87,7 @@ class DioSavedLocationRepository implements SavedLocationRepository {
     _log('update');
     try {
       final response = await _dio.put<dynamic>(
-        '$_basePath/$id',
+        '${await _basePath()}/$id',
         data: _buildBody(label, latitude, longitude, category, address),
       );
       return _parseItem(response.data as Map<String, dynamic>);
@@ -95,7 +100,7 @@ class DioSavedLocationRepository implements SavedLocationRepository {
   Future<void> deleteLocation(String id) async {
     _log('delete');
     try {
-      await _dio.delete<void>('$_basePath/$id');
+      await _dio.delete<void>('${await _basePath()}/$id');
     } on DioException catch (e) {
       _handleError(e);
     }
@@ -108,15 +113,11 @@ class DioSavedLocationRepository implements SavedLocationRepository {
     SavedLocationCategory category,
     String? address,
   ) {
-    // Matches the LIVE gateway DTO's accepted field set
-    // (`label, address?, latitude, longitude, isDefault`). `category` is NOT in
-    // the gateway DTO, so it is omitted from the request (kept client-side only;
-    // A-CALL-2, flagged). `isDefault` is not part of this CRUD method's params,
-    // so it is left to the gateway's default (false) on create.
     return {
       'label': label,
       'latitude': lat,
       'longitude': lng,
+      'category': category.name,
       if (address != null) 'address': address,
     };
   }

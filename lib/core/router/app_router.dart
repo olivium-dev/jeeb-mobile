@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import 'package:open_file/open_file.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../l10n/app_localizations.dart';
 import '../dev_seam/dev_seam.dart';
 import '../session/account_status_gate.dart';
 import '../session/session_gate.dart';
@@ -48,8 +47,6 @@ import '../../features/language/presentation/screens/language_settings_screen.da
 import '../../features/notifications/presentation/notifications_list_screen.dart';
 import '../../features/password_security/presentation/password_security_screen.dart';
 import '../../features/reviews/presentation/reviews_list_screen.dart';
-import '../../features/search/presentation/search_screen.dart';
-import '../../features/search/presentation/search_results_screen.dart';
 import '../../features/support/presentation/support_ticket_screen.dart';
 import '../../features/escalate/application/escalate_cubit.dart';
 import '../../features/escalate/domain/escalate_repository.dart';
@@ -70,17 +67,12 @@ import '../../features/live_tracking/data/demo_live_tracking_repository.dart';
 import '../../features/live_tracking/domain/live_tracking_repository.dart';
 import '../../features/live_tracking/presentation/live_tracking_screen.dart';
 import '../../features/delivery_receipt/presentation/delivery_receipt_screen.dart';
-import '../../features/goods_cost/presentation/goods_cost_screen.dart';
-import '../../features/background_gps/data/geolocator_geocapture_gateway.dart';
-import '../../features/location/data/location_repository.dart';
 import '../../features/location/presentation/capture_location_screen.dart';
 import '../../features/location/presentation/client_location_screen.dart';
 import '../../features/location/presentation/screens/address_detail_form_screen.dart';
 import '../../features/location/presentation/screens/location_picker_screen.dart';
 import '../../features/no_offer_timeout/presentation/no_offer_timeout_screen.dart';
 import '../../features/order_summary/presentation/order_summary_screen.dart';
-import '../../features/location/presentation/widgets/google_map_capture_view.dart';
-import '../../features/location/presentation/widgets/map_capture_controller.dart';
 import '../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
 import '../../features/active_delivery_jeeber/presentation/active_delivery_jeeber_screen.dart';
 import '../../features/offers/domain/offer_submission_repository.dart';
@@ -104,7 +96,7 @@ import '../../features/settings/presentation/screens/notification_preferences_sc
 import '../../features/settings/presentation/screens/profile_edit_screen.dart';
 import '../../features/cancellation/presentation/cancellation_screen.dart';
 import '../../features/location/presentation/saved_locations_screen.dart';
-import '../../features/settings/presentation/screens/settings_screen.dart';
+import '../../features/settings/presentation/screens/live_settings_screen.dart';
 import '../../features/request_type/presentation/request_type_screen.dart';
 import '../../features/shell/shell_screen.dart';
 import '../../features/shell/tabs/earnings_tab.dart';
@@ -120,13 +112,8 @@ import '../onboarding/onboarding_cubit.dart';
 ///   1. While [OnboardingCubit.state] is `false`, the user is kept on
 ///      `/onboarding` or `/register` (the only pre-auth destinations).
 ///   2. Once onboarding completes, the [SessionGate] gate keeps an
-///      onboarded-but-tokenless user on `/register` (the phone-OTP entry,
-///      DEFECT-3) until a valid token exists, so Home is unreachable without
-///      authenticating. `/register` is the reachable auth entry because the
-///      LIVE gateway only implements phone-OTP (`/v1/auth/otp/request` →
-///      `/v1/auth/otp/verify`); the email `/login` + `/sign-up` screens are
-///      kept (a later gateway fix may add those routes) and remain reachable
-///      from `/register`, but they no longer force the entry.
+///      onboarded-but-tokenless user on `/register` until a valid token exists,
+///      so Home is unreachable without logging in.
 /// Once the user finishes onboarding AND has a valid session the redirect lets
 /// `/` (the shell) render normally. `refreshListenable` re-evaluates redirects
 /// whenever onboarding, the biometric lock, or the session emits.
@@ -136,26 +123,21 @@ import '../onboarding/onboarding_cubit.dart';
 /// session gates when [DevSeamConfig.skipOnboarding] is explicitly set — a bare
 /// `jeeb.route=/` / `JEEB_DEV_HOME=true` on a fresh install now lands on
 /// `/onboarding`, not Home.
-/// Resolves the id the live-tracking surface must read
-/// (`GET /v1/delivery/<id>`).
+
+/// S007-P1B: normalizes an inbound custom-scheme chat deep link into the
+/// canonical `/chat/:id` route.
 ///
-/// S9 live-tracking fix: the server-created delivery id (`delivery-<offerId>`)
-/// is surfaced in the accept/offer response and forwarded by CTAs as the
-/// `?deliveryId=` query param. It takes precedence over the path `:id`, which
-/// for many entry points carries the parent REQUEST id — a value the
-/// delivery-service answers with 404 ("Delivery not found"). Falls back to the
-/// path id when no query param is present (legacy callers + dev seam).
-///
-/// Pure + side-effect free so the precedence rule is unit-testable without
-/// booting the router.
-String resolveTrackingDeliveryId({
-  required String? routeId,
-  required String? queryDeliveryId,
-}) {
-  if (queryDeliveryId != null && queryDeliveryId.isNotEmpty) {
-    return queryDeliveryId;
-  }
-  return routeId ?? '';
+/// A `VIEW` intent like `jeeb://chat/<conversationId>` parses to
+/// `scheme=jeeb, host=chat, path=/<conversationId>`, so go_router would
+/// otherwise try to match `/<conversationId>` and miss `chat-detail`. We detect
+/// the `host == 'chat'` shape and rewrite it to `/chat/<id>`. Returns `null`
+/// for everything else — in-app navigation (`host == ''`) and HTTPS App Links
+/// (`https://<domain>/chat/<id>`, already path-shaped) are untouched.
+@visibleForTesting
+String? normalizeChatDeepLink(Uri uri) {
+  if (uri.host != 'chat') return null;
+  final id = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
+  return id.isEmpty ? null : '/chat/$id';
 }
 
 class AppRouter {
@@ -193,8 +175,7 @@ class AppRouter {
   /// lands on the full-screen [DevChatPreviewScreen] for the requested chat
   /// state — `broadcasting`, `accepted`, `dm`, `dm-order-picked`,
   /// `dm-confirm-picking`, `dm-confirm-heading-off`. Empty in release.
-  static String get _devChat =>
-      kDebugMode ? DevSeam.current.chatSelector : '';
+  static String get _devChat => kDebugMode ? DevSeam.current.chatSelector : '';
 
   /// Debug-only route override, resolved at RUNTIME from [DevSeam] (generalises
   /// the old `JEEB_DEV_HOME=true` → `/`). When non-empty the router lands
@@ -213,7 +194,7 @@ class AppRouter {
   /// forcing a redirect right now" — distinct from `null`, which go_router
   /// treats as "stay here". Using a sentinel lets the caller tell "no opinion"
   /// apart from "explicitly allow".
-  static const String _noPin = '__no_pin__';
+  static const String _noPin = ' __no_pin__';
 
   /// The DevSeam route-pin's initial-landing-only redirect, extracted so it can
   /// be applied either before (skipOnboarding) or after (deep-capture of an
@@ -249,14 +230,8 @@ class AppRouter {
   ///   * onboarding incomplete, not on a pre-auth route → `/onboarding`
   ///   * onboarding complete but on `/onboarding`        → `/`
   ///   * onboarding complete, NO valid token, not on a pre-auth route
-  ///       → `/register` (the phone-OTP entry, DEFECT-3). The phone-OTP flow
-  ///       (`POST /v1/auth/otp/request` → `/v1/auth/otp/verify`) is the ONLY
-  ///       auth that works against the LIVE gateway, which has no
-  ///       `/v1/auth/login` or `/v1/auth/signup` route (email login/signup
-  ///       dead-ends there). So the tokenless first-run gate lands the user on
-  ///       the reachable, working auth. The email `/login` + `/sign-up` screens
-  ///       are kept (a later gateway fix may add those routes) and are still
-  ///       reachable from `/register`, but they are no longer the forced entry.
+  ///       → `/login` (the W0 email-first login destination, CTO-D1; replaces
+  ///       the legacy `/register` target)
   ///   * onboarding complete, token present, account `status ∈ {suspended,
   ///       locked}` → `/account-status` (D5; blocks ALL tabs, the only exits are
   ///       support + sign-out)
@@ -283,13 +258,9 @@ class AppRouter {
     final atPreAuth = _isPreAuth(loc);
     if (!completed && !atPreAuth) return '/onboarding';
     if (completed && loc == '/onboarding') return '/';
-    // FR-P0-3 / DEFECT-3: onboarded-but-tokenless user must authenticate before
-    // reaching Home. The destination is the phone-OTP `/register` flow — the
-    // only auth that works against the LIVE gateway (email `/login`/`/sign-up`
-    // 401 there). The email screens stay reachable from `/register` for a later
-    // gateway fix, but phone-OTP is the reachable entry.
+    // FR-P0-3: onboarded-but-tokenless user must log in before reaching Home.
     if (completed && session.isUnauthenticated && !atPreAuth) {
-      return '/register';
+      return '/login';
     }
     // JM-066 / D5: a suspended/locked account is forced to `/account-status`
     // and cannot reach any tab. Only evaluated once a session exists (a blocked
@@ -334,17 +305,6 @@ class AppRouter {
     return sl<LiveTrackingRepository>();
   }
 
-  /// T-MOB-012: builds the live `GoogleMap` viewport injected into
-  /// [CaptureLocationScreen] at the `/capture-location` route. A fresh
-  /// [MapCaptureController] is created per build (one per screen entry) seeded
-  /// at Beirut downtown — the same canonical default the in-memory location
-  /// repo centres on. The screen's centre pin overlays this; the controller
-  /// tracks the parked coordinate for the "Pin Location" CTA.
-  static MapCaptureController _newCaptureController() =>
-      MapCaptureController(
-        initial: const LocationPoint(latitude: 33.8938, longitude: 35.5018),
-      );
-
   static GoRouter create({
     required OnboardingCubit onboarding,
     required BiometricLockCubit biometricLock,
@@ -376,15 +336,16 @@ class AppRouter {
     // the real `SessionCubit` is a `Cubit`; the inert default gate has no stream
     // so it contributes nothing. `session` is captured by the `redirect` closure
     // below, which blocks flow promotion, so we narrow via an explicit cast.
-    final Cubit<SessionState>? sessionCubit =
-        session is Cubit<SessionState> ? session as Cubit<SessionState> : null;
+    final Cubit<SessionState>? sessionCubit = session is Cubit<SessionState>
+        ? session as Cubit<SessionState>
+        : null;
     // JM-066: re-run redirects when the account status resolves/changes. The
     // inert default gate is not a `Cubit` and contributes nothing; the real
     // status cubit (JM-006/066) is a `BlocBase` and is bridged here.
     final BlocBase<Object?>? accountStatusBloc =
         accountStatus is BlocBase<Object?>
-            ? accountStatus as BlocBase<Object?>
-            : null;
+        ? accountStatus as BlocBase<Object?>
+        : null;
     return GoRouter(
       initialLocation: '/',
       refreshListenable: _MergedRefreshListenable([
@@ -396,6 +357,15 @@ class AppRouter {
           _BlocRefreshListenable(accountStatusBloc),
       ]),
       redirect: (context, state) {
+        // S007-P1B: a custom-scheme VIEW intent `jeeb://chat/<id>` arrives with
+        // the chat id as the URI host+segment; normalize it to `/chat/:id` so
+        // `chat-detail` resolves the accepted conversation in-app. Inert for
+        // in-app navigation and https App Links (already `/chat/<id>`).
+        final chatDeepLink = normalizeChatDeepLink(state.uri);
+        if (chatDeepLink != null && state.matchedLocation != chatDeepLink) {
+          return chatDeepLink;
+        }
+
         // Debug capture aid: drop straight onto the fixtures-backed chat
         // (chat selector wins over a generic route override).
         if (_devChat.isNotEmpty) {
@@ -415,8 +385,11 @@ class AppRouter {
         // from a single APK without seeding prefs or a token. This branch
         // returns early in every sub-case, exactly like the pre-FR-P0-1 code.
         if (_devRoute.isNotEmpty && _devSkipOnboarding) {
-          final pinRedirect = _devRoutePinRedirect(state, () => devSeamLanded,
-              (v) => devSeamLanded = v);
+          final pinRedirect = _devRoutePinRedirect(
+            state,
+            () => devSeamLanded,
+            (v) => devSeamLanded = v,
+          );
           // _noPin → not forcing → allow (null). Otherwise force the pin path.
           return pinRedirect == _noPin ? null : pinRedirect;
         }
@@ -424,8 +397,12 @@ class AppRouter {
         // First-run gate (FR-P0-1 onboarding + FR-P0-3 session). Runs for every
         // non-skip launch — including when a route is pinned WITHOUT
         // skipOnboarding, which is precisely how the silent bypass is closed.
-        final firstRun =
-            _firstRunRedirect(state, onboarding, session, accountStatus);
+        final firstRun = _firstRunRedirect(
+          state,
+          onboarding,
+          session,
+          accountStatus,
+        );
         if (firstRun != null) return firstRun;
 
         // Onboarded + authenticated. If a route is pinned (without skip) and the
@@ -433,8 +410,11 @@ class AppRouter {
         // deep-capture of authenticated screens still works on a device whose
         // onboarding is already complete.
         if (_devRoute.isNotEmpty && !_devSkipOnboarding) {
-          final pinRedirect = _devRoutePinRedirect(state, () => devSeamLanded,
-              (v) => devSeamLanded = v);
+          final pinRedirect = _devRoutePinRedirect(
+            state,
+            () => devSeamLanded,
+            (v) => devSeamLanded = v,
+          );
           if (pinRedirect != _noPin) return pinRedirect;
         }
 
@@ -538,8 +518,9 @@ class AppRouter {
           builder: (context, state) {
             final query = state.uri.queryParameters;
             final extra = state.extra;
-            final extraMap =
-                extra is Map<String, String> ? extra : const <String, String>{};
+            final extraMap = extra is Map<String, String>
+                ? extra
+                : const <String, String>{};
             final email = query['email'] ?? extraMap['email'] ?? '';
             final resetToken = query['resetToken'] ?? extraMap['resetToken'];
             return SetPasswordScreen(
@@ -571,9 +552,8 @@ class AppRouter {
         GoRoute(
           path: '/requests/:id/offers',
           name: 'offer-review',
-          builder: (context, state) => ClientOffersScreen(
-            requestId: state.pathParameters['id'] ?? '',
-          ),
+          builder: (context, state) =>
+              ClientOffersScreen(requestId: state.pathParameters['id'] ?? ''),
         ),
         // JM-026 waiting-no-coverage: targets the orphaned
         // no_offer_timeout_screen.dart for in-place REWRITE by the JM-026
@@ -585,9 +565,8 @@ class AppRouter {
         GoRoute(
           path: '/requests/:id/waiting',
           name: 'waiting-no-coverage',
-          builder: (context, state) => NoOfferTimeoutScreen(
-            requestId: state.pathParameters['id'] ?? '',
-          ),
+          builder: (context, state) =>
+              NoOfferTimeoutScreen(requestId: state.pathParameters['id'] ?? ''),
         ),
         // JM-033 delivered-receipt: targets the orphaned
         // delivery_receipt_screen.dart for in-place REWRITE by the JM-033
@@ -610,9 +589,8 @@ class AppRouter {
         GoRoute(
           path: '/orders/:id/summary',
           name: 'order-summary',
-          builder: (context, state) => OrderSummaryScreen(
-            deliveryId: state.pathParameters['id'] ?? '',
-          ),
+          builder: (context, state) =>
+              OrderSummaryScreen(deliveryId: state.pathParameters['id'] ?? ''),
         ),
         GoRoute(
           path: '/orders/:id',
@@ -626,12 +604,8 @@ class AppRouter {
           name: 'delivery-cancel',
           builder: (context, state) {
             final id = state.pathParameters['id'] ?? '';
-            final isJeeber =
-                state.uri.queryParameters['role'] == 'jeeber';
-            return CancellationScreen(
-              deliveryId: id,
-              isJeeber: isJeeber,
-            );
+            final isJeeber = state.uri.queryParameters['role'] == 'jeeber';
+            return CancellationScreen(deliveryId: id, isJeeber: isJeeber);
           },
         ),
         GoRoute(
@@ -652,28 +626,21 @@ class AppRouter {
             final suffix = query.isEmpty ? '' : '?$query';
             return '/orders/$id/mutual-rate$suffix';
           },
-          builder: (context, state) => RatingPromptScreen(
-            deliveryId: state.pathParameters['id'] ?? '',
-          ),
+          builder: (context, state) =>
+              RatingPromptScreen(deliveryId: state.pathParameters['id'] ?? ''),
         ),
         GoRoute(
           path: '/chat/:id',
           name: 'chat-detail',
-          builder: (context, state) => ChatDetailScreen(
-            chatId: state.pathParameters['id'] ?? '',
-            // Forwarded by the offer-accept-confirm sheet so the client's
-            // "Track order" CTA is reachable on an order accepted from the
-            // review list (the accept response's server-created deliveryId).
-            initialDeliveryId: state.uri.queryParameters['deliveryId'],
-          ),
+          builder: (context, state) =>
+              ChatDetailScreen(chatId: state.pathParameters['id'] ?? ''),
         ),
         // Debug-only chat-capture seam; gated by [_devChat] in the redirect
         // above so it is unreachable in release builds.
         GoRoute(
           path: '/dev-chat',
           name: 'dev-chat',
-          builder: (context, state) =>
-              DevChatPreviewScreen(selector: _devChat),
+          builder: (context, state) => DevChatPreviewScreen(selector: _devChat),
         ),
         GoRoute(
           path: '/profile/kyc',
@@ -752,7 +719,7 @@ class AppRouter {
         GoRoute(
           path: '/settings',
           name: 'settings',
-          builder: (context, state) => const SettingsScreen(),
+          builder: (context, state) => const LiveSettingsScreen(),
           routes: [
             GoRoute(
               path: 'profile',
@@ -841,10 +808,8 @@ class AppRouter {
             // selection and hands it here; forward it to the SAME destination
             // the tier-card tap uses (`/request-summary`). No double-navigate:
             // tapping a card and pressing Continue are distinct user actions.
-            onContinue: (draft) => context.push(
-              '/request-summary',
-              extra: draft,
-            ),
+            onContinue: (draft) =>
+                context.push('/request-summary', extra: draft),
           ),
         ),
         GoRoute(
@@ -857,30 +822,11 @@ class AppRouter {
         GoRoute(
           path: '/capture-location',
           name: 'capture-location',
-          // T-MOB-012: inject the live GoogleMap viewport. The controller is
-          // created per build and tracks the centre under the fixed pin; the
-          // "Pin Location" CTA returns that coordinate via `extra` on pop so
-          // the upstream draft flow can read it. The screen's centre pin +
-          // CTA chrome are owned by CaptureLocationScreen.
-          builder: (context, state) {
-            final controller = _newCaptureController();
-            // The "centre on me" GPS button is only wired when DI is up
-            // (production / integration). Router-only tests build the router
-            // without configureDependencies(), so resolve the gateway
-            // defensively — the map still renders, just without the GPS FAB.
-            final gateway = sl.isRegistered<GeolocatorGeocaptureGateway>()
-                ? sl<GeolocatorGeocaptureGateway>()
-                : null;
-            return CaptureLocationScreen(
-              mapBuilder: (mapContext) => GoogleMapCaptureView(
-                controller: controller,
-                gateway: gateway,
-              ),
-              onPinned: () {
-                if (context.canPop()) context.pop(controller.center);
-              },
-            );
-          },
+          builder: (context, state) => CaptureLocationScreen(
+            onPinned: () {
+              if (context.canPop()) context.pop();
+            },
+          ),
         ),
         GoRoute(
           path: '/voice-request/transcription',
@@ -957,7 +903,8 @@ class AppRouter {
             final id = state.pathParameters['id'] ?? '';
             final extra = state.extra;
             final fromExtra = extra is FeedRequest ? extra : null;
-            final resolved = fromExtra ??
+            final resolved =
+                fromExtra ??
                 (sl.isRegistered<RequestFeedService>()
                     ? sl<RequestFeedService>().findById(id)
                     : null);
@@ -1007,33 +954,13 @@ class AppRouter {
           path: '/orders/:id/tracking',
           name: 'live-tracking',
           builder: (context, state) {
-            // S9 live-tracking fix: the delivery's REAL server-created id
-            // (`delivery-<offerId>`) is returned in the accept/offer response
-            // and is NOT derivable from the request id the path `:id` often
-            // carries. `GET /v1/delivery/<requestId>` 404s. Callers that hold
-            // the server id pass it as `?deliveryId=`; it takes precedence over
-            // `:id` so the delivery-service lookup resolves. Falls back to the
-            // path `:id` for legacy callers + the dev seam. Mirrors the
-            // `chat-detail` route's `deliveryId` query-param plumbing.
-            final deliveryId = resolveTrackingDeliveryId(
-              routeId: state.pathParameters['id'],
-              queryDeliveryId: state.uri.queryParameters['deliveryId'],
-            );
-            // T-MOB-017: render the deterministic placeholder (not a live
-            // GoogleMap) when the dev seam is driving a `/tracking` capture —
-            // no Maps key / unstable emulator on that path. Every other run
-            // renders the live polyline + marker map.
-            final useLiveMap =
-                !(kDebugMode && _devRoute.contains('/tracking'));
+            final deliveryId = state.pathParameters['id'] ?? '';
             return BlocProvider<LiveTrackingCubit>(
               create: (_) => LiveTrackingCubit(
                 repository: _trackingRepository(),
                 deliveryId: deliveryId,
               ),
-              child: LiveTrackingScreen(
-                deliveryId: deliveryId,
-                useLiveMap: useLiveMap,
-              ),
+              child: LiveTrackingScreen(deliveryId: deliveryId),
             );
           },
         ),
@@ -1118,19 +1045,18 @@ class AppRouter {
             return ActiveDeliveryJeeberScreen(
               deliveryId: deliveryId,
               repository: sl<ActiveDeliveryRepository>(),
-              onOpenChat: () {
-                if (context.canPop()) context.pop();
-              },
+              // Post-accept entry point from the ACTIVE delivery surface: open
+              // the order conversation. chat-detail resolves the conversation
+              // against the live gateway from this delivery id (== request id
+              // == correlationKey). Previously this only popped, assuming the
+              // jeeber always arrived from chat — leaving the button a dead end
+              // when reached from the feed.
+              onOpenChat: () => context.pushNamed(
+                'chat-detail',
+                pathParameters: {'id': deliveryId},
+              ),
               onOpenOtp: () {
                 context.go('/orders/$deliveryId/otp?mode=jeeber');
-              },
-              // Sprint 2 Stream G: the Jeeber declares the goods cost for this
-              // delivery (the amount the Client reimburses on receipt, D11).
-              // Pushes the goods-cost screen, which pops with the
-              // gateway-confirmed [GoodsCost]; we don't need the result here
-              // beyond confirming entry, so the future is fire-and-forget.
-              onEnterGoodsCost: () {
-                context.push('/orders/$deliveryId/goods-cost');
               },
               // JM-051 AC2 (C7 wiring gap, 66_W2_QA_RESULTS): once the delivery
               // reaches `Done` the jeeber goes to the MANDATORY mutual rating
@@ -1149,23 +1075,6 @@ class AppRouter {
               ),
             );
           },
-        ),
-
-        // Sprint 2 Stream G (goods-cost): the Jeeber declares how much the
-        // purchased goods cost for a delivery (the amount the Client reimburses
-        // on receipt — D11). Delivery-scoped, so it sits with the other
-        // `/orders/:id/...` jeeber-action routes. The screen self-provides
-        // GoodsCostCubit and self-resolves GoodsCostRepository from DI (now
-        // registered in injection_container.dart) — falling back to the Dio
-        // impl over sl<Dio>() when the explicit binding is absent. It pops with
-        // the gateway-confirmed [GoodsCost] (amount + currency verbatim), which
-        // the caller (active-delivery action) reads off the push() future.
-        GoRoute(
-          path: '/orders/:id/goods-cost',
-          name: 'goods-cost',
-          builder: (context, state) => GoodsCostScreen(
-            deliveryId: state.pathParameters['id'] ?? '',
-          ),
         ),
 
         // T-MOB-032: Settlement statement list.
@@ -1194,10 +1103,8 @@ class AppRouter {
             if (extra is SettlementStatement) {
               return SettlementDetailScreen(statement: extra);
             }
-            return Scaffold(
-              body: Center(
-                child: Text(AppLocalizations.of(context).statementNotFound),
-              ),
+            return const Scaffold(
+              body: Center(child: Text('Statement not found')),
             );
           },
         ),
@@ -1338,9 +1245,8 @@ class AppRouter {
         GoRoute(
           path: '/disputes/:id',
           name: 'dispute-status',
-          builder: (context, state) => DisputeStatusScreen(
-            disputeId: state.pathParameters['id'] ?? '',
-          ),
+          builder: (context, state) =>
+              DisputeStatusScreen(disputeId: state.pathParameters['id'] ?? ''),
         ),
         // JM-068 reviews-list — the All-reviews list (R1m NOT live →
         // INTEGRATOR-STUB repo). Inbound: jeeber-profile-reviews
@@ -1359,7 +1265,8 @@ class AppRouter {
           path: '/profile/delivery-man/:jeeberId/reviews',
           name: 'reviews-list-by-id',
           builder: (context, state) => ReviewsListScreen(
-            jeeberId: state.pathParameters['jeeberId'] ??
+            jeeberId:
+                state.pathParameters['jeeberId'] ??
                 state.uri.queryParameters['jeeberId'],
           ),
         ),
@@ -1380,35 +1287,9 @@ class AppRouter {
           name: 'password-security',
           builder: (context, state) => const PasswordSecurityScreen(),
         ),
-        // Sprint-5 Stream C: free-text search. `/search` is the compose
-        // surface (search bar + prompt) reached from the shell header search
-        // affordance (`*_search` → `goNamed('search')`); submitting forwards
-        // to `/search-results?q=` which runs the query against the gateway
-        // search BFF (DioSearchRepository over sl<SearchRepository>()) and
-        // renders the 4-state machine. When `/v1/search` is absent the repo
-        // surfaces an honest "search isn't available yet" empty state — no
-        // dead-end. The `q` query param makes a results link shareable +
-        // process-death-safe.
-        GoRoute(
-          path: '/search',
-          name: 'search',
-          builder: (context, state) => const SearchScreen(),
-        ),
-        GoRoute(
-          path: '/search-results',
-          name: 'search-results',
-          builder: (context, state) => SearchResultsScreen(
-            query: state.uri.queryParameters['q'] ?? '',
-          ),
-        ),
       ],
-      errorBuilder: (context, state) => Scaffold(
-        body: Center(
-          child: Text(
-            AppLocalizations.of(context).routeNotFound('${state.uri}'),
-          ),
-        ),
-      ),
+      errorBuilder: (context, state) =>
+          Scaffold(body: Center(child: Text('Route not found: ${state.uri}'))),
     );
   }
 }

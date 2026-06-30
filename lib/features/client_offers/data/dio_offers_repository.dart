@@ -37,17 +37,15 @@ class DioOffersRepository implements OffersRepository {
 
   /// Offer statuses that are still live (a client can accept them). Withdrawn /
   /// superseded / expired / accepted offers are filtered out of the review list
-  /// — the screen only shows pending bids.
+  /// — the screen only shows live bids.
   ///
-  /// The LIVE gateway BFF (`GET /v1/offers?requestId=`, `UpstreamPendingOffersStore`)
-  /// COLLAPSES the offer-service's seven-state vocabulary onto three states and
-  /// reports a live bid as `pending` (offer-service `submitted`/`edited`/`pending`
-  /// → gateway `pending`). The mock / journey-seed bodies still emit the raw
-  /// `submitted`/`edited`. We accept ALL three so a real on-device offer renders
-  /// its card instead of being silently dropped into the "Waiting for offers"
-  /// empty-state (iter6 offer-card render gap — STATE/iter6-FINAL-PROOF.md
-  /// STEP-3). `accepted`/`superseded`/`withdrawn` stay filtered out.
-  static const Set<String> _liveStatuses = {'submitted', 'edited', 'pending'};
+  /// `pending` is the status the LIVE jeeb-gateway/offer-service stamps on a
+  /// freshly-submitted, acceptable offer (`GET /v1/offers?requestId` returns
+  /// `"status":"pending"`). The `:4010` mock used `submitted`/`edited`, so the
+  /// client originally omitted `pending` — which silently filtered out every
+  /// real offer and left the "Choose a Jeeber" screen stuck on "Waiting for
+  /// offers" even though the offer arrived 200 on the wire. All three are live.
+  static const Set<String> _liveStatuses = {'pending', 'submitted', 'edited'};
 
   @override
   Future<OffersSnapshot> fetchOffers(String requestId) async {

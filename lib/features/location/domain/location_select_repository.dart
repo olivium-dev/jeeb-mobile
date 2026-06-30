@@ -4,13 +4,11 @@ import 'saved_location.dart';
 /// user's saved addresses (so a returning customer can pick one in a tap) plus
 /// the always-present "Current Location" + "New Location" affordances.
 ///
-/// Read side of the saved-locations resource. As of the iter6 DEFECT-B path
-/// consolidation the Dio impl ([DioLocationSelectRepository]) speaks the SAME
-/// canonical `me`-scoped gateway path as the JM-049 manager
-/// ([SavedLocationRepository]) and the JM-050 form: `GET /api/users/me/
-/// saved-locations` (identity from the bearer token), so all saved-locations
-/// reads/writes share one contract and the picker can no longer drift onto the
-/// mock-only `/users/:userId/...` alias.
+/// Reads the SAME saved-locations collection as [SavedLocationRepository] (the
+/// JM-049 CRUD manager); both resolve the path via
+/// `MockGatewayClient.savedLocationsPath`, which emits the VERIFIED live gateway
+/// contract `GET /api/users/me/saved-locations` (and the `:userId`-keyed mock
+/// shape only in mock mode, where it surfaces the `has_saved_addresses` seed).
 ///
 /// PURE Dart — no Flutter / Dio / GetIt (40_GUARDRAILS_ARCH §1).
 abstract class LocationSelectRepository {

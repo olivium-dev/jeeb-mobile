@@ -1,179 +1,81 @@
 import 'package:dio/dio.dart';
 
+import '../../chat/data/dio_accepted_conversations_repository.dart';
 import '../domain/client_home_repository.dart';
 import '../domain/client_home_request.dart';
 import '../domain/recent_delivery_summary.dart';
 
-/// Dio-backed [ClientHomeRepository] hitting the mock (jeeb-gateway in prod).
+/// Dio-backed [ClientHomeRepository] hitting the jeeb-gateway.
 ///
-/// Parallel calls, one per home-tab list the Figma renders:
-///   - `GET /v1/deliveries?stage=active`     → In Progress  (delivery rows)
-///   - `GET /v1/requests?role=client`        → Pending Requests + Replies
-///   - `GET /v1/requests?status=active&role=client` → in-flight requests merged
-///       into In Progress so a freshly-accepted order surfaces even when the
-///       deliveries-only source omits it (S10 Defect A — see [_mergeInProgress]).
-///       S11 fix: the merge param is `status=active` (the live-proven filter the
-///       order-history Active tab uses), NOT the S10 `role=client`-only query
-///       that the live gateway did not surface the matched request through.
+/// Two endpoints back the three home-tab lists the Figma renders:
+///   - `GET /deliveries?stage=active`  → In Progress (active shipments, D5).
+///   - `GET /requests?role=client`     → partitioned client-side into:
+///       * In Progress — rows with `status == accepted` (an offer was accepted
+///         but no active shipment exists yet). These carry the `conversationId`
+///         used for chat re-entry.
+///       * Replies      — non-accepted rows with `offersCount > 0`.
+///       * Pending      — non-accepted rows with `offersCount == 0`.
 ///
-/// BLOCKER-1 fix (2026-06-13): corrected path from the non-existent
-/// `/v1/delivery/active` to the gateway list contract.
+/// S007-P1B: before this fix the accepted order fell through every bucket — it
+/// is absent from `/deliveries?stage=active` (no shipment yet) and, with
+/// `offersCount == 0`, the old logic dropped it into Pending where its TTL
+/// expired into a dead "Expired" card; In Progress and Replies stayed empty.
+/// It is now surfaced in In Progress with an "Open chat" CTA, so the accepted
+/// conversation is reachable in-app without a push notification. Verified
+/// against the dev gateway: `GET /requests?role=client` returns the accepted
+/// order as `{ status: "accepted", conversationId, title, displayId }` while
+/// `GET /deliveries?stage=active` returns no shipment for it.
 ///
-/// LIVE-ROUTE fix (iter6, 2026-06-22): the path was still the mock-era
-/// `/deliveries` (no `/v1`), which the LIVE gateway answers with the empty
-/// legacy `ShipmentsListDto` `{"shipments":[],"count":0}` — so the "In Progress"
-/// tab never populated. Repointed to the live
-/// `JeebOrdersListController.ListDeliveries` route `GET /v1/deliveries?stage=active`
-/// → `{ items: [ OrderListItem ], page, pageSize, totalCount, totalPages }`
-/// (verified live on :10090 against an accepted delivery). Items are keyed on
-/// `status` (the parser still tolerates the legacy `currentStage`).
-///
-/// BLOCKER-2 note: the real gateway `GET /requests` filters by `role`, not
-/// `status`. Until the gateway exposes a `status` filter the client-side
-/// parser distinguishes pending vs offers-received by the `offersCount` field:
-/// items with offersCount > 0 are treated as replies.
-///
-/// The [MockGatewayClient] interceptor rewrites these to their
-/// service-prefixed mock counterparts automatically.
+/// The [MockGatewayClient] interceptor rewrites these paths to their
+/// service-prefixed counterparts automatically.
 class DioClientHomeRepository implements ClientHomeRepository {
   DioClientHomeRepository(this._dio);
 
   final Dio _dio;
 
-  // Live gateway list contract: GET /v1/deliveries?stage=<stage>&limit=<n>
-  // (the bare `/deliveries` path is the mock-era route the LIVE gateway answers
-  // with an empty `{"shipments":[],"count":0}` — see the class doc).
-  static const _activeDeliveriesPath = '/v1/deliveries';
-  static const _requestsPath = '/v1/requests';
+  // D5 contract: GET /deliveries?stage=<stage>&limit=<n>
+  static const _activeDeliveriesPath = '/deliveries';
+  static const _requestsPath = '/requests';
 
   @override
   Future<ClientHomeSnapshot> loadSnapshot() async {
     final results = await Future.wait([
       _fetchInProgress(),
-      _fetchByStatus('pending'),
-      _fetchByStatus('offers-received'),
+      _fetchClientRequests(),
       _fetchRecentDeliveries(),
-      _fetchActiveRequests(),
     ]);
 
-    final deliveries = results[0] as _InProgressDeliveries;
-    final activeRequests = results[4] as List<ClientHomeRequest>;
+    final shipments = results[0] as List<ClientHomeRequest>;
+    final buckets = results[1] as _ClientRequestBuckets;
+    final recentDeliveries = results[2] as List<RecentDeliverySummary>;
+
+    // Merge accepted orders into In Progress, deduped against any live shipment
+    // by id so the same order never renders twice.
+    final shipmentIds = shipments.map((r) => r.id).toSet();
+    final inProgress = <ClientHomeRequest>[
+      ...shipments,
+      ...buckets.accepted.where((a) => !shipmentIds.contains(a.id)),
+    ];
 
     return ClientHomeSnapshot(
-      inProgress: _mergeInProgress(deliveries, activeRequests),
-      pending: results[1] as List<ClientHomeRequest>,
-      replies: results[2] as List<ClientHomeRequest>,
-      recentDeliveries: results[3] as List<RecentDeliverySummary>,
+      inProgress: inProgress,
+      pending: buckets.pending,
+      replies: buckets.replies,
+      recentDeliveries: recentDeliveries,
     );
   }
 
-  /// S10 Defect A — surface a freshly-accepted order in the In-Progress tab.
-  ///
-  /// The deliveries-only source (`GET /v1/deliveries?stage=active`) reliably
-  /// returns SEEDED active delivery rows and, on the Express mock, the
-  /// accept-minted `delivery-<offerId>` too. But the field-observed two-party
-  /// run hit a backend where that source omits the freshly-accepted order
-  /// (e.g. Mockoon :3055 has no `/v1/deliveries` route at all → 404 → empty;
-  /// a gateway can flip the parent REQUEST to `matched` without surfacing a
-  /// delivery row yet). The client-scoped requests source
-  /// (`GET /v1/requests?role=client`) DOES carry that `matched`/in-flight
-  /// request, so we MERGE it in — purely additively (we never drop a delivery
-  /// row, so seeded rows always render) and deduped by the delivery rows'
-  /// `requestId` so an order already shown as a delivery row is never doubled.
-  /// Delivery rows are kept FIRST because they carry the real
-  /// `delivery-<offerId>` id the "Track my order" CTA needs (a request id 404s
-  /// `GET /v1/delivery/<id>`); merged request rows fall back to their request
-  /// id only when no delivery row covers them.
-  List<ClientHomeRequest> _mergeInProgress(
-    _InProgressDeliveries deliveries,
-    List<ClientHomeRequest> activeRequests,
-  ) {
-    final merged = <ClientHomeRequest>[...deliveries.rows];
-    final seenIds = deliveries.rows.map((r) => r.id).toSet();
-    for (final request in activeRequests) {
-      // Skip a request already represented by a delivery row (same order) or a
-      // duplicate id — keep the delivery-backed row (it has the tracking id).
-      if (deliveries.coveredRequestIds.contains(request.id)) continue;
-      if (!seenIds.add(request.id)) continue;
-      merged.add(request);
-    }
-    return merged;
-  }
-
-  Future<_InProgressDeliveries> _fetchInProgress() async {
+  Future<List<ClientHomeRequest>> _fetchInProgress() async {
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
+      final response = await _dio.get<dynamic>(
         _activeDeliveriesPath,
         queryParameters: {'stage': 'active', 'limit': 50},
       );
-      final data = response.data;
-      if (data == null) return _InProgressDeliveries.empty;
-      final rawItems = data['items'];
-      if (rawItems is! List) return _InProgressDeliveries.empty;
+      final rawItems = _items(response.data, fallbackKey: 'shipments');
       final items = <ClientHomeRequest>[];
-      final coveredRequestIds = <String>{};
       for (final raw in rawItems) {
         if (raw is Map<String, dynamic>) {
           final request = _parseActiveDelivery(raw);
-          if (request != null) {
-            items.add(request);
-            // Remember the parent request id this delivery row covers so the
-            // active-requests merge does not double-render the same order.
-            final requestId =
-                (raw['requestId'] ?? raw['request_id']) as String?;
-            if (requestId != null && requestId.isNotEmpty) {
-              coveredRequestIds.add(requestId);
-            }
-          }
-        }
-      }
-      return _InProgressDeliveries(items, coveredRequestIds);
-    } on DioException {
-      return _InProgressDeliveries.empty;
-    } on FormatException {
-      return _InProgressDeliveries.empty;
-    }
-  }
-
-  /// Fetches the client's own in-flight requests (`matched`/active SM-1 family)
-  /// from the client-scoped `GET /v1/requests?role=client`. These are the
-  /// freshly-accepted orders the deliveries-only source can omit (S10 Defect A).
-  /// Terminal (`delivered`/`cancelled`) and pre-acceptance (`pending`/
-  /// `offers-received`) requests are filtered out so they never leak into the
-  /// In-Progress tab — only orders genuinely on the road appear.
-  Future<List<ClientHomeRequest>> _fetchActiveRequests() async {
-    try {
-      final response = await _dio.get<Map<String, dynamic>>(
-        _requestsPath,
-        // S11 Defect-A LIVE fix: the prior `role=client`-only query did NOT
-        // surface the freshly-matched request on the live gateway. The field
-        // logcat + backend correlation showed the in-flight (`matched`) order
-        // is returned by the gateway through the `status=active` filter — the
-        // same param the order-history Active tab already uses
-        // (dio_order_repository.dart:77 `OrderHistoryTab.active → 'active'`).
-        // The S10 fix queried `role=client`, so when the deliveries-only
-        // source lagged (no `delivery-<offerId>` row minted yet) the merge
-        // fallback hit the wrong filter and the new order was DROPPED. We now
-        // send `status=active` (load-bearing — proven to return the row) AND
-        // keep `role=client` (belt-and-braces for a backend that scopes by
-        // role), so the matched order is surfaced regardless of which filter
-        // the gateway honors. Verified on mock :4010: `?status=active` returns
-        // only non-terminal requests, including the new `matched` row.
-        queryParameters: {
-          'status': 'active',
-          'role': 'client',
-          'page': 1,
-          'pageSize': 50,
-        },
-      );
-      final data = response.data;
-      if (data == null) return const [];
-      final rawItems = data['items'];
-      if (rawItems is! List) return const [];
-      final items = <ClientHomeRequest>[];
-      for (final raw in rawItems) {
-        if (raw is Map<String, dynamic>) {
-          final request = _parseActiveRequest(raw);
           if (request != null) items.add(request);
         }
       }
@@ -185,56 +87,63 @@ class DioClientHomeRepository implements ClientHomeRepository {
     }
   }
 
-  /// Fetches client requests filtered by [bucket].
-  ///
-  /// BLOCKER-2 (2026-06-13): the real gateway GET /requests only supports a
-  /// `role` filter, not a `status` filter. We pass `role=client` for both tabs
-  /// and disambiguate locally: items with offersCount > 0 are classified as
-  /// replies (offers-received), items with offersCount == 0 are classified as
-  /// pending. The [bucket] parameter drives which subset is returned.
-  Future<List<ClientHomeRequest>> _fetchByStatus(String bucket) async {
+  /// Single `GET /requests?role=client` call, partitioned client-side into the
+  /// accepted / replies / pending buckets (S007-P1B). The gateway only filters
+  /// by `role`, so the status/offers split is done here:
+  ///   * `status == accepted` → In Progress (chat re-entry).
+  ///   * else `offersCount > 0` → Replies.
+  ///   * else → Pending.
+  Future<_ClientRequestBuckets> _fetchClientRequests() async {
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
+      final response = await _dio.get<dynamic>(
         _requestsPath,
-        // Use role=client (documented D3 filter). Do NOT pass status= — the
-        // gateway ignores it and both tabs would show identical data.
         queryParameters: {'role': 'client', 'page': 1, 'pageSize': 50},
       );
-      final data = response.data;
-      if (data == null) return const [];
-      final rawItems = data['items'];
-      if (rawItems is! List) return const [];
-      final items = <ClientHomeRequest>[];
+      final rawItems = _items(response.data);
+      final accepted = <ClientHomeRequest>[];
+      final pending = <ClientHomeRequest>[];
+      final replies = <ClientHomeRequest>[];
       for (final raw in rawItems) {
-        if (raw is Map<String, dynamic>) {
-          final request = _parseRequest(raw, status: bucket);
-          if (request != null) {
-            // Client-side bucket assignment: offers-received ↔ offersCount > 0
-            final isReply =
-                ((raw['offersCount'] as num?)?.toInt() ?? 0) > 0;
-            final wantReply = bucket == 'offers-received';
-            if (isReply == wantReply) items.add(request);
-          }
-        }
+        if (raw is! Map<String, dynamic>) continue;
+        _classify(raw, accepted: accepted, pending: pending, replies: replies);
       }
-      return items;
+      return _ClientRequestBuckets(
+        accepted: accepted,
+        pending: pending,
+        replies: replies,
+      );
     } on DioException {
-      return const [];
+      return const _ClientRequestBuckets.empty();
     } on FormatException {
-      return const [];
+      return const _ClientRequestBuckets.empty();
     }
+  }
+
+  void _classify(
+    Map<String, dynamic> raw, {
+    required List<ClientHomeRequest> accepted,
+    required List<ClientHomeRequest> pending,
+    required List<ClientHomeRequest> replies,
+  }) {
+    if (DioAcceptedConversationsRepository.isAcceptedStatus(raw['status'])) {
+      final request = _parseRequest(raw, status: 'accepted');
+      if (request != null) accepted.add(request);
+      return;
+    }
+    final isReply = ((raw['offersCount'] as num?)?.toInt() ?? 0) > 0;
+    final request =
+        _parseRequest(raw, status: isReply ? 'offers-received' : 'pending');
+    if (request == null) return;
+    (isReply ? replies : pending).add(request);
   }
 
   Future<List<RecentDeliverySummary>> _fetchRecentDeliveries() async {
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
+      final response = await _dio.get<dynamic>(
         _requestsPath,
         queryParameters: {'role': 'client', 'page': 1, 'pageSize': 10},
       );
-      final data = response.data;
-      if (data == null) return const [];
-      final rawItems = data['items'];
-      if (rawItems is! List) return const [];
+      final rawItems = _items(response.data);
       final items = <RecentDeliverySummary>[];
       for (final raw in rawItems) {
         if (raw is Map<String, dynamic>) {
@@ -256,39 +165,23 @@ class DioClientHomeRepository implements ClientHomeRepository {
     final dropoff = json['dropoff'];
     final destination = dropoff is Map<String, dynamic>
         ? (dropoff['address'] as String? ?? '')
-        : '';
+        : (json['dropoffAddress'] as String? ?? '');
     // D5 ShipmentsListDto uses 'currentStage', not 'status'.
-    final stage =
-        json['currentStage'] as String? ?? json['status'] as String?;
-    // S9 live-tracking fix: the live-tracking surface reads
-    // `GET /v1/delivery/<deliveryId>`. The In-Progress list item's `id` may be
-    // the parent REQUEST/order id (the live gateway models orders by request),
-    // which 404s that lookup. Prefer an explicit delivery-id field when the
-    // gateway surfaces one (`deliveryId`/`delivery_id`); leave null otherwise
-    // so [ClientHomeRequest.trackingId] falls back to `id` (correct when the
-    // list endpoint already keys items on the delivery id).
-    final deliveryId =
-        (json['deliveryId'] ?? json['delivery_id']) as String?;
-    // S13 Defect 1: capture the parent REQUEST id so the "Open chat" CTA opens
-    // the order's EXISTING conversation (correlated on the request id), not a
-    // fresh empty thread keyed on the delivery row's `id`. Null when the
-    // gateway item omits it — `chatThreadId` then falls back to `id`.
-    final requestId = (json['requestId'] ?? json['request_id']) as String?;
+    final stage = json['currentStage'] as String? ?? json['status'] as String?;
     return ClientHomeRequest(
       id: id,
-      deliveryId: (deliveryId != null && deliveryId.isNotEmpty)
-          ? deliveryId
-          : null,
-      chatCorrelationId: (requestId != null && requestId.isNotEmpty)
-          ? requestId
-          : null,
       displayId: json['displayId'] as String?,
-      title: json['title'] as String? ?? 'Delivery $id',
+      title:
+          json['title'] as String? ??
+          json['description'] as String? ??
+          'Delivery $id',
       status: _mapDeliveryStatus(stage),
       destinationLabel: destination,
       etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
       jeeberName: json['jeeberName'] as String?,
-      tier: ClientRequestTier.parse(json['tier'] as String?),
+      tier: ClientRequestTier.parse(
+        json['tier'] as String? ?? json['tierId'] as String?,
+      ),
       progressStep: (json['progressStep'] as num?)?.toInt() ?? 0,
       conversationId: json['conversationId'] as String?,
     );
@@ -303,7 +196,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
     final dropoff = json['dropoff'];
     final destination = dropoff is Map<String, dynamic>
         ? (dropoff['address'] as String? ?? '')
-        : '';
+        : (json['dropoffAddress'] as String? ?? '');
     final offerAvatars = json['offerAvatars'];
     final offerAvatarUrls = offerAvatars is List
         ? offerAvatars.whereType<String>().toList(growable: false)
@@ -311,12 +204,15 @@ class DioClientHomeRepository implements ClientHomeRepository {
     return ClientHomeRequest(
       id: id,
       displayId: json['displayId'] as String?,
-      title: json['title'] as String? ?? 'Request $id',
-      status: status == 'offers-received'
-          ? ClientRequestStatus.offersReceived
-          : ClientRequestStatus.searching,
+      title:
+          json['title'] as String? ??
+          json['description'] as String? ??
+          'Request $id',
+      status: _mapRequestStatus(status),
       destinationLabel: destination,
-      tier: ClientRequestTier.parse(json['tier'] as String?),
+      tier: ClientRequestTier.parse(
+        json['tier'] as String? ?? json['tierId'] as String?,
+      ),
       offerCount: (json['offersCount'] as num?)?.toInt() ?? 0,
       offerAvatarUrls: offerAvatarUrls,
       conversationId: json['conversationId'] as String?,
@@ -324,95 +220,35 @@ class DioClientHomeRepository implements ClientHomeRepository {
     );
   }
 
-  /// Parses an in-flight client request (S10 Defect A) into an In-Progress
-  /// card. Returns null for requests that are NOT on the road — pending,
-  /// offers-received, delivered, cancelled — so only genuinely active orders
-  /// merge into the In-Progress tab. Carries the minted delivery id when the
-  /// request surfaces one (`deliveryId`/`delivery_id`) so the "Track my order"
-  /// CTA resolves; otherwise [ClientHomeRequest.trackingId] falls back to the
-  /// request id (best-effort, mirrors the delivery-row fallback).
-  static ClientHomeRequest? _parseActiveRequest(Map<String, dynamic> json) {
-    final id = json['id'] as String?;
-    if (id == null) return null;
-    final rawStatus =
-        (json['status'] ?? json['deliveryStatus'] ?? json['currentStage'])
-            as String?;
-    final status = _mapRequestStatus(rawStatus);
-    if (status == null) return null; // not an in-flight (on-the-road) request
-    final dropoff = json['dropoff'];
-    final destination = dropoff is Map<String, dynamic>
-        ? (dropoff['address'] as String? ?? '')
-        : '';
-    final deliveryId = (json['deliveryId'] ?? json['delivery_id']) as String?;
-    // S13 Defect 1 parity: an active-request row IS already keyed on the
-    // request id, but a backend may also echo it under `requestId`. Capture it
-    // explicitly so the chat thread correlates on the request id regardless of
-    // which field the gateway uses; falls back to the row's own `id`.
-    final requestId =
-        (json['requestId'] ?? json['request_id']) as String? ?? id;
-    return ClientHomeRequest(
-      id: id,
-      deliveryId: (deliveryId != null && deliveryId.isNotEmpty)
-          ? deliveryId
-          : null,
-      chatCorrelationId: requestId.isNotEmpty ? requestId : null,
-      displayId: json['displayId'] as String?,
-      title: json['title'] as String? ?? 'Request $id',
-      status: status,
-      destinationLabel: destination,
-      etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
-      jeeberName: json['jeeberName'] as String?,
-      tier: ClientRequestTier.parse(json['tier'] as String?),
-      progressStep: (json['progressStep'] as num?)?.toInt() ?? 0,
-      conversationId: json['conversationId'] as String?,
-    );
-  }
-
-  /// Maps a REQUEST status onto a coarse In-Progress [ClientRequestStatus],
-  /// returning null when the request is not on the road. Tolerates the mock's
-  /// snake_case request statuses (`matched`, `picked_up`, `en_route`) and the
-  /// live gateway's PascalCase SM-1 stage values (`Picked`, `InTransit`,
-  /// `AtDoor`, `Ordered`).
-  static ClientRequestStatus? _mapRequestStatus(String? status) {
-    switch (status) {
-      case 'matched':
-      case 'active':
+  static ClientRequestStatus _mapRequestStatus(String bucket) {
+    switch (bucket) {
       case 'accepted':
-      case 'assigned':
-      case 'Ordered':
-      case 'Matched':
         return ClientRequestStatus.accepted;
-      case 'picked_up':
-      case 'pickedup':
-      case 'at_pickup':
-      case 'Picked':
-        return ClientRequestStatus.atPickup;
-      case 'en_route':
-      case 'enroute':
-      case 'at_door':
-      case 'atdoor':
-      case 'InTransit':
-      case 'AtDoor':
-        return ClientRequestStatus.enRoute;
+      case 'offers-received':
+        return ClientRequestStatus.offersReceived;
       default:
-        // pending / offers-received / delivered / cancelled / unknown — not an
-        // in-flight order, so it must not appear in the In-Progress tab.
-        return null;
+        return ClientRequestStatus.searching;
     }
   }
 
-  static RecentDeliverySummary? _parseRecentDelivery(Map<String, dynamic> json) {
+  static RecentDeliverySummary? _parseRecentDelivery(
+    Map<String, dynamic> json,
+  ) {
     final id = json['id'] as String?;
     if (id == null) return null;
     final dropoff = json['dropoff'];
     final destination = dropoff is Map<String, dynamic>
         ? (dropoff['address'] as String? ?? '')
-        : '';
+        : (json['dropoffAddress'] as String? ?? '');
     return RecentDeliverySummary(
       id: id,
-      title: json['title'] as String? ?? 'Delivery $id',
+      title:
+          json['title'] as String? ??
+          json['description'] as String? ??
+          'Delivery $id',
       destinationLabel: destination,
-      completedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
+      completedAt:
+          DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
           DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.now(),
     );
@@ -421,15 +257,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
   static ClientRequestStatus _mapDeliveryStatus(String? status) {
     switch (status) {
       case 'Ordered':
-        // S12 fix: a delivery row only exists once a Jeeber is assigned / the
-        // order is placed, so `Ordered` is the FIRST trackable stage —
-        // `accepted`, never `searching`. Mapping it to `searching` rendered a
-        // brand-new order as a non-trackable row with no "Track my order" /
-        // "Open chat" CTA (ActiveOrderCard._canTrack rejects `searching`), so a
-        // freshly-created request could not be tracked. The visual stage is read
-        // independently from `progressStep` (parsed at _parseActiveDelivery), so
-        // the stepper stays at step 0 "Ordered" — only the CTA gate opens.
-        return ClientRequestStatus.accepted;
+        return ClientRequestStatus.searching;
       case 'Picked':
         return ClientRequestStatus.atPickup;
       case 'InTransit':
@@ -446,17 +274,32 @@ class DioClientHomeRepository implements ClientHomeRepository {
         return ClientRequestStatus.searching;
     }
   }
+
+  static List<dynamic> _items(Object? data, {String fallbackKey = 'items'}) {
+    if (data is List) return data;
+    if (data is Map<String, dynamic>) {
+      final raw = data['items'] ?? data[fallbackKey];
+      if (raw is List) return raw;
+    }
+    return const <dynamic>[];
+  }
 }
 
-/// Result of the In-Progress deliveries fetch: the parsed delivery rows plus
-/// the set of parent request ids they cover, so [_mergeInProgress] can dedupe
-/// the active-requests merge (S10 Defect A) without double-rendering an order.
-class _InProgressDeliveries {
-  const _InProgressDeliveries(this.rows, this.coveredRequestIds);
+/// The three client-request buckets partitioned from a single
+/// `GET /requests?role=client` call (S007-P1B).
+class _ClientRequestBuckets {
+  const _ClientRequestBuckets({
+    required this.accepted,
+    required this.pending,
+    required this.replies,
+  });
 
-  static const _InProgressDeliveries empty =
-      _InProgressDeliveries(<ClientHomeRequest>[], <String>{});
+  const _ClientRequestBuckets.empty()
+      : accepted = const [],
+        pending = const [],
+        replies = const [];
 
-  final List<ClientHomeRequest> rows;
-  final Set<String> coveredRequestIds;
+  final List<ClientHomeRequest> accepted;
+  final List<ClientHomeRequest> pending;
+  final List<ClientHomeRequest> replies;
 }

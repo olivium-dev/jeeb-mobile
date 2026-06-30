@@ -11,33 +11,32 @@ import 'notification_message.dart';
 String? deepLinkForMessage(NotificationMessage message) {
   switch (message.category) {
     case NotificationCategory.delivery:
-      // jeeb-gateway EventPushNotifier emits camelCase ids: a delivery-status
-      // push carries `deliveryId`; an offer / offer-accept push carries
-      // `requestId` (mock convention: deliveryId == accepted-request-id). The
-      // snake_case keys are kept for legacy/admin payloads.
-      final id = message.data['deliveryId'] ??
-          message.data['requestId'] ??
-          message.data['delivery_id'] ??
-          message.data['order_id'];
+      final id = message.data['delivery_id'] ?? message.data['order_id'];
       if (id == null || id.isEmpty) return null;
       return '/orders/$id';
     case NotificationCategory.chat:
-      // jeeb-gateway chat fan-out push carries `conversationId` (camelCase).
-      // `/chat/:id` resolves its param as the conversation correlation key and
-      // degrades to using the id directly as the conversation id, so routing
-      // by `conversationId` lands on the ORIGINAL thread. snake_case + the
-      // legacy `chat_id` are accepted as fallbacks.
-      final id = message.data['conversationId'] ??
+      // The chat-detail screen resolves the conversation via
+      // `GET /v1/conversations?correlationKey={id}`, where the gateway's
+      // correlationKey == the REQUEST id (auto-conversation-per-request), NOT
+      // the conversation id. So prefer the request id for the `/chat/:id` route
+      // param: routing with the `conversationId` 404s that first lookup and
+      // forces a fallthrough to the `/messages` probe. The live chat push
+      // (gateway patch 0009) carries BOTH `conversationId` and `requestId`, so
+      // ordering matters. The snake_case `chat_id` and the conversation-id keys
+      // remain accepted fallbacks so a tap still resolves to a route when the
+      // backend stamps only a conversation id (the screen's messages probe then
+      // resolves it).
+      final id = message.data['requestId'] ??
+          message.data['request_id'] ??
+          message.data['chat_id'] ??
           message.data['conversation_id'] ??
-          message.data['chat_id'];
+          message.data['conversationId'];
       if (id == null || id.isEmpty) return null;
       return '/chat/$id';
     case NotificationCategory.kyc:
       return '/profile/kyc';
     case NotificationCategory.rating:
-      final id = message.data['deliveryId'] ??
-          message.data['delivery_id'] ??
-          message.data['order_id'];
+      final id = message.data['delivery_id'] ?? message.data['order_id'];
       if (id == null || id.isEmpty) return null;
       return '/orders/$id/rate';
     case NotificationCategory.settings:

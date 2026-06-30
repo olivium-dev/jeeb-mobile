@@ -20,8 +20,6 @@ class LocationSelectState extends Equatable {
     this.savedAddresses = const [],
     this.choiceKind = LocationChoiceKind.current,
     this.selectedSavedId,
-    this.pinnedLat,
-    this.pinnedLng,
     this.error,
   });
 
@@ -34,49 +32,31 @@ class LocationSelectState extends Equatable {
   /// Set only when [choiceKind] is [LocationChoiceKind.saved].
   final String? selectedSavedId;
 
-  /// The REAL coordinate the customer dropped on the map-pin step
-  /// (capture-location), captured when [choiceKind] is
-  /// [LocationChoiceKind.pinned]. S0-REQ-03: before this existed, `markPinned`
-  /// recorded only the choice KIND and the pinned lat/lng was thrown away at
-  /// the call site, so the compose step had nothing to read and defaulted the
-  /// pickup to the Beirut constant — the user's pin silently vanished. Null
-  /// when no real point was captured (e.g. the GPS-less dev build, or a
-  /// `current`/`saved` choice), in which case the compose step keeps its
-  /// non-null Beirut fallback to satisfy the gateway's required-coords contract.
-  final double? pinnedLat;
-  final double? pinnedLng;
-
   /// Non-null only when [status] is [LocationSelectStatus.failed].
   final LocationSelectFailure? error;
 
   bool get hasSavedAddresses => savedAddresses.isNotEmpty;
 
-  /// True once the customer has actually PICKED a location to deliver to.
-  /// "Current Location" is the safe default selection ([LocationChoiceKind.current]),
-  /// so a valid pickup+dropoff origin exists on first paint (JM-024 AC4); a
-  /// freshly-pinned point ([LocationChoiceKind.pinned]) also counts, and a saved
-  /// address counts only once its [selectedSavedId] is set. This is the SINGLE
-  /// confirmed point the compose step seeds into both `pickupLocation` and
-  /// `dropoffLocation` (see ComposeRequestController._buildDraft).
-  bool get hasPickedLocation =>
-      choiceKind == LocationChoiceKind.current ||
-      choiceKind == LocationChoiceKind.pinned ||
-      (choiceKind == LocationChoiceKind.saved && selectedSavedId != null);
-
-  /// The Confirm CTA's enablement depends ONLY on the customer having picked a
-  /// pickup+dropoff location ([hasPickedLocation]) — NOT on the saved-locations
-  /// fetch succeeding.
+  /// A location is always confirmable: "Current Location" is the safe default,
+  /// so the Confirm CTA is reachable on first paint (JM-024 AC4). The selection
+  /// only changes WHICH location is forwarded to order-chat.
   ///
-  /// The saved-locations read (`GET /api/users/me/saved-locations`) is a pure
-  /// convenience: it can 404, error, or come back empty without blocking a
-  /// create. Gating Confirm on `status == loaded` was the defect — a failed
-  /// fetch ([LocationSelectStatus.failed]) left the CTA permanently disabled and
-  /// the customer could never create a request even though "Current Location"
-  /// is a valid default pick. So we deliberately do NOT require `loaded` here;
-  /// the screen's footer still hides itself during the cold-load spinner
-  /// (initial/loading), and on `failed` it shows the retry banner while the
-  /// Confirm CTA stays enabled.
-  bool get canConfirm => hasPickedLocation;
+  /// The saved-addresses fetch (`GET /api/users/me/saved-locations`) can still
+  /// fail on a GENUINE transport error (offline / 5xx). That failure must only
+  /// degrade the saved-addresses sub-list; it must NOT block confirming Current
+  /// Location / a freshly-pinned point — gating solely on `loaded` would violate
+  /// the AC4 invariant above and dead-end order creation (tier → location →
+  /// [BLOCKED]) on any network blip. So `failed` stays confirmable UNLESS the
+  /// user explicitly chose a saved address (which by definition never loaded).
+  ///
+  /// NOTE (post-fix): an EMPTY customer is NOT a failure. The live gateway
+  /// returns `200 {items:[]}` for a customer with no saved addresses, so the
+  /// screen reaches `loaded` with an empty list (the old `/users/:id/...` path
+  /// 404'd here — that was the saved-locations-404 bug, since corrected).
+  bool get canConfirm =>
+      status == LocationSelectStatus.loaded ||
+      (status == LocationSelectStatus.failed &&
+          choiceKind != LocationChoiceKind.saved);
 
   bool isSavedSelected(String id) =>
       choiceKind == LocationChoiceKind.saved && selectedSavedId == id;
@@ -87,9 +67,6 @@ class LocationSelectState extends Equatable {
     LocationChoiceKind? choiceKind,
     String? selectedSavedId,
     bool clearSelectedSaved = false,
-    double? pinnedLat,
-    double? pinnedLng,
-    bool clearPinned = false,
     LocationSelectFailure? error,
     bool clearError = false,
   }) {
@@ -99,8 +76,6 @@ class LocationSelectState extends Equatable {
       choiceKind: choiceKind ?? this.choiceKind,
       selectedSavedId:
           clearSelectedSaved ? null : (selectedSavedId ?? this.selectedSavedId),
-      pinnedLat: clearPinned ? null : (pinnedLat ?? this.pinnedLat),
-      pinnedLng: clearPinned ? null : (pinnedLng ?? this.pinnedLng),
       error: clearError ? null : (error ?? this.error),
     );
   }
@@ -111,8 +86,6 @@ class LocationSelectState extends Equatable {
         savedAddresses,
         choiceKind,
         selectedSavedId,
-        pinnedLat,
-        pinnedLng,
         error,
       ];
 }

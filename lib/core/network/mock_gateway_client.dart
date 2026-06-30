@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
-import '../config/app_config.dart';
 import 'auth_token_store.dart';
 
 /// Maps gateway-style paths to the mock backend's per-service prefix paths.
@@ -20,32 +19,45 @@ class MockGatewayClient {
   /// Single source of truth for mock backend URL.
   ///
   /// The run/build ALWAYS passes `--dart-define=JEEB_MOCK_BASE_URL=...` so this
-  /// default is only the fallback when no define is given. It points at
-  /// `localhost` (host loopback) — correct for the host machine and iOS
-  /// simulators; other targets pass their reachable host address via dart-define:
-  ///   Host machine / iOS sim: the `localhost` default below works out of the box.
-  ///   Android emulator:       --dart-define=JEEB_MOCK_BASE_URL=http://10.0.2.2:4010
-  ///                           (host loopback alias → host :4010)
-  ///   Physical device on LAN: --dart-define=JEEB_MOCK_BASE_URL=`http://<host-lan-ip>:4010`
+  /// default is only the fallback when no define is given. It points at the
+  /// host machine's LAN IP so iOS simulators and physical devices reach the
+  /// mock directly out of the box (#37):
+  ///   iOS sim / device / Android emulator: the LAN-IP default below works for all.
+  ///   Android emulator alt: --dart-define=JEEB_MOCK_BASE_URL=http://10.0.2.2:4010
+  ///                         (host loopback alias → host :4010)
   ///
   /// B0 (W-1): the default MUST point at the Express mock on **:4010** to stay
   /// internally consistent with `useMockPrefixes = true` below. It previously
   /// defaulted to the Mockoon port (:3055), which — combined with the
   /// service-prefix rewrite — sent rewritten `:4010`-shaped paths to a mock
   /// that speaks a different contract. The default stays on :4010 so the pair
-  /// (mockBaseUrl, useMockPrefixes) is coherent even without a dart-define. The
-  /// host is `localhost` (no LAN IP baked into the binary); emulators and
-  /// physical devices supply their reachable host via the dart-define above.
-  // Default dev mock URL — override with --dart-define=JEEB_MOCK_BASE_URL=...
-  // Mock-only (gated behind useMockPrefixes/useMockGateway=false in prod), so a
-  // localhost default is correct out of the box for the host machine and the
-  // Android-emulator alias `10.0.2.2`; physical iOS/Android devices on the LAN
-  // pass their host's reachable address via the dart-define above (no hard-coded
-  // LAN IP baked into the binary).
-  static const String mockBaseUrl = String.fromEnvironment(
-    'JEEB_MOCK_BASE_URL',
-    defaultValue: 'http://localhost:4010',
-  );
+  /// (mockBaseUrl, useMockPrefixes) is coherent even without a dart-define; #37
+  /// only swaps the Android-emulator-only `10.0.2.2` loopback for the LAN IP so
+  /// iOS sims and physical devices are reachable too.
+  static String get mockBaseUrl {
+    if (_baseUrlDefine.isNotEmpty) return _baseUrlDefine;
+    // RELIABILITY (super-login hardening): when NO --dart-define is passed, a
+    // debug build defaults to the live DEV GATEWAY (which serves the raw `/v1/*`
+    // and `/api/*` contract incl. super-login) instead of the :4010 Express
+    // mock, so a plain `flutter run`/`--debug` build is coherent and the dev
+    // super-login flow works out of the box. Release keeps the historical
+    // fallback (release builds always pass the define anyway).
+    if (kDebugMode) return _devGatewayBaseUrl;
+    return _releaseFallbackBaseUrl;
+  }
+
+  /// Build-time override (`--dart-define=JEEB_MOCK_BASE_URL=...`). Empty when
+  /// not passed.
+  static const String _baseUrlDefine =
+      String.fromEnvironment('JEEB_MOCK_BASE_URL');
+
+  /// Debug no-define default: the live dev gateway (BFF) on the LAN. Serves the
+  /// raw gateway contract, so `useMockPrefixes` stays `false`.
+  static const String _devGatewayBaseUrl = 'http://192.168.2.39:10090';
+
+  /// Release no-define fallback (historical value; release builds pass the
+  /// define explicitly so this is rarely hit).
+  static const String _releaseFallbackBaseUrl = 'http://192.168.2.33:4010';
 
   /// When `true` every gateway path is rewritten to the Express mock's
   /// service-prefixed routes (`/auth-service/...`, `/offer-service/v1/...`)
@@ -59,23 +71,10 @@ class MockGatewayClient {
   /// Controlled via dart-define at build time:
   ///   --dart-define=JEEB_USE_MOCK_PREFIXES=true   → Express mock on :4010
   ///   --dart-define=JEEB_USE_MOCK_PREFIXES=false  → real gateway (device builds)
-  ///
-  /// SINGLE-SWITCH (sprint-7 step-login): the default is now
-  /// [AppConfig.useMockGateway] — exactly mirroring how
-  /// [AppConfig.emailPasswordAuthEnabled] tracks the same flag. This collapses
-  /// the prior two-flag footgun: a `--dart-define=USE_MOCK_GATEWAY=true` build
-  /// already selects this client in DI ([resolveGatewayDio]/[configureDependencies]),
-  /// and now ALSO installs the service-prefix rewrite interceptor by default, so
-  /// the app's gateway-contract paths (`/v1/auth/otp/request`, …) reach the
-  /// Express mock's service routes (`/auth-service/auth/otp/request`) without a
-  /// second `JEEB_USE_MOCK_PREFIXES=true` define. Previously `USE_MOCK_GATEWAY`
-  /// alone pointed Dio at the mock host but left paths un-rewritten → raw `/v1/*`
-  /// 404. Pass `JEEB_USE_MOCK_PREFIXES=false` explicitly to point the mock client
-  /// at a real-contract gateway (e.g. Mockoon :3055) while still using this Dio.
-  static const bool useMockPrefixes = bool.fromEnvironment(
-    'JEEB_USE_MOCK_PREFIXES',
-    defaultValue: AppConfig.useMockGateway,
-  );
+  /// Default is `false` so physical-device and CI builds default to live-gateway
+  /// mode; only explicit local-mock builds need to pass `true`.
+  static const bool useMockPrefixes =
+      bool.fromEnvironment('JEEB_USE_MOCK_PREFIXES', defaultValue: false);
 
   static const Map<String, String> _pathToServicePrefix = {
     // B1 (W-1) — gateway `/v1/auth/*` → Express mock `/auth-service/auth/*`.
@@ -120,17 +119,6 @@ class MockGatewayClient {
     // `/v1/kyc`.
     '/v1/kyc': '/user-management/v1/kyc',
     '/v1/chat/jeeb': '/chat-service/v1/chat/jeeb',
-    // CHAT-CONTRACT (sprint-7): the conversation-resolve fallback
-    // (`GET /v1/conversations?correlationKey=…`) and the realtime descriptor
-    // pre-check (`GET /v1/realtime/jeeb:chat:{id}`) are mounted on the
-    // chat-service / realtime-comunication-service respectively. Both MUST
-    // precede the broader `/v1/*` siblings (first-match-wins) — neither is a
-    // prefix of the other so order between them is otherwise free. Without these
-    // the create-or-get fallback and the WS membership pre-check 404'd, so
-    // request-id deep links never resolved a conversation and live receive never
-    // established (the socket was never built).
-    '/v1/conversations': '/chat-service/v1/conversations',
-    '/v1/realtime': '/realtime-comunication-service/v1/realtime',
     '/v1/offers': '/offer-service/v1/offers',
     '/v1/delivery': '/delivery-service/v1/delivery',
     '/v1/tiers': '/delivery-service/v1/tiers',
@@ -174,17 +162,7 @@ class MockGatewayClient {
 
   static String rewritePath(String path) {
     if (!useMockPrefixes) return path;
-    return mapToServicePrefix(path);
-  }
 
-  /// Pure mock-prefix mapping — applies the service-prefix routing table to
-  /// [path] UNCONDITIONALLY (independent of the compile-time [useMockPrefixes]
-  /// flag). [rewritePath] gates this behind the flag; tests call it directly so
-  /// the chat-routing seams are verified for real under a plain `flutter test`
-  /// (no `--dart-define`), instead of silently skipping when the flag defaults
-  /// to `false`. Production behaviour is unchanged — only [rewritePath] is
-  /// wired into the request interceptor.
-  static String mapToServicePrefix(String path) {
     for (final entry in _pathToServicePrefix.entries) {
       if (path.startsWith(entry.key)) {
         return path.replaceFirst(entry.key, entry.value);
@@ -192,6 +170,31 @@ class MockGatewayClient {
     }
     return path;
   }
+
+  /// Canonical saved-locations collection base path for the ACTIVE backend.
+  ///
+  /// VERIFIED against the live dev gateway (`:10090`) on 2026-06-30 with a real
+  /// super-login JWT:
+  ///   GET    /api/users/me/saved-locations      -> 200 {userId, items, defaultId}
+  ///   POST   /api/users/me/saved-locations      -> 201 (top-level latitude/longitude)
+  ///   DELETE /api/users/me/saved-locations/:id  -> 204
+  /// The live BFF keys the collection on the AUTHENTICATED user (`me`) under the
+  /// `/api` prefix — NOT on a path `:userId`, and NOT under `/v1`. The previous
+  /// `/users/:userId/saved-locations` shape returned a *no-route* 404 on the live
+  /// gateway (empty body, no content-type — a routing miss, not an app 404). That
+  /// 404 was earlier misread as "the gateway 404s a customer with no saved
+  /// addresses"; in fact the real route returns `200 {items:[]}` for an empty
+  /// customer, so saved locations never loaded and could never be selected.
+  ///
+  /// The `:4010` Express mock instead keys the collection by `:userId` and is
+  /// reached only via the `/users` -> `/user-management/users` rewrite, which
+  /// runs solely when [useMockPrefixes] is `true`. So in mock mode we keep
+  /// emitting the rewriteable `/users/:userId/...` shape; against the live
+  /// gateway we emit the real `/api/users/me/...` contract. One helper keeps
+  /// BOTH targets green.
+  static String savedLocationsPath({required String userId}) => useMockPrefixes
+      ? '/users/$userId/saved-locations'
+      : '/api/users/me/saved-locations';
 
   static Dio createDio({String? baseUrl}) {
     final effectiveBaseUrl = baseUrl ?? mockBaseUrl;
@@ -225,79 +228,12 @@ class MockGatewayClient {
     return dio;
   }
 
-  /// Base URL of the LIVE realtime-comunication-service (Elixir/Phoenix
-  /// "LiveComm"). Configurable via dart-define so the WS endpoint is never a
-  /// build-time hard-code:
-  ///   --dart-define=JEEB_REALTIME_BASE_URL=`http://<host>:5804`
-  ///
-  /// CHAT-FIX (iter6 / ws): the prior `webSocketUrl` getter pointed the chat
-  /// socket at a dead mock shim (`ws://<host>:3056/socket/websocket`) that does
-  /// not exist against the live backend, so inbound live push never arrived.
-  /// The live realtime service serves the Phoenix socket at `:5804`
-  /// (`/socket/websocket`), the open token minter at `POST /api/auth/token`, and
-  /// fans Jeeb chat out on the `jeeb:chat` topic / `user:{recipientId}` stream.
-  ///
-  /// When the define is absent the default derives the realtime host from
-  /// [mockBaseUrl] (same machine) on the standard realtime port `5804` — so a
-  /// device build that already targets a reachable gateway host reaches the
-  /// co-located realtime service out of the box, with the define as the override
-  /// for any split deployment.
-  static const String realtimeBaseUrl = String.fromEnvironment(
-    'JEEB_REALTIME_BASE_URL',
-    defaultValue: '',
-  );
-
-  /// Standard realtime-comunication-service port (LiveComm Phoenix endpoint).
-  static const int realtimePort = 5804;
-
-  /// HTTP(S) base of the realtime service: the explicit
-  /// [realtimeBaseUrl] define when set, otherwise the gateway host on
-  /// [realtimePort]. Used for the token-mint REST call.
-  static Uri get realtimeHttpBase =>
-      resolveRealtimeHttpBase(mockMode: useMockPrefixes);
-
-  /// Flag-independent resolution of the realtime HTTP base. The getter passes
-  /// the compile-time [useMockPrefixes]; tests pass an explicit [mockMode] so
-  /// the mock-mode co-location contract (realtime on the :4010 origin, NOT the
-  /// live Phoenix :5804) is verified under a plain `flutter test`.
-  static Uri resolveRealtimeHttpBase({required bool mockMode}) {
-    if (realtimeBaseUrl.isNotEmpty) return Uri.parse(realtimeBaseUrl);
+  /// WebSocket URL for the realtime shim at port 3056.
+  /// The companion shim handles Phoenix/SSE channels alongside the REST mock.
+  static String get webSocketUrl {
     final base = Uri.parse(mockBaseUrl);
-    // MOCK MODE (sprint-7): the Express mock co-locates the
-    // realtime-comunication-service on the SAME :4010 origin (its WS upgrade +
-    // `/realtime-comunication-service/*` routes), so the realtime base is the
-    // mock base verbatim — NOT the live Phoenix `:5804` port. In live-gateway
-    // mode (the device default) the realtime service is a separate process on
-    // [realtimePort], so derive the host on that port.
-    if (mockMode) return base;
-    return base.replace(port: realtimePort);
-  }
-
-  /// WebSocket path of the realtime Phoenix socket. In mock mode the socket is
-  /// served behind the Express service-prefix mount
-  /// (`/realtime-comunication-service/socket/websocket`); the live realtime
-  /// service serves the raw Phoenix endpoint (`/socket/websocket`).
-  static String get webSocketPath =>
-      resolveWebSocketPath(mockMode: useMockPrefixes);
-
-  /// Flag-independent resolution of [webSocketPath].
-  static String resolveWebSocketPath({required bool mockMode}) => mockMode
-      ? '/realtime-comunication-service/socket/websocket'
-      : '/socket/websocket';
-
-  /// WebSocket URL for the realtime Phoenix socket
-  /// (`ws(s)://<realtime-host>:<port><webSocketPath>`). The token + `vsn`
-  /// query params are appended by the socket at connect time.
-  static String get webSocketUrl =>
-      resolveWebSocketUrl(mockMode: useMockPrefixes);
-
-  /// Flag-independent resolution of [webSocketUrl] — see [mapToServicePrefix]
-  /// for why the mock-mode contract is exposed to tests without the dart-define.
-  static String resolveWebSocketUrl({required bool mockMode}) {
-    final base = resolveRealtimeHttpBase(mockMode: mockMode);
     final wsScheme = base.scheme == 'https' ? 'wss' : 'ws';
-    return '$wsScheme://${base.host}:${base.port}'
-        '${resolveWebSocketPath(mockMode: mockMode)}';
+    return '$wsScheme://${base.host}:3056/socket/websocket';
   }
 }
 

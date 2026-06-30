@@ -18,19 +18,12 @@ import '../widgets/active_request_card.dart';
 ///
 /// Mock endpoint: GET /v1/delivery/active  (Mockoon :3055, useMockPrefixes=false)
 class InProgressTab extends StatelessWidget {
-  const InProgressTab({super.key, this.onTrack, this.onOpenChat});
+  const InProgressTab({super.key, this.onTrack});
 
   /// Called when the Track CTA is tapped. If null the tab navigates to the
   /// tracking route directly via GoRouter; pass a callback in tests to avoid
   /// the router dependency.
   final void Function(ClientHomeRequest request)? onTrack;
-
-  /// iter6 close-tail: called when the "Open chat" CTA is tapped — opens the
-  /// order conversation for the accepted/in-progress request so the client can
-  /// re-reach the SAME chat (resolved server-side from the request id via the
-  /// create-or-get). If null the tab navigates to `chat-detail` directly via
-  /// GoRouter; pass a callback in tests to avoid the router dependency.
-  final void Function(ClientHomeRequest request)? onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +32,6 @@ class InProgressTab extends StatelessWidget {
       builder: (context, state) => _InProgressContent(
         state: state,
         onTrack: onTrack ?? (r) => _navigateToTracking(context, r),
-        onOpenChat: onOpenChat ?? (r) => _navigateToChat(context, r),
       ),
     );
   }
@@ -51,60 +43,18 @@ class InProgressTab extends StatelessWidget {
     BuildContext context,
     ClientHomeRequest request,
   ) {
-    // S9 live-tracking fix: open tracking with the SERVER delivery id
-    // (`delivery-<offerId>`), not the request id — `GET /v1/delivery/<id>`
-    // 404s on a request id. The router reads `?deliveryId=` in preference to
-    // the path `:id` (app_router live-tracking route). When the gateway list
-    // item carries no distinct delivery id, [ClientHomeRequest.trackingId]
-    // falls back to `id` and we omit the query param.
     GoRouter.of(context).pushNamed(
       'live-tracking',
-      pathParameters: {'id': request.trackingId},
-      queryParameters: {
-        if (request.deliveryId != null && request.deliveryId!.isNotEmpty)
-          'deliveryId': request.deliveryId!,
-      },
-    );
-  }
-
-  static void _navigateToChat(
-    BuildContext context,
-    ClientHomeRequest request,
-  ) {
-    // S13 Defect 1: `chat-detail` (/chat/:id) treats the route id as the
-    // conversation CORRELATION KEY (the parent REQUEST id), not the delivery
-    // id. For an In-Progress *delivery* row `request.id` is the delivery id
-    // (`delivery-<offerId>`); opening chat with it create-or-gets a fresh EMPTY
-    // conversation instead of the order's existing thread. Route by the parent
-    // request id ([ClientHomeRequest.chatThreadId], captured from the gateway
-    // item's `requestId`), falling back to `id` for rows that carry no parent
-    // id (pre-S13 behavior). Also pass the order's delivery id as `?deliveryId=`
-    // so the in-chat "Track order" CTA still resolves the right delivery (the
-    // route forwards it to `ChatDetailScreen.initialDeliveryId`).
-    final threadId = request.chatThreadId;
-    if (threadId.isEmpty) return;
-    final deliveryId = request.trackingId;
-    GoRouter.of(context).pushNamed(
-      'chat-detail',
-      pathParameters: {'id': threadId},
-      queryParameters: {
-        if (deliveryId.isNotEmpty && deliveryId != threadId)
-          'deliveryId': deliveryId,
-      },
+      pathParameters: {'id': request.id},
     );
   }
 }
 
 class _InProgressContent extends StatelessWidget {
-  const _InProgressContent({
-    required this.state,
-    required this.onTrack,
-    required this.onOpenChat,
-  });
+  const _InProgressContent({required this.state, required this.onTrack});
 
   final ClientHomeState state;
   final void Function(ClientHomeRequest) onTrack;
-  final void Function(ClientHomeRequest) onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -121,11 +71,7 @@ class _InProgressContent extends StatelessWidget {
         onCreateRequest: () => _openCreateRequest(context),
       );
     }
-    return _InProgressList(
-      requests: state.inProgress,
-      onTrack: onTrack,
-      onOpenChat: onOpenChat,
-    );
+    return _InProgressList(requests: state.inProgress, onTrack: onTrack);
   }
 
   static void _openCreateRequest(BuildContext context) {
@@ -184,15 +130,10 @@ class _InProgressEmpty extends StatelessWidget {
 }
 
 class _InProgressList extends StatelessWidget {
-  const _InProgressList({
-    required this.requests,
-    required this.onTrack,
-    required this.onOpenChat,
-  });
+  const _InProgressList({required this.requests, required this.onTrack});
 
   final List<ClientHomeRequest> requests;
   final void Function(ClientHomeRequest) onTrack;
-  final void Function(ClientHomeRequest) onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -205,7 +146,19 @@ class _InProgressList extends StatelessWidget {
             child: ActiveOrderCard(
               request: r,
               onTap: () => onTrack(r),
-              onOpenChat: () => onOpenChat(r),
+              // Post-accept conversation re-entry (JM-025). Prefer the resolved
+              // conversationId; fall back to the request id (== correlationKey),
+              // which ChatDetailScreen resolves against the live gateway. Inert
+              // when neither identifies a conversation yet.
+              onOpenChat: () => GoRouter.of(context).pushNamed(
+                'chat-detail',
+                pathParameters: {
+                  'id': (r.conversationId != null &&
+                          r.conversationId!.isNotEmpty)
+                      ? r.conversationId!
+                      : r.id,
+                },
+              ),
             ),
           ),
       ],

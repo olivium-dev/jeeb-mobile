@@ -35,20 +35,14 @@ import '../../features/otp_handover/data/dio_otp_handover_repository.dart';
 import '../../features/otp_handover/domain/otp_handover_repository.dart';
 import '../../features/escalate/data/dio_escalate_repository.dart';
 import '../../features/escalate/domain/escalate_repository.dart';
-import '../../features/goods_cost/data/dio_goods_cost_repository.dart';
-import '../../features/goods_cost/domain/goods_cost_repository.dart';
 import '../../features/rating/data/dio_rating_repository.dart';
 import '../../features/rating/domain/rating_repository.dart';
 import '../../features/registration/data/dio_otp_service.dart';
 import '../../features/registration/data/super_login_demo_user.dart';
 import '../../features/registration/data/super_login_service.dart';
 import '../../features/registration/domain/otp_service.dart';
-import '../../features/settings/data/dio_account_service.dart';
 import '../../features/settings/data/repositories/biometric_preference_repository_impl.dart';
 import '../../features/settings/data/repositories/dio_role_switch_repository.dart';
-import '../../features/settings/data/shared_prefs_profile_repository.dart';
-import '../../features/settings/domain/account_service.dart';
-import '../../features/settings/domain/profile_repository.dart';
 import '../../features/settings/domain/role_switch_repository.dart';
 import '../../features/tier_selection/data/tier_repository.dart';
 import '../../features/voice_request/data/voice_recording_repository.dart';
@@ -60,38 +54,12 @@ import '../../features/wallet/domain/wallet_repository.dart';
 import '../../features/wallet/domain/wallet_transaction_repository.dart';
 import '../../features/notifications/data/dio_notifications_repository.dart';
 import '../../features/notifications/domain/notifications_repository.dart';
-import '../../features/search/data/dio_search_repository.dart';
-import '../../features/search/domain/search_repository.dart';
 import '../../features/support/data/dio_support_repository.dart';
 import '../../features/support/domain/support_repository.dart';
 import '../../features/dispute_status/data/dio_dispute_status_repository.dart';
 import '../../features/dispute_status/domain/dispute_status_repository.dart';
 import '../../features/reviews/data/dio_reviews_repository.dart';
 import '../../features/reviews/domain/reviews_repository.dart';
-// Sprint 6 Stream C — fake-fallback debt reduction: register the real Dio impls
-// (which already exist + hit a real gateway/mock route) as the release default
-// so the per-screen Fake/Stub/InMemory fallback is reached ONLY by the no-DI
-// route-resolve test harness, never in release.
-import '../../features/settings/data/dio_account_session_terminator.dart';
-import '../../features/settings/domain/account_session_terminator.dart';
-import '../../features/cancel_request/data/dio_cancel_request_repository.dart';
-import '../../features/cancel_request/domain/cancel_request_repository.dart';
-import '../../features/location/data/dio_location_select_repository.dart';
-import '../../features/location/domain/location_select_repository.dart';
-import '../../features/location/data/dio_address_form_repository.dart';
-import '../../features/location/domain/address_form_repository.dart';
-import '../../features/account_status/data/dio_account_status_repository.dart';
-import '../../features/account_status/domain/account_status_repository.dart';
-import '../../features/no_offer_timeout/data/dio_waiting_repository.dart';
-import '../../features/no_offer_timeout/domain/waiting_repository.dart';
-import '../../features/jeeber_onboarding/data/dio_dm_onboarding_gateway.dart';
-import '../../features/jeeber_onboarding/domain/dm_onboarding_gateway.dart';
-import '../../features/order_summary/data/dio_order_summary_repository.dart';
-import '../../features/order_summary/domain/order_summary_repository.dart';
-import '../../features/delivery_receipt/data/dio_delivery_receipt_repository.dart';
-import '../../features/delivery_receipt/domain/delivery_receipt_repository.dart';
-import '../config/app_config.dart';
-import '../network/dio_client.dart';
 import '../session/jeeber_kyc_status_gate.dart';
 import '../../features/voice_request/domain/audioplayers_voice_player.dart';
 import '../../features/voice_request/domain/record_voice_recorder.dart';
@@ -99,58 +67,25 @@ import '../../features/voice_request/domain/voice_player.dart';
 import '../../features/voice_request/domain/voice_recorder.dart';
 import '../../features/prohibited_acknowledgment/data/prohibited_acknowledgment_repository_impl.dart';
 import '../../features/prohibited_acknowledgment/domain/prohibited_acknowledgment_repository.dart';
-import '../../features/request_summary/application/compose_request_controller.dart';
-import '../../features/request_summary/data/chained_recipient_phone_resolver.dart';
-import '../../features/request_summary/data/dio_recipient_phone_resolver.dart';
 import '../../features/request_summary/data/dio_request_submission_service.dart';
-import '../../features/request_summary/data/shared_prefs_recipient_phone_resolver.dart';
-import '../../features/request_summary/domain/recipient_phone_resolver.dart';
 import '../../features/request_summary/domain/request_submission_service.dart';
 import '../../features/cancellation/data/dio_cancellation_repository.dart';
 import '../../features/cancellation/domain/cancellation_repository.dart';
 import '../../features/location/data/dio_saved_location_repository.dart';
 import '../../features/location/domain/saved_location_repository.dart';
 import '../../features/active_delivery_jeeber/data/dio_active_delivery_repository.dart';
-import '../../features/jeeber_active_deliveries/data/dio_active_deliveries_repository.dart';
-import '../../features/jeeber_active_deliveries/domain/active_deliveries_repository.dart';
 import '../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
-import '../../features/background_gps/data/geolocator_geocapture_gateway.dart';
-import '../../features/background_gps/domain/geocapture_gateway.dart';
 import '../../features/offers/data/dio_offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
 import '../../features/settlement/data/dio_settlement_repository.dart';
 import '../../features/settlement/domain/settlement_repository.dart';
+import '../config/app_config.dart';
 import '../network/auth_token_store.dart';
 import '../network/mock_gateway_client.dart';
 import '../observability/crash_reporter.dart';
 
 final sl = GetIt.instance;
-
-/// Resolves the ONE configured gateway [Dio] for call sites that build a
-/// repository/service outside [configureDependencies] (e.g. a screen's
-/// no-DI test fallback, or `app.dart`'s push registrar).
-///
-/// DI-FIRST: when [configureDependencies] has run (production, Maestro, the
-/// app) this returns the registered singleton — the AppConfig-driven
-/// [DioClient] (or the [MockGatewayClient] when `--dart-define=USE_MOCK_GATEWAY=
-/// true`) with the bearer-attach + 401-refresh interceptors. Every caller then
-/// shares the SAME client, so a logged-in session's token is attached uniformly.
-///
-/// FALLBACK: when GetIt is NOT configured (the `w0_routes_resolve_test.dart`
-/// route table mounts screens without `configureDependencies()`), it mirrors
-/// the exact same AppConfig selection the DI registration uses — it never
-/// hardcodes a base URL and never bypasses [AppConfig].
-Dio resolveGatewayDio() {
-  if (sl.isRegistered<Dio>()) return sl<Dio>();
-  return AppConfig.useMockGateway
-      ? MockGatewayClient.createDio()
-      : DioClient.createDio(
-          AppConfig.gatewayBaseUrl,
-          tokenStore:
-              sl.isRegistered<AuthTokenStore>() ? sl<AuthTokenStore>() : null,
-        );
-}
 
 void configureDependencies({
   required SharedPreferences sharedPreferences,
@@ -159,23 +94,8 @@ void configureDependencies({
   sl.registerSingleton<SharedPreferences>(sharedPreferences);
   sl.registerSingleton<CrashReporter>(crashReporter);
 
+  sl.registerLazySingleton<Dio>(() => MockGatewayClient.createDio());
   sl.registerLazySingleton<AuthTokenStore>(() => AuthTokenStore());
-
-  // Sprint 1 Stream A: the DI default is now the REAL gateway Dio client
-  // (DioClient → AppConfig.gatewayBaseUrl), with bearer-attach + single-shot
-  // 401-refresh interceptors and a DEBUG-only PII log gate. The local Express
-  // mock (MockGatewayClient, service-prefix rewrite, :4010) is retained intact
-  // and selected only when an explicit `--dart-define=USE_MOCK_GATEWAY=true`
-  // build sets [AppConfig.useMockGateway]. Production/device/CI builds (no
-  // define) default to the real impl.
-  sl.registerLazySingleton<Dio>(
-    () => AppConfig.useMockGateway
-        ? MockGatewayClient.createDio()
-        : DioClient.createDio(
-            AppConfig.gatewayBaseUrl,
-            tokenStore: sl<AuthTokenStore>(),
-          ),
-  );
 
   sl.registerLazySingleton<OtpService>(
     () => DioOtpService(sl<Dio>(), sl<AuthTokenStore>()),
@@ -234,10 +154,15 @@ void configureDependencies({
     () => DefaultSuperLoginService(dio: sl<Dio>()),
   );
 
-  // "Super user login plus": fetches the predefined demo-user roster the picker
-  // lists (debug-only). Same Dio client as every other gateway data source.
+  // "Super user login plus": lists ALL active users via the passcode-gated
+  // POST /api/User/super-login/users (debug-only). Same Dio client as every
+  // other gateway data source; the SuperAdmin passcode comes from AppConfig
+  // (build-time --dart-define or the debug fallback).
   sl.registerLazySingleton<SuperLoginDemoUserService>(
-    () => DefaultSuperLoginDemoUserService(dio: sl<Dio>()),
+    () => DefaultSuperLoginDemoUserService(
+      dio: sl<Dio>(),
+      superAdminPassCode: AppConfig.superAdminPassCode,
+    ),
   );
 
   sl.registerLazySingleton<OrderRepository>(
@@ -266,9 +191,7 @@ void configureDependencies({
 
   // T-MOB-010: DioTierRepository replaces FakeTierRepository as the DI default.
   // The screen still accepts a constructor-injected repo for widget tests.
-  sl.registerLazySingleton<TierRepository>(
-    () => DioTierRepository(sl<Dio>()),
-  );
+  sl.registerLazySingleton<TierRepository>(() => DioTierRepository(sl<Dio>()));
 
   // T-MOB-015 / W1-INT (JM-028 offer-review): DioOffersRepository provides the
   // real gateway path (GET /v1/offers?requestId=, POST /v1/offers/:id/accept →
@@ -310,10 +233,7 @@ void configureDependencies({
   // that need a per-conversation instance should call DioChatGateway directly
   // with their own resolved userId (see chat_detail_screen.dart).
   sl.registerFactory<ChatGateway>(
-    () => DioChatGateway(
-      dio: sl<Dio>(),
-      currentUserId: 'faketoken',
-    ),
+    () => DioChatGateway(dio: sl<Dio>(), currentUserId: 'faketoken'),
   );
 
   // Jeeber request feed — polling-backed until WS support is wired.
@@ -336,9 +256,7 @@ void configureDependencies({
   );
 
   // KYC — submit + status from auth-service via gateway.
-  sl.registerLazySingleton<KycGateway>(
-    () => DioKycGateway(sl<Dio>()),
-  );
+  sl.registerLazySingleton<KycGateway>(() => DioKycGateway(sl<Dio>()));
 
   // Rating — post-delivery star rating via score-taking-service.
   sl.registerLazySingleton<RatingRepository>(
@@ -350,22 +268,9 @@ void configureDependencies({
     () => DioEscalateRepository(sl<Dio>()),
   );
 
-  // Sprint 2 Stream G (goods-cost): the Jeeber's goods-cost declaration —
-  // GET /v1/delivery/:id (currency label) + POST /v1/delivery/:id/goods-cost.
-  // GoodsCostScreen self-resolves this binding (sl.isRegistered<
-  // GoodsCostRepository>()); with this explicit registration it no longer
-  // falls through to the defensive `DioGoodsCostRepository(sl<Dio>())` /
-  // FakeGoodsCostRepository branches. The GoodsCostCubit is provided by the
-  // screen's own BlocProvider (mirroring RequestSummaryCubit), so it is not
-  // registered here. FakeGoodsCostRepository stays the widget-test seam via the
-  // screen's `repository` constructor override.
-  sl.registerLazySingleton<GoodsCostRepository>(
-    () => DioGoodsCostRepository(sl<Dio>()),
-  );
-
   // Availability toggle — Jeeber online/offline state via geolocation-service.
   sl.registerLazySingleton<AvailabilityGateway>(
-    () => DioAvailabilityGateway(sl<Dio>()),
+    () => DioAvailabilityGateway(sl<Dio>(), tokenStore: sl<AuthTokenStore>()),
   );
 
   // Remote notification prefs — syncs with gateway notification-service.
@@ -373,31 +278,12 @@ void configureDependencies({
     () => DioNotificationPrefsRepository(sl<Dio>()),
   );
 
-  // T-mobile-031 (Sprint 2 Stream F): real settings seams. The settings screen
-  // previously self-constructed InMemoryProfileRepository + FakeAccountService
-  // inline (DI bypassed), so release builds never touched persistence or the
-  // gateway. Those fakes now live under test/ only; production resolves these:
-  //   • ProfileRepository → SharedPrefsProfileRepository — the documented
-  //     production impl (profile is an on-device cache; the live gateway does
-  //     not surface a profile read/write contract, so this is NOT a Dio repo).
-  //   • AccountService → DioAccountService — real POST /v1/auth/logout +
-  //     PATCH /users/{id}/status, mapping transport failures to networkError
-  //     so the settings UI can render the error banner.
-  sl.registerLazySingleton<ProfileRepository>(
-    () => SharedPrefsProfileRepository(prefs: sl<SharedPreferences>()),
-  );
-  sl.registerLazySingleton<AccountService>(
-    () => DioAccountService(sl<Dio>(), sl<AuthTokenStore>()),
-  );
-
   // T-MOB-028: Role-switch repository — POST /v1/users/me/role/switch.
-  // D-ROLE-TOGGLE: adopts the re-minted token pair from the 200 body via
-  // AuthTokenStore so jeeber routes stop 403-ing after an in-app toggle.
   sl.registerLazySingleton<RoleSwitchRepository>(
-    () => DioRoleSwitchRepository(sl<Dio>(), sl<AuthTokenStore>()),
+    () => DioRoleSwitchRepository(sl<Dio>()),
   );
 
-  // T-MOB-012: Saved locations — GET/POST /v1/users/me/saved-locations.
+  // T-MOB-012: Saved locations — GET/POST /api/users/me/saved-locations (live).
   sl.registerLazySingleton<SavedLocationRepository>(
     () => DioSavedLocationRepository(sl<Dio>()),
   );
@@ -430,60 +316,14 @@ void configureDependencies({
   // T-MOB-REQSUBMIT: real request-create RPC — POST /requests → 201 {id}.
   // Resolved by app_router when building the /request-summary route so the
   // RequestSummaryCubit submits over Dio instead of the prior stub.
-  //
-  // T-BE-019 / JEB-55 (+ iter6 OTP-phone v2): the create body carries a
-  // `recipientPhone` so the gateway request-store row has a non-null
-  // RecipientPhone and the at-door handover OTP (`POST /deliveries/{id}/otp/
-  // verify {code:"1234"}`) can dispatch/validate instead of returning 400
-  // recipient-phone-missing.
-  //
-  // ROOT-CAUSE FIX (v2): the #67 default source — `GET /v1/users/me` `phone` —
-  // does NOT exist in the LIVE gateway `UsersMeResponse` contract, so that lone
-  // resolver always returned null and the OTP kept 400-ing. We now resolve the
-  // DEFAULT phone from a CHAIN, first non-null wins:
-  //   1. SharedPrefsRecipientPhoneResolver — the LOCALLY-persisted registration
-  //      profile phone (`UserProfile.phoneE164`), which the live `/me` does not
-  //      surface. This is the reliable on-device default for phone-OTP users.
-  //   2. DioRecipientPhoneResolver — the gateway `GET /v1/users/me` `phone`,
-  //      kept as a best-effort fallback for a future gateway that adds it.
-  // The explicit compose-form recipient phone (RequestDraft.recipientPhone)
-  // still wins over BOTH defaults inside the submission service. Best-effort:
-  // if every source misses, the field is omitted and the create is never
-  // blocked.
-  sl.registerLazySingleton<RecipientPhoneResolver>(
-    () => ChainedRecipientPhoneResolver(<RecipientPhoneResolver>[
-      SharedPrefsRecipientPhoneResolver(),
-      DioRecipientPhoneResolver(sl<Dio>()),
-    ]),
-  );
   sl.registerLazySingleton<RequestSubmissionService>(
-    () => DioRequestSubmissionService(
-      sl<Dio>(),
-      phoneResolver: sl<RecipientPhoneResolver>(),
-    ),
-  );
-
-  // iter6 B11: shared compose controller — carries the chosen tier from the
-  // request-type step to the location-confirm step and performs the actual
-  // POST /requests there (so the create flow mints a REAL request id instead of
-  // handing off the placeholder 'new' to order-chat). Singleton so both steps,
-  // which own separate cubits with no common widget-tree ancestor, share it.
-  sl.registerLazySingleton<ComposeRequestController>(
-    () => ComposeRequestController(sl<RequestSubmissionService>()),
+    () => DioRequestSubmissionService(sl<Dio>()),
   );
 
   // T-MOB-031: Active delivery (Jeeber) — GET /v1/deliveries/{id} +
   // POST /v1/deliveries/{id}/transition.
   sl.registerLazySingleton<ActiveDeliveryRepository>(
     () => DioActiveDeliveryRepository(sl<Dio>()),
-  );
-
-  // iter6 real-flow blocker fix: the jeeber's ACCEPTED/active deliveries list —
-  // GET /v1/deliveries?role=jeeber (gateway JeebOrdersListController). Powers
-  // the dashboard active-deliveries banner so a jeeber whose offer was accepted
-  // can reach the order's chat + drive the delivery.
-  sl.registerLazySingleton<ActiveDeliveriesRepository>(
-    () => DioActiveDeliveriesRepository(sl<Dio>()),
   );
 
   // T-MOB-032: Settlement statements — GET /v1/wallet/jeeb/earnings/statements.
@@ -558,22 +398,14 @@ void configureDependencies({
 
   // JM-057 notifications-list: the notification-service inbox (list + mark-read)
   // is LIVE on :4010 (42_GUARDRAILS_MOCK §4 mock-ready), so this binds the REAL
-  // Dio repo. The inbox is scoped to the AUTHENTICATED user via the bearer token
-  // (the gateway derives the owner from the JWT `sub` and ignores any `?userId=`
-  // param, §6B-confirmed) — so NO client-side userId is passed. (Was previously
-  // hardcoded to the mock fixture id `user-client-001`, a §6B FAIL.) The header
-  // bell now routes here (`goNamed('notifications')`, shell guard removed).
+  // Dio repo. The `?userId=` is resolved from AuthTokenStore, which the real
+  // login and super_login_plus seam both write. The header bell now routes here
+  // (`goNamed('notifications')`, shell guard removed).
   sl.registerLazySingleton<NotificationsRepository>(
-    () => DioNotificationsRepository(dio: sl<Dio>()),
-  );
-
-  // Sprint-5 Stream C search: the gateway free-text search BFF
-  // (GET /v1/search?q=). The route is not live yet, so the Dio repo maps a 404
-  // to SearchFailure.unavailable → the results screen renders an honest
-  // "search isn't available yet" empty state (no dead-end). Same code path
-  // returns real hits once the BFF lands.
-  sl.registerLazySingleton<SearchRepository>(
-    () => DioSearchRepository(dio: sl<Dio>()),
+    () => DioNotificationsRepository(
+      dio: sl<Dio>(),
+      tokenStore: sl<AuthTokenStore>(),
+    ),
   );
 
   // LIVE(JM-063): the support-ticket service (S1) has landed — the gateway now
@@ -606,82 +438,5 @@ void configureDependencies({
   // honors the same [ReviewsRepository] contract.
   sl.registerLazySingleton<ReviewsRepository>(
     () => DioReviewsRepository(sl<Dio>()),
-  );
-
-  // T-MOB-012 / T-MOB-017 (feat/maps): device GPS behind the GeocaptureGateway
-  // port. GeolocatorGeocaptureGateway wraps the `geolocator` plugin; the cubit,
-  // map picker, and capture screen never import the plugin directly.
-  // Registered as the concrete type too so the GoogleMap "centre on me"
-  // button can call currentFix() (not on the port, which streams).
-  // FakeGeocaptureGateway remains the unit-test seam via constructor.
-  sl.registerLazySingleton<GeolocatorGeocaptureGateway>(
-    () => GeolocatorGeocaptureGateway(),
-  );
-  sl.registerLazySingleton<GeocaptureGateway>(
-    () => sl<GeolocatorGeocaptureGateway>(),
-  );
-
-  // ── SPRINT 6 STREAM C — fake-fallback debt reduction ──────────────────────
-  // Each repo/service/gateway below already had a real Dio impl AND a real
-  // gateway/mock route, but was NOT registered in DI — so its screen's
-  // `_resolve*()` either (a) made the Fake the RELEASE default (cancel-request,
-  // order-summary) or (b) self-constructed the Dio impl per-screen via an
-  // `sl<Dio>()` middle-tier (account-status, waiting, delivery-receipt,
-  // location-select, address-form, dm-onboarding, account-session-terminator).
-  // Registering them HERE makes the real impl the canonical release default and
-  // demotes the Fake/Stub/InMemory to its intended role: the no-DI
-  // route-resolve test-harness fallback only. No Fake/Stub class is deleted.
-  // (SubmittedOffersRepository is intentionally NOT registered — it is
-  // parametrized by a per-screen jeeberId and already self-constructs the real
-  // Dio impl; see FAKE-FALLBACK-AUDIT.md.)
-
-  // cancel-request → POST /v1/delivery/cancel. (Was: FakeCancelRequestRepository
-  // as the release default — no Dio middle-tier in the sheet.)
-  sl.registerLazySingleton<CancelRequestRepository>(
-    () => DioCancelRequestRepository(sl<Dio>()),
-  );
-
-  // order-summary → GET /v1/delivery/:id + /v1/requests/:id + /users/:id +
-  // /v1/offers. (Was: FakeOrderSummaryRepository as the release default.)
-  sl.registerLazySingleton<OrderSummaryRepository>(
-    () => DioOrderSummaryRepository(sl<Dio>()),
-  );
-
-  // account-status → GET /v1/users/me.
-  sl.registerLazySingleton<AccountStatusRepository>(
-    () => DioAccountStatusRepository(sl<Dio>()),
-  );
-
-  // no-offer-timeout / waiting → GET /v1/requests + /v1/offers.
-  sl.registerLazySingleton<WaitingRepository>(
-    () => DioWaitingRepository(sl<Dio>()),
-  );
-
-  // delivery-receipt → GET /v1/delivery/:id + POST /v1/payments/cod_jeeb/record
-  // + POST /v1/delivery/status/transition.
-  sl.registerLazySingleton<DeliveryReceiptRepository>(
-    () => DioDeliveryReceiptRepository(sl<Dio>()),
-  );
-
-  // location-select + address-form → the `me`-scoped Saved-Locations BFF
-  // (/api/users/me/saved-locations) — the SAME path as the already-registered
-  // DioSavedLocationRepository, so the route is proven-live.
-  sl.registerLazySingleton<LocationSelectRepository>(
-    () => DioLocationSelectRepository(sl<Dio>()),
-  );
-  sl.registerLazySingleton<AddressFormRepository>(
-    () => DioAddressFormRepository(sl<Dio>()),
-  );
-
-  // jeeber dm-onboarding service-area probe → POST /v1/matching/find-jeebers.
-  sl.registerLazySingleton<DmOnboardingGateway>(
-    () => DioDmOnboardingGateway(sl<Dio>()),
-  );
-
-  // account-session-terminator (logout + delete) → POST /v1/auth/logout +
-  // POST /v1/devices/unregister + PATCH /users/:id/status. Needs the keystore
-  // too (token attach + clear on logout).
-  sl.registerLazySingleton<AccountSessionTerminator>(
-    () => DioAccountSessionTerminator(sl<Dio>(), sl<AuthTokenStore>()),
   );
 }

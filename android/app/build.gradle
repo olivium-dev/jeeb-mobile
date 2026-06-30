@@ -2,12 +2,12 @@ plugins {
     id "com.android.application"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
-    // PUSH-FIX (iter6): apply the Google Services plugin so the bundled
-    // android/app/google-services.json is processed into FirebaseOptions
-    // (values.xml). Without this, Firebase.initializeApp() throws
-    // "Failed to load FirebaseOptions from resource" -> no FCM token -> no push.
+    // PUSH-WIRING: apply the Google Services plugin (declared apply-false in
+    // settings.gradle v4.4.2) so the bundled google-services.json is merged
+    // into the per-flavor applicationId (app.jeeb.mobile.dev) and
+    // Firebase.initializeApp() loads FirebaseOptions from the generated
+    // resource instead of falling back to the Noop reporter.
     id "com.google.gms.google-services"
-    id "com.google.firebase.crashlytics"
 }
 
 def localProperties = new Properties()
@@ -27,20 +27,6 @@ def flutterVersionName = localProperties.getProperty('flutter.versionName')
 if (flutterVersionName == null) {
     flutterVersionName = '1.0'
 }
-
-// ─── T-MOB-012 / T-MOB-017: Google Maps API key (INJECTABLE, never committed) ──
-// Resolution priority:
-//   1. -PMAPS_API_KEY=... gradle property (CI: pass via --project-prop or
-//      ORG_GRADLE_PROJECT_MAPS_API_KEY env var)
-//   2. MAPS_API_KEY environment variable (local dev / CI secret)
-//   3. local.properties `MAPS_API_KEY=...` (gitignored; the owner's one-liner)
-//   4. documented sentinel so the build never breaks without a key
-// The resolved value feeds the `${MAPS_API_KEY}` manifest placeholder; the key
-// is NOT a Dart compile-time constant, so it never lands in lib/ or a snapshot.
-def mapsApiKey = project.findProperty('MAPS_API_KEY')
-        ?: System.getenv('MAPS_API_KEY')
-        ?: localProperties.getProperty('MAPS_API_KEY')
-        ?: 'YOUR_MAPS_API_KEY_HERE'
 
 android {
     namespace "app.jeeb.mobile"
@@ -63,15 +49,6 @@ android {
         targetSdk 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
-
-        // T-MOB-012 / T-MOB-017 (Sprint 1 Stream B + feat/maps): feed the
-        // Google Maps SDK key into the AndroidManifest `${MAPS_API_KEY}`
-        // placeholder for every flavor + build type. `mapsApiKey` (defined
-        // above) resolves from a Gradle property (-PMAPS_API_KEY=…), the env
-        // var, or local.properties, falling back to a harmless placeholder so a
-        // keyless dev build still assembles (tiles just won't load). NEVER
-        // commit a real key.
-        manifestPlaceholders += [MAPS_API_KEY: mapsApiKey]
     }
 
     // ─── Flavor Configuration ────────────────────────────────────────────────

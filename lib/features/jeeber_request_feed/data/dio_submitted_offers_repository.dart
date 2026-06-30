@@ -15,46 +15,32 @@ import '../domain/submitted_offers_repository.dart';
 ///
 /// Only `status == 'submitted'` offers are surfaced — accepted/withdrawn/
 /// rejected ones are not "awaiting a customer decision" and belong to other
-/// surfaces.
-///
-/// S0-OAD-03 §6B IDENTITY: the jeeber whose offers are listed is the REAL
-/// AUTHENTICATED SESSION user — resolved from [AuthTokenStore] (the session/auth
-/// source), NEVER a hardcoded fixture id. In the debug seam the token store is
-/// seeded with the seeded jeeber id (`SessionSeamBootstrap._logIn`), so the mock
-/// `?jeeberId=` filter still resolves; in production it is the live token's id,
-/// which the gateway re-scopes from the bearer `sub` and ignores. The
-/// `?jeeberId=` param is sent only when a non-empty id resolves (the live
-/// gateway ignores it; the mock filters by it). An explicit [jeeberId] override
-/// is retained for the mock seam / tests.
+/// surfaces. The jeeber id is the seeded `user-jeeber-002` for the W2 seam
+/// (the mock filters by the `jeeberId` query param, not the bearer).
 class DioSubmittedOffersRepository implements SubmittedOffersRepository {
-  DioSubmittedOffersRepository({
+  const DioSubmittedOffersRepository({
     required Dio dio,
     String? jeeberId,
     AuthTokenStore? tokenStore,
-  })  : _dio = dio,
-        _explicitJeeberId = jeeberId,
-        _tokenStore = tokenStore ?? AuthTokenStore();
+  }) : _dio = dio,
+       _jeeberId = jeeberId,
+       _tokenStore = tokenStore;
 
   final Dio _dio;
-
-  /// Optional caller-supplied id (mock seam / tests). When null the real
-  /// authenticated session id is resolved from [_tokenStore] at call time.
-  final String? _explicitJeeberId;
-  final AuthTokenStore _tokenStore;
+  final String? _jeeberId;
+  final AuthTokenStore? _tokenStore;
 
   static const String _path = '/v1/offers';
 
   @override
   Future<List<SubmittedOffer>> listSubmitted() async {
     try {
-      // Resolve the REAL session id (explicit override → token store) — never a
-      // hardcoded `user-jeeber-002`. Send `?jeeberId=` only when one resolves.
-      final jeeberId = _explicitJeeberId ?? (await _tokenStore.userId) ?? '';
+      final jeeberId = _jeeberId ?? await _tokenStore?.userId;
       final response = await _dio.get<Map<String, dynamic>>(
         _path,
-        queryParameters: {
-          if (jeeberId.isNotEmpty) 'jeeberId': jeeberId,
-        },
+        queryParameters: jeeberId == null || jeeberId.isEmpty
+            ? null
+            : {'jeeberId': jeeberId},
       );
       return _parse(response.data ?? const {});
     } on DioException {
@@ -105,12 +91,16 @@ class DioSubmittedOffersRepository implements SubmittedOffersRepository {
   /// (defensive parse, 40_GUARDRAILS_ARCH §4).
   double? _amount(Object? raw) {
     if (raw is num) return raw.toDouble();
-    if (raw is Map && raw['value'] is num) return (raw['value'] as num).toDouble();
+    if (raw is Map && raw['value'] is num) {
+      return (raw['value'] as num).toDouble();
+    }
     return null;
   }
 
   String? _currency(Object? raw) {
-    if (raw is Map && raw['currency'] is String) return raw['currency'] as String;
+    if (raw is Map && raw['currency'] is String) {
+      return raw['currency'] as String;
+    }
     return null;
   }
 }

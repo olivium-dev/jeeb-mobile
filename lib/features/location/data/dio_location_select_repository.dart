@@ -1,45 +1,33 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/mock_gateway_client.dart';
 import '../domain/location_select_repository.dart';
 import '../domain/saved_location.dart';
 
 /// Dio-backed [LocationSelectRepository] for the JM-024 location-select step.
 ///
-/// **iter6 D-ADDRESS-SAVE / DEFECT-B path consolidation.** Reads the LIVE
-/// gateway's `me`-scoped Saved-Locations BFF `GET /api/users/me/saved-locations`
-/// (ACCT-04 / REQ-02) — the SAME canonical path the JM-049 manager
-/// ([DioSavedLocationRepository]) and the JM-050 form
-/// ([DioAddressFormRepository]) use, so all saved-locations reads/writes share
-/// one contract. Identity is derived from the bearer claim by the gateway (the
-/// Dio `_AuthInterceptor` attaches the JWT), so there is **no `:userId` path
-/// segment** and the picker can no longer drift onto the mock-only
-/// `/users/<id>/saved-locations` shape (the old path 404s under a tightened
-/// route while CREATE keeps working — the reported "choose is broken but create
-/// works" symptom). `/api/users` is NOT in the mock rewrite table (keys are
-/// `/users` and `/v1/users`), so this path passes through unrewritten. Never
-/// hardcodes a `:4010` host or service prefix (40_GUARDRAILS_ARCH §4/§11).
+/// Resolves the saved-locations base path via
+/// [MockGatewayClient.savedLocationsPath]: the live gateway serves it me-keyed
+/// under `/api` (`GET /api/users/me/saved-locations`, VERIFIED 200 on :10090),
+/// while the `:4010` Express mock serves the `:userId`-keyed `/users/…` shape
+/// via the `/users` → `/user-management/users` rewrite. Never hardcodes a
+/// `:4010` host or service prefix (40_GUARDRAILS_ARCH §4/§11).
 ///
-/// The [fetchSavedAddresses] `userId` arg is retained to satisfy the
-/// [LocationSelectRepository] contract (the cubit passes the authenticated id),
-/// but it is **no longer used to build the path** — the `me` route resolves
-/// identity from the token.
+/// Parses defensively (40_GUARDRAILS_ARCH §4): tolerates a bare list or
+/// `{ items: [...] }`, both the seeded nested `geo:{lat,lng}` shape AND a
+/// top-level `latitude/longitude`, and `isDefault`/`is_default`. A malformed
+/// row degrades to its best-effort fields rather than crashing on a cast.
 class DioLocationSelectRepository implements LocationSelectRepository {
   const DioLocationSelectRepository(this._dio);
-
-  /// LIVE `me`-scoped Saved-Locations BFF. Identity comes from the bearer
-  /// token (the gateway resolves `me`), so no `:userId` segment is needed.
-  /// Shared with [DioSavedLocationRepository] / [DioAddressFormRepository].
-  static const String _basePath = '/api/users/me/saved-locations';
 
   final Dio _dio;
 
   @override
   Future<List<SavedLocation>> fetchSavedAddresses(String userId) async {
     try {
-      // `userId` is ignored in the path: the `me` route derives identity from
-      // the bearer token (DEFECT-B consolidation). Kept in the signature to
-      // satisfy the [LocationSelectRepository] contract.
-      final res = await _dio.get<dynamic>(_basePath);
+      final res = await _dio.get<dynamic>(
+        MockGatewayClient.savedLocationsPath(userId: userId),
+      );
       return _parseList(res.data);
     } on DioException catch (e) {
       throw LocationSelectException(_map(e), e.message);

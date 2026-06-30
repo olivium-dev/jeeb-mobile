@@ -86,27 +86,27 @@ Dio _capturingDio(Object? responseBody) {
 }
 
 void main() {
-  group('DioSavedLocationRepository — iter6 me-scoped live route', () {
-    // iter6 D-ADDRESS-SAVE repoint: the LIVE gateway `me`-scoped BFF. Identity
-    // comes from the bearer (the gateway resolves `me`), so there is NO userId
-    // path segment and NO hardcoded `user-client-001`. `/api/users` is not in
-    // the mock rewrite table, so the path passes through to the live gateway.
-    test('GET uses /api/users/me/saved-locations (no userId segment)', () async {
+  group('DioSavedLocationRepository — JM-049 W1 endpoint contract', () {
+    // The repo resolves its path via MockGatewayClient.savedLocationsPath. In
+    // `flutter test`, useMockPrefixes defaults to false, so the helper emits the
+    // VERIFIED live gateway contract `/api/users/me/saved-locations` (me-keyed,
+    // /api prefix). In mock mode it would emit `/users/:userId/...` (rewritten to
+    // /user-management/users). The persisted userId no longer changes the LIVE
+    // path — the gateway keys the collection on `me`.
+    test('GET uses the live /api/users/me/saved-locations contract', () async {
       _capturedPath = null;
       final repo = DioSavedLocationRepository(
         _capturingDio(<dynamic>[]),
-        tokenStore: _FakeTokenStore('any-id'),
+        tokenStore: _FakeTokenStore('user-client-001'),
       );
 
       await repo.fetchSavedLocations();
 
       expect(_capturedPath, '/api/users/me/saved-locations');
-      expect(_capturedPath, isNot(contains('user-client-001')));
       expect(_capturedMethod, 'GET');
     });
 
-    test('POST uses /api/users/me/saved-locations (no userId segment)',
-        () async {
+    test('POST uses the live /api/users/me/saved-locations contract', () async {
       _capturedPath = null;
       final repo = DioSavedLocationRepository(
         _capturingDio(<String, dynamic>{
@@ -116,7 +116,7 @@ void main() {
           'longitude': 35.5,
           'category': 'home',
         }),
-        tokenStore: _FakeTokenStore('any-id'),
+        tokenStore: _FakeTokenStore('user-client-001'),
       );
 
       await repo.saveLocation(
@@ -127,12 +127,14 @@ void main() {
       );
 
       expect(_capturedPath, '/api/users/me/saved-locations');
-      expect(_capturedPath, isNot(contains('user-client-001')));
       expect(_capturedMethod, 'POST');
     });
 
-    test('path never depends on a persisted userId (null token store)',
+    test('null persisted userId still resolves the live me-keyed path',
         () async {
+      // A null userId falls back internally to user-client-001 (used only for
+      // mock-mode + the log line); on the live gateway the path is `me`
+      // regardless, so a missing userId must not crash or change the path.
       _capturedPath = null;
       final repo = DioSavedLocationRepository(
         _capturingDio(<dynamic>[]),
@@ -142,7 +144,6 @@ void main() {
       await repo.fetchSavedLocations();
 
       expect(_capturedPath, '/api/users/me/saved-locations');
-      expect(_capturedPath, isNot(contains('user-client-001')));
     });
 
     test('parses array response correctly', () async {

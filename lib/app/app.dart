@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -11,34 +12,29 @@ import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/accessibility/accessibility.dart';
-import '../core/deep_link/deep_link_route_information_parser.dart';
 import '../core/dev_seam/dev_seam.dart';
 import '../core/dev_seam/session_seam_bootstrap.dart';
 import '../core/locale/locale_cubit.dart';
 import '../core/notifications/application/badge_count_cubit.dart';
+import '../core/di/injection_container.dart';
 import '../core/notifications/application/notification_dispatcher.dart';
 import '../core/notifications/application/push_notification_handler.dart';
+import '../core/notifications/data/device_token_registrar.dart';
 import '../core/notifications/data/firebase_messaging_transport.dart';
-import '../core/notifications/data/push_device_registrar.dart';
 import '../core/notifications/data/push_transport.dart';
-import '../core/notifications/domain/notification_message.dart';
-import '../core/di/injection_container.dart' show resolveGatewayDio;
 import '../core/notifications/domain/notification_deep_link.dart';
 import '../core/notifications/presentation/push_banner_host.dart';
 import '../core/observability/crash_context_bridge.dart';
 import '../core/observability/crash_reporter.dart';
 import '../core/network/auth_token_store.dart';
 import '../core/onboarding/onboarding_cubit.dart';
-import '../core/role/role_availability_cubit.dart';
 import '../core/role/role_cubit.dart';
 import '../core/role/role_eligibility_cubit.dart';
-import '../core/role/role_sync.dart';
 import '../core/role/user_role.dart';
 import '../core/router/app_router.dart';
 import '../core/session/account_status_gate.dart';
 import '../core/session/session_cubit.dart';
 import '../core/session/session_gate.dart';
-import '../core/session/session_state.dart';
 import '../core/theme/app_theme.dart';
 import '../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../features/biometric_auth/data/dev_biometric_gateway.dart';
@@ -62,12 +58,9 @@ class JeebApp extends StatefulWidget {
     required this.preferences,
     this.crashReporter = const NoopCrashReporter(),
     this.pushTransport,
-    this.pushDeviceRegistrar,
     this.biometricGateway,
     this.localizationsDelegateOverride,
     this.sessionGate,
-    this.firebaseInitializer,
-    this.fcmTransportBuilder,
   });
 
   final SharedPreferences preferences;
@@ -92,14 +85,6 @@ class JeebApp extends StatefulWidget {
   /// lands (separate ticket).
   final PushTransport? pushTransport;
 
-  /// Optional override for the backend device-registrar (PUSH-FIX iter7).
-  /// Production builds a real [PushDeviceRegistrar] over [resolveGatewayDio]
-  /// for ANY transport that yields a token; integration tests inject a
-  /// registrar over a recording Dio so the app → gateway register hop can be
-  /// asserted end-to-end without a live network. When supplied it is NOT owned
-  /// by this widget (the registrar holds no disposable resources anyway).
-  final PushDeviceRegistrar? pushDeviceRegistrar;
-
   /// Optional override for the biometric prompt (T-mobile-005). Production
   /// defers to [UnavailableBiometricGateway] until the `local_auth` plugin
   /// ticket lands; tests can inject a scripted fake to drive the lock screen
@@ -113,29 +98,11 @@ class JeebApp extends StatefulWidget {
   /// override is supplied it is NOT owned by this widget (no dispose).
   final SessionGate? sessionGate;
 
-  /// S14 COLD-START ORDERING seam. The push chain awaits this BEFORE it touches
-  /// FCM, guaranteeing the default Firebase app exists first (see
-  /// [_initPushChainAsync]). Production leaves this null and uses the idempotent
-  /// [Firebase.initializeApp]; tests inject a controllable future so the
-  /// build-only-after-Firebase ordering can be asserted deterministically
-  /// without a real Firebase platform channel. NOT owned by this widget.
-  @visibleForTesting
-  final Future<void> Function()? firebaseInitializer;
-
-  /// S14 test seam for the concrete FCM transport build+initialize step.
-  /// Production leaves this null and builds a real [FirebaseMessagingTransport]
-  /// (whose constructor reaches [FirebaseMessaging.instance] → [Firebase.app],
-  /// which is exactly why it must run only after Firebase init). Tests inject a
-  /// recording builder to observe WHEN the transport is constructed relative to
-  /// [firebaseInitializer].
-  @visibleForTesting
-  final Future<PushTransport> Function()? fcmTransportBuilder;
-
   @override
   State<JeebApp> createState() => _JeebAppState();
 }
 
-class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
+class _JeebAppState extends State<JeebApp> {
   late final OnboardingCubit _onboarding =
       OnboardingCubit(prefs: widget.preferences);
   late final RoleCubit _role = RoleCubit(
@@ -143,30 +110,11 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     initialRole: _devSeamRole,
   );
 
-  /// DEFECT-C: published `available_roles` from getMe — gates the in-app role
-  /// toggle + driver surface (empty until the first [RoleSync.sync] resolves,
-  /// so single-role clients never flash a toggle).
-  late final RoleAvailabilityCubit _roleAvailability = RoleAvailabilityCubit();
-
-  /// DEFECT-C: login→role sync. Reads getMe and reconciles [_role] /
-  /// [_roleAvailability] with the server's `active_role` + `available_roles`.
-  /// Self-resolves the getMe repo over the shared Dio (no DI edit). Skipped
-  /// when a dev seam is forcing the role for a capture build (the seam owns the
-  /// surface in that case).
-  late final RoleSync _roleSync = RoleSync(
-    roleCubit: _role,
-    availabilityCubit: _roleAvailability,
-  );
-
   /// Debug-only: the `jeeb.feed` dev seam captures the deliveryman (jeeber)
   /// feed, so force the jeeber role when it's set. `null` in release and when
   /// the seam isn't driving the feed, preserving the persisted role.
   UserRole? get _devSeamRole =>
       kDebugMode && DevSeam.current.hasFeed ? UserRole.jeeber : null;
-
-  /// True when a dev seam is pinning the role for a deterministic capture; the
-  /// getMe role-sync must NOT fight it then.
-  bool get _seamPinsRole => _devSeamRole != null;
   late final RoleEligibilityCubit _roleEligibility = RoleEligibilityCubit();
   // Mirrors RoleCubit/OnboardingCubit — built directly from the prefs the
   // bootstrap handed us so widget tests don't need to configure GetIt. The
@@ -227,220 +175,80 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   // already cascades into `transport.dispose()`.
   PushNotificationHandler? _pushHandler;
   NotificationDispatcher? _dispatcher;
-
-  /// DEFECT-C2: subscription to the owned [SessionCubit] so a successful login
-  /// (OTP verify / super-login calls `session.refresh()`, which transitions the
-  /// session to authenticated) re-fires [RoleSync.sync] IMMEDIATELY — without
-  /// waiting for a background/foreground cycle. Only created when WE own the
-  /// session (a test-injected bare [SessionGate] is not a cubit and has no
-  /// stream); null otherwise. Closed in [dispose].
-  StreamSubscription<SessionState>? _sessionSub;
+  DeviceTokenRegistrar? _deviceRegistrar;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     // FR-P0-3: evaluate the session AFTER first frame. The cubit starts in the
     // `unknown` phase (router gate is a no-op) so we never flash `/register`
     // during the keystore read; once this resolves, an onboarded-but-tokenless
     // user is redirected to login via `refreshListenable`.
     _ownedSession?.refresh();
-    // DEFECT-C2: cold-start role-sync runs pre-auth (getMe 401s) and resume only
-    // re-fires on background/foreground; neither fires on login completion. The
-    // OTP-verify / super-login path calls `session.refresh()`, transitioning the
-    // SessionCubit to `authenticated` — listen for that transition and re-sync
-    // the role so the toggle appears + the shell lands on the server's active
-    // role right after the first login, no background/foreground needed.
-    _wireSessionRoleSync();
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      _initPushChain();
-      // DEFECT-C: sync the active role + available_roles from getMe after the
-      // first frame paints (never blocks cold start). A returning dual-role
-      // user is flipped onto their server-side active surface; a single-role
-      // client stays on client with no toggle shown.
-      _syncRole();
-    });
-  }
-
-  /// DEFECT-C: reconcile local role state with the server. No-op while a dev
-  /// seam pins the role for a capture build.
-  void _syncRole() {
-    if (_seamPinsRole) return;
-    unawaited(_roleSync.sync());
-  }
-
-  /// DEFECT-C2: re-run [_syncRole] on every transition INTO the authenticated
-  /// session state. This is the login-completion trigger DEFECT-C was missing:
-  /// the cold-start sync fires pre-auth (getMe 401s) and resume only fires on
-  /// background/foreground, so before this the role toggle stayed hidden and the
-  /// shell sat on the `client` default until the user backgrounded the app once.
-  ///
-  /// We only listen when WE own the session — a test-injected bare [SessionGate]
-  /// is not a [SessionCubit] and exposes no stream. The first authenticated
-  /// emission (e.g. an already-logged-in cold start) also re-syncs, which is
-  /// harmless: [RoleSync.sync] is idempotent and now runs post-auth (getMe
-  /// succeeds), so it strictly improves on the pre-auth cold-start attempt. All
-  /// DEFECT-C fail-safes live in [RoleSync.sync] and the `_seamPinsRole` guard
-  /// in [_syncRole] is preserved.
-  void _wireSessionRoleSync() {
-    final session = _ownedSession;
-    if (session == null) return;
-    _sessionSub = session.stream.listen((state) {
-      if (state.isAuthenticated) {
-        _syncRole();
-        // S0-PUSH-04: the FCM device-register hop must run UNDER the real
-        // session UUID. The cold-start push bootstrap fires pre-auth, so on a
-        // fresh OTP/super-login the first register attempt 401s under a null
-        // identity and never lands. Re-running [bootstrap] on the
-        // authenticated transition re-offers the (unchanged) FCM token now that
-        // the bearer exists; the registrar's identity-keyed dedup lets it
-        // through and the token is registered under the authenticated UUID.
-        // Idempotent for an already-registered identity (registrar skips), and
-        // null-safe before the push chain has built.
-        _reRegisterPushDeviceForSession();
-      }
-    });
-  }
-
-  /// S0-PUSH-04: re-fetch + re-register the FCM token after login so the
-  /// device-register lands under the authenticated session UUID. No-op until
-  /// [_initPushChain] has built the handler (the cold-start bootstrap covers
-  /// the already-authenticated returning-user case).
-  void _reRegisterPushDeviceForSession() {
-    final handler = _pushHandler;
-    if (handler == null) return;
-    unawaited(handler.bootstrap());
-  }
-
-  /// DEFECT-C: re-sync the role on app-resume so a role switched on another
-  /// device (or after a backgrounded session) reflects when the app returns to
-  /// the foreground.
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed) _syncRole();
+    SchedulerBinding.instance.addPostFrameCallback((_) => _initPushChain());
   }
 
   void _initPushChain() {
     if (!mounted) return;
-    unawaited(_initPushChainAsync());
-  }
-
-  /// PUSH-FIX (iter6): wire the REAL FCM transport in production.
-  ///
-  /// Before this, the chain always fell back to [FakePushTransport] (the real
-  /// [FirebaseMessagingTransport] was never instantiated and `initialize()`
-  /// was never called), so no FCM token, channel, or background handler ever
-  /// existed and no push could land. We now:
-  ///   1. build [FirebaseMessagingTransport] (unless a test injected one),
-  ///   2. `await initialize()` — registers the background handler, creates the
-  ///      Android channel, hooks the foreground/onMessageOpenedApp listeners,
-  ///   3. register the FCM token with jeeb-gateway via [PushDeviceRegistrar]
-  ///      (on bootstrap + on every token refresh), and
-  ///   4. route the cold-start [initialMessage] tap through the dispatcher.
-  /// Any failure here (e.g. Firebase not configured on a dev build) degrades to
-  /// the in-process [FakePushTransport] so cold start is never broken.
-  Future<void> _initPushChainAsync() async {
-    if (!mounted) return;
-    PushTransport transport;
-    Future<NotificationMessage?>? initialMessage;
-    if (widget.pushTransport != null) {
-      transport = widget.pushTransport!;
-    } else {
-      try {
-        // S14 COLD-START ORDERING FIX: Firebase.initializeApp() runs in the
-        // DEFERRED bootstrap phase, fire-and-forget (jeeb_bootstrap.dart). On a
-        // cold/slow boot this push chain could win that race and construct
-        // FirebaseMessagingTransport() — whose ctor reaches FirebaseMessaging
-        // .instance → Firebase.app() — BEFORE the default app existed, throwing
-        // `[core/no-app]`. The catch then silently degraded to FakePushTransport,
-        // so the app got no real FCM token and received no push. We now AWAIT a
-        // Firebase-init completion guard first; Firebase.initializeApp() is
-        // idempotent (returns the existing app when already initialized), so the
-        // already-warm path costs nothing while the cold path is made correct.
-        await _ensureFirebaseInitialized();
-        final fcm = await _buildAndInitFcmTransport();
-        transport = fcm;
-        initialMessage = fcm.initialMessage();
-      } catch (error) {
-        debugPrint('[push] FCM transport init failed; using fake: $error');
-        transport = FakePushTransport();
-      }
-    }
-    if (!mounted) {
-      await transport.dispose();
-      return;
-    }
-
-    // The backend device-registrar shares the ONE configured gateway Dio via
-    // [resolveGatewayDio] — the AppConfig-driven [DioClient] (or the mock client
-    // only when --dart-define=USE_MOCK_GATEWAY=true) with the bearer-attach +
-    // 401-refresh interceptors. This routes registration through jeeb-gateway
-    // (no direct push-notification-service call) and lets the gateway read the
-    // user_id from the attached JWT.
-    //
-    // PUSH-FIX (iter7): the registrar is now attached for ANY transport, not
-    // only [FirebaseMessagingTransport]. The previous `is FirebaseMessagingTransport`
-    // gate meant that every build without real Firebase credentials (the mock-
-    // gateway dev build, integration harnesses) fell back to [FakePushTransport]
-    // and so NEVER ran the app → gateway register hop — the (device → token) row
-    // was never created server-side. Decoupling registration from the concrete
-    // transport class makes the hop fire whenever a token actually exists:
-    //   - real Firebase build  -> real FCM token        -> registers,
-    //   - injected token transport (E2E) -> token        -> registers,
-    //   - bare fallback fake   -> getToken() == null      -> register(null) no-op.
-    // `register(null/'')` is already a guarded no-op, so the bare fallback path
-    // behaves exactly as before (no spurious calls).
-    final registrar =
-        widget.pushDeviceRegistrar ?? PushDeviceRegistrar(dio: resolveGatewayDio());
-
+    final transport = widget.pushTransport ?? _defaultPushTransport();
     final handler = PushNotificationHandler(
       transport: transport,
       badgeCount: _badgeCount,
-      onToken: registrar.register,
     );
     final dispatcher = NotificationDispatcher(
       handler: handler,
       router: _router,
-      initialMessage: initialMessage,
+      // Cold-start: route the tap that launched the app from a terminated
+      // state (the jeeber's chat-push entry point) once the router is built.
+      initialMessage: transport.initialMessage(),
     );
+    // PUSH-WIRING: with a real FCM transport, register this install's token
+    // with the gateway so server-side chat/delivery pushes can target it.
+    // The fake transport (tests / Firebase-uninit builds) has no real token,
+    // so registration is skipped.
+    if (transport is FirebaseMessagingTransport) {
+      final registrar = DeviceTokenRegistrar(
+        dio: sl<Dio>(),
+        tokenStore: sl<AuthTokenStore>(),
+        transport: transport,
+        prefs: widget.preferences,
+      );
+      unawaited(registrar.start());
+      _deviceRegistrar = registrar;
+    }
     setState(() {
       _pushHandler = handler;
       _dispatcher = dispatcher;
     });
   }
 
-  /// S14: the Firebase-init completion guard the FCM branch awaits before
-  /// touching FCM. Production calls the idempotent [Firebase.initializeApp]
-  /// (a no-op returning the existing app once the deferred phase has run);
-  /// tests inject [JeebApp.firebaseInitializer] to control resolution timing.
-  Future<void> _ensureFirebaseInitialized() =>
-      (widget.firebaseInitializer ?? () => Firebase.initializeApp())();
-
-  /// S14: builds + initializes the real FCM transport, or defers to the
-  /// injected [JeebApp.fcmTransportBuilder] in tests. Kept separate so the
-  /// construction step is observable relative to [_ensureFirebaseInitialized].
-  Future<PushTransport> _buildAndInitFcmTransport() async {
-    final builder = widget.fcmTransportBuilder;
-    if (builder != null) return builder();
-    final fcm = FirebaseMessagingTransport();
-    await fcm.initialize();
-    return fcm;
+  /// Production push transport. Firebase only has an app when
+  /// `Firebase.initializeApp()` succeeded in [Bootstrap.minimal] — which now
+  /// happens on dev/QA builds because `google-services.json` is bundled and
+  /// the gms plugin is applied. In widget tests (and any build where init fell
+  /// back to the Noop reporter) `Firebase.apps` is empty, so we use the
+  /// in-memory fake and nothing touches the FCM platform channel.
+  PushTransport _defaultPushTransport() {
+    if (Firebase.apps.isEmpty) return FakePushTransport();
+    final transport = FirebaseMessagingTransport();
+    // initialize() wires the background handler, the Android channel, and the
+    // foreground listeners. Idempotent + async; the handler subscribes to the
+    // transport's broadcast streams immediately, so ordering is safe.
+    unawaited(transport.initialize());
+    return transport;
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _crashContext.dispose();
+    _deviceRegistrar?.dispose();
     _dispatcher?.dispose();
     _pushHandler?.dispose();
     _badgeCount.close();
     _biometricLock.close();
     _roleEligibility.close();
-    _roleAvailability.close();
     _role.close();
     _onboarding.close();
-    _sessionSub?.cancel();
     _ownedSession?.close();
     _router.dispose();
     super.dispose();
@@ -452,7 +260,6 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       providers: [
         BlocProvider(create: (_) => LocaleCubit(prefs: widget.preferences)),
         BlocProvider.value(value: _role),
-        BlocProvider.value(value: _roleAvailability),
         BlocProvider.value(value: _roleEligibility),
         BlocProvider.value(value: _onboarding),
         BlocProvider.value(value: _biometricLock),
@@ -490,20 +297,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
                 GlobalWidgetsLocalizations.delegate,
                 GlobalCupertinoLocalizations.delegate,
               ],
-              // Sprint 3 (deeplink): instead of `routerConfig: _router`, the
-              // router's own pieces are wired explicitly so the inbound parser
-              // can be wrapped. [DeepLinkRouteInformationParser] folds a
-              // custom-scheme `jeeb://orders/d-1` (host `orders`, path `/d-1`)
-              // back into `/orders/d-1` BEFORE go_router matches; the auth gate
-              // + id validation then apply via the router redirect and the
-              // resolver. Delegate / provider / back-button dispatcher are the
-              // router's own — only the parser is wrapped.
-              routeInformationParser: DeepLinkRouteInformationParser(
-                inner: _router.routeInformationParser,
-              ),
-              routerDelegate: _router.routerDelegate,
-              routeInformationProvider: _router.routeInformationProvider,
-              backButtonDispatcher: _router.backButtonDispatcher,
+              routerConfig: _router,
               builder: (context, child) {
                 final content = child ?? const SizedBox.shrink();
                 final handler = _pushHandler;
@@ -518,15 +312,6 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
                           final path = deepLinkForMessage(message);
                           if (path != null) _router.go(path);
                         },
-                        // Surface the branded, capturable POST_NOTIFICATIONS
-                        // priming card after a prior denial; "Enable" re-runs
-                        // bootstrap (which deep-links to settings on Android
-                        // once the system dialog can no longer be shown). Never
-                        // races the first-run OS dialog — the host only renders
-                        // it for the resolved `denied` state.
-                        showPermissionPrompt: true,
-                        onEnablePermission: () =>
-                            unawaited(handler.bootstrap()),
                         child: content,
                       );
                 return jeebA11yBuilder(context, wrapped);

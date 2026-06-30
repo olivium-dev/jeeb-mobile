@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/auth_token_store.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../jeeber_request_feed/cubit/request_feed_cubit.dart';
 import '../../jeeber_request_feed/cubit/request_feed_state.dart';
@@ -13,6 +14,7 @@ import '../application/availability_cubit.dart';
 import '../application/availability_state.dart';
 import '../domain/entities/availability_status.dart';
 import '../domain/entities/feed_request.dart';
+import 'widgets/jeeber_active_deliveries_banner.dart';
 import 'widgets/jeeber_feed_tab_view.dart';
 import 'widgets/jeeber_no_requests_view.dart';
 import 'widgets/jeeber_unregistered_view.dart';
@@ -42,7 +44,6 @@ class JeeberHomeScreen extends StatefulWidget {
     this.requestFeedCubit,
     this.registerCtaIdentifier,
     this.submittedOffersCubitFactory,
-    this.activeDeliveriesBanner,
   });
 
   static const Key scaffoldKey = Key('jeeber-home-screen-scaffold');
@@ -83,13 +84,6 @@ class JeeberHomeScreen extends StatefulWidget {
   /// inject a scripted factory to assert the real-data path.
   final SubmittedOffersCubit Function()? submittedOffersCubitFactory;
 
-  /// iter6 real-flow blocker fix: an optional banner the host (the Dashboard
-  /// tab) builds for the jeeber's ACCEPTED/active deliveries. Rendered at the
-  /// top of the registered body (above the pending feed / no-requests view) so
-  /// a freshly-accepted order has a real-UI entry to its chat + delivery. Null
-  /// in the unregistered (State-1) path and in bare harnesses.
-  final Widget? activeDeliveriesBanner;
-
   @override
   State<JeeberHomeScreen> createState() => _JeeberHomeScreenState();
 }
@@ -129,10 +123,13 @@ class _JeeberHomeScreenState extends State<JeeberHomeScreen> {
     if (factory != null) {
       _submittedOffersCubit = factory();
     } else if (sl.isRegistered<Dio>()) {
-      // S0-OAD-03: the repo resolves the REAL authenticated session jeeber id
-      // from AuthTokenStore — never a hardcoded `user-jeeber-002` fixture id.
       _submittedOffersCubit = SubmittedOffersCubit(
-        repository: DioSubmittedOffersRepository(dio: sl<Dio>()),
+        repository: DioSubmittedOffersRepository(
+          dio: sl<Dio>(),
+          tokenStore: sl.isRegistered<AuthTokenStore>()
+              ? sl<AuthTokenStore>()
+              : null,
+        ),
       );
     }
     return _submittedOffersCubit;
@@ -151,18 +148,20 @@ class _JeeberHomeScreenState extends State<JeeberHomeScreen> {
       identifier: 'jeeber_home_root',
       container: true,
       child: Scaffold(
-      key: JeeberHomeScreen.scaffoldKey,
-      appBar: OMDSAppBar(title: l10n.availabilityHomeTitle, centerTitle: false),
-      body: _RootBody(
-        isRegistered: widget.isRegistered,
-        profileName: widget.profileName,
-        onRegister: widget.onRegister,
-        onOpenFeedRequest: widget.onOpenFeedRequest,
-        requestFeedCubit: widget.requestFeedCubit,
-        registerCtaIdentifier: widget.registerCtaIdentifier,
-        submittedOffersCubit: _resolveSubmittedOffersCubit(),
-        activeDeliveriesBanner: widget.activeDeliveriesBanner,
-      ),
+        key: JeeberHomeScreen.scaffoldKey,
+        appBar: OMDSAppBar(
+          title: l10n.availabilityHomeTitle,
+          centerTitle: false,
+        ),
+        body: _RootBody(
+          isRegistered: widget.isRegistered,
+          profileName: widget.profileName,
+          onRegister: widget.onRegister,
+          onOpenFeedRequest: widget.onOpenFeedRequest,
+          requestFeedCubit: widget.requestFeedCubit,
+          registerCtaIdentifier: widget.registerCtaIdentifier,
+          submittedOffersCubit: _resolveSubmittedOffersCubit(),
+        ),
       ),
     );
   }
@@ -180,7 +179,6 @@ class _RootBody extends StatelessWidget {
     required this.requestFeedCubit,
     required this.registerCtaIdentifier,
     required this.submittedOffersCubit,
-    required this.activeDeliveriesBanner,
   });
 
   final bool isRegistered;
@@ -190,7 +188,6 @@ class _RootBody extends StatelessWidget {
   final RequestFeedCubit? requestFeedCubit;
   final String? registerCtaIdentifier;
   final SubmittedOffersCubit? submittedOffersCubit;
-  final Widget? activeDeliveriesBanner;
 
   @override
   Widget build(BuildContext context) {
@@ -201,23 +198,12 @@ class _RootBody extends StatelessWidget {
         ctaIdentifier: registerCtaIdentifier,
       );
     }
-    final registered = _RegisteredBody(
+    final body = _RegisteredBody(
       profileName: profileName,
       onOpenFeedRequest: onOpenFeedRequest,
       hasFeedCubit: requestFeedCubit != null,
       submittedOffersCubit: submittedOffersCubit,
     );
-    // iter6 real-flow blocker fix: stack the accepted/active-deliveries banner
-    // above the pending-feed body. The banner self-hides when there are no
-    // active deliveries, so the feed/no-requests states render unchanged when
-    // the jeeber has nothing accepted. `Expanded` keeps the feed scrollable.
-    final banner = activeDeliveriesBanner;
-    final body = banner == null
-        ? registered
-        : Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [banner, Expanded(child: registered)],
-          );
     if (requestFeedCubit == null) return body;
     return BlocProvider<RequestFeedCubit>.value(
       value: requestFeedCubit!,
@@ -340,11 +326,21 @@ class _NoRequestsScope extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cubit = context.read<AvailabilityCubit>();
-    return JeeberNoRequestsView(
-      view: view,
-      profileName: profileName,
-      onToggle: cubit.toggle,
-      onExtendActivity: cubit.extendActivity,
+    // S007-P1B: surface the jeeber's ACCEPTED (won) order chats above the
+    // no-requests state so they are reachable in-app, not push-only. The banner
+    // renders nothing when there are none, so the prior layout is unchanged.
+    return Column(
+      children: [
+        const JeeberActiveDeliveriesBanner(),
+        Expanded(
+          child: JeeberNoRequestsView(
+            view: view,
+            profileName: profileName,
+            onToggle: cubit.toggle,
+            onExtendActivity: cubit.extendActivity,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -370,8 +366,8 @@ class _FeedTabBody extends StatelessWidget {
       onOpenRequest: onOpenFeedRequest == null
           ? null
           : (req) => onOpenFeedRequest!(
-                FeedRequest(id: req.id, shortLabel: req.pickup.label),
-              ),
+              FeedRequest(id: req.id, shortLabel: req.pickup.label),
+            ),
       submittedOffersCubit: submittedOffersCubit,
     );
   }
@@ -421,8 +417,11 @@ class _LoadErrorContent extends StatelessWidget {
           color: theme.colorScheme.onSurfaceVariant,
         ),
         const SizedBox(height: Spacing.medium),
-        Text(title, textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.titleMedium,
+        ),
         const SizedBox(height: Spacing.medium),
         OmdsPrimaryButton(
           key: JeeberHomeScreen.loadErrorRetryKey,

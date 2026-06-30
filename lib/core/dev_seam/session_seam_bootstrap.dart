@@ -152,28 +152,28 @@ class SessionSeamBootstrap {
 
         case SessionSeed.loggedOutReturning:
           await _completeOnboarding(prefs);
-          // No token → the first-run session gate sends the user to `/login`.
+        // No token → the first-run session gate sends the user to `/login`.
 
         case SessionSeed.biometricEnrolled:
           await _completeOnboarding(prefs);
           await _setRole(prefs, UserRole.client);
           await _logIn(tokens, customerUserId);
           await _enrollBiometric(prefs);
-          // onboarded + token + biometric LOCKED → the biometric gate holds
-          // the user on `/lock`.
+        // onboarded + token + biometric LOCKED → the biometric gate holds
+        // the user on `/lock`.
 
         case SessionSeed.biometricEnrolledLoggedOut:
           await _completeOnboarding(prefs);
           await _enrollBiometric(prefs);
-          // No token → `/login`, but `login_biometric_affordance` is shown
-          // because the biometric preference is enabled.
+        // No token → `/login`, but `login_biometric_affordance` is shown
+        // because the biometric preference is enabled.
 
         case SessionSeed.suspended:
           await _completeOnboarding(prefs);
           await _setRole(prefs, UserRole.client);
           await _logIn(tokens, customerUserId);
           await prefs.setBool(kAccountBlockedKey, true);
-          // onboarded + token + account blocked → `/account-status`.
+        // onboarded + token + account blocked → `/account-status`.
 
         case SessionSeed.superLoginPlus:
           // QA-only seam: write a REAL gateway JWT (minted via /auth/tokens) into
@@ -186,25 +186,14 @@ class SessionSeamBootstrap {
           // '<JWT>'` and is NEVER baked into the binary.
           //
           // Falls back gracefully: if the token extra is absent (empty), the seam
-          // completes onboarding but writes no token → the router lands on
+          // completes onboarding + role but writes no token → the router lands on
           // `/login` (the user sees the login screen rather than crashing).
-          //
-          // S0-SEAM-03 / ARCH-07: this is a REAL-GATEWAY path (it writes a real
-          // bearer the app uses for live `/v1/*` calls), so the active role MUST
-          // come from `getMe.active_role` via `RoleSync` — NOT a manual
-          // `flutter.app.role` flip. Previously this hard-pinned
-          // `UserRole.client`, so a jeeber super-login landed on the CLIENT shell
-          // and only flipped after a background/foreground cycle. We now leave the
-          // role pref UNSET: `RoleCubit` defaults to `client` transiently, then
-          // `RoleSync.sync()` (fired by `app.dart` the moment the session goes
-          // authenticated) adopts the server's `active_role` — landing a jeeber in
-          // the JEEBER shell. `_devSeamRole`/`_seamPinsRole` is null for this seam
-          // (it is not a `hasFeed` capture), so RoleSync is free to reconcile.
           await _completeOnboarding(prefs);
+          await _setRole(prefs, _superLoginRole());
           final realToken = DevSeam.current.superLoginToken;
           if (realToken.isNotEmpty) {
-            final refreshToken = DevSeam.current.superLoginRefreshToken
-                    .isNotEmpty
+            final refreshToken =
+                DevSeam.current.superLoginRefreshToken.isNotEmpty
                 ? DevSeam.current.superLoginRefreshToken
                 : realToken; // fallback: use access token as refresh placeholder
             final userId = DevSeam.current.superLoginUserId.isNotEmpty
@@ -320,8 +309,9 @@ class SessionSeamBootstrap {
     // session id that owns a KYC/wallet record). Resolve the target id from the
     // seeded session so a future customer kyc/wallet variant slots in cleanly;
     // default to the jeeber id for a kyc/wallet-only launch.
-    final seamUserId =
-        seed == SessionSeed.customerLoggedIn ? customerUserId : jeeberUserId;
+    final seamUserId = seed == SessionSeed.customerLoggedIn
+        ? customerUserId
+        : jeeberUserId;
 
     // (a) KYC status. The first-frame DELIVERY-tab gate (JM-036) and offer gate
     // (JM-044) read `DevSeam.current.kycStatusSeed` SYNCHRONOUSLY via the
@@ -403,10 +393,7 @@ class SessionSeamBootstrap {
   ) async {
     final dio = client ?? _seedDio();
     final response = await dio
-        .post<Object?>(
-          _journeySeedPath,
-          data: {'journey': journey.wireValue},
-        )
+        .post<Object?>(_journeySeedPath, data: {'journey': journey.wireValue})
         .timeout(_journeySeedTimeout);
     debugPrint(
       'SessionSeamBootstrap journey-seed ${journey.wireValue} '
@@ -478,6 +465,19 @@ class SessionSeamBootstrap {
   static Future<void> _setRole(SharedPreferences prefs, UserRole role) =>
       prefs.setString(RoleCubit.rolePrefKey, role.storageKey);
 
+  static UserRole _superLoginRole() {
+    switch (DevSeam.current.superLoginRole.trim().toLowerCase()) {
+      case 'jeeber':
+      case 'driver':
+      case 'delivery':
+      case 'deliveryman':
+      case 'delivery_man':
+        return UserRole.jeeber;
+      default:
+        return UserRole.client;
+    }
+  }
+
   static Future<void> _logIn(AuthTokenStore tokens, String userId) =>
       tokens.save(
         accessToken: _accessTokenFor(userId),
@@ -526,8 +526,9 @@ class SessionSeamBootstrap {
 /// behaviour for every non-suspended seed and for un-seeded launches.
 class SeededAccountStatusGate implements AccountStatusGate {
   SeededAccountStatusGate(SharedPreferences prefs)
-      : _blocked = kDebugMode &&
-            (prefs.getBool(SessionSeamBootstrap.kAccountBlockedKey) ?? false);
+    : _blocked =
+          kDebugMode &&
+          (prefs.getBool(SessionSeamBootstrap.kAccountBlockedKey) ?? false);
 
   final bool _blocked;
 

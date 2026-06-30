@@ -8,6 +8,7 @@ import 'package:omds/omds.dart';
 import '../../core/network/auth_token_store.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/role/user_role.dart';
+import '../chat/application/order_compose_coordinator.dart';
 import '../chat/data/dev_chat_fixture_gateway.dart';
 import '../chat/data/dio_chat_gateway.dart';
 import '../chat/data/dio_order_broadcast_service.dart';
@@ -19,18 +20,20 @@ import '../chat/domain/order_broadcast_service.dart';
 import '../chat/domain/order_chat_summary.dart';
 import '../chat/presentation/chat_screen.dart';
 import '../photo_attachment/data/stub_photo_picker_service.dart';
+import '../request_summary/data/dio_request_submission_service.dart';
 import 'dev_chat_detail_fixtures.dart';
 
 /// Deep-link entry point for `/chat/:id` — the `order-chat` surface (JM-025).
 ///
-/// The route param is the REQUEST id (the order / create-flow
-/// `location_select_confirm_cta` push it — see `client_location_screen`). The
-/// request id is the conversation's CORRELATION KEY, never the conversation id.
-/// CHAT-CONTRACT (iter6): the screen resolves it to the server-minted
-/// `conversation_id` via `POST /v1/chat/jeeb/conversations` (create-or-get) — or
-/// `GET /v1/conversations?correlationKey={request_id}` — BEFORE constructing the
-/// gateway, so every message path uses the real conversation id (no more
-/// request-id-as-conversation-id 404, no non-existent `by-request` route).
+/// The route param can be a conversation id **or** a delivery/request id.
+/// When given a delivery/request id (e.g. from the In Progress tab, an accepted
+/// order, or the create-flow `location_select_confirm_cta`), the screen
+/// resolves the linked conversation against the LIVE gateway contract — first
+/// `GET /v1/conversations?correlationKey={requestId}` (correlationKey ==
+/// request id), then a `GET /v1/conversations/{id}/messages` 200 probe when the
+/// param is already a conversation id — before constructing the gateway. (The
+/// old `/v1/chat/jeeb/conversations/{id}` + `/by-request` prefix is create-only
+/// and 404s on live, so it is no longer used for resolution.)
 ///
 /// The resolved conversation phase + winner drive the JM-025 order-chat states:
 ///   * **compose / broadcasting** (client, no winner): the first message the
@@ -41,31 +44,15 @@ import 'dev_chat_detail_fixtures.dart';
 ///     `order-summary-pinned` (JM-031), and `order_chat_open_dispute` →
 ///     `dispute-open-evidence` (the `escalate` route, JM-060) — AC2/AC3.
 class ChatDetailScreen extends StatefulWidget {
-  const ChatDetailScreen({
-    super.key,
-    required this.chatId,
-    this.initialDeliveryId,
-  });
+  const ChatDetailScreen({super.key, required this.chatId});
 
   final String chatId;
-
-  /// Server-created delivery id forwarded by the offer-accept-confirm sheet
-  /// (`OfferAcceptSheet`) when the client accepted from the review list and was
-  /// routed straight to the order-chat. Seeds the chat's tracking id so the
-  /// client "Track order" CTA is reachable for an already-accepted order. Null
-  /// for every other entry (the in-chat accept path captures the id itself).
-  final String? initialDeliveryId;
 
   @override
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
 }
 
 class _ChatDetailScreenState extends State<ChatDetailScreen> {
-  /// The create-flow compose sentinel id the location step hands off
-  /// (`client_location_screen` → `pushNamed('chat-detail', {'id': 'new'})`).
-  /// ONLY this entry is allowed to broadcast on the first message (JM-025 AC1).
-  static const String _composeSentinelId = 'new';
-
   String _resolvedConversationId = '';
   String _counterpartName = '';
 
@@ -144,49 +131,86 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
 
     final dio = getIt<Dio>();
+    // Real session user id — drives ChatAuthor.me vs `them` folding and marks
+    // outgoing bubbles. NEVER hardcode: the gateway stamps `author_id` from the
+    // bearer JWT (the real user), so a hardcoded 'user-client-001' folded EVERY
+    // message — including the local user's own sends — as `them`, breaking the
+    // thread's left/right rendering. Resolved from AuthTokenStore (populated at
+    // login / super-login). Empty when unauthenticated → degrades safely (all
+    // messages render as `them`), never crashes.
+    final currentUserId = await _resolveSessionUserId(getIt);
 
-    // CHAT-CONTRACT (iter6): the route param `widget.chatId` is the REQUEST id
-    // (the create-flow / order routes push it — see client_location_screen).
-    // The request id is NOT a conversation id — it is the conversation's
-    // CORRELATION KEY only. We MUST resolve it to the server-minted
-    // `conversation_id` BEFORE any messaging (the prior code used the request
-    // id directly as the conversation id → POST .../conversations/<REQUEST_ID>
-    // → 404, and the `by-request` route does not exist on the gateway).
-    //
-    // Bind the gateway to the REAL authenticated user id so the local user's
-    // own bubbles align right (`senderId == currentUserId`). It is also the
-    // `client_user_id` the create-or-get needs.
-    //
-    // S0-CHAT-05: resolve the id from the authenticated session ONLY — NEVER
-    // fall back to a hardcoded `user-client-001` fixture id (that id, baked into
-    // a live request, breaks the real run: the gateway would mint/scope the
-    // conversation against a foreign user). When the session has no id (only
-    // possible while unauthenticated, where no chat exists) we degrade to an
-    // empty id; the gateway re-scopes ownership from the bearer `sub` anyway.
-    final currentUserId = (await AuthTokenStore().userId) ?? '';
-    final requestId = widget.chatId;
-
-    // CREATE-FLOW sentinel (`new`): the compose leg lands here BEFORE a request
-    // exists (it broadcasts on the first message — JM-025 AC1), so there is no
-    // request_id to resolve a conversation by. Skip the resolve and keep the
-    // sentinel; `_isCreateFlow` gates the broadcast-on-first-message path.
+    var conversationId = widget.chatId;
     Map<String, dynamic>? conversationData;
-    if (requestId != _composeSentinelId) {
-      // Resolve correlation(request_id) → conversation_id (+ phase +
-      // participants) via the canonical create-or-get. Returns null when the
-      // surface is unavailable (flag off / transport) — we degrade rather than
-      // 404 a send.
-      conversationData =
-          await _resolveConversation(dio, requestId, currentUserId);
-    }
-    final conversationId =
-        conversationData?['conversation_id'] as String? ?? widget.chatId;
 
-    final title = await _resolveTitle(dio, requestId, conversationData);
+    // Resolve against the LIVE gateway contract. The gateway auto-creates one
+    // conversation per request, keyed by correlationKey == request id, exposed
+    // at `GET /v1/conversations?correlationKey={requestId}` (returns
+    // `{ id|conversationId, phase, requestId|correlationKey, winnerJeeberId }`).
+    // The route param may be EITHER a request id OR a conversation id, so:
+    //   1. correlationKey lookup (route param treated as the request id), then
+    //   2. a 200 from `GET /v1/conversations/{id}/messages` proves the route
+    //      param is already a real, openable conversation id.
+    // The create-only prefix `/v1/chat/jeeb/conversations/{id}` (+ `/by-request`)
+    // 404s on the live gateway and is NO LONGER used for resolution — that was
+    // the historical bug that wrongly stranded this screen in compose, where a
+    // "send" would create a brand-new request instead of posting to the
+    // existing conversation.
+    try {
+      final resp = await dio.get<Map<String, dynamic>>(
+        '/v1/conversations',
+        queryParameters: <String, Object?>{'correlationKey': widget.chatId},
+      );
+      final data = resp.data;
+      final resolvedId = _stringField(data, const ['id', 'conversationId']);
+      if (data != null && resolvedId.isNotEmpty) {
+        conversationData = data;
+        conversationId = resolvedId;
+      }
+    } on DioException {
+      // Fall through to the messages probe.
+    }
+
+    if (conversationData == null) {
+      // The route param may already be a conversation id. A 200 from the
+      // canonical messages route proves a real, openable conversation even when
+      // the correlationKey lookup found nothing (e.g. the customer arrives from
+      // the accept sheet with the server `conversationId`, not the request id).
+      // An existing message thread is, by definition, past compose → treat it
+      // as accepted so the composer shows and a send POSTs to this conversation
+      // (never re-broadcasts a new request).
+      try {
+        await dio.get<dynamic>(
+          '/v1/conversations/$conversationId/messages',
+        );
+        conversationData = <String, dynamic>{
+          'id': conversationId,
+          'phase': 'accepted',
+        };
+      } on DioException {
+        // Neither resolved — fresh compose (no request/conversation yet). The
+        // first message will create the request + broadcast (JM-025 AC1).
+      }
+    }
+
+    final title = await _resolveTitle(dio, conversationData);
+    // Live/mock convention: deliveryId == accepted-request-id. Prefer the
+    // conversation's requestId/correlationKey; the jeeber's "Start delivery"
+    // CTA + the pinned summary fetch + the broadcast/waiting route use this
+    // value (build() falls back to the resolved conversation id when absent).
+    final requestId = _stringField(
+      conversationData,
+      const ['requestId', 'correlationKey', 'request_id'],
+      fallback: conversationData == null ? '' : widget.chatId,
+    );
     final phase = ConversationPhase.fromWire(
       conversationData?['phase'] as String?,
     );
-    final hasWinner = _hasWinningJeeber(conversationData);
+    final winnerId = _stringField(
+      conversationData,
+      const ['winnerJeeberId', 'winner_jeeber_id'],
+    );
+    final hasWinner = winnerId.isNotEmpty;
 
     // JM-025 AC2: resolve the locked pinned summary for an accepted order. The
     // fetch is best-effort — a failure leaves `_summary` null and the strip
@@ -196,10 +220,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       summary = await _resolveSummary(dio, requestId, conversationId);
     }
 
-    // The gateway is bound to the REAL bearer id (resolved above) and the REAL
-    // server-minted `conversationId` — so `send`/`loadHistory`/`subscribe` all
-    // hit `/v1/conversations/{conversationId}/...` (canonical), and the local
-    // user's own bubbles align right (`senderId == currentUserId`).
     final gateway = DioChatGateway(
       dio: dio,
       currentUserId: currentUserId,
@@ -216,74 +236,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  /// CHAT-CONTRACT (iter6): create-or-get the conversation for [requestId].
-  ///
-  /// Canonical sequence (the same create→id sequencing rahma-fe uses):
-  ///   1. `POST /v1/chat/jeeb/conversations {request_id, client_user_id}`
-  ///      (Idempotency-Key == request_id) — idempotent get-or-create that
-  ///      returns the distinct `{conversation_id, phase, participants[]}`.
-  ///   2. If create is rejected (e.g. the caller is the jeeber, not the owner),
-  ///      fall back to `GET /v1/conversations?correlationKey={request_id}` to
-  ///      resolve the existing conversation_id.
-  /// Returns null only when neither resolves (surface unavailable) — the screen
-  /// then degrades to the original id rather than blocking the thread.
-  Future<Map<String, dynamic>?> _resolveConversation(
-    Dio dio,
-    String requestId,
-    String clientUserId,
-  ) async {
-    // 1) create-or-get.
-    try {
-      final resp = await dio.post<Map<String, dynamic>>(
-        '/v1/chat/jeeb/conversations',
-        data: <String, Object?>{
-          'request_id': requestId,
-          'client_user_id': clientUserId,
-        },
-        options: Options(
-          headers: <String, Object?>{'Idempotency-Key': requestId},
-        ),
-      );
-      final data = resp.data;
-      if (data != null && data['conversation_id'] != null) return data;
-    } on DioException {
-      // Fall through to the correlation lookup.
-    }
-
-    // 2) resolve by correlation key (request id).
-    try {
-      final resp = await dio.get<Map<String, dynamic>>(
-        '/v1/conversations',
-        queryParameters: <String, Object?>{'correlationKey': requestId},
-      );
-      final data = resp.data;
-      if (data != null && data['conversation_id'] != null) return data;
-    } on DioException {
-      // Neither path resolved — degrade.
-    }
-    return null;
-  }
-
-  /// True when the conversation has a winning jeeber participant
-  /// (`role_in_convo == jeeber_winner`) — the canonical post-accept signal that
-  /// replaces the old `winnerJeeberId` projection.
-  bool _hasWinningJeeber(Map<String, dynamic>? conversationData) {
-    final participants = conversationData?['participants'];
-    if (participants is! List) return false;
-    return participants.whereType<Map>().any((p) {
-      final role = p['role_in_convo'] as String?;
-      final removedAt = p['removed_at'];
-      return role == 'jeeber_winner' && removedAt == null;
-    });
-  }
-
   Future<String> _resolveTitle(
     Dio dio,
-    String requestId,
     Map<String, dynamic>? conversationData,
   ) async {
+    if (conversationData == null) return '';
+
     // Try the request title.
-    if (requestId.isNotEmpty && requestId != _composeSentinelId) {
+    final requestId = conversationData['requestId'] as String?;
+    if (requestId != null && requestId.isNotEmpty) {
       try {
         final resp = await dio.get<Map<String, dynamic>>(
           '/v1/requests/$requestId',
@@ -295,12 +256,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
     }
 
-    // Fall back to the winning jeeber's name (canonical participants[]).
-    final winnerId = _winningJeeberId(conversationData);
+    // Fall back to the winner jeeber name.
+    final winnerId = conversationData['winnerJeeberId'] as String?;
     if (winnerId != null && winnerId.isNotEmpty) {
       try {
         final resp = await dio.get<Map<String, dynamic>>(
-          '/v1/users/$winnerId',
+          '/users/$winnerId',
         );
         return resp.data?['name'] as String? ?? '';
       } on DioException {
@@ -309,18 +270,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
 
     return '';
-  }
-
-  /// The `user_id` of the active winning jeeber participant, or null.
-  String? _winningJeeberId(Map<String, dynamic>? conversationData) {
-    final participants = conversationData?['participants'];
-    if (participants is! List) return null;
-    for (final p in participants.whereType<Map>()) {
-      if (p['role_in_convo'] == 'jeeber_winner' && p['removed_at'] == null) {
-        return p['user_id'] as String?;
-      }
-    }
-    return null;
   }
 
   /// Fetches the locked pinned summary for the accepted order. Self-provides a
@@ -341,6 +290,34 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Resolves the authenticated session user id from [AuthTokenStore] (DI),
+  /// populated at login / super-login. Returns '' when the store is absent or
+  /// empty so the gateway degrades safely instead of crashing.
+  Future<String> _resolveSessionUserId(GetIt getIt) async {
+    if (!getIt.isRegistered<AuthTokenStore>()) return '';
+    try {
+      return (await getIt<AuthTokenStore>().userId) ?? '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /// First non-empty String value among [keys] in [data], else [fallback].
+  /// Tolerates the camelCase (mock/legacy) and snake_case (live gateway) wire
+  /// shapes the conversation row can arrive in.
+  String _stringField(
+    Map<String, dynamic>? data,
+    List<String> keys, {
+    String fallback = '',
+  }) {
+    if (data == null) return fallback;
+    for (final key in keys) {
+      final value = data[key];
+      if (value is String && value.isNotEmpty) return value;
+    }
+    return fallback;
   }
 
   void _finalize(
@@ -386,60 +363,59 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ? _resolvedRequestId
           : _resolvedConversationId;
 
-  /// True only when this screen was entered through the create-request flow
-  /// (`client_location_screen` → `pushNamed('chat-detail', {'id': 'new'})`),
-  /// i.e. the documented `new` compose sentinel (50_ROUTE_REQUESTS — JM-024 →
-  /// JM-025 hand-off). The create leg routes here with the literal id `new`
-  /// and there is no pre-existing conversation to resolve, so the resolved id
-  /// stays `new`. ONLY this entry may broadcast on the first message.
-  ///
-  /// CHAT-FIX (iter6): a conversation's `broadcasting` PHASE is NOT the same as
-  /// the create-flow compose entry. Every conversation starts (and stays) in
-  /// `broadcasting` until an offer is accepted, so keying compose purely on
-  /// `phase != accepted/closed` made EVERY first message into an EXISTING
-  /// broadcasting thread (opened from the chat tab / replies / live-tracking)
-  /// re-broadcast the request and route to `waiting-no-coverage` — yanking the
-  /// user out of a working chat with "We couldn't load your request status".
-  /// Gating compose on the `new` sentinel restores normal chatting in a
-  /// broadcasting conversation while preserving the genuine create→broadcast
-  /// leg (JM-025 AC1).
-  bool get _isCreateFlow =>
-      widget.chatId == _composeSentinelId ||
-      _resolvedConversationId == _composeSentinelId;
-
-  /// JM-025 AC1: compose state — the create-flow first message broadcasts the
-  /// request and routes to `waiting-no-coverage`. Restricted to the genuine
-  /// create entry (`_isCreateFlow`); an EXISTING broadcasting conversation is
-  /// a normal chat thread, never a compose/broadcast surface.
+  /// JM-025 AC1: compose state — a client thread that has NOT yet matched a
+  /// Jeeber (broadcasting / unknown phase, no winner). The first message
+  /// broadcasts the request and routes to `waiting-no-coverage`.
   bool _isComposeState(bool isJeeber) =>
       !isJeeber &&
-      _isCreateFlow &&
       !_hasWinner &&
       _phase != ConversationPhase.accepted &&
       _phase != ConversationPhase.closed;
 
-  /// JM-025 AC1: broadcast the request, then route to `waiting-no-coverage`
-  /// (JM-026). Self-provides the [OrderBroadcastService] over the route Dio.
-  /// Fail-safe: even if the broadcast call errors we still route to waiting
-  /// (the request is already pending), so the user is never stuck in compose.
-  Future<void> _broadcastAndGoWaiting(String requestId) async {
-    final id = requestId.isNotEmpty ? requestId : _deliveryId;
+  /// JM-025 AC1: compose → CREATE → broadcast → `waiting-no-coverage` (JM-026).
+  ///
+  /// THE P0 #3 FIX: in fresh compose [routeId] is the literal `new` sentinel and
+  /// no request exists yet. The composed [firstMessage] is turned into a REAL
+  /// request via the create-request contract (POST `/v1/requests`, verified 201
+  /// on the live gateway); the SERVER-MINTED id is then broadcast and routed to
+  /// waiting. On a create failure we surface a soft error, stay in compose, and
+  /// return `false` so the composer re-arms for a retry — the literal `new` is
+  /// NEVER forwarded to the broadcast or the waiting route. Self-provides the
+  /// create + broadcast services over the route [Dio] (the screen layer is the
+  /// only place allowed to touch DI — 40_GUARDRAILS_ARCH §1).
+  Future<bool> _createBroadcastAndGoWaiting(
+    String routeId,
+    String firstMessage,
+  ) async {
     final getIt = GetIt.instance;
-    if (getIt.isRegistered<Dio>()) {
-      final service = _resolveBroadcastService(getIt<Dio>());
-      try {
-        await service.broadcast(conversationId: id, requestId: id);
-      } on OrderBroadcastException {
-        // Soft-fail — the request is pending; the waiting screen will reflect
-        // coverage from its own fetch. Do not block the route.
-      } catch (_) {
-        // Same — never trap the user in compose on a broadcast hiccup.
+    if (!getIt.isRegistered<Dio>()) return false;
+    final dio = getIt<Dio>();
+    final coordinator = OrderComposeCoordinator(
+      submission: DioRequestSubmissionService(dio),
+      broadcast: _resolveBroadcastService(dio),
+    );
+    // Prefer the resolved request id; fall back to the route id (the `new`
+    // sentinel in fresh compose → the coordinator then creates a real request).
+    final existing =
+        _resolvedRequestId.isNotEmpty ? _resolvedRequestId : routeId;
+    final realId = await coordinator.createAndBroadcast(
+      existingRequestId: existing,
+      firstMessage: firstMessage,
+    );
+    if (realId == null) {
+      if (mounted) {
+        showOmdsErrorSnackbar(
+          context,
+          message: 'We could not create your request. Please try again.',
+        );
       }
+      return false;
     }
-    if (!mounted) return;
-    // EDGE: order-chat (compose) → waiting-no-coverage (JM-026,
-    // 21_NAV_PLAN §C). Route is registered by the W1 integrator.
-    context.goNamed('waiting-no-coverage', pathParameters: {'id': id});
+    if (!mounted) return true;
+    // EDGE: order-chat (compose) → waiting-no-coverage (JM-026, 21_NAV_PLAN §C)
+    // with the REAL server-minted request id (never the `new` sentinel).
+    context.goNamed('waiting-no-coverage', pathParameters: {'id': realId});
+    return true;
   }
 
   OrderBroadcastService _resolveBroadcastService(Dio dio) =>
@@ -496,15 +472,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       onTrackOrder: isJeeber
           ? null
           : (deliveryId) => context.push('/orders/$deliveryId/tracking'),
-      // Seed the tracking id when the client arrived here straight from the
-      // offer-accept sheet (it carries the accept response's deliveryId). The
-      // in-chat accept path leaves this null and captures the id from the
-      // accept response itself.
-      initialTrackingDeliveryId: isJeeber ? null : widget.initialDeliveryId,
       // JM-025 AC1 (D83): compose → broadcast → waiting-no-coverage. Only wired
       // for the client compose state; null otherwise (no compose entry).
-      onFirstMessageBroadcast:
-          compose ? (requestId) => _broadcastAndGoWaiting(requestId) : null,
+      onFirstMessageBroadcast: compose
+          ? (requestId, firstMessage) =>
+              _createBroadcastAndGoWaiting(requestId, firstMessage)
+          : null,
       // JM-025 AC2: pinned locked-price summary + view-summary link.
       pinnedSummary: isClientAccepted ? _summary : null,
       onViewSummary: isClientAccepted

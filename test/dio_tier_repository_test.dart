@@ -132,17 +132,19 @@ void main() {
       expect(eco.slaMinutes, 48 * 60);
     });
 
-    // iter6 B1 regression lock — THE compose blocker. The LIVE gateway
-    // `GET /v1/tiers` returns UUID `id`s + a `name` label (NOT slug ids), so
-    // the old slug-only parser dropped every row → empty catalog → compose
-    // "Continue" stayed permanently disabled (client could not start an
-    // order). This payload is the EXACT live shape (verified
-    // `curl http://localhost:10090/v1/tiers` through the iter6 tunnel:
-    // UUID id + name + slaHours/radiusKm/commissionRate + human priceHint).
-    // It must parse to a NON-EMPTY list, mapped by `name`, with the raw UUID
-    // preserved on `wireId` so request-create can echo it verbatim (B2).
-    test('parses the LIVE GET /v1/tiers UUID+name shape into a non-empty '
-        'catalog, mapping by name and preserving the UUID on wireId', () async {
+    // P0 REGRESSION (BUG-tier-parse) — the LIVE jeeb-gateway
+    // (192.168.2.39:10090 GET /tiers) returns 200 with items shaped
+    // {"id":"<uuid>","name":"Flash", ...} — the label is in `name`, the `id`
+    // is a UUID, and `priceHint` is free text ("Within 30 minutes"). The old
+    // `_parseId` switched on the `id` slug only, so every live row fell through
+    // to null → `.whereType<Tier>()` dropped all 3 → empty tier list → ZERO
+    // tier cards on "Choose your request" → Continue disabled → no order could
+    // be created. This test feeds the EXACT live payload and asserts all 3
+    // tiers parse, resolved by `name`, with the gateway UUID preserved on
+    // `serverId` for the create-request RPC. It is RED on the pre-fix code
+    // (returns 0 tiers) and GREEN on the fix.
+    test('parses LIVE gateway shape (uuid id + name label + free-text '
+        'priceHint), mapping by name and preserving the uuid', () async {
       final dio = _dioWith({
         'items': [
           {
@@ -152,8 +154,6 @@ void main() {
             'radiusKm': 3,
             'commissionRate': 0.25,
             'priceHint': 'Within 30 minutes',
-            'createdAt': '1970-01-01T00:00:00+00:00',
-            'updatedAt': '1970-01-01T00:00:00+00:00',
           },
           {
             'id': 'efe0629b-0b50-555c-b182-4bd41fcd6507',
@@ -162,8 +162,6 @@ void main() {
             'radiusKm': 10,
             'commissionRate': 0.2,
             'priceHint': 'Within 2 hours',
-            'createdAt': '1970-01-01T00:00:00+00:00',
-            'updatedAt': '1970-01-01T00:00:00+00:00',
           },
           {
             'id': '2bd0d5df-db76-5d14-9e4d-741d60b2fa12',
@@ -172,8 +170,6 @@ void main() {
             'radiusKm': 25,
             'commissionRate': 0.15,
             'priceHint': 'Same-day delivery',
-            'createdAt': '1970-01-01T00:00:00+00:00',
-            'updatedAt': '1970-01-01T00:00:00+00:00',
           },
         ],
       });
@@ -181,24 +177,18 @@ void main() {
 
       final tiers = await repo.fetchTiers();
 
-      // The whole point of B1: the catalog must NOT be empty — otherwise no
-      // tier card renders and Continue can never enable.
-      expect(tiers, isNotEmpty,
-          reason: 'live UUID+name tiers must parse so compose can start');
+      // The bug: this was 0 before the fix.
+      expect(tiers.length, 3, reason: 'all 3 live tiers must parse by name');
       expect(
         tiers.map((t) => t.id).toList(),
         const [TierId.flash, TierId.express, TierId.standard],
-        reason: 'each row classified to a TierId via its `name` label',
       );
-      // The raw server UUID is preserved verbatim for request-create (B2) —
-      // never collapsed to a slug or fabricated.
-      expect(tiers[0].wireId, '0be308ce-01b5-5cb9-a3e8-9adb60668d9c');
-      expect(tiers[1].wireId, 'efe0629b-0b50-555c-b182-4bd41fcd6507');
-      expect(tiers[2].wireId, '2bd0d5df-db76-5d14-9e4d-741d60b2fa12');
-      // slaHours → minutes still flows for the live shape.
+      // SLA still converts hours → minutes off the live payload.
       expect(tiers[0].slaMinutes, 60);
       expect(tiers[2].slaMinutes, 24 * 60);
-      // Flash stays the pre-selected recommended tier (drives default select).
+      // The gateway UUID is preserved verbatim for POST /requests → tierId.
+      expect(tiers[0].serverId, '0be308ce-01b5-5cb9-a3e8-9adb60668d9c');
+      expect(tiers[1].serverId, 'efe0629b-0b50-555c-b182-4bd41fcd6507');
       expect(tiers[0].recommended, isTrue);
     });
 

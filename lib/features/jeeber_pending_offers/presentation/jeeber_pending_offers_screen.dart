@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/auth_token_store.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../jeeber_request_feed/cubit/submitted_offers_cubit.dart';
 import '../../jeeber_request_feed/cubit/submitted_offers_state.dart';
@@ -37,28 +38,23 @@ import '../../jeeber_request_feed/presentation/pending_offer_row.dart';
 /// `WalletHubScreen`). The optional [repository]/[jeeberId] are constructor test
 /// seams (40_GUARDRAILS_ARCH §5.4).
 class JeeberPendingOffersScreen extends StatelessWidget {
-  const JeeberPendingOffersScreen({
-    super.key,
-    this.repository,
-    this.jeeberId,
-  });
+  const JeeberPendingOffersScreen({super.key, this.repository, this.jeeberId});
 
   /// Test seam — defaults to a Dio-backed repo over the shared gateway.
   final SubmittedOffersRepository? repository;
 
-  /// Optional explicit jeeber id (mock seam / tests). When null — the
-  /// production path — the repository resolves the REAL authenticated session
-  /// id from [AuthTokenStore]; it is NEVER defaulted to a hardcoded
-  /// `user-jeeber-002` fixture id (S0-OAD-03). 50_ROUTE_REQUESTS.md
-  /// (PO-jeeberid).
+  /// Test seam — defaults to the seeded jeeber id (`user-jeeber-002`), which is
+  /// what the JM-047 seam pins (`jeeb.seam.journey=jeeber_pending_offers`) and
+  /// what the Maestro flow queries (`?jeeberId=user-jeeber-002`). See
+  /// 50_ROUTE_REQUESTS.md (PO-jeeberid) for the real session-user-id provider.
   final String? jeeberId;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider<SubmittedOffersCubit>(
-      create: (_) => SubmittedOffersCubit(
-        repository: repository ?? _resolveRepository(),
-      )..load(),
+      create: (_) =>
+          SubmittedOffersCubit(repository: repository ?? _resolveRepository())
+            ..load(),
       child: const _PendingOffersView(),
     );
   }
@@ -70,11 +66,12 @@ class JeeberPendingOffersScreen extends StatelessWidget {
   /// having to be edited to seed a Dio.
   SubmittedOffersRepository _resolveRepository() {
     if (sl.isRegistered<Dio>()) {
-      // No hardcoded `user-jeeber-002`: pass any explicit override through, and
-      // let the repo resolve the real authenticated session id otherwise.
       return DioSubmittedOffersRepository(
         dio: sl<Dio>(),
         jeeberId: jeeberId,
+        tokenStore: sl.isRegistered<AuthTokenStore>()
+            ? sl<AuthTokenStore>()
+            : null,
       );
     }
     return const _EmptySubmittedOffersRepository();
@@ -104,7 +101,6 @@ class _PendingOffersView extends StatelessWidget {
     return Semantics(
       identifier: 'jeeber_pending_offers_root',
       container: true,
-      explicitChildNodes: true,
       child: Scaffold(
         appBar: OMDSAppBar(
           title: l10n.pendingOffersTitle,

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -22,6 +23,7 @@ import '../social/social_auth_service.dart';
 import '../social/social_auth_state.dart';
 import '../social/social_auth_token_store.dart';
 import '../social/social_provider.dart';
+import '../../registration/presentation/super_login/super_login_entry_points.dart';
 import 'social_collision_sheet.dart';
 
 /// `login` (JM-007, CTO-D1 email-first funnel). Email + password sign-in that
@@ -358,6 +360,30 @@ class _LoginViewState extends State<_LoginView> {
                         // EDGE: login → biometric lock (D23, JM-005). The lock
                         // route is registered by the integrator (`/lock`).
                         onTap: () => context.goNamed('biometric-lock'),
+                      ),
+                    ),
+                  ],
+
+                  // ── Super-login entry points (RELOCATED here from the
+                  //    registration screen — P1 owner request: super-login is
+                  //    the way in on the login screen). Debug-only: the same
+                  //    `if (kDebugMode)` guard compiles it out of release so it
+                  //    can never reach a production user (FR-P0-4 / defect D2).
+                  //    Reuses the existing passcode-gated picker → user-id-login
+                  //    flow verbatim via `openSuperLogin` / `openSuperLoginPlus`;
+                  //    on success it runs the SAME post-auth path as a normal
+                  //    login (`_navigateAfterLogin`: onboarding complete →
+                  //    session refresh → Home).
+                  if (kDebugMode) ...[
+                    const SizedBox(height: Spacing.large),
+                    SuperLoginEntryPoints(
+                      onSuperLogin: () => openSuperLogin(
+                        context,
+                        onAuthenticated: _navigateAfterLogin,
+                      ),
+                      onSuperLoginPlus: () => openSuperLoginPlus(
+                        context,
+                        onAuthenticated: _navigateAfterLogin,
                       ),
                     ),
                   ],

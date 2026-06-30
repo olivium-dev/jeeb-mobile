@@ -8,11 +8,12 @@ import '../../data/super_login_demo_user.dart';
 
 /// Opens the "Super user login plus" demo-user picker (debug-only).
 ///
-/// Fetches the predefined roster from `GET /api/User/demo-users` via
+/// Fetches ALL active users from `POST /api/User/super-login/users` via
 /// [SuperLoginDemoUserService] and lists each user (name + role badge). When
 /// the user taps a row the sheet pops with the chosen [SuperLoginDemoUser];
 /// the caller then opens the existing super-login sheet pre-filled with that
-/// user's `userId` + `passcode`. Returns `null` if dismissed.
+/// user's `userId` + the single real SuperAdmin passcode (from `AppConfig`).
+/// Returns `null` if dismissed.
 ///
 /// Pass [service] from tests; production resolves it from DI.
 Future<SuperLoginDemoUser?> showSuperLoginPicker(

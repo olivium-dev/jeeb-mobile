@@ -29,21 +29,6 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
 
-    <!--
-        T-MOB-012 / T-MOB-017 (Sprint 1 Stream B + feat/maps): Maps + GPS.
-        - ACCESS_FINE_LOCATION is the precise-location runtime (dangerous)
-          permission `geolocator` requests via Geolocator.requestPermission()
-          (GeolocatorGeocaptureGateway.requestAlwaysPermission). It backs the
-          "centre on my location" button on the drop-off picker and the
-          courier-position fix that feeds the live-tracking courier puck.
-          Denial degrades to the gateway-supplied last-known position.
-        - ACCESS_COARSE_LOCATION is the city-block-accuracy fallback Android
-          may grant instead of FINE on the 12+ two-button prompt; geolocator
-          downgrades gracefully when only COARSE is held.
-    -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"
@@ -72,17 +57,41 @@
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
             <!--
-                Sprint 1 Stream B: custom-scheme deep links (jeeb://…) used by
-                push payloads + share links to route into the app
-                (flutter_deep_linking / go_router resolves the path).
+                S007-P1B: in-app deep links into the go_router tree so the
+                accepted-order chat is reachable WITHOUT tapping a push.
+                Flutter's built-in deep linking (flutter_deeplinking_enabled
+                below) hands the VIEW intent's URI to go_router, which matches
+                on the PATH.
+                  * Custom scheme `jeeb://chat/<conversationId>` — no domain
+                    verification needed (host == "chat"); AppRouter normalises
+                    the host-form to the canonical `/chat/:id` route.
+                  * HTTPS App Link `https://jeeb.app/chat/<conversationId>` —
+                    path is already `/chat/<id>` so go_router matches directly.
+                    Requires hosting `/.well-known/assetlinks.json` (infra).
             -->
             <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="jeeb.app"/>
+            </intent-filter>
+            <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="jeeb"/>
             </intent-filter>
         </activity>
+
+        <!--
+            S007-P1B: enable Flutter's built-in deep linking so the VIEW
+            intents above are delivered to go_router (the initial route on a
+            cold start, and pushRouteInformation while running). Orthogonal to
+            FCM, which is handled in Dart via firebase_messaging callbacks.
+        -->
+        <meta-data
+            android:name="flutter_deeplinking_enabled"
+            android:value="true"/>
 
         <!--
             Default channel id for FCM. Lets the FCM SDK display
@@ -92,49 +101,6 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="jeeb_default"/>
-
-        <!--
-            T-MOB-012 / T-MOB-017: Google Maps Android API key.
-            The literal key is NEVER committed. `${MAPS_API_KEY}` is a manifest
-            placeholder injected at build time by android/app/build.gradle from
-            (in priority order) the gradle property `MAPS_API_KEY`, the env var
-            `MAPS_API_KEY`, or local.properties `MAPS_API_KEY`. When none is
-            supplied the placeholder resolves to the documented sentinel
-            "YOUR_MAPS_API_KEY_HERE" so the manifest still merges and the rest
-            of the app builds/runs — only the GoogleMap tiles render grey with a
-            "for development purposes only" watermark until the owner drops the
-            real key in. See MAPS-IMPL.md "Where the owner injects the key".
-        -->
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="${MAPS_API_KEY}"/>
-
-        <!--
-            Explicit FCM service registration. firebase_messaging merges its
-            own service via manifest-merger, but declaring it here keeps the
-            merged picture stable for lint and documents the contract.
-        -->
-        <service
-            android:name="com.google.firebase.messaging.FirebaseMessagingService"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
-            </intent-filter>
-        </service>
-
-        <!--
-            Sprint 3 (deeplink): route inbound platform links (the jeeb://
-            custom-scheme intent-filter above, and any future https App Links)
-            through the Flutter framework so go_router's RouteInformationParser
-            receives the full URI. DeepLinkRouteInformationParser then folds the
-            custom-scheme host into the path (jeeb://orders/d-1 → /orders/d-1)
-            and the router's auth gate + resolver id-validation apply. Without
-            this flag the framework swallows the intent and lands on the default
-            route, so the deep link never reaches the resolver.
-        -->
-        <meta-data
-            android:name="flutter_deeplinking_enabled"
-            android:value="true"/>
 
         <meta-data
             android:name="flutterEmbedding"

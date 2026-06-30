@@ -54,24 +54,24 @@ class EarningsDashboardL10n {
   String get totalCashLabel =>
       _pick('Total cash earned', 'إجمالي النقد المكتسب');
   String get totalCashHint => _pick(
-        'Net cash you collected directly from customers, off-wallet.',
-        'صافي النقد الذي حصّلته مباشرة من العملاء، خارج المحفظة.',
-      );
+    'Cash collected directly from customers, off-wallet.',
+    'النقد الذي حصّلته مباشرة من العملاء، خارج المحفظة.',
+  );
 
-  /// `earnings_fees_paid` — captured 10% platform fees (D37).
-  String get feesPaidLabel => _pick('Platform fees paid', 'رسوم المنصة المدفوعة');
+  /// `earnings_fees_paid` — captured platform fees.
+  String get feesPaidLabel =>
+      _pick('Platform fees paid', 'رسوم المنصة المدفوعة');
   String get feesPaidHint => _pick(
-        'The flat 10% fee captured from your wallet on offers you won.',
-        'رسوم ثابتة ١٠٪ تُخصم من محفظتك على العروض التي فزت بها.',
-      );
+    'Fees captured from your wallet on offers you won.',
+    'رسوم تُخصم من محفظتك على العروض التي فزت بها.',
+  );
 
   /// Net-per-offer (D44) — average cash kept per delivery after the fee.
-  String get netPerOfferLabel =>
-      _pick('Net per offer', 'الصافي لكل عرض');
+  String get netPerOfferLabel => _pick('Net per offer', 'الصافي لكل عرض');
   String get netPerOfferHint => _pick(
-        'Average cash you keep per delivery after the 10% fee.',
-        'متوسط النقد الذي تحتفظ به لكل توصيلة بعد رسوم ١٠٪.',
-      );
+    'Average cash you keep per delivery after fees.',
+    'متوسط النقد الذي تحتفظ به لكل توصيلة بعد الرسوم.',
+  );
 
   /// Deliveries count stat.
   String get deliveriesLabel => _pick('Deliveries', 'التوصيلات');
@@ -81,28 +81,23 @@ class EarningsDashboardL10n {
 
   // ── Delivery breakdown rows. ──────────────────────────────────────────────
   String get breakdownTitle => _pick('Recent deliveries', 'التوصيلات الأخيرة');
-  String deliveryRowTitle(String id) =>
-      _pick('Delivery $id', 'توصيلة $id');
-  String deliveryRowFee(String amount, String currency) => _pick(
-        '$amount $currency fee',
-        'رسوم $amount $currency',
-      );
+  String deliveryRowTitle(String id) => _pick('Delivery $id', 'توصيلة $id');
+  String deliveryRowFee(String amount, String currency) =>
+      _pick('$amount $currency fee', 'رسوم $amount $currency');
 
   // ── Cross-feature links (real edges — W3 targets registered). ─────────────
 
   /// `earnings_wallet_link` → wallet-hub (JM-053).
   String get walletLink => _pick('Open wallet', 'فتح المحفظة');
-  String get walletLinkSubtitle => _pick(
-        'Balance, reserves and top-ups.',
-        'الرصيد والحجوزات والشحن.',
-      );
+  String get walletLinkSubtitle =>
+      _pick('Balance, reserves and top-ups.', 'الرصيد والحجوزات والشحن.');
 
   /// `earnings_activity_link` → wallet-activity-list (JM-055).
   String get activityLink => _pick('See all activity', 'عرض كل النشاط');
   String get activityLinkSubtitle => _pick(
-        'Reserves, fees, refunds and top-ups.',
-        'الحجوزات والرسوم والمستردات والشحن.',
-      );
+    'Reserves, fees, refunds and top-ups.',
+    'الحجوزات والرسوم والمستردات والشحن.',
+  );
 
   String period(String key) {
     switch (key) {
