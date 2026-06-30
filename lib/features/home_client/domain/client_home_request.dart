@@ -19,6 +19,11 @@ enum ClientRequestStatus {
 
   /// Jeeber is heading toward the drop-off.
   enRoute,
+
+  /// Terminal: the delivery completed (V3 `Done`). The order is delivered;
+  /// nothing is left to track. Core Flow step 7 — the correct delivered/
+  /// completed final state, NOT "accepted"/in-progress.
+  delivered,
 }
 
 /// Tier badge the card renders (Flash red / Express orange / Standard blue).

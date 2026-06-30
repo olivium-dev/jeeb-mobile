@@ -43,18 +43,26 @@ class DioOfferSubmissionRepository implements OfferSubmissionRepository {
 
   final Dio _dio;
 
-  /// The live request-scoped submit path (Sprint-2 Contract 4a, FROZEN):
-  /// `POST /v1/requests/{requestId}/offers`.
+  /// The live request-scoped submit path (BUG-2 corrected route):
+  /// `POST /requests/{requestId}/offers` — **NO `/v1` prefix**.
   ///
-  /// ARCH-01 / Contract 4a: the Dio base is ORIGIN-ONLY (no `/v1`), so EVERY
-  /// path must carry exactly one `/v1` (e.g. the accept path
-  /// `/v1/offers/{offerId}/accept`). The earlier `/requests/{id}/offers` value
-  /// dropped the `/v1` — it only worked back when the Dio base still ended in
-  /// `/v1`; once ARCH-01 moved the base to origin-only it silently resolved to
-  /// `:10090/requests/{id}/offers` (missing `/v1`), the same class of defect as
-  /// the S16 `/v1/v1` availability NO-GO. Restored to the single-`/v1` contract
-  /// path.
-  static String _pathFor(String requestId) => '/v1/requests/$requestId/offers';
+  /// LIVE GATEWAY TRUTH (verified against `:10090` + the gateway source): the
+  /// offer-create action lives on `RequestOffersController`
+  /// (`[HttpPost("requests/{requestId}/offers")]`) which carries **no**
+  /// `[Route]` prefix and **no** API-version segment, so the live route is the
+  /// origin-relative `/requests/{requestId}/offers`. The Dio base is
+  /// ORIGIN-ONLY (`:10090`, ARCH-01), so this path is sent verbatim.
+  ///
+  /// This corrects two WRONG variants that both fail on the live wire
+  /// (`docs/lessons-learned/live-api-route-corrections.md`):
+  ///   * `POST /v1/offers`               → **405** (mock-only collection route).
+  ///   * `POST /v1/requests/{id}/offers` → **404** (no such route is registered
+  ///     — the prior `/v1`-prefixed value was wired on a uniform-versioning
+  ///     assumption that the obsolete `RequestOffersController` does not honour).
+  /// The accept leg is asymmetric and DOES carry `/v1`
+  /// (`POST /v1/offers/{offerId}/accept`, `V1/JeebOffersController`), so the two
+  /// legs deliberately differ.
+  static String _pathFor(String requestId) => '/requests/$requestId/offers';
 
   @override
   Future<OfferSubmissionResult> submitOffer({

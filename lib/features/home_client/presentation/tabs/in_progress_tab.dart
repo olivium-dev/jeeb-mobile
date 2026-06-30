@@ -187,6 +187,8 @@ class _InProgressList extends StatelessWidget {
         return l10n.homeStagePicked;
       case ClientRequestStatus.enRoute:
         return l10n.homeStageInTransit;
+      case ClientRequestStatus.delivered:
+        return l10n.deliveryStageDelivered;
     }
   }
 }

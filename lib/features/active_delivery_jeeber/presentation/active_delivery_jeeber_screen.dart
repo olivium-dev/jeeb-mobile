@@ -260,9 +260,18 @@ class _ReadyContent extends StatelessWidget {
     final showMarkDelivered =
         delivery.status == JeeberDeliveryStatus.inTransit ||
             delivery.status == JeeberDeliveryStatus.atDoor;
+    // Core Flow step 7 (jeeber terminal): once the handover OTP completes the
+    // delivery to V3 `Done`, render an explicit delivered/completed final state
+    // so a re-entry / poll-update lands on a clear terminal UI (not a stale
+    // "advance" affordance).
+    final isCompleted = delivery.status == JeeberDeliveryStatus.done;
     return ListView(
       padding: const EdgeInsets.all(Spacing.medium),
       children: [
+        if (isCompleted) ...[
+          _CompletedPanel(l10n: l10n),
+          const SizedBox(height: Spacing.large),
+        ],
         _AddressCard(delivery: delivery, l10n: l10n),
         const SizedBox(height: Spacing.large),
         DeliveryStatusStepper(
@@ -298,6 +307,50 @@ class _ReadyContent extends StatelessWidget {
           l10n: l10n,
         ),
       ],
+    );
+  }
+}
+
+/// `delivery_completed_state` — the jeeber-side delivered/completed terminal
+/// panel (Core Flow step 7). Shown once the delivery reaches V3 `Done`. Carries
+/// a stable Semantics identifier so a UI driver can assert the terminal state.
+class _CompletedPanel extends StatelessWidget {
+  const _CompletedPanel({required this.l10n});
+
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      identifier: 'delivery_completed_state',
+      container: true,
+      label: l10n.deliveryCompletedBanner,
+      child: Container(
+        padding: const EdgeInsets.all(Spacing.medium),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primaryContainer,
+          borderRadius: OmdsBorderRadius.medium,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.check_circle,
+              color: theme.colorScheme.onPrimaryContainer,
+              size: Sizes.large,
+            ),
+            const SizedBox(width: Spacing.small),
+            Expanded(
+              child: Text(
+                l10n.deliveryCompletedBanner,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: theme.colorScheme.onPrimaryContainer,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
