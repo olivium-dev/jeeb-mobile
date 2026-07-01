@@ -21,6 +21,7 @@ import '../core/notifications/application/notification_dispatcher.dart';
 import '../core/notifications/application/push_notification_handler.dart';
 import '../core/notifications/data/device_token_registrar.dart';
 import '../core/notifications/data/firebase_messaging_transport.dart';
+import '../core/notifications/data/push_device_registrar.dart';
 import '../core/notifications/data/push_transport.dart';
 import '../core/notifications/domain/notification_deep_link.dart';
 import '../core/notifications/presentation/push_banner_host.dart';
@@ -61,6 +62,9 @@ class JeebApp extends StatefulWidget {
     required this.preferences,
     this.crashReporter = const NoopCrashReporter(),
     this.pushTransport,
+    this.firebaseInitializer,
+    this.fcmTransportBuilder,
+    this.pushDeviceRegistrar,
     this.biometricGateway,
     this.localizationsDelegateOverride,
     this.sessionGate,
@@ -83,10 +87,34 @@ class JeebApp extends StatefulWidget {
   final CrashReporter crashReporter;
 
   /// Optional override — tests inject a [FakePushTransport] here so they can
-  /// drive the handler without a real FCM/APNs connection. In prod this is
-  /// null and we fall back to the in-process fake until the native bridge
-  /// lands (separate ticket).
+  /// drive the handler without a real FCM/APNs connection. When supplied it is
+  /// used VERBATIM: the Firebase-init gate and the upgrade path below are
+  /// skipped entirely, so a test-injected transport is never replaced.
   final PushTransport? pushTransport;
+
+  /// FIX-1 (init ordering) test seam. Resolves once Firebase is ready. The push
+  /// chain awaits this BEFORE building the real [FirebaseMessagingTransport], so
+  /// the transport (which reaches `FirebaseMessaging.instance` → `Firebase.app()`)
+  /// can never run against an uninitialized core and silently degrade to the
+  /// fake. Production leaves this null and uses [_defaultFirebaseInitializer],
+  /// which no-ops when Firebase is already up (the deferred bootstrap init) and
+  /// otherwise initializes it. Only exercised when [pushTransport] is null.
+  final Future<void> Function()? firebaseInitializer;
+
+  /// FIX-1 test seam. Builds (and initializes) the real push transport AFTER
+  /// [firebaseInitializer] resolves. Production leaves this null and uses
+  /// [_defaultFcmTransportBuilder]. A throw here degrades to [FakePushTransport]
+  /// (a genuine bridge failure must never crash the app). Only exercised when
+  /// [pushTransport] is null.
+  final Future<PushTransport> Function()? fcmTransportBuilder;
+
+  /// Optional override for the device-token registrar. When supplied it is wired
+  /// through [PushNotificationHandler.onToken] so the boot/refresh FCM token is
+  /// forwarded to `PUT /api/PushNotification/register` for ANY transport (the
+  /// iter7 device-registration seam). Production leaves this null and, for the
+  /// real FCM transport, starts the polling [DeviceTokenRegistrar] instead so
+  /// registration fires AFTER login.
+  final PushDeviceRegistrar? pushDeviceRegistrar;
 
   /// Optional override for the biometric prompt (T-mobile-005). Production
   /// defers to [UnavailableBiometricGateway] until the `local_auth` plugin
@@ -225,7 +253,10 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     // the Jeeber surface right after the first login, no background cycle.
     _wireSessionRoleSync();
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      _initPushChain();
+      // FIX-1: the push chain is async — it awaits the Firebase-init gate before
+      // building the real transport. Fire-and-forget; failures degrade to the
+      // in-memory fake inside [_initPushChainAsync] and never crash cold start.
+      unawaited(_initPushChainAsync());
       // BUG-1: resolve `available_roles` from getMe after the first frame
       // paints (never blocks cold start). A returning dual-role jeeber lands on
       // the Jeeber surface; a plain client stays on the client surface.
@@ -262,25 +293,59 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) _syncRole();
   }
 
-  void _initPushChain() {
+  /// FIX-1 — Firebase-vs-push init ordering.
+  ///
+  /// The race this fixes: `Firebase.initializeApp()` runs in the DEFERRED
+  /// (post-first-frame) bootstrap, and the push chain ALSO runs post-first-frame.
+  /// The old synchronous chain checked `Firebase.apps.isEmpty` and, if Firebase
+  /// had not finished initializing yet, permanently degraded to
+  /// [FakePushTransport] — no real transport, no FCM token, no registration.
+  ///
+  /// Now the chain AWAITS the Firebase-init gate ([firebaseInitializer]) BEFORE
+  /// building the real transport ([fcmTransportBuilder]). An injected
+  /// [pushTransport] short-circuits both (the test seam is used verbatim). A
+  /// genuine build failure still degrades to the fake so the app never crashes.
+  Future<void> _initPushChainAsync() async {
     if (!mounted) return;
-    final transport = widget.pushTransport ?? _defaultPushTransport();
+    final override = widget.pushTransport;
+    final PushTransport transport;
+    if (override != null) {
+      transport = override;
+    } else {
+      PushTransport built;
+      try {
+        await (widget.firebaseInitializer ?? _defaultFirebaseInitializer)();
+        built = await (widget.fcmTransportBuilder ?? _defaultFcmTransportBuilder)();
+      } catch (error) {
+        // No Firebase config, or a real FCM/bridge failure. Degrade to the
+        // in-memory fake so the banner UI still works and cold start survives.
+        if (kDebugMode) {
+          debugPrint('[push] FCM transport unavailable; using fake: $error');
+        }
+        built = FakePushTransport();
+      }
+      transport = built;
+    }
+    // A late unmount (dispose raced the await) must not leak the transport.
+    if (!mounted) {
+      unawaited(transport.dispose());
+      return;
+    }
+
+    // PUSH-WIRING / registration:
+    // - A test-injected [pushDeviceRegistrar] is wired through the handler's
+    //   onToken hook so the boot/refresh token is forwarded for ANY transport.
+    // - Otherwise, for the REAL FCM transport, start the polling
+    //   [DeviceTokenRegistrar] so `PUT /api/PushNotification/register` fires
+    //   AFTER login (it polls the keystore for a userId). A fake transport in
+    //   tests has no real token, so no registration is attempted.
+    final injectedRegistrar = widget.pushDeviceRegistrar;
     final handler = PushNotificationHandler(
       transport: transport,
       badgeCount: _badgeCount,
+      onToken: injectedRegistrar?.register,
     );
-    final dispatcher = NotificationDispatcher(
-      handler: handler,
-      router: _router,
-      // Cold-start: route the tap that launched the app from a terminated
-      // state (the jeeber's chat-push entry point) once the router is built.
-      initialMessage: transport.initialMessage(),
-    );
-    // PUSH-WIRING: with a real FCM transport, register this install's token
-    // with the gateway so server-side chat/delivery pushes can target it.
-    // The fake transport (tests / Firebase-uninit builds) has no real token,
-    // so registration is skipped.
-    if (transport is FirebaseMessagingTransport) {
+    if (injectedRegistrar == null && transport is FirebaseMessagingTransport) {
       final registrar = DeviceTokenRegistrar(
         dio: sl<Dio>(),
         tokenStore: sl<AuthTokenStore>(),
@@ -290,25 +355,42 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       unawaited(registrar.start());
       _deviceRegistrar = registrar;
     }
+    final dispatcher = NotificationDispatcher(
+      handler: handler,
+      router: _router,
+      // Cold-start: route the tap that launched the app from a terminated
+      // state (the jeeber's chat-push entry point) once the router is built.
+      initialMessage: transport.initialMessage(),
+    );
     setState(() {
       _pushHandler = handler;
       _dispatcher = dispatcher;
     });
   }
 
-  /// Production push transport. Firebase only has an app when
-  /// `Firebase.initializeApp()` succeeded in [Bootstrap.minimal] — which now
-  /// happens on dev/QA builds because `google-services.json` is bundled and
-  /// the gms plugin is applied. In widget tests (and any build where init fell
-  /// back to the Noop reporter) `Firebase.apps` is empty, so we use the
-  /// in-memory fake and nothing touches the FCM platform channel.
-  PushTransport _defaultPushTransport() {
-    if (Firebase.apps.isEmpty) return FakePushTransport();
+  /// Default Firebase-init gate. No-op when Firebase is already up (the deferred
+  /// bootstrap's `Firebase.initializeApp()` won the race); otherwise initializes
+  /// the default app itself so the real transport can be built. Swallows the
+  /// `duplicate-app` race with the concurrent bootstrap init. In a build with no
+  /// `google-services.json` (or a plain widget test) `initializeApp` throws and
+  /// the caller degrades to the fake.
+  static Future<void> _defaultFirebaseInitializer() async {
+    if (Firebase.apps.isNotEmpty) return;
+    try {
+      await Firebase.initializeApp();
+    } on FirebaseException catch (e) {
+      if (e.code == 'duplicate-app') return;
+      rethrow;
+    }
+  }
+
+  /// Default real-transport builder. `initialize()` wires the background
+  /// handler, the Android channel, and the foreground listeners; the handler
+  /// subscribes to the transport's broadcast streams immediately after, so
+  /// ordering is safe.
+  static Future<PushTransport> _defaultFcmTransportBuilder() async {
     final transport = FirebaseMessagingTransport();
-    // initialize() wires the background handler, the Android channel, and the
-    // foreground listeners. Idempotent + async; the handler subscribes to the
-    // transport's broadcast streams immediately, so ordering is safe.
-    unawaited(transport.initialize());
+    await transport.initialize();
     return transport;
   }
 
