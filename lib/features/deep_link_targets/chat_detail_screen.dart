@@ -21,6 +21,7 @@ import '../chat/domain/order_chat_summary.dart';
 import '../chat/presentation/chat_screen.dart';
 import '../photo_attachment/data/stub_photo_picker_service.dart';
 import '../request_summary/data/dio_request_submission_service.dart';
+import '../request_summary/domain/recipient_phone_resolver.dart';
 import 'dev_chat_detail_fixtures.dart';
 
 /// Deep-link entry point for `/chat/:id` — the `order-chat` surface (JM-025).
@@ -391,7 +392,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     if (!getIt.isRegistered<Dio>()) return false;
     final dio = getIt<Dio>();
     final coordinator = OrderComposeCoordinator(
-      submission: DioRequestSubmissionService(dio),
+      submission: DioRequestSubmissionService(
+        dio,
+        getIt<RecipientPhoneResolver>(),
+      ),
       broadcast: _resolveBroadcastService(dio),
     );
     // Prefer the resolved request id; fall back to the route id (the `new`
