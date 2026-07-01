@@ -100,7 +100,9 @@ void main() {
   void stubHappyPath() {
     when(() => dio.get<Map<String, dynamic>>(any())).thenAnswer((inv) async {
       final path = inv.positionalArguments.first as String;
-      if (path == '/v1/delivery/del-client-001-active') {
+      // BUG-8: the delivery read now uses the plural `/v1/deliveries/{id}`
+      // aggregate route on the origin gateway (default originGateway=true).
+      if (path == '/v1/deliveries/del-client-001-active') {
         return _ok(_deliveryRow());
       }
       if (path == '/v1/requests/req-client-001-accepted') {
@@ -142,7 +144,7 @@ void main() {
       // Delivery succeeds; request/offers/user all blow up.
       when(() => dio.get<Map<String, dynamic>>(any())).thenAnswer((inv) async {
         final path = inv.positionalArguments.first as String;
-        if (path == '/v1/delivery/del-client-001-active') {
+        if (path == '/v1/deliveries/del-client-001-active') {
           return _ok(_deliveryRow());
         }
         throw _dio(500); // request + user enrichment fail

@@ -123,7 +123,10 @@ class _RecordingAdapter implements HttpClientAdapter {
       }
       return _json(recordBody, status: recordStatus);
     }
-    if (path.contains('/v1/delivery/')) {
+    // BUG-8: the currency read now defaults to the plural `/v1/deliveries/{id}`
+    // aggregate route on the origin gateway (the goods-cost POST above is caught
+    // first, so this matches both the singular alias and the plural route).
+    if (path.contains('/v1/deliver')) {
       deliveryHit = true;
       return _json(deliveryBody, status: deliveryStatus);
     }

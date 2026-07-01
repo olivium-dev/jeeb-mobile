@@ -1,0 +1,99 @@
+// BUG-8 (sprint-008 run-7) regression guard — delivery-receipt delivery read
+// route (belt-and-suspenders; same latent singular-read class).
+//
+// `fetchReceipt` read the SINGULAR `GET /v1/delivery/{id}`, which the live
+// origin gateway (`:10090`) 404s — the delivery aggregate lives at the PLURAL
+// `GET /v1/deliveries/{id}` (Contract 8c). This pins the READ to the plural
+// route on the origin base and keeps the legacy `:4010` mock singular alias.
+//
+// The SM-1 `POST /v1/delivery/status/transition` command is a GENUINELY
+// different endpoint and MUST stay singular — asserted here so the base-aware
+// rewrite never leaks onto it.
+
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:jeeb_mobile/features/delivery_receipt/data/dio_delivery_receipt_repository.dart';
+import 'package:jeeb_mobile/features/delivery_receipt/domain/delivery_receipt.dart';
+
+const _deliveryId = 'req-uuid-0001';
+
+void main() {
+  late _RecordingAdapter adapter;
+  late Dio dio;
+
+  setUp(() {
+    adapter = _RecordingAdapter();
+    dio = Dio(BaseOptions(baseUrl: 'http://origin.test'))
+      ..httpClientAdapter = adapter;
+  });
+
+  DioDeliveryReceiptRepository originRepo() =>
+      DioDeliveryReceiptRepository(dio, originGateway: true);
+  DioDeliveryReceiptRepository mockRepo() =>
+      DioDeliveryReceiptRepository(dio, originGateway: false);
+
+  test('origin: fetchReceipt reads the PLURAL GET /v1/deliveries/{id} — NOT the '
+      'singular that 404s on the live gateway (BUG-8)', () async {
+    await originRepo().fetchReceipt(_deliveryId);
+
+    expect(adapter.getPaths, contains('/v1/deliveries/$_deliveryId'));
+    expect(adapter.getPaths, isNot(contains('/v1/delivery/$_deliveryId')));
+  });
+
+  test('mock: fetchReceipt keeps the singular alias when originGateway:false',
+      () async {
+    await mockRepo().fetchReceipt(_deliveryId);
+
+    expect(adapter.getPaths, contains('/v1/delivery/$_deliveryId'));
+    expect(adapter.getPaths, isNot(contains('/v1/deliveries/$_deliveryId')));
+  });
+
+  test('the SM-1 transition POST stays SINGULAR (genuinely different endpoint, '
+      'NOT base-rewritten)', () async {
+    await originRepo().confirmReceipt(
+      const DeliveryReceipt(
+        deliveryId: _deliveryId,
+        jeeberName: 'Sami',
+        jeeberId: 'j-1',
+        cashAmount: 5.0,
+        currency: 'USD',
+        status: 'AtDoor',
+      ),
+    );
+
+    expect(adapter.postPaths, contains('/v1/delivery/status/transition'));
+    expect(adapter.postPaths, contains('/v1/payments/cod_jeeb/record'));
+  });
+}
+
+ResponseBody _json(Map<String, Object?> body, {int status = 200}) =>
+    ResponseBody.fromString(
+      jsonEncode(body),
+      status,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+
+class _RecordingAdapter implements HttpClientAdapter {
+  final List<String> getPaths = <String>[];
+  final List<String> postPaths = <String>[];
+
+  @override
+  void close({bool force = false}) {}
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    if (options.method == 'GET') getPaths.add(options.path);
+    if (options.method == 'POST') postPaths.add(options.path);
+    return _json({'id': _deliveryId, 'status': 'AtDoor'});
+  }
+}

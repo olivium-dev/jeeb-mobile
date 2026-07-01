@@ -1,0 +1,89 @@
+// BUG-8 (sprint-008 run-7) regression guard — customer order-chat pinned-summary
+// delivery read route.
+//
+// The in-chat pinned summary (JM-025) is the FIRST read on the customer chat +
+// tracking surfaces and used the SINGULAR `GET /v1/delivery/{id}`, which the
+// live origin gateway (`:10090`) answers with 404 — the exact residual captured
+// in run-7 `wire-step5-chat.txt` (`GET /v1/delivery/2896… → 404`, then the
+// request/offer follow-ups also 404, so the strip never populated). The
+// materialized delivery aggregate is served ONLY at the PLURAL
+// `GET /v1/deliveries/{id}` (Contract 8c) — the same route the jeeber + customer
+// tracking sides already read with 200. This test pins the summary's delivery
+// read to the plural route on the origin base and keeps the legacy `:4010` mock
+// singular alias intact, at the WIRE level with a recording adapter (no socket).
+
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:jeeb_mobile/features/chat/data/dio_order_chat_summary_repository.dart';
+
+const _deliveryId = 'req-uuid-0001';
+
+void main() {
+  late _RecordingAdapter adapter;
+  late Dio dio;
+
+  setUp(() {
+    adapter = _RecordingAdapter();
+    dio = Dio(BaseOptions(baseUrl: 'http://origin.test'))
+      ..httpClientAdapter = adapter;
+  });
+
+  DioOrderChatSummaryRepository originRepo() =>
+      DioOrderChatSummaryRepository(dio, originGateway: true);
+  DioOrderChatSummaryRepository mockRepo() =>
+      DioOrderChatSummaryRepository(dio, originGateway: false);
+
+  test('origin: reads the PLURAL GET /v1/deliveries/{id} — NOT the singular '
+      '/v1/delivery/{id} that 404s on the live gateway (BUG-8)', () async {
+    await originRepo().fetchSummary(_deliveryId);
+
+    expect(adapter.getPaths, contains('/v1/deliveries/$_deliveryId'));
+    expect(
+      adapter.getPaths,
+      isNot(contains('/v1/delivery/$_deliveryId')),
+      reason: 'BUG-8: the singular route 404s on the live origin gateway',
+    );
+  });
+
+  test('mock: keeps the singular GET /v1/delivery/{id} alias when '
+      'originGateway:false', () async {
+    await mockRepo().fetchSummary(_deliveryId);
+
+    expect(adapter.getPaths, contains('/v1/delivery/$_deliveryId'));
+    expect(adapter.getPaths, isNot(contains('/v1/deliveries/$_deliveryId')));
+  });
+}
+
+ResponseBody _json(Map<String, Object?> body, {int status = 200}) =>
+    ResponseBody.fromString(
+      jsonEncode(body),
+      status,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+
+class _RecordingAdapter implements HttpClientAdapter {
+  final List<String> getPaths = <String>[];
+
+  @override
+  void close({bool force = false}) {}
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    if (options.method == 'GET') getPaths.add(options.path);
+    // Any 2xx map lets fetchSummary complete through its request/offer reads.
+    if (options.path.contains('/offers')) {
+      return _json(const {'items': <Object?>[]});
+    }
+    return _json({'id': _deliveryId, 'requestId': _deliveryId});
+  }
+}

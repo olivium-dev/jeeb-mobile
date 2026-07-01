@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/mock_gateway_client.dart';
 import '../domain/delivery_receipt.dart';
 import '../domain/delivery_receipt_repository.dart';
 
@@ -8,23 +9,42 @@ import '../domain/delivery_receipt_repository.dart';
 /// Endpoints (gateway contract; `MockGatewayClient` rewrites the `/v1/...`
 /// prefix to the `:4010` service prefix — 40_GUARDRAILS_ARCH §4/§11). NEVER
 /// hardcode a `:4010` host or a service prefix here.
-///   GET  `/v1/delivery/:deliveryId` → `/delivery-service/v1/delivery/:id`
-///         — the delivery row `{ id, status, amount: { value, currency },
-///           jeeberName, jeeberId, proofPhotoUrl|evidenceUrl, ... }`.
+///   GET  `/v1/deliveries/:deliveryId` → the delivery aggregate `{ id, status,
+///           amount: { value, currency }, jeeberName, jeeberId,
+///           proofPhotoUrl|evidenceUrl, ... }` (BUG-8: origin plural route).
 ///   POST `/v1/payments/cod_jeeb/record` → `/unified-payment-gateway/...`
 ///         — records the cash-on-delivery settlement (D11). Idempotent on
 ///           `deliveryId` (mock returns the existing record on replay).
 ///   POST `/v1/delivery/status/transition` → `/delivery-service/...`
 ///         — SM-1 `AtDoor → Done` (D70). 422 `transition_not_allowed` when the
-///           delivery is not at a receipt-pending state.
+///           delivery is not at a receipt-pending state. This is a GENUINELY
+///           different endpoint (a status-transition command, NOT the delivery
+///           read) — it stays SINGULAR and is deliberately NOT base-rewritten.
 ///
 /// The cash settlement is recorded BEFORE the status transition so that a
 /// confirmed (`Done`) delivery always has a matching COD record. Both calls are
 /// idempotent server-side, so a retry after a partial failure is safe.
+///
+/// BUG-8 (sprint-008 run-7): only the delivery READ moved to the base-aware
+/// plural `GET /v1/deliveries/{id}` (the singular alias 404s on the live origin
+/// gateway; the materialized aggregate lives at the plural route — Contract 8c).
+/// Pattern reused verbatim from `DioActiveDeliveryRepository` (T-MOB-031).
 class DioDeliveryReceiptRepository implements DeliveryReceiptRepository {
-  const DioDeliveryReceiptRepository(this._dio);
+  /// [originGateway] selects the wire shape for the delivery READ. When `true`
+  /// (the device/real default) it speaks the FROZEN plural `:10090` route
+  /// `GET /v1/deliveries/{id}` (BUG-8 fix); when `false` it speaks the legacy
+  /// `:4010` mock alias `GET /v1/delivery/{id}`. The default mirrors the base
+  /// selection (`!MockGatewayClient.useMockPrefixes`).
+  const DioDeliveryReceiptRepository(this._dio, {bool? originGateway})
+      : originGateway = originGateway ?? !MockGatewayClient.useMockPrefixes;
 
   final Dio _dio;
+
+  /// Whether to read the frozen origin `:10090` plural delivery route
+  /// (`GET /v1/deliveries/{id}`) instead of the legacy `:4010` mock singular
+  /// alias (`GET /v1/delivery/{id}`). Only the READ is affected — the SM-1
+  /// transition POST stays singular. See the constructor doc.
+  final bool originGateway;
 
   /// SM-1 terminal reached when the customer confirms receipt (D70).
   static const String _confirmedStatus = 'Done';
@@ -40,8 +60,12 @@ class DioDeliveryReceiptRepository implements DeliveryReceiptRepository {
   @override
   Future<DeliveryReceipt> fetchReceipt(String deliveryId) async {
     try {
+      // Origin `:10090` reads the plural `/v1/deliveries/{id}` (Contract 8c);
+      // the `:4010` mock keeps the legacy singular `/v1/delivery/{id}` alias.
       final response = await _dio.get<Map<String, dynamic>>(
-        '/v1/delivery/$deliveryId',
+        originGateway
+            ? '/v1/deliveries/$deliveryId'
+            : '/v1/delivery/$deliveryId',
       );
       return _parseReceipt(deliveryId, response.data);
     } on DioException catch (e) {

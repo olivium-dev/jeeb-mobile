@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/mock_gateway_client.dart';
 import '../domain/order_chat_summary.dart';
 
 /// Dio-backed [OrderChatSummaryRepository] (JM-025 AC2).
@@ -8,9 +9,21 @@ import '../domain/order_chat_summary.dart';
 /// the gateway-contract paths (the `MockGatewayClient` interceptor rewrites the
 /// `/v1/...` prefix to the `:4010` service prefix — never hardcode a prefix):
 ///
-///   GET /v1/delivery/:deliveryId    → price (amount), tier, jeeberName, requestId
+///   GET /v1/deliveries/:deliveryId  → price (amount), tier, jeeberName, requestId
 ///   GET /v1/requests/:requestId     → orderRef (displayId), tier fallback, amount fallback
 ///   GET /v1/offers?requestId=…       → accepted offer's etaMinutes
+///
+/// BUG-8 (sprint-008 run-7): the pinned summary is the FIRST read on both the
+/// customer chat AND tracking surfaces, and it read the SINGULAR
+/// `GET /v1/delivery/{id}` — which the live origin gateway (`:10090`) answers
+/// with 404 (run-7 `wire-step5-chat.txt`: `GET /v1/delivery/2896… → 404`, then
+/// the request/offer follow-ups also 404). The materialized delivery aggregate
+/// is served ONLY at the PLURAL `GET /v1/deliveries/{id}` (Contract 8c) — the
+/// same route the jeeber `DioActiveDeliveryRepository.fetchDelivery` and the
+/// customer `DioLiveTrackingRepository.fetchDeliveryStatus` already read with
+/// 200. This repo now uses that plural route on the origin gateway (base-aware
+/// pattern reused verbatim from `DioActiveDeliveryRepository`, T-MOB-031), while
+/// the legacy `:4010` Express mock keeps the singular `/v1/delivery/{id}` alias.
 ///
 /// Every read is defensive: a missing delivery falls back to the request row,
 /// a missing field is simply omitted from the summary (the strip hides that
@@ -18,14 +31,31 @@ import '../domain/order_chat_summary.dart';
 /// 404 maps to [OrderChatSummaryFailure.notFound] so the caller can hide the
 /// strip rather than break the chat thread.
 class DioOrderChatSummaryRepository implements OrderChatSummaryRepository {
-  const DioOrderChatSummaryRepository(this._dio);
+  /// [originGateway] selects the wire shape. When `true` (the device/real
+  /// default) the read speaks the FROZEN plural `:10090` route
+  /// `GET /v1/deliveries/{id}` (the materialized aggregate — BUG-8 fix); when
+  /// `false` it speaks the legacy `:4010` mock alias `GET /v1/delivery/{id}`.
+  /// The default mirrors the base selection (`!MockGatewayClient.useMockPrefixes`)
+  /// so the wire shape always tracks the base the same Dio is pointed at.
+  const DioOrderChatSummaryRepository(this._dio, {bool? originGateway})
+      : originGateway = originGateway ?? !MockGatewayClient.useMockPrefixes;
 
   final Dio _dio;
+
+  /// Whether to read the frozen origin `:10090` plural delivery route
+  /// (`GET /v1/deliveries/{id}`) instead of the legacy `:4010` mock singular
+  /// alias (`GET /v1/delivery/{id}`). See the constructor doc.
+  final bool originGateway;
 
   @override
   Future<OrderChatSummary> fetchSummary(String deliveryId) async {
     try {
-      final delivery = await _getMap('/v1/delivery/$deliveryId');
+      // Origin `:10090` reads the plural `/v1/deliveries/{id}` (Contract 8c);
+      // the `:4010` mock keeps the legacy singular `/v1/delivery/{id}` alias.
+      final deliveryPath = originGateway
+          ? '/v1/deliveries/$deliveryId'
+          : '/v1/delivery/$deliveryId';
+      final delivery = await _getMap(deliveryPath);
       final requestId =
           _str(delivery?['requestId']) ?? _str(delivery?['id']) ?? deliveryId;
 

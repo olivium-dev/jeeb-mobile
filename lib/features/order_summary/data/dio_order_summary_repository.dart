@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/mock_gateway_client.dart';
 import '../domain/order_summary.dart';
 import '../domain/order_summary_repository.dart';
 
@@ -12,28 +13,54 @@ import '../domain/order_summary_repository.dart';
 ///  `/v1/offers`   → `/offer-service/v1/offers`,
 ///  `/users`       → `/user-management/users`). Never hardcodes a host/prefix.
 ///
-/// Hard dependency: `GET /v1/delivery/:deliveryId` (price, tier, jeeber name,
+/// Hard dependency: `GET /v1/deliveries/:deliveryId` (price, tier, jeeber name,
 /// item summary, requestId). Best-effort enrichment (each swallowed on
 /// failure so the widget still renders the core fields):
 ///   * `GET /v1/requests/:requestId`        → conversationId + item-summary/ETA fallback
 ///   * `GET /v1/offers?requestId=<id>`      → accepted-offer ETA (delivery row omits it)
 ///   * `GET /users/:jeeberId`               → jeeber rating + count (D6) + avatar
 ///
+/// BUG-8 (sprint-008 run-7): the standalone order-summary detail (reached from
+/// the delivery-detail hub / chat "view summary" on the customer Core Flow) read
+/// the SINGULAR `GET /v1/delivery/{id}` as its HARD dependency, which the live
+/// origin gateway (`:10090`) answers with 404 — aborting the whole summary. The
+/// materialized aggregate is served ONLY at the PLURAL `GET /v1/deliveries/{id}`
+/// (Contract 8c), the same route the tracking/jeeber sides already read with
+/// 200. This repo now uses that plural route on the origin gateway (base-aware
+/// pattern reused verbatim from `DioActiveDeliveryRepository`, T-MOB-031); the
+/// legacy `:4010` Express mock keeps the singular `/v1/delivery/{id}` alias.
+///
 /// Defensive parsing throughout: accepts snake_case + camelCase, tolerates the
 /// `{ value, minorUnits, currency }` money object the journey seed emits as
 /// well as a bare number, null-coalesces every field, and normalises `''`→null
 /// so a malformed body degrades a field gracefully instead of crashing.
 class DioOrderSummaryRepository implements OrderSummaryRepository {
-  const DioOrderSummaryRepository(this._dio);
+  /// [originGateway] selects the wire shape. When `true` (the device/real
+  /// default) the read speaks the FROZEN plural `:10090` route
+  /// `GET /v1/deliveries/{id}` (BUG-8 fix); when `false` it speaks the legacy
+  /// `:4010` mock alias `GET /v1/delivery/{id}`. The default mirrors the base
+  /// selection (`!MockGatewayClient.useMockPrefixes`) so the wire shape always
+  /// tracks the base the same Dio is pointed at.
+  const DioOrderSummaryRepository(this._dio, {bool? originGateway})
+      : originGateway = originGateway ?? !MockGatewayClient.useMockPrefixes;
 
   final Dio _dio;
+
+  /// Whether to read the frozen origin `:10090` plural delivery route
+  /// (`GET /v1/deliveries/{id}`) instead of the legacy `:4010` mock singular
+  /// alias (`GET /v1/delivery/{id}`). See the constructor doc.
+  final bool originGateway;
 
   @override
   Future<OrderSummary> fetchSummary(String deliveryId) async {
     final Map<String, dynamic> delivery;
     try {
+      // Origin `:10090` reads the plural `/v1/deliveries/{id}` (Contract 8c);
+      // the `:4010` mock keeps the legacy singular `/v1/delivery/{id}` alias.
       final res = await _dio.get<Map<String, dynamic>>(
-        '/v1/delivery/$deliveryId',
+        originGateway
+            ? '/v1/deliveries/$deliveryId'
+            : '/v1/delivery/$deliveryId',
       );
       final data = res.data;
       if (data == null) {
