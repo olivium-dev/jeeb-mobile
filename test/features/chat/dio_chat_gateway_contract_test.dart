@@ -243,4 +243,111 @@ void main() {
       expect(kComposeConversationSentinel, 'new');
     });
   });
+
+  group('DioChatGateway — participant-scoped Idempotency-Key (BUG-13)', () {
+    // Captures the `Idempotency-Key` header a single send emits for the given
+    // authenticated sender + message.
+    Future<String?> keyFor(
+      String currentUserId,
+      DeliveryChatMessage message,
+    ) async {
+      final rec = _RecordingDio(body: <String, dynamic>{'id': 'srv-1'});
+      final gateway =
+          DioChatGateway(dio: rec.dio, currentUserId: currentUserId);
+      await gateway.send(realId, message);
+      return rec.single.headers['Idempotency-Key'] as String?;
+    }
+
+    test('two different senders on the SAME conversation+message index emit '
+        'DIFFERENT keys (no cross-participant idempotency replay)', () async {
+      // Both participants mint the identical per-device local id
+      // `msg-{conversationId}-{index}` — the collision that made the peer's
+      // Nth message replay the first sender's (physical-run12 Step-5 [High]).
+      const localId = 'msg-$realId-0';
+      final customerKey = await keyFor('user-customer', _textDraft(localId));
+      final jeeberKey = await keyFor('user-jeeber', _textDraft(localId));
+
+      expect(customerKey, isNotNull);
+      expect(jeeberKey, isNotNull);
+      expect(customerKey, isNot(jeeberKey),
+          reason: 'distinct senders must not share an idempotency key');
+      // The key carries the authenticated sender identity.
+      expect(customerKey, contains('user-customer'));
+      expect(jeeberKey, contains('user-jeeber'));
+    });
+
+    test('the SAME sender + message yields a STABLE key (idempotent on retry)',
+        () async {
+      final message = _textDraft('msg-$realId-2');
+      final first = await keyFor('user-customer', message);
+      final second = await keyFor('user-customer', message);
+      expect(first, isNotNull);
+      expect(first, second);
+    });
+
+    test('an unauthenticated sender (empty id) still scopes the key to a '
+        'stable per-session token, distinct from an authenticated peer',
+        () async {
+      // A single gateway instance keeps a stable fallback scope across retries.
+      final rec = _RecordingDio(body: <String, dynamic>{'id': 'srv-1'});
+      final gateway = DioChatGateway(dio: rec.dio, currentUserId: '');
+      final message = _textDraft('msg-$realId-0');
+      await gateway.send(realId, message);
+      await gateway.send(realId, message);
+
+      final k1 = rec.requests[0].headers['Idempotency-Key'] as String?;
+      final k2 = rec.requests[1].headers['Idempotency-Key'] as String?;
+      expect(k1, isNotNull);
+      expect(k1, k2, reason: 'retries within a session must stay idempotent');
+      // Not the bare local id (that was the collision) and not a peer's key.
+      expect(k1, isNot('msg-$realId-0'));
+      final peerKey = await keyFor('user-jeeber', _textDraft('msg-$realId-0'));
+      expect(k1, isNot(peerKey));
+    });
+  });
+
+  group('DioChatGateway.loadPhase — no guaranteed-404 conversationId read '
+      '(BUG-14)', () {
+    test('when the resolved correlation key IS the conversation id, loadPhase '
+        'issues NO HTTP and degrades to broadcasting (the jeeber chat-load '
+        '404 ×2)', () async {
+      const conversationId = 'conv-c134f5ed';
+      final rec = _RecordingDio(body: <String, dynamic>{'phase': 'accepted'});
+      // The jeeber opened the accepted chat keyed on the conversation id, so no
+      // distinct request-id correlation key exists → the host passes the
+      // conversation id as the key. A `?correlationKey={conversationId}` read is
+      // a guaranteed 404 on the chat-service; it must be skipped.
+      final gateway = DioChatGateway(
+        dio: rec.dio,
+        currentUserId: 'u-jeeber',
+        conversationCorrelationKey: conversationId,
+      );
+
+      final phase = await gateway.loadPhase(conversationId);
+
+      expect(rec.count, 0,
+          reason: 'a conversationId-keyed correlation read 404s — skip it '
+              'instead of emitting a Core-Flow 404');
+      expect(phase, ConversationPhase.broadcasting);
+    });
+
+    test('a DISTINCT resolved correlation key (== request id) still issues the '
+        'phase read (customer path unchanged)', () async {
+      const conversationId = 'conv-c134f5ed';
+      const requestId = 'req-7f7287d2';
+      final rec = _RecordingDio(body: <String, dynamic>{'phase': 'accepted'});
+      final gateway = DioChatGateway(
+        dio: rec.dio,
+        currentUserId: 'u-customer',
+        conversationCorrelationKey: requestId,
+      );
+
+      final phase = await gateway.loadPhase(conversationId);
+
+      expect(rec.count, 1);
+      expect(rec.single.path, '/v1/conversations');
+      expect(rec.single.queryParameters['correlationKey'], requestId);
+      expect(phase, ConversationPhase.accepted);
+    });
+  });
 }

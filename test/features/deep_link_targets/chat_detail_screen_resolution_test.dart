@@ -206,6 +206,63 @@ class _PreAcceptDio {
       .length;
 }
 
+/// Reproduces the run-12 JEEBER chat-load wire: the jeeber opens the accepted
+/// order-chat keyed on the CONVERSATION id (from the accepted feed entry). The
+/// chat-service resolves a conversation ONLY by correlationKey == request id and
+/// 404s a `?correlationKey={conversationId}` read ("Conversation … does not
+/// exist"), while `GET /v1/conversations/{conversationId}/messages` 200s. So the
+/// screen must resolve via the messages probe and NEVER issue the guaranteed-404
+/// correlationKey read (BUG-14 / physical-run12 [Med] chat-load 404 ×2).
+class _JeeberConversationIdDio {
+  _JeeberConversationIdDio() {
+    dio = Dio(BaseOptions(baseUrl: 'http://test'));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          requests.add(options);
+          final path = options.path;
+          // A correlationKey read keyed on the conversation id is the run-12
+          // 404 shape — the screen must not issue it for the jeeber.
+          if (path == '/v1/conversations') {
+            handler.reject(
+              DioException(
+                requestOptions: options,
+                response: Response(
+                  data: const <String, dynamic>{
+                    'status': 404,
+                    'detail': "Conversation does not exist.",
+                  },
+                  statusCode: 404,
+                  requestOptions: options,
+                ),
+                type: DioExceptionType.badResponse,
+              ),
+            );
+            return;
+          }
+          Object? body = const <String, dynamic>{};
+          if (path == '/v1/conversations/$conversationId/messages') {
+            body = const <String, dynamic>{'messages': <dynamic>[]};
+          }
+          handler.resolve(
+            Response(data: body, statusCode: 200, requestOptions: options),
+          );
+        },
+      ),
+    );
+  }
+
+  static const conversationId = 'c134f5ed-e403-4bc9-8b50-3734ca1970f0';
+
+  late final Dio dio;
+  final List<RequestOptions> requests = <RequestOptions>[];
+
+  Iterable<String> get paths => requests.map((r) => r.path);
+
+  int get correlationKeyLookups =>
+      requests.where((r) => r.path == '/v1/conversations').length;
+}
+
 /// AuthTokenStore double that returns a known session user id without touching
 /// the platform keychain.
 class _StubAuthTokenStore extends AuthTokenStore {
@@ -482,6 +539,59 @@ void main() {
           pre.requestIdMessagesReadCount,
           lessThanOrEqualTo(1),
           reason: 'the pre-accept requestId messages path must not be polled',
+        );
+      },
+    );
+  });
+
+  group('ChatDetailScreen — jeeber opens accepted chat by CONVERSATION id '
+      '(BUG-14)', () {
+    late _JeeberConversationIdDio jeeb;
+
+    setUp(() {
+      jeeb = _JeeberConversationIdDio();
+      final sl = GetIt.instance;
+      if (sl.isRegistered<Dio>()) sl.unregister<Dio>();
+      if (sl.isRegistered<AuthTokenStore>()) sl.unregister<AuthTokenStore>();
+      sl.registerSingleton<Dio>(jeeb.dio);
+      sl.registerSingleton<AuthTokenStore>(_StubAuthTokenStore(_sessionUserId));
+    });
+
+    testWidgets(
+      'resolves via the messages probe and issues ZERO correlationKey lookups '
+      '(no conversationId-keyed chat-load 404)',
+      (tester) async {
+        final role = await _roleCubit(UserRole.jeeber);
+        addTearDown(role.close);
+
+        // The jeeber taps the accepted feed row, which is keyed on the
+        // conversation id.
+        await tester.pumpWidget(
+          _host(role, _JeeberConversationIdDio.conversationId),
+        );
+        await tester.pumpAndSettle();
+
+        // The chat surface is wired to the conversation id (resolved by the
+        // messages probe).
+        final chatScreen = tester.widget<ChatScreen>(find.byType(ChatScreen));
+        expect(chatScreen.deliveryId, _JeeberConversationIdDio.conversationId);
+
+        // The guaranteed-404 `?correlationKey={conversationId}` read — from BOTH
+        // the screen resolution AND the cubit phase read — must never fire.
+        expect(
+          jeeb.correlationKeyLookups,
+          0,
+          reason: 'the jeeber must resolve by the messages probe and skip the '
+              'conversationId-keyed correlation read that 404s (BUG-14)',
+        );
+        // History is read on the conversation-id messages route.
+        expect(
+          jeeb.paths.contains(
+            '/v1/conversations/${_JeeberConversationIdDio.conversationId}'
+            '/messages',
+          ),
+          isTrue,
+          reason: 'reads target the resolved conversation id',
         );
       },
     );

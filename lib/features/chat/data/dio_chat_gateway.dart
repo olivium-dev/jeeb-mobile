@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:dio/dio.dart';
 
@@ -77,6 +78,13 @@ class DioChatGateway implements ChatGateway {
   final Uri _socketBaseUri;
   final ChatSocket Function(String conversationId)? _socketFactory;
 
+  /// Stable per-gateway-instance sender scope used ONLY when [currentUserId] is
+  /// empty (unauthenticated degrade). Minted once per chat-thread gateway so
+  /// retries of the same message within the session keep a stable
+  /// (idempotent) key, while still differing from the peer's client — the
+  /// authenticated path uses the real user id and never touches this.
+  late final String _fallbackSenderScope = _mintFallbackSenderScope();
+
   ChatSocket? _socket;
   final StreamController<ChatEvent> _events =
       StreamController<ChatEvent>.broadcast();
@@ -140,9 +148,21 @@ class DioChatGateway implements ChatGateway {
       // behavior). Posting the conversation id as the correlationKey 404s on the
       // live chat-service (physical-run8 [Med] READ 404 #2).
       final resolvedKey = _correlationKey;
-      final correlationKey = (resolvedKey != null && resolvedKey.isNotEmpty)
-          ? resolvedKey
-          : conversationId;
+      final hasResolvedKey = resolvedKey != null && resolvedKey.isNotEmpty;
+      final correlationKey = hasResolvedKey ? resolvedKey : conversationId;
+      // BUG-14: the chat-service resolves a conversation ONLY by its correlation
+      // key (== request id), NEVER by the conversation id. When the host DID
+      // resolve a key but it is the conversation id itself (the jeeber opened
+      // the accepted chat keyed on the conversation id, so no distinct
+      // request-id correlation key exists), this read is a GUARANTEED 404
+      // (`chat-service rejected the read conversation by correlation … does not
+      // exist`, physical-run12 [Med] chat-load 404 ×2). Short-circuit to the
+      // safe broadcasting phase instead of emitting a Core-Flow 404. A caller
+      // that supplied NO key (legacy/tests) still falls back to the id argument
+      // and issues the read unchanged.
+      if (hasResolvedKey && correlationKey == conversationId) {
+        return ConversationPhase.broadcasting;
+      }
       final response = await _dio.get<Map<String, dynamic>>(
         '/v1/conversations',
         queryParameters: <String, Object?>{'correlationKey': correlationKey},
@@ -221,11 +241,16 @@ class DioChatGateway implements ChatGateway {
         if (isText) 'body': message.text else 'payload': _bodyFor(message),
       },
       options: Options(
-        // Server-side idempotency in the mock keys off this header; bumping
-        // it per send avoids accidental dedup if the user re-sends the same
-        // text quickly.
+        // Server-side idempotency keys off this header. It MUST be scoped to
+        // the SENDER: `message.id` alone (`msg-{conversationId}-{localIndex}`)
+        // is derived from a per-device local counter, so BOTH participants'
+        // Nth message produced the SAME key — the backend then idempotency-
+        // REPLAYED the first sender's message for the second sender, so neither
+        // side's messages persisted or rendered (physical-run12 Step-5 [High]).
+        // Scoping the key by the authenticated sender makes it globally unique
+        // across participants while staying stable on retry.
         headers: <String, Object?>{
-          'Idempotency-Key': message.id,
+          'Idempotency-Key': _idempotencyKeyFor(message),
         },
       ),
     );
@@ -288,6 +313,31 @@ class DioChatGateway implements ChatGateway {
   bool _isUnresolvedConversation(String conversationId) =>
       conversationId.isEmpty ||
       conversationId == kComposeConversationSentinel;
+
+  /// Participant-scoped `Idempotency-Key` for a chat message POST (BUG-13).
+  ///
+  /// `message.id` (`msg-{conversationId}-{localIndex}` / `voice-…`) is minted
+  /// from a per-device counter, so it is NOT unique across the two participants
+  /// — the customer's and the jeeber's Nth message collided, and the backend
+  /// idempotency layer replayed the first sender's message for the second.
+  /// Prefixing the SENDER (the authenticated [currentUserId], or a stable
+  /// per-install/per-session fallback when unauthenticated) onto that already
+  /// per-message-unique local id yields a key that is globally unique across
+  /// participants yet identical when the SAME sender retries the SAME message.
+  String _idempotencyKeyFor(DeliveryChatMessage message) {
+    final sender =
+        currentUserId.isNotEmpty ? currentUserId : _fallbackSenderScope;
+    return '${message.id}-u-$sender';
+  }
+
+  /// Mints the [_fallbackSenderScope]: a random, session-stable token used to
+  /// scope the idempotency key when no authenticated user id is available.
+  static String _mintFallbackSenderScope() {
+    final random = Random();
+    final head = random.nextInt(1 << 32).toRadixString(16).padLeft(8, '0');
+    final tail = DateTime.now().microsecondsSinceEpoch.toRadixString(16);
+    return 'anon-$head$tail';
+  }
 
   /// Defensive read of the server-created delivery id from the accept body.
   /// Accepts both `deliveryId` and snake_case `delivery_id`; anything else

@@ -156,47 +156,65 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // { role_in_convo, removed_at } ] }`); the mock/legacy shape is camelCase
     // (`{ id|conversationId, phase, requestId, winnerJeeberId }`). BOTH are
     // tolerated below.
-    // The route param may be EITHER a request id OR a conversation id, so:
-    //   1. correlationKey lookup (route param treated as the request id), then
-    //   2. a 200 from `GET /v1/conversations/{id}/messages` proves the route
-    //      param is already a real, openable conversation id.
+    //
+    // The route param resolves via one of two lookups, and each is valid for
+    // exactly ONE kind of id — the "wrong" lookup for a given id is a
+    // GUARANTEED 404:
+    //   * correlationKey lookup — resolves when the param is the REQUEST id
+    //     (== correlationKey). The CUSTOMER opens order-chat keyed on the
+    //     request id, so this resolves (200) for the customer.
+    //   * per-id messages probe — a 200 from `GET /v1/conversations/{id}/messages`
+    //     proves the param is already a real, openable CONVERSATION id. The
+    //     JEEBER opens the accepted order-chat keyed on the conversation id
+    //     (from the accepted feed / active-deliveries entry), so this resolves
+    //     for the jeeber.
+    // The chat-service resolves a conversation ONLY by correlationKey == request
+    // id (never by conversation id → 404), so we run the lookup the caller's
+    // ROLE implies FIRST and keep the other as a fallback. This keeps the proven
+    // Core-Flow entry for each role free of a guaranteed-404 round-trip
+    // (BUG-14 / physical-run12 [Med] chat-load 404 ×2 — the jeeber previously
+    // ran the correlationKey lookup on its conversation id and 404'd) while
+    // still resolving a param of the unexpected shape.
     // The create-only prefix `/v1/chat/jeeb/conversations/{id}` (+ `/by-request`)
     // 404s on the live gateway and is NO LONGER used for resolution — that was
     // the historical bug that wrongly stranded this screen in compose, where a
     // "send" would create a brand-new request instead of posting to the
     // existing conversation.
-    try {
-      final resp = await dio.get<Map<String, dynamic>>(
-        '/v1/conversations',
-        queryParameters: <String, Object?>{'correlationKey': widget.chatId},
-      );
-      final data = resp.data;
-      // The LIVE gateway returns the conversation row in snake_case
-      // (`{ conversation_id, correlation_key, phase, participants }`), so the
-      // id MUST be read under `conversation_id` too — reading only the
-      // camelCase `id`/`conversationId` (the mock/legacy shape) left this
-      // empty on live, so resolution silently failed and the screen fell back
-      // to POSTing/GETting `/v1/conversations/{requestId}/messages` → 404 (the
-      // run-7 Step-5 chat blocker). Mirrors the tolerant key handling in
-      // `DioAcceptedConversationsRepository._string`.
-      final resolvedId =
-          _stringField(data, const ['id', 'conversationId', 'conversation_id']);
-      if (data != null && resolvedId.isNotEmpty) {
-        conversationData = data;
-        conversationId = resolvedId;
+    Future<bool> resolveByCorrelationKey() async {
+      try {
+        final resp = await dio.get<Map<String, dynamic>>(
+          '/v1/conversations',
+          queryParameters: <String, Object?>{'correlationKey': widget.chatId},
+        );
+        final data = resp.data;
+        // The LIVE gateway returns the conversation row in snake_case
+        // (`{ conversation_id, correlation_key, phase, participants }`), so the
+        // id MUST be read under `conversation_id` too — reading only the
+        // camelCase `id`/`conversationId` (the mock/legacy shape) left this
+        // empty on live, so resolution silently failed and the screen fell back
+        // to POSTing/GETting `/v1/conversations/{requestId}/messages` → 404 (the
+        // run-7 Step-5 chat blocker). Mirrors the tolerant key handling in
+        // `DioAcceptedConversationsRepository._string`.
+        final resolvedId = _stringField(
+          data,
+          const ['id', 'conversationId', 'conversation_id'],
+        );
+        if (data != null && resolvedId.isNotEmpty) {
+          conversationData = data;
+          conversationId = resolvedId;
+          return true;
+        }
+      } on DioException {
+        // Not resolvable by correlation key — the fallback lookup runs next.
       }
-    } on DioException {
-      // Fall through to the messages probe.
+      return false;
     }
 
-    if (conversationData == null) {
-      // The route param may already be a conversation id. A 200 from the
-      // canonical messages route proves a real, openable conversation even when
-      // the correlationKey lookup found nothing (e.g. the customer arrives from
-      // the accept sheet with the server `conversationId`, not the request id).
-      // An existing message thread is, by definition, past compose → treat it
-      // as accepted so the composer shows and a send POSTs to this conversation
-      // (never re-broadcasts a new request).
+    Future<bool> resolveByMessagesProbe() async {
+      // A 200 from the canonical messages route proves a real, openable
+      // conversation. An existing message thread is, by definition, past
+      // compose → treat it as accepted so the composer shows and a send POSTs
+      // to this conversation (never re-broadcasts a new request).
       try {
         await dio.get<dynamic>(
           '/v1/conversations/$conversationId/messages',
@@ -205,9 +223,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           'id': conversationId,
           'phase': 'accepted',
         };
+        return true;
       } on DioException {
-        // Neither resolved — fresh compose (no request/conversation yet). The
-        // first message will create the request + broadcast (JM-025 AC1).
+        // Not an openable conversation id — fresh compose (no request/
+        // conversation yet; the first message creates + broadcasts, JM-025 AC1)
+        // or a request id resolved by the correlationKey lookup instead.
+      }
+      return false;
+    }
+
+    if (isJeeber) {
+      if (!await resolveByMessagesProbe()) {
+        await resolveByCorrelationKey();
+      }
+    } else {
+      if (!await resolveByCorrelationKey()) {
+        await resolveByMessagesProbe();
       }
     }
 
