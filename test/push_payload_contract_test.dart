@@ -145,6 +145,28 @@ void main() {
     expect(original.data['senderId'], fixture['senderId']);
   });
 
+  test('a nested single-quote `data` blob is hoisted by the transport decode '
+      'so a chat push still resolves to /chat/<requestId>', () async {
+    // The live gateway chat push nests routing fields inside a single
+    // stringified `data` entry (single-quote pseudo-JSON). _toDomain must call
+    // hoistNestedRoutingFields so `type`/`conversationId`/`requestId` become
+    // visible to category resolution + deep-linking. Without the hoist this
+    // decodes as category=other and routes nowhere.
+    final message = await _decodeThroughTransport(<String, dynamic>{
+      'data': "{'conversationId': '99b73825-9383-4aec-987d-169c02d96f64', "
+          "'requestId': '7a5dffbd-6c05-4068-9b79-0cec377cae0f', 'type': 'chat'}",
+      'title': 'New message',
+      'body': 'Customer here',
+    });
+
+    expect(message.category, NotificationCategory.chat);
+    // requestId is the primary chat routing key (correlationKey == requestId).
+    expect(
+      deepLinkForMessage(message),
+      '/chat/7a5dffbd-6c05-4068-9b79-0cec377cae0f',
+    );
+  });
+
   group('drift detection — a renamed or dropped field breaks the contract', () {
     test('a chat push is un-routable only when EVERY recognized routing key '
         'drifts (requestId is the proven primary key; conversationId a fallback)',

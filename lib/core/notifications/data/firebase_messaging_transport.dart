@@ -189,6 +189,13 @@ class FirebaseMessagingTransport implements PushTransport {
     final data = message.data.map(
       (key, value) => MapEntry(key.toString(), value?.toString() ?? ''),
     );
+    // The live jeeb-gateway chat push nests routing fields inside a single
+    // stringified `data` blob (single-quote pseudo-JSON). Hoist them to the top
+    // level BEFORE category resolution so `category`/`type`/`conversationId`/
+    // `requestId` are visible to [NotificationCategory.fromKey] and
+    // [deepLinkForMessage]; without this a chat push buckets as `other` and
+    // routes nowhere. No-op for a correct flat payload (no nested blob).
+    hoistNestedRoutingFields(data);
     if (kDebugMode) {
       // Diagnostic: keys + flags only (no values) so we can see the live
       // payload shape (e.g. conversationId/type) without leaking content.

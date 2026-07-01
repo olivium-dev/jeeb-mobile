@@ -42,6 +42,34 @@ void main() {
       expect(path, isNull);
     });
 
+    test('offer (delivery category) with ONLY requestId routes to '
+        '/orders/<requestId> (delivery id == request id)', () {
+      // The live gateway `type=offer`/`type=accept` push maps to the delivery
+      // category but carries ONLY `requestId` — no delivery_id/order_id. Before
+      // the fix this produced NO route (tap = silent no-op).
+      final path = deepLinkForMessage(_msg(
+        category: NotificationCategory.delivery,
+        data: const {'requestId': 'req-77'},
+      ));
+      expect(path, '/orders/req-77');
+    });
+
+    test('delivery uses snake_case request_id when it is the only id', () {
+      final path = deepLinkForMessage(_msg(
+        category: NotificationCategory.delivery,
+        data: const {'request_id': 'req-88'},
+      ));
+      expect(path, '/orders/req-88');
+    });
+
+    test('delivery prefers an explicit delivery_id over requestId', () {
+      final path = deepLinkForMessage(_msg(
+        category: NotificationCategory.delivery,
+        data: const {'delivery_id': 'd-1', 'requestId': 'req-99'},
+      ));
+      expect(path, '/orders/d-1');
+    });
+
     test('chat routes to /chat/<id>', () {
       final path = deepLinkForMessage(_msg(
         category: NotificationCategory.chat,

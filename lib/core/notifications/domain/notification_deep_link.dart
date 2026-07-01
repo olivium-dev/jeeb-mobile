@@ -11,7 +11,18 @@ import 'notification_message.dart';
 String? deepLinkForMessage(NotificationMessage message) {
   switch (message.category) {
     case NotificationCategory.delivery:
-      final id = message.data['delivery_id'] ?? message.data['order_id'];
+      // `delivery`-category pushes cover the gateway `type=delivery|offer|accept`
+      // events (see [NotificationCategory.fromKey]). The order/delivery surface
+      // keys off the delivery id, but the live `EventPushNotifier` offer/accept
+      // payloads carry ONLY `requestId` (no `delivery_id`/`order_id`). In this
+      // system the delivery id == the request id (run evidence:
+      // `GET /v1/deliveries/{requestId}` resolves 200), so fall back to
+      // `requestId`/`request_id` — otherwise an offer/accept tap is a silent
+      // no-op. Precedence keeps the explicit delivery/order id first.
+      final id = message.data['delivery_id'] ??
+          message.data['order_id'] ??
+          message.data['requestId'] ??
+          message.data['request_id'];
       if (id == null || id.isEmpty) return null;
       return '/orders/$id';
     case NotificationCategory.chat:
