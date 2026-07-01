@@ -1,15 +1,27 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/mock_gateway_client.dart';
 import '../domain/delivery_tracking_info.dart';
 import '../domain/live_tracking_repository.dart';
 
 /// JM-032: order-tracking repository over the delivery-service.
 ///
-/// Speaks the gateway-contract path `GET /v1/delivery/:deliveryId`
-/// (30_BACKLOG JM-032 Mock line + 42_GUARDRAILS_MOCK §1.2 rewrite key
-/// `/v1/delivery` → `/delivery-service/v1/delivery`). `MockGatewayClient`'s
-/// `_PathRewriteInterceptor` rewrites the `/v1/...` prefix to the `:4010`
-/// service prefix — never hardcode a host/prefix here (40_GUARDRAILS_ARCH §4).
+/// BUG-8 (sprint-008 run-5): the CUSTOMER live-tracking screen read the SINGULAR
+/// `GET /v1/delivery/{id}`, which the live origin gateway (`:10090`) answers with
+/// 404 "Delivery not found" — the materialized delivery aggregate is served ONLY
+/// at the PLURAL `GET /v1/deliveries/{id}` (Contract 8c), the same route the
+/// jeeber `DioActiveDeliveryRepository.fetchDelivery` already reads successfully
+/// (200). The customer is now aligned to that plural route.
+///
+/// Base-aware, reused verbatim from `DioActiveDeliveryRepository` (T-MOB-031):
+/// the origin `:10090` gateway serves the FROZEN plural `/v1/deliveries/{id}`,
+/// while the legacy `:4010` Express mock keeps the singular `/v1/delivery/{id}`
+/// alias. `MockGatewayClient` selects the wire shape by BASE (not host string),
+/// so [originGateway] defaults to `!MockGatewayClient.useMockPrefixes` — the same
+/// flag that points Dio at the mock also selects the mock route. Never hardcode a
+/// host/prefix here (40_GUARDRAILS_ARCH §4); `MockGatewayClient`'s
+/// `_PathRewriteInterceptor` rewrites the `/v1/...` prefix to the `:4010` service
+/// prefix in mock mode.
 ///
 /// The delivery row carries both the lifecycle `status`
 /// (`Ordered/Picked/InTransit/AtDoor/Done`) that drives the 4-step
@@ -18,18 +30,36 @@ import '../domain/live_tracking_repository.dart';
 /// every 5s (LiveTrackingCubit); when the status reaches the terminal delivered
 /// state the screen auto-advances to the receipt prompt (JM-033).
 class DioLiveTrackingRepository implements LiveTrackingRepository {
-  const DioLiveTrackingRepository(this._dio);
+  /// [originGateway] selects the wire shape. When `true` (the device/real
+  /// default) the read speaks the FROZEN plural `:10090` route
+  /// `GET /v1/deliveries/{id}` (the materialized aggregate — BUG-8 fix); when
+  /// `false` it speaks the legacy `:4010` mock alias `GET /v1/delivery/{id}`.
+  /// The default mirrors the base selection (`!MockGatewayClient.useMockPrefixes`)
+  /// so the wire shape always tracks the base the same Dio is pointed at, exactly
+  /// like `DioActiveDeliveryRepository`. Tests inject the flag explicitly to
+  /// exercise both surfaces under a plain `flutter test`.
+  DioLiveTrackingRepository(this._dio, {bool? originGateway})
+      : originGateway = originGateway ?? !MockGatewayClient.useMockPrefixes;
 
   final Dio _dio;
+
+  /// Whether to read the frozen origin-only `:10090` plural delivery route
+  /// (`GET /v1/deliveries/{id}`) instead of the legacy `:4010` mock singular
+  /// alias (`GET /v1/delivery/{id}`). See the constructor doc.
+  final bool originGateway;
 
   @override
   Future<DeliveryTrackingInfo> fetchDeliveryStatus({
     required String deliveryId,
   }) async {
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
-        '/v1/delivery/$deliveryId',
-      );
+      // Origin `:10090` reads the plural `/v1/deliveries/{id}` (Contract 8c —
+      // the materialized aggregate the jeeber side already reads); the `:4010`
+      // mock keeps the legacy singular `/v1/delivery/{id}` alias.
+      final path = originGateway
+          ? '/v1/deliveries/$deliveryId'
+          : '/v1/delivery/$deliveryId';
+      final response = await _dio.get<Map<String, dynamic>>(path);
       final data = response.data;
       if (data == null) {
         throw const LiveTrackingException(LiveTrackingErrorKind.parse);

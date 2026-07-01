@@ -103,8 +103,11 @@ class DeliveryTrackingInfo extends Equatable {
     );
   }
 
-  /// JM-032: parses the `GET /v1/delivery/:deliveryId` delivery row the
-  /// order-tracking screen polls (`delivery-service` getDelivery, mock shape:
+  /// JM-032 / BUG-8: parses the `GET /v1/deliveries/:deliveryId` delivery row the
+  /// order-tracking screen polls on the live origin gateway (the same
+  /// materialized aggregate the jeeber side reads; the legacy `:4010` mock alias
+  /// `GET /v1/delivery/:id` returns the identical shape) (`delivery-service`
+  /// getDelivery, mock shape:
   /// `{ id, requestId, jeeberId, tier, status, title, amount:{value,currency},
   ///    jeeberName, conversationId, evidenceUrl, proofPhotoUrl, … }`).
   ///
