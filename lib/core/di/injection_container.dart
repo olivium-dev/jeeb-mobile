@@ -67,6 +67,7 @@ import '../../features/voice_request/domain/voice_player.dart';
 import '../../features/voice_request/domain/voice_recorder.dart';
 import '../../features/prohibited_acknowledgment/data/prohibited_acknowledgment_repository_impl.dart';
 import '../../features/prohibited_acknowledgment/domain/prohibited_acknowledgment_repository.dart';
+import '../../features/request_summary/application/compose_request_controller.dart';
 import '../../features/request_summary/data/dio_request_submission_service.dart';
 import '../../features/request_summary/domain/request_submission_service.dart';
 import '../../features/cancellation/data/dio_cancellation_repository.dart';
@@ -333,6 +334,24 @@ void configureDependencies({
   // RequestSummaryCubit submits over Dio instead of the prior stub.
   sl.registerLazySingleton<RequestSubmissionService>(
     () => DioRequestSubmissionService(sl<Dio>()),
+  );
+
+  // BUG-6 create-payload fix: register the shared compose controller so the
+  // customer create flow (request-type tier picker → client-location confirm)
+  // actually carries the selected tier + confirmed pickup into POST /v1/requests.
+  //
+  // WHY THIS WAS BROKEN: the controller existed and correctly serialized the
+  // tier UUID (Tier.wireId) + real pickup {lat,lng,address}, but it was NEVER
+  // registered here. So `request_type_screen.setTier(...)` was a no-op
+  // (`sl.isRegistered<ComposeRequestController>()` == false) and
+  // `client_location_screen._onConfirm` took the fallback branch that hands off
+  // the literal `'new'` sentinel to order-chat, where OrderComposeCoordinator
+  // created a request with NEITHER tier NOR pickup. The gateway therefore stored
+  // `tierId:null` + `pickup:{}` and never materialized the delivery aggregate
+  // (GET /v1/deliveries/{id} → 404, dead-ending handover/DELIVERED). Registering
+  // the controller activates the designed tier+pickup-bearing create path.
+  sl.registerLazySingleton<ComposeRequestController>(
+    () => ComposeRequestController(sl<RequestSubmissionService>()),
   );
 
   // T-MOB-031: Active delivery (Jeeber) — GET /v1/deliveries/{id} +

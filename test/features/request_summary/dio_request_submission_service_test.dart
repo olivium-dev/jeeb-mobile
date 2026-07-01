@@ -109,6 +109,60 @@ void main() {
       expect(capturedBody?['pickupAddress'], 'Downtown Bakery, Hamra St');
     });
 
+    // BUG-6 create-payload contract: the POST /v1/requests body MUST carry the
+    // tier UUID (Tier.wireId, resolved onto RequestDraft.tierId) — NOT the tier
+    // slug — and REAL (non-zero) pickup coordinates + address. The gateway
+    // resolves the tier by the exact UUID it minted (a slug like "express"
+    // resolves to null → the delivery aggregate is never materialized → the
+    // handover/DELIVERED steps 404). This pins the wire shape end-to-end.
+    test('serializes the tier UUID (never the slug) + real non-zero pickup',
+        () async {
+      Map<String, dynamic>? capturedBody;
+      final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            capturedBody = options.data as Map<String, dynamic>?;
+            handler.resolve(
+              Response(
+                data: {'id': 'req-uuid'},
+                statusCode: 201,
+                requestOptions: options,
+              ),
+            );
+          },
+        ),
+      );
+
+      const uuidDraft = RequestDraft(
+        description: 'Parcel to Hamra',
+        // The wire-side tier id ComposeRequestController resolves from
+        // Tier.wireId — the live gateway UUID, NOT the "express" slug.
+        tierId: '2bd0d5df-db76-5d14-9e4d-741d60b2fa12',
+        tierName: 'express',
+        pickupLat: 33.8886,
+        pickupLng: 35.4955,
+        pickupAddress: 'Current location (33.8886, 35.4955)',
+        dropoffLat: 33.8886,
+        dropoffLng: 35.4955,
+        dropoffAddress: 'Current location (33.8886, 35.4955)',
+      );
+
+      await DioRequestSubmissionService(dio).submit(uuidDraft);
+
+      // tier: a UUID, never a slug.
+      expect(capturedBody?['tierId'], '2bd0d5df-db76-5d14-9e4d-741d60b2fa12');
+      expect(capturedBody?['tierId'], isNot('express'));
+      // pickup: real, non-zero {lat,lng} + a non-empty address.
+      final pickup = capturedBody?['pickupLocation'] as Map<String, dynamic>?;
+      expect(pickup, isNotNull);
+      expect(pickup?['lat'], isNot(0));
+      expect(pickup?['lng'], isNot(0));
+      expect(pickup?['lat'], 33.8886);
+      expect(pickup?['lng'], 35.4955);
+      expect(capturedBody?['pickupAddress'], isNotEmpty);
+    });
+
     test('omits optional location keys when coordinates are absent', () async {
       Map<String, dynamic>? capturedBody;
       final dio = Dio(BaseOptions(baseUrl: 'http://test'));

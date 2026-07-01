@@ -14,9 +14,11 @@ import 'package:jeeb_mobile/features/tier_selection/domain/tier.dart';
 
 import '../../support/fake_request_submission_service.dart';
 
-Tier _flash() => Tier(
+// serverId is surfaced via the Tier.wireId getter — the value the create RPC
+// echoes as tierId.
+Tier _flash() => const Tier(
       id: TierId.flash,
-      wireId: 'uuid',
+      serverId: 'uuid',
       priceLow: 1000,
       priceHigh: 2000,
       currency: 'USD',

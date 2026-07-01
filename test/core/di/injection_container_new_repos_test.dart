@@ -23,6 +23,7 @@ import 'package:jeeb_mobile/features/notification_prefs/domain/notification_pref
 import 'package:jeeb_mobile/features/notifications/data/dio_notifications_repository.dart';
 import 'package:jeeb_mobile/features/notifications/domain/notifications_repository.dart';
 import 'package:jeeb_mobile/features/rating/domain/rating_repository.dart';
+import 'package:jeeb_mobile/features/request_summary/application/compose_request_controller.dart';
 import 'package:jeeb_mobile/features/reviews/data/dio_reviews_repository.dart';
 import 'package:jeeb_mobile/features/reviews/domain/reviews_repository.dart';
 import 'package:jeeb_mobile/features/support/data/dio_support_repository.dart';
@@ -179,5 +180,19 @@ void main() {
     expect(GetIt.I.isRegistered<ReviewsRepository>(), isTrue);
     expect(() => GetIt.I<ReviewsRepository>(), returnsNormally);
     expect(GetIt.I<ReviewsRepository>(), isA<DioReviewsRepository>());
+  });
+
+  // BUG-6 create-payload regression: the compose controller MUST be registered
+  // so the customer create flow (request-type tier picker → client-location
+  // confirm) threads the selected tier UUID (Tier.wireId) + real pickup into
+  // POST /v1/requests. It was previously registered ONLY in tests, so on device
+  // `setTier` was a no-op and the location-confirm step fell back to the `'new'`
+  // sentinel, creating a tier-less / pickup-less request (tierId:null, pickup:{})
+  // that the gateway could not materialize into a delivery aggregate. This pins
+  // the production wiring so the create path can never silently go dead again.
+  test('ComposeRequestController is registered and resolves (BUG-6)', () {
+    expect(GetIt.I.isRegistered<ComposeRequestController>(), isTrue);
+    expect(() => GetIt.I<ComposeRequestController>(), returnsNormally);
+    expect(GetIt.I<ComposeRequestController>(), isA<ComposeRequestController>());
   });
 }

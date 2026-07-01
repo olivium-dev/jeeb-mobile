@@ -13,9 +13,11 @@ import 'package:jeeb_mobile/features/tier_selection/domain/tier.dart';
 
 import '../../support/fake_request_submission_service.dart';
 
+// [wireId] maps to the constructor's [Tier.serverId]; the model exposes it back
+// via the [Tier.wireId] getter — the exact value the create RPC must echo.
 Tier _flash({String? wireId}) => Tier(
       id: TierId.flash,
-      wireId: wireId,
+      serverId: wireId,
       priceLow: 1000,
       priceHigh: 2000,
       currency: 'USD',
