@@ -542,11 +542,33 @@ class _ConfirmFooter extends StatelessWidget {
     try {
       final requestId = await controller.submitFromLocation(state);
       // logcat proof anchor: confirms the create call succeeded with a REAL id
-      // (NOT 'new') before we route to order-chat.
+      // (NOT 'new') before we route to the waiting surface.
       debugPrint('[compose-b11] POST /requests OK → requestId=$requestId');
-      // Route order-chat with the REAL request id (no more 'new'). The compose
-      // thread broadcasts THIS id, and the chat resolves the conversation by it.
-      router.pushNamed('chat-detail', pathParameters: {'id': requestId});
+      // POST-CREATE UX FIX (run-8 Step-2 gap): land the customer on the
+      // "Finding a Jeeber" WAITING surface for the freshly-created request —
+      // NOT the order-chat compose screen.
+      //
+      // WHY THIS REGRESSED: BUG-6 (39d90bf) moved the actual `POST /v1/requests`
+      // create UP to this location-confirm step (via ComposeRequestController).
+      // The request now already exists here, so routing on to `chat-detail`
+      // dropped the customer into the JM-025 *compose* state (no conversation
+      // exists yet for a brand-new request) instead of a waiting state. The
+      // "Finding a Jeeber" copy was then only reachable via the OLD chat-first
+      // path (send a first message → `_createBroadcastAndGoWaiting`), which no
+      // longer runs because there is nothing left to compose. So the customer
+      // never saw the waiting screen (run-8: empty "No orders yet" home).
+      //
+      // FIX: reuse the existing `waiting-no-coverage` route + WaitingCubit /
+      // NoOfferTimeoutScreen (the SAME target the chat-first broadcast used —
+      // `chat_detail_screen.dart` `goNamed('waiting-no-coverage')`, and the
+      // client-home pending-request tap `client_home_screen.dart`), threading
+      // the REAL server-minted requestId through. `goNamed` (not push) so the
+      // now-created request cannot be re-submitted by backing into this screen.
+      // The chat-first broadcast path (fallback below + ChatDetailScreen) is
+      // untouched, and the request is already `pending` + visible in the jeeber
+      // feed, so the waiting screen's own coverage fetch drives "Finding a
+      // Jeeber" (broadcastExpiresAt falls back to a 5-min window).
+      router.goNamed('waiting-no-coverage', pathParameters: {'id': requestId});
     } on RequestSubmissionException catch (e) {
       debugPrint('[compose-b11] POST /requests FAILED: $e');
       // Stay on the location step and surface a retryable error — never hand

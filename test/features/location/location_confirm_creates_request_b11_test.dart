@@ -26,9 +26,11 @@ import 'package:jeeb_mobile/core/router/app_router.dart';
 import 'package:jeeb_mobile/features/biometric_auth/application/biometric_lock_cubit.dart';
 import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_repository.dart';
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
-import 'package:jeeb_mobile/features/deep_link_targets/chat_detail_screen.dart';
 import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
 import 'package:jeeb_mobile/features/location/domain/location_select_repository.dart';
+import 'package:jeeb_mobile/features/no_offer_timeout/data/fake_waiting_repository.dart';
+import 'package:jeeb_mobile/features/no_offer_timeout/domain/waiting_repository.dart';
+import 'package:jeeb_mobile/features/no_offer_timeout/presentation/no_offer_timeout_screen.dart';
 import 'package:jeeb_mobile/features/request_summary/application/compose_request_controller.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/request_submission_service.dart';
 import 'package:jeeb_mobile/features/settings/data/repositories/biometric_preference_repository_impl.dart';
@@ -111,6 +113,19 @@ void main() {
       // The request-type step resolves TierRepository via sl and pre-selects
       // Flash, so the Continue CTA is enabled on first paint.
       sl.registerLazySingleton<TierRepository>(FakeTierRepository.new);
+      // Post-create nav fix: Confirm now routes to the WAITING screen
+      // (`waiting-no-coverage` → NoOfferTimeoutScreen). Its self-provided
+      // ticker WaitingCubit attaches `Stream.periodic` poll/clock timers on a
+      // SUCCESSFUL load, which would leak into the headless binding. Register a
+      // WaitingRepository whose cold-load read FAILS so the screen mounts in its
+      // (timer-free) error state — enough to assert the navigation target
+      // without leaking timers. The waiting screen's own happy-path copy is
+      // covered by waiting_screen_test.dart.
+      sl.registerLazySingleton<WaitingRepository>(
+        () => FakeWaitingRepository(
+          failure: const WaitingException(WaitingFailure.network),
+        ),
+      );
     });
 
     tearDown(() async {
@@ -118,8 +133,8 @@ void main() {
     });
 
     testWidgets(
-      'full flow tier→location→Confirm calls submit() once and routes '
-      'order-chat with the REAL request id (never the placeholder "new")',
+      'full flow tier→location→Confirm calls submit() once and routes to the '
+      'WAITING screen with the REAL request id (never the placeholder "new")',
       (tester) async {
         final built = await _buildRouter();
         // Drive the REAL on-device path: request-type → Continue → location.
@@ -160,17 +175,20 @@ void main() {
         expect(submission.lastDraft!.tierName, isNotNull,
             reason: 'the submitted draft must carry the chosen tier');
 
-        // (3) order-chat (ChatDetailScreen) is now mounted, bound to the REAL
-        //     server-minted id — NEVER the literal "new" (the B11 root cause).
-        final chatScreen =
-            tester.widget<ChatDetailScreen>(find.byType(ChatDetailScreen));
+        // (3) POST-CREATE UX FIX (run-8 Step-2): the customer now lands on the
+        //     "Finding a Jeeber" WAITING screen (NoOfferTimeoutScreen) for the
+        //     freshly-created request — NOT the order-chat compose screen. It is
+        //     bound to the REAL server-minted id, NEVER the literal "new".
+        final waitingScreen = tester
+            .widget<NoOfferTimeoutScreen>(find.byType(NoOfferTimeoutScreen));
         expect(
-          chatScreen.chatId,
+          waitingScreen.requestId,
           'real-server-id-9999',
-          reason: 'order-chat must be routed with the server-minted id.',
+          reason: 'after create, the waiting screen must be routed with the '
+              'server-minted request id (run-8 Step-2 gap fix).',
         );
         expect(
-          chatScreen.chatId,
+          waitingScreen.requestId,
           isNot('new'),
           reason: 'the placeholder "new" hand-off (B11 root cause) must be '
               'gone.',

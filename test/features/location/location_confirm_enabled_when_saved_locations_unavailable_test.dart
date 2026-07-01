@@ -14,7 +14,7 @@
 // response proves:
 //   1. the `location_select_confirm_cta` OmdsPrimaryButton is ENABLED, and
 //   2. tapping it fires `RequestSubmissionService.submit()` (POST /requests)
-//      and routes order-chat with the real server-minted id.
+//      and routes to the WAITING screen with the real server-minted id.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -33,9 +33,11 @@ import 'package:jeeb_mobile/core/router/app_router.dart';
 import 'package:jeeb_mobile/features/biometric_auth/application/biometric_lock_cubit.dart';
 import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_repository.dart';
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
-import 'package:jeeb_mobile/features/deep_link_targets/chat_detail_screen.dart';
 import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
 import 'package:jeeb_mobile/features/location/domain/location_select_repository.dart';
+import 'package:jeeb_mobile/features/no_offer_timeout/data/fake_waiting_repository.dart';
+import 'package:jeeb_mobile/features/no_offer_timeout/domain/waiting_repository.dart';
+import 'package:jeeb_mobile/features/no_offer_timeout/presentation/no_offer_timeout_screen.dart';
 import 'package:jeeb_mobile/features/request_summary/application/compose_request_controller.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/request_submission_service.dart';
 import 'package:jeeb_mobile/features/settings/data/repositories/biometric_preference_repository_impl.dart';
@@ -141,6 +143,16 @@ void main() {
       );
       sl.registerLazySingleton<LocationSelectRepository>(() => repo);
       sl.registerLazySingleton<TierRepository>(FakeTierRepository.new);
+      // Confirm now routes to the WAITING screen (waiting-no-coverage). Register
+      // a WaitingRepository whose cold-load FAILS so NoOfferTimeoutScreen mounts
+      // in its timer-free error state (a successful load would attach the
+      // WaitingCubit's Stream.periodic poll/clock timers and leak them into the
+      // headless binding). We only assert the navigation target here.
+      sl.registerLazySingleton<WaitingRepository>(
+        () => FakeWaitingRepository(
+          failure: const WaitingException(WaitingFailure.network),
+        ),
+      );
     }
 
     setUp(() async {
@@ -193,10 +205,10 @@ void main() {
         expect(submission.lastDraft!.pickupLat, isNotNull);
         expect(submission.lastDraft!.dropoffLat, isNotNull);
 
-        final chat =
-            tester.widget<ChatDetailScreen>(find.byType(ChatDetailScreen));
-        expect(chat.chatId, 'real-server-id-8f');
-        expect(chat.chatId, isNot('new'));
+        final waiting = tester
+            .widget<NoOfferTimeoutScreen>(find.byType(NoOfferTimeoutScreen));
+        expect(waiting.requestId, 'real-server-id-8f');
+        expect(waiting.requestId, isNot('new'));
         expect(tester.takeException(), isNull);
       },
     );
@@ -228,9 +240,9 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(submission.submitCount, 1);
-        final chat =
-            tester.widget<ChatDetailScreen>(find.byType(ChatDetailScreen));
-        expect(chat.chatId, 'real-server-id-8f');
+        final waiting = tester
+            .widget<NoOfferTimeoutScreen>(find.byType(NoOfferTimeoutScreen));
+        expect(waiting.requestId, 'real-server-id-8f');
         expect(tester.takeException(), isNull);
       },
     );
