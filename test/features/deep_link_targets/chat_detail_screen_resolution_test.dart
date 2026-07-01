@@ -263,6 +263,82 @@ class _JeeberConversationIdDio {
       requests.where((r) => r.path == '/v1/conversations').length;
 }
 
+/// Reproduces a CLIENT opening the order-chat by a CONVERSATION id (e.g. the
+/// dashboard active-delivery `chatRouteId`, which is a conversation id). The
+/// correlationKey lookup 404s (a conversationId is NOT a correlationKey) and
+/// resolution succeeds ONLY via the `/messages` probe — so the resolved row
+/// carries NO `correlation_key`. In that probe-only state the CLIENT pinned-
+/// summary fetch MUST be skipped: feeding the conversationId to the summary
+/// read fires `GET /v1/deliveries/{convId}` + `/v1/requests/{convId}` +
+/// `/v1/offers?requestId={convId}` — a guaranteed triple-404 (BUG-17, fix a3).
+class _ClientConversationIdProbeDio {
+  _ClientConversationIdProbeDio() {
+    dio = Dio(BaseOptions(baseUrl: 'http://test'));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          requests.add(options);
+          final path = options.path;
+          // correlationKey keyed on a conversationId does not resolve → 404.
+          if (path == '/v1/conversations') {
+            handler.reject(
+              DioException(
+                requestOptions: options,
+                response: Response(
+                  data: const <String, dynamic>{
+                    'status': 404,
+                    'detail': 'Conversation does not exist.',
+                  },
+                  statusCode: 404,
+                  requestOptions: options,
+                ),
+                type: DioExceptionType.badResponse,
+              ),
+            );
+            return;
+          }
+          // The messages probe on the conversation id 200s (a real thread).
+          if (path == '/v1/conversations/$conversationId/messages') {
+            handler.resolve(
+              Response(
+                data: const <String, dynamic>{'messages': <dynamic>[]},
+                statusCode: 200,
+                requestOptions: options,
+              ),
+            );
+            return;
+          }
+          // Any owner-scoped summary read (deliveries/requests/offers) — this
+          // is EXACTLY the triple-404 storm fix a3 must prevent. Resolve 200 so
+          // that if it (wrongly) fires the test still asserts on `paths`.
+          handler.resolve(
+            Response(
+              data: const <String, dynamic>{},
+              statusCode: 200,
+              requestOptions: options,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  static const conversationId = 'c0ffee00-aaaa-4bbb-8ccc-dddddddddddd';
+
+  late final Dio dio;
+  final List<RequestOptions> requests = <RequestOptions>[];
+
+  Iterable<String> get paths => requests.map((r) => r.path);
+
+  /// True iff any leg of the owner-scoped pinned-summary triple-read fired.
+  bool get emittedSummaryRead => paths.any(
+        (p) =>
+            p.startsWith('/v1/deliveries/') ||
+            p.startsWith('/v1/requests/') ||
+            p.startsWith('/v1/offers'),
+      );
+}
+
 /// AuthTokenStore double that returns a known session user id without touching
 /// the platform keychain.
 class _StubAuthTokenStore extends AuthTokenStore {
@@ -558,8 +634,8 @@ void main() {
     });
 
     testWidgets(
-      'resolves via the messages probe and issues ZERO correlationKey lookups '
-      '(no conversationId-keyed chat-load 404)',
+      'resolves via the messages-probe fallback after a single correlationKey '
+      'attempt (no conversationId-keyed chat-load 404 STORM)',
       (tester) async {
         final role = await _roleCubit(UserRole.jeeber);
         addTearDown(role.close);
@@ -576,13 +652,19 @@ void main() {
         final chatScreen = tester.widget<ChatScreen>(find.byType(ChatScreen));
         expect(chatScreen.deliveryId, _JeeberConversationIdDio.conversationId);
 
-        // The guaranteed-404 `?correlationKey={conversationId}` read — from BOTH
-        // the screen resolution AND the cubit phase read — must never fire.
+        // BUG-17 fix (b) runs correlationKey-FIRST for BOTH roles, so a
+        // conversationId param now attempts the correlationKey lookup exactly
+        // ONCE (it 404s, caught) then resolves via the messages-probe fallback.
+        // Crucially the gateway's loadPhase short-circuit (BUG-14,
+        // dio_chat_gateway.dart L163-165) still prevents any FURTHER
+        // conversationId-keyed correlationKey read — so this is a single caught
+        // attempt, never the repeated chat-load 404 STORM BUG-14 fixed.
         expect(
           jeeb.correlationKeyLookups,
-          0,
-          reason: 'the jeeber must resolve by the messages probe and skip the '
-              'conversationId-keyed correlation read that 404s (BUG-14)',
+          1,
+          reason: 'correlationKey-first attempts the lookup once (404) then '
+              'falls back to the probe; the gateway short-circuit prevents any '
+              'further conversationId-keyed read (BUG-14 preserved)',
         );
         // History is read on the conversation-id messages route.
         expect(
@@ -592,6 +674,122 @@ void main() {
           ),
           isTrue,
           reason: 'reads target the resolved conversation id',
+        );
+      },
+    );
+  });
+
+  // BUG-17 fix (b): the role-based resolution ordering is GONE — BOTH roles
+  // resolve correlationKey-FIRST. When the route param is a requestId (the
+  // accept sheet, the chat push tap via notification_deep_link, the accepted-
+  // feed CTA, the In-Progress "Open chat" CTA all hand over the request id),
+  // the `/v1/conversations/{requestId}/messages` probe is a GUARANTEED 404, so
+  // it must NEVER be issued first (the physical-run14 jeeber-probe-first 404).
+  group('ChatDetailScreen — correlationKey-first for BOTH roles (BUG-17)', () {
+    late _LiveSnakeCaseDio live;
+
+    setUp(() {
+      live = _LiveSnakeCaseDio();
+      final sl = GetIt.instance;
+      if (sl.isRegistered<Dio>()) sl.unregister<Dio>();
+      if (sl.isRegistered<AuthTokenStore>()) sl.unregister<AuthTokenStore>();
+      sl.registerSingleton<Dio>(live.dio);
+      sl.registerSingleton<AuthTokenStore>(_StubAuthTokenStore(_sessionUserId));
+    });
+
+    for (final role in <UserRole>[UserRole.client, UserRole.jeeber]) {
+      testWidgets(
+        'the ${role.name} opens by requestId → correlationKey resolves FIRST '
+        'and the requestId messages-probe (guaranteed 404) NEVER fires',
+        (tester) async {
+          final roleCubit = await _roleCubit(role);
+          addTearDown(roleCubit.close);
+
+          await tester.pumpWidget(
+            _host(roleCubit, _LiveSnakeCaseDio.requestId),
+          );
+          await tester.pumpAndSettle();
+
+          // THE FIX: with correlationKey-first, the requestId-keyed messages
+          // probe is never issued for EITHER role (the old jeeber path ran it
+          // first and 404'd on a requestId push tap).
+          expect(
+            live.paths.contains(
+              '/v1/conversations/${_LiveSnakeCaseDio.requestId}/messages',
+            ),
+            isFalse,
+            reason: 'requestId messages-probe is a guaranteed 404 — never first',
+          );
+
+          // The FIRST conversation lookup is the correlationKey resolve.
+          final firstConvoCall = live.requests.firstWhere(
+            (r) =>
+                r.path == '/v1/conversations' ||
+                r.path.startsWith('/v1/conversations/'),
+            orElse: () => RequestOptions(path: '__none__'),
+          );
+          expect(
+            firstConvoCall.path,
+            '/v1/conversations',
+            reason: 'correlationKey lookup must run before any messages probe',
+          );
+          expect(
+            firstConvoCall.queryParameters['correlationKey'],
+            _LiveSnakeCaseDio.requestId,
+          );
+
+          // Both roles land on the resolved conversation id for reads/sends.
+          final chatScreen =
+              tester.widget<ChatScreen>(find.byType(ChatScreen));
+          expect(chatScreen.deliveryId, _LiveSnakeCaseDio.conversationId);
+        },
+      );
+    }
+  });
+
+  // BUG-17 fix (a3): when a CLIENT opens by a CONVERSATION id, resolution
+  // succeeds ONLY via the messages probe (the row has no correlation_key), so
+  // the owner-scoped pinned-summary triple-read MUST be skipped — otherwise it
+  // fires GET /v1/deliveries/{convId} + /v1/requests/{convId} +
+  // /v1/offers?requestId={convId}, a guaranteed triple-404.
+  group('ChatDetailScreen — probe-only resolution skips the summary '
+      'triple-read (BUG-17)', () {
+    late _ClientConversationIdProbeDio probe;
+
+    setUp(() {
+      probe = _ClientConversationIdProbeDio();
+      final sl = GetIt.instance;
+      if (sl.isRegistered<Dio>()) sl.unregister<Dio>();
+      if (sl.isRegistered<AuthTokenStore>()) sl.unregister<AuthTokenStore>();
+      sl.registerSingleton<Dio>(probe.dio);
+      sl.registerSingleton<AuthTokenStore>(_StubAuthTokenStore(_sessionUserId));
+    });
+
+    testWidgets(
+      'CLIENT opened by conversationId resolves via the messages probe and '
+      'emits NO summary read (no deliveries/requests/offers triple-404)',
+      (tester) async {
+        final role = await _roleCubit(UserRole.client);
+        addTearDown(role.close);
+
+        await tester.pumpWidget(
+          _host(role, _ClientConversationIdProbeDio.conversationId),
+        );
+        await tester.pumpAndSettle();
+
+        // Resolved to the conversation id (probe fallback), so the thread reads.
+        final chatScreen = tester.widget<ChatScreen>(find.byType(ChatScreen));
+        expect(
+          chatScreen.deliveryId,
+          _ClientConversationIdProbeDio.conversationId,
+        );
+
+        // THE FIX: no owner-scoped summary read fires — the probe-only row has
+        // no correlation_key, so `_resolveSummary` is skipped entirely.
+        expect(
+          probe.emittedSummaryRead,
+          isFalse,
+          reason: 'probe-only resolution must not storm the summary triple-read',
         );
       },
     );

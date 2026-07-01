@@ -149,15 +149,18 @@ class _TrackingBody extends StatelessWidget {
           if (info.hasSummary)
             OrderSummaryPinnedHeader(
               info: info,
-              // EDGE: order_summary_open_chat → order-chat (JM-025). Resolves
-              // the conversation id, falling back to the delivery id (the
-              // `/chat/:id` route resolves either, per the mock convention).
+              // EDGE: order_summary_open_chat → order-chat (JM-025). Routes by
+              // the REQUEST id (== correlationKey), falling back to the
+              // delivery id — NEVER the conversationId. `ChatDetailScreen`
+              // resolves the thread via
+              // `GET /v1/conversations?correlationKey={requestId}`, so a
+              // conversationId param guarantees a 404 on that lookup (BUG-17).
               onOpenChat: () => context.goNamed(
                 'chat-detail',
                 pathParameters: {
-                  'id': (info.conversationId?.isNotEmpty ?? false)
-                      ? info.conversationId!
-                      : (info.requestId ?? deliveryId),
+                  'id': (info.requestId?.isNotEmpty ?? false)
+                      ? info.requestId!
+                      : deliveryId,
                 },
               ),
               // The Track CTA is the current surface — omitted to avoid a

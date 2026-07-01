@@ -18,12 +18,17 @@ import '../widgets/active_request_card.dart';
 ///
 /// Mock endpoint: GET /v1/delivery/active  (Mockoon :3055, useMockPrefixes=false)
 class InProgressTab extends StatelessWidget {
-  const InProgressTab({super.key, this.onTrack});
+  const InProgressTab({super.key, this.onTrack, this.onOpenChat});
 
   /// Called when the Track CTA is tapped. If null the tab navigates to the
   /// tracking route directly via GoRouter; pass a callback in tests to avoid
   /// the router dependency.
   final void Function(ClientHomeRequest request)? onTrack;
+
+  /// Called when the "Open chat" CTA is tapped. If null the tab navigates to
+  /// the order-chat route directly via GoRouter; pass a callback in tests to
+  /// avoid the router dependency.
+  final void Function(ClientHomeRequest request)? onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +37,7 @@ class InProgressTab extends StatelessWidget {
       builder: (context, state) => _InProgressContent(
         state: state,
         onTrack: onTrack ?? (r) => _navigateToTracking(context, r),
+        onOpenChat: onOpenChat ?? (r) => _navigateToChat(context, r),
       ),
     );
   }
@@ -48,13 +54,40 @@ class InProgressTab extends StatelessWidget {
       pathParameters: {'id': request.id},
     );
   }
+
+  /// Opens the accepted order's EXISTING conversation. Routes by the parent
+  /// REQUEST/correlation id ([ClientHomeRequest.chatThreadId]) — NEVER a
+  /// (possibly phantom) conversationId or a delivery row id — mirroring the
+  /// accept-sheet CHAT-CONTRACT: `ChatDetailScreen` resolves the thread via
+  /// `GET /v1/conversations?correlationKey={requestId}`, so passing a
+  /// conversationId guarantees a 404 on that first lookup (BUG-17 chat-load
+  /// 404 storm). The delivery id rides along as `?deliveryId=` so the in-chat
+  /// "Track order" CTA still resolves.
+  static void _navigateToChat(
+    BuildContext context,
+    ClientHomeRequest request,
+  ) {
+    final deliveryId = request.trackingId;
+    GoRouter.of(context).pushNamed(
+      'chat-detail',
+      pathParameters: {'id': request.chatThreadId},
+      queryParameters: {
+        if (deliveryId.isNotEmpty) 'deliveryId': deliveryId,
+      },
+    );
+  }
 }
 
 class _InProgressContent extends StatelessWidget {
-  const _InProgressContent({required this.state, required this.onTrack});
+  const _InProgressContent({
+    required this.state,
+    required this.onTrack,
+    required this.onOpenChat,
+  });
 
   final ClientHomeState state;
   final void Function(ClientHomeRequest) onTrack;
+  final void Function(ClientHomeRequest) onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +104,11 @@ class _InProgressContent extends StatelessWidget {
         onCreateRequest: () => _openCreateRequest(context),
       );
     }
-    return _InProgressList(requests: state.inProgress, onTrack: onTrack);
+    return _InProgressList(
+      requests: state.inProgress,
+      onTrack: onTrack,
+      onOpenChat: onOpenChat,
+    );
   }
 
   static void _openCreateRequest(BuildContext context) {
@@ -130,10 +167,15 @@ class _InProgressEmpty extends StatelessWidget {
 }
 
 class _InProgressList extends StatelessWidget {
-  const _InProgressList({required this.requests, required this.onTrack});
+  const _InProgressList({
+    required this.requests,
+    required this.onTrack,
+    required this.onOpenChat,
+  });
 
   final List<ClientHomeRequest> requests;
   final void Function(ClientHomeRequest) onTrack;
+  final void Function(ClientHomeRequest) onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -146,19 +188,10 @@ class _InProgressList extends StatelessWidget {
             child: ActiveOrderCard(
               request: r,
               onTap: () => onTrack(r),
-              // Post-accept conversation re-entry (JM-025). Prefer the resolved
-              // conversationId; fall back to the request id (== correlationKey),
-              // which ChatDetailScreen resolves against the live gateway. Inert
-              // when neither identifies a conversation yet.
-              onOpenChat: () => GoRouter.of(context).pushNamed(
-                'chat-detail',
-                pathParameters: {
-                  'id': (r.conversationId != null &&
-                          r.conversationId!.isNotEmpty)
-                      ? r.conversationId!
-                      : r.id,
-                },
-              ),
+              // Post-accept conversation re-entry (JM-025). Routes by the
+              // parent request/correlation id (chatThreadId), NEVER the
+              // conversationId — see [InProgressTab._navigateToChat] (BUG-17).
+              onOpenChat: () => onOpenChat(r),
             ),
           ),
       ],

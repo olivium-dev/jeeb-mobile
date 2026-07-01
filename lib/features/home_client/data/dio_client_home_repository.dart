@@ -292,6 +292,14 @@ class DioClientHomeRepository implements ClientHomeRepository {
       ),
       progressStep: (json['progressStep'] as num?)?.toInt() ?? 0,
       conversationId: json['conversationId'] as String?,
+      // The active-deliveries row's `id` can be the DELIVERY id, but the order
+      // conversation is correlated on the parent REQUEST id and live tracking
+      // reads the DELIVERY id. Capture both so the "Open chat" CTA routes by
+      // the request/correlation id (BUG-17 / S13) and "Track order" keeps the
+      // delivery id (S9) — falling back to `id` via the getters when absent.
+      deliveryId: json['deliveryId'] as String? ?? json['delivery_id'] as String?,
+      chatCorrelationId:
+          json['requestId'] as String? ?? json['request_id'] as String?,
     );
   }
 

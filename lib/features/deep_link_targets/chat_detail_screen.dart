@@ -232,14 +232,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       return false;
     }
 
-    if (isJeeber) {
-      if (!await resolveByMessagesProbe()) {
-        await resolveByCorrelationKey();
-      }
-    } else {
-      if (!await resolveByCorrelationKey()) {
-        await resolveByMessagesProbe();
-      }
+    // Resolve correlationKey-FIRST for BOTH roles (BUG-17). The chat-service
+    // resolves a conversation ONLY by correlationKey == request id, so a
+    // messages probe on a REQUEST-id param (`GET /v1/conversations/{requestId}/
+    // messages`) is a GUARANTEED 404. Every proven entry point now hands this
+    // screen the request id (accept sheet, chat push tap via
+    // `notification_deep_link.dart`, the accepted-feed CTA, the In-Progress
+    // "Open chat" CTA), so the correlationKey lookup resolves them with zero
+    // 404s. The messages probe stays as the FALLBACK, which still resolves a
+    // conversationId param (e.g. the dashboard active-delivery `chatRouteId`).
+    // This drops the old role-based ordering that ran the probe FIRST for the
+    // jeeber and 404'd on a requestId push tap (physical-run14 chat-load 404).
+    if (!await resolveByCorrelationKey()) {
+      await resolveByMessagesProbe();
     }
 
     // Whether the correlationKey lookup / messages probe found a REAL backend
@@ -256,11 +261,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // compose→broadcast route and the phase read have the real request id — the
     // gateway itself is handed the unresolved sentinel (below) so its READS
     // short-circuit rather than polling the requestId messages path.
-    final requestId = _stringField(
+    // The conversation's REQUEST id (== correlationKey). When resolution
+    // succeeded via the correlationKey lookup the row carries it explicitly;
+    // when it succeeded ONLY via the messages probe (a conversationId param)
+    // the row has NO request/correlation key, so [resolvedRequestId] is empty.
+    final resolvedRequestId = _stringField(
       conversationData,
       const ['requestId', 'correlationKey', 'request_id', 'correlation_key'],
-      fallback: widget.chatId,
     );
+    // True iff the row carries a real request/correlation key — i.e. the
+    // correlationKey lookup resolved it (NOT a probe-only conversationId).
+    final resolvedByCorrelationKey = resolvedRequestId.isNotEmpty;
+    // Fall back to the route id only as the compose/broadcast + phase-read id;
+    // it is a conversationId in the probe-only case, so it must NEVER seed an
+    // owner-scoped summary read (see the summary gate below).
+    final requestId =
+        resolvedByCorrelationKey ? resolvedRequestId : widget.chatId;
     final phase = ConversationPhase.fromWire(
       conversationData?['phase'] as String?,
     );
@@ -285,7 +301,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // `/v1/requests/{id}` read is owner-scoped and 404s for a non-owner Jeeber
     // (physical-run8 [Med] chat READ 404 #3) — reads it would never display.
     OrderChatSummary? summary;
-    if (!isJeeber && (phase == ConversationPhase.accepted || hasWinner)) {
+    // Only fetch the pinned summary when we hold a REAL request/correlation key
+    // (correlationKey resolution). In the probe-only case (a conversationId
+    // param) [requestId] is the conversationId, and feeding it to
+    // `_resolveSummary` fires `GET /v1/deliveries/{convId}` +
+    // `/v1/requests/{convId}` + `/v1/offers?requestId={convId}` — a guaranteed
+    // triple-404 (BUG-17). The summary strip degrades gracefully when null, so
+    // skip the fetch entirely rather than storming the backend.
+    if (!isJeeber &&
+        resolvedByCorrelationKey &&
+        (phase == ConversationPhase.accepted || hasWinner)) {
       summary = await _resolveSummary(dio, requestId, conversationId);
     }
 
