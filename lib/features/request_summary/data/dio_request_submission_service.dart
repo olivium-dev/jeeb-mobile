@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../domain/recipient_phone_resolver.dart';
 import '../domain/request_draft.dart';
 import '../domain/request_submission_service.dart';
 
@@ -15,18 +16,32 @@ import '../domain/request_submission_service.dart';
 /// `MockGatewayClient` rewrites to `/delivery-service/v1/requests` — so the
 /// same code creates a request against both the live gateway and the mock.
 class DioRequestSubmissionService implements RequestSubmissionService {
-  const DioRequestSubmissionService(this._dio);
+  const DioRequestSubmissionService(this._dio, this._recipientPhoneResolver);
 
   final Dio _dio;
+
+  /// Resolves the DEFAULT recipient phone (signed-in client's own profile
+  /// phone, E.164) when the compose flow captured none. Reuses the existing
+  /// [RecipientPhoneResolver] chain (ChainedRecipientPhoneResolver →
+  /// SharedPrefsRecipientPhoneResolver / DioRecipientPhoneResolver). Best-effort:
+  /// [RecipientPhoneResolver.resolve] never throws and may return null, in which
+  /// case the create simply omits the optional `recipientPhone`.
+  final RecipientPhoneResolver _recipientPhoneResolver;
 
   static const String _path = '/v1/requests';
 
   @override
   Future<String> submit(RequestDraft draft) async {
     try {
+      // BUG-7: the gateway request-store row needs a non-null `recipientPhone`
+      // or the at-door handover OTP issue/verify short-circuits with
+      // 400 `recipient-phone-missing` before the code is ever evaluated. The
+      // explicit compose-form phone wins; otherwise fall back to the resolver
+      // default (the signed-in client's own profile phone, in E.164).
+      final phone = await _resolveRecipientPhone(draft);
       final response = await _dio.post<Map<String, dynamic>>(
         _path,
-        data: _buildBody(draft),
+        data: _buildBody(draft, phone),
       );
       return _parseId(response.data);
     } on DioException catch (e) {
@@ -34,7 +49,16 @@ class DioRequestSubmissionService implements RequestSubmissionService {
     }
   }
 
-  Map<String, dynamic> _buildBody(RequestDraft draft) {
+  /// The explicit draft phone when present, else the resolver default. Returns
+  /// null only when the compose flow captured none AND the resolver chain
+  /// misses every source (then the create omits the optional field as before).
+  Future<String?> _resolveRecipientPhone(RequestDraft draft) async {
+    final fromDraft = draft.recipientPhone?.trim();
+    if (fromDraft != null && fromDraft.isNotEmpty) return fromDraft;
+    return _recipientPhoneResolver.resolve();
+  }
+
+  Map<String, dynamic> _buildBody(RequestDraft draft, String? phone) {
     return <String, dynamic>{
       'description': draft.description,
       if (draft.transcription != null) 'transcription': draft.transcription,
@@ -45,6 +69,7 @@ class DioRequestSubmissionService implements RequestSubmissionService {
       ..._location('dropoff', draft.dropoffLat, draft.dropoffLng),
       if (draft.pickupAddress != null) 'pickupAddress': draft.pickupAddress,
       if (draft.dropoffAddress != null) 'dropoffAddress': draft.dropoffAddress,
+      if (phone != null && phone.isNotEmpty) 'recipientPhone': phone,
     };
   }
 

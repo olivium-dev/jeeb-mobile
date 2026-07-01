@@ -1,8 +1,26 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/request_summary/data/dio_request_submission_service.dart';
+import 'package:jeeb_mobile/features/request_summary/domain/recipient_phone_resolver.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/request_draft.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/request_submission_service.dart';
+
+/// Stub [RecipientPhoneResolver] returning a fixed default phone (or null). Lets
+/// the wire-body tests exercise the BUG-7 fallback (signed-in client's own
+/// profile phone) without SharedPreferences / a live gateway.
+class _FakeRecipientPhoneResolver implements RecipientPhoneResolver {
+  const _FakeRecipientPhoneResolver([this._phone]);
+
+  final String? _phone;
+
+  @override
+  Future<String?> resolve() async => _phone;
+}
+
+/// Builds the service under test. [defaultPhone] is what the injected resolver
+/// yields when the draft carries no recipient phone (null = resolver miss).
+DioRequestSubmissionService _service(Dio dio, {String? defaultPhone}) =>
+    DioRequestSubmissionService(dio, _FakeRecipientPhoneResolver(defaultPhone));
 
 /// Resolves every request to [body]/[status] without hitting the network.
 Dio _dioRespond(Object? body, {int status = 201}) {
@@ -58,7 +76,7 @@ const _draft = RequestDraft(
 void main() {
   group('DioRequestSubmissionService — T-MOB-REQSUBMIT POST /v1/requests', () {
     test('parses id from 201 response body', () async {
-      final service = DioRequestSubmissionService(
+      final service = _service(
         _dioRespond({'id': 'req-7c636340', 'status': 'pending'}),
       );
 
@@ -90,7 +108,7 @@ void main() {
         ),
       );
 
-      await DioRequestSubmissionService(dio).submit(_draft);
+      await _service(dio).submit(_draft);
 
       expect(capturedPath, '/v1/requests');
       expect(capturedMethod, 'POST');
@@ -148,7 +166,7 @@ void main() {
         dropoffAddress: 'Current location (33.8886, 35.4955)',
       );
 
-      await DioRequestSubmissionService(dio).submit(uuidDraft);
+      await _service(dio).submit(uuidDraft);
 
       // tier: a UUID, never a slug.
       expect(capturedBody?['tierId'], '2bd0d5df-db76-5d14-9e4d-741d60b2fa12');
@@ -181,7 +199,7 @@ void main() {
         ),
       );
 
-      await DioRequestSubmissionService(dio)
+      await _service(dio)
           .submit(const RequestDraft(description: 'minimal'));
 
       expect(capturedBody?.containsKey('pickupLocation'), isFalse);
@@ -190,8 +208,104 @@ void main() {
       expect(capturedBody?['photos'], <String>[]);
     });
 
+    // BUG-7 handover-OTP fix: the POST /v1/requests body MUST carry a non-empty
+    // E.164 `recipientPhone`. Without it the gateway request-store row is
+    // recipient_phone=null and BOTH GET /v1/deliveries/{id}/otp and
+    // POST /v1/deliveries/{id}/otp/verify short-circuit 400
+    // `recipient-phone-missing` BEFORE the mocked `1234` is ever evaluated.
+    test('emits the compose-form recipientPhone (E.164) when the draft has one',
+        () async {
+      Map<String, dynamic>? capturedBody;
+      final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            capturedBody = options.data as Map<String, dynamic>?;
+            handler.resolve(
+              Response(
+                data: {'id': 'req-phone'},
+                statusCode: 201,
+                requestOptions: options,
+              ),
+            );
+          },
+        ),
+      );
+
+      const phoneDraft = RequestDraft(
+        description: 'Parcel to Verdun',
+        recipientPhone: '+96170123456',
+      );
+
+      // Resolver default differs, to prove the explicit draft phone WINS.
+      await _service(dio, defaultPhone: '+96171999999').submit(phoneDraft);
+
+      final phone = capturedBody?['recipientPhone'] as String?;
+      expect(phone, '+96170123456');
+      expect(phone, isNotNull);
+      expect(phone, isNotEmpty);
+      expect(phone, startsWith('+'));
+    });
+
+    test(
+        'falls back to the resolver default (E.164) when the draft omits a phone',
+        () async {
+      Map<String, dynamic>? capturedBody;
+      final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            capturedBody = options.data as Map<String, dynamic>?;
+            handler.resolve(
+              Response(
+                data: {'id': 'req-default-phone'},
+                statusCode: 201,
+                requestOptions: options,
+              ),
+            );
+          },
+        ),
+      );
+
+      // _draft carries no recipientPhone → the injected resolver (signed-in
+      // client's own profile phone) supplies the default.
+      await _service(dio, defaultPhone: '+96171999999').submit(_draft);
+
+      final phone = capturedBody?['recipientPhone'] as String?;
+      expect(phone, '+96171999999');
+      expect(phone, isNotNull);
+      expect(phone, isNotEmpty);
+      expect(phone, startsWith('+'));
+    });
+
+    test('omits recipientPhone when neither draft nor resolver supplies one',
+        () async {
+      Map<String, dynamic>? capturedBody;
+      final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            capturedBody = options.data as Map<String, dynamic>?;
+            handler.resolve(
+              Response(
+                data: {'id': 'req-no-phone'},
+                statusCode: 201,
+                requestOptions: options,
+              ),
+            );
+          },
+        ),
+      );
+
+      // No draft phone AND resolver miss (defaultPhone null) → field omitted,
+      // preserving the pre-fix behaviour (the gateway field is optional).
+      await _service(dio).submit(_draft);
+
+      expect(capturedBody?.containsKey('recipientPhone'), isFalse);
+    });
+
     test('throws server failure when 201 body has no id', () async {
-      final service = DioRequestSubmissionService(
+      final service = _service(
         _dioRespond({'status': 'pending'}),
       );
 
@@ -206,7 +320,7 @@ void main() {
     });
 
     test('maps connection error to network failure', () async {
-      final service = DioRequestSubmissionService(
+      final service = _service(
         _dioError(DioExceptionType.connectionError),
       );
 
@@ -221,7 +335,7 @@ void main() {
     });
 
     test('maps receive timeout to network failure', () async {
-      final service = DioRequestSubmissionService(
+      final service = _service(
         _dioError(DioExceptionType.receiveTimeout),
       );
 
@@ -236,7 +350,7 @@ void main() {
     });
 
     test('maps 4xx to invalidInput failure', () async {
-      final service = DioRequestSubmissionService(
+      final service = _service(
         _dioError(DioExceptionType.badResponse, status: 422),
       );
 
@@ -251,7 +365,7 @@ void main() {
     });
 
     test('maps 5xx to server failure', () async {
-      final service = DioRequestSubmissionService(
+      final service = _service(
         _dioError(DioExceptionType.badResponse, status: 503),
       );
 

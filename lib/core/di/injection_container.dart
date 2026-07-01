@@ -68,8 +68,13 @@ import '../../features/voice_request/domain/voice_recorder.dart';
 import '../../features/prohibited_acknowledgment/data/prohibited_acknowledgment_repository_impl.dart';
 import '../../features/prohibited_acknowledgment/domain/prohibited_acknowledgment_repository.dart';
 import '../../features/request_summary/application/compose_request_controller.dart';
+import '../../features/request_summary/data/chained_recipient_phone_resolver.dart';
+import '../../features/request_summary/data/dio_recipient_phone_resolver.dart';
 import '../../features/request_summary/data/dio_request_submission_service.dart';
+import '../../features/request_summary/data/shared_prefs_recipient_phone_resolver.dart';
+import '../../features/request_summary/domain/recipient_phone_resolver.dart';
 import '../../features/request_summary/domain/request_submission_service.dart';
+import '../../features/settings/data/shared_prefs_profile_repository.dart';
 import '../../features/cancellation/data/dio_cancellation_repository.dart';
 import '../../features/cancellation/domain/cancellation_repository.dart';
 import '../../features/location/data/dio_saved_location_repository.dart';
@@ -329,11 +334,37 @@ void configureDependencies({
     () => const OfferSubmissionService(),
   );
 
+  // BUG-7 handover-OTP fix: DEFAULT recipient-phone resolver for the create
+  // body. REUSES the existing (previously DEAD-code) resolver chain —
+  // ChainedRecipientPhoneResolver tries, in order, the locally-persisted
+  // registration profile phone (SharedPrefsRecipientPhoneResolver, priority-A,
+  // the phone-OTP number the live GET /v1/users/me does NOT surface) then the
+  // gateway GET /v1/users/me phone (DioRecipientPhoneResolver, best-effort
+  // fallback). Both default to the signed-in client's OWN phone (the requester
+  // is the default recipient). Without a non-null recipientPhone on the request
+  // row, the at-door handover OTP issue/verify short-circuits with 400
+  // `recipient-phone-missing` before the mocked `1234` is ever evaluated.
+  sl.registerLazySingleton<RecipientPhoneResolver>(
+    () => ChainedRecipientPhoneResolver(<RecipientPhoneResolver>[
+      SharedPrefsRecipientPhoneResolver(
+        profileRepository:
+            SharedPrefsProfileRepository(prefs: sl<SharedPreferences>()),
+      ),
+      DioRecipientPhoneResolver(sl<Dio>()),
+    ]),
+  );
+
   // T-MOB-REQSUBMIT: real request-create RPC — POST /requests → 201 {id}.
   // Resolved by app_router when building the /request-summary route so the
   // RequestSummaryCubit submits over Dio instead of the prior stub.
+  //
+  // BUG-7: the resolver is now injected so a create with no compose-form phone
+  // still carries the signed-in client's own phone as `recipientPhone`.
   sl.registerLazySingleton<RequestSubmissionService>(
-    () => DioRequestSubmissionService(sl<Dio>()),
+    () => DioRequestSubmissionService(
+      sl<Dio>(),
+      sl<RecipientPhoneResolver>(),
+    ),
   );
 
   // BUG-6 create-payload fix: register the shared compose controller so the
