@@ -146,8 +146,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
     // Resolve against the LIVE gateway contract. The gateway auto-creates one
     // conversation per request, keyed by correlationKey == request id, exposed
-    // at `GET /v1/conversations?correlationKey={requestId}` (returns
-    // `{ id|conversationId, phase, requestId|correlationKey, winnerJeeberId }`).
+    // at `GET /v1/conversations?correlationKey={requestId}`. The live row is
+    // snake_case (`{ conversation_id, correlation_key, phase, participants:[
+    // { role_in_convo, removed_at } ] }`); the mock/legacy shape is camelCase
+    // (`{ id|conversationId, phase, requestId, winnerJeeberId }`). BOTH are
+    // tolerated below.
     // The route param may be EITHER a request id OR a conversation id, so:
     //   1. correlationKey lookup (route param treated as the request id), then
     //   2. a 200 from `GET /v1/conversations/{id}/messages` proves the route
@@ -163,7 +166,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         queryParameters: <String, Object?>{'correlationKey': widget.chatId},
       );
       final data = resp.data;
-      final resolvedId = _stringField(data, const ['id', 'conversationId']);
+      // The LIVE gateway returns the conversation row in snake_case
+      // (`{ conversation_id, correlation_key, phase, participants }`), so the
+      // id MUST be read under `conversation_id` too — reading only the
+      // camelCase `id`/`conversationId` (the mock/legacy shape) left this
+      // empty on live, so resolution silently failed and the screen fell back
+      // to POSTing/GETting `/v1/conversations/{requestId}/messages` → 404 (the
+      // run-7 Step-5 chat blocker). Mirrors the tolerant key handling in
+      // `DioAcceptedConversationsRepository._string`.
+      final resolvedId =
+          _stringField(data, const ['id', 'conversationId', 'conversation_id']);
       if (data != null && resolvedId.isNotEmpty) {
         conversationData = data;
         conversationId = resolvedId;
@@ -201,7 +213,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // value (build() falls back to the resolved conversation id when absent).
     final requestId = _stringField(
       conversationData,
-      const ['requestId', 'correlationKey', 'request_id'],
+      const ['requestId', 'correlationKey', 'request_id', 'correlation_key'],
       fallback: conversationData == null ? '' : widget.chatId,
     );
     final phase = ConversationPhase.fromWire(
@@ -211,7 +223,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       conversationData,
       const ['winnerJeeberId', 'winner_jeeber_id'],
     );
-    final hasWinner = winnerId.isNotEmpty;
+    // The LIVE conversation row does not carry a top-level `winnerJeeberId`;
+    // the accepted winner is seated as a `jeeber_winner` participant in the
+    // `participants` roster (and the row's `phase` can still read
+    // `broadcasting` post-accept). Detect that seated winner so the client
+    // lands in the ACCEPTED state (composer sends to the conversation) instead
+    // of compose — where the first message would wrongly broadcast a NEW
+    // request. Mirrors `DioChatGateway._hasActiveWinner`.
+    final hasWinner = winnerId.isNotEmpty || _hasSeatedWinner(conversationData);
 
     // JM-025 AC2: resolve the locked pinned summary for an accepted order. The
     // fetch is best-effort — a failure leaves `_summary` null and the strip
@@ -319,6 +338,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       if (value is String && value.isNotEmpty) return value;
     }
     return fallback;
+  }
+
+  /// True when the conversation row seats an ACTIVE `jeeber_winner` in its
+  /// `participants` roster (role `jeeber_winner`, not yet `removed_at`). The
+  /// live `JeebConversationResponse` marks the accepted winner here rather than
+  /// with a top-level `winnerJeeberId`, so this is the accepted-state signal
+  /// for a route resolved by correlationKey. Mirrors the same gate in
+  /// [DioChatGateway] (`_hasActiveWinner`). Defensive on shape: a
+  /// missing/non-list roster or a removed winner counts as "no winner".
+  bool _hasSeatedWinner(Map<String, dynamic>? data) {
+    final participants = data?['participants'];
+    if (participants is! List) return false;
+    return participants.whereType<Map>().any((p) {
+      final role = p['role_in_convo'] as String?;
+      final removedAt = p['removed_at'];
+      return role == 'jeeber_winner' && removedAt == null;
+    });
   }
 
   void _finalize(
