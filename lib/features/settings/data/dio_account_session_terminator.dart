@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/network/auth_token_store.dart';
 import '../domain/account_session_terminator.dart';
@@ -17,10 +18,33 @@ import '../domain/account_session_terminator.dart';
 /// → splash; a server that never hears the logout is acceptable (the token is
 /// dead client-side), a user trapped in a logged-in shell is not.
 class DioAccountSessionTerminator implements AccountSessionTerminator {
-  DioAccountSessionTerminator(this._dio, this._tokenStore);
+  DioAccountSessionTerminator(
+    this._dio,
+    this._tokenStore, {
+    Future<String?> Function()? deviceIdProvider,
+  }) : _deviceIdProvider = deviceIdProvider ?? _defaultDeviceIdProvider;
 
   final Dio _dio;
   final AuthTokenStore _tokenStore;
+
+  /// Resolves the stable per-install device id to unregister on logout. Defaults
+  /// to reading the `push.deviceId` key the [DeviceTokenRegistrar] persists to
+  /// SharedPreferences; tests inject a fixed provider. Best-effort — a null id
+  /// means "nothing registered", and the unregister hop is simply skipped.
+  final Future<String?> Function() _deviceIdProvider;
+
+  /// SharedPreferences key the device-token registrar persists the stable
+  /// per-install device id under (`DeviceTokenRegistrar._deviceIdKey`).
+  static const String _deviceIdPrefsKey = 'push.deviceId';
+
+  static Future<String?> _defaultDeviceIdProvider() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_deviceIdPrefsKey);
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   Future<void> logout() async {
@@ -55,14 +79,20 @@ class DioAccountSessionTerminator implements AccountSessionTerminator {
     }
   }
 
-  /// `POST /v1/devices/unregister { userId }` → push-notification service.
-  /// Best-effort; absence of the route or a transport failure is non-fatal.
+  /// `DELETE /api/PushNotification/device { deviceId }` → gateway
+  /// `PushNotificationController.DeleteDevice` (the owning userId is derived
+  /// server-side from the bearer, so only `deviceId` is sent). Replaces the dead
+  /// `POST /v1/devices/unregister` (404 on the live gateway — it never removed
+  /// the token, so pushes kept targeting the signed-out install). Best-effort:
+  /// absence of a device id, an unmatched route, or any transport failure is
+  /// non-fatal and never blocks the local session clear.
   Future<void> _unregisterPushDevice() async {
     try {
-      final userId = await _tokenStore.userId;
-      await _dio.post<void>(
-        '/v1/devices/unregister',
-        data: <String, dynamic>{'userId': ?userId},
+      final deviceId = await _deviceIdProvider();
+      if (deviceId == null || deviceId.isEmpty) return;
+      await _dio.delete<void>(
+        '/api/PushNotification/device',
+        data: <String, dynamic>{'deviceId': deviceId},
       );
     } catch (_) {
       // Swallow — device cleanup is non-blocking for the logout flow.
