@@ -131,6 +131,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       return;
     }
 
+    // Capture the role BEFORE the async resolution awaits so it can gate the
+    // client-only pinned-summary fetch without a post-await BuildContext read
+    // (use_build_context_synchronously). Defaults to client off-tree.
+    final isJeeber = _readRole(context) == UserRole.jeeber;
+
     final dio = getIt<Dio>();
     // Real session user id — drives ChatAuthor.me vs `them` folding and marks
     // outgoing bubbles. NEVER hardcode: the gateway stamps `author_id` from the
@@ -206,15 +211,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       }
     }
 
+    // Whether the correlationKey lookup / messages probe found a REAL backend
+    // conversation. Pre-accept the customer opens order-chat keyed on the
+    // requestId BEFORE any Jeeber accepts — NEITHER path resolves because no
+    // conversation row exists yet.
+    final conversationResolved = conversationData != null;
+
     final title = await _resolveTitle(dio, conversationData);
     // Live/mock convention: deliveryId == accepted-request-id. Prefer the
     // conversation's requestId/correlationKey; the jeeber's "Start delivery"
     // CTA + the pinned summary fetch + the broadcast/waiting route use this
-    // value (build() falls back to the resolved conversation id when absent).
+    // value. Kept even pre-accept (fallback to the route id) so the
+    // compose→broadcast route and the phase read have the real request id — the
+    // gateway itself is handed the unresolved sentinel (below) so its READS
+    // short-circuit rather than polling the requestId messages path.
     final requestId = _stringField(
       conversationData,
       const ['requestId', 'correlationKey', 'request_id', 'correlation_key'],
-      fallback: conversationData == null ? '' : widget.chatId,
+      fallback: widget.chatId,
     );
     final phase = ConversationPhase.fromWire(
       conversationData?['phase'] as String?,
@@ -234,19 +248,36 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
     // JM-025 AC2: resolve the locked pinned summary for an accepted order. The
     // fetch is best-effort — a failure leaves `_summary` null and the strip
-    // simply doesn't render (it never blocks the chat thread).
+    // simply doesn't render (it never blocks the chat thread). It is a
+    // CLIENT-only surface (the Jeeber variant never renders it — see
+    // `isClientAccepted`), so we skip the fetch for the Jeeber entirely: its
+    // `/v1/requests/{id}` read is owner-scoped and 404s for a non-owner Jeeber
+    // (physical-run8 [Med] chat READ 404 #3) — reads it would never display.
     OrderChatSummary? summary;
-    if (phase == ConversationPhase.accepted || hasWinner) {
+    if (!isJeeber && (phase == ConversationPhase.accepted || hasWinner)) {
       summary = await _resolveSummary(dio, requestId, conversationId);
     }
 
+    // Pre-accept there is NO conversation to read. Hand the gateway the
+    // unresolved sentinel so `loadHistory`/`loadPhase` short-circuit (NO HTTP)
+    // instead of polling `GET /v1/conversations/{requestId}/messages` → 404
+    // every poll tick (physical-run8 [Med] chat READ 404 #1). Once a
+    // conversation exists the resolved `conversation_id` drives BOTH read and
+    // send (unchanged — the proven Step-5 send path).
+    final gatewayConversationId =
+        conversationResolved ? conversationId : kComposeConversationSentinel;
     final gateway = DioChatGateway(
       dio: dio,
       currentUserId: currentUserId,
+      // The phase read queries the conversation aggregate by its correlation
+      // key (== request id). Passing the resolved request id makes the poll hit
+      // `?correlationKey={requestId}` (200) instead of
+      // `?correlationKey={conversationId}` (404) post-accept (READ 404 #2).
+      conversationCorrelationKey: requestId,
     );
     if (!mounted) return;
     _finalize(
-      conversationId,
+      gatewayConversationId,
       gateway,
       title,
       requestId: requestId,

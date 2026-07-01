@@ -98,6 +98,47 @@ void main() {
       expect(rec.single.path, isNot(contains('/v1/chat/jeeb/conversations')));
       expect(phase, ConversationPhase.accepted);
     });
+
+    test('loadPhase queries the RESOLVED correlation key (== request id), NOT '
+        'the conversation id it is opened on (physical-run8 READ 404 #2)',
+        () async {
+      // Post-accept the screen opens the thread on the conversation id but
+      // resolved the request id (correlation_key) during resolution. The chat
+      // -service reads the conversation ONLY by its correlation key, so posting
+      // the conversation id as `correlationKey` 404s. The gateway must use the
+      // host-supplied correlation key for the phase read.
+      const conversationId = 'conv-a7b86160';
+      const resolvedRequestId = 'req-d9366a8a';
+      final rec =
+          _RecordingDio(body: <String, dynamic>{'phase': 'broadcasting'});
+      final gateway = DioChatGateway(
+        dio: rec.dio,
+        currentUserId: 'u-1',
+        conversationCorrelationKey: resolvedRequestId,
+      );
+
+      await gateway.loadPhase(conversationId);
+
+      expect(rec.count, 1);
+      expect(rec.single.path, '/v1/conversations');
+      expect(rec.single.queryParameters['correlationKey'], resolvedRequestId);
+      expect(
+        rec.single.queryParameters['correlationKey'],
+        isNot(conversationId),
+        reason: 'the conversationId-keyed lookup is the run-8 404 shape',
+      );
+    });
+
+    test('loadPhase falls back to the id argument when no correlation key is '
+        'supplied (legacy callers / tests unchanged)', () async {
+      final rec =
+          _RecordingDio(body: <String, dynamic>{'phase': 'accepted'});
+      final gateway = DioChatGateway(dio: rec.dio, currentUserId: 'u-1');
+
+      await gateway.loadPhase(realId);
+
+      expect(rec.single.queryParameters['correlationKey'], realId);
+    });
   });
 
   group('DioChatGateway — message payload + parse shape (bug 3)', () {

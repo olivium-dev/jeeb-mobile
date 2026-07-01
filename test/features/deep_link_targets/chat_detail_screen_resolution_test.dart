@@ -31,6 +31,7 @@ import 'package:jeeb_mobile/core/network/auth_token_store.dart';
 import 'package:jeeb_mobile/core/role/role_cubit.dart';
 import 'package:jeeb_mobile/core/role/user_role.dart';
 import 'package:jeeb_mobile/features/chat/data/dio_chat_gateway.dart';
+import 'package:jeeb_mobile/features/chat/domain/chat_gateway.dart';
 import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
 import 'package:jeeb_mobile/features/deep_link_targets/chat_detail_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
@@ -155,6 +156,54 @@ class _LiveSnakeCaseDio {
   final List<RequestOptions> requests = <RequestOptions>[];
 
   Iterable<String> get paths => requests.map((r) => r.path);
+}
+
+/// Reproduces the PRE-ACCEPT wire (physical-run8 `customer-full-logcat.txt`
+/// lines 532–1048): the customer opens order-chat keyed on the REQUEST id
+/// BEFORE any Jeeber accepts, so there is NO conversation yet. Both resolution
+/// probes 404 — `GET /v1/conversations?correlationKey={requestId}` and
+/// `GET /v1/conversations/{requestId}/messages` ("Conversation does not exist")
+/// — and the screen must hand the gateway the unresolved sentinel so its
+/// history/phase reads short-circuit instead of polling the requestId messages
+/// path every tick.
+class _PreAcceptDio {
+  _PreAcceptDio() {
+    dio = Dio(BaseOptions(baseUrl: 'http://test'));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          requests.add(options);
+          // No conversation exists for this request id yet → every conversation
+          // read 404s, exactly like the live chat-service pre-accept.
+          handler.reject(
+            DioException(
+              requestOptions: options,
+              response: Response(
+                data: const <String, dynamic>{
+                  'status': 404,
+                  'detail': "Conversation does not exist.",
+                },
+                statusCode: 404,
+                requestOptions: options,
+              ),
+              type: DioExceptionType.badResponse,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  static const requestId = 'd9366a8a-db84-4dff-9c52-d72f4b52108d';
+
+  late final Dio dio;
+  final List<RequestOptions> requests = <RequestOptions>[];
+
+  Iterable<String> get paths => requests.map((r) => r.path);
+
+  int get requestIdMessagesReadCount => requests
+      .where((r) => r.path == '/v1/conversations/$requestId/messages')
+      .length;
 }
 
 /// AuthTokenStore double that returns a known session user id without touching
@@ -331,6 +380,108 @@ void main() {
           chatScreen.onFirstMessageBroadcast,
           isNull,
           reason: 'a seated jeeber_winner must exit compose so sends persist',
+        );
+      },
+    );
+
+    testWidgets(
+      'post-accept phase read queries ?correlationKey={requestId} (200) — '
+      'NEVER ?correlationKey={conversationId} (the run-8 READ 404 #2)',
+      (tester) async {
+        final role = await _roleCubit(UserRole.client);
+        addTearDown(role.close);
+
+        await tester.pumpWidget(_host(role, _LiveSnakeCaseDio.requestId));
+        await tester.pumpAndSettle();
+
+        // Every conversation-aggregate lookup (resolution + the cubit phase
+        // read) must key off the request id (correlation_key), not the resolved
+        // conversation id — the chat-service only supports the correlationKey
+        // read and 404s a conversationId-keyed one.
+        final corrLookups = live.requests
+            .where((r) => r.path == '/v1/conversations')
+            .toList();
+        expect(corrLookups, isNotEmpty);
+        for (final r in corrLookups) {
+          expect(
+            r.queryParameters['correlationKey'],
+            _LiveSnakeCaseDio.requestId,
+            reason: 'phase/resolution must use the requestId correlation key',
+          );
+          expect(
+            r.queryParameters['correlationKey'],
+            isNot(_LiveSnakeCaseDio.conversationId),
+            reason: 'conversationId-keyed lookup is the run-8 404 shape',
+          );
+        }
+      },
+    );
+
+    testWidgets(
+      'the JEEBER variant does NOT fetch the client-only pinned summary — so it '
+      'never fires the owner-scoped GET /v1/requests/{id} that 404s (READ #3)',
+      (tester) async {
+        final role = await _roleCubit(UserRole.jeeber);
+        addTearDown(role.close);
+
+        await tester.pumpWidget(_host(role, _LiveSnakeCaseDio.requestId));
+        await tester.pumpAndSettle();
+
+        // The pinned summary (delivery + request + offer reads) is a client-only
+        // surface; the jeeber must not fetch it. The owner-scoped request read
+        // is the one that 404d for the non-owner jeeber in run-8.
+        expect(
+          live.paths.any((p) => p.startsWith('/v1/requests/')),
+          isFalse,
+          reason: 'jeeber never renders the summary → skip the owner-only read',
+        );
+      },
+    );
+  });
+
+  group('ChatDetailScreen — pre-accept (no conversation yet)', () {
+    late _PreAcceptDio pre;
+
+    setUp(() {
+      pre = _PreAcceptDio();
+      final sl = GetIt.instance;
+      if (sl.isRegistered<Dio>()) sl.unregister<Dio>();
+      if (sl.isRegistered<AuthTokenStore>()) sl.unregister<AuthTokenStore>();
+      sl.registerSingleton<Dio>(pre.dio);
+      sl.registerSingleton<AuthTokenStore>(_StubAuthTokenStore(_sessionUserId));
+    });
+
+    testWidgets(
+      'opened by REQUEST id before accept: the chat surface is wired to the '
+      'unresolved compose sentinel so reads short-circuit (NO requestId '
+      'messages poll — physical-run8 READ 404 #1)',
+      (tester) async {
+        final role = await _roleCubit(UserRole.client);
+        addTearDown(role.close);
+
+        await tester.pumpWidget(_host(role, _PreAcceptDio.requestId));
+        await tester.pumpAndSettle();
+
+        final chatScreen = tester.widget<ChatScreen>(find.byType(ChatScreen));
+        // The gateway channel id is the sentinel → DioChatGateway short-circuits
+        // loadHistory/loadPhase (no HTTP), so the 5s poll never hits the
+        // requestId messages path.
+        expect(
+          chatScreen.deliveryId,
+          kComposeConversationSentinel,
+          reason: 'no conversation yet → hand the gateway the sentinel, never '
+              'the requestId it would poll to a 404',
+        );
+        // Still the client compose surface (a first send creates/broadcasts the
+        // request; it does NOT post to the requestId messages path).
+        expect(chatScreen.onFirstMessageBroadcast, isNotNull);
+
+        // The requestId messages route is touched AT MOST once (the one-shot
+        // resolution probe), never repeatedly polled.
+        expect(
+          pre.requestIdMessagesReadCount,
+          lessThanOrEqualTo(1),
+          reason: 'the pre-accept requestId messages path must not be polled',
         );
       },
     );

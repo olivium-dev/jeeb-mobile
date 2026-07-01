@@ -44,9 +44,11 @@ class DioChatGateway implements ChatGateway {
   DioChatGateway({
     required Dio dio,
     required this.currentUserId,
+    String? conversationCorrelationKey,
     ChatSocket Function(String conversationId)? socketFactory,
     Uri? socketBaseUri,
   })  : _dio = dio,
+        _correlationKey = conversationCorrelationKey,
         _socketBaseUri = socketBaseUri ??
             Uri.parse(MockGatewayClient.webSocketUrl),
         _socketFactory = socketFactory;
@@ -58,6 +60,19 @@ class DioChatGateway implements ChatGateway {
   /// `senderId`. The auth interceptor would normally inject this server-side;
   /// the mock just trusts whatever the client sends.
   final String currentUserId;
+
+  /// The conversation's correlation key (== request id) used to read the
+  /// conversation aggregate in [loadPhase]. The chat-service exposes the
+  /// conversation ONLY by its correlation key
+  /// (`GET /v1/conversations?correlationKey={requestId}`) — NEVER by the
+  /// conversation id — so a phase read that posts the CONVERSATION id as the
+  /// `correlationKey` 404s (`chat-service rejected the read conversation by
+  /// correlation`, physical-run8 [Med] chat READ 404 #2). When the host resolved
+  /// the request/correlation id it passes it here so the phase poll hits
+  /// `?correlationKey={requestId}` (200). When null (tests / callers that only
+  /// know the conversation id) [loadPhase] falls back to the id argument,
+  /// preserving the prior behavior.
+  final String? _correlationKey;
 
   final Uri _socketBaseUri;
   final ChatSocket Function(String conversationId)? _socketFactory;
@@ -119,9 +134,18 @@ class DioChatGateway implements ChatGateway {
     // failure (flag-off 503, transport, non-map body, unknown phase) we degrade
     // to `broadcasting`, the safe compose/waiting state — NEVER `accepted`.
     try {
+      // Read the conversation aggregate by its correlation key (== request id).
+      // Prefer the host-resolved correlation key; fall back to the id argument
+      // for callers/tests that only know the conversation id (unchanged legacy
+      // behavior). Posting the conversation id as the correlationKey 404s on the
+      // live chat-service (physical-run8 [Med] READ 404 #2).
+      final resolvedKey = _correlationKey;
+      final correlationKey = (resolvedKey != null && resolvedKey.isNotEmpty)
+          ? resolvedKey
+          : conversationId;
       final response = await _dio.get<Map<String, dynamic>>(
         '/v1/conversations',
-        queryParameters: <String, Object?>{'correlationKey': conversationId},
+        queryParameters: <String, Object?>{'correlationKey': correlationKey},
       );
       final data = response.data;
       if (data == null) return ConversationPhase.broadcasting;
