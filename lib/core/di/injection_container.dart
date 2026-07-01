@@ -118,8 +118,18 @@ void configureDependencies({
   sl.registerLazySingleton<Dio>(() => MockGatewayClient.createDio());
   sl.registerLazySingleton<AuthTokenStore>(() => AuthTokenStore());
 
+  // BUG-7 (physical-run6): inject the local profile store so a successful
+  // phone-OTP verify PERSISTS the signed-in E.164 phone to `settings.profile.v1`
+  // — the exact key SharedPrefsRecipientPhoneResolver reads. This guarantees the
+  // create body carries a non-null `recipientPhone` (the live GET /v1/users/me
+  // exposes no phone), unblocking the at-door handover OTP.
   sl.registerLazySingleton<OtpService>(
-    () => DioOtpService(sl<Dio>(), sl<AuthTokenStore>()),
+    () => DioOtpService(
+      sl<Dio>(),
+      sl<AuthTokenStore>(),
+      profileRepository:
+          SharedPrefsProfileRepository(prefs: sl<SharedPreferences>()),
+    ),
   );
 
   // W0-INT (JM-007/020/021/022, CTO-D1 email-first auth funnel). Real Dio-backed

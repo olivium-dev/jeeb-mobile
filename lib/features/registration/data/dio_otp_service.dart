@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/network/auth_token_store.dart';
+import '../../settings/domain/profile_repository.dart';
+import '../../settings/domain/user_profile.dart';
 import '../domain/otp_service.dart';
 
 /// [OtpService] backed by the Mockoon gateway mock at `/v1/auth/otp`.
@@ -11,11 +13,34 @@ import '../domain/otp_service.dart';
 ///
 /// On successful verify the JWT pair is persisted to [AuthTokenStore] so
 /// all subsequent authenticated requests can read the access token.
+///
+/// BUG-7 (recipient-phone-missing, physical-run6): on a successful verify the
+/// E.164 phone the user SIGNED IN WITH is ALSO persisted to the local
+/// [ProfileRepository] (`settings.profile.v1`) — the exact key the
+/// [SharedPrefsRecipientPhoneResolver] reads for the default `recipientPhone` on
+/// `POST /v1/requests`. Previously this key was NEVER written at sign-in (only
+/// by profile-edit), so for a phone-OTP customer the resolver chain returned
+/// null (the live `GET /v1/users/me` exposes NO `phone`), the create omitted
+/// `recipientPhone`, the delivery row was `recipientPhone:null`, and the at-door
+/// handover OTP issue/verify short-circuited 400 `recipient-phone-missing`
+/// before the code was ever evaluated. Persisting the sign-in phone here gives
+/// the resolver a guaranteed non-null E.164 fallback independent of the server
+/// profile.
 class DioOtpService implements OtpService {
-  const DioOtpService(this._dio, this._tokenStore);
+  const DioOtpService(
+    this._dio,
+    this._tokenStore, {
+    ProfileRepository? profileRepository,
+  }) : _profileRepository = profileRepository;
 
   final Dio _dio;
   final AuthTokenStore _tokenStore;
+
+  /// Optional local profile store. When provided, the E.164 phone from a
+  /// successful verify is written here so the recipient-phone resolver has a
+  /// guaranteed default. Nullable so the unit tests that only assert the JWT
+  /// persistence can omit it; DI always injects [SharedPrefsProfileRepository].
+  final ProfileRepository? _profileRepository;
 
   @override
   Future<OtpSendOutcome> sendCode(String e164Phone) async {
@@ -45,6 +70,9 @@ class DioOtpService implements OtpService {
       );
       if (response.statusCode == 200) {
         await _persistTokens(response.data as Map<String, dynamic>?);
+        // BUG-7: persist the signed-in E.164 phone as the default recipient
+        // phone. Best-effort — a failure here must never fail the sign-in.
+        await _persistSignInPhone(e164Phone);
         return OtpVerifyOutcome.verified;
       }
       return OtpVerifyOutcome.networkError;
@@ -76,5 +104,27 @@ class DioOtpService implements OtpService {
       refreshToken: refresh,
       userId: userId,
     );
+  }
+
+  /// Persists [e164Phone] (the number the user just authenticated with) into the
+  /// local profile under `settings.profile.v1`, MERGING over any existing
+  /// profile so an edited name/photo survives. This is the deterministic source
+  /// the [SharedPrefsRecipientPhoneResolver] reads for the default
+  /// `recipientPhone`. Best-effort: any storage/parse fault degrades to a no-op
+  /// so a default-phone write can NEVER fail the sign-in.
+  Future<void> _persistSignInPhone(String e164Phone) async {
+    final repo = _profileRepository;
+    if (repo == null) return;
+    final phone = e164Phone.trim();
+    if (phone.isEmpty) return;
+    try {
+      final existing = await repo.load();
+      final merged = existing == null
+          ? UserProfile(phoneE164: phone)
+          : existing.copyWith(phoneE164: phone);
+      await repo.save(merged);
+    } catch (_) {
+      // A default-recipient-phone write must NEVER break authentication.
+    }
   }
 }
