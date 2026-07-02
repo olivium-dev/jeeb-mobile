@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../data/push_transport.dart';
 import '../domain/notification_message.dart';
 import 'badge_count_cubit.dart';
+import 'push_refresh_signals.dart';
 
 /// View-model state surfaced to [PushBannerHost] and the dispatcher.
 class PushNotificationState extends Equatable {
@@ -65,10 +66,12 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     required BadgeCountCubit badgeCount,
     int historyLimit = 20,
     Future<void> Function(String token)? onToken,
+    PushRefreshSignals? refreshSignals,
   })  : _transport = transport,
         _badgeCount = badgeCount,
         _historyLimit = historyLimit,
         _onToken = onToken,
+        _refreshSignals = refreshSignals,
         super(const PushNotificationState()) {
     _foregroundSub = transport.onForegroundMessage.listen(_onForeground);
     _openedSub = transport.onMessageOpenedApp.listen(_opensCtl.add);
@@ -84,6 +87,7 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
   final BadgeCountCubit _badgeCount;
   final int _historyLimit;
   final Future<void> Function(String token)? _onToken;
+  final PushRefreshSignals? _refreshSignals;
   final _opensCtl = StreamController<NotificationMessage>.broadcast();
   final _seenIds = Queue<String>();
   // Bound the dedup set so a noisy server can't grow this without limit.
@@ -152,6 +156,23 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     }
     _badgeCount.increment();
     emit(state.copyWith(banner: message, history: history));
+    _maybeSignalStatusChange(message);
+  }
+
+  /// A foreground `delivery`-category push (gateway `type=delivery|offer|accept`)
+  /// carrying an order/delivery/request id is an order status change. Signal the
+  /// refresh bus so the customer's In Progress list and any live tracking
+  /// surface re-pull promptly — instead of waiting up to the 10s home poll.
+  void _maybeSignalStatusChange(NotificationMessage message) {
+    if (_refreshSignals == null) return;
+    if (message.category != NotificationCategory.delivery) return;
+    final data = message.data;
+    final id = data['delivery_id'] ??
+        data['order_id'] ??
+        data['requestId'] ??
+        data['request_id'];
+    if (id == null || id.isEmpty) return;
+    _refreshSignals.signalStatusChange();
   }
 
   @override

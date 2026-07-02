@@ -9,6 +9,7 @@ import '../../../core/dev_seam/dev_seam.dart';
 import '../../../core/session/greeting_profile_cubit.dart';
 import '../../customer_profile/data/dev_customer_profile_fixtures.dart';
 import '../../customer_profile/data/dio_customer_profile_repository.dart';
+import '../../../core/notifications/application/push_refresh_signals.dart';
 import '../../customer_profile/domain/customer_profile_repository.dart';
 import '../../home_client/application/client_home_cubit.dart';
 import '../../home_client/application/client_home_state.dart';
@@ -51,6 +52,11 @@ class HomeTab extends StatelessWidget {
           create: (_) => ClientHomeCubit(
             repository: repository ?? _resolveRepository(devSeed),
             greetingNameProvider: greetingNameProvider ?? _resolveGreetingName,
+            // Push-triggered refetch (sprint-009): re-pull on a status-change
+            // push. Absent under bare tests / dev seams where DI isn't set up.
+            refreshSignals: GetIt.instance.isRegistered<PushRefreshSignals>()
+                ? GetIt.instance<PushRefreshSignals>().stream
+                : null,
           ),
         ),
         // P0-X06: the personalized greeting (name + avatar) is sourced from the

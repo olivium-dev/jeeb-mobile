@@ -76,6 +76,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   /// never auto-refresh on the very first frame ([initState] owns that load).
   bool? _wasVisible;
 
+  /// Captured in [didChangeDependencies] so [dispose] can stop the poll without
+  /// an unsafe `context.read` after the element is defunct.
+  ClientHomeCubit? _homeCubit;
+
   @override
   void initState() {
     super.initState();
@@ -100,14 +104,38 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _homeCubit = context.read<ClientHomeCubit>();
     final isVisible = TabVisibility.maybeOf(context)?.isVisible ?? true;
     final becameVisible = _wasVisible == false && isVisible;
     _wasVisible = isVisible;
+    // Run the 10s live-refresh poll only while this tab is on-screen and the
+    // In Progress sub-tab is selected — visibility changes flow through here.
+    _syncPolling();
     if (!becameVisible) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<ClientHomeCubit>().refresh();
     });
+  }
+
+  /// Start the home poll iff the Requests tab is visible AND the In Progress
+  /// sub-tab is the active one; otherwise stop it. Both cubit calls are
+  /// idempotent, so this is safe to call on every visibility / tab change.
+  void _syncPolling() {
+    final cubit = _homeCubit;
+    if (cubit == null) return;
+    final isVisible = TabVisibility.maybeOf(context)?.isVisible ?? true;
+    if (isVisible && _selectedTab == ClientHomeTab.inProgress) {
+      cubit.startPolling();
+    } else {
+      cubit.stopPolling();
+    }
+  }
+
+  @override
+  void dispose() {
+    _homeCubit?.stopPolling();
+    super.dispose();
   }
 
   /// JM-023 AC2: when data first lands, surface the requests that actually
@@ -131,6 +159,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       setState(() => _selectedTab = populated);
+      _syncPolling();
     });
   }
 
@@ -157,10 +186,13 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                 child: _ClientHomeBody(
                   state: state,
                   selectedTab: _selectedTab,
-                  onTabSelected: (tab) => setState(() {
-                    _tabResolved = true;
-                    _selectedTab = tab;
-                  }),
+                  onTabSelected: (tab) {
+                    setState(() {
+                      _tabResolved = true;
+                      _selectedTab = tab;
+                    });
+                    _syncPolling();
+                  },
                   onCreateRequest: widget.onCreateRequest,
                   onRecordVoice: widget.onRecordVoice,
                   onTrack: widget.onTrack,

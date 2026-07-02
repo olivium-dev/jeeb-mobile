@@ -11,12 +11,12 @@ import '../domain/escalate_repository.dart';
 /// prefix to the `:4010` service (DO-NOT hardcode a prefix — 40_GUARDRAILS_ARCH
 /// §4). Endpoints (42_GUARDRAILS_MOCK §4, all LIVE on :4010):
 ///   POST /v1/disputes                                       → open dispute
-///   GET  /v1/chat/jeeb/conversations/by-request/:id         → resolve conv
+///   GET  /v1/conversations?correlationKey=:id               → resolve conv
 ///   GET  /v1/chat/jeeb/conversations/:convId/snapshot       → chat snapshot (D53)
 ///   GET  /v1/deliveries/:id                                 → status (timeline, D53)
 ///
 /// Mock convention: the customer's deliveryId == the originating requestId, so
-/// the conversation resolves via `by-request/:deliveryId`.
+/// the conversation resolves by that request id as the correlation key.
 ///
 /// BUG-8 (sprint-008 run-7): the auto-attached timeline read used the SINGULAR
 /// `GET /v1/delivery/{id}`, which the live origin gateway (`:10090`) 404s — the
@@ -56,8 +56,16 @@ class DioEscalateRepository implements EscalateRepository {
 
   Future<_ChatSnapshot?> _fetchChatSnapshot(String deliveryId) async {
     try {
+      // Resolve the conversation by the CANONICAL correlation-key route
+      // (`GET /v1/conversations?correlationKey={requestId}`) — the same route
+      // the chat gateway uses (dio_chat_gateway.loadPhase). The previous
+      // `/v1/chat/jeeb/conversations/by-request/{id}` route does not exist on
+      // the live gateway (404), so evidence auto-attach silently fetched no
+      // chat snapshot. correlationKey == the request id, and the customer's
+      // deliveryId == that request id (mock convention).
       final conv = await _dio.get<Map<String, dynamic>>(
-        '/v1/chat/jeeb/conversations/by-request/$deliveryId',
+        '/v1/conversations',
+        queryParameters: <String, Object?>{'correlationKey': deliveryId},
       );
       final conversationId = conv.data?['id'] as String? ??
           conv.data?['conversationId'] as String?;

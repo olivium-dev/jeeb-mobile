@@ -48,6 +48,25 @@ void main() {
     expect(adapter.getPaths, contains('/v1/delivery/$_deliveryId'));
     expect(adapter.getPaths, isNot(contains('/v1/deliveries/$_deliveryId')));
   });
+
+  test('chat snapshot resolves the conversation via the canonical '
+      'GET /v1/conversations?correlationKey — NOT the nonexistent by-request '
+      'route that 404s (Lane C / PR-C3)', () async {
+    await originRepo().fetchEvidence(deliveryId: _deliveryId);
+
+    expect(adapter.getPaths, contains('/v1/conversations'),
+        reason: 'conversation resolve must use the correlation-key route');
+    expect(
+      adapter.getPaths.any((p) => p.contains('/conversations/by-request/')),
+      isFalse,
+      reason: 'the by-request route does not exist on the live gateway',
+    );
+    // The correlation key is the request id (== the customer deliveryId).
+    final convCalls =
+        adapter.getQueries.where((q) => q.containsKey('correlationKey'));
+    expect(convCalls, isNotEmpty);
+    expect(convCalls.first['correlationKey'], _deliveryId);
+  });
 }
 
 ResponseBody _json(Map<String, Object?> body, {int status = 200}) =>
@@ -61,6 +80,7 @@ ResponseBody _json(Map<String, Object?> body, {int status = 200}) =>
 
 class _RecordingAdapter implements HttpClientAdapter {
   final List<String> getPaths = <String>[];
+  final List<Map<String, dynamic>> getQueries = <Map<String, dynamic>>[];
 
   @override
   void close({bool force = false}) {}
@@ -71,7 +91,10 @@ class _RecordingAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
-    if (options.method == 'GET') getPaths.add(options.path);
+    if (options.method == 'GET') {
+      getPaths.add(options.path);
+      getQueries.add(Map<String, dynamic>.from(options.queryParameters));
+    }
     // by-request conversation resolve → no id, so the snapshot read is skipped;
     // the timeline delivery read (the assertion target) still fires.
     return _json({'id': _deliveryId, 'status': 'Done'});

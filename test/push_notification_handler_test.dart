@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/notifications/application/badge_count_cubit.dart';
 import 'package:jeeb_mobile/core/notifications/application/push_notification_handler.dart';
+import 'package:jeeb_mobile/core/notifications/application/push_refresh_signals.dart';
 import 'package:jeeb_mobile/core/notifications/data/push_transport.dart';
 import 'package:jeeb_mobile/core/notifications/domain/notification_message.dart';
 
@@ -118,5 +119,55 @@ void main() {
 
     handler.clearBadge();
     expect(badge.state, 0);
+  });
+
+  group('push→refetch signal (Lane C)', () {
+    Future<int> countSignalsFor(NotificationMessage message) async {
+      final t = FakePushTransport(token: 'tok-x');
+      final b = BadgeCountCubit();
+      final signals = PushRefreshSignals();
+      var count = 0;
+      final sub = signals.stream.listen((_) => count += 1);
+      final h = PushNotificationHandler(
+        transport: t,
+        badgeCount: b,
+        refreshSignals: signals,
+      );
+      addTearDown(() async {
+        await sub.cancel();
+        await h.close();
+        await b.close();
+        await signals.dispose();
+      });
+      t.emitForeground(message);
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      return count;
+    }
+
+    test('a foreground delivery push carrying an id signals a status change',
+        () async {
+      expect(await countSignalsFor(_message('s1')), 1);
+    });
+
+    test('a non-delivery (chat) push does NOT signal a status change', () async {
+      expect(
+        await countSignalsFor(
+          _message('s2', category: NotificationCategory.chat),
+        ),
+        0,
+      );
+    });
+
+    test('a delivery push with no order/delivery/request id does NOT signal',
+        () async {
+      final noId = NotificationMessage(
+        id: 's3',
+        category: NotificationCategory.delivery,
+        title: 'T',
+        body: 'B',
+        receivedAt: DateTime.utc(2026, 5, 17),
+      );
+      expect(await countSignalsFor(noId), 0);
+    });
   });
 }

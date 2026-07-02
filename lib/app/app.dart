@@ -19,6 +19,7 @@ import '../core/notifications/application/badge_count_cubit.dart';
 import '../core/di/injection_container.dart';
 import '../core/notifications/application/notification_dispatcher.dart';
 import '../core/notifications/application/push_notification_handler.dart';
+import '../core/notifications/application/push_refresh_signals.dart';
 import '../core/notifications/data/device_token_registrar.dart';
 import '../core/notifications/data/firebase_messaging_transport.dart';
 import '../core/notifications/data/push_device_registrar.dart';
@@ -361,6 +362,11 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       transport: transport,
       badgeCount: _badgeCount,
       onToken: injectedRegistrar?.register,
+      // Publish a status-change signal on delivery pushes so the customer home
+      // / tracking surfaces refetch promptly (sprint-009 live refresh).
+      refreshSignals: sl.isRegistered<PushRefreshSignals>()
+          ? sl<PushRefreshSignals>()
+          : null,
     );
     if (injectedRegistrar == null && transport is FirebaseMessagingTransport) {
       final registrar = DeviceTokenRegistrar(

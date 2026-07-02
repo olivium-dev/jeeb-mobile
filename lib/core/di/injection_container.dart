@@ -17,6 +17,7 @@ import '../../features/earnings/data/dio_earnings_repository.dart';
 import '../../features/earnings/domain/earnings_repository.dart';
 import '../../features/home_client/data/dio_client_home_repository.dart';
 import '../../features/home_client/domain/client_home_repository.dart';
+import '../notifications/application/push_refresh_signals.dart';
 import '../../features/jeeber_home/data/dio_availability_gateway.dart';
 import '../../features/jeeber_home/domain/services/availability_gateway.dart';
 import '../../features/jeeber_request_detail/domain/services/prohibited_item_report_service.dart';
@@ -117,6 +118,11 @@ void configureDependencies({
 
   sl.registerLazySingleton<Dio>(() => MockGatewayClient.createDio());
   sl.registerLazySingleton<AuthTokenStore>(() => AuthTokenStore());
+
+  // Push→refetch bus (sprint-009 live refresh): the push handler publishes a
+  // status-change signal; the customer home / tracking cubits subscribe and
+  // re-pull. Single shared instance so both sides see the same stream.
+  sl.registerLazySingleton<PushRefreshSignals>(() => PushRefreshSignals());
 
   // BUG-7 (physical-run6): inject the local profile store so a successful
   // phone-OTP verify PERSISTS the signed-in E.164 phone to `settings.profile.v1`

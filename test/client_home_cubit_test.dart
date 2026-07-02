@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -167,6 +169,60 @@ void main() {
       await cubit.refresh();
       await first;
       expect(calls, 1);
+      await cubit.close();
+    });
+  });
+
+  group('live refresh — poll + push signal (Lane C)', () {
+    test('startPolling re-pulls the snapshot on each tick', () async {
+      when(() => repo.loadSnapshot())
+          .thenAnswer((_) async => const ClientHomeSnapshot());
+      final cubit = ClientHomeCubit(
+        repository: repo,
+        greetingNameProvider: () => null,
+        pollInterval: const Duration(milliseconds: 30),
+      );
+      await cubit.load(); // 1
+      cubit.startPolling();
+      await Future<void>.delayed(const Duration(milliseconds: 110));
+      cubit.stopPolling();
+      verify(() => repo.loadSnapshot()).called(greaterThan(1));
+      await cubit.close();
+    });
+
+    test('stopPolling halts further re-pulls', () async {
+      when(() => repo.loadSnapshot())
+          .thenAnswer((_) async => const ClientHomeSnapshot());
+      final cubit = ClientHomeCubit(
+        repository: repo,
+        greetingNameProvider: () => null,
+        pollInterval: const Duration(milliseconds: 20),
+      );
+      cubit.startPolling();
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      cubit.stopPolling();
+      // Drain + reset the recorded calls made while polling was active.
+      verify(() => repo.loadSnapshot()).called(greaterThan(0));
+      // After stop, no further re-pulls happen.
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      verifyNever(() => repo.loadSnapshot());
+      await cubit.close();
+    });
+
+    test('a push refresh signal triggers a silent re-pull', () async {
+      when(() => repo.loadSnapshot())
+          .thenAnswer((_) async => const ClientHomeSnapshot());
+      final signals = StreamController<void>.broadcast();
+      addTearDown(signals.close);
+      final cubit = ClientHomeCubit(
+        repository: repo,
+        greetingNameProvider: () => null,
+        refreshSignals: signals.stream,
+      );
+      await cubit.load(); // 1
+      signals.add(null);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      verify(() => repo.loadSnapshot()).called(greaterThan(1));
       await cubit.close();
     });
   });
