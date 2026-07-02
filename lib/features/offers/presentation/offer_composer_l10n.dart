@@ -57,6 +57,19 @@ class OfferComposerL10n {
   /// `offer_composer_eta_dropdown` label — reuses the existing ETA label.
   String get etaLabel => _l10n.offerSubmissionEtaLabel;
 
+  // ── Description / note field (optional free text, wire field `note`) ───────
+  /// `offer_composer_note_field` label. Feature-local EN/AR until the
+  /// integrator lands the dedicated `offerComposerNote*` ARB keys (REQUESTED in
+  /// `50_ROUTE_REQUESTS.md`) — same precedent as the economics lines above.
+  String get noteLabel =>
+      _pick('Describe your offer (optional)', 'صِف عرضك (اختياري)');
+
+  /// `offer_composer_note_field` hint / placeholder.
+  String get noteHint => _pick(
+        'e.g. On my way now — I can pick up in 5 minutes.',
+        'مثال: أنا في الطريق الآن — يمكنني الاستلام خلال ٥ دقائق.',
+      );
+
   /// Placeholder shown on the dropdown before the Jeeber picks an ETA.
   String get etaPlaceholder => _pick('Select pickup ETA', 'اختر وقت الاستلام');
 

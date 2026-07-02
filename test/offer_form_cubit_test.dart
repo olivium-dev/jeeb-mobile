@@ -18,6 +18,10 @@ class _FakeOfferRepo implements OfferSubmissionRepository {
   final OfferSubmissionResult? result;
   final OfferSubmissionException? throws;
 
+  /// Captures the exact `note` the cubit forwarded on the last call.
+  String? capturedNote;
+  bool submitCalled = false;
+
   @override
   Future<OfferSubmissionResult> submitOffer({
     required String requestId,
@@ -25,6 +29,8 @@ class _FakeOfferRepo implements OfferSubmissionRepository {
     required int etaMinutes,
     String? note,
   }) async {
+    submitCalled = true;
+    capturedNote = note;
     if (throws != null) throw throws!;
     return result ??
         const OfferSubmissionResult(
@@ -98,6 +104,36 @@ void main() {
         ),
       ],
     );
+  });
+
+  group('OfferFormCubit — note forwarding (Lane B)', () {
+    test('forwards a non-null note verbatim to the repository', () async {
+      final repo = _FakeOfferRepo();
+      final cubit = OfferFormCubit(repository: repo);
+      await cubit.submit(
+        requestId: 'req-1',
+        priceUsd: 5.0,
+        etaMinutes: 20,
+        note: 'On my way now',
+      );
+      expect(repo.submitCalled, isTrue);
+      expect(repo.capturedNote, 'On my way now');
+      await cubit.close();
+    });
+
+    test('forwards null when no note is supplied (empty→null done screen-side)',
+        () async {
+      final repo = _FakeOfferRepo();
+      final cubit = OfferFormCubit(repository: repo);
+      await cubit.submit(
+        requestId: 'req-1',
+        priceUsd: 5.0,
+        etaMinutes: 20,
+      );
+      expect(repo.submitCalled, isTrue);
+      expect(repo.capturedNote, isNull);
+      await cubit.close();
+    });
   });
 
   group('OfferFormCubit — race / errors', () {

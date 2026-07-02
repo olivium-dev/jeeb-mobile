@@ -16,6 +16,7 @@ Offer buildOffer({
   double rating = 4.6,
   int ratingCount = 80,
   DateTime? submittedAt,
+  String? note,
 }) {
   return Offer(
     id: id,
@@ -28,5 +29,6 @@ Offer buildOffer({
     rating: rating,
     ratingCount: ratingCount,
     submittedAt: submittedAt ?? kBaseTime,
+    note: note,
   );
 }

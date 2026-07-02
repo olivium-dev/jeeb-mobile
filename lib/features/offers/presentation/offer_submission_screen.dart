@@ -122,6 +122,11 @@ class _OfferComposer extends StatefulWidget {
 class _OfferComposerState extends State<_OfferComposer> {
   final _priceController = TextEditingController();
 
+  /// Optional free-text offer description (wire field `note`). The trim /
+  /// empty→null normalization happens at send time ([_onSendTapped]); the raw
+  /// text lives here so the draft survives a 402 "keep editing" round-trip.
+  final _noteController = TextEditingController();
+
   /// The tier SLA band (D14). Without the request's tier on the feed payload we
   /// use the widest catalog band so the picker is still bounded, not free-form.
   final OfferEtaBand _etaBand = OfferEtaBand.defaultBand();
@@ -156,6 +161,7 @@ class _OfferComposerState extends State<_OfferComposer> {
   @override
   void dispose() {
     _priceController.dispose();
+    _noteController.dispose();
     super.dispose();
   }
 
@@ -240,6 +246,8 @@ class _OfferComposerState extends State<_OfferComposer> {
                 error: state.etaError,
                 onPick: (m) => setState(() => _selectedEta = m),
               ),
+              const SizedBox(height: Spacing.medium),
+              _NoteField(controller: _noteController),
               const SizedBox(height: Spacing.large),
               _EconomicsCard(
                 reserve: _reserve,
@@ -272,10 +280,12 @@ class _OfferComposerState extends State<_OfferComposer> {
 
   void _onSendTapped(BuildContext context) {
     _insufficientShown = false;
+    final note = _noteController.text.trim();
     context.read<OfferFormCubit>().submit(
           requestId: widget.requestId,
           priceUsd: _price,
           etaMinutes: _selectedEta,
+          note: note.isEmpty ? null : note,
         );
   }
 
@@ -336,6 +346,47 @@ class _OrderRefHeader extends StatelessWidget {
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Max length of the optional offer note — mirrors the gateway `MaxNoteLength`
+/// (`CreateOfferBody.note`, 500 chars). Enforced client-side so the character
+/// counter stops the Jeeber before the gateway would 400 on note-too-long.
+const int kOfferNoteMaxLength = 500;
+
+/// The note input grows from [_kNoteFieldMinLines] up to [_kNoteFieldMaxLines]
+/// visible lines before it scrolls internally.
+const int _kNoteFieldMinLines = 2;
+const int _kNoteFieldMaxLines = 4;
+
+/// `offer_composer_note_field` — the optional free-text offer description the
+/// Jeeber attaches to the bid (wire field `note`). Multiline OMDS text field,
+/// bounded at [kOfferNoteMaxLength] chars; label/hint are localized (EN/AR,
+/// RTL-safe) via [OfferComposerL10n]. The trim / empty→null normalization
+/// happens at [_OfferComposerState._onSendTapped], so this widget stays dumb.
+class _NoteField extends StatelessWidget {
+  const _NoteField({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = OfferComposerL10n.of(context);
+    return Semantics(
+      identifier: 'offer_composer_note_field',
+      textField: true,
+      child: OmdsTextField(
+        controller: controller,
+        labelText: l10n.noteLabel,
+        hintText: l10n.noteHint,
+        maxLength: kOfferNoteMaxLength,
+        minLines: _kNoteFieldMinLines,
+        maxLines: _kNoteFieldMaxLines,
+        keyboardType: TextInputType.multiline,
+        textInputAction: TextInputAction.newline,
+        textCapitalization: TextCapitalization.sentences,
       ),
     );
   }

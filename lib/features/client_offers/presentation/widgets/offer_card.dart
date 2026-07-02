@@ -65,7 +65,12 @@ class OfferCard extends StatelessWidget {
     final feeFormatted = offer.fee.toStringAsFixed(2);
     final vehicleLabel = _vehicleLabel(l10n, offer.vehicle);
 
-    final semanticLabel = l10n.offersCardSemanticLabel(
+    // Optional Jeeber note (offer.note). Trim so a whitespace-only note from the
+    // gateway renders nothing.
+    final note = offer.note?.trim();
+    final hasNote = note != null && note.isNotEmpty;
+
+    final baseSemanticLabel = l10n.offersCardSemanticLabel(
       name: offer.jeeberName,
       rating: offer.rating.toStringAsFixed(1),
       vehicle: vehicleLabel,
@@ -73,6 +78,10 @@ class OfferCard extends StatelessWidget {
       currency: offer.currency,
       minutes: offer.etaMinutes,
     );
+    // Append the note to the screen-reader label so it is announced with the
+    // rest of the card facts (the visible node is also independently addressable
+    // by `offer_card_<index>_note`).
+    final semanticLabel = hasNote ? '$baseSemanticLabel. $note' : baseSemanticLabel;
 
     // The card is addressable both by index (the asserted Maestro id) and by
     // Jeeber id (the full `offer_card_<id>` AC pattern). The merged root node
@@ -153,6 +162,16 @@ class OfferCard extends StatelessWidget {
                   ),
                 ],
               ),
+              // Optional Jeeber note — rendered below the ETA/vehicle chips
+              // when present, hidden entirely otherwise.
+              if (hasNote) ...[
+                const SizedBox(height: Spacing.small),
+                _IdWrap(
+                  indexId: 'offer_card_${index}_note',
+                  patternId: 'offer_card_${offer.jeeberId}_note',
+                  child: _OfferNoteLine(note: note),
+                ),
+              ],
               const SizedBox(height: Spacing.small),
               // "Pay $X cash on delivery" (D11) — the load-bearing comprehension
               // line: payment is cash to the Jeeber on delivery, not in-app.
@@ -240,6 +259,45 @@ class OfferCard extends StatelessWidget {
       case JeeberVehicle.van:
         return l10n.offersCardVehicleVan;
     }
+  }
+}
+
+/// Max visible lines for the optional Jeeber note before it ellipsizes.
+const int _kOfferNoteMaxLines = 3;
+
+/// Optional free-text note the Jeeber attached to the bid (`offer.note`).
+/// Rendered as an icon + up-to-3-line ellipsized secondary line below the
+/// ETA/vehicle chips. Only mounted when the offer carries a non-blank note.
+class _OfferNoteLine extends StatelessWidget {
+  const _OfferNoteLine({required this.note});
+
+  final String note;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          Icons.chat_bubble_outline,
+          size: Sizes.medium,
+          color: colors.onSurfaceVariant,
+        ),
+        const SizedBox(width: Spacing.xSmall),
+        Expanded(
+          child: Text(
+            note,
+            maxLines: _kOfferNoteMaxLines,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 

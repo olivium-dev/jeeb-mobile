@@ -109,6 +109,63 @@ void main() {
     expect(find.textContaining('6.00'), findsWidgets);
   });
 
+  testWidgets(
+      'OfferCard renders the note line + offer_card_<index>_note node when '
+      'offer.note is present (Lane B)', (tester) async {
+    final offer = buildOffer(id: 'noted', note: 'On my way, picking up now');
+    await tester.pumpWidget(
+      wrapForTest(
+        OfferCard(offer: offer, index: 0, onAccept: () {}, onTapName: () {}),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('On my way, picking up now'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Semantics && w.properties.identifier == 'offer_card_0_note',
+      ),
+      findsWidgets,
+    );
+  });
+
+  testWidgets(
+      'OfferCard hides the note line + node when offer.note is null (Lane B)',
+      (tester) async {
+    final offer = buildOffer(id: 'no-note');
+    await tester.pumpWidget(
+      wrapForTest(
+        OfferCard(offer: offer, index: 0, onAccept: () {}, onTapName: () {}),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Semantics && w.properties.identifier == 'offer_card_0_note',
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('OfferCard hides the note line for a whitespace-only note (trim)',
+      (tester) async {
+    final offer = buildOffer(id: 'blank-note', note: '   ');
+    await tester.pumpWidget(
+      wrapForTest(
+        OfferCard(offer: offer, index: 0, onAccept: () {}, onTapName: () {}),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Semantics && w.properties.identifier == 'offer_card_0_note',
+      ),
+      findsNothing,
+    );
+  });
+
   testWidgets('OfferCard renders Arabic copy under the AR locale',
       (tester) async {
     final offer = buildOffer(
