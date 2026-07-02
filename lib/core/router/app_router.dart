@@ -12,6 +12,7 @@ import '../session/account_status_gate.dart';
 import '../session/session_gate.dart';
 import '../session/session_state.dart';
 import 'profile_unavailable_screen.dart';
+import 'root_aware_back_scope.dart';
 import '../../features/account_status/presentation/account_status_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/recover_password_screen.dart';
@@ -892,19 +893,34 @@ class AppRouter {
           // POST /v1/offers. Navigates to chat on success; pops to feed on 409.
           builder: (context, state) {
             final requestId = state.pathParameters['id'] ?? '';
-            return OfferSubmissionScreen(
-              requestId: requestId,
-              submissionService: sl<OfferSubmissionService>(),
-              repository: sl<OfferSubmissionRepository>(),
-              onWithdrawn: () {
-                if (context.canPop()) context.pop();
-              },
-              onSubmitted: (conversationId) {
-                context.go('/chat/$conversationId');
-              },
-              onRequestGone: () {
-                if (context.canPop()) context.pop();
-              },
+            // The composer is reachable as a stack ROOT (a push-notification /
+            // deep-link `go('/jeeber/requests/:id/offer')`), so the system BACK
+            // gesture would otherwise exit the app. Wrap it so BACK — and the
+            // withdraw / request-gone callbacks — resolve to the shell instead.
+            return RootAwareBackScope(
+              fallbackLocation: '/',
+              child: OfferSubmissionScreen(
+                requestId: requestId,
+                submissionService: sl<OfferSubmissionService>(),
+                repository: sl<OfferSubmissionRepository>(),
+                onWithdrawn: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/');
+                  }
+                },
+                onSubmitted: (conversationId) {
+                  context.go('/chat/$conversationId');
+                },
+                onRequestGone: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/');
+                  }
+                },
+              ),
             );
           },
         ),
