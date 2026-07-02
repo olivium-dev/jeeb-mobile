@@ -144,6 +144,29 @@ void main() {
       final path = deepLinkForMessage(_msg(category: NotificationCategory.other));
       expect(path, isNull);
     });
+
+    test('new_request routes to /jeeber/requests/<requestId>', () {
+      final path = deepLinkForMessage(_msg(
+        category: NotificationCategory.newRequest,
+        data: const {'requestId': 'req-1'},
+      ));
+      expect(path, '/jeeber/requests/req-1');
+    });
+
+    test('new_request uses snake_case request_id when it is the only id', () {
+      final path = deepLinkForMessage(_msg(
+        category: NotificationCategory.newRequest,
+        data: const {'request_id': 'req-1'},
+      ));
+      expect(path, '/jeeber/requests/req-1');
+    });
+
+    test('new_request without any id returns null (no crash)', () {
+      final path = deepLinkForMessage(_msg(
+        category: NotificationCategory.newRequest,
+      ));
+      expect(path, isNull);
+    });
   });
 
   group('NotificationCategory.fromKey', () {
@@ -156,6 +179,8 @@ void main() {
           NotificationCategory.rating);
       expect(NotificationCategory.fromKey('settings'),
           NotificationCategory.settings);
+      expect(NotificationCategory.fromKey('new_request'),
+          NotificationCategory.newRequest);
     });
 
     test('unknown / null fall back to other', () {

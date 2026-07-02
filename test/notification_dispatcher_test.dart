@@ -22,6 +22,10 @@ GoRouter _router() {
         path: '/settings/notifications',
         builder: (_, _) => stub('settings-notifications'),
       ),
+      GoRoute(
+        path: '/jeeber/requests/:id',
+        builder: (_, _) => stub('jeeber-request-detail'),
+      ),
     ],
   );
 }
@@ -90,6 +94,28 @@ void main() {
 
     expect(router.routerDelegate.currentConfiguration.uri.toString(),
         '/chat/c-1');
+  });
+
+  testWidgets('routes an opened new_request tap to the jeeber request screen',
+      (tester) async {
+    await _pumpRouter(tester, router);
+    dispatcher = NotificationDispatcher(handler: handler, router: router);
+
+    await tester.runAsync(() async {
+      transport.emitOpenedApp(NotificationMessage(
+        id: 'nr',
+        category: NotificationCategory.newRequest,
+        title: 't',
+        body: 'b',
+        receivedAt: DateTime.utc(2026, 5, 17),
+        data: const {'requestId': 'req-1'},
+      ));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    });
+    await tester.pumpAndSettle();
+
+    expect(router.routerDelegate.currentConfiguration.uri.toString(),
+        '/jeeber/requests/req-1');
   });
 
   testWidgets('messages with no destination do not navigate', (tester) async {

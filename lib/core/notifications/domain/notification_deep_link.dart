@@ -52,6 +52,14 @@ String? deepLinkForMessage(NotificationMessage message) {
       return '/orders/$id/rate';
     case NotificationCategory.settings:
       return '/settings/notifications';
+    case NotificationCategory.newRequest:
+      // sprint-009: `type=new_request` fan-out to the jeeb_jeebers topic carries
+      // a flat `requestId`/`request_id`. Route the jeeber to that request's
+      // screen (`/jeeber/requests/:id` already exists for push-tap entry with
+      // cache recovery + graceful fallback).
+      final id = message.data['requestId'] ?? message.data['request_id'];
+      if (id == null || id.isEmpty) return null;
+      return '/jeeber/requests/$id';
     case NotificationCategory.other:
       return null;
   }

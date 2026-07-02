@@ -182,6 +182,8 @@ class _BannerCard extends StatelessWidget {
         return Icons.star_outline;
       case NotificationCategory.settings:
         return Icons.settings_outlined;
+      case NotificationCategory.newRequest:
+        return Icons.assignment_outlined;
       case NotificationCategory.other:
         return Icons.notifications_outlined;
     }

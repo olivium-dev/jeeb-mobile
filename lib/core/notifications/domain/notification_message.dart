@@ -9,6 +9,7 @@ enum NotificationCategory {
   kyc,
   rating,
   settings,
+  newRequest,
   other;
 
   /// Maps a single wire discriminator value to a category.
@@ -37,6 +38,11 @@ enum NotificationCategory {
         return NotificationCategory.rating;
       case 'settings':
         return NotificationCategory.settings;
+      // sprint-009: the gateway broadcasts `type=new_request` to the
+      // jeeb_jeebers topic when a customer creates a request, so a jeeber's tap
+      // lands on that request's screen.
+      case 'new_request':
+        return NotificationCategory.newRequest;
       default:
         return NotificationCategory.other;
     }
