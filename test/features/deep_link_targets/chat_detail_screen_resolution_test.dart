@@ -794,4 +794,57 @@ void main() {
       },
     );
   });
+
+  // Fix 5: a compose-sentinel ('new') or empty route param has NO backend
+  // conversation yet. Both the correlationKey lookup and the messages probe are
+  // GUARANTEED 404s, so the resolver must skip BOTH and land directly in
+  // compose without touching the network.
+  group('ChatDetailScreen — compose sentinel skips guaranteed-404 probes', () {
+    late _RecordingDio sentinel;
+
+    setUp(() {
+      sentinel = _RecordingDio();
+      final sl = GetIt.instance;
+      if (sl.isRegistered<Dio>()) sl.unregister<Dio>();
+      if (sl.isRegistered<AuthTokenStore>()) sl.unregister<AuthTokenStore>();
+      sl.registerSingleton<Dio>(sentinel.dio);
+      sl.registerSingleton<AuthTokenStore>(_StubAuthTokenStore(_sessionUserId));
+    });
+
+    for (final chatId in <String>[kComposeConversationSentinel, '']) {
+      final label = chatId.isEmpty ? 'empty' : "'$chatId'";
+      testWidgets(
+        'opened with a $label chatId performs ZERO conversation-resolution '
+        'network calls and lands in compose',
+        (tester) async {
+          final role = await _roleCubit(UserRole.client);
+          addTearDown(role.close);
+
+          await tester.pumpWidget(_host(role, chatId));
+          await tester.pumpAndSettle();
+
+          // THE FIX: neither the correlationKey lookup nor the messages probe
+          // fires — the resolver short-circuits on the sentinel/empty param.
+          expect(
+            sentinel.paths.any((p) => p.startsWith('/v1/conversations')),
+            isFalse,
+            reason: 'compose sentinel must skip both guaranteed-404 probes',
+          );
+          // No HTTP at all is issued during resolution.
+          expect(
+            sentinel.requests,
+            isEmpty,
+            reason: 'a fresh compose must not touch the network',
+          );
+
+          // Still the client compose surface: the gateway holds the sentinel and
+          // the first send creates + broadcasts the request.
+          final chatScreen =
+              tester.widget<ChatScreen>(find.byType(ChatScreen));
+          expect(chatScreen.deliveryId, kComposeConversationSentinel);
+          expect(chatScreen.onFirstMessageBroadcast, isNotNull);
+        },
+      );
+    }
+  });
 }

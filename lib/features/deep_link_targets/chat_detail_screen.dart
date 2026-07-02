@@ -243,8 +243,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // conversationId param (e.g. the dashboard active-delivery `chatRouteId`).
     // This drops the old role-based ordering that ran the probe FIRST for the
     // jeeber and 404'd on a requestId push tap (physical-run14 chat-load 404).
-    if (!await resolveByCorrelationKey()) {
-      await resolveByMessagesProbe();
+    // Fix 5: a compose-sentinel ('new') or empty route param has NO backend
+    // conversation yet — both the correlationKey lookup and the messages probe
+    // are GUARANTEED 404s (there is nothing to resolve until the first message
+    // creates + broadcasts the request, JM-025 AC1). Skip BOTH probes and land
+    // directly in compose (conversationData stays null) so a fresh compose
+    // never fires two doomed round-trips.
+    final isComposeSentinel =
+        widget.chatId.isEmpty || widget.chatId == kComposeConversationSentinel;
+    if (!isComposeSentinel) {
+      if (!await resolveByCorrelationKey()) {
+        await resolveByMessagesProbe();
+      }
     }
 
     // Whether the correlationKey lookup / messages probe found a REAL backend
