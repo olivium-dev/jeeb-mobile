@@ -81,6 +81,31 @@ class DeviceTokenRegistrar {
     _attempt(0);
   }
 
+  /// Interactive-login trigger (run-15 root cause). The bounded poll started by
+  /// [start] can EXPIRE before the user finishes an interactive login — the FCM
+  /// token is available at cold start but the userId is not, so after
+  /// [_maxAttempts] the poller gives up and no registration ever fires. When the
+  /// session transitions to authenticated, [JeebApp] calls this to re-arm
+  /// registration once, out-of-band from the (possibly dead) poll timer.
+  ///
+  /// Idempotent: a no-op once already registered or disposed, so a double login
+  /// emission never produces a second `PUT /api/PushNotification/register`.
+  Future<void> notifyLogin() async {
+    if (_disposed || _registered) return;
+    // The poll may still be pending; cancel it so we don't race a late _attempt.
+    _retryTimer?.cancel();
+    if (_lastToken == null || _lastToken!.isEmpty) {
+      try {
+        _lastToken = await _transport.getToken();
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[push][register] notifyLogin getToken failed: $e');
+        }
+      }
+    }
+    await _register(reason: 'login');
+  }
+
   /// Poll until a logged-in userId exists, then register exactly once.
   void _attempt(int n) {
     if (_disposed || _registered) return;

@@ -280,7 +280,15 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     final session = _ownedSession;
     if (session == null) return;
     _sessionSub = session.stream.listen((state) {
-      if (state.isAuthenticated) _syncRole();
+      if (state.isAuthenticated) {
+        _syncRole();
+        // run-15: the device-registration poll started at cold start can expire
+        // before the user logs in interactively. Re-arm registration on the
+        // login transition so `PUT /api/PushNotification/register` still fires.
+        // Idempotent — a no-op once already registered.
+        final registrar = _deviceRegistrar;
+        if (registrar != null) unawaited(registrar.notifyLogin());
+      }
     });
   }
 
