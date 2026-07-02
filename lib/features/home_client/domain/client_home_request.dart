@@ -24,6 +24,11 @@ enum ClientRequestStatus {
   /// nothing is left to track. Core Flow step 7 — the correct delivered/
   /// completed final state, NOT "accepted"/in-progress.
   delivered,
+
+  /// Terminal: the request was cancelled or expired before completion. Like
+  /// [delivered] it is history — it must never linger in In Progress, nor read
+  /// as "searching" (which would falsely re-open a dead auction).
+  cancelled,
 }
 
 /// Tier badge the card renders (Flash red / Express orange / Standard blue).

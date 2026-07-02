@@ -59,5 +59,31 @@ void main() {
       expect(JeeberDeliveryStatus.atDoor.next, JeeberDeliveryStatus.done);
       expect(JeeberDeliveryStatus.done.apiValue, 'Done');
     });
+
+    test('all terminal statuses collapse to done so the != done filter drops '
+        'them (Lane C)', () {
+      for (final raw in const [
+        'Done',
+        'delivered',
+        'Delivered',
+        'Cancelled',
+        'cancelled',
+        'canceled',
+        'Expired',
+        'expired',
+        'Rated',
+        'rated',
+      ]) {
+        expect(JeeberDeliveryStatusX.fromApi(raw), JeeberDeliveryStatus.done,
+            reason: raw);
+      }
+    });
+
+    test('accepted parses to the ordered (pre-pickup) stage (Lane C)', () {
+      expect(JeeberDeliveryStatusX.fromApi('accepted'),
+          JeeberDeliveryStatus.ordered);
+      expect(JeeberDeliveryStatusX.fromApi('Accepted'),
+          JeeberDeliveryStatus.ordered);
+    });
   });
 }

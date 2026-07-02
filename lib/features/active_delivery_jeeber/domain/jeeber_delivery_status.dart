@@ -49,7 +49,9 @@ extension JeeberDeliveryStatusX on JeeberDeliveryStatus {
   /// → `ordered` (never crashes — 40_GUARDRAILS_ARCH §4 defensive parse).
   static JeeberDeliveryStatus fromApi(String value) {
     switch (value.toLowerCase().replaceAll('_', '')) {
+      // `accepted` is the pre-pickup ordered stage on the jeeber side.
       case 'ordered':
+      case 'accepted':
         return JeeberDeliveryStatus.ordered;
       case 'picked':
         return JeeberDeliveryStatus.picked;
@@ -57,7 +59,15 @@ extension JeeberDeliveryStatusX on JeeberDeliveryStatus {
         return JeeberDeliveryStatus.inTransit;
       case 'atdoor':
         return JeeberDeliveryStatus.atDoor;
+      // Terminal states all collapse to `done` so the existing `!= done`
+      // in-flight filter drops a cancelled/expired/delivered/rated delivery
+      // from the jeeber's active list instead of re-rendering it as `ordered`.
       case 'done':
+      case 'delivered':
+      case 'cancelled':
+      case 'canceled':
+      case 'expired':
+      case 'rated':
         return JeeberDeliveryStatus.done;
     }
     return JeeberDeliveryStatus.ordered;

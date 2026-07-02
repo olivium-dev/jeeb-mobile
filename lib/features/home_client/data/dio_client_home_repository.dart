@@ -70,6 +70,37 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// offers must NOT flip a request into Replies.
   static const Set<String> _liveOfferStatuses = {'pending', 'submitted', 'edited'};
 
+  /// Normalized (lowercase, underscores stripped) request statuses that are
+  /// TERMINAL for the customer — the request left the active funnel. These are
+  /// history (surfaced via recent deliveries), so they must NEVER be bucketed
+  /// into Pending / Replies / In Progress. Pre-fix, a cancelled/expired request
+  /// with no live offers fell through to Pending and re-armed a dead auction.
+  static const Set<String> _terminalRequestStatuses = {
+    'cancelled',
+    'canceled',
+    'expired',
+    'delivered',
+    'done',
+    'rated',
+  };
+
+  /// Normalized request statuses that mean a shipment is already on the road —
+  /// the row is In Progress with a mapped delivery stage, not a Pending/Replies
+  /// auction. `matched` is the moment an offer was accepted (== accepted).
+  static const Set<String> _inFlightRequestStatuses = {
+    'picked',
+    'pickedup',
+    'intransit',
+    'atdoor',
+    'headingoff',
+    'matched',
+  };
+
+  /// Lowercase a status and strip underscores so `In_Transit`, `IN_TRANSIT`,
+  /// `InTransit` and `intransit` all compare equal (40_GUARDRAILS_ARCH §4).
+  static String _normalizeStatus(Object? status) =>
+      (status is String ? status : '').toLowerCase().replaceAll('_', '');
+
   @override
   Future<ClientHomeSnapshot> loadSnapshot() async {
     final results = await Future.wait([
@@ -84,10 +115,13 @@ class DioClientHomeRepository implements ClientHomeRepository {
 
     // Merge accepted orders into In Progress, deduped against any live shipment
     // by id so the same order never renders twice. A delivery that already
-    // reached its terminal `Done` state (V3 step 7) is NOT in progress — drop
-    // it from the active list so a completed order never lingers as "active".
+    // reached a terminal state (V3 `Done` → delivered, or cancelled/expired) is
+    // NOT in progress — drop it from the active list so a completed or dead
+    // order never lingers as "active".
     final activeShipments = shipments
-        .where((r) => r.status != ClientRequestStatus.delivered)
+        .where((r) =>
+            r.status != ClientRequestStatus.delivered &&
+            r.status != ClientRequestStatus.cancelled)
         .toList(growable: false);
     final shipmentIds = activeShipments.map((r) => r.id).toSet();
     final inProgress = <ClientHomeRequest>[
@@ -147,8 +181,23 @@ class DioClientHomeRepository implements ClientHomeRepository {
       final candidates = <Map<String, dynamic>>[];
       for (final raw in rawItems) {
         if (raw is! Map<String, dynamic>) continue;
-        if (DioAcceptedConversationsRepository.isAcceptedStatus(raw['status'])) {
-          final request = _parseRequest(raw, status: 'accepted');
+        final rawStatus = raw['status'];
+        final normalized = _normalizeStatus(rawStatus);
+        // Terminal (cancelled/expired/delivered/done/rated) → history. Drop it
+        // from the auction buckets entirely so a dead request never re-surfaces
+        // as Pending/Replies.
+        if (_terminalRequestStatuses.contains(normalized)) {
+          continue;
+        }
+        // Accepted (offer accepted, no shipment yet) OR already in-flight →
+        // In Progress. Accepted keeps its chat-re-entry semantics; an in-flight
+        // row carries its mapped delivery stage (atPickup / enRoute).
+        if (DioAcceptedConversationsRepository.isAcceptedStatus(rawStatus)) {
+          final request = _parseRequest(raw, status: ClientRequestStatus.accepted);
+          if (request != null) accepted.add(request);
+        } else if (_inFlightRequestStatuses.contains(normalized)) {
+          final request =
+              _parseRequest(raw, status: _mapDeliveryStatus(rawStatus as String?));
           if (request != null) accepted.add(request);
         } else {
           candidates.add(raw);
@@ -170,7 +219,9 @@ class DioClientHomeRepository implements ClientHomeRepository {
         final isReply = offerCount > 0;
         final request = _parseRequest(
           raw,
-          status: isReply ? 'offers-received' : 'pending',
+          status: isReply
+              ? ClientRequestStatus.offersReceived
+              : ClientRequestStatus.searching,
           offerCountOverride: offerCount,
         );
         if (request == null) continue;
@@ -305,7 +356,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
 
   static ClientHomeRequest? _parseRequest(
     Map<String, dynamic> json, {
-    required String status,
+    required ClientRequestStatus status,
     int? offerCountOverride,
   }) {
     final id = json['id'] as String?;
@@ -325,7 +376,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
           json['title'] as String? ??
           json['description'] as String? ??
           'Request $id',
-      status: _mapRequestStatus(status),
+      status: status,
       destinationLabel: destination,
       tier: ClientRequestTier.parse(
         json['tier'] as String? ?? json['tierId'] as String?,
@@ -336,17 +387,6 @@ class DioClientHomeRepository implements ClientHomeRepository {
       conversationId: json['conversationId'] as String?,
       ttlSeconds: (json['ttlSeconds'] as num?)?.toInt(),
     );
-  }
-
-  static ClientRequestStatus _mapRequestStatus(String bucket) {
-    switch (bucket) {
-      case 'accepted':
-        return ClientRequestStatus.accepted;
-      case 'offers-received':
-        return ClientRequestStatus.offersReceived;
-      default:
-        return ClientRequestStatus.searching;
-    }
   }
 
   static RecentDeliverySummary? _parseRecentDelivery(
@@ -372,30 +412,38 @@ class DioClientHomeRepository implements ClientHomeRepository {
     );
   }
 
+  /// Map a gateway delivery stage → the customer-facing [ClientRequestStatus].
+  /// Normalized (lowercase, no underscores) so CapitalCase (`InTransit`),
+  /// snake (`in_transit`) and lowercase (`intransit`) all resolve.
   static ClientRequestStatus _mapDeliveryStatus(String? status) {
-    switch (status) {
-      case 'Ordered':
+    switch (_normalizeStatus(status)) {
+      case 'ordered':
+      case 'matched':
         return ClientRequestStatus.searching;
-      case 'Picked':
+      case 'picked':
+      case 'pickedup':
         return ClientRequestStatus.atPickup;
-      case 'InTransit':
-        return ClientRequestStatus.enRoute;
-      case 'AtDoor':
+      case 'intransit':
+      case 'atdoor':
+      case 'headingoff':
         return ClientRequestStatus.enRoute;
       // V3 `Done` is the delivered/completed TERMINAL (Core Flow step 7). It
       // must NOT collapse back to `accepted` (which reads as in-progress and
       // never clears) — surface it as the delivered final state. Tolerate the
       // legacy lowercase `delivered`/`completed` aliases too.
-      case 'Done':
+      case 'done':
       case 'delivered':
-      case 'Delivered':
       case 'completed':
-      case 'Completed':
+      case 'rated':
         return ClientRequestStatus.delivered;
-      case 'FailedNeedsEscalation':
+      case 'failedneedsescalation':
         return ClientRequestStatus.accepted;
-      case 'Cancelled':
-        return ClientRequestStatus.searching;
+      // Cancelled/expired are terminal — a REAL cancelled state, never
+      // `searching` (which would falsely re-open a dead auction).
+      case 'cancelled':
+      case 'canceled':
+      case 'expired':
+        return ClientRequestStatus.cancelled;
       default:
         return ClientRequestStatus.searching;
     }

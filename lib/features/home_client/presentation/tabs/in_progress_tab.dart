@@ -222,6 +222,10 @@ class _InProgressList extends StatelessWidget {
         return l10n.homeStageInTransit;
       case ClientRequestStatus.delivered:
         return l10n.deliveryStageDelivered;
+      case ClientRequestStatus.cancelled:
+        // Terminal; filtered out of In Progress upstream, so this is a
+        // defensive label only (keeps the switch exhaustive).
+        return l10n.deliveryStageCancelled;
     }
   }
 }
