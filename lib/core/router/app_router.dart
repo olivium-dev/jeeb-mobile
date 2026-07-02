@@ -61,8 +61,8 @@ import '../../features/jeeber_home/domain/services/request_feed_service.dart';
 import '../../features/jeeber_onboarding/application/dm_onboarding_state.dart';
 import '../../features/jeeber_onboarding/presentation/dm_onboarding_screen.dart';
 import '../../features/jeeber_request_detail/domain/services/prohibited_item_report_service.dart';
-import '../../features/jeeber_request_detail/presentation/jeeber_request_detail_screen.dart';
-import '../../features/jeeber_request_detail/presentation/jeeber_request_unavailable_screen.dart';
+import '../../features/jeeber_request_detail/presentation/jeeber_request_detail_loader.dart';
+import '../../features/jeeber_request_feed/data/request_feed_repository.dart';
 import '../../features/live_tracking/application/live_tracking_cubit.dart';
 import '../../features/live_tracking/data/demo_live_tracking_repository.dart';
 import '../../features/live_tracking/domain/live_tracking_repository.dart';
@@ -932,39 +932,36 @@ class AppRouter {
           //      [FeedRequest] payload via `extra` so the detail screen
           //      renders without a round-trip.
           //   2. Push notification tap — no `extra`, just the id in the
-          //      path. We recover the payload from the
-          //      [RequestFeedService] cache the dashboard subscription
-          //      keeps warm. The request may already have been closed
-          //      (matched / cancelled / expired) between the push
-          //      enqueue and the user's tap, in which case we surface
-          //      the "no longer available" screen instead of crashing.
+          //      path. We first try the warm [RequestFeedService] cache the
+          //      dashboard subscription keeps hot; on a miss (run-20 pushD:
+          //      the request was created seconds before the tap, AFTER the
+          //      cache was last populated) we FETCH it by id from the jeeber
+          //      discovery feed via [_recoverFeedRequestById]. A genuinely
+          //      missing/expired request (fetch returns null or throws) still
+          //      surfaces the graceful "no longer available" screen.
           builder: (context, state) {
             final id = state.pathParameters['id'] ?? '';
             final extra = state.extra;
-            final fromExtra = extra is FeedRequest ? extra : null;
-            final resolved =
-                fromExtra ??
-                (sl.isRegistered<RequestFeedService>()
+            final cached = extra is FeedRequest
+                ? extra
+                : (sl.isRegistered<RequestFeedService>()
                     ? sl<RequestFeedService>().findById(id)
                     : null);
-            if (resolved == null) {
-              return JeeberRequestUnavailableScreen(
-                requestId: id,
-                onBack: () {
-                  if (context.canPop()) {
-                    context.pop();
-                  } else {
-                    context.go('/');
-                  }
-                },
-              );
+            void back() {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/');
+              }
             }
-            return JeeberRequestDetailScreen(
-              request: resolved,
+
+            return JeeberRequestDetailLoader(
+              requestId: id,
+              initial: cached,
+              fetch: () => _recoverFeedRequestById(id),
               reportService: sl<ProhibitedItemReportService>(),
-              onDeclined: (_) {
-                if (context.canPop()) context.pop();
-              },
+              onDeclined: (_) => back(),
+              onBack: back,
             );
           },
         ),
@@ -1386,4 +1383,27 @@ class _MergedRefreshListenable extends ChangeNotifier {
     }
     super.dispose();
   }
+}
+
+/// Recovers the [FeedRequest] for [id] from the jeeber discovery feed
+/// (`GET /v1/jeebers/me/feed?status=pending`, reused verbatim via
+/// [RequestFeedRepository.refresh]) so a PUSH tap — which carries only the id
+/// and lands after the warm feed cache was last populated — still resolves to
+/// the request detail (run-20 pushD gap).
+///
+/// This is the SAME jeeber-scoped, authz-safe feed the dashboard reads (the
+/// server-side visibility predicate already gates it to `online + pending +
+/// clientId != jeeberId`), and the id→[FeedRequest] mapping is identical to the
+/// dashboard's feed-row tap. Returns null when the id is not among the jeeber's
+/// visible pending requests (matched / expired / offline) so the caller keeps
+/// the graceful unavailable fallback.
+Future<FeedRequest?> _recoverFeedRequestById(String id) async {
+  if (id.isEmpty || !sl.isRegistered<RequestFeedRepository>()) return null;
+  final requests = await sl<RequestFeedRepository>().refresh();
+  for (final request in requests) {
+    if (request.id == id) {
+      return FeedRequest(id: request.id, shortLabel: request.pickup.label);
+    }
+  }
+  return null;
 }
