@@ -140,6 +140,28 @@ String? normalizeChatDeepLink(Uri uri) {
   return id.isEmpty ? null : '/chat/$id';
 }
 
+/// Folds a generic `jeeb://<host>/<path...>` custom-scheme VIEW intent into the
+/// canonical in-app route by treating the URI host as the FIRST path segment.
+///
+/// A `VIEW` intent like `jeeb://jeeber/requests/<id>/offer` parses to
+/// `scheme=jeeb, host=jeeber, path=/requests/<id>/offer`. go_router matches on
+/// `state.uri.path`, which is only `/requests/<id>/offer` — the `jeeber` host is
+/// dropped, so the route never resolves. Worse, a naive `'/' + host + '/' +
+/// path` produced a double slash (`/jeeber//requests/...`). We rebuild the path
+/// as `/<host><path>` (path already carries its own leading slash), preserving
+/// any query string.
+///
+/// Returns `null` for non-`jeeb` schemes (HTTPS App Links are left to go_router
+/// native matching) and for host-less `jeeb:/…` URIs (nothing to fold in).
+/// [normalizeChatDeepLink] is applied first, so `jeeb://chat/<id>` keeps its
+/// dedicated handling; this is the general fallback for every other host.
+@visibleForTesting
+String? normalizeJeebSchemeDeepLink(Uri uri) {
+  if (uri.scheme != 'jeeb' || uri.host.isEmpty) return null;
+  final path = '/${uri.host}${uri.path}';
+  return uri.hasQuery ? '$path?${uri.query}' : path;
+}
+
 class AppRouter {
   AppRouter._();
 
@@ -361,7 +383,8 @@ class AppRouter {
         // the chat id as the URI host+segment; normalize it to `/chat/:id` so
         // `chat-detail` resolves the accepted conversation in-app. Inert for
         // in-app navigation and https App Links (already `/chat/<id>`).
-        final chatDeepLink = normalizeChatDeepLink(state.uri);
+        final chatDeepLink = normalizeChatDeepLink(state.uri) ??
+            normalizeJeebSchemeDeepLink(state.uri);
         if (chatDeepLink != null && state.matchedLocation != chatDeepLink) {
           return chatDeepLink;
         }

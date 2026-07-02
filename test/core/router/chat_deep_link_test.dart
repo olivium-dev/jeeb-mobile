@@ -32,4 +32,46 @@ void main() {
       expect(normalizeChatDeepLink(Uri.parse('jeeb://orders/o-1')), isNull);
     });
   });
+
+  group('normalizeJeebSchemeDeepLink (double-slash fold)', () {
+    test('folds host into path: jeeb://jeeber/requests/abc/offer', () {
+      expect(
+        normalizeJeebSchemeDeepLink(
+          Uri.parse('jeeb://jeeber/requests/abc/offer'),
+        ),
+        '/jeeber/requests/abc/offer',
+      );
+    });
+
+    test('host with no trailing path → /<host>', () {
+      expect(
+        normalizeJeebSchemeDeepLink(Uri.parse('jeeb://orders')),
+        '/orders',
+      );
+    });
+
+    test('preserves the query string', () {
+      expect(
+        normalizeJeebSchemeDeepLink(
+          Uri.parse('jeeb://jeeber/requests/abc/offer?from=push'),
+        ),
+        '/jeeber/requests/abc/offer?from=push',
+      );
+    });
+
+    test('https App Links are left for go_router native matching → null', () {
+      expect(
+        normalizeJeebSchemeDeepLink(
+          Uri.parse('https://jeeb.app/jeeber/requests/abc/offer'),
+        ),
+        isNull,
+      );
+    });
+
+    test('host-less jeeb:/ URIs → null', () {
+      expect(normalizeJeebSchemeDeepLink(Uri.parse('jeeb:/')), isNull);
+      expect(normalizeJeebSchemeDeepLink(Uri.parse('jeeb:/requests/abc')),
+          isNull);
+    });
+  });
 }
