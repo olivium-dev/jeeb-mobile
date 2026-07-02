@@ -17,6 +17,7 @@ import '../../features/earnings/data/dio_earnings_repository.dart';
 import '../../features/earnings/domain/earnings_repository.dart';
 import '../../features/home_client/data/dio_client_home_repository.dart';
 import '../../features/home_client/domain/client_home_repository.dart';
+import '../notifications/application/offer_lifecycle_signals.dart';
 import '../notifications/application/push_refresh_signals.dart';
 import '../../features/jeeber_home/data/dio_availability_gateway.dart';
 import '../../features/jeeber_home/domain/services/availability_gateway.dart';
@@ -123,6 +124,11 @@ void configureDependencies({
   // status-change signal; the customer home / tracking cubits subscribe and
   // re-pull. Single shared instance so both sides see the same stream.
   sl.registerLazySingleton<PushRefreshSignals>(() => PushRefreshSignals());
+
+  // Offer-lifecycle bus (sprint-009): the push handler publishes an
+  // offer_accepted/offer_lost event; the jeeber's pending-offers list
+  // subscribes, flips the row badge, and re-pulls. Shared single instance.
+  sl.registerLazySingleton<OfferLifecycleSignals>(() => OfferLifecycleSignals());
 
   // BUG-7 (physical-run6): inject the local profile store so a successful
   // phone-OTP verify PERSISTS the signed-in E.164 phone to `settings.profile.v1`

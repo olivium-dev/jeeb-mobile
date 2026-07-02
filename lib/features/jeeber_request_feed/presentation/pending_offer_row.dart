@@ -46,13 +46,20 @@ class PendingOfferRow extends StatelessWidget {
           children: [
             _PriceEtaRow(index: index, offer: offer),
             const SizedBox(height: Spacing.twoXSmall),
-            _AwaitingLabel(),
-            const SizedBox(height: Spacing.small),
-            _WithdrawAction(
-              index: index,
-              isWithdrawing: isWithdrawing,
-              onWithdraw: onWithdraw,
-            ),
+            // sprint-009: a terminal offer (accepted / lost) shows an outcome
+            // badge and NO withdraw control; a still-open offer keeps the
+            // "awaiting" label + Withdraw (unchanged contract).
+            if (offer.status.isTerminal)
+              _StatusBadge(index: index, status: offer.status)
+            else ...[
+              _AwaitingLabel(),
+              const SizedBox(height: Spacing.small),
+              _WithdrawAction(
+                index: index,
+                isWithdrawing: isWithdrawing,
+                onWithdraw: onWithdraw,
+              ),
+            ],
             Padding(
               padding: const EdgeInsetsDirectional.only(top: Spacing.small),
               child: Divider(height: 1, color: colorScheme.outlineVariant),
@@ -132,6 +139,59 @@ class _EtaText extends StatelessWidget {
           color: theme.colorScheme.onSurfaceVariant,
         ),
         maxLines: 1,
+      ),
+    );
+  }
+}
+
+/// sprint-009 offer-lifecycle outcome badge for a TERMINAL offer. Carries the
+/// stable `pending_offer_<index>_status` id so a Maestro flow can assert the
+/// customer's decision. Reuses the closest existing localized strings
+/// (`requestStatusAccepted` / `requestFeedActionDeclinedSnack`) — the asserted
+/// contract is the Semantics id, not the visible text (i18n-safe, integrator
+/// owns the dedicated ARB keys).
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.index, required this.status});
+
+  final int index;
+  final OfferStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final isAccepted = status == OfferStatus.accepted;
+    final label = isAccepted
+        ? l10n.requestStatusAccepted
+        : l10n.requestFeedActionDeclinedSnack;
+    final fg = isAccepted
+        ? theme.colorScheme.onSecondaryContainer
+        : theme.colorScheme.onSurfaceVariant;
+    final bg = isAccepted
+        ? theme.colorScheme.secondaryContainer
+        : theme.colorScheme.surfaceContainerHighest;
+    return Semantics(
+      identifier: 'pending_offer_${index}_status',
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: Container(
+          padding: const EdgeInsetsDirectional.symmetric(
+            horizontal: Spacing.small,
+            vertical: Spacing.twoXSmall,
+          ),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: OmdsBorderRadius.pill,
+          ),
+          child: Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: fg,
+              fontWeight: FontWeight.w600,
+            ),
+            maxLines: 1,
+          ),
+        ),
       ),
     );
   }

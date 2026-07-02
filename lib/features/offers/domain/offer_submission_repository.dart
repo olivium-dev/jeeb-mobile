@@ -43,8 +43,17 @@ enum OfferSubmissionFailure {
   /// Price ≤ 0 or ETA outside tier window — blocked client-side.
   invalidInput,
 
-  /// The request was already claimed / cancelled before the offer landed.
+  /// The request was already claimed / cancelled before the offer landed, OR
+  /// the gateway reports `request-not-open-for-offers` (409) — the auction is
+  /// closed for this jeeber, so the view bounces back to the feed.
   requestGone,
+
+  /// sprint-009: 409 with the offer-cap discriminator — this jeeber already has
+  /// the maximum live offers (20-offer cap). UNLIKE [requestGone] this is a
+  /// per-jeeber throttle, not a dead request: the composer STAYS put and shows a
+  /// distinct "you've reached the offer limit" message so the jeeber can
+  /// withdraw an existing offer and retry, rather than being bounced.
+  offerCapReached,
 
   /// HTTP 402 (O1) — the wallet can't cover the 10% reserve. NOT a generic
   /// error: the cubit surfaces the insufficient-balance sheet (JM-046) carrying

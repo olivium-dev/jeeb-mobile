@@ -162,9 +162,17 @@ class OfferFormCubit extends Cubit<OfferFormState> {
       ));
       return;
     }
-    final msg = e.failure == OfferSubmissionFailure.network
-        ? 'No internet connection'
-        : 'Unable to submit offer. Please try again.';
+    // sprint-009: the 20-offer cap is a distinct, actionable error — surface a
+    // dedicated message (NOT the generic "try again") so the jeeber understands
+    // they must withdraw an existing offer first. Stays in the error mode (an
+    // acknowledgeable snack), not requestGone, so the composer draft survives.
+    final msg = switch (e.failure) {
+      OfferSubmissionFailure.network => 'No internet connection',
+      OfferSubmissionFailure.offerCapReached =>
+        'You have reached the maximum of 20 live offers. '
+            'Withdraw one to submit a new offer.',
+      _ => 'Unable to submit offer. Please try again.',
+    };
     emit(state.copyWith(mode: OfferFormMode.error, errorMessage: msg));
   }
 

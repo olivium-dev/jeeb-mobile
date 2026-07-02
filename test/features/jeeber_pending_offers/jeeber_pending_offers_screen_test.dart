@@ -139,4 +139,40 @@ void main() {
     );
     expect(find.byIcon(Icons.refresh), findsOneWidget);
   });
+
+  testWidgets('sprint-009: a TERMINAL offer shows the status badge and NO '
+      'withdraw CTA; a still-open offer keeps the awaiting label + withdraw',
+      (tester) async {
+    await pump(
+      tester,
+      _ScriptedRepository(offers: [
+        const SubmittedOffer(
+          id: 'accepted-1',
+          requestId: 'r1',
+          price: 9,
+          currency: 'USD',
+          status: OfferStatus.accepted,
+        ),
+        _offer('open-1'), // default submitted
+      ]),
+    );
+
+    // Row 0 (accepted) → outcome badge, no withdraw / awaiting.
+    expect(find.bySemanticsIdentifier('pending_offer_0_status'), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('pending_offer_0_withdraw_cta'),
+      findsNothing,
+    );
+
+    // Row 1 (open) → awaiting label + withdraw, no status badge.
+    expect(
+      find.bySemanticsIdentifier('pending_offer_awaiting_label'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsIdentifier('pending_offer_1_withdraw_cta'),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsIdentifier('pending_offer_1_status'), findsNothing);
+  });
 }

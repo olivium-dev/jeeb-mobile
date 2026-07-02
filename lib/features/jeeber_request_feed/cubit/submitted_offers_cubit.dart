@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/notifications/application/offer_lifecycle_signals.dart';
+import '../domain/submitted_offer.dart';
 import '../domain/submitted_offers_repository.dart';
 import 'submitted_offers_state.dart';
 
@@ -11,11 +15,21 @@ import 'submitted_offers_state.dart';
 /// selected, so a jeeber who never opens it never hits
 /// `GET /offer-service/v1/offers?jeeberId=`.
 class SubmittedOffersCubit extends Cubit<SubmittedOffersState> {
-  SubmittedOffersCubit({required SubmittedOffersRepository repository})
-      : _repository = repository,
-        super(const SubmittedOffersState());
+  SubmittedOffersCubit({
+    required SubmittedOffersRepository repository,
+    Stream<OfferLifecycleEvent>? lifecycleSignals,
+  })  : _repository = repository,
+        super(const SubmittedOffersState()) {
+    // sprint-009: an `offer_accepted` / `offer_lost` push flips the matching
+    // row's badge immediately, then a re-pull reconciles against the server
+    // (authoritative). Absent under bare tests / dev seams where DI isn't set up.
+    if (lifecycleSignals != null) {
+      _lifecycleSub = lifecycleSignals.listen(_onLifecycleEvent);
+    }
+  }
 
   final SubmittedOffersRepository _repository;
+  StreamSubscription<OfferLifecycleEvent>? _lifecycleSub;
 
   /// Fetch the submitted offers. Shows a spinner only on the first load; a
   /// pull-to-refresh re-fetch keeps the current list on screen.
@@ -58,5 +72,33 @@ class SubmittedOffersCubit extends Cubit<SubmittedOffersState> {
       offers: state.offers.where((o) => o.id != offerId).toList(growable: false),
       withdrawingIds: clearedBusy,
     ));
+  }
+
+  /// Flip [offerId]'s badge to [status] in place (optimistic), then re-pull the
+  /// authoritative list. A no-op flip when the row isn't present (the re-pull
+  /// still runs so a just-decided offer that isn't in the current list appears).
+  Future<void> applyOfferLifecycle(String offerId, OfferStatus status) async {
+    final index = state.offers.indexWhere((o) => o.id == offerId);
+    if (index != -1) {
+      final flipped = [...state.offers];
+      flipped[index] = flipped[index].copyWith(status: status);
+      if (!isClosed) {
+        emit(state.copyWith(offers: flipped));
+      }
+    }
+    await load();
+  }
+
+  void _onLifecycleEvent(OfferLifecycleEvent event) {
+    unawaited(applyOfferLifecycle(
+      event.offerId,
+      event.accepted ? OfferStatus.accepted : OfferStatus.lost,
+    ));
+  }
+
+  @override
+  Future<void> close() {
+    _lifecycleSub?.cancel();
+    return super.close();
   }
 }

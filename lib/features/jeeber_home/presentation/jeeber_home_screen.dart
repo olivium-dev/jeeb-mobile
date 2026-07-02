@@ -5,6 +5,7 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/notifications/application/offer_lifecycle_signals.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../jeeber_request_feed/cubit/request_feed_cubit.dart';
 import '../../jeeber_request_feed/cubit/request_feed_state.dart';
@@ -139,6 +140,11 @@ class _JeeberHomeScreenState extends State<JeeberHomeScreen> {
               ? sl<AuthTokenStore>()
               : null,
         ),
+        // sprint-009: the feed's Pending-Response sub-tab reacts to
+        // offer_accepted/offer_lost pushes the same way the standalone list does.
+        lifecycleSignals: sl.isRegistered<OfferLifecycleSignals>()
+            ? sl<OfferLifecycleSignals>().stream
+            : null,
       );
     }
     return _submittedOffersCubit;

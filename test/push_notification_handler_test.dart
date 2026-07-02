@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/notifications/application/badge_count_cubit.dart';
+import 'package:jeeb_mobile/core/notifications/application/offer_lifecycle_signals.dart';
 import 'package:jeeb_mobile/core/notifications/application/push_notification_handler.dart';
 import 'package:jeeb_mobile/core/notifications/application/push_refresh_signals.dart';
 import 'package:jeeb_mobile/core/notifications/data/push_transport.dart';
@@ -168,6 +169,81 @@ void main() {
         receivedAt: DateTime.utc(2026, 5, 17),
       );
       expect(await countSignalsFor(noId), 0);
+    });
+  });
+
+  group('offer-lifecycle signal (sprint-009)', () {
+    Future<List<OfferLifecycleEvent>> eventsFor(
+      NotificationMessage message,
+    ) async {
+      final t = FakePushTransport(token: 'tok-o');
+      final b = BadgeCountCubit();
+      final bus = OfferLifecycleSignals();
+      final events = <OfferLifecycleEvent>[];
+      final sub = bus.stream.listen(events.add);
+      final h = PushNotificationHandler(
+        transport: t,
+        badgeCount: b,
+        offerLifecycleSignals: bus,
+      );
+      addTearDown(() async {
+        await sub.cancel();
+        await h.close();
+        await b.close();
+        await bus.dispose();
+      });
+      t.emitForeground(message);
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      return events;
+    }
+
+    NotificationMessage offerMsg(
+      String id, {
+      required NotificationCategory category,
+      Map<String, String> data = const {'offerId': 'off-1'},
+    }) {
+      return NotificationMessage(
+        id: id,
+        category: category,
+        title: 'Offer update',
+        body: 'b',
+        receivedAt: DateTime.utc(2026, 5, 17),
+        data: data,
+      );
+    }
+
+    test('offer_accepted push signals accepted=true with the offerId',
+        () async {
+      final events = await eventsFor(
+        offerMsg('o1', category: NotificationCategory.offerAccepted),
+      );
+      expect(events, hasLength(1));
+      expect(events.single.offerId, 'off-1');
+      expect(events.single.accepted, isTrue);
+    });
+
+    test('offer_lost push signals accepted=false', () async {
+      final events = await eventsFor(
+        offerMsg('o2', category: NotificationCategory.offerLost),
+      );
+      expect(events, hasLength(1));
+      expect(events.single.accepted, isFalse);
+    });
+
+    test('an offer push with no offerId does NOT signal (tap still routes to '
+        'the list)', () async {
+      final events = await eventsFor(
+        offerMsg('o3',
+            category: NotificationCategory.offerAccepted, data: const {}),
+      );
+      expect(events, isEmpty);
+    });
+
+    test('a non-offer (delivery) push does NOT signal the offer bus', () async {
+      final events = await eventsFor(
+        offerMsg('o4', category: NotificationCategory.delivery),
+      );
+      expect(events, isEmpty);
     });
   });
 }

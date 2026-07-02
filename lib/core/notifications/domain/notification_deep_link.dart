@@ -60,6 +60,18 @@ String? deepLinkForMessage(NotificationMessage message) {
       final id = message.data['requestId'] ?? message.data['request_id'];
       if (id == null || id.isEmpty) return null;
       return '/jeeber/requests/$id';
+    case NotificationCategory.offerAccepted:
+    case NotificationCategory.offerLost:
+      // sprint-009 offer-lifecycle: an accept/lost push lands the jeeber on its
+      // pending-offers surface (route `jeeber-pending-offers`), where the list
+      // re-pulls and the affected row flips to Accepted / Not selected. The
+      // gateway ships a ready `deepLink` (jeeb://offers/{offerId}) and a flat
+      // `offerId`, but the offers list is self-scoped (`GET /v1/offers?jeeberId`)
+      // and keys rows by index, so there is no per-offer route to target — the
+      // stable surface is the list itself. Routing to a constant destination
+      // (no id required) means an accept/lost tap can never no-op on a missing
+      // id, unlike the delivery/chat/new_request cases.
+      return '/jeeber/pending-offers';
     case NotificationCategory.other:
       return null;
   }

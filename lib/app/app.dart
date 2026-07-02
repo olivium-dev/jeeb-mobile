@@ -19,6 +19,7 @@ import '../core/notifications/application/badge_count_cubit.dart';
 import '../core/di/injection_container.dart';
 import '../core/notifications/application/notification_dispatcher.dart';
 import '../core/notifications/application/push_notification_handler.dart';
+import '../core/notifications/application/offer_lifecycle_signals.dart';
 import '../core/notifications/application/push_refresh_signals.dart';
 import '../core/notifications/data/device_token_registrar.dart';
 import '../core/notifications/data/firebase_messaging_transport.dart';
@@ -366,6 +367,11 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       // / tracking surfaces refetch promptly (sprint-009 live refresh).
       refreshSignals: sl.isRegistered<PushRefreshSignals>()
           ? sl<PushRefreshSignals>()
+          : null,
+      // Publish an offer-lifecycle signal on offer_accepted/offer_lost pushes so
+      // the jeeber's pending-offers list flips the row + re-pulls (sprint-009).
+      offerLifecycleSignals: sl.isRegistered<OfferLifecycleSignals>()
+          ? sl<OfferLifecycleSignals>()
           : null,
     );
     if (injectedRegistrar == null && transport is FirebaseMessagingTransport) {

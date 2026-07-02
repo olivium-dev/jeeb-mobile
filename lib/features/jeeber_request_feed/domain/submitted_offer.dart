@@ -1,5 +1,48 @@
 import 'package:equatable/equatable.dart';
 
+/// Lifecycle state of a jeeber's submitted offer (sprint-009 offer-lifecycle).
+///
+/// The gateway's `GET /v1/offers?jeeberId=` returns a `status` string per offer;
+/// the two terminal customer decisions (`accepted` / `lost`) now surface in the
+/// pending-offers list as badges instead of being filtered out — the jeeber
+/// sees the outcome of every bid, not only the ones still open.
+enum OfferStatus {
+  /// Awaiting the customer's decision — the row shows Withdraw.
+  submitted,
+
+  /// The customer accepted THIS offer (`offer_accepted` push / status
+  /// `accepted`). Terminal — no Withdraw; badge reads "Accepted".
+  accepted,
+
+  /// The customer accepted someone else's offer (`offer_lost` push / status
+  /// `lost`/`rejected`). Terminal — no Withdraw; badge reads "Not selected".
+  lost;
+
+  /// Maps a wire `status` string (offer-service / gateway) to a lifecycle
+  /// state. Unknown/absent values fall back to [submitted] so a legacy row
+  /// still renders as awaiting rather than vanishing.
+  static OfferStatus fromWire(String? raw) {
+    switch (raw?.toLowerCase().replaceAll('_', '')) {
+      case 'accepted':
+      case 'accept':
+        return OfferStatus.accepted;
+      case 'lost':
+      case 'rejected':
+      case 'declined':
+      case 'notselected':
+        return OfferStatus.lost;
+      case 'submitted':
+      case 'pending':
+      case 'open':
+      case 'live':
+      default:
+        return OfferStatus.submitted;
+    }
+  }
+
+  bool get isTerminal => this != OfferStatus.submitted;
+}
+
 /// One offer the jeeber has SUBMITTED that is awaiting a customer decision —
 /// the row data behind the feed's Pending-Response sub-tab (JM-047/048).
 ///
@@ -16,6 +59,7 @@ class SubmittedOffer extends Equatable {
     required this.currency,
     this.etaMinutes,
     this.note,
+    this.status = OfferStatus.submitted,
   });
 
   /// Stable offer id. Used for the `pending_offer_<index>` row Semantics and
@@ -39,6 +83,26 @@ class SubmittedOffer extends Equatable {
   /// Optional free-text note the jeeber attached to the offer.
   final String? note;
 
+  /// Lifecycle state (sprint-009). Defaults to [OfferStatus.submitted] so
+  /// existing call sites and fixtures keep their prior "awaiting" semantics.
+  final OfferStatus status;
+
+  /// Returns a copy with [status] replaced — used to flip a row's badge in
+  /// place when an `offer_accepted` / `offer_lost` push lands before the next
+  /// authoritative re-pull.
+  SubmittedOffer copyWith({OfferStatus? status}) {
+    return SubmittedOffer(
+      id: id,
+      requestId: requestId,
+      price: price,
+      currency: currency,
+      etaMinutes: etaMinutes,
+      note: note,
+      status: status ?? this.status,
+    );
+  }
+
   @override
-  List<Object?> get props => [id, requestId, price, currency, etaMinutes, note];
+  List<Object?> get props =>
+      [id, requestId, price, currency, etaMinutes, note, status];
 }

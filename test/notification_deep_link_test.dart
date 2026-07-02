@@ -167,6 +167,34 @@ void main() {
       ));
       expect(path, isNull);
     });
+
+    test('offer_accepted routes to the jeeber pending-offers surface', () {
+      final path = deepLinkForMessage(_msg(
+        category: NotificationCategory.offerAccepted,
+        data: const {'offerId': 'off-1', 'requestId': 'req-1'},
+      ));
+      expect(path, '/jeeber/pending-offers');
+    });
+
+    test('offer_lost routes to the jeeber pending-offers surface', () {
+      final path = deepLinkForMessage(_msg(
+        category: NotificationCategory.offerLost,
+        data: const {'offerId': 'off-1'},
+      ));
+      expect(path, '/jeeber/pending-offers');
+    });
+
+    test('offer_accepted/lost route even WITHOUT any id (constant surface, '
+        'never a silent no-op)', () {
+      expect(
+        deepLinkForMessage(_msg(category: NotificationCategory.offerAccepted)),
+        '/jeeber/pending-offers',
+      );
+      expect(
+        deepLinkForMessage(_msg(category: NotificationCategory.offerLost)),
+        '/jeeber/pending-offers',
+      );
+    });
   });
 
   group('NotificationCategory.fromKey', () {
@@ -181,6 +209,25 @@ void main() {
           NotificationCategory.settings);
       expect(NotificationCategory.fromKey('new_request'),
           NotificationCategory.newRequest);
+      expect(NotificationCategory.fromKey('offer_accepted'),
+          NotificationCategory.offerAccepted);
+      expect(NotificationCategory.fromKey('offer_lost'),
+          NotificationCategory.offerLost);
+    });
+
+    test('fromData resolves the offer-lifecycle type discriminator', () {
+      expect(
+        NotificationCategory.fromData(
+          const {'type': 'offer_accepted', 'offerId': 'off-9'},
+        ),
+        NotificationCategory.offerAccepted,
+      );
+      expect(
+        NotificationCategory.fromData(
+          const {'type': 'offer_lost', 'offerId': 'off-9'},
+        ),
+        NotificationCategory.offerLost,
+      );
     });
 
     test('unknown / null fall back to other', () {

@@ -223,8 +223,7 @@ void main() {
       );
     });
 
-    test('409 (no longer accepting offers / duplicate / cap) → requestGone',
-        () async {
+    test('bare 409 (no discriminator) → requestGone', () async {
       when(() => dio.post<Map<String, dynamic>>(
             any(),
             data: any(named: 'data'),
@@ -236,6 +235,46 @@ void main() {
           (e) => e.failure,
           'failure',
           OfferSubmissionFailure.requestGone,
+        )),
+      );
+    });
+
+    test('409 request-not-open-for-offers → requestGone (bounce to feed), '
+        'NOT the cap', () async {
+      when(() => dio.post<Map<String, dynamic>>(
+            any(),
+            data: any(named: 'data'),
+          )).thenThrow(_err(409, body: {
+        'type': 'request-not-open-for-offers',
+        'title': 'Request is not open for offers',
+      }));
+
+      await expectLater(
+        repo.submitOffer(requestId: 'req-1', priceUsd: 5, etaMinutes: 10),
+        throwsA(isA<OfferSubmissionException>().having(
+          (e) => e.failure,
+          'failure',
+          OfferSubmissionFailure.requestGone,
+        )),
+      );
+    });
+
+    test('409 offer-cap-reached → offerCapReached (keep composer), distinct '
+        'from request-not-open', () async {
+      when(() => dio.post<Map<String, dynamic>>(
+            any(),
+            data: any(named: 'data'),
+          )).thenThrow(_err(409, body: {
+        'type': 'offer-cap-reached',
+        'detail': 'You already have the maximum of 20 live offers',
+      }));
+
+      await expectLater(
+        repo.submitOffer(requestId: 'req-1', priceUsd: 5, etaMinutes: 10),
+        throwsA(isA<OfferSubmissionException>().having(
+          (e) => e.failure,
+          'failure',
+          OfferSubmissionFailure.offerCapReached,
         )),
       );
     });

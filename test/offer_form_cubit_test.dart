@@ -159,6 +159,34 @@ void main() {
     );
 
     blocTest<OfferFormCubit, OfferFormState>(
+      'offer-cap (409 offer-cap-reached) emits a DISTINCT error message and '
+      'KEEPS the composer (not requestGone)',
+      build: () => OfferFormCubit(
+        repository: _FakeOfferRepo(
+          throws: const OfferSubmissionException(
+            OfferSubmissionFailure.offerCapReached,
+          ),
+        ),
+      ),
+      act: (c) => c.submit(
+        requestId: 'req-capped',
+        priceUsd: 5.0,
+        etaMinutes: 10,
+      ),
+      expect: () => [
+        predicate<OfferFormState>((s) => s.isSubmitting, 'submitting'),
+        predicate<OfferFormState>(
+          (s) =>
+              s.mode == OfferFormMode.error &&
+              s.errorMessage != null &&
+              s.errorMessage!.contains('20'),
+          'error mode with the offer-cap message (mentions the 20 limit), '
+              'composer preserved',
+        ),
+      ],
+    );
+
+    blocTest<OfferFormCubit, OfferFormState>(
       'network failure emits error mode',
       build: () => OfferFormCubit(
         repository: _FakeOfferRepo(

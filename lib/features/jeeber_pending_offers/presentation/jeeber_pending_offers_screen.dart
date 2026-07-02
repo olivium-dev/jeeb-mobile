@@ -6,6 +6,7 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/notifications/application/offer_lifecycle_signals.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../jeeber_request_feed/cubit/submitted_offers_cubit.dart';
 import '../../jeeber_request_feed/cubit/submitted_offers_state.dart';
@@ -52,9 +53,15 @@ class JeeberPendingOffersScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider<SubmittedOffersCubit>(
-      create: (_) =>
-          SubmittedOffersCubit(repository: repository ?? _resolveRepository())
-            ..load(),
+      create: (_) => SubmittedOffersCubit(
+        repository: repository ?? _resolveRepository(),
+        // sprint-009: subscribe to the offer-lifecycle bus so an
+        // offer_accepted/offer_lost push flips the row + re-pulls while this
+        // list is open. Absent under the route-resolution harness (no DI).
+        lifecycleSignals: sl.isRegistered<OfferLifecycleSignals>()
+            ? sl<OfferLifecycleSignals>().stream
+            : null,
+      )..load(),
       child: const _PendingOffersView(),
     );
   }

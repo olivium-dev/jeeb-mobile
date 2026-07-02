@@ -134,9 +134,16 @@ class DioOfferSubmissionRepository implements OfferSubmissionRepository {
         balance: _parseBalance(e.response?.data),
       );
     }
-    // 404 (request not found), 409 (no longer accepting offers / duplicate live
-    // offer / cap reached) and 410 (expired) all mean the auction is gone for
-    // this jeeber — bounce the user back to the feed.
+    // sprint-009: a 409 now carries a discriminator so the 20-offer CAP is told
+    // apart from a closed request. The cap is a per-jeeber throttle (keep the
+    // composer, offer to withdraw + retry); `request-not-open-for-offers` and
+    // every other 409/404/410 mean the auction is gone for this jeeber (bounce
+    // to the feed).
+    if (status == 409 && _isOfferCap(e.response?.data)) {
+      return const OfferSubmissionException(
+        OfferSubmissionFailure.offerCapReached,
+      );
+    }
     if (status == 404 || status == 409 || status == 410) {
       return const OfferSubmissionException(OfferSubmissionFailure.requestGone);
     }
@@ -149,6 +156,33 @@ class DioOfferSubmissionRepository implements OfferSubmissionRepository {
       OfferSubmissionFailure.server,
       message: 'HTTP $status',
     );
+  }
+
+  /// Classifies a 409 body as the offer-CAP case vs the closed-request case.
+  ///
+  /// The gateway ProblemDetails carries the discriminator in `type`/`code`/
+  /// `title`/`detail` depending on the surface, so probe them all defensively
+  /// (40_GUARDRAILS_ARCH §4). The cap reads like `offer-cap-reached` /
+  /// `too-many-offers` / `offer_limit`; `request-not-open-for-offers` is
+  /// explicitly NOT the cap (it is a closed request → [requestGone]).
+  bool _isOfferCap(Object? data) {
+    if (data is! Map) return false;
+    final haystack = [
+      data['type'],
+      data['code'],
+      data['title'],
+      data['detail'],
+      data['error'],
+    ].whereType<String>().map((s) => s.toLowerCase()).join(' ');
+    if (haystack.contains('not-open') || haystack.contains('not_open')) {
+      return false;
+    }
+    return haystack.contains('cap') ||
+        haystack.contains('too-many') ||
+        haystack.contains('too_many') ||
+        haystack.contains('limit') ||
+        haystack.contains('maximum') ||
+        haystack.contains('20');
   }
 
   InsufficientBalanceInfo? _parseBalance(Object? data) {

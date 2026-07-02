@@ -10,6 +10,16 @@ enum NotificationCategory {
   rating,
   settings,
   newRequest,
+
+  /// sprint-009 offer-lifecycle: the customer ACCEPTED this jeeber's offer
+  /// (`type=offer_accepted`). Routes the jeeber to its pending-offers surface
+  /// where the row flips to "Accepted".
+  offerAccepted,
+
+  /// sprint-009 offer-lifecycle: this jeeber's offer was NOT selected
+  /// (`type=offer_lost`) — the customer accepted someone else's. Routes to the
+  /// pending-offers surface where the row flips to "Not selected".
+  offerLost,
   other;
 
   /// Maps a single wire discriminator value to a category.
@@ -43,6 +53,14 @@ enum NotificationCategory {
       // lands on that request's screen.
       case 'new_request':
         return NotificationCategory.newRequest;
+      // sprint-009 offer-lifecycle discriminators (feat/offer-lifecycle
+      // gateway contract): a jeeber's submitted offer was accepted or lost.
+      // Both land on the jeeber's pending-offers surface (see
+      // [deepLinkForMessage]).
+      case 'offer_accepted':
+        return NotificationCategory.offerAccepted;
+      case 'offer_lost':
+        return NotificationCategory.offerLost;
       default:
         return NotificationCategory.other;
     }

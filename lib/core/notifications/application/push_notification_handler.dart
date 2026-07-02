@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../data/push_transport.dart';
 import '../domain/notification_message.dart';
 import 'badge_count_cubit.dart';
+import 'offer_lifecycle_signals.dart';
 import 'push_refresh_signals.dart';
 
 /// View-model state surfaced to [PushBannerHost] and the dispatcher.
@@ -67,11 +68,13 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     int historyLimit = 20,
     Future<void> Function(String token)? onToken,
     PushRefreshSignals? refreshSignals,
+    OfferLifecycleSignals? offerLifecycleSignals,
   })  : _transport = transport,
         _badgeCount = badgeCount,
         _historyLimit = historyLimit,
         _onToken = onToken,
         _refreshSignals = refreshSignals,
+        _offerLifecycleSignals = offerLifecycleSignals,
         super(const PushNotificationState()) {
     _foregroundSub = transport.onForegroundMessage.listen(_onForeground);
     _openedSub = transport.onMessageOpenedApp.listen(_opensCtl.add);
@@ -88,6 +91,7 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
   final int _historyLimit;
   final Future<void> Function(String token)? _onToken;
   final PushRefreshSignals? _refreshSignals;
+  final OfferLifecycleSignals? _offerLifecycleSignals;
   final _opensCtl = StreamController<NotificationMessage>.broadcast();
   final _seenIds = Queue<String>();
   // Bound the dedup set so a noisy server can't grow this without limit.
@@ -157,6 +161,23 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     _badgeCount.increment();
     emit(state.copyWith(banner: message, history: history));
     _maybeSignalStatusChange(message);
+    _maybeSignalOfferLifecycle(message);
+  }
+
+  /// A foreground `offer_accepted` / `offer_lost` push carrying a flat `offerId`
+  /// is a customer decision on one of this jeeber's submitted offers. Signal the
+  /// lifecycle bus so the pending-offers list flips that row's badge and
+  /// re-pulls (sprint-009). No id → no signal (the tap still routes to the list
+  /// via [deepLinkForMessage], which needs no id).
+  void _maybeSignalOfferLifecycle(NotificationMessage message) {
+    final bus = _offerLifecycleSignals;
+    if (bus == null) return;
+    final accepted = message.category == NotificationCategory.offerAccepted;
+    final lost = message.category == NotificationCategory.offerLost;
+    if (!accepted && !lost) return;
+    final offerId = message.data['offerId'] ?? message.data['offer_id'];
+    if (offerId == null || offerId.isEmpty) return;
+    bus.signal(OfferLifecycleEvent(offerId: offerId, accepted: accepted));
   }
 
   /// A foreground `delivery`-category push (gateway `type=delivery|offer|accept`)
