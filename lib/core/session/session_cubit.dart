@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../diagnostics/diag.dart';
 import '../network/auth_token_store.dart';
 import 'session_gate.dart';
 import 'session_state.dart';
@@ -44,9 +45,17 @@ class SessionCubit extends Cubit<SessionState> implements SessionGate {
   Future<void> refresh() async {
     try {
       final token = await _tokenStore.accessToken;
-      emit(SessionState(_classify(token)));
+      final status = _classify(token);
+      emit(SessionState(status));
+      // Domain event: session auth-state resolution. NO token in the payload —
+      // only the classified status (the whole point of the redaction rule).
+      Diag.event('session_auth', <String, Object?>{'status': status.name});
     } catch (_) {
       emit(const SessionState(SessionStatus.unauthenticated));
+      Diag.event('session_auth', <String, Object?>{
+        'status': SessionStatus.unauthenticated.name,
+        'error': 'keystore_read_failed',
+      });
     }
   }
 

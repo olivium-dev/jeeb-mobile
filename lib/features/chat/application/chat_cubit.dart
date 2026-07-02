@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/diagnostics/diag.dart';
 import '../../photo_attachment/domain/photo_compressor.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
 import '../domain/chat_gateway.dart';
@@ -386,9 +387,17 @@ class ChatCubit extends Cubit<ChatState> {
     try {
       final ack = await _gateway.send(_deliveryId, draft);
       _updateMessage(draft.id, ack.status);
+      Diag.event('chat_message_send', <String, Object?>{
+        'deliveryId': _deliveryId,
+        'result': ack.status.name,
+      });
     } catch (_) {
       _updateMessage(draft.id, MessageStatus.failed);
       emit(state.copyWith(error: ChatError.sendFailed));
+      Diag.event('chat_message_send', <String, Object?>{
+        'deliveryId': _deliveryId,
+        'result': 'failed',
+      });
     }
   }
 
@@ -428,6 +437,10 @@ class ChatCubit extends Cubit<ChatState> {
         _promoteThroughRead(id);
       case PhaseChanged(phase: final phase, deliveryId: final deliveryId):
         emit(state.copyWith(phase: phase, acceptedDeliveryId: deliveryId));
+        Diag.event('delivery_status', <String, Object?>{
+          'deliveryId': deliveryId ?? _deliveryId,
+          'phase': phase.name,
+        });
     }
   }
 

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:go_router/go_router.dart';
 
+import '../../diagnostics/diag.dart';
 import '../data/push_transport.dart';
 import '../domain/notification_deep_link.dart';
 import '../domain/notification_message.dart';
@@ -46,6 +47,12 @@ class NotificationDispatcher {
 
   void _route(NotificationMessage message) {
     final path = deepLinkForMessage(message);
+    Diag.event('push_tapped', <String, Object?>{
+      'id': message.id,
+      'category': message.category.name,
+      'deepLink': path,
+      'resolved': path != null,
+    });
     if (path == null) return;
     _router.go(path);
   }
