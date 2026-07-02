@@ -366,10 +366,21 @@ class _NoRequestsScope extends StatelessWidget {
     // lifecycle); fall back to the self-contained banner for callers/tests that
     // do not inject one. Either renders nothing when there are none, so the prior
     // layout is unchanged.
-    return Column(
-      children: [
-        activeDeliveriesBanner ?? const JeeberActiveDeliveriesBanner(),
-        Expanded(
+    // Fix 6 (b): the active-deliveries banner is an unbounded Column of cards.
+    // Placing it as a fixed child above an `Expanded` no-requests view let the
+    // banner push the Column past the viewport when it held one or more tall
+    // cards (45px / 477px bottom RenderFlex overflow on SM-S921B). A
+    // CustomScrollView lets the surface SCROLL when the banner is tall, while
+    // `SliverFillRemaining(hasScrollBody: false)` keeps the no-requests view
+    // filling the remaining space when there is room (unchanged when the banner
+    // self-hides / holds a single card).
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: activeDeliveriesBanner ?? const JeeberActiveDeliveriesBanner(),
+        ),
+        SliverFillRemaining(
+          hasScrollBody: false,
           child: JeeberNoRequestsView(
             view: view,
             profileName: profileName,

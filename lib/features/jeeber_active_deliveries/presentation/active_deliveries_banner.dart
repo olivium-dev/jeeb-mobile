@@ -151,34 +151,79 @@ class _ActiveDeliveryCard extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(height: Spacing.small),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OmdsPrimaryButton(
-                        text: l10n.jeeberActiveDeliveriesOpenChat,
-                        icon: Icon(
-                          Icons.chat_bubble_outline,
-                          color: colorScheme.onPrimary,
-                        ),
-                        onTap: onOpenChat,
-                      ),
-                    ),
-                    const SizedBox(width: Spacing.small),
-                    Expanded(
-                      child: OmdsPrimaryButton(
-                        text: l10n.jeeberActiveDeliveriesManage,
-                        variant: OmdsButtonVariant.outlined,
-                        icon: const Icon(Icons.local_shipping_outlined),
-                        onTap: onManageDelivery,
-                      ),
-                    ),
-                  ],
+                _ActiveDeliveryCardActions(
+                  l10n: l10n,
+                  onOpenChat: onOpenChat,
+                  onManageDelivery: onManageDelivery,
                 ),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The card's two action buttons ("Open chat" + "Manage delivery"), laid out
+/// responsively so the non-ellipsizing OMDS button labels never right-overflow
+/// on a narrow card.
+///
+/// [OmdsPrimaryButton] renders its icon + label in a `mainAxisSize.min` Row with
+/// a plain (non-ellipsizing) `Text`, so an `Expanded` box narrower than that
+/// intrinsic width lets the button content paint past its edge (the 39px
+/// right-overflow observed on SM-S921B). Below the side-by-side threshold we
+/// stack the two buttons full-width — each then has the whole card width and
+/// fits its icon+label; at/above it we keep the original side-by-side Row.
+class _ActiveDeliveryCardActions extends StatelessWidget {
+  const _ActiveDeliveryCardActions({
+    required this.l10n,
+    required this.onOpenChat,
+    required this.onManageDelivery,
+  });
+
+  final AppLocalizations l10n;
+  final VoidCallback onOpenChat;
+  final VoidCallback onManageDelivery;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final openChat = OmdsPrimaryButton(
+      text: l10n.jeeberActiveDeliveriesOpenChat,
+      icon: Icon(Icons.chat_bubble_outline, color: colorScheme.onPrimary),
+      onTap: onOpenChat,
+    );
+    final manage = OmdsPrimaryButton(
+      text: l10n.jeeberActiveDeliveriesManage,
+      variant: OmdsButtonVariant.outlined,
+      icon: const Icon(Icons.local_shipping_outlined),
+      onTap: onManageDelivery,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Two icon+label buttons need ~300+ logical px to sit side by side
+        // without clipping their labels; below that (every standard phone card
+        // width) stack them so neither overflows.
+        final sideBySide = constraints.maxWidth >= Sizes.threeHundredLarge;
+        if (sideBySide) {
+          return Row(
+            children: [
+              Expanded(child: openChat),
+              const SizedBox(width: Spacing.small),
+              Expanded(child: manage),
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            openChat,
+            const SizedBox(height: Spacing.small),
+            manage,
+          ],
+        );
+      },
     );
   }
 }
