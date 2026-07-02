@@ -105,6 +105,7 @@ import '../../features/transcription/domain/voice_clip.dart';
 import '../../features/transcription/presentation/transcription_screen.dart';
 import '../../features/voice_request/presentation/voice_request_screen.dart';
 import '../di/injection_container.dart';
+import '../diagnostics/diagnostics.dart';
 import '../onboarding/onboarding_cubit.dart';
 
 /// Top-level router.
@@ -371,6 +372,11 @@ class AppRouter {
         : null;
     return GoRouter(
       initialLocation: '/',
+      // Diagnostic event stream (debug/dev-only): emits one `[jeeb-diag]`
+      // `{"t":"nav",...}` line per push/pop/replace so a device run can be
+      // grepped for exactly which screens opened. Inert in release (every
+      // `Diag.*` call early-returns when `Diag.enabled` is false).
+      observers: [DiagNavObserver()],
       refreshListenable: _MergedRefreshListenable([
         _CubitRefreshListenable<bool>(onboarding),
         _CubitRefreshListenable<BiometricLockState>(biometricLock),

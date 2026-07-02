@@ -4,6 +4,7 @@ import 'dart:collection';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../diagnostics/diag.dart';
 import '../data/push_transport.dart';
 import '../domain/notification_message.dart';
 import 'badge_count_cubit.dart';
@@ -141,6 +142,11 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
   void clearBadge() => _badgeCount.clear();
 
   void _onForeground(NotificationMessage message) {
+    Diag.event('push_received', <String, Object?>{
+      'mode': 'foreground',
+      'id': message.id,
+      'category': message.category.name,
+    });
     if (_seenIds.contains(message.id)) return;
     _seenIds.addLast(message.id);
     while (_seenIds.length > _seenIdsLimit) {

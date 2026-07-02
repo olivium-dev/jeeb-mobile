@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/diagnostics/diag.dart';
 import '../domain/offers_repository.dart';
 import 'offer_accept_state.dart';
 
@@ -46,16 +47,30 @@ class OfferAcceptCubit extends Cubit<OfferAcceptState> {
         status: OfferAcceptStatus.succeeded,
         result: result,
       ));
+      Diag.event('offer_accept_result', <String, Object?>{
+        'offerId': _offerId,
+        'status': 'succeeded',
+      });
     } on OffersRepositoryException catch (e) {
       emit(state.copyWith(
         status: OfferAcceptStatus.failed,
         error: e.failure,
       ));
+      Diag.event('offer_accept_result', <String, Object?>{
+        'offerId': _offerId,
+        'status': 'failed',
+        'failure': e.failure.name,
+      });
     } catch (_) {
       emit(state.copyWith(
         status: OfferAcceptStatus.failed,
         error: OffersFailure.unknown,
       ));
+      Diag.event('offer_accept_result', <String, Object?>{
+        'offerId': _offerId,
+        'status': 'failed',
+        'failure': OffersFailure.unknown.name,
+      });
     }
   }
 }

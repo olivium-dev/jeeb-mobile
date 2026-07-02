@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/diagnostics/diag.dart';
 import '../domain/offer_submission_repository.dart';
 
 /// View-mode for the offer-submission form.
@@ -168,11 +169,13 @@ class OfferFormCubit extends Cubit<OfferFormState> {
     emit(state.copyWith(mode: OfferFormMode.error, errorMessage: msg));
   }
 
-  // ignore: avoid_print — replaced by structured logger in production
   void _logSubmitted(String requestId, double price, int eta) {
-    // AC6: offer.submitted event (no PII)
-    // ignore: avoid_print
-    print('[offer.submitted] requestId=$requestId priceUsd=$price etaMinutes=$eta');
+    // Domain event: offer submitted (no PII — ids + amount only).
+    Diag.event('offer_submitted', <String, Object?>{
+      'requestId': requestId,
+      'priceUsd': price,
+      'etaMinutes': eta,
+    });
   }
 
   void acknowledgeError() {

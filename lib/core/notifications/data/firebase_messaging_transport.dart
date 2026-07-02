@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import '../../diagnostics/diag.dart';
 import '../domain/notification_message.dart';
 import 'push_transport.dart';
 
@@ -20,6 +21,12 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // meaningful work is letting the OS know we handled the wakeup. The
   // actual display path is owned by Android's NotificationManager via
   // the FCM SDK when `notification` is present in the payload.
+  Diag.event('push_received', <String, Object?>{
+    'mode': 'background',
+    'id': message.messageId,
+    'type': message.data['type'],
+    'category': message.data['category'],
+  });
   if (kDebugMode) {
     debugPrint('[push] background message: ${message.messageId}');
   }

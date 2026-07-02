@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../diagnostics/diagnostics.dart';
 import 'auth_interceptor.dart';
 import 'auth_token_store.dart';
 
@@ -65,6 +66,12 @@ class DioClient {
         onUnauthenticated: onUnauthenticated,
       ),
     );
+
+    // Diagnostic event stream (debug/dev-only, self-gated on `Diag.enabled`):
+    // emits `[jeeb-diag] {"t":"api",...}` — path + status + duration ONLY, never
+    // headers or bodies. Safe by construction; the redaction lives in the
+    // interceptor, not here.
+    dio.interceptors.add(const DiagDioInterceptor());
 
     // PII GATE: request/response bodies carry phones, JWTs and addresses.
     // Only ever logged in debug builds (kDebugMode is a const false in
