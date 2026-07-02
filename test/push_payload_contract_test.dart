@@ -235,4 +235,32 @@ void main() {
     expect(message.category, NotificationCategory.chat);
     expect(deepLinkForMessage(message), '/chat/${fixture['conversationId']}');
   });
+
+  test('run-19 push-D: a dual-stamped new_request payload '
+      '(type=new_request + legacy category=delivery) decodes through the '
+      'transport to category=newRequest and deep-links to the request screen '
+      '— the KNOWN type wins over the legacy category so the jeeber tap lands '
+      'on the request, not the order surface', () async {
+    // NewRequestPushNotifier stamps BOTH a `type=new_request` discriminator and
+    // a legacy `category=delivery` (so pre-sprint-009 APKs still bucket it as a
+    // delivery). Decoding drives the production `_toDomain` — the SAME shared
+    // decoder the onMessageOpenedApp listener uses (`_opened.add(_toDomain(msg))`)
+    // — so this locks the resolved bucket for a real inbound opened-app tap.
+    final message = await _decodeThroughTransport(<String, dynamic>{
+      'messageId': 'msg-run19',
+      'type': 'new_request',
+      'category': 'delivery',
+      'requestId': '7a5dffbd-6c05-4068-9b79-0cec377cae0f',
+      'request_id': '7a5dffbd-6c05-4068-9b79-0cec377cae0f',
+      'tierId': 'tier-gold',
+      'title': 'New request nearby',
+      'body': 'A customer needs a jeeber',
+    });
+
+    expect(message.category, NotificationCategory.newRequest);
+    expect(
+      deepLinkForMessage(message),
+      '/jeeber/requests/7a5dffbd-6c05-4068-9b79-0cec377cae0f',
+    );
+  });
 }

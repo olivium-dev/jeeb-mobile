@@ -201,18 +201,18 @@ class FirebaseMessagingTransport implements PushTransport {
       // payload shape (e.g. conversationId/type) without leaking content.
       debugPrint('[push] rx keys=${data.keys.toList()} '
           'hasNotif=${message.notification != null} '
-          'cat=${data['category'] ?? data['type']}');
+          'cat=${NotificationCategory.fromData(data).name}');
     }
     return NotificationMessage(
       id: message.messageId ??
           'fcm-${DateTime.now().microsecondsSinceEpoch}',
-      // jeeb-gateway's canonical payload uses `category`; the chat-message
-      // push trigger (gateway patch 0009) instead sends `type` (e.g.
-      // `type:"chat"`). Accept either so a chat push routes regardless of
-      // which field the emitting service stamps.
-      category: NotificationCategory.fromKey(
-        data['category'] ?? data['type'],
-      ),
+      // jeeb-gateway's event notifiers use `type` as the real discriminator
+      // (e.g. `type:"chat"`, `type:"new_request"`); NewRequestPushNotifier also
+      // stamps a legacy `category:"delivery"` for pre-sprint-009 APKs. Resolve
+      // via [NotificationCategory.fromData] so a KNOWN `type` wins over that
+      // legacy `category` — otherwise a new_request tap mis-routes to the order
+      // surface (run-19 push-D gap).
+      category: NotificationCategory.fromData(data),
       title: message.notification?.title ?? data['title'] ?? '',
       body: message.notification?.body ?? data['body'] ?? '',
       receivedAt: message.sentTime ?? DateTime.now(),

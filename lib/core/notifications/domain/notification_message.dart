@@ -52,14 +52,23 @@ enum NotificationCategory {
   ///
   /// jeeb-gateway's `EventPushNotifier` flattens the whole payload into the
   /// FCM `data` map and uses `type` as the routing discriminator (the push
-  /// service does `data = {k: str(v) for k,v in payload}` — so there is no
-  /// `category` key on event pushes, only `type`). Older/admin payloads may
-  /// still carry an explicit `category`. Precedence: explicit `category`
-  /// first, then the gateway `type`. This is the single entry point the
-  /// transport should use so a chat push (`type=chat`) is never mis-bucketed
-  /// as [other] and silently un-routable on tap.
-  static NotificationCategory fromData(Map<String, String> data) =>
-      fromKey(data['category'] ?? data['type']);
+  /// service does `data = {k: str(v) for k,v in payload}`). The
+  /// `NewRequestPushNotifier` ALSO stamps a legacy `category: "delivery"`
+  /// alongside `type: "new_request"` so pre-sprint-009 APKs (which only read
+  /// `category`) still bucket the push as a delivery. On a current APK that
+  /// legacy `category` must NOT win, or a `new_request` tap mis-routes to the
+  /// order surface instead of the jeeber's request screen (the run-19 push-D
+  /// gap).
+  ///
+  /// Precedence: a `type` that maps to a KNOWN category wins (the gateway's
+  /// event notifiers use `type` as the real discriminator; NewRequestPushNotifier
+  /// also stamps a legacy `category: "delivery"` for pre-sprint-009 APKs).
+  /// Fall back to `category` when `type` is absent or unknown.
+  static NotificationCategory fromData(Map<String, String> data) {
+    final byType = fromKey(data['type']);
+    if (byType != NotificationCategory.other) return byType;
+    return fromKey(data['category']);
+  }
 }
 
 /// Transport-agnostic envelope for a push payload.
