@@ -35,10 +35,11 @@ class FeedTransportUpdate {
 
 /// The repository the cubit talks to. Owns:
 ///
-///   1. The realtime feed stream — emits new [DeliveryRequest]s and, in
-///      WebSocket mode, may also emit "cancelled" notifications via
-///      [cancellations]. The polling fallback path only emits the snapshot
-///      and lets the per-request `expiresAt` retire stale entries.
+///   1. The realtime feed stream — emits new [DeliveryRequest]s. Requests
+///      leave the feed via the snapshot-authoritative [refresh] reconcile
+///      (a request the gateway no longer lists is dropped) or the cubit's
+///      per-request `expiresAt` sweep — there is no separate cancellations
+///      stream (no backend ever produced one).
 ///   2. The transport status stream — flips between [FeedTransport.webSocket]
 ///      and [FeedTransport.polling] so the UI can surface the degraded state.
 ///   3. Accept/decline RPCs.
@@ -51,11 +52,6 @@ abstract class RequestFeedRepository {
   /// re-pushes of the same request (which can happen across a WS reconnect)
   /// don't multiply on screen.
   Stream<DeliveryRequest> get requests;
-
-  /// Stream of request ids the backend has cancelled (sender pulled the
-  /// request, another Jeeber accepted it, gateway expired it). The cubit
-  /// removes any matching card from the feed.
-  Stream<String> get cancellations;
 
   /// Current transport (and changes thereto). Always emits the current
   /// value on subscribe so the cubit doesn't need a separate initial fetch.
@@ -99,8 +95,6 @@ class FakeRequestFeedRepository implements RequestFeedRepository {
 
   final StreamController<DeliveryRequest> _requests =
       StreamController<DeliveryRequest>.broadcast();
-  final StreamController<String> _cancellations =
-      StreamController<String>.broadcast();
   final StreamController<FeedTransportUpdate> _transport =
       StreamController<FeedTransportUpdate>.broadcast();
 
@@ -109,9 +103,6 @@ class FakeRequestFeedRepository implements RequestFeedRepository {
 
   @override
   Stream<DeliveryRequest> get requests => _requests.stream;
-
-  @override
-  Stream<String> get cancellations => _cancellations.stream;
 
   @override
   Stream<FeedTransportUpdate> get transport async* {
@@ -143,7 +134,6 @@ class FakeRequestFeedRepository implements RequestFeedRepository {
     _emitter?.cancel();
     _emitter = null;
     await _requests.close();
-    await _cancellations.close();
     await _transport.close();
   }
 
@@ -191,9 +181,6 @@ class SeededRequestFeedRepository implements RequestFeedRepository {
 
   @override
   Stream<DeliveryRequest> get requests => const Stream<DeliveryRequest>.empty();
-
-  @override
-  Stream<String> get cancellations => const Stream<String>.empty();
 
   @override
   Stream<FeedTransportUpdate> get transport async* {

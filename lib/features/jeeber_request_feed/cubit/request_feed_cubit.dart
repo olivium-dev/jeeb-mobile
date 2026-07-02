@@ -12,22 +12,22 @@ import 'request_feed_state.dart';
 /// — defining a one-method interface would be ceremony for no benefit.
 ///
 /// The cubit invokes [SoundNotifier] exactly once per new request id; it's
-/// not called for cancellations, snapshot rehydration, or actions.
+/// not called for snapshot rehydration or actions.
 typedef SoundNotifier = void Function();
 
 /// Drives the Jeeber request feed (JEEB-66 / T-mobile-013).
 ///
-/// Three live subscriptions:
+/// Two live subscriptions:
 ///   1. [RequestFeedRepository.requests] — new requests fan into the feed
 ///      (deduped by id) and trigger [SoundNotifier].
-///   2. [RequestFeedRepository.cancellations] — gateway-side dismissals pop
-///      cards off the feed mid-flight.
-///   3. [RequestFeedRepository.transport] — flips the WebSocket vs polling
+///   2. [RequestFeedRepository.transport] — flips the WebSocket vs polling
 ///      badge in the screen layer.
 ///
-/// Plus a single periodic timer that retires cards whose `expiresAt` has
-/// passed, or whose client-side timeout (the [requestTimeout] window from
-/// the moment the card was added) has elapsed — whichever fires first.
+/// Requests LEAVE the feed via (a) the snapshot-authoritative [refresh]
+/// reconcile — a request the gateway no longer lists is dropped; (b) the
+/// periodic timer that retires cards whose `expiresAt` or client-side
+/// [requestTimeout] deadline has passed; or (c) a completed accept/decline.
+/// (There is no separate cancellations stream — no backend ever produced one.)
 class RequestFeedCubit extends Cubit<RequestFeedState> {
   RequestFeedCubit({
     required RequestFeedRepository repository,
@@ -49,7 +49,6 @@ class RequestFeedCubit extends Cubit<RequestFeedState> {
   final DateTime Function() _clock;
 
   StreamSubscription<DeliveryRequest>? _requestsSub;
-  StreamSubscription<String>? _cancellationsSub;
   StreamSubscription<FeedTransportUpdate>? _transportSub;
   Timer? _sweep;
 
@@ -62,7 +61,6 @@ class RequestFeedCubit extends Cubit<RequestFeedState> {
   /// Boot the live subscriptions and pull an initial snapshot.
   Future<void> start() async {
     _requestsSub ??= _repository.requests.listen(_onIncoming);
-    _cancellationsSub ??= _repository.cancellations.listen(_onCancellation);
     _transportSub ??= _repository.transport.listen(_onTransport);
     _sweep ??= Timer.periodic(_sweepInterval, (_) => _sweepExpired());
     await refresh();
@@ -82,14 +80,30 @@ class RequestFeedCubit extends Cubit<RequestFeedState> {
     }
     try {
       final snapshot = await _repository.refresh();
-      final byId = {for (final r in state.requests) r.id: r};
+      // Snapshot-authoritative reconcile: the gateway snapshot is the source of
+      // truth. A request the gateway has since dropped (cancelled by the sender,
+      // taken by another jeeber, or expired) is NOT in the snapshot and must
+      // leave the feed — the old additive merge kept such stale cards forever.
+      // The ONLY existing rows we preserve are those with an action in flight,
+      // so a refresh landing mid-accept/decline doesn't yank the card out from
+      // under the user before its effect resolves.
+      final existingById = {for (final r in state.requests) r.id: r};
+      final reconciled = <String, DeliveryRequest>{};
       for (final r in snapshot) {
-        if (!byId.containsKey(r.id)) _trackDeadline(r);
-        byId[r.id] = r;
+        if (!existingById.containsKey(r.id)) _trackDeadline(r);
+        reconciled[r.id] = r;
+      }
+      for (final entry in existingById.entries) {
+        if (reconciled.containsKey(entry.key)) continue;
+        if (state.actionStatusFor(entry.key) != RequestActionStatus.idle) {
+          reconciled[entry.key] = entry.value;
+        } else {
+          _deadlines.remove(entry.key);
+        }
       }
       emit(state.copyWith(
         status: RequestFeedStatus.ready,
-        requests: _sorted(byId.values),
+        requests: _sorted(reconciled.values),
         errorMessageKey: null,
       ));
     } catch (_) {
@@ -172,19 +186,6 @@ class RequestFeedCubit extends Cubit<RequestFeedState> {
     ));
   }
 
-  void _onCancellation(String requestId) {
-    if (!state.requests.any((r) => r.id == requestId)) return;
-    _deadlines.remove(requestId);
-    final pendingRemoved = Map<String, RequestActionStatus>.from(
-      state.actionStatuses,
-    )..remove(requestId);
-    emit(state.copyWith(
-      requests:
-          state.requests.where((r) => r.id != requestId).toList(growable: false),
-      actionStatuses: pendingRemoved,
-    ));
-  }
-
   void _onTransport(FeedTransportUpdate update) {
     if (state.transport == update.transport) return;
     emit(state.copyWith(transport: update.transport));
@@ -230,7 +231,6 @@ class RequestFeedCubit extends Cubit<RequestFeedState> {
     _sweep?.cancel();
     _sweep = null;
     await _requestsSub?.cancel();
-    await _cancellationsSub?.cancel();
     await _transportSub?.cancel();
     await _repository.dispose();
     return super.close();

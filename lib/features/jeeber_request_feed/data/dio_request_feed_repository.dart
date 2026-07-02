@@ -45,8 +45,6 @@ class DioRequestFeedRepository implements RequestFeedRepository {
 
   final StreamController<DeliveryRequest> _requestsCtrl =
       StreamController<DeliveryRequest>.broadcast();
-  final StreamController<String> _cancellationsCtrl =
-      StreamController<String>.broadcast();
   final StreamController<FeedTransportUpdate> _transportCtrl =
       StreamController<FeedTransportUpdate>.broadcast(onListen: () {});
 
@@ -55,9 +53,6 @@ class DioRequestFeedRepository implements RequestFeedRepository {
 
   @override
   Stream<DeliveryRequest> get requests => _requestsCtrl.stream;
-
-  @override
-  Stream<String> get cancellations => _cancellationsCtrl.stream;
 
   @override
   Stream<FeedTransportUpdate> get transport => _transportCtrl.stream;
@@ -101,7 +96,6 @@ class DioRequestFeedRepository implements RequestFeedRepository {
     _disposed = true;
     _pollTimer?.cancel();
     await _requestsCtrl.close();
-    await _cancellationsCtrl.close();
     await _transportCtrl.close();
   }
 

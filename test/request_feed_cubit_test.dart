@@ -41,16 +41,13 @@ DeliveryRequest _req({
 void main() {
   late _MockRepo repo;
   late StreamController<DeliveryRequest> requests;
-  late StreamController<String> cancellations;
   late StreamController<FeedTransportUpdate> transport;
 
   setUp(() {
     repo = _MockRepo();
     requests = StreamController<DeliveryRequest>.broadcast();
-    cancellations = StreamController<String>.broadcast();
     transport = StreamController<FeedTransportUpdate>.broadcast();
     when(() => repo.requests).thenAnswer((_) => requests.stream);
-    when(() => repo.cancellations).thenAnswer((_) => cancellations.stream);
     when(() => repo.transport).thenAnswer((_) async* {
       yield const FeedTransportUpdate(FeedTransport.webSocket);
       yield* transport.stream;
@@ -61,7 +58,6 @@ void main() {
 
   tearDown(() async {
     await requests.close();
-    await cancellations.close();
     await transport.close();
   });
 
@@ -139,22 +135,6 @@ void main() {
       },
     );
 
-    blocTest<RequestFeedCubit, RequestFeedState>(
-      'cancellations from the gateway pop matching cards off the feed',
-      build: () {
-        when(() => repo.refresh()).thenAnswer((_) async => [_req(id: 'x1')]);
-        return build();
-      },
-      act: (c) async {
-        await c.start();
-        cancellations.add('x1');
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-      },
-      verify: (c) {
-        expect(c.state.requests, isEmpty);
-      },
-    );
-
     test('transport updates flip the state field for the UI banner', () async {
       final cubit = build();
       await cubit.start();
@@ -164,6 +144,53 @@ void main() {
       transport.add(const FeedTransportUpdate(FeedTransport.polling));
       await Future<void>.delayed(const Duration(milliseconds: 50));
       expect(cubit.state.transport, FeedTransport.polling);
+      await cubit.close();
+    });
+  });
+
+  group('snapshot-authoritative reconcile (Lane C)', () {
+    test('refresh drops a stale row the gateway no longer lists', () async {
+      final snapshots = <List<DeliveryRequest>>[
+        [_req(id: 'a1'), _req(id: 'a2')],
+        [_req(id: 'a2')],
+      ];
+      var call = 0;
+      when(() => repo.refresh()).thenAnswer((_) async => snapshots[call++]);
+      final cubit = build();
+      await cubit.start();
+      expect(cubit.state.requests.map((r) => r.id), containsAll(['a1', 'a2']));
+      await cubit.refresh();
+      expect(cubit.state.requests.map((r) => r.id), ['a2'],
+          reason: 'the additive merge would have kept the vanished a1');
+      await cubit.close();
+    });
+
+    test('refresh preserves an existing row with an action in flight', () async {
+      final completer = Completer<RequestActionOutcome>();
+      addTearDown(() {
+        if (!completer.isCompleted) {
+          completer.complete(RequestActionOutcome.accepted);
+        }
+      });
+      final snapshots = <List<DeliveryRequest>>[
+        [_req(id: 'r1')],
+        const <DeliveryRequest>[],
+      ];
+      var call = 0;
+      when(() => repo.refresh()).thenAnswer((_) async => snapshots[call++]);
+      when(() => repo.accept('r1')).thenAnswer((_) => completer.future);
+      final cubit = build();
+      await cubit.start();
+      unawaited(cubit.accept('r1'));
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(cubit.state.actionStatusFor('r1'), RequestActionStatus.accepting);
+      await cubit.refresh();
+      expect(cubit.state.requests.map((r) => r.id), ['r1'],
+          reason: 'an in-flight row survives a refresh that no longer lists it');
+      // Resolve the in-flight accept and let it settle BEFORE close so its
+      // terminal emit doesn't land after the cubit is torn down.
+      completer.complete(RequestActionOutcome.accepted);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
       await cubit.close();
     });
   });
