@@ -153,11 +153,14 @@ class HomeTab extends StatelessWidget {
     GoRouter.of(context).pushNamed('request-type');
   }
 
-  /// Routes a card tap to `/chat/:id`. Replies-tab cards carry a
-  /// [ClientHomeRequest.conversationId]; in-progress cards fall back to the
-  /// delivery id (the mock backend mirrors both onto the conversation map).
+  /// Routes a card tap to `/chat/:id` (BUG-18 client side). Prefer the request
+  /// id (== correlationKey) over [ClientHomeRequest.conversationId]: chat-detail
+  /// resolves correlationKey-first, so a conversationId param guarantees one
+  /// wasted 404 probe. Fall back to the conversationId only when no request id
+  /// is available.
   void _openChat(BuildContext context, ClientHomeRequest request) {
-    final target = request.conversationId ?? request.id;
+    final target =
+        request.id.isNotEmpty ? request.id : (request.conversationId ?? '');
     if (target.isEmpty) return;
     GoRouter.of(context).pushNamed('chat-detail', pathParameters: {'id': target});
   }

@@ -50,6 +50,7 @@ class _ChatTabState extends State<ChatTab> {
           final convId = raw['conversationId'] as String?;
           if (convId == null || convId.isEmpty) continue;
           summaries.add(_ConversationSummary(
+            requestId: raw['id'] as String? ?? '',
             conversationId: convId,
             title: raw['title'] as String? ?? 'Delivery',
             status: raw['status'] as String? ?? '',
@@ -94,7 +95,7 @@ class _ChatTabState extends State<ChatTab> {
           key: index == 0 ? ChatTab.activeDeliveryCardKey : null,
           onTap: () => GoRouter.of(context).pushNamed(
             'chat-detail',
-            pathParameters: {'id': conv.conversationId},
+            pathParameters: {'id': conv.chatRouteId},
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(
@@ -139,14 +140,23 @@ class _ChatTabState extends State<ChatTab> {
 
 class _ConversationSummary {
   const _ConversationSummary({
+    required this.requestId,
     required this.conversationId,
     required this.title,
     required this.status,
     required this.tier,
   });
 
+  /// Request id (== correlationKey). Empty when the gateway omits it.
+  final String requestId;
   final String conversationId;
   final String title;
   final String status;
   final String tier;
+
+  /// BUG-18 client side: prefer the request id (== correlationKey) over the
+  /// conversation id. Chat-detail resolves correlationKey-first, so routing by
+  /// requestId avoids a guaranteed 404 probe; fall back to the conversationId
+  /// only when the gateway omitted the request id.
+  String get chatRouteId => requestId.isNotEmpty ? requestId : conversationId;
 }

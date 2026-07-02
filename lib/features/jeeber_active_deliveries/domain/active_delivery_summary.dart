@@ -68,10 +68,14 @@ class ActiveDeliverySummary extends Equatable {
   /// keeps the surface honest if one slips through.
   bool get isActive => status != JeeberDeliveryStatus.done;
 
-  /// The id the chat surface should open with — prefer the conversation id,
-  /// fall back to the delivery/request id (`/chat/:id` resolves either).
-  String get chatRouteId =>
-      (conversationId != null && conversationId!.isNotEmpty) ? conversationId! : id;
+  /// The id the chat surface should open with (BUG-18 client side).
+  ///
+  /// Prefer the delivery/request [id] (== correlationKey) over
+  /// [conversationId]. Chat-detail resolves correlationKey-first, so passing a
+  /// conversationId param guarantees one wasted 404 probe before it falls back
+  /// to the request lookup. The backend now aliases the conversationId, but
+  /// requestId-first avoids the extra probe entirely.
+  String get chatRouteId => id.isNotEmpty ? id : (conversationId ?? '');
 
   static String? _normalize(String? v) =>
       (v == null || v.trim().isEmpty) ? null : v;

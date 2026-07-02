@@ -83,8 +83,10 @@ void main() {
       expect(s.title, 'Flash delivery request');
       expect(s.pickupAddress, 'Hamra');
       expect(s.dropoffAddress, 'Achrafieh');
-      // chatRouteId prefers the conversation id.
-      expect(s.chatRouteId, 'conv-9');
+      // BUG-18 client side: chatRouteId prefers the request id (==
+      // correlationKey) over the conversation id, so chat-detail resolves
+      // correlationKey-first without a wasted 404 probe.
+      expect(s.chatRouteId, 'req-1');
       expect(s.isActive, isTrue);
     });
 
