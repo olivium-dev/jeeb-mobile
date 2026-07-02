@@ -328,6 +328,126 @@ class AppRouter {
     return sl<LiveTrackingRepository>();
   }
 
+  /// Logical BACK parent for every route that can become the stack ROOT — i.e.
+  /// be reached via a stack-REPLACING `context.go(...)`/`goNamed(...)`, an
+  /// inbound platform deep link, or a push-notification tap (`GoRouter.go`).
+  /// Keyed by route NAME (unique and stable; nested route `path`s are relative,
+  /// so name is the correct key). [_wrapRootAware] wraps each named route's
+  /// builder in a [RootAwareBackScope] with this fallback, so the system BACK
+  /// gesture ALWAYS resolves to a parent instead of exiting the app to the
+  /// launcher.
+  ///
+  /// `context.canPop()` is evaluated first inside the scope, so a normally
+  /// PUSHED screen still pops to its real parent; the fallback is only consumed
+  /// at the true stack root. `/` is safe as a universal fallback because the
+  /// first-run redirect re-routes it to the correct destination for the user's
+  /// auth state (Home when authenticated, `/onboarding` or `/login` otherwise),
+  /// so a wrapped screen can never strand a logged-out user on Home.
+  ///
+  /// EXCLUSIONS — routes deliberately ABSENT here (never wrapped), and why:
+  ///   * tab/home + first-run roots (`shell`, `onboarding`, `register`,
+  ///     `login`): BACK there legitimately exits the app; wrapping would trap
+  ///     the user (BACK could never leave). (`login` also self-wraps below.)
+  ///   * gate screens (`biometric-lock`, `account-status`): BACK must not
+  ///     bypass the lock / blocked-account gate.
+  ///   * mandatory blind-rating screens (`feedback`, `mutual-rating`): they
+  ///     suppress BACK with `PopScope(canPop: false)`; a `BackButtonListener`
+  ///     fires BEFORE `Navigator.maybePop`/`PopScope` and would preempt that
+  ///     guard, so they must NOT be wrapped.
+  ///   * screens that ALREADY self-wrap in [RootAwareBackScope]
+  ///     (`delivery-detail`, `settings-addresses`, `jeeber-offer-submission`):
+  ///     wrapping again is redundant and would shadow their tuned fallbacks.
+  ///   * `rating-prompt` (a redirect-only Type-A placeholder) and `dev-chat`
+  ///     (debug-only) — never a real user destination.
+  @visibleForTesting
+  static const Map<String, String> backFallbacks = {
+    // ── W0 auth funnel sub-screens (pre-auth; the redirect gate re-routes the
+    //    fallback for the user's auth state).
+    'sign-up': '/login',
+    'recover-password': '/login',
+    'recover-verify': '/recover',
+    'set-password': '/',
+    // ── W1 core customer journey.
+    'offer-review': '/',
+    'waiting-no-coverage': '/',
+    'delivered-receipt': '/',
+    'order-summary': '/',
+    'delivery-cancel': '/',
+    'chat-detail': '/',
+    'kyc-status': '/',
+    'jeeber-onboarding': '/',
+    'customer-profile': '/',
+    'delivery-man-profile': '/',
+    'location-picker': '/',
+    'settings': '/',
+    'settings-profile': '/settings',
+    'address-detail': '/settings/addresses',
+    'settings-notifications': '/settings',
+    'voice-request': '/',
+    'request-type': '/',
+    'client-location': '/',
+    'capture-location': '/',
+    'transcription': '/',
+    'jeeber-request-detail': '/',
+    'request-summary': '/',
+    'live-tracking': '/',
+    'otp-handover': '/',
+    'escalate': '/',
+    // ── W2 / W2.5 jeeber + wallet.
+    'jeeber-active-delivery': '/',
+    'jeeber-settlement': '/',
+    'jeeber-settlement-detail': '/jeeber/settlement',
+    'onboarding-funding': '/',
+    'offer-kyc-gate': '/',
+    'delivery-register-prompt': '/',
+    'kyc-rejected': '/',
+    'jeeber-pending-offers': '/',
+    'wallet': '/',
+    'wallet-charge-info': '/wallet',
+    'earnings': '/',
+    // ── W3 wallet ledger.
+    'wallet-activity': '/wallet',
+    'transaction-detail': '/wallet/activity',
+    // ── W4 shared.
+    'notifications': '/',
+    'support-ticket': '/',
+    'dispute-status': '/',
+    'reviews-list': '/',
+    'reviews-list-by-id': '/',
+    'language-settings': '/settings',
+    'password-security': '/settings',
+  };
+
+  /// Recursively wraps every route named in [backFallbacks] in a
+  /// [RootAwareBackScope], preserving the route tree otherwise verbatim (path,
+  /// name, redirect, and nested child routes are carried through untouched).
+  /// A route absent from the map keeps its exact builder, so shell / gate /
+  /// mandatory-rating / self-wrapping screens are structurally unchanged.
+  static List<RouteBase> _wrapRootAware(List<RouteBase> routes) {
+    return <RouteBase>[
+      for (final route in routes)
+        if (route is GoRoute) _wrapGoRoute(route) else route,
+    ];
+  }
+
+  static GoRoute _wrapGoRoute(GoRoute route) {
+    final fallback = backFallbacks[route.name];
+    final builder = route.builder;
+    final GoRouterWidgetBuilder? wrapped = (fallback != null && builder != null)
+        ? (context, state) => RootAwareBackScope(
+              fallbackLocation: fallback,
+              child: builder(context, state),
+            )
+        : builder;
+    return GoRoute(
+      path: route.path,
+      name: route.name,
+      builder: wrapped,
+      redirect: route.redirect,
+      routes: _wrapRootAware(route.routes),
+    );
+  }
+
   static GoRouter create({
     required OnboardingCubit onboarding,
     required BiometricLockCubit biometricLock,
@@ -473,7 +593,12 @@ class AppRouter {
         }
         return null;
       },
-      routes: [
+      // Every root-capable route is wrapped in a [RootAwareBackScope] via
+      // [_wrapRootAware] (keyed by [backFallbacks]) so the system BACK gesture
+      // resolves to a parent instead of exiting the app when the screen is the
+      // stack ROOT (deep-link / push / `go`). Shell, first-run, gate, and
+      // mandatory-rating routes are excluded (see [backFallbacks]).
+      routes: _wrapRootAware([
         GoRoute(
           path: '/',
           name: 'shell',
@@ -1323,7 +1448,7 @@ class AppRouter {
           name: 'password-security',
           builder: (context, state) => const PasswordSecurityScreen(),
         ),
-      ],
+      ]),
       errorBuilder: (context, state) =>
           Scaffold(body: Center(child: Text('Route not found: ${state.uri}'))),
     );

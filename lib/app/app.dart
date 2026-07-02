@@ -238,6 +238,15 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   /// stream); null otherwise. Closed in [dispose].
   StreamSubscription<SessionState>? _sessionSub;
 
+  /// Re-entrancy guard for the empty-stack recovery below: a stack-REPLACING
+  /// AppBar back that pops go_router's lone page empties the Navigator, so
+  /// `MaterialApp.router` hands its `builder` a NULL child. Rather than render
+  /// the resulting blank/black surface (`SizedBox.shrink()` — unrecoverable
+  /// without a cold restart), we bounce back to `/` on the next frame. Guarded
+  /// so the recovery `go('/')` is scheduled once, not every rebuild while the
+  /// null-child frame is on screen.
+  bool _recoveringEmptyStack = false;
+
   @override
   void initState() {
     super.initState();
@@ -467,7 +476,26 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
               ],
               routerConfig: _router,
               builder: (context, child) {
-                final content = child ?? const SizedBox.shrink();
+                // Central blank-surface safety net (complements the per-route
+                // [RootAwareBackScope] which guards the SYSTEM back gesture).
+                // An unguarded AppBar back arrow on a `go`-replaced screen can
+                // still pop go_router's lone page and empty the Navigator, in
+                // which case `child` is NULL. Recover to `/` (the first-run
+                // gate then re-routes for the auth state) instead of leaving a
+                // dead blank surface. Scheduled once via the re-entrancy guard.
+                if (child == null) {
+                  if (!_recoveringEmptyStack) {
+                    _recoveringEmptyStack = true;
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (!mounted) return;
+                      _router.go('/');
+                      _recoveringEmptyStack = false;
+                    });
+                  }
+                  return const SizedBox.shrink();
+                }
+                _recoveringEmptyStack = false;
+                final content = child;
                 final handler = _pushHandler;
                 // Until the push chain finishes initializing post-first-frame,
                 // render the router content directly — no banner host. Once
