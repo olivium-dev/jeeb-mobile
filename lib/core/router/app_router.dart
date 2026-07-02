@@ -1121,7 +1121,18 @@ class AppRouter {
                 repository: _trackingRepository(),
                 deliveryId: deliveryId,
               ),
-              child: LiveTrackingScreen(deliveryId: deliveryId),
+              // sprint-009 P0 (stop-the-bleed): render the map placeholder, not
+              // a live GoogleMap. The manifest carries no
+              // `com.google.android.geo.API_KEY`, so a keyless map is a native
+              // FATAL (SIGKILL) that crashes all three inbound tracking CTAs
+              // (home "Track my order", delivery-detail "Live tracking", chat
+              // offer-accepted banner). Explicit here even though the default is
+              // now false, so this pin is visible at the crash site. sprint-013
+              // owns provisioning the real Maps key and flipping this back.
+              child: LiveTrackingScreen(
+                deliveryId: deliveryId,
+                useLiveMap: false,
+              ),
             );
           },
         ),

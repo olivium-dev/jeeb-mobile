@@ -20,14 +20,19 @@ class TrackingMapSurface extends StatelessWidget {
   const TrackingMapSurface({
     super.key,
     this.info,
-    this.useLiveMap = true,
+    this.useLiveMap = false,
   });
 
   /// Latest tracking snapshot from the cubit. Null before the first fetch.
   final DeliveryTrackingInfo? info;
 
-  /// Test/dev-seam seam: when false the deterministic placeholder is used even
-  /// if [info] is present (a real GoogleMap can't render in `flutter test`).
+  /// When false the deterministic placeholder is used even if [info] is present
+  /// (a real GoogleMap can't render in `flutter test`).
+  ///
+  /// DEFAULTS TO FALSE (sprint-009 P0): with no `com.google.android.geo.API_KEY`
+  /// in the manifest, mounting a live GoogleMap is a native FATAL (SIGKILL), so
+  /// no caller may mount a keyless map by accident. sprint-013 flips this back
+  /// with the provisioned key. Mirrors [LiveTrackingScreen.useLiveMap].
   final bool useLiveMap;
 
   static const Key rootKey = Key('tracking_map');

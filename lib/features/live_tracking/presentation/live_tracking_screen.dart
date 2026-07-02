@@ -34,15 +34,23 @@ class LiveTrackingScreen extends StatelessWidget {
   const LiveTrackingScreen({
     super.key,
     required this.deliveryId,
-    this.useLiveMap = true,
+    this.useLiveMap = false,
   });
 
   final String deliveryId;
 
-  /// T-MOB-017: when false the deterministic map placeholder is rendered
-  /// instead of a live GoogleMap. The router sets this false for the dev-seam
-  /// `/tracking` capture (no Maps key / unstable emulator) and tests rely on
-  /// the default-false widget-test path; production renders the live map.
+  /// T-MOB-017 / sprint-009 P0: when false the deterministic map placeholder is
+  /// rendered instead of a live GoogleMap.
+  ///
+  /// DEFAULTS TO FALSE (sprint-009 stop-the-bleed): `AndroidManifest.xml` has no
+  /// `com.google.android.geo.API_KEY`, so mounting a live GoogleMap makes the
+  /// native Maps SDK throw an UNCAUGHT `IllegalStateException` off the platform
+  /// thread → SIGKILL (a native FATAL that no Dart try/catch can contain). A
+  /// keyless map is therefore never safe to mount from ANY caller. sprint-013
+  /// owns provisioning the real Maps key and flipping this default back to true;
+  /// until then the screen shows the full stepper / Jeeber card / OTP card with
+  /// a static placeholder tile — no user-facing dead end. Callers that pass
+  /// `useLiveMap` explicitly (widget tests) are unaffected.
   final bool useLiveMap;
 
   @override
