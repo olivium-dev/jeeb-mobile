@@ -172,6 +172,8 @@ class _LeadingIcon extends StatelessWidget {
         return Icons.report_gmailerrorred_outlined;
       case NotificationKind.requestExpired:
         return Icons.hourglass_disabled_outlined;
+      case NotificationKind.newRequest:
+        return Icons.move_to_inbox_outlined;
       case NotificationKind.confirmReceipt:
         return Icons.inventory_2_outlined;
       case NotificationKind.marketing:

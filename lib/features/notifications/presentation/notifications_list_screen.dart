@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/notifications/domain/notification_deep_link.dart';
+import '../../../core/notifications/domain/notification_message.dart';
 import '../application/notifications_list_cubit.dart';
 import '../application/notifications_list_state.dart';
 import '../data/empty_notifications_repository.dart';
@@ -30,6 +32,10 @@ import 'widgets/notification_row.dart';
 ///   request_expired            → waiting-no-coverage (`/requests/:id/waiting`)
 ///   confirm_receipt            → delivered-receipt   (`/orders/:id/receipt`)
 ///   marketing                  → customer-orders-home (Requests tab → `shell`)
+///   new_request (G3)           → the request screen, via the SAME resolver
+///                                the push tap uses (`deepLinkForMessage` →
+///                                `/jeeber/requests/:id`) so a dismissed push
+///                                keeps a persistent, tappable inbox trail
 ///   unknown / missing-ref      → no nav (mark-read only; AP-9 honesty — never
 ///                                fabricate a target the row can't address)
 ///
@@ -168,7 +174,7 @@ class _LoadedList extends StatelessWidget {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsetsDirectional.symmetric(vertical: Spacing.small),
       itemCount: items.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (context, index) {
         final item = items[index];
         return NotificationRow(
@@ -242,6 +248,25 @@ class _LoadedList extends StatelessWidget {
       // Marketing → customer-orders-home (Requests tab) — a shell tab.
       case NotificationKind.marketing:
         context.goNamed('shell');
+        break;
+
+      // G3: new_request → the request screen. CONSUME the push-tap resolver
+      // (deepLinkForMessage, fix/push-tap-routing) rather than re-mapping the
+      // route here, so the inbox row and the push tap can never diverge —
+      // `/jeeber/requests/:id` already handles cache recovery + graceful
+      // fallback for taken/expired requests. Pushed (not go) so back returns
+      // to the inbox.
+      case NotificationKind.newRequest:
+        if (ref == null) break;
+        final target = deepLinkForMessage(NotificationMessage(
+          id: item.id,
+          category: NotificationCategory.newRequest,
+          title: item.title,
+          body: item.body,
+          receivedAt: DateTime.now(),
+          data: {'requestId': ref},
+        ));
+        if (target != null) context.push(target);
         break;
 
       // Unknown / unmapped — mark-read only, stay on the inbox (AP-9: never

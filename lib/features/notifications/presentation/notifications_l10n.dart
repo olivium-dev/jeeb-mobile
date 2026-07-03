@@ -75,6 +75,8 @@ class NotificationsL10n {
         return _pick('KYC rejected', 'تم رفض التحقق');
       case NotificationKind.requestExpired:
         return _pick('Request expired', 'انتهت صلاحية الطلب');
+      case NotificationKind.newRequest:
+        return _pick('New request', 'طلب جديد');
       case NotificationKind.confirmReceipt:
         return _pick('Confirm receipt', 'تأكيد الاستلام');
       case NotificationKind.marketing:
