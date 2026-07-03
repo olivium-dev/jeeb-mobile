@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../diagnostics/diag_dio_interceptor.dart';
 import 'auth_token_store.dart';
+import 'redacting_log_interceptor.dart';
 
 /// Maps gateway-style paths to the mock backend's per-service prefix paths.
 ///
@@ -227,11 +228,13 @@ class MockGatewayClient {
     dio.interceptors.add(const DiagDioInterceptor());
 
     if (kDebugMode) {
-      dio.interceptors.add(LogInterceptor(
-        requestBody: true,
-        responseBody: true,
-        logPrint: (o) => debugPrint(o.toString()),
-      ));
+      // SECURITY (run-22): the raw `LogInterceptor(requestBody/responseBody:
+      // true)` printed the full `Authorization: Bearer <JWT>` header and token
+      // bodies to logcat (1017 raw Bearer/JWT matches counted in one run).
+      // RedactingLogInterceptor keeps the same request/response visibility but
+      // replaces every sensitive header/body value with a non-reversible
+      // `tok:<fnv8>~<last4>` correlation handle (see diag_redaction.dart).
+      dio.interceptors.add(const RedactingLogInterceptor());
     }
 
     return dio;
