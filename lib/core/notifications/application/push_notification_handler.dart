@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../diagnostics/diag.dart';
 import '../data/push_transport.dart';
+import '../domain/local_push_inbox.dart';
 import '../domain/notification_message.dart';
 import 'badge_count_cubit.dart';
 import 'offer_lifecycle_signals.dart';
@@ -70,12 +71,14 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     Future<void> Function(String token)? onToken,
     PushRefreshSignals? refreshSignals,
     OfferLifecycleSignals? offerLifecycleSignals,
+    LocalPushInbox? localInbox,
   })  : _transport = transport,
         _badgeCount = badgeCount,
         _historyLimit = historyLimit,
         _onToken = onToken,
         _refreshSignals = refreshSignals,
         _offerLifecycleSignals = offerLifecycleSignals,
+        _localInbox = localInbox,
         super(const PushNotificationState()) {
     _foregroundSub = transport.onForegroundMessage.listen(_onForeground);
     _openedSub = transport.onMessageOpenedApp.listen(_opensCtl.add);
@@ -93,6 +96,7 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
   final Future<void> Function(String token)? _onToken;
   final PushRefreshSignals? _refreshSignals;
   final OfferLifecycleSignals? _offerLifecycleSignals;
+  final LocalPushInbox? _localInbox;
   final _opensCtl = StreamController<NotificationMessage>.broadcast();
   final _seenIds = Queue<String>();
   // Bound the dedup set so a noisy server can't grow this without limit.
@@ -178,12 +182,31 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     // G3: tag new-request pushes so the shell's Dashboard-tab badge counts
     // exactly the unseen open requests (chat/offer pushes only bump the
     // inbox total).
-    _badgeCount.increment(
-      isNewRequest: message.category == NotificationCategory.newRequest,
-    );
+    final isNewRequest = message.category == NotificationCategory.newRequest;
+    _badgeCount.increment(isNewRequest: isNewRequest);
+    // G3: mirror the background-isolate persistence for a FOREGROUND new_request
+    // so the durable inbox row + badge survive an app kill BEFORE the jeeber
+    // acts (the server inbox has no new_request source to re-pull it from).
+    if (isNewRequest) _persistNewRequest(message);
     emit(state.copyWith(banner: message, history: history));
     _maybeSignalStatusChange(message);
     _maybeSignalOfferLifecycle(message);
+  }
+
+  /// Best-effort durable write of a `new_request` push to the on-device inbox
+  /// store (G3). Fire-and-forget — a storage failure must never disrupt the
+  /// banner/badge path. No-op when no store is wired (unit tests).
+  void _persistNewRequest(NotificationMessage message) {
+    final inbox = _localInbox;
+    if (inbox == null) return;
+    unawaited(inbox.append(LocalPushRecord(
+      id: message.id,
+      type: kNewRequestPushType,
+      title: message.title,
+      body: message.body,
+      ts: message.receivedAt.toUtc().toIso8601String(),
+      ref: message.data['requestId'] ?? message.data['request_id'],
+    )));
   }
 
   /// A foreground `offer_accepted` / `offer_lost` push carrying a flat `offerId`
