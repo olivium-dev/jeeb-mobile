@@ -165,6 +165,26 @@ String? normalizeJeebSchemeDeepLink(Uri uri) {
   return uri.hasQuery ? '$path?${uri.query}' : path;
 }
 
+/// S9 P0 (restored on feat/request-scenarios — the cycle-1 merge dropped it
+/// while keeping its test): live tracking must poll the delivery-service by
+/// the SERVER delivery id. Some callers only hold the request id in the route
+/// path; those that hold the server id pass it as `?deliveryId=`, which takes
+/// precedence over the path `:id` so `GET /v1/deliveries/<id>` resolves
+/// instead of 404-ing ("Delivery not found"). Falls back to the path id for
+/// legacy callers + the dev seam.
+///
+/// Pure + side-effect free so the precedence rule is unit-testable without
+/// booting the router.
+String resolveTrackingDeliveryId({
+  required String? routeId,
+  required String? queryDeliveryId,
+}) {
+  if (queryDeliveryId != null && queryDeliveryId.isNotEmpty) {
+    return queryDeliveryId;
+  }
+  return routeId ?? '';
+}
+
 class AppRouter {
   AppRouter._();
 
@@ -1131,7 +1151,14 @@ class AppRouter {
           path: '/orders/:id/tracking',
           name: 'live-tracking',
           builder: (context, state) {
-            final deliveryId = state.pathParameters['id'] ?? '';
+            // S9 P0: `?deliveryId=` (the SERVER delivery id) takes precedence
+            // over the path `:id` (which may be a request id that 404s on the
+            // delivery-service read). Mirrors the `chat-detail` route's
+            // `deliveryId` query-param plumbing.
+            final deliveryId = resolveTrackingDeliveryId(
+              routeId: state.pathParameters['id'],
+              queryDeliveryId: state.uri.queryParameters['deliveryId'],
+            );
             return BlocProvider<LiveTrackingCubit>(
               create: (_) => LiveTrackingCubit(
                 repository: _trackingRepository(),
