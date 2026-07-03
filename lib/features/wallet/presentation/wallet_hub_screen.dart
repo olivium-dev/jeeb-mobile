@@ -5,6 +5,7 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/session/jeeber_kyc_status_gate.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
 import '../../offline_mode/application/offline_cubit.dart';
 import '../application/wallet_hub_cubit.dart';
 import '../application/wallet_hub_state.dart';
@@ -214,7 +215,7 @@ class _LoadedBody extends StatelessWidget {
             icon: _affordabilityIcon(affordability),
             title: copy.affordabilityTitle(affordability),
             body: copy.affordabilityBody(affordability),
-            tone: _affordabilityTone(affordability, theme),
+            tone: _affordabilityTone(affordability, context.jeebRoles),
           ),
         ),
 
@@ -344,14 +345,16 @@ class _LoadedBody extends StatelessWidget {
     }
   }
 
-  Color? _affordabilityTone(WalletAffordability a, ThemeData theme) {
+  /// Non-healthy affordability is an attention state ("top up to bid") ->
+  /// semantic warning pair, not the error pair (UX-AUDIT T1 dark-red banner).
+  (Color, Color)? _affordabilityTone(WalletAffordability a, JeebRoles roles) {
     switch (a) {
       case WalletAffordability.enough:
         return null; // neutral / positive surface
       case WalletAffordability.low:
       case WalletAffordability.empty:
       case WalletAffordability.allReserved:
-        return theme.colorScheme.errorContainer;
+        return (roles.warningContainer, roles.onWarningContainer);
     }
   }
 
@@ -445,15 +448,16 @@ class _Banner extends StatelessWidget {
   final IconData icon;
   final String title;
   final String body;
-  final Color? tone;
+
+  /// Optional (background, foreground) semantic role pair tinting the card
+  /// for non-healthy states; defaults to the neutral surface pair.
+  final (Color, Color)? tone;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final bg = tone ?? theme.colorScheme.surfaceContainerHighest;
-    final fg = tone != null
-        ? theme.colorScheme.onErrorContainer
-        : theme.colorScheme.onSurface;
+    final bg = tone?.$1 ?? theme.colorScheme.surfaceContainerHighest;
+    final fg = tone?.$2 ?? theme.colorScheme.onSurface;
     return Container(
       padding: const EdgeInsets.all(Spacing.medium),
       decoration: BoxDecoration(

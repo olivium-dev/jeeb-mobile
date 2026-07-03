@@ -6,6 +6,7 @@ import 'package:omds/omds.dart';
 import '../../../core/dev_seam/social_auth_seam.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/sign_up_cubit.dart';
 import '../application/sign_up_state.dart';
@@ -322,13 +323,15 @@ class _PasswordStrengthHint extends StatelessWidget {
           l10n.signupPasswordStrengthWeak,
           theme.colorScheme.error,
         ),
+      // Strength meter reads in semantic roles: weak = error, medium =
+      // warning, strong = success (brand tertiary/primary were doing state duty).
       PasswordStrength.medium => (
           l10n.signupPasswordStrengthMedium,
-          theme.colorScheme.tertiary,
+          context.jeebRoles.warning,
         ),
       PasswordStrength.strong => (
           l10n.signupPasswordStrengthStrong,
-          theme.colorScheme.primary,
+          context.jeebRoles.success,
         ),
     };
 

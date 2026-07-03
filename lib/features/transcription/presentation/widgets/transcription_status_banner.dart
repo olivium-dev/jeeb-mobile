@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/transcription_cubit.dart';
 import '../transcription_screen.dart';
@@ -66,16 +67,15 @@ class _BannerSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    // Queued/processing is informational -> semantic info role pair (WCAG-AA
+    // gated), replacing the old navy secondaryContainer + onPrimary contrast
+    // workaround. Failed keeps the M3 error pair.
+    final roles = context.jeebRoles;
     final container =
-        isFailed ? colorScheme.errorContainer : colorScheme.secondaryContainer;
-    // The queued container resolves to deep navy in the Jeeb scheme, so its
-    // on-color must be the high-contrast on-navy token (`onPrimary`, white)
-    // rather than `onSecondaryContainer` (muted purple #777FC0, ~3:1 on navy
-    // — fails WCAG 2.2 AA for body text). The failed container is a light
-    // error tint, so it keeps its M3-paired `onErrorContainer`.
+        isFailed ? colorScheme.errorContainer : roles.infoContainer;
     final onContainer = isFailed
         ? colorScheme.onErrorContainer
-        : colorScheme.onPrimary;
+        : roles.onInfoContainer;
     return Semantics(
       container: true,
       label: '$title. $body',
