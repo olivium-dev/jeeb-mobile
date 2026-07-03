@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../diagnostics/diag.dart';
 import 'user_role.dart';
 
 /// Cubit owning the active [UserRole] (client vs jeeber).
@@ -23,6 +24,13 @@ class RoleCubit extends Cubit<UserRole> {
 
   Future<void> setRole(UserRole role) async {
     if (role == state) return;
+    // Diagnostic seam (diag-persistence lane): every ACTUAL role change flows
+    // through here (settings toggle, getMe role-sync, dev seam), so this is the
+    // single choke point for the `role_switch` event. No-op in release.
+    Diag.event('role_switch', <String, Object?>{
+      'from': state.storageKey,
+      'to': role.storageKey,
+    });
     emit(role);
     await _prefs.setString(rolePrefKey, role.storageKey);
   }

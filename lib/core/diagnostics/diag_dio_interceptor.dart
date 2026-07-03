@@ -4,7 +4,8 @@ import 'diag.dart';
 import 'diag_redaction.dart';
 
 /// Dio [Interceptor] that emits one `[jeeb-diag] {"t":"api",...}` line per HTTP
-/// round-trip: method, path, status, duration, and the correlation id — and
+/// round-trip: method, path, status, duration, correlation id, a monotonic
+/// per-session sequence number, and the screen route active at CALL time — and
 /// NOTHING else.
 ///
 /// Redaction by design: this interceptor NEVER reads or logs the Authorization
@@ -18,14 +19,27 @@ import 'diag_redaction.dart';
 /// Timing uses a monotonic stopwatch stashed in `RequestOptions.extra`, so the
 /// `ms` figure is the true wall-clock of the request as Dio saw it (including
 /// a token-refresh retry, which re-enters `onRequest` and restarts the clock).
+///
+/// Context (diag-persistence lane): `seq` ([Diag.nextApiSeq]) and `screen`
+/// ([Diag.currentScreen]) are both captured in `onRequest` — at the moment the
+/// call FIRES — so concurrent requests keep distinct ordered ids and a call is
+/// attributed to the screen that made it even when its response lands after
+/// the user has navigated away.
 class DiagDioInterceptor extends Interceptor {
   const DiagDioInterceptor();
 
   static const String _startedAtKey = 'jeeb.diag.startedAtMicros';
+  static const String _seqKey = 'jeeb.diag.seq';
+  static const String _screenKey = 'jeeb.diag.screen';
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     options.extra[_startedAtKey] = DateTime.now().microsecondsSinceEpoch;
+    if (Diag.enabled) {
+      options.extra[_seqKey] = Diag.nextApiSeq();
+      final screen = Diag.currentScreen;
+      if (screen != null) options.extra[_screenKey] = screen;
+    }
     handler.next(options);
   }
 
@@ -45,12 +59,16 @@ class DiagDioInterceptor extends Interceptor {
 
   void _emit(RequestOptions options, int? status) {
     if (!Diag.enabled) return;
+    final seq = options.extra[_seqKey];
+    final screen = options.extra[_screenKey];
     Diag.api(
       method: options.method,
       path: options.path,
       status: status,
       ms: _elapsedMs(options),
       reqId: _correlationId(options),
+      seq: seq is int ? seq : null,
+      screen: screen is String ? screen : null,
     );
   }
 

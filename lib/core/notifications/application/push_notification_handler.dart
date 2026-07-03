@@ -112,6 +112,17 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
   Future<void> bootstrap() async {
     final permission = await _transport.requestPermission();
     final token = await _transport.getToken();
+    // Diagnostic seam (diag-persistence lane): surface push-permission state
+    // transitions (notDetermined → granted/denied, and any later change on a
+    // re-bootstrap) so a device run explains "why did no push arrive". Only
+    // the enum name is logged — never the token (that would violate the
+    // redaction contract; the token is scrubbed by Diag anyway).
+    if (permission != state.permission) {
+      Diag.event('push_permission', <String, Object?>{
+        'from': state.permission.name,
+        'to': permission.name,
+      });
+    }
     emit(state.copyWith(permission: permission, token: token));
     // PUSH-FIX (iter6): register the freshly-fetched token with the backend
     // so the push-notification service has a (device -> token) row to send to.

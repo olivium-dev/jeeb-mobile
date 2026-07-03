@@ -9,37 +9,49 @@ import 'diag_redaction.dart';
 /// deep-link driven and redirect-driven transitions.
 ///
 /// It records the ROUTE PATH PATTERN (`/orders/:id`, not `/orders/d-42`) when
-/// go_router exposes it, the route name, and the path params. Query parameters
-/// are intentionally dropped — they can carry tokens (`?resetToken=…`) and the
-/// diagnostic stream never logs those.
+/// go_router exposes it, the route name, the path params, and — diag-persistence
+/// lane — the PREVIOUS route (`prev`): the screen the user came FROM on a push/
+/// replace, or the screen they LEFT on a pop. Query parameters are intentionally
+/// dropped — they can carry tokens (`?resetToken=…`) and the diagnostic stream
+/// never logs those.
+///
+/// It also keeps [Diag.currentScreen] pointing at the route currently on top,
+/// which `DiagDioInterceptor` stamps onto every `api` record (`screen`) so an
+/// exported session answers "which screen fired this call" per line.
 class DiagNavObserver extends NavigatorObserver {
   DiagNavObserver();
 
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    _emit('push', route);
+    _emit('push', route, from: previousRoute);
   }
 
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
     // On a pop the destination the user lands ON is `previousRoute`; that is
-    // the more useful "where am I now" signal, falling back to the popped route.
-    _emit('pop', previousRoute ?? route);
+    // the more useful "where am I now" signal, falling back to the popped
+    // route. The POPPED route is the `prev` context (the screen just left).
+    _emit('pop', previousRoute ?? route, from: route);
   }
 
   @override
   void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
-    _emit('replace', newRoute);
+    _emit('replace', newRoute, from: oldRoute);
   }
 
-  void _emit(String evt, Route<dynamic>? route) {
+  void _emit(String evt, Route<dynamic>? route, {Route<dynamic>? from}) {
     if (!Diag.enabled || route == null) return;
     final settings = route.settings;
+    final routePattern = _routePattern(settings);
+    // Track the active screen for api-record stamping BEFORE emitting, so the
+    // nav line and any api call from the new screen agree on `screen`.
+    Diag.currentScreen = routePattern ?? Diag.currentScreen;
     Diag.nav(
       evt: evt,
-      route: _routePattern(settings),
+      route: routePattern,
       name: _routeName(settings),
       params: _pathParams(settings),
+      prev: from == null ? null : _routePattern(from.settings),
     );
   }
 

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/diagnostics/diag.dart';
 import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/locale/locale_cubit.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -355,6 +356,23 @@ class _AboutSection extends StatelessWidget {
           leadingIcon: Icons.info_outline,
           icon: Icons.info_outline,
         ),
+        // Dev-only diagnostics export entry (diag-persistence lane). Gated on
+        // Diag.enabled (kDebugMode || JEEB_DIAG dart-define) so it NEVER
+        // renders in release. Literal English strings by design — a dev tool
+        // that never ships, deliberately kept out of the ARB catalogs.
+        if (Diag.enabled)
+          Semantics(
+            identifier: 'settings_open_diagnostics',
+            button: true,
+            child: OmdsSettingsRow(
+              key: const Key('settings-row-diagnostics'),
+              title: 'Diagnostics',
+              subtitle: 'Session logs · dev builds only',
+              leadingIcon: Icons.bug_report_outlined,
+              icon: Icons.chevron_right,
+              onTap: () => context.pushNamed('settings-diagnostics'),
+            ),
+          ),
       ],
     );
   }
