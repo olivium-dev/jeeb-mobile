@@ -278,7 +278,11 @@ class _ActiveOrderDestination extends StatelessWidget {
     return Text(
       label,
       style: theme.textTheme.labelSmall?.copyWith(
-        color: theme.colorScheme.onSecondaryContainer,
+        // UX-AUDIT §T3: this label sits on the white `surface`, so it must use
+        // the on-surface muted role (AA-passing 9.35:1), NOT `onSecondaryContainer`
+        // (periwinkle, the ~3.76:1 periwinkle-on-white failure). See
+        // color_role_contrast_test.dart.
+        color: theme.colorScheme.onSurfaceVariant,
         letterSpacing: 0.4,
       ),
       maxLines: 1,
@@ -342,7 +346,9 @@ class _ProgressStepLabel extends StatelessWidget {
       text,
       style: theme.textTheme.labelSmall?.copyWith(
         fontWeight: FontWeight.w500,
-        color: theme.colorScheme.onSecondaryContainer,
+        // UX-AUDIT §T3: progress labels sit on the white `surface`; use the
+        // on-surface muted role (AA), not periwinkle `onSecondaryContainer`.
+        color: theme.colorScheme.onSurfaceVariant,
         letterSpacing: 0.5,
       ),
     );
@@ -366,6 +372,7 @@ class _ActiveOrderActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final onOpenChat = this.onOpenChat;
     final onTrack = this.onTrack;
     return Padding(
@@ -383,6 +390,14 @@ class _ActiveOrderActions extends StatelessWidget {
                   key: Key('active-open-chat-$requestId'),
                   text: AppLocalizations.of(context).orderSummaryOpenChat,
                   onTap: onOpenChat,
+                  // UX-AUDIT §T2/T3: `OMDSOutlinedButton` defaults to a navy
+                  // `secondaryContainer` fill with periwinkle text (the flagged
+                  // low-contrast "Open chat" chip on the white card). Bind it to
+                  // an explicit tonal pair — navy ink on the light surface
+                  // container (14:1) — so it reads as a clear secondary action
+                  // beside the primary Track pill. Both are ColorScheme roles.
+                  backgroundColor: theme.colorScheme.surfaceContainerHigh,
+                  textColor: theme.colorScheme.onSurface,
                 ),
               ),
             ),
