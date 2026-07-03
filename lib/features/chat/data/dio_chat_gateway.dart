@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 
 import '../../../core/network/mock_gateway_client.dart';
 import '../../client_offers/domain/offers_repository.dart' show OfferAcceptResult;
+import '../../otp_handover/domain/handover_code_store.dart';
 import '../domain/chat_gateway.dart';
 import '../domain/chat_socket.dart';
 import '../domain/delivery_chat_message.dart';
@@ -48,13 +49,21 @@ class DioChatGateway implements ChatGateway {
     String? conversationCorrelationKey,
     ChatSocket Function(String conversationId)? socketFactory,
     Uri? socketBaseUri,
+    HandoverCodeStore? handoverCodeStore,
   })  : _dio = dio,
         _correlationKey = conversationCorrelationKey,
         _socketBaseUri = socketBaseUri ??
             Uri.parse(MockGatewayClient.webSocketUrl),
-        _socketFactory = socketFactory;
+        _socketFactory = socketFactory,
+        _handoverCodeStore = handoverCodeStore;
 
   final Dio _dio;
+
+  /// G4: sink for the accept response's `handoverCode` (see
+  /// [HandoverCodeStore]). The chat "Accept" CTA is the second accept path
+  /// (besides the offer-review sheet) — it must retain + persist the code the
+  /// same way. Null in tests that don't exercise persistence.
+  final HandoverCodeStore? _handoverCodeStore;
 
   /// Id of the local user. Used to derive [ChatAuthor.me] vs `them` when
   /// folding inbound messages and to mark outgoing messages with the right
@@ -294,6 +303,20 @@ class DioChatGateway implements ChatGateway {
       ),
     );
     final deliveryId = _deliveryIdOf(response.data);
+    // G4 (sprint-009 P0): RETAIN the handover code — the accept response is
+    // the only wire moment the customer's app receives it. Persisted keyed by
+    // delivery id so the tracking/OTP surfaces can show it, even after an app
+    // restart. NEVER log it (DiagRedaction masks `handoverCode` keys).
+    final handoverCode = _handoverCodeOf(response.data);
+    if (_handoverCodeStore != null &&
+        deliveryId != null &&
+        handoverCode != null) {
+      unawaited(
+        _handoverCodeStore
+            .save(deliveryId: deliveryId, code: handoverCode)
+            .catchError((_) {}),
+      );
+    }
     // The mock backend flips the phase + writes the system message inside the
     // accept handler. We surface a synthetic phase event so the cubit reacts
     // immediately rather than waiting for the next socket frame; it carries
@@ -303,7 +326,10 @@ class DioChatGateway implements ChatGateway {
         PhaseChanged(ConversationPhase.accepted, deliveryId: deliveryId),
       );
     }
-    return OfferAcceptResult(deliveryId: deliveryId);
+    return OfferAcceptResult(
+      deliveryId: deliveryId,
+      handoverCode: handoverCode,
+    );
   }
 
   /// True when [conversationId] does not yet identify a real backend
@@ -347,6 +373,14 @@ class DioChatGateway implements ChatGateway {
     if (body == null) return null;
     final raw = body['deliveryId'] ?? body['delivery_id'];
     return raw is String && raw.trim().isNotEmpty ? raw : null;
+  }
+
+  /// Defensive read of the handover code from the accept body (G4). Accepts
+  /// `handoverCode` and snake_case `handover_code`; missing/blank → null.
+  String? _handoverCodeOf(Map<String, dynamic>? body) {
+    if (body == null) return null;
+    final raw = body['handoverCode'] ?? body['handover_code'];
+    return raw is String && raw.trim().isNotEmpty ? raw.trim() : null;
   }
 
   /// Upload a voice clip to `/v1/voice/transcribe` with a stable

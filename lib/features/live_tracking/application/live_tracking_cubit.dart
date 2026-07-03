@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../otp_handover/domain/handover_code_store.dart';
 import '../domain/delivery_tracking_info.dart';
 import '../domain/live_tracking_repository.dart';
 import 'live_tracking_state.dart';
@@ -11,8 +12,10 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     required LiveTrackingRepository repository,
     required this.deliveryId,
     Duration pollInterval = const Duration(seconds: 5),
+    HandoverCodeStore? handoverCodeStore,
   })  : _repository = repository,
         _pollInterval = pollInterval,
+        _handoverCodeStore = handoverCodeStore,
         super(const LiveTrackingState()) {
     _fetchAndSchedule();
   }
@@ -20,11 +23,33 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   final LiveTrackingRepository _repository;
   final String deliveryId;
   final Duration _pollInterval;
+
+  /// G4: local, restart-safe source of the delivery hand-over code (persisted
+  /// at offer-accept time). Read-only here — the tracking surface renders it
+  /// discoverably pre-at-door and prominently at the door. It deliberately
+  /// NEVER calls `GET /otp` (that endpoint is an SMS trigger on the live
+  /// gateway — polling it would spam the recipient with texts).
+  final HandoverCodeStore? _handoverCodeStore;
   Timer? _pollTimer;
 
   Future<void> _fetchAndSchedule() async {
-    await _fetch();
+    await Future.wait([_hydrateHandoverCode(), _fetch()]);
     _schedulePoll();
+  }
+
+  /// G4: re-hydrates the accept-time code from local persistence (cold-start
+  /// safe). Total: a prefs failure just leaves the code null.
+  Future<void> _hydrateHandoverCode() async {
+    final store = _handoverCodeStore;
+    if (store == null) return;
+    try {
+      final code = await store.read(deliveryId: deliveryId);
+      if (code != null && !isClosed) {
+        emit(state.copyWith(handoverCode: code));
+      }
+    } catch (_) {
+      // Never let a local read fault the tracking surface.
+    }
   }
 
   Future<void> _fetch() async {

@@ -134,6 +134,7 @@ class _TrackingStateView extends StatelessWidget {
           isAtDoor: state.isAtDoor,
           deliveryId: deliveryId,
           useLiveMap: useLiveMap,
+          handoverCode: state.handoverCode,
         );
     }
   }
@@ -187,12 +188,19 @@ class _TrackingBody extends StatelessWidget {
     required this.isAtDoor,
     required this.deliveryId,
     required this.useLiveMap,
+    this.handoverCode,
   });
 
   final DeliveryTrackingInfo info;
   final bool isAtDoor;
   final String deliveryId;
   final bool useLiveMap;
+
+  /// G4: the accept-time hand-over code, re-hydrated from local persistence.
+  /// Rendered discoverably (compact row) before at-door and prominently
+  /// (inline in [OtpAtDoorCard]) at the door. Null → surfaces degrade to the
+  /// pre-fix layout and the OTP screen's SMS fallback.
+  final String? handoverCode;
 
   @override
   Widget build(BuildContext context) {
@@ -240,9 +248,15 @@ class _TrackingBody extends StatelessWidget {
           ),
           if (info.jeeber != null) _TrackingJeeberSection(jeeber: info.jeeber!),
           if (isAtDoor)
-            OtpAtDoorCard(deliveryId: deliveryId)
-          else
+            // G4: at the door the code is PROMINENT — inline in the card.
+            OtpAtDoorCard(deliveryId: deliveryId, handoverCode: handoverCode)
+          else ...[
+            // G4: as soon as the code is known (accept time) it is
+            // discoverable — a quiet one-line row, not a hero banner.
+            if (handoverCode != null)
+              _HandoverCodeRow(code: handoverCode!, deliveryId: deliveryId),
             _TrackingPanelSection(info: info),
+          ],
           // JM-032 AC3/AC4: dispute + no-show CTAs.
           _TrackingActionBar(info: info, deliveryId: deliveryId),
         ],
@@ -317,6 +331,90 @@ class _TrackingActionBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// G4: compact, discoverable hand-over code row shown from accept time until
+/// the at-door moment (where [OtpAtDoorCard] takes over prominently). One
+/// quiet line — label + code + hint — tappable through to the full-screen
+/// display. OMDS tokens only.
+class _HandoverCodeRow extends StatelessWidget {
+  const _HandoverCodeRow({required this.code, required this.deliveryId});
+
+  final String code;
+  final String deliveryId;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.medium,
+        Spacing.small,
+        Spacing.medium,
+        0,
+      ),
+      child: Semantics(
+        identifier: 'tracking_handover_code_row',
+        button: true,
+        label: l10n.trackingCodeChipLabel,
+        value: code.split('').join(' '),
+        child: Material(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: OmdsBorderRadius.medium,
+          child: InkWell(
+            borderRadius: OmdsBorderRadius.medium,
+            onTap: () => context.push('/orders/$deliveryId/otp'),
+            child: Padding(
+              padding: const EdgeInsetsDirectional.symmetric(
+                horizontal: Spacing.medium,
+                vertical: Spacing.small,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.key_outlined,
+                    size: Sizes.medium,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: Spacing.small),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.trackingCodeChipLabel,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        Text(
+                          l10n.trackingCodeChipHint,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: Spacing.small),
+                  Text(
+                    code,
+                    key: const Key('tracking.codeRowValue'),
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: Spacing.xSmall,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

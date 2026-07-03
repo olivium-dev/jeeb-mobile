@@ -3223,6 +3223,18 @@
   "@trackingAtDoorCta": {
     "description": "T-MOB-017 AC4: CTA button on the at-door card that navigates to the OTP screen."
   },
+  "trackingAtDoorShareCode": "Share this code with your Jeeber when they arrive",
+  "@trackingAtDoorShareCode": {
+    "description": "G4: Instruction on the at-door card when the handover code is rendered inline."
+  },
+  "trackingCodeChipLabel": "Delivery code",
+  "@trackingCodeChipLabel": {
+    "description": "G4: Label of the compact handover-code row on the customer tracking screen (pre at-door)."
+  },
+  "trackingCodeChipHint": "Share it with your Jeeber at the door",
+  "@trackingCodeChipHint": {
+    "description": "G4: Supporting text of the compact handover-code row on the customer tracking screen."
+  },
   "trackingJeeberOnTheWay": "Jeeber is on the way!",
   "@trackingJeeberOnTheWay": {
     "description": "T-MOB-017 AC3: Snack shown when delivery status transitions to in_transit."
@@ -3242,6 +3254,18 @@
   "otpClientDoNotShare": "Do not share until you receive your items",
   "@otpClientDoNotShare": {
     "description": "T-MOB-018 AC1: Security reminder below the OTP code on the client view."
+  },
+  "otpClientSmsSentTitle": "We've sent your code by SMS",
+  "@otpClientSmsSentTitle": {
+    "description": "G4: Headline on the customer fallback when the app holds no code — the GET /otp call triggered an SMS to the recipient."
+  },
+  "otpClientSmsSentBody": "Check the recipient phone's messages for the 4-digit delivery code, then share it with your Jeeber at the door.",
+  "@otpClientSmsSentBody": {
+    "description": "G4: Supporting text on the customer SMS-fallback surface."
+  },
+  "otpClientResendSms": "Send the code again",
+  "@otpClientResendSms": {
+    "description": "G4: Resend CTA on the customer SMS-fallback surface (re-triggers the SMS)."
   },
   "otpJeeberInstruction": "Enter the OTP from the Client",
   "@otpJeeberInstruction": {

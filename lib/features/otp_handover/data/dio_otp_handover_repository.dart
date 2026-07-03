@@ -9,6 +9,10 @@ import '../domain/otp_handover_result.dart';
 /// GET  /v1/deliveries/{id}/otp
 ///   → OtpStatusDto { deliveryId, triggered, code, expiresAt, attemptsRemaining }
 ///   (wave-11 alias; `code` is the 4-digit string the client displays)
+///   G4: the LIVE gateway returns `{ deliveryId, triggered: true, message }` —
+///   NO `code`; the call is an SMS trigger to the recipient (run-23 wire,
+///   `proof-run23/wire/customer-otp-fetch-redacted.txt`). Mapped to
+///   `OtpFetchResult.smsTriggered` rather than a parse error.
 ///
 /// POST /v1/deliveries/{id}/otp/verify
 ///   body: { code: "1234" }
@@ -30,7 +34,7 @@ class DioOtpHandoverRepository implements OtpHandoverRepository {
   static const _v1DeliveriesPath = '/v1/deliveries';
 
   @override
-  Future<String> fetchHandoverCode({required String deliveryId}) async {
+  Future<OtpFetchResult> fetchHandoverCode({required String deliveryId}) async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         '$_v1DeliveriesPath/$deliveryId/otp',
@@ -39,12 +43,21 @@ class DioOtpHandoverRepository implements OtpHandoverRepository {
       if (data == null) {
         throw const OtpHandoverException(OtpHandoverErrorKind.parse);
       }
-      // OtpStatusDto: `code` field added in wave-11 contract addendum
+      // Two legitimate wire shapes (G4):
+      //  • mock / wave-11 addendum: `{ …, code: "1234" }` → in-app display.
+      //  • LIVE gateway (run-23):   `{ deliveryId, triggered: true, message }`
+      //    → the endpoint SMS-triggered the code to the recipient; there is
+      //    nothing to display in-app. Surfaced as `smsTriggered` instead of
+      //    the pre-fix `parse` throw (which flipped the customer to a
+      //    code-ENTRY grid for a code they were never shown).
       final code = data['code'] as String?;
-      if (code == null || code.isEmpty) {
-        throw const OtpHandoverException(OtpHandoverErrorKind.parse);
+      if (code != null && code.isNotEmpty) {
+        return OtpFetchResult(code: code, smsTriggered: data['triggered'] == true);
       }
-      return code;
+      if (data['triggered'] == true) {
+        return const OtpFetchResult(smsTriggered: true);
+      }
+      throw const OtpHandoverException(OtpHandoverErrorKind.parse);
     } on DioException catch (e) {
       throw OtpHandoverException(_mapDioKind(e), e);
     }

@@ -121,7 +121,7 @@ void main() {
       (tester) async {
         final repo = _MockOtpRepo();
         when(() => repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))
-            .thenAnswer((_) async => '1234');
+            .thenAnswer((_) async => const OtpFetchResult(code: '1234'));
         final cubit = OtpHandoverCubit(
           repository: repo,
           deliveryId: 'DLV-1',

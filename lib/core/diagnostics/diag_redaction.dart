@@ -39,6 +39,12 @@ const Set<String> kSensitiveDataKeys = {
   'otp',
   'jwt',
   'bearer',
+  // G4: the delivery hand-over code. It is the customer's own credential (not
+  // a secret from them) but it gates the physical hand-off, so it must never
+  // reach logcat. Normalised key — matches `handoverCode` / `handover_code`.
+  'handovercode',
+  'otpcode',
+  'deliverycode',
 };
 
 /// Redaction helpers. All methods are total and null-safe — a redaction path
@@ -48,14 +54,21 @@ abstract final class DiagRedaction {
 
   /// Turns a secret into a non-reversible correlation handle of the form
   /// `tok:<fnv8>~<last4>`. Returns [_nullHandle] for null/empty input. Never
-  /// returns any substring of [secret] other than its final 4 chars.
+  /// returns any substring of [secret] other than its final 4 chars — and for
+  /// SHORT secrets (≤ [_minLengthForTail] chars, e.g. a 4-digit handover OTP,
+  /// where "the last 4 chars" IS the whole secret) the tail is omitted
+  /// entirely: the handle is hash-only (`tok:<fnv8>`), G4 diag-redaction rule.
   static String redactToken(String? secret) {
     if (secret == null || secret.isEmpty) return _nullHandle;
-    final last4 = secret.length <= 4
-        ? secret
-        : secret.substring(secret.length - 4);
+    if (secret.length < _minLengthForTail) return 'tok:${_fnv1a8(secret)}';
+    final last4 = secret.substring(secret.length - 4);
     return 'tok:${_fnv1a8(secret)}~$last4';
   }
+
+  /// Minimum secret length before the correlation tail (`~<last4>`) is
+  /// appended. Below this, 4 trailing chars reveal ≥ a third of the secret —
+  /// for a 4–8 char OTP/PIN that is effectively the secret itself.
+  static const int _minLengthForTail = 12;
 
   /// True when [name] (case-insensitively) is a secret-bearing header.
   static bool isSensitiveHeader(String name) =>

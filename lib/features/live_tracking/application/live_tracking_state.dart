@@ -23,6 +23,7 @@ class LiveTrackingState extends Equatable {
     this.errorMessage,
     this.errorTitle,
     this.pendingEvent = LiveTrackingEvent.none,
+    this.handoverCode,
   });
 
   final LiveTrackingViewMode mode;
@@ -37,6 +38,12 @@ class LiveTrackingState extends Equatable {
   /// T-MOB-017: One-shot event for the screen listener (AC3 + AC4).
   final LiveTrackingEvent pendingEvent;
 
+  /// G4 (sprint-009): the delivery hand-over code re-hydrated from the local
+  /// [HandoverCodeStore] (persisted at offer-accept time; restart-safe). Null
+  /// when the device never received it (e.g. reinstall) — the at-door card
+  /// then routes to the OTP screen's SMS fallback instead. Never logged.
+  final String? handoverCode;
+
   bool get isAtDoor =>
       trackingInfo?.currentStage == TrackingStage.atDoor;
 
@@ -47,6 +54,7 @@ class LiveTrackingState extends Equatable {
     String? errorTitle,
     bool clearError = false,
     LiveTrackingEvent? pendingEvent,
+    String? handoverCode,
   }) {
     return LiveTrackingState(
       mode: mode ?? this.mode,
@@ -54,10 +62,17 @@ class LiveTrackingState extends Equatable {
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       errorTitle: clearError ? null : (errorTitle ?? this.errorTitle),
       pendingEvent: pendingEvent ?? LiveTrackingEvent.none,
+      handoverCode: handoverCode ?? this.handoverCode,
     );
   }
 
   @override
-  List<Object?> get props =>
-      [mode, trackingInfo, errorMessage, errorTitle, pendingEvent];
+  List<Object?> get props => [
+        mode,
+        trackingInfo,
+        errorMessage,
+        errorTitle,
+        pendingEvent,
+        handoverCode,
+      ];
 }

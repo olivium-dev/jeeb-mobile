@@ -1677,6 +1677,10 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get trackingAtDoorHeadline => _get('trackingAtDoorHeadline');
   String get trackingAtDoorBody => _get('trackingAtDoorBody');
   String get trackingAtDoorCta => _get('trackingAtDoorCta');
+  // G4: at-door inline code + pre-at-door compact code row
+  String get trackingAtDoorShareCode => _get('trackingAtDoorShareCode');
+  String get trackingCodeChipLabel => _get('trackingCodeChipLabel');
+  String get trackingCodeChipHint => _get('trackingCodeChipHint');
   String get trackingJeeberOnTheWay => _get('trackingJeeberOnTheWay');
 
   // T-MOB-018: OTP handover screen (client + Jeeber views)
@@ -1684,6 +1688,10 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get otpHandoverJeeberTitle => _get('otpHandoverJeeberTitle');
   String get otpClientShareInstruction => _get('otpClientShareInstruction');
   String get otpClientDoNotShare => _get('otpClientDoNotShare');
+  // G4: honest customer fallback when the app holds no code (SMS trigger)
+  String get otpClientSmsSentTitle => _get('otpClientSmsSentTitle');
+  String get otpClientSmsSentBody => _get('otpClientSmsSentBody');
+  String get otpClientResendSms => _get('otpClientResendSms');
   String get otpJeeberInstruction => _get('otpJeeberInstruction');
   String get otpVerifyButton => _get('otpVerifyButton');
   String get otpWrongCode => _get('otpWrongCode');

@@ -30,6 +30,22 @@ void main() {
       expect(DiagRedaction.redactToken(null), 'tok:∅');
       expect(DiagRedaction.redactToken(''), 'tok:∅');
     });
+
+    // G4 diag-redaction rule: for SHORT secrets (a 4-digit handover OTP, a
+    // 6-digit PIN) "the last 4 chars" is effectively the whole secret — the
+    // handle must be hash-only, leaking not a single digit.
+    test('short secrets (OTP/PIN) redact to hash-only — no tail digits', () {
+      const otp = '1234';
+      final handle = DiagRedaction.redactToken(otp);
+      expect(handle, startsWith('tok:'));
+      expect(handle, isNot(contains('1234')));
+      expect(handle, isNot(contains('~')));
+
+      const pin = '987654';
+      final pinHandle = DiagRedaction.redactToken(pin);
+      expect(pinHandle, isNot(contains('9876')));
+      expect(pinHandle, isNot(contains('7654')));
+    });
   });
 
   group('redactHeaders', () {
@@ -51,7 +67,7 @@ void main() {
       final out = DiagRedaction.scrubMap(<String, Object?>{
         'fcmToken': 'fcm-XXXX-1234',
         'deviceId': 'dev-1',
-        'nested': <String, Object?>{'refresh_token': 'r-YYYY-5678'},
+        'nested': <String, Object?>{'refresh_token': 'r-YYYY-refresh-5678'},
       });
       expect(out['fcmToken'], startsWith('tok:'));
       expect(out['fcmToken'], isNot(contains('XXXX')));
@@ -59,6 +75,28 @@ void main() {
       final nested = out['nested'] as Map<String, Object?>;
       expect(nested['refresh_token'], startsWith('tok:'));
       expect(nested['refresh_token'], endsWith('5678'));
+    });
+
+    // G4: the delivery handover code must never reach a diag line — in any
+    // casing, nesting, or snake_case spelling. For a 4-digit code the handle
+    // must not contain the digits at all (hash-only short-secret rule).
+    test('handoverCode-shaped keys are masked, raw digits never leak', () {
+      final out = DiagRedaction.scrubMap(<String, Object?>{
+        'handoverCode': '1234',
+        'handover_code': '5678',
+        'otpCode': '2468',
+        'deliveryCode': '1357',
+        'delivery': <String, Object?>{'handoverCode': '9999'},
+        'deliveryId': 'DLV-1',
+      });
+      expect(out['handoverCode'], isNot(contains('1234')));
+      expect(out['handover_code'], isNot(contains('5678')));
+      expect(out['otpCode'], isNot(contains('2468')));
+      expect(out['deliveryCode'], isNot(contains('1357')));
+      final nested = out['delivery'] as Map<String, Object?>;
+      expect(nested['handoverCode'], isNot(contains('9999')));
+      // Non-secret sibling fields pass through.
+      expect(out['deliveryId'], 'DLV-1');
     });
   });
 

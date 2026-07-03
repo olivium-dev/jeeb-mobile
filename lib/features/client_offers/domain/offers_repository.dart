@@ -27,7 +27,11 @@ enum OffersFailure {
 /// gateway may omit it, in which case the caller falls back to the
 /// request/delivery id (`ChatDetailScreen` resolves either by `by-request`).
 class OfferAcceptResult {
-  const OfferAcceptResult({this.deliveryId, this.conversationId});
+  const OfferAcceptResult({
+    this.deliveryId,
+    this.conversationId,
+    this.handoverCode,
+  });
 
   /// Server-created delivery id, or null when the accept response did not
   /// surface one. Never an empty string — parsers normalise `''` to null.
@@ -37,6 +41,16 @@ class OfferAcceptResult {
   /// response did not surface one. Never an empty string — parsers normalise
   /// `''` to null. Drives the JM-029 confirm → order-chat navigation.
   final String? conversationId;
+
+  /// G4 (sprint-009): the delivery hand-over code the accept saga mints
+  /// (`POST /v1/offers/:offerId/accept` → `{ offer, handoverCode,
+  /// conversationId, … }`). This is the ONLY wire moment the customer's app is
+  /// given the code — the `GET /deliveries/{id}/otp` fallback is an SMS
+  /// trigger that returns no code — so parsers MUST retain it (the pre-fix
+  /// `_parseAcceptResult` discarded it, leaving the customer with nothing to
+  /// show at the door). Null when the gateway omits it. Never an empty string.
+  /// NEVER log this value — `DiagRedaction` masks `handoverCode` keys.
+  final String? handoverCode;
 
   /// Empty result — used by gateways that do not produce a delivery id
   /// (the MVP in-memory and dev-fixture gateways) and as the safe default

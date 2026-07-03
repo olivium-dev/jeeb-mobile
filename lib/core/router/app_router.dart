@@ -86,6 +86,7 @@ import '../../features/settlement/presentation/settlement_detail_screen.dart';
 import '../../features/settlement/presentation/settlement_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/otp_handover/application/otp_handover_cubit.dart';
+import '../../features/otp_handover/domain/handover_code_store.dart';
 import '../../features/otp_handover/domain/otp_handover_repository.dart';
 import '../../features/otp_handover/presentation/otp_handover_screen.dart';
 import '../../features/registration/presentation/registration_screen.dart';
@@ -1180,6 +1181,12 @@ class AppRouter {
               create: (_) => LiveTrackingCubit(
                 repository: _trackingRepository(),
                 deliveryId: deliveryId,
+                // G4: re-hydrate the accept-time handover code from local
+                // persistence so the customer tracking surface can render it
+                // (compact row pre-at-door, prominent at-door card).
+                handoverCodeStore: sl.isRegistered<HandoverCodeStore>()
+                    ? sl<HandoverCodeStore>()
+                    : null,
               ),
               // sprint-009 P0 (stop-the-bleed): render the map placeholder, not
               // a live GoogleMap. The manifest carries no
@@ -1207,6 +1214,12 @@ class AppRouter {
                 repository: sl<OtpHandoverRepository>(),
                 deliveryId: deliveryId,
                 isClient: isClient,
+                // G4: local-first code sourcing — the accept-time persisted
+                // code renders instantly (and restart-safe) without hitting
+                // the SMS-trigger endpoint.
+                codeStore: sl.isRegistered<HandoverCodeStore>()
+                    ? sl<HandoverCodeStore>()
+                    : null,
               ),
               child: OtpHandoverScreen(
                 deliveryId: deliveryId,

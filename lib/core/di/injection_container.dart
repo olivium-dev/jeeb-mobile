@@ -35,6 +35,8 @@ import '../../features/notification_prefs/domain/notification_prefs_repository.d
 import '../../features/order_history/data/dio_order_repository.dart';
 import '../../features/order_history/domain/order_repository.dart';
 import '../../features/otp_handover/data/dio_otp_handover_repository.dart';
+import '../../features/otp_handover/data/shared_prefs_handover_code_store.dart';
+import '../../features/otp_handover/domain/handover_code_store.dart';
 import '../../features/otp_handover/domain/otp_handover_repository.dart';
 import '../../features/escalate/data/dio_escalate_repository.dart';
 import '../../features/escalate/domain/escalate_repository.dart';
@@ -233,6 +235,14 @@ void configureDependencies({
     () => DioOtpHandoverRepository(sl<Dio>()),
   );
 
+  // G4 (sprint-009 P0): on-device persistence of the delivery handover code.
+  // Written at offer-accept time (DioOffersRepository / DioChatGateway — the
+  // accept response is the only wire moment the customer receives the code);
+  // read by the customer tracking + OTP display surfaces, surviving restarts.
+  sl.registerLazySingleton<HandoverCodeStore>(
+    () => SharedPrefsHandoverCodeStore(prefs: sl<SharedPreferences>()),
+  );
+
   sl.registerLazySingleton<LiveTrackingRepository>(
     () => DioLiveTrackingRepository(sl<Dio>()),
   );
@@ -252,7 +262,12 @@ void configureDependencies({
   // which self-provides ClientOffersCubit over THIS registration.
   // FakeOffersRepository is only acceptable as a test seam via constructor.
   sl.registerLazySingleton<OffersRepository>(
-    () => DioOffersRepository(sl<Dio>()),
+    () => DioOffersRepository(
+      sl<Dio>(),
+      // G4: persist the accept response's handoverCode so the customer can
+      // show it at the door (and after an app restart).
+      handoverCodeStore: sl<HandoverCodeStore>(),
+    ),
   );
 
   // ── WAVE 1 (S2) integrator note — core customer journey (50_EXECUTION_PLAN
@@ -285,7 +300,12 @@ void configureDependencies({
   // that need a per-conversation instance should call DioChatGateway directly
   // with their own resolved userId (see chat_detail_screen.dart).
   sl.registerFactory<ChatGateway>(
-    () => DioChatGateway(dio: sl<Dio>(), currentUserId: 'faketoken'),
+    () => DioChatGateway(
+      dio: sl<Dio>(),
+      currentUserId: 'faketoken',
+      // G4: chat is the second accept path — retain + persist handoverCode.
+      handoverCodeStore: sl<HandoverCodeStore>(),
+    ),
   );
 
   // Jeeber request feed — polling-backed until WS support is wired.
