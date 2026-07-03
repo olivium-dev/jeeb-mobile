@@ -121,6 +121,18 @@ class MockGatewayClient {
     // `/v1/kyc`.
     '/v1/kyc': '/user-management/v1/kyc',
     '/v1/chat/jeeb': '/chat-service/v1/chat/jeeb',
+    // CHAT-CONTRACT (sprint-7): the conversation-resolve fallback
+    // (`GET /v1/conversations?correlationKey=…`) and the realtime descriptor
+    // pre-check (`GET /v1/realtime/jeeb:chat:{id}`) are mounted on the
+    // chat-service / realtime-comunication-service respectively. Both MUST
+    // precede the broader `/v1/*` siblings (first-match-wins) — neither is a
+    // prefix of the other so order between them is otherwise free. Without these
+    // the create-or-get fallback and the WS membership pre-check 404'd, so
+    // request-id deep links never resolved a conversation and live receive never
+    // established (the socket was never built). (Restored with the realtime
+    // section — dropped by the same integration merge.)
+    '/v1/conversations': '/chat-service/v1/conversations',
+    '/v1/realtime': '/realtime-comunication-service/v1/realtime',
     '/v1/offers': '/offer-service/v1/offers',
     '/v1/delivery': '/delivery-service/v1/delivery',
     '/v1/tiers': '/delivery-service/v1/tiers',
@@ -164,7 +176,17 @@ class MockGatewayClient {
 
   static String rewritePath(String path) {
     if (!useMockPrefixes) return path;
+    return mapToServicePrefix(path);
+  }
 
+  /// Pure mock-prefix mapping — applies the service-prefix routing table to
+  /// [path] UNCONDITIONALLY (independent of the compile-time [useMockPrefixes]
+  /// flag). [rewritePath] gates this behind the flag; tests call it directly so
+  /// the chat-routing seams are verified for real under a plain `flutter test`
+  /// (no `--dart-define`), instead of silently skipping when the flag defaults
+  /// to `false`. Production behaviour is unchanged — only [rewritePath] is
+  /// wired into the request interceptor.
+  static String mapToServicePrefix(String path) {
     for (final entry in _pathToServicePrefix.entries) {
       if (path.startsWith(entry.key)) {
         return path.replaceFirst(entry.key, entry.value);
@@ -240,12 +262,93 @@ class MockGatewayClient {
     return dio;
   }
 
-  /// WebSocket URL for the realtime shim at port 3056.
-  /// The companion shim handles Phoenix/SSE channels alongside the REST mock.
-  static String get webSocketUrl {
+  // ---------------------------------------------------------------------------
+  // Realtime-comunication-service (LiveComm) endpoints
+  //
+  // MERGE-REGRESSION RESTORE (cycle-2 debt): this whole section (realtimeBaseUrl
+  // … resolveWebSocketUrl) shipped on the chat lineage (408713d "repoint
+  // realtime WS at the live LiveComm service", hardened in b31013f) but was
+  // dropped from THIS file by a later integration merge that kept the mainline
+  // copy — while the same merge kept the chat-lineage consumers
+  // (chat_realtime_resolver.dart's `MockGatewayClient.realtimeHttpBase` and
+  // test/core/mock_gateway_mock_mode_test.dart's `resolveRealtimeHttpBase`/
+  // `resolveWebSocketUrl`/`realtimePort`), breaking compilation at the base of
+  // integration/cycle-1. Restored verbatim from b31013f.
+  // ---------------------------------------------------------------------------
+
+  /// Base URL of the LIVE realtime-comunication-service (Elixir/Phoenix
+  /// "LiveComm"). Configurable via dart-define so the WS endpoint is never a
+  /// build-time hard-code:
+  ///   --dart-define=JEEB_REALTIME_BASE_URL=`http://<host>:5804`
+  ///
+  /// CHAT-FIX (iter6 / ws): the prior `webSocketUrl` getter pointed the chat
+  /// socket at a dead mock shim (`ws://<host>:3056/socket/websocket`) that does
+  /// not exist against the live backend, so inbound live push never arrived.
+  /// The live realtime service serves the Phoenix socket at `:5804`
+  /// (`/socket/websocket`), the open token minter at `POST /api/auth/token`, and
+  /// fans Jeeb chat out on the `jeeb:chat` topic / `user:{recipientId}` stream.
+  ///
+  /// When the define is absent the default derives the realtime host from
+  /// [mockBaseUrl] (same machine) on the standard realtime port `5804` — so a
+  /// device build that already targets a reachable gateway host reaches the
+  /// co-located realtime service out of the box, with the define as the override
+  /// for any split deployment.
+  static const String realtimeBaseUrl = String.fromEnvironment(
+    'JEEB_REALTIME_BASE_URL',
+    defaultValue: '',
+  );
+
+  /// Standard realtime-comunication-service port (LiveComm Phoenix endpoint).
+  static const int realtimePort = 5804;
+
+  /// HTTP(S) base of the realtime service: the explicit
+  /// [realtimeBaseUrl] define when set, otherwise the gateway host on
+  /// [realtimePort]. Used for the token-mint REST call.
+  static Uri get realtimeHttpBase =>
+      resolveRealtimeHttpBase(mockMode: useMockPrefixes);
+
+  /// Flag-independent resolution of the realtime HTTP base. The getter passes
+  /// the compile-time [useMockPrefixes]; tests pass an explicit [mockMode] so
+  /// the mock-mode co-location contract (realtime on the :4010 origin, NOT the
+  /// live Phoenix :5804) is verified under a plain `flutter test`.
+  static Uri resolveRealtimeHttpBase({required bool mockMode}) {
+    if (realtimeBaseUrl.isNotEmpty) return Uri.parse(realtimeBaseUrl);
     final base = Uri.parse(mockBaseUrl);
+    // MOCK MODE (sprint-7): the Express mock co-locates the
+    // realtime-comunication-service on the SAME :4010 origin (its WS upgrade +
+    // `/realtime-comunication-service/*` routes), so the realtime base is the
+    // mock base verbatim — NOT the live Phoenix `:5804` port. In live-gateway
+    // mode (the device default) the realtime service is a separate process on
+    // [realtimePort], so derive the host on that port.
+    if (mockMode) return base;
+    return base.replace(port: realtimePort);
+  }
+
+  /// WebSocket path of the realtime Phoenix socket. In mock mode the socket is
+  /// served behind the Express service-prefix mount
+  /// (`/realtime-comunication-service/socket/websocket`); the live realtime
+  /// service serves the raw Phoenix endpoint (`/socket/websocket`).
+  static String get webSocketPath =>
+      resolveWebSocketPath(mockMode: useMockPrefixes);
+
+  /// Flag-independent resolution of [webSocketPath].
+  static String resolveWebSocketPath({required bool mockMode}) => mockMode
+      ? '/realtime-comunication-service/socket/websocket'
+      : '/socket/websocket';
+
+  /// WebSocket URL for the realtime Phoenix socket
+  /// (`ws(s)://<realtime-host>:<port><webSocketPath>`). The token + `vsn`
+  /// query params are appended by the socket at connect time.
+  static String get webSocketUrl =>
+      resolveWebSocketUrl(mockMode: useMockPrefixes);
+
+  /// Flag-independent resolution of [webSocketUrl] — see [mapToServicePrefix]
+  /// for why the mock-mode contract is exposed to tests without the dart-define.
+  static String resolveWebSocketUrl({required bool mockMode}) {
+    final base = resolveRealtimeHttpBase(mockMode: mockMode);
     final wsScheme = base.scheme == 'https' ? 'wss' : 'ws';
-    return '$wsScheme://${base.host}:3056/socket/websocket';
+    return '$wsScheme://${base.host}:${base.port}'
+        '${resolveWebSocketPath(mockMode: mockMode)}';
   }
 }
 

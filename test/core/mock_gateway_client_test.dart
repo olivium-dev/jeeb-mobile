@@ -43,10 +43,20 @@ void main() {
       expect(MockGatewayClient.useMockPrefixes, isFalse);
     });
 
-    test('webSocketUrl targets port 3056', () {
+    test('webSocketUrl targets the live realtime service (:5804 socket path)',
+        () {
+      // CHAT-FIX (iter6 / ws): the WS base was repointed off the dead `:3056`
+      // mock shim onto the live realtime-comunication-service (LiveComm,
+      // Phoenix `:5804` `/socket/websocket`). With no JEEB_REALTIME_BASE_URL
+      // define the host derives from the gateway base on the standard port.
+      // (This test previously pinned `:3056` — a stale copy that survived the
+      // integration merge which dropped the realtime section from the client.)
       final wsUrl = MockGatewayClient.webSocketUrl;
-      expect(wsUrl, contains('3056'));
       expect(wsUrl, startsWith('ws://'));
+      expect(wsUrl, contains(':${MockGatewayClient.realtimePort}'));
+      expect(wsUrl, endsWith('/socket/websocket'));
+      expect(wsUrl, isNot(contains('3056')));
+      expect(wsUrl, isNot(contains('/realtime-comunication-service')));
     });
   });
 
