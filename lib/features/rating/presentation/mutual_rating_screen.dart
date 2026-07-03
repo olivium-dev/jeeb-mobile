@@ -24,24 +24,41 @@ class MutualRatingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     // D56: suppress the system back gesture so the mandatory rating cannot be
-    // dismissed without submitting. `canPop: false` blocks both the OS back and
-    // any predictive-back; there is intentionally no leading/close affordance.
-    return PopScope(
-      canPop: false,
-      child: Scaffold(
-        appBar: OMDSAppBar(
-          title: l10n.mutualRatingTitle,
-          automaticallyImplyLeading: false,
-        ),
-        // `rating_root` is the screen signature id (JM-034 §2.14, AC4). A
-        // boundary container so the id surfaces as its own queryable node.
-        body: Semantics(
-          identifier: 'rating_root',
-          container: true,
-          child: BlocConsumer<MutualRatingCubit, MutualRatingState>(
-            listenWhen: (p, n) => p.phase != n.phase,
-            listener: _onPhaseChanged,
-            builder: _buildBody,
+    // dismissed without submitting. There is intentionally no leading/close
+    // affordance.
+    //
+    // Run-22 replacement P1 (hardware BACK exited to the launcher here):
+    // `PopScope(canPop: false)` alone only fires when the `Navigator` has
+    // something to pop. This terminal is typically reached via
+    // `context.goNamed('mutual-rating')` (receipt confirm / OTP handover),
+    // which REPLACES the stack — the screen is then the lone root page,
+    // go_router's `popRoute` sees nothing to pop, and the BACK event
+    // propagated to the OS, backgrounding the app mid-mandatory-rating. The
+    // `BackButtonListener` intercepts the system BACK BEFORE go_router's
+    // delegate and consumes it unconditionally, suppressing BACK at BOTH
+    // stack positions (same mechanism as RootAwareBackScope, but suppress
+    // rather than reroute — routing home would defeat the mandatory rating).
+    // The inner PopScope stays for predictive-back visuals and as a guard for
+    // non-system pop paths.
+    return BackButtonListener(
+      onBackButtonPressed: () async => true,
+      child: PopScope(
+        canPop: false,
+        child: Scaffold(
+          appBar: OMDSAppBar(
+            title: l10n.mutualRatingTitle,
+            automaticallyImplyLeading: false,
+          ),
+          // `rating_root` is the screen signature id (JM-034 §2.14, AC4). A
+          // boundary container so the id surfaces as its own queryable node.
+          body: Semantics(
+            identifier: 'rating_root',
+            container: true,
+            child: BlocConsumer<MutualRatingCubit, MutualRatingState>(
+              listenWhen: (p, n) => p.phase != n.phase,
+              listener: _onPhaseChanged,
+              builder: _buildBody,
+            ),
           ),
         ),
       ),
