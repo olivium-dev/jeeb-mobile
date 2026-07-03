@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:omds/omds.dart';
 
+import 'jeeb_color_roles.dart';
 import 'jeeb_semantic_colors.dart';
 import 'jeeb_tier_colors.dart';
 
@@ -105,6 +106,10 @@ class AppTheme {
     final List<ThemeExtension<dynamic>> extensions = <dynamic>[
       JeebTierColors.standard(),
       isLight ? JeebSemanticColors.light() : JeebSemanticColors.dark(),
+      // The single semantic color-role layer (success/warning/info). M3 roles
+      // stay in `colorScheme`; this only adds the roles M3 omits. Read via
+      // `context.jeebRoles`. Contrast-gated in color_role_contrast_test.dart.
+      isLight ? JeebColorRoles.light() : JeebColorRoles.dark(),
       ...base.extensions.values,
     ].cast<ThemeExtension<dynamic>>();
 

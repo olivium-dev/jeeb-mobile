@@ -425,9 +425,16 @@ class _SavedAddressCard extends StatelessWidget {
                             subtitle,
                             style:
                                 Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      // UX-AUDIT §T3: the unselected row sits on
+                                      // the white `surface`, so the subtitle must
+                                      // use `onSurfaceVariant` (AA 9.35:1), NOT
+                                      // periwinkle `onSecondaryContainer` (the
+                                      // ~2.2:1 light-purple-on-white the owner
+                                      // reported). Selected row is navy, keeps
+                                      // `onPrimary`.
                                       color: selected
                                           ? scheme.onPrimary
-                                          : scheme.onSecondaryContainer,
+                                          : scheme.onSurfaceVariant,
                                     ),
                             overflow: TextOverflow.ellipsis,
                           ),
