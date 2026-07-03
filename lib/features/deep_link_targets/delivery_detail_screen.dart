@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../core/role/role_cubit.dart';
+import '../../core/role/user_role.dart';
 import '../../core/router/root_aware_back_scope.dart';
 import '../../l10n/app_localizations.dart';
 
@@ -61,14 +64,35 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen> {
   List<Widget> _buildChildren(BuildContext context, AppLocalizations l10n) {
     return [
       const SizedBox(height: Spacing.medium),
-      for (final action in _actions(l10n, widget.deliveryId))
+      for (final action in _actions(l10n, widget.deliveryId, context))
         _ActionRow(action: action),
       const SizedBox(height: Spacing.medium),
       _CancelButton(deliveryId: widget.deliveryId),
     ];
   }
 
-  List<_DeliveryAction> _actions(AppLocalizations l10n, String id) {
+  /// Role-aware Contact label (run-22 chat-cluster fix): the row names the
+  /// COUNTERPART — a customer contacts their Jeeber, a Jeeber contacts the
+  /// customer. Reads the app-global [RoleCubit] defensively (this hub is also
+  /// mounted from push deep links / isolated tests where the cubit may be
+  /// absent) and degrades to the customer wording.
+  String _contactLabel(BuildContext context, AppLocalizations l10n) {
+    UserRole role;
+    try {
+      role = context.read<RoleCubit>().state;
+    } on ProviderNotFoundException {
+      role = UserRole.client;
+    }
+    return role == UserRole.jeeber
+        ? l10n.deliveryActionContactCustomer
+        : l10n.deliveryActionContact;
+  }
+
+  List<_DeliveryAction> _actions(
+    AppLocalizations l10n,
+    String id,
+    BuildContext context,
+  ) {
     return [
       _DeliveryAction(
         semanticsId: 'order-detail-track',
@@ -78,7 +102,7 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen> {
       ),
       _DeliveryAction(
         semanticsId: 'order-detail-chat',
-        title: l10n.deliveryActionContact,
+        title: _contactLabel(context, l10n),
         leadingIcon: Icons.chat_bubble_outline,
         onTap: (c) =>
             c.pushNamed('chat-detail', pathParameters: {'id': id}),
