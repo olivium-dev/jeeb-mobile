@@ -261,6 +261,48 @@ class _OfferAcceptView extends StatelessWidget {
                       ),
                     ),
                   ),
+                  // Inline failure copy (sprint-009 scenario matrix #7). A
+                  // failed accept — e.g. the 409 race where another accept
+                  // closed the auction first — MUST tell the user why; the
+                  // pre-fix sheet only listened for success and a failure
+                  // silently stopped the spinner. Typed [OffersFailure] →
+                  // l10n copy ("This request is no longer open." for the
+                  // request-level closure). Confirm stays retryable; cancel
+                  // returns to the review list, which re-loads and shows the
+                  // closed banner.
+                  if (state.status == OfferAcceptStatus.failed &&
+                      state.error != null) ...[
+                    const SizedBox(height: Spacing.medium),
+                    Semantics(
+                      identifier: 'offer_accept_error',
+                      liveRegion: true,
+                      child: Container(
+                        key: const Key('offer-accept-error'),
+                        padding: const EdgeInsets.all(Spacing.small),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.errorContainer,
+                          borderRadius: OmdsBorderRadius.small,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              color: theme.colorScheme.onErrorContainer,
+                            ),
+                            const SizedBox(width: Spacing.small),
+                            Expanded(
+                              child: Text(
+                                _failureCopy(l10n, state.error!),
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onErrorContainer,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: Spacing.twoXLarge),
                   // CONFIRM → capture fee → order-chat. Disabled-while-submitting
                   // + spinner via the loading button; success fires the listener.
@@ -312,6 +354,21 @@ class _OfferAcceptView extends StatelessWidget {
         );
       },
     );
+  }
+
+  /// Typed accept failure → user copy. Mirrors the review-list mapping
+  /// (`ClientOffersScreen._errorCopy`) so both surfaces speak identically.
+  static String _failureCopy(AppLocalizations l10n, OffersFailure failure) {
+    switch (failure) {
+      case OffersFailure.network:
+        return l10n.offersErrorNetwork;
+      case OffersFailure.requestNotOpen:
+        return l10n.offersErrorRequestNotOpen;
+      case OffersFailure.offerNotPending:
+        return l10n.offersErrorOfferNotPending;
+      case OffersFailure.unknown:
+        return l10n.offersErrorGeneric;
+    }
   }
 }
 

@@ -272,11 +272,50 @@ class DioOffersRepository implements OffersRepository {
   Never _rethrowAccept(DioException e) {
     final status = e.response?.statusCode;
     if (status == 409) {
-      throw const OffersRepositoryException(OffersFailure.offerNotPending);
+      // sprint-009 scenario matrix #7: the gateway reuses 409 for several
+      // distinct accept conflicts and discriminates via the ProblemDetails
+      // body (`OffersController.cs`). Request-level closure (the auction is
+      // already won / cancelled / expired — `request_not_open`,
+      // `request-not-acceptable`, `already-accepted`) must render "This
+      // request is no longer open", NOT the offer-level "offer no longer
+      // available" copy a withdrawn/superseded single offer gets.
+      throw OffersRepositoryException(
+        _isRequestClosedConflict(e.response?.data)
+            ? OffersFailure.requestNotOpen
+            : OffersFailure.offerNotPending,
+      );
     }
-    if (status == 410) {
+    // 410 offer-expired: the request expired before the accept landed.
+    // 404: the offer/request vanished server-side (superseded + pruned) —
+    // same user-facing truth as a closed request, never a generic failure.
+    if (status == 410 || status == 404) {
       throw const OffersRepositoryException(OffersFailure.requestNotOpen);
     }
     _rethrowDio(e);
+  }
+
+  /// Classifies a 409 accept body as a REQUEST-level closure (auction gone:
+  /// `request_not_open` / `request-not-acceptable` / `already-accepted`) vs an
+  /// OFFER-level conflict (`offer-not-pending`, BR-1/BR-10 violations). The
+  /// gateway ProblemDetails carries the discriminator in `type`/`code`/`title`/
+  /// `detail` depending on the surface, so probe them all defensively
+  /// (40_GUARDRAILS_ARCH §4; mirrors `DioOfferSubmissionRepository._isOfferCap`).
+  /// An undiscriminated body stays offer-level (the pre-fix behavior).
+  bool _isRequestClosedConflict(Object? data) {
+    if (data is! Map) return false;
+    final haystack = [
+      data['type'],
+      data['code'],
+      data['title'],
+      data['detail'],
+      data['error'],
+    ].whereType<String>().map((s) => s.toLowerCase()).join(' ');
+    return haystack.contains('request_not_open') ||
+        haystack.contains('request-not-open') ||
+        haystack.contains('not-acceptable') ||
+        haystack.contains('not_acceptable') ||
+        haystack.contains('already-accepted') ||
+        haystack.contains('already_accepted') ||
+        haystack.contains('request is no longer');
   }
 }
