@@ -25,7 +25,7 @@ import 'widgets/jeeber_unregistered_view.dart';
 ///
 /// * **State 1 — Unregistered**: hero illustration + "Register now" CTA.
 /// * **State 2 — Registered, available, no requests**: greeting +
-///   [AvailabilityToggle] + empty hero.
+///   `AvailabilityCard` + empty hero.
 /// * **State 3 — Registered, available, with requests**: greeting +
 ///   search bar + [OmdsFilterChips] tab strip + live request feed.
 ///

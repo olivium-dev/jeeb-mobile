@@ -257,13 +257,17 @@
   "@availabilityToggleOffline": {
     "description": "Label on the toggle when the Jeeber is not accepting offers"
   },
-  "availabilityStatusOnline": "You're online — accepting offers",
+  "availabilityStatusOnline": "You're online — receiving requests",
   "@availabilityStatusOnline": {
-    "description": "Subtitle / status copy shown while online"
+    "description": "Status copy shown while online. Jeebers RECEIVE requests and MAKE offers (§G2 copy fix) — never \"accepting offers\"."
   },
   "availabilityStatusOffline": "You're offline",
   "@availabilityStatusOffline": {
     "description": "Subtitle / status copy shown while offline"
+  },
+  "availabilityAutoOfflineHint": "Auto-offline after 8 h idle",
+  "@availabilityAutoOfflineHint": {
+    "description": "Supporting line on the availability card (§G2): surfaces the 8-hour idle auto-offline policy next to the switch."
   },
   "availabilityStatusAutoOffline": "Automatically taken offline",
   "@availabilityStatusAutoOffline": {
@@ -283,8 +287,8 @@
   "availabilityAutoOfflineReasonPermission": "Location permission was changed. Re-enable Always access to go back online.",
   "availabilityAutoOfflineReasonNetwork": "We lost connection long enough to stop tracking you. Check your network, then tap Online.",
   "availabilityAutoOfflineReasonBattery": "Battery optimization is throttling background tracking. Allow-list Jeeb in system settings before going online.",
-  "availabilityAutoOfflineReasonIdle": "You've been idle for a while, so we paused new offers. Tap Online when you're ready.",
-  "availabilityAutoOfflineReasonServer": "We paused new offers from our side. Check your account, then tap Online.",
+  "availabilityAutoOfflineReasonIdle": "You've been idle for a while, so we paused new requests. Tap Online when you're ready.",
+  "availabilityAutoOfflineReasonServer": "We paused new requests from our side. Check your account, then tap Online.",
   "availabilityAutoOfflineDismiss": "Dismiss",
   "@availabilityAutoOfflineDismiss": {
     "description": "Dismiss button on the auto-offline banner"
@@ -2452,7 +2456,7 @@
   },
   "appBarSignOut": "Sign out",
   "availabilityHomeTitle": "Jeeber Home",
-  "availabilityInactivityWarningBody": "You'll be taken offline in about 30 minutes if you stay idle. Tap below to keep accepting offers.",
+  "availabilityInactivityWarningBody": "You'll be taken offline in about 30 minutes if you stay idle. Tap below to keep receiving requests.",
   "availabilityInactivityWarningCta": "I'm still here",
   "availabilityInactivityWarningTitle": "Still there?",
   "availabilityLoadError": "Couldn't load your availability.",

@@ -189,6 +189,8 @@ class AppLocalizations {
   String get availabilityStatusOffline => _get('availabilityStatusOffline');
   String get availabilityStatusAutoOffline =>
       _get('availabilityStatusAutoOffline');
+  String get availabilityAutoOfflineHint =>
+      _get('availabilityAutoOfflineHint');
   String get availabilityTransitioning => _get('availabilityTransitioning');
   String get availabilityIndicatorSemanticOnline =>
       _get('availabilityIndicatorSemanticOnline');

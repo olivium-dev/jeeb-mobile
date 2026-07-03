@@ -10,7 +10,7 @@ import 'package:jeeb_mobile/features/jeeber_home/domain/availability_inactivity_
 import 'package:jeeb_mobile/features/jeeber_home/domain/services/availability_gateway.dart';
 import 'package:jeeb_mobile/features/jeeber_home/presentation/jeeber_home_screen.dart';
 import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/availability_status_block.dart';
-import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/availability_toggle.dart';
+import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/availability_card.dart';
 import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/inactivity_warning_banner.dart';
 import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/jeeber_unregistered_view.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
@@ -37,7 +37,7 @@ Widget _host(AvailabilityCubit cubit) {
 }
 
 void main() {
-  testWidgets('cold-start renders the offline toggle and the status block',
+  testWidgets('cold-start renders the offline availability card and the status block',
       (tester) async {
     final ticker = StreamController<DateTime>.broadcast();
     addTearDown(ticker.close);
@@ -50,7 +50,7 @@ void main() {
     await tester.pumpWidget(_host(cubit));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(AvailabilityToggle.rootKey), findsOneWidget);
+    expect(find.byKey(AvailabilityCard.toggleKey), findsOneWidget);
     expect(find.byKey(AvailabilityStatusBlock.rootKey), findsOneWidget);
     // Active-delivery line only renders when online.
     expect(find.byKey(AvailabilityStatusBlock.activeDeliveriesKey),
@@ -72,7 +72,7 @@ void main() {
     await tester.pumpWidget(_host(cubit));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(AvailabilityToggle.rootKey));
+    await tester.tap(find.byKey(AvailabilityCard.toggleKey));
     await tester.pumpAndSettle();
 
     expect(cubit.state.status.isOnline, isTrue);
@@ -97,7 +97,7 @@ void main() {
     // Cold-start fetch succeeded; flip the gateway into error mode and
     // tap the toggle to drive the failure path.
     gateway.setError(true);
-    await tester.tap(find.byKey(AvailabilityToggle.rootKey));
+    await tester.tap(find.byKey(AvailabilityCard.toggleKey));
     await tester.pump(); // let the snackbar enqueue
     await tester.pump(const Duration(milliseconds: 50));
 
@@ -147,7 +147,7 @@ void main() {
     await tester.pumpWidget(_host(cubit));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(AvailabilityToggle.rootKey));
+    await tester.tap(find.byKey(AvailabilityCard.toggleKey));
     await tester.pumpAndSettle();
     expect(cubit.state.status.isOnline, isTrue);
 
