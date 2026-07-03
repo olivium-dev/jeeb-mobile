@@ -35,12 +35,18 @@ class DioSubmittedOffersRepository implements SubmittedOffersRepository {
   @override
   Future<List<SubmittedOffer>> listSubmitted() async {
     try {
+      // Resolve the REAL session id (explicit override → token store) — never
+      // a hardcoded `user-jeeber-002` (S0-OAD-03, 07d6d33). Send `?jeeberId=`
+      // only when one resolves; with no session id the param is omitted and
+      // the gateway re-scopes the list from the bearer sub (§6B). Always pass
+      // a map (07d6d33's call shape, restored after an integration merge kept
+      // a null-style rewrite) — wire-identical, keeps the query capturable.
       final jeeberId = _jeeberId ?? await _tokenStore?.userId;
       final response = await _dio.get<Map<String, dynamic>>(
         _path,
-        queryParameters: jeeberId == null || jeeberId.isEmpty
-            ? null
-            : {'jeeberId': jeeberId},
+        queryParameters: {
+          if (jeeberId != null && jeeberId.isNotEmpty) 'jeeberId': jeeberId,
+        },
       );
       return _parse(response.data ?? const {});
     } on DioException {
