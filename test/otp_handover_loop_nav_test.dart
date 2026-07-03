@@ -118,7 +118,7 @@ void main() {
       // body is identical regardless of role except for the route suffix.
       when(() =>
               repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))
-          .thenAnswer((_) async => '1234');
+          .thenAnswer((_) async => const OtpFetchResult(code: '1234'));
       when(() => repo.submitOtp(
             deliveryId: any(named: 'deliveryId'),
             otp: any(named: 'otp'),
@@ -157,7 +157,7 @@ void main() {
         (tester) async {
       when(() =>
               repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))
-          .thenAnswer((_) async => '1234');
+          .thenAnswer((_) async => const OtpFetchResult(code: '1234'));
 
       final cubit = OtpHandoverCubit(
         repository: repo,
@@ -197,7 +197,7 @@ void main() {
         (tester) async {
       when(() =>
               repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))
-          .thenAnswer((_) async => '1234');
+          .thenAnswer((_) async => const OtpFetchResult(code: '1234'));
 
       final cubit = OtpHandoverCubit(
         repository: repo,

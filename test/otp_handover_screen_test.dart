@@ -33,7 +33,7 @@ void main() {
     testWidgets('AC1: renders large OTP code when ready', (tester) async {
       when(() =>
               repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))
-          .thenAnswer((_) async => '1234');
+          .thenAnswer((_) async => const OtpFetchResult(code: '1234'));
 
       final cubit = OtpHandoverCubit(
         repository: repo,
@@ -55,7 +55,7 @@ void main() {
         (tester) async {
       when(() =>
               repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))
-          .thenAnswer((_) async => '5678');
+          .thenAnswer((_) async => const OtpFetchResult(code: '5678'));
 
       final cubit = OtpHandoverCubit(
         repository: repo,
@@ -72,6 +72,60 @@ void main() {
         find.text('Do not share until you receive your items'),
         findsOneWidget,
       );
+      await cubit.close();
+    });
+
+    // G4 (sprint-009 P0): the live gateway's GET /otp is an SMS trigger with
+    // no `code`. The customer must see the HONEST "sent by SMS" fallback with
+    // a resend affordance — and NEVER a code-entry grid (that is the Jeeber's
+    // surface; the pre-fix screen flipped the customer into entry, a dead end
+    // for a code they were never shown).
+    testWidgets(
+        'G4 fallback: no code → SMS-sent message + resend, NO entry grid',
+        (tester) async {
+      when(() =>
+              repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))
+          .thenAnswer((_) async => const OtpFetchResult(smsTriggered: true));
+
+      final cubit = OtpHandoverCubit(
+        repository: repo,
+        deliveryId: 'DLV-770001',
+        isClient: true,
+      );
+
+      await tester.pumpWidget(_screen(cubit, isClient: true));
+      await tester.pump();
+
+      expect(find.text("We've sent your code by SMS"), findsOneWidget);
+      expect(find.byKey(const Key('otpHandover.resendSms')), findsOneWidget);
+      // The customer-side surface must not offer code ENTRY.
+      expect(find.byKey(const Key('otpHandover.input')), findsNothing);
+      expect(find.byKey(const Key('otpHandover.submit')), findsNothing);
+      await cubit.close();
+    });
+
+    testWidgets('G4 fallback: resend CTA re-triggers the SMS endpoint',
+        (tester) async {
+      when(() =>
+              repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))
+          .thenAnswer((_) async => const OtpFetchResult(smsTriggered: true));
+
+      final cubit = OtpHandoverCubit(
+        repository: repo,
+        deliveryId: 'DLV-770001',
+        isClient: true,
+      );
+
+      await tester.pumpWidget(_screen(cubit, isClient: true));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('otpHandover.resendSms')));
+      await tester.pump();
+      await tester.pump();
+
+      verify(
+        () => repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')),
+      ).called(2);
       await cubit.close();
     });
   });

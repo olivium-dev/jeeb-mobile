@@ -85,10 +85,48 @@ void main() {
       final dio = _RecordingDio()..nextGetData = {'code': '1234'};
       final repo = DioOtpHandoverRepository(dio);
 
-      final code = await repo.fetchHandoverCode(deliveryId: 'delivery-005');
+      final result = await repo.fetchHandoverCode(deliveryId: 'delivery-005');
 
-      expect(code, '1234');
+      expect(result.code, '1234');
+      expect(result.smsTriggered, isFalse);
       expect(dio.getPaths, ['/v1/deliveries/delivery-005/otp']);
+    });
+
+    // G4 (sprint-009): the LIVE gateway shape (run-23 wire evidence) — the
+    // endpoint is an SMS trigger: `{deliveryId, triggered: true, message}`,
+    // NO `code`. The repo must surface `smsTriggered` rather than throw
+    // `parse` (the pre-fix behavior that flipped the customer screen into a
+    // code-ENTRY grid).
+    test('live SMS-trigger body (no code) → OtpFetchResult.smsTriggered',
+        () async {
+      final dio = _RecordingDio()
+        ..nextGetData = {
+          'deliveryId': 'delivery-005',
+          'message': '4-digit OTP sent to the delivery recipient.',
+          'triggered': true,
+        };
+      final repo = DioOtpHandoverRepository(dio);
+
+      final result = await repo.fetchHandoverCode(deliveryId: 'delivery-005');
+
+      expect(result.code, isNull);
+      expect(result.smsTriggered, isTrue);
+    });
+
+    test('body with neither code nor triggered → parse error', () async {
+      final dio = _RecordingDio()..nextGetData = {'deliveryId': 'delivery-005'};
+      final repo = DioOtpHandoverRepository(dio);
+
+      await expectLater(
+        repo.fetchHandoverCode(deliveryId: 'delivery-005'),
+        throwsA(
+          isA<OtpHandoverException>().having(
+            (e) => e.kind,
+            'kind',
+            OtpHandoverErrorKind.parse,
+          ),
+        ),
+      );
     });
 
     test('submitOtp POSTs /v1/deliveries/{id}/otp/verify (rewrite-catchable)',

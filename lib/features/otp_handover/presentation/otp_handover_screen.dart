@@ -6,6 +6,7 @@ import 'package:omds/omds.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/otp_handover_cubit.dart';
 import '../application/otp_handover_state.dart';
+import 'widgets/handover_code_display.dart';
 
 /// T-MOB-018: OTP handover screen — client display + Jeeber entry.
 ///
@@ -214,20 +215,84 @@ class _ReadyBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // iter6 OTP-phone v2: when the client has no code to DISPLAY (the live
-    // gateway `GET /otp` returns none → `allowManualEntry`), render the same
-    // code-ENTRY surface the Jeeber uses so the client can type the handover
-    // code (the live demo `1234`) and submit verify. Otherwise show the large
-    // code display (when a code WAS returned).
-    final showEntry = !isClient || state.allowManualEntry;
+    // G4 (sprint-009 P0): the code-ENTRY grid is the JEEBER's surface, full
+    // stop. The customer either sees their code (accept-time persisted, or
+    // returned by the gateway) or the honest SMS-fallback ("we've sent your
+    // code by SMS") — never an entry grid for a code they were never shown
+    // (the removed iter6 `allowManualEntry` dead end).
+    if (!isClient) {
+      return Padding(
+        padding: const EdgeInsets.all(Spacing.xLarge),
+        child: _JeeberOtpEntry(state: state),
+      );
+    }
+    final code = state.handoverCode;
     return Padding(
       padding: const EdgeInsets.all(Spacing.xLarge),
-      child: showEntry
-          ? _JeeberOtpEntry(state: state)
-          : _ClientOtpDisplay(
-              code: state.handoverCode ?? '----',
-              deliveryId: deliveryId,
+      child: code != null
+          ? _ClientOtpDisplay(code: code, deliveryId: deliveryId)
+          : _ClientSmsFallback(state: state),
+    );
+  }
+}
+
+/// G4: honest customer fallback when the app holds no code (e.g. reinstalled
+/// mid-delivery). The `GET /otp` call the cubit just made TRIGGERED an SMS to
+/// the recipient, so the surface says exactly that + offers a resend. There is
+/// deliberately NO code-entry grid here — entering the code is the Jeeber's
+/// job; the customer's job is to receive and share it.
+class _ClientSmsFallback extends StatelessWidget {
+  const _ClientSmsFallback({required this.state});
+
+  final OtpHandoverState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return Center(
+      child: Semantics(
+        // QA: uiautomator-addressable handle for the SMS-fallback surface.
+        identifier: 'otp_sms_fallback',
+        container: true,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.sms_outlined,
+              size: Sizes.fiveXLarge,
+              color: theme.colorScheme.primary,
             ),
+            const SizedBox(height: Spacing.large),
+            Semantics(
+              liveRegion: true,
+              child: Text(
+                l10n.otpClientSmsSentTitle,
+                style: theme.textTheme.headlineSmall,
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: Spacing.small),
+            Text(
+              l10n.otpClientSmsSentBody,
+              style: theme.textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: Spacing.xLarge),
+            Semantics(
+              identifier: 'otp_sms_resend',
+              container: true,
+              child: OmdsLoadingButton(
+                key: const Key('otpHandover.resendSms'),
+                text: l10n.otpClientResendSms,
+                isLoading: state.mode == OtpHandoverViewMode.loading,
+                isEnabled: state.mode != OtpHandoverViewMode.loading,
+                onTap: () => context.read<OtpHandoverCubit>().resendSms(),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -259,7 +324,7 @@ class _ClientOtpDisplay extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: Spacing.xLarge),
-          _OtpCodeDisplay(code: code),
+          HandoverCodeDisplay(code: code),
           const SizedBox(height: Spacing.medium),
           Text(
             l10n.otpClientDoNotShare,
@@ -292,42 +357,6 @@ class _ClientRateNowButton extends StatelessWidget {
         key: const Key('otpHandover.clientRateNow'),
         text: l10n.otpRateNowCta,
         onTap: () => context.go(_mutualRateRoute(deliveryId, true)),
-      ),
-    );
-  }
-}
-
-class _OtpCodeDisplay extends StatelessWidget {
-  const _OtpCodeDisplay({required this.code});
-
-  final String code;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Semantics(
-      // QA: uiautomator-addressable handle for the client-facing code display.
-      identifier: 'otp_handover_code_display',
-      liveRegion: true,
-      label: 'OTP code',
-      value: code.split('').join(' '),
-      child: Container(
-        key: const Key('otpHandover.codeDisplay'),
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Spacing.twoXLarge,
-          vertical: Spacing.medium,
-        ),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.primaryContainer,
-          borderRadius: OmdsBorderRadius.medium,
-        ),
-        child: Text(
-          code,
-          style: theme.textTheme.displayLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-            letterSpacing: Spacing.small,
-          ),
-        ),
       ),
     );
   }
