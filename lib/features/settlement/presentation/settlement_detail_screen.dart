@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/settlement_statement.dart';
 
@@ -51,7 +52,6 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final isPaid = statement.status == SettlementStatus.paid;
     return Card(
       child: Padding(
@@ -72,9 +72,10 @@ class _SummaryCard extends StatelessWidget {
                     vertical: Spacing.twoXSmall,
                   ),
                   decoration: BoxDecoration(
+                    // paid = success, pending = warning (semantic roles).
                     color: isPaid
-                        ? colorScheme.secondaryContainer
-                        : colorScheme.tertiaryContainer,
+                        ? context.jeebRoles.successContainer
+                        : context.jeebRoles.warningContainer,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -83,8 +84,8 @@ class _SummaryCard extends StatelessWidget {
                         : l10n.settlementStatusPending,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: isPaid
-                              ? colorScheme.onSecondaryContainer
-                              : colorScheme.onTertiaryContainer,
+                              ? context.jeebRoles.onSuccessContainer
+                              : context.jeebRoles.onWarningContainer,
                         ),
                   ),
                 ),

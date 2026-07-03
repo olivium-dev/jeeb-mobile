@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../l10n/app_localizations.dart';
 
 /// Banner shown 30 minutes before the 8h auto-offline kicks in.
@@ -17,15 +18,17 @@ class InactivityWarningBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    // Pre-auto-offline countdown is a warning state -> semantic warning role
+    // (was the brand tertiary orange doing state duty).
+    final roles = context.jeebRoles;
     return Container(
       key: rootKey,
       margin: const EdgeInsets.symmetric(horizontal: Spacing.medium),
       padding: const EdgeInsets.all(Spacing.medium),
       decoration: BoxDecoration(
-        color: colorScheme.tertiaryContainer,
+        color: roles.warningContainer,
         borderRadius: OmdsBorderRadius.medium,
-        border: Border.all(color: colorScheme.tertiary),
+        border: Border.all(color: roles.warning),
       ),
       child: _BannerBody(onExtend: onExtend),
     );
@@ -62,13 +65,13 @@ class _BannerHeader extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Row(
       children: [
-        Icon(Icons.access_time, color: theme.colorScheme.onTertiaryContainer),
+        Icon(Icons.access_time, color: context.jeebRoles.onWarningContainer),
         const SizedBox(width: Spacing.small),
         Expanded(
           child: Text(
             l10n.availabilityInactivityWarningTitle,
             style: theme.textTheme.titleMedium?.copyWith(
-              color: theme.colorScheme.onTertiaryContainer,
+              color: context.jeebRoles.onWarningContainer,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -88,7 +91,7 @@ class _BannerDescription extends StatelessWidget {
     return Text(
       l10n.availabilityInactivityWarningBody,
       style: theme.textTheme.bodyMedium?.copyWith(
-        color: theme.colorScheme.onTertiaryContainer,
+        color: context.jeebRoles.onWarningContainer,
       ),
     );
   }

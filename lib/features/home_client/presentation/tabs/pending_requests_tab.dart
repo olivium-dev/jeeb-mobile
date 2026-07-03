@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/client_home_cubit.dart';
 import '../../application/client_home_state.dart';
@@ -344,8 +345,11 @@ class _PendingCardHeader extends StatelessWidget {
         Expanded(
           child: Text(
             request.displayId ?? request.title,
+            // Role fix: `secondaryContainer` is a CONTAINER (fill) role, not
+            // an ink role — as text it went illegible on dark surfaces. Titles
+            // on surface read in `onSurface`.
             style: theme.textTheme.titleLarge?.copyWith(
-              color: theme.colorScheme.secondaryContainer,
+              color: theme.colorScheme.onSurface,
               fontWeight: FontWeight.w400,
             ),
             maxLines: 1,
@@ -497,10 +501,12 @@ class PendingReconnectBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!visible) return const SizedBox.shrink();
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
+    // Reconnecting is a transient attention state → semantic warning role, not
+    // the error pair (kept for terminal failures).
+    final roles = context.jeebRoles;
     return Container(
       key: const Key('pending-reconnect-banner'),
-      color: colorScheme.errorContainer,
+      color: roles.warningContainer,
       padding: const EdgeInsetsDirectional.symmetric(
         horizontal: Spacing.medium,
         vertical: Spacing.twoXSmall,
@@ -510,13 +516,13 @@ class PendingReconnectBanner extends StatelessWidget {
           // OMDS: OmdsLoadingState replaces CircularProgressIndicator (OMDS-only policy).
           OmdsLoadingState(
             size: Sizes.medium,
-            color: colorScheme.onErrorContainer,
+            color: roles.onWarningContainer,
           ),
           const SizedBox(width: Spacing.xSmall),
           Text(
             l10n.pendingTabReconnecting,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: colorScheme.onErrorContainer,
+              color: roles.onWarningContainer,
             ),
           ),
         ],

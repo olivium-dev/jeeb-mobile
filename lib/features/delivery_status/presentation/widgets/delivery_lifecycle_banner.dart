@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/delivery_snapshot.dart';
 
@@ -25,10 +26,13 @@ class DeliveryLifecycleBanner extends StatelessWidget {
     if (!isCompleted && !isCancelled) {
       return const SizedBox.shrink();
     }
+    // Completed is a success state -> semantic success role (was the brand
+    // tertiary orange); cancelled keeps the M3 error pair.
+    final roles = context.jeebRoles;
     final background =
-        isCompleted ? colorScheme.tertiaryContainer : colorScheme.errorContainer;
+        isCompleted ? roles.successContainer : colorScheme.errorContainer;
     final foreground = isCompleted
-        ? colorScheme.onTertiaryContainer
+        ? roles.onSuccessContainer
         : colorScheme.onErrorContainer;
     final icon =
         isCompleted ? Icons.check_circle_outline : Icons.cancel_outlined;

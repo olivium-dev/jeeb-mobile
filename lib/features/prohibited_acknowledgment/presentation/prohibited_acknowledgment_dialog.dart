@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/prohibited_acknowledgment_repository.dart';
 import '../domain/prohibited_item.dart';
@@ -189,7 +190,9 @@ class _ItemList extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: items
-          .map((item) => _buildItemRow(item, colorScheme, textTheme))
+          .map(
+            (item) => _buildItemRow(item, colorScheme, context.jeebRoles, textTheme),
+          )
           .toList(growable: false),
     );
   }
@@ -197,6 +200,7 @@ class _ItemList extends StatelessWidget {
   Widget _buildItemRow(
     ProhibitedItem item,
     ColorScheme colorScheme,
+    JeebRoles roles,
     TextTheme textTheme,
   ) {
     final isBlock = item.severity == ProhibitedItemSeverity.block;
@@ -210,7 +214,8 @@ class _ItemList extends StatelessWidget {
             Icon(
               isBlock ? Icons.cancel_rounded : Icons.warning_amber_rounded,
               size: Sizes.medium,
-              color: isBlock ? colorScheme.error : colorScheme.tertiary,
+              // block = error, warn = semantic warning (was brand tertiary).
+              color: isBlock ? colorScheme.error : roles.warning,
             ),
             const SizedBox(width: Spacing.xSmall),
             Expanded(

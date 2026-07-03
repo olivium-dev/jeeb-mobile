@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../kyc/domain/kyc_gateway.dart';
 import '../../kyc/domain/kyc_submission.dart';
@@ -204,10 +205,12 @@ class _GateStatusLine extends StatelessWidget {
           return const SizedBox.shrink();
         }
         final (title, body, color) = switch (state.status) {
+          // Pending = attention-needed → semantic warning role (was the brand
+          // tertiary orange doing double duty as a state color).
           KycStatus.pending => (
               l10n.kycStatusPendingTitle,
               l10n.kycStatusPendingBody,
-              theme.colorScheme.tertiary,
+              context.jeebRoles.warning,
             ),
           KycStatus.rejected => (
               l10n.kycStatusRejectedTitle,

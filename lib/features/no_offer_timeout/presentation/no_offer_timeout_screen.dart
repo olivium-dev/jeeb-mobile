@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../cancel_request/presentation/cancel_request_sheet.dart';
 import '../application/waiting_cubit.dart';
@@ -356,7 +357,9 @@ class _NoOffersYetHeader extends StatelessWidget {
           Icon(
             Icons.location_off_outlined,
             size: Sizes.eightXLarge,
-            color: theme.colorScheme.tertiary,
+            // No-coverage is an attention state → semantic warning role, not
+            // the brand tertiary orange.
+            color: context.jeebRoles.warning,
           ),
           const SizedBox(height: Spacing.large),
           Text(

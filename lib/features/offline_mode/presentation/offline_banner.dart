@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
+
+import '../../../core/theme/jeeb_color_roles.dart';
 import '../application/offline_cubit.dart';
 
 class OfflineBanner extends StatelessWidget {
@@ -24,22 +26,24 @@ class _OfflineMaterialBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    // Offline-with-sync-pending is a warning state (recoverable, data safe),
+    // not an error -> semantic warning role.
+    final roles = context.jeebRoles;
     return MaterialBanner(
       content: Text(
         'You are offline. Changes will sync when connection is restored.',
-        style: TextStyle(color: theme.colorScheme.onErrorContainer),
+        style: TextStyle(color: roles.onWarningContainer),
       ),
       leading: Icon(
         Icons.cloud_off,
-        color: theme.colorScheme.onErrorContainer,
+        color: roles.onWarningContainer,
       ),
-      backgroundColor: theme.colorScheme.errorContainer,
+      backgroundColor: roles.warningContainer,
       actions: [
         OmdsPrimaryButton(
           text: 'DISMISS',
           variant: OmdsButtonVariant.text,
-          textColor: theme.colorScheme.onErrorContainer,
+          textColor: roles.onWarningContainer,
           onTap: () {},
         ),
       ],

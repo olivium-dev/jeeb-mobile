@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/settlement_cubit.dart';
 import '../domain/settlement_repository.dart';
@@ -188,13 +189,16 @@ class _StatementRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
+    // Semantic roles: paid = success, pending = warning. The old
+    // secondary/tertiary container pairs were brand hues doing state duty
+    // (onSecondaryContainer on navy fails AA).
+    final roles = context.jeebRoles;
     final chipColor = statement.status == SettlementStatus.paid
-        ? colorScheme.secondaryContainer
-        : colorScheme.tertiaryContainer;
+        ? roles.successContainer
+        : roles.warningContainer;
     final chipTextColor = statement.status == SettlementStatus.paid
-        ? colorScheme.onSecondaryContainer
-        : colorScheme.onTertiaryContainer;
+        ? roles.onSuccessContainer
+        : roles.onWarningContainer;
     final chipLabel = statement.status == SettlementStatus.paid
         ? l10n.settlementStatusPaid
         : l10n.settlementStatusPending;

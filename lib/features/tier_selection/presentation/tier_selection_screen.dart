@@ -4,6 +4,7 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/formatting/money_format.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
 import '../cubit/tier_selection_cubit.dart';
 import '../cubit/tier_selection_state.dart';
@@ -202,7 +203,6 @@ class _CachedBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     return Container(
       key: const Key('tier-selection-cached-banner'),
@@ -215,14 +215,15 @@ class _CachedBanner extends StatelessWidget {
         vertical: Spacing.xSmall,
       ),
       decoration: BoxDecoration(
-        color: colors.tertiaryContainer,
+        // Cached-catalog notice is informational -> semantic info role.
+        color: context.jeebRoles.infoContainer,
         borderRadius: OmdsBorderRadius.small,
       ),
       child: Row(
         children: [
           Icon(
             Icons.info_outline_rounded,
-            color: colors.onTertiaryContainer,
+            color: context.jeebRoles.onInfoContainer,
             size: Sizes.large,
           ),
           const SizedBox(width: Spacing.xSmall),
@@ -230,7 +231,7 @@ class _CachedBanner extends StatelessWidget {
             child: Text(
               message,
               style: textTheme.bodySmall
-                  ?.copyWith(color: colors.onTertiaryContainer),
+                  ?.copyWith(color: context.jeebRoles.onInfoContainer),
             ),
           ),
         ],

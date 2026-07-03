@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../l10n/app_localizations.dart';
 
 /// Countdown badge above the offer list. Reads `Duration` rather than wall
@@ -20,16 +21,19 @@ class OfferWindowTimer extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final roles = context.jeebRoles;
     final isUrgent = !expired && remaining.inSeconds <= 30;
+    // Semantic roles: expired = error (terminal), urgent = warning (attention),
+    // otherwise neutral surface. Urgent previously misused the error pair.
     final foreground = expired
-        ? colors.error
+        ? roles.onErrorContainer
         : isUrgent
-            ? colors.error
+            ? roles.onWarningContainer
             : colors.onSurface;
     final background = expired
-        ? colors.errorContainer
+        ? roles.errorContainer
         : isUrgent
-            ? colors.errorContainer
+            ? roles.warningContainer
             : colors.surfaceContainerHighest;
     return Container(
       key: const Key('offer-window-timer'),

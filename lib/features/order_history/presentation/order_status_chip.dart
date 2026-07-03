@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/order_summary.dart';
 
@@ -14,8 +15,7 @@ class OrderStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final palette = _paletteFor(status, colorScheme);
+    final palette = _paletteFor(status, context.jeebRoles);
     return Container(
       padding: const EdgeInsetsDirectional.symmetric(
         horizontal: Spacing.small,
@@ -37,23 +37,24 @@ class OrderStatusChip extends StatelessWidget {
 
   static _ChipPalette _paletteFor(
     OrderRequestStatus status,
-    ColorScheme scheme,
+    JeebRoles roles,
   ) {
     switch (status.tab) {
       case OrderHistoryTab.completed:
+        // Completed = success role (was brand tertiary doing state duty).
         return _ChipPalette(
-          background: scheme.tertiaryContainer,
-          foreground: scheme.onTertiaryContainer,
+          background: roles.successContainer,
+          foreground: roles.onSuccessContainer,
         );
       case OrderHistoryTab.cancelled:
         return _ChipPalette(
-          background: scheme.errorContainer,
-          foreground: scheme.onErrorContainer,
+          background: roles.errorContainer,
+          foreground: roles.onErrorContainer,
         );
       case OrderHistoryTab.active:
         return _ChipPalette(
-          background: scheme.primaryContainer,
-          foreground: scheme.onPrimaryContainer,
+          background: roles.primaryContainer,
+          foreground: roles.onPrimaryContainer,
         );
     }
   }
