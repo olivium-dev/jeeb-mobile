@@ -132,6 +132,42 @@ void main() {
         expect(snapshot.requestIsOpen, isTrue);
       });
 
+      test(
+          'un-enriched row defaults to an HONEST 0.0 rating / 0 count — never '
+          'a fabricated 4.5 (SW-08)', () async {
+        // The live offer-list endpoint does NOT enrich rows with the Jeeber's
+        // display name or rating (O-list-enrich gap). The pre-fix parser
+        // defaulted a missing rating to 4.5, which — paired with a 0 count —
+        // produced the "4.5 (0)" fabrication the offer card used to render.
+        final now = DateTime.now().toUtc().toIso8601String();
+        final repo = DioOffersRepository(
+          _dioRespond({
+            'items': [
+              {
+                'id': 'unrated-offer',
+                'requestId': 'req-1',
+                'jeeberId': 'd1000000-0000-4000-8000-000000000002',
+                'status': 'pending',
+                'fee': 6.5,
+                'etaMinutes': 18,
+                'createdAt': now,
+                // no jeeberName, no rating, no ratingCount
+              },
+            ],
+          }),
+        );
+
+        final snapshot = await repo.fetchOffers('req-1');
+        final offer = snapshot.offers.single;
+
+        // Rating is an honest zero, not the old fabricated 4.5.
+        expect(offer.rating, 0.0);
+        expect(offer.ratingCount, 0);
+        // With no name on the row, jeeberName falls back to the id — which the
+        // presentation layer (OfferCard) suppresses via displayNameOrNull.
+        expect(offer.jeeberName, 'd1000000-0000-4000-8000-000000000002');
+      });
+
       test('marks request closed when an accepted offer is present', () async {
         final now = DateTime.now().toUtc().toIso8601String();
         final repo = DioOffersRepository(

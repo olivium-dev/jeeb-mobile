@@ -143,6 +143,37 @@ void main() {
     });
 
     testWidgets(
+        'SW-08 — a synthetic jeeber handle is suppressed in the confirm '
+        'title → "New Jeeber", never the raw jeeb-<hash>', (tester) async {
+      final offer = Offer(
+        id: 'offer-001',
+        jeeberId: 'user-jeeber-002',
+        jeeberName: 'jeeb-e1a35ea8a520', // synthetic handle, not a real name
+        fee: 6.0,
+        currency: 'USD',
+        etaMinutes: 20,
+        vehicle: JeeberVehicle.scooter,
+        rating: 0.0,
+        ratingCount: 0,
+        submittedAt: DateTime(2026, 6, 18, 9, 12),
+      );
+      await tester.pumpWidget(
+        _harness(
+          OfferAcceptSheet(
+            offer: offer,
+            requestId: 'req-client-001-offers',
+            repository: _repo(conversationId: 'conv-journey-accepted'),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // The title headlines the honest generic, never the internal handle.
+      expect(find.textContaining('New Jeeber'), findsOneWidget);
+      expect(find.textContaining('jeeb-'), findsNothing);
+    });
+
+    testWidgets(
         'AC2 — confirm accepts the offer and reports the order-chat '
         'conversationId', (tester) async {
       final repo = _repo(
