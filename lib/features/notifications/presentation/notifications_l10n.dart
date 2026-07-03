@@ -92,9 +92,30 @@ class NotificationsL10n {
   /// Coarse relative time for a parsed [timestamp]. Locale-agnostic enough to
   /// stay cosmetic (flows never assert on it). Falls back to the raw string
   /// when the timestamp is unparseable.
+  ///
+  /// SW-03/G3 device-local correctness: notification-service timestamps are
+  /// UTC instants. A zone-less ISO string (no `Z`, no `±hh:mm`) would parse
+  /// as device-LOCAL and skew the age by the device's UTC offset (a fresh
+  /// row reading "2h ago"), so it is re-interpreted as UTC before diffing.
+  /// The subtraction itself is epoch-based, so mixing a UTC instant with the
+  /// local `now` is exact.
   String relativeTime(String timestamp, {DateTime? now}) {
-    final ts = DateTime.tryParse(timestamp);
+    var ts = DateTime.tryParse(timestamp);
     if (ts == null) return timestamp;
+    if (!ts.isUtc) {
+      // Parsed without an explicit zone → Dart assumed device-local.
+      // Re-stamp the same wall-clock fields as UTC (the server's zone).
+      ts = DateTime.utc(
+        ts.year,
+        ts.month,
+        ts.day,
+        ts.hour,
+        ts.minute,
+        ts.second,
+        ts.millisecond,
+        ts.microsecond,
+      );
+    }
     final reference = now ?? DateTime.now();
     final diff = reference.difference(ts);
     if (diff.isNegative) return _pick('Just now', 'الآن');

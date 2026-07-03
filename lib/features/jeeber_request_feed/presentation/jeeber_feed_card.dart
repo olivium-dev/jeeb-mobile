@@ -645,7 +645,11 @@ class _Timestamp extends StatelessWidget {
     return Align(
       alignment: AlignmentDirectional.centerEnd,
       child: Text(
-        DateFormat.Hm(locale).format(receivedAt!),
+        // SW-03: `receivedAt` arrives as a UTC instant from the gateway —
+        // convert to DEVICE-LOCAL time before formatting. Pre-fix the card
+        // formatted the raw UTC fields ("12:31" under a 14:31 status bar),
+        // making every fresh request look hours stale.
+        DateFormat.Hm(locale).format(receivedAt!.toLocal()),
         style: theme.textTheme.labelSmall?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
         ),
