@@ -89,6 +89,17 @@ class NotificationsL10n {
   /// "Unread" affordance label (accessibility only — the badge itself is a dot).
   String get unreadLabel => _pick('Unread', 'غير مقروء');
 
+  /// G3 fallback copy for a locally-persisted `new_request` row whose push
+  /// carried no title/body (a data-only payload). The FCM background isolate
+  /// that persisted the row cannot localize, so the render layer supplies the
+  /// localized default — the row is never blank.
+  String get newRequestFallbackTitle =>
+      _pick('New request nearby', 'طلب جديد بالقرب منك');
+  String get newRequestFallbackBody => _pick(
+        'A customer is looking for a jeeber. Tap to view.',
+        'أحد الزبائن يبحث عن جيب. اضغط لعرض الطلب.',
+      );
+
   /// Coarse relative time for a parsed [timestamp]. Locale-agnostic enough to
   /// stay cosmetic (flows never assert on it). Falls back to the raw string
   /// when the timestamp is unparseable.

@@ -35,6 +35,16 @@ class NotificationRow extends StatelessWidget {
     final colors = theme.colorScheme;
     final textTheme = theme.textTheme;
     final unread = !item.read;
+    // G3: a locally-persisted new_request from a data-only push may carry no
+    // title/body — fall back to localized copy so the row is never blank. Server
+    // rows (which always carry a title) are unaffected.
+    final isNewRequest = item.kind == NotificationKind.newRequest;
+    final title = item.title.isNotEmpty
+        ? item.title
+        : (isNewRequest ? copy.newRequestFallbackTitle : '');
+    final body = item.body.isNotEmpty
+        ? item.body
+        : (isNewRequest ? copy.newRequestFallbackBody : '');
 
     return Semantics(
       // Dynamic per-row id — QA asserts the seeded fixture id (e.g.
@@ -67,10 +77,10 @@ class NotificationRow extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    if (item.title.isNotEmpty) ...[
+                    if (title.isNotEmpty) ...[
                       const SizedBox(height: Spacing.twoXSmall),
                       Text(
-                        item.title,
+                        title,
                         style: textTheme.titleSmall?.copyWith(
                           color: colors.onSurface,
                           fontWeight:
@@ -78,10 +88,10 @@ class NotificationRow extends StatelessWidget {
                         ),
                       ),
                     ],
-                    if (item.body.isNotEmpty) ...[
+                    if (body.isNotEmpty) ...[
                       const SizedBox(height: Spacing.twoXSmall),
                       Text(
-                        item.body,
+                        body,
                         style: textTheme.bodyMedium?.copyWith(
                           color: colors.onSurfaceVariant,
                         ),

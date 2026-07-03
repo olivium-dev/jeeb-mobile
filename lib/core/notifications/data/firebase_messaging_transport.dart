@@ -4,9 +4,12 @@ import 'dart:io' show Platform;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../diagnostics/diag.dart';
+import '../domain/local_push_inbox.dart';
 import '../domain/notification_message.dart';
+import 'shared_prefs_local_push_inbox.dart';
 import 'push_transport.dart';
 
 /// Background isolate entry-point.
@@ -17,18 +20,56 @@ import 'push_transport.dart';
 /// will throw if it's an instance method or anonymous closure.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // The background isolate is short-lived and has no UI; the only
-  // meaningful work is letting the OS know we handled the wakeup. The
-  // actual display path is owned by Android's NotificationManager via
-  // the FCM SDK when `notification` is present in the payload.
+  // The background isolate is short-lived and has no UI. Android's
+  // NotificationManager still renders/collapses the tray banner via the FCM
+  // SDK, but this isolate CANNOT touch the main-isolate BadgeCountCubit or the
+  // inbox list — so a `new_request` dismissed here used to leave NO trail
+  // (empty inbox, no badge: run-24 CHECK D / G3). Persist it durably so the
+  // main isolate can surface it on resume.
   Diag.event('push_received', <String, Object?>{
     'mode': 'background',
     'id': message.messageId,
     'type': message.data['type'],
     'category': message.data['category'],
   });
+  await persistNewRequestPush(message);
   if (kDebugMode) {
     debugPrint('[push] background message: ${message.messageId}');
+  }
+}
+
+/// Writes a durable [LocalPushInbox] row for a `new_request` push (G3), from
+/// EITHER isolate. No-op for any other push type — chat/offer/etc. are sourced
+/// by the server inbox, so persisting them locally would double the row.
+///
+/// Reuses [hoistNestedRoutingFields] + [NotificationCategory.fromData] so the
+/// same category resolution the foreground path uses decides "is this a
+/// new_request" — the wire contract lives in one place. Fail-soft: a storage
+/// error must never crash the background isolate (it would drop the OS ack).
+Future<void> persistNewRequestPush(RemoteMessage message) async {
+  try {
+    final data = message.data.map(
+      (key, value) => MapEntry(key.toString(), value?.toString() ?? ''),
+    );
+    hoistNestedRoutingFields(data);
+    if (NotificationCategory.fromData(data) != NotificationCategory.newRequest) {
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final inbox = SharedPrefsLocalPushInbox(prefs: prefs);
+    await inbox.append(LocalPushRecord(
+      id: message.messageId ??
+          'fcm-${DateTime.now().microsecondsSinceEpoch}',
+      type: kNewRequestPushType,
+      title: message.notification?.title ?? data['title'] ?? '',
+      body: message.notification?.body ?? data['body'] ?? '',
+      ts: (message.sentTime ?? DateTime.now()).toUtc().toIso8601String(),
+      ref: data['requestId'] ?? data['request_id'],
+    ));
+  } catch (error) {
+    if (kDebugMode) {
+      debugPrint('[push] persistNewRequestPush failed: $error');
+    }
   }
 }
 
