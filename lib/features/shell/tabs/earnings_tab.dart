@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../core/dev_seam/session_seam_bootstrap.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
-import '../../../core/network/mock_gateway_client.dart';
 import '../../earnings/application/earnings_cubit.dart';
 import '../../earnings/domain/earnings_repository.dart';
 import '../../earnings/presentation/earnings_dashboard_screen.dart';
@@ -35,13 +33,17 @@ class EarningsTab extends StatelessWidget {
     );
   }
 
+  /// The REAL authenticated session id from [AuthTokenStore] — never a
+  /// hardcoded fixture id (S0-OAD-03). In the mock lane the session seam /
+  /// login flow seeds the store's userId, so the same lookup serves both
+  /// lanes. FAIL CLOSED: with no session id we render the explicit
+  /// "Unable to load earnings account." state instead of silently binding
+  /// another user's earnings.
   Future<String?> _sessionUserId() async {
     if (sl.isRegistered<AuthTokenStore>()) {
       final id = await sl<AuthTokenStore>().userId;
       if (id != null && id.isNotEmpty) return id;
     }
-    return MockGatewayClient.useMockPrefixes
-        ? SessionSeamBootstrap.jeeberUserId
-        : null;
+    return null;
   }
 }
