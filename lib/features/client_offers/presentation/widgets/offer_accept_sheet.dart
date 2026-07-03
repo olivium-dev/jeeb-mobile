@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/formatting/friendly_reference.dart';
 import '../../../../core/formatting/money_format.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/offer_accept_cubit.dart';
@@ -185,6 +186,11 @@ class _OfferAcceptView extends StatelessWidget {
     // Lane item 3 (currency unification): single MoneyFormat across surfaces.
     final feeFormatted =
         MoneyFormat.format(offer.fee, currency: offer.currency);
+    // W6/SW-08: the confirm title headlines the Jeeber's name — suppress a
+    // synthetic handle / UUID the same way the offer card does, so the
+    // accept-ONE moment never reads "9acb579d-…'s offer was accepted".
+    final jeeberDisplayName =
+        displayNameOrNull(offer.jeeberName) ?? l10n.offersCardJeeberFallback;
     return BlocConsumer<OfferAcceptCubit, OfferAcceptState>(
       listenWhen: (prev, next) =>
           prev.status != next.status &&
@@ -224,7 +230,7 @@ class _OfferAcceptView extends StatelessWidget {
                   Semantics(
                     identifier: 'offer_accept_jeeber_name',
                     child: Text(
-                      l10n.chatSystemOfferAcceptedNamed(offer.jeeberName),
+                      l10n.chatSystemOfferAcceptedNamed(jeeberDisplayName),
                       textAlign: TextAlign.center,
                       style: theme.textTheme.titleMedium?.copyWith(
                         color: theme.colorScheme.onSurface,

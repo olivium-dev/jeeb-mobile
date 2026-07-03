@@ -28,8 +28,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Hadi'), findsOneWidget);
-    expect(find.text('42.50'), findsOneWidget);
-    expect(find.text('USD'), findsOneWidget);
+    // MoneyFormat renders USD as "$42.50" (currency-unification lane), carried
+    // verbatim in the fee pill. Pre-existing stale assertion (was "42.50" + a
+    // separate "USD") repaired here so the offers suite stays green.
+    expect(find.text(r'$42.50'), findsOneWidget);
     expect(find.text('18 min ETA'), findsOneWidget);
     expect(find.text('Motorcycle'), findsOneWidget);
     expect(find.text('Accept'), findsOneWidget);
@@ -183,5 +185,133 @@ void main() {
 
     expect(find.text('قبول'), findsOneWidget);
     expect(find.text('دراجة هوائية'), findsOneWidget);
+  });
+
+  // ---------------------------------------------------------------------------
+  // W6 "People, not UUIDs" (sprint-009 SW-08): identity + honest ratings.
+  // ---------------------------------------------------------------------------
+
+  testWidgets(
+      'OfferCard suppresses a raw UUID jeeberName → "New Jeeber", and the '
+      'avatar initial is derived from the resolved name, never a UUID char '
+      '(SW-08)', (tester) async {
+    final offer = buildOffer(
+      id: 'uuid-name',
+      jeeberName: '9acb579d-1c2e-4f3a-b8d1-77aa10cc42e6',
+      rating: 4.8,
+      ratingCount: 12,
+    );
+    await tester.pumpWidget(
+      wrapForTest(
+        OfferCard(offer: offer, index: 0, onAccept: () {}, onTapName: () {}),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // The honest generic replaces the identifier at the accept-ONE moment.
+    expect(find.text('New Jeeber'), findsOneWidget);
+    // The raw UUID never renders anywhere on the card.
+    expect(find.textContaining('9acb579d'), findsNothing);
+    // Avatar fallback initial comes from the RESOLVED name ("N"), not '9'.
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is OmdsProfileAvatar && w.initial == 'N',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is OmdsProfileAvatar && w.initial == '9',
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+      'OfferCard suppresses a synthetic jeeb-<hash> handle → "New Jeeber" '
+      '(SW-08)', (tester) async {
+    final offer = buildOffer(
+      id: 'handle-name',
+      jeeberName: 'jeeb-e1a35ea8a520',
+      ratingCount: 5,
+    );
+    await tester.pumpWidget(
+      wrapForTest(
+        OfferCard(offer: offer, index: 0, onAccept: () {}, onTapName: () {}),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('New Jeeber'), findsOneWidget);
+    expect(find.textContaining('jeeb-'), findsNothing);
+  });
+
+  testWidgets(
+      'OfferCard renders "No ratings yet" instead of stars + a fabricated '
+      '"4.5 (0)" when ratingCount == 0 (SW-08)', (tester) async {
+    final offer = buildOffer(
+      id: 'new-jeeber',
+      jeeberName: 'Karim',
+      rating: 0.0,
+      ratingCount: 0,
+    );
+    await tester.pumpWidget(
+      wrapForTest(
+        OfferCard(offer: offer, index: 0, onAccept: () {}, onTapName: () {}),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // The honest zero-rating line + its assertable node.
+    expect(find.text('No ratings yet'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('offer_card_no_ratings'), findsOneWidget);
+    // The star display is NOT mounted for a zero-count Jeeber.
+    expect(find.byType(OmdsStarRatingDisplay), findsNothing);
+    // No fabricated numeric score or "(0)" review count leaks.
+    expect(find.text('(0)'), findsNothing);
+    expect(find.text('0.0'), findsNothing);
+    expect(find.text('4.5'), findsNothing);
+    // A real name still shows even when the rating is absent.
+    expect(find.text('Karim'), findsOneWidget);
+  });
+
+  testWidgets(
+      'OfferCard shows the real star display + count when ratingCount > 0 '
+      '(SW-08)', (tester) async {
+    final offer = buildOffer(id: 'rated', rating: 4.8, ratingCount: 37);
+    await tester.pumpWidget(
+      wrapForTest(
+        OfferCard(offer: offer, index: 0, onAccept: () {}, onTapName: () {}),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(OmdsStarRatingDisplay), findsOneWidget);
+    expect(find.text('4.8'), findsOneWidget);
+    expect(find.text('(37)'), findsOneWidget);
+    expect(find.text('No ratings yet'), findsNothing);
+    expect(find.bySemanticsIdentifier('offer_card_no_ratings'), findsNothing);
+  });
+
+  testWidgets(
+      'OfferCard renders Arabic identity fallbacks (جِيبر جديد / لا تقييمات '
+      'بعد) under the AR locale (SW-08)', (tester) async {
+    final offer = buildOffer(
+      id: 'ar-fallback',
+      jeeberName: 'jeeb-e1a35ea8a520', // synthetic handle → suppressed
+      rating: 0.0,
+      ratingCount: 0,
+    );
+    await tester.pumpWidget(
+      wrapForTest(
+        OfferCard(offer: offer, index: 0, onAccept: () {}, onTapName: () {}),
+        locale: const Locale('ar'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('جِيبر جديد'), findsOneWidget);
+    expect(find.text('لا تقييمات بعد'), findsOneWidget);
+    expect(find.textContaining('jeeb-'), findsNothing);
   });
 }
