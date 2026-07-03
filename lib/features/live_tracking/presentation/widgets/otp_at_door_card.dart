@@ -3,15 +3,24 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../l10n/app_localizations.dart';
+import '../../../otp_handover/presentation/widgets/handover_code_display.dart';
 
 /// T-MOB-017 AC4: Slides in when status transitions to at_door.
 ///
-/// Shows a brief prompt and a CTA that navigates to the OTP handover screen.
-/// Card uses OMDS tokens exclusively — no magic values.
+/// G4 (sprint-009 P0): when the app holds the delivery hand-over code
+/// (accept-time persisted, restart-safe) the card renders it INLINE and
+/// prominently — the hand-off moment must not hide the code behind a tap.
+/// "Show OTP" remains as a secondary route to the full-screen display. When
+/// the code is unknown (e.g. reinstall) the CTA leads to the OTP screen's
+/// honest SMS-fallback. Card uses OMDS tokens exclusively — no magic values.
 class OtpAtDoorCard extends StatelessWidget {
-  const OtpAtDoorCard({super.key, required this.deliveryId});
+  const OtpAtDoorCard({super.key, required this.deliveryId, this.handoverCode});
 
   final String deliveryId;
+
+  /// The locally-persisted hand-over code, or null when this device never
+  /// received it. Rendered on screen only — NEVER logged (DiagRedaction).
+  final String? handoverCode;
 
   @override
   Widget build(BuildContext context) {
@@ -19,20 +28,22 @@ class OtpAtDoorCard extends StatelessWidget {
       offset: Offset.zero,
       duration: const Duration(milliseconds: 350),
       curve: Curves.easeOutCubic,
-      child: _CardContent(deliveryId: deliveryId),
+      child: _CardContent(deliveryId: deliveryId, handoverCode: handoverCode),
     );
   }
 }
 
 class _CardContent extends StatelessWidget {
-  const _CardContent({required this.deliveryId});
+  const _CardContent({required this.deliveryId, required this.handoverCode});
 
   final String deliveryId;
+  final String? handoverCode;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final code = handoverCode;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(Spacing.xLarge),
@@ -62,10 +73,20 @@ class _CardContent extends StatelessWidget {
           ),
           const SizedBox(height: Spacing.small),
           Text(
-            l10n.trackingAtDoorBody,
+            code != null ? l10n.trackingAtDoorShareCode : l10n.trackingAtDoorBody,
             style: theme.textTheme.bodyMedium,
             textAlign: TextAlign.center,
           ),
+          if (code != null) ...[
+            const SizedBox(height: Spacing.large),
+            // G4: the code itself, inline at the hand-off moment.
+            HandoverCodeDisplay(
+              code: code,
+              compact: true,
+              semanticsIdentifier: 'tracking_at_door_code',
+              displayKey: const Key('tracking.atDoorCode'),
+            ),
+          ],
           const SizedBox(height: Spacing.large),
           Semantics(
             // QA: uiautomator-addressable handle for the at-door → OTP CTA.
