@@ -45,7 +45,7 @@ void main() {
 
     expect(handler.state.banner?.id, 'a');
     expect(handler.state.history.map((m) => m.id), ['a']);
-    expect(badge.state, 1);
+    expect(badge.state.unread, 1);
   });
 
   test('duplicate ids are deduplicated', () async {
@@ -55,7 +55,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(handler.state.history, hasLength(1));
-    expect(badge.state, 1);
+    expect(badge.state.unread, 1);
   });
 
   test('history is capped at historyLimit (newest first)', () async {
@@ -116,10 +116,10 @@ void main() {
   test('clearBadge zeroes the badge cubit', () async {
     transport.emitForeground(_message('a'));
     await Future<void>.delayed(Duration.zero);
-    expect(badge.state, 1);
+    expect(badge.state.unread, 1);
 
     handler.clearBadge();
-    expect(badge.state, 0);
+    expect(badge.state.unread, 0);
   });
 
   group('push→refetch signal (Lane C)', () {
