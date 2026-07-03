@@ -20,25 +20,29 @@ NotificationMessage _msg({
 void main() {
   group('deepLinkForMessage', () {
     test('delivery routes to /orders/<delivery_id>', () {
-      final path = deepLinkForMessage(_msg(
-        category: NotificationCategory.delivery,
-        data: const {'delivery_id': 'd-42'},
-      ));
+      final path = deepLinkForMessage(
+        _msg(
+          category: NotificationCategory.delivery,
+          data: const {'delivery_id': 'd-42'},
+        ),
+      );
       expect(path, '/orders/d-42');
     });
 
     test('delivery falls back to order_id when delivery_id is missing', () {
-      final path = deepLinkForMessage(_msg(
-        category: NotificationCategory.delivery,
-        data: const {'order_id': 'o-9'},
-      ));
+      final path = deepLinkForMessage(
+        _msg(
+          category: NotificationCategory.delivery,
+          data: const {'order_id': 'o-9'},
+        ),
+      );
       expect(path, '/orders/o-9');
     });
 
     test('delivery without any id returns null (no crash)', () {
-      final path = deepLinkForMessage(_msg(
-        category: NotificationCategory.delivery,
-      ));
+      final path = deepLinkForMessage(
+        _msg(category: NotificationCategory.delivery),
+      );
       expect(path, isNull);
     });
 
@@ -47,76 +51,89 @@ void main() {
       // The live gateway `type=offer`/`type=accept` push maps to the delivery
       // category but carries ONLY `requestId` — no delivery_id/order_id. Before
       // the fix this produced NO route (tap = silent no-op).
-      final path = deepLinkForMessage(_msg(
-        category: NotificationCategory.delivery,
-        data: const {'requestId': 'req-77'},
-      ));
+      final path = deepLinkForMessage(
+        _msg(
+          category: NotificationCategory.delivery,
+          data: const {'requestId': 'req-77'},
+        ),
+      );
       expect(path, '/orders/req-77');
     });
 
     test('delivery uses snake_case request_id when it is the only id', () {
-      final path = deepLinkForMessage(_msg(
-        category: NotificationCategory.delivery,
-        data: const {'request_id': 'req-88'},
-      ));
+      final path = deepLinkForMessage(
+        _msg(
+          category: NotificationCategory.delivery,
+          data: const {'request_id': 'req-88'},
+        ),
+      );
       expect(path, '/orders/req-88');
     });
 
     test('delivery prefers an explicit delivery_id over requestId', () {
-      final path = deepLinkForMessage(_msg(
-        category: NotificationCategory.delivery,
-        data: const {'delivery_id': 'd-1', 'requestId': 'req-99'},
-      ));
+      final path = deepLinkForMessage(
+        _msg(
+          category: NotificationCategory.delivery,
+          data: const {'delivery_id': 'd-1', 'requestId': 'req-99'},
+        ),
+      );
       expect(path, '/orders/d-1');
     });
 
     test('chat routes to /chat/<id>', () {
-      final path = deepLinkForMessage(_msg(
-        category: NotificationCategory.chat,
-        data: const {'chat_id': 'c-1'},
-      ));
+      final path = deepLinkForMessage(
+        _msg(
+          category: NotificationCategory.chat,
+          data: const {'chat_id': 'c-1'},
+        ),
+      );
       expect(path, '/chat/c-1');
     });
 
     test('chat prefers requestId over conversationId (correlationKey == '
         'request id, so the GET /v1/conversations?correlationKey lookup '
         'resolves 200 instead of 404)', () {
-      final path = deepLinkForMessage(_msg(
-        category: NotificationCategory.chat,
-        data: const {
-          'conversationId': 'conv-abc',
-          'requestId': 'req-xyz',
-          'type': 'chat',
-        },
-      ));
+      final path = deepLinkForMessage(
+        _msg(
+          category: NotificationCategory.chat,
+          data: const {
+            'conversationId': 'conv-abc',
+            'requestId': 'req-xyz',
+            'type': 'chat',
+          },
+        ),
+      );
       expect(path, '/chat/req-xyz');
     });
 
     test('chat uses snake_case request_id when present', () {
-      final path = deepLinkForMessage(_msg(
-        category: NotificationCategory.chat,
-        data: const {
-          'conversation_id': 'conv-1',
-          'request_id': 'req-1',
-        },
-      ));
+      final path = deepLinkForMessage(
+        _msg(
+          category: NotificationCategory.chat,
+          data: const {'conversation_id': 'conv-1', 'request_id': 'req-1'},
+        ),
+      );
       expect(path, '/chat/req-1');
     });
 
-    test('chat falls back to conversationId when no request id is present '
-        '(the chat-detail messages probe then resolves it — no regression)',
-        () {
-      final path = deepLinkForMessage(_msg(
-        category: NotificationCategory.chat,
-        data: const {'conversationId': 'conv-only'},
-      ));
-      expect(path, '/chat/conv-only');
-    });
+    test(
+      'chat falls back to conversationId when no request id is present '
+      '(the chat-detail messages probe then resolves it — no regression)',
+      () {
+        final path = deepLinkForMessage(
+          _msg(
+            category: NotificationCategory.chat,
+            data: const {'conversationId': 'conv-only'},
+          ),
+        );
+        expect(path, '/chat/conv-only');
+      },
+    );
 
     test('chat without any id returns null (no crash)', () {
-      final path = deepLinkForMessage(_msg(
-        category: NotificationCategory.chat,
-      ));
+      final path = deepLinkForMessage(
+        _msg(category: NotificationCategory.chat),
+      );
       expect(path, isNull);
     });
 
@@ -126,10 +143,12 @@ void main() {
     });
 
     test('rating routes to /orders/<id>/rate', () {
-      final path = deepLinkForMessage(_msg(
-        category: NotificationCategory.rating,
-        data: const {'delivery_id': 'd-77'},
-      ));
+      final path = deepLinkForMessage(
+        _msg(
+          category: NotificationCategory.rating,
+          data: const {'delivery_id': 'd-77'},
+        ),
+      );
       expect(path, '/orders/d-77/rate');
     });
 
@@ -141,99 +160,179 @@ void main() {
     });
 
     test('other category returns null (banner with no destination)', () {
-      final path = deepLinkForMessage(_msg(category: NotificationCategory.other));
+      final path = deepLinkForMessage(
+        _msg(category: NotificationCategory.other),
+      );
       expect(path, isNull);
     });
 
     test('new_request routes to /jeeber/requests/<requestId>', () {
-      final path = deepLinkForMessage(_msg(
-        category: NotificationCategory.newRequest,
-        data: const {'requestId': 'req-1'},
-      ));
+      final path = deepLinkForMessage(
+        _msg(
+          category: NotificationCategory.newRequest,
+          data: const {'requestId': 'req-1'},
+        ),
+      );
       expect(path, '/jeeber/requests/req-1');
     });
 
     test('new_request uses snake_case request_id when it is the only id', () {
-      final path = deepLinkForMessage(_msg(
-        category: NotificationCategory.newRequest,
-        data: const {'request_id': 'req-1'},
-      ));
+      final path = deepLinkForMessage(
+        _msg(
+          category: NotificationCategory.newRequest,
+          data: const {'request_id': 'req-1'},
+        ),
+      );
       expect(path, '/jeeber/requests/req-1');
     });
 
     test('new_request without any id returns null (no crash)', () {
-      final path = deepLinkForMessage(_msg(
-        category: NotificationCategory.newRequest,
-      ));
+      final path = deepLinkForMessage(
+        _msg(category: NotificationCategory.newRequest),
+      );
       expect(path, isNull);
     });
 
-    test('offer_accepted routes to the jeeber pending-offers surface', () {
-      final path = deepLinkForMessage(_msg(
-        category: NotificationCategory.offerAccepted,
-        data: const {'offerId': 'off-1', 'requestId': 'req-1'},
-      ));
+    test('offer_accepted routes to the jeeber ACTIVE-DELIVERY screen for the '
+        'won request (run-23 CHECK B fix: NOT the pending-offers list, which '
+        'is empty once the offer is decided)', () {
+      final path = deepLinkForMessage(
+        _msg(
+          category: NotificationCategory.offerAccepted,
+          data: const {'offerId': 'off-1', 'requestId': 'req-1'},
+        ),
+      );
+      expect(path, '/jeeber/deliveries/req-1/active');
+    });
+
+    test('offer_accepted uses snake_case request_id when it is the only id '
+        '(gateway carries both variants)', () {
+      final path = deepLinkForMessage(
+        _msg(
+          category: NotificationCategory.offerAccepted,
+          data: const {'request_id': 'req-2', 'offerId': 'off-1'},
+        ),
+      );
+      expect(path, '/jeeber/deliveries/req-2/active');
+    });
+
+    test(
+      'offer_accepted prefers an explicit delivery id over the request id',
+      () {
+        expect(
+          deepLinkForMessage(
+            _msg(
+              category: NotificationCategory.offerAccepted,
+              data: const {'delivery_id': 'd-1', 'requestId': 'req-1'},
+            ),
+          ),
+          '/jeeber/deliveries/d-1/active',
+        );
+        expect(
+          deepLinkForMessage(
+            _msg(
+              category: NotificationCategory.offerAccepted,
+              data: const {'deliveryId': 'd-2', 'requestId': 'req-1'},
+            ),
+          ),
+          '/jeeber/deliveries/d-2/active',
+        );
+      },
+    );
+
+    test('offer_accepted does NOT route on the offerId alone — the active '
+        'delivery is keyed by request/delivery id, not offer id', () {
+      final path = deepLinkForMessage(
+        _msg(
+          category: NotificationCategory.offerAccepted,
+          data: const {'offerId': 'off-9'},
+        ),
+      );
       expect(path, '/jeeber/pending-offers');
     });
 
-    test('offer_lost routes to the jeeber pending-offers surface', () {
-      final path = deepLinkForMessage(_msg(
-        category: NotificationCategory.offerLost,
-        data: const {'offerId': 'off-1'},
-      ));
-      expect(path, '/jeeber/pending-offers');
-    });
-
-    test('offer_accepted/lost route even WITHOUT any id (constant surface, '
-        'never a silent no-op)', () {
+    test('offer_accepted WITHOUT any id still routes (pending-offers '
+        'last-resort — never a silent no-op)', () {
       expect(
         deepLinkForMessage(_msg(category: NotificationCategory.offerAccepted)),
         '/jeeber/pending-offers',
       );
+    });
+
+    test('offer_lost routes to the shell feed — NOT pending-offers (empty '
+        'once decided) and NOT /jeeber/requests/:id (its accepted-delivery '
+        'probe would redirect the LOSER into the winner\'s delivery)', () {
+      final path = deepLinkForMessage(
+        _msg(
+          category: NotificationCategory.offerLost,
+          data: const {'offerId': 'off-1', 'requestId': 'req-1'},
+        ),
+      );
+      expect(path, '/');
+    });
+
+    test('offer_lost routes even WITHOUT any id (constant surface, never a '
+        'silent no-op)', () {
       expect(
         deepLinkForMessage(_msg(category: NotificationCategory.offerLost)),
-        '/jeeber/pending-offers',
+        '/',
       );
     });
   });
 
   group('NotificationCategory.fromKey', () {
     test('maps known keys', () {
-      expect(NotificationCategory.fromKey('delivery'),
-          NotificationCategory.delivery);
+      expect(
+        NotificationCategory.fromKey('delivery'),
+        NotificationCategory.delivery,
+      );
       expect(NotificationCategory.fromKey('chat'), NotificationCategory.chat);
       expect(NotificationCategory.fromKey('kyc'), NotificationCategory.kyc);
-      expect(NotificationCategory.fromKey('rating'),
-          NotificationCategory.rating);
-      expect(NotificationCategory.fromKey('settings'),
-          NotificationCategory.settings);
-      expect(NotificationCategory.fromKey('new_request'),
-          NotificationCategory.newRequest);
-      expect(NotificationCategory.fromKey('offer_accepted'),
-          NotificationCategory.offerAccepted);
-      expect(NotificationCategory.fromKey('offer_lost'),
-          NotificationCategory.offerLost);
+      expect(
+        NotificationCategory.fromKey('rating'),
+        NotificationCategory.rating,
+      );
+      expect(
+        NotificationCategory.fromKey('settings'),
+        NotificationCategory.settings,
+      );
+      expect(
+        NotificationCategory.fromKey('new_request'),
+        NotificationCategory.newRequest,
+      );
+      expect(
+        NotificationCategory.fromKey('offer_accepted'),
+        NotificationCategory.offerAccepted,
+      );
+      expect(
+        NotificationCategory.fromKey('offer_lost'),
+        NotificationCategory.offerLost,
+      );
     });
 
     test('fromData resolves the offer-lifecycle type discriminator', () {
       expect(
-        NotificationCategory.fromData(
-          const {'type': 'offer_accepted', 'offerId': 'off-9'},
-        ),
+        NotificationCategory.fromData(const {
+          'type': 'offer_accepted',
+          'offerId': 'off-9',
+        }),
         NotificationCategory.offerAccepted,
       );
       expect(
-        NotificationCategory.fromData(
-          const {'type': 'offer_lost', 'offerId': 'off-9'},
-        ),
+        NotificationCategory.fromData(const {
+          'type': 'offer_lost',
+          'offerId': 'off-9',
+        }),
         NotificationCategory.offerLost,
       );
     });
 
     test('unknown / null fall back to other', () {
       expect(NotificationCategory.fromKey(null), NotificationCategory.other);
-      expect(NotificationCategory.fromKey('marketing'),
-          NotificationCategory.other);
+      expect(
+        NotificationCategory.fromKey('marketing'),
+        NotificationCategory.other,
+      );
     });
   });
 
@@ -277,21 +376,23 @@ void main() {
       );
     });
 
-    test('type=offer + category=delivery → delivery route (offer/accept still '
-        'land on the order surface — a known type that agrees with category)',
-        () {
-      const data = <String, String>{
-        'type': 'offer',
-        'category': 'delivery',
-        'requestId': 'req-offer',
-      };
-      final category = NotificationCategory.fromData(data);
-      expect(category, NotificationCategory.delivery);
-      expect(
-        deepLinkForMessage(_msg(category: category, data: data)),
-        '/orders/req-offer',
-      );
-    });
+    test(
+      'type=offer + category=delivery → delivery route (offer/accept still '
+      'land on the order surface — a known type that agrees with category)',
+      () {
+        const data = <String, String>{
+          'type': 'offer',
+          'category': 'delivery',
+          'requestId': 'req-offer',
+        };
+        final category = NotificationCategory.fromData(data);
+        expect(category, NotificationCategory.delivery);
+        expect(
+          deepLinkForMessage(_msg(category: category, data: data)),
+          '/orders/req-offer',
+        );
+      },
+    );
 
     test('type=chat → chat route unchanged (no regression from the precedence '
         'flip)', () {
@@ -310,16 +411,132 @@ void main() {
 
     test('unknown type falls back to category=kyc → kyc route (fallback path '
         'preserved when the type is unrecognized)', () {
-      const data = <String, String>{
-        'type': 'promo_v2',
-        'category': 'kyc',
-      };
+      const data = <String, String>{'type': 'promo_v2', 'category': 'kyc'};
       final category = NotificationCategory.fromData(data);
       expect(category, NotificationCategory.kyc);
       expect(
         deepLinkForMessage(_msg(category: category, data: data)),
         '/profile/kyc',
       );
+    });
+
+    test('EXACT run-23 offer_accepted payload (type=offer_accepted + legacy '
+        'category=delivery + flat requestId/offerId/deepLink) → the winner '
+        'lands on the ACTIVE delivery, not the empty pending-offers list', () {
+      // Mirrors the gateway's OfferPushNotifier.SendLifecycleAsync payload and
+      // the run-23 on-device push_received event ({"type":"offer_accepted",
+      // "category":"delivery"}). The known `type` must win over the legacy
+      // `category` (else this bucket as `delivery` → /orders/:id), and the
+      // route must be the jeeber active-delivery screen (run-23 CHECK B).
+      const data = <String, String>{
+        'type': 'offer_accepted',
+        'category': 'delivery',
+        'requestId': 'req-run23',
+        'request_id': 'req-run23',
+        'offerId': 'off-run23',
+        'deepLink': 'jeeb://offers/off-run23',
+        'title': 'Offer accepted',
+        'body': 'Your offer was accepted',
+      };
+      final category = NotificationCategory.fromData(data);
+      expect(category, NotificationCategory.offerAccepted);
+      expect(
+        deepLinkForMessage(_msg(category: category, data: data)),
+        '/jeeber/deliveries/req-run23/active',
+      );
+    });
+
+    test('gateway-shaped offer_lost payload (type=offer_lost + legacy '
+        'category=delivery) → the loser lands on the shell feed, never a '
+        'dead end', () {
+      const data = <String, String>{
+        'type': 'offer_lost',
+        'category': 'delivery',
+        'requestId': 'req-run23',
+        'request_id': 'req-run23',
+        'offerId': 'off-loser',
+        'deepLink': 'jeeb://offers/off-loser',
+      };
+      final category = NotificationCategory.fromData(data);
+      expect(category, NotificationCategory.offerLost);
+      expect(deepLinkForMessage(_msg(category: category, data: data)), '/');
+    });
+  });
+
+  group('push-type → route mapping table (regression pins, all 5 wire types '
+      '+ unknown fallback)', () {
+    // One assertion per LIVE gateway push type, resolving category from the
+    // full data map exactly like the transport does — so a future edit to
+    // either `fromData` or `deepLinkForMessage` that re-routes a proven-working
+    // type fails loudly here.
+    String? routeFor(Map<String, String> data) {
+      final category = NotificationCategory.fromData(data);
+      return deepLinkForMessage(_msg(category: category, data: data));
+    }
+
+    test(
+      'new_request → /jeeber/requests/:id (proven run-22/23 — do not break)',
+      () {
+        expect(
+          routeFor(const {
+            'type': 'new_request',
+            'category': 'delivery',
+            'requestId': 'req-1',
+          }),
+          '/jeeber/requests/req-1',
+        );
+      },
+    );
+
+    test('offer → /orders/:id (customer new-offer surface — unchanged)', () {
+      expect(
+        routeFor(const {
+          'type': 'offer',
+          'category': 'delivery',
+          'requestId': 'req-1',
+        }),
+        '/orders/req-1',
+      );
+    });
+
+    test('chat → /chat/:requestId (proven sprint-008 — do not break)', () {
+      expect(
+        routeFor(const {
+          'type': 'chat',
+          'conversationId': 'conv-1',
+          'requestId': 'req-1',
+        }),
+        '/chat/req-1',
+      );
+    });
+
+    test('offer_accepted → /jeeber/deliveries/:id/active (this fix)', () {
+      expect(
+        routeFor(const {
+          'type': 'offer_accepted',
+          'category': 'delivery',
+          'requestId': 'req-1',
+          'offerId': 'off-1',
+        }),
+        '/jeeber/deliveries/req-1/active',
+      );
+    });
+
+    test('offer_lost → / (shell feed; this fix)', () {
+      expect(
+        routeFor(const {
+          'type': 'offer_lost',
+          'category': 'delivery',
+          'requestId': 'req-1',
+          'offerId': 'off-1',
+        }),
+        '/',
+      );
+    });
+
+    test('unknown type with no category → null (banner only, no navigation, '
+        'no crash)', () {
+      expect(routeFor(const {'type': 'promo_v9'}), isNull);
     });
   });
 }

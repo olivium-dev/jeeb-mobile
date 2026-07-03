@@ -19,7 +19,8 @@ String? deepLinkForMessage(NotificationMessage message) {
       // `GET /v1/deliveries/{requestId}` resolves 200), so fall back to
       // `requestId`/`request_id` — otherwise an offer/accept tap is a silent
       // no-op. Precedence keeps the explicit delivery/order id first.
-      final id = message.data['delivery_id'] ??
+      final id =
+          message.data['delivery_id'] ??
           message.data['order_id'] ??
           message.data['requestId'] ??
           message.data['request_id'];
@@ -37,7 +38,8 @@ String? deepLinkForMessage(NotificationMessage message) {
       // remain accepted fallbacks so a tap still resolves to a route when the
       // backend stamps only a conversation id (the screen's messages probe then
       // resolves it).
-      final id = message.data['requestId'] ??
+      final id =
+          message.data['requestId'] ??
           message.data['request_id'] ??
           message.data['chat_id'] ??
           message.data['conversation_id'] ??
@@ -61,17 +63,42 @@ String? deepLinkForMessage(NotificationMessage message) {
       if (id == null || id.isEmpty) return null;
       return '/jeeber/requests/$id';
     case NotificationCategory.offerAccepted:
+      // run-23 CHECK B (P1): an ACCEPTED offer means this jeeber now owns an
+      // active delivery — land on the jeeber active-delivery screen, the SAME
+      // target the dashboard's active-deliveries banner routes to
+      // (`/jeeber/deliveries/:id/active`). The old constant target,
+      // `/jeeber/pending-offers`, was proven EMPTY on-device by tap time (the
+      // self-scoped offers list drops decided offers), stranding the winner.
+      //
+      // The gateway's `OfferPushNotifier.SendLifecycleAsync` carries the flat
+      // `requestId` + `request_id` (plus `offerId`/`deepLink`), and the
+      // delivery id == request id in this system (`GET /v1/deliveries/
+      // {requestId}` resolves 200 — same convention the `delivery` case above
+      // relies on). Prefer an explicit delivery id should the gateway ever
+      // stamp one. The active-delivery screen absorbs the tap-time edges: a
+      // delivery already terminal (`Done`) renders its explicit
+      // `delivery_completed_state` panel, and a missing/failed fetch renders
+      // the retryable error state — never an empty list.
+      final id =
+          message.data['delivery_id'] ??
+          message.data['deliveryId'] ??
+          message.data['requestId'] ??
+          message.data['request_id'];
+      // Last-resort fallback: an id-less payload still routes to the constant
+      // pending-offers surface, so an accepted tap can never silently no-op.
+      if (id == null || id.isEmpty) return '/jeeber/pending-offers';
+      return '/jeeber/deliveries/$id/active';
     case NotificationCategory.offerLost:
-      // sprint-009 offer-lifecycle: an accept/lost push lands the jeeber on its
-      // pending-offers surface (route `jeeber-pending-offers`), where the list
-      // re-pulls and the affected row flips to Accepted / Not selected. The
-      // gateway ships a ready `deepLink` (jeeb://offers/{offerId}) and a flat
-      // `offerId`, but the offers list is self-scoped (`GET /v1/offers?jeeberId`)
-      // and keys rows by index, so there is no per-offer route to target — the
-      // stable surface is the list itself. Routing to a constant destination
-      // (no id required) means an accept/lost tap can never no-op on a missing
-      // id, unlike the delivery/chat/new_request cases.
-      return '/jeeber/pending-offers';
+      // A LOST offer has no surface that reliably still shows it: the
+      // self-scoped offers list drops decided offers (the run-23 empty-list
+      // evidence), and `/jeeber/requests/:id` is unsafe for a LOSER — its
+      // accepted-delivery probe (`_probeAcceptedDeliveryId`, deliveryId ==
+      // requestId) would find the WINNER's in-flight delivery and redirect
+      // this jeeber into an active-delivery screen that isn't theirs. The
+      // stable, never-empty destination is the shell — the jeeber's
+      // dashboard/feed — where they can pick the next request (the push
+      // banner itself is the "not selected" notice).
+      return '/';
     case NotificationCategory.other:
       return null;
   }
