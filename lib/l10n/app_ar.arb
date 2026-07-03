@@ -204,6 +204,8 @@
     "description": "Shown on the biometric prompt screen when the device has no usable biometric sensor."
   },
   "requestNoLongerAvailable": "لم يعد الطلب {requestId} متاحًا.",
+  "requestUnavailableTitle": "الطلب لم يعد متاحًا",
+  "requestUnavailableBrowseCta": "تصفح الطلبات الأخرى",
   "@requestNoLongerAvailable": {
     "description": "Shown on the jeeber request-unavailable screen when a deep-linked request was matched, cancelled, or expired.",
     "placeholders": {
@@ -730,6 +732,8 @@
   "deliveryErrorStreamLost": "جارٍ إعادة الاتصال بحالة التوصيلة…",
   "deliveryCompletedBanner": "تم التسليم بنجاح",
   "deliveryCancelledBanner": "تم إلغاء التوصيلة",
+  "trackingCancelledBody": "تم إلغاء هذه التوصيلة ولم تعد نشطة. يمكنك إنشاء طلب جديد في أي وقت.",
+  "trackingCancelledHomeCta": "العودة إلى الرئيسية",
   "appBarSignOut": "تسجيل الخروج",
   "availabilityHomeTitle": "شاشة الجِيبر الرئيسية",
   "availabilityInactivityWarningBody": "سيتم تحويلك إلى وضع غير متصل خلال 30 دقيقة إذا بقيت غير نشط. اضغط أدناه للاستمرار في استقبال الطلبات.",

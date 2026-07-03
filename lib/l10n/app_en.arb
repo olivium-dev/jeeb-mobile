@@ -452,6 +452,14 @@
       "requestId": { "type": "String" }
     }
   },
+  "requestUnavailableTitle": "Request no longer available",
+  "@requestUnavailableTitle": {
+    "description": "Title of the jeeber request-unavailable screen (request was matched, cancelled, or expired)."
+  },
+  "requestUnavailableBrowseCta": "Browse other requests",
+  "@requestUnavailableBrowseCta": {
+    "description": "CTA on the jeeber request-unavailable screen; returns to the request feed."
+  },
   "biometricRowTitle": "Sign in with biometrics",
   "biometricRowSubtitle": "Use Face ID or fingerprint when available",
   "biometricLockTitle": "Unlock Jeeb",
@@ -2428,6 +2436,14 @@
   "deliveryCancelledBanner": "Delivery cancelled",
   "@deliveryCancelledBanner": {
     "description": "Banner shown above the details once delivery is cancelled"
+  },
+  "trackingCancelledBody": "This delivery was cancelled and is no longer active. You can create a new request any time.",
+  "@trackingCancelledBody": {
+    "description": "Body of the terminal state on the order-tracking screen when the delivery was cancelled or expired."
+  },
+  "trackingCancelledHomeCta": "Back to Home",
+  "@trackingCancelledHomeCta": {
+    "description": "CTA on the cancelled-delivery tracking terminal state; routes to the role-aware home."
   },
   "appBarSignOut": "Sign out",
   "availabilityHomeTitle": "Jeeber Home",

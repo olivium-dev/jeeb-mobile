@@ -948,6 +948,8 @@ class AppLocalizations {
 
   String requestNoLongerAvailable(String requestId) =>
       _get('requestNoLongerAvailable').replaceFirst('{requestId}', requestId);
+  String get requestUnavailableTitle => _get('requestUnavailableTitle');
+  String get requestUnavailableBrowseCta => _get('requestUnavailableBrowseCta');
   String get jeeberRequestDetailTitle => _get('jeeberRequestDetailTitle');
   String get jeeberRequestDetailSectionPickup =>
       _get('jeeberRequestDetailSectionPickup');
@@ -1204,6 +1206,8 @@ class AppLocalizations {
 
   String get deliveryCompletedBanner => _get('deliveryCompletedBanner');
   String get deliveryCancelledBanner => _get('deliveryCancelledBanner');
+  String get trackingCancelledBody => _get('trackingCancelledBody');
+  String get trackingCancelledHomeCta => _get('trackingCancelledHomeCta');
 }
 
 class _AppLocalizationsDelegate
