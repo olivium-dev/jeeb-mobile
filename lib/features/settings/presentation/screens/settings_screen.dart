@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -6,7 +7,10 @@ import 'package:omds/omds.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/locale/locale_cubit.dart';
+import '../../../../core/session/profile_refresh_signals.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../profile_name/data/dio_display_name_repository.dart';
+import '../../../profile_name/domain/display_name_repository.dart';
 import '../../application/role_switch_cubit.dart';
 import '../../application/settings_cubit.dart';
 import '../../application/settings_state.dart';
@@ -74,9 +78,25 @@ class SettingsScreen extends StatelessWidget {
       create: (_) => SettingsCubit(
         profileRepository: sl<ProfileRepository>(),
         accountService: sl<AccountService>(),
+        // Profile-name lane: mirror a saved name to the gateway
+        // (`PUT /api/User/profile` `{username}`) and broadcast the change so
+        // live greeting surfaces re-pull getMe. Both resolve off the shared DI
+        // graph; a bare test host (no Dio) degrades to local-only saves.
+        displayNameRepository: _resolveDisplayNameRepository(),
+        refreshSignals: _resolveProfileRefreshSignals(),
       )..load(),
       child: view,
     );
+  }
+
+  static DisplayNameRepository? _resolveDisplayNameRepository() {
+    if (!sl.isRegistered<Dio>()) return null;
+    return DioDisplayNameRepository(sl<Dio>());
+  }
+
+  static ProfileRefreshSignals? _resolveProfileRefreshSignals() {
+    if (!sl.isRegistered<ProfileRefreshSignals>()) return null;
+    return sl<ProfileRefreshSignals>();
   }
 }
 

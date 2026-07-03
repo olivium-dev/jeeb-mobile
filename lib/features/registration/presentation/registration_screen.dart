@@ -16,6 +16,7 @@ import '../../auth/social/social_auth_cubit.dart';
 import '../../auth/social/social_auth_service.dart';
 import '../../auth/social/social_auth_token_store.dart';
 import '../../auth/social/social_sign_in_section.dart';
+import '../../profile_name/presentation/display_name_setup_screen.dart';
 import '../application/registration_cubit.dart';
 import '../application/registration_state.dart';
 import '../domain/lebanon_phone.dart';
@@ -138,6 +139,7 @@ class _RegistrationView extends StatefulWidget {
 class _RegistrationViewState extends State<_RegistrationView> {
   late final TextEditingController _phoneController;
   bool _pushedOtp = false;
+  bool _pushedNameStep = false;
 
   @override
   void initState() {
@@ -184,11 +186,35 @@ class _RegistrationViewState extends State<_RegistrationView> {
       OmdsSlideRoute<void>(
         page: BlocProvider<RegistrationCubit>.value(
           value: cubit,
-          child: OtpVerificationScreen(onVerified: onVerified),
+          // Production (null [onVerified]): pass a NO-OP so this HOST owns the
+          // whole post-verify continuation (display-name step → _navigateHome)
+          // instead of the OTP screen's default `context.go('/')` racing it and
+          // tearing the stack down before the name step can show. Tests that
+          // inject their own callback keep the previous contract untouched.
+          child: OtpVerificationScreen(onVerified: onVerified ?? () {}),
         ),
       ),
     );
     _pushedOtp = false;
+  }
+
+  /// Post-OTP display-name step (profile-name onboarding): asks for a friendly
+  /// display name and PUTs it to `/api/User/profile` (`username`) so the
+  /// gateway projection carries a real name instead of a synthetic handle.
+  /// Optional-but-encouraged: the step always offers a skip exit and a failed
+  /// save never blocks registration (fail-soft inside the screen). Production
+  /// path ONLY — test seams that inject [_RegistrationView.onVerified] keep
+  /// the verified → callback contract unchanged.
+  Future<void> _openDisplayNameStep() async {
+    if (_pushedNameStep || !mounted) return;
+    _pushedNameStep = true;
+    final navigator = Navigator.of(context);
+    await navigator.push(
+      OmdsSlideRoute<void>(
+        page: DisplayNameSetupScreen(onDone: () => navigator.pop()),
+      ),
+    );
+    _pushedNameStep = false;
   }
 
   Future<void> _navigateHome() async {
@@ -239,7 +265,11 @@ class _RegistrationViewState extends State<_RegistrationView> {
           _openOtpRoute();
         }
         if (state.step == RegistrationStep.verified) {
-          // Verified — persist onboarding completion and land on home.
+          // Verified — production path first offers the OPTIONAL display-name
+          // step (skip-allowed; a failed save never blocks), then persists
+          // onboarding completion and lands on home. Test seams (injected
+          // onVerified) bypass the name step to preserve the prior contract.
+          if (widget.onVerified == null) await _openDisplayNameStep();
           await _navigateHome();
         }
       },

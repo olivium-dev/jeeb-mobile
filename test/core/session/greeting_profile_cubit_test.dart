@@ -3,6 +3,8 @@
 // it degrades to the generic (null/empty) greeting on a failed/absent fetch
 // rather than surfacing a broken header.
 
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/session/greeting_profile_cubit.dart';
 import 'package:jeeb_mobile/features/customer_profile/domain/customer_profile_repository.dart';
@@ -11,7 +13,7 @@ import 'package:jeeb_mobile/features/customer_profile/domain/customer_profile_vi
 class _ScriptedRepository implements CustomerProfileRepository {
   _ScriptedRepository({this.profile, this.throws});
 
-  final CustomerProfileViewData? profile;
+  CustomerProfileViewData? profile;
   final CustomerProfileFailure? throws;
 
   @override
@@ -77,6 +79,52 @@ void main() {
       expect(cubit.state.name, isNull);
       expect(cubit.state.avatarUrl, isNull);
       cubit.close();
+    });
+
+    test(
+      'profile-changed signal re-pulls getMe so a saved display name lands '
+      '(profile-name lane)',
+      () async {
+        final repo = _ScriptedRepository(
+          profile: const CustomerProfileViewData(),
+        );
+        final signals = StreamController<void>.broadcast();
+        final cubit = GreetingProfileCubit(
+          repository: repo,
+          refreshSignals: signals.stream,
+        );
+        await cubit.load();
+        expect(cubit.state.name, isNull);
+
+        // Simulate the display-name save: getMe now carries the real name
+        // (the gateway mirrors PUT /api/User/profile `username` into the
+        // projection) and the save path broadcasts a profile change.
+        repo.profile = const CustomerProfileViewData(name: 'Ahmad');
+        signals.add(null);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(cubit.state.name, 'Ahmad');
+        await cubit.close();
+        await signals.close();
+      },
+    );
+
+    test('close() cancels the refresh subscription (no emit-after-close)',
+        () async {
+      final repo = _ScriptedRepository(
+        profile: const CustomerProfileViewData(name: 'Ahmad'),
+      );
+      final signals = StreamController<void>.broadcast();
+      final cubit = GreetingProfileCubit(
+        repository: repo,
+        refreshSignals: signals.stream,
+      );
+      await cubit.close();
+      signals.add(null);
+      await Future<void>.delayed(Duration.zero);
+      // No throw and the seed state is untouched.
+      expect(cubit.state.name, isNull);
+      await signals.close();
     });
   });
 }

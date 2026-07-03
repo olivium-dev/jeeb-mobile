@@ -1,6 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/features/profile_name/domain/display_name_repository.dart';
 import 'package:jeeb_mobile/features/settings/application/settings_cubit.dart';
 import 'package:jeeb_mobile/features/settings/application/settings_state.dart';
 import 'package:jeeb_mobile/features/settings/domain/account_service.dart';
@@ -32,14 +33,31 @@ class _ScriptedAccountService implements AccountService {
   }
 }
 
+class _RecordingDisplayNameRepository implements DisplayNameRepository {
+  _RecordingDisplayNameRepository({this.throws = false});
+
+  final bool throws;
+  final List<String> submitted = <String>[];
+
+  @override
+  Future<void> submitDisplayName(String name) async {
+    if (throws) {
+      throw const DisplayNameRepositoryException(DisplayNameFailure.network);
+    }
+    submitted.add(name);
+  }
+}
+
 SettingsCubit _buildCubit({
   InMemoryProfileRepository? repo,
   _ScriptedAccountService? account,
+  _RecordingDisplayNameRepository? displayNameRepo,
   String fallbackPhone = '+96170100200',
 }) {
   final cubit = SettingsCubit(
     profileRepository: repo ?? InMemoryProfileRepository(),
     accountService: account ?? _ScriptedAccountService(),
+    displayNameRepository: displayNameRepo,
     fallbackPhoneE164: fallbackPhone,
   );
   addTearDown(cubit.close);
@@ -100,6 +118,39 @@ void main() {
       await cubit.load();
       await cubit.saveProfile(name: '   ');
       expect(cubit.state.profile.name, isNull);
+    });
+
+    test(
+        'saveProfile mirrors the name to the gateway '
+        '(PUT /api/User/profile username — profile-name lane)', () async {
+      final remote = _RecordingDisplayNameRepository();
+      final cubit = _buildCubit(displayNameRepo: remote);
+      await cubit.load();
+      await cubit.saveProfile(name: '  Ahmad  ');
+      expect(remote.submitted, ['Ahmad']);
+      expect(cubit.state.banner, SettingsBanner.profileSaved);
+    });
+
+    test('saveProfile skips the remote mirror when the name is blank',
+        () async {
+      final remote = _RecordingDisplayNameRepository();
+      final cubit = _buildCubit(displayNameRepo: remote);
+      await cubit.load();
+      await cubit.saveProfile(name: '   ', photoUrl: 'https://x.png');
+      expect(remote.submitted, isEmpty);
+    });
+
+    test(
+        'a failed remote mirror never fails the local save '
+        '(fail-soft; the projection self-heals on the next getMe)', () async {
+      final repo = InMemoryProfileRepository();
+      final remote = _RecordingDisplayNameRepository(throws: true);
+      final cubit = _buildCubit(repo: repo, displayNameRepo: remote);
+      await cubit.load();
+      await cubit.saveProfile(name: 'Ahmad');
+      expect(cubit.state.profile.name, 'Ahmad');
+      expect(cubit.state.banner, SettingsBanner.profileSaved);
+      expect((await repo.load())?.name, 'Ahmad');
     });
 
     test('removePhoto clears photoUrl but preserves the name', () async {

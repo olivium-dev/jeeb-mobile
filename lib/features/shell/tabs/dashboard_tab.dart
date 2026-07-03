@@ -9,6 +9,7 @@ import '../../../core/dev_seam/dev_seam.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/session/greeting_profile_cubit.dart';
 import '../../../core/session/jeeber_kyc_status_gate.dart';
+import '../../../core/session/profile_refresh_signals.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../customer_profile/data/dio_customer_profile_repository.dart';
 import '../../customer_profile/domain/customer_profile_repository.dart';
@@ -169,6 +170,13 @@ class _JeeberHomeHost extends StatelessWidget {
     return null;
   }
 
+  /// Profile-changed broadcast (display-name saves) off GetIt when registered;
+  /// `null` under bare tests so the greeting simply never re-pulls.
+  Stream<void>? _profileRefreshStream() {
+    if (!sl.isRegistered<ProfileRefreshSignals>()) return null;
+    return sl<ProfileRefreshSignals>().stream;
+  }
+
   @override
   Widget build(BuildContext context) {
     return MultiBlocProvider(
@@ -197,6 +205,10 @@ class _JeeberHomeHost extends StatelessWidget {
         BlocProvider<GreetingProfileCubit>(
           create: (_) => GreetingProfileCubit(
             repository: _resolveGreetingRepository(),
+            // Profile-name lane: re-pull getMe on a display-name save so the
+            // jeeber greeting picks the new name up while the tab stays alive
+            // in the shell's IndexedStack.
+            refreshSignals: _profileRefreshStream(),
           )..load(),
         ),
       ],

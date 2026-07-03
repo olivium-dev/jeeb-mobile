@@ -154,5 +154,24 @@ void main() {
         expect(find.text('Welcome back'), findsOneWidget);
       },
     );
+
+    testWidgets(
+      'saved display name from the getMe re-pull greets "Hello, Ahmad" '
+      '(profile-name lane: displayNameOrNull accepts a real name)',
+      (tester) async {
+        // The post-save state: the gateway mirrored PUT /api/User/profile
+        // `username` into the projection, getMe returned "Ahmad", and the
+        // greeting cubit re-pulled it. The suppression predicate must let a
+        // real human name through — it only suppresses synthetic handles.
+        await tester.pumpWidget(
+          _harness(profile: const GreetingProfileState(name: 'Ahmad')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Hello, Ahmad'), findsOneWidget);
+        expect(find.text('Welcome back'), findsNothing);
+        expect(_avatar(tester).initial, 'A');
+      },
+    );
   });
 }
