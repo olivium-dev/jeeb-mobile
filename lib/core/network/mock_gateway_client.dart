@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../diagnostics/diag_dio_interceptor.dart';
 import 'auth_token_store.dart';
 
 /// Maps gateway-style paths to the mock backend's per-service prefix paths.
@@ -216,6 +217,14 @@ class MockGatewayClient {
     }
 
     dio.interceptors.add(_AuthInterceptor());
+
+    // Diagnostic event stream (self-gated on `Diag.enabled`, i.e. debug/dev
+    // only): emits `[jeeb-diag] {"t":"api",...}` — method + query-stripped
+    // path + status + duration ONLY; never headers or bodies. This is the
+    // app-wide Dio that DI registers (see injection_container.dart), so the
+    // diag api stream MUST be wired here — dio_client.dart alone does not
+    // cover live traffic.
+    dio.interceptors.add(const DiagDioInterceptor());
 
     if (kDebugMode) {
       dio.interceptors.add(LogInterceptor(
