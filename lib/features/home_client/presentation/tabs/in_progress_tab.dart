@@ -45,6 +45,12 @@ class InProgressTab extends StatelessWidget {
   static bool _rebuildWhen(ClientHomeState prev, ClientHomeState next) =>
       prev.status != next.status || prev.inProgress != next.inProgress;
 
+  /// S9 P0 (restored on feat/request-scenarios — the cycle-1 merge dropped the
+  /// query-param threading while keeping its test): tracking must poll by the
+  /// SERVER delivery id. The card's row id may be the REQUEST id, which 404s
+  /// on `GET /v1/deliveries/<id>`; when the row carries a delivery id it rides
+  /// along as `?deliveryId=` and the route resolver prefers it (mirrors
+  /// [_navigateToChat]).
   static void _navigateToTracking(
     BuildContext context,
     ClientHomeRequest request,

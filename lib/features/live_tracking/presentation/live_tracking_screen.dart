@@ -123,6 +123,12 @@ class _TrackingStateView extends StatelessWidget {
           onRetry: () => context.read<LiveTrackingCubit>().retry(),
         );
       case LiveTrackingViewMode.ready:
+        // sprint-009 scenario matrix #9: a cancelled/expired delivery is
+        // terminal — render the graceful terminal state instead of a live
+        // "Ordered" stepper that polls a dead row forever.
+        if (state.trackingInfo!.isCancelled) {
+          return const _TrackingCancelledBody();
+        }
         return _TrackingBody(
           info: state.trackingInfo!,
           isAtDoor: state.isAtDoor,
@@ -130,6 +136,48 @@ class _TrackingStateView extends StatelessWidget {
           useLiveMap: useLiveMap,
         );
     }
+  }
+}
+
+/// Terminal state for a cancelled/expired delivery (scenario matrix #9).
+/// Neutral copy + a single "back home" affordance; no retry (there is nothing
+/// to retry — the row is terminal) and no stepper/map (nothing is moving).
+class _TrackingCancelledBody extends StatelessWidget {
+  const _TrackingCancelledBody();
+
+  static const Key cancelledStateKey = Key('live-tracking-cancelled-state');
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      identifier: 'tracking_cancelled_state',
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(Spacing.large),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              OmdsEmptyState(
+                key: cancelledStateKey,
+                icon: Icons.cancel_outlined,
+                title: l10n.deliveryCancelledBanner,
+                subtitle: l10n.trackingCancelledBody,
+              ),
+              const SizedBox(height: Spacing.large),
+              OmdsPrimaryButton(
+                key: const Key('tracking-cancelled-home-cta'),
+                text: l10n.trackingCancelledHomeCta,
+                // `context.go('/')` resolves the role-aware shell home — the
+                // same terminal destination the cancel-request sheet uses.
+                onTap: () => context.go('/'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

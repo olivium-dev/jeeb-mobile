@@ -216,5 +216,102 @@ void main() {
         ),
       );
     });
+
+    // sprint-009 scenario matrix #7: the gateway reuses 409 for several
+    // distinct accept conflicts and discriminates via the ProblemDetails body
+    // (OffersController.cs / RequestNotOpen409FidelityTests). Request-level
+    // closures must map to requestNotOpen ("This request is no longer open."),
+    // offer-level conflicts stay offerNotPending.
+    void stubAcceptError(int statusCode, [Map<String, dynamic>? body]) {
+      when(() => mockDio.post<dynamic>(any())).thenThrow(
+        DioException(
+          requestOptions: RequestOptions(path: ''),
+          response: Response(
+            requestOptions: RequestOptions(path: ''),
+            statusCode: statusCode,
+            data: body,
+          ),
+          type: DioExceptionType.badResponse,
+        ),
+      );
+    }
+
+    Matcher throwsFailure(OffersFailure failure) => throwsA(
+          isA<OffersRepositoryException>()
+              .having((e) => e.failure, 'failure', failure),
+        );
+
+    test('409 request-not-acceptable ProblemDetails -> requestNotOpen', () {
+      stubAcceptError(409, const {
+        'title': 'Request is no longer acceptable.',
+        'status': 409,
+        'type': 'https://jeeb.dev/errors/request-not-acceptable',
+      });
+      expect(
+        () => repo.acceptOffer(requestId: 'req-1', offerId: 'offer-1'),
+        throwsFailure(OffersFailure.requestNotOpen),
+      );
+    });
+
+    test('409 already-accepted ProblemDetails -> requestNotOpen', () {
+      stubAcceptError(409, const {
+        'title': 'Offer already accepted.',
+        'status': 409,
+        'type': 'https://jeeb.dev/errors/already-accepted',
+      });
+      expect(
+        () => repo.acceptOffer(requestId: 'req-1', offerId: 'offer-1'),
+        throwsFailure(OffersFailure.requestNotOpen),
+      );
+    });
+
+    test('409 with upstream request_not_open code -> requestNotOpen', () {
+      stubAcceptError(409, const {'code': 'request_not_open', 'status': 409});
+      expect(
+        () => repo.acceptOffer(requestId: 'req-1', offerId: 'offer-1'),
+        throwsFailure(OffersFailure.requestNotOpen),
+      );
+    });
+
+    test('409 offer-not-pending ProblemDetails stays offerNotPending', () {
+      stubAcceptError(409, const {
+        'title': 'Offer can no longer be accepted.',
+        'status': 409,
+        'type': 'https://jeeb.dev/errors/offer-not-pending',
+      });
+      expect(
+        () => repo.acceptOffer(requestId: 'req-1', offerId: 'offer-1'),
+        throwsFailure(OffersFailure.offerNotPending),
+      );
+    });
+
+    test('409 too-many-active-deliveries stays offerNotPending', () {
+      stubAcceptError(409, const {
+        'title': 'Jeeber already has the maximum active deliveries.',
+        'status': 409,
+        'type': 'https://jeeb.dev/errors/too-many-active-deliveries',
+      });
+      expect(
+        () => repo.acceptOffer(requestId: 'req-1', offerId: 'offer-1'),
+        throwsFailure(OffersFailure.offerNotPending),
+      );
+    });
+
+    test('410 offer-expired -> requestNotOpen', () {
+      stubAcceptError(410);
+      expect(
+        () => repo.acceptOffer(requestId: 'req-1', offerId: 'offer-1'),
+        throwsFailure(OffersFailure.requestNotOpen),
+      );
+    });
+
+    test('404 (offer/request pruned server-side) -> requestNotOpen, '
+        'never a generic failure', () {
+      stubAcceptError(404);
+      expect(
+        () => repo.acceptOffer(requestId: 'req-1', offerId: 'offer-1'),
+        throwsFailure(OffersFailure.requestNotOpen),
+      );
+    });
   });
 }

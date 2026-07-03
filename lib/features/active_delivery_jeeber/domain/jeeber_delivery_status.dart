@@ -53,21 +53,34 @@ extension JeeberDeliveryStatusX on JeeberDeliveryStatus {
       case 'ordered':
       case 'accepted':
         return JeeberDeliveryStatus.ordered;
+      // `pickedup` is the underscore-stripped legacy `picked_up` alias
+      // (DeliveryStatusAlias: picked_up ⇒ Picked). Pre-fix it fell through to
+      // the `ordered` default and re-rendered an in-flight delivery at step 1
+      // (sprint-009 scenario matrix #11).
       case 'picked':
+      case 'pickedup':
         return JeeberDeliveryStatus.picked;
+      // `headingoff` is the underscore-stripped legacy `heading_off` alias
+      // (DeliveryStatusAlias: heading_off ⇒ InTransit).
       case 'intransit':
+      case 'headingoff':
         return JeeberDeliveryStatus.inTransit;
       case 'atdoor':
         return JeeberDeliveryStatus.atDoor;
       // Terminal states all collapse to `done` so the existing `!= done`
       // in-flight filter drops a cancelled/expired/delivered/rated delivery
       // from the jeeber's active list instead of re-rendering it as `ordered`.
+      // `FailedNeedsEscalation` (legacy `disputed`) also collapses here: the
+      // delivery is admin-parked and out of the jeeber's hands (ADR-002), so
+      // it must not resurrect as a fresh `ordered` row.
       case 'done':
       case 'delivered':
       case 'cancelled':
       case 'canceled':
       case 'expired':
       case 'rated':
+      case 'disputed':
+      case 'failedneedsescalation':
         return JeeberDeliveryStatus.done;
     }
     return JeeberDeliveryStatus.ordered;

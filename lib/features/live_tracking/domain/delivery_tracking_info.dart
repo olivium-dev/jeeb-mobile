@@ -4,6 +4,25 @@ import '../../delivery_status/domain/jeeber_summary.dart';
 
 enum TrackingStage { ordered, picked, inTransit, atDoor, delivered }
 
+/// Lifecycle axis ORTHOGONAL to the forward stage (sprint-009 scenario matrix
+/// #9). The canonical delivery SM (ADR-002) has terminal/side states that are
+/// NOT steps on the Ordered→Done ladder: `Cancelled` (and the request-lifecycle
+/// `Expired`) end the delivery, and `FailedNeedsEscalation` parks it with
+/// admin. Pre-fix these all defaulted to `TrackingStage.ordered`, so a
+/// cancelled delivery rendered a live "Ordered" stepper forever.
+enum TrackingLifecycle {
+  /// The delivery is progressing through the forward stages.
+  active,
+
+  /// Terminal: `Cancelled` / `cancelled` / `expired`. The tracking screen
+  /// renders a graceful terminal state and stops polling.
+  cancelled,
+
+  /// `FailedNeedsEscalation` / `disputed`: admin-resolvable side state. The
+  /// screen keeps the active layout (the dispute CTA is the affordance).
+  failed,
+}
+
 extension TrackingStageLabel on TrackingStage {
   String get label {
     switch (this) {
@@ -40,6 +59,7 @@ class DeliveryTrackingInfo extends Equatable {
     required this.deliveryId,
     required this.currentStage,
     required this.stageTimestamps,
+    this.lifecycle = TrackingLifecycle.active,
     this.distanceLabel,
     this.etaMinutes,
     this.jeeberPosition,
@@ -78,6 +98,7 @@ class DeliveryTrackingInfo extends Equatable {
       deliveryId: deliveryId,
       currentStage: stage,
       stageTimestamps: const {},
+      lifecycle: _parseLifecycle(json['status'] as String? ?? ''),
       distanceLabel: json['distanceLabel'] as String?,
       etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
       jeeberPosition: pos,
@@ -98,6 +119,7 @@ class DeliveryTrackingInfo extends Equatable {
       deliveryId: deliveryId,
       currentStage: currentStage,
       stageTimestamps: timestamps,
+      lifecycle: _parseLifecycle(status),
       distanceLabel: json['distanceLabel'] as String?,
       etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
     );
@@ -132,6 +154,7 @@ class DeliveryTrackingInfo extends Equatable {
       deliveryId: _str(json['id']) ?? deliveryId,
       currentStage: currentStage,
       stageTimestamps: timestamps,
+      lifecycle: _parseLifecycle(status),
       distanceLabel: _str(json['distanceLabel']),
       etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
       jeeber: _parseJeeber(json),
@@ -245,6 +268,15 @@ class DeliveryTrackingInfo extends Equatable {
   final TrackingStage currentStage;
   final Map<TrackingStage, DateTime> stageTimestamps;
 
+  /// Terminal/side lifecycle axis parsed from the raw status token (sprint-009
+  /// scenario matrix #9). `cancelled` drives the graceful terminal state on
+  /// the tracking screen; `failed` keeps the active layout (dispute CTA).
+  final TrackingLifecycle lifecycle;
+
+  /// True when the delivery is cancelled/expired — the tracking screen stops
+  /// polling and renders the terminal state instead of a live stepper.
+  bool get isCancelled => lifecycle == TrackingLifecycle.cancelled;
+
   /// Pre-formatted distance string from the gateway. Null until GPS fix.
   final String? distanceLabel;
 
@@ -310,6 +342,9 @@ class DeliveryTrackingInfo extends Equatable {
       case 'intransit':
       case 'in_transit':
       case 'in transit':
+      // DeliveryStatusAlias: legacy `heading_off` ⇒ InTransit (ADR-002 §3).
+      case 'heading_off':
+      case 'headingoff':
         return TrackingStage.inTransit;
       case 'atdoor':
       case 'at_door':
@@ -320,9 +355,32 @@ class DeliveryTrackingInfo extends Equatable {
       // both map to the delivered step + auto-advance to the receipt prompt.
       case 'done':
       case 'completed':
+      // DeliveryStatusAlias: `rated` is a ratings-context concern that reads
+      // as Done for delivery-status purposes (ADR-002 §3).
+      case 'rated':
         return TrackingStage.delivered;
       default:
         return TrackingStage.ordered;
+    }
+  }
+
+  /// Parses the terminal/side lifecycle axis from the same raw token as
+  /// [_parseStage]. Canonical `Cancelled` + legacy `cancelled`/`canceled` and
+  /// the request-lifecycle `Expired` are terminal; `FailedNeedsEscalation` +
+  /// legacy `disputed` are the admin-parked side state. Everything else —
+  /// including unknown tokens — is an active forward stage (defensive parse,
+  /// 40_GUARDRAILS_ARCH §4).
+  static TrackingLifecycle _parseLifecycle(String status) {
+    switch (status.toLowerCase().replaceAll('_', '')) {
+      case 'cancelled':
+      case 'canceled':
+      case 'expired':
+        return TrackingLifecycle.cancelled;
+      case 'failedneedsescalation':
+      case 'disputed':
+        return TrackingLifecycle.failed;
+      default:
+        return TrackingLifecycle.active;
     }
   }
 
@@ -365,6 +423,7 @@ class DeliveryTrackingInfo extends Equatable {
         deliveryId,
         currentStage,
         stageTimestamps,
+        lifecycle,
         distanceLabel,
         etaMinutes,
         jeeberPosition,

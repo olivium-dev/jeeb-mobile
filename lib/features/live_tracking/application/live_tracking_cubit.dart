@@ -38,6 +38,13 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
           clearError: true,
           pendingEvent: _detectEvent(info),
         ));
+        // sprint-009 scenario matrix #9: a cancelled/expired delivery is
+        // terminal — stop polling a dead row (the screen renders the graceful
+        // terminal state instead of a live stepper).
+        if (info.isCancelled) {
+          _pollTimer?.cancel();
+          _pollTimer = null;
+        }
       }
     } on LiveTrackingException catch (e) {
       if (!isClosed) {
@@ -74,6 +81,9 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
 
   void _schedulePoll() {
     _pollTimer?.cancel();
+    // Never (re)arm the poll for a terminal cancelled delivery — the first
+    // fetch may already have read the terminal row (scenario matrix #9).
+    if (state.trackingInfo?.isCancelled ?? false) return;
     _pollTimer = Timer.periodic(_pollInterval, (_) => _fetch());
   }
 

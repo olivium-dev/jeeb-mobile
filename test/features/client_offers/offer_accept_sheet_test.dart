@@ -298,6 +298,78 @@ void main() {
       expect(routedDeliveryId, 'dlv-1');
     });
 
+    // sprint-009 scenario matrix #7 (P0): a failed accept must render inline
+    // copy — the pre-fix sheet only listened for success, so the 409 race
+    // (another accept closed the auction first) silently stopped the spinner.
+    testWidgets(
+        'accept-race failure renders "This request is no longer open." '
+        'inline (409 request_not_open)', (tester) async {
+      final repo = _repo(acceptFailure: OffersFailure.requestNotOpen);
+
+      await tester.pumpWidget(
+        _harness(
+          OfferAcceptSheet(
+            offer: _offer(),
+            requestId: 'req-client-001-offers',
+            repository: repo,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // No error surface before the attempt.
+      expect(find.byKey(const Key('offer-accept-error')), findsNothing);
+
+      await tester.tap(find.bySemanticsIdentifier('offer_accept_confirm_cta'));
+      await tester.pump(); // submitting
+      await tester.pump(); // failed → inline banner
+
+      expect(repo.acceptCalls, 1);
+      expect(find.byKey(const Key('offer-accept-error')), findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('offer_accept_error'),
+        findsOneWidget,
+        reason: 'offer_accept_error must surface as its own SemanticsNode',
+      );
+      expect(find.text('This request is no longer open.'), findsOneWidget);
+      // The sheet stays interactive: confirm is retryable, cancel available.
+      expect(
+        find.bySemanticsIdentifier('offer_accept_confirm_cta'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('offer_accept_cancel_cta'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'offer-level failure renders "This offer is no longer available." '
+        'inline (409 offer-not-pending)', (tester) async {
+      final repo = _repo(acceptFailure: OffersFailure.offerNotPending);
+
+      await tester.pumpWidget(
+        _harness(
+          OfferAcceptSheet(
+            offer: _offer(),
+            requestId: 'req-client-001-offers',
+            repository: repo,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.bySemanticsIdentifier('offer_accept_confirm_cta'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byKey(const Key('offer-accept-error')), findsOneWidget);
+      expect(
+        find.text('This offer is no longer available.'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('AC3 — cancel dismisses and does NOT accept', (tester) async {
       final repo = _repo(conversationId: 'conv-journey-accepted');
       var cancelledCount = 0;
