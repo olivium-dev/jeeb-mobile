@@ -1943,6 +1943,35 @@
       }
     }
   },
+  "offersCardJeeberFallback": "New Jeeber",
+  "@offersCardJeeberFallback": {
+    "description": "Offer-card display-name fallback (W6/SW-08) shown when the Jeeber has no real name yet — the account is OTP-minted, or the offer-list row carried a synthetic handle (jeeb-<hash>) / raw UUID instead of a name. Never headline an identifier as a name at the accept-ONE moment. Real names populate once accounts set them (profile-name onboarding)."
+  },
+  "offersCardNoRatingsYet": "No ratings yet",
+  "@offersCardNoRatingsYet": {
+    "description": "Offer-card rating line (W6/SW-08) shown honestly instead of stars + a fabricated '4.5 (0)' when a Jeeber has zero ratings (ratingCount == 0)."
+  },
+  "offersCardSemanticLabelUnrated": "Offer from {name}, no ratings yet, {vehicle}, {fee} {currency}, {minutes} minute ETA",
+  "@offersCardSemanticLabelUnrated": {
+    "description": "Screen-reader label for an offer card whose Jeeber has no ratings yet — mirrors offersCardSemanticLabel but replaces the star clause with 'no ratings yet'.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "vehicle": {
+        "type": "String"
+      },
+      "fee": {
+        "type": "String"
+      },
+      "currency": {
+        "type": "String"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "offersHighFeeDialogTitle": "Confirm this fee?",
   "@offersHighFeeDialogTitle": {
     "description": "Title of the high-fee confirmation dialog (> $50)"

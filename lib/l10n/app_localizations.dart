@@ -1046,6 +1046,23 @@ class AppLocalizations {
           .replaceFirst('{fee}', fee)
           .replaceFirst('{currency}', currency)
           .replaceFirst('{minutes}', '$minutes');
+  // W6/SW-08 offer identity: honest name + rating fallbacks (never a UUID name
+  // or a fabricated "4.5 (0)").
+  String get offersCardJeeberFallback => _get('offersCardJeeberFallback');
+  String get offersCardNoRatingsYet => _get('offersCardNoRatingsYet');
+  String offersCardSemanticLabelUnrated({
+    required String name,
+    required String vehicle,
+    required String fee,
+    required String currency,
+    required int minutes,
+  }) =>
+      _get('offersCardSemanticLabelUnrated')
+          .replaceFirst('{name}', name)
+          .replaceFirst('{vehicle}', vehicle)
+          .replaceFirst('{fee}', fee)
+          .replaceFirst('{currency}', currency)
+          .replaceFirst('{minutes}', '$minutes');
   String get offersHighFeeDialogTitle => _get('offersHighFeeDialogTitle');
   String offersHighFeeDialogBody(String amount, String currency) =>
       _get('offersHighFeeDialogBody')
