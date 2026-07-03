@@ -144,6 +144,17 @@ dependencies:
   # on Android.
   flutter_secure_storage: ^9.2.2
 
+  # Diagnostics persistence + export (diag-persistence lane). share_plus drives
+  # the platform share sheet that exports the on-device `[jeeb-diag]` JSONL
+  # session files from the dev-only Settings → Diagnostics screen;
+  # device_info_plus stamps the device model into each session-file header.
+  # Both are runtime-inert in release: every call site is gated on
+  # `Diag.enabled` (kDebugMode || JEEB_DIAG dart-define), so a release build
+  # never touches either plugin. 10.x/11.x pinned for this app's SDK floor
+  # (Dart 3.10.8 / Flutter 3.38.9 — same discipline as `record` above).
+  share_plus: ^10.1.2
+  device_info_plus: ^11.5.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

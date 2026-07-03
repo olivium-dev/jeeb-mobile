@@ -14,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/accessibility/accessibility.dart';
 import '../core/dev_seam/dev_seam.dart';
 import '../core/dev_seam/session_seam_bootstrap.dart';
+import '../core/diagnostics/diag.dart';
 import '../core/locale/locale_cubit.dart';
 import '../core/notifications/application/badge_count_cubit.dart';
 import '../core/di/injection_container.dart';
@@ -306,10 +307,19 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   /// BUG-1: re-resolve capabilities on app-resume so a role granted on another
   /// device (or after a backgrounded session) reflects when the app returns to
   /// the foreground.
+  ///
+  /// Diag persistence: on pause/detach, flush the buffered `[jeeb-diag]` lines
+  /// to the on-device session file so a backgrounded (or subsequently killed)
+  /// run loses nothing. Fire-and-forget + fail-soft — flushPersistent never
+  /// throws and is a no-op when no sink is installed (release builds).
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) _syncRole();
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      unawaited(Diag.flushPersistent());
+    }
   }
 
   /// FIX-1 — Firebase-vs-push init ordering.

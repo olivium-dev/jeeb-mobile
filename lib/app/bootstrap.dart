@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:firebase_core/firebase_core.dart';
@@ -9,10 +10,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/dev_seam/dev_seam.dart';
 import '../core/dev_seam/session_seam_bootstrap.dart';
 import '../core/di/injection_container.dart';
+import '../core/diagnostics/diag.dart';
+import '../core/diagnostics/diag_file_sink.dart';
+import '../core/network/auth_token_store.dart';
 import '../core/observability/crash_reporter.dart';
 import '../core/observability/crash_reporting_initializer.dart';
 import '../core/observability/firebase_crashlytics_reporter.dart';
 import '../core/observability/swappable_crash_reporter.dart';
+import '../core/role/role_cubit.dart';
+import '../core/role/user_role.dart';
 
 /// Two-phase cold-start bootstrap (T-mobile-047, extended in T-mobile-049,
 /// hardened against the cold-start ANR in Sprint 5).
@@ -100,6 +106,24 @@ class Bootstrap {
         crashReporter: reporter,
       );
       CrashReportingInitializer(reporter).install();
+      // Diag persistence (diag-persistence lane): tee the `[jeeb-diag]` stream
+      // into an on-device JSONL session file so a run can be exported after
+      // the fact (adb pull / Settings → Diagnostics). FIRE-AND-FORGET — the
+      // sink buffers events in memory until its file is ready, so this never
+      // holds the first frame; installAsGlobal is total (never throws) and a
+      // hard no-op in release builds (Diag.enabled false → nothing created).
+      if (Diag.enabled) {
+        final role =
+            UserRole.fromStorage(preferences.getString(RoleCubit.rolePrefKey));
+        unawaited(
+          DiagFileSink.installAsGlobal(
+            role: role.storageKey,
+            // Session-sub PREFIX only (first 8 chars) — never the full sub,
+            // never a token; see DiagFileSink._emitSubPrefix.
+            subLookup: () => AuthTokenStore().userId,
+          ),
+        );
+      }
       return BootstrapResult(preferences: preferences, crashReporter: reporter);
     } finally {
       developer.Timeline.finishSync();

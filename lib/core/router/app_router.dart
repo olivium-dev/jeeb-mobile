@@ -107,6 +107,7 @@ import '../../features/transcription/presentation/transcription_screen.dart';
 import '../../features/voice_request/presentation/voice_request_screen.dart';
 import '../di/injection_container.dart';
 import '../diagnostics/diagnostics.dart';
+import '../diagnostics/diagnostics_screen.dart';
 import '../onboarding/onboarding_cubit.dart';
 
 /// Top-level router.
@@ -929,6 +930,16 @@ class AppRouter {
               name: 'settings-notifications',
               builder: (context, state) =>
                   const NotificationPreferencesScreen(),
+            ),
+            // Dev-only diagnostics export (diag-persistence lane): lists the
+            // persisted `[jeeb-diag]` JSONL session files with share / copy-
+            // path export. The Settings row that leads here is gated on
+            // `Diag.enabled`; the screen itself renders a "dev builds only"
+            // notice if reached in a build where the stream is off.
+            GoRoute(
+              path: 'diagnostics',
+              name: 'settings-diagnostics',
+              builder: (context, state) => const DiagnosticsScreen(),
             ),
           ],
         ),

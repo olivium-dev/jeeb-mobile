@@ -1,5 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/diagnostics/diag.dart';
+
 enum ConnectivityStatus { online, offline }
 
 class OfflineState {
@@ -25,8 +27,18 @@ class OfflineState {
 class OfflineCubit extends Cubit<OfflineState> {
   OfflineCubit() : super(const OfflineState());
 
-  void setOnline() => emit(state.copyWith(status: ConnectivityStatus.online));
-  void setOffline() => emit(state.copyWith(status: ConnectivityStatus.offline));
+  void setOnline() => _setStatus(ConnectivityStatus.online);
+  void setOffline() => _setStatus(ConnectivityStatus.offline);
+
+  /// Diagnostic seam (diag-persistence lane): connectivity is the cheapest
+  /// existing hook for "the network flipped" — emit only on ACTUAL transitions
+  /// so a flapping caller can't spam the stream. No-op in release.
+  void _setStatus(ConnectivityStatus status) {
+    if (status != state.status) {
+      Diag.event('connectivity', <String, Object?>{'status': status.name});
+    }
+    emit(state.copyWith(status: status));
+  }
 
   void enqueuePendingSync() {
     emit(state.copyWith(pendingSyncCount: state.pendingSyncCount + 1));

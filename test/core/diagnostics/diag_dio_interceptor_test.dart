@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -32,6 +33,29 @@ class _StubAdapter implements HttpClientAdapter {
     final t = throwType;
     if (t != null) throw DioException(requestOptions: options, type: t);
     return ResponseBody.fromString('{}', status ?? 200, headers: {
+      Headers.contentTypeHeader: [Headers.jsonContentType],
+    });
+  }
+}
+
+/// Adapter that signals when the request pipeline reached it and holds the
+/// response until released — for proving capture-at-request-time semantics.
+class _GatedAdapter implements HttpClientAdapter {
+  final Completer<void> started = Completer<void>();
+  final Completer<void> release = Completer<void>();
+
+  @override
+  void close({bool force = false}) {}
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<List<int>>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    started.complete();
+    await release.future;
+    return ResponseBody.fromString('{}', 200, headers: {
       Headers.contentTypeHeader: [Headers.jsonContentType],
     });
   }
@@ -112,5 +136,67 @@ void main() {
     final record = decodeLine(lines.single);
     expect(record['status'], isNull);
     expect(record['path'], '/v1/ping');
+  });
+
+  group('call context (diag-persistence lane)', () {
+    test('every api line carries a MONOTONIC seq (ordered per session)',
+        () async {
+      final dio = _dioWith(_StubAdapter(status: 200));
+      await dio.get<dynamic>('/v1/a');
+      await dio.get<dynamic>('/v1/b');
+      await dio.get<dynamic>('/v1/c');
+
+      final seqs = lines.map((l) => decodeLine(l)['seq'] as int).toList();
+      expect(seqs, hasLength(3));
+      expect(seqs, orderedEquals(<int>[seqs[0], seqs[0] + 1, seqs[0] + 2]));
+    });
+
+    test('the api line carries the ACTIVE SCREEN route at call time',
+        () async {
+      Diag.currentScreen = '/jeeber/requests/:id';
+      final dio = _dioWith(_StubAdapter(status: 200));
+      await dio.get<dynamic>('/v1/offers');
+
+      expect(decodeLine(lines.single)['screen'], '/jeeber/requests/:id');
+    });
+
+    test('screen is captured at REQUEST time, surviving a mid-flight nav',
+        () async {
+      Diag.currentScreen = '/checkout';
+      final adapter = _GatedAdapter();
+      final dio = Dio(BaseOptions(baseUrl: 'https://x'))
+        ..httpClientAdapter = adapter
+        ..interceptors.add(const DiagDioInterceptor());
+      final call = dio.get<dynamic>('/v1/pay');
+      // Wait until the request has genuinely FIRED (onRequest ran, the
+      // adapter was reached), then navigate away while it is in flight.
+      await adapter.started.future;
+      Diag.currentScreen = '/home';
+      adapter.release.complete();
+      await call;
+
+      expect(decodeLine(lines.single)['screen'], '/checkout');
+    });
+
+    test('no screen recorded before the first navigation (field omitted)',
+        () async {
+      final dio = _dioWith(_StubAdapter(status: 200));
+      await dio.get<dynamic>('/v1/boot');
+
+      expect(decodeLine(lines.single).containsKey('screen'), isFalse);
+    });
+
+    test('an error-path line still carries seq + screen', () async {
+      Diag.currentScreen = '/wallet';
+      final dio = _dioWith(_StubAdapter(status: 500));
+      await expectLater(
+        dio.get<dynamic>('/v1/wallet'),
+        throwsA(isA<DioException>()),
+      );
+
+      final record = decodeLine(lines.single);
+      expect(record['seq'], isA<int>());
+      expect(record['screen'], '/wallet');
+    });
   });
 }
