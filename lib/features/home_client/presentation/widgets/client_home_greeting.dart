@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/formatting/friendly_reference.dart';
 import '../../../../core/session/greeting_profile_cubit.dart';
 import '../../../../l10n/app_localizations.dart';
 
@@ -30,9 +31,14 @@ class ClientHomeGreeting extends StatelessWidget {
     // A bare widget test without the provider falls back to the passed name and
     // a null avatar (no "?" when a name is known).
     final profile = _readGreetingProfile(context);
-    final resolvedName = (profile?.name?.trim().isNotEmpty ?? false)
+    final rawName = (profile?.name?.trim().isNotEmpty ?? false)
         ? profile!.name
         : name;
+    // Suppress synthetic account handles (`jeeb-<hash>`) / internal emails so
+    // the header never greets "Hello, jeeb-e1a35ea8a520" (audit §T5). When the
+    // only name on file is an internal identifier we fall back to the generic
+    // greeting + initials avatar via a null name.
+    final resolvedName = displayNameOrNull(rawName);
     final avatarUrl = profile?.avatarUrl;
     return Padding(
       padding: const EdgeInsets.fromLTRB(

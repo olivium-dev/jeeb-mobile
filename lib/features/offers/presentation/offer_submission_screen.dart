@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/formatting/friendly_reference.dart';
 import '../../wallet/domain/wallet_repository.dart';
 import '../application/offer_submission_cubit.dart';
 import '../domain/offer_eta_band.dart';
@@ -269,24 +270,25 @@ class _OfferComposerState extends State<_OfferComposer> {
 
   /// A human "ORD-…" reference derived from the requestId (the feed payload
   /// does not carry a separate order ref today — JM-045 route note). When the
-  /// id already looks like an order ref it is shown verbatim.
+  /// id already looks like an order ref it is shown verbatim; otherwise it is
+  /// shortened to a glanceable `ORD-<6>` tail instead of echoing the full UUID
+  /// (sprint-009 audit §T5: the composer heading leaked a raw `ORD-9C37B6AF-…`).
   String get _displayRef {
     final id = widget.requestId;
-    if (id.isEmpty) return 'ORD-—';
-    final upper = id.toUpperCase();
-    if (upper.startsWith('ORD')) return upper;
-    return 'ORD-$upper';
+    if (id.trim().isEmpty) return 'ORD-—';
+    if (id.toUpperCase().startsWith('ORD')) return id.toUpperCase();
+    return friendlyReference(id, prefix: 'ORD-');
   }
 
   void _onSendTapped(BuildContext context) {
     _insufficientShown = false;
     final note = _noteController.text.trim();
     context.read<OfferFormCubit>().submit(
-          requestId: widget.requestId,
-          priceUsd: _price,
-          etaMinutes: _selectedEta,
-          note: note.isEmpty ? null : note,
-        );
+      requestId: widget.requestId,
+      priceUsd: _price,
+      etaMinutes: _selectedEta,
+      note: note.isEmpty ? null : note,
+    );
   }
 
   Future<void> _showInsufficientSheet(
@@ -336,14 +338,16 @@ class _OrderRefHeader extends StatelessWidget {
         children: [
           Text(
             l10n.orderRef(reference),
-            style: theme.textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.w700),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: Spacing.twoXSmall),
           Text(
             l10n.intro,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -414,9 +418,7 @@ class _PriceField extends StatelessWidget {
         controller: controller,
         labelText: l10n.priceLabel,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-        ],
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
         textInputAction: TextInputAction.done,
         prefixIcon: const Icon(Icons.attach_money),
         errorText: error,
@@ -447,8 +449,9 @@ class _EtaDropdown extends StatelessWidget {
     final l10n = OfferComposerL10n.of(context);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final label =
-        selected == null ? l10n.etaPlaceholder : l10n.etaOption(selected!);
+    final label = selected == null
+        ? l10n.etaPlaceholder
+        : l10n.etaOption(selected!);
 
     return Semantics(
       identifier: 'offer_composer_eta_dropdown',
@@ -548,8 +551,9 @@ class _EconomicsCard extends StatelessWidget {
     final theme = Theme.of(context);
     final hasPrice = price != null && price! > 0;
 
-    final feeText =
-        hasPrice ? l10n.feeLine(fmt(reserve!), currency) : l10n.feeLinePending;
+    final feeText = hasPrice
+        ? l10n.feeLine(fmt(reserve!), currency)
+        : l10n.feeLinePending;
     final netText = hasPrice
         ? l10n.netLine(fmt(price!), currency)
         : l10n.netLinePending;
@@ -577,8 +581,9 @@ class _EconomicsCard extends StatelessWidget {
             child: _EconLine(
               icon: Icons.payments_outlined,
               text: netText,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w700),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           const SizedBox(height: Spacing.small),
@@ -587,8 +592,9 @@ class _EconomicsCard extends StatelessWidget {
             child: _EconLine(
               icon: Icons.lock_clock_outlined,
               text: reserveText,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
         ],
@@ -609,8 +615,11 @@ class _EconLine extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: Spacing.medium,
-            color: Theme.of(context).colorScheme.primary),
+        Icon(
+          icon,
+          size: Spacing.medium,
+          color: Theme.of(context).colorScheme.primary,
+        ),
         const SizedBox(width: Spacing.xSmall),
         Expanded(child: Text(text, style: style)),
       ],
@@ -696,14 +705,16 @@ class _InsufficientBalanceSheet extends StatelessWidget {
           children: [
             Text(
               l10n.insufficientTitle,
-              style: theme.textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w700),
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: Spacing.xSmall),
             Text(
               l10n.insufficientBody,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: Spacing.medium),
             Semantics(
