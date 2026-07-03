@@ -30,12 +30,16 @@ void main() {
   Widget loader({
     required FeedRequest? initial,
     required Future<FeedRequest?> Function() fetch,
+    Future<String?> Function()? fetchAcceptedDeliveryId,
+    ValueChanged<String>? onAcceptedRedirect,
   }) =>
       wrapForTest(
         JeeberRequestDetailLoader(
           requestId: requestId,
           initial: initial,
           fetch: fetch,
+          fetchAcceptedDeliveryId: fetchAcceptedDeliveryId,
+          onAcceptedRedirect: onAcceptedRedirect,
           reportService: const ProhibitedItemReportService(),
           onDeclined: (_) {},
           onBack: () {},
@@ -99,6 +103,99 @@ void main() {
 
       expect(find.byType(JeeberRequestUnavailableScreen), findsOneWidget);
       expect(find.byType(JeeberRequestDetailScreen), findsNothing);
+    },
+  );
+
+  // Run-22 replacement P1 — the accepted-request redirect. The discovery feed
+  // is status=pending-scoped, so an accepted request misses it; before this
+  // fix the loader dead-ended on "Request unavailable" while the jeeber's own
+  // active delivery existed.
+  testWidgets(
+    'feed miss + accepted probe resolves → redirects to the active delivery, '
+    'never shows the unavailable dead end',
+    (tester) async {
+      final redirects = <String>[];
+
+      await tester.pumpWidget(
+        loader(
+          initial: null,
+          fetch: () async => null, // pending feed rightly empty post-accept
+          fetchAcceptedDeliveryId: () async => requestId,
+          onAcceptedRedirect: redirects.add,
+        ),
+      );
+      // Bounded pumps: the redirect branch keeps the loading spinner (an
+      // endless animation) on screen, so pumpAndSettle would never settle.
+      await tester.pump(); // feed fetch resolves
+      await tester.pump(); // probe resolves → redirecting
+      await tester.pump(); // post-frame redirect callback fires
+
+      expect(redirects, [requestId]);
+      expect(find.byType(JeeberRequestUnavailableScreen), findsNothing);
+      expect(find.byType(JeeberRequestDetailScreen), findsNothing);
+      // The loading scaffold stays up while the route swap happens.
+      expect(find.byType(JeeberRequestDetailLoadingView), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'feed miss + accepted probe misses → unavailable fallback preserved',
+    (tester) async {
+      final redirects = <String>[];
+
+      await tester.pumpWidget(
+        loader(
+          initial: null,
+          fetch: () async => null,
+          fetchAcceptedDeliveryId: () async => null,
+          onAcceptedRedirect: redirects.add,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(redirects, isEmpty);
+      expect(find.byType(JeeberRequestUnavailableScreen), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'feed FETCH THROWS + accepted probe resolves → still redirects '
+    '(offline feed must not mask an active delivery)',
+    (tester) async {
+      final redirects = <String>[];
+
+      await tester.pumpWidget(
+        loader(
+          initial: null,
+          fetch: () async => throw Exception('feed offline'),
+          fetchAcceptedDeliveryId: () async => 'delivery-1',
+          onAcceptedRedirect: redirects.add,
+        ),
+      );
+      // Bounded pumps — see the redirect test above.
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(redirects, ['delivery-1']);
+      expect(find.byType(JeeberRequestUnavailableScreen), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'accepted probe THROWS → unavailable fallback, no crash',
+    (tester) async {
+      await tester.pumpWidget(
+        loader(
+          initial: null,
+          fetch: () async => null,
+          fetchAcceptedDeliveryId: () async => throw Exception('offline'),
+          onAcceptedRedirect: (_) => fail('must not redirect'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(JeeberRequestUnavailableScreen), findsOneWidget);
     },
   );
 

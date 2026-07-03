@@ -7,8 +7,10 @@ import '../domain/services/prohibited_item_report_service.dart';
 import 'jeeber_request_detail_screen.dart';
 import 'jeeber_request_unavailable_screen.dart';
 
-/// How the by-id recovery resolved (run-20 pushD gap).
-enum _Resolution { loading, resolved, unavailable }
+/// How the by-id recovery resolved (run-20 pushD gap; run-22 accepted
+/// redirect). `redirecting` keeps the loading scaffold on screen while the
+/// route swap to the active-delivery screen happens post-frame.
+enum _Resolution { loading, resolved, unavailable, redirecting }
 
 /// Entry adapter for `/jeeber/requests/:id` that lets a PUSH tap land on the
 /// request detail instead of the "unavailable" fallback.
@@ -23,9 +25,18 @@ enum _Resolution { loading, resolved, unavailable }
 ///     the request by id from the jeeber discovery feed ([fetch]) before
 ///     deciding — recovering the exact request the push was about.
 ///
-/// A genuinely missing/expired request (the [fetch] returns null or throws)
-/// still lands on the graceful [JeeberRequestUnavailableScreen]: the run-20
-/// fallback is preserved for the cases it was designed for.
+/// Run-22 replacement P1: the discovery feed is `status=pending`-scoped, so a
+/// request that was just ACCEPTED (assigned to this jeeber) rightly vanishes
+/// from it — the old flow then showed "Request unavailable" for a request the
+/// jeeber is actively delivering. On a feed miss the loader now probes
+/// [fetchAcceptedDeliveryId] (a by-id delivery read; deliveryId == requestId
+/// convention): when an active delivery exists, [onAcceptedRedirect] routes to
+/// the jeeber active-delivery screen instead of the dead end.
+///
+/// A genuinely missing/expired request (the [fetch] returns null or throws AND
+/// the accepted probe misses) still lands on the graceful
+/// [JeeberRequestUnavailableScreen]: the run-20 fallback is preserved for the
+/// cases it was designed for.
 class JeeberRequestDetailLoader extends StatefulWidget {
   const JeeberRequestDetailLoader({
     super.key,
@@ -35,6 +46,8 @@ class JeeberRequestDetailLoader extends StatefulWidget {
     required this.reportService,
     required this.onDeclined,
     required this.onBack,
+    this.fetchAcceptedDeliveryId,
+    this.onAcceptedRedirect,
   });
 
   /// The request id from the route path.
@@ -52,6 +65,16 @@ class JeeberRequestDetailLoader extends StatefulWidget {
   final ProhibitedItemReportService reportService;
   final ValueChanged<String> onDeclined;
   final VoidCallback onBack;
+
+  /// Probe run only AFTER [fetch] misses: resolves the ACTIVE (non-terminal)
+  /// delivery id this request became when an offer was accepted, or null when
+  /// none exists. Optional — when absent the run-20 unavailable fallback is
+  /// unchanged.
+  final Future<String?> Function()? fetchAcceptedDeliveryId;
+
+  /// Invoked once (post-frame) with the probed delivery id so the route can
+  /// swap to the jeeber active-delivery screen.
+  final ValueChanged<String>? onAcceptedRedirect;
 
   @override
   State<JeeberRequestDetailLoader> createState() =>
@@ -72,25 +95,51 @@ class _JeeberRequestDetailLoaderState extends State<JeeberRequestDetailLoader> {
   }
 
   Future<void> _recover() async {
+    FeedRequest? recovered;
     try {
-      final recovered = await widget.fetch();
-      if (!mounted) return;
+      recovered = await widget.fetch();
+    } catch (_) {
+      recovered = null;
+    }
+    if (!mounted) return;
+    if (recovered != null) {
       setState(() {
         _request = recovered;
-        _status = recovered != null
-            ? _Resolution.resolved
-            : _Resolution.unavailable;
+        _status = _Resolution.resolved;
       });
+      return;
+    }
+    // Feed miss — the pending-scoped feed rightly excludes an ACCEPTED
+    // request (run-22). Probe for the active delivery before giving up.
+    final deliveryId = await _probeAcceptedDelivery();
+    if (!mounted) return;
+    if (deliveryId != null && widget.onAcceptedRedirect != null) {
+      setState(() => _status = _Resolution.redirecting);
+      // Route swaps must not happen mid-build.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onAcceptedRedirect!(deliveryId);
+      });
+      return;
+    }
+    setState(() => _status = _Resolution.unavailable);
+  }
+
+  Future<String?> _probeAcceptedDelivery() async {
+    final probe = widget.fetchAcceptedDeliveryId;
+    if (probe == null) return null;
+    try {
+      final id = await probe();
+      return (id != null && id.isNotEmpty) ? id : null;
     } catch (_) {
-      if (!mounted) return;
-      setState(() => _status = _Resolution.unavailable);
+      return null;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return switch (_status) {
-      _Resolution.loading =>
+      _Resolution.loading ||
+      _Resolution.redirecting =>
         JeeberRequestDetailLoadingView(requestId: widget.requestId),
       _Resolution.resolved => JeeberRequestDetailScreen(
           request: _request!,
