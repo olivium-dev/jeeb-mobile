@@ -24,20 +24,49 @@ enum OrderRequestStatus {
   disputed,
   unknown;
 
-  /// Parses the gateway's lowercase snake_case status string.
+  /// Parses a gateway status string — BOTH the canonical V3 vocabulary
+  /// (`Ordered → Picked → InTransit → AtDoor → Done`, plus `accepted` for
+  /// an offer accepted before pickup) AND the legacy snake_case aliases
+  /// (`picked_up`, `en_route`, ...). Run-22 P1-B / lane item 6: the old
+  /// parser only understood the legacy lowercase names, so every canonical
+  /// status fell into [unknown] — a `Done` order surfaced under Active and
+  /// the Completed/Cancelled tabs never matched anything canonical.
+  ///
+  /// Comparison is case-insensitive with underscores stripped, so
+  /// `InTransit`, `IN_TRANSIT`, `in_transit` and `intransit` all resolve.
   static OrderRequestStatus parse(String? raw) {
-    switch (raw) {
+    final normalized =
+        (raw ?? '').trim().toLowerCase().replaceAll('_', '');
+    switch (normalized) {
+      // Auction / not-yet-assigned.
       case 'pending':
+      case 'searching':
+      case 'offered':
         return OrderRequestStatus.pending;
+      // Assigned but nothing picked up yet — the accepted-pre-pickup state
+      // MUST bucket as active/In Progress (run-22 P1-B).
+      case 'accepted':
+      case 'assigned':
       case 'matched':
+      case 'ordered':
         return OrderRequestStatus.matched;
-      case 'picked_up':
+      case 'picked':
+      case 'pickedup':
         return OrderRequestStatus.pickedUp;
-      case 'en_route':
+      case 'intransit':
+      case 'enroute':
+      case 'atdoor':
+      case 'headingoff':
         return OrderRequestStatus.enRoute;
+      // Canonical terminal `Done` + tolerant delivered/completed aliases.
+      case 'done':
       case 'delivered':
+      case 'completed':
+      case 'rated':
         return OrderRequestStatus.delivered;
       case 'cancelled':
+      case 'canceled':
+      case 'expired':
         return OrderRequestStatus.cancelled;
       case 'disputed':
         return OrderRequestStatus.disputed;

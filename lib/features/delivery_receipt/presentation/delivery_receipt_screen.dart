@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/formatting/money_format.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/delivery_receipt_cubit.dart';
 import '../application/delivery_receipt_state.dart';
@@ -189,12 +190,20 @@ class _LoadedBody extends StatelessWidget {
     // person; the Jeeber name degrades to a generic noun when absent. The copy
     // is a localized template with positional placeholders — Maestro keys on
     // the id, not the text (i18n-safe).
-    final cashText = l10n.receiptCashToJeeber(
-      _formatCash(receipt.cashAmount, receipt.currency),
-      receipt.jeeberName.isNotEmpty
-          ? receipt.jeeberName
-          : l10n.receiptJeeberFallback,
-    );
+    //
+    // Run-22 P1-A: when the gateway omitted the amount (the live
+    // `GET /v1/deliveries/{id}` drops `amount` once the delivery is `Done`),
+    // the amount is UNKNOWN — degrade to the amount-less line instead of
+    // fabricating "Pay $0.00".
+    final jeeberLabel = receipt.jeeberName.isNotEmpty
+        ? receipt.jeeberName
+        : l10n.receiptJeeberFallback;
+    final cashText = receipt.hasKnownAmount
+        ? l10n.receiptCashToJeeber(
+            MoneyFormat.format(receipt.cashAmount!, currency: receipt.currency),
+            jeeberLabel,
+          )
+        : l10n.receiptCashToJeeberNoAmount(jeeberLabel);
 
     return ListView(
       padding: const EdgeInsetsDirectional.fromSTEB(
@@ -352,15 +361,6 @@ class _LoadedBody extends StatelessWidget {
       'escalate',
       pathParameters: <String, String>{'id': receipt.deliveryId},
     );
-  }
-
-  /// Formats the cash amount as `<currency-symbol-or-code><value>` — `$9.00`
-  /// for USD, `<code> <value>` otherwise. Pure presentation helper; the wire
-  /// amount is the gross order total (no fee math).
-  static String _formatCash(double amount, String currency) {
-    final value = amount.toStringAsFixed(2);
-    if (currency.toUpperCase() == 'USD') return '\$$value';
-    return '$currency $value';
   }
 
   static String _confirmErrorCopy(

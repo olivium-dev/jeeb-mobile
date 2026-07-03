@@ -34,7 +34,17 @@ class DeliveryReceipt {
 
   /// Cash the customer hands the Jeeber, in whole/decimal currency units
   /// (e.g. `9.0`). This is the gross order amount paid in person — NOT a fee.
-  final double cashAmount;
+  ///
+  /// NULL when the gateway did not surface a usable amount (run-22 P1-A: the
+  /// live `GET /v1/deliveries/{id}` drops the `amount` key once the delivery
+  /// reaches `Done`). An absent amount is UNKNOWN — it must never be rendered
+  /// as a fabricated `$0.00`; the screen degrades to amount-less copy instead.
+  final double? cashAmount;
+
+  /// True when the gateway surfaced a real, positive cash amount. Zero and
+  /// negative wire values are treated as unknown too — the COD amount of a
+  /// priced delivery is never actually 0, so a 0 here means enrichment broke.
+  bool get hasKnownAmount => (cashAmount ?? 0) > 0;
 
   /// ISO currency code (e.g. `USD`). Drives the "Pay $N" copy formatting.
   final String currency;

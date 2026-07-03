@@ -86,10 +86,14 @@ class DioDeliveryReceiptRepository implements DeliveryReceiptRepository {
         data: <String, dynamic>{
           'deliveryId': receipt.deliveryId,
           if (receipt.jeeberId != null) 'jeeberId': receipt.jeeberId,
-          'amount': <String, dynamic>{
-            'value': receipt.cashAmount,
-            'currency': receipt.currency,
-          },
+          // Run-22 P1-A: when the gateway dropped the amount (unknown), omit
+          // the money object entirely — the ledger derives the amount from the
+          // accepted offer server-side. NEVER stamp a fabricated 0.00 record.
+          if (receipt.hasKnownAmount)
+            'amount': <String, dynamic>{
+              'value': receipt.cashAmount,
+              'currency': receipt.currency,
+            },
         },
       );
     } on DioException catch (e) {
@@ -165,11 +169,17 @@ class DioDeliveryReceiptRepository implements DeliveryReceiptRepository {
     );
   }
 
-  double _parseAmount(Map<String, dynamic> json) {
+  /// Run-22 P1-A: the live gateway drops the `amount` key from
+  /// `GET /v1/deliveries/{id}` once the delivery reaches `Done` (it was present
+  /// with the real fee while `Ordered` — wire evidence in
+  /// docs/sprints/sprint-009/proof-run22/wire/diag-statusbuckets.txt). An
+  /// ABSENT amount is unknown, NOT zero — returning `0.0` here is what
+  /// rendered "Pay $0.00 cash to the Jeeber". Return null so the screen can
+  /// degrade to amount-less copy instead of fabricating a price.
+  double? _parseAmount(Map<String, dynamic> json) {
     final flat = json['amount'];
     if (flat is num) return flat.toDouble();
-    final fromObject = _moneyValue(json['amount']) ?? _moneyValue(json['price']);
-    return fromObject ?? 0.0;
+    return _moneyValue(json['amount']) ?? _moneyValue(json['price']);
   }
 
   String _parseCurrency(Map<String, dynamic> json) {
@@ -185,6 +195,10 @@ class DioDeliveryReceiptRepository implements DeliveryReceiptRepository {
     if (money is Map) {
       final v = money['value'];
       if (v is num) return v.toDouble();
+      // Some gateway DTOs carry money as { minorUnits, currency } (e.g. the
+      // requests list). Tolerate it here so the receipt survives shape drift.
+      final minor = money['minorUnits'];
+      if (minor is num) return minor.toDouble() / 100;
     }
     return null;
   }

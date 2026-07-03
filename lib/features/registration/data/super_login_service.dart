@@ -137,6 +137,7 @@ class DefaultSuperLoginService implements SuperLoginService {
         return SuperLoginError.unknown;
       case DioExceptionType.cancel:
       case DioExceptionType.badCertificate:
+      case DioExceptionType.transformTimeout:
       case DioExceptionType.unknown:
         return SuperLoginError.unknown;
     }

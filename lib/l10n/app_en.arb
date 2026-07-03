@@ -1848,7 +1848,7 @@
       }
     }
   },
-  "offersCardFee": "{amount} {currency}",
+  "offersCardFee": "{amount}",
   "@offersCardFee": {
     "description": "Fee label inside an offer card. {amount} is already formatted to 2dp.",
     "placeholders": {
@@ -3877,7 +3877,7 @@
   "addressFormSaveCta": "Save address",
   "@addressFormSaveCta": { "description": "JM-050 address-detail-form save CTA (address_form_save_cta) → saved-addresses." },
 
-  "offerCardCashOnDelivery": "Pay {amount} {currency} cash on delivery",
+  "offerCardCashOnDelivery": "Pay {amount} cash on delivery",
   "@offerCardCashOnDelivery": { "description": "JM-028 offer card cash-on-delivery line (offer_card_<id>_cash_on_delivery_label) — D11: the customer pays the Jeeber in cash on delivery; there is no in-app charge.", "placeholders": { "amount": {}, "currency": {} } },
   "offerReviewCancelCta": "Cancel request",
   "@offerReviewCancelCta": { "description": "JM-028 offer-review cancel CTA (offer_review_cancel_cta) → cancel-request-confirm sheet (JM-030, free pre-accept, D69)." },
@@ -3912,6 +3912,8 @@
   "@receiptCashToJeeber": { "description": "JM-033 cash-on-delivery line (receipt_cash_to_jeeber_label) — D11: the customer pays the Jeeber in cash in person.", "placeholders": { "amount": {}, "jeeber": {} } },
   "receiptJeeberFallback": "the Jeeber",
   "@receiptJeeberFallback": { "description": "JM-033 Jeeber-name fallback when the gateway omits jeeberName." },
+  "receiptCashToJeeberNoAmount": "Pay the order amount in cash to {jeeber}",
+  "@receiptCashToJeeberNoAmount": { "description": "Run-22 P1-A degraded cash-on-delivery line when the gateway omitted the amount - never fabricate $0.00.", "placeholders": { "jeeber": {} } },
   "receiptProofPhotoLabel": "Proof of delivery photo",
   "@receiptProofPhotoLabel": { "description": "JM-033 a11y label on receipt_proof_photo (D3)." },
   "receiptConfirmCta": "Yes, I received it",

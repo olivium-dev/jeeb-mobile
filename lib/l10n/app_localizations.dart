@@ -1971,6 +1971,8 @@ extension AppLocalizationsRestored on AppLocalizations {
           .replaceFirst('{amount}', amount)
           .replaceFirst('{jeeber}', jeeber);
   String get receiptJeeberFallback => _get('receiptJeeberFallback');
+  String receiptCashToJeeberNoAmount(String jeeber) =>
+      _get('receiptCashToJeeberNoAmount').replaceFirst('{jeeber}', jeeber);
   String get receiptProofPhotoLabel => _get('receiptProofPhotoLabel');
   String get receiptConfirmCta => _get('receiptConfirmCta');
   String get receiptNotYetCta => _get('receiptNotYetCta');

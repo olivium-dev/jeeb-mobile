@@ -75,6 +75,7 @@ import '../../features/location/presentation/screens/location_picker_screen.dart
 import '../../features/no_offer_timeout/presentation/no_offer_timeout_screen.dart';
 import '../../features/order_summary/presentation/order_summary_screen.dart';
 import '../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
+import '../../features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
 import '../../features/active_delivery_jeeber/presentation/active_delivery_jeeber_screen.dart';
 import '../../features/offers/domain/offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
@@ -1090,6 +1091,15 @@ class AppRouter {
               requestId: id,
               initial: cached,
               fetch: () => _recoverFeedRequestById(id),
+              // Run-22 replacement P1: the discovery feed is pending-scoped,
+              // so an ACCEPTED request rightly misses it. Probe the delivery
+              // by id (deliveryId == requestId) and swap to the active-
+              // delivery screen instead of the "Request unavailable" dead end.
+              fetchAcceptedDeliveryId: () => _probeAcceptedDeliveryId(id),
+              onAcceptedRedirect: (deliveryId) => context.pushReplacementNamed(
+                'jeeber-active-delivery',
+                pathParameters: {'id': deliveryId},
+              ),
               reportService: sl<ProhibitedItemReportService>(),
               onDeclined: (_) => back(),
               onBack: back,
@@ -1548,4 +1558,26 @@ Future<FeedRequest?> _recoverFeedRequestById(String id) async {
     }
   }
   return null;
+}
+
+/// Run-22 replacement P1 (jeeber "Request unavailable" on an accepted
+/// request): the discovery feed above is `status=pending`-scoped, so a request
+/// that was ACCEPTED (assigned to this jeeber) legitimately vanishes from it —
+/// yet an active delivery for it exists and is the screen the jeeber actually
+/// needs. Probe `GET /v1/deliveries/{id}` (deliveryId == requestId convention,
+/// reused via [ActiveDeliveryRepository.fetchDelivery]) and return the id when
+/// the delivery exists and is still in flight. Terminal (`Done`) deliveries
+/// return null — the graceful unavailable fallback is the right surface for a
+/// finished order. Server-side authz on the by-id read remains the boundary
+/// for deliveries that belong to another jeeber (the mock/dev gateway returns
+/// them; the loader still only redirects on non-terminal states).
+Future<String?> _probeAcceptedDeliveryId(String id) async {
+  if (id.isEmpty || !sl.isRegistered<ActiveDeliveryRepository>()) return null;
+  try {
+    final delivery = await sl<ActiveDeliveryRepository>().fetchDelivery(id);
+    if (delivery.status == JeeberDeliveryStatus.done) return null;
+    return delivery.id.isNotEmpty ? delivery.id : id;
+  } catch (_) {
+    return null;
+  }
 }

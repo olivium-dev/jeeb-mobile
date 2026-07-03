@@ -612,7 +612,7 @@
   "offersPanelHeader": "عروض من الجِيبرز",
   "offersPanelStillSearching": "ما زلنا نبحث عن جِيبرز — عادة تصل أول العروض خلال دقيقة.",
   "offersCardEtaMinutes": "وقت الوصول {minutes} دقيقة",
-  "offersCardFee": "{amount} {currency}",
+  "offersCardFee": "{amount}",
   "offersCardVehicleCar": "سيارة",
   "offersCardVehicleMotorcycle": "دراجة نارية",
   "offersCardVehicleBicycle": "دراجة هوائية",
@@ -1291,7 +1291,7 @@
   "addressFormTitle": "تفاصيل العنوان",
   "addressFormSaveCta": "حفظ العنوان",
 
-  "offerCardCashOnDelivery": "ادفع {amount} {currency} نقداً عند التسليم",
+  "offerCardCashOnDelivery": "ادفع {amount} نقداً عند التسليم",
   "offerReviewCancelCta": "إلغاء الطلب",
 
   "waitingTitle": "نبحث عن جيبر",
@@ -1309,6 +1309,7 @@
   "receiptTitle": "تأكيد الاستلام",
   "receiptPromptHeading": "هل استلمت طلبك؟",
   "receiptCashToJeeber": "ادفع {amount} نقداً إلى {jeeber}",
+  "receiptCashToJeeberNoAmount": "ادفع مبلغ الطلب نقداً إلى {jeeber}",
   "receiptJeeberFallback": "الجيبر",
   "receiptProofPhotoLabel": "صورة إثبات التسليم",
   "receiptConfirmCta": "نعم، استلمته",

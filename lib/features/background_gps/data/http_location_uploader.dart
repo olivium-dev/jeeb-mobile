@@ -62,7 +62,8 @@ class HttpLocationUploader implements LocationUploader {
           final status = e.response?.statusCode ?? 0;
           if (status >= 500) return LocationUploadOutcome.transientFailure;
           return LocationUploadOutcome.permanentFailure;
-        case DioExceptionType.unknown:
+        case DioExceptionType.transformTimeout:
+      case DioExceptionType.unknown:
           return LocationUploadOutcome.transientFailure;
       }
     }

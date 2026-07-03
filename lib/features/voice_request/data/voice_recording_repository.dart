@@ -92,6 +92,7 @@ class HttpVoiceRecordingRepository implements VoiceRecordingRepository {
         return VoiceUploadFailure.server;
       case DioExceptionType.cancel:
       case DioExceptionType.badCertificate:
+      case DioExceptionType.transformTimeout:
       case DioExceptionType.unknown:
         return VoiceUploadFailure.unknown;
     }

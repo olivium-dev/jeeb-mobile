@@ -24,9 +24,28 @@ class MutualRatingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     // D56: suppress the system back gesture so the mandatory rating cannot be
-    // dismissed without submitting. `canPop: false` blocks both the OS back and
-    // any predictive-back; there is intentionally no leading/close affordance.
-    return PopScope(
+    // dismissed without submitting. There is intentionally no leading/close
+    // affordance.
+    //
+    // Run-22 replacement P1 (hardware BACK exited to the launcher here):
+    // `PopScope(canPop: false)` alone only fires when the `Navigator` has
+    // something to pop. This terminal is typically reached via
+    // `context.goNamed('mutual-rating')` (receipt confirm / OTP handover),
+    // which REPLACES the stack — the screen is then the lone root page,
+    // go_router's `popRoute` sees nothing to pop, and the BACK event
+    // propagated to the OS, backgrounding the app mid-mandatory-rating. The
+    // `BackButtonListener` intercepts the system BACK BEFORE go_router's
+    // delegate and consumes it unconditionally, suppressing BACK at BOTH
+    // stack positions (same mechanism as RootAwareBackScope, but suppress
+    // rather than reroute — routing home would defeat the mandatory rating).
+    // The inner PopScope stays for predictive-back visuals and as a guard for
+    // non-system pop paths.
+    //
+    // `BackButtonListener` requires a `Router` ancestor (production runs under
+    // `MaterialApp.router`). In a plain-`Navigator` host (widget tests,
+    // previews) `PopScope` alone already suppresses BACK correctly, so the
+    // listener is added only when a Router exists.
+    final scope = PopScope(
       canPop: false,
       child: Scaffold(
         appBar: OMDSAppBar(
@@ -45,6 +64,11 @@ class MutualRatingScreen extends StatelessWidget {
           ),
         ),
       ),
+    );
+    if (Router.maybeOf(context) == null) return scope;
+    return BackButtonListener(
+      onBackButtonPressed: () async => true,
+      child: scope,
     );
   }
 
