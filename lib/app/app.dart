@@ -26,6 +26,7 @@ import '../core/notifications/data/device_token_registrar.dart';
 import '../core/notifications/data/firebase_messaging_transport.dart';
 import '../core/notifications/data/push_device_registrar.dart';
 import '../core/notifications/data/push_transport.dart';
+import '../core/notifications/domain/local_push_inbox.dart';
 import '../core/notifications/domain/notification_deep_link.dart';
 import '../core/notifications/presentation/push_banner_host.dart';
 import '../core/observability/crash_context_bridge.dart';
@@ -221,7 +222,13 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   // BadgeCountCubit is cheap (in-memory Cubit<BadgeCounts>) and is read by
   // the MultiBlocProvider on first build, so it stays eager. G3: rendered by
   // the shell's Dashboard-tab badge (newRequests) and cleared on feed view.
-  late final BadgeCountCubit _badgeCount = BadgeCountCubit();
+  // Wired to the durable [LocalPushInbox] (when DI is configured) so a
+  // `new_request` push handled by the FCM background isolate — which cannot
+  // reach this cubit — still surfaces a badge once [BadgeCountCubit.hydrate]
+  // runs on cold start / resume. Guarded so widget tests without DI still build.
+  late final BadgeCountCubit _badgeCount = BadgeCountCubit(
+    inbox: sl.isRegistered<LocalPushInbox>() ? sl<LocalPushInbox>() : null,
+  );
   late final CrashContextBridge _crashContext = CrashContextBridge(
     reporter: widget.crashReporter,
     roleCubit: _role,
@@ -274,6 +281,10 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       // paints (never blocks cold start). A returning dual-role jeeber lands on
       // the Jeeber surface; a plain client stays on the client surface.
       _syncRole();
+      // G3: seed the badge from any `new_request` pushes the FCM background
+      // isolate persisted while the app was terminated — so a dismissed push
+      // shows a Dashboard-tab badge on cold start, not just an inbox row.
+      unawaited(_badgeCount.hydrate());
     });
   }
 
@@ -316,7 +327,15 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed) _syncRole();
+    if (state == AppLifecycleState.resumed) {
+      _syncRole();
+      // G3: re-derive the badge from the durable push store so a `new_request`
+      // that arrived (and was dismissed) while the app was backgrounded — seen
+      // only by the FCM background isolate — surfaces its Dashboard-tab badge
+      // the moment the jeeber returns. FeedResumeRefetcher then clears it if the
+      // feed is the visible tab.
+      unawaited(_badgeCount.hydrate());
+    }
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
       unawaited(Diag.flushPersistent());
@@ -383,6 +402,12 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       // the jeeber's pending-offers list flips the row + re-pulls (sprint-009).
       offerLifecycleSignals: sl.isRegistered<OfferLifecycleSignals>()
           ? sl<OfferLifecycleSignals>()
+          : null,
+      // G3: persist a FOREGROUND new_request durably too, so the inbox row +
+      // badge survive an app kill before the jeeber acts (same store the
+      // background isolate + badge hydrate use).
+      localInbox: sl.isRegistered<LocalPushInbox>()
+          ? sl<LocalPushInbox>()
           : null,
     );
     if (injectedRegistrar == null && transport is FirebaseMessagingTransport) {

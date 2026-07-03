@@ -20,7 +20,8 @@ import 'package:jeeb_mobile/features/kyc/domain/kyc_gateway.dart';
 import 'package:jeeb_mobile/features/dispute_status/data/dio_dispute_status_repository.dart';
 import 'package:jeeb_mobile/features/dispute_status/domain/dispute_status_repository.dart';
 import 'package:jeeb_mobile/features/notification_prefs/domain/notification_prefs_repository.dart';
-import 'package:jeeb_mobile/features/notifications/data/dio_notifications_repository.dart';
+import 'package:jeeb_mobile/core/notifications/domain/local_push_inbox.dart';
+import 'package:jeeb_mobile/features/notifications/data/local_merging_notifications_repository.dart';
 import 'package:jeeb_mobile/features/notifications/domain/notifications_repository.dart';
 import 'package:jeeb_mobile/features/rating/domain/rating_repository.dart';
 import 'package:jeeb_mobile/features/request_summary/application/compose_request_controller.dart';
@@ -151,13 +152,21 @@ void main() {
   //    LIVE) + support (real Dio, S1 live, gateway #200) + reviews (real Dio,
   //    R1m live). ────
 
-  test('NotificationsRepository is registered and binds REAL Dio (LIVE)', () {
+  test('NotificationsRepository binds the G3 local-merging decorator (over '
+      'REAL Dio + the durable LocalPushInbox)', () {
     expect(GetIt.I.isRegistered<NotificationsRepository>(), isTrue);
     expect(() => GetIt.I<NotificationsRepository>(), returnsNormally);
+    // G3: the inbox now UNIONS the server inbox with the on-device push store so
+    // a `new_request` dismissed while backgrounded still shows a durable row.
+    // The decorator wraps the REAL DioNotificationsRepository (still LIVE :4010).
     expect(
       GetIt.I<NotificationsRepository>(),
-      isA<DioNotificationsRepository>(),
+      isA<LocalMergingNotificationsRepository>(),
     );
+    // The durable store is registered as a shared singleton so the merging repo
+    // and the app-level BadgeCountCubit read/write the SAME rows.
+    expect(GetIt.I.isRegistered<LocalPushInbox>(), isTrue);
+    expect(() => GetIt.I<LocalPushInbox>(), returnsNormally);
   });
 
   test('DisputeStatusRepository is registered and binds REAL Dio (LIVE)', () {

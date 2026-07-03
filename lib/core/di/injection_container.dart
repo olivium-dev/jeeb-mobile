@@ -58,7 +58,10 @@ import '../../features/wallet/domain/wallet_ledger_repository.dart';
 import '../../features/wallet/domain/wallet_repository.dart';
 import '../../features/wallet/domain/wallet_transaction_repository.dart';
 import '../../features/notifications/data/dio_notifications_repository.dart';
+import '../../features/notifications/data/local_merging_notifications_repository.dart';
 import '../../features/notifications/domain/notifications_repository.dart';
+import '../notifications/data/shared_prefs_local_push_inbox.dart';
+import '../notifications/domain/local_push_inbox.dart';
 import '../../features/support/data/dio_support_repository.dart';
 import '../../features/support/domain/support_repository.dart';
 import '../../features/dispute_status/data/dio_dispute_status_repository.dart';
@@ -520,15 +523,32 @@ void configureDependencies({
   // ── WAVE 4 (S2) integrator registrations — notifications/support/dispute/
   //    reviews (50_EXECUTION_PLAN §"WAVE 4 (1) S2"). ────────────────────────
 
+  // G3: the on-device durable push store — the bridge that lets a `new_request`
+  // push handled ONLY by the FCM background isolate (which can reach neither the
+  // BadgeCountCubit nor the inbox list) still surface a badge + inbox row on
+  // resume. Single instance so the merging inbox repo AND the app-level
+  // BadgeCountCubit read/write the SAME rows.
+  sl.registerLazySingleton<LocalPushInbox>(
+    () => SharedPrefsLocalPushInbox(prefs: sl<SharedPreferences>()),
+  );
+
   // JM-057 notifications-list: the notification-service inbox (list + mark-read)
   // is LIVE on :4010 (42_GUARDRAILS_MOCK §4 mock-ready), so this binds the REAL
   // Dio repo. The `?userId=` is resolved from AuthTokenStore, which the real
   // login and super_login_plus seam both write. The header bell now routes here
   // (`goNamed('notifications')`, shell guard removed).
+  //
+  // G3: wrapped in [LocalMergingNotificationsRepository] so a `new_request` push
+  // the server inbox never sources (dismissed while backgrounded) still shows a
+  // durable, tappable row — merged in from [LocalPushInbox]. Chat/offer/etc. are
+  // server-sourced and untouched.
   sl.registerLazySingleton<NotificationsRepository>(
-    () => DioNotificationsRepository(
-      dio: sl<Dio>(),
-      tokenStore: sl<AuthTokenStore>(),
+    () => LocalMergingNotificationsRepository(
+      remote: DioNotificationsRepository(
+        dio: sl<Dio>(),
+        tokenStore: sl<AuthTokenStore>(),
+      ),
+      localInbox: sl<LocalPushInbox>(),
     ),
   );
 
