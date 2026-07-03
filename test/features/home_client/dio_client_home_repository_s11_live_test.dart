@@ -176,10 +176,13 @@ void main() {
 
   // PARAM-SENSITIVE requests stub: the matched row is surfaced ONLY when the
   // repo sends `status=active`. This is the safeguard the S10 `any(named:)`
-  // stub lacked.
+  // stub lacked. Call shape mirrors the repository exactly: `get<dynamic>` on
+  // the un-versioned gateway path `/requests` (a `get<Map<String, dynamic>>`
+  // stub would NOT match the repo's `get<dynamic>` invocation under mocktail —
+  // the generic is part of the match — and would fail as a Null-return).
   void stubRequestsBySurface() {
-    when(() => dio.get<Map<String, dynamic>>(
-          '/v1/requests',
+    when(() => dio.get<dynamic>(
+          '/requests',
           queryParameters: any(named: 'queryParameters'),
         )).thenAnswer((invocation) async {
       final qp = invocation.namedArguments[#queryParameters]
@@ -190,10 +193,20 @@ void main() {
   }
 
   void stubDeliveries(Map<String, dynamic> body) {
-    when(() => dio.get<Map<String, dynamic>>(
-          '/v1/deliveries',
+    when(() => dio.get<dynamic>(
+          '/deliveries',
           queryParameters: any(named: 'queryParameters'),
         )).thenAnswer((_) async => _ok(body));
+  }
+
+  // BUG-3 offer probes (`GET /v1/offers?requestId=`) run for every
+  // non-accepted candidate on the home load. Return no live offers so the
+  // probe is inert here — offer bucketing is not what this suite guards.
+  void stubOfferProbes() {
+    when(() => dio.get<dynamic>(
+          '/v1/offers',
+          queryParameters: any(named: 'queryParameters'),
+        )).thenAnswer((_) async => _ok(<String, dynamic>{'items': <Object>[]}));
   }
 
   test(
@@ -201,13 +214,14 @@ void main() {
       'filter) — NOT the S10 role-only query', () async {
     stubDeliveries(_deliveriesWithoutFreshRow());
     stubRequestsBySurface();
+    stubOfferProbes();
 
     await repo.loadSnapshot();
 
-    // At least one /v1/requests call must carry status=active (the active
+    // At least one /requests call must carry status=active (the active
     // merge). A regression to role-only would fail this.
-    final activeCalls = verify(() => dio.get<Map<String, dynamic>>(
-          '/v1/requests',
+    final activeCalls = verify(() => dio.get<dynamic>(
+          '/requests',
           queryParameters: captureAny(named: 'queryParameters'),
         )).captured;
     final sawStatusActive = activeCalls
@@ -223,6 +237,7 @@ void main() {
     // Deliveries source lags (no delivery row for the new order yet).
     stubDeliveries(_deliveriesWithoutFreshRow());
     stubRequestsBySurface();
+    stubOfferProbes();
 
     final snapshot = await repo.loadSnapshot();
     final ids = snapshot.inProgress.map((r) => r.id).toList();
@@ -246,6 +261,7 @@ void main() {
       'the order is NOT doubled', () async {
     stubDeliveries(_deliveriesWithFreshRow());
     stubRequestsBySurface();
+    stubOfferProbes();
 
     final snapshot = await repo.loadSnapshot();
     final ids = snapshot.inProgress.map((r) => r.id).toList();
@@ -270,6 +286,7 @@ void main() {
   test('pending requests never leak into In-Progress', () async {
     stubDeliveries(_deliveriesWithoutFreshRow());
     stubRequestsBySurface();
+    stubOfferProbes();
 
     final snapshot = await repo.loadSnapshot();
     final ids = snapshot.inProgress.map((r) => r.id).toList();

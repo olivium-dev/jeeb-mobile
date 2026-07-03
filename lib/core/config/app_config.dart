@@ -9,6 +9,25 @@ class AppConfig {
   AppConfig._();
 
   // ---------------------------------------------------------------------------
+  // Gateway base URL
+  // ---------------------------------------------------------------------------
+
+  /// Base URL of the live jeeb-gateway BFF. The app speaks ONLY to the gateway
+  /// (never a backend service directly). Overridable per build/CI lane via
+  /// `--dart-define=GATEWAY_BASE_URL=https://api.jeeb.app`.
+  ///
+  /// ANTI-DRIFT contract (ARCH-01 / INFRA-01, frozen by
+  /// `test/core/config/base_url_convention_test.dart`): this value is
+  /// ORIGIN-ONLY — scheme + host (+ port), NO `/v1`, no trailing slash. Every
+  /// request path carries exactly one `/v1`; Dio merges `baseUrl + path`, so a
+  /// `/v1` here doubles to `/v1/v1` (the S16 availability NO-GO). (Getter
+  /// restored after an integration merge dropped it while keeping that test.)
+  static const String gatewayBaseUrl = String.fromEnvironment(
+    'GATEWAY_BASE_URL',
+    defaultValue: 'https://api.jeeb.app',
+  );
+
+  // ---------------------------------------------------------------------------
   // Auth funnel feature flags
   // ---------------------------------------------------------------------------
 

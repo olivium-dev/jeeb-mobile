@@ -31,7 +31,7 @@ import 'package:jeeb_mobile/core/role/role_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_eligibility_cubit.dart';
 import 'package:jeeb_mobile/core/router/app_router.dart';
 import 'package:jeeb_mobile/core/session/session_gate.dart';
-import 'package:jeeb_mobile/features/registration/presentation/registration_screen.dart';
+import 'package:jeeb_mobile/features/auth/presentation/login_screen.dart';
 import 'package:jeeb_mobile/features/biometric_auth/application/biometric_lock_cubit.dart';
 import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_repository.dart';
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
@@ -254,7 +254,7 @@ void main() {
 
   group('FR-P0-3: session/JWT gate forces auth when tokenless', () {
     testWidgets(
-      'onboarded + NO token → redirected to /register (phone-OTP, not Home)',
+      'onboarded + NO token → redirected to /login (auth entry, not Home)',
       (tester) async {
         final built = await _buildRouter(
           onboardingCompleted: true,
@@ -264,17 +264,19 @@ void main() {
         await tester.pumpWidget(_harness(built));
         await tester.pumpAndSettle();
 
-        // DEFECT-3: the logged-out destination is the phone-OTP `/register`
-        // flow — the only auth that works against the LIVE gateway (email
-        // `/login`/`/sign-up` 401 there). The email screens stay reachable from
-        // `/register` for a later gateway fix, but phone-OTP is the entry.
+        // The logged-out destination is `/login` (CTO-D1, W0 email-first — it
+        // replaced the DEFECT-3-era `/register` target this test once pinned).
+        // `/login` is not a dead end against the live gateway: with
+        // AppConfig.emailPasswordAuthEnabled == false it promotes the working
+        // phone-OTP funnel (`login_phone_primary_cta` → `/register`) as the
+        // primary action.
         expect(
           _location(built),
-          '/register',
+          '/login',
           reason: 'An onboarded-but-tokenless user must be forced to the '
-              'phone-OTP entry (the auth that works against the live gateway).',
+              'auth entry before reaching Home.',
         );
-        expect(find.byType(RegistrationScreen), findsOneWidget);
+        expect(find.byType(LoginScreen), findsOneWidget);
         expect(find.byType(ShellScreen), findsNothing);
       },
     );
@@ -333,8 +335,8 @@ void main() {
     );
 
     testWidgets(
-      'after onboarding completes, the tokenless user is bounced to /register '
-      '(phone-OTP auth becomes mandatory)',
+      'after onboarding completes, the tokenless user is bounced to /login '
+      '(auth becomes mandatory)',
       (tester) async {
         final built = await _buildRouter(
           onboardingCompleted: false,
@@ -349,14 +351,14 @@ void main() {
         await built.onboarding.complete();
         await tester.pumpAndSettle();
 
-        // DEFECT-3: phone-OTP `/register` is the logged-out destination (the
-        // auth that works against the live gateway).
+        // `/login` is the logged-out destination (CTO-D1; it promotes the
+        // phone-OTP funnel as primary when email auth is gated off).
         expect(
           _location(built),
-          '/register',
-          reason: 'Onboarding done + no token → phone-OTP auth is now mandatory.',
+          '/login',
+          reason: 'Onboarding done + no token → auth is now mandatory.',
         );
-        expect(find.byType(RegistrationScreen), findsOneWidget);
+        expect(find.byType(LoginScreen), findsOneWidget);
       },
     );
   });

@@ -112,11 +112,13 @@ class DioClientHomeRepository implements ClientHomeRepository {
       _fetchInProgress(),
       _fetchClientRequests(),
       _fetchRecentDeliveries(),
+      _fetchActiveRequests(),
     ]);
 
     final shipments = results[0] as List<ClientHomeRequest>;
     final buckets = results[1] as _ClientRequestBuckets;
     final recentDeliveries = results[2] as List<RecentDeliverySummary>;
+    final activeRequests = results[3] as List<ClientHomeRequest>;
 
     // Merge accepted orders into In Progress, deduped against any live shipment
     // by id so the same order never renders twice. A delivery that already
@@ -136,12 +138,71 @@ class DioClientHomeRepository implements ClientHomeRepository {
       ...buckets.accepted.where((a) => !shipmentIds.contains(a.id)),
     ];
 
+    // S11 Defect-A: additively merge the `status=active` in-flight requests.
+    // Deduped two ways so an order never renders twice: (a) a request already
+    // represented by a delivery row is skipped via that row's parent
+    // `requestId` (captured as [ClientHomeRequest.chatCorrelationId] by
+    // `_parseActiveDelivery`) — the delivery-backed row wins because it carries
+    // the real `delivery-<offerId>` tracking id; (b) plain id dedupe against
+    // everything already merged. Purely additive: no existing row is dropped.
+    final coveredRequestIds = activeShipments
+        .map((r) => r.chatCorrelationId)
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final presentIds = inProgress.map((r) => r.id).toSet();
+    for (final request in activeRequests) {
+      if (coveredRequestIds.contains(request.id)) continue;
+      if (!presentIds.add(request.id)) continue;
+      inProgress.add(request);
+    }
+
     return ClientHomeSnapshot(
       inProgress: inProgress,
       pending: buckets.pending,
       replies: buckets.replies,
       recentDeliveries: recentDeliveries,
     );
+  }
+
+  /// S11 Defect-A LIVE fix (restored — the original fix, eba82e8, was lost when
+  /// a later integration merge kept the mainline rewrite of this file while
+  /// keeping its regression test): the freshly-matched in-flight request is
+  /// surfaced by the gateway through the `status=active` filter — the same
+  /// param the order-history Active tab uses — NOT through the `role=client`
+  /// query [_fetchClientRequests] sends. So when the deliveries source lags
+  /// (no `delivery-<offerId>` row minted yet) the role-only merge missed the
+  /// brand-new order and the In-Progress tab dropped it. We query
+  /// `status=active` (load-bearing — proven live to return the `matched` row)
+  /// AND keep `role=client` (belt-and-braces for a backend that scopes by
+  /// role). Only genuinely on-the-road rows are kept ([_mapRequestStatus]);
+  /// pending / offers-received / terminal rows are dropped here so they can
+  /// never leak into In Progress through this path.
+  Future<List<ClientHomeRequest>> _fetchActiveRequests() async {
+    try {
+      final response = await _dio.get<dynamic>(
+        _requestsPath,
+        queryParameters: {
+          'status': 'active',
+          'role': 'client',
+          'page': 1,
+          'pageSize': 50,
+        },
+      );
+      final rawItems = _items(response.data);
+      final items = <ClientHomeRequest>[];
+      for (final raw in rawItems) {
+        if (raw is Map<String, dynamic>) {
+          final request = _parseActiveRequest(raw);
+          if (request != null) items.add(request);
+        }
+      }
+      return items;
+    } on DioException {
+      return const [];
+    } on FormatException {
+      return const [];
+    }
   }
 
   Future<List<ClientHomeRequest>> _fetchInProgress() async {
@@ -368,6 +429,75 @@ class DioClientHomeRepository implements ClientHomeRepository {
       chatCorrelationId:
           json['requestId'] as String? ?? json['request_id'] as String?,
     );
+  }
+
+  /// Parses a `status=active` request row into an In-Progress card, or `null`
+  /// when the row is not genuinely on the road (see [_mapRequestStatus]). The
+  /// row's `id` is the REQUEST id; when the payload carries a real
+  /// `deliveryId` it is kept so the Track CTA resolves, otherwise callers fall
+  /// back to the request id (best-effort, mirrors the delivery-row fallback).
+  static ClientHomeRequest? _parseActiveRequest(Map<String, dynamic> json) {
+    final id = json['id'] as String?;
+    if (id == null) return null;
+    final rawStatus =
+        (json['status'] ?? json['deliveryStatus'] ?? json['currentStage'])
+            as String?;
+    final status = _mapRequestStatus(rawStatus);
+    if (status == null) return null; // not an in-flight (on-the-road) request
+    final dropoff = json['dropoff'];
+    final destination = dropoff is Map<String, dynamic>
+        ? (dropoff['address'] as String? ?? '')
+        : (json['dropoffAddress'] as String? ?? '');
+    final deliveryId = (json['deliveryId'] ?? json['delivery_id']) as String?;
+    return ClientHomeRequest(
+      id: id,
+      deliveryId: (deliveryId != null && deliveryId.isNotEmpty)
+          ? deliveryId
+          : null,
+      displayId: json['displayId'] as String?,
+      title:
+          json['title'] as String? ??
+          json['description'] as String? ??
+          'Request ${friendlyReference(id)}',
+      status: status,
+      destinationLabel: destination,
+      etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
+      jeeberName: json['jeeberName'] as String?,
+      tier: ClientRequestTier.parse(
+        json['tier'] as String? ?? json['tierId'] as String?,
+      ),
+      progressStep: (json['progressStep'] as num?)?.toInt() ?? 0,
+      conversationId: json['conversationId'] as String?,
+    );
+  }
+
+  /// Maps a REQUEST status onto a coarse In-Progress [ClientRequestStatus],
+  /// returning null when the request is not on the road. Tolerates the mock's
+  /// snake_case request statuses (`matched`, `picked_up`, `en_route`) and the
+  /// live gateway's PascalCase SM-1 stage values (`Picked`, `InTransit`,
+  /// `AtDoor`, `Ordered`) via [_normalizeStatus].
+  static ClientRequestStatus? _mapRequestStatus(String? status) {
+    switch (_normalizeStatus(status)) {
+      case 'matched':
+      case 'active':
+      case 'accepted':
+      case 'assigned':
+      case 'ordered':
+        return ClientRequestStatus.accepted;
+      case 'pickedup':
+      case 'picked':
+      case 'atpickup':
+        return ClientRequestStatus.atPickup;
+      case 'enroute':
+      case 'atdoor':
+      case 'intransit':
+      case 'headingoff':
+        return ClientRequestStatus.enRoute;
+      default:
+        // pending / offers-received / delivered / cancelled / unknown — not an
+        // in-flight order, so it must not appear in the In-Progress tab.
+        return null;
+    }
   }
 
   static ClientHomeRequest? _parseRequest(
