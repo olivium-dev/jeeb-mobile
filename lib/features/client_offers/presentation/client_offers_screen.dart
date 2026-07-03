@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/formatting/friendly_reference.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../cancel_request/domain/cancel_request_repository.dart';
 import '../../cancel_request/presentation/cancel_request_sheet.dart';
@@ -309,10 +310,15 @@ class _LoadedBody extends StatelessWidget {
   /// rating-hiding (under 5 reviews, D59) and first-name attribution (D58) are the
   /// profile screen's concern (JM-067).
   void _openJeeberProfile(BuildContext context, Offer offer) {
+    // W6/SW-08: hand the profile a resolved display name so a synthetic handle
+    // / UUID from the un-enriched offer row never reaches the profile header
+    // (its own leak-suppression is SW-13's lane, but the offer surface must not
+    // be the one that feeds it an identifier-as-name).
+    final l10n = AppLocalizations.of(context);
     context.pushNamed(
       'delivery-man-profile',
       extra: DeliveryManProfileViewData(
-        name: offer.jeeberName,
+        name: displayNameOrNull(offer.jeeberName) ?? l10n.offersCardJeeberFallback,
         rating: offer.rating,
         reviewCount: offer.ratingCount,
         location: '',

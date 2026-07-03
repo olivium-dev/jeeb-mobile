@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/formatting/friendly_reference.dart';
 import '../../../../core/formatting/money_format.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/jeeber_vehicle.dart';
@@ -75,14 +76,36 @@ class OfferCard extends StatelessWidget {
     final note = offer.note?.trim();
     final hasNote = note != null && note.isNotEmpty;
 
-    final baseSemanticLabel = l10n.offersCardSemanticLabel(
-      name: offer.jeeberName,
-      rating: offer.rating.toStringAsFixed(1),
-      vehicle: vehicleLabel,
-      fee: feeFormatted,
-      currency: offer.currency,
-      minutes: offer.etaMinutes,
-    );
+    // W6 "People, not UUIDs" (sprint-009 SW-08): the offer-list row is NOT
+    // enriched with a display name by the gateway (O-list-enrich gap in
+    // DioOffersRepository), so `jeeberName` is frequently the raw jeeberId UUID
+    // or a synthetic `jeeb-<hash>` handle. Suppress those via [displayNameOrNull]
+    // and fall back to an honest generic ("New Jeeber") — the card must never
+    // headline an identifier as a person's name at the accept-ONE decision
+    // moment. Real names populate once accounts set them (profile-name
+    // onboarding); until then every unnamed Jeeber reads as "New Jeeber".
+    final displayName =
+        displayNameOrNull(offer.jeeberName) ?? l10n.offersCardJeeberFallback;
+    // Ratings are shown honestly: real stars + count only when the Jeeber has
+    // been rated; otherwise "No ratings yet" — never a fabricated "4.5 (0)".
+    final hasRatings = offer.ratingCount > 0;
+
+    final baseSemanticLabel = hasRatings
+        ? l10n.offersCardSemanticLabel(
+            name: displayName,
+            rating: offer.rating.toStringAsFixed(1),
+            vehicle: vehicleLabel,
+            fee: feeFormatted,
+            currency: offer.currency,
+            minutes: offer.etaMinutes,
+          )
+        : l10n.offersCardSemanticLabelUnrated(
+            name: displayName,
+            vehicle: vehicleLabel,
+            fee: feeFormatted,
+            currency: offer.currency,
+            minutes: offer.etaMinutes,
+          );
     // Append the note to the screen-reader label so it is announced with the
     // rest of the card facts (the visible node is also independently addressable
     // by `offer_card_<index>_note`).
@@ -111,7 +134,10 @@ class OfferCard extends StatelessWidget {
               Row(
                 children: [
                   OmdsProfileAvatar(
-                    initial: _initial(offer.jeeberName),
+                    // Initial derives from the RESOLVED display name (SW-08),
+                    // so an unnamed Jeeber shows "N" (New Jeeber), never the
+                    // first character of a UUID.
+                    initial: _initial(displayName),
                     profilePicUrl: offer.avatarUrl,
                     size: Sizes.fourXLarge,
                   ),
@@ -121,19 +147,27 @@ class OfferCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Jeeber name — tap target → jeeber-profile-reviews.
+                        // Uses the resolved [displayName] (SW-08), so a
+                        // suppressed handle/UUID reads as "New Jeeber".
                         _NameTapTarget(
                           indexId: 'offer_card_${index}_name',
                           patternId: 'offer_card_${offer.jeeberId}_name',
-                          name: offer.jeeberName,
+                          name: displayName,
                           onTap: onTapName,
                         ),
                         const SizedBox(height: Spacing.twoXSmall),
-                        OmdsStarRatingDisplay(
-                          averageRating: offer.rating,
-                          totalReviews: offer.ratingCount,
-                          starSize: Sizes.medium,
-                          reviewsLabelBuilder: (count) => '$count',
-                        ),
+                        // Honest rating (SW-08): stars + count only when rated;
+                        // otherwise an explicit "No ratings yet" line — never
+                        // "4.5 (0)".
+                        if (hasRatings)
+                          OmdsStarRatingDisplay(
+                            averageRating: offer.rating,
+                            totalReviews: offer.ratingCount,
+                            starSize: Sizes.medium,
+                            reviewsLabelBuilder: (count) => '$count',
+                          )
+                        else
+                          _NoRatingsYet(label: l10n.offersCardNoRatingsYet),
                       ],
                     ),
                   ),
@@ -299,6 +333,43 @@ class _OfferNoteLine extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Honest zero-rating line (SW-08): shown in place of [OmdsStarRatingDisplay]
+/// when the Jeeber has no ratings yet (`ratingCount == 0`). Replaces the
+/// fabricated "4.5 (0)" the star display would otherwise render for a brand-new
+/// Jeeber. A muted outline-star glyph + "No ratings yet" reads as an honest
+/// cold-start signal, not a real score.
+class _NoRatingsYet extends StatelessWidget {
+  const _NoRatingsYet({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Semantics(
+      identifier: 'offer_card_no_ratings',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.star_border,
+            size: Sizes.medium,
+            color: colors.onSurfaceVariant,
+          ),
+          const SizedBox(width: Spacing.twoXSmall),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

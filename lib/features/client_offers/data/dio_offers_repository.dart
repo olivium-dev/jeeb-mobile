@@ -218,7 +218,11 @@ class DioOffersRepository implements OffersRepository {
       vehicle: _parseVehicle(
         json['vehicleType'] as String? ?? json['vehicle'] as String?,
       ),
-      rating: (json['rating'] as num?)?.toDouble() ?? 4.5,
+      // W6/SW-08: when the row carries no rating, default to an HONEST 0.0 with
+      // a 0 count — never a fabricated 4.5. The offer card guards on
+      // `ratingCount > 0` and renders "No ratings yet" for the zero case, so a
+      // real score is only ever shown when the gateway actually sent one.
+      rating: (json['rating'] as num?)?.toDouble() ?? 0.0,
       ratingCount: (json['ratingCount'] as num?)?.toInt() ?? 0,
       submittedAt: submitted,
       avatarUrl: json['avatarUrl'] as String? ??
