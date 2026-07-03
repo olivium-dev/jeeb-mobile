@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/formatting/money_format.dart';
 import '../../../core/network/mock_gateway_client.dart';
 import '../domain/order_chat_summary.dart';
 
@@ -82,6 +83,11 @@ class DioOrderChatSummaryRepository implements OrderChatSummaryRepository {
       final rating = _num(delivery?['jeeberRating']) ??
           _num(request?['jeeberRating']) ??
           0;
+      // Delivery lifecycle status for the strip's canonical status label
+      // (deliveryStage* vocab). The delivery row is authoritative; the request
+      // row's status (`accepted`/`pending`) is a tolerated fallback.
+      final statusId =
+          _str(delivery?['status']) ?? _str(request?['status']) ?? '';
 
       if (delivery == null && request == null) {
         throw const OrderChatSummaryException(OrderChatSummaryFailure.notFound);
@@ -96,6 +102,7 @@ class DioOrderChatSummaryRepository implements OrderChatSummaryRepository {
         etaMinutes: etaMinutes,
         tierId: tierId,
         orderRef: orderRef,
+        statusId: statusId,
       );
     } on OrderChatSummaryException {
       rethrow;
@@ -156,8 +163,9 @@ class DioOrderChatSummaryRepository implements OrderChatSummaryRepository {
   }
 
   /// Formats an amount object (`{ value, minorUnits, currency }` per the mock
-  /// `usd()` shape) or a bare number into a `$9.00`-style label. Returns ''
-  /// when the input carries no usable value (the strip then hides the chip).
+  /// `usd()` shape) or a bare number into the app-wide [MoneyFormat] label
+  /// (`$9.00` / `LBP 15,000.00`). Returns '' when the input carries no usable
+  /// value (the strip then shows the pending placeholder).
   String _formatAmount(Object? amount) {
     double? value;
     String currency = 'USD';
@@ -170,9 +178,7 @@ class DioOrderChatSummaryRepository implements OrderChatSummaryRepository {
       value = amount.toDouble();
     }
     if (value == null) return '';
-    final symbol = currency == 'USD' ? r'$' : '';
-    return '$symbol${value.toStringAsFixed(2)}'
-        '${symbol.isEmpty ? ' $currency' : ''}';
+    return MoneyFormat.format(value, currency: currency);
   }
 
   String? _str(Object? v) {

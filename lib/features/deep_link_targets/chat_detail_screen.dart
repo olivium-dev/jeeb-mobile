@@ -5,9 +5,11 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../core/formatting/friendly_reference.dart';
 import '../../core/network/auth_token_store.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/role/user_role.dart';
+import '../../l10n/app_localizations.dart';
 import '../chat/application/order_compose_coordinator.dart';
 import '../chat/data/dev_chat_fixture_gateway.dart';
 import '../chat/data/dio_chat_gateway.dart';
@@ -497,6 +499,30 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ? _resolvedRequestId
           : _resolvedConversationId;
 
+  /// Human-facing header title (run-22 chat-cluster fix). The resolved title
+  /// can be a request title (fine), a synthetic account handle
+  /// (`jeeb-<hash>`), a raw UUID, or empty — the latter three rendered a
+  /// meaningless header with a generic "J" avatar. Suppress internal
+  /// identifiers via [displayNameOrNull], then fall back role-aware:
+  ///   * accepted thread → the counterpart's role generic (customer sees
+  ///     "Your Jeeber", jeeber sees "Customer");
+  ///   * broadcasting/compose → the short order reference (Figma 02 shows the
+  ///     order id as the broadcasting header), or the Chat tab label when no
+  ///     real id exists yet (fresh compose sentinel).
+  String _headerTitle(AppLocalizations l10n, bool isJeeber) {
+    final resolved = displayNameOrNull(_counterpartName);
+    if (resolved != null) return resolved;
+    if (_phase == ConversationPhase.accepted || _hasWinner) {
+      return isJeeber
+          ? l10n.chatPartyCustomerFallback
+          : l10n.chatPartyJeeberFallback;
+    }
+    final id =
+        _resolvedRequestId.isNotEmpty ? _resolvedRequestId : widget.chatId;
+    if (id.isEmpty || id == kComposeConversationSentinel) return l10n.navChat;
+    return friendlyReference(id);
+  }
+
   /// JM-025 AC1: compose state — a client thread that has NOT yet matched a
   /// Jeeber (broadcasting / unknown phase, no winner). The first message
   /// broadcasts the request and routes to `waiting-no-coverage`.
@@ -592,12 +618,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
     return ChatScreen(
       deliveryId: _resolvedConversationId,
-      counterpartName: _counterpartName,
+      counterpartName: _headerTitle(AppLocalizations.of(context), isJeeber),
       gateway: _gateway!,
       pickerService: StubPhotoPickerService(),
       // JM-025: this is the customer order-chat surface → expose the
       // `order_chat_composer_*` ids the W1 flow drives.
       isOrderChat: !isJeeber,
+      // Run-22: role-aware party naming on the pinned order-summary strip.
+      viewerIsJeeber: isJeeber,
       onStartActiveDelivery: isJeeber
           ? () => context.push('/jeeber/deliveries/$_deliveryId/active')
           : null,
