@@ -10,6 +10,7 @@ class FeedRequest extends Equatable {
   const FeedRequest({
     required this.id,
     required this.shortLabel,
+    this.description,
   });
 
   /// Stable identifier used by the request-detail route to look up the
@@ -20,6 +21,12 @@ class FeedRequest extends Equatable {
   /// realistic feed-card lands).
   final String shortLabel;
 
+  /// G1 (sprint-009 P0): the customer's own "What do you need?" text — the
+  /// content the jeeber is agreeing to buy/deliver. Carried from the feed
+  /// item's `description` (the gateway feed DTO requires it) so the request
+  /// detail can render it prominently. Null on legacy/edge payloads.
+  final String? description;
+
   @override
-  List<Object?> get props => [id, shortLabel];
+  List<Object?> get props => [id, shortLabel, description];
 }

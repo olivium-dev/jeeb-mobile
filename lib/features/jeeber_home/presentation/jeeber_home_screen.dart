@@ -420,7 +420,14 @@ class _FeedTabBody extends StatelessWidget {
       onOpenRequest: onOpenFeedRequest == null
           ? null
           : (req) => onOpenFeedRequest!(
-              FeedRequest(id: req.id, shortLabel: req.pickup.label),
+              FeedRequest(
+                id: req.id,
+                shortLabel: req.pickup.label,
+                // G1: carry the customer's request content into the detail
+                // (feed items parse the gateway `description` into
+                // [DeliveryRequest.itemsSummary]).
+                description: req.itemsSummary,
+              ),
             ),
       submittedOffersCubit: submittedOffersCubit,
     );

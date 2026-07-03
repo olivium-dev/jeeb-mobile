@@ -302,6 +302,11 @@ class _TierLabel extends StatelessWidget {
       };
 }
 
+/// G1 (sprint-009 P0): the request CONTENT line — the customer's own
+/// "What do you need?" text (gateway feed `description`). This is what the
+/// jeeber prices, so it reads as body copy in the on-surface role and gets a
+/// TWO-line preview (the full text lives on the request detail), not the old
+/// single muted caption line.
 class _SummaryLine extends StatelessWidget {
   const _SummaryLine({required this.text});
 
@@ -312,11 +317,11 @@ class _SummaryLine extends StatelessWidget {
     final theme = Theme.of(context);
     return Text(
       text,
-      style: theme.textTheme.bodySmall?.copyWith(
-        color: theme.colorScheme.onSecondaryContainer,
-        letterSpacing: 0.4,
+      key: const Key('jeeber-feed-card-summary'),
+      style: theme.textTheme.bodyMedium?.copyWith(
+        color: theme.colorScheme.onSurface,
       ),
-      maxLines: 1,
+      maxLines: 2,
       overflow: TextOverflow.ellipsis,
     );
   }
