@@ -7,7 +7,9 @@ import '../../../../core/di/injection_container.dart';
 import '../../../../core/network/auth_token_store.dart';
 import '../../../../core/role/role_cubit.dart';
 import '../../../../core/role/user_role.dart';
+import '../../../../core/session/profile_refresh_signals.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../profile_name/data/dio_display_name_repository.dart';
 import '../../application/role_switch_cubit.dart';
 import '../../application/settings_cubit.dart';
 import '../../data/dio_account_service.dart';
@@ -81,6 +83,13 @@ class _LoadedLiveSettingsState extends State<_LoadedLiveSettings> {
     // Shares the same DI gateway Dio as the profile read above so destructive
     // settings actions hit the live jeeb-gateway, not an always-success stub.
     accountService: DioAccountService(sl<Dio>(), AuthTokenStore()),
+    // Profile-name lane: a saved name is ALSO mirrored to the gateway via
+    // `PUT /api/User/profile` (`username`) so getMe / receipts / chat headers
+    // carry the real name, and live greetings re-pull on the signal.
+    displayNameRepository: DioDisplayNameRepository(sl<Dio>()),
+    refreshSignals: sl.isRegistered<ProfileRefreshSignals>()
+        ? sl<ProfileRefreshSignals>()
+        : null,
   )..load();
 
   late final RoleSwitchCubit _roleSwitchCubit = RoleSwitchCubit(

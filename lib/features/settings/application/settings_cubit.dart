@@ -1,5 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/session/profile_refresh_signals.dart';
+import '../../profile_name/domain/display_name_repository.dart';
 import '../domain/account_service.dart';
 import '../domain/notification_preferences.dart';
 import '../domain/profile_repository.dart';
@@ -20,14 +22,29 @@ class SettingsCubit extends Cubit<SettingsState> {
   SettingsCubit({
     required ProfileRepository profileRepository,
     required AccountService accountService,
+    DisplayNameRepository? displayNameRepository,
+    ProfileRefreshSignals? refreshSignals,
     String fallbackPhoneE164 = '',
   })  : _profileRepository = profileRepository,
         _accountService = accountService,
+        _displayNameRepository = displayNameRepository,
+        _refreshSignals = refreshSignals,
         _fallbackPhoneE164 = fallbackPhoneE164,
         super(const SettingsState());
 
   final ProfileRepository _profileRepository;
   final AccountService _accountService;
+
+  /// Optional remote sync for the display name (profile-name onboarding lane):
+  /// when wired, a saved name is ALSO pushed to the gateway via
+  /// `PUT /api/User/profile` (`username`) so getMe / receipts / chat headers
+  /// pick up the real name — the local [ProfileRepository] alone never leaves
+  /// the device. Nullable so existing tests and fixture hosts are untouched.
+  final DisplayNameRepository? _displayNameRepository;
+
+  /// Optional profile-changed broadcast fired after a successful remote name
+  /// sync so live greeting surfaces re-pull getMe immediately.
+  final ProfileRefreshSignals? _refreshSignals;
   final String _fallbackPhoneE164;
 
   /// Hydrates the cubit from the profile repository. Safe to call multiple
@@ -63,10 +80,27 @@ class SettingsCubit extends Cubit<SettingsState> {
       banner: SettingsBanner.none,
     ));
     await _profileRepository.save(next);
+    await _syncDisplayNameRemote(cleanedName);
     emit(state.copyWith(
       isSavingProfile: false,
       banner: SettingsBanner.profileSaved,
     ));
+  }
+
+  /// Best-effort remote mirror of a saved display name
+  /// (`PUT /api/User/profile` `{username}`). Never throws and never fails the
+  /// local save — the gateway projection also passively hydrates from
+  /// user-management on the next getMe, so a missed sync self-heals. Fires the
+  /// profile-changed signal on success so greetings re-pull immediately.
+  Future<void> _syncDisplayNameRemote(String? name) async {
+    final repo = _displayNameRepository;
+    if (repo == null || name == null || name.isEmpty) return;
+    try {
+      await repo.submitDisplayName(name);
+      _refreshSignals?.signalProfileChanged();
+    } on Object {
+      // Local save already succeeded; the remote mirror is best-effort.
+    }
   }
 
   /// Remove the currently-set avatar without touching the name. Convenience

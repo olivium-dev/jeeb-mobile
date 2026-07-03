@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/dev_seam/dev_seam.dart';
 import '../../../core/session/greeting_profile_cubit.dart';
+import '../../../core/session/profile_refresh_signals.dart';
 import '../../customer_profile/data/dev_customer_profile_fixtures.dart';
 import '../../customer_profile/data/dio_customer_profile_repository.dart';
 import '../../../core/notifications/application/push_refresh_signals.dart';
@@ -69,6 +70,10 @@ class HomeTab extends StatelessWidget {
           create: (_) => GreetingProfileCubit(
             repository: _resolveGreetingRepository(devSeed),
             seed: _greetingSeed(devSeed),
+            // Profile-name lane: re-pull getMe when a display-name save
+            // broadcasts a profile change (the IndexedStack keeps this tab
+            // alive, so without the signal the greeting would stay stale).
+            refreshSignals: _profileRefreshStream(),
           )..load(),
         ),
       ],
@@ -81,6 +86,15 @@ class HomeTab extends StatelessWidget {
         onRecordVoice: () => _openVoiceRequest(context),
       ),
     );
+  }
+
+  /// Profile-changed broadcast (display-name saves) off GetIt when registered;
+  /// `null` under bare tests / fixture hosts so the cubit simply never
+  /// re-pulls. Mirrors the [PushRefreshSignals] wiring above.
+  Stream<void>? _profileRefreshStream() {
+    final getIt = GetIt.instance;
+    if (!getIt.isRegistered<ProfileRefreshSignals>()) return null;
+    return getIt<ProfileRefreshSignals>().stream;
   }
 
   /// The live profile source for the greeting. In the dev-seam capture path we

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -48,10 +50,18 @@ class GreetingProfileCubit extends Cubit<GreetingProfileState> {
   GreetingProfileCubit({
     CustomerProfileRepository? repository,
     GreetingProfileState seed = const GreetingProfileState(),
+    Stream<void>? refreshSignals,
   })  : _repository = repository,
-        super(seed);
+        super(seed) {
+    // Profile-name lane: the shell keeps home tabs alive in an IndexedStack,
+    // so without this signal a display-name saved AFTER first mount (settings
+    // profile edit) would never reach the greeting until a full remount. The
+    // publisher fires only after a successful `PUT /api/User/profile`.
+    _refreshSubscription = refreshSignals?.listen((_) => load());
+  }
 
   final CustomerProfileRepository? _repository;
+  StreamSubscription<void>? _refreshSubscription;
 
   /// Cold entry: refresh the greeting from the live getMe. A no-op when no
   /// repository is wired (the seeded greeting stays as-is). Never throws — a
@@ -78,5 +88,12 @@ class GreetingProfileCubit extends Cubit<GreetingProfileState> {
       name: (name == null || name.isEmpty) ? null : name,
       avatarUrl: (avatar == null || avatar.isEmpty) ? null : avatar,
     ));
+  }
+
+  @override
+  Future<void> close() async {
+    await _refreshSubscription?.cancel();
+    _refreshSubscription = null;
+    return super.close();
   }
 }
