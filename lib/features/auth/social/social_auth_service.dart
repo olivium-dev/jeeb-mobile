@@ -252,6 +252,7 @@ class DefaultSocialAuthService implements SocialAuthService {
       case DioExceptionType.cancel:
         return SocialAuthError.cancelled;
       case DioExceptionType.badCertificate:
+      case DioExceptionType.transformTimeout:
       case DioExceptionType.unknown:
         return SocialAuthError.unknown;
     }
