@@ -3912,6 +3912,8 @@
   "@receiptCashToJeeber": { "description": "JM-033 cash-on-delivery line (receipt_cash_to_jeeber_label) — D11: the customer pays the Jeeber in cash in person.", "placeholders": { "amount": {}, "jeeber": {} } },
   "receiptJeeberFallback": "the Jeeber",
   "@receiptJeeberFallback": { "description": "JM-033 Jeeber-name fallback when the gateway omits jeeberName." },
+  "receiptCashToJeeberNoAmount": "Pay the order amount in cash to {jeeber}",
+  "@receiptCashToJeeberNoAmount": { "description": "Run-22 P1-A degraded cash-on-delivery line when the gateway omitted the amount - never fabricate $0.00.", "placeholders": { "jeeber": {} } },
   "receiptProofPhotoLabel": "Proof of delivery photo",
   "@receiptProofPhotoLabel": { "description": "JM-033 a11y label on receipt_proof_photo (D3)." },
   "receiptConfirmCta": "Yes, I received it",

@@ -1309,6 +1309,7 @@
   "receiptTitle": "تأكيد الاستلام",
   "receiptPromptHeading": "هل استلمت طلبك؟",
   "receiptCashToJeeber": "ادفع {amount} نقداً إلى {jeeber}",
+  "receiptCashToJeeberNoAmount": "ادفع مبلغ الطلب نقداً إلى {jeeber}",
   "receiptJeeberFallback": "الجيبر",
   "receiptProofPhotoLabel": "صورة إثبات التسليم",
   "receiptConfirmCta": "نعم، استلمته",
