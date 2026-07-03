@@ -1188,6 +1188,8 @@ class AppLocalizations {
 
   String get deliveryActionCancel => _get('deliveryActionCancel');
   String get deliveryActionContact => _get('deliveryActionContact');
+  String get deliveryActionContactCustomer =>
+      _get('deliveryActionContactCustomer');
   String get deliveryActionCancellingLabel =>
       _get('deliveryActionCancellingLabel');
 
@@ -1946,6 +1948,11 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get orderSummaryTitle => _get('orderSummaryTitle');
   String get orderSummaryOpenChat => _get('orderSummaryOpenChat');
   String get orderSummaryTrack => _get('orderSummaryTrack');
+  String get orderChatViewSummaryLink => _get('orderChatViewSummaryLink');
+  String get orderChatPayCashOnDelivery => _get('orderChatPayCashOnDelivery');
+  String get orderSummaryValuePending => _get('orderSummaryValuePending');
+  String get chatPartyJeeberFallback => _get('chatPartyJeeberFallback');
+  String get chatPartyCustomerFallback => _get('chatPartyCustomerFallback');
 
   // JM-050 — Address detail form
   String get addressFormTitle => _get('addressFormTitle');
