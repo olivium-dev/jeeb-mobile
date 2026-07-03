@@ -49,9 +49,19 @@ class InProgressTab extends StatelessWidget {
     BuildContext context,
     ClientHomeRequest request,
   ) {
+    // S9 live-tracking fix (mirrors home_tab.dart): navigate with the SERVER
+    // delivery id (`delivery-<offerId>`) so `GET /v1/delivery/<id>` resolves
+    // instead of 404'ing on a request id. The router prefers `?deliveryId=`
+    // over `:id` (resolveTrackingDeliveryId); we still set the path id
+    // (delivery id when known, else request id as a best-effort fallback via
+    // [ClientHomeRequest.trackingId]).
     GoRouter.of(context).pushNamed(
       'live-tracking',
-      pathParameters: {'id': request.id},
+      pathParameters: {'id': request.trackingId},
+      queryParameters: {
+        if (request.deliveryId != null && request.deliveryId!.isNotEmpty)
+          'deliveryId': request.deliveryId!,
+      },
     );
   }
 
