@@ -24,6 +24,7 @@ import '../../jeeber_request_feed/cubit/request_feed_cubit.dart';
 import '../../jeeber_request_feed/data/dev_jeeber_feed_fixtures.dart';
 import '../../jeeber_request_feed/data/request_feed_models.dart';
 import '../../jeeber_request_feed/data/request_feed_repository.dart';
+import '../../jeeber_request_feed/presentation/feed_resume_refetcher.dart';
 import '../../jeeber_active_deliveries/application/active_deliveries_cubit.dart';
 import '../../jeeber_active_deliveries/data/dio_active_deliveries_repository.dart';
 import '../../jeeber_active_deliveries/domain/active_deliveries_repository.dart';
@@ -140,8 +141,7 @@ class _JeeberHomeHost extends StatelessWidget {
   /// latter only for the single frame before [_GateScoped] redirects to the
   /// `kyc-rejected` screen (so a registered-but-rejected jeeber never sees the
   /// feed). The feed (State 2/3) renders only for `pending`/`approved`.
-  bool get _unregistered =>
-      destination != JeeberDeliveryTabDestination.feed;
+  bool get _unregistered => destination != JeeberDeliveryTabDestination.feed;
 
   /// The live profile source for the greeting. Self-provided off GetIt (no DI
   /// edit), mirroring how [CustomerProfileScreen] resolves its repo; `null` in
@@ -213,48 +213,73 @@ class _JeeberHomeHost extends StatelessWidget {
         ),
       ],
       child: Builder(
-        builder: (context) => _GateScoped(
-          destination: destination,
-          child: JeeberHomeScreen(
-            key: const Key('dashboard-tab-root'),
-            isRegistered: !_unregistered,
-            profileName: _unregistered ? 'Kamal' : null,
-            // JM-036: when the gate renders the register prompt (State 1), the
-            // home screen wraps its "Register now" CTA in an additional
-            // `delivery_register_now_cta` Semantics so the JM-036 flow can tap
-            // it by the coined id (the W0 `jeeber_unregistered_register_button`
-            // id is preserved underneath for the screen-19 flow).
-            registerCtaIdentifier: 'delivery_register_now_cta',
-            requestFeedCubit: context.read<RequestFeedCubit>(),
-            // iter6 real-flow blocker fix: the accepted/active-deliveries banner
-            // is built HERE (the host owns navigation) and rendered at the top
-            // of the registered jeeber home. Tapping a row opens the order chat
-            // (`/chat/:id`, conversation already exists) — which is role-aware
-            // for a jeeber and exposes Start delivery → `/jeeber/deliveries/:id/
-            // active`. "Manage delivery" opens that active-delivery screen
-            // directly.
-            activeDeliveriesBanner: _unregistered
-                ? null
-                : ActiveDeliveriesBanner(
-                    onOpenChat: (d) => context.push('/chat/${d.chatRouteId}'),
-                    onManageDelivery: (d) =>
-                        context.push('/jeeber/deliveries/${d.id}/active'),
-                  ),
-            // JM-036 AC1b / JM-039: the register-prompt CTA chains into the
-            // delivery-man onboarding wizard (photo step). The wizard's own
-            // `dm_onboarding_continue` / `dm_onboarding_back` ids are JM-039's.
-            onRegister: () => context.pushNamed('jeeber-onboarding'),
-            onOpenFeedRequest: (FeedRequest request) {
-              context.pushNamed(
-                'jeeber-request-detail',
-                pathParameters: {'id': request.id},
-                extra: request,
-              );
-            },
+        // G3: refetch the feed on app resume + Dashboard-tab refocus
+        // (mirrors the customer home's TabVisibility re-pull) so a request
+        // whose push was dismissed is still findable when the jeeber looks.
+        // Only the feed path mounts the refetcher — the register prompt has
+        // no feed to refresh.
+        builder: (context) => _MaybeResumeRefetch(
+          enabled: !_unregistered,
+          child: _GateScoped(
+            destination: destination,
+            child: JeeberHomeScreen(
+              key: const Key('dashboard-tab-root'),
+              isRegistered: !_unregistered,
+              profileName: _unregistered ? 'Kamal' : null,
+              // JM-036: when the gate renders the register prompt (State 1), the
+              // home screen wraps its "Register now" CTA in an additional
+              // `delivery_register_now_cta` Semantics so the JM-036 flow can tap
+              // it by the coined id (the W0 `jeeber_unregistered_register_button`
+              // id is preserved underneath for the screen-19 flow).
+              registerCtaIdentifier: 'delivery_register_now_cta',
+              requestFeedCubit: context.read<RequestFeedCubit>(),
+              // iter6 real-flow blocker fix: the accepted/active-deliveries banner
+              // is built HERE (the host owns navigation) and rendered at the top
+              // of the registered jeeber home. Tapping a row opens the order chat
+              // (`/chat/:id`, conversation already exists) — which is role-aware
+              // for a jeeber and exposes Start delivery → `/jeeber/deliveries/:id/
+              // active`. "Manage delivery" opens that active-delivery screen
+              // directly.
+              activeDeliveriesBanner: _unregistered
+                  ? null
+                  : ActiveDeliveriesBanner(
+                      onOpenChat: (d) => context.push('/chat/${d.chatRouteId}'),
+                      onManageDelivery: (d) =>
+                          context.push('/jeeber/deliveries/${d.id}/active'),
+                    ),
+              // JM-036 AC1b / JM-039: the register-prompt CTA chains into the
+              // delivery-man onboarding wizard (photo step). The wizard's own
+              // `dm_onboarding_continue` / `dm_onboarding_back` ids are JM-039's.
+              onRegister: () => context.pushNamed('jeeber-onboarding'),
+              onOpenFeedRequest: (FeedRequest request) {
+                context.pushNamed(
+                  'jeeber-request-detail',
+                  pathParameters: {'id': request.id},
+                  extra: request,
+                );
+              },
+            ),
           ),
         ),
       ),
     );
+  }
+}
+
+/// Mounts [FeedResumeRefetcher] around the feed-destination body only; the
+/// register-prompt destinations render [child] bare (no feed to refresh).
+/// Kept as a widget (not an inline ternary) so the wrapped/unwrapped branches
+/// share one build site and the tree diff stays minimal on gate flips.
+class _MaybeResumeRefetch extends StatelessWidget {
+  const _MaybeResumeRefetch({required this.enabled, required this.child});
+
+  final bool enabled;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) return child;
+    return FeedResumeRefetcher(child: child);
   }
 }
 
@@ -405,19 +430,18 @@ class _DevFeedBody extends StatelessWidget {
   }
 
   List<DeliveryRequest> _snapshotFor(_DevFeedView v) => switch (v) {
-        _DevFeedView.requests => DevJeeberFeedFixtures.incoming(),
-        _DevFeedView.pending => DevJeeberFeedFixtures.pending(),
-        _DevFeedView.replies => DevJeeberFeedFixtures.replies(),
-        _DevFeedView.empty => const [],
-      };
+    _DevFeedView.requests => DevJeeberFeedFixtures.incoming(),
+    _DevFeedView.pending => DevJeeberFeedFixtures.pending(),
+    _DevFeedView.replies => DevJeeberFeedFixtures.replies(),
+    _DevFeedView.empty => const [],
+  };
 
   JeeberFeedTab _tabFor(_DevFeedView v) => switch (v) {
-        _DevFeedView.pending => JeeberFeedTab.pendingResponse,
-        _DevFeedView.replies => JeeberFeedTab.replies,
-        _DevFeedView.requests || _DevFeedView.empty => JeeberFeedTab.requests,
-      };
+    _DevFeedView.pending => JeeberFeedTab.pendingResponse,
+    _DevFeedView.replies => JeeberFeedTab.replies,
+    _DevFeedView.requests || _DevFeedView.empty => JeeberFeedTab.requests,
+  };
 }
-
 
 /// Inert [ActiveDeliveriesRepository] for the no-DI (bare widget test) path —
 /// reports no active deliveries so the banner self-hides without a network
