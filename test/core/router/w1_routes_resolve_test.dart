@@ -274,7 +274,7 @@ void main() {
 
   group('RC-9 — biometric gate honours the session', () {
     testWidgets(
-        'enrolled BUT logged-out → /register, never /lock (RC-9, jm-007 AC6)',
+        'enrolled BUT logged-out → /login, never /lock (RC-9, jm-007 AC6)',
         (tester) async {
       // biometric_enrolled_logged_out: enrolled (locked phase) AND no token.
       await pump(
@@ -283,10 +283,16 @@ void main() {
         biometricEnrolled: true,
       );
       // The lock cubit really reports `locked` (the pre-RC-9 gate would have
-      // captured /lock); the session gate forces the auth entry first. DEFECT-3:
-      // that entry is now the phone-OTP `/register`, not `/login`.
+      // captured /lock); the session gate forces the auth entry first. That
+      // entry is `/login` (CTO-D1, W0 email-first — it replaced the legacy
+      // `/register` target this test once pinned during DEFECT-3). `/login` is
+      // NOT a dead end when email auth is gated off: with
+      // AppConfig.emailPasswordAuthEnabled == false it promotes the phone-OTP
+      // funnel (`login_phone_primary_cta` → `/register`) as its primary action.
+      // The RC-9 property under test is unchanged: a logged-out user must land
+      // on the auth entry and NEVER be captured by `/lock`.
       expect(built.lock.state.phase, BiometricLockPhase.locked);
-      expect(location(), '/register');
+      expect(location(), '/login');
       expect(location(), isNot('/lock'));
     });
 
