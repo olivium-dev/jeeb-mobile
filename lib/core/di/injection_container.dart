@@ -78,6 +78,8 @@ import '../../features/request_summary/data/shared_prefs_recipient_phone_resolve
 import '../../features/request_summary/domain/recipient_phone_resolver.dart';
 import '../../features/request_summary/domain/request_submission_service.dart';
 import '../../features/settings/data/shared_prefs_profile_repository.dart';
+import '../../features/cancel_request/data/dio_cancel_request_repository.dart';
+import '../../features/cancel_request/domain/cancel_request_repository.dart';
 import '../../features/cancellation/data/dio_cancellation_repository.dart';
 import '../../features/cancellation/domain/cancellation_repository.dart';
 import '../../features/location/data/dio_saved_location_repository.dart';
@@ -341,6 +343,14 @@ void configureDependencies({
   // T-MOB-024: Cancellation flow — POST /v1/deliveries/{id}/cancel.
   sl.registerLazySingleton<CancellationRepository>(
     () => DioCancellationRepository(sl<Dio>()),
+  );
+
+  // JM-030 (cycle-4): PRE-ACCEPT cancel — DELETE /v1/requests/{id} (typed
+  // 403/404/409). Previously UNREGISTERED, so CancelRequestSheet silently
+  // fell back to the in-memory fake and customer cancellations never reached
+  // the server (P0). Must stay registered for the cancel to be real.
+  sl.registerLazySingleton<CancelRequestRepository>(
+    () => DioCancelRequestRepository(sl<Dio>()),
   );
 
   // T-MOB-021: Prohibited items acknowledgment — GET /prohibited-items +

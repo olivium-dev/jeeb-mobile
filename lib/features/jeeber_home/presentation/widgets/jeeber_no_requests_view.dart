@@ -3,18 +3,17 @@ import 'package:omds/omds.dart';
 
 import '../../../../l10n/app_localizations.dart';
 import '../../application/availability_state.dart';
-import 'availability_status_block.dart';
-import 'availability_toggle.dart';
+import 'availability_card.dart';
 import 'inactivity_warning_banner.dart';
 import 'jeeber_home_greeting.dart';
 
-/// State 2 of the Jeeber home: registered, available toggle visible, no
+/// State 2 of the Jeeber home: registered, availability card visible, no
 /// active requests on the feed yet.
 ///
-/// Composes the existing `AvailabilityToggle` + `AvailabilityStatusBlock` +
+/// Composes the compact `AvailabilityCard` (M3 switch + status chip, §G2) +
 /// optional `InactivityWarningBanner` with an `OmdsEmptyState` underneath
 /// so the Jeeber always knows the feed is live but empty rather than
-/// broken. The shared `JeeberHomeGreeting` sits above the toggle so the
+/// broken. The shared `JeeberHomeGreeting` sits above the card so the
 /// transition into State 3 only changes the band beneath the greeting.
 class JeeberNoRequestsView extends StatelessWidget {
   const JeeberNoRequestsView({
@@ -75,11 +74,12 @@ class _NoRequestsColumn extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         JeeberHomeGreeting(name: profileName),
-        const _AvailabilityHeader(),
-        const SizedBox(height: Spacing.large),
-        _ToggleRow(view: view, onTap: onToggle),
-        const SizedBox(height: Spacing.large),
-        AvailabilityStatusBlock(view: view),
+        Padding(
+          padding: const EdgeInsetsDirectional.symmetric(
+            horizontal: Spacing.medium,
+          ),
+          child: AvailabilityCard(view: view, onToggle: onToggle),
+        ),
         if (view.warningVisible) ...[
           const SizedBox(height: Spacing.large),
           InactivityWarningBanner(onExtend: onExtendActivity),
@@ -87,45 +87,6 @@ class _NoRequestsColumn extends StatelessWidget {
         const SizedBox(height: Spacing.large),
         const _NoRequestsEmpty(),
       ],
-    );
-  }
-}
-
-class _AvailabilityHeader extends StatelessWidget {
-  const _AvailabilityHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
-      child: Text(
-        l10n.availabilityCardTitle,
-        textAlign: TextAlign.center,
-        style: theme.textTheme.titleSmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-          letterSpacing: 1.2,
-        ),
-      ),
-    );
-  }
-}
-
-class _ToggleRow extends StatelessWidget {
-  const _ToggleRow({required this.view, required this.onTap});
-
-  final AvailabilityViewState view;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: AvailabilityToggle(
-        state: view.status.state,
-        isInFlight: view.isToggleInFlight,
-        onTap: onTap,
-      ),
     );
   }
 }

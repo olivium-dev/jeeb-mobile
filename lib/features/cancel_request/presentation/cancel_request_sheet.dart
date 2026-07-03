@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/notifications/application/push_refresh_signals.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/cancel_request_cubit.dart';
 import '../application/cancel_request_state.dart';
@@ -61,10 +62,14 @@ class CancelRequestSheet extends StatelessWidget {
     final explicit = repository;
     if (explicit != null) return explicit;
     if (sl.isRegistered<CancelRequestRepository>()) {
+      // Production path: DioCancelRequestRepository over the gateway's
+      // request-keyed DELETE /v1/requests/{id} (registered in
+      // injection_container.dart — cycle-4; it was previously UNREGISTERED,
+      // which silently routed every real cancel into the in-memory fake).
       return sl<CancelRequestRepository>();
     }
-    // Defensive fallback so the sheet never crashes if DI is partially wired
-    // (a dev-seam/deep-link entry before the wave DI batch lands).
+    // Defensive fallback so the sheet never crashes if DI is absent entirely
+    // (router-less widget harnesses / dev-seam entries without the DI batch).
     return FakeCancelRequestRepository();
   }
 
@@ -129,6 +134,21 @@ class _CancelRequestView extends StatelessWidget {
   final VoidCallback? onCancelled;
   final VoidCallback? onKept;
 
+  /// Maps the typed repository failure onto user copy. Network keeps the
+  /// shared retryable connection string (the Confirm CTA doubles as retry);
+  /// a 409 gets the dedicated "no longer cancellable" copy; everything else
+  /// (404/403/5xx) uses the generic cancel error.
+  static String _errorCopyFor(
+    AppLocalizations l10n,
+    CancelRequestFailure? failure,
+  ) {
+    return switch (failure) {
+      CancelRequestFailure.conflict => l10n.cancelRequestErrorConflict,
+      CancelRequestFailure.network => l10n.loginNetworkError,
+      _ => l10n.cancelRequestErrorGeneric,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -141,6 +161,14 @@ class _CancelRequestView extends StatelessWidget {
       listener: (context, state) {
         // Side effect only in the listener (never the builder) per
         // 40_GUARDRAILS_ARCH §3.
+        //
+        // The server confirmed the cancel — nudge every surface that renders
+        // this request to re-pull so the cancelled row disappears from the
+        // pending list immediately. Reuses the app-wide status-change bus
+        // the customer home / tracking cubits already subscribe to.
+        if (sl.isRegistered<PushRefreshSignals>()) {
+          sl<PushRefreshSignals>().signalStatusChange();
+        }
         onCancelled?.call();
       },
       builder: (context, state) {
@@ -202,13 +230,15 @@ class _CancelRequestView extends StatelessWidget {
                   ),
                   if (state.status == CancelRequestStatus.failed) ...[
                     const SizedBox(height: Spacing.medium),
-                    // Transient network failure (D30) — sheet stays open so the
-                    // user can retry confirm or keep. Reuses loginNetworkError;
-                    // dedicated `cancelRequestError` filed in 50_ROUTE_REQUESTS.
+                    // Typed failure copy (cycle-4, no-swallow): 409 → "can no
+                    // longer be cancelled"; network → retryable connection
+                    // copy (confirm retries); 404/403/5xx → generic cancel
+                    // error. The sheet stays open in every case so the user
+                    // can retry or keep the request.
                     Semantics(
                       identifier: 'cancel_request_error',
                       child: Text(
-                        l10n.loginNetworkError,
+                        _errorCopyFor(l10n, state.error),
                         textAlign: TextAlign.center,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.error,

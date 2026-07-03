@@ -17,6 +17,7 @@ import '../../../jeeber_request_feed/cubit/submitted_offers_state.dart';
 import '../../../jeeber_request_feed/data/request_feed_models.dart';
 import '../../../jeeber_request_feed/presentation/jeeber_feed_card.dart';
 import '../../../jeeber_request_feed/presentation/pending_offer_row.dart';
+import 'availability_card.dart';
 import 'jeeber_home_greeting.dart';
 
 /// Tab the Jeeber feed view is currently filtered to, matching the three
@@ -161,6 +162,21 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
           JeeberHomeGreeting(
             name: widget.profileName,
             avatarUrl: widget.profileAvatarUrl,
+          ),
+          // §G2/SW-23: the availability control is persistent across dashboard
+          // states — the compact card renders here too, so going busy (feed
+          // non-empty) never hides the online/offline switch.
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              Spacing.medium,
+              0,
+              Spacing.medium,
+              Spacing.small,
+            ),
+            child: AvailabilityCard(
+              view: avState,
+              onToggle: () => context.read<AvailabilityCubit>().toggle(),
+            ),
           ),
           if (isOffline) _OfflineBanner(),
           if (!isOffline) ..._feedControls(),

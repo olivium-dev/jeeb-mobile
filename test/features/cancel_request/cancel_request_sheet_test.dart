@@ -205,8 +205,8 @@ void main() {
     });
 
     testWidgets(
-        'AC2b — a soft (unknown) failure still completes the free cancel (D69)',
-        (tester) async {
+        'AC2b (cycle-4 NO-SWALLOW) — an unknown server failure SURFACES and '
+        'does NOT pretend success', (tester) async {
       final repo =
           FakeCancelRequestRepository(failWith: CancelRequestFailure.unknown);
       var cancelledCount = 0;
@@ -226,9 +226,44 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // D69: pre-accept cancel is free + client-authoritative — a soft server
-      // hiccup still releases the request and routes home.
-      expect(cancelledCount, 1);
+      // Regression flip: the old behaviour upgraded soft failures to success
+      // while the server still had the request live (P0 silent failure).
+      expect(cancelledCount, 0,
+          reason: 'a cancel the server did not confirm must never route home');
+      expect(find.bySemanticsIdentifier('cancel_request_error'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('cancel_request_sheet'), findsOneWidget,
+          reason: 'sheet stays open so the user can retry or keep');
+    });
+
+    testWidgets(
+        'AC5 — a 409 conflict surfaces the "can no longer be cancelled" copy '
+        'and keeps the request', (tester) async {
+      final repo =
+          FakeCancelRequestRepository(failWith: CancelRequestFailure.conflict);
+      var cancelledCount = 0;
+
+      await tester.pumpWidget(
+        _harness(
+          CancelRequestSheet(
+            requestId: 'req-client-001-pending',
+            repository: repo,
+            onCancelled: () => cancelledCount++,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.bySemanticsIdentifier('cancel_request_confirm_cta'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(cancelledCount, 0);
+      expect(find.bySemanticsIdentifier('cancel_request_error'), findsOneWidget);
+      expect(
+        find.text('This request can no longer be cancelled.'),
+        findsOneWidget,
+        reason: '409 must map to the dedicated conflict copy.',
+      );
     });
   });
 }
