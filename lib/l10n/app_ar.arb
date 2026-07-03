@@ -1321,6 +1321,8 @@
   "waitingErrorBody": "تعذّر تحميل حالة طلبك. يرجى المحاولة مرة أخرى.",
 
   "cancelRequestFreeNote": "الإلغاء مجاني قبل قبول أي عرض — لن يُحتسب أي مبلغ.",
+  "cancelRequestErrorConflict": "لم يعد بالإمكان إلغاء هذا الطلب.",
+  "cancelRequestErrorGeneric": "تعذّر إلغاء طلبك. يرجى المحاولة مرة أخرى.",
 
   "receiptTitle": "تأكيد الاستلام",
   "receiptPromptHeading": "هل استلمت طلبك؟",

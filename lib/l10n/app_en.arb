@@ -3940,6 +3940,10 @@
 
   "cancelRequestFreeNote": "Cancelling is free before you accept an offer — nothing is charged.",
   "@cancelRequestFreeNote": { "description": "JM-030 cancel-request-confirm sheet body (cancel_request_free_note) — D69: pre-accept cancel is free. Added by JM-028 to unblock the shared cancel sheet it invokes; this key is the JM-030 engineer's to own." },
+  "cancelRequestErrorConflict": "This request can no longer be cancelled.",
+  "@cancelRequestErrorConflict": { "description": "Cancel sheet error for a 409 from DELETE /v1/requests/{id} — the request advanced past the cancellable window (cycle-4 typed cancel errors)." },
+  "cancelRequestErrorGeneric": "Couldn't cancel your request. Please try again.",
+  "@cancelRequestErrorGeneric": { "description": "Cancel sheet error for 404/403/unexpected failures from DELETE /v1/requests/{id}. Network failures reuse loginNetworkError (retryable copy)." },
 
   "receiptTitle": "Confirm receipt",
   "@receiptTitle": { "description": "JM-033 delivered-receipt-confirm OMDSAppBar title." },

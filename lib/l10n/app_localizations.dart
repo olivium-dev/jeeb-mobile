@@ -1055,6 +1055,10 @@ class AppLocalizations {
   // JM-030 cancel-request-confirm sheet body (D69). Getter added by JM-028 to
   // unblock the shared cancel sheet it invokes; the JM-030 engineer owns it.
   String get cancelRequestFreeNote => _get('cancelRequestFreeNote');
+  // cycle-4 typed cancel errors (DELETE /v1/requests/{id}): 409 conflict copy
+  // + the generic 404/403/5xx fallback. Network reuses loginNetworkError.
+  String get cancelRequestErrorConflict => _get('cancelRequestErrorConflict');
+  String get cancelRequestErrorGeneric => _get('cancelRequestErrorGeneric');
 
   String get offerSubmissionTitle => _get('offerSubmissionTitle');
   String get offerSubmissionIntro => _get('offerSubmissionIntro');

@@ -4,18 +4,20 @@ import '../domain/cancel_request_repository.dart';
 
 /// Dio-backed [CancelRequestRepository] for the JM-030 pre-accept cancel.
 ///
-/// Endpoint (30_BACKLOG JM-030 · 42_GUARDRAILS_MOCK §4):
-///   POST /v1/delivery/cancel
-///     → MockGatewayClient rewrites `/v1/delivery` → `/delivery-service/v1/delivery`
-///     body: { "requestId": <id>, "deliveryId": <id>, "trigger": "client_pre_accept" }
+/// Endpoint (cycle-3 gateway, request-keyed cancel with canonical semantics):
+///   DELETE /v1/requests/{id}
+///     → 2xx  request released server-side
+///     → 403  not the caller's request        → [CancelRequestFailure.forbidden]
+///     → 404  unknown request id              → [CancelRequestFailure.notFound]
+///     → 409  no longer cancellable           → [CancelRequestFailure.conflict]
+///     (requestId == deliveryId convention; `POST /v1/requests/{id}/cancel`
+///     is the equivalent verb-tunnelled alias.)
 ///
-/// CONTRACT GAP (flagged in handoff): the mock handler is delivery-keyed and
-/// SM-1-gated (`delivery-service.ts` l.204). A pending request has no delivery,
-/// so a `requestId`-only body 404s (`not_found`) — and even a deliveryId in a
-/// non-cancellable state 422s (`transition_not_allowed`). Per D69 the pre-accept
-/// cancel is FREE and always allowed, so those two responses are treated as a
-/// benign no-op: the request is released client-side and the flow routes home.
-/// Only a hard transport error blocks the happy path.
+/// HISTORY: this repo used to POST the mock-era `/v1/delivery/cancel`, which
+/// 404s on the real gateway, and swallowed the 404/422 — so customer
+/// cancellations never reached the server while the UI pretended success
+/// (P0 silent failure). Nothing is swallowed anymore: every non-2xx maps to a
+/// typed [CancelRequestException] and the UI surfaces it.
 class DioCancelRequestRepository implements CancelRequestRepository {
   const DioCancelRequestRepository(this._dio);
 
@@ -24,39 +26,34 @@ class DioCancelRequestRepository implements CancelRequestRepository {
   @override
   Future<void> cancelRequest({required String requestId}) async {
     try {
-      // Gateway-contract path; the interceptor rewrites the `:4010` prefix.
-      await _dio.post<dynamic>(
-        '/v1/delivery/cancel',
-        // Both keys sent: `requestId` is the real intent; `deliveryId` mirrors
-        // it so the current delivery-keyed mock can match when a request and
-        // its (future) delivery share an id. Harmless extras are ignored.
-        data: <String, dynamic>{
-          'requestId': requestId,
-          'deliveryId': requestId,
-          'trigger': 'client_pre_accept',
-        },
+      await _dio.delete<dynamic>(
+        '/v1/requests/${Uri.encodeComponent(requestId)}',
       );
     } on DioException catch (e) {
-      final status = e.response?.statusCode;
+      throw CancelRequestException(_classify(e), e.message);
+    }
+  }
 
-      // 404 (no delivery exists for a still-pending request) and
-      // 422 (SM-1 rejected the transition) are EXPECTED for a pre-accept cancel
-      // against the delivery-keyed mock. D69 makes the cancel free + always
-      // allowed, so swallow these and let the flow complete (route home).
-      if (status == 404 || status == 422) {
-        return;
-      }
-
-      if (e.type == DioExceptionType.connectionError ||
-          e.type == DioExceptionType.connectionTimeout ||
-          e.type == DioExceptionType.sendTimeout ||
-          e.type == DioExceptionType.receiveTimeout) {
-        throw const CancelRequestException(CancelRequestFailure.network);
-      }
-
-      // Any other server error is soft — surfaced as unknown; the cubit treats
-      // it as a non-blocking failure (the request is still released locally).
-      throw const CancelRequestException(CancelRequestFailure.unknown);
+  static CancelRequestFailure _classify(DioException e) {
+    switch (e.response?.statusCode) {
+      case 409:
+        return CancelRequestFailure.conflict;
+      case 404:
+        return CancelRequestFailure.notFound;
+      case 403:
+        return CancelRequestFailure.forbidden;
+    }
+    switch (e.type) {
+      case DioExceptionType.connectionError:
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return CancelRequestFailure.network;
+      // Every other transport shape (badResponse without a mapped status,
+      // cancel, badCertificate, unknown) surfaces as `unknown` — surfaced,
+      // never swallowed.
+      default:
+        return CancelRequestFailure.unknown;
     }
   }
 }
