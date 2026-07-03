@@ -351,6 +351,11 @@
   "profileSave": "Save",
   "profileSaving": "Saving…",
   "profileSaved": "Profile saved.",
+  "profileNameStepTitle": "What should we call you?",
+  "profileNameStepSubtitle": "Add your name so your receipts and chats greet you properly. You can skip this and add it later.",
+  "profileNameStepCta": "Continue",
+  "profileNameStepSkip": "Skip for now",
+  "profileNameStepError": "We couldn\u2019t save your name. Try again, or skip for now.",
   "notificationPreferencesTitle": "Notifications",
   "@notificationPreferencesTitle": {
     "description": "App bar title for the dedicated notification preferences screen (T-mobile-043)"

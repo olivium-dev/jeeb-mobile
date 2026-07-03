@@ -258,6 +258,13 @@ class AppLocalizations {
   String get profileSaving => _get('profileSaving');
   String get profileSaved => _get('profileSaved');
 
+  // Post-OTP display-name onboarding step (profile-name lane).
+  String get profileNameStepTitle => _get('profileNameStepTitle');
+  String get profileNameStepSubtitle => _get('profileNameStepSubtitle');
+  String get profileNameStepCta => _get('profileNameStepCta');
+  String get profileNameStepSkip => _get('profileNameStepSkip');
+  String get profileNameStepError => _get('profileNameStepError');
+
   String get notificationPreferencesTitle =>
       _get('notificationPreferencesTitle');
   String get notificationPreferencesRowSubtitle =>

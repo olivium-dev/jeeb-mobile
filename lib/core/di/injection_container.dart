@@ -19,6 +19,7 @@ import '../../features/home_client/data/dio_client_home_repository.dart';
 import '../../features/home_client/domain/client_home_repository.dart';
 import '../notifications/application/offer_lifecycle_signals.dart';
 import '../notifications/application/push_refresh_signals.dart';
+import '../session/profile_refresh_signals.dart';
 import '../../features/jeeber_home/data/dio_availability_gateway.dart';
 import '../../features/jeeber_home/domain/services/availability_gateway.dart';
 import '../../features/jeeber_request_detail/domain/services/prohibited_item_report_service.dart';
@@ -124,6 +125,12 @@ void configureDependencies({
   // status-change signal; the customer home / tracking cubits subscribe and
   // re-pull. Single shared instance so both sides see the same stream.
   sl.registerLazySingleton<PushRefreshSignals>(() => PushRefreshSignals());
+
+  // Profile-changed bus (profile-name lane): the display-name save paths
+  // (post-OTP onboarding step, settings profile edit) publish after a
+  // successful PUT /api/User/profile; the greeting cubits subscribe and
+  // re-pull getMe so headers pick the real name up immediately.
+  sl.registerLazySingleton<ProfileRefreshSignals>(() => ProfileRefreshSignals());
 
   // Offer-lifecycle bus (sprint-009): the push handler publishes an
   // offer_accepted/offer_lost event; the jeeber's pending-offers list
