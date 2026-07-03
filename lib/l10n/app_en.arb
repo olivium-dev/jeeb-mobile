@@ -1293,6 +1293,30 @@
   "@recipientPhoneInvalid": {
     "description": "Validation error shown when the recipient phone is not a valid Lebanese number"
   },
+  "composeDescriptionHeading": "What do you need?",
+  "@composeDescriptionHeading": {
+    "description": "G1 — heading of the request-content block on the compose confirm step; the customer states what they want delivered"
+  },
+  "composeDescriptionHint": "Describe what you need — anything",
+  "@composeDescriptionHint": {
+    "description": "Hint inside the compose description field; reinforces that any free-form request is allowed"
+  },
+  "composeDescriptionHelper": "Nearby Jeebers read this to make their offers.",
+  "@composeDescriptionHelper": {
+    "description": "Helper under the compose description field explaining who sees the text"
+  },
+  "composeDescriptionRequired": "Please describe what you need.",
+  "@composeDescriptionRequired": {
+    "description": "Validation error when the compose description is empty"
+  },
+  "composeDescriptionMicSemantic": "Dictate your request",
+  "@composeDescriptionMicSemantic": {
+    "description": "Accessibility label / tooltip for the mic button that dictates into the compose description field"
+  },
+  "waitingRequestSummaryLabel": "Your request",
+  "@waitingRequestSummaryLabel": {
+    "description": "G1 — label above the customer's own request text echoed on the waiting-for-offers screen"
+  },
   "captureLocationTitle": "Location",
   "@captureLocationTitle": {
     "description": "Navbar title on the Capture Location map screen (Figma 56546:2303)"

@@ -43,6 +43,18 @@ class ComposeRequestController {
   /// then falls back to the resolver default (the client's own profile phone).
   String? _recipientPhone;
 
+  /// G1 (sprint-009 P0): the free-text "What do you need?" the customer typed
+  /// (or dictated) on the compose step. This IS the request content — the exact
+  /// string the jeeber feed card / request detail renders and prices against.
+  /// Null until the compose step records one.
+  String? _description;
+
+  /// Optional voice-note evidence captured when the customer dictated the
+  /// description (compose-dictation reuse of the transcription flow). Sent as
+  /// the gateway `transcription` / `audioUrl` alongside the description.
+  String? _transcription;
+  String? _audioUrl;
+
   /// Beirut downtown — the safe non-null fallback when the chosen location
   /// carries no coordinates (the "current location" / freshly-pinned options do
   /// not capture a real lat/lng in the installed build — there is no GPS/map
@@ -56,12 +68,37 @@ class ComposeRequestController {
 
   /// Records the tier the customer selected on the `request-type` step. Called
   /// by the Continue CTA before navigating to `location-select`. Resets the
-  /// per-compose recipient phone so a stale value from a previous (abandoned)
-  /// compose session does not leak into this one — the location step re-seeds
-  /// it from the profile pre-fill / user entry.
+  /// per-compose recipient phone AND the description/voice-note so a stale
+  /// value from a previous (abandoned) compose session does not leak into this
+  /// one — the location step re-seeds them from the user's entry.
   void setTier(Tier tier) {
     _tier = tier;
     _recipientPhone = null;
+    _description = null;
+    _transcription = null;
+    _audioUrl = null;
+  }
+
+  /// Records the customer's "What do you need?" free text (G1). Trimmed;
+  /// empty/blank is treated as null so the submission fallback applies only
+  /// when the UI gate was genuinely bypassed (dev seams / tests).
+  void setDescription(String? text) {
+    final trimmed = text?.trim();
+    _description = (trimmed == null || trimmed.isEmpty) ? null : trimmed;
+  }
+
+  /// The recorded compose description, if any (used by the compose step to
+  /// re-seed its field when the customer navigates back and forth).
+  String? get description => _description;
+
+  /// Records the dictation evidence when the description came through the
+  /// voice-transcription flow: the confirmed transcript and, when the recorder
+  /// produced one, the uploaded audio reference. Blank values clear.
+  void setVoiceNote({String? transcription, String? audioUrl}) {
+    final t = transcription?.trim();
+    final a = audioUrl?.trim();
+    _transcription = (t == null || t.isEmpty) ? null : t;
+    _audioUrl = (a == null || a.isEmpty) ? null : a;
   }
 
   /// Records the recipient phone the customer entered on the location-confirm
@@ -122,12 +159,17 @@ class ComposeRequestController {
         saved?.address ?? saved?.label ?? _currentLocationLabel(lat, lng);
 
     return RequestDraft(
-      // The order detail is composed as the first order-chat message after the
-      // request exists; seed a non-empty description so the create succeeds
-      // (the gateway accepts it and the chat refines it).
-      description: _tier == null
-          ? 'Delivery request'
-          : '${_titleCase(_tier!.id.name)} delivery request',
+      // G1 (sprint-009 P0): the description is the USER'S OWN words — the
+      // "What do you need?" text from the compose step. This is the content
+      // the jeeber feed/detail renders and prices against. The generic
+      // 'Delivery request' fallback exists ONLY because the gateway requires a
+      // non-empty description; the compose UI gates Confirm on a non-empty
+      // entry, so the fallback is unreachable in the live flow (dev seams /
+      // tests without the field may still hit it). The old tier-derived
+      // '"{Tier} delivery request"' placeholder is intentionally GONE.
+      description: _description ?? 'Delivery request',
+      transcription: _transcription,
+      audioUrl: _audioUrl,
       tierId: _tierId,
       tierName: _tier?.id.name,
       // Single confirmed point in this step: use it as both pickup and dropoff
@@ -167,7 +209,4 @@ class ComposeRequestController {
     }
     return null;
   }
-
-  String _titleCase(String s) =>
-      s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
 }

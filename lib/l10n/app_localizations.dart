@@ -675,6 +675,18 @@ class AppLocalizations {
   String get recipientPhoneHelper => _get('recipientPhoneHelper');
   String get recipientPhoneInvalid => _get('recipientPhoneInvalid');
 
+  // G1 (sprint-009 P0): "What do you need?" compose block on the
+  // location-confirm step — the customer's request content.
+  String get composeDescriptionHeading => _get('composeDescriptionHeading');
+  String get composeDescriptionHint => _get('composeDescriptionHint');
+  String get composeDescriptionHelper => _get('composeDescriptionHelper');
+  String get composeDescriptionRequired => _get('composeDescriptionRequired');
+  String get composeDescriptionMicSemantic =>
+      _get('composeDescriptionMicSemantic');
+
+  // G1: customer-side echo of the request content on the waiting screen.
+  String get waitingRequestSummaryLabel => _get('waitingRequestSummaryLabel');
+
   // Capture Location screen (Figma 56546:2303)
   String get captureLocationTitle => _get('captureLocationTitle');
   String get captureLocationPinCta => _get('captureLocationPinCta');

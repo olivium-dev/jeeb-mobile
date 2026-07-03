@@ -13,6 +13,7 @@ import '../../registration/domain/lebanon_phone.dart';
 import '../../request_summary/application/compose_request_controller.dart';
 import '../../request_summary/domain/request_submission_service.dart';
 import '../../settings/data/shared_prefs_profile_repository.dart';
+import '../../transcription/domain/voice_clip.dart';
 import '../application/location_select_cubit.dart';
 import '../application/location_select_state.dart';
 import '../data/dio_location_select_repository.dart';
@@ -47,6 +48,7 @@ class ClientLocationScreen extends StatelessWidget {
     this.onAddLocation,
     this.onConfirm,
     this.onOpenSavedAddresses,
+    this.onDictate,
     // Legacy seam (delivery-create dev host / existing tests): retained so the
     // current-location selection can still be driven externally. Null in the
     // live flow (the cubit owns selection).
@@ -70,6 +72,11 @@ class ClientLocationScreen extends StatelessWidget {
   /// REPLACES the default `saved-addresses` navigation when provided.
   final VoidCallback? onOpenSavedAddresses;
 
+  /// G1 dictation seam. REPLACES the default `compose-dictation` navigation
+  /// (mic button on the "What do you need?" field) when provided — tests hand
+  /// back a canned [VoiceClip] without a router.
+  final Future<VoiceClip?> Function()? onDictate;
+
   /// Legacy external selection seam (optional). Ignored when null.
   final bool? currentSelected;
   final VoidCallback? onSelectCurrent;
@@ -80,6 +87,7 @@ class ClientLocationScreen extends StatelessWidget {
       onAddLocation: onAddLocation,
       onConfirm: onConfirm,
       onOpenSavedAddresses: onOpenSavedAddresses,
+      onDictate: onDictate,
       legacyCurrentSelected: currentSelected,
       onSelectCurrent: onSelectCurrent,
     );
@@ -140,11 +148,12 @@ class ClientLocationScreen extends StatelessWidget {
   }
 }
 
-class _Scaffold extends StatelessWidget {
+class _Scaffold extends StatefulWidget {
   const _Scaffold({
     this.onAddLocation,
     this.onConfirm,
     this.onOpenSavedAddresses,
+    this.onDictate,
     this.legacyCurrentSelected,
     this.onSelectCurrent,
   });
@@ -152,8 +161,38 @@ class _Scaffold extends StatelessWidget {
   final VoidCallback? onAddLocation;
   final VoidCallback? onConfirm;
   final VoidCallback? onOpenSavedAddresses;
+  final Future<VoiceClip?> Function()? onDictate;
   final bool? legacyCurrentSelected;
   final VoidCallback? onSelectCurrent;
+
+  @override
+  State<_Scaffold> createState() => _ScaffoldState();
+}
+
+class _ScaffoldState extends State<_Scaffold> {
+  /// Shared "What do you need?" text (G1). Owned here — above BOTH the body
+  /// (the field writes it) and the footer (the Confirm gate listens to it) —
+  /// because [TextEditingController] is a [ValueListenable] the footer can
+  /// rebuild on without a dedicated cubit.
+  final TextEditingController _description = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Re-seed from the shared compose controller so backing out to the tier
+    // step and returning does not lose the typed text (the controller resets
+    // it only when a NEW compose session starts via setTier).
+    if (sl.isRegistered<ComposeRequestController>()) {
+      final existing = sl<ComposeRequestController>().description;
+      if (existing != null) _description.text = existing;
+    }
+  }
+
+  @override
+  void dispose() {
+    _description.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -169,16 +208,21 @@ class _Scaffold extends StatelessWidget {
         child: BlocBuilder<LocationSelectCubit, LocationSelectState>(
           builder: (context, state) => _Body(
             state: state,
-            onAddLocation: onAddLocation,
-            onOpenSavedAddresses: onOpenSavedAddresses,
-            legacyCurrentSelected: legacyCurrentSelected,
-            onSelectCurrent: onSelectCurrent,
+            descriptionController: _description,
+            onAddLocation: widget.onAddLocation,
+            onOpenSavedAddresses: widget.onOpenSavedAddresses,
+            onDictate: widget.onDictate,
+            legacyCurrentSelected: widget.legacyCurrentSelected,
+            onSelectCurrent: widget.onSelectCurrent,
           ),
         ),
       ),
       bottomNavigationBar: BlocBuilder<LocationSelectCubit, LocationSelectState>(
-        builder: (context, state) =>
-            _ConfirmFooter(state: state, onConfirm: onConfirm),
+        builder: (context, state) => _ConfirmFooter(
+          state: state,
+          description: _description,
+          onConfirm: widget.onConfirm,
+        ),
       ),
     );
   }
@@ -187,15 +231,19 @@ class _Scaffold extends StatelessWidget {
 class _Body extends StatelessWidget {
   const _Body({
     required this.state,
+    required this.descriptionController,
     this.onAddLocation,
     this.onOpenSavedAddresses,
+    this.onDictate,
     this.legacyCurrentSelected,
     this.onSelectCurrent,
   });
 
   final LocationSelectState state;
+  final TextEditingController descriptionController;
   final VoidCallback? onAddLocation;
   final VoidCallback? onOpenSavedAddresses;
+  final Future<VoiceClip?> Function()? onDictate;
   final bool? legacyCurrentSelected;
   final VoidCallback? onSelectCurrent;
 
@@ -215,6 +263,16 @@ class _Body extends StatelessWidget {
     return ListView(
       padding: DeliveryCreateLayout.pagePadding,
       children: [
+        // G1 (sprint-009 P0) — "What do you need?" leads the confirm step: the
+        // request CONTENT is the thing the jeeber prices, so it sits above the
+        // location options on the same screen that submits POST /requests (all
+        // compose paths converge here, so the required-gate cannot be
+        // bypassed via the request-type "Change location" shortcut).
+        _DescriptionSection(
+          controller: descriptionController,
+          onDictate: onDictate,
+        ),
+        const SizedBox(height: Spacing.xLarge),
         _Heading(text: l10n.clientLocationHeading),
         const SizedBox(height: Spacing.large),
         ClientLocationOptionCard(
@@ -480,10 +538,19 @@ class _SavedAddressesError extends StatelessWidget {
 }
 
 /// Sticky "Confirm location" footer → order-chat (JM-024 AC4).
+///
+/// G1: additionally gated on a non-empty trimmed "What do you need?" entry —
+/// the request content is required, so the create CTA stays disabled until the
+/// customer says what they actually want (typed or dictated).
 class _ConfirmFooter extends StatelessWidget {
-  const _ConfirmFooter({required this.state, this.onConfirm});
+  const _ConfirmFooter({
+    required this.state,
+    required this.description,
+    this.onConfirm,
+  });
 
   final LocationSelectState state;
+  final TextEditingController description;
   final VoidCallback? onConfirm;
 
   @override
@@ -500,12 +567,15 @@ class _ConfirmFooter extends StatelessWidget {
         child: Semantics(
           identifier: 'location_select_confirm_cta',
           button: true,
-          child: OmdsPrimaryButton(
-            // l10n: reuses `locationConfirm` ("Confirm location"); a dedicated
-            // `locationSelectConfirmCta` key is requested in 50_ROUTE_REQUESTS.
-            text: l10n.locationConfirm,
-            isEnabled: state.canConfirm,
-            onTap: () => _onConfirm(context),
+          child: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: description,
+            builder: (context, value, _) => OmdsPrimaryButton(
+              // l10n: reuses `locationConfirm` ("Confirm location"); a dedicated
+              // `locationSelectConfirmCta` key is requested in 50_ROUTE_REQUESTS.
+              text: l10n.locationConfirm,
+              isEnabled: state.canConfirm && value.text.trim().isNotEmpty,
+              onTap: () => _onConfirm(context),
+            ),
           ),
         ),
       ),
@@ -538,6 +608,10 @@ class _ConfirmFooter extends StatelessWidget {
     }
 
     final controller = sl<ComposeRequestController>();
+    // G1 belt-and-braces: commit the CURRENT field text at the submit moment so
+    // the POST body always carries exactly what the customer sees in the field
+    // (the field also commits on every change; this guards any missed edit).
+    controller.setDescription(description.text);
     // Capture the navigation + messenger handles BEFORE the async gap: this
     // footer lives in a BlocBuilder, so `context` may be rebuilt (and become
     // unmounted) by the time the create call returns. The GoRouter / messenger
@@ -584,6 +658,130 @@ class _ConfirmFooter extends StatelessWidget {
         SnackBar(content: Text(l10n.requestSummaryErrorNetwork)),
       );
     }
+  }
+}
+
+/// G1 (sprint-009 P0) — the "What do you need?" compose block.
+///
+/// WHY: the live compose flow used to send a HARDCODED
+/// '"{Tier} delivery request"' as the request description — the jeeber feed
+/// card and detail then showed no actual content and jeebers priced blind
+/// ("the user is not sending in the initial request what he wants"). This
+/// block captures the customer's own words as the request description; the
+/// Confirm CTA is gated on a non-empty trimmed entry.
+///
+/// Voice: the mic suffix reuses the EXISTING voice-transcription flow
+/// (`compose-dictation` → VoiceRecordingScreen → TranscriptionScreen). The
+/// confirmed transcript flows back INTO this field (editable), and the
+/// transcript + audio reference ride along on the POST body as
+/// `transcription`/`audioUrl`.
+class _DescriptionSection extends StatefulWidget {
+  const _DescriptionSection({required this.controller, this.onDictate});
+
+  final TextEditingController controller;
+
+  /// Test seam — REPLACES the default `compose-dictation` navigation.
+  final Future<VoiceClip?> Function()? onDictate;
+
+  @override
+  State<_DescriptionSection> createState() => _DescriptionSectionState();
+}
+
+class _DescriptionSectionState extends State<_DescriptionSection> {
+  /// The gateway create contract has no hard length cap; 280 keeps the feed
+  /// card/detail readable and matches the G1 fix spec's suggested ceiling.
+  static const int _maxLength = 280;
+
+  bool _touched = false;
+
+  void _commit(String raw) {
+    _touched = true;
+    if (sl.isRegistered<ComposeRequestController>()) {
+      final compose = sl<ComposeRequestController>();
+      compose.setDescription(raw);
+      // Manual edits invalidate a previously-attached dictation transcript
+      // only when the text no longer matches it; keep it simple and re-sync:
+      // the transcript stays attached only while the field still contains it.
+      if (compose.description == null) {
+        compose.setVoiceNote(transcription: null, audioUrl: null);
+      }
+    }
+    setState(() {});
+  }
+
+  Future<void> _dictate(BuildContext context) async {
+    // EDGE: location-select → compose-dictation (G1). Reuses the voice
+    // recording + transcription-review screens; the confirmed text pops back
+    // as a [VoiceClip] result. The seam REPLACES the navigation in tests.
+    final handler = widget.onDictate ??
+        () => GoRouter.of(context).pushNamed<VoiceClip>('compose-dictation');
+    final clip = await handler();
+    if (!mounted || clip == null) return;
+    final text = clip.transcript?.trim() ?? '';
+    if (text.isEmpty) return;
+    final existing = widget.controller.text.trim();
+    // Append dictation to existing text (the customer may mix type + voice);
+    // replace when the field is empty.
+    widget.controller.text = existing.isEmpty ? text : '$existing\n$text';
+    if (sl.isRegistered<ComposeRequestController>()) {
+      sl<ComposeRequestController>()
+        ..setDescription(widget.controller.text)
+        ..setVoiceNote(
+          transcription: text,
+          audioUrl: clip.audioPath.isEmpty ? null : clip.audioPath,
+        );
+    }
+    setState(() => _touched = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final showError = _touched && widget.controller.text.trim().isEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _Heading(text: l10n.composeDescriptionHeading),
+        const SizedBox(height: Spacing.small),
+        Semantics(
+          identifier: 'compose_description_input',
+          textField: true,
+          label: l10n.composeDescriptionHeading,
+          child: OmdsTextField(
+            key: const Key('clientLocation.descriptionField'),
+            controller: widget.controller,
+            hintText: l10n.composeDescriptionHint,
+            keyboardType: TextInputType.multiline,
+            textCapitalization: TextCapitalization.sentences,
+            minLines: 3,
+            maxLines: 6,
+            maxLength: _maxLength,
+            errorText: showError ? l10n.composeDescriptionRequired : null,
+            onChanged: _commit,
+            suffixIcon: Semantics(
+              identifier: 'compose_description_mic',
+              button: true,
+              label: l10n.composeDescriptionMicSemantic,
+              child: IconButton(
+                key: const Key('clientLocation.descriptionMic'),
+                icon: Icon(Icons.mic_none_outlined,
+                    color: theme.colorScheme.primary),
+                tooltip: l10n.composeDescriptionMicSemantic,
+                onPressed: () => _dictate(context),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: Spacing.xSmall),
+        Text(
+          l10n.composeDescriptionHelper,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
   }
 }
 
