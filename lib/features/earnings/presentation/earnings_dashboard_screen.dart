@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:omds/omds.dart';
 import 'package:open_file/open_file.dart';
 
+import '../../../core/formatting/money_format.dart';
 import '../application/earnings_cubit.dart';
 import '../application/earnings_state.dart';
 import '../domain/earnings_repository.dart';
@@ -83,7 +84,48 @@ class EarningsDashboardScreen extends StatelessWidget {
         onRetry: () => context.read<EarningsCubit>().loadEarnings(),
       );
     }
-    return _ReadyBody(summary: state.summary!, state: state, copy: copy);
+    // T11 / SW-01: no data for the period → honest empty/pending state, never a
+    // wall of confident zeros. Period pills + pull-to-refresh stay so the jeeber
+    // can retry or switch period.
+    final summary = state.summary;
+    if (summary == null || summary.isEmpty) {
+      return _EmptyEarnings(period: state.period, copy: copy);
+    }
+    return _ReadyBody(summary: summary, state: state, copy: copy);
+  }
+}
+
+/// Honest empty/pending body shown when the wire has no earnings for the period.
+class _EmptyEarnings extends StatelessWidget {
+  const _EmptyEarnings({required this.period, required this.copy});
+  final EarningsPeriod period;
+  final EarningsDashboardL10n copy;
+
+  @override
+  Widget build(BuildContext context) {
+    return OmdsPullToRefresh(
+      onRefresh: () => context.read<EarningsCubit>().loadEarnings(),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(Spacing.medium),
+        children: [
+          _PeriodFilterRow(selectedPeriod: period, copy: copy),
+          const SizedBox(height: Spacing.xLarge),
+          Semantics(
+            identifier: 'earnings_empty',
+            container: true,
+            child: OmdsEmptyState(
+              icon: Icons.payments_outlined,
+              title: copy.emptyTitle,
+              subtitle: copy.emptyHint,
+              buttonText: copy.emptyRefresh,
+              onButtonTap: () =>
+                  context.read<EarningsCubit>().loadEarnings(),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -200,7 +242,10 @@ class _TotalCashCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final value = _fmt(summary.totalCashEarned);
+    final value = MoneyFormat.format(
+      summary.totalCashEarned,
+      currency: summary.currency,
+    );
     return Semantics(
       identifier: 'earnings_total_cash',
       container: true,
@@ -213,11 +258,11 @@ class _TotalCashCard extends StatelessWidget {
               Text(copy.totalCashLabel, style: theme.textTheme.labelLarge),
               const SizedBox(height: Spacing.xSmall),
               Text(
-                '$value ${summary.currency}',
+                value,
                 style: theme.textTheme.displaySmall?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
-                semanticsLabel: '$value ${summary.currency}',
+                semanticsLabel: value,
               ),
               const SizedBox(height: Spacing.twoXSmall),
               Text(
@@ -243,7 +288,10 @@ class _FeesPaidCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final value = _fmt(summary.feesPaid);
+    final value = MoneyFormat.format(
+      summary.feesPaid,
+      currency: summary.currency,
+    );
     return Semantics(
       identifier: 'earnings_fees_paid',
       container: true,
@@ -274,11 +322,11 @@ class _FeesPaidCard extends StatelessWidget {
               ),
               const SizedBox(width: Spacing.small),
               Text(
-                '$value ${summary.currency}',
+                value,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
-                semanticsLabel: '$value ${summary.currency}',
+                semanticsLabel: value,
               ),
             ],
           ),
@@ -300,7 +348,10 @@ class _StatsRow extends StatelessWidget {
         Expanded(
           child: _StatCard(
             identifier: 'earnings_net_per_offer',
-            title: '${_fmt(summary.netPerOffer)} ${summary.currency}',
+            title: MoneyFormat.format(
+              summary.netPerOffer,
+              currency: summary.currency,
+            ),
             subtitle: copy.netPerOfferLabel,
             hint: copy.netPerOfferHint,
           ),
@@ -447,19 +498,16 @@ class _DeliveryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cash = _fmt(item.cashCollected);
-    final fee = _fmt(item.feePaid);
+    final cash = MoneyFormat.format(item.cashCollected, currency: item.currency);
+    final fee = MoneyFormat.format(item.feePaid, currency: item.currency);
     return Semantics(
       identifier: 'earnings_delivery_row_${item.deliveryId}',
       container: true,
       child: ListTile(
         contentPadding: EdgeInsets.zero,
         title: Text(copy.deliveryRowTitle(item.deliveryId)),
-        subtitle: Text(copy.deliveryRowFee(fee, item.currency)),
-        trailing: Text(
-          '$cash ${item.currency}',
-          semanticsLabel: '$cash ${item.currency}',
-        ),
+        subtitle: Text(copy.deliveryRowFee(fee)),
+        trailing: Text(cash, semanticsLabel: cash),
       ),
     );
   }
@@ -530,5 +578,3 @@ class _ExportButton extends StatelessWidget {
     );
   }
 }
-
-String _fmt(double v) => v.toStringAsFixed(2);

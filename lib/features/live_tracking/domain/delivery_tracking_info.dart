@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/formatting/server_time.dart';
 import '../../delivery_status/domain/jeeber_summary.dart';
 
 enum TrackingStage { ordered, picked, inTransit, atDoor, delivered }
@@ -208,13 +209,15 @@ class DeliveryTrackingInfo extends Equatable {
       for (final entry in history) {
         if (entry is Map<String, dynamic>) {
           final stage = _parseStage(entry['status'] as String? ?? '');
-          final ts = DateTime.tryParse(entry['timestamp'] as String? ?? '');
+          // T11 / SW-03 family: tracking-event instants are UTC; normalize so
+          // the stepper's `toLocal()` shows the real reached-at wall clock.
+          final ts = ServerTime.parse(entry['timestamp'] as String?);
           if (ts != null) timestamps[stage] = ts;
         }
       }
     }
     if (!timestamps.containsKey(currentStage)) {
-      final updatedAt = DateTime.tryParse(json['updatedAt'] as String? ?? '');
+      final updatedAt = ServerTime.parse(json['updatedAt'] as String?);
       if (updatedAt != null) timestamps[currentStage] = updatedAt;
     }
   }

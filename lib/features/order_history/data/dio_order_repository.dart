@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/formatting/server_time.dart';
 import '../domain/order_repository.dart';
 import '../domain/order_summary.dart';
 
@@ -111,8 +112,12 @@ class DioOrderRepository implements OrderRepository {
     final dropoff = json['dropoff'];
     return OrderSummary(
       id: json['id'] as String? ?? '',
+      // SW-03 family: the requests list carries UTC instants; a zone-less
+      // string parsed raw would render as the device-local wall clock. Normalize
+      // to a UTC instant here (shared ServerTime) so the card's `.toLocal()` is
+      // a real conversion, not a no-op.
       createdAt:
-          DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          ServerTime.parse(json['createdAt'] as String?) ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
       pickupAddress: pickup is Map<String, dynamic>
           ? (pickup['address'] as String? ?? '')
@@ -126,13 +131,15 @@ class DioOrderRepository implements OrderRepository {
       ),
       // Same wire drift as the receipt (run-22 P1-A): the live gateway sends
       // a FLAT numeric `"amount": 12` in major units; older shapes send
-      // `{ minorUnits, currency }`. Accept both — the old code silently
-      // zeroed every flat amount.
+      // `{ minorUnits, currency }`. Accept both. T11 / SW-02: an ABSENT amount
+      // is UNKNOWN → null (the card degrades to "—"), NEVER a fabricated 0 that
+      // renders as `$0.00`. The old `_ => 0` fallback is exactly what made every
+      // row read `$0.00`.
       amountMinor: switch (amount) {
         final num flat => (flat * 100).round(),
         {'minorUnits': final num minor} => minor.round(),
         {'value': final num value} => (value * 100).round(),
-        _ => 0,
+        _ => null,
       },
       currency: amount is Map<String, dynamic>
           ? (amount['currency'] as String? ?? 'USD')

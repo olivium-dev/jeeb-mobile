@@ -78,4 +78,49 @@ void main() {
       expect(missingVehicle.jeeber, isNull);
     });
   });
+
+  // T11 / SW-03 family: tracking-event instants are UTC. A zone-less string
+  // must be normalized so the stepper's toLocal() shows the real reached-at
+  // wall clock rather than the UTC digits.
+  group('DeliveryTrackingInfo timestamps — UTC normalization', () {
+    test('zone-less statusHistory timestamp → UTC instant', () {
+      final info = DeliveryTrackingInfo.fromJson('dlv-1', {
+        'status': 'Ordered',
+        'statusHistory': [
+          {'status': 'Ordered', 'timestamp': '2026-07-03T12:31:00'},
+        ],
+      });
+
+      final ts = info.stageTimestamps[TrackingStage.ordered];
+      expect(ts, isNotNull);
+      expect(ts!.isUtc, isTrue);
+      expect(ts, DateTime.utc(2026, 7, 3, 12, 31));
+    });
+
+    test('zone-less updatedAt fallback → UTC instant for the current stage', () {
+      final info = DeliveryTrackingInfo.fromJson('dlv-1', {
+        'status': 'InTransit',
+        'updatedAt': '2026-07-03T12:31:00',
+      });
+
+      final ts = info.stageTimestamps[TrackingStage.inTransit];
+      expect(ts, isNotNull);
+      expect(ts!.isUtc, isTrue);
+      expect(ts, DateTime.utc(2026, 7, 3, 12, 31));
+    });
+
+    test('Z-marked timestamp keeps its instant', () {
+      final info = DeliveryTrackingInfo.fromJson('dlv-1', {
+        'status': 'Ordered',
+        'statusHistory': [
+          {'status': 'Ordered', 'timestamp': '2026-07-03T12:31:00Z'},
+        ],
+      });
+
+      expect(
+        info.stageTimestamps[TrackingStage.ordered],
+        DateTime.utc(2026, 7, 3, 12, 31),
+      );
+    });
+  });
 }

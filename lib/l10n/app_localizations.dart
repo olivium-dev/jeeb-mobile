@@ -1400,6 +1400,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get offersWindowExpired => _get('offersWindowExpired');
   String offersWindowRemaining(String time) => _get('offersWindowRemaining').replaceFirst('{time}', time);
   String get orderHistoryAddressMissing => _get('orderHistoryAddressMissing');
+  String get orderHistoryAmountUnavailable => _get('orderHistoryAmountUnavailable');
   String orderHistoryCardSemanticLabel(String id) => _get('orderHistoryCardSemanticLabel').replaceFirst('{id}', id);
   String get orderHistoryEmptyActive => _get('orderHistoryEmptyActive');
   String get orderHistoryEmptyCancelled => _get('orderHistoryEmptyCancelled');

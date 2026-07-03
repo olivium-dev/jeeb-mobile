@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 
+import '../../../core/formatting/server_time.dart';
 import 'request_feed_models.dart';
 import 'request_feed_repository.dart';
 
@@ -211,28 +212,12 @@ class DioRequestFeedRepository implements RequestFeedRepository {
     );
   }
 
-  /// Parses a gateway timestamp string. Server times are UTC; an ISO string
-  /// WITHOUT an explicit zone marker (no trailing `Z`, no `±hh:mm` offset)
-  /// would otherwise be interpreted by [DateTime.parse] as device-LOCAL,
-  /// skewing every card's clock and expiry by the device's UTC offset
-  /// (SW-03: feed cards read "12:31" under a 14:31 status bar). Zone-less
-  /// strings are therefore re-interpreted as UTC; zoned strings parse as-is.
-  /// Presentation converts with `toLocal()` at render time.
-  static DateTime? _parseServerTime(String raw) {
-    final parsed = DateTime.tryParse(raw);
-    if (parsed == null) return null;
-    if (parsed.isUtc) return parsed; // had `Z` or an explicit offset
-    return DateTime.utc(
-      parsed.year,
-      parsed.month,
-      parsed.day,
-      parsed.hour,
-      parsed.minute,
-      parsed.second,
-      parsed.millisecond,
-      parsed.microsecond,
-    );
-  }
+  /// Parses a gateway timestamp string to a UTC instant — the zone-less→UTC
+  /// normalization now lives in the shared [ServerTime.parse] (cycle-5 T11
+  /// centralization: feed, order history, wallet and tracking all normalize
+  /// through one rule). Kept as a thin alias so the created-at / expiry parsing
+  /// below reads locally.
+  static DateTime? _parseServerTime(String raw) => ServerTime.parse(raw);
 
   /// Parses a Contract B `FeedLocation` (`{ address, location:{lat,lng} }`),
   /// tolerating the legacy flat `{ address|label, lat|latitude, lng|longitude }`

@@ -834,6 +834,7 @@
   "offersWindowExpired": "انتهت مهلة العروض",
   "offersWindowRemaining": "المهلة: تبقى {time}",
   "orderHistoryAddressMissing": "العنوان غير متاح",
+  "orderHistoryAmountUnavailable": "المبلغ غير متاح",
   "orderHistoryCardSemanticLabel": "الطلب {id}",
   "orderHistoryEmptyActive": "ستظهر التوصيلات النشطة هنا.",
   "orderHistoryEmptyCancelled": "ستظهر التوصيلات الملغاة أو المعترَض عليها هنا.",
