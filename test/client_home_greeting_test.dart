@@ -64,7 +64,8 @@ Widget _harness({String? name, GreetingProfileState? profile}) {
   );
 }
 
-OmdsProfileAvatar _avatar(WidgetTester tester) => tester.widget<OmdsProfileAvatar>(
+OmdsProfileAvatar _avatar(WidgetTester tester) =>
+    tester.widget<OmdsProfileAvatar>(
       find.byKey(const Key('client-home-greeting-avatar')),
     );
 
@@ -72,18 +73,21 @@ void main() {
   setUpAll(_loadArbs);
 
   group('ClientHomeGreeting (P0-X06)', () {
-    testWidgets('no ambient profile + null name → "Welcome back" + "?" avatar',
-        (tester) async {
-      await tester.pumpWidget(_harness());
-      await tester.pumpAndSettle();
+    testWidgets(
+      'no ambient profile + null name → "Welcome back" + "?" avatar',
+      (tester) async {
+        await tester.pumpWidget(_harness());
+        await tester.pumpAndSettle();
 
-      expect(find.text('Welcome back'), findsOneWidget);
-      expect(_avatar(tester).initial, '?');
-      expect(_avatar(tester).profilePicUrl, isNull);
-    });
+        expect(find.text('Welcome back'), findsOneWidget);
+        expect(_avatar(tester).initial, '?');
+        expect(_avatar(tester).profilePicUrl, isNull);
+      },
+    );
 
-    testWidgets('cubit-fed name + avatar override the placeholder',
-        (tester) async {
+    testWidgets('cubit-fed name + avatar override the placeholder', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _harness(
           profile: const GreetingProfileState(
@@ -101,8 +105,9 @@ void main() {
       expect(_avatar(tester).profilePicUrl, 'https://cdn/avatar.png');
     });
 
-    testWidgets('ambient profile name wins over the passed name',
-        (tester) async {
+    testWidgets('ambient profile name wins over the passed name', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _harness(
           name: 'Stale',
@@ -114,5 +119,40 @@ void main() {
       expect(find.text('Hello, Layla'), findsOneWidget);
       expect(find.text('Hello, Stale'), findsNothing);
     });
+
+    testWidgets(
+      'synthetic jeeb-<hash> handle is suppressed → generic greeting (audit §T5)',
+      (tester) async {
+        await tester.pumpWidget(
+          _harness(
+            profile: const GreetingProfileState(name: 'jeeb-e1a35ea8a520'),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // The raw account handle must NOT appear anywhere on the header, and the
+        // greeting degrades to the generic fallback + "?" avatar.
+        expect(find.textContaining('jeeb-e1a35ea8a520'), findsNothing);
+        expect(find.text('Welcome back'), findsOneWidget);
+        expect(_avatar(tester).initial, '?');
+      },
+    );
+
+    testWidgets(
+      'internal @jeeb.internal email is suppressed → generic greeting',
+      (tester) async {
+        await tester.pumpWidget(
+          _harness(
+            profile: const GreetingProfileState(
+              name: 'phone-only+cb39e21caa82@jeeb.internal',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining('@jeeb.internal'), findsNothing);
+        expect(find.text('Welcome back'), findsOneWidget);
+      },
+    );
   });
 }

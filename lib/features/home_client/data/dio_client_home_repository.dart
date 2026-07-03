@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/formatting/friendly_reference.dart';
 import '../../chat/data/dio_accepted_conversations_repository.dart';
 import '../domain/client_home_repository.dart';
 import '../domain/client_home_request.dart';
@@ -68,7 +69,11 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// Offer statuses that still count as a live, acceptable bid (mirrors
   /// `DioOffersRepository._liveStatuses`). Withdrawn/expired/accepted/superseded
   /// offers must NOT flip a request into Replies.
-  static const Set<String> _liveOfferStatuses = {'pending', 'submitted', 'edited'};
+  static const Set<String> _liveOfferStatuses = {
+    'pending',
+    'submitted',
+    'edited',
+  };
 
   /// Normalized (lowercase, underscores stripped) request statuses that are
   /// TERMINAL for the customer — the request left the active funnel. These are
@@ -119,9 +124,11 @@ class DioClientHomeRepository implements ClientHomeRepository {
     // NOT in progress — drop it from the active list so a completed or dead
     // order never lingers as "active".
     final activeShipments = shipments
-        .where((r) =>
-            r.status != ClientRequestStatus.delivered &&
-            r.status != ClientRequestStatus.cancelled)
+        .where(
+          (r) =>
+              r.status != ClientRequestStatus.delivered &&
+              r.status != ClientRequestStatus.cancelled,
+        )
         .toList(growable: false);
     final shipmentIds = activeShipments.map((r) => r.id).toSet();
     final inProgress = <ClientHomeRequest>[
@@ -193,11 +200,16 @@ class DioClientHomeRepository implements ClientHomeRepository {
         // In Progress. Accepted keeps its chat-re-entry semantics; an in-flight
         // row carries its mapped delivery stage (atPickup / enRoute).
         if (DioAcceptedConversationsRepository.isAcceptedStatus(rawStatus)) {
-          final request = _parseRequest(raw, status: ClientRequestStatus.accepted);
+          final request = _parseRequest(
+            raw,
+            status: ClientRequestStatus.accepted,
+          );
           if (request != null) accepted.add(request);
         } else if (_inFlightRequestStatuses.contains(normalized)) {
-          final request =
-              _parseRequest(raw, status: _mapDeliveryStatus(rawStatus as String?));
+          final request = _parseRequest(
+            raw,
+            status: _mapDeliveryStatus(rawStatus as String?),
+          );
           if (request != null) accepted.add(request);
         } else {
           candidates.add(raw);
@@ -256,9 +268,11 @@ class DioClientHomeRepository implements ClientHomeRepository {
       final id = candidates[i]['id'] as String?;
       if (id == null || id.isEmpty) continue;
       final index = i;
-      probes.add(_fetchLiveOfferCount(id).then((live) {
-        if (live != null && live > counts[index]) counts[index] = live;
-      }));
+      probes.add(
+        _fetchLiveOfferCount(id).then((live) {
+          if (live != null && live > counts[index]) counts[index] = live;
+        }),
+      );
     }
     if (probes.isNotEmpty) await Future.wait(probes);
     return counts;
@@ -281,7 +295,8 @@ class DioClientHomeRepository implements ClientHomeRepository {
       if (data is List) {
         items = data;
       } else if (data is Map<String, dynamic>) {
-        items = (data['items'] as List?) ??
+        items =
+            (data['items'] as List?) ??
             (data['offers'] as List?) ??
             const <dynamic>[];
       } else {
@@ -333,7 +348,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
       title:
           json['title'] as String? ??
           json['description'] as String? ??
-          'Delivery $id',
+          'Delivery ${friendlyReference(id)}',
       status: _mapDeliveryStatus(stage),
       destinationLabel: destination,
       etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
@@ -348,7 +363,8 @@ class DioClientHomeRepository implements ClientHomeRepository {
       // reads the DELIVERY id. Capture both so the "Open chat" CTA routes by
       // the request/correlation id (BUG-17 / S13) and "Track order" keeps the
       // delivery id (S9) — falling back to `id` via the getters when absent.
-      deliveryId: json['deliveryId'] as String? ?? json['delivery_id'] as String?,
+      deliveryId:
+          json['deliveryId'] as String? ?? json['delivery_id'] as String?,
       chatCorrelationId:
           json['requestId'] as String? ?? json['request_id'] as String?,
     );
@@ -375,7 +391,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
       title:
           json['title'] as String? ??
           json['description'] as String? ??
-          'Request $id',
+          'Request ${friendlyReference(id)}',
       status: status,
       destinationLabel: destination,
       tier: ClientRequestTier.parse(
@@ -403,7 +419,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
       title:
           json['title'] as String? ??
           json['description'] as String? ??
-          'Delivery $id',
+          'Delivery ${friendlyReference(id)}',
       destinationLabel: destination,
       completedAt:
           DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
@@ -469,9 +485,9 @@ class _ClientRequestBuckets {
   });
 
   const _ClientRequestBuckets.empty()
-      : accepted = const [],
-        pending = const [],
-        replies = const [];
+    : accepted = const [],
+      pending = const [],
+      replies = const [];
 
   final List<ClientHomeRequest> accepted;
   final List<ClientHomeRequest> pending;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/formatting/friendly_reference.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../jeeber_home/domain/entities/feed_request.dart';
 import '../domain/services/prohibited_item_report_service.dart';
@@ -43,9 +44,7 @@ class _JeeberRequestDetailScreenState extends State<JeeberRequestDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: _RequestSummary(request: widget.request),
-            ),
+            Expanded(child: _RequestSummary(request: widget.request)),
             _ActionBar(
               onMakeOffer: _openOfferForm,
               onDecline: () => widget.onDeclined(widget.request.id),
@@ -112,7 +111,7 @@ class _RequestSummaryRows extends StatelessWidget {
         _DetailRow(
           icon: Icons.confirmation_number_outlined,
           label: l10n.jeeberRequestDetailReference,
-          value: request.id,
+          value: friendlyReference(request.id),
         ),
       ],
     );
@@ -139,7 +138,9 @@ class _DetailRow extends StatelessWidget {
       children: [
         _DetailRowBadge(icon: icon),
         const SizedBox(width: Spacing.medium),
-        Expanded(child: _DetailRowText(label: label, value: value)),
+        Expanded(
+          child: _DetailRowText(label: label, value: value),
+        ),
       ],
     );
   }
@@ -184,8 +185,9 @@ class _DetailRowText extends StatelessWidget {
       children: [
         Text(
           label,
-          style: theme.textTheme.labelSmall
-              ?.copyWith(color: colorScheme.onSurfaceVariant),
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
         ),
         const SizedBox(height: Sizes.threeXSmall),
         Text(

@@ -15,6 +15,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/formatting/friendly_reference.dart';
 import 'package:jeeb_mobile/features/jeeber_home/domain/entities/feed_request.dart';
 import 'package:jeeb_mobile/features/jeeber_request_detail/domain/services/prohibited_item_report_service.dart';
 import 'package:jeeb_mobile/features/jeeber_request_detail/presentation/jeeber_request_detail_loader.dart';
@@ -30,17 +31,16 @@ void main() {
   Widget loader({
     required FeedRequest? initial,
     required Future<FeedRequest?> Function() fetch,
-  }) =>
-      wrapForTest(
-        JeeberRequestDetailLoader(
-          requestId: requestId,
-          initial: initial,
-          fetch: fetch,
-          reportService: const ProhibitedItemReportService(),
-          onDeclined: (_) {},
-          onBack: () {},
-        ),
-      );
+  }) => wrapForTest(
+    JeeberRequestDetailLoader(
+      requestId: requestId,
+      initial: initial,
+      fetch: fetch,
+      reportService: const ProhibitedItemReportService(),
+      onDeclined: (_) {},
+      onBack: () {},
+    ),
+  );
 
   testWidgets(
     'cache miss + fetch success → loading, then the detail renders for that id',
@@ -71,7 +71,11 @@ void main() {
       // detail hub, keyed by the id the push carried.
       expect(fetchCalls, 1);
       expect(find.byType(JeeberRequestDetailScreen), findsOneWidget);
-      expect(find.text(requestId), findsOneWidget);
+      // The reference row now renders a human-readable short reference, never
+      // the raw UUID (sprint-009 audit §T5). The screen is still keyed by the
+      // id the push carried; only the DISPLAY is shortened.
+      expect(find.text(friendlyReference(requestId)), findsOneWidget);
+      expect(find.text(requestId), findsNothing);
       expect(find.byType(JeeberRequestUnavailableScreen), findsNothing);
     },
   );
@@ -79,9 +83,7 @@ void main() {
   testWidgets(
     'cache miss + fetch miss → the graceful unavailable fallback is preserved',
     (tester) async {
-      await tester.pumpWidget(
-        loader(initial: null, fetch: () async => null),
-      );
+      await tester.pumpWidget(loader(initial: null, fetch: () async => null));
       await tester.pumpAndSettle();
 
       expect(find.byType(JeeberRequestUnavailableScreen), findsOneWidget);

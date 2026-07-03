@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/formatting/friendly_reference.dart';
 import '../../../../core/session/greeting_profile_cubit.dart';
 import '../../../../l10n/app_localizations.dart';
 
@@ -35,13 +36,15 @@ class JeeberHomeGreeting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final profile = _readGreetingProfile(context);
-    final resolvedName = (profile?.name?.trim().isNotEmpty ?? false)
+    final rawName = (profile?.name?.trim().isNotEmpty ?? false)
         ? profile!.name
         : name;
-    final resolvedAvatar =
-        (profile?.avatarUrl?.trim().isNotEmpty ?? false)
-            ? profile!.avatarUrl
-            : avatarUrl;
+    // Suppress synthetic account handles (`jeeb-89a486f968ed`) / internal
+    // emails so the dashboard header never greets a raw hash (audit §T5).
+    final resolvedName = displayNameOrNull(rawName);
+    final resolvedAvatar = (profile?.avatarUrl?.trim().isNotEmpty ?? false)
+        ? profile!.avatarUrl
+        : avatarUrl;
     return Padding(
       key: rootKey,
       padding: const EdgeInsetsDirectional.fromSTEB(
