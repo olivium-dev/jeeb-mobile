@@ -5,6 +5,7 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/session/jeeber_kyc_status_gate.dart';
+import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/availability_cubit.dart';
 import '../../application/availability_state.dart';
@@ -225,7 +226,9 @@ class _OfflineBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Container(
-      color: Theme.of(context).colorScheme.errorContainer,
+      // Offline is an attention state (self-inflicted, recoverable), not a
+      // failure -> semantic warning role instead of the error pair.
+      color: context.jeebRoles.warningContainer,
       padding: const EdgeInsets.symmetric(
         horizontal: Spacing.medium,
         vertical: Spacing.small,
@@ -242,7 +245,7 @@ class _OfflineBannerContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.onErrorContainer;
+    final color = context.jeebRoles.onWarningContainer;
     return Row(
       children: [
         Icon(Icons.wifi_off, color: color, size: Sizes.large),

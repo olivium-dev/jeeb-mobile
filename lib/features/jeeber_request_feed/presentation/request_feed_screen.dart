@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
 import '../cubit/request_feed_cubit.dart';
 import '../cubit/request_feed_state.dart';
@@ -238,7 +239,6 @@ class _ReconnectingBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Container(
       key: const Key('requestFeed.reconnectingBanner'),
       width: double.infinity,
@@ -246,7 +246,8 @@ class _ReconnectingBanner extends StatelessWidget {
         horizontal: Spacing.medium,
         vertical: Spacing.xSmall,
       ),
-      color: theme.colorScheme.tertiaryContainer,
+      // Reconnecting is a transient attention state -> semantic warning role.
+      color: context.jeebRoles.warningContainer,
       child: _ReconnectingRow(message: message),
     );
   }
@@ -265,14 +266,14 @@ class _ReconnectingRow extends StatelessWidget {
         Icon(
           Icons.wifi_off_outlined,
           size: Sizes.medium,
-          color: theme.colorScheme.onTertiaryContainer,
+          color: context.jeebRoles.onWarningContainer,
         ),
         const SizedBox(width: Spacing.xSmall),
         Expanded(
           child: Text(
             message,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onTertiaryContainer,
+              color: context.jeebRoles.onWarningContainer,
             ),
           ),
         ),

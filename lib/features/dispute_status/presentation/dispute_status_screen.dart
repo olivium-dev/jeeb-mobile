@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
 import '../application/dispute_status_cubit.dart';
 import '../application/dispute_status_state.dart';
 import '../data/empty_dispute_status_repository.dart';
@@ -273,7 +274,10 @@ class _StateCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final resolved = dispute.isResolved;
-    final color = resolved ? theme.colorScheme.primary : theme.colorScheme.tertiary;
+    // Semantic roles: resolved = success, open = warning (attention pending).
+    // Previously primary/tertiary brand hues were doing state duty.
+    final roles = context.jeebRoles;
+    final color = resolved ? roles.success : roles.warning;
     return Semantics(
       identifier: 'dispute_status_state',
       container: true,
