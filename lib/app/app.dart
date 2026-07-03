@@ -218,8 +218,9 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     session: _session,
     accountStatus: _accountStatus,
   );
-  // BadgeCountCubit is cheap (in-memory Cubit<int>) and is read by the
-  // MultiBlocProvider on first build, so it stays eager.
+  // BadgeCountCubit is cheap (in-memory Cubit<BadgeCounts>) and is read by
+  // the MultiBlocProvider on first build, so it stays eager. G3: rendered by
+  // the shell's Dashboard-tab badge (newRequests) and cleared on feed view.
   late final BadgeCountCubit _badgeCount = BadgeCountCubit();
   late final CrashContextBridge _crashContext = CrashContextBridge(
     reporter: widget.crashReporter,

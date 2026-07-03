@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../core/dev_seam/dev_seam.dart';
+import '../../core/notifications/application/badge_count_cubit.dart';
 import '../../core/role/role_availability_cubit.dart';
 import '../../l10n/app_localizations.dart';
 import '../customer_profile/domain/customer_profile_view_data.dart';
@@ -72,7 +73,17 @@ class _ShellScreenState extends State<ShellScreen> {
     // available roles (gateway Auth/Capabilities → RoleAvailabilityCubit).
     final availability = context.watch<RoleAvailabilityCubit?>()?.state;
     final showJeeberContent = _showJeeberContent(availability);
-    final tabs = _tabs(showJeeberContent: showJeeberContent);
+    // G3: unseen-open-request count for the Dashboard-tab badge. Nullable
+    // watch so bare harnesses without the app-level BadgeCountCubit render
+    // badge-less instead of throwing (same idiom as RoleAvailabilityCubit
+    // above). FeedResumeRefetcher clears it when the feed is actually
+    // viewed, so it never shows while the jeeber is already looking.
+    final requestBadgeCount =
+        context.watch<BadgeCountCubit?>()?.state.newRequests ?? 0;
+    final tabs = _tabs(
+      showJeeberContent: showJeeberContent,
+      requestBadgeCount: requestBadgeCount,
+    );
     final landingIndex = _landingIndex(tabs, isJeeber: showJeeberContent);
     final safeIndex = (_selectedIndex ?? landingIndex).clamp(0, tabs.length - 1);
     return Scaffold(
@@ -137,7 +148,10 @@ class _ShellScreenState extends State<ShellScreen> {
     return availability?.roles.contains('jeeber') ?? false;
   }
 
-  List<_Tab> _tabs({required bool showJeeberContent}) {
+  List<_Tab> _tabs({
+    required bool showJeeberContent,
+    required int requestBadgeCount,
+  }) {
     final l10n = AppLocalizations.of(context);
     return [
       _Tab(
@@ -168,6 +182,9 @@ class _ShellScreenState extends State<ShellScreen> {
         label: l10n.navDashboard,
         icon: Icons.dashboard_outlined,
         selectedIcon: Icons.dashboard,
+        // G3: unseen open requests badge the tab icon so a dismissed push
+        // still leaves a visible trail to the feed.
+        badgeCount: requestBadgeCount,
         page: showJeeberContent
             ? const _HeaderedTab(
                 idPrefix: 'delivery_tab',
@@ -319,6 +336,11 @@ class _BarItem extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
     final color = isSelected ? colorScheme.primary : colorScheme.outline;
+    final icon = Icon(
+      isSelected ? tab.selectedIcon : tab.icon,
+      size: Sizes.xLarge,
+      color: color,
+    );
     return Semantics(
       identifier: 'shell_tab_${tab.id}',
       button: true,
@@ -329,11 +351,19 @@ class _BarItem extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              isSelected ? tab.selectedIcon : tab.icon,
-              size: Sizes.xLarge,
-              color: color,
-            ),
+            // G3: M3 count badge (theme error/onError roles — OMDS ships no
+            // badge primitive) over the tab glyph when the tab has unseen
+            // items; plain glyph otherwise. Carries `shell_tab_<id>_badge`
+            // so QA can assert presence/absence without matching the count
+            // text.
+            if (tab.badgeCount > 0)
+              Semantics(
+                identifier: 'shell_tab_${tab.id}_badge',
+                container: true,
+                child: Badge.count(count: tab.badgeCount, child: icon),
+              )
+            else
+              icon,
             const SizedBox(height: Sizes.threeXSmall),
             Text(
               tab.label,
@@ -357,6 +387,7 @@ class _Tab {
     required this.icon,
     required this.selectedIcon,
     required this.page,
+    this.badgeCount = 0,
   });
 
   /// Stable, locale-independent id used for the tab's Semantics identifier so
@@ -366,4 +397,9 @@ class _Tab {
   final IconData icon;
   final IconData selectedIcon;
   final Widget page;
+
+  /// Unseen-item count rendered as an M3 badge over the tab icon; `0` hides
+  /// it. Currently driven by [BadgeCounts.newRequests] on the Dashboard tab
+  /// (G3).
+  final int badgeCount;
 }

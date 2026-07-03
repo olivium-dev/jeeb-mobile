@@ -21,6 +21,13 @@ enum NotificationKind {
   requestExpired,
   confirmReceipt,
   marketing,
+
+  /// G3 (sprint-009): a `new_request` broadcast to jeebers. Before this kind
+  /// existed those rows mapped to [unknown] — an un-routable mark-read-only
+  /// row — so a jeeber who dismissed the push had NO persistent, tappable
+  /// trail back to the request. Routes to the request screen via the same
+  /// resolver the push tap uses (`deepLinkForMessage`).
+  newRequest,
   unknown,
 }
 

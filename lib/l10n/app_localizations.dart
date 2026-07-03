@@ -865,6 +865,7 @@ class AppLocalizations {
   String jeeberFeedDistanceAway(String distance) =>
       _get('jeeberFeedDistanceAway').replaceFirst('{distance}', distance);
   String get jeeberFeedStatusPending => _get('jeeberFeedStatusPending');
+  String get jeeberFeedStatusExpired => _get('jeeberFeedStatusExpired');
   String get jeeberFeedActionHeadingToDropOff =>
       _get('jeeberFeedActionHeadingToDropOff');
   String get jeeberFeedAcceptOrdersLabel =>

@@ -68,13 +68,13 @@ Widget _harness(NotificationsRepository repo) {
       GoRoute(
         path: '/notifications',
         name: 'notifications',
-        builder: (_, __) => NotificationsListScreen(repository: repo),
+        builder: (_, _) => NotificationsListScreen(repository: repo),
       ),
-      GoRoute(path: '/', name: 'shell', builder: (_, __) => _stub('shell_root')),
+      GoRoute(path: '/', name: 'shell', builder: (_, _) => _stub('shell_root')),
       GoRoute(
         path: '/wallet',
         name: 'wallet',
-        builder: (_, __) => _stub('wallet_hub_root'),
+        builder: (_, _) => _stub('wallet_hub_root'),
       ),
       GoRoute(
         path: '/chat/:id',
@@ -84,7 +84,7 @@ Widget _harness(NotificationsRepository repo) {
       GoRoute(
         path: '/kyc/rejected',
         name: 'kyc-rejected',
-        builder: (_, __) => _stub('kyc_rejected_root'),
+        builder: (_, _) => _stub('kyc_rejected_root'),
       ),
       GoRoute(
         path: '/requests/:id/waiting',
@@ -97,6 +97,14 @@ Widget _harness(NotificationsRepository repo) {
         name: 'delivered-receipt',
         builder: (_, s) =>
             _stub('delivered_receipt_root_${s.pathParameters['id']}'),
+      ),
+      // G3: the new_request row routes through deepLinkForMessage — the SAME
+      // resolver the push tap uses — which returns /jeeber/requests/:id.
+      GoRoute(
+        path: '/jeeber/requests/:id',
+        name: 'jeeber-request-detail',
+        builder: (_, s) =>
+            _stub('jeeber_request_root_${s.pathParameters['id']}'),
       ),
     ],
   );
@@ -267,6 +275,33 @@ void main() {
     testWidgets('marketing → shell (Requests tab)', (tester) async {
       await tapKind(tester, NotificationKind.marketing,
           expectRootId: 'shell_root');
+    });
+
+    // G3: a dismissed new-request push keeps a persistent, TAPPABLE inbox
+    // row that lands on the request screen — via the push-tap resolver
+    // (deepLinkForMessage), never a re-mapped route.
+    testWidgets('new_request (ref) → jeeber request screen (G3)',
+        (tester) async {
+      await tapKind(tester, NotificationKind.newRequest,
+          ref: 'req-42', expectRootId: 'jeeber_request_root_req-42');
+    });
+
+    testWidgets('new_request with NO ref → stays on the inbox (AP-9)',
+        (tester) async {
+      await tapKind(tester, NotificationKind.newRequest,
+          expectRootId: 'notifications_root');
+    });
+
+    testWidgets('new_request tap also marks the row read', (tester) async {
+      final repo = _ScriptedRepository([
+        _item('n-req', NotificationKind.newRequest, ref: 'req-9'),
+      ]);
+      await pump(tester, repo);
+      await tester.tap(find.bySemanticsIdentifier('notif_row_n-req'));
+      await tester.pumpAndSettle();
+      expect(repo.markedRead, ['n-req']);
+      expect(find.bySemanticsIdentifier('jeeber_request_root_req-9'),
+          findsOneWidget);
     });
 
     testWidgets('unknown kind → stays on the inbox (no fabricated nav)',

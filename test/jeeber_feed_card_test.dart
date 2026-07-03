@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart' show DateFormat;
 import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_models.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/presentation/jeeber_feed_card.dart';
 import 'package:omds/omds.dart';
@@ -15,6 +16,7 @@ DeliveryRequest _request({
   String id = 'req-1',
   JeeberFeedItemStatus status = JeeberFeedItemStatus.incoming,
   JeeberDeliveryAction? action,
+  DateTime? receivedAt,
 }) {
   return DeliveryRequest(
     id: id,
@@ -29,7 +31,7 @@ DeliveryRequest _request({
     senderRating: 4,
     itemsSummary: '1 kilo potato, water gallon, coffee blend',
     distanceFromYouKm: 3,
-    receivedAt: DateTime(2026, 6, 11, 9, 41),
+    receivedAt: receivedAt ?? DateTime(2026, 6, 11, 9, 41),
     feedStatus: status,
     nextDeliveryAction: action,
   );
@@ -221,5 +223,86 @@ void main() {
     expect(dir, TextDirection.rtl);
     expect(find.text('Sami Fawaz'), findsOneWidget);
     expect(find.text('فلاش'), findsOneWidget);
+  });
+
+  group('G3 graceful expiry state', () {
+    testWidgets(
+        'expired card fades, swaps actions for "Expired", and goes inert',
+        (tester) async {
+      var tapped = false;
+      var offered = false;
+      await tester.pumpWidget(
+        _host(
+          JeeberFeedCard(
+            request: _request(),
+            isExpired: true,
+            onTap: () => tapped = true,
+            onOffer: () => offered = true,
+            onIgnore: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Action row replaced by the expired status (visible, per-request id).
+      expect(find.text('Expired'), findsOneWidget);
+      expect(find.text('Ignore'), findsNothing);
+      expect(find.text('Offer'), findsNothing);
+      expect(
+        find.bySemanticsIdentifier('jeeber_feed_request_expired_req-1'),
+        findsOneWidget,
+      );
+
+      // Faded, not vanished.
+      final fade = tester.widget<AnimatedOpacity>(
+        find.ancestor(
+          of: find.byKey(const Key('jeeber-feed-card-req-1')),
+          matching: find.byType(AnimatedOpacity),
+        ),
+      );
+      expect(fade.opacity, lessThan(1.0));
+
+      // Inert: the tap-through is disabled during the linger window.
+      await tester.tap(find.byKey(const Key('jeeber-feed-card-req-1')),
+          warnIfMissed: false);
+      expect(tapped, isFalse);
+      expect(offered, isFalse);
+    });
+
+    testWidgets('expired label is localized in Arabic', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          JeeberFeedCard(request: _request(), isExpired: true),
+          locale: const Locale('ar'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('منتهي الصلاحية'), findsOneWidget);
+    });
+  });
+
+  group('SW-03 device-local timestamp', () {
+    testWidgets('card time renders in DEVICE-LOCAL time, not raw UTC',
+        (tester) async {
+      // A UTC instant, as the gateway parse layer now guarantees.
+      final utcInstant = DateTime.utc(2026, 6, 11, 9, 41);
+      await tester.pumpWidget(
+        _host(JeeberFeedCard(request: _request(receivedAt: utcInstant))),
+      );
+      await tester.pumpAndSettle();
+
+      final localExpected = DateFormat.Hm('en').format(utcInstant.toLocal());
+      expect(find.text(localExpected), findsOneWidget,
+          reason: 'the card must format the local wall clock');
+
+      // On any host whose zone differs from UTC, the raw-UTC rendering
+      // ("09:41" under a 2h-ahead clock — the audit's SW-03 leak) must be
+      // GONE. Skipped when the host zone IS UTC (strings coincide).
+      final utcRendering = DateFormat.Hm('en').format(utcInstant);
+      if (utcRendering != localExpected) {
+        expect(find.text(utcRendering), findsNothing,
+            reason: 'pre-fix the card rendered raw UTC fields');
+      }
+    });
   });
 }

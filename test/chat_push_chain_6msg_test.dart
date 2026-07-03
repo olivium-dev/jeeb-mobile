@@ -87,7 +87,7 @@ void main() {
     );
 
     // 3) The badge counts every inbound message — the recipient sees "6".
-    expect(badge.state, 6);
+    expect(badge.state.unread, 6);
 
     // 4) Each message is categorised as chat and deep-links back to the
     //    ORIGINAL thread (regression against `type=chat` being bucketed as
@@ -112,6 +112,6 @@ void main() {
 
     expect(handler.state.history.map((m) => m.id).toList(),
         ['m-next', 'm-dup']);
-    expect(badge.state, 2);
+    expect(badge.state.unread, 2);
   });
 }

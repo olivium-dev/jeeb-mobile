@@ -36,6 +36,7 @@ class RequestFeedState extends Equatable {
     this.status = RequestFeedStatus.initial,
     this.transport = FeedTransport.webSocket,
     this.requests = const [],
+    this.expiredIds = const {},
     this.actionStatuses = const {},
     this.lastEffect,
     this.errorMessageKey,
@@ -53,6 +54,12 @@ class RequestFeedState extends Equatable {
   /// list order.
   final List<DeliveryRequest> requests;
 
+  /// Ids of requests whose server `expiresAt` has passed but which are still
+  /// listed during their brief linger window (G3 graceful exit). The card
+  /// renders its "Expired" look — actions disabled — until the sweep removes
+  /// it; it never silently vanishes.
+  final Set<String> expiredIds;
+
   /// Per-request action state — present only for requests with an in-flight
   /// accept/decline call.
   final Map<String, RequestActionStatus> actionStatuses;
@@ -68,10 +75,14 @@ class RequestFeedState extends Equatable {
   RequestActionStatus actionStatusFor(String id) =>
       actionStatuses[id] ?? RequestActionStatus.idle;
 
+  /// True while [id] is in its expired-linger window (visible but dead).
+  bool isExpired(String id) => expiredIds.contains(id);
+
   RequestFeedState copyWith({
     RequestFeedStatus? status,
     FeedTransport? transport,
     List<DeliveryRequest>? requests,
+    Set<String>? expiredIds,
     Map<String, RequestActionStatus>? actionStatuses,
     Object? lastEffect = _sentinel,
     Object? errorMessageKey = _sentinel,
@@ -80,6 +91,7 @@ class RequestFeedState extends Equatable {
       status: status ?? this.status,
       transport: transport ?? this.transport,
       requests: requests ?? this.requests,
+      expiredIds: expiredIds ?? this.expiredIds,
       actionStatuses: actionStatuses ?? this.actionStatuses,
       lastEffect: identical(lastEffect, _sentinel)
           ? this.lastEffect
@@ -95,6 +107,7 @@ class RequestFeedState extends Equatable {
         status,
         transport,
         requests,
+        expiredIds,
         actionStatuses,
         lastEffect,
         errorMessageKey,

@@ -68,7 +68,16 @@ class DioNotificationsRepository implements NotificationsRepository {
       timestamp:
           _str(json['ts'] ?? json['timestamp'] ?? json['createdAt']) ?? '',
       read: json['read'] == true,
-      ref: _str(json['ref'] ?? json['targetId'] ?? json['deliveryId']),
+      // `requestId` joins the ref chain for `new_request` rows (G3); it sits
+      // after the explicit ref/target keys and before `deliveryId` — safe
+      // because in this system the delivery id == the request id (the same
+      // convention notification_deep_link.dart documents).
+      ref: _str(
+        json['ref'] ??
+            json['targetId'] ??
+            json['requestId'] ??
+            json['deliveryId'],
+      ),
     );
   }
 
@@ -102,6 +111,12 @@ class DioNotificationsRepository implements NotificationsRepository {
       case 'request_expired':
       case 'requestExpired':
         return NotificationKind.requestExpired;
+      // G3: the jeeber-side new-request broadcast (`type=new_request`, same
+      // wire value the push layer's NotificationCategory.fromKey accepts).
+      // Previously fell through to `unknown` → an un-routable inbox row.
+      case 'new_request':
+      case 'newRequest':
+        return NotificationKind.newRequest;
       case 'confirm_receipt':
       case 'confirmReceipt':
         return NotificationKind.confirmReceipt;

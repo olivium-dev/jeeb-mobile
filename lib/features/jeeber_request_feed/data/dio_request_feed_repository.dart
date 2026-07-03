@@ -179,7 +179,7 @@ class DioRequestFeedRepository implements RequestFeedRepository {
     final expiresRaw =
         json['broadcastExpiresAt'] as String? ?? json['expiresAt'] as String?;
     final expires = expiresRaw != null
-        ? DateTime.tryParse(expiresRaw) ??
+        ? _parseServerTime(expiresRaw) ??
               DateTime.now().add(const Duration(minutes: 5))
         : DateTime.now().add(const Duration(minutes: 5));
     final createdRaw = json['createdAt'] as String?;
@@ -206,8 +206,31 @@ class DioRequestFeedRepository implements RequestFeedRepository {
       distanceFromYouKm: distanceMeters != null
           ? distanceMeters / 1000.0
           : (json['distanceFromYouKm'] as num?)?.toDouble(),
-      receivedAt: createdRaw != null ? DateTime.tryParse(createdRaw) : null,
+      receivedAt: createdRaw != null ? _parseServerTime(createdRaw) : null,
       feedStatus: feedStatus,
+    );
+  }
+
+  /// Parses a gateway timestamp string. Server times are UTC; an ISO string
+  /// WITHOUT an explicit zone marker (no trailing `Z`, no `±hh:mm` offset)
+  /// would otherwise be interpreted by [DateTime.parse] as device-LOCAL,
+  /// skewing every card's clock and expiry by the device's UTC offset
+  /// (SW-03: feed cards read "12:31" under a 14:31 status bar). Zone-less
+  /// strings are therefore re-interpreted as UTC; zoned strings parse as-is.
+  /// Presentation converts with `toLocal()` at render time.
+  static DateTime? _parseServerTime(String raw) {
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return null;
+    if (parsed.isUtc) return parsed; // had `Z` or an explicit offset
+    return DateTime.utc(
+      parsed.year,
+      parsed.month,
+      parsed.day,
+      parsed.hour,
+      parsed.minute,
+      parsed.second,
+      parsed.millisecond,
+      parsed.microsecond,
     );
   }
 

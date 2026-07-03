@@ -175,7 +175,12 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     if (history.length > _historyLimit) {
       history.removeRange(_historyLimit, history.length);
     }
-    _badgeCount.increment();
+    // G3: tag new-request pushes so the shell's Dashboard-tab badge counts
+    // exactly the unseen open requests (chat/offer pushes only bump the
+    // inbox total).
+    _badgeCount.increment(
+      isNewRequest: message.category == NotificationCategory.newRequest,
+    );
     emit(state.copyWith(banner: message, history: history));
     _maybeSignalStatusChange(message);
     _maybeSignalOfferLifecycle(message);
