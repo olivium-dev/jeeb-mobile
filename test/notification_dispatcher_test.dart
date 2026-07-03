@@ -26,6 +26,14 @@ GoRouter _router() {
         path: '/jeeber/requests/:id',
         builder: (_, _) => stub('jeeber-request-detail'),
       ),
+      GoRoute(
+        path: '/jeeber/deliveries/:id/active',
+        builder: (_, _) => stub('jeeber-active-delivery'),
+      ),
+      GoRoute(
+        path: '/jeeber/pending-offers',
+        builder: (_, _) => stub('jeeber-pending-offers'),
+      ),
     ],
   );
 }
@@ -60,62 +68,159 @@ void main() {
     dispatcher = NotificationDispatcher(handler: handler, router: router);
 
     await tester.runAsync(() async {
-      transport.emitOpenedApp(NotificationMessage(
-        id: 'a',
-        category: NotificationCategory.delivery,
-        title: 't',
-        body: 'b',
-        receivedAt: DateTime.utc(2026, 5, 17),
-        data: const {'delivery_id': 'd-42'},
-      ));
+      transport.emitOpenedApp(
+        NotificationMessage(
+          id: 'a',
+          category: NotificationCategory.delivery,
+          title: 't',
+          body: 'b',
+          receivedAt: DateTime.utc(2026, 5, 17),
+          data: const {'delivery_id': 'd-42'},
+        ),
+      );
       await Future<void>.delayed(const Duration(milliseconds: 20));
     });
     await tester.pumpAndSettle();
 
-    expect(router.routerDelegate.currentConfiguration.uri.toString(),
-        '/orders/d-42');
+    expect(
+      router.routerDelegate.currentConfiguration.uri.toString(),
+      '/orders/d-42',
+    );
   });
 
   testWidgets('routes banner taps after foreground emit', (tester) async {
     await _pumpRouter(tester, router);
     dispatcher = NotificationDispatcher(handler: handler, router: router);
 
-    transport.emitForeground(NotificationMessage(
-      id: 'b',
-      category: NotificationCategory.chat,
-      title: 't',
-      body: 'b',
-      receivedAt: DateTime.utc(2026, 5, 17),
-      data: const {'chat_id': 'c-1'},
-    ));
+    transport.emitForeground(
+      NotificationMessage(
+        id: 'b',
+        category: NotificationCategory.chat,
+        title: 't',
+        body: 'b',
+        receivedAt: DateTime.utc(2026, 5, 17),
+        data: const {'chat_id': 'c-1'},
+      ),
+    );
     await tester.pumpAndSettle();
     handler.tapBanner();
     await tester.pumpAndSettle();
 
-    expect(router.routerDelegate.currentConfiguration.uri.toString(),
-        '/chat/c-1');
+    expect(
+      router.routerDelegate.currentConfiguration.uri.toString(),
+      '/chat/c-1',
+    );
   });
 
-  testWidgets('routes an opened new_request tap to the jeeber request screen',
-      (tester) async {
+  testWidgets('routes an opened new_request tap to the jeeber request screen', (
+    tester,
+  ) async {
     await _pumpRouter(tester, router);
     dispatcher = NotificationDispatcher(handler: handler, router: router);
 
     await tester.runAsync(() async {
-      transport.emitOpenedApp(NotificationMessage(
-        id: 'nr',
-        category: NotificationCategory.newRequest,
-        title: 't',
-        body: 'b',
-        receivedAt: DateTime.utc(2026, 5, 17),
-        data: const {'requestId': 'req-1'},
-      ));
+      transport.emitOpenedApp(
+        NotificationMessage(
+          id: 'nr',
+          category: NotificationCategory.newRequest,
+          title: 't',
+          body: 'b',
+          receivedAt: DateTime.utc(2026, 5, 17),
+          data: const {'requestId': 'req-1'},
+        ),
+      );
       await Future<void>.delayed(const Duration(milliseconds: 20));
     });
     await tester.pumpAndSettle();
 
-    expect(router.routerDelegate.currentConfiguration.uri.toString(),
-        '/jeeber/requests/req-1');
+    expect(
+      router.routerDelegate.currentConfiguration.uri.toString(),
+      '/jeeber/requests/req-1',
+    );
+  });
+
+  testWidgets(
+    'routes an opened offer_accepted tap to the jeeber ACTIVE-DELIVERY '
+    'screen (run-23 CHECK B: not the empty pending-offers list)',
+    (tester) async {
+      await _pumpRouter(tester, router);
+      dispatcher = NotificationDispatcher(handler: handler, router: router);
+
+      await tester.runAsync(() async {
+        transport.emitOpenedApp(
+          NotificationMessage(
+            id: 'oa',
+            category: NotificationCategory.offerAccepted,
+            title: 't',
+            body: 'b',
+            receivedAt: DateTime.utc(2026, 5, 17),
+            data: const {
+              'requestId': 'req-1',
+              'request_id': 'req-1',
+              'offerId': 'off-1',
+              'deepLink': 'jeeb://offers/off-1',
+            },
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      });
+      await tester.pumpAndSettle();
+
+      expect(
+        router.routerDelegate.currentConfiguration.uri.toString(),
+        '/jeeber/deliveries/req-1/active',
+      );
+    },
+  );
+
+  testWidgets('an id-less offer_accepted tap still lands on pending-offers '
+      '(last-resort surface — never a silent no-op)', (tester) async {
+    await _pumpRouter(tester, router);
+    dispatcher = NotificationDispatcher(handler: handler, router: router);
+
+    await tester.runAsync(() async {
+      transport.emitOpenedApp(
+        NotificationMessage(
+          id: 'oa-noid',
+          category: NotificationCategory.offerAccepted,
+          title: 't',
+          body: 'b',
+          receivedAt: DateTime.utc(2026, 5, 17),
+          data: const {'offerId': 'off-1'},
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    });
+    await tester.pumpAndSettle();
+
+    expect(
+      router.routerDelegate.currentConfiguration.uri.toString(),
+      '/jeeber/pending-offers',
+    );
+  });
+
+  testWidgets('routes an opened offer_lost tap to the shell feed', (
+    tester,
+  ) async {
+    await _pumpRouter(tester, router);
+    dispatcher = NotificationDispatcher(handler: handler, router: router);
+
+    await tester.runAsync(() async {
+      transport.emitOpenedApp(
+        NotificationMessage(
+          id: 'ol',
+          category: NotificationCategory.offerLost,
+          title: 't',
+          body: 'b',
+          receivedAt: DateTime.utc(2026, 5, 17),
+          data: const {'requestId': 'req-1', 'offerId': 'off-2'},
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    });
+    await tester.pumpAndSettle();
+
+    expect(router.routerDelegate.currentConfiguration.uri.toString(), '/');
   });
 
   testWidgets('messages with no destination do not navigate', (tester) async {
@@ -123,13 +228,15 @@ void main() {
     dispatcher = NotificationDispatcher(handler: handler, router: router);
 
     await tester.runAsync(() async {
-      transport.emitOpenedApp(NotificationMessage(
-        id: 'c',
-        category: NotificationCategory.other,
-        title: 't',
-        body: 'b',
-        receivedAt: DateTime.utc(2026, 5, 17),
-      ));
+      transport.emitOpenedApp(
+        NotificationMessage(
+          id: 'c',
+          category: NotificationCategory.other,
+          title: 't',
+          body: 'b',
+          receivedAt: DateTime.utc(2026, 5, 17),
+        ),
+      );
       await Future<void>.delayed(const Duration(milliseconds: 20));
     });
     await tester.pumpAndSettle();
@@ -155,7 +262,9 @@ void main() {
     await dispatcher.whenColdRouted;
     await tester.pumpAndSettle();
 
-    expect(router.routerDelegate.currentConfiguration.uri.toString(),
-        '/orders/d-9/rate');
+    expect(
+      router.routerDelegate.currentConfiguration.uri.toString(),
+      '/orders/d-9/rate',
+    );
   });
 }
