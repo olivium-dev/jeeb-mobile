@@ -421,6 +421,9 @@ class DioClientHomeRepository implements ClientHomeRepository {
           'Delivery ${friendlyReference(id)}',
       status: _mapDeliveryStatus(stage),
       destinationLabel: destination,
+      // G1: the request content (customer's "What do you need?" text) — the
+      // card subtitle echoes what was asked for via [summaryLine].
+      itemsSummary: json['description'] as String?,
       etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
       jeeberName: json['jeeberName'] as String?,
       tier: ClientRequestTier.parse(
@@ -470,6 +473,8 @@ class DioClientHomeRepository implements ClientHomeRepository {
           'Request ${friendlyReference(id)}',
       status: status,
       destinationLabel: destination,
+      // G1: echo the request content on the card subtitle (see summaryLine).
+      itemsSummary: json['description'] as String?,
       etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
       jeeberName: json['jeeberName'] as String?,
       tier: ClientRequestTier.parse(
@@ -533,6 +538,8 @@ class DioClientHomeRepository implements ClientHomeRepository {
           'Request ${friendlyReference(id)}',
       status: status,
       destinationLabel: destination,
+      // G1: echo the request content on the card subtitle (see summaryLine).
+      itemsSummary: json['description'] as String?,
       tier: ClientRequestTier.parse(
         json['tier'] as String? ?? json['tierId'] as String?,
       ),

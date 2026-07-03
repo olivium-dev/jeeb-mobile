@@ -414,6 +414,11 @@ class AppRouter {
     'client-location': '/',
     'capture-location': '/',
     'transcription': '/',
+    // G1 compose-dictation pair: pushed from the compose description field;
+    // as a cold stack root BACK falls back to the shell like its voice-flow
+    // siblings above.
+    'compose-dictation': '/',
+    'compose-dictation-review': '/',
     'jeeber-request-detail': '/',
     'request-summary': '/',
     'live-tracking': '/',
@@ -1052,6 +1057,59 @@ class AppRouter {
             );
           },
         ),
+        // G1 (sprint-009 P0) — compose-dictation: the mic affordance on the
+        // "What do you need?" compose field. REUSES the existing voice
+        // recording + transcription-review screens verbatim; only the
+        // navigation closures differ — instead of forwarding a RequestDraft to
+        // `/request-summary`, the confirmed transcript POPS back to the
+        // compose step as a [VoiceClip] result, which the description field
+        // inserts and the compose controller attaches as
+        // `transcription`/`audioUrl` on the POST body.
+        GoRoute(
+          path: '/compose-dictation',
+          name: 'compose-dictation',
+          builder: (context, state) => VoiceRequestScreen(
+            onSent: (clipId, transcript) async {
+              // Review step: same TranscriptionScreen, dictation-result wiring.
+              final clip = await context.push<VoiceClip>(
+                '/compose-dictation/review',
+                extra: VoiceClip(
+                  audioPath: clipId,
+                  durationMs: 0,
+                  transcript: transcript,
+                ),
+              );
+              // Confirmed → cascade the result back to the compose field.
+              // Cancelled/re-recorded → stay on the recorder.
+              if (clip != null && context.mounted && context.canPop()) {
+                context.pop(clip);
+              }
+            },
+          ),
+        ),
+        GoRoute(
+          path: '/compose-dictation/review',
+          name: 'compose-dictation-review',
+          builder: (context, state) {
+            final extra = state.extra;
+            final clip = extra is VoiceClip
+                ? extra
+                : const VoiceClip(audioPath: '', durationMs: 0);
+            return TranscriptionScreen(
+              clip: clip,
+              onConfirm: (text, audioPath) => context.pop(
+                VoiceClip(
+                  audioPath: audioPath,
+                  durationMs: clip.durationMs,
+                  transcript: text,
+                ),
+              ),
+              onReRecord: () {
+                if (context.canPop()) context.pop();
+              },
+            );
+          },
+        ),
         GoRoute(
           path: '/jeeber/requests/:id/offer',
           name: 'jeeber-offer-submission',
@@ -1611,7 +1669,13 @@ Future<FeedRequest?> _recoverFeedRequestById(String id) async {
   final requests = await sl<RequestFeedRepository>().refresh();
   for (final request in requests) {
     if (request.id == id) {
-      return FeedRequest(id: request.id, shortLabel: request.pickup.label);
+      return FeedRequest(
+        id: request.id,
+        shortLabel: request.pickup.label,
+        // G1: the customer's request content (gateway feed `description`,
+        // parsed into itemsSummary) — the detail renders it prominently.
+        description: request.itemsSummary,
+      );
     }
   }
   return null;

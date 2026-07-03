@@ -220,6 +220,12 @@ class _WaitingLoaded extends StatelessWidget {
               notifiedCount: notifiedCount,
               remaining: state.remaining,
             ),
+          // G1 (sprint-009 P0): echo the customer's own request content while
+          // they wait — the same text the jeeber feed is showing right now.
+          if (request?.title != null && request!.title!.trim().isNotEmpty) ...[
+            const SizedBox(height: Spacing.xLarge),
+            _RequestSummaryCard(text: request.title!.trim()),
+          ],
           const SizedBox(height: Spacing.twoXLarge),
 
           // ── Offers-arrived: live transition to the review CTA (AC2) ───────
@@ -330,6 +336,53 @@ class _BroadcastHeader extends StatelessWidget {
     final mm = minutes.toString();
     final ss = seconds.toString().padLeft(2, '0');
     return '$mm:$ss';
+  }
+}
+
+/// G1 (sprint-009 P0): "Your request" echo card — the customer's own
+/// "What do you need?" text (the request `description`/`title` the create
+/// POSTed), rendered in full so the customer can verify what the nearby
+/// jeebers are being asked to price.
+class _RequestSummaryCard extends StatelessWidget {
+  const _RequestSummaryCard({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return Semantics(
+      identifier: 'waiting_request_description',
+      container: true,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(Spacing.medium),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: OmdsBorderRadius.uiLarge,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.waitingRequestSummaryLabel,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: Spacing.xSmall),
+            Text(
+              text,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.onSurface,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

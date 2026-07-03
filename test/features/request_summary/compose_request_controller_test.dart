@@ -220,5 +220,107 @@ void main() {
 
       expect(submission.lastDraft!.recipientPhone, isNull);
     });
+
+    // ── G1 (sprint-009 P0) — the description IS the user's own words ────────
+
+    test(
+      'G1: the typed "What do you need?" text lands in the POST body '
+      'VERBATIM — the hardcoded "{Tier} delivery request" string is GONE',
+      () async {
+        controller.setTier(_flash(wireId: 'uuid'));
+        controller.setDescription('2 shawarma + cola from Barbar');
+
+        await controller.submitFromLocation(
+          const LocationSelectState(status: LocationSelectStatus.loaded),
+        );
+
+        final draft = submission.lastDraft!;
+        expect(draft.description, '2 shawarma + cola from Barbar');
+        expect(draft.description, isNot(contains('Flash')),
+            reason: 'no tier-derived placeholder may leak into user content');
+        expect(draft.description.toLowerCase(),
+            isNot(contains('delivery request')));
+      },
+    );
+
+    test('G1: description is trimmed before it reaches the draft', () async {
+      controller.setTier(_flash(wireId: 'uuid'));
+      controller.setDescription('  a birthday cake  ');
+
+      await controller.submitFromLocation(
+        const LocationSelectState(status: LocationSelectStatus.loaded),
+      );
+
+      expect(submission.lastDraft!.description, 'a birthday cake');
+    });
+
+    test(
+      'G1: with NO description recorded the draft falls back to the generic '
+      'gateway-required default — never the tier-derived string',
+      () async {
+        controller.setTier(_flash(wireId: 'uuid'));
+
+        await controller.submitFromLocation(
+          const LocationSelectState(status: LocationSelectStatus.loaded),
+        );
+
+        final draft = submission.lastDraft!;
+        // The gateway 400s on a blank description, so a non-empty fallback
+        // must exist — but it must NOT be the old '"Flash delivery request"'.
+        expect(draft.description, isNotEmpty);
+        expect(draft.description, 'Delivery request');
+        expect(draft.description, isNot('Flash delivery request'));
+      },
+    );
+
+    test('G1: blank description is treated as unset (fallback applies)',
+        () async {
+      controller.setTier(_flash(wireId: 'uuid'));
+      controller.setDescription('   ');
+
+      await controller.submitFromLocation(
+        const LocationSelectState(status: LocationSelectStatus.loaded),
+      );
+
+      expect(submission.lastDraft!.description, 'Delivery request');
+      expect(controller.description, isNull);
+    });
+
+    test('G1: dictation voice-note rides the draft as transcription+audioUrl',
+        () async {
+      controller.setTier(_flash(wireId: 'uuid'));
+      controller.setDescription('A birthday cake from Sea Sweet');
+      controller.setVoiceNote(
+        transcription: 'A birthday cake from Sea Sweet',
+        audioUrl: 'clip-42',
+      );
+
+      await controller.submitFromLocation(
+        const LocationSelectState(status: LocationSelectStatus.loaded),
+      );
+
+      final draft = submission.lastDraft!;
+      expect(draft.transcription, 'A birthday cake from Sea Sweet');
+      expect(draft.audioUrl, 'clip-42');
+    });
+
+    test('G1: setTier starts a fresh compose — stale description/voice reset',
+        () async {
+      controller.setTier(_flash(wireId: 'uuid'));
+      controller.setDescription('old abandoned order');
+      controller.setVoiceNote(transcription: 'old', audioUrl: 'clip-old');
+      // New compose session.
+      controller.setTier(_flash(wireId: 'uuid2'));
+
+      await controller.submitFromLocation(
+        const LocationSelectState(status: LocationSelectStatus.loaded),
+      );
+
+      final draft = submission.lastDraft!;
+      expect(draft.description, 'Delivery request',
+          reason: 'the abandoned session\'s text must not leak');
+      expect(draft.transcription, isNull);
+      expect(draft.audioUrl, isNull);
+    });
   });
 }

@@ -129,6 +129,17 @@ Future<void> _driveToLocationSelect(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// G1: the Confirm CTA is additionally gated on a non-empty "What do you
+/// need?" description — type one so the saved-locations behaviour under test
+/// stays the only variable.
+Future<void> _describeRequest(WidgetTester tester) async {
+  await tester.enterText(
+    find.byKey(const Key('clientLocation.descriptionField')),
+    '2 shawarma + cola from Barbar',
+  );
+  await tester.pump();
+}
+
 void main() {
   group(
       'sprint-8f — Confirm CTA enabled + submit fires when saved-locations is '
@@ -181,6 +192,8 @@ void main() {
           reason: 'the saved-locations fetch must have failed in this case',
         );
 
+        await _describeRequest(tester);
+
         // The CTA is ENABLED despite the failed fetch (the defect was it staying
         // disabled forever).
         expect(
@@ -227,6 +240,16 @@ void main() {
           find.bySemanticsIdentifier('location_select_saved_addresses_error'),
           findsNothing,
         );
+
+        // G1 validation lock: with the description still empty the CTA stays
+        // DISABLED — content is required before a request can be created.
+        expect(
+          _confirmButton(tester).isEnabled,
+          isFalse,
+          reason: 'an empty "What do you need?" must block Confirm (G1)',
+        );
+
+        await _describeRequest(tester);
 
         expect(
           _confirmButton(tester).isEnabled,

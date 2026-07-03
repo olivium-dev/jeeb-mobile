@@ -118,7 +118,11 @@ class DioWaitingRepository implements WaitingRepository {
       broadcastExpiresAt: deadline,
       displayId: json['displayId'] as String?,
       tier: json['tier'] as String?,
-      title: json['title'] as String?,
+      // G1: the request row's `description` IS the customer's own "What do
+      // you need?" text (the compose flow now sends it verbatim). Prefer a
+      // dedicated short `title` when the gateway mints one; fall back to the
+      // description so the waiting screen can echo what was asked for.
+      title: json['title'] as String? ?? json['description'] as String?,
     );
   }
 

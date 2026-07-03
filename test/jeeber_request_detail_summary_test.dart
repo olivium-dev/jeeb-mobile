@@ -19,12 +19,16 @@ import 'package:jeeb_mobile/features/jeeber_request_detail/presentation/jeeber_r
 import 'support/sync_app_localizations.dart';
 
 void main() {
-  Widget harness({Locale locale = const Locale('en')}) => wrapForTest(
+  Widget harness({
+    Locale locale = const Locale('en'),
+    FeedRequest request = const FeedRequest(
+      id: 'REQ-001',
+      shortLabel: '2kg tomatoes from the souq',
+    ),
+  }) =>
+      wrapForTest(
         JeeberRequestDetailScreen(
-          request: const FeedRequest(
-            id: 'REQ-001',
-            shortLabel: '2kg tomatoes from the souq',
-          ),
+          request: request,
           reportService: const ProhibitedItemReportService(),
           onDeclined: (_) {},
         ),
@@ -76,5 +80,63 @@ void main() {
     // jeeberRequestDetailSectionPickup / jeeberRequestDetailReference (ar).
     expect(find.text('نقطة الاستلام'), findsOneWidget);
     expect(find.text('مرجع الطلب'), findsOneWidget);
+  });
+
+  // ── G1 (sprint-009 P0) — the FULL description is what the jeeber agrees to
+  //    buy/deliver, so it renders first, complete and untruncated. ───────────
+
+  const g1Request = FeedRequest(
+    id: 'REQ-001',
+    shortLabel: 'Hamra, Beirut',
+    description:
+        '2 shawarma + cola from Barbar, extra garlic, no pickles — call me '
+        'when you arrive at the building entrance, third floor, ring twice',
+  );
+
+  testWidgets('G1: renders the FULL description prominently, before pickup',
+      (tester) async {
+    await tester.pumpWidget(harness(request: g1Request));
+    await tester.pumpAndSettle();
+
+    // Section label + the complete text, verbatim.
+    expect(find.text('What the client says'), findsOneWidget);
+    final description = find.text(g1Request.description!);
+    expect(description, findsOneWidget,
+        reason: 'the jeeber must read the ENTIRE request before offering');
+    expect(
+      find.bySemanticsIdentifier('jeeber_request_detail_description'),
+      findsOneWidget,
+    );
+    // No truncation on the detail (unlike the 2-line feed preview).
+    expect(tester.widget<Text>(description).maxLines, isNull);
+
+    // Description leads the card — above the pickup row.
+    final descY = tester.getTopLeft(description).dy;
+    final pickupY = tester.getTopLeft(find.text('Hamra, Beirut')).dy;
+    expect(descY, lessThan(pickupY));
+  });
+
+  testWidgets('G1: description row is absent when the payload carries none',
+      (tester) async {
+    await tester.pumpWidget(harness());
+    await tester.pumpAndSettle();
+
+    expect(find.text('What the client says'), findsNothing);
+    expect(
+      find.bySemanticsIdentifier('jeeber_request_detail_description'),
+      findsNothing,
+    );
+  });
+
+  testWidgets('G1: Arabic locale renders the localized description label',
+      (tester) async {
+    await tester.pumpWidget(
+      harness(locale: const Locale('ar'), request: g1Request),
+    );
+    await tester.pumpAndSettle();
+
+    // jeeberRequestDetailSectionDescription (ar).
+    expect(find.text('ما يقوله العميل'), findsOneWidget);
+    expect(find.text(g1Request.description!), findsOneWidget);
   });
 }
