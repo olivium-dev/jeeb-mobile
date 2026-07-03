@@ -34,21 +34,27 @@ void main() {
     repo = DioClientHomeRepository(dio);
   });
 
+  // Stub paths/type-args trued up to the CURRENT repository architecture
+  // (same pattern as 90e093a's s11 stub true-up): the repository now calls
+  // `dio.get<dynamic>('/deliveries')` / `get<dynamic>('/requests')` and relies
+  // on the MockGatewayClient interceptor to add the service prefix, instead of
+  // the S10-era `get<Map<String, dynamic>>('/v1/…')` calls these stubs were
+  // written against. The behavior under test is unchanged.
   void stubDeliveries(Map<String, dynamic> body) {
-    when(() => dio.get<Map<String, dynamic>>(
-          '/v1/deliveries',
+    when(() => dio.get<dynamic>(
+          '/deliveries',
           queryParameters: any(named: 'queryParameters'),
         )).thenAnswer((_) async => _ok(body));
   }
 
   void stubDeliveriesError(int statusCode) {
-    when(() => dio.get<Map<String, dynamic>>(
-          '/v1/deliveries',
+    when(() => dio.get<dynamic>(
+          '/deliveries',
           queryParameters: any(named: 'queryParameters'),
         )).thenThrow(DioException(
-      requestOptions: RequestOptions(path: '/v1/deliveries'),
+      requestOptions: RequestOptions(path: '/deliveries'),
       response: Response<dynamic>(
-        requestOptions: RequestOptions(path: '/v1/deliveries'),
+        requestOptions: RequestOptions(path: '/deliveries'),
         statusCode: statusCode,
       ),
       type: DioExceptionType.badResponse,
@@ -56,10 +62,21 @@ void main() {
   }
 
   void stubRequests(Map<String, dynamic> body) {
-    when(() => dio.get<Map<String, dynamic>>(
-          '/v1/requests',
+    when(() => dio.get<dynamic>(
+          '/requests',
           queryParameters: any(named: 'queryParameters'),
         )).thenAnswer((_) async => _ok(body));
+  }
+
+  // BUG-3 offer probes (`GET /v1/offers?requestId=`) run for every
+  // non-accepted candidate row; keep them deterministic (no live offers).
+  void stubOffers() {
+    when(() => dio.get<dynamic>(
+          '/v1/offers',
+          queryParameters: any(named: 'queryParameters'),
+        )).thenAnswer(
+      (_) async => _ok(<String, dynamic>{'items': <dynamic>[]}),
+    );
   }
 
   // A seeded active delivery row + an accept-minted delivery row (covers
@@ -128,6 +145,7 @@ void main() {
       () async {
     stubDeliveries(deliveriesBody);
     stubRequests(requestsBody);
+    stubOffers();
 
     final snapshot = await repo.loadSnapshot();
     final ids = snapshot.inProgress.map((r) => r.id).toList();
@@ -143,6 +161,7 @@ void main() {
       () async {
     stubDeliveries(deliveriesBody);
     stubRequests(requestsBody);
+    stubOffers();
 
     final snapshot = await repo.loadSnapshot();
     final ids = snapshot.inProgress.map((r) => r.id).toList();
@@ -156,6 +175,7 @@ void main() {
   test('pending / delivered requests never leak into In-Progress', () async {
     stubDeliveries(deliveriesBody);
     stubRequests(requestsBody);
+    stubOffers();
 
     final snapshot = await repo.loadSnapshot();
     final ids = snapshot.inProgress.map((r) => r.id).toList();
@@ -169,6 +189,7 @@ void main() {
       '(Mockoon :3055 / gateway omits the delivery row)', () async {
     stubDeliveriesError(404);
     stubRequests(requestsBody);
+    stubOffers();
 
     final snapshot = await repo.loadSnapshot();
     final ids = snapshot.inProgress.map((r) => r.id).toList();
@@ -227,6 +248,7 @@ void main() {
       () async {
     stubDeliveries(orderedDeliveryBody);
     stubRequests(matchedRequestBody);
+    stubOffers();
 
     final snapshot = await repo.loadSnapshot();
     final row = snapshot.inProgress.firstWhere((r) => r.id == 'delivery-x');
@@ -246,6 +268,7 @@ void main() {
       () async {
     stubDeliveries(orderedDeliveryBody);
     stubRequests(matchedRequestBody);
+    stubOffers();
 
     final snapshot = await repo.loadSnapshot();
     final forOrder = snapshot.inProgress
