@@ -42,7 +42,7 @@ class DioOrderRepository implements OrderRepository {
           if (range.to != null) 'toDate': range.to!.toUtc().toIso8601String(),
         },
       );
-      return _parsePage(response.data, page, pageSize);
+      return _parsePage(response.data, tab, page, pageSize);
     } on DioException catch (e) {
       throw OrderRepositoryException(
         e.response == null
@@ -70,7 +70,12 @@ class DioOrderRepository implements OrderRepository {
     }
   }
 
-  static OrderPage _parsePage(Object? data, int requestedPage, int pageSize) {
+  static OrderPage _parsePage(
+    Object? data,
+    OrderHistoryTab tab,
+    int requestedPage,
+    int pageSize,
+  ) {
     final rawItems = _items(data);
     if (rawItems.isEmpty && data is! List) {
       throw const FormatException('items missing or not a list');
@@ -78,13 +83,25 @@ class DioOrderRepository implements OrderRepository {
     final items = <OrderSummary>[];
     for (final raw in rawItems) {
       if (raw is Map<String, dynamic>) {
-        items.add(_parseOrder(raw));
+        final order = _parseOrder(raw);
+        // Lane item 6 / run-22 P1-B: the tabs must ACTUALLY filter. The
+        // server-side `status=` filter is advisory — gateways have been
+        // observed returning loosely-filtered rows and the canonical-vs-legacy
+        // vocabulary drifts. Re-bucket client-side so a `Done` order can never
+        // linger under Active and Completed/Cancelled only show terminals.
+        // `unknown` statuses stay visible on the Active tab by design (see
+        // OrderRequestStatus.tab) rather than being dropped everywhere.
+        if (order.status.tab != tab) continue;
+        items.add(order);
       }
     }
     return OrderPage(
       items: items,
       page: requestedPage,
-      hasMore: items.length >= pageSize,
+      // Derived from the WIRE page size, not the filtered count — a page the
+      // server filled completely may still have more, even if re-bucketing
+      // trimmed rows locally.
+      hasMore: rawItems.length >= pageSize,
     );
   }
 
@@ -107,12 +124,19 @@ class DioOrderRepository implements OrderRepository {
       tier: OrderTier.parse(
         json['tier'] as String? ?? json['tierId'] as String?,
       ),
-      amountMinor: amount is Map<String, dynamic>
-          ? (amount['minorUnits'] as int? ?? 0)
-          : 0,
+      // Same wire drift as the receipt (run-22 P1-A): the live gateway sends
+      // a FLAT numeric `"amount": 12` in major units; older shapes send
+      // `{ minorUnits, currency }`. Accept both — the old code silently
+      // zeroed every flat amount.
+      amountMinor: switch (amount) {
+        final num flat => (flat * 100).round(),
+        {'minorUnits': final num minor} => minor.round(),
+        {'value': final num value} => (value * 100).round(),
+        _ => 0,
+      },
       currency: amount is Map<String, dynamic>
           ? (amount['currency'] as String? ?? 'USD')
-          : 'USD',
+          : (json['currency'] as String? ?? 'USD'),
     );
   }
 
