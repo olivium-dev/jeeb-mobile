@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 
+import '../../otp_handover/domain/handover_code_store.dart';
 import '../domain/jeeber_vehicle.dart';
 import '../domain/offer.dart';
 import '../domain/offers_repository.dart';
@@ -29,9 +32,17 @@ import '../domain/offers_repository.dart';
 /// to sane defaults. Surfacing the real name/rating on the list row is a
 /// backender enrichment gap — flagged O-list-enrich in 50_ROUTE_REQUESTS.md.
 class DioOffersRepository implements OffersRepository {
-  const DioOffersRepository(this._dio);
+  const DioOffersRepository(this._dio, {HandoverCodeStore? handoverCodeStore})
+      : _handoverCodeStore = handoverCodeStore;
 
   final Dio _dio;
+
+  /// G4: sink for the accept response's `handoverCode`. The accept response is
+  /// the only wire moment the customer is given the code, so the parse site is
+  /// the single choke point that persists it (fire-and-forget — a prefs write
+  /// must never fail or delay the accept). Null in tests that don't exercise
+  /// persistence.
+  final HandoverCodeStore? _handoverCodeStore;
 
   static const Duration _defaultWindow = Duration(minutes: 5);
 
@@ -88,19 +99,36 @@ class DioOffersRepository implements OffersRepository {
   /// delivery id is absent.
   OfferAcceptResult _parseAcceptResult(dynamic data) {
     if (data is! Map) return OfferAcceptResult.empty;
-    final rawDelivery = data['deliveryId'] ?? data['delivery_id'];
-    final deliveryId =
-        rawDelivery is String && rawDelivery.trim().isNotEmpty
-            ? rawDelivery
-            : null;
-    final rawConversation = data['conversationId'] ?? data['conversation_id'];
+    final deliveryId = _cleanString(data['deliveryId'] ?? data['delivery_id']);
     final conversationId =
-        rawConversation is String && rawConversation.trim().isNotEmpty
-            ? rawConversation
-            : null;
+        _cleanString(data['conversationId'] ?? data['conversation_id']);
+    // G4 (sprint-009 P0): RETAIN the handover code. The accept response is the
+    // only wire moment the customer's app receives it (`GET /otp` is an SMS
+    // trigger with no `code` field), so discarding it here — the pre-fix
+    // behavior — left the customer with nothing to show the Jeeber at the
+    // door. Persisted keyed by delivery id so it survives app restarts.
+    // NEVER log it (DiagRedaction masks `handoverCode` keys).
+    final handoverCode =
+        _cleanString(data['handoverCode'] ?? data['handover_code']);
+    _persistHandoverCode(deliveryId: deliveryId, code: handoverCode);
     return OfferAcceptResult(
       deliveryId: deliveryId,
       conversationId: conversationId,
+      handoverCode: handoverCode,
+    );
+  }
+
+  /// Normalises a wire field: non-empty trimmed string or null.
+  String? _cleanString(Object? raw) =>
+      raw is String && raw.trim().isNotEmpty ? raw.trim() : null;
+
+  /// Fire-and-forget local persistence of the handover code — a prefs write
+  /// must never fail, delay, or reorder the accept flow.
+  void _persistHandoverCode({String? deliveryId, String? code}) {
+    final store = _handoverCodeStore;
+    if (store == null || deliveryId == null || code == null) return;
+    unawaited(
+      store.save(deliveryId: deliveryId, code: code).catchError((_) {}),
     );
   }
 

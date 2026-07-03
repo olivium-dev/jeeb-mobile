@@ -21,6 +21,7 @@ import '../chat/domain/delivery_chat_message.dart';
 import '../chat/domain/order_broadcast_service.dart';
 import '../chat/domain/order_chat_summary.dart';
 import '../chat/presentation/chat_screen.dart';
+import '../otp_handover/domain/handover_code_store.dart';
 import '../photo_attachment/data/stub_photo_picker_service.dart';
 import '../request_summary/data/dio_request_submission_service.dart';
 import '../request_summary/domain/recipient_phone_resolver.dart';
@@ -334,6 +335,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // send (unchanged — the proven Step-5 send path).
     final gatewayConversationId =
         conversationResolved ? conversationId : kComposeConversationSentinel;
+    final getItForGateway = GetIt.instance;
     final gateway = DioChatGateway(
       dio: dio,
       currentUserId: currentUserId,
@@ -342,6 +344,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       // `?correlationKey={requestId}` (200) instead of
       // `?correlationKey={conversationId}` (404) post-accept (READ 404 #2).
       conversationCorrelationKey: requestId,
+      // G4: the chat "Accept" CTA is a live accept path — persist the accept
+      // response's handoverCode so the customer can show it at the door.
+      handoverCodeStore: getItForGateway.isRegistered<HandoverCodeStore>()
+          ? getItForGateway<HandoverCodeStore>()
+          : null,
     );
     if (!mounted) return;
     _finalize(
