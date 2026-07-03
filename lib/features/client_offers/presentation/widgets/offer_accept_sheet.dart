@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/formatting/money_format.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/offer_accept_cubit.dart';
 import '../../application/offer_accept_state.dart';
@@ -181,7 +182,9 @@ class _OfferAcceptView extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final feeFormatted = offer.fee.toStringAsFixed(2);
+    // Lane item 3 (currency unification): single MoneyFormat across surfaces.
+    final feeFormatted =
+        MoneyFormat.format(offer.fee, currency: offer.currency);
     return BlocConsumer<OfferAcceptCubit, OfferAcceptState>(
       listenWhen: (prev, next) =>
           prev.status != next.status &&

@@ -233,7 +233,9 @@ void main() {
     await tester.pump();
 
     expect(find.text('Rana'), findsOneWidget);
-    expect(find.text('17.50'), findsOneWidget);
+    // Lane item 3: one MoneyFormat everywhere - the pill renders "$17.50",
+    // not a bare "17.50" with a separate currency-code line.
+    expect(find.text('\$17.50'), findsOneWidget);
     expect(find.text('22 min ETA'), findsOneWidget);
     expect(find.text('Bicycle'), findsOneWidget);
   });
@@ -294,7 +296,8 @@ void main() {
     );
     // The "Waiting for offers" empty-state must NOT show when items is non-empty.
     expect(find.byKey(const Key('offer-empty-state')), findsNothing);
-    // The parsed fee surfaces on the card (6.5 → "6.50").
-    expect(find.text('6.50'), findsWidgets);
+    // The parsed fee surfaces on the card via the unified MoneyFormat
+    // (6.5 USD -> "$6.50", lane item 3).
+    expect(find.text('\$6.50'), findsWidgets);
   });
 }

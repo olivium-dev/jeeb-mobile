@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/formatting/money_format.dart';
 import '../../../l10n/app_localizations.dart';
 import '../cubit/tier_selection_cubit.dart';
 import '../cubit/tier_selection_state.dart';
@@ -347,19 +348,10 @@ class _TierListEntry extends StatelessWidget {
     }
   }
 
-  String _formatPrice(int amount, String currency) {
-    // Thousands separator only — no locale-aware formatter dependency in the
-    // tier-selection feature; keeps the screen self-contained for MVP. The
-    // currency code follows the amount per the ARB's "{low} – {high}" pattern.
-    final buffer = StringBuffer();
-    final digits = amount.toString();
-    for (var i = 0; i < digits.length; i++) {
-      final remaining = digits.length - i;
-      buffer.write(digits[i]);
-      if (remaining > 1 && remaining % 3 == 1) {
-        buffer.write(',');
-      }
-    }
-    return '$buffer $currency';
-  }
+  String _formatPrice(int amount, String currency) =>
+      // Lane item 3 (currency unification): the single MoneyFormat used by the
+      // receipt and offer surfaces — "$12.00" for USD, "LBP 15,000.00"
+      // otherwise. Replaces the local "15,000 USD"-style formatter so tiers no
+      // longer disagree with the rest of the app.
+      MoneyFormat.format(amount.toDouble(), currency: currency);
 }

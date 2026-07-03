@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/formatting/money_format.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/jeeber_vehicle.dart';
 import '../../domain/offer.dart';
@@ -62,7 +63,11 @@ class OfferCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final feeFormatted = offer.fee.toStringAsFixed(2);
+    // Lane item 3 (currency unification): one formatter across receipt,
+    // offers, tiers — "$12.00" for USD, "LBP 15,000.00" otherwise. No more
+    // mixed "17.50 / USD" pill vs "$12.00" receipt.
+    final feeFormatted =
+        MoneyFormat.format(offer.fee, currency: offer.currency);
     final vehicleLabel = _vehicleLabel(l10n, offer.vehicle);
 
     // Optional Jeeber note (offer.note). Trim so a whitespace-only note from the
@@ -136,10 +141,7 @@ class OfferCard extends StatelessWidget {
                   _IdWrap(
                     indexId: 'offer_card_${index}_price',
                     patternId: 'offer_card_${offer.jeeberId}_price',
-                    child: _FeePill(
-                      amount: feeFormatted,
-                      currency: offer.currency,
-                    ),
+                    child: _FeePill(amount: feeFormatted),
                   ),
                 ],
               ),
@@ -449,10 +451,12 @@ class _AcceptCta extends StatelessWidget {
 }
 
 class _FeePill extends StatelessWidget {
-  const _FeePill({required this.amount, required this.currency});
+  const _FeePill({required this.amount});
 
+  /// The fully-formatted money string (currency included — lane item 3:
+  /// `MoneyFormat` output like `$12.00`), so the pill never renders a second
+  /// bare currency-code line.
   final String amount;
-  final String currency;
 
   @override
   Widget build(BuildContext context) {
@@ -467,25 +471,12 @@ class _FeePill extends StatelessWidget {
         color: colors.primaryContainer,
         borderRadius: OmdsBorderRadius.small,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            amount,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: colors.onPrimaryContainer,
-            ),
-          ),
-          Text(
-            currency,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: colors.onPrimaryContainer.withValues(
-                alpha: UIConstants.opacityHigh,
-              ),
-            ),
-          ),
-        ],
+      child: Text(
+        amount,
+        style: theme.textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.bold,
+          color: colors.onPrimaryContainer,
+        ),
       ),
     );
   }
