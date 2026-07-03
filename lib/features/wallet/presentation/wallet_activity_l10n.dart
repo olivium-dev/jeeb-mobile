@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../../../core/formatting/server_time.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/wallet_ledger_repository.dart';
 
@@ -101,7 +102,10 @@ class WalletActivityL10n {
   /// Locale-agnostic enough to stay cosmetic; falls back to the raw string when
   /// the timestamp is unparseable.
   String relativeTime(String timestamp, {DateTime? now}) {
-    final ts = DateTime.tryParse(timestamp);
+    // T11 / SW-03 family: normalize the server instant (zone-less → UTC) before
+    // diffing, else a fresh row reads "4h ago" on a device 4h ahead of UTC.
+    // `difference` compares absolute instants, so a local `now` is fine.
+    final ts = ServerTime.parse(timestamp);
     if (ts == null) return timestamp;
     final reference = now ?? DateTime.now();
     final diff = reference.difference(ts);

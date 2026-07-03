@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/formatting/server_time.dart';
 import '../application/transaction_detail_cubit.dart';
 import '../application/transaction_detail_state.dart';
 import '../data/stub_wallet_transaction_repository.dart';
@@ -321,7 +322,9 @@ class _LoadedBody extends StatelessWidget {
   /// asserted contract is the Semantics id, not the visible text — D-N §8). Falls
   /// back to the raw string when it is not parseable.
   String _fmtDate(String iso) {
-    final dt = DateTime.tryParse(iso);
+    // Normalize the server instant (zone-less → UTC) so `toLocal()` is a real
+    // conversion, not a no-op that prints the UTC wall clock (T11 / SW-03).
+    final dt = ServerTime.parse(iso);
     if (dt == null) return iso;
     final local = dt.toLocal();
     String two(int n) => n.toString().padLeft(2, '0');
