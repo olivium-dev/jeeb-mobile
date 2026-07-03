@@ -165,6 +165,19 @@ class EarningsSummary extends Equatable {
     return (totalCashEarned - feesPaid) / deliveryCount;
   }
 
+  /// True when the wire carries no earnings for the selected period — no
+  /// deliveries, no cash, no fees. T11 / SW-01: the dashboard must render an
+  /// honest empty/pending state here, NOT confident "0.00 USD earned · 0
+  /// Deliveries · 0.00 fees" cards, which read as a betrayal ten minutes after a
+  /// completed cash delivery. A real earnings row always moves at least one of
+  /// these off zero, so all-zero means "nothing recorded yet", not "you earned
+  /// exactly zero".
+  bool get isEmpty =>
+      deliveryCount == 0 &&
+      deliveries.isEmpty &&
+      totalCashEarned <= 0 &&
+      feesPaid <= 0;
+
   @override
   List<Object?> get props => [
     totalCashEarned,

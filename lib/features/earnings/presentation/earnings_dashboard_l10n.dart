@@ -79,11 +79,27 @@ class EarningsDashboardL10n {
   /// `earnings_member_since` — the Jeeber's join date.
   String get memberSinceLabel => _pick('Member since', 'عضو منذ');
 
+  // ── Honest empty / pending state (T11 / SW-01). ───────────────────────────
+  /// Shown INSTEAD of "0.00 · 0 · 0.00" cards when the wire carries no earnings
+  /// for the period — a truthful "nothing recorded yet" rather than a confident
+  /// zero after a completed cash delivery.
+  String get emptyTitle =>
+      _pick('No earnings yet this period', 'لا أرباح بعد لهذه الفترة');
+  String get emptyHint => _pick(
+    'A completed delivery can take a few minutes to appear here. '
+        'Pull to refresh, or check another period.',
+    'قد تستغرق التوصيلة المكتملة بضع دقائق لتظهر هنا. '
+        'اسحب للتحديث، أو تحقق من فترة أخرى.',
+  );
+  String get emptyRefresh => _pick('Refresh', 'تحديث');
+
   // ── Delivery breakdown rows. ──────────────────────────────────────────────
   String get breakdownTitle => _pick('Recent deliveries', 'التوصيلات الأخيرة');
   String deliveryRowTitle(String id) => _pick('Delivery $id', 'توصيلة $id');
-  String deliveryRowFee(String amount, String currency) =>
-      _pick('$amount $currency fee', 'رسوم $amount $currency');
+
+  /// [money] is already a fully-formatted [MoneyFormat] string (e.g. `$1.20`),
+  /// so the currency is not appended separately here.
+  String deliveryRowFee(String money) => _pick('$money fee', 'رسوم $money');
 
   // ── Cross-feature links (real edges — W3 targets registered). ─────────────
 
