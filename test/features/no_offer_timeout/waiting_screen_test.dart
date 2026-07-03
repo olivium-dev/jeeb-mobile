@@ -95,6 +95,43 @@ void main() {
           findsNothing);
     });
 
+    // G1 (sprint-009 P0): the waiting surface echoes the customer's OWN
+    // request content — the same text the jeeber feed is rendering right now.
+    testWidgets('G1 — echoes the request content under "Your request"',
+        (tester) async {
+      await tester.pumpWidget(wrapForTest(_screen(_broadcast())));
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.bySemanticsIdentifier('waiting_request_description'),
+        findsOneWidget,
+        reason: 'the customer must see what they asked for while waiting',
+      );
+      expect(find.text('Your request'), findsOneWidget);
+      expect(find.text('Pharmacy run'), findsOneWidget);
+    });
+
+    testWidgets(
+        'G1 — no echo card when the request row carries no title/description',
+        (tester) async {
+      final seed = WaitingRequest(
+        requestId: 'req-no-title',
+        phase: WaitingRequestPhase.broadcasting,
+        notifiedCount: 2,
+        offerCount: 0,
+        broadcastExpiresAt: DateTime.utc(2026, 6, 18, 9, 4, 30),
+      );
+      await tester.pumpWidget(wrapForTest(_screen(seed)));
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.bySemanticsIdentifier('waiting_request_description'),
+        findsNothing,
+      );
+    });
+
     // BUG-4 / JM-026 false-no-coverage: the gateway never populates
     // notifiedCount (jeebers pull `GET /v1/jeebers/me/feed`, there is no
     // push-notify counter), so it is effectively always 0. A 0-notified

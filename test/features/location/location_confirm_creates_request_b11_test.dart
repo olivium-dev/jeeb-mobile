@@ -153,7 +153,16 @@ void main() {
         await tester.tap(continueCta);
         await tester.pumpAndSettle();
 
-        // Step 2: confirm the location → must CREATE the request (B11 fix).
+        // Step 2 (G1): type the request CONTENT — required before Confirm
+        // enables. This is the customer's own words, the exact string the
+        // jeeber feed/detail must render.
+        await tester.enterText(
+          find.byKey(const Key('clientLocation.descriptionField')),
+          '2 shawarma + cola from Barbar',
+        );
+        await tester.pump();
+
+        // Step 3: confirm the location → must CREATE the request (B11 fix).
         final confirm =
             find.bySemanticsIdentifier('location_select_confirm_cta');
         expect(confirm, findsOneWidget);
@@ -174,6 +183,22 @@ void main() {
         //     `POST /requests` body was assembled — not a `'new'` broadcast).
         expect(submission.lastDraft!.tierName, isNotNull,
             reason: 'the submitted draft must carry the chosen tier');
+
+        // (2b) G1 payload lock: the POST body description IS the user's text —
+        // verbatim — and the old hardcoded '"{Tier} delivery request"'
+        // placeholder is gone for good.
+        expect(
+          submission.lastDraft!.description,
+          '2 shawarma + cola from Barbar',
+          reason: 'the request description must be the customer\'s own words '
+              '(G1 — "order whatever I want").',
+        );
+        expect(
+          submission.lastDraft!.description.toLowerCase(),
+          isNot(contains('delivery request')),
+          reason: 'the tier-derived placeholder description must never be '
+              'sent when the customer typed content.',
+        );
 
         // (3) POST-CREATE UX FIX (run-8 Step-2): the customer now lands on the
         //     "Finding a Jeeber" WAITING screen (NoOfferTimeoutScreen) for the

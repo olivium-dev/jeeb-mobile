@@ -50,6 +50,50 @@ void main() {
     expect(find.byType(OmdsStarRatingDisplay), findsOneWidget);
   });
 
+  // G1 (sprint-009 P0): the description is the request CONTENT the jeeber
+  // prices — it gets a prominent TWO-line preview in the on-surface role.
+  testWidgets(
+      'G1: description preview is 2-line, ellipsised, and body-prominent',
+      (tester) async {
+    const longDescription =
+        '2 shawarma + cola from Barbar, extra garlic, no pickles, and a '
+        'large fries — call me when you arrive at the building entrance, '
+        'third floor, ring twice';
+    await tester.pumpWidget(_host(JeeberFeedCard(
+      request: DeliveryRequest(
+        id: 'req-long',
+        pickup:
+            const RequestLocation(label: 'Hamra', latitude: 0, longitude: 0),
+        dropoff:
+            const RequestLocation(label: 'Verdun', latitude: 0, longitude: 0),
+        tier: JeeberRequestTier.flash,
+        estimatedDistanceKm: 3,
+        potentialEarnings: 4,
+        currency: 'USD',
+        expiresAt: DateTime(2030),
+        itemsSummary: longDescription,
+      ),
+    )));
+    await tester.pumpAndSettle();
+
+    final summary = tester.widget<Text>(
+      find.byKey(const Key('jeeber-feed-card-summary')),
+    );
+    expect(summary.data, longDescription,
+        reason: 'the customer\'s own words render verbatim');
+    expect(summary.maxLines, 2,
+        reason: 'the card shows a 2-line preview (full text on the detail)');
+    expect(summary.overflow, TextOverflow.ellipsis);
+
+    // Prominence: on-surface body style, not the old muted caption.
+    final context = tester.element(
+      find.byKey(const Key('jeeber-feed-card-summary')),
+    );
+    final theme = Theme.of(context);
+    expect(summary.style?.color, theme.colorScheme.onSurface);
+    expect(summary.style?.fontSize, theme.textTheme.bodyMedium?.fontSize);
+  });
+
   testWidgets('incoming status shows Ignore + Offer actions', (tester) async {
     var ignored = false;
     var offered = false;
