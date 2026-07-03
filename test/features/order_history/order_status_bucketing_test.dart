@@ -202,6 +202,59 @@ void main() {
       );
 
       expect(page.items.single.amountMinor, 950);
+      expect(page.items.single.hasKnownAmount, isTrue);
+    });
+
+    // ── T11 / SW-02: money truth on history rows ────────────────────────────
+    test('ABSENT amount → amountMinor null, NOT a fabricated 0 (\$0.00)',
+        () async {
+      // The row the audit caught: a completed order whose list entry carries no
+      // amount key. The old `_ => 0` fallback rendered "\$0.00" on every row.
+      adapter.body = {
+        'items': [
+          {
+            'id': 'r-noamt',
+            'status': 'Done',
+            'createdAt': '2026-07-03T00:00:00Z',
+          },
+        ],
+      };
+
+      final page = await repo.fetchPage(
+        tab: OrderHistoryTab.completed,
+        page: 1,
+        pageSize: 20,
+      );
+
+      final row = page.items.single;
+      expect(row.amountMinor, isNull);
+      expect(row.hasKnownAmount, isFalse); // → card shows "—", never \$0.00
+    });
+
+    // ── SW-03 family: local-time truth on history rows ──────────────────────
+    test('zone-less createdAt is normalized to a UTC instant', () async {
+      // A gateway string WITHOUT a zone marker is a UTC instant; parsing it raw
+      // would read it as device-local, so the card's toLocal() would be a no-op
+      // and print the UTC wall clock (feed read "12:31" under a 14:31 clock).
+      adapter.body = {
+        'items': [
+          {
+            'id': 'r-zl',
+            'status': 'accepted',
+            'createdAt': '2026-07-03T12:31:00',
+          },
+        ],
+      };
+
+      final page = await repo.fetchPage(
+        tab: OrderHistoryTab.active,
+        page: 1,
+        pageSize: 20,
+      );
+
+      final created = page.items.single.createdAt;
+      expect(created.isUtc, isTrue);
+      expect(created, DateTime.utc(2026, 7, 3, 12, 31));
     });
   });
 }

@@ -2632,6 +2632,7 @@
   "offersWindowExpired": "Offer window expired",
   "offersWindowRemaining": "Window: {time} left",
   "orderHistoryAddressMissing": "Address unavailable",
+  "orderHistoryAmountUnavailable": "Amount unavailable",
   "orderHistoryCardSemanticLabel": "Order {id}",
   "orderHistoryEmptyActive": "Active deliveries will show up here.",
   "orderHistoryEmptyCancelled": "Cancelled or disputed deliveries will appear here.",

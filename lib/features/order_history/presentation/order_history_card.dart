@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/formatting/money_format.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/order_summary.dart';
 import 'order_status_chip.dart';
@@ -31,10 +32,15 @@ class OrderHistoryCard extends StatelessWidget {
     final dateLabel = DateFormat.yMMMd(locale).add_jm().format(
           order.createdAt.toLocal(),
         );
-    final amountLabel = NumberFormat.simpleCurrency(
-      locale: locale,
-      name: order.currency,
-    ).format(order.amountMinor / 100);
+    // T11 / SW-02: show the real amount through the one MoneyFormat rule when
+    // it is known; a missing price degrades to an em-dash (with an explicit
+    // "amount unavailable" a11y label), NEVER a fabricated `$0.00`.
+    final amountKnown = order.hasKnownAmount;
+    final amountLabel = amountKnown
+        ? MoneyFormat.format(order.amountMinor! / 100, currency: order.currency)
+        : '—';
+    final amountSemantics =
+        amountKnown ? amountLabel : l10n.orderHistoryAmountUnavailable;
 
     return Semantics(
       button: true,
@@ -72,7 +78,12 @@ class OrderHistoryCard extends StatelessWidget {
                     : order.dropoffAddress,
               ),
               const SizedBox(height: Spacing.xSmall),
-              _Footer(tier: order.tier, amountLabel: amountLabel),
+              _Footer(
+                tier: order.tier,
+                amountLabel: amountLabel,
+                amountKnown: amountKnown,
+                amountSemantics: amountSemantics,
+              ),
             ],
           ),
         ),
@@ -138,10 +149,17 @@ class _AddressLine extends StatelessWidget {
 }
 
 class _Footer extends StatelessWidget {
-  const _Footer({required this.tier, required this.amountLabel});
+  const _Footer({
+    required this.tier,
+    required this.amountLabel,
+    required this.amountKnown,
+    required this.amountSemantics,
+  });
 
   final OrderTier tier;
   final String amountLabel;
+  final bool amountKnown;
+  final String amountSemantics;
 
   @override
   Widget build(BuildContext context) {
@@ -161,8 +179,11 @@ class _Footer extends StatelessWidget {
         ),
         Text(
           amountLabel,
+          semanticsLabel: amountSemantics,
           style: theme.textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.w600,
+            // A missing price is muted, not shouted like a real amount.
+            color: amountKnown ? null : theme.colorScheme.onSurfaceVariant,
           ),
         ),
       ],

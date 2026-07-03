@@ -151,8 +151,20 @@ class OrderSummary extends Equatable {
   final OrderRequestStatus status;
   final OrderTier tier;
 
-  /// Minor units (e.g. piastres for LBP, cents for USD) to avoid float math.
-  final int amountMinor;
+  /// Amount in minor units (e.g. piastres for LBP, cents for USD) to avoid
+  /// float math.
+  ///
+  /// NULL when the gateway did not surface a usable amount. An absent price is
+  /// UNKNOWN — it must never be rendered as a fabricated `$0.00` (T11 / SW-02:
+  /// every history row read `$0.00`, even the completed $12 order). This mirrors
+  /// the receipt's `cashAmount` contract (run-22 P1-A): the requests-list
+  /// endpoint drops the amount for some rows, and a missing key is not a zero.
+  final int? amountMinor;
+
+  /// True when the gateway surfaced a real, positive amount. Zero/negative wire
+  /// values are treated as unknown too — a priced request is never actually
+  /// worth 0, so a 0 here means enrichment broke (same rule as the receipt).
+  bool get hasKnownAmount => (amountMinor ?? 0) > 0;
 
   /// ISO 4217 currency code.
   final String currency;
