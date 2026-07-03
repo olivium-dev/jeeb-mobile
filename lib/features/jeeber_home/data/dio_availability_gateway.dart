@@ -1,6 +1,5 @@
 import 'package:dio/dio.dart';
 
-import '../../../core/dev_seam/session_seam_bootstrap.dart';
 import '../../../core/network/auth_token_store.dart';
 import '../../../core/network/mock_gateway_client.dart';
 import '../domain/entities/availability_status.dart';
@@ -26,11 +25,20 @@ class DioAvailabilityGateway implements AvailabilityGateway {
   final Dio _dio;
   final AuthTokenStore? tokenStore;
 
-  /// The jeeber whose availability this gateway reads. Defaults to the seeded
-  /// W2 jeeber session (`user-jeeber-002`) since the mock filters by id, not
-  /// the bearer (the global authStub otherwise pins to a client).
+  /// The jeeber whose availability this gateway reads. Explicit override for
+  /// tests / seams; when absent the REAL authenticated session id is resolved
+  /// from [tokenStore] (see [_id]) — never a hardcoded fixture id.
   final String? jeeberId;
 
+  /// Resolves the jeeber id: explicit override (tests / seams) → the REAL
+  /// authenticated session id from [AuthTokenStore] — never a hardcoded
+  /// fixture id (S0-OAD-03). In the mock lane the session seam / login flow
+  /// seeds the store's userId, so the same lookup serves both lanes. FAIL
+  /// CLOSED: with no session id, [_requiredId] throws
+  /// [AvailabilityGatewayException] ('missing session user id') instead of
+  /// silently reading/toggling another user's availability. The live lane
+  /// (`/jeebers/me/availability`) never needs the id — the gateway scopes by
+  /// the bearer.
   Future<String?> _id() async {
     final explicit = jeeberId;
     if (explicit != null && explicit.isNotEmpty) return explicit;
@@ -38,9 +46,7 @@ class DioAvailabilityGateway implements AvailabilityGateway {
     if (sessionUserId != null && sessionUserId.isNotEmpty) {
       return sessionUserId;
     }
-    return MockGatewayClient.useMockPrefixes
-        ? SessionSeamBootstrap.jeeberUserId
-        : null;
+    return null;
   }
 
   static const String _mockBasePath = '/v1/availability';

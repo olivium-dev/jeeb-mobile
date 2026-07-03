@@ -133,9 +133,23 @@ class DioClientHomeRepository implements ClientHomeRepository {
         )
         .toList(growable: false);
     final shipmentIds = activeShipments.map((r) => r.id).toSet();
+    // S10 dedupe (re-applied — 274ecef's `_mergeInProgress` deduped the
+    // role=client accepted rows by the delivery rows' parent `requestId`; a
+    // later integration merge kept only the S11 activeRequests-path dedupe): a
+    // request already represented by a delivery row must appear ONLY as that
+    // delivery row (it carries the real `delivery-<offerId>` tracking id) —
+    // never a second time under its request id.
+    final coveredRequestIds = activeShipments
+        .map((r) => r.chatCorrelationId)
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toSet();
     final inProgress = <ClientHomeRequest>[
       ...activeShipments,
-      ...buckets.accepted.where((a) => !shipmentIds.contains(a.id)),
+      ...buckets.accepted.where(
+        (a) =>
+            !shipmentIds.contains(a.id) && !coveredRequestIds.contains(a.id),
+      ),
     ];
 
     // S11 Defect-A: additively merge the `status=active` in-flight requests.
@@ -145,11 +159,6 @@ class DioClientHomeRepository implements ClientHomeRepository {
     // `_parseActiveDelivery`) — the delivery-backed row wins because it carries
     // the real `delivery-<offerId>` tracking id; (b) plain id dedupe against
     // everything already merged. Purely additive: no existing row is dropped.
-    final coveredRequestIds = activeShipments
-        .map((r) => r.chatCorrelationId)
-        .whereType<String>()
-        .where((id) => id.isNotEmpty)
-        .toSet();
     final presentIds = inProgress.map((r) => r.id).toSet();
     for (final request in activeRequests) {
       if (coveredRequestIds.contains(request.id)) continue;
@@ -563,9 +572,21 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// snake (`in_transit`) and lowercase (`intransit`) all resolve.
   static ClientRequestStatus _mapDeliveryStatus(String? status) {
     switch (_normalizeStatus(status)) {
+      // S12 fix (re-applied — the original mapping, ac51352, was lost when a
+      // later integration merge kept the mainline rewrite of this switch): a
+      // delivery row only exists once a Jeeber is assigned / the order is
+      // placed, so `Ordered`/`matched` is the FIRST trackable stage —
+      // `accepted`, never `searching`. Mapping it to `searching` rendered a
+      // brand-new order as a non-trackable row with no "Track my order" /
+      // "Open chat" CTA (ActiveOrderCard._canTrack rejects `searching`), so a
+      // freshly-created request could not be tracked. The visual stage is read
+      // independently from `progressStep` (parsed at _parseActiveDelivery), so
+      // the stepper stays at step 0 "Ordered" — only the CTA gate opens.
+      // `matched` gets the same treatment for parity with [_mapRequestStatus]
+      // (matched == the offer was accepted == a Jeeber is assigned).
       case 'ordered':
       case 'matched':
-        return ClientRequestStatus.searching;
+        return ClientRequestStatus.accepted;
       case 'picked':
       case 'pickedup':
         return ClientRequestStatus.atPickup;

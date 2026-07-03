@@ -319,15 +319,25 @@ void main() {
       'totalCount': 1,
     };
 
+    // Stub paths/type-args trued up to the CURRENT repository architecture
+    // (same pattern as 90e093a's s11 stub true-up): the repository now calls
+    // `dio.get<dynamic>('/deliveries')` / `get<dynamic>('/requests')` and
+    // relies on the MockGatewayClient interceptor for the service prefix.
     void stubGateway() {
-      when(() => dio.get<Map<String, dynamic>>(
-            '/v1/deliveries',
+      when(() => dio.get<dynamic>(
+            '/deliveries',
             queryParameters: any(named: 'queryParameters'),
           )).thenAnswer((_) async => _ok(orderedDeliveriesBody));
-      when(() => dio.get<Map<String, dynamic>>(
-            '/v1/requests',
+      when(() => dio.get<dynamic>(
+            '/requests',
             queryParameters: any(named: 'queryParameters'),
           )).thenAnswer((_) async => _ok(matchedRequestsBody));
+      when(() => dio.get<dynamic>(
+            '/v1/offers',
+            queryParameters: any(named: 'queryParameters'),
+          )).thenAnswer(
+        (_) async => _ok(<String, dynamic>{'items': <dynamic>[]}),
+      );
     }
 
     testWidgets(
@@ -420,14 +430,22 @@ void main() {
         'tapping Open chat navigates to chat-detail with the parent request id '
         '(req-x), not the delivery id, and forwards deliveryId=delivery-x',
         (tester) async {
-      when(() => dio.get<Map<String, dynamic>>(
-            '/v1/deliveries',
+      // Stub paths/type-args trued up to the CURRENT repository architecture
+      // (90e093a pattern): `get<dynamic>('/deliveries')` / `('/requests')`.
+      when(() => dio.get<dynamic>(
+            '/deliveries',
             queryParameters: any(named: 'queryParameters'),
           )).thenAnswer((_) async => _ok(deliveriesBody));
-      when(() => dio.get<Map<String, dynamic>>(
-            '/v1/requests',
+      when(() => dio.get<dynamic>(
+            '/requests',
             queryParameters: any(named: 'queryParameters'),
           )).thenAnswer((_) async => _ok(requestsBody));
+      when(() => dio.get<dynamic>(
+            '/v1/offers',
+            queryParameters: any(named: 'queryParameters'),
+          )).thenAnswer(
+        (_) async => _ok(<String, dynamic>{'items': <dynamic>[]}),
+      );
 
       String? navigatedId;
       String? navigatedDeliveryId;
