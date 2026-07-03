@@ -110,7 +110,14 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
         DiagnosticsScreen.defaultSessionsLoader)();
   }
 
-  void _refresh() => setState(() => _sessions = _load());
+  void _refresh() {
+    // Kick the load OUTSIDE setState — the callback must stay synchronous
+    // (and must not RETURN the future, which an arrow closure would).
+    final next = _load();
+    setState(() {
+      _sessions = next;
+    });
+  }
 
   Future<void> _share(DiagSessionFileInfo file) async {
     try {

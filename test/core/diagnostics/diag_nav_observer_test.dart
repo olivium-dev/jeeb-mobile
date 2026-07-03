@@ -81,4 +81,62 @@ void main() {
     observer.didPush(route('/orders/:id'), null);
     expect(lines, isEmpty);
   });
+
+  group('previous-route context (diag-persistence lane)', () {
+    test('didPush carries prev = the route the user came FROM', () {
+      observer.didPush(route('/orders/:id'), route('/home'));
+      final record = decodeLine(lines.single);
+      expect(record['evt'], 'push');
+      expect(record['route'], '/orders/:id');
+      expect(record['prev'], '/home');
+    });
+
+    test('didPush with no previous route omits prev entirely', () {
+      observer.didPush(route('/home'), null);
+      final record = decodeLine(lines.single);
+      expect(record.containsKey('prev'), isFalse);
+    });
+
+    test('didPop carries prev = the POPPED route (the screen just left)', () {
+      observer.didPop(route('/orders/:id/otp'), route('/orders/:id'));
+      final record = decodeLine(lines.single);
+      expect(record['route'], '/orders/:id'); // destination
+      expect(record['prev'], '/orders/:id/otp'); // screen left
+    });
+
+    test('didReplace carries prev = the replaced route', () {
+      observer.didReplace(newRoute: route('/wallet'), oldRoute: route('/'));
+      final record = decodeLine(lines.single);
+      expect(record['prev'], '/');
+    });
+
+    test('prev is query-stripped like every logged route', () {
+      observer.didPush(
+        route('/next'),
+        route('/set-password?resetToken=SECRET123'),
+      );
+      final line = lines.single;
+      expect(line, isNot(contains('SECRET123')));
+      expect(decodeLine(line)['prev'], '/set-password');
+    });
+  });
+
+  group('active-screen tracking (api attribution)', () {
+    test('didPush updates Diag.currentScreen to the new route', () {
+      observer.didPush(route('/orders/:id'), route('/home'));
+      expect(Diag.currentScreen, '/orders/:id');
+    });
+
+    test('didPop updates Diag.currentScreen to the destination', () {
+      observer.didPush(route('/orders/:id'), null);
+      observer.didPop(route('/orders/:id'), route('/home'));
+      expect(Diag.currentScreen, '/home');
+    });
+
+    test('a nameless route keeps the previous screen instead of nulling', () {
+      observer.didPush(route('/home'), null);
+      observer.didPush(route(''), null);
+      expect(Diag.currentScreen, '/home');
+    });
+  });
 }
