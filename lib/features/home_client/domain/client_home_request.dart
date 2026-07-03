@@ -143,10 +143,20 @@ class ClientHomeRequest extends Equatable {
 
   /// The subtitle line every order card renders — items summary when present,
   /// otherwise the destination.
-  String get summaryLine =>
-      (itemsSummary != null && itemsSummary!.isNotEmpty)
-          ? itemsSummary!
-          : destinationLabel;
+  ///
+  /// G1: `itemsSummary` now carries the request `description` (the customer's
+  /// own "What do you need?" text). Cards render `displayId ?? title` as their
+  /// header, so when the summary would repeat the exact same string the
+  /// header already shows (no displayId + title==description), fall back to
+  /// the destination instead of echoing it twice.
+  String get summaryLine {
+    final items = itemsSummary;
+    if (items != null && items.isNotEmpty) {
+      final header = displayId ?? title;
+      if (items != header) return items;
+    }
+    return destinationLabel;
+  }
 
   /// Current coarse status.
   final ClientRequestStatus status;

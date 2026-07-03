@@ -165,7 +165,11 @@ class DeliveryTrackingInfo extends Equatable {
       currency: _currency(amount),
       jeeberName: _str(json['jeeberName'] ?? json['jeeber_name']),
       tier: _str(json['tier']),
-      itemSummary: _str(json['title'] ?? json['itemSummary']),
+      // G1: `description` fallback — the request content the customer typed
+      // in compose; delivery rows minted from a request may carry it instead
+      // of a dedicated title, and the tracking header should echo it.
+      itemSummary:
+          _str(json['title'] ?? json['itemSummary'] ?? json['description']),
     );
   }
 
