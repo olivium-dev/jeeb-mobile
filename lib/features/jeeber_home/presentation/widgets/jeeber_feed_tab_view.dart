@@ -471,6 +471,7 @@ class _FeedRequestListBody extends StatelessWidget {
           ? _EmptyTabState(l10n: l10n)
           : _FeedListView(
               requests: visible,
+              expiredIds: state.expiredIds,
               onOpenRequest: onOpenRequest,
               onMakeOffer: onMakeOffer,
             ),
@@ -520,11 +521,17 @@ class _FeedRequestListBody extends StatelessWidget {
 class _FeedListView extends StatelessWidget {
   const _FeedListView({
     required this.requests,
+    required this.expiredIds,
     required this.onOpenRequest,
     required this.onMakeOffer,
   });
 
   final List<DeliveryRequest> requests;
+
+  /// G3: ids in their expired-linger window — their card renders the faded
+  /// "Expired" state (actions inert) until the cubit's sweep collapses it.
+  final Set<String> expiredIds;
+
   final ValueChanged<DeliveryRequest>? onOpenRequest;
   final ValueChanged<DeliveryRequest> onMakeOffer;
 
@@ -532,9 +539,12 @@ class _FeedListView extends StatelessWidget {
   Widget build(BuildContext context) {
     final cubit = context.read<RequestFeedCubit>();
     // JM-048: the FIRST incoming row exposes the screen-level
-    // `feed_make_offer_cta` so the QA flow taps an unambiguous make-offer CTA.
+    // `feed_make_offer_cta` so the QA flow taps an unambiguous make-offer CTA
+    // — never an expired card, whose offer affordance is inert.
     final firstIncomingIndex = requests.indexWhere(
-      (r) => r.feedStatus == JeeberFeedItemStatus.incoming,
+      (r) =>
+          r.feedStatus == JeeberFeedItemStatus.incoming &&
+          !expiredIds.contains(r.id),
     );
     return ListView.builder(
       key: JeeberFeedTabView.listKey,
@@ -542,6 +552,7 @@ class _FeedListView extends StatelessWidget {
       itemCount: requests.length,
       itemBuilder: (context, index) => JeeberFeedCard(
         request: requests[index],
+        isExpired: expiredIds.contains(requests[index].id),
         // JM-048: card tap opens detail; the "Offer" button routes through the
         // KYC gate / composer (D38), distinct from a plain detail open.
         // POST-ACCEPT ENTRY POINT: an ACCEPTED (Replies-tab) card is the

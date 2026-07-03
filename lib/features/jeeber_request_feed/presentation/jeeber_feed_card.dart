@@ -18,6 +18,11 @@ import '../data/request_feed_models.dart';
 /// * [JeeberFeedItemStatus.pendingResponse] — italic "Pending" status.
 /// * [JeeberFeedItemStatus.accepted] — a delivery state-machine action pill.
 ///
+/// G3 graceful exit: when [isExpired] is true (the request's server
+/// `expiresAt` has passed and the card is in its brief linger window), the
+/// card fades and the action row is replaced by an "Expired" status — the
+/// request never silently vanishes mid-glance.
+///
 /// Composed entirely from OMDS primitives ([OmdsProfileAvatar],
 /// [OmdsStarRatingDisplay], [OmdsPrimaryButton]) + tokenized text/dividers;
 /// no raw Material buttons, no hardcoded colors or dimensions.
@@ -30,6 +35,7 @@ class JeeberFeedCard extends StatelessWidget {
     this.onOffer,
     this.onAdvanceStatus,
     this.isActionBusy = false,
+    this.isExpired = false,
     this.exposeMakeOfferId = false,
   });
 
@@ -50,6 +56,11 @@ class JeeberFeedCard extends StatelessWidget {
   /// Whether the accepted-status action button is mid-flight (shows a loader).
   final bool isActionBusy;
 
+  /// G3: the request's server `expiresAt` has passed and the card is in its
+  /// linger window — faded, actions replaced by the "Expired" status, taps
+  /// inert. The feed cubit removes it after the linger elapses.
+  final bool isExpired;
+
   /// JM-048: when true, this card's "Offer" button additionally carries the
   /// screen-level `feed_make_offer_cta` coined id (in addition to its per-row
   /// `jeeber_feed_request_offer_<id>`). The feed sets it on the FIRST incoming
@@ -59,6 +70,15 @@ class JeeberFeedCard extends StatelessWidget {
   /// is inert for them.
   final bool exposeMakeOfferId;
 
+  /// Opacity the whole card fades to while expired. A named constant (not a
+  /// design token — OMDS has no opacity scale) so the dim level is single-
+  /// sourced and documented: content stays legible, but clearly inactive.
+  static const double _expiredOpacity = 0.55;
+
+  /// Fade duration for the expired transition — matches the Material
+  /// short-duration motion used elsewhere in the app.
+  static const Duration _expiredFadeDuration = Duration(milliseconds: 250);
+
   @override
   Widget build(BuildContext context) {
     // `explicitChildNodes: true` keeps the card identifier a non-merging
@@ -67,18 +87,24 @@ class JeeberFeedCard extends StatelessWidget {
     // nodes rather than risk being folded into this actionable card node.
     return Semantics(
       identifier: 'jeeber_feed_request_card_${request.id}',
-      button: onTap != null,
+      button: !isExpired && onTap != null,
       explicitChildNodes: true,
-      child: InkWell(
-        key: Key('jeeber-feed-card-${request.id}'),
-        onTap: onTap,
-        child: _CardColumn(
-          request: request,
-          onIgnore: onIgnore,
-          onOffer: onOffer,
-          onAdvanceStatus: onAdvanceStatus,
-          isActionBusy: isActionBusy,
-          exposeMakeOfferId: exposeMakeOfferId,
+      child: AnimatedOpacity(
+        opacity: isExpired ? _expiredOpacity : 1.0,
+        duration: _expiredFadeDuration,
+        child: InkWell(
+          key: Key('jeeber-feed-card-${request.id}'),
+          // An expired card is display-only for its linger window.
+          onTap: isExpired ? null : onTap,
+          child: _CardColumn(
+            request: request,
+            onIgnore: onIgnore,
+            onOffer: onOffer,
+            onAdvanceStatus: onAdvanceStatus,
+            isActionBusy: isActionBusy,
+            isExpired: isExpired,
+            exposeMakeOfferId: exposeMakeOfferId,
+          ),
         ),
       ),
     );
@@ -92,6 +118,7 @@ class _CardColumn extends StatelessWidget {
     required this.onOffer,
     required this.onAdvanceStatus,
     required this.isActionBusy,
+    required this.isExpired,
     required this.exposeMakeOfferId,
   });
 
@@ -100,6 +127,7 @@ class _CardColumn extends StatelessWidget {
   final VoidCallback? onOffer;
   final VoidCallback? onAdvanceStatus;
   final bool isActionBusy;
+  final bool isExpired;
   final bool exposeMakeOfferId;
 
   @override
@@ -114,14 +142,17 @@ class _CardColumn extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _CardRow(request: request),
-          _ActionArea(
-            request: request,
-            onIgnore: onIgnore,
-            onOffer: onOffer,
-            onAdvanceStatus: onAdvanceStatus,
-            isActionBusy: isActionBusy,
-            exposeMakeOfferId: exposeMakeOfferId,
-          ),
+          if (isExpired)
+            _ExpiredStatus(requestId: request.id)
+          else
+            _ActionArea(
+              request: request,
+              onIgnore: onIgnore,
+              onOffer: onOffer,
+              onAdvanceStatus: onAdvanceStatus,
+              isActionBusy: isActionBusy,
+              exposeMakeOfferId: exposeMakeOfferId,
+            ),
           _Timestamp(receivedAt: request.receivedAt),
           Padding(
             padding: const EdgeInsetsDirectional.only(top: Spacing.small),
@@ -481,6 +512,51 @@ class _OfferButton extends StatelessWidget {
       container: true,
       explicitChildNodes: true,
       child: button,
+    );
+  }
+}
+
+/// G3 graceful exit: the status line an expired card renders in place of its
+/// action row during the linger window ("Expired", hourglass glyph). Carries
+/// a per-request Semantics id so QA can assert the state before the sweep
+/// collapses the card.
+class _ExpiredStatus extends StatelessWidget {
+  const _ExpiredStatus({required this.requestId});
+
+  final String requestId;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(top: Spacing.small),
+      child: Align(
+        alignment: AlignmentDirectional.centerEnd,
+        child: Semantics(
+          identifier: 'jeeber_feed_request_expired_$requestId',
+          container: true,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.hourglass_disabled_outlined,
+                size: Sizes.medium,
+                color: color,
+              ),
+              const SizedBox(width: Spacing.twoXSmall),
+              Text(
+                AppLocalizations.of(context).jeeberFeedStatusExpired,
+                key: Key('jeeber-feed-expired-status-$requestId'),
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: color,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

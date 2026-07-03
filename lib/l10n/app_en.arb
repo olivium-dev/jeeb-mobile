@@ -1569,6 +1569,10 @@
   "@jeeberFeedStatusPending": {
     "description": "Italic status on a feed card the Jeeber has offered on and is awaiting the client's response"
   },
+  "jeeberFeedStatusExpired": "Expired",
+  "@jeeberFeedStatusExpired": {
+    "description": "Status on a feed card whose server expiry has passed, shown during the brief linger window before the card collapses (G3 graceful exit)"
+  },
   "jeeberFeedActionHeadingToDropOff": "Heading to drop off",
   "@jeeberFeedActionHeadingToDropOff": {
     "description": "Delivery state-machine action advancing an accepted request from picked-up to heading-to-dropoff"

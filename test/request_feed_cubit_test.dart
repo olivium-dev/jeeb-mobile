@@ -62,13 +62,13 @@ void main() {
   });
 
   RequestFeedCubit build({
-    Duration timeout = const Duration(seconds: 60),
+    Duration expiredLinger = const Duration(seconds: 30),
     DateTime Function()? clock,
     void Function()? onSound,
   }) {
     return RequestFeedCubit(
       repository: repo,
-      requestTimeout: timeout,
+      expiredLinger: expiredLinger,
       sweepInterval: const Duration(milliseconds: 50),
       clock: clock,
       onNewRequestSound: onSound,
@@ -294,40 +294,120 @@ void main() {
     );
   });
 
-  group('auto-dismiss / expiry sweep', () {
-    test('retires cards whose client-side timeout has elapsed', () async {
+  group('honest lifetime — server expiresAt is the ONLY deadline (G3)', () {
+    // THE G3 regression test. Pre-fix the cubit truncated every card at
+    // min(expiresAt, addTime + 60s), so this card (server window 300s)
+    // vanished at 60s — FOUR minutes before the request actually died.
+    test(
+        'card SURVIVES past the old 60s client cap and stays live until '
+        'the server expiresAt', () async {
       var now = DateTime(2026, 5, 17, 12);
       when(() => repo.refresh()).thenAnswer(
-        (_) async => [_req(id: 'r1', ttl: const Duration(seconds: 300), now: now)],
+        (_) async =>
+            [_req(id: 'r1', ttl: const Duration(seconds: 300), now: now)],
+      );
+      final cubit = build(clock: () => now);
+      await cubit.start();
+      expect(cubit.state.requests.length, 1);
+      // Way past the old 60s truncation, well before the server window ends.
+      now = now.add(const Duration(seconds: 240));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      expect(cubit.state.requests.length, 1,
+          reason: 'the old min(expiresAt, +60s) cap retired this card at 60s '
+              'while the server window was still open');
+      expect(cubit.state.isExpired('r1'), isFalse);
+      await cubit.close();
+    });
+
+    test(
+        'past expiresAt the card flips to a visible expired state, then '
+        'collapses after the linger window — never a silent vanish', () async {
+      var now = DateTime(2026, 5, 17, 12);
+      when(() => repo.refresh()).thenAnswer(
+        (_) async =>
+            [_req(id: 'r1', ttl: const Duration(seconds: 300), now: now)],
       );
       final cubit = build(
-        timeout: const Duration(seconds: 10),
+        expiredLinger: const Duration(seconds: 30),
         clock: () => now,
       );
       await cubit.start();
-      expect(cubit.state.requests.length, 1);
-      // Advance the clock past the client-side timeout (10s), but before
-      // the server-side TTL (300s) — the sweep should still retire the card
-      // because the cubit uses the earlier deadline.
-      now = now.add(const Duration(seconds: 11));
+      // Cross the server deadline → expired-but-still-listed.
+      now = now.add(const Duration(seconds: 301));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      expect(cubit.state.requests.length, 1,
+          reason: 'expired cards linger visibly instead of vanishing');
+      expect(cubit.state.isExpired('r1'), isTrue);
+      // Cross the linger window → removed.
+      now = now.add(const Duration(seconds: 31));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      expect(cubit.state.requests, isEmpty);
+      expect(cubit.state.isExpired('r1'), isFalse);
+      await cubit.close();
+    });
+
+    test('accept/decline on an expired card is a no-op (dead server-side)',
+        () async {
+      var now = DateTime(2026, 5, 17, 12);
+      when(() => repo.refresh()).thenAnswer(
+        (_) async =>
+            [_req(id: 'r1', ttl: const Duration(seconds: 5), now: now)],
+      );
+      final cubit = build(clock: () => now);
+      await cubit.start();
+      now = now.add(const Duration(seconds: 6));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      expect(cubit.state.isExpired('r1'), isTrue);
+      await cubit.accept('r1');
+      await cubit.decline('r1');
+      verifyNever(() => repo.accept(any()));
+      verifyNever(() => repo.decline(any()));
+      await cubit.close();
+    });
+
+    test(
+        'refresh keeps a lingering expired card the snapshot dropped — the '
+        'sweep owns its graceful removal', () async {
+      var now = DateTime(2026, 5, 17, 12);
+      final snapshots = <List<DeliveryRequest>>[
+        [_req(id: 'r1', ttl: const Duration(seconds: 5), now: now)],
+        const <DeliveryRequest>[],
+      ];
+      var call = 0;
+      when(() => repo.refresh()).thenAnswer((_) async => snapshots[call++]);
+      final cubit = build(clock: () => now);
+      await cubit.start();
+      now = now.add(const Duration(seconds: 6));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      expect(cubit.state.isExpired('r1'), isTrue);
+      await cubit.refresh();
+      expect(cubit.state.requests.map((r) => r.id), ['r1'],
+          reason: 'a refresh must not cut the expired linger short');
+      expect(cubit.state.isExpired('r1'), isTrue);
+      now = now.add(const Duration(seconds: 31));
       await Future<void>.delayed(const Duration(milliseconds: 80));
       expect(cubit.state.requests, isEmpty);
       await cubit.close();
     });
 
-    test('retires cards whose server expiresAt is sooner than the client timeout', () async {
+    test('a re-listed id revives from the expired state (server disagrees)',
+        () async {
       var now = DateTime(2026, 5, 17, 12);
-      when(() => repo.refresh()).thenAnswer(
-        (_) async => [_req(id: 'r1', ttl: const Duration(seconds: 5), now: now)],
-      );
-      final cubit = build(
-        timeout: const Duration(seconds: 60),
-        clock: () => now,
-      );
+      final first = _req(id: 'r1', ttl: const Duration(seconds: 5), now: now);
+      when(() => repo.refresh()).thenAnswer((_) async => [first]);
+      final cubit = build(clock: () => now);
       await cubit.start();
       now = now.add(const Duration(seconds: 6));
       await Future<void>.delayed(const Duration(milliseconds: 80));
-      expect(cubit.state.requests, isEmpty);
+      expect(cubit.state.isExpired('r1'), isTrue);
+      // The gateway re-lists r1 with a fresh window → live again.
+      when(() => repo.refresh()).thenAnswer(
+        (_) async =>
+            [_req(id: 'r1', ttl: const Duration(seconds: 300), now: now)],
+      );
+      await cubit.refresh();
+      expect(cubit.state.isExpired('r1'), isFalse);
+      expect(cubit.state.requests.length, 1);
       await cubit.close();
     });
   });

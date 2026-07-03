@@ -94,10 +94,11 @@ class DeliveryRequest extends Equatable {
   /// ISO 4217 currency code (e.g. `USD`, `LBP`). Display formatting concern.
   final String currency;
 
-  /// Server-supplied deadline after which the request auto-dismisses from
-  /// the feed even if the user never tapped accept/decline. The cubit also
-  /// enforces a configurable per-client timeout (default 60s) and uses
-  /// whichever fires first.
+  /// Server-supplied deadline — the ONLY lifetime authority for the card
+  /// (G3). When it passes, the cubit flips the card to a visible "Expired"
+  /// state and collapses it shortly after; there is no client-side
+  /// truncation. A payload missing the field is defaulted at parse time
+  /// (`dio_request_feed_repository` stamps now+5min).
   final DateTime expiresAt;
 
   /// Optional sender display name. Surfaces in screen readers and on the
