@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/formatting/friendly_reference.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/order_chat_summary.dart';
 
@@ -25,6 +26,7 @@ import '../../domain/order_chat_summary.dart';
 /// from its own delivery model — it also carries the JM-031 signature id and the
 /// asserted field ids, sourced from the `OrderChatSummary` it already holds:
 ///   `order_summary_pinned`       — JM-031 widget signature id (chat context)
+///   `order_summary_status`       — canonical delivery-status label (run-22)
 ///   `order_summary_price`        — accepted COD price [D11]
 ///   `order_summary_jeeber_name`  — winning Jeeber name [D6]
 ///   `order_summary_eta`          — locked ETA
@@ -36,6 +38,7 @@ class OrderChatPinnedSummary extends StatelessWidget {
     required this.summary,
     required this.counterpartName,
     required this.onViewSummary,
+    this.viewerIsJeeber = false,
   });
 
   /// Locked summary fields resolved from the accepted delivery + request.
@@ -46,6 +49,71 @@ class OrderChatPinnedSummary extends StatelessWidget {
 
   /// Tap handler for the view-summary link → `order-summary-pinned` (JM-031).
   final VoidCallback onViewSummary;
+
+  /// Role of the VIEWER (run-22 chat-cluster fix): the party line names the
+  /// person on the OTHER side of the conversation. A customer sees the winning
+  /// Jeeber's name; a Jeeber sees the customer's name. Synthetic handles
+  /// (`jeeb-<hash>` / UUID / `@jeeb.internal`) are suppressed via
+  /// [displayNameOrNull] and fall back to a friendly role generic. Defaults to
+  /// the customer viewer — the only surface that renders the strip today.
+  final bool viewerIsJeeber;
+
+  /// The order reference heading (run-22 fix: the strip previously repeated
+  /// the literal "Order summary" title as its heading AND as filler for every
+  /// unresolved figure — 3× on one screen). Prefers the human `ORD-…` ref,
+  /// then derives a short stable `#XXXXXX` from the request/delivery id via
+  /// [friendlyReference] — never a raw UUID, never a repeated screen title.
+  String _referenceHeading() {
+    if (summary.hasRef) return friendlyReference(summary.orderRef);
+    final id =
+        summary.requestId.isNotEmpty ? summary.requestId : summary.deliveryId;
+    return friendlyReference(id);
+  }
+
+  /// Role-aware counterpart display name (see [viewerIsJeeber]).
+  String _partyName(AppLocalizations l10n) {
+    if (viewerIsJeeber) {
+      // The jeeber's counterpart is the CUSTOMER; the summary's jeeberName is
+      // the viewer themselves, so it is never shown here.
+      return displayNameOrNull(counterpartName) ??
+          l10n.chatPartyCustomerFallback;
+    }
+    return displayNameOrNull(summary.jeeberName) ??
+        displayNameOrNull(counterpartName) ??
+        l10n.chatPartyJeeberFallback;
+  }
+
+  /// Canonical delivery-status label (deliveryStage* vocab — the same
+  /// vocabulary the tracking/status surfaces use). Tolerates the wire spellings
+  /// `_parseStage` in `delivery_tracking_info.dart` accepts. An absent/unknown
+  /// status reads as the matched stage: the strip only renders on an accepted
+  /// order, so "Matched" is the honest floor.
+  String _statusLabel(AppLocalizations l10n) {
+    switch (summary.statusId.trim().toLowerCase()) {
+      case 'picked':
+      case 'picked_up':
+      case 'pickedup':
+      case 'at_pickup':
+        return l10n.deliveryStagePickedUp;
+      case 'intransit':
+      case 'in_transit':
+      case 'in transit':
+      case 'atdoor':
+      case 'at_door':
+      case 'at door':
+      case 'en_route':
+        return l10n.deliveryStageInTransit;
+      case 'delivered':
+      case 'done':
+      case 'completed':
+        return l10n.deliveryStageDelivered;
+      case 'cancelled':
+      case 'canceled':
+        return l10n.deliveryStageCancelled;
+      default:
+        return l10n.deliveryStageMatched;
+    }
+  }
 
   String _tierLabel(AppLocalizations l10n) {
     switch (summary.tierId) {
@@ -70,8 +138,7 @@ class OrderChatPinnedSummary extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final jeeberName =
-        summary.jeeberName.isNotEmpty ? summary.jeeberName : counterpartName;
+    final partyName = _partyName(l10n);
 
     return Semantics(
       identifier: 'order_chat_pinned_summary',
@@ -111,12 +178,14 @@ class OrderChatPinnedSummary extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Title row: order summary heading + the view-summary link.
+            // Title row: the ORDER REFERENCE heading (run-22 fix — the strip
+            // used to repeat the "Order summary" title here, as the link, and
+            // as filler for every unresolved chip) + the view-summary link.
             Row(
               children: [
                 Expanded(
                   child: Text(
-                    l10n.orderSummaryTitle,
+                    _referenceHeading(),
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: colors.onPrimaryContainer,
@@ -134,11 +203,8 @@ class OrderChatPinnedSummary extends StatelessWidget {
                         horizontal: Spacing.xSmall,
                         vertical: Spacing.twoXSmall,
                       ),
-                      // l10n KEY REQUEST orderChatViewSummaryLink ("View summary")
-                      // pending — reusing the closest existing key (50_ROUTE_REQUESTS).
-                      // Maestro asserts on the identifier, not the text (R-B).
                       child: Text(
-                        l10n.orderSummaryTitle,
+                        l10n.orderChatViewSummaryLink,
                         style: theme.textTheme.labelLarge?.copyWith(
                           color: colors.primary,
                           fontWeight: FontWeight.w600,
@@ -151,13 +217,15 @@ class OrderChatPinnedSummary extends StatelessWidget {
               ],
             ),
             const SizedBox(height: Spacing.xSmall),
-            // Winner + locked figures. JM-031: carries `order_summary_jeeber_name`
-            // (D6) — always rendered (falls back to the chat counterpart) so the
-            // field is assertable in the chat context.
+            // Counterpart party name. JM-031: carries `order_summary_jeeber_name`
+            // (D6) — always rendered so the field is assertable in the chat
+            // context. Role-aware (run-22 fix): the customer sees the winning
+            // Jeeber, the Jeeber sees the customer; synthetic handles are
+            // suppressed in favor of a friendly role generic (see [_partyName]).
             Semantics(
               identifier: 'order_summary_jeeber_name',
               child: Text(
-                jeeberName,
+                partyName,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: colors.onPrimaryContainer,
                 ),
@@ -169,35 +237,39 @@ class OrderChatPinnedSummary extends StatelessWidget {
               runSpacing: Spacing.twoXSmall,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
+                // Canonical delivery-status label (run-22 fix: content-aware
+                // deliveryStage* vocabulary instead of the repeated screen
+                // title as filler).
+                _SummaryChip(
+                  identifier: 'order_summary_status',
+                  icon: Icons.route_outlined,
+                  label: _statusLabel(l10n),
+                ),
                 // JM-031: price/ETA/tier each carry the `order_summary_*` id and
-                // are always rendered (a pending placeholder when the locked
-                // field is absent) so the chat-context summary is assertable.
+                // are always rendered (a localized "Pending" placeholder when
+                // the locked field is absent — never the screen title) so the
+                // chat-context summary is assertable.
                 _SummaryChip(
                   identifier: 'order_summary_price',
                   icon: Icons.payments_outlined,
                   label: summary.hasPrice
                       ? summary.priceLabel
-                      : l10n.orderSummaryTitle,
+                      : l10n.orderSummaryValuePending,
                 ),
                 _SummaryChip(
                   identifier: 'order_summary_eta',
                   icon: Icons.schedule,
                   label: summary.hasEta
                       ? l10n.deliveryEtaMinutes(summary.etaMinutes!)
-                      : l10n.orderSummaryTitle,
+                      : l10n.orderSummaryValuePending,
                 ),
                 _SummaryChip(
                   identifier: 'order_summary_tier',
                   icon: Icons.local_shipping_outlined,
                   label: summary.hasTier
                       ? _tierLabel(l10n)
-                      : l10n.orderSummaryTitle,
+                      : l10n.orderSummaryValuePending,
                 ),
-                if (summary.hasRef)
-                  _SummaryChip(
-                    icon: Icons.tag,
-                    label: summary.orderRef,
-                  ),
               ],
             ),
             const SizedBox(height: Spacing.twoXSmall),
@@ -228,11 +300,11 @@ class OrderChatPinnedSummary extends StatelessWidget {
                     ),
                     const SizedBox(width: Spacing.twoXSmall),
                     Flexible(
-                      // l10n KEY REQUEST orderChatPayCashOnDelivery ("Pay cash on
-                      // delivery") pending — reusing closest existing key
-                      // (50_ROUTE_REQUESTS). Maestro asserts the identifier (R-B).
+                      // D11: the dedicated cash-reminder key (run-22 fix — the
+                      // strip used to reuse orderSummaryTrack, rendering a
+                      // misleading "$ Track order" chip here).
                       child: Text(
-                        l10n.orderSummaryTrack,
+                        l10n.orderChatPayCashOnDelivery,
                         style: theme.textTheme.labelMedium?.copyWith(
                           color: colors.onPrimaryContainer
                               .withValues(alpha: UIConstants.opacityHigh),

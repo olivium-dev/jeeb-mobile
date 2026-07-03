@@ -68,6 +68,7 @@ class ChatScreen extends StatelessWidget {
     this.onViewSummary,
     this.onOpenDispute,
     this.isOrderChat = false,
+    this.viewerIsJeeber = false,
     this.onFirstMessageBroadcast,
     this.initialTrackingDeliveryId,
   }) : assert(
@@ -142,6 +143,12 @@ class ChatScreen extends StatelessWidget {
   /// them. Defaults false → the legacy `chat_detail_*` ids (jeeber/active chat).
   final bool isOrderChat;
 
+  /// Whether the VIEWER of this thread is the Jeeber (run-22 chat-cluster fix).
+  /// Drives the role-aware party naming on the pinned order-summary strip:
+  /// the customer sees the winning Jeeber's name, the Jeeber sees the
+  /// customer's. Defaults false (customer viewer).
+  final bool viewerIsJeeber;
+
   /// JM-025 AC1 (D83): compose-state hook. When non-null, the FIRST message the
   /// client sends broadcasts the request and the host routes to
   /// `waiting-no-coverage` (JM-026). Invoked exactly once, after the first
@@ -188,6 +195,7 @@ class ChatScreen extends StatelessWidget {
           onViewSummary: onViewSummary,
           onOpenDispute: onOpenDispute,
           isOrderChat: isOrderChat,
+          viewerIsJeeber: viewerIsJeeber,
           onFirstMessageBroadcast: onFirstMessageBroadcast,
         ),
       );
@@ -212,6 +220,7 @@ class ChatScreen extends StatelessWidget {
         onViewSummary: onViewSummary,
         onOpenDispute: onOpenDispute,
         isOrderChat: isOrderChat,
+        viewerIsJeeber: viewerIsJeeber,
         onFirstMessageBroadcast: onFirstMessageBroadcast,
       ),
     );
@@ -232,6 +241,7 @@ class _ChatScaffold extends StatefulWidget {
     this.onViewSummary,
     this.onOpenDispute,
     this.isOrderChat = false,
+    this.viewerIsJeeber = false,
     this.onFirstMessageBroadcast,
   });
 
@@ -247,6 +257,7 @@ class _ChatScaffold extends StatefulWidget {
   final VoidCallback? onViewSummary;
   final VoidCallback? onOpenDispute;
   final bool isOrderChat;
+  final bool viewerIsJeeber;
   /// Invoked with the request/conversation id to broadcast AND the text of the
   /// composed first message (used as the created request's description when no
   /// real request exists yet — JM-024 → JM-025). Returns `true` when the host
@@ -397,6 +408,7 @@ class _ChatScaffoldState extends State<_ChatScaffold>
       counterpartName: widget.counterpartName,
       onViewSummary: showPinnedSummary ? widget.onViewSummary : null,
       isOrderChat: widget.isOrderChat,
+      viewerIsJeeber: widget.viewerIsJeeber,
     );
   }
 
@@ -503,6 +515,7 @@ class _ChatBody extends StatelessWidget {
     this.counterpartName = '',
     this.onViewSummary,
     this.isOrderChat = false,
+    this.viewerIsJeeber = false,
   });
 
   final ChatState state;
@@ -521,6 +534,7 @@ class _ChatBody extends StatelessWidget {
   final String counterpartName;
   final VoidCallback? onViewSummary;
   final bool isOrderChat;
+  final bool viewerIsJeeber;
 
   @override
   Widget build(BuildContext context) {
@@ -541,6 +555,7 @@ class _ChatBody extends StatelessWidget {
             summary: summary,
             counterpartName: counterpartName,
             onViewSummary: onViewSummary!,
+            viewerIsJeeber: viewerIsJeeber,
           ),
         if (showAcceptedBanner && winnerName != null)
           OfferAcceptedBanner(
@@ -614,12 +629,27 @@ class _ChatEmptyState extends StatelessWidget {
         ),
       _ => (l10n.chatEmptyThreadTitle, l10n.chatEmptyThreadSubtitle),
     };
-    return Center(
-      child: OmdsEmptyState(
-        key: ChatScreen.emptyStateKey,
-        icon: Icons.chat_bubble_outline,
-        title: title,
-        subtitle: subtitle,
+    // Run-22 fix ("BOTTOM OVERFLOWED BY 6.6 PIXELS"): the empty-state column
+    // (80dp icon + title + subtitle + paddings) has a fixed natural height, but
+    // the slot the chat body hands it shrinks below that once the fee banner /
+    // pinned summary / accepted banner / keyboard stack up. A bare Center
+    // clamps the child to the incoming max height and the inner Column
+    // overflows. Constrain-to-viewport + scroll instead: full-height centering
+    // when there is room, graceful scrolling (never a RenderFlex overflow)
+    // when there is not.
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(
+            child: OmdsEmptyState(
+              key: ChatScreen.emptyStateKey,
+              icon: Icons.chat_bubble_outline,
+              title: title,
+              subtitle: subtitle,
+            ),
+          ),
+        ),
       ),
     );
   }

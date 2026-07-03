@@ -22,6 +22,7 @@ class OrderChatSummary extends Equatable {
     this.etaMinutes,
     this.tierId = '',
     this.orderRef = '',
+    this.statusId = '',
   });
 
   /// The accepted delivery this summary belongs to. Used as the
@@ -54,10 +55,18 @@ class OrderChatSummary extends Equatable {
   /// ref chip.
   final String orderRef;
 
+  /// Delivery lifecycle status as it arrives on the wire (the delivery row's
+  /// `status`, e.g. `Ordered`/`matched`/`picked_up`/`InTransit`/`Done`). The
+  /// UI maps it onto the canonical `deliveryStage*` vocabulary; empty means
+  /// the source row carried no status (the strip falls back to the accepted
+  /// stage, since it only renders on an accepted order).
+  final String statusId;
+
   bool get hasPrice => priceLabel.isNotEmpty;
   bool get hasEta => etaMinutes != null;
   bool get hasTier => tierId.isNotEmpty;
   bool get hasRef => orderRef.isNotEmpty;
+  bool get hasStatus => statusId.isNotEmpty;
 
   @override
   List<Object?> get props => [
@@ -69,6 +78,7 @@ class OrderChatSummary extends Equatable {
         etaMinutes,
         tierId,
         orderRef,
+        statusId,
       ];
 }
 

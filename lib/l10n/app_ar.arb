@@ -1291,6 +1291,12 @@
   "orderSummaryTitle": "ملخص الطلب",
   "orderSummaryOpenChat": "فتح المحادثة",
   "orderSummaryTrack": "تتبّع الطلب",
+  "orderChatViewSummaryLink": "عرض الملخص",
+  "orderChatPayCashOnDelivery": "ادفع نقدًا عند التسليم",
+  "orderSummaryValuePending": "قيد التحديد",
+  "chatPartyJeeberFallback": "الجيبر الخاص بك",
+  "chatPartyCustomerFallback": "العميل",
+  "deliveryActionContactCustomer": "التواصل مع العميل",
 
   "addressFormTitle": "تفاصيل العنوان",
   "addressFormSaveCta": "حفظ العنوان",
