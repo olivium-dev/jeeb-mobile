@@ -40,6 +40,8 @@ import '../../features/otp_handover/domain/handover_code_store.dart';
 import '../../features/otp_handover/domain/otp_handover_repository.dart';
 import '../../features/escalate/data/dio_escalate_repository.dart';
 import '../../features/escalate/domain/escalate_repository.dart';
+import '../../features/rate_app/data/in_app_review_launcher.dart';
+import '../../features/rate_app/domain/app_review_launcher.dart';
 import '../../features/rating/data/dio_rating_repository.dart';
 import '../../features/rating/domain/rating_repository.dart';
 import '../../features/registration/data/dio_otp_service.dart';
@@ -145,6 +147,11 @@ void configureDependencies({
   // offer_accepted/offer_lost event; the jeeber's pending-offers list
   // subscribes, flips the row badge, and re-pulls. Shared single instance.
   sl.registerLazySingleton<OfferLifecycleSignals>(() => OfferLifecycleSignals());
+
+  // JM-064 / JEBV4-13: native store-review sheet (in_app_review). The
+  // customer-profile rate-app row resolves this registration and stops
+  // falling back to the NoopAppReviewLauncher (wave-1 P2-1 dead CTA).
+  sl.registerLazySingleton<AppReviewLauncher>(() => const InAppReviewLauncher());
 
   // BUG-7 (physical-run6): inject the local profile store so a successful
   // phone-OTP verify PERSISTS the signed-in E.164 phone to `settings.profile.v1`

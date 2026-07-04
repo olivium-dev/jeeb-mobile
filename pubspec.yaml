@@ -154,6 +154,7 @@ dependencies:
   # (Dart 3.10.8 / Flutter 3.38.9 — same discipline as `record` above).
   share_plus: ^10.1.2
   device_info_plus: ^11.5.0
+  in_app_review: ^2.0.12
 
 dev_dependencies:
   flutter_test:
