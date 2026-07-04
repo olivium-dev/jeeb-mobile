@@ -16,8 +16,10 @@ class VoiceRequestScreen extends StatelessWidget {
   /// Optional callback fired once the request is sent. Receives the upload id
   /// and the optional machine transcript (null when resolved asynchronously),
   /// so the transcription-result step can show the transcript on the happy
-  /// path.
-  final void Function(String id, String? transcript)? onSent;
+  /// path. JEBV4-13: also carries the recorder's on-device file path +
+  /// duration so the review step can actually replay the clip (the upload id
+  /// is a gateway audioId, not a playable path).
+  final VoiceSentCallback? onSent;
 
   @override
   Widget build(BuildContext context) {

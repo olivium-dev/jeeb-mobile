@@ -27,6 +27,7 @@ class TranscriptionState extends Equatable {
     this.failure = TranscriptionFailure.none,
     this.isEditing = false,
     this.audioPath,
+    this.localAudioPath,
     this.audioDuration = Duration.zero,
     this.isPlaying = false,
     this.playbackPosition = Duration.zero,
@@ -37,12 +38,24 @@ class TranscriptionState extends Equatable {
   final TranscriptionFailure failure;
   final bool isEditing;
   final String? audioPath;
+
+  /// JEBV4-13: the recorder's on-device file, preferred for replay over
+  /// [audioPath] (which is the gateway `audioId`, not a playable path).
+  final String? localAudioPath;
+
   final Duration audioDuration;
   final bool isPlaying;
   final Duration playbackPosition;
 
   /// True when there is a real recording to replay (a non-empty path).
   bool get hasAudio => (audioPath ?? '').isNotEmpty;
+
+  /// The path playback actually uses: prefer the on-device recorder file
+  /// (JEBV4-13 — the gateway `audioId` in [audioPath] is not locally
+  /// playable), falling back to [audioPath] for callers that hand over a
+  /// real path/URL there.
+  String? get playbackPath =>
+      (localAudioPath ?? '').isNotEmpty ? localAudioPath : audioPath;
 
   /// True when the user has at least some text to send forward. Confirm is
   /// gated on this so we never push an empty request into the summary step.
@@ -54,6 +67,7 @@ class TranscriptionState extends Equatable {
     TranscriptionFailure? failure,
     bool? isEditing,
     String? audioPath,
+    String? localAudioPath,
     Duration? audioDuration,
     bool? isPlaying,
     Duration? playbackPosition,
@@ -64,6 +78,7 @@ class TranscriptionState extends Equatable {
       failure: failure ?? this.failure,
       isEditing: isEditing ?? this.isEditing,
       audioPath: audioPath ?? this.audioPath,
+      localAudioPath: localAudioPath ?? this.localAudioPath,
       audioDuration: audioDuration ?? this.audioDuration,
       isPlaying: isPlaying ?? this.isPlaying,
       playbackPosition: playbackPosition ?? this.playbackPosition,
@@ -77,6 +92,7 @@ class TranscriptionState extends Equatable {
         failure,
         isEditing,
         audioPath,
+        localAudioPath,
         audioDuration,
         isPlaying,
         playbackPosition,
@@ -107,6 +123,7 @@ class TranscriptionCubit extends Cubit<TranscriptionState> {
             ? TranscriptionStatus.queued
             : TranscriptionStatus.ready,
         audioPath: clip.audioPath,
+        localAudioPath: clip.localAudioPath,
         audioDuration: Duration(milliseconds: clip.durationMs),
       ),
     );
@@ -141,7 +158,8 @@ class TranscriptionCubit extends Cubit<TranscriptionState> {
 
   /// Toggles playback of the original recording. No-op when there is no audio.
   Future<void> togglePlayback() async {
-    if (!state.hasAudio) return;
+    final path = state.playbackPath;
+    if (path == null || path.isEmpty) return;
     if (state.isPlaying) {
       await _player.pause();
       emit(state.copyWith(isPlaying: false));
@@ -152,11 +170,18 @@ class TranscriptionCubit extends Cubit<TranscriptionState> {
       isPlaying: true,
       playbackPosition: restart ? Duration.zero : state.playbackPosition,
     ));
-    await _player.play(
-      state.audioPath!,
-      onPosition: _onPosition,
-      onCompleted: _onCompleted,
-    );
+    try {
+      await _player.play(
+        path,
+        onPosition: _onPosition,
+        onCompleted: _onCompleted,
+      );
+    } on Object {
+      // JEBV4-13: an unplayable source (e.g. a server audioId with no local
+      // file on a cold deep link) must never crash the review screen — reset
+      // the toggle instead of leaving a stuck "playing" state.
+      emit(state.copyWith(isPlaying: false));
+    }
   }
 
   void _onPosition(Duration position) {

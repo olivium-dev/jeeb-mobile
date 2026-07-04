@@ -335,6 +335,26 @@ void main() {
       expect(cubit.state.playbackPosition, const Duration(milliseconds: 4000));
     });
 
+    test(
+        'JEBV4-13: togglePlayback prefers the recorder LOCAL file over the '
+        'gateway audioId (the id is not a playable path)', () async {
+      final player = FakeTranscriptAudioPlayer();
+      final cubit = TranscriptionCubit(player: player);
+      addTearDown(cubit.close);
+      cubit.seedFromClip(
+        const VoiceClip(
+          audioPath: 'audio-id-9b1d3f',
+          durationMs: 4000,
+          transcript: 'hi',
+          localAudioPath: '/data/user/0/jeeb/cache/voice-request.m4a',
+        ),
+      );
+
+      await cubit.togglePlayback();
+      expect(player.playCalls, 1);
+      expect(player.lastPath, '/data/user/0/jeeb/cache/voice-request.m4a');
+    });
+
     test('togglePlayback is a no-op without audio', () async {
       final player = FakeTranscriptAudioPlayer();
       final cubit = TranscriptionCubit(player: player);

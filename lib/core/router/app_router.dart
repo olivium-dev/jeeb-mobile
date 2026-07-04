@@ -1023,12 +1023,19 @@ class AppRouter {
           // state). (The full clip surface is owned by the voice_request
           // feature; the router does the minimal-coupling bridge.)
           builder: (context, state) => VoiceRequestScreen(
-            onSent: (clipId, transcript) => context.push(
+            // JEBV4-13: forward the recorder's local file path + duration so
+            // the transcription review's replay control plays the real clip
+            // (the upload id in `audioPath` is a gateway audioId, not a path).
+            onSent: (clipId, transcript,
+                    {String? localAudioPath,
+                    Duration duration = Duration.zero}) =>
+                context.push(
               '/voice-request/transcription',
               extra: VoiceClip(
                 audioPath: clipId,
-                durationMs: 0,
+                durationMs: duration.inMilliseconds,
                 transcript: transcript,
+                localAudioPath: localAudioPath,
               ),
             ),
           ),
@@ -1130,14 +1137,18 @@ class AppRouter {
           path: '/compose-dictation',
           name: 'compose-dictation',
           builder: (context, state) => VoiceRequestScreen(
-            onSent: (clipId, transcript) async {
+            onSent: (clipId, transcript,
+                {String? localAudioPath,
+                Duration duration = Duration.zero}) async {
               // Review step: same TranscriptionScreen, dictation-result wiring.
+              // JEBV4-13: local path + duration make the replay control real.
               final clip = await context.push<VoiceClip>(
                 '/compose-dictation/review',
                 extra: VoiceClip(
                   audioPath: clipId,
-                  durationMs: 0,
+                  durationMs: duration.inMilliseconds,
                   transcript: transcript,
+                  localAudioPath: localAudioPath,
                 ),
               );
               // Confirmed → cascade the result back to the compose field.

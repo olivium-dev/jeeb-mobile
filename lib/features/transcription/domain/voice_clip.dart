@@ -9,9 +9,18 @@ class VoiceClip {
     required this.audioPath,
     required this.durationMs,
     this.transcript,
+    this.localAudioPath,
   });
 
   final String audioPath;
   final int durationMs;
   final String? transcript;
+
+  /// JEBV4-13 (dead transcription-play CTA): absolute path of the ON-DEVICE
+  /// file the recorder wrote, when the handoff came from the in-app voice
+  /// composer. [audioPath] carries the gateway's `audioId` (forwarded on
+  /// confirm as the create request's `audioUrl`) which is NOT locally
+  /// playable; this is the path the replay control actually plays. Null on a
+  /// cold deep link / rehydrated clip — playback then degrades to a no-op.
+  final String? localAudioPath;
 }
