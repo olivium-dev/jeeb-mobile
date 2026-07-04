@@ -5,6 +5,7 @@ import 'package:omds/omds.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/network/auth_token_store.dart';
+import '../../../../core/session/session_cubit.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../data/super_login_service.dart';
 import 'super_login_cubit.dart';
@@ -16,6 +17,18 @@ import 'super_login_state.dart';
 /// validated sign-in the sheet pops with `true`; the caller then navigates
 /// home. Pass a custom [cubit] from tests; production builds one from DI.
 ///
+/// [session] is the app's owned [SessionCubit] (captured from the *caller's*
+/// context — a modal sheet does not inherit providers above the navigator). On
+/// a successful sign-in the sheet calls [SessionCubit.refresh] BEFORE it pops,
+/// so the owned session-gate stream emits `authenticated` as an INTRINSIC
+/// consequence of super-login success — the exact same establishment a real
+/// (OTP/email) login triggers via `LoginScreen._navigateAfterLogin`. That
+/// emission is what drives role-sync and `DeviceTokenRegistrar.notifyLogin()`
+/// (`PUT /api/PushNotification/register`), so FCM registration falls out of the
+/// shared path rather than a bespoke super-login branch. Null (default / test
+/// hosts that don't need it) makes the refresh a no-op — the host callback then
+/// remains the sole establishment, exactly as before.
+///
 /// [initialUserId] / [initialPasscode] pre-fill the two credential fields —
 /// used by the "Super user login plus" picker, which hands a chosen demo
 /// user's credentials in so the form opens submit-ready. Both default to null
@@ -24,6 +37,7 @@ import 'super_login_state.dart';
 Future<bool?> showSuperLoginSheet(
   BuildContext context, {
   SuperLoginCubit? cubit,
+  SessionCubit? session,
   String? initialUserId,
   String? initialPasscode,
 }) {
@@ -36,6 +50,7 @@ Future<bool?> showSuperLoginSheet(
     ),
     builder: (sheetContext) => _SuperLoginScope(
       cubit: cubit,
+      session: session,
       initialUserId: initialUserId,
       initialPasscode: initialPasscode,
     ),
@@ -46,17 +61,20 @@ Future<bool?> showSuperLoginSheet(
 class _SuperLoginScope extends StatelessWidget {
   const _SuperLoginScope({
     this.cubit,
+    this.session,
     this.initialUserId,
     this.initialPasscode,
   });
 
   final SuperLoginCubit? cubit;
+  final SessionCubit? session;
   final String? initialUserId;
   final String? initialPasscode;
 
   @override
   Widget build(BuildContext context) {
     final body = _SuperLoginSheetBody(
+      session: session,
       initialUserId: initialUserId,
       initialPasscode: initialPasscode,
     );
@@ -80,7 +98,15 @@ class _SuperLoginScope extends StatelessWidget {
 /// The credential form. Owns the two controllers + the submit-enabled flag,
 /// and reacts to cubit success (pop) / error (snackbar).
 class _SuperLoginSheetBody extends StatefulWidget {
-  const _SuperLoginSheetBody({this.initialUserId, this.initialPasscode});
+  const _SuperLoginSheetBody({
+    this.session,
+    this.initialUserId,
+    this.initialPasscode,
+  });
+
+  /// The app's owned [SessionCubit]. Refreshed on success so the session-gate
+  /// stream emits `authenticated` — the shared real-login establishment path.
+  final SessionCubit? session;
 
   /// Pre-fill values supplied by the "Super user login plus" picker. Null when
   /// the sheet is opened directly (the original empty-field behaviour).
@@ -144,13 +170,26 @@ class _SuperLoginSheetBodyState extends State<_SuperLoginSheetBody> {
     if (cubit.state.status == SuperLoginStatus.error) cubit.clearError();
   }
 
-  void _onStateChange(BuildContext context, SuperLoginState state) {
-    // Success is the only transition that pops the sheet. Errors are surfaced
-    // INLINE under the passcode field (DEF-2) by [_SuperLoginFields] reading
-    // the cubit state directly — no snackbar, which the QA run never saw.
-    if (state.isSuccess) {
-      Navigator.of(context).pop(true);
-    }
+  Future<void> _onStateChange(
+    BuildContext context,
+    SuperLoginState state,
+  ) async {
+    // Success is the only transition that establishes the session + pops the
+    // sheet. Errors are surfaced INLINE under the passcode field (DEF-2) by
+    // [_SuperLoginFields] reading the cubit state directly — no snackbar.
+    if (!state.isSuccess) return;
+    // Real-login parity: the cubit has already persisted the REAL gateway
+    // tokens; now drive the SAME establishment a normal login uses — refresh
+    // the owned SessionCubit so its gate re-reads the keystore and the session
+    // stream emits `authenticated`. That single emission is what JeebApp's
+    // owned-stream listener turns into role-sync + notifyLogin() (FCM
+    // register), so super-login's post-auth effects fall out of the shared
+    // path, not a bespoke branch. Idempotent with the host's own post-pop
+    // refresh (`SessionState` de-dups an already-authenticated re-emit), so a
+    // double refresh is harmless.
+    await widget.session?.refresh();
+    if (!context.mounted) return;
+    Navigator.of(context).pop(true);
   }
 
   @override
