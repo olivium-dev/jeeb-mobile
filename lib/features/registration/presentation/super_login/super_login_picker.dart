@@ -8,9 +8,10 @@ import '../../data/super_login_demo_user.dart';
 
 /// Opens the "Super user login plus" demo-user picker (debug-only).
 ///
-/// Fetches ALL active users from `POST /api/User/super-login/users` via
-/// [SuperLoginDemoUserService] and lists each user (name + role badge). When
-/// the user taps a row the sheet pops with the chosen [SuperLoginDemoUser];
+/// Fetches ALL live users from `GET /api/User/super-login/users` via
+/// [SuperLoginDemoUserService] and lists each user (name + role badge) with a
+/// search box to filter the full roster. When the user taps a row the sheet
+/// pops with the chosen [SuperLoginDemoUser];
 /// the caller then opens the existing super-login sheet pre-filled with that
 /// user's `userId` + the single real SuperAdmin passcode (from `AppConfig`).
 /// Returns `null` if dismissed.
@@ -193,8 +194,98 @@ class _PickerAsyncRegion extends StatelessWidget {
         }
         final users = snapshot.data ?? const <SuperLoginDemoUser>[];
         if (users.isEmpty) return _PickerError(onRetry: onRetry);
-        return _PickerList(users: users, onSelect: onSelect);
+        return _PickerFilterableList(users: users, onSelect: onSelect);
       },
+    );
+  }
+}
+
+/// The full roster (~84 live users) with an OMDS search box on top. Filters the
+/// list case-insensitively by name, active role, or userId as the user types, so
+/// the large roster stays navigable. The search box only appears once the roster
+/// is big enough to warrant it (the 3-row demo case renders as a plain list).
+class _PickerFilterableList extends StatefulWidget {
+  const _PickerFilterableList({required this.users, required this.onSelect});
+
+  final List<SuperLoginDemoUser> users;
+  final ValueChanged<SuperLoginDemoUser> onSelect;
+
+  /// Above this row count the search box is worth showing.
+  static const int _searchThreshold = 8;
+
+  @override
+  State<_PickerFilterableList> createState() => _PickerFilterableListState();
+}
+
+class _PickerFilterableListState extends State<_PickerFilterableList> {
+  String _query = '';
+
+  void _onQueryChanged(String value) => setState(() => _query = value);
+
+  List<SuperLoginDemoUser> get _filtered {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return widget.users;
+    return widget.users
+        .where((u) =>
+            u.name.toLowerCase().contains(q) ||
+            u.role.toLowerCase().contains(q) ||
+            u.userId.toLowerCase().contains(q) ||
+            u.availableRoles.any((r) => r.toLowerCase().contains(q)))
+        .toList(growable: false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final showSearch =
+        widget.users.length > _PickerFilterableList._searchThreshold;
+    final filtered = _filtered;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (showSearch) ...[
+          Semantics(
+            identifier: 'super_login_plus_picker_search',
+            child: OmdsSearchBar(
+              key: const Key('superLoginPlus.pickerSearch'),
+              hintText: l10n.superLoginPickerSearchHint,
+              onChanged: _onQueryChanged,
+            ),
+          ),
+          const SizedBox(height: Spacing.medium),
+        ],
+        if (filtered.isEmpty)
+          _PickerNoMatches(message: l10n.superLoginPickerNoMatches)
+        else
+          _PickerList(users: filtered, onSelect: widget.onSelect),
+      ],
+    );
+  }
+}
+
+/// Empty-search-result state — distinct from the fetch-error state (no Retry;
+/// the roster loaded fine, the query just matched nothing).
+class _PickerNoMatches extends StatelessWidget {
+  const _PickerNoMatches({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: Spacing.xLarge),
+      child: Semantics(
+        identifier: 'super_login_plus_picker_no_matches',
+        child: Text(
+          message,
+          key: const Key('superLoginPlus.pickerNoMatches'),
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyMedium
+              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
+      ),
     );
   }
 }

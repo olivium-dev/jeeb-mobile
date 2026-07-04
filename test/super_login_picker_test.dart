@@ -39,6 +39,20 @@ const _jeeber = SuperLoginDemoUser(
   availableRoles: ['customer', 'driver'],
 );
 
+/// Builds a roster of [n] distinct users (User00, User01, …) for the
+/// large-list / search tests.
+List<SuperLoginDemoUser> _roster(int n) => List<SuperLoginDemoUser>.generate(
+      n,
+      (i) => SuperLoginDemoUser(
+        userId: 'user-${i.toString().padLeft(2, '0')}',
+        name: 'User${i.toString().padLeft(2, '0')}',
+        role: i.isEven ? 'customer' : 'driver',
+        availableRoles: i.isEven
+            ? const ['customer']
+            : const ['customer', 'driver'],
+      ),
+    );
+
 void main() {
   // Host that opens the picker with the injected service and stashes the
   // selected user so the test can assert on what a tap returned.
@@ -103,6 +117,22 @@ void main() {
       expect(user.name, 'Nour');
       expect(user.role, 'jeeber');
       // The row passcode is never surfaced on the model.
+      expect(user.isJeeber, isTrue);
+    });
+
+    test('fromJson maps full-roster {name, role, roles:[...]} shape '
+        '(super-login/users contract)', () {
+      final user = SuperLoginDemoUser.fromJson(const {
+        'userId': 'd1000000-0000-4000-8000-000000000002',
+        'name': 'Karim',
+        'role': 'driver',
+        'roles': ['customer', 'driver'],
+      });
+      expect(user, isNotNull);
+      expect(user!.userId, 'd1000000-0000-4000-8000-000000000002');
+      expect(user.name, 'Karim');
+      expect(user.role, 'driver');
+      expect(user.availableRoles, ['customer', 'driver']);
       expect(user.isJeeber, isTrue);
     });
 
@@ -247,6 +277,62 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(const Key('superLoginPlus.pickerError')), findsOneWidget);
+    });
+
+    testWidgets('large roster shows the search box and filters as you type',
+        (tester) async {
+      final roster = _roster(20);
+      final service = _FakeDemoUserService(users: roster);
+      await tester.pumpWidget(host(service));
+      await open(tester);
+      await tester.pump(); // resolve the future
+
+      // Search box appears once the roster is large.
+      final searchField = find.byKey(const Key('superLoginPlus.pickerSearch'));
+      expect(searchField, findsOneWidget);
+      // All 20 rows present before filtering.
+      expect(find.byKey(Key('superLoginPlus.user.${roster[0].userId}')),
+          findsOneWidget);
+      expect(find.byKey(Key('superLoginPlus.user.${roster[7].userId}')),
+          findsOneWidget);
+
+      // Type a query that matches exactly one user's name.
+      await tester.enterText(searchField, 'User07');
+      await tester.pump();
+
+      expect(find.byKey(Key('superLoginPlus.user.${roster[7].userId}')),
+          findsOneWidget);
+      expect(find.byKey(Key('superLoginPlus.user.${roster[0].userId}')),
+          findsNothing);
+    });
+
+    testWidgets('search with no matches shows the no-matches state '
+        '(not the fetch-error state)', (tester) async {
+      final service = _FakeDemoUserService(users: _roster(12));
+      await tester.pumpWidget(host(service));
+      await open(tester);
+      await tester.pump();
+
+      await tester.enterText(
+        find.byKey(const Key('superLoginPlus.pickerSearch')),
+        'zzz-no-such-user',
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('superLoginPlus.pickerNoMatches')),
+          findsOneWidget);
+      // Must NOT be the error state (the roster loaded fine).
+      expect(find.byKey(const Key('superLoginPlus.pickerError')), findsNothing);
+    });
+
+    testWidgets('small roster (<=8) renders without a search box',
+        (tester) async {
+      final service = _FakeDemoUserService(users: const [_client, _jeeber]);
+      await tester.pumpWidget(host(service));
+      await open(tester);
+      await tester.pump();
+
+      expect(find.byKey(const Key('superLoginPlus.pickerSearch')), findsNothing);
     });
 
     testWidgets('renders RTL with Arabic copy under Locale(ar)', (tester) async {

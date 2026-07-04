@@ -3863,6 +3863,14 @@
   "@superLoginPickerRoleJeeber": {
     "description": "Role badge label for a jeeber (dual-role) demo user."
   },
+  "superLoginPickerSearchHint": "Search by name, role, or ID",
+  "@superLoginPickerSearchHint": {
+    "description": "Placeholder for the super-login+ picker search box that filters the full user roster."
+  },
+  "superLoginPickerNoMatches": "No users match your search.",
+  "@superLoginPickerNoMatches": {
+    "description": "Shown in the super-login+ picker when the search query matches no users."
+  },
 
   "loginTitle": "Welcome back",
   "@loginTitle": { "description": "JM-007 login screen app bar / heading." },

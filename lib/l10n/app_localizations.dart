@@ -571,6 +571,8 @@ class AppLocalizations {
   String get superLoginPickerRetry => _get('superLoginPickerRetry');
   String get superLoginPickerRoleClient => _get('superLoginPickerRoleClient');
   String get superLoginPickerRoleJeeber => _get('superLoginPickerRoleJeeber');
+  String get superLoginPickerSearchHint => _get('superLoginPickerSearchHint');
+  String get superLoginPickerNoMatches => _get('superLoginPickerNoMatches');
 
   String get tierSelectionTitle => _get('tierSelectionTitle');
   String get tierSelectionSubtitle => _get('tierSelectionSubtitle');
