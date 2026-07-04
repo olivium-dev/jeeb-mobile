@@ -84,7 +84,17 @@ class _OfferKycGateView extends StatelessWidget {
       container: true,
       explicitChildNodes: true,
       child: Scaffold(
-        appBar: OMDSAppBar(title: l10n.offerKycGateTitle, showBackButton: true),
+        appBar: OMDSAppBar(
+          title: l10n.offerKycGateTitle,
+          showBackButton: true,
+          // JEBV4-13 P1-6: OMDSAppBar's default back action is `maybePop()`,
+          // which intentionally no-ops when this screen is the stack root
+          // (reached via `go`, not pushed) — otherwise it would pop the last
+          // Navigator page. Without an explicit destination that leaves the
+          // AppBar back arrow dead. Mirror the screen's own `gate_back_cta`
+          // exit so both back affordances agree.
+          onBackPressed: () => _popToDeliveryTab(context),
+        ),
         body: ListView(
           padding: const EdgeInsetsDirectional.fromSTEB(
             Spacing.medium,
