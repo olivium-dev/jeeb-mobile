@@ -301,6 +301,11 @@ class _LoadedBody extends StatelessWidget {
     // path. `whenComplete` fires on cancel / failure-dismiss; on success the
     // sheet has navigated to order-chat and `endAccept`'s isClosed guard no-ops.
     final cubit = context.read<ClientOffersCubit>();
+    // B-01: a same-frame double-tap (or a double semantics activation) can fire
+    // onAccept twice before the `acceptingOfferId` rebuild disables the sibling
+    // CTAs. beginAccept no-ops the second time, but show() would still stack a
+    // second accept sheet — so bail here when an accept is already in flight.
+    if (cubit.state.acceptStatus == AcceptStatus.inFlight) return;
     cubit.beginAccept(offer.id);
     OfferAcceptSheet.show(
       context,

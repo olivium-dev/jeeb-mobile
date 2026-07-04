@@ -114,6 +114,16 @@ class OfferAcceptSheet extends StatelessWidget {
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       barrierColor: scrim,
+      // B-01: the swipe-down drag is the ONE dismissal vector the sheet's
+      // PopScope(canPop:!isSubmitting) can NOT guard — `BottomSheet`'s
+      // drag-to-close calls `Navigator.pop` DIRECTLY (bottom_sheet.dart
+      // onClosing) rather than `maybePop`, so it bypasses the route's pop
+      // disposition. Barrier-tap and system-back both route through `maybePop`
+      // and ARE blocked while the accept POST is in flight; drag was the hole
+      // that let the user bail mid-POST and go accept a second offer. Disable
+      // drag outright (the Cancel CTA + idle barrier-tap remain the dismissal
+      // path) so the accept-exactly-ONE guard holds on every vector.
+      enableDrag: false,
       shape: const RoundedRectangleBorder(
         borderRadius: OmdsBorderRadius.topXLarge,
       ),

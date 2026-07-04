@@ -227,6 +227,72 @@ void main() {
   );
 
   testWidgets(
+    'P0-1b — a swipe-down drag does NOT dismiss the sheet mid-POST '
+    '(enableDrag:false; the vector PopScope can not guard)',
+    (tester) async {
+      // Drives the PRODUCTION OfferAcceptSheet.show() path (not a raw
+      // showModalBottomSheet) because the drag guard lives on that call. The
+      // BottomSheet drag-to-close calls Navigator.pop DIRECTLY, bypassing the
+      // PopScope pop disposition — so canPop:false alone can NOT stop it; the
+      // sheet must be opened with enableDrag:false. This test flings the sheet
+      // down while the accept POST is gated in flight and asserts it survives.
+      final repo = _GatedOffersRepository()..acceptGate = Completer<void>();
+      late BuildContext host;
+
+      await tester.pumpWidget(
+        _app(
+          Scaffold(
+            body: Builder(
+              builder: (context) {
+                host = context;
+                return Center(
+                  child: TextButton(
+                    onPressed: () => OfferAcceptSheet.show(
+                      host,
+                      offer: _offer(id: 'offer-001'),
+                      requestId: 'req-1',
+                      repository: repo,
+                    ),
+                    child: const Text('open'),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsIdentifier('offer_accept_sheet'), findsOneWidget);
+
+      // Confirm → the accept POST is held in flight (gated).
+      await tester.tap(find.bySemanticsIdentifier('offer_accept_confirm_cta'));
+      await tester.pump();
+      expect(repo.acceptCalls, 1);
+
+      // A hard swipe-DOWN fling on the sheet must NOT tear it down mid-POST.
+      await tester.fling(
+        find.bySemanticsIdentifier('offer_accept_sheet'),
+        const Offset(0, 800),
+        2000,
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(
+        find.bySemanticsIdentifier('offer_accept_sheet'),
+        findsOneWidget,
+        reason: 'a swipe-down must not dismiss the sheet while the accept is '
+            'in flight (enableDrag:false)',
+      );
+      // Leave the accept POST suspended (gate uncompleted): the production
+      // show() path wires its own goNamed('chat-detail') success navigation,
+      // which has no GoRouter in this harness — completing it is out of scope.
+      // The suspended future is disposed with the widget tree at teardown.
+    },
+  );
+
+  testWidgets(
     'P0-2 — opening one accept sheet disables EVERY card Accept CTA (list '
     'in-flight guard wired)',
     (tester) async {
