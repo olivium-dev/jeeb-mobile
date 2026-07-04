@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
@@ -26,7 +27,7 @@ class EarningsTab extends StatelessWidget {
           );
         }
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(child: OmdsLoadingState());
         }
         return const Center(child: Text('Unable to load earnings account.'));
       },

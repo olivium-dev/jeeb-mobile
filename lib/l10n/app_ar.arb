@@ -1005,6 +1005,7 @@
   "dmOnboardingServiceAreaPrimaryLocationLabel": "موقعك الرئيسي",
   "dmOnboardingServiceAreaLocationFieldLabel": "الموقع",
   "dmOnboardingServiceAreaLocationPlaceholder": "اختر",
+  "dmOnboardingServiceAreaMapPlaceholder": "اضغط على الموقع لتحديد قاعدتك الرئيسية",
   "dmOnboardingContinue": "متابعة",
   "dmOnboardingStepProgressLabel": "الخطوة {current} من {total}",
   "pendingTabSearchingLabel": "البحث عن جِيبرين…",
