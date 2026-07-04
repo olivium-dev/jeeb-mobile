@@ -2168,9 +2168,10 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get cancellationGenericError => _get('cancellationGenericError');
 
   // JEBV4-13 P1-5: dm-onboarding error surfaces (previously-silent DmOnboardingError)
+  // NOTE: dmOnboardingPhotoPickFailed getter is defined once above (merged from
+  // ui/cycle-6-fixes); the coverage-check surface is the ux-side addition.
   String get dmOnboardingCoverageCheckFailed =>
       _get('dmOnboardingCoverageCheckFailed');
-  String get dmOnboardingPhotoPickFailed => _get('dmOnboardingPhotoPickFailed');
 
   // JEBV4-13: profile-edit Change-avatar flow (previously a dead onTap)
   String get profilePhotoSheetSubtitle => _get('profilePhotoSheetSubtitle');
