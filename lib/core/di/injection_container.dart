@@ -27,6 +27,8 @@ import '../../features/jeeber_request_feed/data/dio_request_feed_repository.dart
 import '../../features/jeeber_request_feed/data/request_feed_repository.dart';
 import '../../features/kyc/data/dio_kyc_gateway.dart';
 import '../../features/kyc/domain/kyc_gateway.dart';
+import '../../features/photo_attachment/data/image_picker_photo_picker_service.dart';
+import '../../features/photo_attachment/domain/photo_picker_service.dart';
 import '../../features/live_tracking/data/dio_live_tracking_repository.dart';
 import '../../features/live_tracking/domain/live_tracking_repository.dart';
 import '../../features/notification_prefs/data/dio_notification_prefs_repository.dart';
@@ -334,6 +336,14 @@ void configureDependencies({
 
   // KYC — submit + status from auth-service via gateway.
   sl.registerLazySingleton<KycGateway>(() => DioKycGateway(sl<Dio>()));
+
+  // JEBV4-111: real camera/gallery picker. Without this registration every
+  // capture surface (DM-onboarding photo, KYC ID/selfie tiles, JM-051 proof
+  // photos) silently fell back to StubPhotoPickerService, whose synthetic
+  // bytes render as "Invalid image data" instead of opening the camera.
+  sl.registerLazySingleton<PhotoPickerService>(
+    () => ImagePickerPhotoPickerService(),
+  );
 
   // Rating — post-delivery star rating via score-taking-service.
   sl.registerLazySingleton<RatingRepository>(

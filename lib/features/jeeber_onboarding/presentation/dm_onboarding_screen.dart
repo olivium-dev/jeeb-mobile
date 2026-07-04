@@ -98,10 +98,22 @@ class _Scaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<DmOnboardingCubit, DmOnboardingState>(
-      // Service-area coverage confirmed → chain to KYC identity (JM-038 AC4).
-      listenWhen: (prev, curr) => !prev.coverageReady && curr.coverageReady,
-      listener: _onCoverageReady,
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<DmOnboardingCubit, DmOnboardingState>(
+          // Service-area coverage confirmed → chain to KYC identity (JM-038 AC4).
+          listenWhen: (prev, curr) => !prev.coverageReady && curr.coverageReady,
+          listener: _onCoverageReady,
+        ),
+        // JEBV4-111: failures were emitted by the cubit but never surfaced —
+        // the final Continue looked completely dead on a submit error. Mirror
+        // KycWizardScreen._surfaceError: snackbar + acknowledge.
+        BlocListener<DmOnboardingCubit, DmOnboardingState>(
+          listenWhen: (prev, curr) =>
+              prev.error != curr.error && curr.error != null,
+          listener: _surfaceError,
+        ),
+      ],
       child: const Scaffold(
         key: DmOnboardingScreen.rootKey,
         appBar: _OnboardingAppBar(),
@@ -115,6 +127,18 @@ class _Scaffold extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _surfaceError(BuildContext context, DmOnboardingState state) {
+    final error = state.error;
+    if (error == null) return;
+    final l10n = AppLocalizations.of(context);
+    final message = switch (error) {
+      DmOnboardingError.submitFailed => l10n.dmOnboardingSubmitFailed,
+      DmOnboardingError.photoPickFailed => l10n.dmOnboardingPhotoPickFailed,
+    };
+    showOmdsSnackbar(context, message: message);
+    context.read<DmOnboardingCubit>().acknowledgeError();
   }
 
   /// Routes service-area → KYC identity (JM-038 AC4 → JM-040). The KYC wizard

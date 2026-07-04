@@ -2934,6 +2934,14 @@
   "@dmOnboardingPhotoStepTitle": {
     "description": "Navbar title of the photo-upload step of delivery-man onboarding (Figma 56591:5560)."
   },
+  "dmOnboardingSubmitFailed": "We couldn't confirm your service area. Check your connection and try again.",
+  "@dmOnboardingSubmitFailed": {
+    "description": "Snackbar shown when the delivery-man onboarding final Continue (service-area coverage submit) fails (JEBV4-111 — previously silent)."
+  },
+  "dmOnboardingPhotoPickFailed": "We couldn't add that photo. Please try again.",
+  "@dmOnboardingPhotoPickFailed": {
+    "description": "Snackbar shown when picking/capturing the onboarding profile photo fails (JEBV4-111 — previously silent)."
+  },
   "dmOnboardingPhotoUploadTitle": "Upload a clear photo for you",
   "@dmOnboardingPhotoUploadTitle": {
     "description": "Heading of the photo-upload step of delivery-man onboarding (Figma 56591:5331)."

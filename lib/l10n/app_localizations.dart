@@ -1585,6 +1585,9 @@ extension AppLocalizationsRestored on AppLocalizations {
 
   // Screens 20-22 — Delivery-man onboarding wizard.
   String get dmOnboardingPhotoStepTitle => _get('dmOnboardingPhotoStepTitle');
+  String get dmOnboardingSubmitFailed => _get('dmOnboardingSubmitFailed');
+  String get dmOnboardingPhotoPickFailed =>
+      _get('dmOnboardingPhotoPickFailed');
   String get dmOnboardingPhotoUploadTitle =>
       _get('dmOnboardingPhotoUploadTitle');
   String get dmOnboardingPhotoUploadSubtitle =>
