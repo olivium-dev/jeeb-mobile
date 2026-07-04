@@ -90,6 +90,22 @@ void main() {
       expect(user.isJeeber, isFalse);
     });
 
+    test('fromJson maps gateway demo-users {name, role} shape and ignores '
+        'the row passcode', () {
+      final user = SuperLoginDemoUser.fromJson(const {
+        'userId': 'd1000000-0000-4000-8000-000000000001',
+        'name': 'Nour',
+        'role': 'jeeber',
+        'passcode': 'JEEB-SL-should-be-ignored',
+      });
+      expect(user, isNotNull);
+      expect(user!.userId, 'd1000000-0000-4000-8000-000000000001');
+      expect(user.name, 'Nour');
+      expect(user.role, 'jeeber');
+      // The row passcode is never surfaced on the model.
+      expect(user.isJeeber, isTrue);
+    });
+
     test('isJeeber is true when active_role is driver', () {
       expect(_jeeber.isJeeber, isTrue);
     });

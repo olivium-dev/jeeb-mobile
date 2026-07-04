@@ -4,19 +4,32 @@ import 'package:image_picker/image_picker.dart';
 import '../domain/photo_attachment.dart';
 import '../domain/photo_picker_service.dart';
 
-/// Real [PhotoPickerService] over the `image_picker` plugin (JEBV4-13 — the
-/// profile-edit "Change avatar" CTA shipped with `onTap: () {}` because no
-/// platform picker adapter existed; only [StubPhotoPickerService] did).
+/// Real device [PhotoPickerService] backed by the `image_picker` plugin
+/// (pubspec `image_picker: ^1.1.2` — declared since T-mobile-040 but never
+/// bound until JEBV4-111).
 ///
-/// Failure mapping honours the port contract:
-///   * user backs out (plugin returns null)      → [PhotoPickFailure.cancelled]
-///   * `*_access_denied` platform codes          → [PhotoPickFailure.permissionDenied]
-///   * anything else (no camera, unreadable file) → [PhotoPickFailure.unavailable]
+/// Before this binding existed, every capture surface (delivery-man onboarding
+/// photo step, the KYC wizard's ID-front/ID-back/selfie tiles, JM-051 proof
+/// photos) silently fell back to [StubPhotoPickerService], whose synthetic
+/// byte blocks are not decodable images — the UI rendered
+/// "Exception: Invalid image data" instead of opening a camera.
+///
+/// Contract (see [PhotoPickerService]):
+///  • user backs out          → [PhotoPickException] ([PhotoPickFailure.cancelled])
+///  • OS permission denied    → [PhotoPickException] ([PhotoPickFailure.permissionDenied])
+///  • hardware/IO failure     → [PhotoPickException] ([PhotoPickFailure.unavailable])
+///
+/// Captures are down-scaled at the source (maxWidth 1920, quality 85) so the
+/// downstream [HalvingPhotoCompressor] rarely has to iterate to fit the 2 MB
+/// ceiling.
 class ImagePickerPhotoPickerService implements PhotoPickerService {
   ImagePickerPhotoPickerService({ImagePicker? picker})
       : _picker = picker ?? ImagePicker();
 
   final ImagePicker _picker;
+
+  static const double _maxWidth = 1920;
+  static const int _imageQuality = 85;
 
   @override
   Future<RawPhoto> pickFromCamera() =>
@@ -26,29 +39,38 @@ class ImagePickerPhotoPickerService implements PhotoPickerService {
   Future<RawPhoto> pickFromGallery() =>
       _pick(ImageSource.gallery, PhotoSource.gallery);
 
-  Future<RawPhoto> _pick(ImageSource source, PhotoSource tag) async {
+  Future<RawPhoto> _pick(ImageSource source, PhotoSource origin) async {
     final XFile? file;
     try {
-      file = await _picker.pickImage(source: source);
+      file = await _picker.pickImage(
+        source: source,
+        maxWidth: _maxWidth,
+        imageQuality: _imageQuality,
+        requestFullMetadata: false,
+      );
     } on PlatformException catch (e) {
-      throw PhotoPickException(_mapPlatformCode(e.code));
+      throw PhotoPickException(_mapPlatformFailure(e));
     } catch (_) {
       throw const PhotoPickException(PhotoPickFailure.unavailable);
     }
+    // The plugin returns null when the user dismisses the camera/gallery.
     if (file == null) {
       throw const PhotoPickException(PhotoPickFailure.cancelled);
     }
     try {
-      return RawPhoto(bytes: await file.readAsBytes(), source: tag);
+      final bytes = await file.readAsBytes();
+      return RawPhoto(bytes: bytes, source: origin);
     } catch (_) {
       throw const PhotoPickException(PhotoPickFailure.unavailable);
     }
   }
 
-  PhotoPickFailure _mapPlatformCode(String code) {
-    // image_picker surfaces permission denials as `camera_access_denied` /
-    // `photo_access_denied` (+ `_permanently` variants on Android).
-    if (code.contains('access_denied')) {
+  /// image_picker surfaces OS denials as PlatformException codes
+  /// `camera_access_denied` / `photo_access_denied` (and `camera_access_restricted`
+  /// on managed devices); everything else is the hardware/IO bucket.
+  PhotoPickFailure _mapPlatformFailure(PlatformException e) {
+    final code = e.code.toLowerCase();
+    if (code.contains('access_denied') || code.contains('access_restricted')) {
       return PhotoPickFailure.permissionDenied;
     }
     return PhotoPickFailure.unavailable;

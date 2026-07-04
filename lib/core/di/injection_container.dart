@@ -27,6 +27,8 @@ import '../../features/jeeber_request_feed/data/dio_request_feed_repository.dart
 import '../../features/jeeber_request_feed/data/request_feed_repository.dart';
 import '../../features/kyc/data/dio_kyc_gateway.dart';
 import '../../features/kyc/domain/kyc_gateway.dart';
+import '../../features/photo_attachment/data/image_picker_photo_picker_service.dart';
+import '../../features/photo_attachment/domain/photo_picker_service.dart';
 import '../../features/live_tracking/data/dio_live_tracking_repository.dart';
 import '../../features/live_tracking/domain/live_tracking_repository.dart';
 import '../../features/notification_prefs/data/dio_notification_prefs_repository.dart';
@@ -100,7 +102,6 @@ import '../../features/offers/domain/offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
 import '../../features/settlement/data/dio_settlement_repository.dart';
 import '../../features/settlement/domain/settlement_repository.dart';
-import '../config/app_config.dart';
 import '../network/auth_token_store.dart';
 import '../network/mock_gateway_client.dart';
 import '../observability/crash_reporter.dart';
@@ -220,15 +221,12 @@ void configureDependencies({
     () => DefaultSuperLoginService(dio: sl<Dio>()),
   );
 
-  // "Super user login plus": lists ALL active users via the passcode-gated
-  // POST /api/User/super-login/users (debug-only). Same Dio client as every
-  // other gateway data source; the SuperAdmin passcode comes from AppConfig
-  // (build-time --dart-define or the debug fallback).
+  // "Super user login plus": lists the demo roster via the anonymous,
+  // OpenMode-gated GET /api/User/demo-users (debug-only). Same Dio client as
+  // every other gateway data source. The roster GET carries no passcode; the
+  // tap→login re-uses AppConfig.superAdminPassCode on /api/User/user-id-login.
   sl.registerLazySingleton<SuperLoginDemoUserService>(
-    () => DefaultSuperLoginDemoUserService(
-      dio: sl<Dio>(),
-      superAdminPassCode: AppConfig.superAdminPassCode,
-    ),
+    () => DefaultSuperLoginDemoUserService(dio: sl<Dio>()),
   );
 
   sl.registerLazySingleton<OrderRepository>(
@@ -341,6 +339,14 @@ void configureDependencies({
 
   // KYC — submit + status from auth-service via gateway.
   sl.registerLazySingleton<KycGateway>(() => DioKycGateway(sl<Dio>()));
+
+  // JEBV4-111: real camera/gallery picker. Without this registration every
+  // capture surface (DM-onboarding photo, KYC ID/selfie tiles, JM-051 proof
+  // photos) silently fell back to StubPhotoPickerService, whose synthetic
+  // bytes render as "Invalid image data" instead of opening the camera.
+  sl.registerLazySingleton<PhotoPickerService>(
+    () => ImagePickerPhotoPickerService(),
+  );
 
   // Rating — post-delivery star rating via score-taking-service.
   sl.registerLazySingleton<RatingRepository>(

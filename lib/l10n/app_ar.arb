@@ -985,6 +985,8 @@
   "jeeberRegisterCta": "سجّل الآن",
   "jeeberRegisterHeroSemantic": "دراجة توصيل تنطلق من هاتف",
   "dmOnboardingPhotoStepTitle": "الصورة",
+  "dmOnboardingSubmitFailed": "تعذر تأكيد منطقة الخدمة. تحقق من اتصالك وحاول مرة أخرى.",
+  "dmOnboardingPhotoPickFailed": "تعذرت إضافة هذه الصورة. حاول مرة أخرى.",
   "dmOnboardingPhotoUploadTitle": "ارفع صورة واضحة لك",
   "dmOnboardingPhotoUploadSubtitle": "لمزيد من المصداقية",
   "dmOnboardingPhotoUploadHint": "اضغط لإضافة صورة",

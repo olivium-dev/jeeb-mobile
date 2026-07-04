@@ -9,11 +9,19 @@ import '../domain/notification_prefs_repository.dart';
 /// prefix to `/notification-service/v1/notifications` (`mock_gateway_client.dart`).
 /// Do NOT hardcode a service prefix or host here (guardrail §4, DO-NOT).
 ///
-/// Mock contract (`notification-service.ts`):
-///   GET  /v1/notifications/preferences → `{ userId, push, sms, email, topics:{} }`
-///   PUT  /v1/notifications/preferences → echoes `{ userId, ...body }`
-/// The four toggleable categories live in `topics` (the mock echoes them back);
-/// the app owns the `topics` key contract.
+/// Real gateway contract (`NotificationPreferencesController`, DEFECT-2):
+///   GET   /v1/notifications/preferences → `{ userId, preferences:{ offers,
+///         chat, statusChanges, ratingReminders, promotions, settlements },
+///         alwaysOn:[...], updatedAt }`
+///   PATCH /v1/notifications/preferences → partial flat booleans (only the
+///         keys you send change); echoes the same full snapshot. PUT/POST 405.
+/// The app's four categories map onto the gateway toggles: offers→offers,
+/// orderStatus→statusChanges, wallet→settlements, marketing→promotions
+/// (chat/ratingReminders have no client toggle and are never sent).
+///
+/// Legacy mock contract (`notification-service.ts`) is still tolerated on
+/// parse: `{ userId, push, sms, email, topics:{} }` — used when `preferences`
+/// is absent, so USE_MOCK_GATEWAY builds keep working.
 class DioNotificationPrefsRepository implements NotificationPrefsRepository {
   const DioNotificationPrefsRepository(this._dio);
 
@@ -34,14 +42,17 @@ class DioNotificationPrefsRepository implements NotificationPrefsRepository {
   @override
   Future<NotificationPrefs> save(NotificationCategoryPrefs categories) async {
     try {
-      // PUT the full snapshot: push channel stays on (the only channel we
-      // surface, R2) + the category map under `topics`. The transactional class
-      // is never sent — it cannot be disabled (D64).
-      final res = await _dio.put<Map<String, dynamic>>(
+      // PATCH the four client-owned toggles as flat booleans (the gateway's
+      // partial-update contract; PUT is 405 — DEFECT-2). The transactional
+      // class is never sent — it cannot be disabled (D64), and the gateway
+      // 400s any attempt to turn an always-on channel off.
+      final res = await _dio.patch<Map<String, dynamic>>(
         _path,
         data: <String, dynamic>{
-          'push': true,
-          'topics': categories.toTopicsJson(),
+          'offers': categories.offers,
+          'statusChanges': categories.orderStatus,
+          'settlements': categories.wallet,
+          'promotions': categories.marketing,
         },
       );
       return _parse(res.data ?? const {});
@@ -51,6 +62,28 @@ class DioNotificationPrefsRepository implements NotificationPrefsRepository {
   }
 
   NotificationPrefs _parse(Map<String, dynamic> json) {
+    // Real gateway shape: `{ preferences: { offers, statusChanges,
+    // settlements, promotions, ... } }` (flat booleans).
+    final rawPrefs = json['preferences'];
+    if (rawPrefs is Map<String, dynamic>) {
+      bool read(String key, bool fallback) {
+        final v = rawPrefs[key];
+        return v is bool ? v : fallback;
+      }
+
+      return NotificationPrefs(
+        categories: NotificationCategoryPrefs(
+          offers: read('offers', true),
+          orderStatus: read('statusChanges', true),
+          wallet: read('settlements', true),
+          marketing: read('promotions', true),
+        ),
+        // The gateway snapshot has no `push` channel flag; push stays on (R2).
+        transactionalLocked: true,
+      );
+    }
+
+    // Legacy mock shape: `{ push, topics:{} }`.
     final rawTopics = json['topics'];
     final topics =
         rawTopics is Map<String, dynamic> ? rawTopics : const <String, dynamic>{};
