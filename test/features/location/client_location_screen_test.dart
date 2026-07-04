@@ -192,11 +192,14 @@ void main() {
     const fieldKey = Key('clientLocation.descriptionField');
     const micKey = Key('clientLocation.descriptionMic');
 
-    OmdsPrimaryButton confirmButton(WidgetTester tester) {
+    // B-02: the Confirm CTA is an OmdsLoadingButton (disable + spinner while
+    // the create POST is in flight); it still exposes `isEnabled`, so the G1
+    // gating assertions below are unchanged.
+    OmdsLoadingButton confirmButton(WidgetTester tester) {
       final cta = find.bySemanticsIdentifier('location_select_confirm_cta');
       expect(cta, findsOneWidget);
-      return tester.widget<OmdsPrimaryButton>(
-        find.descendant(of: cta, matching: find.byType(OmdsPrimaryButton)),
+      return tester.widget<OmdsLoadingButton>(
+        find.descendant(of: cta, matching: find.byType(OmdsLoadingButton)),
       );
     }
 

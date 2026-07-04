@@ -102,13 +102,15 @@ Widget _harness(
   );
 }
 
-/// The OmdsPrimaryButton inside the `location_select_confirm_cta` Semantics.
-OmdsPrimaryButton _confirmButton(WidgetTester tester) {
+/// The OmdsLoadingButton inside the `location_select_confirm_cta` Semantics.
+/// B-02 swapped OmdsPrimaryButton → OmdsLoadingButton (disable + spinner while
+/// the create POST is in flight); it still exposes `isEnabled`.
+OmdsLoadingButton _confirmButton(WidgetTester tester) {
   final cta = find.bySemanticsIdentifier('location_select_confirm_cta');
   expect(cta, findsOneWidget,
       reason: 'the Confirm CTA must be rendered (footer not hidden)');
-  return tester.widget<OmdsPrimaryButton>(
-    find.descendant(of: cta, matching: find.byType(OmdsPrimaryButton)),
+  return tester.widget<OmdsLoadingButton>(
+    find.descendant(of: cta, matching: find.byType(OmdsLoadingButton)),
   );
 }
 
