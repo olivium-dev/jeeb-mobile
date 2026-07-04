@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/foundation.dart' show ValueListenable, visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -25,6 +25,23 @@ import '../domain/saved_location.dart';
 import 'widgets/client_location_add_row.dart';
 import 'widgets/client_location_option_card.dart';
 import 'widgets/delivery_create_layout.dart';
+
+/// B-02b: the create-success navigation fires only when the footer is BOTH
+/// still [mounted] AND its route is still the current/top route
+/// ([isRouteCurrent]). Extracted as a pure predicate so the route-currentness
+/// RULE is directly unit-testable and mutation-catchable: dropping the
+/// `isRouteCurrent` term flips the mounted-but-not-current case (an overlay /
+/// dialog / bottom-sheet sitting on top of the still-mounted location step),
+/// which would otherwise let a completed create `goNamed` the waiting surface
+/// out from under it. (In go_router a *page* push disposes the covered footer,
+/// so `mounted` alone already catches those; `isRouteCurrent` covers the
+/// mounted-but-covered overlay case `mounted` cannot.)
+@visibleForTesting
+bool shouldRouteAfterCreate({
+  required bool mounted,
+  required bool isRouteCurrent,
+}) =>
+    mounted && isRouteCurrent;
 
 /// `location-select` (blueprint) — the customer picks the delivery location on
 /// the create-flow's location leg (JM-024). The second step after
@@ -724,11 +741,16 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
     try {
       final requestId = await controller.submitFromLocation(widget.state);
       // B-02b: only navigate when this footer is still mounted AND its route is
-      // still the current/top route. If the user left the create step mid-POST
-      // (backed out → unmounted, or pushed another surface → not current),
-      // yanking them to the waiting surface would be a rogue navigation, so we
-      // land the created request silently and stay put.
-      if (!mounted || !(route?.isCurrent ?? false)) return;
+      // still the current/top route (see [shouldRouteAfterCreate]). If the user
+      // left the create step mid-POST (backed out → unmounted, or an overlay is
+      // covering it → not current), yanking them to the waiting surface would be
+      // a rogue navigation, so we land the created request silently and stay put.
+      if (!shouldRouteAfterCreate(
+        mounted: mounted,
+        isRouteCurrent: route?.isCurrent ?? false,
+      )) {
+        return;
+      }
       // logcat proof anchor: confirms the create call succeeded with a REAL id
       // (NOT 'new') before we route to the waiting surface.
       debugPrint('[compose-b11] POST /requests OK → requestId=$requestId');

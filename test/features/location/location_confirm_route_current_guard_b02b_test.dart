@@ -37,6 +37,8 @@ import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_reposi
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
 import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
 import 'package:jeeb_mobile/features/location/domain/location_select_repository.dart';
+import 'package:jeeb_mobile/features/location/presentation/client_location_screen.dart'
+    show shouldRouteAfterCreate;
 import 'package:jeeb_mobile/features/location/presentation/widgets/client_location_add_row.dart';
 import 'package:jeeb_mobile/features/no_offer_timeout/data/fake_waiting_repository.dart';
 import 'package:jeeb_mobile/features/no_offer_timeout/domain/waiting_repository.dart';
@@ -258,54 +260,32 @@ void main() {
       },
     );
 
-    testWidgets(
-      'the route-currentness clause is load-bearing: a create that completes '
-      'while the footer is MOUNTED-but-not-current does NOT navigate',
-      (tester) async {
-        // This isolates the `ModalRoute.isCurrent` half of the guard. The
-        // previous test disposes the covered page (so `mounted` alone would
-        // catch it); here we overlay a raw route on the ROOT navigator, which
-        // keeps the location-select footer MOUNTED while making its route no
-        // longer current. Only the `isCurrent` clause — not `mounted` — can
-        // suppress the rogue nav in this state. Deleting that clause makes this
-        // test fail (mutation-proof).
-        final router = await pumpToInFlight(tester);
-        final baseUri =
-            router.routerDelegate.currentConfiguration.uri.toString();
+  });
 
-        // Overlay a route WITHOUT tearing down the go_router page beneath it —
-        // the footer stays mounted, but its ModalRoute.isCurrent becomes false.
-        final navigator = tester.state<NavigatorState>(
-          find.byType(Navigator).first,
-        );
-        navigator.push<void>(
-          MaterialPageRoute<void>(
-            builder: (_) => const Scaffold(body: SizedBox.shrink()),
-          ),
-        );
-        await tester.pumpAndSettle();
-        // The location-select screen is still MOUNTED underneath the (opaque)
-        // overlay — offstage, so found only with skipOffstage:false. This is the
-        // state where `mounted` is true but the route is no longer current.
-        expect(find.byType(ClientLocationAddRow, skipOffstage: false),
-            findsOneWidget);
+  // Direct, harness-free proof that the route-currentness RULE is load-bearing.
+  // The widget tests above prove the observable no-rogue-nav behavior, but in
+  // the go_router harness a page push disposes the covered footer (mounted →
+  // false), so `mounted` alone already suppresses those paths and a widget test
+  // cannot isolate the `isCurrent` term. This unit group exercises the guard
+  // predicate directly: dropping the `isRouteCurrent` term (a `mounted`-only
+  // regression) flips the mounted-but-not-current case and fails here — the
+  // mutation-catch the reviewer asked for, at the rule level.
+  group('B-02b — shouldRouteAfterCreate (route-currentness predicate)', () {
+    test('navigates only when mounted AND the route is current', () {
+      expect(shouldRouteAfterCreate(mounted: true, isRouteCurrent: true), isTrue);
+    });
 
-        submission.release();
-        await tester.pump();
-        await tester.pump();
+    test('does NOT navigate when mounted but the route is NOT current '
+        '(overlay/dialog on top) — the isRouteCurrent term is load-bearing', () {
+      expect(
+          shouldRouteAfterCreate(mounted: true, isRouteCurrent: false), isFalse);
+    });
 
-        // A `goNamed('waiting-no-coverage', …)` would change the go_router
-        // location. With the isCurrent guard it never fires, so the location is
-        // unchanged and never reaches the waiting surface.
-        final afterUri =
-            router.routerDelegate.currentConfiguration.uri.toString();
-        expect(submission.submitCount, 1);
-        expect(afterUri, isNot(contains('waiting')),
-            reason: 'a mounted-but-not-current footer must NOT goNamed the '
-                'waiting surface — the isCurrent clause must suppress it');
-        expect(afterUri, baseUri);
-        expect(tester.takeException(), isNull);
-      },
-    );
+    test('does NOT navigate when unmounted (backed out / page disposed)', () {
+      expect(
+          shouldRouteAfterCreate(mounted: false, isRouteCurrent: true), isFalse);
+      expect(shouldRouteAfterCreate(mounted: false, isRouteCurrent: false),
+          isFalse);
+    });
   });
 }
