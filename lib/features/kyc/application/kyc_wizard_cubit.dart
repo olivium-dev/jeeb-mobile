@@ -99,8 +99,13 @@ class KycWizardCubit extends Cubit<KycWizardState> {
         tosVersion: template.tosVersion,
         signatureBlob: _tosAcceptanceBlob,
       );
+      // Thread the freshly-signed ToS version onto the draft so the gateway
+      // can carry `tos_accepted_version` in the submit body (JEBV4-113).
       final updated = await _gateway.submit(
-        state.submission.copyWith(status: KycStatus.notSubmitted),
+        state.submission.copyWith(
+          status: KycStatus.notSubmitted,
+          tosAcceptedVersion: stamp.tosAcceptedVersion,
+        ),
       );
       emit(state.copyWith(
         step: KycWizardStep.status,
