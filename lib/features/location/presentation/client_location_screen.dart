@@ -765,10 +765,30 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
       router.goNamed('waiting-no-coverage', pathParameters: {'id': requestId});
     } on RequestSubmissionException catch (e) {
       debugPrint('[compose-b11] POST /requests FAILED: $e');
+      // JEBV4-108: a 401 at the create seam means the SESSION is invalid
+      // (e.g. an expired or seam-minted token the live gateway rejects) —
+      // retrying with the same session can never succeed. Tell the user the
+      // truth and route to re-auth instead of a dead-end generic failure.
+      if (e.failure == RequestSubmissionFailure.unauthorized) {
+        messenger?.showSnackBar(
+          SnackBar(content: Text(l10n.createSessionExpired)),
+        );
+        router.goNamed('login');
+        return;
+      }
       // Stay on the location step and surface a retryable error — never hand
       // off `'new'` (that is exactly the broken path B11 removes).
+      // P2-5 honesty: only a NETWORK failure blames connectivity; a 4xx/5xx
+      // gets the generic couldn't-create copy instead of "check your
+      // connection" misdirection.
       messenger?.showSnackBar(
-        SnackBar(content: Text(l10n.requestSummaryErrorNetwork)),
+        SnackBar(
+          content: Text(
+            e.failure == RequestSubmissionFailure.network
+                ? l10n.requestSummaryErrorNetwork
+                : l10n.chatCreateRequestFailed,
+          ),
+        ),
       );
     } finally {
       // Re-enable so the customer can retry after a failure. On a successful nav

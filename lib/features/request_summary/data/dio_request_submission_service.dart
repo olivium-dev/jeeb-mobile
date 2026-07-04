@@ -96,6 +96,17 @@ class DioRequestSubmissionService implements RequestSubmissionService {
       return const RequestSubmissionException(RequestSubmissionFailure.network);
     }
     final status = e.response?.statusCode;
+    // JEBV4-108: a 401 at the create seam is a SESSION failure, not a payload
+    // problem — surface it as its own typed case so the UI can route to
+    // re-auth instead of showing a misleading generic/connectivity error.
+    // (Note: the TokenRefreshInterceptor has already had its single refresh
+    // attempt by the time this surfaces, so this 401 is terminal.)
+    if (status == 401) {
+      return const RequestSubmissionException(
+        RequestSubmissionFailure.unauthorized,
+        'HTTP 401',
+      );
+    }
     if (status != null && status >= 400 && status < 500) {
       return RequestSubmissionException(
         RequestSubmissionFailure.invalidInput,

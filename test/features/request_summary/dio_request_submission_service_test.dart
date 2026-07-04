@@ -349,6 +349,22 @@ void main() {
       );
     });
 
+    test('JEBV4-108: maps 401 to the typed unauthorized failure (session), '
+        'never invalidInput', () async {
+      final service = _service(
+        _dioError(DioExceptionType.badResponse, status: 401),
+      );
+
+      await expectLater(
+        service.submit(_draft),
+        throwsA(
+          predicate<RequestSubmissionException>(
+            (e) => e.failure == RequestSubmissionFailure.unauthorized,
+          ),
+        ),
+      );
+    });
+
     test('maps 4xx to invalidInput failure', () async {
       final service = _service(
         _dioError(DioExceptionType.badResponse, status: 422),

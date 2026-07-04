@@ -4290,5 +4290,8 @@
   "@profilePhotoChangeFailed": {"description": "JEBV4-13: generic failure surface for the profile avatar pick/persist path."},
 
   "offlineBannerMessage": "You are offline. Changes will sync when connection is restored.",
-  "@offlineBannerMessage": {"description": "JEBV4-13: offline MaterialBanner copy (was hardcoded English); the DISMISS action uses commonDismiss."}
+  "@offlineBannerMessage": {"description": "JEBV4-13: offline MaterialBanner copy (was hardcoded English); the DISMISS action uses commonDismiss."},
+
+  "createSessionExpired": "Your session has expired. Please log in again to send your request.",
+  "@createSessionExpired": {"description": "JEBV4-108: shown when POST /v1/requests returns 401 at the create seam — the session is invalid; the client routes to re-auth instead of blaming connectivity."}
 }

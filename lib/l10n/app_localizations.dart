@@ -2177,4 +2177,7 @@ extension AppLocalizationsRestored on AppLocalizations {
 
   // JEBV4-13: offline banner (previously hardcoded EN + dead DISMISS)
   String get offlineBannerMessage => _get('offlineBannerMessage');
+
+  // JEBV4-108: honest 401-at-create handling (session expiry → re-auth)
+  String get createSessionExpired => _get('createSessionExpired');
 }
