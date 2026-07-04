@@ -48,6 +48,8 @@ import '../../features/language/presentation/screens/language_settings_screen.da
 import '../../features/notifications/presentation/notifications_list_screen.dart';
 import '../../features/password_security/presentation/password_security_screen.dart';
 import '../../features/reviews/presentation/reviews_list_screen.dart';
+import '../../features/search/presentation/search_screen.dart';
+import '../../features/search/presentation/search_results_screen.dart';
 import '../../features/support/presentation/support_ticket_screen.dart';
 import '../../features/escalate/application/escalate_cubit.dart';
 import '../../features/escalate/domain/escalate_repository.dart';
@@ -1589,6 +1591,30 @@ class AppRouter {
           path: '/settings/password',
           name: 'password-security',
           builder: (context, state) => const PasswordSecurityScreen(),
+        ),
+        // Sprint-5 Stream C: free-text search. `/search` is the compose
+        // surface (search bar + prompt) reached from the shell header search
+        // affordance (`*_search` → `goNamed('search')`); submitting forwards
+        // to `/search-results?q=` which runs the query against the gateway
+        // search BFF (DioSearchRepository over sl<SearchRepository>()) and
+        // renders the 4-state machine. When `/v1/search` is absent the repo
+        // surfaces an honest "search isn't available yet" empty state — no
+        // dead-end. The `q` query param makes a results link shareable +
+        // process-death-safe. Restored in cycle-6 after a cycle-4/5
+        // integration merge dropped these registrations (see
+        // bugs/notif-prefs-405.md §Bug 2); re-applies the router half of
+        // a0a1502 whose caller (shell_header_actions) survived the drop.
+        GoRoute(
+          path: '/search',
+          name: 'search',
+          builder: (context, state) => const SearchScreen(),
+        ),
+        GoRoute(
+          path: '/search-results',
+          name: 'search-results',
+          builder: (context, state) => SearchResultsScreen(
+            query: state.uri.queryParameters['q'] ?? '',
+          ),
         ),
       ]),
       errorBuilder: (context, state) =>

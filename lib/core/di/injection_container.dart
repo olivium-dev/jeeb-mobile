@@ -62,6 +62,8 @@ import '../../features/notifications/data/local_merging_notifications_repository
 import '../../features/notifications/domain/notifications_repository.dart';
 import '../notifications/data/shared_prefs_local_push_inbox.dart';
 import '../notifications/domain/local_push_inbox.dart';
+import '../../features/search/data/dio_search_repository.dart';
+import '../../features/search/domain/search_repository.dart';
 import '../../features/support/data/dio_support_repository.dart';
 import '../../features/support/domain/support_repository.dart';
 import '../../features/dispute_status/data/dio_dispute_status_repository.dart';
@@ -550,6 +552,16 @@ void configureDependencies({
       ),
       localInbox: sl<LocalPushInbox>(),
     ),
+  );
+
+  // Sprint-5 Stream C search: the gateway free-text search BFF
+  // (GET /v1/search?q=). The route is not live yet, so the Dio repo maps a 404
+  // to SearchFailure.unavailable → the results screen renders an honest
+  // "search isn't available yet" empty state (no dead-end). Same code path
+  // returns real hits once the BFF lands. Restored in cycle-6 alongside the
+  // dropped /search routes (see bugs/notif-prefs-405.md §Bug 2).
+  sl.registerLazySingleton<SearchRepository>(
+    () => DioSearchRepository(dio: sl<Dio>()),
   );
 
   // LIVE(JM-063): the support-ticket service (S1) has landed — the gateway now
