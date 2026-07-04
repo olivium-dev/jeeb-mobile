@@ -542,7 +542,7 @@ class _SavedAddressesError extends StatelessWidget {
 /// G1: additionally gated on a non-empty trimmed "What do you need?" entry —
 /// the request content is required, so the create CTA stays disabled until the
 /// customer says what they actually want (typed or dictated).
-class _ConfirmFooter extends StatelessWidget {
+class _ConfirmFooter extends StatefulWidget {
   const _ConfirmFooter({
     required this.state,
     required this.description,
@@ -554,7 +554,20 @@ class _ConfirmFooter extends StatelessWidget {
   final VoidCallback? onConfirm;
 
   @override
+  State<_ConfirmFooter> createState() => _ConfirmFooterState();
+}
+
+class _ConfirmFooterState extends State<_ConfirmFooter> {
+  // B-02 double-submit guard: this is the only `POST /requests` submit surface
+  // in the codebase; without an in-flight guard a double-tap (or a tap while
+  // the create call is in flight) fired the create twice. Mirrors the
+  // goods_cost_cubit `inFlight` re-entrancy guard. `_submitting` disables the
+  // CTA + drives the OmdsLoadingButton spinner while the POST is outstanding.
+  bool _submitting = false;
+
+  @override
   Widget build(BuildContext context) {
+    final state = widget.state;
     if (state.status == LocationSelectStatus.initial ||
         state.status == LocationSelectStatus.loading) {
       return const SizedBox.shrink();
@@ -568,12 +581,14 @@ class _ConfirmFooter extends StatelessWidget {
           identifier: 'location_select_confirm_cta',
           button: true,
           child: ValueListenableBuilder<TextEditingValue>(
-            valueListenable: description,
-            builder: (context, value, _) => OmdsPrimaryButton(
+            valueListenable: widget.description,
+            builder: (context, value, _) => OmdsLoadingButton(
               // l10n: reuses `locationConfirm` ("Confirm location"); a dedicated
               // `locationSelectConfirmCta` key is requested in 50_ROUTE_REQUESTS.
               text: l10n.locationConfirm,
+              isLoading: _submitting,
               isEnabled: state.canConfirm && value.text.trim().isNotEmpty,
+              borderRadius: OmdsBorderRadius.pill,
               onTap: () => _onConfirm(context),
             ),
           ),
@@ -583,10 +598,12 @@ class _ConfirmFooter extends StatelessWidget {
   }
 
   Future<void> _onConfirm(BuildContext context) async {
+    // B-02: ignore the tap if a create is already in flight (double-submit).
+    if (_submitting) return;
     // EDGE: location-select → order-chat compose (21_NAV_PLAN.md §C, JM-024
     // AC4 → JM-025). The optional callback REPLACES the default nav for tests /
     // the dev seam.
-    final override = onConfirm;
+    final override = widget.onConfirm;
     if (override != null) {
       override();
       return;
@@ -611,44 +628,34 @@ class _ConfirmFooter extends StatelessWidget {
     // G1 belt-and-braces: commit the CURRENT field text at the submit moment so
     // the POST body always carries exactly what the customer sees in the field
     // (the field also commits on every change; this guards any missed edit).
-    controller.setDescription(description.text);
+    controller.setDescription(widget.description.text);
+    await _createAndRoute(context, controller);
+  }
+
+  Future<void> _createAndRoute(
+    BuildContext context,
+    ComposeRequestController controller,
+  ) async {
     // Capture the navigation + messenger handles BEFORE the async gap: this
-    // footer lives in a BlocBuilder, so `context` may be rebuilt (and become
-    // unmounted) by the time the create call returns. The GoRouter / messenger
-    // instances stay valid, so we drive navigation off them instead of a stale
+    // footer may be rebuilt (and unmounted) by the time the create returns, so
+    // drive navigation off the GoRouter / messenger instances, not a stale
     // BuildContext.
     final router = GoRouter.of(context);
     final messenger = ScaffoldMessenger.maybeOf(context);
     final l10n = AppLocalizations.of(context);
+    setState(() => _submitting = true);
     try {
-      final requestId = await controller.submitFromLocation(state);
+      final requestId = await controller.submitFromLocation(widget.state);
       // logcat proof anchor: confirms the create call succeeded with a REAL id
       // (NOT 'new') before we route to the waiting surface.
       debugPrint('[compose-b11] POST /requests OK → requestId=$requestId');
-      // POST-CREATE UX FIX (run-8 Step-2 gap): land the customer on the
-      // "Finding a Jeeber" WAITING surface for the freshly-created request —
-      // NOT the order-chat compose screen.
-      //
-      // WHY THIS REGRESSED: BUG-6 (39d90bf) moved the actual `POST /v1/requests`
-      // create UP to this location-confirm step (via ComposeRequestController).
-      // The request now already exists here, so routing on to `chat-detail`
-      // dropped the customer into the JM-025 *compose* state (no conversation
-      // exists yet for a brand-new request) instead of a waiting state. The
-      // "Finding a Jeeber" copy was then only reachable via the OLD chat-first
-      // path (send a first message → `_createBroadcastAndGoWaiting`), which no
-      // longer runs because there is nothing left to compose. So the customer
-      // never saw the waiting screen (run-8: empty "No orders yet" home).
-      //
-      // FIX: reuse the existing `waiting-no-coverage` route + WaitingCubit /
-      // NoOfferTimeoutScreen (the SAME target the chat-first broadcast used —
-      // `chat_detail_screen.dart` `goNamed('waiting-no-coverage')`, and the
-      // client-home pending-request tap `client_home_screen.dart`), threading
-      // the REAL server-minted requestId through. `goNamed` (not push) so the
-      // now-created request cannot be re-submitted by backing into this screen.
-      // The chat-first broadcast path (fallback below + ChatDetailScreen) is
-      // untouched, and the request is already `pending` + visible in the jeeber
-      // feed, so the waiting screen's own coverage fetch drives "Finding a
-      // Jeeber" (broadcastExpiresAt falls back to a 5-min window).
+      // POST-CREATE UX FIX: land the customer on the "Finding a Jeeber" WAITING
+      // surface for the freshly-created request — NOT the order-chat compose
+      // screen (the request already exists, so there is nothing to compose).
+      // Reuse the existing `waiting-no-coverage` route (the SAME target the
+      // chat-first broadcast used) threading the REAL server-minted requestId.
+      // `goNamed` (not push) so the now-created request cannot be re-submitted
+      // by backing into this screen.
       router.goNamed('waiting-no-coverage', pathParameters: {'id': requestId});
     } on RequestSubmissionException catch (e) {
       debugPrint('[compose-b11] POST /requests FAILED: $e');
@@ -657,6 +664,11 @@ class _ConfirmFooter extends StatelessWidget {
       messenger?.showSnackBar(
         SnackBar(content: Text(l10n.requestSummaryErrorNetwork)),
       );
+    } finally {
+      // Re-enable so the customer can retry after a failure. On success we have
+      // navigated away (widget unmounted) → the mounted guard makes this a
+      // no-op, leaving the CTA disabled through the transition.
+      if (mounted) setState(() => _submitting = false);
     }
   }
 }
