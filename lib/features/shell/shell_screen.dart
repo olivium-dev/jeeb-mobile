@@ -89,20 +89,26 @@ class _ShellScreenState extends State<ShellScreen> {
     return Scaffold(
       body: SafeArea(
         bottom: false,
-        child: IndexedStack(
-          index: safeIndex,
-          // Wrap each child in a TabVisibility so a tab body can react to
-          // (re)becoming the selected page even though IndexedStack keeps every
-          // child mounted. Used by ClientHomeScreen to silently re-pull on
-          // refocus. updateShouldNotify only fires for the tab whose visibility
-          // actually flips.
-          children: [
-            for (var i = 0; i < tabs.length; i++)
-              TabVisibility(
-                isVisible: i == safeIndex,
-                child: tabs[i].page,
-              ),
-          ],
+        // Reserve the persistent bottom-nav bar's height as bottom content
+        // inset for every tab (VIS-P1-2) so a tab's last scrollable row — e.g.
+        // Profile's Sign out / Rate the app — clears the bar instead of sitting
+        // clipped under it. Injected once here, not per-screen.
+        child: _NavBarContentInset(
+          child: IndexedStack(
+            index: safeIndex,
+            // Wrap each child in a TabVisibility so a tab body can react to
+            // (re)becoming the selected page even though IndexedStack keeps
+            // every child mounted. Used by ClientHomeScreen to silently re-pull
+            // on refocus. updateShouldNotify only fires for the tab whose
+            // visibility actually flips.
+            children: [
+              for (var i = 0; i < tabs.length; i++)
+                TabVisibility(
+                  isVisible: i == safeIndex,
+                  child: tabs[i].page,
+                ),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: _JeebBottomBar(
@@ -220,6 +226,37 @@ class _ShellScreenState extends State<ShellScreen> {
         ),
       ),
     ];
+  }
+}
+
+/// Re-seeds the bottom system inset for every tab body with the visual height
+/// of the persistent [_JeebBottomBar] ([Sizes.fiveXLarge]), so a tab's last
+/// scrollable row clears the bar rather than sitting clipped beneath it
+/// (VIS-P1-2). RTL-agnostic — a vertical inset only.
+///
+/// The outer [Scaffold] already consumes the real system bottom inset for the
+/// nav bar, so inside a tab body both `padding.bottom` and `viewPadding.bottom`
+/// collapse to `0` and each screen's own `SafeArea` / [BottomInsetX] reserves
+/// nothing above the bar. Re-adding the bar height to BOTH insets lets that
+/// same double-pad-safe machinery reserve it exactly once, whichever mechanism
+/// a given tab uses (a bottom `SafeArea`, `scrollBodyBottomInset`, or neither).
+class _NavBarContentInset extends StatelessWidget {
+  const _NavBarContentInset({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    return MediaQuery(
+      data: mq.copyWith(
+        padding:
+            mq.padding.copyWith(bottom: mq.padding.bottom + Sizes.fiveXLarge),
+        viewPadding: mq.viewPadding
+            .copyWith(bottom: mq.viewPadding.bottom + Sizes.fiveXLarge),
+      ),
+      child: child,
+    );
   }
 }
 
