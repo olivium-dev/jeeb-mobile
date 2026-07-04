@@ -2174,4 +2174,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get profilePhotoPermissionDenied =>
       _get('profilePhotoPermissionDenied');
   String get profilePhotoChangeFailed => _get('profilePhotoChangeFailed');
+
+  // JEBV4-13: offline banner (previously hardcoded EN + dead DISMISS)
+  String get offlineBannerMessage => _get('offlineBannerMessage');
 }

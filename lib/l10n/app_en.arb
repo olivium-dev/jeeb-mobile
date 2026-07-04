@@ -4287,5 +4287,8 @@
   "@profilePhotoPermissionDenied": {"description": "JEBV4-13: shown when the OS denies camera/gallery permission during the profile avatar change."},
 
   "profilePhotoChangeFailed": "Couldn't update your photo. Please try again.",
-  "@profilePhotoChangeFailed": {"description": "JEBV4-13: generic failure surface for the profile avatar pick/persist path."}
+  "@profilePhotoChangeFailed": {"description": "JEBV4-13: generic failure surface for the profile avatar pick/persist path."},
+
+  "offlineBannerMessage": "You are offline. Changes will sync when connection is restored.",
+  "@offlineBannerMessage": {"description": "JEBV4-13: offline MaterialBanner copy (was hardcoded English); the DISMISS action uses commonDismiss."}
 }

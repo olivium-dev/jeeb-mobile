@@ -9,17 +9,25 @@ class OfflineState {
   const OfflineState({
     this.status = ConnectivityStatus.online,
     this.pendingSyncCount = 0,
+    this.bannerDismissed = false,
   });
   final ConnectivityStatus status;
   final int pendingSyncCount;
 
+  /// JEBV4-13: whether the user dismissed the offline banner for the CURRENT
+  /// offline episode. Re-arms (false) on the next online→offline transition
+  /// so a new outage is never silently hidden.
+  final bool bannerDismissed;
+
   OfflineState copyWith({
     ConnectivityStatus? status,
     int? pendingSyncCount,
+    bool? bannerDismissed,
   }) {
     return OfflineState(
       status: status ?? this.status,
       pendingSyncCount: pendingSyncCount ?? this.pendingSyncCount,
+      bannerDismissed: bannerDismissed ?? this.bannerDismissed,
     );
   }
 }
@@ -34,10 +42,24 @@ class OfflineCubit extends Cubit<OfflineState> {
   /// existing hook for "the network flipped" — emit only on ACTUAL transitions
   /// so a flapping caller can't spam the stream. No-op in release.
   void _setStatus(ConnectivityStatus status) {
-    if (status != state.status) {
+    final transitioned = status != state.status;
+    if (transitioned) {
       Diag.event('connectivity', <String, Object?>{'status': status.name});
     }
-    emit(state.copyWith(status: status));
+    emit(state.copyWith(
+      status: status,
+      // JEBV4-13: a NEW offline episode re-arms the banner so a dismissal
+      // never silently hides a later outage.
+      bannerDismissed: transitioned ? false : state.bannerDismissed,
+    ));
+  }
+
+  /// JEBV4-13: user-invoked dismissal of the offline banner (its DISMISS
+  /// action was previously `onTap: () {}` — a dead CTA). Hides the banner
+  /// until the next online→offline transition.
+  void dismissBanner() {
+    if (state.bannerDismissed) return;
+    emit(state.copyWith(bannerDismissed: true));
   }
 
   void enqueuePendingSync() {

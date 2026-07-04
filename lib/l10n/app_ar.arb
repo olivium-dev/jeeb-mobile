@@ -1478,5 +1478,6 @@
   "dmOnboardingPhotoPickFailed": "تعذّر استخدام هذه الصورة. يرجى المحاولة مرة أخرى.",
   "profilePhotoSheetSubtitle": "اختر من أين تريد اختيار صورتك",
   "profilePhotoPermissionDenied": "اسمح بالوصول إلى الكاميرا أو الصور من الإعدادات لتغيير صورتك.",
-  "profilePhotoChangeFailed": "تعذّر تحديث صورتك. يرجى المحاولة مرة أخرى."
+  "profilePhotoChangeFailed": "تعذّر تحديث صورتك. يرجى المحاولة مرة أخرى.",
+  "offlineBannerMessage": "أنت غير متصل بالإنترنت. ستتم مزامنة التغييرات عند استعادة الاتصال."
 }
