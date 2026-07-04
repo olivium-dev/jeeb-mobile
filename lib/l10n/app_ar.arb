@@ -1250,6 +1250,8 @@
   "superLoginPickerRetry": "إعادة المحاولة",
   "superLoginPickerRoleClient": "عميل",
   "superLoginPickerRoleJeeber": "جيبر",
+  "superLoginPickerSearchHint": "ابحث بالاسم أو الدور أو المعرّف",
+  "superLoginPickerNoMatches": "لا يوجد مستخدمون يطابقون بحثك.",
 
   "loginTitle": "مرحباً بعودتك",
   "loginEmailLabel": "البريد الإلكتروني",

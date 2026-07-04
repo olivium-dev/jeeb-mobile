@@ -2,9 +2,9 @@ import 'package:dio/dio.dart';
 
 /// One active-user row used by the "Super user login plus" picker (debug-only).
 ///
-/// Sourced from the passcode-gated `POST /api/User/super-login/users` LIST
-/// endpoint. A row carries ONLY identity + role display data — it deliberately
-/// carries NO passcode. On tap the picker logs in with the tapped row's
+/// Sourced from the `GET /api/User/super-login/users` full-roster LIST endpoint
+/// (every live user-management user). A row carries ONLY identity + role
+/// display data — it deliberately carries NO passcode. On tap the picker logs in with the tapped row's
 /// [userId] + the single real SuperAdmin passcode (from `AppConfig`), never a
 /// per-user secret. The whole surface is compiled out of release builds (the
 /// links are `kDebugMode`-gated on the registration screen).
@@ -41,11 +41,12 @@ class SuperLoginDemoUser {
     return isJeeberToken(role) || availableRoles.any(isJeeberToken);
   }
 
-  /// Parses one row from the gateway `GET /api/User/demo-users` roster
-  /// (`{ userId, name, role, passcode }` — the `passcode` is deliberately
-  /// IGNORED here; the picker re-uses the single `AppConfig` SuperAdmin
-  /// passcode, never a per-row secret). Also accepts the legacy LIST shape
-  /// (`{ userId, username, active_role, available_roles:[String] }`) so either
+  /// Parses one row from the gateway `GET /api/User/super-login/users` FULL
+  /// roster (`{ userId, name, role, roles:[String] }` — real users carry NO
+  /// passcode; the picker re-uses the single `AppConfig` SuperAdmin passcode).
+  /// Also accepts the demo-users shape (`{ userId, name, role, passcode }` —
+  /// the `passcode` is deliberately IGNORED) and the legacy LIST shape
+  /// (`{ userId, username, active_role, available_roles:[String] }`) so every
   /// contract parses. Returns `null` when `userId`/name is missing or blank so
   /// a malformed row is dropped rather than crashing the whole picker.
   static SuperLoginDemoUser? fromJson(Map<String, dynamic> json) {
@@ -54,7 +55,9 @@ class SuperLoginDemoUser {
     // `username`/`active_role`/`available_roles`. Accept whichever is present.
     final username = (json['name'] ?? json['username']) as String?;
     final activeRole = (json['active_role'] ?? json['role']) as String?;
-    final rawRoles = json['available_roles'];
+    // Full-roster endpoint emits `roles`; the legacy LIST shape used
+    // `available_roles`. Accept whichever is present.
+    final rawRoles = json['roles'] ?? json['available_roles'];
     final availableRoles = rawRoles is List
         ? rawRoles.whereType<String>().toList(growable: false)
         : const <String>[];
@@ -90,13 +93,15 @@ class SuperLoginDemoUserException implements Exception {
   String toString() => 'SuperLoginDemoUserException($error)';
 }
 
-/// Fetches the demo-user roster the picker lists.
+/// Fetches the FULL user roster the picker lists.
 ///
-/// Contract: `GET /api/User/demo-users` (anonymous, no bearer, no body — the
-/// gateway gates it behind `SuperLogin:OpenMode` + `DemoUsers` config) →
-/// `{ users:[{userId, name, role, passcode}] }`. The whole roster comes back in
-/// one shot (no pagination). Each row's `passcode` is IGNORED by the client;
-/// the tap→login re-uses the single `AppConfig` SuperAdmin passcode.
+/// Contract: `GET /api/User/super-login/users` (anonymous, no bearer, no body —
+/// the gateway gates it behind `SuperLogin:OpenMode` + `DemoUsers:Enabled` and
+/// sources it from user-management's own list API) →
+/// `{ users:[{userId, name, role, roles:[String]}] }` for EVERY live user (~84),
+/// not just the 3 seeded demo rows. The gateway aggregates all pages, so the
+/// whole roster comes back in one shot. Real-user rows carry NO passcode; the
+/// tap→login re-uses the single `AppConfig` SuperAdmin passcode.
 abstract class SuperLoginDemoUserService {
   Future<List<SuperLoginDemoUser>> fetchDemoUsers();
 }
@@ -111,7 +116,7 @@ class DefaultSuperLoginDemoUserService implements SuperLoginDemoUserService {
 
   final Dio _dio;
 
-  static const String _endpoint = '/api/User/demo-users';
+  static const String _endpoint = '/api/User/super-login/users';
 
   @override
   Future<List<SuperLoginDemoUser>> fetchDemoUsers() async {
