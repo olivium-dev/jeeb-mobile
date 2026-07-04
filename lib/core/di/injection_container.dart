@@ -25,7 +25,9 @@ import '../../features/jeeber_home/domain/services/availability_gateway.dart';
 import '../../features/jeeber_request_detail/domain/services/prohibited_item_report_service.dart';
 import '../../features/jeeber_request_feed/data/dio_request_feed_repository.dart';
 import '../../features/jeeber_request_feed/data/request_feed_repository.dart';
+import '../../features/kyc/data/dio_cdn_asset_gateway.dart';
 import '../../features/kyc/data/dio_kyc_gateway.dart';
+import '../../features/kyc/domain/cdn_asset_gateway.dart';
 import '../../features/kyc/domain/kyc_gateway.dart';
 import '../../features/photo_attachment/data/image_picker_photo_picker_service.dart';
 import '../../features/photo_attachment/domain/photo_picker_service.dart';
@@ -337,8 +339,15 @@ void configureDependencies({
     () => const ProhibitedItemReportService(),
   );
 
-  // KYC — submit + status from auth-service via gateway.
-  sl.registerLazySingleton<KycGateway>(() => DioKycGateway(sl<Dio>()));
+  // KYC — submit + status from auth-service via gateway. `submit` composes
+  // the CDN signed-PUT broker (`POST /api/cdn/assets`) to turn captured
+  // photos into `*_url` refs before posting (JEBV4-113).
+  sl.registerLazySingleton<CdnAssetGateway>(
+    () => DioCdnAssetGateway(sl<Dio>()),
+  );
+  sl.registerLazySingleton<KycGateway>(
+    () => DioKycGateway(sl<Dio>(), sl<CdnAssetGateway>()),
+  );
 
   // JEBV4-111: real camera/gallery picker. Without this registration every
   // capture surface (DM-onboarding photo, KYC ID/selfie tiles, JM-051 proof
