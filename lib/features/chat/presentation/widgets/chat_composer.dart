@@ -36,9 +36,11 @@ class ChatComposer extends StatefulWidget {
   /// this null so the default `chatComposerHint` ("Type a message") shows.
   final String? hintText;
 
-  /// Called when the user releases the mic button after recording a voice note.
-  /// Parameters: (audioBytes, mimeType, durationMs). Null means voice notes are
-  /// disabled in this composer context.
+  /// Reserved seam for voice notes: called with (audioBytes, mimeType,
+  /// durationMs) once real capture lands. B-04: the mic affordance is currently
+  /// hidden (its press-to-record gesture, ChatComposerVoiceControl, was never
+  /// built), so this callback is not yet invoked — kept so callers
+  /// (ChatCubit.sendVoiceNote wiring) survive and re-enabling is a one-liner.
   final void Function(List<int>, String, int)? onVoiceRecordingComplete;
 
   /// Semantics identifier for the text field. Defaults to the legacy
@@ -55,7 +57,6 @@ class ChatComposer extends StatefulWidget {
   static const Key textFieldKey = Key('chat-composer-text-field');
   static const Key sendButtonKey = Key('chat-composer-send-button');
   static const Key attachButtonKey = Key('chat-composer-attach-button');
-  static const Key voiceButtonKey = Key('chat-composer-voice-button');
 
   @override
   State<ChatComposer> createState() => _ChatComposerState();
@@ -111,7 +112,6 @@ class _ChatComposerState extends State<ChatComposer> {
         hintText: widget.hintText,
         onSend: _send,
         onAttach: _openAttachmentSheet,
-        onVoiceRecordingComplete: widget.onVoiceRecordingComplete,
         inputIdentifier: widget.inputIdentifier,
         sendIdentifier: widget.sendIdentifier,
       ),
@@ -126,7 +126,8 @@ class _ChatComposerState extends State<ChatComposer> {
   }
 }
 
-/// The composer surface: hairline top border, attach + field + mic + send row.
+/// The composer surface: hairline top border, attach + field + send row (the
+/// mic affordance is hidden until real voice-note capture lands — B-04).
 class _ComposerBar extends StatelessWidget {
   const _ComposerBar({
     required this.controller,
@@ -137,7 +138,6 @@ class _ComposerBar extends StatelessWidget {
     required this.onAttach,
     required this.inputIdentifier,
     required this.sendIdentifier,
-    this.onVoiceRecordingComplete,
   });
 
   final TextEditingController controller;
@@ -148,7 +148,6 @@ class _ComposerBar extends StatelessWidget {
   final Future<void> Function() onAttach;
   final String inputIdentifier;
   final String sendIdentifier;
-  final void Function(List<int>, String, int)? onVoiceRecordingComplete;
 
   @override
   Widget build(BuildContext context) {
@@ -184,7 +183,13 @@ class _ComposerBar extends StatelessWidget {
                   inputIdentifier: inputIdentifier,
                 ),
               ),
-              _VoiceButton(onComplete: onVoiceRecordingComplete),
+              // B-04: the mic affordance is intentionally NOT rendered. The
+              // press-to-record gesture it needed (ChatComposerVoiceControl,
+              // T-MOB-016) was never built, so the button was a permanent
+              // no-op on the highest-traffic coordination surface. It is
+              // hidden until real voice-note capture lands (the send path,
+              // ChatCubit.sendVoiceNote, and the onVoiceRecordingComplete seam
+              // remain so re-enabling is a one-line render).
               _SendButton(onSend: onSend, sendIdentifier: sendIdentifier),
             ],
           ),
@@ -260,34 +265,6 @@ class _ComposerField extends StatelessWidget {
         onChanged: (v) => context.read<ChatCubit>().composerChanged(v),
       ),
     );
-  }
-}
-
-/// Voice/mic affordance. When [onComplete] is non-null, a long-press gesture
-/// starts a recording; releasing ends it and calls back with the bytes, MIME
-/// type, and duration. When [onComplete] is null the button is visible but
-/// no-op (preserves composer layout in contexts where voice isn't wired yet).
-class _VoiceButton extends StatelessWidget {
-  const _VoiceButton({this.onComplete});
-
-  final void Function(List<int>, String, int)? onComplete;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return ChatComposerIconButton(
-      key: ChatComposer.voiceButtonKey,
-      icon: Icons.mic_none,
-      semanticsId: 'chat_detail_voice_button',
-      semanticsLabel: l10n.chatVoiceA11y,
-      onPressed: onComplete != null ? () => _onTap(context) : null,
-    );
-  }
-
-  void _onTap(BuildContext context) {
-    // Voice recording is triggered via press-hold in the full implementation.
-    // This tap callback provides a fallback entry point for test coverage.
-    // The real press-to-record gesture is in ChatComposerVoiceControl (T-MOB-016).
   }
 }
 
