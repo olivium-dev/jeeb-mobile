@@ -4278,5 +4278,14 @@
   "@dmOnboardingCoverageCheckFailed": {"description": "JEBV4-13 P1-5: error surface shown when the service-area Continue's coverage probe (POST /v1/matching/find-jeebers) fails; previously silent."},
 
   "dmOnboardingPhotoPickFailed": "Couldn't use that photo. Please try again.",
-  "@dmOnboardingPhotoPickFailed": {"description": "JEBV4-13: error surface for a failed onboarding photo pick/compress; same previously-silent DmOnboardingError class as the coverage probe."}
+  "@dmOnboardingPhotoPickFailed": {"description": "JEBV4-13: error surface for a failed onboarding photo pick/compress; same previously-silent DmOnboardingError class as the coverage probe."},
+
+  "profilePhotoSheetSubtitle": "Choose where to pick your photo from",
+  "@profilePhotoSheetSubtitle": {"description": "JEBV4-13: subtitle of the camera/gallery source sheet opened by the profile-edit Change avatar CTA (previously a dead onTap)."},
+
+  "profilePhotoPermissionDenied": "Allow camera or photos access in Settings to change your avatar.",
+  "@profilePhotoPermissionDenied": {"description": "JEBV4-13: shown when the OS denies camera/gallery permission during the profile avatar change."},
+
+  "profilePhotoChangeFailed": "Couldn't update your photo. Please try again.",
+  "@profilePhotoChangeFailed": {"description": "JEBV4-13: generic failure surface for the profile avatar pick/persist path."}
 }

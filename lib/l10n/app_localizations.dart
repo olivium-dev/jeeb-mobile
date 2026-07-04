@@ -2168,4 +2168,10 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get dmOnboardingCoverageCheckFailed =>
       _get('dmOnboardingCoverageCheckFailed');
   String get dmOnboardingPhotoPickFailed => _get('dmOnboardingPhotoPickFailed');
+
+  // JEBV4-13: profile-edit Change-avatar flow (previously a dead onTap)
+  String get profilePhotoSheetSubtitle => _get('profilePhotoSheetSubtitle');
+  String get profilePhotoPermissionDenied =>
+      _get('profilePhotoPermissionDenied');
+  String get profilePhotoChangeFailed => _get('profilePhotoChangeFailed');
 }

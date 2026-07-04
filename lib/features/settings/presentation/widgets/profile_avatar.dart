@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
@@ -35,15 +37,27 @@ class ProfileAvatar extends StatelessWidget {
     return ClipOval(
       child: SizedBox.square(
         dimension: diameter,
-        child: OmdsCachedImage(
-          url: photoUrl!,
-          fit: BoxFit.cover,
-          placeholder: (_, _) => placeholder,
-          errorWidget: (_, _, _) => placeholder,
-        ),
+        child: _isLocalPath(photoUrl!)
+            // JEBV4-13: a locally-picked avatar (profile-edit "Change avatar")
+            // is stored as an absolute on-device path — render it from the
+            // file; OmdsCachedImage is network-only.
+            ? Image.file(
+                File(photoUrl!),
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => placeholder,
+              )
+            : OmdsCachedImage(
+                url: photoUrl!,
+                fit: BoxFit.cover,
+                placeholder: (_, _) => placeholder,
+                errorWidget: (_, _, _) => placeholder,
+              ),
       ),
     );
   }
+
+  static bool _isLocalPath(String value) =>
+      value.startsWith('/') || value.startsWith('file://');
 
   static String _initial(String? name) {
     final trimmed = (name ?? '').trim();

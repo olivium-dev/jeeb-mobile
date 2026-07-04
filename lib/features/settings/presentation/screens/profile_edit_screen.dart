@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/di/injection_container.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../photo_attachment/data/image_picker_photo_picker_service.dart';
+import '../../../photo_attachment/domain/photo_compressor.dart';
+import '../../../photo_attachment/domain/photo_picker_service.dart';
 import '../../application/settings_cubit.dart';
 import '../../application/settings_state.dart';
+import '../../data/profile_photo_store.dart';
 import '../widgets/profile_avatar.dart';
 
 /// Profile edit screen (T-mobile-031).
@@ -15,7 +20,19 @@ import '../widgets/profile_avatar.dart';
 /// state powers the parent settings list — there is no separate
 /// `ProfileCubit`.
 class ProfileEditScreen extends StatefulWidget {
-  const ProfileEditScreen({super.key});
+  const ProfileEditScreen({
+    super.key,
+    this.photoPicker,
+    this.photoStore,
+    this.photoCompressor = const HalvingPhotoCompressor(),
+  });
+
+  /// JEBV4-13 test seams for the Change-avatar flow. Production resolves the
+  /// picker from DI (falling back to the real `image_picker` adapter) and
+  /// persists via [AppDirProfilePhotoStore].
+  final PhotoPickerService? photoPicker;
+  final ProfilePhotoStore? photoStore;
+  final PhotoCompressor photoCompressor;
 
   @override
   State<ProfileEditScreen> createState() => _ProfileEditScreenState();
@@ -24,6 +41,7 @@ class ProfileEditScreen extends StatefulWidget {
 class _ProfileEditScreenState extends State<ProfileEditScreen> {
   late final TextEditingController _nameController;
   String? _validationError;
+  bool _isChangingPhoto = false;
 
   @override
   void initState() {
@@ -46,6 +64,62 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     }
     setState(() => _validationError = null);
     context.read<SettingsCubit>().saveProfile(name: value);
+  }
+
+  /// Resolve the picker: injected seam → DI registration → the real
+  /// `image_picker` adapter (the dependency-free default that makes the CTA
+  /// honest — JEBV4-13; previously `onTap: () {}`).
+  PhotoPickerService _resolvePicker() {
+    final injected = widget.photoPicker;
+    if (injected != null) return injected;
+    if (sl.isRegistered<PhotoPickerService>()) return sl<PhotoPickerService>();
+    return ImagePickerPhotoPickerService();
+  }
+
+  /// JEBV4-13: the Change-avatar flow — camera/gallery source sheet →
+  /// platform pick → compress (2 MB ceiling) → persist locally → save on the
+  /// profile. Cancelling anywhere is silent; real failures surface honestly.
+  Future<void> _onChangePhoto(AppLocalizations l10n) async {
+    if (_isChangingPhoto) return;
+    final cubit = context.read<SettingsCubit>();
+    // Same OMDS sheet + choice-key repurposing as the onboarding photo step
+    // (dm_onboarding_photo_upload_card.dart): 'photo' → camera, 'video' →
+    // gallery; only the localized labels are visible.
+    final choice = await OmdsMediaPickerSheet.show(
+      context,
+      title: l10n.profileAvatarChange,
+      subtitle: l10n.profilePhotoSheetSubtitle,
+      photoLabel: l10n.dmOnboardingPhotoUploadCameraLabel,
+      videoLabel: l10n.dmOnboardingPhotoUploadGalleryLabel,
+      cancelLabel: l10n.actionCancel,
+    );
+    if (choice != 'photo' && choice != 'video') return;
+    setState(() => _isChangingPhoto = true);
+    try {
+      final picker = _resolvePicker();
+      final raw = choice == 'photo'
+          ? await picker.pickFromCamera()
+          : await picker.pickFromGallery();
+      final compressed = await widget.photoCompressor.compress(raw.bytes);
+      final store = widget.photoStore ?? const AppDirProfilePhotoStore();
+      final path = await store.persist(compressed);
+      await cubit.saveProfile(name: cubit.state.profile.name, photoUrl: path);
+    } on PhotoPickException catch (e) {
+      if (e.failure != PhotoPickFailure.cancelled && mounted) {
+        showOmdsErrorSnackbar(
+          context,
+          message: e.failure == PhotoPickFailure.permissionDenied
+              ? l10n.profilePhotoPermissionDenied
+              : l10n.profilePhotoChangeFailed,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        showOmdsErrorSnackbar(context, message: l10n.profilePhotoChangeFailed);
+      }
+    } finally {
+      if (mounted) setState(() => _isChangingPhoto = false);
+    }
   }
 
   @override
@@ -71,7 +145,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             child: ListView(
               padding: const EdgeInsets.all(Spacing.medium),
               children: [
-                _ProfileAvatarBlock(state: state),
+                _ProfileAvatarBlock(
+                  state: state,
+                  isChangingPhoto: _isChangingPhoto,
+                  onChangePhoto: () => _onChangePhoto(l10n),
+                ),
                 const SizedBox(height: Spacing.large),
                 _NameField(
                   controller: _nameController,
@@ -100,9 +178,15 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 }
 
 class _ProfileAvatarBlock extends StatelessWidget {
-  const _ProfileAvatarBlock({required this.state});
+  const _ProfileAvatarBlock({
+    required this.state,
+    required this.isChangingPhoto,
+    required this.onChangePhoto,
+  });
 
   final SettingsState state;
+  final bool isChangingPhoto;
+  final VoidCallback onChangePhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -118,8 +202,11 @@ class _ProfileAvatarBlock extends StatelessWidget {
           key: const Key('profile-edit-change-avatar'),
           text: l10n.profileAvatarChange,
           variant: OmdsButtonVariant.text,
-          isEnabled: !state.isSavingProfile,
-          onTap: () {},
+          isEnabled: !state.isSavingProfile && !isChangingPhoto,
+          // JEBV4-13: was `onTap: () {}` — a dead CTA on a primary profile
+          // affordance. Now opens the camera/gallery source sheet and saves
+          // the picked photo (see _onChangePhoto).
+          onTap: onChangePhoto,
         ),
         if (state.profile.photoUrl != null)
           OmdsPrimaryButton(

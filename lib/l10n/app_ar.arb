@@ -1475,5 +1475,8 @@
   "handoverCodeA11yLabel": "رمز التسليم",
   "cancellationGenericError": "حدث خطأ غير متوقع.",
   "dmOnboardingCoverageCheckFailed": "تعذّر التحقق من التغطية لهذه المنطقة. يرجى المحاولة مرة أخرى.",
-  "dmOnboardingPhotoPickFailed": "تعذّر استخدام هذه الصورة. يرجى المحاولة مرة أخرى."
+  "dmOnboardingPhotoPickFailed": "تعذّر استخدام هذه الصورة. يرجى المحاولة مرة أخرى.",
+  "profilePhotoSheetSubtitle": "اختر من أين تريد اختيار صورتك",
+  "profilePhotoPermissionDenied": "اسمح بالوصول إلى الكاميرا أو الصور من الإعدادات لتغيير صورتك.",
+  "profilePhotoChangeFailed": "تعذّر تحديث صورتك. يرجى المحاولة مرة أخرى."
 }

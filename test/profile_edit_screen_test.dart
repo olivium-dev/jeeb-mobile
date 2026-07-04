@@ -6,7 +6,11 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
+import 'package:jeeb_mobile/features/photo_attachment/domain/photo_compressor.dart';
+import 'package:jeeb_mobile/features/photo_attachment/domain/photo_picker_service.dart';
 import 'package:jeeb_mobile/features/settings/application/settings_cubit.dart';
+import 'package:jeeb_mobile/features/settings/data/profile_photo_store.dart';
 import 'package:jeeb_mobile/features/settings/domain/user_profile.dart';
 import 'package:jeeb_mobile/features/settings/presentation/screens/profile_edit_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
@@ -152,6 +156,95 @@ void main() {
       await tester.pumpWidget(_harness(cubit));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('profile-edit-remove-avatar')), findsNothing);
+    });
+  });
+
+  group('ProfileEditScreen — change avatar (JEBV4-13, was a dead onTap)', () {
+    Widget harnessWithSeams(
+      SettingsCubit cubit, {
+      required StubPhotoPickerService picker,
+      required FakeProfilePhotoStore store,
+    }) {
+      return BlocProvider<SettingsCubit>.value(
+        value: cubit,
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: [
+            _delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: ProfileEditScreen(photoPicker: picker, photoStore: store),
+        ),
+      );
+    }
+
+    testWidgets(
+        'tapping Change avatar opens the source sheet; picking Gallery '
+        'persists the photo and saves its path on the profile',
+        (tester) async {
+      final cubit = newCubit(seed: const UserProfile(
+        phoneE164: '+96170100200',
+        name: 'Sami',
+      ));
+      await cubit.load();
+      addTearDown(cubit.close);
+      final picker = StubPhotoPickerService();
+      final store = FakeProfilePhotoStore();
+
+      await tester
+          .pumpWidget(harnessWithSeams(cubit, picker: picker, store: store));
+      await tester.pumpAndSettle();
+      expect(cubit.state.profile.photoUrl, isNull);
+
+      await tester.tap(find.byKey(const Key('profile-edit-change-avatar')));
+      await tester.pumpAndSettle();
+
+      // The camera/gallery source sheet is up (localized labels).
+      expect(find.text('Gallery'), findsOneWidget);
+      expect(find.text('Camera'), findsOneWidget);
+
+      await tester.tap(find.text('Gallery'));
+      await tester.pumpAndSettle();
+
+      // The pick went bytes → compress → persist → profile save.
+      expect(store.persistCalls, 1);
+      expect(cubit.state.profile.photoUrl, store.path);
+      // The 2 MB compression ceiling held (stub gallery payload is 3 MB).
+      expect(store.lastBytes!.length,
+          lessThanOrEqualTo(PhotoCompressor.maxSizeBytes));
+      // Name survived the photo-only save.
+      expect(cubit.state.profile.name, 'Sami');
+    });
+
+    testWidgets('a failed pick surfaces an honest error, not silence',
+        (tester) async {
+      final cubit = newCubit();
+      await cubit.load();
+      addTearDown(cubit.close);
+      final picker = StubPhotoPickerService(
+        galleryFailure: PhotoPickFailure.unavailable,
+      );
+      final store = FakeProfilePhotoStore();
+
+      await tester
+          .pumpWidget(harnessWithSeams(cubit, picker: picker, store: store));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('profile-edit-change-avatar')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Gallery'));
+      await tester.pumpAndSettle();
+
+      expect(store.persistCalls, 0);
+      expect(cubit.state.profile.photoUrl, isNull);
+      expect(
+        find.text("Couldn't update your photo. Please try again."),
+        findsOneWidget,
+      );
     });
   });
 }
