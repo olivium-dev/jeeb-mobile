@@ -4,6 +4,7 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../earnings/application/earnings_cubit.dart';
 import '../../earnings/domain/earnings_repository.dart';
 import '../../earnings/presentation/earnings_dashboard_screen.dart';
@@ -29,7 +30,9 @@ class EarningsTab extends StatelessWidget {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Center(child: OmdsLoadingState());
         }
-        return const Center(child: Text('Unable to load earnings account.'));
+        return Center(
+          child: Text(AppLocalizations.of(context).earningsAccountUnavailable),
+        );
       },
     );
   }

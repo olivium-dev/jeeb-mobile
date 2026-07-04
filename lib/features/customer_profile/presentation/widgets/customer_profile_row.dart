@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/widgets/directional_icons.dart';
 import 'customer_profile_icon_disc.dart';
 
 /// A single Account/Support row on the customer profile: navy icon disc +
@@ -91,7 +92,7 @@ class _Chevron extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Icon(
-      Icons.arrow_forward_ios,
+      DirectionalIcons.disclosureIos(context),
       size: Sizes.medium,
       color: color,
     );

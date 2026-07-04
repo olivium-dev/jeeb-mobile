@@ -39,7 +39,7 @@ class CancellationCubit extends Cubit<CancellationState> {
     } on CancellationException catch (e) {
       emit(CancellationError(e.message));
     } catch (_) {
-      emit(const CancellationError('An unexpected error occurred.'));
+      emit(const CancellationError());
     }
   }
 

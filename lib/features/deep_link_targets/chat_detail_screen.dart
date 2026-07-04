@@ -576,7 +576,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       if (mounted) {
         showOmdsErrorSnackbar(
           context,
-          message: 'We could not create your request. Please try again.',
+          message: AppLocalizations.of(context).chatCreateRequestFailed,
         );
       }
       return false;

@@ -45,11 +45,13 @@ final class CancellationTooLate extends CancellationState {
   const CancellationTooLate();
 }
 
-/// Generic error (network / 5xx).
+/// Generic error (network / 5xx). [message] is retained for diagnostics only
+/// and is NEVER rendered to the user — the screen maps this state to a
+/// localized generic-error string so raw backend text never leaks into the UI.
 final class CancellationError extends CancellationState {
-  const CancellationError(this.message);
+  const CancellationError([this.message]);
 
-  final String message;
+  final String? message;
 
   @override
   List<Object?> get props => [message];

@@ -4252,5 +4252,25 @@
   "savedAddressLatitudeLabel": "Latitude",
   "@savedAddressLatitudeLabel": {"description": "Label for the latitude field on the add/edit saved-location sheet."},
   "savedAddressLongitudeLabel": "Longitude",
-  "@savedAddressLongitudeLabel": {"description": "Label for the longitude field on the add/edit saved-location sheet."}
+  "@savedAddressLongitudeLabel": {"description": "Label for the longitude field on the add/edit saved-location sheet."},
+
+  "chatCreateRequestFailed": "We could not create your request. Please try again.",
+  "@chatCreateRequestFailed": {"description": "Core-flow CREATE step: toast shown when create-and-broadcast fails (chat_detail_screen)."},
+
+  "callButtonLabel": "Call",
+  "@callButtonLabel": {"description": "Masked-call button label on the chat/handover call-counterpart affordance."},
+  "callInitiateFailed": "Could not start the call. Please try again.",
+  "@callInitiateFailed": {"description": "Masked-call failure message shown when initiating the call fails."},
+
+  "earningsAccountUnavailable": "Unable to load earnings account.",
+  "@earningsAccountUnavailable": {"description": "Jeeber earnings tab fail-closed state when no session account is available."},
+
+  "commonDismiss": "Dismiss",
+  "@commonDismiss": {"description": "Generic accessibility label for a dismiss/close affordance."},
+
+  "handoverCodeA11yLabel": "Handover code",
+  "@handoverCodeA11yLabel": {"description": "Screen-reader label for the customer's OTP handover-code display (terminal core-flow step)."},
+
+  "cancellationGenericError": "An unexpected error occurred.",
+  "@cancellationGenericError": {"description": "Generic localized error shown when cancellation fails, replacing raw backend text."}
 }

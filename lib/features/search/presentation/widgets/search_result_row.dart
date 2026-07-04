@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/widgets/directional_icons.dart';
 import '../../domain/search_repository.dart';
 
 /// A single search-result row (`search_result_<id>`). Dumb widget
@@ -65,7 +66,7 @@ class SearchResultRow extends StatelessWidget {
               ),
               const SizedBox(width: Spacing.small),
               Icon(
-                Icons.chevron_right,
+                DirectionalIcons.disclosure(context),
                 color: colors.onSurfaceVariant,
               ),
             ],

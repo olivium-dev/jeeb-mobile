@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
@@ -135,15 +136,18 @@ class _CancellationViewState extends State<_CancellationView> {
         message: AppLocalizations.of(context).cancellationTooLate,
       );
     } else if (state is CancellationError) {
-      showOmdsSnackbar(context, message: state.message);
+      showOmdsSnackbar(
+        context,
+        message: AppLocalizations.of(context).cancellationGenericError,
+      );
     }
   }
 
   void _showRateLimitSnack(BuildContext context, DateTime? retryAfter) {
     final l10n = AppLocalizations.of(context);
-    final dateStr = retryAfter != null
-        ? '${retryAfter.day}/${retryAfter.month}/${retryAfter.year}'
-        : '';
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    final dateStr =
+        retryAfter != null ? DateFormat.yMd(locale).format(retryAfter) : '';
     final message = l10n.cancellationRateLimitMessage(dateStr);
     showOmdsSnackbar(context, message: message);
   }

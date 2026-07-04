@@ -2154,4 +2154,13 @@ extension AppLocalizationsRestored on AppLocalizations {
   // Saved-location add/edit coordinate fields (Sprint 5 RTL/l10n pass)
   String get savedAddressLatitudeLabel => _get('savedAddressLatitudeLabel');
   String get savedAddressLongitudeLabel => _get('savedAddressLongitudeLabel');
+
+  // Cycle-6 Arabic/RTL error-path + a11y strings (arabic-rtl-audit F1–F6)
+  String get chatCreateRequestFailed => _get('chatCreateRequestFailed');
+  String get callButtonLabel => _get('callButtonLabel');
+  String get callInitiateFailed => _get('callInitiateFailed');
+  String get earningsAccountUnavailable => _get('earningsAccountUnavailable');
+  String get commonDismiss => _get('commonDismiss');
+  String get handoverCodeA11yLabel => _get('handoverCodeA11yLabel');
+  String get cancellationGenericError => _get('cancellationGenericError');
 }

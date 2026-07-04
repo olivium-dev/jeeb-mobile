@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/widgets/directional_icons.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../registration/domain/lebanon_phone.dart';
 import '../../request_summary/application/compose_request_controller.dart';
@@ -483,7 +484,7 @@ class _SavedAddressesRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                Icon(Icons.chevron_right,
+                Icon(DirectionalIcons.disclosure(context),
                     size: Sizes.large, color: scheme.primary),
               ],
             ),

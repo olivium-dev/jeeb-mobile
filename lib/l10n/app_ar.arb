@@ -1465,5 +1465,13 @@
   "routeNotFound": "المسار غير موجود: {uri}",
 
   "savedAddressLatitudeLabel": "خط العرض",
-  "savedAddressLongitudeLabel": "خط الطول"
+  "savedAddressLongitudeLabel": "خط الطول",
+
+  "chatCreateRequestFailed": "تعذّر إنشاء طلبك. يرجى المحاولة مرة أخرى.",
+  "callButtonLabel": "اتصال",
+  "callInitiateFailed": "تعذّر بدء المكالمة. حاول مرة أخرى.",
+  "earningsAccountUnavailable": "تعذّر تحميل حساب الأرباح.",
+  "commonDismiss": "إغلاق",
+  "handoverCodeA11yLabel": "رمز التسليم",
+  "cancellationGenericError": "حدث خطأ غير متوقع."
 }

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/widgets/directional_icons.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/dm_onboarding_cubit.dart';
 import '../../application/dm_onboarding_state.dart';
@@ -239,7 +240,7 @@ class _SelectLocationRowBody extends StatelessWidget {
         ),
         const Spacer(),
         const _SelectLocationValue(),
-        Icon(Icons.chevron_right, color: scheme.primary),
+        Icon(DirectionalIcons.disclosure(context), color: scheme.primary),
       ],
     );
   }

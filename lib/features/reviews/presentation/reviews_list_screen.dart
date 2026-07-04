@@ -5,6 +5,7 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/widgets/directional_icons.dart';
 import '../application/reviews_cubit.dart';
 import '../application/reviews_state.dart';
 import '../data/empty_reviews_repository.dart';
@@ -136,7 +137,7 @@ class _ReviewsView extends StatelessWidget {
             identifier: 'reviews_back',
             button: true,
             child: IconButton(
-              icon: const Icon(Icons.arrow_back),
+              icon: Icon(DirectionalIcons.back(context)),
               onPressed: () =>
                   context.canPop() ? context.pop() : context.go('/'),
             ),
