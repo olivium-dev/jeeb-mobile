@@ -1625,6 +1625,8 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('dmOnboardingServiceAreaLocationFieldLabel');
   String get dmOnboardingServiceAreaLocationPlaceholder =>
       _get('dmOnboardingServiceAreaLocationPlaceholder');
+  String get dmOnboardingServiceAreaMapPlaceholder =>
+      _get('dmOnboardingServiceAreaMapPlaceholder');
   String get dmOnboardingContinue => _get('dmOnboardingContinue');
   String dmOnboardingStepProgressLabel({
     required int current,

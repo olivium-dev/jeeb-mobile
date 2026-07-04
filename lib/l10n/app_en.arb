@@ -3014,6 +3014,10 @@
   "@dmOnboardingServiceAreaLocationPlaceholder": {
     "description": "Placeholder shown in the primary-location selector while no location is chosen."
   },
+  "dmOnboardingServiceAreaMapPlaceholder": "Tap Location to set your home base",
+  "@dmOnboardingServiceAreaMapPlaceholder": {
+    "description": "Hint shown inside the empty home-base map preview on the service-area step, before any base is pinned."
+  },
   "dmOnboardingContinue": "Continue",
   "@dmOnboardingContinue": {
     "description": "Primary CTA on every delivery-man onboarding wizard step (Figma 56611:19420 / 56611:19416)."
