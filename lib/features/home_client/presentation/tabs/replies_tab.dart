@@ -32,7 +32,7 @@ import '../widgets/replies_card.dart';
 /// Mock endpoint: `GET /delivery-service/v1/requests?status=offers-received`
 /// (reached via the `/v1/requests` gateway-contract path the home repository
 /// already speaks; `MockGatewayClient` rewrites the prefix to :4010).
-class RepliesTab extends StatelessWidget {
+class RepliesTab extends StatefulWidget {
   const RepliesTab({super.key, this.onCheckOffers, this.onAccept});
 
   /// Called when `replies_check_offers_cta` is tapped. When null the tab routes
@@ -46,13 +46,26 @@ class RepliesTab extends StatelessWidget {
   final void Function(ClientHomeRequest request)? onAccept;
 
   @override
+  State<RepliesTab> createState() => _RepliesTabState();
+}
+
+class _RepliesTabState extends State<RepliesTab> {
+  // B-01 (second call site): guards against a double-tap on the reply Accept
+  // CTA stacking two `offer-accept-confirm` sheets (each would open its own
+  // accept flow → the double-accept surface the auditor flagged widening from
+  // this home-replies entry point). True from the first tap until the sheet the
+  // tap opened has closed.
+  bool _openingAcceptSheet = false;
+
+  @override
   Widget build(BuildContext context) {
     return BlocBuilder<ClientHomeCubit, ClientHomeState>(
       buildWhen: _rebuildWhen,
       builder: (context, state) => _RepliesContent(
         state: state,
-        onCheckOffers: onCheckOffers ?? (r) => _openOfferReview(context, r),
-        onAccept: onAccept ?? (r) => _openAcceptConfirm(context, r),
+        onCheckOffers:
+            widget.onCheckOffers ?? (r) => _openOfferReview(context, r),
+        onAccept: widget.onAccept ?? (r) => _openAcceptConfirm(context, r),
       ),
     );
   }
@@ -68,10 +81,9 @@ class RepliesTab extends StatelessWidget {
     ClientHomeRequest request,
   ) {
     if (request.id.isEmpty) return;
-    GoRouter.of(context).pushNamed(
-      'offer-review',
-      pathParameters: {'id': request.id},
-    );
+    GoRouter.of(
+      context,
+    ).pushNamed('offer-review', pathParameters: {'id': request.id});
   }
 
   /// JM-027 AC2: Accept → offer-accept-confirm sheet (`offer_accept_sheet`,
@@ -86,17 +98,21 @@ class RepliesTab extends StatelessWidget {
   /// failure / no offers / no GoRouter we degrade HONESTLY to the registered
   /// `offer-review` route — where JM-028's `offer_card_<id>_accept_cta` opens
   /// the same sheet — so the nav is never a dead end.
-  static Future<void> _openAcceptConfirm(
+  Future<void> _openAcceptConfirm(
     BuildContext context,
     ClientHomeRequest request,
   ) async {
     if (request.id.isEmpty) return;
+    // B-01: swallow a second tap while the first is still resolving offers /
+    // showing the sheet, so two accept sheets never stack.
+    if (_openingAcceptSheet) return;
     final getIt = GetIt.instance;
     if (!getIt.isRegistered<OffersRepository>()) {
       _openOfferReview(context, request);
       return;
     }
     final repository = getIt<OffersRepository>();
+    _openingAcceptSheet = true;
     try {
       final snapshot = await repository.fetchOffers(request.id);
       if (!context.mounted) return;
@@ -114,6 +130,8 @@ class RepliesTab extends StatelessWidget {
       // the user (40_GUARDRAILS_ARCH §6.7 navigation honesty).
       if (!context.mounted) return;
       _openOfferReview(context, request);
+    } finally {
+      _openingAcceptSheet = false;
     }
   }
 }
@@ -155,10 +173,7 @@ class _RepliesLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      key: Key('replies-loading'),
-      child: OmdsLoadingState(),
-    );
+    return const Center(key: Key('replies-loading'), child: OmdsLoadingState());
   }
 }
 

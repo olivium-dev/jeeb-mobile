@@ -23,10 +23,8 @@ import 'widgets/offer_window_timer.dart';
 /// Production wiring leaves it `null` so the default ticker-driven cubit is
 /// used; tests pass a factory that injects empty `pollTicks` / `clockTicks`
 /// so the test binding doesn't complain about pending timers.
-typedef ClientOffersCubitFactory = ClientOffersCubit Function(
-  OffersRepository repository,
-  String requestId,
-);
+typedef ClientOffersCubitFactory =
+    ClientOffersCubit Function(OffersRepository repository, String requestId);
 
 /// `offer-review-list` (JM-028) — the client's view of the per-Jeeber offer
 /// cards for one request, reached at `/requests/:id/offers`.
@@ -87,11 +85,9 @@ class ClientOffersScreen extends StatelessWidget {
     final repo = _resolveRepository();
     return BlocProvider<ClientOffersCubit>(
       create: (_) {
-        final cubit = cubitFactory?.call(repo, requestId) ??
-            ClientOffersCubit(
-              repository: repo,
-              requestId: requestId,
-            );
+        final cubit =
+            cubitFactory?.call(repo, requestId) ??
+            ClientOffersCubit(repository: repo, requestId: requestId);
         cubit.load();
         return cubit;
       },
@@ -119,10 +115,7 @@ class _ClientOffersView extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: OMDSAppBar(
-        title: l10n.offersScreenTitle,
-        showBackButton: true,
-      ),
+      appBar: OMDSAppBar(title: l10n.offersScreenTitle, showBackButton: true),
       // offer_review_list_root — signature id for the offer-review-list route.
       body: Semantics(
         identifier: 'offer_review_list_root',
@@ -148,8 +141,7 @@ class _ClientOffersView extends StatelessWidget {
                   cancelRepositoryOverride: cancelRepositoryOverride,
                   onSortChanged: (mode) =>
                       context.read<ClientOffersCubit>().setSortMode(mode),
-                  onRefresh: () =>
-                      context.read<ClientOffersCubit>().refresh(),
+                  onRefresh: () => context.read<ClientOffersCubit>().refresh(),
                 );
             }
           },
@@ -197,6 +189,9 @@ class _LoadedBody extends StatelessWidget {
     // inline), so it stays tappable while the request is open; only the
     // window-expired / closed states inert it.
     final acceptDisabled = state.windowExpired || !state.requestIsOpen;
+    // B-01: the id whose accept-confirm sheet is currently open/in flight (null
+    // when none). Drives the accept-exactly-ONE list guard below.
+    final acceptingOfferId = state.acceptingOfferId;
     return OmdsPullToRefresh(
       onRefresh: onRefresh,
       child: ListView(
@@ -249,17 +244,22 @@ class _LoadedBody extends StatelessWidget {
             )
           else
             ...state.offers.asMap().entries.map(
-                  (entry) => OfferCard(
-                    offer: entry.value,
-                    index: entry.key,
-                    isAccepting: false,
-                    acceptDisabled: acceptDisabled,
-                    // Accept → JM-029 offer-accept-confirm sheet (not inline).
-                    onAccept: () => _openAcceptSheet(context, entry.value),
-                    // Name → jeeber-profile-reviews (JM-067).
-                    onTapName: () => _openJeeberProfile(context, entry.value),
-                  ),
-                ),
+              (entry) => OfferCard(
+                offer: entry.value,
+                index: entry.key,
+                // B-01: while ANY accept-confirm sheet is open (its POST may be
+                // in flight), EVERY card's Accept CTA disables so a second offer
+                // can't be accepted concurrently (double-accept). The sheet owns
+                // the in-flight spinner; the cards behind it just go inert until
+                // the sheet closes (endAccept).
+                isAccepting: false,
+                acceptDisabled: acceptDisabled || acceptingOfferId != null,
+                // Accept → JM-029 offer-accept-confirm sheet (not inline).
+                onAccept: () => _openAcceptSheet(context, entry.value),
+                // Name → jeeber-profile-reviews (JM-067).
+                onTapName: () => _openJeeberProfile(context, entry.value),
+              ),
+            ),
           if (state.hasOffers && state.requestIsOpen) ...[
             const SizedBox(height: Spacing.large),
             // offer_review_cancel_cta → cancel-request-confirm sheet (JM-030).
@@ -295,12 +295,19 @@ class _LoadedBody extends StatelessWidget {
   /// the accept call + the post-accept navigation to order-chat; the list never
   /// accepts inline.
   void _openAcceptSheet(BuildContext context, Offer offer) {
+    // B-01: mark this offer as accepting on the LIST cubit before opening the
+    // sheet (disables every sibling Accept CTA) and clear it when the sheet
+    // closes — wiring the dead `acceptingOfferId` guard into the real accept
+    // path. `whenComplete` fires on cancel / failure-dismiss; on success the
+    // sheet has navigated to order-chat and `endAccept`'s isClosed guard no-ops.
+    final cubit = context.read<ClientOffersCubit>();
+    cubit.beginAccept(offer.id);
     OfferAcceptSheet.show(
       context,
       offer: offer,
       requestId: requestId,
       repository: repository,
-    );
+    ).whenComplete(cubit.endAccept);
   }
 
   /// EDGE (63_W1_TEST_PLAN §3 jm-028, JM-067): `offer_card_<id>_name` →
@@ -318,7 +325,9 @@ class _LoadedBody extends StatelessWidget {
     context.pushNamed(
       'delivery-man-profile',
       extra: DeliveryManProfileViewData(
-        name: displayNameOrNull(offer.jeeberName) ?? l10n.offersCardJeeberFallback,
+        name:
+            displayNameOrNull(offer.jeeberName) ??
+            l10n.offersCardJeeberFallback,
         rating: offer.rating,
         reviewCount: offer.ratingCount,
         location: '',
@@ -355,11 +364,7 @@ class _LoadedBody extends StatelessWidget {
 }
 
 class _Banner extends StatelessWidget {
-  const _Banner({
-    super.key,
-    required this.icon,
-    required this.title,
-  });
+  const _Banner({super.key, required this.icon, required this.title});
 
   final IconData icon;
   final String title;
@@ -381,8 +386,9 @@ class _Banner extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: theme.textTheme.titleSmall
-                  ?.copyWith(color: colors.onSurface),
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: colors.onSurface,
+              ),
             ),
           ),
         ],
@@ -418,8 +424,9 @@ class _ErrorBanner extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: colors.onErrorContainer),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.onErrorContainer,
+              ),
             ),
           ),
           IconButton(

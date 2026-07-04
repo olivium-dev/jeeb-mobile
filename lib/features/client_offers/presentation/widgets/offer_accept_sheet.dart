@@ -106,10 +106,9 @@ class OfferAcceptSheet extends StatelessWidget {
     OffersRepository? repository,
   }) {
     final rootContext = context;
-    final scrim = Theme.of(context)
-        .colorScheme
-        .onSecondaryContainer
-        .withValues(alpha: UIConstants.opacityHigh);
+    final scrim = Theme.of(context).colorScheme.onSecondaryContainer.withValues(
+      alpha: UIConstants.opacityHigh,
+    );
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -184,8 +183,10 @@ class _OfferAcceptView extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     // Lane item 3 (currency unification): single MoneyFormat across surfaces.
-    final feeFormatted =
-        MoneyFormat.format(offer.fee, currency: offer.currency);
+    final feeFormatted = MoneyFormat.format(
+      offer.fee,
+      currency: offer.currency,
+    );
     // W6/SW-08: the confirm title headlines the Jeeber's name — suppress a
     // synthetic handle / UUID the same way the offer card does, so the
     // accept-ONE moment never reads "9acb579d-…'s offer was accepted".
@@ -203,157 +204,168 @@ class _OfferAcceptView extends StatelessWidget {
         onConfirmed?.call(state.result ?? OfferAcceptResult.empty);
       },
       builder: (context, state) {
-        return Semantics(
-          identifier: 'offer_accept_sheet',
-          // explicitChildNodes keeps each line + CTA as an independent,
-          // id-addressable semantics node (matches SocialCollisionSheet) so
-          // Maestro can assert/tap each one.
-          explicitChildNodes: true,
-          child: SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(
-                Spacing.xLarge,
-                Spacing.small,
-                Spacing.xLarge,
-                Spacing.xLarge,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const _SheetDragHandle(),
-                  const SizedBox(height: Spacing.large),
-                  // "Accept X's offer?" — the Jeeber name is the load-bearing
-                  // data; framing reuses chatSystemOfferAcceptedNamed (a
-                  // dedicated `offerAcceptTitle` is filed in 50_ROUTE_REQUESTS).
-                  Semantics(
-                    identifier: 'offer_accept_jeeber_name',
-                    child: Text(
-                      l10n.chatSystemOfferAcceptedNamed(jeeberDisplayName),
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: theme.colorScheme.onSurface,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: Spacing.medium),
-                  // "Pay $N cash on delivery" (D11). Reuses offersCardFee
-                  // ("{amount} {currency}") for the amount; a dedicated
-                  // `offerAcceptPayCashOnDelivery` is filed in 50_ROUTE_REQUESTS.
-                  Semantics(
-                    identifier: 'offer_accept_price_label',
-                    child: Text(
-                      l10n.offersCardFee(feeFormatted, offer.currency),
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: Spacing.small),
-                  // "Other offers will close" (D71). Reuses chatOfferAcceptOnlyOne
-                  // ("Accept only one offer"); a dedicated
-                  // `offerAcceptOtherOffersClose` is filed in 50_ROUTE_REQUESTS.
-                  Semantics(
-                    identifier: 'offer_accept_other_offers_note',
-                    child: Text(
-                      l10n.chatOfferAcceptOnlyOne,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                  // Inline failure copy (sprint-009 scenario matrix #7). A
-                  // failed accept — e.g. the 409 race where another accept
-                  // closed the auction first — MUST tell the user why; the
-                  // pre-fix sheet only listened for success and a failure
-                  // silently stopped the spinner. Typed [OffersFailure] →
-                  // l10n copy ("This request is no longer open." for the
-                  // request-level closure). Confirm stays retryable; cancel
-                  // returns to the review list, which re-loads and shows the
-                  // closed banner.
-                  if (state.status == OfferAcceptStatus.failed &&
-                      state.error != null) ...[
-                    const SizedBox(height: Spacing.medium),
+        return PopScope(
+          // B-01: the accept POST is the accept-exactly-ONE moment. While it is
+          // in flight the sheet must be NON-DISMISSIBLE — canPop:false blocks
+          // the Android system-back gesture, the scrim tap, and the swipe-down
+          // (all route pops go through the navigator's pop disposition). Without
+          // this the user could dismiss mid-POST, get no success/failure signal,
+          // and return to the list to fire a SECOND accept (double-accept). The
+          // Confirm/Cancel CTAs are already inert while submitting; this closes
+          // the remaining scrim/drag/back dismissal vectors.
+          canPop: !state.isSubmitting,
+          child: Semantics(
+            identifier: 'offer_accept_sheet',
+            // explicitChildNodes keeps each line + CTA as an independent,
+            // id-addressable semantics node (matches SocialCollisionSheet) so
+            // Maestro can assert/tap each one.
+            explicitChildNodes: true,
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(
+                  Spacing.xLarge,
+                  Spacing.small,
+                  Spacing.xLarge,
+                  Spacing.xLarge,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const _SheetDragHandle(),
+                    const SizedBox(height: Spacing.large),
+                    // "Accept X's offer?" — the Jeeber name is the load-bearing
+                    // data; framing reuses chatSystemOfferAcceptedNamed (a
+                    // dedicated `offerAcceptTitle` is filed in 50_ROUTE_REQUESTS).
                     Semantics(
-                      identifier: 'offer_accept_error',
-                      liveRegion: true,
-                      child: Container(
-                        key: const Key('offer-accept-error'),
-                        padding: const EdgeInsets.all(Spacing.small),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.errorContainer,
-                          borderRadius: OmdsBorderRadius.small,
+                      identifier: 'offer_accept_jeeber_name',
+                      child: Text(
+                        l10n.chatSystemOfferAcceptedNamed(jeeberDisplayName),
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: theme.colorScheme.onSurface,
+                          fontWeight: FontWeight.w700,
                         ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.error_outline,
-                              color: theme.colorScheme.onErrorContainer,
-                            ),
-                            const SizedBox(width: Spacing.small),
-                            Expanded(
-                              child: Text(
-                                _failureCopy(l10n, state.error!),
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.onErrorContainer,
+                      ),
+                    ),
+                    const SizedBox(height: Spacing.medium),
+                    // "Pay $N cash on delivery" (D11). Reuses offersCardFee
+                    // ("{amount} {currency}") for the amount; a dedicated
+                    // `offerAcceptPayCashOnDelivery` is filed in 50_ROUTE_REQUESTS.
+                    Semantics(
+                      identifier: 'offer_accept_price_label',
+                      child: Text(
+                        l10n.offersCardFee(feeFormatted, offer.currency),
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: Spacing.small),
+                    // "Other offers will close" (D71). Reuses chatOfferAcceptOnlyOne
+                    // ("Accept only one offer"); a dedicated
+                    // `offerAcceptOtherOffersClose` is filed in 50_ROUTE_REQUESTS.
+                    Semantics(
+                      identifier: 'offer_accept_other_offers_note',
+                      child: Text(
+                        l10n.chatOfferAcceptOnlyOne,
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    // Inline failure copy (sprint-009 scenario matrix #7). A
+                    // failed accept — e.g. the 409 race where another accept
+                    // closed the auction first — MUST tell the user why; the
+                    // pre-fix sheet only listened for success and a failure
+                    // silently stopped the spinner. Typed [OffersFailure] →
+                    // l10n copy ("This request is no longer open." for the
+                    // request-level closure). Confirm stays retryable; cancel
+                    // returns to the review list, which re-loads and shows the
+                    // closed banner.
+                    if (state.status == OfferAcceptStatus.failed &&
+                        state.error != null) ...[
+                      const SizedBox(height: Spacing.medium),
+                      Semantics(
+                        identifier: 'offer_accept_error',
+                        liveRegion: true,
+                        child: Container(
+                          key: const Key('offer-accept-error'),
+                          padding: const EdgeInsets.all(Spacing.small),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.errorContainer,
+                            borderRadius: OmdsBorderRadius.small,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                color: theme.colorScheme.onErrorContainer,
+                              ),
+                              const SizedBox(width: Spacing.small),
+                              Expanded(
+                                child: Text(
+                                  _failureCopy(l10n, state.error!),
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme.onErrorContainer,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: Spacing.twoXLarge),
+                    // CONFIRM → capture fee → order-chat. Disabled-while-submitting
+                    // + spinner via the loading button; success fires the listener.
+                    Semantics(
+                      identifier: 'offer_accept_confirm_cta',
+                      container: true,
+                      button: true,
+                      label: l10n.chatOfferAccept,
+                      onTap: state.isSubmitting
+                          ? null
+                          : () => context.read<OfferAcceptCubit>().confirm(),
+                      child: ExcludeSemantics(
+                        child: OmdsLoadingButton(
+                          key: const Key('offer-accept-confirm-cta'),
+                          text: state.isSubmitting
+                              ? l10n.chatOfferAccepting
+                              : l10n.chatOfferAccept,
+                          isLoading: state.isSubmitting,
+                          onTap: () =>
+                              context.read<OfferAcceptCubit>().confirm(),
+                          backgroundColor: theme.colorScheme.primary,
+                          textColor: theme.colorScheme.onPrimary,
+                          borderRadius: OmdsBorderRadius.uiSmall,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: Spacing.small),
+                    // CANCEL → back to offer-review-list. Inert while submitting
+                    // so a confirmed accept can't be torn down mid-flight.
+                    Semantics(
+                      identifier: 'offer_accept_cancel_cta',
+                      container: true,
+                      button: true,
+                      label: l10n.actionCancel,
+                      onTap: state.isSubmitting ? null : onCancelled,
+                      child: ExcludeSemantics(
+                        child: OMDSOutlinedButton(
+                          key: const Key('offer-accept-cancel-cta'),
+                          text: l10n.actionCancel,
+                          enabled: !state.isSubmitting,
+                          onTap: () => onCancelled?.call(),
                         ),
                       ),
                     ),
                   ],
-                  const SizedBox(height: Spacing.twoXLarge),
-                  // CONFIRM → capture fee → order-chat. Disabled-while-submitting
-                  // + spinner via the loading button; success fires the listener.
-                  Semantics(
-                    identifier: 'offer_accept_confirm_cta',
-                    container: true,
-                    button: true,
-                    label: l10n.chatOfferAccept,
-                    onTap: state.isSubmitting
-                        ? null
-                        : () => context.read<OfferAcceptCubit>().confirm(),
-                    child: ExcludeSemantics(
-                      child: OmdsLoadingButton(
-                        key: const Key('offer-accept-confirm-cta'),
-                        text: state.isSubmitting
-                            ? l10n.chatOfferAccepting
-                            : l10n.chatOfferAccept,
-                        isLoading: state.isSubmitting,
-                        onTap: () =>
-                            context.read<OfferAcceptCubit>().confirm(),
-                        backgroundColor: theme.colorScheme.primary,
-                        textColor: theme.colorScheme.onPrimary,
-                        borderRadius: OmdsBorderRadius.uiSmall,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: Spacing.small),
-                  // CANCEL → back to offer-review-list. Inert while submitting
-                  // so a confirmed accept can't be torn down mid-flight.
-                  Semantics(
-                    identifier: 'offer_accept_cancel_cta',
-                    container: true,
-                    button: true,
-                    label: l10n.actionCancel,
-                    onTap: state.isSubmitting ? null : onCancelled,
-                    child: ExcludeSemantics(
-                      child: OMDSOutlinedButton(
-                        key: const Key('offer-accept-cancel-cta'),
-                        text: l10n.actionCancel,
-                        enabled: !state.isSubmitting,
-                        onTap: () => onCancelled?.call(),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),

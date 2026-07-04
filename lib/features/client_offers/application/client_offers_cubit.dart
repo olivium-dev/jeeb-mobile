@@ -28,14 +28,14 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
     Duration tickInterval = const Duration(seconds: 1),
     Stream<void>? pollTicks,
     Stream<void>? clockTicks,
-  })  : _repository = repository,
-        _requestId = requestId,
-        _now = now ?? DateTime.now,
-        _pollInterval = pollInterval,
-        _tickInterval = tickInterval,
-        _externalPollTicks = pollTicks,
-        _externalClockTicks = clockTicks,
-        super(const ClientOffersState());
+  }) : _repository = repository,
+       _requestId = requestId,
+       _now = now ?? DateTime.now,
+       _pollInterval = pollInterval,
+       _tickInterval = tickInterval,
+       _externalPollTicks = pollTicks,
+       _externalClockTicks = clockTicks,
+       super(const ClientOffersState());
 
   final OffersRepository _repository;
   final String _requestId;
@@ -53,25 +53,26 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
   /// safely re-invoke on remount.
   Future<void> load() async {
     if (state.status != OffersScreenStatus.initial) return;
-    emit(state.copyWith(
-      status: OffersScreenStatus.loading,
-      now: _now(),
-      clearError: true,
-    ));
+    emit(
+      state.copyWith(
+        status: OffersScreenStatus.loading,
+        now: _now(),
+        clearError: true,
+      ),
+    );
     try {
       final snapshot = await _repository.fetchOffers(_requestId);
       _emitSnapshot(snapshot, statusOverride: OffersScreenStatus.loaded);
       _attachStreams();
     } on OffersRepositoryException catch (e) {
-      emit(state.copyWith(
-        status: OffersScreenStatus.failed,
-        error: e.failure,
-      ));
+      emit(state.copyWith(status: OffersScreenStatus.failed, error: e.failure));
     } catch (_) {
-      emit(state.copyWith(
-        status: OffersScreenStatus.failed,
-        error: OffersFailure.unknown,
-      ));
+      emit(
+        state.copyWith(
+          status: OffersScreenStatus.failed,
+          error: OffersFailure.unknown,
+        ),
+      );
     }
   }
 
@@ -91,47 +92,84 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
   /// Toggles the sort mode and re-orders the in-memory list. Doesn't refetch.
   void setSortMode(OfferSortMode mode) {
     if (state.sortMode == mode) return;
-    emit(state.copyWith(
-      sortMode: mode,
-      offers: _sortOffers(state.offers, mode),
-      clearError: true,
-    ));
+    emit(
+      state.copyWith(
+        sortMode: mode,
+        offers: _sortOffers(state.offers, mode),
+        clearError: true,
+      ),
+    );
+  }
+
+  /// B-01: marks [offerId] as the one whose accept-confirm sheet is currently
+  /// open / in flight, so every OTHER card's Accept CTA disables (the
+  /// accept-exactly-ONE guard). The real `POST /offers/:id/accept` runs inside
+  /// the sheet's OfferAcceptCubit — this only drives the LIST's disable state,
+  /// wiring the previously-dead `acceptingOfferId` mechanism into the real
+  /// (sheet-based) accept path. Cleared by [endAccept] when the sheet closes.
+  void beginAccept(String offerId) {
+    if (isClosed || state.acceptStatus == AcceptStatus.inFlight) return;
+    emit(
+      state.copyWith(
+        acceptingOfferId: offerId,
+        acceptStatus: AcceptStatus.inFlight,
+      ),
+    );
+  }
+
+  /// B-01: clears the in-flight accept marker when the accept-confirm sheet
+  /// closes (cancelled, failed-and-dismissed, or superseded) so the sibling
+  /// Accept CTAs re-enable. On a successful accept the list has already
+  /// navigated to order-chat, so the `isClosed` guard makes this a no-op.
+  void endAccept() {
+    if (isClosed || state.acceptStatus != AcceptStatus.inFlight) return;
+    emit(
+      state.copyWith(
+        acceptStatus: AcceptStatus.idle,
+        clearAcceptingOfferId: true,
+      ),
+    );
   }
 
   /// Accepts [offerId]. Emits in-flight → succeeded states so the card UI can
   /// swap to a spinner without the host route owning that flag.
   Future<void> acceptOffer(String offerId) async {
     if (state.acceptStatus == AcceptStatus.inFlight) return;
-    emit(state.copyWith(
-      acceptingOfferId: offerId,
-      acceptStatus: AcceptStatus.inFlight,
-      clearError: true,
-    ));
+    emit(
+      state.copyWith(
+        acceptingOfferId: offerId,
+        acceptStatus: AcceptStatus.inFlight,
+        clearError: true,
+      ),
+    );
     try {
-      await _repository.acceptOffer(
-        requestId: _requestId,
-        offerId: offerId,
+      await _repository.acceptOffer(requestId: _requestId, offerId: offerId);
+      emit(
+        state.copyWith(
+          acceptStatus: AcceptStatus.succeeded,
+          acceptedOfferId: offerId,
+          requestIsOpen: false,
+          clearAcceptingOfferId: true,
+        ),
       );
-      emit(state.copyWith(
-        acceptStatus: AcceptStatus.succeeded,
-        acceptedOfferId: offerId,
-        requestIsOpen: false,
-        clearAcceptingOfferId: true,
-      ));
       await _pollSubscription?.cancel();
       _pollSubscription = null;
     } on OffersRepositoryException catch (e) {
-      emit(state.copyWith(
-        acceptStatus: AcceptStatus.idle,
-        clearAcceptingOfferId: true,
-        error: e.failure,
-      ));
+      emit(
+        state.copyWith(
+          acceptStatus: AcceptStatus.idle,
+          clearAcceptingOfferId: true,
+          error: e.failure,
+        ),
+      );
     } catch (_) {
-      emit(state.copyWith(
-        acceptStatus: AcceptStatus.idle,
-        clearAcceptingOfferId: true,
-        error: OffersFailure.unknown,
-      ));
+      emit(
+        state.copyWith(
+          acceptStatus: AcceptStatus.idle,
+          clearAcceptingOfferId: true,
+          error: OffersFailure.unknown,
+        ),
+      );
     }
   }
 
@@ -149,12 +187,14 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
   }
 
   void _attachStreams() {
-    _pollSubscription = (_externalPollTicks ??
-            Stream.periodic(_pollInterval, (_) {}))
-        .listen((_) => _poll());
-    _clockSubscription = (_externalClockTicks ??
-            Stream.periodic(_tickInterval, (_) {}))
-        .listen((_) => tick());
+    _pollSubscription =
+        (_externalPollTicks ?? Stream.periodic(_pollInterval, (_) {})).listen(
+          (_) => _poll(),
+        );
+    _clockSubscription =
+        (_externalClockTicks ?? Stream.periodic(_tickInterval, (_) {})).listen(
+          (_) => tick(),
+        );
   }
 
   Future<void> _poll() async {
@@ -166,7 +206,9 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
       // Swallow transient poll failures — the foreground refresh and accept
       // paths surface errors. We don't want a flaky network to flash an error
       // banner every 5 seconds.
-    } catch (_) {/* same — swallow */}
+    } catch (_) {
+      /* same — swallow */
+    }
   }
 
   void _emitSnapshot(
@@ -174,13 +216,15 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
     OffersScreenStatus? statusOverride,
   }) {
     final sorted = _sortOffers(snapshot.offers, state.sortMode);
-    emit(state.copyWith(
-      status: statusOverride ?? OffersScreenStatus.loaded,
-      offers: sorted,
-      windowExpiresAt: snapshot.windowExpiresAt,
-      now: _now(),
-      requestIsOpen: snapshot.requestIsOpen,
-    ));
+    emit(
+      state.copyWith(
+        status: statusOverride ?? OffersScreenStatus.loaded,
+        offers: sorted,
+        windowExpiresAt: snapshot.windowExpiresAt,
+        now: _now(),
+        requestIsOpen: snapshot.requestIsOpen,
+      ),
+    );
   }
 
   /// Stable ordering: price asc (then newest first) or rating desc (then
