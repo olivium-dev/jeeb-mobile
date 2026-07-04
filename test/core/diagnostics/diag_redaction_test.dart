@@ -98,6 +98,30 @@ void main() {
       // Non-secret sibling fields pass through.
       expect(out['deliveryId'], 'DLV-1');
     });
+
+    // Super-login hardening: the demo-users roster is a LIST of maps, each
+    // carrying `passcode`. scrubMap must recurse into list elements so no row
+    // passcode ever prints in cleartext.
+    test('recurses into list elements so nested passcodes are redacted', () {
+      final out = DiagRedaction.scrubMap(<String, Object?>{
+        'users': <Object?>[
+          <String, Object?>{
+            'userId': 'u1',
+            'name': 'Nour',
+            'passcode': 'JEEB-SL-SECRET-VALUE',
+          },
+          <String, Object?>{'userId': 'u2', 'passcode': 'OTHER-SECRET'},
+        ],
+      });
+      final users = out['users'] as List<Object?>;
+      final row0 = users[0] as Map<String, Object?>;
+      final row1 = users[1] as Map<String, Object?>;
+      expect(row0['passcode'], startsWith('tok:'));
+      expect(row0['passcode'], isNot(contains('SECRET')));
+      expect(row0['userId'], 'u1');
+      expect(row0['name'], 'Nour');
+      expect(row1['passcode'], isNot(contains('SECRET')));
+    });
   });
 
   group('scrubPath', () {

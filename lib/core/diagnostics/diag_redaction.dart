@@ -98,13 +98,25 @@ abstract final class DiagRedaction {
     data.forEach((key, value) {
       if (isSensitiveKey(key)) {
         out[key] = redactToken(value?.toString());
-      } else if (value is Map<String, Object?>) {
-        out[key] = scrubMap(value);
       } else {
-        out[key] = value;
+        out[key] = _scrubValue(value);
       }
     });
     return out;
+  }
+
+  /// Recursively scrubs a body value: nested maps are scrubbed key-by-key and
+  /// LISTS are scrubbed element-by-element. A list of maps (e.g. the debug
+  /// super-login `demo-users` roster `{users:[{userId,name,role,passcode}]}`)
+  /// would otherwise pass through untouched and print each row's `passcode` in
+  /// cleartext; recursing into list elements closes that leak.
+  static Object? _scrubValue(Object? value) {
+    if (value is Map<String, Object?>) return scrubMap(value);
+    if (value is Map) {
+      return scrubMap(value.map((k, v) => MapEntry(k.toString(), v)));
+    }
+    if (value is List) return value.map(_scrubValue).toList();
+    return value;
   }
 
   /// Strips the query string from a URI/path, returning only the path segment.
