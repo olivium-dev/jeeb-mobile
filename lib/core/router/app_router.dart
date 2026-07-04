@@ -70,10 +70,12 @@ import '../../features/live_tracking/data/demo_live_tracking_repository.dart';
 import '../../features/live_tracking/domain/live_tracking_repository.dart';
 import '../../features/live_tracking/presentation/live_tracking_screen.dart';
 import '../../features/delivery_receipt/presentation/delivery_receipt_screen.dart';
+import '../../features/location/data/location_repository.dart' show LocationPoint;
 import '../../features/location/presentation/capture_location_screen.dart';
 import '../../features/location/presentation/client_location_screen.dart';
 import '../../features/location/presentation/screens/address_detail_form_screen.dart';
 import '../../features/location/presentation/screens/location_picker_screen.dart';
+import '../../features/location/presentation/widgets/map_capture_controller.dart';
 import '../../features/no_offer_timeout/presentation/no_offer_timeout_screen.dart';
 import '../../features/order_summary/presentation/order_summary_screen.dart';
 import '../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
@@ -112,6 +114,14 @@ import '../di/injection_container.dart';
 import '../diagnostics/diagnostics.dart';
 import '../diagnostics/diagnostics_screen.dart';
 import '../onboarding/onboarding_cubit.dart';
+
+/// B-35: canonical default centre for the capture-location placeholder map
+/// (Beirut downtown — the same point [GoogleMapPickerLauncher] seeds). Until the
+/// live draggable GoogleMap viewport lands (B-23, Maps key owner-gated), the
+/// confirmed "Pin Location" carries this coordinate back to client-location
+/// instead of being discarded.
+const LocationPoint _captureDefaultCenter =
+    LocationPoint(latitude: 33.8938, longitude: 35.5018);
 
 /// Top-level router.
 ///
@@ -1012,18 +1022,33 @@ class AppRouter {
         GoRoute(
           path: '/client-location',
           name: 'client-location',
-          builder: (context, state) => ClientLocationScreen(
-            onAddLocation: () => context.push('/capture-location'),
-          ),
+          // B-35: do NOT override `onAddLocation` — the screen's own handler
+          // awaits `pushNamed('capture-location')` and threads the returned
+          // `LocationPoint` into `markPinned` (so the create payload carries the
+          // real pin). The old `context.push(...)` override was fire-and-forget:
+          // it discarded the popped coordinate, collapsing every pinned pickup to
+          // the Beirut fallback.
+          builder: (context, state) => const ClientLocationScreen(),
         ),
         GoRoute(
           path: '/capture-location',
           name: 'capture-location',
-          builder: (context, state) => CaptureLocationScreen(
-            onPinned: () {
-              if (context.canPop()) context.pop();
-            },
-          ),
+          builder: (context, state) {
+            // B-35: return the confirmed pin so client-location can consume it.
+            // Mirror GoogleMapPickerLauncher — track the map centre in a
+            // controller and pop it as the picked `LocationPoint`. The live
+            // draggable GoogleMap viewport lands with B-23 (Maps key, owner-
+            // gated); until then the placeholder keeps the controller at the
+            // canonical default, so the confirmed pin carries THAT coordinate
+            // instead of being dropped on the floor.
+            final controller =
+                MapCaptureController(initial: _captureDefaultCenter);
+            return CaptureLocationScreen(
+              onPinned: () {
+                if (context.canPop()) context.pop(controller.center);
+              },
+            );
+          },
         ),
         GoRoute(
           path: '/voice-request/transcription',
