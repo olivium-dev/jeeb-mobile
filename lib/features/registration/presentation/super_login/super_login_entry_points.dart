@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/config/app_config.dart';
+import '../../../../core/session/session_cubit.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'super_login_picker.dart';
 import 'super_login_sheet.dart';
@@ -59,8 +61,14 @@ Future<void> openSuperLogin(
   required Future<void> Function() onAuthenticated,
 }) async {
   if (superLoginBlockedByMissingPasscode(context)) return;
+  // Capture the owned SessionCubit from the CALLER's context (the login screen
+  // — a modal sheet can't inherit providers above the navigator) so the sheet
+  // can drive the shared real-login establishment (refresh → session emits
+  // `authenticated` → notifyLogin) on success.
+  final session = context.read<SessionCubit?>();
   final signedIn = await showSuperLoginSheet(
     context,
+    session: session,
     initialUserId: AppConfig.devSuperLoginUserId,
     initialPasscode: AppConfig.superAdminPassCode,
   );
@@ -78,10 +86,12 @@ Future<void> openSuperLoginPlus(
   required Future<void> Function() onAuthenticated,
 }) async {
   if (superLoginBlockedByMissingPasscode(context)) return;
+  final session = context.read<SessionCubit?>();
   final user = await showSuperLoginPicker(context);
   if (user == null || !context.mounted) return;
   final signedIn = await showSuperLoginSheet(
     context,
+    session: session,
     initialUserId: user.userId,
     initialPasscode: AppConfig.superAdminPassCode,
   );
