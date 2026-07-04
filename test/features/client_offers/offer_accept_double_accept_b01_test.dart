@@ -28,6 +28,7 @@ import 'package:jeeb_mobile/features/client_offers/domain/offer.dart';
 import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart';
 import 'package:jeeb_mobile/features/client_offers/presentation/client_offers_screen.dart';
 import 'package:jeeb_mobile/features/client_offers/presentation/widgets/offer_accept_sheet.dart';
+import 'package:jeeb_mobile/features/client_offers/presentation/widgets/offer_card.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
 import 'package:jeeb_mobile/features/home_client/data/in_memory_client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_repository.dart';
@@ -69,6 +70,7 @@ class _GatedOffersRepository implements OffersRepository {
 class _ScriptedFetchRepository implements OffersRepository {
   _ScriptedFetchRepository(this._snapshot);
   final OffersSnapshot _snapshot;
+  int acceptCalls = 0;
   @override
   Future<OffersSnapshot> fetchOffers(String requestId) async => _snapshot;
   @override
@@ -76,6 +78,7 @@ class _ScriptedFetchRepository implements OffersRepository {
     required String requestId,
     required String offerId,
   }) async {
+    acceptCalls++;
     // Never completes → the accept stays in flight so the sheet stays open.
     await Completer<void>().future;
     return const OfferAcceptResult();
@@ -337,6 +340,75 @@ void main() {
         acceptButton('b').isEnabled,
         isFalse,
         reason: 'sibling Accept CTA must disable while an accept sheet is open',
+      );
+    },
+  );
+
+  testWidgets(
+    'P0-3 — a same-frame double-tap on ONE offer card Accept CTA opens '
+    'exactly ONE accept sheet and fires the accept submit once',
+    (tester) async {
+      // Regression pin for the offer-list call-site re-entrancy guard
+      // (`_openAcceptSheet` early-returns when acceptStatus == inFlight). Two
+      // taps land in the SAME frame — before the `acceptingOfferId` rebuild can
+      // disable the CTA. Without the guard the second tap would call
+      // OfferAcceptSheet.show() again and STACK a second accept sheet, letting
+      // the user drive two concurrent accept flows (double-accept, B-01).
+      final repo = _ScriptedFetchRepository(
+        OffersSnapshot(
+          offers: [
+            _offer(id: 'a', name: 'Karim', fee: 30),
+            _offer(id: 'b', name: 'Hadi', fee: 15),
+          ],
+          windowExpiresAt: DateTime(2030),
+          requestIsOpen: true,
+        ),
+      );
+
+      await tester.pumpWidget(
+        _app(
+          ClientOffersScreen(
+            requestId: 'req-1',
+            repository: repo,
+            cubitFactory: _testCubitFactory,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      // Fire card A's onAccept TWICE synchronously — the exact "two rapid taps
+      // / two semantics actions before the disable rebuild" double-activation.
+      // Both invocations hit `_openAcceptSheet` in the SAME frame: the first
+      // sets acceptStatus=inFlight + show()s the sheet; the second must be
+      // swallowed by the call-site guard (else it stacks a second sheet).
+      final cardA = tester.widget<OfferCard>(
+        find.ancestor(
+          of: find.byKey(const Key('offer-card-accept-a')),
+          matching: find.byType(OfferCard),
+        ),
+      );
+      cardA.onAccept();
+      cardA.onAccept();
+      await tester.pumpAndSettle();
+
+      // Exactly ONE accept sheet ROUTE is mounted — not two stacked. Counted by
+      // widget type, NOT by semantics identifier: a second stacked sheet route
+      // sits offstage below the top one and is excluded from the semantics tree,
+      // so a semantics finder would vacuously report one even when two exist.
+      expect(
+        find.byType(OfferAcceptSheet),
+        findsOneWidget,
+        reason: 'a same-frame double-activation must stack exactly one sheet',
+      );
+
+      // Confirm the single sheet → the accept POST fires exactly once.
+      await tester.tap(find.bySemanticsIdentifier('offer_accept_confirm_cta'));
+      await tester.pump();
+      expect(
+        repo.acceptCalls,
+        1,
+        reason: 'exactly one sheet means the accept submit fires only once',
       );
     },
   );
