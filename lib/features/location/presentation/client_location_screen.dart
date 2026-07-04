@@ -646,6 +646,11 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
     setState(() => _submitting = true);
     try {
       final requestId = await controller.submitFromLocation(widget.state);
+      // B-02b: the create can outlive this route — if the user backed out while
+      // the POST was in flight, this footer is unmounted and yanking them to the
+      // waiting surface from wherever they now are would be a rogue navigation.
+      // Gate the success nav on still being mounted (route-current).
+      if (!mounted) return;
       // logcat proof anchor: confirms the create call succeeded with a REAL id
       // (NOT 'new') before we route to the waiting surface.
       debugPrint('[compose-b11] POST /requests OK → requestId=$requestId');
