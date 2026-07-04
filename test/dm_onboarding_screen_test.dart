@@ -143,6 +143,34 @@ void main() {
     expect(cubit.state.hasHomeBase, isTrue);
   });
 
+  testWidgets(
+      'JEBV4-13 P1-5: failed coverage probe surfaces an honest error '
+      'instead of leaving the wizard silently stuck', (tester) async {
+    final cubit = _newCubit(
+      gateway: FakeDmOnboardingGateway(shouldFail: true),
+      initialStep: DmOnboardingStep.serviceArea,
+    );
+    await tester.pumpWidget(_host(cubit));
+    await tester.pumpAndSettle();
+
+    cubit.setHomeBase(
+      const DmOnboardingHomeBase(lat: 1, lng: 1, label: 'Home'),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.bySemanticsIdentifier('dm_onboarding_continue'));
+    await tester.pumpAndSettle();
+
+    // Previously: zero error surface (submitFailed had no listener) — the
+    // wizard just sat there. Now a SnackBar carries the honest message and
+    // the transient error is acknowledged (not replayed).
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(find.text("Couldn't check coverage for this area. Please try again."),
+        findsOneWidget);
+    expect(cubit.state.error, isNull);
+    expect(cubit.state.coverageReady, isFalse);
+  });
+
   testWidgets('renders mirrored under Arabic (RTL)', (tester) async {
     await tester.pumpWidget(
       _host(_newCubit(), locale: const Locale('ar')),

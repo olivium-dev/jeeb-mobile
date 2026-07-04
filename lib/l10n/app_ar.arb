@@ -1473,5 +1473,7 @@
   "earningsAccountUnavailable": "تعذّر تحميل حساب الأرباح.",
   "commonDismiss": "إغلاق",
   "handoverCodeA11yLabel": "رمز التسليم",
-  "cancellationGenericError": "حدث خطأ غير متوقع."
+  "cancellationGenericError": "حدث خطأ غير متوقع.",
+  "dmOnboardingCoverageCheckFailed": "تعذّر التحقق من التغطية لهذه المنطقة. يرجى المحاولة مرة أخرى.",
+  "dmOnboardingPhotoPickFailed": "تعذّر استخدام هذه الصورة. يرجى المحاولة مرة أخرى."
 }

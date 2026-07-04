@@ -98,10 +98,24 @@ class _Scaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<DmOnboardingCubit, DmOnboardingState>(
-      // Service-area coverage confirmed → chain to KYC identity (JM-038 AC4).
-      listenWhen: (prev, curr) => !prev.coverageReady && curr.coverageReady,
-      listener: _onCoverageReady,
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<DmOnboardingCubit, DmOnboardingState>(
+          // Service-area coverage confirmed → chain to KYC identity (JM-038 AC4).
+          listenWhen: (prev, curr) => !prev.coverageReady && curr.coverageReady,
+          listener: _onCoverageReady,
+        ),
+        // JEBV4-13 P1-5: the coverage probe (and the shared photo-pick path)
+        // previously emitted a one-shot DmOnboardingError with NO listener
+        // anywhere in the tree, so a 404/failure left the wizard stuck with
+        // zero feedback. Surface it honestly, then acknowledge so it isn't
+        // replayed on the next rebuild.
+        BlocListener<DmOnboardingCubit, DmOnboardingState>(
+          listenWhen: (prev, curr) =>
+              curr.error != null && prev.error != curr.error,
+          listener: _onError,
+        ),
+      ],
       child: const Scaffold(
         key: DmOnboardingScreen.rootKey,
         appBar: _OnboardingAppBar(),
@@ -129,6 +143,19 @@ class _Scaffold extends StatelessWidget {
       return;
     }
     onCompleted?.call();
+  }
+
+  void _onError(BuildContext context, DmOnboardingState state) {
+    final l10n = AppLocalizations.of(context);
+    final message = switch (state.error) {
+      DmOnboardingError.submitFailed => l10n.dmOnboardingCoverageCheckFailed,
+      DmOnboardingError.photoPickFailed => l10n.dmOnboardingPhotoPickFailed,
+      null => null,
+    };
+    if (message != null) {
+      showOmdsErrorSnackbar(context, message: message);
+    }
+    context.read<DmOnboardingCubit>().acknowledgeError();
   }
 }
 

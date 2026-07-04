@@ -2163,4 +2163,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get commonDismiss => _get('commonDismiss');
   String get handoverCodeA11yLabel => _get('handoverCodeA11yLabel');
   String get cancellationGenericError => _get('cancellationGenericError');
+
+  // JEBV4-13 P1-5: dm-onboarding error surfaces (previously-silent DmOnboardingError)
+  String get dmOnboardingCoverageCheckFailed =>
+      _get('dmOnboardingCoverageCheckFailed');
+  String get dmOnboardingPhotoPickFailed => _get('dmOnboardingPhotoPickFailed');
 }

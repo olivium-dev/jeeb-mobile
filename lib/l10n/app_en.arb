@@ -4272,5 +4272,11 @@
   "@handoverCodeA11yLabel": {"description": "Screen-reader label for the customer's OTP handover-code display (terminal core-flow step)."},
 
   "cancellationGenericError": "An unexpected error occurred.",
-  "@cancellationGenericError": {"description": "Generic localized error shown when cancellation fails, replacing raw backend text."}
+  "@cancellationGenericError": {"description": "Generic localized error shown when cancellation fails, replacing raw backend text."},
+
+  "dmOnboardingCoverageCheckFailed": "Couldn't check coverage for this area. Please try again.",
+  "@dmOnboardingCoverageCheckFailed": {"description": "JEBV4-13 P1-5: error surface shown when the service-area Continue's coverage probe (POST /v1/matching/find-jeebers) fails; previously silent."},
+
+  "dmOnboardingPhotoPickFailed": "Couldn't use that photo. Please try again.",
+  "@dmOnboardingPhotoPickFailed": {"description": "JEBV4-13: error surface for a failed onboarding photo pick/compress; same previously-silent DmOnboardingError class as the coverage probe."}
 }
