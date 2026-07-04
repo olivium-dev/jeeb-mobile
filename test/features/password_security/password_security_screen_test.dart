@@ -122,7 +122,9 @@ void main() {
     expect(find.bySemanticsIdentifier('password_mismatch_error'), findsNothing);
   });
 
-  testWidgets('valid change → pops back to customer-profile', (tester) async {
+  testWidgets(
+      'B-33: a valid change does NOT fake success — it stays on screen and '
+      'shows the honest "not available" notice (no navigation)', (tester) async {
     await tester.pumpWidget(_host());
     await tester.pumpAndSettle();
 
@@ -134,7 +136,15 @@ void main() {
     await tester.tap(find.bySemanticsIdentifier('password_submit_cta'));
     await tester.pumpAndSettle();
 
-    expect(find.text('customer-profile-host'), findsOneWidget);
+    // NO false success: the screen must NOT navigate back to the profile as if
+    // the password had changed (the pre-B-33 defect).
+    expect(find.text('customer-profile-host'), findsNothing);
+    expect(find.bySemanticsIdentifier('password_security_root'), findsOneWidget);
+    // The honest notice is surfaced.
+    expect(
+      find.text("Changing your password isn't available yet. Nothing was saved."),
+      findsOneWidget,
+    );
   });
 
   testWidgets('password_set_entry → set-password (?mode=in-app-social, D90)',

@@ -101,15 +101,12 @@ class _PasswordSecurityViewState extends State<_PasswordSecurityView> {
         );
   }
 
-  /// EDGE: a successful change → customer-profile (JM-061 AC `password_back` →
-  /// customer-profile; D90 returns to Profile in-app). Pops if it can (keeps the
-  /// profile's scroll position) else routes by name.
-  void _onSucceeded(BuildContext context) {
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      context.goNamed('customer-profile');
-    }
+  /// B-33: the form validated but there is no change-password endpoint to call,
+  /// so we surface an honest "not available yet" notice and STAY on screen — we
+  /// never fake success by popping back to the profile.
+  void _onUnavailable(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    showOmdsSnackbar(context, message: l10n.passwordChangeUnavailable);
   }
 
   @override
@@ -139,8 +136,8 @@ class _PasswordSecurityViewState extends State<_PasswordSecurityView> {
         body: BlocConsumer<PasswordSecurityCubit, PasswordSecurityState>(
           listenWhen: (p, n) =>
               p.status != n.status &&
-              n.status == PasswordSecurityStatus.succeeded,
-          listener: (context, state) => _onSucceeded(context),
+              n.status == PasswordSecurityStatus.unavailable,
+          listener: (context, state) => _onUnavailable(context),
           builder: (context, state) {
             final cubit = context.read<PasswordSecurityCubit>();
             final submitting =

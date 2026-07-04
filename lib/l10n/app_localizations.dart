@@ -2129,6 +2129,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get passwordSecurityTitle => _get('passwordSecurityTitle');
   String get passwordSecurityBody => _get('passwordSecurityBody');
   String get passwordSetEntryCta => _get('passwordSetEntryCta');
+  String get passwordChangeUnavailable => _get('passwordChangeUnavailable');
 
   // Goods cost (jeeber goods-cost entry, Sprint 5 RTL/l10n pass)
   String get goodsCostTitle => _get('goodsCostTitle');

@@ -8,12 +8,17 @@ import '../domain/change_password_policy.dart';
 ///                   path is local-validation only per the AC `Mock: —`, so this
 ///                   resolves immediately, but the state exists so the CTA can
 ///                   disable and a future server-backed change can slot in).
-///   * [succeeded] — validation passed; the screen's `listener` pops back to
-///                   customer-profile (D90 back edge / JM-035).
+///   * [unavailable]— validation passed, but there is NO change-password
+///                   endpoint in the client's data layer (the gateway exposes
+///                   only `POST /v1/auth/set-password` for the social-only
+///                   "set a password" leg — no current-password verify / change-
+///                   by-bearer contract exists, 42_GUARDRAILS_MOCK). B-33: the
+///                   form must NOT fake success; the screen surfaces an honest
+///                   "not available yet" notice and stays put.
 ///   * [failed]    — client-side validation failed. Surfaces through the
 ///                   `password_strength_error` (weak / same-as-current) or
 ///                   `password_mismatch_error` (new≠confirm) node.
-enum PasswordSecurityStatus { idle, submitting, succeeded, failed }
+enum PasswordSecurityStatus { idle, submitting, unavailable, failed }
 
 /// Immutable state for [PasswordSecurityCubit]. Equatable + `copyWith` with
 /// explicit `clear<X>` flags for the nullable validation field

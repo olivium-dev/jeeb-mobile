@@ -1425,6 +1425,8 @@
   "passwordSecurityTitle": "كلمة المرور والأمان",
   "passwordSecurityBody": "غيّر كلمة المرور أو عيّن واحدة إذا سجّلت عبر حساب اجتماعي.",
   "passwordSetEntryCta": "تعيين كلمة مرور",
+  "passwordChangeUnavailable": "تغيير كلمة المرور غير متاح بعد. لم يتم حفظ أي تغيير.",
+  "@passwordChangeUnavailable": { "description": "B-33: honest notice shown when the change-password form is submitted but no change-password endpoint exists — the change was NOT saved." },
   "jeeberActiveDeliveriesTitle": "توصيلاتك النشطة",
   "@jeeberActiveDeliveriesTitle": {"description": "iter6: section title above the jeeber dashboard active-deliveries list (accepted orders the jeeber is driving)."},
   "jeeberActiveDeliveriesFallbackTitle": "توصيلة",

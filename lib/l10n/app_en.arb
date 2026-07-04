@@ -4182,6 +4182,8 @@
   "@passwordSecurityBody": { "description": "JM-061 stub body — the JM-061 engineer fills current/new/confirm fields + validation (D90)." },
   "passwordSetEntryCta": "Set a password",
   "@passwordSetEntryCta": { "description": "JM-061 social-only entry (password_set_entry) → auth-set-password?mode=in-app-social (D90)." },
+  "passwordChangeUnavailable": "Changing your password isn't available yet. Nothing was saved.",
+  "@passwordChangeUnavailable": { "description": "B-33: honest notice shown when the change-password form is submitted but no change-password endpoint exists — the change was NOT saved." },
   "jeeberActiveDeliveriesTitle": "Your active deliveries",
   "@jeeberActiveDeliveriesTitle": {"description": "iter6: section title above the jeeber dashboard active-deliveries list (accepted orders the jeeber is driving)."},
   "jeeberActiveDeliveriesFallbackTitle": "Delivery",
