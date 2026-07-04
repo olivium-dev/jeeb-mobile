@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -176,6 +177,14 @@ class _ScaffoldState extends State<_Scaffold> {
   /// rebuild on without a dedicated cubit.
   final TextEditingController _description = TextEditingController();
 
+  /// B-02b: create-in-flight flag, OWNED here (above BOTH the body and the
+  /// footer) so it can disable the body's navigation rows while the footer's
+  /// `POST /requests` is outstanding. Previously the flag lived inside the
+  /// footer, so only the Confirm CTA was disabled — the add-location and
+  /// saved-addresses rows stayed tappable and a mid-flight push let the success
+  /// nav fire from underneath the newly-pushed route.
+  final ValueNotifier<bool> _submitting = ValueNotifier<bool>(false);
+
   @override
   void initState() {
     super.initState();
@@ -190,6 +199,7 @@ class _ScaffoldState extends State<_Scaffold> {
 
   @override
   void dispose() {
+    _submitting.dispose();
     _description.dispose();
     super.dispose();
   }
@@ -209,6 +219,7 @@ class _ScaffoldState extends State<_Scaffold> {
           builder: (context, state) => _Body(
             state: state,
             descriptionController: _description,
+            submitting: _submitting,
             onAddLocation: widget.onAddLocation,
             onOpenSavedAddresses: widget.onOpenSavedAddresses,
             onDictate: widget.onDictate,
@@ -221,6 +232,7 @@ class _ScaffoldState extends State<_Scaffold> {
         builder: (context, state) => _ConfirmFooter(
           state: state,
           description: _description,
+          submitting: _submitting,
           onConfirm: widget.onConfirm,
         ),
       ),
@@ -232,6 +244,7 @@ class _Body extends StatelessWidget {
   const _Body({
     required this.state,
     required this.descriptionController,
+    required this.submitting,
     this.onAddLocation,
     this.onOpenSavedAddresses,
     this.onDictate,
@@ -241,6 +254,11 @@ class _Body extends StatelessWidget {
 
   final LocationSelectState state;
   final TextEditingController descriptionController;
+
+  /// B-02b: true while the footer's `POST /requests` is in flight. The
+  /// navigation rows below (saved-addresses, add-location) are locked out for
+  /// its duration so the user cannot push a new route mid-create.
+  final ValueListenable<bool> submitting;
   final VoidCallback? onAddLocation;
   final VoidCallback? onOpenSavedAddresses;
   final Future<VoiceClip?> Function()? onDictate;
@@ -287,7 +305,13 @@ class _Body extends StatelessWidget {
         // manager owns its own empty state. Only the selectable saved-address
         // CARDS below remain conditional on a non-empty list.
         const SizedBox(height: Spacing.large),
-        _SavedAddressesRow(onTap: () => _onOpenSaved(context)),
+        // B-02b: lock the saved-addresses row while a create is in flight so a
+        // mid-POST push cannot leave the (still-mounted) footer to navigate the
+        // waiting surface from underneath the newly-pushed route.
+        _SubmitLock(
+          submitting: submitting,
+          child: _SavedAddressesRow(onTap: () => _onOpenSaved(context)),
+        ),
         if (state.hasSavedAddresses) ...[
           const SizedBox(height: Spacing.medium),
           for (final address in state.savedAddresses) ...[
@@ -305,11 +329,15 @@ class _Body extends StatelessWidget {
           _SavedAddressesError(
             onRetry: () => context.read<LocationSelectCubit>().refresh(),
           ),
-        ClientLocationAddRow(
-          identifier: 'location_select_new_location_cta',
-          label: l10n.clientLocationNewOption,
-          addSemanticLabel: l10n.clientLocationAddSemantic,
-          onTap: () => _onAdd(context),
+        // B-02b: same in-flight lock as the saved-addresses row above.
+        _SubmitLock(
+          submitting: submitting,
+          child: ClientLocationAddRow(
+            identifier: 'location_select_new_location_cta',
+            label: l10n.clientLocationNewOption,
+            addSemanticLabel: l10n.clientLocationAddSemantic,
+            onTap: () => _onAdd(context),
+          ),
         ),
         const SizedBox(height: Spacing.xLarge),
         // iter6 OTP-phone v2: recipient-phone capture. The gateway needs a
@@ -331,6 +359,9 @@ class _Body extends StatelessWidget {
   }
 
   Future<void> _onAdd(BuildContext context) async {
+    // B-02b: never push while a create is in flight (belt-and-braces behind the
+    // `_SubmitLock` IgnorePointer above).
+    if (submitting.value) return;
     // EDGE: location-select → location-map-pin (21_NAV_PLAN.md §C, JM-024 AC3).
     // The optional callback REPLACES the default nav for tests / the dev seam.
     final handler = onAddLocation;
@@ -355,6 +386,8 @@ class _Body extends StatelessWidget {
   }
 
   void _onOpenSaved(BuildContext context) {
+    // B-02b: never push while a create is in flight (see [_onAdd]).
+    if (submitting.value) return;
     // EDGE: location-select → saved-addresses (Q3, JM-049; 21_NAV_PLAN.md §C).
     final handler = onOpenSavedAddresses;
     if (handler != null) {
@@ -364,6 +397,34 @@ class _Body extends StatelessWidget {
     // `settings-addresses` is registered (the existing SavedLocationsScreen /
     // JM-049 manager). The customer can pick / manage saved addresses there.
     context.pushNamed('settings-addresses');
+  }
+}
+
+/// B-02b: locks its [child] out of interaction while a create is in flight.
+///
+/// Wraps the location-select navigation rows so that, once the Confirm CTA's
+/// `POST /requests` is outstanding, the user cannot push `capture-location` or
+/// `saved-addresses` on top of this (still-mounted) screen — which is exactly
+/// the state that let the success `goNamed` fire from underneath a newly-pushed
+/// route. The row dims to [UIConstants.opacityDisabled] to signal the lock.
+class _SubmitLock extends StatelessWidget {
+  const _SubmitLock({required this.submitting, required this.child});
+
+  final ValueListenable<bool> submitting;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: submitting,
+      builder: (context, busy, child) => IgnorePointer(
+        ignoring: busy,
+        child: busy
+            ? Opacity(opacity: UIConstants.opacityDisabled, child: child)
+            : child!,
+      ),
+      child: child,
+    );
   }
 }
 
@@ -546,11 +607,16 @@ class _ConfirmFooter extends StatefulWidget {
   const _ConfirmFooter({
     required this.state,
     required this.description,
+    required this.submitting,
     this.onConfirm,
   });
 
   final LocationSelectState state;
   final TextEditingController description;
+
+  /// B-02b: shared create-in-flight flag (owned by [_ScaffoldState]). Drives
+  /// the CTA spinner + disabled state here AND locks the body's nav rows.
+  final ValueNotifier<bool> submitting;
   final VoidCallback? onConfirm;
 
   @override
@@ -561,9 +627,10 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
   // B-02 double-submit guard: this is the only `POST /requests` submit surface
   // in the codebase; without an in-flight guard a double-tap (or a tap while
   // the create call is in flight) fired the create twice. Mirrors the
-  // goods_cost_cubit `inFlight` re-entrancy guard. `_submitting` disables the
-  // CTA + drives the OmdsLoadingButton spinner while the POST is outstanding.
-  bool _submitting = false;
+  // goods_cost_cubit `inFlight` re-entrancy guard. `widget.submitting` disables
+  // the CTA + drives the OmdsLoadingButton spinner while the POST is
+  // outstanding — B-02b lifted it to [_ScaffoldState] so the body's nav rows
+  // are locked out for the same window.
 
   @override
   Widget build(BuildContext context) {
@@ -580,16 +647,21 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
         child: Semantics(
           identifier: 'location_select_confirm_cta',
           button: true,
-          child: ValueListenableBuilder<TextEditingValue>(
-            valueListenable: widget.description,
-            builder: (context, value, _) => OmdsLoadingButton(
-              // l10n: reuses `locationConfirm` ("Confirm location"); a dedicated
-              // `locationSelectConfirmCta` key is requested in 50_ROUTE_REQUESTS.
-              text: l10n.locationConfirm,
-              isLoading: _submitting,
-              isEnabled: state.canConfirm && value.text.trim().isNotEmpty,
-              borderRadius: OmdsBorderRadius.pill,
-              onTap: () => _onConfirm(context),
+          child: ValueListenableBuilder<bool>(
+            valueListenable: widget.submitting,
+            builder: (context, submitting, _) =>
+                ValueListenableBuilder<TextEditingValue>(
+              valueListenable: widget.description,
+              builder: (context, value, _) => OmdsLoadingButton(
+                // l10n: reuses `locationConfirm` ("Confirm location"); a
+                // dedicated `locationSelectConfirmCta` key is requested in
+                // 50_ROUTE_REQUESTS.
+                text: l10n.locationConfirm,
+                isLoading: submitting,
+                isEnabled: state.canConfirm && value.text.trim().isNotEmpty,
+                borderRadius: OmdsBorderRadius.pill,
+                onTap: () => _onConfirm(context),
+              ),
             ),
           ),
         ),
@@ -599,7 +671,7 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
 
   Future<void> _onConfirm(BuildContext context) async {
     // B-02: ignore the tap if a create is already in flight (double-submit).
-    if (_submitting) return;
+    if (widget.submitting.value) return;
     // EDGE: location-select → order-chat compose (21_NAV_PLAN.md §C, JM-024
     // AC4 → JM-025). The optional callback REPLACES the default nav for tests /
     // the dev seam.
@@ -643,14 +715,20 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
     final router = GoRouter.of(context);
     final messenger = ScaffoldMessenger.maybeOf(context);
     final l10n = AppLocalizations.of(context);
-    setState(() => _submitting = true);
+    // B-02b: snapshot THIS route before the async gap. `mounted` alone is not
+    // enough — a push (capture-location / saved-addresses / dictation) leaves
+    // this footer mounted but no longer the top route, so a `mounted`-only gate
+    // would still `goNamed` the waiting surface out from under the pushed route.
+    final route = ModalRoute.of(context);
+    widget.submitting.value = true;
     try {
       final requestId = await controller.submitFromLocation(widget.state);
-      // B-02b: the create can outlive this route — if the user backed out while
-      // the POST was in flight, this footer is unmounted and yanking them to the
-      // waiting surface from wherever they now are would be a rogue navigation.
-      // Gate the success nav on still being mounted (route-current).
-      if (!mounted) return;
+      // B-02b: only navigate when this footer is still mounted AND its route is
+      // still the current/top route. If the user left the create step mid-POST
+      // (backed out → unmounted, or pushed another surface → not current),
+      // yanking them to the waiting surface would be a rogue navigation, so we
+      // land the created request silently and stay put.
+      if (!mounted || !(route?.isCurrent ?? false)) return;
       // logcat proof anchor: confirms the create call succeeded with a REAL id
       // (NOT 'new') before we route to the waiting surface.
       debugPrint('[compose-b11] POST /requests OK → requestId=$requestId');
@@ -670,10 +748,12 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
         SnackBar(content: Text(l10n.requestSummaryErrorNetwork)),
       );
     } finally {
-      // Re-enable so the customer can retry after a failure. On success we have
-      // navigated away (widget unmounted) → the mounted guard makes this a
-      // no-op, leaving the CTA disabled through the transition.
-      if (mounted) setState(() => _submitting = false);
+      // Re-enable so the customer can retry after a failure. On a successful nav
+      // this footer is unmounted → the mounted guard makes this a no-op, leaving
+      // the CTA disabled through the transition. (When the nav was suppressed
+      // because the route was no longer current, re-enabling is correct — the
+      // footer is still on screen underneath the pushed route.)
+      if (mounted) widget.submitting.value = false;
     }
   }
 }
