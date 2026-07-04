@@ -41,14 +41,19 @@ class SuperLoginDemoUser {
     return isJeeberToken(role) || availableRoles.any(isJeeberToken);
   }
 
-  /// Parses one row from the `POST /api/User/super-login/users` payload:
-  /// `{ userId, username, active_role, available_roles:[String] }`. Returns
-  /// `null` when `userId`/`username` is missing or blank so a malformed row is
-  /// dropped rather than crashing the whole picker.
+  /// Parses one row from the gateway `GET /api/User/demo-users` roster
+  /// (`{ userId, name, role, passcode }` — the `passcode` is deliberately
+  /// IGNORED here; the picker re-uses the single `AppConfig` SuperAdmin
+  /// passcode, never a per-row secret). Also accepts the legacy LIST shape
+  /// (`{ userId, username, active_role, available_roles:[String] }`) so either
+  /// contract parses. Returns `null` when `userId`/name is missing or blank so
+  /// a malformed row is dropped rather than crashing the whole picker.
   static SuperLoginDemoUser? fromJson(Map<String, dynamic> json) {
     final userId = json['userId'] as String?;
-    final username = json['username'] as String?;
-    final activeRole = json['active_role'] as String?;
+    // Gateway roster uses `name`/`role`; the legacy LIST contract used
+    // `username`/`active_role`/`available_roles`. Accept whichever is present.
+    final username = (json['name'] ?? json['username']) as String?;
+    final activeRole = (json['active_role'] ?? json['role']) as String?;
     final rawRoles = json['available_roles'];
     final availableRoles = rawRoles is List
         ? rawRoles.whereType<String>().toList(growable: false)
@@ -85,73 +90,43 @@ class SuperLoginDemoUserException implements Exception {
   String toString() => 'SuperLoginDemoUserException($error)';
 }
 
-/// Fetches ALL active users the picker lists. Paginates through the
-/// passcode-gated LIST endpoint until `hasMore == false`.
+/// Fetches the demo-user roster the picker lists.
 ///
-/// Contract: `POST /api/User/super-login/users` (anonymous, no bearer) with
-/// body `{ superAdminPassCode, skip, limit, onActive:true }` →
-/// `{ users:[{userId, username, active_role, available_roles}], totalCount,
-/// skip, limit, hasMore }`.
+/// Contract: `GET /api/User/demo-users` (anonymous, no bearer, no body — the
+/// gateway gates it behind `SuperLogin:OpenMode` + `DemoUsers` config) →
+/// `{ users:[{userId, name, role, passcode}] }`. The whole roster comes back in
+/// one shot (no pagination). Each row's `passcode` is IGNORED by the client;
+/// the tap→login re-uses the single `AppConfig` SuperAdmin passcode.
 abstract class SuperLoginDemoUserService {
   Future<List<SuperLoginDemoUser>> fetchDemoUsers();
 }
 
 /// [Dio]-backed implementation talking to the live gateway via the app's
 /// shared client. Reuses the same `Dio` instance every other gateway data
-/// source uses (DI `sl<Dio>()`). The SuperAdmin passcode is injected from
-/// `AppConfig` (build-time `--dart-define` or the debug fallback); it is sent
-/// in the POST body and is NEVER logged.
+/// source uses (DI `sl<Dio>()`). The roster GET is anonymous — no passcode is
+/// sent on the wire, and the row-level `passcode` in the response is never
+/// read or logged (the debug redacting logger scrubs it defensively).
 class DefaultSuperLoginDemoUserService implements SuperLoginDemoUserService {
-  DefaultSuperLoginDemoUserService({
-    required Dio dio,
-    required String superAdminPassCode,
-  })  : _dio = dio,
-        _passcode = superAdminPassCode;
+  DefaultSuperLoginDemoUserService({required Dio dio}) : _dio = dio;
 
   final Dio _dio;
-  final String _passcode;
 
-  static const String _endpoint = '/api/User/super-login/users';
-
-  /// Page size; the contract caps `limit` at 100.
-  static const int _pageLimit = 100;
-
-  /// Safety cap so a misbehaving `hasMore` can never loop forever
-  /// (50 pages * 100 = 5000 users, far above the ~56 active expected).
-  static const int _maxPages = 50;
+  static const String _endpoint = '/api/User/demo-users';
 
   @override
   Future<List<SuperLoginDemoUser>> fetchDemoUsers() async {
-    final all = <SuperLoginDemoUser>[];
     try {
-      for (var page = 0, skip = 0;
-          page < _maxPages;
-          page++, skip += _pageLimit) {
-        final data = await _fetchPage(skip);
-        all.addAll(_parseRows(data));
-        if (data['hasMore'] != true) break;
+      final response = await _dio.get<Map<String, dynamic>>(_endpoint);
+      final data = response.data;
+      if (data == null) {
+        throw const SuperLoginDemoUserException(
+          SuperLoginDemoUserError.unknown,
+        );
       }
+      return List<SuperLoginDemoUser>.unmodifiable(_parseRows(data));
     } on DioException {
       throw const SuperLoginDemoUserException(SuperLoginDemoUserError.network);
     }
-    return List<SuperLoginDemoUser>.unmodifiable(all);
-  }
-
-  Future<Map<String, dynamic>> _fetchPage(int skip) async {
-    final response = await _dio.post<Map<String, dynamic>>(
-      _endpoint,
-      data: <String, dynamic>{
-        'superAdminPassCode': _passcode,
-        'skip': skip,
-        'limit': _pageLimit,
-        'onActive': true,
-      },
-    );
-    final data = response.data;
-    if (data == null) {
-      throw const SuperLoginDemoUserException(SuperLoginDemoUserError.unknown);
-    }
-    return data;
   }
 
   Iterable<SuperLoginDemoUser> _parseRows(Map<String, dynamic> data) {

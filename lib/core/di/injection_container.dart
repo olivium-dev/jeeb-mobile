@@ -100,7 +100,6 @@ import '../../features/offers/domain/offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
 import '../../features/settlement/data/dio_settlement_repository.dart';
 import '../../features/settlement/domain/settlement_repository.dart';
-import '../config/app_config.dart';
 import '../network/auth_token_store.dart';
 import '../network/mock_gateway_client.dart';
 import '../observability/crash_reporter.dart';
@@ -215,15 +214,12 @@ void configureDependencies({
     () => DefaultSuperLoginService(dio: sl<Dio>()),
   );
 
-  // "Super user login plus": lists ALL active users via the passcode-gated
-  // POST /api/User/super-login/users (debug-only). Same Dio client as every
-  // other gateway data source; the SuperAdmin passcode comes from AppConfig
-  // (build-time --dart-define or the debug fallback).
+  // "Super user login plus": lists the demo roster via the anonymous,
+  // OpenMode-gated GET /api/User/demo-users (debug-only). Same Dio client as
+  // every other gateway data source. The roster GET carries no passcode; the
+  // tap→login re-uses AppConfig.superAdminPassCode on /api/User/user-id-login.
   sl.registerLazySingleton<SuperLoginDemoUserService>(
-    () => DefaultSuperLoginDemoUserService(
-      dio: sl<Dio>(),
-      superAdminPassCode: AppConfig.superAdminPassCode,
-    ),
+    () => DefaultSuperLoginDemoUserService(dio: sl<Dio>()),
   );
 
   sl.registerLazySingleton<OrderRepository>(
