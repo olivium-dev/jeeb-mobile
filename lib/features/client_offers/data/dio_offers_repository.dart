@@ -354,8 +354,8 @@ class DioOffersRepository implements OffersRepository {
     ].whereType<String>().map((s) => s.toLowerCase()).join(' ');
     return haystack.contains('request_not_open') ||
         haystack.contains('request-not-open') ||
-        haystack.contains('not-acceptable') ||
-        haystack.contains('not_acceptable') ||
+        haystack.contains('request-not-acceptable') ||
+        haystack.contains('request_not_acceptable') ||
         haystack.contains('already-accepted') ||
         haystack.contains('already_accepted') ||
         haystack.contains('request is no longer');
