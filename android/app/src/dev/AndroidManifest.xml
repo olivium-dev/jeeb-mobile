@@ -1,0 +1,35 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+        DEV-FLAVOR-ONLY second launcher entry (Jeeb Dev Tool).
+
+        This manifest lives in the `dev` source set, so AGP only merges it into
+        the `dev` variant (applicationIdSuffix `.dev`). Staging/production builds
+        never see this <activity>, so the extra launcher icon exists ONLY on dev
+        installs — exactly as required.
+
+        The activity is manifest-merged into the <application> declared in
+        src/main/AndroidManifest.xml. It launches its own FlutterActivity
+        (DevToolActivity) whose Dart entrypoint is `mainDevTool()`, opening the
+        testing-tools app instead of the real product entrypoint.
+
+        Window flags (configChanges / hardwareAccelerated / windowSoftInputMode)
+        and theme mirror MainActivity so the tool renders in the same chrome.
+        Icon is reused (@mipmap/ic_launcher); the distinct label is enough for v1.
+    -->
+    <application>
+        <activity
+            android:name=".DevToolActivity"
+            android:exported="true"
+            android:label="Jeeb Dev Tool"
+            android:launchMode="singleTop"
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
