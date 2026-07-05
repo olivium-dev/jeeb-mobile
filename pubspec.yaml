@@ -158,6 +158,11 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Native on-device UI tests (isolated per-screen widget pumps + screenshots),
+  # driven by `flutter drive` (see test_driver/integration_test.dart and
+  # integration_test/screens/). UI-test-iteration-1 deliverable.
+  integration_test:
+    sdk: flutter
   flutter_lints: ^6.0.0
   bloc_test: ^10.0.0
   mocktail: ^1.0.1
