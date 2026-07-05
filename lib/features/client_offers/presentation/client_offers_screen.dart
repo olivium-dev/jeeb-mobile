@@ -165,6 +165,8 @@ class _ClientOffersView extends StatelessWidget {
         return l10n.offersErrorRequestNotOpen;
       case OffersFailure.offerNotPending:
         return l10n.offersErrorOfferNotPending;
+      case OffersFailure.jeeberAtCapacity:
+        return l10n.offersErrorJeeberAtCapacity;
       case OffersFailure.unknown:
       case null:
         return l10n.offersErrorGeneric;
@@ -342,6 +344,8 @@ class _LoadedBody extends StatelessWidget {
         return l10n.offersErrorRequestNotOpen;
       case OffersFailure.offerNotPending:
         return l10n.offersErrorOfferNotPending;
+      case OffersFailure.jeeberAtCapacity:
+        return l10n.offersErrorJeeberAtCapacity;
       case OffersFailure.unknown:
         return l10n.offersErrorGeneric;
     }

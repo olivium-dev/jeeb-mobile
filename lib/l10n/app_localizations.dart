@@ -1032,6 +1032,7 @@ class AppLocalizations {
   String get offersErrorNetwork => _get('offersErrorNetwork');
   String get offersErrorRequestNotOpen => _get('offersErrorRequestNotOpen');
   String get offersErrorOfferNotPending => _get('offersErrorOfferNotPending');
+  String get offersErrorJeeberAtCapacity => _get('offersErrorJeeberAtCapacity');
   String get offersErrorGeneric => _get('offersErrorGeneric');
   String get offersAcceptedBannerTitle => _get('offersAcceptedBannerTitle');
   String get offersAcceptedBannerBody => _get('offersAcceptedBannerBody');

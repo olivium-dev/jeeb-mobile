@@ -1934,6 +1934,10 @@
   "@offersErrorOfferNotPending": {
     "description": "Inline error banner copy when the chosen offer was withdrawn or already accepted"
   },
+  "offersErrorJeeberAtCapacity": "This Jeeber already has the maximum active deliveries. Choose another offer.",
+  "@offersErrorJeeberAtCapacity": {
+    "description": "Inline error banner copy when the accept is rejected by BR-10 too-many-active-deliveries (the winning Jeeber is at the concurrent active-delivery cap); the offer itself is still pending"
+  },
   "offersErrorGeneric": "Something went wrong accepting this offer. Please try again.",
   "@offersErrorGeneric": {
     "description": "Inline error banner copy for unclassified acceptance failures"

@@ -21,7 +21,7 @@ Dio _dioRespond(Object? body, {int status = 200}) {
   return dio;
 }
 
-Dio _dioError(DioExceptionType type, {int? status}) {
+Dio _dioError(DioExceptionType type, {int? status, Object? body}) {
   final dio = Dio(BaseOptions(baseUrl: 'http://test'));
   dio.interceptors.add(
     InterceptorsWrapper(
@@ -32,7 +32,7 @@ Dio _dioError(DioExceptionType type, {int? status}) {
             type: type,
             response: status != null
                 ? Response(
-                    data: null,
+                    data: body,
                     statusCode: status,
                     requestOptions: options,
                   )
@@ -337,6 +337,58 @@ void main() {
           throwsA(
             predicate<OffersRepositoryException>(
               (e) => e.failure == OffersFailure.requestNotOpen,
+            ),
+          ),
+        );
+      });
+
+      test(
+          'throws jeeberAtCapacity (not offerNotPending) on a 409 '
+          'too-many-active-deliveries ProblemDetails (BR-10 mislabel fix)',
+          () async {
+        final repo = DioOffersRepository(
+          _dioError(
+            DioExceptionType.badResponse,
+            status: 409,
+            body: <String, dynamic>{
+              'type': 'https://jeeb.dev/errors/too-many-active-deliveries',
+              'title':
+                  'Maximum 2 active deliveries. Complete a delivery before '
+                      'accepting another.',
+              'status': 409,
+              'detail': 'Jeeber has 7 active deliveries (limit 2).',
+            },
+          ),
+        );
+
+        await expectLater(
+          repo.acceptOffer(requestId: 'req-1', offerId: 'oid'),
+          throwsA(
+            predicate<OffersRepositoryException>(
+              (e) => e.failure == OffersFailure.jeeberAtCapacity,
+            ),
+          ),
+        );
+      });
+
+      test('still throws offerNotPending on a 409 without the BR-10 type',
+          () async {
+        final repo = DioOffersRepository(
+          _dioError(
+            DioExceptionType.badResponse,
+            status: 409,
+            body: <String, dynamic>{
+              'type': 'https://jeeb.dev/errors/offer-not-acceptable',
+              'status': 409,
+            },
+          ),
+        );
+
+        await expectLater(
+          repo.acceptOffer(requestId: 'req-1', offerId: 'oid'),
+          throwsA(
+            predicate<OffersRepositoryException>(
+              (e) => e.failure == OffersFailure.offerNotPending,
             ),
           ),
         );

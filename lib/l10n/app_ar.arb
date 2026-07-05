@@ -629,6 +629,7 @@
   "offersErrorNetwork": "تعذّر الاتصال بجيب. تحقق من الاتصال وحاول مرة أخرى.",
   "offersErrorRequestNotOpen": "هذا الطلب لم يعد متاحًا.",
   "offersErrorOfferNotPending": "هذا العرض لم يعد متاحًا.",
+  "offersErrorJeeberAtCapacity": "هذا الجِيبر لديه الحد الأقصى من عمليات التوصيل النشطة. اختر عرضًا آخر.",
   "offersErrorGeneric": "حدث خطأ أثناء قبول العرض. حاول مرة أخرى.",
   "offersAcceptedBannerTitle": "تم قبول العرض",
   "offersAcceptedBannerBody": "جاري فتح المحادثة مع جِيبرك…",

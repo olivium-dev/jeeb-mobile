@@ -272,11 +272,33 @@ class DioOffersRepository implements OffersRepository {
   Never _rethrowAccept(DioException e) {
     final status = e.response?.statusCode;
     if (status == 409) {
+      // A 409 is NOT always "offer gone". The gateway BR-10 pre-check returns a
+      // 409 with ProblemDetails `type`
+      // `https://jeeb.dev/errors/too-many-active-deliveries` when the winning
+      // Jeeber already holds the max concurrent active deliveries — the offer is
+      // still pending upstream. Distinguish it so the UI shows the correct
+      // reason instead of the misleading "this offer is no longer available".
+      if (_isTooManyActiveDeliveries(e.response?.data)) {
+        throw const OffersRepositoryException(OffersFailure.jeeberAtCapacity);
+      }
       throw const OffersRepositoryException(OffersFailure.offerNotPending);
     }
     if (status == 410) {
       throw const OffersRepositoryException(OffersFailure.requestNotOpen);
     }
     _rethrowDio(e);
+  }
+
+  /// True when a 409 body is the gateway's BR-10 too-many-active-deliveries
+  /// ProblemDetails. Matches on the stable `type` URI (preferred); tolerant of
+  /// the body arriving as a decoded `Map` or a raw JSON `String`.
+  static bool _isTooManyActiveDeliveries(Object? body) {
+    const marker = 'too-many-active-deliveries';
+    if (body is Map) {
+      final type = body['type'];
+      if (type is String && type.contains(marker)) return true;
+    }
+    if (body is String && body.contains(marker)) return true;
+    return false;
   }
 }

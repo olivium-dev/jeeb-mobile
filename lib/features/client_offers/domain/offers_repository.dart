@@ -6,6 +6,16 @@ enum OffersFailure {
   network,
   requestNotOpen,
   offerNotPending,
+
+  /// The gateway rejected the accept with BR-10 `too-many-active-deliveries`
+  /// (HTTP 409, ProblemDetails `type`
+  /// `https://jeeb.dev/errors/too-many-active-deliveries`): the WINNING Jeeber
+  /// already holds the maximum concurrent active deliveries, so this specific
+  /// bid cannot be awarded right now. This is NOT the offer being gone — the
+  /// offer is still pending upstream — so it must render distinct copy and
+  /// never the misleading "this offer is no longer available"
+  /// ([offerNotPending]) message. See fix/offer-accept-409-mislabel.
+  jeeberAtCapacity,
   unknown,
 }
 
