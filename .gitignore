@@ -65,6 +65,8 @@ flutter_*.log
 /*.png
 # Figma Dev Mode screenshot cache (regenerated on demand)
 docs/figma-cache/
+# Kotlin build cache (Gradle/AGP artifact, regenerated per build)
+.kotlin/
 
 # Decompiled Maestro APK / JAR artifacts accidentally extracted at the repo root.
 # Root-anchored (leading /) so legitimate nested dirs of the same name are unaffected.
