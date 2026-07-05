@@ -39,12 +39,24 @@ void main() {
       () {
     test('GET path is /v1/requests', () async {
       String? capturedPath;
-      when(() => dio.get<Map<String, dynamic>>(
+      // DioOrderRepository calls `dio.get<dynamic>` (it parses the envelope
+      // defensively), so the stub MUST match that generic — a `get<Map<..>>`
+      // stub silently misses and returns null.
+      when(() => dio.get<dynamic>(
             any(),
             queryParameters: any(named: 'queryParameters'),
           )).thenAnswer((inv) async {
         capturedPath = inv.positionalArguments.first as String;
-        return _ok({'items': const [], 'page': 1, 'pageSize': 20});
+        // A non-empty page so fetchPage completes (the repo treats an empty
+        // `{items:[]}` Map envelope as a parse error) — this test only locks the
+        // request PATH.
+        return _ok({
+          'items': [
+            {'id': 'r-1', 'status': 'pending'},
+          ],
+          'page': 1,
+          'pageSize': 20,
+        });
       });
 
       await DioOrderRepository(dio).fetchPage(

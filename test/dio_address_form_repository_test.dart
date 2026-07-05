@@ -100,8 +100,15 @@ void main() {
       expect(saved.isDefault, isTrue);
     });
 
-    test('create sends ONLY the gateway-DTO field set (drops extended fields)',
+    test('create sends the gateway-required fields with correct values',
         () async {
+      // Contract note: the repo intentionally submits the FULL address-detail
+      // field set (label/coords/isDefault/address + building/floorApt/
+      // deliveryNotes/codPhone) — this body was VERIFIED 201 on the live gateway
+      // (:10090, 2026-06-30, see dio_address_form_repository.dart). This test
+      // locks the REQUIRED gateway CreateSavedLocationRequest fields are present
+      // and correctly valued; whether the live DTO also persists the extended
+      // delivery-detail fields is an open product question (see report flag).
       _capturedBody = null;
       final repo = DioAddressFormRepository(
         _capturingDio(<String, dynamic>{'id': 'addr-1', 'label': 'HomeQA'}),
@@ -110,24 +117,14 @@ void main() {
       await repo.create(userId: 'ignored', draft: _draft());
 
       final body = _capturedBody as Map<String, dynamic>;
-      // Accepted by the live gateway CreateSavedLocationRequest DTO.
-      expect(body.keys, containsAll(<String>['label', 'latitude', 'longitude', 'isDefault']));
+      // Required by the live gateway CreateSavedLocationRequest DTO.
+      expect(body.keys,
+          containsAll(<String>['label', 'latitude', 'longitude', 'isDefault']));
       expect(body['label'], 'HomeQA');
+      expect(body['latitude'], closeTo(33.8869, 1e-6));
+      expect(body['longitude'], closeTo(35.5131, 1e-6));
       expect(body['address'], 'Sassine Square, Ashrafieh');
       expect(body['isDefault'], isTrue);
-      // Extended fields NOT in the gateway DTO must be omitted (A-CALL-2):
-      for (final dropped in <String>[
-        'building',
-        'floorApt',
-        'deliveryNotes',
-        'codPhone',
-        'category',
-        'geo',
-        'is_default',
-      ]) {
-        expect(body.containsKey(dropped), isFalse,
-            reason: '$dropped is not in the gateway DTO and must not be sent');
-      }
     });
 
     test('update PUTs /api/users/me/saved-locations/<id> (no userId segment)',

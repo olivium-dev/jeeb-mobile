@@ -1,9 +1,13 @@
 // Unit tests for DioDisplayNameRepository (profile-name lane).
 //
-// Verifies the PUT payload shape the cycle-2 gateway mirrors into the users
-// projection:
-//   PUT /api/User/profile   body: { "username": "<display name>" }
-// plus trimming, the empty-input no-op, and typed failure mapping.
+// Verifies the gateway-contract shape (cycle-6 400 fix): the repo first sources
+// the authenticated identity via `GET /v1/users/me` (getMe) to obtain the
+// REQUIRED userId + email, then submits:
+//   PUT /api/User/profile
+//     body: { "userId", "email", "username": "<display name>", "profilePic" }
+// (all four fields are required by the gateway→user-management contract;
+// omitting any → HTTP 400). Plus trimming, the empty-input no-op, and typed
+// failure mapping.
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -18,6 +22,11 @@ void main() {
   late _MockDio dio;
   late DioDisplayNameRepository repo;
 
+  // The identity the getMe pre-fetch surfaces; both fields are mirrored into the
+  // required PUT body.
+  const meUserId = 'u-77777777-7777-4777-8777-777777777777';
+  const meEmail = 'ahmad@example.com';
+
   setUp(() {
     dio = _MockDio();
     repo = DioDisplayNameRepository(dio);
@@ -29,8 +38,20 @@ void main() {
         data: const <String, dynamic>{},
       );
 
+  // Stub the getMe identity source the PUT depends on.
+  void stubMe() {
+    when(() => dio.get<Map<String, dynamic>>(any())).thenAnswer(
+      (_) async => Response<Map<String, dynamic>>(
+        requestOptions: RequestOptions(path: '/v1/users/me'),
+        statusCode: 200,
+        data: const <String, dynamic>{'userId': meUserId, 'email': meEmail},
+      ),
+    );
+  }
+
   group('DioDisplayNameRepository.submitDisplayName', () {
-    test('PUTs /api/User/profile with {username: <name>}', () async {
+    test('PUTs /api/User/profile with the required 4-field body', () async {
+      stubMe();
       when(() => dio.put<Map<String, dynamic>>(
             any(),
             data: any(named: 'data'),
@@ -43,10 +64,16 @@ void main() {
             data: captureAny(named: 'data'),
           )).captured;
       expect(captured[0], '/api/User/profile');
-      expect(captured[1], <String, dynamic>{'username': 'Ahmad'});
+      expect(captured[1], <String, dynamic>{
+        'userId': meUserId,
+        'email': meEmail,
+        'username': 'Ahmad',
+        'profilePic': '',
+      });
     });
 
     test('trims surrounding whitespace before submitting', () async {
+      stubMe();
       when(() => dio.put<Map<String, dynamic>>(
             any(),
             data: any(named: 'data'),
@@ -58,7 +85,7 @@ void main() {
             any(),
             data: captureAny(named: 'data'),
           )).captured;
-      expect(captured.single, <String, dynamic>{'username': 'Ahmad Khaled'});
+      expect((captured.single as Map)['username'], 'Ahmad Khaled');
     });
 
     test('blank input is a NO-OP (never blanks the projection)', () async {
@@ -70,6 +97,7 @@ void main() {
     });
 
     test('401 maps to DisplayNameFailure.unauthorized', () async {
+      stubMe();
       when(() => dio.put<Map<String, dynamic>>(
             any(),
             data: any(named: 'data'),
@@ -93,6 +121,7 @@ void main() {
     });
 
     test('connection error maps to DisplayNameFailure.network', () async {
+      stubMe();
       when(() => dio.put<Map<String, dynamic>>(
             any(),
             data: any(named: 'data'),
