@@ -16,6 +16,8 @@
 //     (jeeber b4c26077) is returned by `/v1/deliveries?role=jeeber` as
 //     `{items:[{id, status:"accepted", jeeberId, ...}], totalCount:1}`.
 
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -162,6 +164,58 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(repo.calls, 1);
+    });
+
+    // PUSH-UI-REACTION (2026-07-05): a push (offer_accepted / delivery-status)
+    // publishes on the shared refresh bus; this cubit must re-pull IMMEDIATELY
+    // instead of waiting for its (long) poll tick — the exact wire that was
+    // missing when the accepted delivery didn't surface until a force-restart.
+    test('a refresh signal triggers an immediate refetch', () async {
+      final signals = StreamController<void>.broadcast();
+      addTearDown(signals.close);
+      final repo = _FakeRepo([
+        ActiveDeliverySummary.fromJson(const {
+          'id': 'req-won',
+          'status': 'accepted',
+          'title': 'Flash delivery request',
+        }),
+      ]);
+      final cubit = ActiveDeliveriesCubit(
+        repository: repo,
+        // Long poll so the ONLY refetch under test comes from the push signal.
+        pollInterval: const Duration(hours: 1),
+        refreshSignals: signals.stream,
+      );
+      addTearDown(cubit.close);
+
+      cubit.start();
+      await Future<void>.delayed(Duration.zero);
+      expect(repo.calls, 1); // initial load
+
+      // Simulate the push handler publishing an "offer accepted" refetch signal.
+      signals.add(null);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(repo.calls, 2); // re-pulled off the push, not the poll
+      expect(cubit.state.hasDeliveries, isTrue);
+      expect(cubit.state.deliveries.single.id, 'req-won');
+    });
+
+    test('with no refresh signal wired the poll path is unaffected (no crash)',
+        () async {
+      final repo = _FakeRepo(const []);
+      final cubit = ActiveDeliveriesCubit(
+        repository: repo,
+        pollInterval: const Duration(hours: 1),
+        // refreshSignals intentionally omitted (bare-harness / null path).
+      );
+      addTearDown(cubit.close);
+
+      cubit.start();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(repo.calls, 1);
+      expect(cubit.state.phase, ActiveDeliveriesPhase.loaded);
     });
   });
 

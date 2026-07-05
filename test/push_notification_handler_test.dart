@@ -170,6 +170,48 @@ void main() {
       );
       expect(await countSignalsFor(noId), 0);
     });
+
+    // PUSH-UI-REACTION (2026-07-05): a foreground `offer_accepted` push means
+    // this jeeber just won a delivery — the "Your active deliveries" card
+    // (ActiveDeliveriesCubit) subscribes to this same bus and must re-pull. The
+    // on-device gap was that nothing signalled a refetch off this push, so the
+    // card only surfaced after a force-restart.
+    test('an offer_accepted push signals a status change (active-deliveries '
+        'refetch)', () async {
+      final accepted = NotificationMessage(
+        id: 's4',
+        category: NotificationCategory.offerAccepted,
+        title: 'Offer accepted',
+        body: 'The customer accepted your offer',
+        receivedAt: DateTime.utc(2026, 5, 17),
+        data: const {'offerId': 'off-1', 'requestId': 'req-9'},
+      );
+      expect(await countSignalsFor(accepted), 1);
+    });
+
+    test('an offer_accepted push signals even with no id (the card re-pulls '
+        'its own snapshot)', () async {
+      final acceptedNoId = NotificationMessage(
+        id: 's5',
+        category: NotificationCategory.offerAccepted,
+        title: 'Offer accepted',
+        body: 'b',
+        receivedAt: DateTime.utc(2026, 5, 17),
+      );
+      expect(await countSignalsFor(acceptedNoId), 1);
+    });
+
+    test('an unknown (other) push is a no-op: no signal, no crash', () async {
+      final unknown = NotificationMessage(
+        id: 's6',
+        category: NotificationCategory.other,
+        title: 'T',
+        body: 'B',
+        receivedAt: DateTime.utc(2026, 5, 17),
+        data: const {'weird': 'payload'},
+      );
+      expect(await countSignalsFor(unknown), 0);
+    });
   });
 
   group('offer-lifecycle signal (sprint-009)', () {

@@ -7,6 +7,7 @@ import 'package:omds/omds.dart';
 
 import '../../../core/dev_seam/dev_seam.dart';
 import '../../../core/di/injection_container.dart';
+import '../../../core/notifications/application/push_refresh_signals.dart';
 import '../../../core/session/greeting_profile_cubit.dart';
 import '../../../core/session/jeeber_kyc_status_gate.dart';
 import '../../../core/session/profile_refresh_signals.dart';
@@ -177,6 +178,15 @@ class _JeeberHomeHost extends StatelessWidget {
     return sl<ProfileRefreshSignals>().stream;
   }
 
+  /// Push-driven refetch bus off GetIt when registered; `null` under a bare
+  /// harness so the active-deliveries card falls back to its poll. The push
+  /// handler publishes on this bus on an `offer_accepted` / delivery-status
+  /// push (see PushNotificationHandler).
+  Stream<void>? _pushRefreshStream() {
+    if (!sl.isRegistered<PushRefreshSignals>()) return null;
+    return sl<PushRefreshSignals>().stream;
+  }
+
   @override
   Widget build(BuildContext context) {
     return MultiBlocProvider(
@@ -196,6 +206,12 @@ class _JeeberHomeHost extends StatelessWidget {
         BlocProvider<ActiveDeliveriesCubit>(
           create: (_) => ActiveDeliveriesCubit(
             repository: _resolveActiveDeliveriesRepository(),
+            // PUSH-UI-REACTION: re-pull the instant an `offer_accepted` /
+            // delivery-status push lands (the handler publishes on this bus) so
+            // the "Your active deliveries" card reacts to the push instead of
+            // waiting for the 10s poll. Null under a bare harness (no DI) → the
+            // cubit falls back to the poll, unchanged.
+            refreshSignals: _pushRefreshStream(),
           )..start(),
         ),
         // P0-X06: source the jeeber-home greeting (name + avatar) from the live

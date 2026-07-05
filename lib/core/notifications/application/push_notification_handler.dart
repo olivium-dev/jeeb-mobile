@@ -229,8 +229,22 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
   /// carrying an order/delivery/request id is an order status change. Signal the
   /// refresh bus so the customer's In Progress list and any live tracking
   /// surface re-pull promptly — instead of waiting up to the 10s home poll.
+  ///
+  /// PUSH-UI-REACTION (2026-07-05): an `offer_accepted` push ALSO fires this bus.
+  /// When the customer accepts this jeeber's offer, the jeeber now owns an ACTIVE
+  /// delivery — the Dashboard "Your active deliveries" card must re-pull
+  /// immediately. On-device evidence: the jeeber received the `offer_accepted`
+  /// push in the foreground yet the card did not appear until a force-restart,
+  /// because the ActiveDeliveriesCubit backing that card reacted to NO push and
+  /// leaned solely on its slow 10s wall-clock poll. No id is required here — the
+  /// card just re-pulls its own snapshot (`GET /v1/deliveries?role=jeeber`); the
+  /// tap-time deep-link keeps its own id handling in [deepLinkForMessage].
   void _maybeSignalStatusChange(NotificationMessage message) {
     if (_refreshSignals == null) return;
+    if (message.category == NotificationCategory.offerAccepted) {
+      _refreshSignals.signalStatusChange();
+      return;
+    }
     if (message.category != NotificationCategory.delivery) return;
     final data = message.data;
     final id = data['delivery_id'] ??
