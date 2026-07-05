@@ -7,17 +7,17 @@ import 'password_security_state.dart';
 /// Owns the three visibility toggles and the current/new/confirm validation
 /// gate.
 ///
-/// SCOPE (JM-061 AC `Mock: —`; integrator note "no mock dependency — this is
-/// local validation"): the change path validates locally and reaches
-/// [PasswordSecurityStatus.succeeded]; the screen's `listener` then routes back
-/// to customer-profile. It does NOT hit the network — the only server write in
-/// this surface is the SOCIAL-ONLY "set a password" path, which is delegated to
-/// the existing JM-022 set-password screen (`/set-password?mode=in-app-social`)
-/// via the `password_set_entry` CTA, and that screen owns the
-/// `POST /v1/auth/set-password` call. The mock has no current-password verify
-/// nor a change-by-bearer endpoint (42_GUARDRAILS_MOCK), so verifying the
-/// current password server-side is out of contract; this cubit treats the
-/// current field as a required, client-validated input only.
+/// SCOPE (B-33): the change-password form validates locally, but there is NO
+/// change-password endpoint in the app's data layer — the gateway exposes only
+/// `POST /v1/auth/set-password` (the SOCIAL-ONLY "set a password" leg, delegated
+/// to the JM-022 set-password screen via the `password_set_entry` CTA); there is
+/// no current-password verify nor a change-by-bearer contract
+/// (42_GUARDRAILS_MOCK). This cubit therefore must NOT emit a fake success on a
+/// valid form (the pre-B-33 behavior emitted `succeeded` + popped to profile
+/// with ZERO network write, so the user believed the password changed). Instead
+/// it reaches [PasswordSecurityStatus.unavailable]; the screen surfaces an
+/// honest "not available yet" notice and stays put. When the gateway ships a
+/// change-password endpoint, wire it in place of the `unavailable` emit.
 class PasswordSecurityCubit extends Cubit<PasswordSecurityState> {
   PasswordSecurityCubit({
     ChangePasswordPolicy policy = const ChangePasswordPolicy(),
@@ -57,8 +57,9 @@ class PasswordSecurityCubit extends Cubit<PasswordSecurityState> {
   /// emits [PasswordSecurityStatus.failed] with the [ChangePasswordValidation]
   /// reason and does NOT navigate (validation stays on screen — 67_W34_TEST_PLAN
   /// nav assertion `password_submit_cta (mismatched) → password_mismatch_error`).
-  /// On a valid form it emits [PasswordSecurityStatus.succeeded] (the screen
-  /// pops back to customer-profile).
+  /// On a valid form it emits [PasswordSecurityStatus.unavailable] (B-33: no
+  /// change-password endpoint exists, so the screen shows an honest notice and
+  /// does NOT navigate — it never fakes success).
   void submit({
     required String current,
     required String newPassword,
@@ -79,10 +80,11 @@ class PasswordSecurityCubit extends Cubit<PasswordSecurityState> {
       return;
     }
 
-    // Local-validation success (AC `Mock: —`). Reach succeeded so the screen's
-    // listener navigates back to the profile.
+    // B-33: the form is valid, but the client has no change-password endpoint
+    // to call. Do NOT fake success — reach the honest `unavailable` terminal
+    // state so the screen surfaces a "not available yet" notice and stays put.
     emit(state.copyWith(
-      status: PasswordSecurityStatus.succeeded,
+      status: PasswordSecurityStatus.unavailable,
       clearValidation: true,
     ));
   }

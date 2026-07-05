@@ -43,6 +43,11 @@ class OfferAcceptCubit extends Cubit<OfferAcceptState> {
         requestId: _requestId,
         offerId: _offerId,
       );
+      // Guard the post-await emit: if the sheet was torn down while the POST
+      // was in flight (e.g. the whole route stack popped) the cubit is closed
+      // and emitting would throw a StateError. Belt-and-braces alongside the
+      // sheet's non-dismissible-while-submitting guard.
+      if (isClosed) return;
       emit(state.copyWith(
         status: OfferAcceptStatus.succeeded,
         result: result,
@@ -52,6 +57,7 @@ class OfferAcceptCubit extends Cubit<OfferAcceptState> {
         'status': 'succeeded',
       });
     } on OffersRepositoryException catch (e) {
+      if (isClosed) return;
       emit(state.copyWith(
         status: OfferAcceptStatus.failed,
         error: e.failure,
@@ -62,6 +68,7 @@ class OfferAcceptCubit extends Cubit<OfferAcceptState> {
         'failure': e.failure.name,
       });
     } catch (_) {
+      if (isClosed) return;
       emit(state.copyWith(
         status: OfferAcceptStatus.failed,
         error: OffersFailure.unknown,

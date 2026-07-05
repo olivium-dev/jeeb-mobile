@@ -66,7 +66,18 @@ class _KycRejectedView extends StatelessWidget {
       container: true,
       explicitChildNodes: true,
       child: Scaffold(
-        appBar: OMDSAppBar(title: l10n.kycRejectedTitle, showBackButton: true),
+        appBar: OMDSAppBar(
+          title: l10n.kycRejectedTitle,
+          showBackButton: true,
+          // JEBV4-13 P1-6: without an explicit destination, OMDSAppBar's
+          // default `maybePop()` no-ops when this screen is the stack root,
+          // leaving the AppBar back arrow dead. Mirror the screen's own
+          // `kyc_rejected_back_cta` exit (→ customer-profile) as the
+          // fallback when there's nothing to pop.
+          onBackPressed: () => context.canPop()
+              ? context.pop()
+              : context.goNamed('customer-profile'),
+        ),
         body: ListView(
           padding: const EdgeInsetsDirectional.fromSTEB(
             Spacing.medium,

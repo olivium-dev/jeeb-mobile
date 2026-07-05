@@ -23,6 +23,13 @@ enum RequestSubmissionFailure {
   /// The gateway rejected the payload (4xx other than auth/conflict).
   invalidInput,
 
+  /// JEBV4-108: the gateway rejected the SESSION (HTTP 401) — the bearer is
+  /// invalid/expired (e.g. a synthetic dev-seam token the live gateway
+  /// refuses). Retrying with the same session can never succeed; the honest
+  /// surface is "session expired — log in again" + a route to re-auth, never
+  /// a connectivity/generic-failure message.
+  unauthorized,
+
   /// Network unreachable / timed out — safe to retry.
   network,
 

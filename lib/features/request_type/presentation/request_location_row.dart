@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/widgets/directional_icons.dart';
+
 /// The "Location" section row on the Request type screen (Figma 56535:2392):
 /// a start-aligned "Current Location" label and an end-aligned "Change
 /// Location" text action with a trailing chevron. The action area is the tap
@@ -103,7 +105,8 @@ class _ActionContent extends StatelessWidget {
         children: [
           Text(label, style: style),
           const SizedBox(width: Spacing.twoXSmall),
-          Icon(Icons.chevron_right, size: Sizes.large, color: scheme.primary),
+          Icon(DirectionalIcons.disclosure(context),
+              size: Sizes.large, color: scheme.primary),
         ],
       ),
     );

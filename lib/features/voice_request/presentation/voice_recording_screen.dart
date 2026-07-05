@@ -32,6 +32,18 @@ class VoiceRecordingKeys {
       Key('voice_request_record_another_button');
 }
 
+/// Signature of the sent handoff. Carries the gateway upload id, the optional
+/// machine transcript, and (JEBV4-13) the recorder's on-device file path +
+/// clip duration — the upload id is a gateway `audioId`, NOT a locally
+/// playable path, so without [localAudioPath] the transcription review's
+/// replay control had nothing real to play.
+typedef VoiceSentCallback = void Function(
+  String id,
+  String? transcript, {
+  String? localAudioPath,
+  Duration duration,
+});
+
 /// Screen that lets the user record a voice request, preview it, and send it
 /// to the gateway (JEEB-60 / T-mobile-007).
 ///
@@ -58,7 +70,7 @@ class VoiceRecordingScreen extends StatelessWidget {
   /// reads `clip.transcript`). The transcript is `null` when the gateway
   /// resolves it asynchronously; callers must tolerate null. Defaults to a
   /// no-op so the screen can also be used as a standalone surface.
-  final void Function(String id, String? transcript)? onSent;
+  final VoiceSentCallback? onSent;
 
   @override
   Widget build(BuildContext context) {
@@ -103,7 +115,7 @@ class VoiceRecordingScreen extends StatelessWidget {
 class _VoiceRecordingView extends StatelessWidget {
   const _VoiceRecordingView({this.onSent});
 
-  final void Function(String id, String? transcript)? onSent;
+  final VoiceSentCallback? onSent;
 
   @override
   Widget build(BuildContext context) {
@@ -124,7 +136,15 @@ class _VoiceRecordingView extends StatelessWidget {
               // transcription-result screen lands on the happy path when the
               // gateway returned the transcript synchronously (T-MOB-011 →
               // T-MOB-TRANSCRIPT). `transcript` is null when resolved async.
-              onSent?.call(state.result!.id, state.result!.transcript);
+              // JEBV4-13: also hand over the recorder's on-device file path +
+              // duration — the id is a gateway audioId, not a playable path,
+              // so the review screen's replay control needs the local file.
+              onSent?.call(
+                state.result!.id,
+                state.result!.transcript,
+                localAudioPath: state.clip?.sourcePath,
+                duration: state.clip?.duration ?? Duration.zero,
+              );
             }
             final error = state.error;
             if (error != null && !_isBlockingError(error)) {

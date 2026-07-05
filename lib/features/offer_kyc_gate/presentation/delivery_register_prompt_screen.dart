@@ -34,6 +34,12 @@ class DeliveryRegisterPromptScreen extends StatelessWidget {
         appBar: OMDSAppBar(
           title: l10n.offerKycGateTitle,
           showBackButton: true,
+          // JEBV4-13 P1-6: without an explicit destination, OMDSAppBar's
+          // default `maybePop()` no-ops when this screen is the stack root
+          // (reached via `go`), leaving the AppBar back arrow dead. Mirror
+          // the screen's own `delivery_register_prompt_back` exit.
+          onBackPressed: () =>
+              context.canPop() ? context.pop() : context.go('/'),
         ),
         body: ListView(
           padding: const EdgeInsetsDirectional.fromSTEB(

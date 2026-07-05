@@ -116,14 +116,30 @@ class ComposeRequestController {
   /// so we never POST a null tier.
   String? get _tierId => _tier?.wireId ?? _tier?.id.name;
 
+  /// Tracks the single outstanding `POST /requests` so a re-entrant submit
+  /// (B-02b) — e.g. the confirm CTA re-tapped after backing out to the tier
+  /// step and returning, where the footer's own `_submitting` guard was reset —
+  /// joins the in-flight call instead of firing a second create. Cleared when
+  /// the call settles so a legitimate retry after failure still works.
+  Future<String>? _inFlight;
+
   /// Builds the [RequestDraft] from the recorded tier + the confirmed location,
   /// calls `POST /requests`, and returns the server-minted request id.
   ///
   /// Throws [RequestSubmissionException] on failure (the caller surfaces an
   /// error and stays on the location step rather than handing off `'new'`).
-  Future<String> submitFromLocation(LocationSelectState location) {
-    final draft = _buildDraft(location);
-    return _submission.submit(draft);
+  ///
+  /// B-02b: re-entrant while a create is in flight → returns the SAME future
+  /// (the create fires exactly once).
+  Future<String> submitFromLocation(LocationSelectState location) =>
+      _inFlight ??= _submitOnce(location);
+
+  Future<String> _submitOnce(LocationSelectState location) async {
+    try {
+      return await _submission.submit(_buildDraft(location));
+    } finally {
+      _inFlight = null;
+    }
   }
 
   RequestDraft _buildDraft(LocationSelectState location) {

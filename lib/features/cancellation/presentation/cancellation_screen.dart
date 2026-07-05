@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/di/injection_container.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/cancellation_repository.dart';
 import '../domain/cancellation_result.dart';
@@ -29,12 +31,20 @@ class CancellationScreen extends StatelessWidget {
   /// Injectable for widget tests; production resolves via DI.
   final CancellationRepository? repository;
 
+  /// Resolves the repo: an explicit override (tests) → the GetIt-registered
+  /// [DioCancellationRepository]. The `/orders/:id/cancel` route builder passes
+  /// no `repository` and no `Provider<CancellationRepository>` exists in the
+  /// widget tree (it lives only in GetIt), so reading it from `context`
+  /// threw ProviderNotFoundException on every open (P0-CANCEL-CRASH). Resolve
+  /// via `sl` — the same pattern SearchResultsScreen/NotificationsListScreen
+  /// use for a DI-only repository.
+  CancellationRepository _resolveRepository() =>
+      repository ?? sl<CancellationRepository>();
+
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => CancellationCubit(
-        repository ?? context.read<CancellationRepository>(),
-      ),
+      create: (_) => CancellationCubit(_resolveRepository()),
       child: _CancellationView(
         deliveryId: deliveryId,
         isJeeber: isJeeber,
@@ -126,15 +136,18 @@ class _CancellationViewState extends State<_CancellationView> {
         message: AppLocalizations.of(context).cancellationTooLate,
       );
     } else if (state is CancellationError) {
-      showOmdsSnackbar(context, message: state.message);
+      showOmdsSnackbar(
+        context,
+        message: AppLocalizations.of(context).cancellationGenericError,
+      );
     }
   }
 
   void _showRateLimitSnack(BuildContext context, DateTime? retryAfter) {
     final l10n = AppLocalizations.of(context);
-    final dateStr = retryAfter != null
-        ? '${retryAfter.day}/${retryAfter.month}/${retryAfter.year}'
-        : '';
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    final dateStr =
+        retryAfter != null ? DateFormat.yMd(locale).format(retryAfter) : '';
     final message = l10n.cancellationRateLimitMessage(dateStr);
     showOmdsSnackbar(context, message: message);
   }

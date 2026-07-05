@@ -4,6 +4,7 @@ import 'package:omds/omds.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../application/transcription_cubit.dart';
+import '../domain/audioplayers_transcript_audio_player.dart';
 import '../domain/transcript_audio_player.dart';
 import '../domain/voice_clip.dart';
 import 'widgets/transcription_audio_card.dart';
@@ -65,8 +66,11 @@ class TranscriptionScreen extends StatelessWidget {
   /// Optional injected cubit (tests). Production builds one from the clip.
   final TranscriptionCubit? cubit;
 
-  /// Optional audio player override (tests). Defaults to the inert no-op player
-  /// so production never crashes on a missing backend registration.
+  /// Optional audio player override (tests). Production defaults to the
+  /// `audioplayers`-backed [AudioPlayersTranscriptAudioPlayer] (JEBV4-13 —
+  /// this used to default to the inert no-op player, leaving the visible
+  /// replay control dead). The real adapter is lazy: it only touches platform
+  /// channels on first play, so route tables / widget tests stay safe.
   final TranscriptAudioPlayer? audioPlayer;
 
   @override
@@ -76,8 +80,9 @@ class TranscriptionScreen extends StatelessWidget {
       return BlocProvider<TranscriptionCubit>.value(value: cubit!, child: view);
     }
     return BlocProvider<TranscriptionCubit>(
-      create: (_) =>
-          TranscriptionCubit(player: audioPlayer)..seedFromClip(clip),
+      create: (_) => TranscriptionCubit(
+        player: audioPlayer ?? AudioPlayersTranscriptAudioPlayer(),
+      )..seedFromClip(clip),
       child: view,
     );
   }

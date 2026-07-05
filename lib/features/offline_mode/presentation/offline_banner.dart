@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../l10n/app_localizations.dart';
 import '../application/offline_cubit.dart';
 
 class OfflineBanner extends StatelessWidget {
@@ -12,7 +13,10 @@ class OfflineBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<OfflineCubit, OfflineState>(
       builder: (context, state) {
-        if (state.status == ConnectivityStatus.online) {
+        // JEBV4-13: honour the per-episode dismissal — DISMISS used to be a
+        // dead `onTap: () {}`; the cubit re-arms on the next offline episode.
+        if (state.status == ConnectivityStatus.online ||
+            state.bannerDismissed) {
           return const SizedBox.shrink();
         }
         return const _OfflineMaterialBanner();
@@ -29,9 +33,10 @@ class _OfflineMaterialBanner extends StatelessWidget {
     // Offline-with-sync-pending is a warning state (recoverable, data safe),
     // not an error -> semantic warning role.
     final roles = context.jeebRoles;
+    final l10n = AppLocalizations.of(context);
     return MaterialBanner(
       content: Text(
-        'You are offline. Changes will sync when connection is restored.',
+        l10n.offlineBannerMessage,
         style: TextStyle(color: roles.onWarningContainer),
       ),
       leading: Icon(
@@ -41,10 +46,10 @@ class _OfflineMaterialBanner extends StatelessWidget {
       backgroundColor: roles.warningContainer,
       actions: [
         OmdsPrimaryButton(
-          text: 'DISMISS',
+          text: l10n.commonDismiss,
           variant: OmdsButtonVariant.text,
           textColor: roles.onWarningContainer,
-          onTap: () {},
+          onTap: () => context.read<OfflineCubit>().dismissBanner(),
         ),
       ],
     );

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/widgets/directional_icons.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/notification_prefs_cubit.dart';
 import '../application/notification_prefs_state.dart';
@@ -72,7 +73,7 @@ class _NotificationPrefsScreenState extends State<NotificationPrefsScreen> {
             button: true,
             container: true,
             child: IconButton(
-              icon: const Icon(Icons.arrow_back),
+              icon: Icon(DirectionalIcons.back(context)),
               tooltip: l10n.kycWizardBack,
               onPressed: _onBack,
             ),

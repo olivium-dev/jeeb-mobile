@@ -25,8 +25,12 @@ import '../../features/jeeber_home/domain/services/availability_gateway.dart';
 import '../../features/jeeber_request_detail/domain/services/prohibited_item_report_service.dart';
 import '../../features/jeeber_request_feed/data/dio_request_feed_repository.dart';
 import '../../features/jeeber_request_feed/data/request_feed_repository.dart';
+import '../../features/kyc/data/dio_cdn_asset_gateway.dart';
 import '../../features/kyc/data/dio_kyc_gateway.dart';
+import '../../features/kyc/domain/cdn_asset_gateway.dart';
 import '../../features/kyc/domain/kyc_gateway.dart';
+import '../../features/photo_attachment/data/image_picker_photo_picker_service.dart';
+import '../../features/photo_attachment/domain/photo_picker_service.dart';
 import '../../features/live_tracking/data/dio_live_tracking_repository.dart';
 import '../../features/live_tracking/domain/live_tracking_repository.dart';
 import '../../features/notification_prefs/data/dio_notification_prefs_repository.dart';
@@ -40,6 +44,8 @@ import '../../features/otp_handover/domain/handover_code_store.dart';
 import '../../features/otp_handover/domain/otp_handover_repository.dart';
 import '../../features/escalate/data/dio_escalate_repository.dart';
 import '../../features/escalate/domain/escalate_repository.dart';
+import '../../features/rate_app/data/in_app_review_launcher.dart';
+import '../../features/rate_app/domain/app_review_launcher.dart';
 import '../../features/rating/data/dio_rating_repository.dart';
 import '../../features/rating/domain/rating_repository.dart';
 import '../../features/registration/data/dio_otp_service.dart';
@@ -62,6 +68,8 @@ import '../../features/notifications/data/local_merging_notifications_repository
 import '../../features/notifications/domain/notifications_repository.dart';
 import '../notifications/data/shared_prefs_local_push_inbox.dart';
 import '../notifications/domain/local_push_inbox.dart';
+import '../../features/search/data/dio_search_repository.dart';
+import '../../features/search/domain/search_repository.dart';
 import '../../features/support/data/dio_support_repository.dart';
 import '../../features/support/domain/support_repository.dart';
 import '../../features/dispute_status/data/dio_dispute_status_repository.dart';
@@ -96,7 +104,6 @@ import '../../features/offers/domain/offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
 import '../../features/settlement/data/dio_settlement_repository.dart';
 import '../../features/settlement/domain/settlement_repository.dart';
-import '../config/app_config.dart';
 import '../network/auth_token_store.dart';
 import '../network/mock_gateway_client.dart';
 import '../observability/crash_reporter.dart';
@@ -143,6 +150,11 @@ void configureDependencies({
   // offer_accepted/offer_lost event; the jeeber's pending-offers list
   // subscribes, flips the row badge, and re-pulls. Shared single instance.
   sl.registerLazySingleton<OfferLifecycleSignals>(() => OfferLifecycleSignals());
+
+  // JM-064 / JEBV4-13: native store-review sheet (in_app_review). The
+  // customer-profile rate-app row resolves this registration and stops
+  // falling back to the NoopAppReviewLauncher (wave-1 P2-1 dead CTA).
+  sl.registerLazySingleton<AppReviewLauncher>(() => const InAppReviewLauncher());
 
   // BUG-7 (physical-run6): inject the local profile store so a successful
   // phone-OTP verify PERSISTS the signed-in E.164 phone to `settings.profile.v1`
@@ -211,15 +223,12 @@ void configureDependencies({
     () => DefaultSuperLoginService(dio: sl<Dio>()),
   );
 
-  // "Super user login plus": lists ALL active users via the passcode-gated
-  // POST /api/User/super-login/users (debug-only). Same Dio client as every
-  // other gateway data source; the SuperAdmin passcode comes from AppConfig
-  // (build-time --dart-define or the debug fallback).
+  // "Super user login plus": lists the demo roster via the anonymous,
+  // OpenMode-gated GET /api/User/demo-users (debug-only). Same Dio client as
+  // every other gateway data source. The roster GET carries no passcode; the
+  // tap→login re-uses AppConfig.superAdminPassCode on /api/User/user-id-login.
   sl.registerLazySingleton<SuperLoginDemoUserService>(
-    () => DefaultSuperLoginDemoUserService(
-      dio: sl<Dio>(),
-      superAdminPassCode: AppConfig.superAdminPassCode,
-    ),
+    () => DefaultSuperLoginDemoUserService(dio: sl<Dio>()),
   );
 
   sl.registerLazySingleton<OrderRepository>(
@@ -330,8 +339,23 @@ void configureDependencies({
     () => const ProhibitedItemReportService(),
   );
 
-  // KYC — submit + status from auth-service via gateway.
-  sl.registerLazySingleton<KycGateway>(() => DioKycGateway(sl<Dio>()));
+  // KYC — submit + status from auth-service via gateway. `submit` composes
+  // the CDN signed-PUT broker (`POST /api/cdn/assets`) to turn captured
+  // photos into `*_url` refs before posting (JEBV4-113).
+  sl.registerLazySingleton<CdnAssetGateway>(
+    () => DioCdnAssetGateway(sl<Dio>()),
+  );
+  sl.registerLazySingleton<KycGateway>(
+    () => DioKycGateway(sl<Dio>(), sl<CdnAssetGateway>()),
+  );
+
+  // JEBV4-111: real camera/gallery picker. Without this registration every
+  // capture surface (DM-onboarding photo, KYC ID/selfie tiles, JM-051 proof
+  // photos) silently fell back to StubPhotoPickerService, whose synthetic
+  // bytes render as "Invalid image data" instead of opening the camera.
+  sl.registerLazySingleton<PhotoPickerService>(
+    () => ImagePickerPhotoPickerService(),
+  );
 
   // Rating — post-delivery star rating via score-taking-service.
   sl.registerLazySingleton<RatingRepository>(
@@ -550,6 +574,16 @@ void configureDependencies({
       ),
       localInbox: sl<LocalPushInbox>(),
     ),
+  );
+
+  // Sprint-5 Stream C search: the gateway free-text search BFF
+  // (GET /v1/search?q=). The route is not live yet, so the Dio repo maps a 404
+  // to SearchFailure.unavailable → the results screen renders an honest
+  // "search isn't available yet" empty state (no dead-end). Same code path
+  // returns real hits once the BFF lands. Restored in cycle-6 alongside the
+  // dropped /search routes (see bugs/notif-prefs-405.md §Bug 2).
+  sl.registerLazySingleton<SearchRepository>(
+    () => DioSearchRepository(dio: sl<Dio>()),
   );
 
   // LIVE(JM-063): the support-ticket service (S1) has landed — the gateway now

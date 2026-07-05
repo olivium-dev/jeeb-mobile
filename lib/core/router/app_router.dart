@@ -48,6 +48,8 @@ import '../../features/language/presentation/screens/language_settings_screen.da
 import '../../features/notifications/presentation/notifications_list_screen.dart';
 import '../../features/password_security/presentation/password_security_screen.dart';
 import '../../features/reviews/presentation/reviews_list_screen.dart';
+import '../../features/search/presentation/search_screen.dart';
+import '../../features/search/presentation/search_results_screen.dart';
 import '../../features/support/presentation/support_ticket_screen.dart';
 import '../../features/escalate/application/escalate_cubit.dart';
 import '../../features/escalate/domain/escalate_repository.dart';
@@ -68,10 +70,12 @@ import '../../features/live_tracking/data/demo_live_tracking_repository.dart';
 import '../../features/live_tracking/domain/live_tracking_repository.dart';
 import '../../features/live_tracking/presentation/live_tracking_screen.dart';
 import '../../features/delivery_receipt/presentation/delivery_receipt_screen.dart';
+import '../../features/location/data/location_repository.dart' show LocationPoint;
 import '../../features/location/presentation/capture_location_screen.dart';
 import '../../features/location/presentation/client_location_screen.dart';
 import '../../features/location/presentation/screens/address_detail_form_screen.dart';
 import '../../features/location/presentation/screens/location_picker_screen.dart';
+import '../../features/location/presentation/widgets/map_capture_controller.dart';
 import '../../features/no_offer_timeout/presentation/no_offer_timeout_screen.dart';
 import '../../features/order_summary/presentation/order_summary_screen.dart';
 import '../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
@@ -110,6 +114,63 @@ import '../di/injection_container.dart';
 import '../diagnostics/diagnostics.dart';
 import '../diagnostics/diagnostics_screen.dart';
 import '../onboarding/onboarding_cubit.dart';
+
+/// B-35: canonical default centre for the capture-location placeholder map
+/// (Beirut downtown — the same point [GoogleMapPickerLauncher] seeds). Until the
+/// live draggable GoogleMap viewport lands (B-23, Maps key owner-gated), the
+/// confirmed "Pin Location" carries this coordinate back to client-location
+/// instead of being discarded.
+const LocationPoint _captureDefaultCenter =
+    LocationPoint(latitude: 33.8938, longitude: 35.5018);
+
+/// `/capture-location` route host (B-35).
+///
+/// Mirrors `GoogleMapPickerLauncher` — tracks the map centre in a
+/// [MapCaptureController] and, on "Pin Location", pops it back to
+/// client-location as the picked [LocationPoint] (which the create draft then
+/// threads into the `POST /requests` body). Owning the controller in a
+/// [State] lets us DISPOSE it (it is a [ChangeNotifier]); the old inline
+/// builder created one per navigation and never disposed it.
+///
+/// B-35 STATUS: PLUMBING-COMPLETE-PENDING-B-23. The result-passing plumbing is
+/// real (router pops the controller's coordinate, client-location consumes it),
+/// but no LIVE draggable map is injected yet — the neutral [CaptureMapViewport]
+/// placeholder never calls [MapCaptureController.updateCenter], so today the
+/// confirmed pin carries the canonical [_captureDefaultCenter] rather than a
+/// user-picked point. A real picked coordinate only flows once a live
+/// `GoogleMap` `mapBuilder` is injected here (B-23, Maps key owner-gated). We do
+/// NOT fabricate a fake picked coordinate in the meantime.
+@visibleForTesting
+class CaptureLocationRoute extends StatefulWidget {
+  const CaptureLocationRoute({super.key});
+
+  @override
+  State<CaptureLocationRoute> createState() => _CaptureLocationRouteState();
+}
+
+class _CaptureLocationRouteState extends State<CaptureLocationRoute> {
+  late final MapCaptureController _controller =
+      MapCaptureController(initial: _captureDefaultCenter);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CaptureLocationScreen(
+      // B-35: pop the confirmed pin so client-location can consume it. Once
+      // B-23 injects a live map, pass its `mapBuilder` here — that path writes
+      // real camera-idle coordinates into `_controller`, so this same pop then
+      // carries the user-picked point instead of the default.
+      onPinned: () {
+        if (context.canPop()) context.pop(_controller.center);
+      },
+    );
+  }
+}
 
 /// Top-level router.
 ///
@@ -962,12 +1023,19 @@ class AppRouter {
           // state). (The full clip surface is owned by the voice_request
           // feature; the router does the minimal-coupling bridge.)
           builder: (context, state) => VoiceRequestScreen(
-            onSent: (clipId, transcript) => context.push(
+            // JEBV4-13: forward the recorder's local file path + duration so
+            // the transcription review's replay control plays the real clip
+            // (the upload id in `audioPath` is a gateway audioId, not a path).
+            onSent: (clipId, transcript,
+                    {String? localAudioPath,
+                    Duration duration = Duration.zero}) =>
+                context.push(
               '/voice-request/transcription',
               extra: VoiceClip(
                 audioPath: clipId,
-                durationMs: 0,
+                durationMs: duration.inMilliseconds,
                 transcript: transcript,
+                localAudioPath: localAudioPath,
               ),
             ),
           ),
@@ -1010,18 +1078,18 @@ class AppRouter {
         GoRoute(
           path: '/client-location',
           name: 'client-location',
-          builder: (context, state) => ClientLocationScreen(
-            onAddLocation: () => context.push('/capture-location'),
-          ),
+          // B-35: do NOT override `onAddLocation` — the screen's own handler
+          // awaits `pushNamed('capture-location')` and threads the returned
+          // `LocationPoint` into `markPinned` (so the create payload carries the
+          // real pin). The old `context.push(...)` override was fire-and-forget:
+          // it discarded the popped coordinate, collapsing every pinned pickup to
+          // the Beirut fallback.
+          builder: (context, state) => const ClientLocationScreen(),
         ),
         GoRoute(
           path: '/capture-location',
           name: 'capture-location',
-          builder: (context, state) => CaptureLocationScreen(
-            onPinned: () {
-              if (context.canPop()) context.pop();
-            },
-          ),
+          builder: (context, state) => const CaptureLocationRoute(),
         ),
         GoRoute(
           path: '/voice-request/transcription',
@@ -1069,14 +1137,18 @@ class AppRouter {
           path: '/compose-dictation',
           name: 'compose-dictation',
           builder: (context, state) => VoiceRequestScreen(
-            onSent: (clipId, transcript) async {
+            onSent: (clipId, transcript,
+                {String? localAudioPath,
+                Duration duration = Duration.zero}) async {
               // Review step: same TranscriptionScreen, dictation-result wiring.
+              // JEBV4-13: local path + duration make the replay control real.
               final clip = await context.push<VoiceClip>(
                 '/compose-dictation/review',
                 extra: VoiceClip(
                   audioPath: clipId,
-                  durationMs: 0,
+                  durationMs: duration.inMilliseconds,
                   transcript: transcript,
+                  localAudioPath: localAudioPath,
                 ),
               );
               // Confirmed → cascade the result back to the compose field.
@@ -1589,6 +1661,30 @@ class AppRouter {
           path: '/settings/password',
           name: 'password-security',
           builder: (context, state) => const PasswordSecurityScreen(),
+        ),
+        // Sprint-5 Stream C: free-text search. `/search` is the compose
+        // surface (search bar + prompt) reached from the shell header search
+        // affordance (`*_search` → `goNamed('search')`); submitting forwards
+        // to `/search-results?q=` which runs the query against the gateway
+        // search BFF (DioSearchRepository over sl<SearchRepository>()) and
+        // renders the 4-state machine. When `/v1/search` is absent the repo
+        // surfaces an honest "search isn't available yet" empty state — no
+        // dead-end. The `q` query param makes a results link shareable +
+        // process-death-safe. Restored in cycle-6 after a cycle-4/5
+        // integration merge dropped these registrations (see
+        // bugs/notif-prefs-405.md §Bug 2); re-applies the router half of
+        // a0a1502 whose caller (shell_header_actions) survived the drop.
+        GoRoute(
+          path: '/search',
+          name: 'search',
+          builder: (context, state) => const SearchScreen(),
+        ),
+        GoRoute(
+          path: '/search-results',
+          name: 'search-results',
+          builder: (context, state) => SearchResultsScreen(
+            query: state.uri.queryParameters['q'] ?? '',
+          ),
         ),
       ]),
       errorBuilder: (context, state) =>

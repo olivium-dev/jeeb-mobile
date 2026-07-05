@@ -338,10 +338,18 @@ class _AvailableBody extends StatelessWidget {
     }
     return BlocBuilder<RequestFeedCubit, RequestFeedState>(
       builder: (context, feedState) => feedState.requests.isEmpty
-          ? _NoRequestsScope(
-              view: view,
-              profileName: profileName,
-              activeDeliveriesBanner: activeDeliveriesBanner,
+          // JEBV4-13 P2-6: the empty state's copy promises "Pull down to
+          // refresh", but this (online, feed-cubit-backed) variant was never
+          // wrapped in a refresh indicator — pulling fired NO feed GET. Wire
+          // the same OmdsPullToRefresh → cubit.refresh() the non-empty feed
+          // list already uses so the affordance is honest.
+          ? OmdsPullToRefresh(
+              onRefresh: () => context.read<RequestFeedCubit>().refresh(),
+              child: _NoRequestsScope(
+                view: view,
+                profileName: profileName,
+                activeDeliveriesBanner: activeDeliveriesBanner,
+              ),
             )
           : _FeedTabBody(
               profileName: profileName,
@@ -381,6 +389,12 @@ class _NoRequestsScope extends StatelessWidget {
     // filling the remaining space when there is room (unchanged when the banner
     // self-hides / holds a single card).
     return CustomScrollView(
+      // JEBV4-13 P2-6: without AlwaysScrollable physics this scroll view
+      // rejects the drag when its content fits the viewport (the common empty
+      // state), so the enclosing OmdsPullToRefresh could never fire. The inner
+      // JeeberNoRequestsView scroll view keeps default physics and therefore
+      // yields the gesture to this one when it has nothing to scroll.
+      physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
         SliverToBoxAdapter(
           child: activeDeliveriesBanner ?? const JeeberActiveDeliveriesBanner(),

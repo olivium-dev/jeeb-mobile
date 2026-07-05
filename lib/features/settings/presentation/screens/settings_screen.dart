@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/widgets/directional_icons.dart';
 import '../../../../core/diagnostics/diag.dart';
 import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/locale/locale_cubit.dart';
@@ -198,7 +199,7 @@ class _ProfileSection extends StatelessWidget {
             title: l10n.becomeJeeberCardTitle,
             subtitle: l10n.becomeJeeberCardSubtitle,
             leadingIcon: Icons.badge_outlined,
-            icon: Icons.chevron_right,
+            icon: DirectionalIcons.disclosure(context),
             onTap: () => context.pushNamed('kyc-status'),
           ),
         ),
@@ -222,7 +223,7 @@ class _AddressesSection extends StatelessWidget {
             title: l10n.savedAddressesTitle,
             subtitle: l10n.savedAddressesSubtitle,
             leadingIcon: Icons.location_on_outlined,
-            icon: Icons.chevron_right,
+            icon: DirectionalIcons.disclosure(context),
             onTap: () => context.pushNamed('settings-addresses'),
           ),
         ),
@@ -349,7 +350,7 @@ class _NotificationsSection extends StatelessWidget {
             title: l10n.notificationPreferencesTitle,
             subtitle: l10n.notificationPreferencesRowSubtitle,
             leadingIcon: Icons.notifications_outlined,
-            icon: Icons.chevron_right,
+            icon: DirectionalIcons.disclosure(context),
             onTap: () => context.pushNamed('settings-notifications'),
           ),
         ),
@@ -389,7 +390,7 @@ class _AboutSection extends StatelessWidget {
               title: 'Diagnostics',
               subtitle: 'Session logs · dev builds only',
               leadingIcon: Icons.bug_report_outlined,
-              icon: Icons.chevron_right,
+              icon: DirectionalIcons.disclosure(context),
               onTap: () => context.pushNamed('settings-diagnostics'),
             ),
           ),
@@ -454,7 +455,7 @@ class _AccountSection extends StatelessWidget {
               key: const Key('settings-row-sign-out'),
               title: l10n.appBarSignOut,
               leadingIcon: Icons.logout,
-              icon: Icons.chevron_right,
+              icon: DirectionalIcons.disclosure(context),
               enabled: !state.isSigningOut,
               onTap: () => _confirmSignOut(context),
             ),

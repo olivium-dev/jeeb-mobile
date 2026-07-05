@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/widgets/directional_icons.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/dm_onboarding_cubit.dart';
 import '../../application/dm_onboarding_state.dart';
@@ -98,29 +99,66 @@ class _HomeBaseMapPin extends StatelessWidget {
               width: double.infinity,
               color: scheme.surfaceContainerHighest,
               alignment: Alignment.center,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.location_on,
-                    size: Sizes.threeXLarge,
-                    color: scheme.primaryContainer,
-                  ),
-                  if (base != null && base.label.isNotEmpty) ...[
-                    const SizedBox(height: Spacing.xSmall),
-                    Text(
-                      base.label,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
-                ],
-              ),
+              child: _HomeBaseMapContent(base: base),
             ),
           ),
         );
       },
+    );
+  }
+}
+
+/// Content of the home-base map placeholder. Until a base is pinned it reads as
+/// an intentional empty map ([Icons.map_outlined] + a hint to tap Location)
+/// rather than a lone, broken-looking pin; once pinned it shows a filled pin and
+/// the chosen-place label (VIS-P1-3 placeholder quality — no Maps key wired).
+class _HomeBaseMapContent extends StatelessWidget {
+  const _HomeBaseMapContent({required this.base});
+
+  final DmOnboardingHomeBase? base;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final label = base?.label.trim() ?? '';
+    final pinned = label.isNotEmpty;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          pinned ? Icons.location_on : Icons.map_outlined,
+          size: Sizes.threeXLarge,
+          color: scheme.primaryContainer,
+        ),
+        const SizedBox(height: Spacing.xSmall),
+        _HomeBaseMapLabel(
+          text: pinned ? label : l10n.dmOnboardingServiceAreaMapPlaceholder,
+        ),
+      ],
+    );
+  }
+}
+
+class _HomeBaseMapLabel extends StatelessWidget {
+  const _HomeBaseMapLabel({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding:
+          const EdgeInsetsDirectional.symmetric(horizontal: Spacing.medium),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: Theme.of(context)
+            .textTheme
+            .bodyMedium
+            ?.copyWith(color: scheme.onSurfaceVariant),
+      ),
     );
   }
 }
@@ -202,7 +240,7 @@ class _SelectLocationRowBody extends StatelessWidget {
         ),
         const Spacer(),
         const _SelectLocationValue(),
-        Icon(Icons.chevron_right, color: scheme.primary),
+        Icon(DirectionalIcons.disclosure(context), color: scheme.primary),
       ],
     );
   }

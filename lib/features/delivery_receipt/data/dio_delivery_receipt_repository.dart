@@ -12,21 +12,24 @@ import '../domain/delivery_receipt_repository.dart';
 ///   GET  `/v1/deliveries/:deliveryId` → the delivery aggregate `{ id, status,
 ///           amount: { value, currency }, jeeberName, jeeberId,
 ///           proofPhotoUrl|evidenceUrl, ... }` (BUG-8: origin plural route).
-///   POST `/v1/payments/cod_jeeb/record` → `/unified-payment-gateway/...`
-///         — records the cash-on-delivery settlement (D11). Idempotent on
-///           `deliveryId` (mock returns the existing record on replay).
-///   POST `/v1/delivery/status/transition` → `/delivery-service/...`
-///         — SM-1 `AtDoor → Done` (D70). 422 `transition_not_allowed` when the
-///           delivery is not at a receipt-pending state. This is a GENUINELY
-///           different endpoint (a status-transition command, NOT the delivery
-///           read) — it stays SINGULAR and is deliberately NOT base-rewritten.
+///   PATCH `/v1/deliveries/:deliveryId/status` → `/delivery-service/...`
+///         — SM-1 `AtDoor → Done` (D70). Body accepts `{to}` / `{trigger}` /
+///           legacy `{status}`. Returns 422 `transition_not_allowed` when the
+///           delivery is not at a receipt-pending state (already `Done`, etc.)
+///           — treated as idempotent success. This is the ONLY confirm-receipt
+///           write: it is a real, shipped gateway route (DeliveriesController
+///           `PATCH /v1/deliveries/{id}/status`).
 ///
-/// The cash settlement is recorded BEFORE the status transition so that a
-/// confirmed (`Done`) delivery always has a matching COD record. Both calls are
-/// idempotent server-side, so a retry after a partial failure is safe.
+/// COD-COMPLETE FIX (fix/cod-complete): confirm-receipt used to POST two routes
+/// the gateway never served — `POST /v1/payments/cod_jeeb/record` (404, HARD
+/// failure that blocked rating with "Something went wrong") and
+/// `POST /v1/delivery/status/transition` (404). Both were removed. The customer
+/// is NOT the COD-settling party — the COD ledger is jeeber/server-owned and the
+/// amount is server-authoritative (BR-16), so the client never records COD. The
+/// only remaining, correct write is the idempotent status PATCH below.
 ///
-/// BUG-8 (sprint-008 run-7): only the delivery READ moved to the base-aware
-/// plural `GET /v1/deliveries/{id}` (the singular alias 404s on the live origin
+/// BUG-8 (sprint-008 run-7): the delivery READ speaks the base-aware plural
+/// `GET /v1/deliveries/{id}` (the singular alias 404s on the live origin
 /// gateway; the materialized aggregate lives at the plural route — Contract 8c).
 /// Pattern reused verbatim from `DioActiveDeliveryRepository` (T-MOB-031).
 class DioDeliveryReceiptRepository implements DeliveryReceiptRepository {
@@ -75,58 +78,39 @@ class DioDeliveryReceiptRepository implements DeliveryReceiptRepository {
 
   @override
   Future<void> confirmReceipt(DeliveryReceipt receipt) async {
-    // 1) Record the cash-on-delivery settlement (D11). The customer pays the
-    //    Jeeber in person; this stamps the COD ledger. No fee is sent — the
-    //    platform commission is a server/jeeber concern, never the customer's.
-    //    This is the load-bearing step for rating: once it 2xx's, the customer
-    //    has confirmed receipt and MUST reach the star-rating screen.
-    try {
-      await _dio.post<Map<String, dynamic>>(
-        '/v1/payments/cod_jeeb/record',
-        data: <String, dynamic>{
-          'deliveryId': receipt.deliveryId,
-          if (receipt.jeeberId != null) 'jeeberId': receipt.jeeberId,
-          // Run-22 P1-A: when the gateway dropped the amount (unknown), omit
-          // the money object entirely — the ledger derives the amount from the
-          // accepted offer server-side. NEVER stamp a fabricated 0.00 record.
-          if (receipt.hasKnownAmount)
-            'amount': <String, dynamic>{
-              'value': receipt.cashAmount,
-              'currency': receipt.currency,
-            },
-        },
-      );
-    } on DioException catch (e) {
-      // COD-record failure is the only HARD failure that blocks rating.
-      _rethrowDio(e);
-    }
-
-    // 2) Transition the delivery to Done (SM-1 `AtDoor → Done`, D70).
-    //    IDEMPOTENT: in the real two-sided flow the delivery is frequently
-    //    ALREADY `Done` by the time the customer confirms receipt (the handover
-    //    OTP path drives `AtDoor → Done` server-side). Re-issuing the transition
-    //    then returns 422 `transition_not_allowed`. That 422 is NOT a failure —
-    //    it means the delivery is already in the confirmed terminal state we
-    //    were transitioning toward, so we treat it as success and let the
-    //    customer proceed to rate. We only surface non-422 transition errors.
+    // COD-COMPLETE FIX: the customer's "Yes, I received it" is a single,
+    // idempotent SM-1 transition to `Done` — nothing more. There is NO
+    // customer-side COD write: the COD ledger is jeeber/server-owned and the
+    // amount is server-authoritative (BR-16). The old `POST
+    // /v1/payments/cod_jeeb/record` was a route the gateway never served (404),
+    // and being the only HARD failure it dead-ended the customer at "Something
+    // went wrong" before they could rate. Removing it unblocks the rating step.
     //
-    // S10 Defect B — DO NOT fire an illegal `Done → Done` transition. When the
-    // loaded receipt is ALREADY terminal (the OTP handover completed it before
-    // the customer tapped "Yes, I received it"), skip the transition POST
-    // entirely: the frozen SM-1 table correctly rejects `Done → Done` with 422,
-    // so the request is wasted round-trip + error-log noise. The COD record
-    // above (idempotent, load-bearing) still runs; the 422 swallow below stays
-    // as a belt-and-braces guard for the race where the server flips to Done
-    // between fetchReceipt and confirm. We never relax SM-1 or touch the
-    // backend 422 — we just stop asking for an invalid transition.
+    // Transition the delivery to Done via the REAL, shipped gateway route
+    // `PATCH /v1/deliveries/{id}/status` (DeliveriesController), whose body
+    // accepts `{to}` / `{trigger}` / legacy `{status}`.
+    //
+    // IDEMPOTENT: in the real two-sided flow the delivery is frequently ALREADY
+    // `Done` by the time the customer confirms receipt (the handover-OTP path
+    // drove `AtDoor → Done` server-side). Two guards keep this a safe no-op:
+    //
+    //   1) S10 Defect B — when the LOADED receipt is already terminal, skip the
+    //      PATCH entirely: the frozen SM-1 table rejects `Done → Done` with 422,
+    //      so firing it is a wasted round-trip + error-log noise.
+    //   2) Race guard — if the server flips to `Done` between fetchReceipt and
+    //      confirm, the PATCH returns 422 `transition_not_allowed`. That 422 is
+    //      NOT a failure: the delivery is already in the terminal state we were
+    //      transitioning toward, so we swallow it and let the customer rate.
+    //
+    // We never relax SM-1 or touch the backend 422 — we just stop asking for an
+    // invalid transition.
     if (_isTerminalStatus(receipt.status)) {
       return;
     }
     try {
-      await _dio.post<Map<String, dynamic>>(
-        '/v1/delivery/status/transition',
+      await _dio.patch<Map<String, dynamic>>(
+        '/v1/deliveries/${receipt.deliveryId}/status',
         data: <String, dynamic>{
-          'deliveryId': receipt.deliveryId,
           'to': _confirmedStatus,
           'trigger': 'customer_confirmed_receipt',
         },

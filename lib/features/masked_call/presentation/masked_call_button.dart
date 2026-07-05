@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
+import '../../../l10n/app_localizations.dart';
 import '../application/masked_call_cubit.dart';
 
 class MaskedCallButton extends StatelessWidget {
@@ -26,7 +27,7 @@ class _MaskedCallButtonView extends StatelessWidget {
     return BlocConsumer<MaskedCallCubit, MaskedCallState>(
       listener: _onState,
       builder: (context, state) => OmdsLoadingButton(
-        text: 'Call',
+        text: AppLocalizations.of(context).callButtonLabel,
         isLoading: state.isLoading,
         onTap: () => context.read<MaskedCallCubit>().initiateCall(orderId),
       ),
@@ -34,9 +35,10 @@ class _MaskedCallButtonView extends StatelessWidget {
   }
 
   void _onState(BuildContext context, MaskedCallState state) {
-    if (state.error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(state.error!)),
+    if (state.failed) {
+      showOmdsErrorSnackbar(
+        context,
+        message: AppLocalizations.of(context).callInitiateFailed,
       );
     }
   }

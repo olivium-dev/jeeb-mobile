@@ -2934,6 +2934,10 @@
   "@dmOnboardingPhotoStepTitle": {
     "description": "Navbar title of the photo-upload step of delivery-man onboarding (Figma 56591:5560)."
   },
+  "dmOnboardingSubmitFailed": "We couldn't confirm your service area. Check your connection and try again.",
+  "@dmOnboardingSubmitFailed": {
+    "description": "Snackbar shown when the delivery-man onboarding final Continue (service-area coverage submit) fails (JEBV4-111 — previously silent)."
+  },
   "dmOnboardingPhotoUploadTitle": "Upload a clear photo for you",
   "@dmOnboardingPhotoUploadTitle": {
     "description": "Heading of the photo-upload step of delivery-man onboarding (Figma 56591:5331)."
@@ -3013,6 +3017,10 @@
   "dmOnboardingServiceAreaLocationPlaceholder": "Select",
   "@dmOnboardingServiceAreaLocationPlaceholder": {
     "description": "Placeholder shown in the primary-location selector while no location is chosen."
+  },
+  "dmOnboardingServiceAreaMapPlaceholder": "Tap Location to set your home base",
+  "@dmOnboardingServiceAreaMapPlaceholder": {
+    "description": "Hint shown inside the empty home-base map preview on the service-area step, before any base is pinned."
   },
   "dmOnboardingContinue": "Continue",
   "@dmOnboardingContinue": {
@@ -3855,6 +3863,14 @@
   "@superLoginPickerRoleJeeber": {
     "description": "Role badge label for a jeeber (dual-role) demo user."
   },
+  "superLoginPickerSearchHint": "Search by name, role, or ID",
+  "@superLoginPickerSearchHint": {
+    "description": "Placeholder for the super-login+ picker search box that filters the full user roster."
+  },
+  "superLoginPickerNoMatches": "No users match your search.",
+  "@superLoginPickerNoMatches": {
+    "description": "Shown in the super-login+ picker when the search query matches no users."
+  },
 
   "loginTitle": "Welcome back",
   "@loginTitle": { "description": "JM-007 login screen app bar / heading." },
@@ -4182,6 +4198,8 @@
   "@passwordSecurityBody": { "description": "JM-061 stub body — the JM-061 engineer fills current/new/confirm fields + validation (D90)." },
   "passwordSetEntryCta": "Set a password",
   "@passwordSetEntryCta": { "description": "JM-061 social-only entry (password_set_entry) → auth-set-password?mode=in-app-social (D90)." },
+  "passwordChangeUnavailable": "Changing your password isn't available yet. Nothing was saved.",
+  "@passwordChangeUnavailable": { "description": "B-33: honest notice shown when the change-password form is submitted but no change-password endpoint exists — the change was NOT saved." },
   "jeeberActiveDeliveriesTitle": "Your active deliveries",
   "@jeeberActiveDeliveriesTitle": {"description": "iter6: section title above the jeeber dashboard active-deliveries list (accepted orders the jeeber is driving)."},
   "jeeberActiveDeliveriesFallbackTitle": "Delivery",
@@ -4246,5 +4264,46 @@
   "savedAddressLatitudeLabel": "Latitude",
   "@savedAddressLatitudeLabel": {"description": "Label for the latitude field on the add/edit saved-location sheet."},
   "savedAddressLongitudeLabel": "Longitude",
-  "@savedAddressLongitudeLabel": {"description": "Label for the longitude field on the add/edit saved-location sheet."}
+  "@savedAddressLongitudeLabel": {"description": "Label for the longitude field on the add/edit saved-location sheet."},
+
+  "chatCreateRequestFailed": "We could not create your request. Please try again.",
+  "@chatCreateRequestFailed": {"description": "Core-flow CREATE step: toast shown when create-and-broadcast fails (chat_detail_screen)."},
+
+  "callButtonLabel": "Call",
+  "@callButtonLabel": {"description": "Masked-call button label on the chat/handover call-counterpart affordance."},
+  "callInitiateFailed": "Could not start the call. Please try again.",
+  "@callInitiateFailed": {"description": "Masked-call failure message shown when initiating the call fails."},
+
+  "earningsAccountUnavailable": "Unable to load earnings account.",
+  "@earningsAccountUnavailable": {"description": "Jeeber earnings tab fail-closed state when no session account is available."},
+
+  "commonDismiss": "Dismiss",
+  "@commonDismiss": {"description": "Generic accessibility label for a dismiss/close affordance."},
+
+  "handoverCodeA11yLabel": "Handover code",
+  "@handoverCodeA11yLabel": {"description": "Screen-reader label for the customer's OTP handover-code display (terminal core-flow step)."},
+
+  "cancellationGenericError": "An unexpected error occurred.",
+  "@cancellationGenericError": {"description": "Generic localized error shown when cancellation fails, replacing raw backend text."},
+
+  "dmOnboardingCoverageCheckFailed": "Couldn't check coverage for this area. Please try again.",
+  "@dmOnboardingCoverageCheckFailed": {"description": "JEBV4-13 P1-5: error surface shown when the service-area Continue's coverage probe (POST /v1/matching/find-jeebers) fails; previously silent."},
+
+  "dmOnboardingPhotoPickFailed": "Couldn't use that photo. Please try again.",
+  "@dmOnboardingPhotoPickFailed": {"description": "JEBV4-13: error surface for a failed onboarding photo pick/compress; same previously-silent DmOnboardingError class as the coverage probe."},
+
+  "profilePhotoSheetSubtitle": "Choose where to pick your photo from",
+  "@profilePhotoSheetSubtitle": {"description": "JEBV4-13: subtitle of the camera/gallery source sheet opened by the profile-edit Change avatar CTA (previously a dead onTap)."},
+
+  "profilePhotoPermissionDenied": "Allow camera or photos access in Settings to change your avatar.",
+  "@profilePhotoPermissionDenied": {"description": "JEBV4-13: shown when the OS denies camera/gallery permission during the profile avatar change."},
+
+  "profilePhotoChangeFailed": "Couldn't update your photo. Please try again.",
+  "@profilePhotoChangeFailed": {"description": "JEBV4-13: generic failure surface for the profile avatar pick/persist path."},
+
+  "offlineBannerMessage": "You are offline. Changes will sync when connection is restored.",
+  "@offlineBannerMessage": {"description": "JEBV4-13: offline MaterialBanner copy (was hardcoded English); the DISMISS action uses commonDismiss."},
+
+  "createSessionExpired": "Your session has expired. Please log in again to send your request.",
+  "@createSessionExpired": {"description": "JEBV4-108: shown when POST /v1/requests returns 401 at the create seam — the session is invalid; the client routes to re-auth instead of blaming connectivity."}
 }

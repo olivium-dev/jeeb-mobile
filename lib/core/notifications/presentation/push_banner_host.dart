@@ -130,7 +130,7 @@ class _BannerCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
+          padding: const EdgeInsetsDirectional.fromSTEB(12, 12, 8, 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

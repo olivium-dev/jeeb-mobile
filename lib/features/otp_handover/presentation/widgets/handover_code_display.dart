@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../l10n/app_localizations.dart';
+
 /// G4: the customer-facing handover-code panel — large glyphs on a
 /// primary-container OMDS card, announced via a Semantics live region.
 ///
@@ -41,7 +43,7 @@ class HandoverCodeDisplay extends StatelessWidget {
     return Semantics(
       identifier: semanticsIdentifier,
       liveRegion: true,
-      label: 'OTP code',
+      label: AppLocalizations.of(context).handoverCodeA11yLabel,
       value: code.split('').join(' '),
       child: Container(
         key: displayKey,
@@ -53,12 +55,17 @@ class HandoverCodeDisplay extends StatelessWidget {
           color: theme.colorScheme.primaryContainer,
           borderRadius: OmdsBorderRadius.medium,
         ),
-        child: Text(
-          code,
-          style: style?.copyWith(
-            color: theme.colorScheme.onPrimaryContainer,
-            fontWeight: FontWeight.bold,
-            letterSpacing: Spacing.small,
+        // Bidi guard: an all-numeric code must never reorder when it sits
+        // inside an RTL (Arabic) ancestor — pin the digits to LTR.
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: Text(
+            code,
+            style: style?.copyWith(
+              color: theme.colorScheme.onPrimaryContainer,
+              fontWeight: FontWeight.bold,
+              letterSpacing: Spacing.small,
+            ),
           ),
         ),
       ),

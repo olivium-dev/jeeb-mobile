@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/widgets/directional_icons.dart';
 import '../../../l10n/app_localizations.dart';
 
 /// Entry-point for the chat experience.
@@ -128,7 +129,7 @@ class _ChatTabState extends State<ChatTab> {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right),
+                Icon(DirectionalIcons.disclosure(context)),
               ],
             ),
           ),

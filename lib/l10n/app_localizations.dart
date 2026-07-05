@@ -571,6 +571,8 @@ class AppLocalizations {
   String get superLoginPickerRetry => _get('superLoginPickerRetry');
   String get superLoginPickerRoleClient => _get('superLoginPickerRoleClient');
   String get superLoginPickerRoleJeeber => _get('superLoginPickerRoleJeeber');
+  String get superLoginPickerSearchHint => _get('superLoginPickerSearchHint');
+  String get superLoginPickerNoMatches => _get('superLoginPickerNoMatches');
 
   String get tierSelectionTitle => _get('tierSelectionTitle');
   String get tierSelectionSubtitle => _get('tierSelectionSubtitle');
@@ -1585,6 +1587,9 @@ extension AppLocalizationsRestored on AppLocalizations {
 
   // Screens 20-22 — Delivery-man onboarding wizard.
   String get dmOnboardingPhotoStepTitle => _get('dmOnboardingPhotoStepTitle');
+  String get dmOnboardingSubmitFailed => _get('dmOnboardingSubmitFailed');
+  String get dmOnboardingPhotoPickFailed =>
+      _get('dmOnboardingPhotoPickFailed');
   String get dmOnboardingPhotoUploadTitle =>
       _get('dmOnboardingPhotoUploadTitle');
   String get dmOnboardingPhotoUploadSubtitle =>
@@ -1625,6 +1630,8 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('dmOnboardingServiceAreaLocationFieldLabel');
   String get dmOnboardingServiceAreaLocationPlaceholder =>
       _get('dmOnboardingServiceAreaLocationPlaceholder');
+  String get dmOnboardingServiceAreaMapPlaceholder =>
+      _get('dmOnboardingServiceAreaMapPlaceholder');
   String get dmOnboardingContinue => _get('dmOnboardingContinue');
   String dmOnboardingStepProgressLabel({
     required int current,
@@ -2129,6 +2136,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get passwordSecurityTitle => _get('passwordSecurityTitle');
   String get passwordSecurityBody => _get('passwordSecurityBody');
   String get passwordSetEntryCta => _get('passwordSetEntryCta');
+  String get passwordChangeUnavailable => _get('passwordChangeUnavailable');
 
   // Goods cost (jeeber goods-cost entry, Sprint 5 RTL/l10n pass)
   String get goodsCostTitle => _get('goodsCostTitle');
@@ -2151,4 +2159,31 @@ extension AppLocalizationsRestored on AppLocalizations {
   // Saved-location add/edit coordinate fields (Sprint 5 RTL/l10n pass)
   String get savedAddressLatitudeLabel => _get('savedAddressLatitudeLabel');
   String get savedAddressLongitudeLabel => _get('savedAddressLongitudeLabel');
+
+  // Cycle-6 Arabic/RTL error-path + a11y strings (arabic-rtl-audit F1–F6)
+  String get chatCreateRequestFailed => _get('chatCreateRequestFailed');
+  String get callButtonLabel => _get('callButtonLabel');
+  String get callInitiateFailed => _get('callInitiateFailed');
+  String get earningsAccountUnavailable => _get('earningsAccountUnavailable');
+  String get commonDismiss => _get('commonDismiss');
+  String get handoverCodeA11yLabel => _get('handoverCodeA11yLabel');
+  String get cancellationGenericError => _get('cancellationGenericError');
+
+  // JEBV4-13 P1-5: dm-onboarding error surfaces (previously-silent DmOnboardingError)
+  // NOTE: dmOnboardingPhotoPickFailed getter is defined once above (merged from
+  // ui/cycle-6-fixes); the coverage-check surface is the ux-side addition.
+  String get dmOnboardingCoverageCheckFailed =>
+      _get('dmOnboardingCoverageCheckFailed');
+
+  // JEBV4-13: profile-edit Change-avatar flow (previously a dead onTap)
+  String get profilePhotoSheetSubtitle => _get('profilePhotoSheetSubtitle');
+  String get profilePhotoPermissionDenied =>
+      _get('profilePhotoPermissionDenied');
+  String get profilePhotoChangeFailed => _get('profilePhotoChangeFailed');
+
+  // JEBV4-13: offline banner (previously hardcoded EN + dead DISMISS)
+  String get offlineBannerMessage => _get('offlineBannerMessage');
+
+  // JEBV4-108: honest 401-at-create handling (session expiry → re-auth)
+  String get createSessionExpired => _get('createSessionExpired');
 }

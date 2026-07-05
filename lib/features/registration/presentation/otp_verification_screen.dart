@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/dev_seam/dev_seam.dart';
+import '../../../core/widgets/directional_icons.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/registration_cubit.dart';
 import '../application/registration_state.dart';
@@ -137,7 +138,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             centerTitle: false,
             leading: IconButton(
               key: const Key('registration.otpBack'),
-              icon: const Icon(Icons.arrow_back),
+              icon: Icon(DirectionalIcons.back(context)),
               onPressed: () =>
                   context.read<RegistrationCubit>().changePhone(),
             ),

@@ -985,6 +985,7 @@
   "jeeberRegisterCta": "سجّل الآن",
   "jeeberRegisterHeroSemantic": "دراجة توصيل تنطلق من هاتف",
   "dmOnboardingPhotoStepTitle": "الصورة",
+  "dmOnboardingSubmitFailed": "تعذر تأكيد منطقة الخدمة. تحقق من اتصالك وحاول مرة أخرى.",
   "dmOnboardingPhotoUploadTitle": "ارفع صورة واضحة لك",
   "dmOnboardingPhotoUploadSubtitle": "لمزيد من المصداقية",
   "dmOnboardingPhotoUploadHint": "اضغط لإضافة صورة",
@@ -1005,6 +1006,7 @@
   "dmOnboardingServiceAreaPrimaryLocationLabel": "موقعك الرئيسي",
   "dmOnboardingServiceAreaLocationFieldLabel": "الموقع",
   "dmOnboardingServiceAreaLocationPlaceholder": "اختر",
+  "dmOnboardingServiceAreaMapPlaceholder": "اضغط على الموقع لتحديد قاعدتك الرئيسية",
   "dmOnboardingContinue": "متابعة",
   "dmOnboardingStepProgressLabel": "الخطوة {current} من {total}",
   "pendingTabSearchingLabel": "البحث عن جِيبرين…",
@@ -1248,6 +1250,8 @@
   "superLoginPickerRetry": "إعادة المحاولة",
   "superLoginPickerRoleClient": "عميل",
   "superLoginPickerRoleJeeber": "جيبر",
+  "superLoginPickerSearchHint": "ابحث بالاسم أو الدور أو المعرّف",
+  "superLoginPickerNoMatches": "لا يوجد مستخدمون يطابقون بحثك.",
 
   "loginTitle": "مرحباً بعودتك",
   "loginEmailLabel": "البريد الإلكتروني",
@@ -1425,6 +1429,8 @@
   "passwordSecurityTitle": "كلمة المرور والأمان",
   "passwordSecurityBody": "غيّر كلمة المرور أو عيّن واحدة إذا سجّلت عبر حساب اجتماعي.",
   "passwordSetEntryCta": "تعيين كلمة مرور",
+  "passwordChangeUnavailable": "تغيير كلمة المرور غير متاح بعد. لم يتم حفظ أي تغيير.",
+  "@passwordChangeUnavailable": { "description": "B-33: honest notice shown when the change-password form is submitted but no change-password endpoint exists — the change was NOT saved." },
   "jeeberActiveDeliveriesTitle": "توصيلاتك النشطة",
   "@jeeberActiveDeliveriesTitle": {"description": "iter6: section title above the jeeber dashboard active-deliveries list (accepted orders the jeeber is driving)."},
   "jeeberActiveDeliveriesFallbackTitle": "توصيلة",
@@ -1462,5 +1468,20 @@
   "routeNotFound": "المسار غير موجود: {uri}",
 
   "savedAddressLatitudeLabel": "خط العرض",
-  "savedAddressLongitudeLabel": "خط الطول"
+  "savedAddressLongitudeLabel": "خط الطول",
+
+  "chatCreateRequestFailed": "تعذّر إنشاء طلبك. يرجى المحاولة مرة أخرى.",
+  "callButtonLabel": "اتصال",
+  "callInitiateFailed": "تعذّر بدء المكالمة. حاول مرة أخرى.",
+  "earningsAccountUnavailable": "تعذّر تحميل حساب الأرباح.",
+  "commonDismiss": "إغلاق",
+  "handoverCodeA11yLabel": "رمز التسليم",
+  "cancellationGenericError": "حدث خطأ غير متوقع.",
+  "dmOnboardingCoverageCheckFailed": "تعذّر التحقق من التغطية لهذه المنطقة. يرجى المحاولة مرة أخرى.",
+  "dmOnboardingPhotoPickFailed": "تعذّر استخدام هذه الصورة. يرجى المحاولة مرة أخرى.",
+  "profilePhotoSheetSubtitle": "اختر من أين تريد اختيار صورتك",
+  "profilePhotoPermissionDenied": "اسمح بالوصول إلى الكاميرا أو الصور من الإعدادات لتغيير صورتك.",
+  "profilePhotoChangeFailed": "تعذّر تحديث صورتك. يرجى المحاولة مرة أخرى.",
+  "offlineBannerMessage": "أنت غير متصل بالإنترنت. ستتم مزامنة التغييرات عند استعادة الاتصال.",
+  "createSessionExpired": "انتهت صلاحية جلستك. يرجى تسجيل الدخول مرة أخرى لإرسال طلبك."
 }
