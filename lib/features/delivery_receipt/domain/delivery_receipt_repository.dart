@@ -36,19 +36,21 @@ class DeliveryReceiptRepositoryException implements Exception {
 /// Two responsibilities:
 ///  1. **Read** the receipt view for a delivery (cash amount, Jeeber name,
 ///     proof photo) so the prompt can render.
-///  2. **Confirm** receipt — the SM-1 `AtDoor → Done` transition (D70) plus the
-///     cash-on-delivery settlement record (D11, no commission shown to the
-///     customer). The cash record is recorded server-side; the customer-facing
-///     screen never displays the platform fee.
+///  2. **Confirm** receipt — the idempotent SM-1 `AtDoor → Done` transition
+///     (D70). The cash-on-delivery ledger (D11) is settled server-side by the
+///     jeeber (BR-16); the customer never records COD and never sees the
+///     platform fee.
 abstract class DeliveryReceiptRepository {
   /// Fetches the receipt view for [deliveryId].
   Future<DeliveryReceipt> fetchReceipt(String deliveryId);
 
-  /// Confirms the customer received the order. Records the cash settlement
-  /// (`POST /v1/payments/cod_jeeb/record`) then transitions the delivery to
-  /// `Done` (`POST /v1/delivery/status/transition`). Idempotent server-side
-  /// (both endpoints key on `deliveryId`). Throws a
-  /// [DeliveryReceiptRepositoryException] tagged with the canonical failure on
-  /// error.
+  /// Confirms the customer received the order by transitioning the delivery to
+  /// `Done` via the real, shipped gateway route
+  /// `PATCH /v1/deliveries/{id}/status`. The customer does NOT record COD — that
+  /// ledger is jeeber/server-owned and the amount is server-authoritative
+  /// (BR-16). Idempotent: an already-terminal delivery is a no-op, and a 422
+  /// `transition_not_allowed` (server already flipped to `Done`) is treated as
+  /// success. Throws a [DeliveryReceiptRepositoryException] tagged with the
+  /// canonical failure on any other error.
   Future<void> confirmReceipt(DeliveryReceipt receipt);
 }
