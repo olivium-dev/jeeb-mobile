@@ -8,10 +8,15 @@
 // "Pay $0.00 cash to the Jeeber" instead of the real $12.00 fee.
 //
 // Contract now: an absent/zero amount is UNKNOWN (`cashAmount == null` /
-// `hasKnownAmount == false`) — never a fabricated zero — and the COD record
-// omits the money object rather than stamping a $0.00 settlement. The gateway
+// `hasKnownAmount == false`) — never a fabricated zero — so the receipt screen
+// degrades to amount-less copy instead of rendering "$0.00". The gateway
 // omission itself is flagged to the gateway lane (commit 39db68d was supposed
 // to always include `amount` + `jeeberName`).
+//
+// COD-COMPLETE FIX (fix/cod-complete): the customer no longer records COD at all
+// (that ledger is jeeber/server-owned, amount server-authoritative — BR-16), so
+// the former "confirmReceipt COD payload" assertions were removed. Only the
+// amount/jeeberName READ mapping is exercised here now.
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -152,48 +157,10 @@ void main() {
     });
   });
 
-  group('confirmReceipt COD payload', () {
-    test('known amount → money object sent on the COD record', () async {
-      await repo.confirmReceipt(
-        const DeliveryReceipt(
-          deliveryId: _deliveryId,
-          jeeberName: 'Sami',
-          jeeberId: 'j-1',
-          cashAmount: 12.0,
-          currency: 'USD',
-          status: 'AtDoor',
-        ),
-      );
-
-      final cod = adapter.codBody!;
-      expect(cod['amount'], {'value': 12.0, 'currency': 'USD'});
-    });
-
-    test('UNKNOWN amount → money object OMITTED (never stamp a \$0.00 '
-        'settlement)', () async {
-      await repo.confirmReceipt(
-        const DeliveryReceipt(
-          deliveryId: _deliveryId,
-          jeeberName: 'Sami',
-          jeeberId: 'j-1',
-          cashAmount: null,
-          currency: 'USD',
-          status: 'AtDoor',
-        ),
-      );
-
-      final cod = adapter.codBody!;
-      expect(cod.containsKey('amount'), isFalse);
-      expect(cod['deliveryId'], _deliveryId);
-    });
-  });
 }
 
 class _StubAdapter implements HttpClientAdapter {
   Map<String, Object?> deliveryBody = const {'id': _deliveryId, 'status': ''};
-
-  /// Decoded JSON body of the last COD-record POST, when one happened.
-  Map<String, Object?>? codBody;
 
   @override
   Future<ResponseBody> fetch(
@@ -202,11 +169,8 @@ class _StubAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     final path = options.path;
-    if (path.contains('cod_jeeb/record')) {
-      codBody = (options.data as Map).cast<String, Object?>();
-      return _json(const {'recorded': true});
-    }
-    if (path.contains('status/transition')) {
+    // Real confirm-receipt write: PATCH /v1/deliveries/{id}/status.
+    if (path.contains('/deliveries/') && path.endsWith('/status')) {
       return _json(const {'status': 'Done'});
     }
     return _json(deliveryBody);

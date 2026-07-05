@@ -1,12 +1,16 @@
 // S10 Defect B — DioDeliveryReceiptRepository terminal-status guard.
 //
 // After the door-OTP handover drives the delivery to `Done` server-side, the
-// customer's "Yes, I received it" CTA must NOT fire a second
-// `POST /v1/delivery/status/transition` — the frozen SM-1 table correctly
-// rejects `Done → Done` with 422. The repository now skips the transition POST
-// entirely when the loaded receipt is already terminal, while still recording
-// the (idempotent, load-bearing) cash-on-delivery settlement so the customer
-// proceeds to rating.
+// customer's "Yes, I received it" CTA must NOT fire a second status transition —
+// the frozen SM-1 table correctly rejects `Done → Done` with 422. The repository
+// skips the transition PATCH entirely when the loaded receipt is already
+// terminal.
+//
+// COD-COMPLETE FIX (fix/cod-complete): there is NO customer-side COD write any
+// more (the old `POST /v1/payments/cod_jeeb/record` 404'd and blocked rating),
+// and the transition now targets the real, shipped gateway route
+// `PATCH /v1/deliveries/{id}/status` instead of the fictional
+// `POST /v1/delivery/status/transition`.
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,8 +21,7 @@ import 'package:jeeb_mobile/features/delivery_receipt/domain/delivery_receipt.da
 
 class _MockDio extends Mock implements Dio {}
 
-const _codPath = '/v1/payments/cod_jeeb/record';
-const _transitionPath = '/v1/delivery/status/transition';
+const _statusPath = '/v1/deliveries/delivery-xyz/status';
 
 DeliveryReceipt _receipt({required String status}) => DeliveryReceipt(
       deliveryId: 'delivery-xyz',
@@ -32,7 +35,7 @@ DeliveryReceipt _receipt({required String status}) => DeliveryReceipt(
 Response<Map<String, dynamic>> _ok() => Response<Map<String, dynamic>>(
       requestOptions: RequestOptions(path: ''),
       statusCode: 200,
-      data: const <String, dynamic>{},
+      data: const <String, dynamic>{'status': 'Done'},
     );
 
 void main() {
@@ -41,26 +44,21 @@ void main() {
 
   setUp(() {
     dio = _MockDio();
-    repo = DioDeliveryReceiptRepository(dio);
-    when(() => dio.post<Map<String, dynamic>>(
+    repo = DioDeliveryReceiptRepository(dio, originGateway: true);
+    when(() => dio.patch<Map<String, dynamic>>(
           any(),
           data: any(named: 'data'),
         )).thenAnswer((_) async => _ok());
   });
 
   test(
-      'already-Done receipt records COD but does NOT POST the transition '
+      'already-Done receipt does NOT PATCH the transition '
       '(no illegal Done → Done)', () async {
     await repo.confirmReceipt(_receipt(status: 'Done'));
 
-    // COD settlement still recorded (load-bearing, idempotent).
-    verify(() => dio.post<Map<String, dynamic>>(
-          _codPath,
-          data: any(named: 'data'),
-        )).called(1);
     // The SM-1 transition is NEVER requested for a terminal delivery.
-    verifyNever(() => dio.post<Map<String, dynamic>>(
-          _transitionPath,
+    verifyNever(() => dio.patch<Map<String, dynamic>>(
+          any(),
           data: any(named: 'data'),
         ));
   });
@@ -70,24 +68,26 @@ void main() {
     await repo.confirmReceipt(_receipt(status: 'done'));
     await repo.confirmReceipt(_receipt(status: 'Delivered'));
 
-    verifyNever(() => dio.post<Map<String, dynamic>>(
-          _transitionPath,
+    verifyNever(() => dio.patch<Map<String, dynamic>>(
+          any(),
           data: any(named: 'data'),
         ));
   });
 
-  test('non-terminal receipt (AtDoor) STILL fires the AtDoor → Done transition',
-      () async {
+  test(
+      'non-terminal receipt (AtDoor) STILL fires the AtDoor → Done transition '
+      'via PATCH /v1/deliveries/{id}/status', () async {
     await repo.confirmReceipt(_receipt(status: 'AtDoor'));
 
-    verify(() => dio.post<Map<String, dynamic>>(
-          _codPath,
+    // The transition targets the REAL, shipped gateway route.
+    verify(() => dio.patch<Map<String, dynamic>>(
+          _statusPath,
           data: any(named: 'data'),
         )).called(1);
-    // AtDoor is non-terminal → the SM-1 AtDoor → Done transition still fires.
-    verify(() => dio.post<Map<String, dynamic>>(
-          _transitionPath,
+    // The fictional COD-record route is never POSTed.
+    verifyNever(() => dio.post<Map<String, dynamic>>(
+          any(),
           data: any(named: 'data'),
-        )).called(1);
+        ));
   });
 }

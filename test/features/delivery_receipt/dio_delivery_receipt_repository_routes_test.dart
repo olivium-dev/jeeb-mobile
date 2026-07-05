@@ -6,9 +6,11 @@
 // `GET /v1/deliveries/{id}` (Contract 8c). This pins the READ to the plural
 // route on the origin base and keeps the legacy `:4010` mock singular alias.
 //
-// The SM-1 `POST /v1/delivery/status/transition` command is a GENUINELY
-// different endpoint and MUST stay singular — asserted here so the base-aware
-// rewrite never leaks onto it.
+// COD-COMPLETE FIX (fix/cod-complete): confirm-receipt now issues a single
+// `PATCH /v1/deliveries/{id}/status` — the real, shipped gateway route — and no
+// longer POSTs the fictional `/v1/payments/cod_jeeb/record` or
+// `/v1/delivery/status/transition` (both 404). Asserted here so the write path
+// pins to the shipped plural route.
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -52,8 +54,8 @@ void main() {
     expect(adapter.getPaths, isNot(contains('/v1/deliveries/$_deliveryId')));
   });
 
-  test('the SM-1 transition POST stays SINGULAR (genuinely different endpoint, '
-      'NOT base-rewritten)', () async {
+  test('confirmReceipt PATCHes the real /v1/deliveries/{id}/status route and '
+      'POSTs NEITHER fictional COD/transition route', () async {
     await originRepo().confirmReceipt(
       const DeliveryReceipt(
         deliveryId: _deliveryId,
@@ -65,8 +67,10 @@ void main() {
       ),
     );
 
-    expect(adapter.postPaths, contains('/v1/delivery/status/transition'));
-    expect(adapter.postPaths, contains('/v1/payments/cod_jeeb/record'));
+    expect(adapter.patchPaths, contains('/v1/deliveries/$_deliveryId/status'));
+    // The fictional 404 routes are gone.
+    expect(adapter.postPaths, isNot(contains('/v1/delivery/status/transition')));
+    expect(adapter.postPaths, isNot(contains('/v1/payments/cod_jeeb/record')));
   });
 }
 
@@ -82,6 +86,7 @@ ResponseBody _json(Map<String, Object?> body, {int status = 200}) =>
 class _RecordingAdapter implements HttpClientAdapter {
   final List<String> getPaths = <String>[];
   final List<String> postPaths = <String>[];
+  final List<String> patchPaths = <String>[];
 
   @override
   void close({bool force = false}) {}
@@ -94,6 +99,7 @@ class _RecordingAdapter implements HttpClientAdapter {
   ) async {
     if (options.method == 'GET') getPaths.add(options.path);
     if (options.method == 'POST') postPaths.add(options.path);
+    if (options.method == 'PATCH') patchPaths.add(options.path);
     return _json({'id': _deliveryId, 'status': 'AtDoor'});
   }
 }
