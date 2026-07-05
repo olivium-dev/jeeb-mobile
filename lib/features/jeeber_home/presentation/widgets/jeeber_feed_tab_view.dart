@@ -53,6 +53,7 @@ class JeeberFeedTabView extends StatefulWidget {
     this.onOpenRequest,
     this.onMakeOffer,
     this.submittedOffersCubit,
+    this.leadingBanner,
   });
 
   static const Key rootKey = Key('jeeber-feed-tab-view-root');
@@ -87,6 +88,15 @@ class JeeberFeedTabView extends StatefulWidget {
   /// null the Pending tab falls back to the request-feed-derived pending view
   /// (dev-seam capture / tests), so this widget stays usable without DI.
   final SubmittedOffersCubit? submittedOffersCubit;
+
+  /// PUSH-UI-REACTION: an optional card (the jeeber's "active deliveries"
+  /// banner) rendered as the FIRST, scrolling item of the feed's request list
+  /// (and above its empty state) so a just-won delivery surfaces the instant the
+  /// `offer_accepted` push refetch returns it — even while the jeeber is still
+  /// browsing a non-empty feed. Rides inside the scroll (not as a fixed header)
+  /// so it never overflows the short-viewport feed. Null for callers/tests that
+  /// do not inject one → the feed is unchanged.
+  final Widget? leadingBanner;
 
   @override
   State<JeeberFeedTabView> createState() => _JeeberFeedTabViewState();
@@ -219,6 +229,7 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
       query: _query,
       onOpenRequest: widget.onOpenRequest,
       onMakeOffer: (req) => _onMakeOffer(context, req),
+      leadingBanner: widget.leadingBanner,
     );
   }
 
@@ -437,6 +448,7 @@ class _FeedRequestList extends StatelessWidget {
     required this.query,
     required this.onOpenRequest,
     required this.onMakeOffer,
+    this.leadingBanner,
   });
 
   final JeeberFeedTab activeTab;
@@ -444,6 +456,7 @@ class _FeedRequestList extends StatelessWidget {
   final String query;
   final ValueChanged<DeliveryRequest>? onOpenRequest;
   final ValueChanged<DeliveryRequest> onMakeOffer;
+  final Widget? leadingBanner;
 
   @override
   Widget build(BuildContext context) {
@@ -455,6 +468,7 @@ class _FeedRequestList extends StatelessWidget {
         query: query,
         onOpenRequest: onOpenRequest,
         onMakeOffer: onMakeOffer,
+        leadingBanner: leadingBanner,
       ),
     );
   }
@@ -468,6 +482,7 @@ class _FeedRequestListBody extends StatelessWidget {
     required this.query,
     required this.onOpenRequest,
     required this.onMakeOffer,
+    this.leadingBanner,
   });
 
   final RequestFeedState state;
@@ -476,6 +491,7 @@ class _FeedRequestListBody extends StatelessWidget {
   final String query;
   final ValueChanged<DeliveryRequest>? onOpenRequest;
   final ValueChanged<DeliveryRequest> onMakeOffer;
+  final Widget? leadingBanner;
 
   @override
   Widget build(BuildContext context) {
@@ -483,13 +499,17 @@ class _FeedRequestListBody extends StatelessWidget {
     final visible = _visibleRequests(state.requests);
     return OmdsPullToRefresh(
       onRefresh: () => context.read<RequestFeedCubit>().refresh(),
+      // PUSH-UI-REACTION: even when the visible tab has NO requests, render the
+      // active-deliveries banner above the empty state (inside a scroll view so
+      // pull-to-refresh still fires) — a just-won delivery must surface here too.
       child: visible.isEmpty
-          ? _EmptyTabState(l10n: l10n)
+          ? _EmptyTabWithBanner(l10n: l10n, leadingBanner: leadingBanner)
           : _FeedListView(
               requests: visible,
               expiredIds: state.expiredIds,
               onOpenRequest: onOpenRequest,
               onMakeOffer: onMakeOffer,
+              leadingBanner: leadingBanner,
             ),
     );
   }
@@ -540,6 +560,7 @@ class _FeedListView extends StatelessWidget {
     required this.expiredIds,
     required this.onOpenRequest,
     required this.onMakeOffer,
+    this.leadingBanner,
   });
 
   final List<DeliveryRequest> requests;
@@ -550,6 +571,10 @@ class _FeedListView extends StatelessWidget {
 
   final ValueChanged<DeliveryRequest>? onOpenRequest;
   final ValueChanged<DeliveryRequest> onMakeOffer;
+
+  /// PUSH-UI-REACTION: an optional card rendered as the first, scrolling item
+  /// above the request rows (self-hides to zero height when empty).
+  final Widget? leadingBanner;
 
   @override
   Widget build(BuildContext context) {
@@ -562,13 +587,20 @@ class _FeedListView extends StatelessWidget {
           r.feedStatus == JeeberFeedItemStatus.incoming &&
           !expiredIds.contains(r.id),
     );
+    // Offset every request row by one when a leading banner rides at index 0, so
+    // the make-offer-cta / expired logic stays keyed to the request itself.
+    final hasBanner = leadingBanner != null;
+    final leadCount = hasBanner ? 1 : 0;
     return ListView.builder(
       key: JeeberFeedTabView.listKey,
       padding: const EdgeInsetsDirectional.symmetric(vertical: Spacing.small),
-      itemCount: requests.length,
-      itemBuilder: (context, index) => JeeberFeedCard(
-        request: requests[index],
-        isExpired: expiredIds.contains(requests[index].id),
+      itemCount: requests.length + leadCount,
+      itemBuilder: (context, rawIndex) {
+        if (hasBanner && rawIndex == 0) return leadingBanner!;
+        final index = rawIndex - leadCount;
+        return JeeberFeedCard(
+          request: requests[index],
+          isExpired: expiredIds.contains(requests[index].id),
         // JM-048: card tap opens detail; the "Offer" button routes through the
         // KYC gate / composer (D38), distinct from a plain detail open.
         // POST-ACCEPT ENTRY POINT: an ACCEPTED (Replies-tab) card is the
@@ -587,7 +619,44 @@ class _FeedListView extends StatelessWidget {
         onIgnore: () => cubit.decline(requests[index].id),
         onOffer: () => onMakeOffer(requests[index]),
         onAdvanceStatus: () => cubit.accept(requests[index].id),
-        exposeMakeOfferId: index == firstIncomingIndex,
+          exposeMakeOfferId: index == firstIncomingIndex,
+        );
+      },
+    );
+  }
+}
+
+/// The empty-tab state with the active-deliveries banner riding above it inside
+/// a scroll view (so pull-to-refresh still fires and a just-won delivery shows
+/// even when the visible tab has no requests). Falls back to the bare, centered
+/// empty state when no banner is injected.
+class _EmptyTabWithBanner extends StatelessWidget {
+  const _EmptyTabWithBanner({required this.l10n, this.leadingBanner});
+
+  final AppLocalizations l10n;
+  final Widget? leadingBanner;
+
+  @override
+  Widget build(BuildContext context) {
+    final banner = leadingBanner;
+    if (banner == null) return _EmptyTabState(l10n: l10n);
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              banner,
+              OmdsEmptyState(
+                icon: Icons.inbox_outlined,
+                title: l10n.jeeberFeedEmptyTitle,
+                subtitle: l10n.jeeberFeedEmptySubtitle,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
