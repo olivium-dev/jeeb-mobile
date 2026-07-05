@@ -306,12 +306,22 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     _sessionSub = session.stream.listen((state) {
       if (state.isAuthenticated) {
         _syncRole();
-        // run-15: the device-registration poll started at cold start can expire
-        // before the user logs in interactively. Re-arm registration on the
-        // login transition so `PUT /api/PushNotification/register` still fires.
-        // Idempotent — a no-op once already registered.
+        // run-15 + JEBV4-159: re-arm device-token registration on EVERY
+        // transition into authenticated — the initial interactive login (the
+        // cold-start poll may have already expired), AND every later sign-out→
+        // sign-in, super-login account switch, or role switch on this same live
+        // process. notifyLogin() now re-registers the CURRENT user's token
+        // whenever the identity changed (idempotent per (user, token)), so a
+        // switched-in user is never left with zero server-side tokens.
         final registrar = _deviceRegistrar;
         if (registrar != null) unawaited(registrar.notifyLogin());
+      } else if (state.isUnauthenticated) {
+        // JEBV4-159: on sign-out, clear the registrar's (user, token) dedup so
+        // the next login re-registers even as the same user — the logout flow
+        // fires DELETE /api/PushNotification/device, removing this install's
+        // token row, and without this reset an identical-key re-login would be
+        // skipped as a duplicate.
+        _deviceRegistrar?.notifySignedOut();
       }
     });
   }
