@@ -55,8 +55,29 @@ class DeviceTokenRegistrar {
   StreamSubscription<String>? _refreshSub;
   Timer? _retryTimer;
   String? _lastToken;
-  bool _registered = false;
+
+  /// The `(sessionUserId, token)` pair last confirmed (2xx) with the gateway.
+  ///
+  /// JEBV4-159 root-cause fix: this REPLACES the old one-shot `bool _registered`
+  /// latch. That latch flipped `true` on the first successful register and then
+  /// permanently short-circuited [notifyLogin] and [_register] for the LIFE OF
+  /// THE PROCESS — so after a sign-out+sign-in, a super-login account switch, or
+  /// a role switch (all of which re-emit `authenticated` on the same live
+  /// [DeviceTokenRegistrar] instance), the NEW user was never registered and the
+  /// push-notification service resolved them to zero device tokens (targeted
+  /// pushes silently no-op'd). Keying the dedup by `(userId, token)` instead
+  /// means a change in EITHER the authenticated user (login / account switch) or
+  /// the token (rotation) re-registers, while a duplicate `authenticated`
+  /// emission for the SAME identity is still skipped. `null` = nothing confirmed
+  /// yet (also the reset value after sign-out — see [notifySignedOut]).
+  String? _lastRegisteredKey;
   bool _disposed = false;
+
+  /// Dedup key for [token] under the current authenticated [userId]. A null
+  /// userId (pre-login) and any distinct user both produce distinct keys, so the
+  /// first post-login offer of a token — and every later account switch —
+  /// re-registers rather than being skipped as a duplicate.
+  static String _key(String? userId, String token) => '${userId ?? ''}::$token';
 
   /// Raw gateway contract path; [Dio]'s rewrite interceptor leaves it unchanged
   /// in live-gateway mode (the device/CI default).
@@ -66,10 +87,11 @@ class DeviceTokenRegistrar {
   static const String _deviceIdKey = 'push.deviceId';
 
   Future<void> start() async {
-    // Re-register on rotation (reinstall, restore-from-backup, etc.).
+    // Re-register on rotation (reinstall, restore-from-backup, etc.). The new
+    // token yields a different `(userId, token)` dedup key, so [_register]
+    // re-fires without any explicit latch reset.
     _refreshSub = _transport.onTokenRefresh.listen((fresh) {
       _lastToken = fresh;
-      _registered = false;
       unawaited(_register(reason: 'rotation'));
     });
 
@@ -81,18 +103,21 @@ class DeviceTokenRegistrar {
     _attempt(0);
   }
 
-  /// Interactive-login trigger (run-15 root cause). The bounded poll started by
-  /// [start] can EXPIRE before the user finishes an interactive login — the FCM
-  /// token is available at cold start but the userId is not, so after
-  /// [_maxAttempts] the poller gives up and no registration ever fires. When the
-  /// session transitions to authenticated, [JeebApp] calls this to re-arm
-  /// registration once, out-of-band from the (possibly dead) poll timer.
+  /// Every-login trigger. [JeebApp] calls this on EVERY session transition into
+  /// `authenticated` — the initial interactive login (run-15 root cause: the
+  /// bounded [start] poll can expire before login lands), AND every subsequent
+  /// sign-out→sign-in, super-login account switch, or role switch on the same
+  /// live process (JEBV4-159 root cause: those re-emit `authenticated` on this
+  /// same instance, and the old one-shot latch swallowed them, so the new user
+  /// was never registered → zero device tokens → targeted pushes no-op'd).
   ///
-  /// Idempotent: a no-op once already registered or disposed, so a double login
-  /// emission never produces a second `PUT /api/PushNotification/register`.
+  /// Idempotent PER IDENTITY: a duplicate emission for the SAME `(userId, token)`
+  /// is skipped inside [_register], but a change in the authenticated user (a
+  /// switch) always re-registers the CURRENT user's token. Disposed → no-op.
   Future<void> notifyLogin() async {
-    if (_disposed || _registered) return;
-    // The poll may still be pending; cancel it so we don't race a late _attempt.
+    if (_disposed) return;
+    // The cold-start poll may still be pending; cancel it so we don't race a
+    // late _attempt for the same (now-known) identity.
     _retryTimer?.cancel();
     if (_lastToken == null || _lastToken!.isEmpty) {
       try {
@@ -106,9 +131,26 @@ class DeviceTokenRegistrar {
     await _register(reason: 'login');
   }
 
-  /// Poll until a logged-in userId exists, then register exactly once.
+  /// Sign-out trigger. [JeebApp] calls this on every transition into
+  /// `unauthenticated`. It clears the `(userId, token)` dedup cache so that a
+  /// later login re-registers even as the SAME user — necessary because the
+  /// logout flow ([DioAccountSessionTerminator]) fires
+  /// `DELETE /api/PushNotification/device`, removing this install's token row
+  /// server-side. Without this reset the next same-user login would compute an
+  /// identical key and be skipped as a "duplicate", leaving the re-logged-in
+  /// user with zero tokens. There is no race: the DELETE runs during logout and
+  /// the re-register runs on the NEXT login — strictly sequential user actions.
+  void notifySignedOut() {
+    if (_disposed) return;
+    _lastRegisteredKey = null;
+  }
+
+  /// Poll until a logged-in userId exists, then register for that identity. Once
+  /// registered, the `(userId, token)` dedup in [_register] makes a repeat a
+  /// no-op, and this poll stops rescheduling (it returns after the register
+  /// below), so there is no busy loop.
   void _attempt(int n) {
-    if (_disposed || _registered) return;
+    if (_disposed) return;
     unawaited(() async {
       final userId = await _safeUserId();
       if (userId != null && userId.isNotEmpty) {
@@ -144,6 +186,18 @@ class DeviceTokenRegistrar {
       }
       return;
     }
+    // Idempotent PER IDENTITY (JEBV4-159): skip only when this exact
+    // `(userId, token)` pair was already confirmed. A different user (account
+    // switch) or a rotated token changes the key and re-registers, so the
+    // CURRENT user always has a live token row on the server.
+    final key = _key(uid, token);
+    if (key == _lastRegisteredKey) {
+      if (kDebugMode) {
+        debugPrint('[push][register] skip ($reason): already registered '
+            'for this (user, token)');
+      }
+      return;
+    }
     try {
       // NOTE (auth header): the shared Dio LogInterceptor prints request
       // bodies in debug — which would expose the FCM token. We send the token
@@ -158,7 +212,7 @@ class DeviceTokenRegistrar {
       );
       final code = res.statusCode ?? 0;
       if (code >= 200 && code < 300) {
-        _registered = true;
+        _lastRegisteredKey = key;
         _retryTimer?.cancel();
       }
       if (kDebugMode) {
