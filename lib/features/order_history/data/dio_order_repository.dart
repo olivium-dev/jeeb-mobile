@@ -22,7 +22,11 @@ class DioOrderRepository implements OrderRepository {
 
   final Dio _dio;
 
-  static const _path = '/requests';
+  // Gateway-contract path. MUST carry exactly one `/v1` (ARCH-01/INFRA-01
+  // anti-drift contract in app_config.dart): the base URL is origin-only, so a
+  // bare `/requests` (no `/v1`) 404s on the live gateway and never rewrites in
+  // the mock (§6B DEFECT-A). Mirrors the customer request list (`/v1/requests`).
+  static const _path = '/v1/requests';
 
   @override
   Future<OrderPage> fetchPage({

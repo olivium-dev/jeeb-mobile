@@ -285,7 +285,11 @@ void main() {
       );
     });
 
-    test('409 too-many-active-deliveries stays offerNotPending', () {
+    test('409 too-many-active-deliveries -> jeeberAtCapacity (JEBV4-158)', () {
+      // BR-10: the winning Jeeber already holds the max concurrent active
+      // deliveries — the offer is still pending upstream, so this is a distinct,
+      // more specific failure than the generic offer-level conflict. The UI
+      // renders "choose another offer", NOT "this offer is no longer available".
       stubAcceptError(409, const {
         'title': 'Jeeber already has the maximum active deliveries.',
         'status': 409,
@@ -293,7 +297,7 @@ void main() {
       });
       expect(
         () => repo.acceptOffer(requestId: 'req-1', offerId: 'offer-1'),
-        throwsFailure(OffersFailure.offerNotPending),
+        throwsFailure(OffersFailure.jeeberAtCapacity),
       );
     });
 

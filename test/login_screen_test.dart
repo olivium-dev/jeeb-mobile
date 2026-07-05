@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:omds/omds.dart';
 
@@ -9,10 +11,47 @@ import 'package:jeeb_mobile/core/network/auth_token_store.dart';
 import 'package:jeeb_mobile/features/auth/presentation/login_screen.dart';
 import 'package:jeeb_mobile/features/registration/data/super_login_demo_user.dart';
 import 'package:jeeb_mobile/features/registration/data/super_login_service.dart';
+import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import 'support/sync_app_localizations.dart';
 
 class _MockAuthTokenStore extends Mock implements AuthTokenStore {}
+
+/// The LoginScreen wraps its body in a [RootAwareBackScope] (a
+/// [BackButtonListener]) which reads `Router.of(context)` at build — so the test
+/// harness MUST provide a Router ancestor (MaterialApp.router + GoRouter), not a
+/// plain `MaterialApp(home:)`. Mirrors `saved_locations_screen_test.dart`.
+GoRouter _loginRouter() => GoRouter(
+      initialLocation: '/login',
+      routes: [
+        GoRoute(
+          path: '/login',
+          name: 'login',
+          builder: (_, _) => const LoginScreen(),
+        ),
+        // Target for the login screen's `goNamed('biometric-lock')` affordance.
+        GoRoute(
+          path: '/lock',
+          name: 'biometric-lock',
+          builder: (_, _) => const SizedBox.shrink(),
+        ),
+      ],
+      errorBuilder: (_, _) => const LoginScreen(),
+    );
+
+Widget _wrapLogin(GoRouter router, {Locale locale = const Locale('en')}) =>
+    MaterialApp.router(
+      theme: ThemeData.light(),
+      locale: locale,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: const [
+        SyncAppLocalizationsDelegate(),
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      routerConfig: router,
+    );
 
 /// Fake roster service registered into `sl` so the screen's picker resolves it.
 class _FakeDemoUserService implements SuperLoginDemoUserService {
@@ -47,7 +86,7 @@ void main() {
   testWidgets(
       'P1 MOVE: the LOGIN screen now mounts BOTH super-login entry points '
       '(gated behind kDebugMode, compiled out of release)', (tester) async {
-    await tester.pumpWidget(wrapForTest(const LoginScreen()));
+    await tester.pumpWidget(_wrapLogin(_loginRouter()));
     await tester.pump();
 
     // `flutter test` runs under kDebugMode=true, so the relocated dev seam is
@@ -79,7 +118,7 @@ void main() {
         'the plain "Super user login" link is present NEXT TO the plus link',
         (tester) async {
       await registerRoster(const [_demoUser]);
-      await tester.pumpWidget(wrapForTest(const LoginScreen()));
+      await tester.pumpWidget(_wrapLogin(_loginRouter()));
       await tester.pump();
 
       expect(kDebugMode, isTrue);
@@ -91,7 +130,7 @@ void main() {
         'tapping the plus link lists the (mocked) users; selecting one opens '
         'the super-login sheet pre-filled with submit enabled', (tester) async {
       await registerRoster(const [_demoUser]);
-      await tester.pumpWidget(wrapForTest(const LoginScreen()));
+      await tester.pumpWidget(_wrapLogin(_loginRouter()));
       await tester.pump();
 
       final plus = find.byKey(const Key('login.superLoginPlus'));

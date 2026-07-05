@@ -167,9 +167,15 @@ void main() {
   });
 
   // §6B real-app regression: the LIVE gateway `GET /v1/jeeb/earnings` body keys
-  // on `entries`/`totalNet`/`totalCommission`/`rowCount` — NONE of which the
-  // prior parser read, so the screen bound 0.00/0 despite a real 200. This is
-  // the VERBATIM body the S22 received for c23efd76 (net 115.37 over 3 rows).
+  // on `entries`/`totalGross`/`totalCommission`/`rowCount` — NONE of which the
+  // prior parser read, so the screen bound 0.00/0 despite a real 200. This locks
+  // that the parser now binds those live keys (non-zero headline). Fee-only COD
+  // framing (D37/D41/D44): `totalCashEarned` is the cash physically COLLECTED
+  // off-wallet (`totalGross` = 137.50), `feesPaid` is the captured commission
+  // (`totalCommission` = 22.13), and `netPerOffer` derives (gross − fees)/count.
+  // (`totalNet` = gross − commission is the take-home, NOT the cash-collected
+  // headline — binding it here would double-subtract the fee.) VERBATIM S22 body
+  // for c23efd76 (3 rows).
   group('EarningsSummary.fromJson — LIVE gateway shape (§6B)', () {
     final liveBody = <String, dynamic>{
       'jeeberId': 'c23efd76-6fa4-40cf-814c-116f67ea5e95',
@@ -210,9 +216,10 @@ void main() {
       ],
     };
 
-    test('binds totalNet → totalCashEarned (the §6B 115.37 headline)', () {
+    test('binds totalGross → totalCashEarned (the §6B cash-collected headline)',
+        () {
       final s = EarningsSummary.fromJson(liveBody);
-      expect(s.totalCashEarned, 115.37);
+      expect(s.totalCashEarned, 137.50); // cash physically collected (COD)
       expect(s.currency, 'USD');
     });
 
@@ -220,7 +227,7 @@ void main() {
       final s = EarningsSummary.fromJson(liveBody);
       expect(s.deliveryCount, 3);
       expect(s.deliveries.length, 3);
-      expect(s.deliveries.first.cashCollected, 53.12); // entry `net`
+      expect(s.deliveries.first.cashCollected, 62.50); // entry `gross` (COD)
       expect(s.deliveries.first.feePaid, 9.38); // entry `commission`
     });
 
