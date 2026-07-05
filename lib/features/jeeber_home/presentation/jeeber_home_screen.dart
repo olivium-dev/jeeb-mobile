@@ -355,6 +355,20 @@ class _AvailableBody extends StatelessWidget {
               profileName: profileName,
               onOpenFeedRequest: onOpenFeedRequest,
               submittedOffersCubit: submittedOffersCubit,
+              // PUSH-UI-REACTION (2026-07-05): the active-deliveries card must
+              // also mount ABOVE the live feed — not only in the no-requests
+              // scope. Right after a jeeber offers, the offered (still-pending)
+              // request keeps the feed NON-empty, so this branch renders; when
+              // the customer accepts, the `offer_accepted` push refetch returns
+              // the won delivery and the ActiveDeliveriesCubit emits — but the
+              // card's BlocBuilder was absent from THIS branch, so it rendered
+              // nowhere until the feed later emptied (~95s) and the no-requests
+              // scope mounted the banner. Passing it here makes the just-won
+              // card surface within a couple seconds of the push in every
+              // jeeber-home state. The banner self-hides (zero height) when
+              // there is no active delivery, so the feed layout is unchanged in
+              // the common case.
+              activeDeliveriesBanner: activeDeliveriesBanner,
             ),
     );
   }
@@ -418,16 +432,31 @@ class _FeedTabBody extends StatelessWidget {
     required this.profileName,
     required this.onOpenFeedRequest,
     required this.submittedOffersCubit,
+    this.activeDeliveriesBanner,
   });
 
   final String? profileName;
   final ValueChanged<FeedRequest>? onOpenFeedRequest;
   final SubmittedOffersCubit? submittedOffersCubit;
 
+  /// PUSH-UI-REACTION: the host-injected active-deliveries card, mounted as a
+  /// header ABOVE the feed so a just-won delivery surfaces on the push refetch
+  /// even while the feed still lists the (now-accepted) request. Null for
+  /// callers/tests that do not inject one — then the bare feed renders,
+  /// unchanged.
+  final Widget? activeDeliveriesBanner;
+
   @override
   Widget build(BuildContext context) {
     return JeeberFeedTabView(
       profileName: profileName,
+      // PUSH-UI-REACTION: the active-deliveries card rides INSIDE the feed's
+      // scrollable list as a leading header (NOT a fixed sibling above the feed
+      // — the feed's own greeting + availability card + search + tabs already
+      // fill a short 360dp viewport, so a fixed header would overflow on
+      // SM-S921B). It self-hides to zero height when there is no active
+      // delivery, so the feed is unchanged in the common case.
+      leadingBanner: activeDeliveriesBanner,
       // JM-048: leave `onMakeOffer` null so the feed self-routes the make-offer
       // CTA through the KYC gate / composer (the shell is not edited). The card
       // tap still opens the request detail via the host callback.
