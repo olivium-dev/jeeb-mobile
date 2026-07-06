@@ -48,9 +48,37 @@ import 'dev_chat_detail_fixtures.dart';
 ///     `order-summary-pinned` (JM-031), and `order_chat_open_dispute` →
 ///     `dispute-open-evidence` (the `escalate` route, JM-060) — AC2/AC3.
 class ChatDetailScreen extends StatefulWidget {
-  const ChatDetailScreen({super.key, required this.chatId});
+  const ChatDetailScreen({
+    super.key,
+    required this.chatId,
+    this.debugGateway,
+    this.debugPhase,
+    this.debugHasWinner = false,
+    this.debugSummary,
+    this.debugCounterpartName = '',
+  });
 
   final String chatId;
+
+  /// DEVTOOL-ONLY seam (DT-04 screen catalog): when non-null, [initState]
+  /// skips the entire async GetIt/Dio resolution below and mounts the screen
+  /// directly against this gateway plus the accompanying `debug*` fields — no
+  /// live gateway is ever touched. Every real call site leaves this null, so
+  /// production behavior (and every existing widget test) is unchanged.
+  final ChatGateway? debugGateway;
+
+  /// Paired with [debugGateway]; defaults to [ConversationPhase.unknown]
+  /// (compose) when omitted.
+  final ConversationPhase? debugPhase;
+
+  /// Paired with [debugGateway].
+  final bool debugHasWinner;
+
+  /// Paired with [debugGateway]; seeds the JM-025 AC2 pinned summary strip.
+  final OrderChatSummary? debugSummary;
+
+  /// Paired with [debugGateway]; seeds the resolved header title.
+  final String debugCounterpartName;
 
   @override
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
@@ -86,6 +114,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   @override
   void initState() {
     super.initState();
+    final debugGateway = widget.debugGateway;
+    if (debugGateway != null) {
+      // DEVTOOL-ONLY seam — see [ChatDetailScreen.debugGateway]. Bypasses the
+      // GetIt/Dio resolution entirely so the catalog can mount a designed
+      // state with zero network calls.
+      _finalize(
+        widget.chatId,
+        debugGateway,
+        widget.debugCounterpartName,
+        requestId: widget.chatId,
+        phase: widget.debugPhase ?? ConversationPhase.unknown,
+        hasWinner: widget.debugHasWinner,
+        summary: widget.debugSummary,
+      );
+      return;
+    }
     _resolveAndBuild();
   }
 

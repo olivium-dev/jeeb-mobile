@@ -1,9 +1,21 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
 import 'app/jeeb_bootstrap.dart';
+import 'core/dev_flags.dart';
 import 'dev_tools/dev_tool_app.dart';
+import 'devtool/devtool_shell.dart' as devtool;
+
+/// Retained for the process lifetime so the semantics tree stays published for
+/// Maestro/a11y. Flutter only publishes its accessibility/semantics tree while
+/// a client holds a [SemanticsHandle]; storing it in this top-level field keeps
+/// it from being garbage-collected (a bare `ensureSemantics()` call would be
+/// eligible for GC, dropping the tree and breaking id-based assertions).
+// ignore: unused_element
+SemanticsHandle? _semanticsHandle;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,7 +28,7 @@ void main() {
   // keeps semantics published so Maestro can see Semantics(identifier:) values.
   // Flutter 3.44.2: SemanticsBinding.instance.ensureSemantics() returns a
   // SemanticsHandle; we intentionally retain it for the process lifetime.
-  SemanticsBinding.instance.ensureSemantics();
+  _semanticsHandle = SemanticsBinding.instance.ensureSemantics();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -27,6 +39,18 @@ void main() {
       statusBarBrightness: Brightness.light,
     ),
   );
+  // Jeeber Dev Tool second-launcher path: the `.DevToolLauncher` activity-alias
+  // makes MainActivity.getInitialRoute() return "/devtool", so
+  // PlatformDispatcher's defaultRouteName is "/devtool" here. When the Dev Tool
+  // is compiled in (dev/staging via --dart-define=JEEB_DEVTOOL_ENABLED=true),
+  // boot the full-access Dev Tool shell instead of the product app. In a
+  // production build kDevToolEnabled is a compile-time false, so the tree-shaker
+  // strips this branch (and DevToolApp) entirely.
+  if (kDevToolEnabled &&
+      ui.PlatformDispatcher.instance.defaultRouteName == '/devtool') {
+    runApp(const devtool.DevToolApp());
+    return;
+  }
   runApp(const JeebBootstrap());
 }
 

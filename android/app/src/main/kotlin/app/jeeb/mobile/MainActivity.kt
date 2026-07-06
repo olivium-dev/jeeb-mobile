@@ -55,6 +55,18 @@ class MainActivity : FlutterActivity() {
         super.onCreate(savedInstanceState)
     }
 
+    // Jeeber Dev Tool launcher routing: when this activity was started via the
+    // `.DevToolLauncher` activity-alias (the Dev Tool icon), hand Flutter the
+    // "/devtool" initial route so lib/main.dart boots the Dev Tool shell instead
+    // of the product app. Any other launch (the normal app icon, a deep link)
+    // falls through to the default FlutterActivity behaviour.
+    override fun getInitialRoute(): String? {
+        if (componentName?.className == "app.jeeb.mobile.DevToolLauncher") {
+            return "/devtool"
+        }
+        return super.getInitialRoute()
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, seamChannelName)

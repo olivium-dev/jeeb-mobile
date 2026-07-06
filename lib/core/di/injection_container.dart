@@ -104,6 +104,7 @@ import '../../features/offers/domain/offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
 import '../../features/settlement/data/dio_settlement_repository.dart';
 import '../../features/settlement/domain/settlement_repository.dart';
+import '../config/dev_base_url.dart';
 import '../network/auth_token_store.dart';
 import '../network/mock_gateway_client.dart';
 import '../observability/crash_reporter.dart';
@@ -132,7 +133,16 @@ void configureDependencies({
   sl.registerSingleton<SharedPreferences>(sharedPreferences);
   sl.registerSingleton<CrashReporter>(crashReporter);
 
-  sl.registerLazySingleton<Dio>(() => MockGatewayClient.createDio());
+  // Honour the Dev Tool's persisted Server-URL override (F4): when set (via the
+  // Dev Tool → Server URL screen) the whole app's Dio points at that gateway on
+  // the next app start; when unset, DevBaseUrl.read returns null and createDio
+  // falls back to the build-time JEEB_MOCK_BASE_URL default. SharedPreferences
+  // is registered above, so it is resolvable when this lazy singleton is built.
+  sl.registerLazySingleton<Dio>(
+    () => MockGatewayClient.createDio(
+      baseUrl: DevBaseUrl.read(sl<SharedPreferences>()),
+    ),
+  );
   sl.registerLazySingleton<AuthTokenStore>(() => AuthTokenStore());
 
   // Push→refetch bus (sprint-009 live refresh): the push handler publishes a

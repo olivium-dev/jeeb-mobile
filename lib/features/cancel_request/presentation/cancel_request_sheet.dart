@@ -39,10 +39,16 @@ class CancelRequestSheet extends StatelessWidget {
     this.repository,
     this.onCancelled,
     this.onKept,
+    this.initialState,
   });
 
   /// The pre-accept request being cancelled.
   final String requestId;
+
+  /// DT-04 screen-catalog / test seam: preset the cubit's initial state (e.g.
+  /// `inFlight` / `failed`) so the sheet can be previewed already mid-flow.
+  /// Null (default, production) starts idle exactly as before.
+  final CancelRequestState? initialState;
 
   /// Optional repository override. Production builds leave this null and resolve
   /// [CancelRequestRepository] from DI (DioCancelRequestRepository). Widget
@@ -119,6 +125,7 @@ class CancelRequestSheet extends StatelessWidget {
       create: (_) => CancelRequestCubit(
         repository: _resolveRepository(),
         requestId: requestId,
+        initialState: initialState,
       ),
       child: _CancelRequestView(
         onCancelled: onCancelled,

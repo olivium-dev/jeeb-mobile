@@ -48,6 +48,7 @@ class OfferSubmissionScreen extends StatelessWidget {
     this.onRequestGone,
     this.repository,
     this.walletRepository,
+    this.cubit,
   });
 
   final String requestId;
@@ -74,6 +75,14 @@ class OfferSubmissionScreen extends StatelessWidget {
   /// resolved from DI when omitted.
   final WalletRepository? walletRepository;
 
+  /// DT-04 catalog/test seam: an already-constructed cubit to host verbatim
+  /// (via `BlocProvider.value`), bypassing [repository]/DI entirely. Lets a
+  /// caller pre-drive [OfferFormCubit.submit] (e.g. into `submitting` or a
+  /// validation-error mode) before the screen ever mounts. Additive-only —
+  /// null in every existing call site, which keeps building their own cubit
+  /// from [repository] exactly as before.
+  final OfferFormCubit? cubit;
+
   OfferSubmissionRepository _resolveOfferRepo() {
     if (repository != null) return repository!;
     // The integrator-owned router builder always passes `repository`; this
@@ -88,15 +97,23 @@ class OfferSubmissionScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final providedCubit = cubit;
+    final composer = _OfferComposer(
+      requestId: requestId,
+      walletRepository: _resolveWalletRepo(),
+      onWithdrawn: onWithdrawn,
+      onSubmitted: onSubmitted,
+      onRequestGone: onRequestGone,
+    );
+    if (providedCubit != null) {
+      return BlocProvider<OfferFormCubit>.value(
+        value: providedCubit,
+        child: composer,
+      );
+    }
     return BlocProvider<OfferFormCubit>(
       create: (_) => OfferFormCubit(repository: _resolveOfferRepo()),
-      child: _OfferComposer(
-        requestId: requestId,
-        walletRepository: _resolveWalletRepo(),
-        onWithdrawn: onWithdrawn,
-        onSubmitted: onSubmitted,
-        onRequestGone: onRequestGone,
-      ),
+      child: composer,
     );
   }
 }

@@ -12,13 +12,18 @@ import '../../../notification_prefs/presentation/notification_prefs_screen.dart'
 /// T-MOB-026: cubit is now server-first (GET on mount, debounced PATCH on
 /// toggle) rather than SharedPreferences-only.
 class NotificationPreferencesScreen extends StatelessWidget {
-  const NotificationPreferencesScreen({super.key});
+  const NotificationPreferencesScreen({super.key, this.repository});
+
+  /// DT-04 catalog / test seam: overrides the DI-registered repository.
+  /// Production callers leave this null and get the unchanged
+  /// `sl<NotificationPrefsRepository>()` resolution.
+  final NotificationPrefsRepository? repository;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider<NotificationPrefsCubit>(
       create: (_) => NotificationPrefsCubit(
-        repository: sl<NotificationPrefsRepository>(),
+        repository: repository ?? sl<NotificationPrefsRepository>(),
       ),
       child: const NotificationPrefsScreen(),
     );

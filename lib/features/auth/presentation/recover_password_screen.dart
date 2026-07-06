@@ -22,7 +22,12 @@ import '../domain/auth_repository.dart';
 /// Wires `AuthRepository.requestRecovery` (`POST /v1/auth/recovery/request`,
 /// 42_GUARDRAILS_MOCK W-1 FLOOR) through the existing Dio-backed repo in DI.
 class RecoverPasswordScreen extends StatelessWidget {
-  const RecoverPasswordScreen({super.key});
+  const RecoverPasswordScreen({super.key, this.cubit});
+
+  /// Catalog/test seam (40_GUARDRAILS_ARCH §5.4): inject a pre-built cubit
+  /// (e.g. seeded into a specific state) instead of the DI-resolved one.
+  /// Defaults to null — production behavior is unchanged.
+  final RecoverPasswordCubit? cubit;
 
   /// The production [AuthRepository] from DI. Falls back to a freshly
   /// constructed Dio-backed impl when GetIt is not configured (e.g. the
@@ -37,6 +42,13 @@ class RecoverPasswordScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final provided = cubit;
+    if (provided != null) {
+      return BlocProvider<RecoverPasswordCubit>.value(
+        value: provided,
+        child: const _RecoverPasswordView(),
+      );
+    }
     return BlocProvider<RecoverPasswordCubit>(
       create: (_) =>
           RecoverPasswordCubit(repository: _resolveAuthRepository()),

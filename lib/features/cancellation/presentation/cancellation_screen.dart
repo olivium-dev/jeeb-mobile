@@ -23,6 +23,7 @@ class CancellationScreen extends StatelessWidget {
     required this.deliveryId,
     required this.isJeeber,
     this.repository,
+    this.initialState,
   });
 
   final String deliveryId;
@@ -30,6 +31,11 @@ class CancellationScreen extends StatelessWidget {
 
   /// Injectable for widget tests; production resolves via DI.
   final CancellationRepository? repository;
+
+  /// DT-04 screen-catalog / test seam: preset the cubit's initial state (e.g.
+  /// [CancellationLoading]) so the screen can be previewed mid-submit. Null
+  /// (default, production) starts idle exactly as before.
+  final CancellationState? initialState;
 
   /// Resolves the repo: an explicit override (tests) → the GetIt-registered
   /// [DioCancellationRepository]. The `/orders/:id/cancel` route builder passes
@@ -44,7 +50,10 @@ class CancellationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => CancellationCubit(_resolveRepository()),
+      create: (_) => CancellationCubit(
+        _resolveRepository(),
+        initialState: initialState,
+      ),
       child: _CancellationView(
         deliveryId: deliveryId,
         isJeeber: isJeeber,

@@ -31,6 +31,7 @@ class VerifyRecoveryCodeScreen extends StatelessWidget {
     super.key,
     this.email,
     this.authRepository,
+    this.cubit,
   });
 
   /// The recovery email. Normally `null` here and read from the route `extra`
@@ -39,6 +40,11 @@ class VerifyRecoveryCodeScreen extends StatelessWidget {
 
   /// Test override for the repository. Production resolves `sl<AuthRepository>()`.
   final AuthRepository? authRepository;
+
+  /// Catalog/test seam (40_GUARDRAILS_ARCH §5.4): inject a pre-built cubit
+  /// (e.g. seeded into a specific state) instead of the DI-resolved one.
+  /// Defaults to null — production behavior is unchanged.
+  final VerifyRecoveryCodeCubit? cubit;
 
   /// Resolves the repository: explicit override → DI (when configured) →
   /// no-op fallback. The fallback mirrors `ClientOffersScreen._resolveRepository`
@@ -68,6 +74,13 @@ class VerifyRecoveryCodeScreen extends StatelessWidget {
     // crash; 40_GUARDRAILS_ARCH §5.3). The `extra` lookup is skipped when the
     // email is injected directly (tests) so the screen can be mounted without a
     // GoRouter in scope.
+    final provided = cubit;
+    if (provided != null) {
+      return BlocProvider<VerifyRecoveryCodeCubit>.value(
+        value: provided,
+        child: const _VerifyRecoveryCodeView(),
+      );
+    }
     final resolvedEmail = email ?? _emailFromRoute(context);
     final repo = _resolveRepository();
 

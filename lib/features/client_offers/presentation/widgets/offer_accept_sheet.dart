@@ -46,6 +46,7 @@ class OfferAcceptSheet extends StatelessWidget {
     this.repository,
     this.onConfirmed,
     this.onCancelled,
+    this.initialState,
   });
 
   /// The offer being confirmed. Supplies the Jeeber name + fee + currency the
@@ -70,6 +71,11 @@ class OfferAcceptSheet extends StatelessWidget {
   /// Fired when the user cancels (or the accept fails and they back out). [show]
   /// wires the default dismiss; an explicit callback is for tests.
   final VoidCallback? onCancelled;
+
+  /// DT-04 screen-catalog / test seam: preset the cubit's initial state (e.g.
+  /// `submitting` / `failed`) so the sheet can be previewed already mid-flow.
+  /// Null (default, production) starts idle exactly as before.
+  final OfferAcceptState? initialState;
 
   OffersRepository _resolveRepository() {
     final explicit = repository;
@@ -167,6 +173,7 @@ class OfferAcceptSheet extends StatelessWidget {
         repository: repo,
         requestId: requestId,
         offerId: offer.id,
+        initialState: initialState,
       ),
       child: _OfferAcceptView(
         offer: offer,
