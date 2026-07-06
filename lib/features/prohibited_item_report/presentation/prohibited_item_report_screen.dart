@@ -2,8 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 class ProhibitedItemReportScreen extends StatefulWidget {
-  const ProhibitedItemReportScreen({super.key, required this.requestId});
+  const ProhibitedItemReportScreen({
+    super.key,
+    required this.requestId,
+    this.initialDescription,
+  });
   final String requestId;
+
+  /// Catalog/test seam: pre-fills the description field so the "ready to
+  /// report" (CTA-enabled) designed state can be previewed without a live
+  /// keystroke. Defaults to null (empty field), matching prior behavior.
+  final String? initialDescription;
 
   @override
   State<ProhibitedItemReportScreen> createState() =>
@@ -12,7 +21,8 @@ class ProhibitedItemReportScreen extends StatefulWidget {
 
 class _ProhibitedItemReportScreenState
     extends State<ProhibitedItemReportScreen> {
-  final _descriptionController = TextEditingController();
+  late final _descriptionController =
+      TextEditingController(text: widget.initialDescription);
 
   @override
   void dispose() {

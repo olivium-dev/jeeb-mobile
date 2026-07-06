@@ -12,7 +12,12 @@ import 'cancellation_state.dart';
 ///                         → 409 → [CancellationTooLate]
 ///                         → 5xx → [CancellationError]
 class CancellationCubit extends Cubit<CancellationState> {
-  CancellationCubit(this._repository) : super(const CancellationIdle());
+  // DT-04 screen-catalog / test seam: [initialState] presets a non-idle start
+  // (e.g. [CancellationLoading]) so a designed state can be previewed without
+  // driving the real async submit. Null (default) keeps production
+  // behaviour — the cubit starts idle exactly as before.
+  CancellationCubit(this._repository, {CancellationState? initialState})
+      : super(initialState ?? const CancellationIdle());
 
   final CancellationRepository _repository;
 

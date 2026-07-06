@@ -38,13 +38,34 @@ import '../domain/support_repository.dart';
 /// `support_submitting`, `support_success`, `support_error`,
 /// `support_retry_cta`.
 class SupportTicketScreen extends StatelessWidget {
-  const SupportTicketScreen({super.key});
+  const SupportTicketScreen({super.key, this.cubit});
+
+  /// DT-04 catalog / test seam: an already-constructed, already-driven cubit
+  /// (e.g. one whose `submit()` has settled into `success`/`error` so the
+  /// catalog can preview those phases). `null` (every production call site)
+  /// preserves the existing behavior — the screen builds its own from the
+  /// resolved [SupportRepository].
+  final SupportCubit? cubit;
 
   @override
   Widget build(BuildContext context) {
+    final providedCubit = cubit;
+    if (providedCubit != null) {
+      return BlocProvider<SupportCubit>.value(
+        value: providedCubit,
+        child: const _SupportTicketView(),
+      );
+    }
     // Optional inbound order/dispute ref via GoRouter `extra` (dispute-status
-    // and the dispute link seed it); null for the profile/account-status entries.
-    final extra = GoRouterState.of(context).extra;
+    // and the dispute link seed it); null for the profile/account-status
+    // entries. Guarded so a host with no go_router `Page` ancestor (e.g. a
+    // plain-Navigator catalog preview) never throws `GoError` here — it just
+    // renders with no seeded ref, same as any other entry point.
+    final route = ModalRoute.of(context);
+    final extra =
+        route != null && route.settings is Page<Object?>
+            ? GoRouterState.of(context).extra
+            : null;
     final initialOrderRef = extra is String && extra.trim().isNotEmpty
         ? extra.trim()
         : null;

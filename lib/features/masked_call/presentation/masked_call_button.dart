@@ -6,13 +6,19 @@ import '../application/masked_call_cubit.dart';
 
 class MaskedCallButton extends StatelessWidget {
 
-  const MaskedCallButton({super.key, required this.orderId});
+  const MaskedCallButton({super.key, required this.orderId, this.cubit});
   final String orderId;
+
+  /// Optional cubit override. Defaults to null (unchanged production
+  /// behavior: a fresh [MaskedCallCubit] is created). Lets the Dev Tool
+  /// screen catalog (DT-04) seed a specific designed state (e.g. mid-call)
+  /// without a network dependency — no existing call site passes this.
+  final MaskedCallCubit? cubit;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => MaskedCallCubit(),
+      create: (_) => cubit ?? MaskedCallCubit(),
       child: _MaskedCallButtonView(orderId: orderId),
     );
   }

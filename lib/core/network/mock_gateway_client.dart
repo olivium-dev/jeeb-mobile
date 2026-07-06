@@ -59,7 +59,7 @@ class MockGatewayClient {
 
   /// Release no-define fallback (historical value; release builds pass the
   /// define explicitly so this is rarely hit).
-  static const String _releaseFallbackBaseUrl = 'http://192.168.2.33:4010';
+  static const String _releaseFallbackBaseUrl = 'http://192.168.2.39:10090';
 
   /// When `true` every gateway path is rewritten to the Express mock's
   /// service-prefixed routes (`/auth-service/...`, `/offer-service/v1/...`)

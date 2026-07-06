@@ -31,6 +31,7 @@ class DisplayNameSetupScreen extends StatefulWidget {
     required this.onDone,
     this.repository,
     this.refreshSignals,
+    this.cubit,
   });
 
   /// Called exactly once when the step resolves — after a successful save OR
@@ -46,6 +47,13 @@ class DisplayNameSetupScreen extends StatefulWidget {
   /// Test seam for the profile-changed broadcast; production resolves the DI
   /// singleton so greeting surfaces re-pull getMe after the save.
   final ProfileRefreshSignals? refreshSignals;
+
+  /// Catalog/test seam: an already-constructed (optionally pre-driven) cubit.
+  /// When null (always in production) the screen builds its own via
+  /// [_resolveRepository] / [_resolveSignals], exactly as before this field
+  /// was added. Lets the DT-04 screen catalog preview the saving/failure
+  /// states without a network call.
+  final DisplayNameCubit? cubit;
 
   @override
   State<DisplayNameSetupScreen> createState() => _DisplayNameSetupScreenState();
@@ -104,15 +112,20 @@ class _DisplayNameSetupScreenState extends State<DisplayNameSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final child = BlocConsumer<DisplayNameCubit, DisplayNameState>(
+      listener: _onStateChange,
+      builder: (context, state) => _buildScaffold(context, state),
+    );
+    final injected = widget.cubit;
+    if (injected != null) {
+      return BlocProvider<DisplayNameCubit>.value(value: injected, child: child);
+    }
     return BlocProvider<DisplayNameCubit>(
       create: (_) => DisplayNameCubit(
         repository: _resolveRepository(),
         refreshSignals: _resolveSignals(),
       ),
-      child: BlocConsumer<DisplayNameCubit, DisplayNameState>(
-        listener: _onStateChange,
-        builder: (context, state) => _buildScaffold(context, state),
-      ),
+      child: child,
     );
   }
 

@@ -19,10 +19,15 @@ class OfferAcceptCubit extends Cubit<OfferAcceptState> {
     required OffersRepository repository,
     required String requestId,
     required String offerId,
+    // DT-04 screen-catalog / test seam: preset a non-idle initial state (e.g.
+    // `submitting` / `failed`) so a designed state can be previewed without
+    // driving the real async confirm. Null (default) keeps production
+    // behaviour — the cubit starts idle exactly as before.
+    OfferAcceptState? initialState,
   })  : _repository = repository,
         _requestId = requestId,
         _offerId = offerId,
-        super(const OfferAcceptState());
+        super(initialState ?? const OfferAcceptState());
 
   final OffersRepository _repository;
   final String _requestId;

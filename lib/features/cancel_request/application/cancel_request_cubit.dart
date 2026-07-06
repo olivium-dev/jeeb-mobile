@@ -19,9 +19,14 @@ class CancelRequestCubit extends Cubit<CancelRequestState> {
   CancelRequestCubit({
     required CancelRequestRepository repository,
     required String requestId,
+    // DT-04 screen-catalog / test seam: preset a non-idle initial state (e.g.
+    // `inFlight` / `failed`) so a designed state can be previewed without
+    // driving the real async confirm. Null (default) keeps production
+    // behaviour — the cubit starts idle exactly as before.
+    CancelRequestState? initialState,
   })  : _repository = repository,
         _requestId = requestId,
-        super(const CancelRequestState());
+        super(initialState ?? const CancelRequestState());
 
   final CancelRequestRepository _repository;
   final String _requestId;

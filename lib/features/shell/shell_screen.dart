@@ -9,6 +9,8 @@ import '../../core/role/role_availability_cubit.dart';
 import '../../l10n/app_localizations.dart';
 import '../customer_profile/domain/customer_profile_view_data.dart';
 import '../customer_profile/presentation/customer_profile_screen.dart';
+import '../home_client/domain/client_home_repository.dart';
+import '../order_history/domain/order_repository.dart';
 import 'tab_visibility.dart';
 import 'tabs/dashboard_tab.dart';
 import 'tabs/earnings_tab.dart';
@@ -49,7 +51,25 @@ import 'widgets/shell_header_actions.dart';
 /// navy/brown color scheme, and per-tab stable Semantics ids (`shell_tab_*`)
 /// so QA can target tabs without matching localized labels.
 class ShellScreen extends StatefulWidget {
-  const ShellScreen({super.key});
+  const ShellScreen({
+    super.key,
+    this.homeRepository,
+    this.ordersRepository,
+  });
+
+  /// DT-04 catalog seam: overrides the Requests-tab ([HomeTab]) repository.
+  /// `null` (every production call site) preserves the existing behavior —
+  /// [HomeTab] resolves its own default (GetIt if registered, else an empty
+  /// in-memory fake). Lets the screen catalog render a populated/empty Requests
+  /// tab without a live gateway.
+  final ClientHomeRepository? homeRepository;
+
+  /// DT-04 catalog seam: overrides the Delivery-tab ([OrdersTab]) repository.
+  /// `null` (every production call site) preserves the existing behavior —
+  /// [OrdersTab] resolves its own default (GetIt if registered, else a bare
+  /// Dio, which would attempt a real request). Required for a network-free
+  /// catalog preview of the shell.
+  final OrderRepository? ordersRepository;
 
   @override
   State<ShellScreen> createState() => _ShellScreenState();
@@ -168,9 +188,9 @@ class _ShellScreenState extends State<ShellScreen> {
         // Persistent header wallet chip + bell on the Requests header
         // (`orders_home_wallet_chip`/`orders_home_bell`), overlaid by the shell
         // so the per-screen HomeTab surface stays untouched.
-        page: const _HeaderedTab(
+        page: _HeaderedTab(
           idPrefix: 'orders_home',
-          child: HomeTab(),
+          child: HomeTab(repository: widget.homeRepository),
         ),
       ),
       _Tab(
@@ -178,7 +198,7 @@ class _ShellScreenState extends State<ShellScreen> {
         label: l10n.navDelivery,
         icon: Icons.local_shipping_outlined,
         selectedIcon: Icons.local_shipping,
-        page: const OrdersTab(),
+        page: OrdersTab(repository: widget.ordersRepository),
       ),
       // ADDITIVE jeeber tab #1 — the Jeeber dashboard (availability + feed).
       // A jeeber sees the live [DashboardTab] (with the persistent header

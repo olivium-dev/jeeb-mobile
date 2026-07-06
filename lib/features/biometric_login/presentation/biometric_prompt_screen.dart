@@ -5,10 +5,22 @@ import '../../../l10n/app_localizations.dart';
 import '../application/biometric_cubit.dart';
 
 class BiometricPromptScreen extends StatelessWidget {
-  const BiometricPromptScreen({super.key});
+  const BiometricPromptScreen({super.key, this.cubit});
+
+  /// Catalog/test seam: inject a pre-built cubit (e.g. seeded into a specific
+  /// state) instead of the self-constructed one. Defaults to null — production
+  /// behavior (construct + `checkAvailability()`) is unchanged.
+  final BiometricCubit? cubit;
 
   @override
   Widget build(BuildContext context) {
+    final provided = cubit;
+    if (provided != null) {
+      return BlocProvider<BiometricCubit>.value(
+        value: provided,
+        child: const _BiometricPromptScaffold(),
+      );
+    }
     return BlocProvider(
       create: (_) => BiometricCubit()..checkAvailability(),
       child: const _BiometricPromptScaffold(),

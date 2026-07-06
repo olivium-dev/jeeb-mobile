@@ -60,16 +60,22 @@ android {
             applicationIdSuffix ".dev"
             versionNameSuffix "-dev"
             resValue "string", "app_name", "Jeeb Dev"
+            // Enables the Jeeber Dev Tool second-launcher activity-alias.
+            resValue "bool", "jeeb_devtool_enabled", "true"
         }
         staging {
             dimension "environment"
             applicationIdSuffix ".staging"
             versionNameSuffix "-stg"
             resValue "string", "app_name", "Jeeb Staging"
+            resValue "bool", "jeeb_devtool_enabled", "true"
         }
         production {
             dimension "environment"
             resValue "string", "app_name", "Jeeb"
+            // Production hides the Dev Tool launcher icon (defence-in-depth
+            // alongside the compile-time kDevToolEnabled dart-define).
+            resValue "bool", "jeeb_devtool_enabled", "false"
         }
     }
 
