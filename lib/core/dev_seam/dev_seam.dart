@@ -66,9 +66,11 @@ class DevSeam {
       forcedLocale: primary.forcedLocale.isNotEmpty
           ? primary.forcedLocale
           : fallback.forcedLocale,
-      homeTab:
-          primary.homeTab.isNotEmpty ? primary.homeTab : fallback.homeTab,
+      homeTab: primary.homeTab.isNotEmpty ? primary.homeTab : fallback.homeTab,
       feed: primary.feed.isNotEmpty ? primary.feed : fallback.feed,
+      mockBaseUrl: primary.mockBaseUrl.isNotEmpty
+          ? primary.mockBaseUrl
+          : fallback.mockBaseUrl,
       holdSplash: primary.holdSplash || fallback.holdSplash,
       skipOnboarding: primary.skipOnboarding || fallback.skipOnboarding,
     );

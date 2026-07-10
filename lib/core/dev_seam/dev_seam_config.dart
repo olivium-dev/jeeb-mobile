@@ -22,13 +22,15 @@ class DevSeamConfig {
     this.forcedLocale = '',
     this.homeTab = '',
     this.feed = '',
+    this.mockBaseUrl = '',
     this.holdSplash = false,
     this.skipOnboarding = false,
   });
 
   /// Builds a config from a flat string map (intent extras or decoded JSON).
   /// Keys mirror the dart-define names without the `JEEB_` prefix, lower-cased
-  /// and dotted: `jeeb.route`, `jeeb.state`, `jeeb.locale`, `jeeb.hold_splash`.
+  /// and dotted: `jeeb.route`, `jeeb.state`, `jeeb.locale`,
+  /// `jeeb.mock_base_url`, `jeeb.hold_splash`.
   factory DevSeamConfig.fromMap(Map<String, String> map) {
     return DevSeamConfig(
       route: map['jeeb.route']?.trim() ?? '',
@@ -36,6 +38,7 @@ class DevSeamConfig {
       forcedLocale: map['jeeb.locale']?.trim() ?? '',
       homeTab: map['jeeb.home_tab']?.trim() ?? '',
       feed: map['jeeb.feed']?.trim() ?? '',
+      mockBaseUrl: map['jeeb.mock_base_url']?.trim() ?? '',
       holdSplash: _asBool(map['jeeb.hold_splash']),
       skipOnboarding: _asBool(map['jeeb.skip_onboarding']),
     );
@@ -82,6 +85,15 @@ class DevSeamConfig {
   /// `replies` (26).
   final String feed;
 
+  /// Runtime mock endpoint override for one already-built debug APK.
+  ///
+  /// Keyed `jeeb.mock_base_url` (intent extra / device file) or
+  /// `--dart-define=JEEB_MOCK_BASE_URL=http://<host-ip>:3055`. Empty means the
+  /// network layer uses its Android-emulator-safe default. Physical devices
+  /// should set this to the developer machine's LAN IP; the LAN IP is
+  /// deliberately not baked into the app as a universal default.
+  final String mockBaseUrl;
+
   /// Holds the branded splash on screen after bootstrap (replaces
   /// `JEEB_HOLD_SPLASH`).
   final bool holdSplash;
@@ -111,6 +123,7 @@ class DevSeamConfig {
   bool get hasForcedLocale => forcedLocale.isNotEmpty;
   bool get hasHomeTab => homeTab.isNotEmpty;
   bool get hasFeed => feed.isNotEmpty;
+  bool get hasMockBaseUrl => mockBaseUrl.isNotEmpty;
 
   /// True when every field is at its inert default (nothing to apply).
   bool get isEmpty =>
@@ -119,6 +132,7 @@ class DevSeamConfig {
       forcedLocale.isEmpty &&
       homeTab.isEmpty &&
       feed.isEmpty &&
+      mockBaseUrl.isEmpty &&
       !holdSplash &&
       !skipOnboarding;
 
@@ -135,22 +149,26 @@ class DevSeamConfig {
       other.forcedLocale == forcedLocale &&
       other.homeTab == homeTab &&
       other.feed == feed &&
+      other.mockBaseUrl == mockBaseUrl &&
       other.holdSplash == holdSplash &&
       other.skipOnboarding == skipOnboarding;
 
   @override
   int get hashCode => Object.hash(
-        route,
-        chatSelector,
-        forcedLocale,
-        homeTab,
-        feed,
-        holdSplash,
-        skipOnboarding,
-      );
+    route,
+    chatSelector,
+    forcedLocale,
+    homeTab,
+    feed,
+    mockBaseUrl,
+    holdSplash,
+    skipOnboarding,
+  );
 
   @override
-  String toString() => 'DevSeamConfig(route: $route, chat: $chatSelector, '
+  String toString() =>
+      'DevSeamConfig(route: $route, chat: $chatSelector, '
       'locale: $forcedLocale, homeTab: $homeTab, feed: $feed, '
-      'holdSplash: $holdSplash, skipOnboarding: $skipOnboarding)';
+      'mockBaseUrl: $mockBaseUrl, holdSplash: $holdSplash, '
+      'skipOnboarding: $skipOnboarding)';
 }
