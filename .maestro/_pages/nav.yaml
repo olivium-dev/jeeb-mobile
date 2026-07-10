@@ -1,0 +1,43 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# _pages/nav.yaml — Deep-link jump-table navigation helper.
+# ─────────────────────────────────────────────────────────────────────────────
+# PAGE OBJECT (Area-2 §3.1, Area-5 (a) "deep-link jump table"). Replaces 4–8 taps
+# of shell re-navigation with ONE `jeeb://` VIEW intent, then asserts the target
+# root. Honest for authoritative E2E: the resolver folds the URI into a go_router
+# path and STILL enforces auth + server-side ownership (deep_link_resolver.dart) —
+# it mints no token, seeds nothing, and a not-owned id is 403'd by the server /
+# rejected by _idPattern. It only routes an already-logged-in JWT to a screen.
+#
+# Requires an already-onboarded, logged-in session (run bootstrap.yaml or a
+# login page object first). `openLink` delivers the intent to the running app
+# (singleTop launchMode).
+#
+# Auth-scoped authorities that resolve (deep_link_resolver.dart):
+#   orders  chat  wallet  disputes  requests  jeeber  earnings  notifications
+#   profile  settings
+#
+# Jump-table examples (pass as DEEPLINK):
+#   jeeb://requests                         -> "_request_empty_state_root" / list
+#   jeeb://chat/<conversationId>            -> chat thread root
+#   jeeb://orders/<deliveryId>/tracking     -> tracking root
+#   jeeb://notifications                    -> "notifications_root"
+#   jeeb://profile                          -> "customer_profile_root"
+#   jeeb://earnings                         -> "earnings_dashboard_root"
+#
+# Parameters (pass via runFlow env:):
+#   APP_ID       — application id (default: config.yaml APP_ID)
+#   DEEPLINK     — full jeeb:// URI to open, e.g. "jeeb://requests"
+#   SUCCESS_ID   — root id asserted after the jump (proves the route landed;
+#                  a screenshot cannot prove route params — Area-2 §3.6).
+#   NAV_TIMEOUT  — in-app navigation budget (config.yaml; default 10000).
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+- openLink:
+    link: "${DEEPLINK}"
+
+# ── Assert the deep-linked destination root (deterministic gate, no sleep)
+- extendedWaitUntil:
+    visible:
+      id: "${SUCCESS_ID}"
+    timeout: ${NAV_TIMEOUT}

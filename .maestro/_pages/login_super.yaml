@@ -1,0 +1,61 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# _pages/login_super.yaml — Debug super-login. EMULATOR PRE-GATE TIER ONLY.
+# ─────────────────────────────────────────────────────────────────────────────
+# ┌───────────────────────────────────────────────────────────────────────────┐
+# │ ⛔ FORBIDDEN ON THE TWO AUTHORITATIVE PROOF DEVICES (S22 customer / S24     │
+# │    jeeber). Run-26 mission constraint: "NEVER the super_login/seed seam on  │
+# │    either main device." This page object is the acceleration engine for the │
+# │    emulator pre-gate ONLY (Area-5 (b)); it is NEVER ship-gate evidence.      │
+# │    It does not weaken any anti-cheat rule: the passcode-gated super-login    │
+# │    surface is a real, server-validated login (POST super-login/users) that   │
+# │    the app itself dead-code-eliminates in release — this file merely drives  │
+# │    the shipped debug affordance on the emulator lane.                        │
+# └───────────────────────────────────────────────────────────────────────────┘
+#
+# PAGE OBJECT (Area-2 §3.1). Fast real-JWT login on the emulator: login screen →
+# _super_login_link → sheet → user id + passcode → Sign in → landing root. In
+# seconds, versus the full OTP funnel. kDebugMode-gated in lib (super-login link
+# renders `SizedBox.shrink()` in release), so this flow is a no-op on any release
+# build — an extra guardrail against accidental use on a shipped APK.
+#
+# Parameters (pass via runFlow env:):
+#   APP_ID        — application id (default: config.yaml APP_ID)
+#   SUPER_USER_ID — demo user id (e.g. "d1000000-0000-4000-8000-000000000001").
+#   SUPER_PASSCODE— debug super-login passcode, injected at run time; never baked.
+#   SUCCESS_ID    — landing root: "client_home_root" / "jeeber_home_root".
+#   NET_TIMEOUT   — network round-trip budget (config.yaml; default 20000).
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+# ── Open the debug super-login sheet from the login screen
+- extendedWaitUntil:
+    visible:
+      id: "login_root"
+    timeout: ${NET_TIMEOUT}
+- tapOn:
+    id: "_super_login_link"
+- extendedWaitUntil:
+    visible:
+      id: "_super_login_sheet"
+    timeout: ${NAV_TIMEOUT}
+
+# ── Credential fields (values injected at run time; never logged)
+- tapOn:
+    id: "_super_login_user_id"
+- inputText: "${SUPER_USER_ID}"
+- tapOn:
+    id: "_super_login_passcode"
+- inputText: "${SUPER_PASSCODE}"
+- hideKeyboard
+
+# ── Submit. KNOWN GAP: the "Sign in" CTA carries no Semantics(identifier:) in
+#    cycle-5 lib (super_login_sheet.dart) — text is the only handle until an id
+#    is added. Emulator-tier + debug-only, so the i18n risk is contained here.
+- tapOn:
+    text: "Sign in"
+
+# ── Assert the post-login landing shell (deterministic gate)
+- extendedWaitUntil:
+    visible:
+      id: "${SUCCESS_ID}"
+    timeout: ${NET_TIMEOUT}

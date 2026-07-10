@@ -1,0 +1,62 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# _pages/login_real_otp.yaml — Real-OTP login against the LIVE gateway (:10090).
+# ─────────────────────────────────────────────────────────────────────────────
+# PAGE OBJECT (Area-2 §3.1, action #4). Modernized successor to the sprint-008
+# _real-otp-login.yaml: fully id-based. The sprint-008 flow drove the auth funnel
+# by text ("Send code") and a resolution-dependent OTP coordinate tap
+# ("27%,25%") because the recon build exported no semantics there. Cycle-5 lib
+# now ships the ids (login_root, login_phone_entry_link, phone_otp_input, ...),
+# so the coordinate tap is retired (Area-2 §2) — it was S22/S24/emulator-fragile.
+#
+# AUTHORITATIVE TIER: this is honest, real-OTP login — no seed/seam session, no
+# minted token. A baked jeeb.seam.session is 401-rejected by :10090 (L02/L15),
+# so this is the ONLY login page object valid on the two proof devices.
+#
+# Parameters (pass via runFlow env:):
+#   APP_ID        — application id (default: config.yaml APP_ID)
+#   LOCAL_PHONE   — local part only (country code pre-filled), e.g. "3000001"
+#                     customer Nour ..0001 -> "3000001"
+#                     jeeber  Karim ..0002 -> "3000002"
+#   OTP_CODE      — one-time code, injected at run time; never baked, never echoed
+#                   (Maestro does not log inputText values).
+#   SUCCESS_ID    — landing root asserted after login:
+#                     customer -> "client_home_root"   jeeber -> "jeeber_home_root"
+#   NET_TIMEOUT   — network round-trip budget (config.yaml; default 20000).
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+# ── Login root → switch to the phone-entry path
+- extendedWaitUntil:
+    visible:
+      id: "login_root"
+    timeout: ${NET_TIMEOUT}
+- tapOn:
+    id: "login_phone_entry_link"
+
+# ── Phone entry → request the code
+- tapOn:
+    id: "login_email_field"      # shared credential field on the phone-entry path
+- inputText: "${LOCAL_PHONE}"
+- hideKeyboard
+- tapOn:
+    id: "login_phone_primary_cta"
+
+# ── OTP entry (code injected at run time; never logged)
+- extendedWaitUntil:
+    visible:
+      id: "phone_otp_root"
+    timeout: ${NET_TIMEOUT}
+- tapOn:
+    id: "phone_otp_input"
+- inputText: "${OTP_CODE}"
+- hideKeyboard
+# Verify CTA is a fallback — the field may auto-submit on the last digit.
+- tapOn:
+    id: "phone_otp_verify_cta"
+    optional: true
+
+# ── Assert the post-login landing shell (deterministic gate)
+- extendedWaitUntil:
+    visible:
+      id: "${SUCCESS_ID}"
+    timeout: ${NET_TIMEOUT}

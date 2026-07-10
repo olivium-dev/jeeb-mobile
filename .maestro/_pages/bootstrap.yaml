@@ -1,0 +1,60 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# _pages/bootstrap.yaml — Launch + normalize to a known landing shell.
+# ─────────────────────────────────────────────────────────────────────────────
+# PAGE OBJECT (Area-2 §3.1). Normalizes the first-run funnel so no scenario has
+# to re-implement it: dismiss notif-permission prompt → skip walkthrough →
+# advance onboarding → assert the caller's landing root. Idempotent: every funnel
+# step is `optional:` / `when: visible`, so on an already-onboarded warm device
+# it falls straight through to the landing assertion.
+#
+# LAUNCH BOUNDARY: the CALLER owns `launchApp` (Maestro's `clearState` is a typed
+# boolean and cannot be env-interpolated, so it can't live here). The top-level
+# scenario picks the tier:
+#   clean once-per-cycle run -> `- launchApp: { clearState: true }`
+#   warm iteration (default) -> `- launchApp` (persisted auth survives am-kill /
+#                               relaunch and drops back at the shell — Area-5 (a))
+# ...then `- runFlow: _pages/bootstrap.yaml` to reach a known landing.
+#
+# Anti-cheat: this is honest bootstrap only — it dismisses OS/first-run gates and
+# asserts a real landing root. It mints no tokens, seeds no data, fakes no OTP.
+#
+# Parameters (pass via runFlow env:):
+#   APP_ID        — application id (default: config.yaml APP_ID)
+#   SUCCESS_ID    — landing root id to assert after the funnel. REAL cycle-5 ids:
+#                     customer  -> "client_home_root"
+#                     jeeber    -> "jeeber_home_root"
+#                     login gate-> "login_root" (when not yet authenticated)
+#                   (The sprint-008 "shell_tab_*" ids do NOT exist in cycle-5 —
+#                    they were part of the 115-id drift; use the *_root ids.)
+#   LAUNCH_TIMEOUT / NAV_TIMEOUT — deterministic tiered gates (config.yaml).
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+---
+# ── OS notification-permission prompt (first install only; id-based in cycle-5)
+- tapOn:
+    id: "notif_perm_dismiss"
+    optional: true
+
+# ── Walkthrough → skip (only when the walkthrough is actually showing)
+- runFlow:
+    when:
+      visible:
+        id: "walkthrough_skip_cta"
+    commands:
+      - tapOn:
+          id: "walkthrough_skip_cta"
+
+# ── Onboarding carousel → advance past the first pane if present
+- runFlow:
+    when:
+      visible:
+        id: "onboarding_next_button"
+    commands:
+      - tapOn:
+          id: "onboarding_next_button"
+
+# ── Assert the caller's landing shell root (deterministic gate, no sleep)
+- extendedWaitUntil:
+    visible:
+      id: "${SUCCESS_ID}"
+    timeout: ${LAUNCH_TIMEOUT}

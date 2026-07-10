@@ -1,0 +1,32 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# .maestro/config.yaml — canonical Maestro workspace config (Maestro 2.0.5)
+# ─────────────────────────────────────────────────────────────────────────────
+# Sprint-009 testing-acceleration, Area-2 §3.1 ("one canonical flow library,
+# page-object composed"). This is the ONE canonical .maestro/ (cycle-5
+# integration worktree); every other copy is read-only history.
+#
+# `flows:` scopes `maestro test .maestro/` directory runs. Page objects live
+# under `_pages/` and are pulled in via `runFlow:` — the `_` prefix keeps them
+# out of the top-level discovery set (they are fixtures, not runnable scenarios).
+#
+# Selector discipline (Area-2 §3.6): stable Flutter `Semantics(identifier:)`
+# ids only; NO visible text and NO coordinates on any surface that exports ids.
+# The only justified text/coordinate selectors left are on the super-login sheet
+# submit CTA (no id in lib as of cycle-5 — see _pages/login_super.yaml header).
+# ─────────────────────────────────────────────────────────────────────────────
+flows:
+  - "flows/**"
+  - "smoke.yaml"
+
+# Baseline env — every value is overridable at the CLI (`--env KEY=VAL`) or via
+# `--env-file`. Nothing secret is baked here; phones/OTP/tokens are injected.
+env:
+  # App under test. Dev/debug flavor adds the `.dev` suffix (Area-5 (c)).
+  #   release  -> app.jeeb.mobile      staging -> app.jeeb.mobile.staging
+  APP_ID: "app.jeeb.mobile.dev"
+
+  # Tiered deterministic timeouts (Area-2 §3.3). A wrong-selector failure should
+  # cost the in-app-nav budget, not the cold-launch budget.
+  NAV_TIMEOUT: "10000"      # in-app navigation / element already on screen
+  NET_TIMEOUT: "20000"      # network round-trip (login, create, offer, list)
+  LAUNCH_TIMEOUT: "30000"   # cold launch + branded-splash floor only
