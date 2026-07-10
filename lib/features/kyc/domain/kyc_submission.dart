@@ -22,6 +22,26 @@ enum KycRejectionReason {
 /// One captured ID side: front or back of the national ID.
 enum IdSide { front, back }
 
+/// Identity-document variant sent as `id_type` on the KYC submit body.
+///
+/// E3 (JEBV4-197 / Q-042) ratifies exactly this pilot set —
+/// `national_id | passport | residency` — no more, no less. The wizard's ID
+/// step enumerates all three. NOTE: the deployed BFF still spells the third
+/// variant `residency_permit`; the gateway lane (JEBV4-197) is aligning
+/// `AllowedIdTypes` to this ratified vocabulary — until it lands, a
+/// `residency` submit is answered by a field-scoped 400 that the wizard
+/// surfaces inline on the type picker.
+enum KycIdType {
+  nationalId('national_id'),
+  passport('passport'),
+  residency('residency');
+
+  const KycIdType(this.wire);
+
+  /// The exact snake_case value sent on the wire as `id_type`.
+  final String wire;
+}
+
 /// Snapshot of the user's KYC submission. Stored on the cubit's state and
 /// echoed by [KycGateway.fetchStatus] after submit so the status screen can
 /// re-render across cold starts.
@@ -33,6 +53,8 @@ enum IdSide { front, back }
 class KycSubmission extends Equatable {
   const KycSubmission({
     required this.status,
+    this.idType = defaultIdType,
+    this.idNumber,
     this.idFront,
     this.idBack,
     this.selfie,
@@ -42,7 +64,30 @@ class KycSubmission extends Equatable {
     this.submittedAt,
   });
 
+  /// Default ID variant pre-selected on the wizard's type picker (the most
+  /// common document for the pilot market; also the form schema's default
+  /// `variant=national_id`). The user can switch to any ratified [KycIdType].
+  static const KycIdType defaultIdType = KycIdType.nationalId;
+
+  /// 12-digit national-ID shape enforced by the live BFF
+  /// (`KycSubmissionBffController.ValidateSubmitFieldsAsync`, `^\d{12}$`) when
+  /// [idType] is `national_id`. Mirrored here so the client can present the
+  /// requirement instead of round-tripping to a 400.
+  static final RegExp nationalIdPattern = RegExp(r'^\d{12}$');
+
   final KycStatus status;
+
+  /// KYC identity-document type sent as `id_type` (E3/JEBV4-197 — REQUIRED on
+  /// the live contract). One of the ratified [KycIdType] variants; defaults
+  /// to [defaultIdType].
+  final KycIdType idType;
+
+  /// KYC identity-document number sent as `id_number` (E3/JEBV4-197 —
+  /// REQUIRED). For [KycIdType.nationalId] the live BFF requires exactly 12
+  /// digits (see [nationalIdPattern]); passport/residency numbers carry no
+  /// BFF-enforced shape today, so the client requires only a non-empty value.
+  final String? idNumber;
+
   final PhotoAttachment? idFront;
   final PhotoAttachment? idBack;
   final PhotoAttachment? selfie;
@@ -71,8 +116,23 @@ class KycSubmission extends Equatable {
   bool get hasSelfie => selfie != null;
   bool get hasVehicleRegistration => vehicleRegistration != null;
 
+  /// Whether [idNumber] satisfies the live contract for the current [idType]:
+  /// `^\d{12}$` for [KycIdType.nationalId] (the only shape the BFF enforces
+  /// today — mirrored, not invented), non-empty for passport/residency (E3
+  /// makes `id_number` required; the BFF applies no shape to those variants).
+  bool get hasValidIdNumber {
+    final number = idNumber?.trim() ?? '';
+    if (number.isEmpty) return false;
+    if (idType == KycIdType.nationalId) {
+      return nationalIdPattern.hasMatch(number);
+    }
+    return true;
+  }
+
   KycSubmission copyWith({
     KycStatus? status,
+    KycIdType? idType,
+    String? idNumber,
     PhotoAttachment? idFront,
     PhotoAttachment? idBack,
     PhotoAttachment? selfie,
@@ -84,6 +144,8 @@ class KycSubmission extends Equatable {
   }) {
     return KycSubmission(
       status: status ?? this.status,
+      idType: idType ?? this.idType,
+      idNumber: idNumber ?? this.idNumber,
       idFront: idFront ?? this.idFront,
       idBack: idBack ?? this.idBack,
       selfie: selfie ?? this.selfie,
@@ -98,6 +160,8 @@ class KycSubmission extends Equatable {
   @override
   List<Object?> get props => [
         status,
+        idType,
+        idNumber,
         idFront,
         idBack,
         selfie,

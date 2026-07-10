@@ -30,14 +30,41 @@ KycWizardCubit _buildCubit({
   return cubit;
 }
 
-/// Loads schema (transitions schema → identity) then completes every capture +
-/// the ToS tick so [KycWizardState.canSubmitIdentity] is true.
+/// Loads schema (transitions schema → identity) then completes every capture,
+/// the ID number (E3/JEBV4-197 hard gate), and the ToS tick so
+/// [KycWizardState.canSubmitIdentity] is true.
 Future<void> _completeIdentity(KycWizardCubit cubit) async {
   await cubit.loadSchema();
   await cubit.captureIdFront();
   await cubit.captureIdBack();
   await cubit.captureSelfie();
+  cubit.setIdNumber('123456789012');
   cubit.setTosAccepted(true);
+}
+
+/// Counts [submit] calls so tests can prove the pre-submit gate never dials
+/// the gateway with an invalid draft (JEBV4-113 review finding 1).
+class _CountingKycGateway extends FakeKycGateway {
+  int submitCalls = 0;
+
+  @override
+  Future<KycSubmission> submit(KycSubmission draft) {
+    submitCalls++;
+    return super.submit(draft);
+  }
+}
+
+/// Throws a field-scoped BFF rejection on submit, mimicking the RFC-7807
+/// `field` extension the live gateway returns on a 400.
+class _FieldRejectingKycGateway extends FakeKycGateway {
+  _FieldRejectingKycGateway(this.field);
+
+  final String field;
+
+  @override
+  Future<KycSubmission> submit(KycSubmission draft) {
+    throw KycSubmitFieldException(field: field, detail: 'server said no');
+  }
 }
 
 void main() {
@@ -85,17 +112,69 @@ void main() {
       expect(cubit.state.completedCaptureSteps, KycWizardState.totalCaptureSteps);
     });
 
-    test('canSubmitIdentity requires all captures AND the ToS tick', () async {
+    test('canSubmitIdentity requires all captures, a valid ID number, AND '
+        'the ToS tick', () async {
       final cubit = _buildCubit();
       await cubit.loadSchema();
       await cubit.captureIdFront();
       await cubit.captureIdBack();
       await cubit.captureSelfie();
-      expect(cubit.state.canSubmitIdentity, isFalse,
-          reason: 'ToS not yet accepted');
-
       cubit.setTosAccepted(true);
+      expect(cubit.state.canSubmitIdentity, isFalse,
+          reason: 'ID number not yet entered (E3 hard gate)');
+
+      cubit.setIdNumber('123456789012');
       expect(cubit.state.canSubmitIdentity, isTrue);
+
+      cubit.setTosAccepted(false);
+      expect(cubit.state.canSubmitIdentity, isFalse,
+          reason: 'ToS tick still required');
+    });
+
+    test('setIdNumber records the national-ID number on the submission '
+        '(E3/JEBV4-197)', () async {
+      final cubit = _buildCubit();
+      await cubit.loadSchema();
+      expect(cubit.state.submission.idType, KycIdType.nationalId);
+      expect(cubit.state.submission.hasValidIdNumber, isFalse);
+
+      cubit.setIdNumber('12345');
+      expect(cubit.state.submission.idNumber, '12345');
+      expect(cubit.state.submission.hasValidIdNumber, isFalse,
+          reason: 'national_id requires exactly 12 digits');
+
+      cubit.setIdNumber('123456789012');
+      expect(cubit.state.submission.idNumber, '123456789012');
+      expect(cubit.state.submission.hasValidIdNumber, isTrue);
+    });
+
+    test('setIdNumber normalizes Eastern Arabic-Indic digits to ASCII '
+        '(review finding 5)', () async {
+      final cubit = _buildCubit();
+      await cubit.loadSchema();
+
+      cubit.setIdNumber('١٢٣٤٥٦٧٨٩٠١٢');
+      expect(cubit.state.submission.idNumber, '123456789012');
+      expect(cubit.state.submission.hasValidIdNumber, isTrue);
+    });
+
+    test('setIdType switches the variant; validation follows the new type '
+        '(E3/Q-042)', () async {
+      final cubit = _buildCubit();
+      await cubit.loadSchema();
+
+      // An 8-char passport number is invalid under national_id...
+      cubit.setIdNumber('P1234567');
+      expect(cubit.state.submission.hasValidIdNumber, isFalse);
+
+      // ...and valid once the type is passport (non-empty rule only).
+      cubit.setIdType(KycIdType.passport);
+      expect(cubit.state.submission.idType, KycIdType.passport);
+      expect(cubit.state.submission.hasValidIdNumber, isTrue);
+
+      cubit.setIdType(KycIdType.residency);
+      expect(cubit.state.submission.idType, KycIdType.residency);
+      expect(cubit.state.submission.hasValidIdNumber, isTrue);
     });
   });
 
@@ -111,6 +190,92 @@ void main() {
 
       expect(cubit.state.step, KycWizardStep.status);
       expect(cubit.state.submission.status, KycStatus.pending);
+    });
+
+    test('submit with an EMPTY id_number never dials the gateway — inline '
+        'field error instead (review finding 1)', () async {
+      final gateway = _CountingKycGateway();
+      final cubit = _buildCubit(gateway: gateway);
+      await cubit.loadSchema();
+      await cubit.captureIdFront();
+      await cubit.captureIdBack();
+      await cubit.captureSelfie();
+      cubit.setTosAccepted(true);
+      // No setIdNumber — the E3 hard gate must trip.
+
+      await cubit.submit();
+
+      expect(gateway.submitCalls, 0,
+          reason: 'a blank id_number must never reach the network');
+      expect(cubit.state.step, KycWizardStep.identity);
+      expect(cubit.state.submitFieldError, KycSubmitFieldError.idNumber);
+      expect(cubit.state.error, isNull,
+          reason: 'field-scoped failure must not raise the generic snackbar');
+    });
+
+    test('submit with an INVALID (short) national id_number never dials the '
+        'gateway', () async {
+      final gateway = _CountingKycGateway();
+      final cubit = _buildCubit(gateway: gateway);
+      await cubit.loadSchema();
+      cubit.setIdNumber('12345678901'); // 11 digits — boundary below.
+      cubit.setTosAccepted(true);
+
+      await cubit.submit();
+
+      expect(gateway.submitCalls, 0);
+      expect(cubit.state.submitFieldError, KycSubmitFieldError.idNumber);
+    });
+
+    test('editing the field clears the inline submit error', () async {
+      final cubit = _buildCubit(gateway: _CountingKycGateway());
+      await cubit.loadSchema();
+      cubit.setTosAccepted(true);
+      await cubit.submit();
+      expect(cubit.state.submitFieldError, KycSubmitFieldError.idNumber);
+
+      cubit.setIdNumber('1');
+      expect(cubit.state.submitFieldError, isNull);
+    });
+
+    test('a BFF field-scoped 400 (field: id_number) surfaces INLINE, not as '
+        'the generic snackbar (review finding 1)', () async {
+      final cubit = _buildCubit(
+        gateway: _FieldRejectingKycGateway('id_number'),
+      );
+      await _completeIdentity(cubit);
+
+      await cubit.submit();
+
+      expect(cubit.state.step, KycWizardStep.identity);
+      expect(cubit.state.submitFieldError, KycSubmitFieldError.idNumber);
+      expect(cubit.state.error, isNull);
+    });
+
+    test('a BFF field-scoped 400 (field: id_type) surfaces on the picker',
+        () async {
+      final cubit = _buildCubit(
+        gateway: _FieldRejectingKycGateway('id_type'),
+      );
+      await _completeIdentity(cubit);
+
+      await cubit.submit();
+
+      expect(cubit.state.submitFieldError, KycSubmitFieldError.idType);
+      expect(cubit.state.error, isNull);
+    });
+
+    test('a field-scoped 400 naming an UNKNOWN field falls back to the '
+        'generic submit-failed surface (never silent)', () async {
+      final cubit = _buildCubit(
+        gateway: _FieldRejectingKycGateway('tos_accepted_version'),
+      );
+      await _completeIdentity(cubit);
+
+      await cubit.submit();
+
+      expect(cubit.state.submitFieldError, isNull);
+      expect(cubit.state.error, KycWizardError.submitFailed);
     });
 
     test('a fresh submit sets the one-shot justSubmitted navigation flag',
@@ -175,6 +340,11 @@ void main() {
       expect(cubit.state.step, KycWizardStep.identity);
       expect(cubit.state.submission.status, KycStatus.notSubmitted);
       expect(cubit.state.submission.hasIdFront, isFalse);
+      // Review finding 4: the identity fields reset with the draft — the
+      // bound text field mirrors this via the controller sync.
+      expect(cubit.state.submission.idNumber, isNull);
+      expect(cubit.state.submission.idType, KycIdType.nationalId);
+      expect(cubit.state.submitFieldError, isNull);
       expect(cubit.state.tosAccepted, isFalse);
       expect(cubit.state.justSubmitted, isFalse);
     });

@@ -45,6 +45,12 @@ const Set<String> kSensitiveDataKeys = {
   'handovercode',
   'otpcode',
   'deliverycode',
+  // JEBV4-113: the KYC identity-document number (`id_number` on the submit
+  // body) is government-ID PII and must never reach logcat — the debug/QA
+  // RedactingLogInterceptor logs request bodies. `nationalid` is a defensive
+  // alias for any payload that spells the same value `national_id`.
+  'idnumber',
+  'nationalid',
 };
 
 /// Redaction helpers. All methods are total and null-safe — a redaction path

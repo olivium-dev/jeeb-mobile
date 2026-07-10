@@ -70,11 +70,43 @@ class DioKycGateway implements KycGateway {
   @override
   Future<KycSubmission> submit(KycSubmission draft) async {
     final refs = await _uploadAssets(draft);
-    final response = await _dio.post<Map<String, dynamic>>(
-      _submitPath,
-      data: _toSubmitBody(draft, refs),
-    );
-    return _parseSubmission(response.data ?? {});
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        _submitPath,
+        data: _toSubmitBody(draft, refs),
+      );
+      return _parseSubmission(response.data ?? {});
+    } on DioException catch (e) {
+      // The BFF answers invalid submissions with a field-scoped RFC-7807
+      // ProblemDetails ({"field": "id_number", "detail": ...}). Translate it
+      // into the domain exception so the wizard can surface the failure on
+      // the offending field instead of a generic snackbar (JEBV4-113).
+      final field = _fieldFrom(e);
+      if (field != null) {
+        throw KycSubmitFieldException(
+          field: field,
+          detail: _detailFrom(e),
+        );
+      }
+      rethrow;
+    }
+  }
+
+  /// Extracts the RFC-7807 `field` extension from a 400 response, or null
+  /// when the failure is not field-scoped.
+  static String? _fieldFrom(DioException e) {
+    if (e.response?.statusCode != 400) return null;
+    final data = e.response?.data;
+    if (data is! Map) return null;
+    final field = data['field'];
+    return field is String && field.isNotEmpty ? field : null;
+  }
+
+  static String? _detailFrom(DioException e) {
+    final data = e.response?.data;
+    if (data is! Map) return null;
+    final detail = data['detail'];
+    return detail is String ? detail : null;
   }
 
   @override
@@ -185,17 +217,24 @@ class DioKycGateway implements KycGateway {
 
   // Live gateway contract (`KycSubmissionBffController.SubmitJson`): requires
   // `id_document_front_url` / `id_document_back_url` /
-  // `selfie_with_liveness_url`. `vehicle_registration_url` is sent only if a
-  // vehicle-registration asset exists in [draft] (send-if-present — the
-  // required-vs-optional policy is an open owner decision, JEBV4-113 §4; no
-  // new UI capture was added to populate it). `tos_accepted_version` is
-  // threaded through from `signContract()` when present on [draft]; the BFF
-  // accepts and cross-validates it optionally.
+  // `selfie_with_liveness_url`. `id_type` is REQUIRED on the live contract
+  // (E3/JEBV4-197) and always sent — one of the ratified {national_id,
+  // passport, residency} wire values; `id_number` is sent when captured —
+  // for `national_id` the BFF enforces `^\d{12}$`.
+  // `vehicle_registration_url` is sent only if a vehicle-registration asset
+  // exists in [draft] (send-if-present); E3 relaxes the BFF's vehicle
+  // requirement, but that BFF change is a separate gateway lane — until it
+  // lands the live BFF still 400s a vehicle-less submit (JEBV4-113).
+  // `tos_accepted_version` is threaded through from `signContract()` when
+  // present on [draft]; the BFF accepts and cross-validates it optionally.
   Map<String, dynamic> _toSubmitBody(
     KycSubmission draft,
     _UploadedAssetRefs refs,
   ) {
+    final idNumber = draft.idNumber?.trim();
     return {
+      'id_type': draft.idType.wire,
+      if (idNumber != null && idNumber.isNotEmpty) 'id_number': idNumber,
       'id_document_front_url': refs.idFrontUrl,
       'id_document_back_url': refs.idBackUrl,
       'selfie_with_liveness_url': refs.selfieUrl,

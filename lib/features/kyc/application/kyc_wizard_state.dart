@@ -40,6 +40,12 @@ enum KycWizardError {
   fileTypeNotAllowed,
 }
 
+/// A submit failure scoped to a single identity field, surfaced INLINE on the
+/// field itself (never as the generic submit-failed snackbar). Produced either
+/// by the client-side pre-submit gate or by the BFF's field-scoped RFC-7807
+/// 400 (`field: "id_number"` / `"id_type"`) — JEBV4-113 review finding 1.
+enum KycSubmitFieldError { idNumber, idType }
+
 class KycWizardState extends Equatable {
   const KycWizardState({
     this.step = KycWizardStep.schema,
@@ -50,6 +56,7 @@ class KycWizardState extends Equatable {
     this.tosAccepted = false,
     this.capturing,
     this.error,
+    this.submitFieldError,
     this.isLoadingStatus = false,
     this.justSubmitted = false,
   });
@@ -78,6 +85,10 @@ class KycWizardState extends Equatable {
   final KycCaptureSlot? capturing;
 
   final KycWizardError? error;
+
+  /// Field-scoped submit failure rendered inline on the offending identity
+  /// field (see [KycSubmitFieldError]). Cleared when the user edits the field.
+  final KycSubmitFieldError? submitFieldError;
 
   /// True while [KycWizardCubit.loadStatus] is in flight.
   final bool isLoadingStatus;
@@ -108,11 +119,13 @@ class KycWizardState extends Equatable {
   }
 
   /// Whether the identity screen has everything it needs to submit: both ID
-  /// sides, a selfie, and the ToS acceptance — and no capture in flight.
+  /// sides, a selfie, a contract-valid ID number (E3/JEBV4-197 — required for
+  /// every [KycIdType]), and the ToS acceptance — and no capture in flight.
   bool get canSubmitIdentity =>
       submission.hasIdFront &&
       submission.hasIdBack &&
       submission.hasSelfie &&
+      submission.hasValidIdNumber &&
       tosAccepted &&
       !isCapturing;
 
@@ -128,6 +141,8 @@ class KycWizardState extends Equatable {
     bool clearCapturing = false,
     KycWizardError? error,
     bool clearError = false,
+    KycSubmitFieldError? submitFieldError,
+    bool clearSubmitFieldError = false,
     bool? isLoadingStatus,
     bool? justSubmitted,
   }) {
@@ -142,6 +157,9 @@ class KycWizardState extends Equatable {
       tosAccepted: tosAccepted ?? this.tosAccepted,
       capturing: clearCapturing ? null : (capturing ?? this.capturing),
       error: clearError ? null : (error ?? this.error),
+      submitFieldError: clearSubmitFieldError
+          ? null
+          : (submitFieldError ?? this.submitFieldError),
       isLoadingStatus: isLoadingStatus ?? this.isLoadingStatus,
       justSubmitted: justSubmitted ?? this.justSubmitted,
     );
@@ -157,6 +175,7 @@ class KycWizardState extends Equatable {
         tosAccepted,
         capturing,
         error,
+        submitFieldError,
         isLoadingStatus,
         justSubmitted,
       ];
