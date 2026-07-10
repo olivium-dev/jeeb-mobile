@@ -746,10 +746,19 @@ class AppLocalizations {
   String get kycIdBackLabel => _get('kycIdBackLabel');
   String get kycIdRetake => _get('kycIdRetake');
   String get kycIdCaptureCta => _get('kycIdCaptureCta');
+  String get kycIdTypeLabel => _get('kycIdTypeLabel');
+  String get kycIdTypeNationalId => _get('kycIdTypeNationalId');
+  String get kycIdTypePassport => _get('kycIdTypePassport');
+  String get kycIdTypeResidency => _get('kycIdTypeResidency');
+  String get kycIdTypeInvalid => _get('kycIdTypeInvalid');
   String get kycIdNumberLabel => _get('kycIdNumberLabel');
+  String get kycIdNumberLabelPassport => _get('kycIdNumberLabelPassport');
+  String get kycIdNumberLabelResidency => _get('kycIdNumberLabelResidency');
   String get kycIdNumberHint => _get('kycIdNumberHint');
+  String get kycIdNumberHintDocument => _get('kycIdNumberHintDocument');
   String get kycIdNumberRequired => _get('kycIdNumberRequired');
   String get kycIdNumberInvalid => _get('kycIdNumberInvalid');
+  String get kycIdNumberRejected => _get('kycIdNumberRejected');
 
   String get kycSelfieStepTitle => _get('kycSelfieStepTitle');
   String get kycSelfieStepSubtitle => _get('kycSelfieStepSubtitle');

@@ -99,6 +99,28 @@ void main() {
       expect(out['deliveryId'], 'DLV-1');
     });
 
+    // JEBV4-113: the KYC submit body carries the government-ID number
+    // (`id_number`). The debug/QA RedactingLogInterceptor logs request
+    // bodies, so the raw digits must never survive scrubMap — in any casing
+    // or spelling (`idNumber`, `id_number`, `national_id`).
+    test('KYC id_number / national_id never leak raw digits', () {
+      final out = DiagRedaction.scrubMap(<String, Object?>{
+        'id_number': '123456789012',
+        'idNumber': '210987654321',
+        'national_id': '111222333444',
+        'id_type': 'national_id',
+        'nested': <String, Object?>{'id_number': '999888777666'},
+      });
+      expect(out['id_number'], isNot(contains('123456789012')));
+      expect(out['id_number'], startsWith('tok:'));
+      expect(out['idNumber'], isNot(contains('210987654321')));
+      expect(out['national_id'], isNot(contains('111222333444')));
+      final nested = out['nested'] as Map<String, Object?>;
+      expect(nested['id_number'], isNot(contains('999888777666')));
+      // The TYPE is not a secret — it must pass through for diagnosability.
+      expect(out['id_type'], 'national_id');
+    });
+
     // Super-login hardening: the demo-users roster is a LIST of maps, each
     // carrying `passcode`. scrubMap must recurse into list elements so no row
     // passcode ever prints in cleartext.

@@ -103,6 +103,15 @@ void main() {
       expect(_byIdentifier('kyc_id_back_upload'), findsOneWidget);
       expect(_byIdentifier('kyc_selfie_upload'), findsOneWidget);
 
+      // E3/JEBV4-197: the ID-type picker (all 3 ratified variants) and the
+      // ID-number field are part of the identity screen.
+      expect(_byIdentifier('kyc_id_type_picker'), findsOneWidget);
+      expect(_byIdentifier('kyc_id_type_national_id'), findsOneWidget);
+      expect(_byIdentifier('kyc_id_type_passport'), findsOneWidget);
+      expect(_byIdentifier('kyc_id_type_residency'), findsOneWidget);
+      expect(_byIdentifier('kyc_id_number_input'), findsOneWidget);
+      expect(find.byKey(KycIdentityStep.idNumberFieldKey), findsOneWidget);
+
       // kyc_submit_cta present from the first frame of the identity screen.
       expect(_byIdentifier('kyc_submit_cta'), findsOneWidget);
       expect(find.byKey(KycIdentityStep.submitButtonKey), findsOneWidget);
@@ -137,6 +146,13 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      // The ID number is the one hard client gate (E3) — fill it first.
+      await tester.enterText(
+        find.byKey(KycIdentityStep.idNumberFieldKey),
+        '123456789012',
+      );
+      await tester.pump();
+
       await tester.tap(find.byKey(KycIdentityStep.submitButtonKey));
       await tester.pump();
       await tester.pump();
@@ -150,10 +166,13 @@ void main() {
   );
 
   testWidgets(
-    'submit is reachable without driving the camera (server validates)',
+    'submit is reachable without driving the camera (server validates photos; '
+    'the typed ID number is the one client gate)',
     (tester) async {
-      // Mirrors the JM-040 Maestro flow: it cannot drive the camera, so it taps
-      // kyc_submit_cta directly and expects the chain to funding to fire.
+      // Mirrors the JM-040 Maestro flow: it cannot drive the camera, so it
+      // types the ID number (text input IS Maestro-drivable), taps
+      // kyc_submit_cta, and expects the chain to funding to fire — photo
+      // completeness stays back-office validated (JM-051 convention).
       var fundingNav = 0;
       final cubit = _newCubit(
         gateway: FakeKycGateway(decision: KycStatus.pending),
@@ -163,12 +182,143 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // No capture tiles tapped — straight to submit.
+      // No capture tiles tapped — just the ID number, then submit.
+      await tester.enterText(
+        find.byKey(KycIdentityStep.idNumberFieldKey),
+        '123456789012',
+      );
+      await tester.pump();
       await tester.tap(find.byKey(KycIdentityStep.submitButtonKey));
       await tester.pump();
       await tester.pump();
 
       expect(fundingNav, 1);
+    },
+  );
+
+  testWidgets(
+    'blank/invalid ID number disables the CTA — a tap cannot fire a POST '
+    '(review finding 1)',
+    (tester) async {
+      var fundingNav = 0;
+      final cubit = _newCubit(
+        gateway: FakeKycGateway(decision: KycStatus.pending),
+      );
+      await tester.pumpWidget(
+        _host(cubit, onSubmitted: (_) => fundingNav++),
+      );
+      await tester.pumpAndSettle();
+
+      // Blank ID number → tap does nothing.
+      await tester.tap(find.byKey(KycIdentityStep.submitButtonKey));
+      await tester.pump();
+      await tester.pump();
+      expect(fundingNav, 0);
+      expect(cubit.state.step, KycWizardStep.identity);
+
+      // 11 digits (boundary below the ^\d{12}$ rule) → still gated.
+      await tester.enterText(
+        find.byKey(KycIdentityStep.idNumberFieldKey),
+        '12345678901',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(KycIdentityStep.submitButtonKey));
+      await tester.pump();
+      await tester.pump();
+      expect(fundingNav, 0);
+      expect(cubit.state.submission.status, KycStatus.notSubmitted,
+          reason: 'nothing may reach the gateway with an invalid id_number');
+    },
+  );
+
+  testWidgets(
+    'typing a too-short national ID surfaces the localized inline error',
+    (tester) async {
+      final cubit = _newCubit();
+      await tester.pumpWidget(_host(cubit));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(KycIdentityStep.idNumberFieldKey),
+        '12345',
+      );
+      await tester.pump();
+
+      expect(
+        find.text('Enter a valid 12-digit national ID number'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'Eastern Arabic-Indic digits normalize to ASCII and satisfy the 12-digit '
+    'gate (review finding 5)',
+    (tester) async {
+      final cubit = _newCubit();
+      await tester.pumpWidget(_host(cubit));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(KycIdentityStep.idNumberFieldKey),
+        '١٢٣٤٥٦٧٨٩٠١٢',
+      );
+      await tester.pump();
+
+      expect(cubit.state.submission.idNumber, '123456789012');
+      expect(cubit.state.submission.hasValidIdNumber, isTrue);
+    },
+  );
+
+  testWidgets(
+    'switching the ID type to passport relaxes the 12-digit rule and swaps '
+    'the field label (E3/Q-042)',
+    (tester) async {
+      final cubit = _newCubit();
+      await tester.pumpWidget(_host(cubit));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(
+        find.byKey(KycIdentityStep.idTypePassportKey),
+      );
+      await tester.tap(find.byKey(KycIdentityStep.idTypePassportKey));
+      await tester.pump();
+
+      expect(cubit.state.submission.idType, KycIdType.passport);
+      expect(find.text('Passport number'), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(KycIdentityStep.idNumberFieldKey),
+        'P1234567',
+      );
+      await tester.pump();
+      expect(cubit.state.submission.hasValidIdNumber, isTrue,
+          reason: 'passport requires non-empty only — no 12-digit rule');
+    },
+  );
+
+  testWidgets(
+    'resubmit() clears the visible ID-number text — the field is bound to '
+    'cubit state (review finding 4)',
+    (tester) async {
+      final cubit = _newCubit();
+      await tester.pumpWidget(_host(cubit));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(KycIdentityStep.idNumberFieldKey),
+        '123456789012',
+      );
+      await tester.pump();
+      expect(find.text('123456789012'), findsOneWidget);
+      expect(cubit.state.submission.idNumber, '123456789012');
+
+      cubit.resubmit();
+      await tester.pumpAndSettle();
+
+      expect(cubit.state.submission.idNumber, isNull);
+      expect(find.text('123456789012'), findsNothing,
+          reason: 'an uncontrolled field would keep showing the old digits');
     },
   );
 
@@ -187,6 +337,7 @@ void main() {
       await seeder.captureIdFront();
       await seeder.captureIdBack();
       await seeder.captureSelfie();
+      seeder.setIdNumber('123456789012');
       seeder.setTosAccepted(true);
       await seeder.submit();
 
@@ -225,6 +376,7 @@ void main() {
       await seeder.captureIdFront();
       await seeder.captureIdBack();
       await seeder.captureSelfie();
+      seeder.setIdNumber('123456789012');
       seeder.setTosAccepted(true);
       await seeder.submit();
 

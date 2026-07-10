@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/text/digit_normalization.dart';
 import '../../photo_attachment/domain/photo_attachment.dart';
 import '../../photo_attachment/domain/photo_compressor.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
@@ -70,15 +71,33 @@ class KycWizardCubit extends Cubit<KycWizardState> {
 
   // ── Identity fields (inline on the identity screen) ───────────────────────
 
-  /// Records the national-ID number typed on the identity screen. Sent as the
-  /// REQUIRED `id_number` on submit (E3/JEBV4-197); the live BFF enforces
-  /// `^\d{12}$` for `national_id`.
+  /// Records the identity-document type picked on the identity screen. Sent
+  /// as the REQUIRED `id_type` on submit (E3/JEBV4-197 — ratified set
+  /// {national_id, passport, residency}). Switching type keeps the typed
+  /// number (validation re-evaluates against the new type) and clears any
+  /// inline field error.
+  void setIdType(KycIdType type) {
+    if (type == state.submission.idType) return;
+    emit(state.copyWith(
+      submission: state.submission.copyWith(idType: type),
+      clearError: true,
+      clearSubmitFieldError: true,
+    ));
+  }
+
+  /// Records the identity-document number typed on the identity screen. Sent
+  /// as the REQUIRED `id_number` on submit (E3/JEBV4-197); the live BFF
+  /// enforces `^\d{12}$` for `national_id`. Eastern Arabic-Indic digits from
+  /// Arabic keyboards are normalized to ASCII defensively (the input field
+  /// already normalizes as-you-type; this keeps the domain value canonical no
+  /// matter how it arrives).
   void setIdNumber(String value) {
-    final trimmed = value.trim();
+    final trimmed = normalizeArabicIndicDigits(value).trim();
     if (trimmed == (state.submission.idNumber ?? '')) return;
     emit(state.copyWith(
       submission: state.submission.copyWith(idNumber: trimmed),
       clearError: true,
+      clearSubmitFieldError: true,
     ));
   }
 
@@ -100,11 +119,26 @@ class KycWizardCubit extends Cubit<KycWizardState> {
   /// The photo captures are NOT a hard client gate — the back-office is the
   /// source of truth for KYC completeness and will reject an incomplete
   /// submission (this mirrors the JM-051 mark-delivered convention where the
-  /// camera evidence is optional client-side). Only an in-flight submit is
-  /// guarded to prevent double-posting.
+  /// camera evidence is optional client-side). The ID NUMBER, however, IS a
+  /// hard client gate (E3/JEBV4-197 makes it contract-required for every id
+  /// type): a blank/invalid `id_number` never reaches the network — the gate
+  /// re-renders the identity screen with the failure inline on the field.
+  /// An in-flight submit is also guarded to prevent double-posting.
   Future<void> submit() async {
     if (state.step == KycWizardStep.submitting) return;
-    emit(state.copyWith(step: KycWizardStep.submitting, clearError: true));
+    if (!state.submission.hasValidIdNumber) {
+      emit(state.copyWith(
+        step: KycWizardStep.identity,
+        submitFieldError: KycSubmitFieldError.idNumber,
+        clearError: true,
+      ));
+      return;
+    }
+    emit(state.copyWith(
+      step: KycWizardStep.submitting,
+      clearError: true,
+      clearSubmitFieldError: true,
+    ));
     try {
       final template = state.contractTemplate ??
           await _gateway.fetchContractTemplate();
@@ -128,11 +162,35 @@ class KycWizardCubit extends Cubit<KycWizardState> {
         tosAcceptedVersion: stamp.tosAcceptedVersion,
         justSubmitted: true,
       ));
+    } on KycSubmitFieldException catch (e) {
+      // The BFF rejected a specific field (RFC-7807 `field` extension).
+      // Surface it INLINE on the offending field — not the generic snackbar.
+      // Unknown field names fall back to the generic surface so the failure
+      // is never silent. (state.error is already null here — cleared at
+      // submit start — so the known-field branch adds no snackbar.)
+      final fieldError = _mapFieldError(e.field);
+      emit(state.copyWith(
+        step: KycWizardStep.identity,
+        submitFieldError: fieldError,
+        error: fieldError == null ? KycWizardError.submitFailed : null,
+      ));
     } catch (_) {
       emit(state.copyWith(
         step: KycWizardStep.identity,
         error: KycWizardError.submitFailed,
       ));
+    }
+  }
+
+  /// Maps the BFF's snake_case `field` extension to the inline-error surface.
+  static KycSubmitFieldError? _mapFieldError(String field) {
+    switch (field) {
+      case 'id_number':
+        return KycSubmitFieldError.idNumber;
+      case 'id_type':
+        return KycSubmitFieldError.idType;
+      default:
+        return null;
     }
   }
 
@@ -156,6 +214,7 @@ class KycWizardCubit extends Cubit<KycWizardState> {
       tosAccepted: false,
       clearCapturing: true,
       clearError: true,
+      clearSubmitFieldError: true,
       clearTosVersion: true,
       justSubmitted: false,
     ));

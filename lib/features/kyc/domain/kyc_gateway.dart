@@ -2,6 +2,29 @@ import 'kyc_contract_template.dart';
 import 'kyc_form_schema.dart';
 import 'kyc_submission.dart';
 
+/// A field-scoped rejection of the KYC submit by the live BFF.
+///
+/// The gateway answers invalid submissions with an RFC-7807 ProblemDetails
+/// carrying a `field` extension (e.g. `{"field": "id_number", "detail":
+/// "id_number must be exactly 12 digits (^\d{12}$)."}`). The data layer
+/// translates that shape into this domain exception so the wizard can surface
+/// the failure INLINE on the offending field instead of collapsing every 400
+/// into the generic submit-failed snackbar (JEBV4-113 review finding 1).
+class KycSubmitFieldException implements Exception {
+  const KycSubmitFieldException({required this.field, this.detail});
+
+  /// The snake_case wire name of the rejected field (e.g. `id_number`).
+  final String field;
+
+  /// The server's human-readable detail. English server prose — kept for
+  /// diagnostics only; the UI renders its own localized message per field.
+  final String? detail;
+
+  @override
+  String toString() =>
+      'KycSubmitFieldException(field: $field, detail: $detail)';
+}
+
 /// Side-channel for the cubit to submit and re-fetch KYC state.
 ///
 /// Implementing classes only need to satisfy this contract.
@@ -25,6 +48,8 @@ abstract class KycGateway {
   /// Sends the user's captured photos and vehicle details to the back-office
   /// via POST `/v1/kyc/submit`.
   /// Returns the post-submit snapshot — typically `state: "Submitted"`.
+  /// Throws [KycSubmitFieldException] when the BFF rejects the submission
+  /// with a field-scoped RFC-7807 400 (e.g. `field: "id_number"`).
   Future<KycSubmission> submit(KycSubmission draft);
 
   /// Re-reads the most recent decision from GET `/v1/kyc/status`.

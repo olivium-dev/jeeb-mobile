@@ -22,6 +22,26 @@ enum KycRejectionReason {
 /// One captured ID side: front or back of the national ID.
 enum IdSide { front, back }
 
+/// Identity-document variant sent as `id_type` on the KYC submit body.
+///
+/// E3 (JEBV4-197 / Q-042) ratifies exactly this pilot set —
+/// `national_id | passport | residency` — no more, no less. The wizard's ID
+/// step enumerates all three. NOTE: the deployed BFF still spells the third
+/// variant `residency_permit`; the gateway lane (JEBV4-197) is aligning
+/// `AllowedIdTypes` to this ratified vocabulary — until it lands, a
+/// `residency` submit is answered by a field-scoped 400 that the wizard
+/// surfaces inline on the type picker.
+enum KycIdType {
+  nationalId('national_id'),
+  passport('passport'),
+  residency('residency');
+
+  const KycIdType(this.wire);
+
+  /// The exact snake_case value sent on the wire as `id_type`.
+  final String wire;
+}
+
 /// Snapshot of the user's KYC submission. Stored on the cubit's state and
 /// echoed by [KycGateway.fetchStatus] after submit so the status screen can
 /// re-render across cold starts.
@@ -44,11 +64,10 @@ class KycSubmission extends Equatable {
     this.submittedAt,
   });
 
-  /// The only ID variant the shipped wizard collects today (the form schema's
-  /// `variant=national_id`). E3 (JEBV4-197) ratifies the wider accepted set
-  /// {national_id, passport, residency}; expanding the wizard to the full
-  /// picker is deferred to that coordinated rollout, so this stays the default.
-  static const String defaultIdType = 'national_id';
+  /// Default ID variant pre-selected on the wizard's type picker (the most
+  /// common document for the pilot market; also the form schema's default
+  /// `variant=national_id`). The user can switch to any ratified [KycIdType].
+  static const KycIdType defaultIdType = KycIdType.nationalId;
 
   /// 12-digit national-ID shape enforced by the live BFF
   /// (`KycSubmissionBffController.ValidateSubmitFieldsAsync`, `^\d{12}$`) when
@@ -59,13 +78,14 @@ class KycSubmission extends Equatable {
   final KycStatus status;
 
   /// KYC identity-document type sent as `id_type` (E3/JEBV4-197 — REQUIRED on
-  /// the live contract). Defaults to [defaultIdType]; the shipped wizard is
-  /// national-ID only.
-  final String idType;
+  /// the live contract). One of the ratified [KycIdType] variants; defaults
+  /// to [defaultIdType].
+  final KycIdType idType;
 
   /// KYC identity-document number sent as `id_number` (E3/JEBV4-197 —
-  /// REQUIRED). For [defaultIdType] the live BFF requires exactly 12 digits
-  /// (see [nationalIdPattern]).
+  /// REQUIRED). For [KycIdType.nationalId] the live BFF requires exactly 12
+  /// digits (see [nationalIdPattern]); passport/residency numbers carry no
+  /// BFF-enforced shape today, so the client requires only a non-empty value.
   final String? idNumber;
 
   final PhotoAttachment? idFront;
@@ -96,19 +116,22 @@ class KycSubmission extends Equatable {
   bool get hasSelfie => selfie != null;
   bool get hasVehicleRegistration => vehicleRegistration != null;
 
-  /// Whether [idNumber] satisfies the live contract for the current [idType].
-  /// For `national_id` that is the BFF's `^\d{12}$` rule; other (deferred)
-  /// types only require a non-empty value.
+  /// Whether [idNumber] satisfies the live contract for the current [idType]:
+  /// `^\d{12}$` for [KycIdType.nationalId] (the only shape the BFF enforces
+  /// today — mirrored, not invented), non-empty for passport/residency (E3
+  /// makes `id_number` required; the BFF applies no shape to those variants).
   bool get hasValidIdNumber {
     final number = idNumber?.trim() ?? '';
     if (number.isEmpty) return false;
-    if (idType == defaultIdType) return nationalIdPattern.hasMatch(number);
+    if (idType == KycIdType.nationalId) {
+      return nationalIdPattern.hasMatch(number);
+    }
     return true;
   }
 
   KycSubmission copyWith({
     KycStatus? status,
-    String? idType,
+    KycIdType? idType,
     String? idNumber,
     PhotoAttachment? idFront,
     PhotoAttachment? idBack,

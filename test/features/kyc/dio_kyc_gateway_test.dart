@@ -19,12 +19,15 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/kyc/data/dio_cdn_asset_gateway.dart';
 import 'package:jeeb_mobile/features/kyc/data/dio_kyc_gateway.dart';
+import 'package:jeeb_mobile/features/kyc/domain/kyc_gateway.dart';
 import 'package:jeeb_mobile/features/kyc/domain/kyc_submission.dart';
 import 'package:jeeb_mobile/features/photo_attachment/domain/photo_attachment.dart';
 
 /// Records every outbound request and resolves a response computed per
 /// request, so the CDN broker POSTs, the signed PUTs, and the final
-/// `/v1/kyc/submit` POST can each be answered distinctly.
+/// `/v1/kyc/submit` POST can each be answered distinctly. A resolver may
+/// throw a [DioException] to simulate an HTTP error response (e.g. the BFF's
+/// RFC-7807 400).
 class _RecordingDio {
   _RecordingDio(this._resolve) {
     dio = Dio(BaseOptions(baseUrl: 'http://gateway.test'));
@@ -32,7 +35,11 @@ class _RecordingDio {
       InterceptorsWrapper(
         onRequest: (options, handler) {
           requests.add(options);
-          handler.resolve(_resolve(options));
+          try {
+            handler.resolve(_resolve(options));
+          } on DioException catch (e) {
+            handler.reject(e);
+          }
         },
       ),
     );
@@ -202,6 +209,31 @@ void main() {
       expect(body.containsKey('id_number'), isFalse);
     });
 
+    test('sends the ratified E3/Q-042 wire value for every id_type variant '
+        '(canonical residency, never residency_permit)', () async {
+      for (final entry in {
+        KycIdType.nationalId: 'national_id',
+        KycIdType.passport: 'passport',
+        KycIdType.residency: 'residency',
+      }.entries) {
+        final rec = _RecordingDio(_happyPath);
+        final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio));
+        const draft = KycSubmission(status: KycStatus.notSubmitted);
+        final typed = draft.copyWith(
+          idFront: _photo('front'),
+          idBack: _photo('back'),
+          selfie: _photo('selfie'),
+          idType: entry.key,
+          idNumber: 'DOC-1234',
+        );
+
+        await gateway.submit(typed);
+
+        final body = rec.submitCall.data as Map<String, dynamic>;
+        expect(body['id_type'], entry.value);
+      }
+    });
+
     test('includes vehicle_registration_url only when a vehicle asset '
         'exists in state (send-if-present)', () async {
       final rec = _RecordingDio(_happyPath);
@@ -290,6 +322,85 @@ void main() {
 
       expect(rec.submitCall.method, 'POST');
       expect(result.status, KycStatus.pending);
+    });
+  });
+
+  group('DioKycGateway.submit — RFC-7807 field-scoped 400 translation '
+      '(JEBV4-113 review finding 1)', () {
+    /// Answers the CDN legs happily but rejects the submit POST with the
+    /// BFF's real problem shape: `{"type": ..., "field": "id_number",
+    /// "detail": ...}` on HTTP 400.
+    Response<dynamic> rejectSubmit(RequestOptions options) {
+      if (options.path == '/v1/kyc/submit') {
+        throw DioException(
+          requestOptions: options,
+          type: DioExceptionType.badResponse,
+          response: Response<dynamic>(
+            requestOptions: options,
+            statusCode: 400,
+            data: <String, dynamic>{
+              'type': 'https://jeeb.dev/errors/validation',
+              'title': 'Invalid submission field',
+              'detail': r'id_number must be exactly 12 digits (^\d{12}$).',
+              'status': 400,
+              'field': 'id_number',
+            },
+          ),
+        );
+      }
+      return _happyPath(options);
+    }
+
+    KycSubmission draftWithPhotos() =>
+        const KycSubmission(status: KycStatus.notSubmitted).copyWith(
+          idFront: _photo('front'),
+          idBack: _photo('back'),
+          selfie: _photo('selfie'),
+          idNumber: '123',
+        );
+
+    test('a 400 problem carrying field throws KycSubmitFieldException with '
+        'that field + detail', () async {
+      final rec = _RecordingDio(rejectSubmit);
+      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio));
+
+      await expectLater(
+        gateway.submit(draftWithPhotos()),
+        throwsA(
+          isA<KycSubmitFieldException>()
+              .having((e) => e.field, 'field', 'id_number')
+              .having((e) => e.detail, 'detail', contains('12 digits')),
+        ),
+      );
+    });
+
+    test('a 400 problem WITHOUT a field extension rethrows the raw '
+        'DioException (generic handling stays intact)', () async {
+      Response<dynamic> rejectPlain(RequestOptions options) {
+        if (options.path == '/v1/kyc/submit') {
+          throw DioException(
+            requestOptions: options,
+            type: DioExceptionType.badResponse,
+            response: Response<dynamic>(
+              requestOptions: options,
+              statusCode: 400,
+              data: <String, dynamic>{
+                'title': 'Missing document references',
+                'status': 400,
+              },
+            ),
+          );
+        }
+        return _happyPath(options);
+      }
+
+      final rec = _RecordingDio(rejectPlain);
+      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio));
+
+      await expectLater(
+        gateway.submit(draftWithPhotos()),
+        throwsA(isA<DioException>()),
+      );
     });
   });
 }
