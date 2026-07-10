@@ -24,22 +24,30 @@ enum OrderRequestStatus {
   disputed,
   unknown;
 
-  /// Parses the gateway's lowercase snake_case status string.
+  /// Parses the gateway's lowercase request status string and the delivery
+  /// service's PascalCase `currentStage` values.
   static OrderRequestStatus parse(String? raw) {
     switch (raw) {
       case 'pending':
+      case 'Ordered':
         return OrderRequestStatus.pending;
       case 'matched':
         return OrderRequestStatus.matched;
       case 'picked_up':
+      case 'Picked':
         return OrderRequestStatus.pickedUp;
       case 'en_route':
+      case 'InTransit':
+      case 'AtDoor':
         return OrderRequestStatus.enRoute;
       case 'delivered':
+      case 'Done':
         return OrderRequestStatus.delivered;
       case 'cancelled':
+      case 'Cancelled':
         return OrderRequestStatus.cancelled;
       case 'disputed':
+      case 'FailedNeedsEscalation':
         return OrderRequestStatus.disputed;
       default:
         return OrderRequestStatus.unknown;
@@ -130,15 +138,15 @@ class OrderSummary extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        createdAt,
-        pickupAddress,
-        dropoffAddress,
-        status,
-        tier,
-        amountMinor,
-        currency,
-      ];
+    id,
+    createdAt,
+    pickupAddress,
+    dropoffAddress,
+    status,
+    tier,
+    amountMinor,
+    currency,
+  ];
 }
 
 /// Page of orders returned by the repository. `hasMore` is the only signal

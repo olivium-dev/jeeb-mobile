@@ -3,12 +3,12 @@ import 'package:dio/dio.dart';
 import '../domain/order_repository.dart';
 import '../domain/order_summary.dart';
 
-/// Dio-backed [OrderRepository] hitting `GET /api/requests`.
+/// Dio-backed [OrderRepository] hitting `GET /deliveries`.
 ///
 /// The gateway returns a JSON envelope of the shape:
 /// ```json
 /// {
-///   "items": [{ "id": "...", "createdAt": "...", ... }],
+///   "items": [{ "id": "...", "createdAt": "...", "currentStage": "..." }],
 ///   "page": 1,
 ///   "pageSize": 20,
 ///   "totalCount": 142
@@ -21,7 +21,7 @@ class DioOrderRepository implements OrderRepository {
 
   final Dio _dio;
 
-  static const _path = '/api/requests';
+  static const _path = '/deliveries';
 
   @override
   Future<OrderPage> fetchPage({
@@ -34,9 +34,9 @@ class DioOrderRepository implements OrderRepository {
       final response = await _dio.get<Map<String, dynamic>>(
         _path,
         queryParameters: {
-          'status': _statusParam(tab),
+          'stage': _stageParam(tab),
           'page': page,
-          'pageSize': pageSize,
+          'limit': pageSize,
           if (range.from != null)
             'fromDate': range.from!.toUtc().toIso8601String(),
           if (range.to != null) 'toDate': range.to!.toUtc().toIso8601String(),
@@ -59,16 +59,13 @@ class DioOrderRepository implements OrderRepository {
     }
   }
 
-  /// Per-tab filter value. The gateway interprets these:
-  /// - `active` → any non-terminal state
-  /// - `delivered` → only successfully completed
-  /// - `cancelled` → cancelled or disputed
-  static String _statusParam(OrderHistoryTab tab) {
+  /// Per-tab filter value for the delivery-service list contract.
+  static String _stageParam(OrderHistoryTab tab) {
     switch (tab) {
       case OrderHistoryTab.active:
         return 'active';
       case OrderHistoryTab.completed:
-        return 'delivered';
+        return 'completed';
       case OrderHistoryTab.cancelled:
         return 'cancelled';
     }
@@ -79,7 +76,7 @@ class DioOrderRepository implements OrderRepository {
     int requestedPage,
     int pageSize,
   ) {
-    final rawItems = json['items'];
+    final rawItems = json['items'] ?? json['shipments'];
     if (rawItems is! List) {
       throw const FormatException('items missing or not a list');
     }
@@ -102,7 +99,10 @@ class DioOrderRepository implements OrderRepository {
     final dropoff = json['dropoff'];
     return OrderSummary(
       id: json['id'] as String? ?? '',
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+      createdAt:
+          DateTime.tryParse(
+            json['createdAt'] as String? ?? json['created_at'] as String? ?? '',
+          ) ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
       pickupAddress: pickup is Map<String, dynamic>
           ? (pickup['address'] as String? ?? '')
@@ -110,7 +110,9 @@ class DioOrderRepository implements OrderRepository {
       dropoffAddress: dropoff is Map<String, dynamic>
           ? (dropoff['address'] as String? ?? '')
           : '',
-      status: OrderRequestStatus.parse(json['status'] as String?),
+      status: OrderRequestStatus.parse(
+        json['status'] as String? ?? json['currentStage'] as String?,
+      ),
       tier: OrderTier.parse(json['tier'] as String?),
       amountMinor: amount is Map<String, dynamic>
           ? (amount['minorUnits'] as int? ?? 0)

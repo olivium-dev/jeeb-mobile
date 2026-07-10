@@ -46,7 +46,10 @@ class MockGatewayClient {
   /// When `false` every path passes through unchanged to a gateway-shaped mock
   /// (e.g. Mockoon) that speaks the raw gateway contract (`/v1/auth/otp/request`).
   /// If you flip this to `false`, also override [mockBaseUrl] to that mock's port.
-  static const bool useMockPrefixes = true;
+  static const bool useMockPrefixes = bool.fromEnvironment(
+    'JEEB_USE_MOCK_PREFIXES',
+    defaultValue: true,
+  );
 
   static const Map<String, String> _pathToServicePrefix = {
     // B1 (W-1) — gateway `/v1/auth/*` → Express mock `/auth-service/auth/*`.
@@ -125,6 +128,7 @@ class MockGatewayClient {
     // INTEGRATOR-STUB repos until they land (CTO-D2).
     '/v1/jeeb/wallet': '/wallet-service/v1/jeeb/wallet',
     '/v1/jeeb/earnings': '/wallet-service/v1/jeeb/earnings',
+    '/deliveries': '/delivery-service/v1/deliveries',
     '/api/deliveries': '/delivery-service/api/deliveries',
     '/v1/deliveries': '/delivery-service/v1/deliveries',
     '/v1/transcribe': '/voice-transcription-service/v1/transcribe',
@@ -165,11 +169,13 @@ class MockGatewayClient {
     dio.interceptors.add(_AuthInterceptor());
 
     if (kDebugMode) {
-      dio.interceptors.add(LogInterceptor(
-        requestBody: true,
-        responseBody: true,
-        logPrint: (o) => debugPrint(o.toString()),
-      ));
+      dio.interceptors.add(
+        LogInterceptor(
+          requestBody: true,
+          responseBody: true,
+          logPrint: (o) => debugPrint(o.toString()),
+        ),
+      );
     }
 
     return dio;

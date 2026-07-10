@@ -26,9 +26,12 @@ void main() {
       expect(MockGatewayClient.mockBaseUrl, 'http://192.168.2.33:4010');
     });
 
-    test('useMockPrefixes is true — paths are rewritten to service prefixes', () {
-      expect(MockGatewayClient.useMockPrefixes, isTrue);
-    });
+    test(
+      'useMockPrefixes is true — paths are rewritten to service prefixes',
+      () {
+        expect(MockGatewayClient.useMockPrefixes, isTrue);
+      },
+    );
 
     test('webSocketUrl targets port 3056', () {
       final wsUrl = MockGatewayClient.webSocketUrl;
@@ -140,16 +143,26 @@ void main() {
       );
     });
 
-    test('the more specific /v1/notifications/send precedes /v1/notifications', () {
+    test('delivery list rewrites to delivery-service v1', () {
       expect(
-        MockGatewayClient.rewritePath('/v1/notifications/send'),
-        '/notification-service/v1/notifications/send',
-      );
-      expect(
-        MockGatewayClient.rewritePath('/v1/notifications'),
-        '/notification-service/v1/notifications',
+        MockGatewayClient.rewritePath('/deliveries'),
+        '/delivery-service/v1/deliveries',
       );
     });
+
+    test(
+      'the more specific /v1/notifications/send precedes /v1/notifications',
+      () {
+        expect(
+          MockGatewayClient.rewritePath('/v1/notifications/send'),
+          '/notification-service/v1/notifications/send',
+        );
+        expect(
+          MockGatewayClient.rewritePath('/v1/notifications'),
+          '/notification-service/v1/notifications',
+        );
+      },
+    );
 
     // W2 KYC (66_W2_QA_RESULTS C2): the KYC gateway speaks `/v1/kyc/*`; the mock
     // mounts it under `/user-management`. Without this rewrite the app hit

@@ -71,7 +71,10 @@ class RegistrationScreen extends StatelessWidget {
 
     Widget withRegistration(Widget child) {
       if (cubit != null) {
-        return BlocProvider<RegistrationCubit>.value(value: cubit!, child: child);
+        return BlocProvider<RegistrationCubit>.value(
+          value: cubit!,
+          child: child,
+        );
       }
       return BlocProvider<RegistrationCubit>(
         create: (_) => RegistrationCubit(
@@ -371,7 +374,7 @@ class _PhoneEntryBody extends StatelessWidget {
               context.read<RegistrationCubit>().phoneChanged(raw),
         ),
         const SizedBox(height: Spacing.large),
-        _SendCodeButton(state: state),
+        _SendCodeButton(state: state, phoneController: phoneController),
         // SECURITY: the super-login dev affordance is compiled out of release
         // builds (only mounted under `kDebugMode`). It opens a server-validated
         // credential sheet instead of the old gate-less `mock-jwt-*` mint
@@ -393,19 +396,24 @@ class _PhoneEntryBody extends StatelessWidget {
 /// Phone send-code CTA — upgraded to [OmdsLoadingButton] for an in-button
 /// spinner (Rahma/Salehly parity) over the old label-swap.
 class _SendCodeButton extends StatelessWidget {
-  const _SendCodeButton({required this.state});
+  const _SendCodeButton({required this.state, required this.phoneController});
 
   final RegistrationState state;
+  final TextEditingController phoneController;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final cubit = context.read<RegistrationCubit>();
     return OmdsLoadingButton(
       key: const Key('registration.sendCode'),
       text: l10n.registrationSendCode,
       isLoading: state.isSendingCode,
       isEnabled: state.isPhoneReady && !state.isSendingCode,
-      onTap: () => context.read<RegistrationCubit>().sendCode(),
+      onTap: () {
+        cubit.phoneChanged(phoneController.text);
+        cubit.sendCode();
+      },
     );
   }
 }
@@ -464,14 +472,16 @@ class _WelcomeHeading extends StatelessWidget {
         Text(
           l10n.registrationWelcome,
           key: const Key('registration.welcome'),
-          style: theme.textTheme.headlineSmall
-              ?.copyWith(fontWeight: FontWeight.w700),
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
         ),
         const SizedBox(height: Spacing.xSmall),
         Text(
           l10n.registrationPhoneSubtitle,
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );
@@ -496,10 +506,9 @@ class _OrDivider extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
           child: Text(
             label,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: colorScheme.onSurfaceVariant),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         Expanded(child: Divider(color: colorScheme.outlineVariant)),
@@ -529,10 +538,11 @@ class _SuperLoginLink extends StatelessWidget {
           child: Text(
             l10n.superLoginTitle,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colorScheme.primary
-                      .withValues(alpha: UIConstants.opacityMedium),
-                  decoration: TextDecoration.underline,
-                ),
+              color: colorScheme.primary.withValues(
+                alpha: UIConstants.opacityMedium,
+              ),
+              decoration: TextDecoration.underline,
+            ),
           ),
         ),
       ),
@@ -563,10 +573,11 @@ class _SuperLoginPlusLink extends StatelessWidget {
           child: Text(
             l10n.superLoginPlusTitle,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colorScheme.primary
-                      .withValues(alpha: UIConstants.opacityMedium),
-                  decoration: TextDecoration.underline,
-                ),
+              color: colorScheme.primary.withValues(
+                alpha: UIConstants.opacityMedium,
+              ),
+              decoration: TextDecoration.underline,
+            ),
           ),
         ),
       ),
