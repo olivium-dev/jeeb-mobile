@@ -66,7 +66,10 @@ class DioOffersRepository implements OffersRepository {
     if (data is List) {
       items = data;
     } else if (data is Map<String, dynamic>) {
-      items = (data['offers'] as List?) ?? const <dynamic>[];
+      items =
+          (data['offers'] as List?) ??
+          (data['items'] as List?) ??
+          const <dynamic>[];
     } else {
       throw const OffersRepositoryException(OffersFailure.unknown);
     }

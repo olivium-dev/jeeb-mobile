@@ -46,7 +46,10 @@ class RatingStatus extends Equatable {
   final CounterpartRating? counterpartRating;
 
   factory RatingStatus.fromJson(String deliveryId, Map<String, dynamic> json) {
-    final raw = json['status'] as String? ?? 'pending_mine';
+    final raw =
+        json['status'] as String? ??
+        json['revealState'] as String? ??
+        'pending_mine';
     return RatingStatus(
       deliveryId: deliveryId,
       revealState: _parseState(raw),
@@ -57,12 +60,16 @@ class RatingStatus extends Equatable {
   static RatingRevealState _parseState(String raw) {
     switch (raw) {
       case 'pending_mine':
+      case 'pendingMine':
         return RatingRevealState.pendingMine;
       case 'pending_theirs':
+      case 'pendingTheirs':
         return RatingRevealState.pendingTheirs;
       case 'both_rated':
+      case 'bothRated':
         return RatingRevealState.bothRated;
       case 'auto_revealed':
+      case 'autoRevealed':
         return RatingRevealState.autoRevealed;
       default:
         return RatingRevealState.pendingMine;
@@ -70,7 +77,7 @@ class RatingStatus extends Equatable {
   }
 
   static CounterpartRating? _parseCounterpart(Map<String, dynamic> json) {
-    final raw = json['counterpartRating'];
+    final raw = json['counterpartRating'] ?? json['counterpart_rating'];
     if (raw is Map<String, dynamic>) {
       return CounterpartRating.fromJson(raw);
     }

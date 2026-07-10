@@ -13,10 +13,13 @@ enum OfferSortMode { byPrice, byRating }
 enum OffersScreenStatus {
   /// Cold load — no offers in state yet.
   initial,
+
   /// First snapshot is on the wire.
   loading,
+
   /// At least one snapshot has rendered. New polls keep us here.
   loaded,
+
   /// Cold load failed and we have nothing to show.
   failed,
 }
@@ -34,6 +37,7 @@ class ClientOffersState extends Equatable {
     this.requestIsOpen = true,
     this.acceptingOfferId,
     this.acceptedOfferId,
+    this.acceptedDeliveryId,
     this.acceptStatus = AcceptStatus.idle,
     this.error,
   });
@@ -63,6 +67,13 @@ class ClientOffersState extends Equatable {
   /// Id of the offer that accept succeeded on. Drives the success banner /
   /// route hand-off.
   final String? acceptedOfferId;
+
+  /// Server-created delivery id returned by the accept saga.
+  ///
+  /// Null means the gateway/mock did not surface tracking yet, so hosts must
+  /// keep the user on the accepted banner instead of routing to tracking with
+  /// an offer id by mistake.
+  final String? acceptedDeliveryId;
 
   final AcceptStatus acceptStatus;
 
@@ -96,6 +107,8 @@ class ClientOffersState extends Equatable {
     bool clearAcceptingOfferId = false,
     String? acceptedOfferId,
     bool clearAcceptedOfferId = false,
+    String? acceptedDeliveryId,
+    bool clearAcceptedDeliveryId = false,
     AcceptStatus? acceptStatus,
     OffersFailure? error,
     bool clearError = false,
@@ -107,10 +120,15 @@ class ClientOffersState extends Equatable {
       windowExpiresAt: windowExpiresAt ?? this.windowExpiresAt,
       now: now ?? this.now,
       requestIsOpen: requestIsOpen ?? this.requestIsOpen,
-      acceptingOfferId:
-          clearAcceptingOfferId ? null : (acceptingOfferId ?? this.acceptingOfferId),
-      acceptedOfferId:
-          clearAcceptedOfferId ? null : (acceptedOfferId ?? this.acceptedOfferId),
+      acceptingOfferId: clearAcceptingOfferId
+          ? null
+          : (acceptingOfferId ?? this.acceptingOfferId),
+      acceptedOfferId: clearAcceptedOfferId
+          ? null
+          : (acceptedOfferId ?? this.acceptedOfferId),
+      acceptedDeliveryId: clearAcceptedDeliveryId
+          ? null
+          : (acceptedDeliveryId ?? this.acceptedDeliveryId),
       acceptStatus: acceptStatus ?? this.acceptStatus,
       error: clearError ? null : (error ?? this.error),
     );
@@ -118,15 +136,16 @@ class ClientOffersState extends Equatable {
 
   @override
   List<Object?> get props => [
-        status,
-        offers,
-        sortMode,
-        windowExpiresAt,
-        now,
-        requestIsOpen,
-        acceptingOfferId,
-        acceptedOfferId,
-        acceptStatus,
-        error,
-      ];
+    status,
+    offers,
+    sortMode,
+    windowExpiresAt,
+    now,
+    requestIsOpen,
+    acceptingOfferId,
+    acceptedOfferId,
+    acceptedDeliveryId,
+    acceptStatus,
+    error,
+  ];
 }

@@ -13,12 +13,11 @@ OffersSnapshot _snapshot(
   List<Offer> offers, {
   DateTime? deadline,
   bool requestIsOpen = true,
-}) =>
-    OffersSnapshot(
-      offers: offers,
-      windowExpiresAt: deadline ?? kBaseTime.add(const Duration(minutes: 5)),
-      requestIsOpen: requestIsOpen,
-    );
+}) => OffersSnapshot(
+  offers: offers,
+  windowExpiresAt: deadline ?? kBaseTime.add(const Duration(minutes: 5)),
+  requestIsOpen: requestIsOpen,
+);
 
 ClientOffersCubit _buildCubit({
   required ScriptedOffersRepository repository,
@@ -52,11 +51,11 @@ void main() {
 
       expect(cubit.state.status, OffersScreenStatus.loaded);
       expect(cubit.state.sortMode, OfferSortMode.byPrice);
-      expect(
-        cubit.state.offers.map((o) => o.id).toList(),
-        ['b', 'c', 'a'],
-        reason: 'price asc',
-      );
+      expect(cubit.state.offers.map((o) => o.id).toList(), [
+        'b',
+        'c',
+        'a',
+      ], reason: 'price asc');
       expect(cubit.state.requestIsOpen, isTrue);
     });
 
@@ -88,10 +87,7 @@ void main() {
       cubit.setSortMode(OfferSortMode.byRating);
 
       expect(cubit.state.sortMode, OfferSortMode.byRating);
-      expect(
-        cubit.state.offers.map((o) => o.id).toList(),
-        ['b', 'c', 'a'],
-      );
+      expect(cubit.state.offers.map((o) => o.id).toList(), ['b', 'c', 'a']);
     });
 
     test('equal price ties break newest-first', () async {
@@ -110,16 +106,14 @@ void main() {
       final repo = ScriptedOffersRepository(snapshots: [_snapshot(offers)]);
       final cubit = _buildCubit(repository: repo);
       await cubit.load();
-      expect(
-        cubit.state.offers.map((o) => o.id).toList(),
-        ['newer', 'older'],
-      );
+      expect(cubit.state.offers.map((o) => o.id).toList(), ['newer', 'older']);
     });
 
-    test('setSortMode is a no-op when called with the current mode',
-        () async {
+    test('setSortMode is a no-op when called with the current mode', () async {
       final repo = ScriptedOffersRepository(
-        snapshots: [_snapshot([buildOffer(id: 'a')])],
+        snapshots: [
+          _snapshot([buildOffer(id: 'a')]),
+        ],
       );
       final cubit = _buildCubit(repository: repo);
       await cubit.load();
@@ -131,43 +125,71 @@ void main() {
   });
 
   group('ClientOffersCubit — accept flow', () {
-    test('accept emits in-flight then succeeded and closes the request',
-        () async {
-      final repo = ScriptedOffersRepository(
-        snapshots: [_snapshot([buildOffer(id: 'pick-me')])],
-      );
-      final cubit = _buildCubit(repository: repo);
-      await cubit.load();
+    test(
+      'accept emits in-flight then succeeded and closes the request',
+      () async {
+        final repo = ScriptedOffersRepository(
+          snapshots: [
+            _snapshot([buildOffer(id: 'pick-me')]),
+          ],
+        )..acceptDeliveryId = 'dlv-golden-001';
+        final cubit = _buildCubit(repository: repo);
+        await cubit.load();
 
-      final emitted = <AcceptStatus>[];
-      final sub = cubit.stream.listen((s) => emitted.add(s.acceptStatus));
+        final emitted = <AcceptStatus>[];
+        final sub = cubit.stream.listen((s) => emitted.add(s.acceptStatus));
 
-      await cubit.acceptOffer('pick-me');
-      await sub.cancel();
+        await cubit.acceptOffer('pick-me');
+        await sub.cancel();
 
-      expect(repo.lastAcceptedRequestId, 'req-1');
-      expect(repo.lastAcceptedOfferId, 'pick-me');
-      expect(cubit.state.acceptedOfferId, 'pick-me');
-      expect(cubit.state.acceptStatus, AcceptStatus.succeeded);
-      expect(cubit.state.requestIsOpen, isFalse);
-      expect(emitted, [AcceptStatus.inFlight, AcceptStatus.succeeded]);
-    });
+        expect(repo.lastAcceptedRequestId, 'req-1');
+        expect(repo.lastAcceptedOfferId, 'pick-me');
+        expect(cubit.state.acceptedOfferId, 'pick-me');
+        expect(cubit.state.acceptedDeliveryId, 'dlv-golden-001');
+        expect(cubit.state.acceptStatus, AcceptStatus.succeeded);
+        expect(cubit.state.requestIsOpen, isFalse);
+        expect(emitted, [AcceptStatus.inFlight, AcceptStatus.succeeded]);
+      },
+    );
 
-    test('accept failure returns to idle and surfaces classified error',
-        () async {
-      final repo = ScriptedOffersRepository(
-        snapshots: [_snapshot([buildOffer(id: 'pick-me')])],
-        acceptFailure: OffersFailure.offerNotPending,
-      );
-      final cubit = _buildCubit(repository: repo);
-      await cubit.load();
+    test(
+      'accept success with no delivery id does not invent tracking state',
+      () async {
+        final repo = ScriptedOffersRepository(
+          snapshots: [
+            _snapshot([buildOffer(id: 'legacy')]),
+          ],
+        );
+        final cubit = _buildCubit(repository: repo);
+        await cubit.load();
 
-      await cubit.acceptOffer('pick-me');
+        await cubit.acceptOffer('legacy');
 
-      expect(cubit.state.acceptStatus, AcceptStatus.idle);
-      expect(cubit.state.error, OffersFailure.offerNotPending);
-      expect(cubit.state.requestIsOpen, isTrue);
-    });
+        expect(cubit.state.acceptedOfferId, 'legacy');
+        expect(cubit.state.acceptedDeliveryId, isNull);
+        expect(cubit.state.requestIsOpen, isFalse);
+      },
+    );
+
+    test(
+      'accept failure returns to idle and surfaces classified error',
+      () async {
+        final repo = ScriptedOffersRepository(
+          snapshots: [
+            _snapshot([buildOffer(id: 'pick-me')]),
+          ],
+          acceptFailure: OffersFailure.offerNotPending,
+        );
+        final cubit = _buildCubit(repository: repo);
+        await cubit.load();
+
+        await cubit.acceptOffer('pick-me');
+
+        expect(cubit.state.acceptStatus, AcceptStatus.idle);
+        expect(cubit.state.error, OffersFailure.offerNotPending);
+        expect(cubit.state.requestIsOpen, isTrue);
+      },
+    );
 
     test('concurrent accept is rejected while in-flight', () async {
       final completer = Completer<void>();
@@ -227,7 +249,9 @@ void main() {
 
     test('poll failures are swallowed and do not flip status', () async {
       final repo = ScriptedOffersRepository(
-        snapshots: [_snapshot([buildOffer(id: 'a')])],
+        snapshots: [
+          _snapshot([buildOffer(id: 'a')]),
+        ],
       );
       final pollTrigger = StreamController<void>();
       final cubit = _buildCubit(
@@ -273,38 +297,42 @@ void main() {
   });
 
   group('ClientOffersCubit — countdown', () {
-    test('tick advances "now" and flips windowExpired past the deadline',
-        () async {
-      var fakeNow = kBaseTime;
-      final repo = ScriptedOffersRepository(snapshots: [
-        OffersSnapshot(
-          offers: [buildOffer(id: 'a')],
-          windowExpiresAt: kBaseTime.add(const Duration(seconds: 10)),
-          requestIsOpen: true,
-        ),
-      ]);
-      final cubit = ClientOffersCubit(
-        repository: repo,
-        requestId: 'req-1',
-        now: () => fakeNow,
-        pollTicks: const Stream.empty(),
-        clockTicks: const Stream.empty(),
-      );
-      addTearDown(cubit.close);
+    test(
+      'tick advances "now" and flips windowExpired past the deadline',
+      () async {
+        var fakeNow = kBaseTime;
+        final repo = ScriptedOffersRepository(
+          snapshots: [
+            OffersSnapshot(
+              offers: [buildOffer(id: 'a')],
+              windowExpiresAt: kBaseTime.add(const Duration(seconds: 10)),
+              requestIsOpen: true,
+            ),
+          ],
+        );
+        final cubit = ClientOffersCubit(
+          repository: repo,
+          requestId: 'req-1',
+          now: () => fakeNow,
+          pollTicks: const Stream.empty(),
+          clockTicks: const Stream.empty(),
+        );
+        addTearDown(cubit.close);
 
-      await cubit.load();
-      expect(cubit.state.windowRemaining, const Duration(seconds: 10));
-      expect(cubit.state.windowExpired, isFalse);
+        await cubit.load();
+        expect(cubit.state.windowRemaining, const Duration(seconds: 10));
+        expect(cubit.state.windowExpired, isFalse);
 
-      fakeNow = kBaseTime.add(const Duration(seconds: 5));
-      cubit.tick();
-      expect(cubit.state.windowRemaining, const Duration(seconds: 5));
+        fakeNow = kBaseTime.add(const Duration(seconds: 5));
+        cubit.tick();
+        expect(cubit.state.windowRemaining, const Duration(seconds: 5));
 
-      fakeNow = kBaseTime.add(const Duration(seconds: 15));
-      cubit.tick();
-      expect(cubit.state.windowRemaining, Duration.zero);
-      expect(cubit.state.windowExpired, isTrue);
-    });
+        fakeNow = kBaseTime.add(const Duration(seconds: 15));
+        cubit.tick();
+        expect(cubit.state.windowRemaining, Duration.zero);
+        expect(cubit.state.windowExpired, isTrue);
+      },
+    );
   });
 }
 

@@ -99,8 +99,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
           final request = _parseRequest(raw, status: bucket);
           if (request != null) {
             // Client-side bucket assignment: offers-received ↔ offersCount > 0
-            final isReply =
-                ((raw['offersCount'] as num?)?.toInt() ?? 0) > 0;
+            final isReply = _offerCount(raw) > 0;
             final wantReply = bucket == 'offers-received';
             if (isReply == wantReply) items.add(request);
           }
@@ -140,26 +139,26 @@ class DioClientHomeRepository implements ClientHomeRepository {
   }
 
   static ClientHomeRequest? _parseActiveDelivery(Map<String, dynamic> json) {
-    final id = json['id'] as String?;
+    final id = _stringOf(json, const ['id', 'deliveryId']);
     if (id == null) return null;
-    final dropoff = json['dropoff'];
-    final destination = dropoff is Map<String, dynamic>
-        ? (dropoff['address'] as String? ?? '')
-        : '';
+    final destination = _destinationLabel(json);
     // D5 ShipmentsListDto uses 'currentStage', not 'status'.
-    final stage =
-        json['currentStage'] as String? ?? json['status'] as String?;
+    final stage = _stringOf(json, const ['currentStage', 'stage', 'status']);
     return ClientHomeRequest(
       id: id,
-      displayId: json['displayId'] as String?,
-      title: json['title'] as String? ?? 'Delivery $id',
+      displayId: _stringOf(json, const ['displayId', 'orderNumber']),
+      title: _stringOf(json, const ['title', 'description']) ?? 'Delivery $id',
       status: _mapDeliveryStatus(stage),
       destinationLabel: destination,
-      etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
-      jeeberName: json['jeeberName'] as String?,
-      tier: ClientRequestTier.parse(json['tier'] as String?),
-      progressStep: (json['progressStep'] as num?)?.toInt() ?? 0,
-      conversationId: json['conversationId'] as String?,
+      etaMinutes: _intOf(json, const ['etaMinutes', 'eta_minutes']),
+      jeeberName: _stringOf(json, const ['jeeberName', 'driverName']),
+      tier: ClientRequestTier.parse(_stringOf(json, const ['tier', 'tierId'])),
+      progressStep: _intOf(json, const ['progressStep']) ?? 0,
+      conversationId: _stringOf(json, const [
+        'conversationId',
+        'conversation_id',
+        'chatId',
+      ]),
     );
   }
 
@@ -167,44 +166,41 @@ class DioClientHomeRepository implements ClientHomeRepository {
     Map<String, dynamic> json, {
     required String status,
   }) {
-    final id = json['id'] as String?;
+    final id = _stringOf(json, const ['id', 'requestId']);
     if (id == null) return null;
-    final dropoff = json['dropoff'];
-    final destination = dropoff is Map<String, dynamic>
-        ? (dropoff['address'] as String? ?? '')
-        : '';
-    final offerAvatars = json['offerAvatars'];
-    final offerAvatarUrls = offerAvatars is List
-        ? offerAvatars.whereType<String>().toList(growable: false)
-        : const <String>[];
+    final destination = _destinationLabel(json);
     return ClientHomeRequest(
       id: id,
-      displayId: json['displayId'] as String?,
-      title: json['title'] as String? ?? 'Request $id',
+      displayId: _stringOf(json, const ['displayId', 'orderNumber']),
+      title: _stringOf(json, const ['title', 'description']) ?? 'Request $id',
       status: status == 'offers-received'
           ? ClientRequestStatus.offersReceived
           : ClientRequestStatus.searching,
       destinationLabel: destination,
-      tier: ClientRequestTier.parse(json['tier'] as String?),
-      offerCount: (json['offersCount'] as num?)?.toInt() ?? 0,
-      offerAvatarUrls: offerAvatarUrls,
-      conversationId: json['conversationId'] as String?,
-      ttlSeconds: (json['ttlSeconds'] as num?)?.toInt(),
+      tier: ClientRequestTier.parse(_stringOf(json, const ['tier', 'tierId'])),
+      offerCount: _offerCount(json),
+      offerAvatarUrls: _offerAvatarUrls(json),
+      conversationId: _stringOf(json, const [
+        'conversationId',
+        'conversation_id',
+        'chatId',
+      ]),
+      ttlSeconds: _intOf(json, const ['ttlSeconds', 'ttl_seconds']),
     );
   }
 
-  static RecentDeliverySummary? _parseRecentDelivery(Map<String, dynamic> json) {
-    final id = json['id'] as String?;
+  static RecentDeliverySummary? _parseRecentDelivery(
+    Map<String, dynamic> json,
+  ) {
+    final id = _stringOf(json, const ['id', 'requestId', 'deliveryId']);
     if (id == null) return null;
-    final dropoff = json['dropoff'];
-    final destination = dropoff is Map<String, dynamic>
-        ? (dropoff['address'] as String? ?? '')
-        : '';
+    final destination = _destinationLabel(json);
     return RecentDeliverySummary(
       id: id,
-      title: json['title'] as String? ?? 'Delivery $id',
+      title: _stringOf(json, const ['title', 'description']) ?? 'Delivery $id',
       destinationLabel: destination,
-      completedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
+      completedAt:
+          DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
           DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.now(),
     );
@@ -229,5 +225,62 @@ class DioClientHomeRepository implements ClientHomeRepository {
       default:
         return ClientRequestStatus.searching;
     }
+  }
+
+  static String _destinationLabel(Map<String, dynamic> json) {
+    final direct = _stringOf(json, const [
+      'destinationLabel',
+      'dropoffAddress',
+    ]);
+    if (direct != null) return direct;
+    final dropoff = json['dropoff'];
+    if (dropoff is Map<String, dynamic>) {
+      return _stringOf(dropoff, const ['address', 'label']) ?? '';
+    }
+    return '';
+  }
+
+  static int _offerCount(Map<String, dynamic> json) {
+    final count = _intOf(json, const [
+      'offersCount',
+      'offerCount',
+      'offers_count',
+    ]);
+    if (count != null) return count;
+    final offers = json['offers'];
+    return offers is List ? offers.length : 0;
+  }
+
+  static List<String> _offerAvatarUrls(Map<String, dynamic> json) {
+    final direct = json['offerAvatars'] ?? json['offerAvatarUrls'];
+    if (direct is List)
+      return direct.whereType<String>().toList(growable: false);
+    final offers = json['offers'];
+    if (offers is! List) return const <String>[];
+    return offers
+        .whereType<Map<String, dynamic>>()
+        .map((o) => _stringOf(o, const ['avatarUrl', 'jeeberAvatarUrl']))
+        .whereType<String>()
+        .toList(growable: false);
+  }
+
+  static int? _intOf(Map<String, dynamic> json, List<String> keys) {
+    for (final key in keys) {
+      final raw = json[key];
+      if (raw is num) return raw.toInt();
+      if (raw is String) {
+        final parsed = int.tryParse(raw);
+        if (parsed != null) return parsed;
+      }
+    }
+    return null;
+  }
+
+  static String? _stringOf(Map<String, dynamic> json, List<String> keys) {
+    for (final key in keys) {
+      final raw = json[key];
+      if (raw is String && raw.trim().isNotEmpty) return raw;
+    }
+    return null;
   }
 }

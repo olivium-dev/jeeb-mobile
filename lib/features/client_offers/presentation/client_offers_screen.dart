@@ -16,10 +16,8 @@ import 'widgets/offer_window_timer.dart';
 /// Production wiring leaves it `null` so the default ticker-driven cubit is
 /// used; tests pass a factory that injects empty `pollTicks` / `clockTicks`
 /// so the test binding doesn't complain about pending timers.
-typedef ClientOffersCubitFactory = ClientOffersCubit Function(
-  OffersRepository repository,
-  String requestId,
-);
+typedef ClientOffersCubitFactory =
+    ClientOffersCubit Function(OffersRepository repository, String requestId);
 
 /// Client view of the offer cards screen.
 ///
@@ -46,10 +44,11 @@ class ClientOffersScreen extends StatelessWidget {
   /// instance via this parameter.
   final OffersRepository? repository;
 
-  /// Called once the accept request succeeds. The host typically navigates to
-  /// the tracking thread; the cubit keeps the success state visible until the
-  /// widget is disposed so the banner stays on screen during the transition.
-  final void Function(String offerId)? onOfferAccepted;
+  /// Called once accept succeeds and the gateway returns a delivery id.
+  /// Hosts route this id to `/orders/:id/tracking`. When a legacy/mock body
+  /// omits the id, this callback is not invoked and the accepted banner stays
+  /// visible instead of routing with an offer id.
+  final void Function(String deliveryId)? onOfferAccepted;
 
   /// Test seam — see [ClientOffersCubitFactory].
   final ClientOffersCubitFactory? cubitFactory;
@@ -66,11 +65,9 @@ class ClientOffersScreen extends StatelessWidget {
     final repo = _resolveRepository();
     return BlocProvider<ClientOffersCubit>(
       create: (_) {
-        final cubit = cubitFactory?.call(repo, requestId) ??
-            ClientOffersCubit(
-              repository: repo,
-              requestId: requestId,
-            );
+        final cubit =
+            cubitFactory?.call(repo, requestId) ??
+            ClientOffersCubit(repository: repo, requestId: requestId);
         cubit.load();
         return cubit;
       },
@@ -88,17 +85,16 @@ class _ClientOffersView extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: OMDSAppBar(
-        title: l10n.offersScreenTitle,
-        showBackButton: true,
-      ),
+      appBar: OMDSAppBar(title: l10n.offersScreenTitle, showBackButton: true),
       body: BlocConsumer<ClientOffersCubit, ClientOffersState>(
         listenWhen: (prev, next) =>
             prev.acceptStatus != next.acceptStatus &&
             next.acceptStatus == AcceptStatus.succeeded,
         listener: (context, state) {
-          final id = state.acceptedOfferId;
-          if (id != null) onOfferAccepted?.call(id);
+          final id = state.acceptedDeliveryId;
+          if (id != null && id.trim().isNotEmpty) {
+            onOfferAccepted?.call(id);
+          }
         },
         builder: (context, state) {
           switch (state.status) {
@@ -110,8 +106,7 @@ class _ClientOffersView extends StatelessWidget {
                 key: const Key('offer-load-error'),
                 message: _errorCopy(l10n, state.error),
                 retryLabel: l10n.offersRetryAction,
-                onRetry: () =>
-                    context.read<ClientOffersCubit>().refresh(),
+                onRetry: () => context.read<ClientOffersCubit>().refresh(),
               );
             case OffersScreenStatus.loaded:
               return _LoadedBody(
@@ -120,8 +115,7 @@ class _ClientOffersView extends StatelessWidget {
                     context.read<ClientOffersCubit>().setSortMode(mode),
                 onAccept: (id) =>
                     context.read<ClientOffersCubit>().acceptOffer(id),
-                onRefresh: () =>
-                    context.read<ClientOffersCubit>().refresh(),
+                onRefresh: () => context.read<ClientOffersCubit>().refresh(),
               );
           }
         },
@@ -160,7 +154,8 @@ class _LoadedBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final acceptDisabled = state.acceptStatus == AcceptStatus.inFlight ||
+    final acceptDisabled =
+        state.acceptStatus == AcceptStatus.inFlight ||
         state.acceptStatus == AcceptStatus.succeeded ||
         state.windowExpired ||
         !state.requestIsOpen;
@@ -229,8 +224,8 @@ class _LoadedBody extends StatelessWidget {
               (offer) => OfferCard(
                 offer: offer,
                 isAccepting: state.acceptingOfferId == offer.id,
-                acceptDisabled: acceptDisabled &&
-                    state.acceptingOfferId != offer.id,
+                acceptDisabled:
+                    acceptDisabled && state.acceptingOfferId != offer.id,
                 onAccept: () => onAccept(offer.id),
               ),
             ),
@@ -274,9 +269,7 @@ class _Banner extends StatelessWidget {
     final background = positive
         ? colors.tertiaryContainer
         : colors.surfaceContainerHighest;
-    final foreground = positive
-        ? colors.onTertiaryContainer
-        : colors.onSurface;
+    final foreground = positive ? colors.onTertiaryContainer : colors.onSurface;
     return Container(
       padding: const EdgeInsets.all(Spacing.small),
       decoration: BoxDecoration(
@@ -294,15 +287,17 @@ class _Banner extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: theme.textTheme.titleSmall
-                      ?.copyWith(color: foreground),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: foreground,
+                  ),
                 ),
                 if (body != null) ...[
                   const SizedBox(height: Spacing.twoXSmall),
                   Text(
                     body!,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: foreground),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: foreground,
+                    ),
                   ),
                 ],
               ],
@@ -341,8 +336,9 @@ class _ErrorBanner extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: colors.onErrorContainer),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.onErrorContainer,
+              ),
             ),
           ),
           IconButton(
