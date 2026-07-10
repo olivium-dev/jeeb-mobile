@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/first_run/first_run.dart';
 import '../application/registration_cubit.dart';
 import '../application/registration_state.dart';
 
@@ -51,98 +52,124 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         }
       },
       builder: (context, state) {
-        return Scaffold(
-          appBar: OMDSAppBar(
-            title: l10n.registrationOtpTitle,
-            centerTitle: false,
-            leading: IconButton(
-              key: const Key('registration.otpBack'),
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () =>
-                  context.read<RegistrationCubit>().changePhone(),
+        return FirstRunSemanticTarget(
+          identifier: FirstRunSemanticsIds.otpScreen,
+          explicitChildNodes: true,
+          child: Scaffold(
+            appBar: OMDSAppBar(
+              title: l10n.registrationOtpTitle,
+              centerTitle: false,
+              leading: FirstRunSemanticTarget(
+                identifier: FirstRunSemanticsIds.otpBackButton,
+                label: l10n.registrationChangePhone,
+                button: true,
+                child: IconButton(
+                  key: const Key('registration.otpBack'),
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () =>
+                      context.read<RegistrationCubit>().changePhone(),
+                ),
+              ),
             ),
-          ),
-          body: SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(Spacing.medium),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    l10n.registrationOtpTitle,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: Spacing.xSmall),
-                  Text(
-                    l10n.registrationOtpSubtitle(state.displayPhone),
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: Spacing.large),
-                  if (state.step == RegistrationStep.lockedOut)
-                    _LockoutBanner(
-                      remaining: state.lockoutSecondsRemaining,
-                    )
-                  else
-                    _OtpEntry(
-                      hasError: state.otpError != null,
-                      onChanged: (code) =>
-                          setState(() => _enteredCode = code),
-                      onCompleted: (code) {
-                        setState(() => _enteredCode = code);
-                        context
-                            .read<RegistrationCubit>()
-                            .verifyCode(code);
-                      },
-                    ),
-                  if (state.otpError != null) ...[
-                    const SizedBox(height: Spacing.small),
+            body: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(Spacing.medium),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                     Text(
-                      _otpErrorCopy(state.otpError!, l10n),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.error,
-                          ),
+                      l10n.registrationOtpTitle,
+                      style: Theme.of(context).textTheme.headlineSmall,
                     ),
-                  ],
-                  if (state.step != RegistrationStep.lockedOut) ...[
-                    const SizedBox(height: Spacing.small),
-                    _AttemptsRemainingLabel(
-                      attemptsUsed: state.failedAttempts,
-                      maxAttempts: context
-                          .read<RegistrationCubit>()
-                          .policy
-                          .maxAttempts,
+                    const SizedBox(height: Spacing.xSmall),
+                    Text(
+                      l10n.registrationOtpSubtitle(state.displayPhone),
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const SizedBox(height: Spacing.large),
-                    OmdsPrimaryButton(
-                      key: const Key('registration.verify'),
-                      text: state.isVerifying
-                          ? l10n.registrationOtpVerifying
-                          : l10n.registrationOtpVerify,
-                      isEnabled: !state.isVerifying &&
-                          _enteredCode.length == _OtpEntry._kOtpLength,
-                      onTap: () => context
-                          .read<RegistrationCubit>()
-                          .verifyCode(_enteredCode),
-                    ),
-                    const SizedBox(height: Spacing.medium),
-                    _ResendRow(
-                      secondsRemaining: state.resendSecondsRemaining,
-                    ),
-                    const SizedBox(height: Spacing.small),
-                    OmdsPrimaryButton(
-                      key: const Key('registration.changePhone'),
-                      text: l10n.registrationChangePhone,
-                      variant: OmdsButtonVariant.text,
-                      onTap: () =>
-                          context.read<RegistrationCubit>().changePhone(),
-                    ),
+                    if (state.step == RegistrationStep.lockedOut)
+                      _LockoutBanner(remaining: state.lockoutSecondsRemaining)
+                    else
+                      _OtpEntry(
+                        hasError: state.otpError != null,
+                        onChanged: (code) =>
+                            setState(() => _enteredCode = code),
+                        onCompleted: (code) {
+                          setState(() => _enteredCode = code);
+                          context.read<RegistrationCubit>().verifyCode(code);
+                        },
+                      ),
+                    if (state.otpError != null) ...[
+                      const SizedBox(height: Spacing.small),
+                      _OtpErrorMessage(
+                        message: _otpErrorCopy(state.otpError!, l10n),
+                      ),
+                    ],
+                    if (state.step != RegistrationStep.lockedOut) ...[
+                      const SizedBox(height: Spacing.small),
+                      _AttemptsRemainingLabel(
+                        attemptsUsed: state.failedAttempts,
+                        maxAttempts: context
+                            .read<RegistrationCubit>()
+                            .policy
+                            .maxAttempts,
+                      ),
+                      const SizedBox(height: Spacing.large),
+                      FirstRunPrimaryButton(
+                        buttonKey: const Key('registration.verify'),
+                        identifier: FirstRunSemanticsIds.otpVerifyButton,
+                        text: state.isVerifying
+                            ? l10n.registrationOtpVerifying
+                            : l10n.registrationOtpVerify,
+                        isEnabled:
+                            !state.isVerifying &&
+                            _enteredCode.length == _OtpEntry._kOtpLength,
+                        onTap: () => context
+                            .read<RegistrationCubit>()
+                            .verifyCode(_enteredCode),
+                      ),
+                      const SizedBox(height: Spacing.medium),
+                      _ResendRow(
+                        secondsRemaining: state.resendSecondsRemaining,
+                      ),
+                      const SizedBox(height: Spacing.small),
+                      FirstRunPrimaryButton(
+                        buttonKey: const Key('registration.changePhone'),
+                        identifier: FirstRunSemanticsIds.otpChangePhoneButton,
+                        text: l10n.registrationChangePhone,
+                        variant: OmdsButtonVariant.text,
+                        onTap: () =>
+                            context.read<RegistrationCubit>().changePhone(),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
         );
       },
+    );
+  }
+}
+
+class _OtpErrorMessage extends StatelessWidget {
+  const _OtpErrorMessage({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return FirstRunSemanticTarget(
+      identifier: FirstRunSemanticsIds.otpError,
+      label: message,
+      child: Text(
+        message,
+        key: const Key('registration.otpError'),
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.error,
+        ),
+      ),
     );
   }
 }
@@ -171,9 +198,12 @@ class _OtpEntry extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Center(
-      child: OmdsOtpInput(
-        key: const Key('registration.otpField'),
+      child: FirstRunOtpInput(
+        inputKey: const Key('registration.otpField'),
+        identifier: FirstRunSemanticsIds.otpField,
+        label: l10n.registrationOtpTitle,
         length: _kOtpLength,
         hasError: hasError,
         onChanged: onChanged,
@@ -197,12 +227,16 @@ class _AttemptsRemainingLabel extends StatelessWidget {
     final remaining = (maxAttempts - attemptsUsed).clamp(0, maxAttempts);
     if (attemptsUsed == 0) return const SizedBox.shrink();
     final l10n = AppLocalizations.of(context);
-    return Text(
-      l10n.registrationOtpAttemptsRemaining(remaining),
-      key: const Key('registration.attemptsLeft'),
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
+    return FirstRunSemanticTarget(
+      identifier: FirstRunSemanticsIds.otpAttemptsLeft,
+      label: l10n.registrationOtpAttemptsRemaining(remaining),
+      child: Text(
+        l10n.registrationOtpAttemptsRemaining(remaining),
+        key: const Key('registration.attemptsLeft'),
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
     );
   }
 }
@@ -220,19 +254,24 @@ class _ResendRow extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         if (canResend)
-          OmdsPrimaryButton(
-            key: const Key('registration.resend'),
+          FirstRunPrimaryButton(
+            buttonKey: const Key('registration.resend'),
+            identifier: FirstRunSemanticsIds.otpResendButton,
             text: l10n.registrationOtpResend,
             variant: OmdsButtonVariant.text,
             onTap: () => context.read<RegistrationCubit>().resendCode(),
           )
         else
-          Text(
-            l10n.registrationOtpResendIn(secondsRemaining),
-            key: const Key('registration.resendCountdown'),
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+          FirstRunSemanticTarget(
+            identifier: FirstRunSemanticsIds.otpResendCountdown,
+            label: l10n.registrationOtpResendIn(secondsRemaining),
+            child: Text(
+              l10n.registrationOtpResendIn(secondsRemaining),
+              key: const Key('registration.resendCountdown'),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
       ],
     );
@@ -250,30 +289,34 @@ class _LockoutBanner extends StatelessWidget {
     final minutes = (remaining ~/ 60).toString();
     final seconds = (remaining % 60).toString().padLeft(2, '0');
     final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      key: const Key('registration.lockoutBanner'),
-      padding: const EdgeInsets.all(Spacing.medium),
-      decoration: BoxDecoration(
-        color: colorScheme.errorContainer,
-        borderRadius: OmdsBorderRadius.medium,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.registrationLockoutTitle,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: colorScheme.onErrorContainer,
-                ),
-          ),
-          const SizedBox(height: Spacing.xSmall),
-          Text(
-            l10n.registrationLockoutBody(minutes, seconds),
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onErrorContainer,
-                ),
-          ),
-        ],
+    return FirstRunSemanticTarget(
+      identifier: FirstRunSemanticsIds.otpLockoutBanner,
+      explicitChildNodes: true,
+      child: Container(
+        key: const Key('registration.lockoutBanner'),
+        padding: const EdgeInsets.all(Spacing.medium),
+        decoration: BoxDecoration(
+          color: colorScheme.errorContainer,
+          borderRadius: OmdsBorderRadius.medium,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.registrationLockoutTitle,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: colorScheme.onErrorContainer,
+              ),
+            ),
+            const SizedBox(height: Spacing.xSmall),
+            Text(
+              l10n.registrationLockoutBody(minutes, seconds),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onErrorContainer,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

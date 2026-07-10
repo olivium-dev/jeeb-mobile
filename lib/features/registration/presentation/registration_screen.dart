@@ -11,6 +11,7 @@ import '../../../core/network/mock_gateway_client.dart';
 import '../../../core/onboarding/onboarding_cubit.dart';
 import '../../../core/session/session_cubit.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/first_run/first_run.dart';
 import '../../auth/social/social_auth_cubit.dart';
 import '../../auth/social/social_auth_service.dart';
 import '../../auth/social/social_auth_token_store.dart';
@@ -68,7 +69,10 @@ class RegistrationScreen extends StatelessWidget {
 
     Widget withRegistration(Widget child) {
       if (cubit != null) {
-        return BlocProvider<RegistrationCubit>.value(value: cubit!, child: child);
+        return BlocProvider<RegistrationCubit>.value(
+          value: cubit!,
+          child: child,
+        );
       }
       return BlocProvider<RegistrationCubit>(
         create: (_) => RegistrationCubit(otpService: sl<OtpService>()),
@@ -85,9 +89,7 @@ class RegistrationScreen extends StatelessWidget {
       }
       return BlocProvider<SocialAuthCubit>(
         create: (_) => SocialAuthCubit(
-          service: DefaultSocialAuthService(
-            dio: MockGatewayClient.createDio(),
-          ),
+          service: DefaultSocialAuthService(dio: MockGatewayClient.createDio()),
           tokenStore: SecureSocialAuthTokenStore(),
         ),
         child: child,
@@ -198,20 +200,24 @@ class _RegistrationViewState extends State<_RegistrationView> {
         }
       },
       builder: (context, state) {
-        return Scaffold(
-          appBar: OMDSAppBar(
-            title: l10n.registrationPhoneTitle,
-            centerTitle: false,
-          ),
-          body: SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(Spacing.medium),
-              child: _PhoneEntryBody(
-                state: state,
-                phoneController: _phoneController,
-                onSocialAuthenticated: () => _onSocialAuthenticated(context),
-                onSuperLogin: () => _openSuperLogin(context),
-                onSuperLoginPlus: () => _openSuperLoginPlus(context),
+        return FirstRunSemanticTarget(
+          identifier: FirstRunSemanticsIds.registrationScreen,
+          explicitChildNodes: true,
+          child: Scaffold(
+            appBar: OMDSAppBar(
+              title: l10n.registrationPhoneTitle,
+              centerTitle: false,
+            ),
+            body: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(Spacing.medium),
+                child: _PhoneEntryBody(
+                  state: state,
+                  phoneController: _phoneController,
+                  onSocialAuthenticated: () => _onSocialAuthenticated(context),
+                  onSuperLogin: () => _openSuperLogin(context),
+                  onSuperLoginPlus: () => _openSuperLoginPlus(context),
+                ),
               ),
             ),
           ),
@@ -307,7 +313,13 @@ class _PhoneEntryBody extends StatelessWidget {
         const SizedBox(height: Spacing.large),
         const _WelcomeHeading(),
         const SizedBox(height: Spacing.large),
-        SocialSignInSection(onAuthenticated: (_) => onSocialAuthenticated()),
+        FirstRunSemanticTarget(
+          identifier: FirstRunSemanticsIds.registrationSocialSection,
+          explicitChildNodes: true,
+          child: SocialSignInSection(
+            onAuthenticated: (_) => onSocialAuthenticated(),
+          ),
+        ),
         const SizedBox(height: Spacing.twoXLarge),
         _OrDivider(label: l10n.registrationSocialDivider),
         const SizedBox(height: Spacing.twoXLarge),
@@ -351,8 +363,9 @@ class _SendCodeButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return OmdsLoadingButton(
-      key: const Key('registration.sendCode'),
+    return FirstRunLoadingButton(
+      buttonKey: const Key('registration.sendCode'),
+      identifier: FirstRunSemanticsIds.registrationSendCodeButton,
       text: l10n.registrationSendCode,
       isLoading: state.isSendingCode,
       isEnabled: state.isPhoneReady && !state.isSendingCode,
@@ -373,9 +386,10 @@ class _RegisterHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
-    return Semantics(
-      identifier: '_register_hero',
+    return FirstRunSemanticTarget(
+      identifier: FirstRunSemanticsIds.registrationHero,
       container: true,
+      explicitChildNodes: true,
       child: Container(
         height: Sizes.tenXLarge,
         decoration: BoxDecoration(
@@ -383,8 +397,8 @@ class _RegisterHero extends StatelessWidget {
           borderRadius: OmdsBorderRadius.large,
         ),
         alignment: Alignment.center,
-        child: Semantics(
-          identifier: '_register_hero_logo',
+        child: FirstRunSemanticTarget(
+          identifier: FirstRunSemanticsIds.registrationHeroLogo,
           label: l10n.splashLogoSemantic,
           image: true,
           // Height-constrained so the wordmark scales to the band; width
@@ -415,14 +429,16 @@ class _WelcomeHeading extends StatelessWidget {
         Text(
           l10n.registrationWelcome,
           key: const Key('registration.welcome'),
-          style: theme.textTheme.headlineSmall
-              ?.copyWith(fontWeight: FontWeight.w700),
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
         ),
         const SizedBox(height: Spacing.xSmall),
         Text(
           l10n.registrationPhoneSubtitle,
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );
@@ -447,10 +463,9 @@ class _OrDivider extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
           child: Text(
             label,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: colorScheme.onSurfaceVariant),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         Expanded(child: Divider(color: colorScheme.outlineVariant)),
@@ -470,8 +485,8 @@ class _SuperLoginLink extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
     return Center(
-      child: Semantics(
-        identifier: '_super_login_link',
+      child: FirstRunSemanticTarget(
+        identifier: FirstRunSemanticsIds.superLoginButton,
         button: true,
         label: l10n.superLoginTitle,
         child: GestureDetector(
@@ -480,10 +495,11 @@ class _SuperLoginLink extends StatelessWidget {
           child: Text(
             l10n.superLoginTitle,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colorScheme.primary
-                      .withValues(alpha: UIConstants.opacityMedium),
-                  decoration: TextDecoration.underline,
-                ),
+              color: colorScheme.primary.withValues(
+                alpha: UIConstants.opacityMedium,
+              ),
+              decoration: TextDecoration.underline,
+            ),
           ),
         ),
       ),
@@ -504,8 +520,8 @@ class _SuperLoginPlusLink extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
     return Center(
-      child: Semantics(
-        identifier: 'super_login_plus_button',
+      child: FirstRunSemanticTarget(
+        identifier: FirstRunSemanticsIds.superLoginPlusButton,
         button: true,
         label: l10n.superLoginPlusTitle,
         child: GestureDetector(
@@ -514,10 +530,11 @@ class _SuperLoginPlusLink extends StatelessWidget {
           child: Text(
             l10n.superLoginPlusTitle,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colorScheme.primary
-                      .withValues(alpha: UIConstants.opacityMedium),
-                  decoration: TextDecoration.underline,
-                ),
+              color: colorScheme.primary.withValues(
+                alpha: UIConstants.opacityMedium,
+              ),
+              decoration: TextDecoration.underline,
+            ),
           ),
         ),
       ),
@@ -558,51 +575,59 @@ class _PhoneField extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    return TextField(
-      key: const Key('registration.phoneField'),
-      controller: controller,
-      enabled: enabled,
-      keyboardType: TextInputType.phone,
-      // Keep digits, the `+` (for users who paste a `+961…` block), and
-      // common separators (space, dash, parens). The cubit's `normalise`
-      // strips everything except the trailing 8 national digits and
-      // mirrors that canonical form back into the controller via
-      // `_syncControllerText` — so we don't enforce a max-length here, or
-      // we'd truncate the wrong end of a pasted +961 string.
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'[\d+\s\-()]')),
-      ],
-      style: textTheme.bodyLarge,
-      decoration: InputDecoration(
-        hintText: hintText,
-        errorText: errorText,
-        filled: true,
-        fillColor: colorScheme.surfaceContainerHighest,
-        prefixIcon: Padding(
-          padding: const EdgeInsets.symmetric(
+    return FirstRunSemanticTarget(
+      identifier: FirstRunSemanticsIds.registrationPhoneField,
+      label: hintText,
+      textField: true,
+      child: TextField(
+        key: const Key('registration.phoneField'),
+        controller: controller,
+        enabled: enabled,
+        keyboardType: TextInputType.phone,
+        // Keep digits, the `+` (for users who paste a `+961…` block), and
+        // common separators (space, dash, parens). The cubit's `normalise`
+        // strips everything except the trailing 8 national digits and
+        // mirrors that canonical form back into the controller via
+        // `_syncControllerText` — so we don't enforce a max-length here, or
+        // we'd truncate the wrong end of a pasted +961 string.
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(RegExp(r'[\d+\s\-()]')),
+        ],
+        style: textTheme.bodyLarge,
+        decoration: InputDecoration(
+          hintText: hintText,
+          errorText: errorText,
+          filled: true,
+          fillColor: colorScheme.surfaceContainerHighest,
+          prefixIcon: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: Spacing.medium,
+              vertical: Spacing.small,
+            ),
+            child: Text(
+              LebanonPhone.dialCode,
+              key: const Key('registration.phonePrefix'),
+              style: textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.w500,
+                color: colorScheme.onSurface,
+              ),
+            ),
+          ),
+          prefixIconConstraints: const BoxConstraints(
+            minWidth: 0,
+            minHeight: 0,
+          ),
+          border: const OutlineInputBorder(
+            borderRadius: OmdsBorderRadius.medium,
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(
             horizontal: Spacing.medium,
             vertical: Spacing.small,
           ),
-          child: Text(
-            LebanonPhone.dialCode,
-            key: const Key('registration.phonePrefix'),
-            style: textTheme.bodyLarge?.copyWith(
-              fontWeight: FontWeight.w500,
-              color: colorScheme.onSurface,
-            ),
-          ),
         ),
-        prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-        border: const OutlineInputBorder(
-          borderRadius: OmdsBorderRadius.medium,
-          borderSide: BorderSide.none,
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: Spacing.medium,
-          vertical: Spacing.small,
-        ),
+        onChanged: onChanged,
       ),
-      onChanged: onChanged,
     );
   }
 }

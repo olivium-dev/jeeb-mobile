@@ -7,6 +7,7 @@ import '../../core/dev_seam/dev_seam.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/role/user_role.dart';
 import '../../l10n/app_localizations.dart';
+import '../../shared/first_run/first_run.dart';
 import 'tabs/dashboard_tab.dart';
 import 'tabs/earnings_tab.dart';
 import 'tabs/home_tab.dart';
@@ -42,18 +43,22 @@ class _ShellScreenState extends State<ShellScreen> {
       builder: (context, role) {
         final tabs = _tabsForRole(_effectiveRole(role));
         final safeIndex = _index.clamp(0, tabs.length - 1);
-        return Scaffold(
-          body: SafeArea(
-            bottom: false,
-            child: IndexedStack(
-              index: safeIndex,
-              children: tabs.map((t) => t.page).toList(growable: false),
+        return Semantics(
+          identifier: FirstRunSemanticsIds.homeShell,
+          container: true,
+          child: Scaffold(
+            body: SafeArea(
+              bottom: false,
+              child: IndexedStack(
+                index: safeIndex,
+                children: tabs.map((t) => t.page).toList(growable: false),
+              ),
             ),
-          ),
-          bottomNavigationBar: _JeebBottomBar(
-            tabs: tabs,
-            selectedIndex: safeIndex,
-            onTap: (i) => setState(() => _index = i),
+            bottomNavigationBar: _JeebBottomBar(
+              tabs: tabs,
+              selectedIndex: safeIndex,
+              onTap: (i) => setState(() => _index = i),
+            ),
           ),
         );
       },

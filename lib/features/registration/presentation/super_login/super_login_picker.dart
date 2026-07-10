@@ -4,6 +4,7 @@ import 'package:omds/omds.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/layout/bottom_inset.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../../shared/first_run/first_run.dart';
 import '../../data/super_login_demo_user.dart';
 
 /// Opens the "Super user login plus" demo-user picker (debug-only).
@@ -52,11 +53,10 @@ class _SuperLoginPickerBodyState extends State<_SuperLoginPickerBody> {
   }
 
   void _retry() => setState(() {
-        _future = widget.service.fetchDemoUsers();
-      });
+    _future = widget.service.fetchDemoUsers();
+  });
 
-  void _select(SuperLoginDemoUser user) =>
-      Navigator.of(context).pop(user);
+  void _select(SuperLoginDemoUser user) => Navigator.of(context).pop(user);
 
   @override
   Widget build(BuildContext context) {
@@ -66,9 +66,10 @@ class _SuperLoginPickerBodyState extends State<_SuperLoginPickerBody> {
     // The entire sheet is ONE SingleChildScrollView so an isScrollControlled
     // modal sizes to min(content, viewport) and scrolls — content can never
     // overflow the bottom of the screen (the trap a `Column(min)` falls into).
-    return Semantics(
-      identifier: 'super_login_plus_picker',
+    return FirstRunSemanticTarget(
+      identifier: FirstRunSemanticsIds.superLoginPlusPicker,
       container: true,
+      explicitChildNodes: true,
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
           Spacing.large,
@@ -130,8 +131,9 @@ class _PickerDragHandle extends StatelessWidget {
         width: Sizes.fourXLarge,
         height: Spacing.xSmall,
         decoration: BoxDecoration(
-          color:
-              colorScheme.onSurface.withValues(alpha: UIConstants.opacityLow),
+          color: colorScheme.onSurface.withValues(
+            alpha: UIConstants.opacityLow,
+          ),
           borderRadius: OmdsBorderRadius.small,
         ),
       ),
@@ -152,14 +154,16 @@ class _PickerHeader extends StatelessWidget {
         Text(
           l10n.superLoginPickerTitle,
           key: const Key('superLoginPlus.pickerTitle'),
-          style: theme.textTheme.headlineSmall
-              ?.copyWith(fontWeight: FontWeight.w700),
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
         ),
         const SizedBox(height: Spacing.xSmall),
         Text(
           l10n.superLoginPickerSubtitle,
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );
@@ -198,27 +202,16 @@ class _PickerAsyncRegion extends StatelessWidget {
   }
 }
 
-/// Loading state. EXEMPT(flutter-omds-design-system-usage): the raw
-/// [CircularProgressIndicator] is acceptable here — the state is purely
-/// non-interactive, matching the `_PhoneField` exemption pattern. Tracked
-/// under JEEB-57 alongside the OMDS-loader promotion.
+/// Loading state composed through OMDS so feature code does not own a raw
+/// Material progress primitive.
 class _PickerLoading extends StatelessWidget {
   const _PickerLoading();
 
   @override
   Widget build(BuildContext context) {
-    // Semantics has no const constructor, so this tree cannot be a const
-    // literal; only the leaf CircularProgressIndicator is const.
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: Spacing.threeXLarge),
-      child: Center(
-        child: Semantics(
-          identifier: 'super_login_plus_picker_loading',
-          child: const CircularProgressIndicator(
-            strokeWidth: UIConstants.strokeWidthNormal,
-          ),
-        ),
-      ),
+    return const FirstRunLoadingRegion(
+      identifier: FirstRunSemanticsIds.superLoginPlusPickerLoading,
+      padding: EdgeInsets.symmetric(vertical: Spacing.threeXLarge),
     );
   }
 }
@@ -231,8 +224,9 @@ class _PickerError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Semantics(
-      identifier: 'super_login_plus_picker_error',
+    return FirstRunSemanticTarget(
+      identifier: FirstRunSemanticsIds.superLoginPlusPickerError,
+      explicitChildNodes: true,
       child: OmdsErrorState(
         key: const Key('superLoginPlus.pickerError'),
         message: l10n.superLoginPickerLoadingError,
@@ -254,16 +248,20 @@ class _PickerList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
-      key: const Key('superLoginPlus.pickerList'),
-      // Shrink-wrapped + non-scrolling: the sheet's outer SingleChildScrollView
-      // owns scrolling, so this list just lays its rows out inline.
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: users.length,
-      separatorBuilder: (_, _) => const SizedBox(height: Spacing.small),
-      itemBuilder: (context, index) =>
-          _DemoUserRow(user: users[index], onTap: onSelect),
+    return FirstRunSemanticTarget(
+      identifier: FirstRunSemanticsIds.superLoginPlusPickerList,
+      explicitChildNodes: true,
+      child: ListView.separated(
+        key: const Key('superLoginPlus.pickerList'),
+        // Shrink-wrapped + non-scrolling: the sheet's outer SingleChildScrollView
+        // owns scrolling, so this list just lays its rows out inline.
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: users.length,
+        separatorBuilder: (_, _) => const SizedBox(height: Spacing.small),
+        itemBuilder: (context, index) =>
+            _DemoUserRow(user: users[index], onTap: onSelect),
+      ),
     );
   }
 }
@@ -280,8 +278,8 @@ class _DemoUserRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Semantics(
-      identifier: 'super_login_plus_user_${user.userId}',
+    return FirstRunSemanticTarget(
+      identifier: FirstRunSemanticsIds.superLoginPlusUser(user.userId),
       button: true,
       label: user.name,
       child: InkWell(
@@ -332,10 +330,9 @@ class _DemoUserName extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       name,
-      style: Theme.of(context)
-          .textTheme
-          .titleMedium
-          ?.copyWith(fontWeight: FontWeight.w600),
+      style: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
       overflow: TextOverflow.ellipsis,
     );
   }

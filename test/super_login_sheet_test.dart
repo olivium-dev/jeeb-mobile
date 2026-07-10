@@ -8,6 +8,7 @@ import 'package:jeeb_mobile/features/registration/data/super_login_service.dart'
 import 'package:jeeb_mobile/features/registration/presentation/super_login/super_login_cubit.dart';
 import 'package:jeeb_mobile/features/registration/presentation/super_login/super_login_sheet.dart';
 import 'package:jeeb_mobile/features/registration/presentation/super_login/super_login_state.dart';
+import 'package:jeeb_mobile/shared/first_run/first_run.dart';
 
 import 'support/sync_app_localizations.dart';
 
@@ -43,11 +44,13 @@ void main() {
   setUp(() {
     service = _FakeSuperLoginService();
     tokenStore = _MockAuthTokenStore();
-    when(() => tokenStore.save(
-          accessToken: any(named: 'accessToken'),
-          refreshToken: any(named: 'refreshToken'),
-          userId: any(named: 'userId'),
-        )).thenAnswer((_) async {});
+    when(
+      () => tokenStore.save(
+        accessToken: any(named: 'accessToken'),
+        refreshToken: any(named: 'refreshToken'),
+        userId: any(named: 'userId'),
+      ),
+    ).thenAnswer((_) async {});
   });
 
   SuperLoginCubit makeCubit() =>
@@ -55,18 +58,18 @@ void main() {
 
   // Host that opens the sheet with an injected cubit (no DI needed).
   Widget host(SuperLoginCubit cubit) => wrapForTest(
-        Builder(
-          builder: (context) => Scaffold(
-            body: Center(
-              child: ElevatedButton(
-                key: const Key('open'),
-                onPressed: () => showSuperLoginSheet(context, cubit: cubit),
-                child: const Text('open'),
-              ),
-            ),
+    Builder(
+      builder: (context) => Scaffold(
+        body: Center(
+          child: ElevatedButton(
+            key: const Key('open'),
+            onPressed: () => showSuperLoginSheet(context, cubit: cubit),
+            child: const Text('open'),
           ),
         ),
-      );
+      ),
+    ),
+  );
 
   Future<void> openSheet(WidgetTester tester, SuperLoginCubit cubit) async {
     await tester.pumpWidget(host(cubit));
@@ -77,53 +80,63 @@ void main() {
   }
 
   group('SuperLoginCubit (FR-P0-4)', () {
-    test('on success persists the REAL server tokens (never mock-jwt-*)',
-        () async {
-      service.result = const SuperLoginSuccess(_session);
-      final cubit = makeCubit();
+    test(
+      'on success persists the REAL server tokens (never mock-jwt-*)',
+      () async {
+        service.result = const SuperLoginSuccess(_session);
+        final cubit = makeCubit();
 
-      await cubit.submit(userId: 'super-user-001', passcode: 's3cret');
+        await cubit.submit(userId: 'super-user-001', passcode: 's3cret');
 
-      expect(cubit.state.status, SuperLoginStatus.success);
-      final captured = verify(() => tokenStore.save(
+        expect(cubit.state.status, SuperLoginStatus.success);
+        final captured = verify(
+          () => tokenStore.save(
             accessToken: captureAny(named: 'accessToken'),
             refreshToken: captureAny(named: 'refreshToken'),
             userId: captureAny(named: 'userId'),
-          )).captured;
-      expect(captured[0], 'real-access-token');
-      expect(captured[0], isNot(contains('mock-jwt')));
-      expect(captured[1], 'real-refresh-token');
-      expect(captured[2], 'super-user-001');
-    });
+          ),
+        ).captured;
+        expect(captured[0], 'real-access-token');
+        expect(captured[0], isNot(contains('mock-jwt')));
+        expect(captured[1], 'real-refresh-token');
+        expect(captured[2], 'super-user-001');
+      },
+    );
 
     test('on invalid credentials emits error and persists NO token', () async {
-      service.result =
-          const SuperLoginFailure(SuperLoginError.invalidCredentials);
+      service.result = const SuperLoginFailure(
+        SuperLoginError.invalidCredentials,
+      );
       final cubit = makeCubit();
 
       await cubit.submit(userId: 'x', passcode: 'wrong');
 
       expect(cubit.state.status, SuperLoginStatus.error);
       expect(cubit.state.error, SuperLoginError.invalidCredentials);
-      verifyNever(() => tokenStore.save(
-            accessToken: any(named: 'accessToken'),
-            refreshToken: any(named: 'refreshToken'),
-            userId: any(named: 'userId'),
-          ));
+      verifyNever(
+        () => tokenStore.save(
+          accessToken: any(named: 'accessToken'),
+          refreshToken: any(named: 'refreshToken'),
+          userId: any(named: 'userId'),
+        ),
+      );
     });
 
-    test('empty passcode is rejected client-side without hitting the service',
-        () async {
-      final cubit = makeCubit();
-      await cubit.submit(userId: 'x', passcode: '');
-      expect(cubit.state.status, SuperLoginStatus.error);
-      expect(service.lastPasscode, isNull); // service never called
-    });
+    test(
+      'empty passcode is rejected client-side without hitting the service',
+      () async {
+        final cubit = makeCubit();
+        await cubit.submit(userId: 'x', passcode: '');
+        expect(cubit.state.status, SuperLoginStatus.error);
+        expect(service.lastPasscode, isNull); // service never called
+      },
+    );
   });
 
   group('Super-login sheet widget (FR-P0-4)', () {
-    testWidgets('renders OMDS credential fields + submit, all keyed',
-        (tester) async {
+    testWidgets('renders OMDS credential fields + submit, all keyed', (
+      tester,
+    ) async {
       await openSheet(tester, makeCubit());
 
       expect(find.byKey(const Key('superLogin.title')), findsOneWidget);
@@ -131,43 +144,67 @@ void main() {
       expect(find.byKey(const Key('superLogin.passcode')), findsOneWidget);
       expect(find.byKey(const Key('superLogin.submit')), findsOneWidget);
       // OMDS components, not raw widgets.
-      expect(tester.widget(find.byKey(const Key('superLogin.userId'))),
-          isA<OmdsTextField>());
-      expect(tester.widget(find.byKey(const Key('superLogin.passcode'))),
-          isA<OMDSPasswordTextField>());
-      expect(tester.widget(find.byKey(const Key('superLogin.submit'))),
-          isA<OmdsLoadingButton>());
+      expect(
+        tester.widget(find.byKey(const Key('superLogin.userId'))),
+        isA<OmdsTextField>(),
+      );
+      expect(
+        tester.widget(find.byKey(const Key('superLogin.passcode'))),
+        isA<OMDSPasswordTextField>(),
+      );
+      expect(
+        tester.widget(find.byKey(const Key('superLogin.submit'))),
+        isA<OmdsLoadingButton>(),
+      );
+      for (final id in [
+        FirstRunSemanticsIds.superLoginSheet,
+        FirstRunSemanticsIds.superLoginUserIdField,
+        FirstRunSemanticsIds.superLoginPasscodeField,
+        FirstRunSemanticsIds.superLoginSubmitButton,
+      ]) {
+        expect(find.bySemanticsIdentifier(id), findsOneWidget, reason: id);
+      }
     });
 
-    testWidgets('submit is disabled until both fields are non-empty',
-        (tester) async {
+    testWidgets('submit is disabled until both fields are non-empty', (
+      tester,
+    ) async {
       await openSheet(tester, makeCubit());
 
       OmdsLoadingButton submit() => tester.widget<OmdsLoadingButton>(
-            find.byKey(const Key('superLogin.submit')),
-          );
+        find.byKey(const Key('superLogin.submit')),
+      );
       expect(submit().isEnabled, isFalse);
 
       await tester.enterText(
-          find.byKey(const Key('superLogin.userId')), 'super-user-001');
+        find.byKey(const Key('superLogin.userId')),
+        'super-user-001',
+      );
       await tester.pump();
       expect(submit().isEnabled, isFalse); // passcode still empty
 
       await tester.enterText(
-          find.byKey(const Key('superLogin.passcode')), 's3cret');
+        find.byKey(const Key('superLogin.passcode')),
+        's3cret',
+      );
       await tester.pump();
       expect(submit().isEnabled, isTrue);
     });
 
-    testWidgets('happy path: valid credential pops the sheet with success',
-        (tester) async {
+    testWidgets('happy path: valid credential pops the sheet with success', (
+      tester,
+    ) async {
       service.result = const SuperLoginSuccess(_session);
       await openSheet(tester, makeCubit());
 
       await tester.enterText(
-          find.byKey(const Key('superLogin.userId')), 'super-user-001');
+        find.byKey(const Key('superLogin.userId')),
+        'super-user-001',
+      );
       await tester.enterText(
-          find.byKey(const Key('superLogin.passcode')), 's3cret');
+        find.byKey(const Key('superLogin.passcode')),
+        's3cret',
+      );
       await tester.pump();
       await tester.tap(find.byKey(const Key('superLogin.submit')));
       await tester.pump();
@@ -181,14 +218,16 @@ void main() {
 
     testWidgets('negative path (DEF-2): bad credential surfaces the error '
         'INLINE under the passcode field, sheet stays open', (tester) async {
-      service.result =
-          const SuperLoginFailure(SuperLoginError.invalidCredentials);
+      service.result = const SuperLoginFailure(
+        SuperLoginError.invalidCredentials,
+      );
       await openSheet(tester, makeCubit());
 
+      await tester.enterText(find.byKey(const Key('superLogin.userId')), 'x');
       await tester.enterText(
-          find.byKey(const Key('superLogin.userId')), 'x');
-      await tester.enterText(
-          find.byKey(const Key('superLogin.passcode')), 'wrong');
+        find.byKey(const Key('superLogin.passcode')),
+        'wrong',
+      );
       await tester.pump();
       await tester.tap(find.byKey(const Key('superLogin.submit')));
       await tester.pump();
@@ -207,8 +246,7 @@ void main() {
       expect(
         find.descendant(
           of: find.byKey(const Key('superLogin.passcode')),
-          matching:
-              find.text('Invalid user id or passcode. Please try again.'),
+          matching: find.text('Invalid user id or passcode. Please try again.'),
         ),
         findsOneWidget,
       );
@@ -216,14 +254,16 @@ void main() {
 
     testWidgets('DEF-2: the inline error clears as soon as the user edits '
         'a field', (tester) async {
-      service.result =
-          const SuperLoginFailure(SuperLoginError.invalidCredentials);
+      service.result = const SuperLoginFailure(
+        SuperLoginError.invalidCredentials,
+      );
       await openSheet(tester, makeCubit());
 
+      await tester.enterText(find.byKey(const Key('superLogin.userId')), 'x');
       await tester.enterText(
-          find.byKey(const Key('superLogin.userId')), 'x');
-      await tester.enterText(
-          find.byKey(const Key('superLogin.passcode')), 'wrong');
+        find.byKey(const Key('superLogin.passcode')),
+        'wrong',
+      );
       await tester.pump();
       await tester.tap(find.byKey(const Key('superLogin.submit')));
       await tester.pump();
@@ -235,7 +275,9 @@ void main() {
 
       // User starts correcting the passcode → error must disappear.
       await tester.enterText(
-          find.byKey(const Key('superLogin.passcode')), 'wrong2');
+        find.byKey(const Key('superLogin.passcode')),
+        'wrong2',
+      );
       await tester.pump();
       expect(
         find.text('Invalid user id or passcode. Please try again.'),
@@ -243,21 +285,24 @@ void main() {
       );
     });
 
-    testWidgets('renders RTL with Arabic copy under Locale(ar)',
-        (tester) async {
-      await tester.pumpWidget(wrapForTest(
-        Builder(
-          builder: (context) => Scaffold(
-            body: ElevatedButton(
-              key: const Key('open'),
-              onPressed: () =>
-                  showSuperLoginSheet(context, cubit: makeCubit()),
-              child: const Text('open'),
+    testWidgets('renders RTL with Arabic copy under Locale(ar)', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        wrapForTest(
+          Builder(
+            builder: (context) => Scaffold(
+              body: ElevatedButton(
+                key: const Key('open'),
+                onPressed: () =>
+                    showSuperLoginSheet(context, cubit: makeCubit()),
+                child: const Text('open'),
+              ),
             ),
           ),
+          locale: const Locale('ar'),
         ),
-        locale: const Locale('ar'),
-      ));
+      );
       await tester.tap(find.byKey(const Key('open')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
@@ -276,25 +321,24 @@ void main() {
       SuperLoginCubit cubit, {
       String? initialUserId,
       String? initialPasscode,
-    }) =>
-        wrapForTest(
-          Builder(
-            builder: (context) => Scaffold(
-              body: Center(
-                child: ElevatedButton(
-                  key: const Key('open'),
-                  onPressed: () => showSuperLoginSheet(
-                    context,
-                    cubit: cubit,
-                    initialUserId: initialUserId,
-                    initialPasscode: initialPasscode,
-                  ),
-                  child: const Text('open'),
-                ),
+    }) => wrapForTest(
+      Builder(
+        builder: (context) => Scaffold(
+          body: Center(
+            child: ElevatedButton(
+              key: const Key('open'),
+              onPressed: () => showSuperLoginSheet(
+                context,
+                cubit: cubit,
+                initialUserId: initialUserId,
+                initialPasscode: initialPasscode,
               ),
+              child: const Text('open'),
             ),
           ),
-        );
+        ),
+      ),
+    );
 
     Future<void> openPrefilled(
       WidgetTester tester,
@@ -302,18 +346,19 @@ void main() {
       String? initialUserId,
       String? initialPasscode,
     }) async {
-      await tester.pumpWidget(prefilledHost(
-        cubit,
-        initialUserId: initialUserId,
-        initialPasscode: initialPasscode,
-      ));
+      await tester.pumpWidget(
+        prefilledHost(
+          cubit,
+          initialUserId: initialUserId,
+          initialPasscode: initialPasscode,
+        ),
+      );
       await tester.tap(find.byKey(const Key('open')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
     }
 
-    testWidgets(
-        'pre-fills both controllers AND enables submit immediately '
+    testWidgets('pre-fills both controllers AND enables submit immediately '
         '(picker happy path)', (tester) async {
       await openPrefilled(
         tester,
@@ -333,7 +378,8 @@ void main() {
       expect(
         tester
             .widget<OMDSPasswordTextField>(
-                find.byKey(const Key('superLogin.passcode')))
+              find.byKey(const Key('superLogin.passcode')),
+            )
             .controller
             .text,
         'demo-kamal',
@@ -342,7 +388,9 @@ void main() {
       // would be disabled despite both fields being non-empty.
       expect(
         tester
-            .widget<OmdsLoadingButton>(find.byKey(const Key('superLogin.submit')))
+            .widget<OmdsLoadingButton>(
+              find.byKey(const Key('superLogin.submit')),
+            )
             .isEnabled,
         isTrue,
         reason: 'a pre-filled sheet must open submit-ready',
@@ -350,49 +398,54 @@ void main() {
     });
 
     testWidgets(
-        'a pre-filled sheet submits the SAME credentials to the service '
-        '(no client-side edit needed)', (tester) async {
-      service.result = const SuperLoginSuccess(_session);
-      final cubit = makeCubit();
-      await openPrefilled(
-        tester,
-        cubit,
-        initialUserId: '44444444-4444-4444-8444-444444444444',
-        initialPasscode: 'demo-nour',
-      );
+      'a pre-filled sheet submits the SAME credentials to the service '
+      '(no client-side edit needed)',
+      (tester) async {
+        service.result = const SuperLoginSuccess(_session);
+        final cubit = makeCubit();
+        await openPrefilled(
+          tester,
+          cubit,
+          initialUserId: '44444444-4444-4444-8444-444444444444',
+          initialPasscode: 'demo-nour',
+        );
 
-      await tester.tap(find.byKey(const Key('superLogin.submit')));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+        await tester.tap(find.byKey(const Key('superLogin.submit')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
 
-      expect(service.lastUserId, '44444444-4444-4444-8444-444444444444');
-      expect(service.lastPasscode, 'demo-nour');
-      // Sheet popped on success.
-      expect(find.byKey(const Key('superLogin.submit')), findsNothing);
-    });
-
-    testWidgets(
-        'no pre-fill (direct open) keeps fields empty + submit disabled '
-        '(backward-compat: the original behaviour)', (tester) async {
-      await openPrefilled(tester, makeCubit());
-
-      expect(
-        tester
-            .widget<OmdsTextField>(find.byKey(const Key('superLogin.userId')))
-            .controller!
-            .text,
-        isEmpty,
-      );
-      expect(
-        tester
-            .widget<OmdsLoadingButton>(find.byKey(const Key('superLogin.submit')))
-            .isEnabled,
-        isFalse,
-      );
-    });
+        expect(service.lastUserId, '44444444-4444-4444-8444-444444444444');
+        expect(service.lastPasscode, 'demo-nour');
+        // Sheet popped on success.
+        expect(find.byKey(const Key('superLogin.submit')), findsNothing);
+      },
+    );
 
     testWidgets(
-        'DEF-1: pre-filled fields carry NO in-decoration floating label '
+      'no pre-fill (direct open) keeps fields empty + submit disabled '
+      '(backward-compat: the original behaviour)',
+      (tester) async {
+        await openPrefilled(tester, makeCubit());
+
+        expect(
+          tester
+              .widget<OmdsTextField>(find.byKey(const Key('superLogin.userId')))
+              .controller!
+              .text,
+          isEmpty,
+        );
+        expect(
+          tester
+              .widget<OmdsLoadingButton>(
+                find.byKey(const Key('superLogin.submit')),
+              )
+              .isEnabled,
+          isFalse,
+        );
+      },
+    );
+
+    testWidgets('DEF-1: pre-filled fields carry NO in-decoration floating label '
         '(labels live ABOVE the field, so the collapsed label cannot crowd '
         'the value)', (tester) async {
       await openPrefilled(
@@ -416,7 +469,8 @@ void main() {
       expect(
         tester
             .widget<OMDSPasswordTextField>(
-                find.byKey(const Key('superLogin.passcode')))
+              find.byKey(const Key('superLogin.passcode')),
+            )
             .labelText,
         isNull,
         reason: 'passcode field must not render a floating in-field label',

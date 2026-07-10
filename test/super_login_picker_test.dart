@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/registration/data/super_login_demo_user.dart';
 import 'package:jeeb_mobile/features/registration/presentation/super_login/super_login_picker.dart';
+import 'package:jeeb_mobile/shared/first_run/first_run.dart';
 
 import 'support/sync_app_localizations.dart';
 
@@ -46,25 +47,26 @@ void main() {
     SuperLoginDemoUserService service, {
     void Function(SuperLoginDemoUser?)? onResult,
     Locale locale = const Locale('en'),
-  }) =>
-      wrapForTest(
-        Builder(
-          builder: (context) => Scaffold(
-            body: Center(
-              child: ElevatedButton(
-                key: const Key('open'),
-                onPressed: () async {
-                  final user =
-                      await showSuperLoginPicker(context, service: service);
-                  onResult?.call(user);
-                },
-                child: const Text('open'),
-              ),
-            ),
+  }) => wrapForTest(
+    Builder(
+      builder: (context) => Scaffold(
+        body: Center(
+          child: ElevatedButton(
+            key: const Key('open'),
+            onPressed: () async {
+              final user = await showSuperLoginPicker(
+                context,
+                service: service,
+              );
+              onResult?.call(user);
+            },
+            child: const Text('open'),
           ),
         ),
-        locale: locale,
-      );
+      ),
+    ),
+    locale: locale,
+  );
 
   Future<void> open(WidgetTester tester) async {
     await tester.tap(find.byKey(const Key('open')));
@@ -106,8 +108,9 @@ void main() {
   });
 
   group('Super-login-plus picker widget', () {
-    testWidgets('shows a loading indicator while the fetch is in flight',
-        (tester) async {
+    testWidgets('shows a loading indicator while the fetch is in flight', (
+      tester,
+    ) async {
       // Never-completing future keeps the picker in the waiting state.
       final service = _SlowService();
       await tester.pumpWidget(host(service));
@@ -117,6 +120,16 @@ void main() {
         find.byType(CircularProgressIndicator),
         findsOneWidget,
         reason: 'picker must show a loading spinner during the fetch',
+      );
+      expect(
+        find.bySemanticsIdentifier(FirstRunSemanticsIds.superLoginPlusPicker),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier(
+          FirstRunSemanticsIds.superLoginPlusPickerLoading,
+        ),
+        findsOneWidget,
       );
       // The list/error regions must NOT be present while loading.
       expect(find.byKey(const Key('superLoginPlus.pickerList')), findsNothing);
@@ -144,27 +157,40 @@ void main() {
         find.byKey(Key('superLoginPlus.user.${_jeeber.userId}')),
         findsOneWidget,
       );
+      expect(
+        find.bySemanticsIdentifier(
+          FirstRunSemanticsIds.superLoginPlusPickerList,
+        ),
+        findsOneWidget,
+      );
       // Per-user Semantics identifiers required by the ticket
       // (super_login_plus_user_<userId>).
       expect(
-        find.bySemanticsIdentifier('super_login_plus_user_${_client.userId}'),
+        find.bySemanticsIdentifier(
+          FirstRunSemanticsIds.superLoginPlusUser(_client.userId),
+        ),
         findsOneWidget,
       );
       expect(
-        find.bySemanticsIdentifier('super_login_plus_user_${_jeeber.userId}'),
+        find.bySemanticsIdentifier(
+          FirstRunSemanticsIds.superLoginPlusUser(_jeeber.userId),
+        ),
         findsOneWidget,
       );
     });
 
-    testWidgets('tapping a row pops the picker with the selected user',
-        (tester) async {
+    testWidgets('tapping a row pops the picker with the selected user', (
+      tester,
+    ) async {
       final service = _FakeDemoUserService(users: const [_client, _jeeber]);
       SuperLoginDemoUser? result;
       await tester.pumpWidget(host(service, onResult: (u) => result = u));
       await open(tester);
       await tester.pump();
 
-      await tester.tap(find.byKey(Key('superLoginPlus.user.${_jeeber.userId}')));
+      await tester.tap(
+        find.byKey(Key('superLoginPlus.user.${_jeeber.userId}')),
+      );
       await tester.pumpAndSettle();
 
       expect(result, isNotNull);
@@ -185,7 +211,16 @@ void main() {
       await open(tester);
       await tester.pump(); // resolve the (throwing) future
 
-      expect(find.byKey(const Key('superLoginPlus.pickerError')), findsOneWidget);
+      expect(
+        find.byKey(const Key('superLoginPlus.pickerError')),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier(
+          FirstRunSemanticsIds.superLoginPlusPickerError,
+        ),
+        findsOneWidget,
+      );
       expect(
         find.text('Could not load demo users. Check your connection.'),
         findsOneWidget,
@@ -205,21 +240,26 @@ void main() {
       expect(find.byKey(const Key('superLoginPlus.pickerError')), findsNothing);
     });
 
-    testWidgets('empty roster falls back to the error state (nothing to pick)',
-        (tester) async {
-      final service = _FakeDemoUserService(users: const []);
-      await tester.pumpWidget(host(service));
-      await open(tester);
-      await tester.pump();
+    testWidgets(
+      'empty roster falls back to the error state (nothing to pick)',
+      (tester) async {
+        final service = _FakeDemoUserService(users: const []);
+        await tester.pumpWidget(host(service));
+        await open(tester);
+        await tester.pump();
 
-      expect(find.byKey(const Key('superLoginPlus.pickerError')), findsOneWidget);
-    });
+        expect(
+          find.byKey(const Key('superLoginPlus.pickerError')),
+          findsOneWidget,
+        );
+      },
+    );
 
-    testWidgets('renders RTL with Arabic copy under Locale(ar)', (tester) async {
+    testWidgets('renders RTL with Arabic copy under Locale(ar)', (
+      tester,
+    ) async {
       final service = _FakeDemoUserService(users: const [_client]);
-      await tester.pumpWidget(
-        host(service, locale: const Locale('ar')),
-      );
+      await tester.pumpWidget(host(service, locale: const Locale('ar')));
       await open(tester);
       await tester.pump();
 

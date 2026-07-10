@@ -19,6 +19,8 @@ class MainActivity : FlutterActivity() {
         "jeeb.home_tab",
         "jeeb.feed",
         "jeeb.hold_splash",
+        "jeeb.skip_onboarding",
+        "jeeb.mock_base_url",
     )
 
     // `adb push jeeb-dev-seam.json /data/local/tmp/jeeb-dev-seam.json`.

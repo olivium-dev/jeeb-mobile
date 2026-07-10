@@ -10,6 +10,7 @@ import 'package:jeeb_mobile/features/registration/application/registration_cubit
 import 'package:jeeb_mobile/features/registration/domain/otp_service.dart';
 import 'package:jeeb_mobile/features/registration/domain/registration_attempt_policy.dart';
 import 'package:jeeb_mobile/features/registration/presentation/otp_verification_screen.dart';
+import 'package:jeeb_mobile/shared/first_run/first_run.dart';
 
 import 'support/sync_app_localizations.dart';
 
@@ -22,8 +23,9 @@ void main() {
   setUp(() {
     otp = _MockOtpService();
     ticker = StreamController<DateTime>.broadcast();
-    when(() => otp.sendCode(any()))
-        .thenAnswer((_) async => OtpSendOutcome.sent);
+    when(
+      () => otp.sendCode(any()),
+    ).thenAnswer((_) async => OtpSendOutcome.sent);
   });
 
   tearDown(() async {
@@ -55,8 +57,14 @@ void main() {
     );
   }
 
-  testWidgets('renders the 6-digit OTP input and the initial 60s countdown',
-      (tester) async {
+  test('exports Maestro-targeted first-run OTP selector values', () {
+    expect(FirstRunSemanticsIds.otpVerifyButton, 'registration_verify_button');
+    expect(FirstRunSemanticsIds.otpError, 'registration_otp_error');
+  });
+
+  testWidgets('renders the 6-digit OTP input and the initial 60s countdown', (
+    tester,
+  ) async {
     final cubit = await primedOnOtpStep();
     await tester.pumpWidget(hostScreen(cubit));
     await tester.pump();
@@ -71,43 +79,91 @@ void main() {
       find.byKey(const Key('registration.resendCountdown')),
       findsOneWidget,
     );
+    for (final id in [
+      FirstRunSemanticsIds.otpScreen,
+      FirstRunSemanticsIds.otpBackButton,
+      FirstRunSemanticsIds.otpField,
+      FirstRunSemanticsIds.otpVerifyButton,
+      FirstRunSemanticsIds.otpResendCountdown,
+      FirstRunSemanticsIds.otpChangePhoneButton,
+    ]) {
+      expect(find.bySemanticsIdentifier(id), findsOneWidget, reason: id);
+    }
     // Initial resend countdown is the policy's full cooldown.
     expect(find.textContaining('60'), findsWidgets);
     await cubit.close();
   });
 
-  testWidgets(
-      'countdown ticks down on each tick and exposes the Resend button at 0',
-      (tester) async {
-    final cubit = await primedOnOtpStep(
-      policy: const RegistrationAttemptPolicy(
-        resendCooldown: Duration(seconds: 2),
+  testWidgets('renders invalid OTP error with the Maestro-targeted ID', (
+    tester,
+  ) async {
+    when(
+      () => otp.verifyCode(
+        e164Phone: any(named: 'e164Phone'),
+        code: any(named: 'code'),
       ),
-    );
+    ).thenAnswer((_) async => OtpVerifyOutcome.invalidCode);
+    final cubit = await primedOnOtpStep();
     await tester.pumpWidget(hostScreen(cubit));
     await tester.pump();
-    expect(find.byKey(const Key('registration.resendCountdown')),
-        findsOneWidget);
 
-    ticker.add(DateTime.now());
+    await cubit.verifyCode('000000');
     await tester.pump();
-    ticker.add(DateTime.now());
-    await tester.pump();
-    // Cooldown is now 0 → Resend button is mounted in place of the countdown.
-    expect(find.byKey(const Key('registration.resend')), findsOneWidget);
+
+    expect(find.byKey(const Key('registration.otpError')), findsOneWidget);
     expect(
-      find.byKey(const Key('registration.resendCountdown')),
-      findsNothing,
+      find.bySemanticsIdentifier(FirstRunSemanticsIds.otpError),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsIdentifier(FirstRunSemanticsIds.otpAttemptsLeft),
+      findsOneWidget,
     );
     await cubit.close();
   });
 
-  testWidgets('renders the lockout banner after 3 failed attempts',
-      (tester) async {
-    when(() => otp.verifyCode(
-          e164Phone: any(named: 'e164Phone'),
-          code: any(named: 'code'),
-        )).thenAnswer((_) async => OtpVerifyOutcome.invalidCode);
+  testWidgets(
+    'countdown ticks down on each tick and exposes the Resend button at 0',
+    (tester) async {
+      final cubit = await primedOnOtpStep(
+        policy: const RegistrationAttemptPolicy(
+          resendCooldown: Duration(seconds: 2),
+        ),
+      );
+      await tester.pumpWidget(hostScreen(cubit));
+      await tester.pump();
+      expect(
+        find.byKey(const Key('registration.resendCountdown')),
+        findsOneWidget,
+      );
+
+      ticker.add(DateTime.now());
+      await tester.pump();
+      ticker.add(DateTime.now());
+      await tester.pump();
+      // Cooldown is now 0 → Resend button is mounted in place of the countdown.
+      expect(find.byKey(const Key('registration.resend')), findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier(FirstRunSemanticsIds.otpResendButton),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('registration.resendCountdown')),
+        findsNothing,
+      );
+      await cubit.close();
+    },
+  );
+
+  testWidgets('renders the lockout banner after 3 failed attempts', (
+    tester,
+  ) async {
+    when(
+      () => otp.verifyCode(
+        e164Phone: any(named: 'e164Phone'),
+        code: any(named: 'code'),
+      ),
+    ).thenAnswer((_) async => OtpVerifyOutcome.invalidCode);
     final cubit = await primedOnOtpStep();
     await tester.pumpWidget(hostScreen(cubit));
     await tester.pump();
@@ -118,18 +174,25 @@ void main() {
     await tester.pump();
 
     expect(find.byKey(const Key('registration.lockoutBanner')), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier(FirstRunSemanticsIds.otpLockoutBanner),
+      findsOneWidget,
+    );
     // CTA, attempts counter, and resend row are all hidden in lockout mode.
     expect(find.byKey(const Key('registration.verify')), findsNothing);
     expect(find.byKey(const Key('registration.resend')), findsNothing);
     await cubit.close();
   });
 
-  testWidgets('invokes onVerified when the cubit verifies the code',
-      (tester) async {
-    when(() => otp.verifyCode(
-          e164Phone: any(named: 'e164Phone'),
-          code: any(named: 'code'),
-        )).thenAnswer((_) async => OtpVerifyOutcome.verified);
+  testWidgets('invokes onVerified when the cubit verifies the code', (
+    tester,
+  ) async {
+    when(
+      () => otp.verifyCode(
+        e164Phone: any(named: 'e164Phone'),
+        code: any(named: 'code'),
+      ),
+    ).thenAnswer((_) async => OtpVerifyOutcome.verified);
     final cubit = await primedOnOtpStep();
     var verified = false;
     await tester.pumpWidget(
