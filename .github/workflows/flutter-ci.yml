@@ -49,7 +49,7 @@ jobs:
 
       - name: Build APK (debug)
         if: steps.pub_get.outcome == 'success'
-        run: flutter build apk --flavor dev --debug
+        run: flutter build apk --flavor appDev --debug
 
       - name: Skipped flutter steps notice
         if: steps.pub_get.outcome != 'success'

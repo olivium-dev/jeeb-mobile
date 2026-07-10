@@ -52,6 +52,7 @@ class HttpLocationUploader implements LocationUploader {
       switch (e.type) {
         case DioExceptionType.connectionTimeout:
         case DioExceptionType.receiveTimeout:
+        case DioExceptionType.transformTimeout:
         case DioExceptionType.sendTimeout:
         case DioExceptionType.connectionError:
           return LocationUploadOutcome.transientFailure;

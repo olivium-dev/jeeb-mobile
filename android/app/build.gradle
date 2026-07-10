@@ -46,9 +46,32 @@ android {
     }
 
     // ─── Flavor Configuration ────────────────────────────────────────────────
-    flavorDimensions "environment"
+    // Two orthogonal dimensions. "distribution" (listed first = higher priority
+    // for resValue/appId merges) splits the real product from the Jeeber Dev Tool
+    // — a SECOND installable app built from this same source tree. "environment"
+    // is unchanged (dev/staging/production).
+    //
+    // Variant names are the concatenation, e.g. `appProduction`, `devtoolDev`.
+    //   appProduction    -> app.jeeb.mobile              (the real product)
+    //   devtoolProduction-> app.jeeb.mobile.devtool      (Jeeber Dev Tool)
+    // NOTE: `--flavor dev` is now `--flavor appDev` (CI updated accordingly).
+    flavorDimensions "distribution", "environment"
 
     productFlavors {
+        // distribution dimension ------------------------------------------------
+        app {
+            dimension "distribution"
+            // real product: no suffix, app_name comes from the environment flavor.
+        }
+        devtool {
+            dimension "distribution"
+            applicationIdSuffix ".devtool"
+            versionNameSuffix "-devtool"
+            // Higher-priority dimension, so this app_name wins over environment's.
+            resValue "string", "app_name", "Jeeber Dev Tool"
+        }
+
+        // environment dimension -------------------------------------------------
         dev {
             dimension "environment"
             applicationIdSuffix ".dev"
