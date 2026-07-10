@@ -41,7 +41,7 @@ appId: ${APP_ID}
 - takeScreenshot: jm010_ac3a_slide1
 
 - tapOn:
-    id: "walkthrough_next_cta"
+    id: "onboarding_next_button"
 
 - extendedWaitUntil:
     visible:
@@ -51,7 +51,7 @@ appId: ${APP_ID}
 - takeScreenshot: jm010_ac3b_slide2
 
 - tapOn:
-    id: "walkthrough_next_cta"
+    id: "onboarding_next_button"
 
 - extendedWaitUntil:
     visible:

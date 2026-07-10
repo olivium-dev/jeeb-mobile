@@ -63,7 +63,7 @@ tags:
     timeout: 90000
 
 - tapOn:
-    id: "walkthrough_next_cta"
+    id: "onboarding_next_button"
 
 - extendedWaitUntil:
     visible:
@@ -71,7 +71,7 @@ tags:
     timeout: 8000
 
 - tapOn:
-    id: "walkthrough_next_cta"
+    id: "onboarding_next_button"
 
 - extendedWaitUntil:
     visible:

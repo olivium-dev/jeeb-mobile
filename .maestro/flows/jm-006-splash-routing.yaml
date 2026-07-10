@@ -48,8 +48,9 @@ appId: ${APP_ID}
 - takeScreenshot: jm006_ac1_first_launch_walkthrough_slide1
 
 # Navigate to slide 3 to assert walkthrough_get_started_cta
+# Note: app implements id 'onboarding_next_button' (spec intended 'walkthrough_next_cta')
 - tapOn:
-    id: "walkthrough_next_cta"
+    id: "onboarding_next_button"
 
 - extendedWaitUntil:
     visible:
@@ -57,7 +58,7 @@ appId: ${APP_ID}
     timeout: 8000
 
 - tapOn:
-    id: "walkthrough_next_cta"
+    id: "onboarding_next_button"
 
 - extendedWaitUntil:
     visible:
