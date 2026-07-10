@@ -127,6 +127,38 @@ void main() {
       expect(body['isDefault'], isTrue);
     });
 
+    // JEBV4-118 hardening: POSITIVELY lock that the JM-050 address-detail fields
+    // the form captures ARE transmitted. The base-1048cc2 test asserted the
+    // OPPOSITE ("building … must not be sent"), a stale minimal-DTO assumption
+    // that contradicted three contract sources and was correctly relaxed on main
+    // (commit f5a9f7f) — but relaxed to SILENCE, leaving zero coverage of these
+    // product-critical fields. This re-adds positive coverage so a future drop
+    // of building/floorApt/deliveryNotes/codPhone fails loud. Ground truth:
+    //   * JM-050 AC (30_BACKLOG.md): form = "Building + Floor/apt + Delivery
+    //     notes + COD Phone"; saved_location.dart gained these 4 optional fields.
+    //   * Mock `POST /users/:id/saved-locations` = `{ id, ...req.body, createdAt }`
+    //     — persists them verbatim (50_ROUTE_REQUESTS.md §"MOCK NOTE"); the
+    //     `has_saved_addresses` seam seeds exactly these names.
+    // (Whether the LIVE gateway DTO persists them is an open BACKEND flag —
+    // 20_GAP__customer.md L286/L327 — not a client concern; the client's job is
+    // to send what the form captured, which this locks.)
+    test('create ALSO sends the JM-050 detail fields '
+        '(building/floorApt/deliveryNotes/codPhone/category)', () async {
+      _capturedBody = null;
+      final repo = DioAddressFormRepository(
+        _capturingDio(<String, dynamic>{'id': 'addr-1', 'label': 'HomeQA'}),
+      );
+
+      await repo.create(userId: 'ignored', draft: _draft());
+
+      final body = _capturedBody as Map<String, dynamic>;
+      expect(body['building'], 'Sahar Building');
+      expect(body['floorApt'], '4th floor, Apt 12');
+      expect(body['deliveryNotes'], 'Ring twice; blue door.');
+      expect(body['codPhone'], '+96170000001');
+      expect(body['category'], 'home');
+    });
+
     test('update PUTs /api/users/me/saved-locations/<id> (no userId segment)',
         () async {
       _capturedPath = null;
