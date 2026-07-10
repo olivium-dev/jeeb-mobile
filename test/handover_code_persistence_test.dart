@@ -15,7 +15,7 @@ import 'package:jeeb_mobile/features/otp_handover/data/shared_prefs_handover_cod
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  Future<SharedPrefsHandoverCodeStore> _freshStore() async =>
+  Future<SharedPrefsHandoverCodeStore> freshStore() async =>
       SharedPrefsHandoverCodeStore(
         prefs: await SharedPreferences.getInstance(),
       );
@@ -25,7 +25,7 @@ void main() {
   });
 
   test('save → read round-trip', () async {
-    final store = await _freshStore();
+    final store = await freshStore();
     await store.save(deliveryId: 'DLV-1', code: '1234');
 
     expect(await store.read(deliveryId: 'DLV-1'), '1234');
@@ -33,16 +33,16 @@ void main() {
 
   test('G4 restart resilience: a NEW store instance over the same prefs '
       'still reads the code (cold-start analogue)', () async {
-    final first = await _freshStore();
+    final first = await freshStore();
     await first.save(deliveryId: 'DLV-1', code: '1234');
 
     // Simulated app restart: a brand-new store object, same backing storage.
-    final second = await _freshStore();
+    final second = await freshStore();
     expect(await second.read(deliveryId: 'DLV-1'), '1234');
   });
 
   test('codes are keyed per delivery', () async {
-    final store = await _freshStore();
+    final store = await freshStore();
     await store.save(deliveryId: 'DLV-1', code: '1111');
     await store.save(deliveryId: 'DLV-2', code: '2222');
 
@@ -51,7 +51,7 @@ void main() {
   });
 
   test('save overwrites a previous code (gateway re-mint)', () async {
-    final store = await _freshStore();
+    final store = await freshStore();
     await store.save(deliveryId: 'DLV-1', code: '1111');
     await store.save(deliveryId: 'DLV-1', code: '9999');
 
@@ -59,7 +59,7 @@ void main() {
   });
 
   test('clear removes the row (post-handover hygiene)', () async {
-    final store = await _freshStore();
+    final store = await freshStore();
     await store.save(deliveryId: 'DLV-1', code: '1234');
     await store.clear(deliveryId: 'DLV-1');
 
@@ -67,12 +67,12 @@ void main() {
   });
 
   test('unknown delivery reads null (reinstall mid-delivery)', () async {
-    final store = await _freshStore();
+    final store = await freshStore();
     expect(await store.read(deliveryId: 'DLV-unknown'), isNull);
   });
 
   test('blank code / blank delivery id are never stored', () async {
-    final store = await _freshStore();
+    final store = await freshStore();
     await store.save(deliveryId: 'DLV-1', code: '   ');
     await store.save(deliveryId: '', code: '1234');
 
@@ -81,7 +81,7 @@ void main() {
   });
 
   test('stored value is trimmed', () async {
-    final store = await _freshStore();
+    final store = await freshStore();
     await store.save(deliveryId: 'DLV-1', code: ' 1234 ');
     expect(await store.read(deliveryId: 'DLV-1'), '1234');
   });

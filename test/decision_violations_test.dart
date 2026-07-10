@@ -59,17 +59,17 @@ Widget _routerHarness(Widget screen) {
     routes: [
       GoRoute(
         path: '/kyc/rejected',
-        builder: (_, __) => screen,
+        builder: (_, _) => screen,
       ),
       GoRoute(
         name: 'support-ticket',
         path: '/support',
-        builder: (_, __) => const Scaffold(body: Text('SUPPORT')),
+        builder: (_, _) => const Scaffold(body: Text('SUPPORT')),
       ),
       GoRoute(
         name: 'customer-profile',
         path: '/profile',
-        builder: (_, __) => const Scaffold(body: Text('PROFILE')),
+        builder: (_, _) => const Scaffold(body: Text('PROFILE')),
       ),
     ],
   );

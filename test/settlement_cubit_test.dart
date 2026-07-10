@@ -30,13 +30,11 @@ class _FakeSettlementRepo implements SettlementRepository {
     this.statements,
     this.listThrows,
     this.pdfPath,
-    this.pdfThrows,
   });
 
   final List<SettlementStatement>? statements;
   final SettlementException? listThrows;
   final String? pdfPath;
-  final SettlementException? pdfThrows;
 
   @override
   Future<List<SettlementStatement>> fetchStatements() async {
@@ -46,7 +44,6 @@ class _FakeSettlementRepo implements SettlementRepository {
 
   @override
   Future<String> downloadPdf(String statementId) async {
-    if (pdfThrows != null) throw pdfThrows!;
     return pdfPath ?? '/tmp/settlement_$statementId.pdf';
   }
 }

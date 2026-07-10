@@ -84,11 +84,6 @@ enum EscalateReason { damaged, wrongItem, noShow, fraud, abuse, other }
 class EscalateResult {
   const EscalateResult({required this.caseId, required this.status});
 
-  /// The dispute id (`id` on the compliment-service row). Used to route to
-  /// `dispute-status` (/disputes/:id, JM-065).
-  final String caseId;
-  final String status;
-
   factory EscalateResult.fromJson(Map<String, dynamic> json) {
     return EscalateResult(
       caseId: json['id'] as String? ??
@@ -99,6 +94,11 @@ class EscalateResult {
       status: json['status'] as String? ?? 'open',
     );
   }
+
+  /// The dispute id (`id` on the compliment-service row). Used to route to
+  /// `dispute-status` (/disputes/:id, JM-065).
+  final String caseId;
+  final String status;
 }
 
 class EscalateException implements Exception {

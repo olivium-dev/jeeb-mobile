@@ -24,9 +24,6 @@ enum RatingRevealState {
 class CounterpartRating extends Equatable {
   const CounterpartRating({required this.stars, this.comment});
 
-  final int stars;
-  final String? comment;
-
   factory CounterpartRating.fromJson(Map<String, dynamic> json) {
     // Real mock returns `score`; legacy shape used `stars`. Tolerate both.
     final raw = json['stars'] ?? json['score'];
@@ -35,6 +32,9 @@ class CounterpartRating extends Equatable {
       comment: json['comment'] as String?,
     );
   }
+
+  final int stars;
+  final String? comment;
 
   @override
   List<Object?> get props => [stars, comment];
@@ -47,10 +47,6 @@ class RatingStatus extends Equatable {
     this.counterpartRating,
   });
 
-  final String deliveryId;
-  final RatingRevealState revealState;
-  final CounterpartRating? counterpartRating;
-
   factory RatingStatus.fromJson(String deliveryId, Map<String, dynamic> json) {
     // Real mock uses `state`; legacy Mockoon used `status`. Tolerate both.
     final raw = (json['state'] ?? json['status']) as String? ?? 'pending_self';
@@ -60,6 +56,10 @@ class RatingStatus extends Equatable {
       counterpartRating: _parseCounterpart(json),
     );
   }
+
+  final String deliveryId;
+  final RatingRevealState revealState;
+  final CounterpartRating? counterpartRating;
 
   static RatingRevealState _parseState(String raw) {
     switch (raw) {

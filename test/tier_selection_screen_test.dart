@@ -12,8 +12,8 @@ void main() {
     testWidgets('renders 3 tier cards when API succeeds', (tester) async {
       await tester.pumpWidget(
         wrapForTest(
-          TierSelectionScreen(
-            repository: const FakeTierRepository(),
+          const TierSelectionScreen(
+            repository: FakeTierRepository(),
           ),
         ),
       );
@@ -37,9 +37,9 @@ void main() {
     testWidgets('shows cached banner when network fails (AC3)', (tester) async {
       await tester.pumpWidget(
         wrapForTest(
-          TierSelectionScreen(
+          const TierSelectionScreen(
             repository:
-                const FakeTierRepository(failWith: TierLoadFailure.network),
+                FakeTierRepository(failWith: TierLoadFailure.network),
           ),
         ),
       );
@@ -62,8 +62,8 @@ void main() {
         (tester) async {
       await tester.pumpWidget(
         wrapForTest(
-          TierSelectionScreen(
-            repository: const _NoRecommendedRepository(),
+          const TierSelectionScreen(
+            repository: _NoRecommendedRepository(),
           ),
         ),
       );
@@ -107,8 +107,8 @@ void main() {
     testWidgets('pre-selects recommended tier on first load', (tester) async {
       await tester.pumpWidget(
         wrapForTest(
-          TierSelectionScreen(
-            repository: const FakeTierRepository(),
+          const TierSelectionScreen(
+            repository: FakeTierRepository(),
           ),
         ),
       );

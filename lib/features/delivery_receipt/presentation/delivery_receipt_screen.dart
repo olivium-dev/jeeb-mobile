@@ -22,7 +22,7 @@ import '../domain/delivery_receipt_repository.dart';
 /// goods cost / delivery fee / **Commission** in hardcoded LBP). The blueprint
 /// contract is a delivery-acknowledgement prompt:
 ///   - "Did you receive your order?" prompt (signature root `receipt_prompt`).
-///   - "Pay $N cash to <Jeeber>" — the cash-on-delivery line (D11), customer
+///   - "Pay $N cash to `<Jeeber>`" — the cash-on-delivery line (D11), customer
 ///     pays the Jeeber in person.
 ///   - The proof-of-delivery photo the Jeeber uploaded (D3, D1m sink).
 ///   - Confirm  → rating screen (JM-034). Records the COD settlement +
@@ -40,7 +40,7 @@ import '../domain/delivery_receipt_repository.dart';
 ///
 /// Semantics identifiers exposed (EXACT, 63_W1_TEST_PLAN §2.13):
 ///   - `receipt_prompt`               — screen root (signature id)
-///   - `receipt_cash_to_jeeber_label` — "Pay $N cash to <Jeeber>" (D11)
+///   - `receipt_cash_to_jeeber_label` — "Pay $N cash to `<Jeeber>`" (D11)
 ///   - `receipt_proof_photo`          — proof-of-delivery photo (D3)
 ///   - `receipt_confirm_cta`          — Confirm → rate-jeeber (JM-034)
 ///   - `receipt_not_yet_cta`          — Not yet → dispute-open-evidence (JM-060)
@@ -186,7 +186,7 @@ class _LoadedBody extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final confirming = state.isConfirming;
-    // "Pay $N cash to <Jeeber>" (D11). Cash is the gross order amount paid in
+    // "Pay $N cash to `<Jeeber>`" (D11). Cash is the gross order amount paid in
     // person; the Jeeber name degrades to a generic noun when absent. The copy
     // is a localized template with positional placeholders — Maestro keys on
     // the id, not the text (i18n-safe).
@@ -257,7 +257,7 @@ class _LoadedBody extends StatelessWidget {
           ),
         ),
         const SizedBox(height: Spacing.large),
-        // receipt_cash_to_jeeber_label — "Pay $N cash to <Jeeber>" (D11).
+        // receipt_cash_to_jeeber_label — "Pay $N cash to `<Jeeber>`" (D11).
         Semantics(
           identifier: 'receipt_cash_to_jeeber_label',
           child: Container(

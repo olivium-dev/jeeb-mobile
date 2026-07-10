@@ -196,6 +196,10 @@ void main() {
           return true;
         });
       }
+      // Walks the semantics tree via the test binding's pipelineOwner;
+      // rootPipelineOwner.semanticsOwner is null in the widget-test harness
+      // (semantics live on the child owner), so the deprecated accessor is kept.
+      // ignore: deprecated_member_use
       walk(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
       expect(found, isTrue, reason: 'Expected semantics label starting with "$expectedPrefix" not found');
       handle.dispose();
@@ -227,6 +231,10 @@ void main() {
           return true;
         });
       }
+      // Walks the semantics tree via the test binding's pipelineOwner;
+      // rootPipelineOwner.semanticsOwner is null in the widget-test harness
+      // (semantics live on the child owner), so the deprecated accessor is kept.
+      // ignore: deprecated_member_use
       walk(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
       expect(found, isTrue,
           reason: 'Expected semantics label starting with "$expectedPrefix" not found');

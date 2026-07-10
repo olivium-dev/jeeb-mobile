@@ -7,10 +7,10 @@ import 'package:jeeb_mobile/features/prohibited_acknowledgment/presentation/proh
 import 'support/sync_app_localizations.dart';
 
 class _FakeRepo implements ProhibitedAcknowledgmentRepository {
-  _FakeRepo({this.items = const [], this.alreadyAcked = false});
+  _FakeRepo({this.items = const []});
 
   final List<ProhibitedItem> items;
-  final bool alreadyAcked;
+  final bool alreadyAcked = false;
   bool localSaved = false;
 
   @override

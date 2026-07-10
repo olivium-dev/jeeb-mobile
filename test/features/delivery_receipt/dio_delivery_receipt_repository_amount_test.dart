@@ -25,7 +25,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/delivery_receipt/data/dio_delivery_receipt_repository.dart';
-import 'package:jeeb_mobile/features/delivery_receipt/domain/delivery_receipt.dart';
 
 const _deliveryId = '51a88521-fd14-417c-a2cc-37f592ac6798';
 

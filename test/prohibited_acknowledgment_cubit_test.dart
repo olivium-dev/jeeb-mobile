@@ -8,7 +8,6 @@ import 'package:jeeb_mobile/features/prohibited_acknowledgment/presentation/cubi
 /// Fake repo for testing.
 class _FakeRepo implements ProhibitedAcknowledgmentRepository {
   _FakeRepo({
-    this.items = _kItems,
     this.alreadyAcknowledged = false,
     this.acknowledgeThrows = false,
   });
@@ -18,7 +17,7 @@ class _FakeRepo implements ProhibitedAcknowledgmentRepository {
     ProhibitedItem(id: 'knife', name: 'Knife', severity: ProhibitedItemSeverity.warn),
   ];
 
-  final List<ProhibitedItem> items;
+  final List<ProhibitedItem> items = _kItems;
   final bool alreadyAcknowledged;
   final bool acknowledgeThrows;
 
