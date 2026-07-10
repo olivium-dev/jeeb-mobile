@@ -30,6 +30,7 @@ class HomeTab extends StatelessWidget {
     super.key,
     this.repository,
     this.greetingNameProvider,
+    this.greetingRepository,
   });
 
   /// Injection hook so tests + the future DI wiring can swap in a Dio-
@@ -39,6 +40,12 @@ class HomeTab extends StatelessWidget {
   /// Returns the first name to greet the user with, or `null` if unknown.
   /// Wired to the profile cubit once that ships.
   final String? Function()? greetingNameProvider;
+
+  /// Test/preview seam: overrides the source [GreetingProfileCubit] resolves
+  /// (see [_resolveGreetingRepository]). Additive — when null the tab keeps
+  /// its existing dev-seam / GetIt resolution untouched (DT-04 catalog hook,
+  /// so a bare Dev Tool preview never fires the live getMe request).
+  final CustomerProfileRepository? greetingRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +90,7 @@ class HomeTab extends StatelessWidget {
   /// mirroring how [CustomerProfileScreen] resolves its repo. A bare test (no
   /// Dio registered) gets `null` → the greeting stays on its seed.
   CustomerProfileRepository? _resolveGreetingRepository(bool devSeed) {
+    if (greetingRepository != null) return greetingRepository;
     if (devSeed) return null;
     final getIt = GetIt.instance;
     if (getIt.isRegistered<CustomerProfileRepository>()) {

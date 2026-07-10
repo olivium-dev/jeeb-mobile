@@ -6,9 +6,17 @@ import 'package:omds/omds.dart';
 import '../../core/dev_seam/dev_seam.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/role/user_role.dart';
+import '../../core/session/jeeber_kyc_status_gate.dart';
 import '../../l10n/app_localizations.dart';
 import '../customer_profile/data/dev_customer_profile_fixtures.dart';
+import '../customer_profile/domain/customer_profile_repository.dart';
 import '../customer_profile/presentation/customer_profile_screen.dart';
+import '../earnings/domain/earnings_repository.dart';
+import '../home_client/domain/client_home_repository.dart';
+import '../jeeber_home/domain/services/availability_gateway.dart';
+import '../jeeber_request_feed/data/request_feed_repository.dart';
+import '../order_history/domain/order_repository.dart';
+import '../rate_app/domain/app_review_launcher.dart';
 import 'tabs/dashboard_tab.dart';
 import 'tabs/earnings_tab.dart';
 import 'tabs/home_tab.dart';
@@ -27,7 +35,60 @@ import 'widgets/shell_header_actions.dart';
 /// Reuses Salehly's role-toggle pattern: mode is session-local state
 /// toggled from the Profile tab, resetting to tab 0 on switch.
 class ShellScreen extends StatefulWidget {
-  const ShellScreen({super.key});
+  const ShellScreen({
+    super.key,
+    this.homeTabRepository,
+    this.homeTabGreetingRepository,
+    this.ordersRepository,
+    this.profileRepository,
+    this.profileReviewLauncher,
+    this.dashboardKycStatusGate,
+    this.dashboardAvailabilityGateway,
+    this.dashboardRequestFeedRepository,
+    this.dashboardGreetingRepository,
+    this.earningsRepository,
+    this.earningsJeeberId,
+  });
+
+  // ── DT-04 catalog / test seams ────────────────────────────────────────
+  // Every field below is additive and forwarded 1:1 to the tab it names;
+  // `null` (the default for every real call site) reproduces the exact
+  // pre-existing behaviour of that tab. They exist solely so the Dev Tool
+  // Screen Catalog (DT-04) can preview the real [ShellScreen] with local
+  // fakes and NO network, without touching any tab's own resolution logic.
+
+  /// Forwarded to [HomeTab.repository].
+  final ClientHomeRepository? homeTabRepository;
+
+  /// Forwarded to [HomeTab.greetingRepository].
+  final CustomerProfileRepository? homeTabGreetingRepository;
+
+  /// Forwarded to [OrdersTab.repository].
+  final OrderRepository? ordersRepository;
+
+  /// Forwarded to the Profile tab's [CustomerProfileScreen.repository].
+  final CustomerProfileRepository? profileRepository;
+
+  /// Forwarded to the Profile tab's [CustomerProfileScreen.reviewLauncher].
+  final AppReviewLauncher? profileReviewLauncher;
+
+  /// Forwarded to [DashboardTab.kycStatusGate].
+  final JeeberKycStatusGate? dashboardKycStatusGate;
+
+  /// Forwarded to [DashboardTab.availabilityGateway].
+  final AvailabilityGateway? dashboardAvailabilityGateway;
+
+  /// Forwarded to [DashboardTab.requestFeedRepository].
+  final RequestFeedRepository? dashboardRequestFeedRepository;
+
+  /// Forwarded to [DashboardTab.greetingRepository].
+  final CustomerProfileRepository? dashboardGreetingRepository;
+
+  /// Forwarded to [EarningsTab.repository].
+  final EarningsRepository? earningsRepository;
+
+  /// Forwarded to [EarningsTab.jeeberId].
+  final String? earningsJeeberId;
 
   @override
   State<ShellScreen> createState() => _ShellScreenState();
@@ -86,9 +147,12 @@ class _ShellScreenState extends State<ShellScreen> {
             // Requests header (JM-023; `orders_home_wallet_chip`/
             // `orders_home_bell`). Overlaid by the shell so the per-screen
             // HomeTab surface (JM-023's) stays untouched.
-            page: const _HeaderedTab(
+            page: _HeaderedTab(
               idPrefix: 'orders_home',
-              child: HomeTab(),
+              child: HomeTab(
+                repository: widget.homeTabRepository,
+                greetingRepository: widget.homeTabGreetingRepository,
+              ),
             ),
           ),
           _Tab(
@@ -96,7 +160,7 @@ class _ShellScreenState extends State<ShellScreen> {
             label: l10n.navDelivery,
             icon: Icons.local_shipping_outlined,
             selectedIcon: Icons.local_shipping,
-            page: const OrdersTab(),
+            page: OrdersTab(repository: widget.ordersRepository),
           ),
           _Tab(
             id: 'profile',
@@ -110,9 +174,12 @@ class _ShellScreenState extends State<ShellScreen> {
             // navigations + avatar/name/rating ids; the integrator owns this
             // tab-body swap + the header actions. Debug renders the fixture
             // view data (release will resolve the real profile cubit, JM-035).
-            page: const _HeaderedTab(
+            page: _HeaderedTab(
               idPrefix: 'customer_profile',
-              child: _CustomerProfileTabBody(),
+              child: _CustomerProfileTabBody(
+                repository: widget.profileRepository,
+                reviewLauncher: widget.profileReviewLauncher,
+              ),
             ),
           ),
         ];
@@ -129,9 +196,14 @@ class _ShellScreenState extends State<ShellScreen> {
             // `delivery_tab_bell` → notifications (guarded coming-soon until
             // JM-057/W4). The DashboardTab body itself gates register-prompt vs
             // feed off real `user.kycStatus` (JeeberKycStatusGate).
-            page: const _HeaderedTab(
+            page: _HeaderedTab(
               idPrefix: 'delivery_tab',
-              child: DashboardTab(),
+              child: DashboardTab(
+                kycStatusGate: widget.dashboardKycStatusGate,
+                availabilityGateway: widget.dashboardAvailabilityGateway,
+                requestFeedRepository: widget.dashboardRequestFeedRepository,
+                greetingRepository: widget.dashboardGreetingRepository,
+              ),
             ),
           ),
           _Tab(
@@ -139,7 +211,10 @@ class _ShellScreenState extends State<ShellScreen> {
             label: l10n.navEarnings,
             icon: Icons.payments_outlined,
             selectedIcon: Icons.payments,
-            page: const EarningsTab(),
+            page: EarningsTab(
+              repository: widget.earningsRepository,
+              jeeberId: widget.earningsJeeberId,
+            ),
           ),
           _Tab(
             id: 'profile',
@@ -150,9 +225,12 @@ class _ShellScreenState extends State<ShellScreen> {
             // header actions (the jeeber profile reuses the customer profile
             // shell; the per-role rating/rows are JM-035's). Header ids stay
             // `customer_profile_*` (the screen-scoped id, not role-scoped).
-            page: const _HeaderedTab(
+            page: _HeaderedTab(
               idPrefix: 'customer_profile',
-              child: _CustomerProfileTabBody(),
+              child: _CustomerProfileTabBody(
+                repository: widget.profileRepository,
+                reviewLauncher: widget.profileReviewLauncher,
+              ),
             ),
           ),
         ];
@@ -200,12 +278,24 @@ class _HeaderedTab extends StatelessWidget {
 /// does NOT build that here). Release renders the same fixture shell until
 /// JM-035 wires the data source (no PII leak — the fixture is sample data).
 class _CustomerProfileTabBody extends StatelessWidget {
-  const _CustomerProfileTabBody();
+  const _CustomerProfileTabBody({this.repository, this.reviewLauncher});
+
+  /// DT-04 catalog / test seam — forwarded to
+  /// [CustomerProfileScreen.repository]. `null` reproduces the existing
+  /// self-provided resolution.
+  final CustomerProfileRepository? repository;
+
+  /// DT-04 catalog / test seam — forwarded to
+  /// [CustomerProfileScreen.reviewLauncher]. `null` reproduces the existing
+  /// self-provided resolution.
+  final AppReviewLauncher? reviewLauncher;
 
   @override
   Widget build(BuildContext context) {
-    return const CustomerProfileScreen(
+    return CustomerProfileScreen(
       data: DevCustomerProfileFixtures.sample,
+      repository: repository,
+      reviewLauncher: reviewLauncher,
     );
   }
 }

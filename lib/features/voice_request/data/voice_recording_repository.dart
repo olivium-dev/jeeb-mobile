@@ -86,6 +86,7 @@ class HttpVoiceRecordingRepository implements VoiceRecordingRepository {
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
+      case DioExceptionType.transformTimeout:
       case DioExceptionType.connectionError:
         return VoiceUploadFailure.network;
       case DioExceptionType.badResponse:

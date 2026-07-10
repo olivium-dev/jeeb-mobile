@@ -55,6 +55,18 @@ class MainActivity : FlutterActivity() {
         super.onCreate(savedInstanceState)
     }
 
+    // Two launcher icons, one app: the `.DevToolLauncher` activity-alias opens
+    // this same MainActivity. `componentName` reflects the alias used to launch,
+    // so when the Dev Tool icon was tapped we hand Flutter the `/devtool` initial
+    // route and main.dart boots DevToolApp instead of the normal Jeeb shell.
+    // Everything else (process, DI, session, storage) is shared — full access.
+    override fun getInitialRoute(): String? {
+        if (componentName?.className == "app.jeeb.mobile.DevToolLauncher") {
+            return "/devtool"
+        }
+        return super.getInitialRoute()
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, seamChannelName)

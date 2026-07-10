@@ -5,11 +5,27 @@ import '../application/masked_call_cubit.dart';
 
 class MaskedCallButton extends StatelessWidget {
 
-  const MaskedCallButton({super.key, required this.orderId});
+  const MaskedCallButton({super.key, required this.orderId, this.cubit});
   final String orderId;
+
+  /// Optional cubit override. Defaults to `null`, which preserves the exact
+  /// original behaviour: a fresh [MaskedCallCubit] is created locally via
+  /// `BlocProvider(create: ...)`. Passing an explicit [cubit] instead wraps
+  /// the view in a `BlocProvider.value`, letting a host with no ambient DI
+  /// (e.g. the devtool catalog) preview a pre-seeded call state for NO
+  /// NETWORK. Additive-only: production call sites that never pass [cubit]
+  /// are completely unaffected.
+  final MaskedCallCubit? cubit;
 
   @override
   Widget build(BuildContext context) {
+    final provided = cubit;
+    if (provided != null) {
+      return BlocProvider<MaskedCallCubit>.value(
+        value: provided,
+        child: _MaskedCallButtonView(orderId: orderId),
+      );
+    }
     return BlocProvider(
       create: (_) => MaskedCallCubit(),
       child: _MaskedCallButtonView(orderId: orderId),

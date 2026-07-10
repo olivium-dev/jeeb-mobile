@@ -4,11 +4,20 @@ import 'package:omds/omds.dart';
 import '../application/offline_cubit.dart';
 
 class OfflineBanner extends StatelessWidget {
-  const OfflineBanner({super.key});
+  const OfflineBanner({super.key, this.cubit});
+
+  /// Optional cubit override. Defaults to `null`, which preserves the exact
+  /// original behaviour: the banner consumes the ambient [OfflineCubit]
+  /// already provided higher in the tree. Passing an explicit [cubit] wraps
+  /// the builder in a local `BlocProvider.value` instead, so a host with no
+  /// ambient DI tree (e.g. the devtool catalog) can preview each connectivity
+  /// state for NO NETWORK. Additive-only: production call sites that never
+  /// pass [cubit] are completely unaffected.
+  final OfflineCubit? cubit;
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<OfflineCubit, OfflineState>(
+    final builder = BlocBuilder<OfflineCubit, OfflineState>(
       builder: (context, state) {
         if (state.status == ConnectivityStatus.online) {
           return const SizedBox.shrink();
@@ -16,6 +25,11 @@ class OfflineBanner extends StatelessWidget {
         return const _OfflineMaterialBanner();
       },
     );
+    final provided = cubit;
+    if (provided != null) {
+      return BlocProvider<OfflineCubit>.value(value: provided, child: builder);
+    }
+    return builder;
   }
 }
 

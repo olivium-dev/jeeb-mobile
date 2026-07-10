@@ -1,0 +1,49 @@
+# DT-10 (partial) — Jeeber Dev Tool E2E smoke, covering the gateway-independent
+# features. The runner (scripts/devtool-smoke.sh) launches the .DevToolLauncher
+# activity-alias via adb first, so this flow asserts on the already-open Dev Tool
+# (no launchApp — the default launcher would open the normal Jeeb app instead).
+appId: app.jeeb.mobile.dev
+---
+# Home menu: all six sections present (one app, two icons, full access model).
+- assertVisible: "Jeeber Dev Tool"
+- assertVisible: "Super Login"
+- assertVisible: "Screen Catalog"
+- assertVisible: "Actions"
+- assertVisible: "Server URL"
+- assertVisible: "Clear Local Data"
+- assertVisible: "Scenario Users"
+
+# #1 Super Login — both variants reachable (dev-tool side).
+- tapOn: "Super Login"
+- assertVisible: "Super Login Plus"
+- back
+
+# #2 Screen Catalog — populated with the honest coverage readout.
+- tapOn: "Screen Catalog"
+- assertVisible: "Cataloged"
+- assertVisible:
+    text: ".*screens"
+- back
+
+# #4 Server URL — shows the live effective base URL.
+- tapOn: "Server URL"
+- assertVisible: "Currently pointing at:"
+- assertVisible: "Save"
+- back
+
+# #5 Clear Local Data — confirm dialog appears (cancel, don't wipe in the smoke).
+- tapOn: "Clear Local Data"
+- assertVisible: "Clear local data?"
+- tapOn: "Cancel"
+
+# #6 Scenario Users — page opens with the scenario picker + create action.
+- tapOn: "Scenario Users"
+- assertVisible: "Create user"
+- back
+
+# #3 Actions — page opens with the action picker.
+- tapOn: "Actions"
+- assertVisible: "Action"
+- back
+
+- assertVisible: "Jeeber Dev Tool"

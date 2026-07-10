@@ -82,6 +82,7 @@ import '../../features/offers/domain/offer_submission_service.dart';
 import '../../features/settlement/data/dio_settlement_repository.dart';
 import '../../features/settlement/domain/settlement_repository.dart';
 import '../network/auth_token_store.dart';
+import '../config/dev_base_url.dart';
 import '../network/mock_gateway_client.dart';
 import '../observability/crash_reporter.dart';
 
@@ -94,7 +95,13 @@ void configureDependencies({
   sl.registerSingleton<SharedPreferences>(sharedPreferences);
   sl.registerSingleton<CrashReporter>(crashReporter);
 
-  sl.registerLazySingleton<Dio>(() => MockGatewayClient.createDio());
+  // Dev Tool F4: honor a persisted base-URL override when set (null → the
+  // build-time JEEB_MOCK_BASE_URL default). Applies on app start.
+  sl.registerLazySingleton<Dio>(
+    () => MockGatewayClient.createDio(
+      baseUrl: DevBaseUrl.read(sl<SharedPreferences>()),
+    ),
+  );
   sl.registerLazySingleton<AuthTokenStore>(() => AuthTokenStore());
 
   sl.registerLazySingleton<OtpService>(

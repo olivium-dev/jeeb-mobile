@@ -38,27 +38,71 @@ import '../domain/support_repository.dart';
 /// `support_submitting`, `support_success`, `support_error`,
 /// `support_retry_cta`.
 class SupportTicketScreen extends StatelessWidget {
-  const SupportTicketScreen({super.key});
+  const SupportTicketScreen({
+    super.key,
+    this.cubit,
+    this.repository,
+    this.initialOrderRef,
+  }) : assert(
+          cubit == null || (repository == null && initialOrderRef == null),
+          'Provide either a cubit or the (repository, initialOrderRef) pair, '
+          'not both.',
+        );
+
+  /// Test/preview seam: a pre-seeded cubit (e.g. already in
+  /// [SupportPhase.submitting]/`success`/`error`). Additive — when null the
+  /// screen builds its own cubit exactly as before (see [build]). Lets the
+  /// DT-04 catalog preview a phase the real submit flow only reaches
+  /// asynchronously.
+  final SupportCubit? cubit;
+
+  /// Test/preview seam: overrides the GetIt-resolved [SupportRepository].
+  /// Additive — when null the screen keeps its existing
+  /// GetIt-then-[StubSupportRepository] resolution (see [build]). Lets the
+  /// DT-04 catalog preview a scripted repository without a DI registration.
+  final SupportRepository? repository;
+
+  /// Test/preview seam: overrides the inbound order/dispute ref normally read
+  /// from `GoRouterState.of(context).extra`. Additive — when null the screen
+  /// keeps reading the real router `extra` (see [_readInboundOrderRef]). Lets
+  /// the DT-04 catalog seed this screen under a bare `Navigator` (no
+  /// `GoRouter` ancestor) without touching [_readInboundOrderRef]'s guard.
+  final String? initialOrderRef;
 
   @override
   Widget build(BuildContext context) {
-    // Optional inbound order/dispute ref via GoRouter `extra` (dispute-status
-    // and the dispute link seed it); null for the profile/account-status entries.
-    final extra = GoRouterState.of(context).extra;
-    final initialOrderRef = extra is String && extra.trim().isNotEmpty
-        ? extra.trim()
-        : null;
+    final provided = cubit;
+    if (provided != null) {
+      return BlocProvider<SupportCubit>.value(
+        value: provided,
+        child: const _SupportTicketView(),
+      );
+    }
+    final resolvedOrderRef = initialOrderRef ?? _readInboundOrderRef(context);
     final sl = GetIt.instance;
-    final repository = sl.isRegistered<SupportRepository>()
-        ? sl<SupportRepository>()
-        : const StubSupportRepository();
+    final resolvedRepository = repository ??
+        (sl.isRegistered<SupportRepository>()
+            ? sl<SupportRepository>()
+            : const StubSupportRepository());
     return BlocProvider<SupportCubit>(
       create: (_) => SupportCubit(
-        repository,
-        initialOrderRef: initialOrderRef,
+        resolvedRepository,
+        initialOrderRef: resolvedOrderRef,
       ),
       child: const _SupportTicketView(),
     );
+  }
+
+  /// Optional inbound order/dispute ref via GoRouter `extra` (dispute-status
+  /// and the dispute link seed it); null for the profile/account-status
+  /// entries. Guarded on a `GoRouter` ancestor existing so a bare
+  /// `Navigator`-hosted preview (the DT-04 catalog) degrades to `null`
+  /// instead of `GoRouterState.of` throwing — real routed entry always has a
+  /// `GoRouter` ancestor, so this is a no-op for every existing call site.
+  String? _readInboundOrderRef(BuildContext context) {
+    if (GoRouter.maybeOf(context) == null) return null;
+    final extra = GoRouterState.of(context).extra;
+    return extra is String && extra.trim().isNotEmpty ? extra.trim() : null;
   }
 }
 

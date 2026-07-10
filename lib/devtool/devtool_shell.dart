@@ -1,0 +1,258 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+
+import '../app/bootstrap.dart';
+import '../core/dev_flags.dart';
+import '../core/theme/app_theme.dart';
+import 'actions/actions_page.dart';
+import 'catalog/catalog_screen.dart';
+import 'dev_settings_page.dart';
+import 'users/scenario_users_page.dart';
+import '../features/registration/presentation/super_login/super_login_sheet.dart';
+import 'super_login/full_roster_login.dart';
+import '../l10n/app_localizations.dart';
+
+/// The six top-level sections of the Jeeber Dev Tool. Each maps to a feature
+/// from the Dev Tool spec (see docs/devtool/DESIGN.md). DT-02+ wire real routes;
+/// DT-03 wires Super Login to the real (shared-session) super-login sheet.
+enum DevToolSection {
+  superLogin('Super Login', 'Log in as any user (moved out of the app)', Icons.login),
+  screenCatalog('Screen Catalog', 'Every screen + its mocked UI states', Icons.grid_view),
+  actions('Actions', 'Pick a user → initiate offer, message, accept…', Icons.bolt),
+  serverUrl('Server URL', 'Point the app at a different backend', Icons.dns),
+  clearData('Clear Local Data', 'Factory-reset this device', Icons.delete_sweep),
+  users('Scenario Users', 'Create users in a specific scenario', Icons.person_add);
+
+  const DevToolSection(this.title, this.subtitle, this.icon);
+  final String title;
+  final String subtitle;
+  final IconData icon;
+}
+
+/// Root widget for the Jeeber Dev Tool (`/devtool` route via the `.DevToolLauncher`
+/// launcher icon). It runs the SAME [Bootstrap.minimal] the real app runs, so the
+/// Dev Tool shares the app's DI graph, SharedPreferences and secure session — a
+/// super-login performed here writes the real `AuthTokenStore` (full access,
+/// no bridge). Uses the production OMDS theme + l10n delegates so reused app
+/// widgets (e.g. the super-login sheet) render correctly.
+class DevToolApp extends StatefulWidget {
+  const DevToolApp({super.key});
+
+  @override
+  State<DevToolApp> createState() => _DevToolAppState();
+}
+
+class _DevToolAppState extends State<DevToolApp> {
+  late final Future<BootstrapResult> _bootstrap = Bootstrap.minimal();
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Jeeber Dev Tool',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: ThemeMode.system,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      home: FutureBuilder<BootstrapResult>(
+        future: _bootstrap,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return _DevToolErrorScreen(error: snapshot.error!);
+          }
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+          return const DevToolShell();
+        },
+      ),
+    );
+  }
+}
+
+/// Home menu listing the six Dev Tool sections.
+class DevToolShell extends StatelessWidget {
+  const DevToolShell({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Defensive: this shell must only ever run inside a dev-tool-enabled build.
+    assertDevToolOnly('DevToolShell');
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Jeeber Dev Tool'),
+        centerTitle: false,
+      ),
+      body: ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: DevToolSection.values.length,
+        separatorBuilder: (_, _) => const Divider(height: 1),
+        itemBuilder: (context, i) {
+          final section = DevToolSection.values[i];
+          return ListTile(
+            leading: Icon(section.icon),
+            title: Text(section.title),
+            subtitle: Text(section.subtitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _openSection(context, section),
+          );
+        },
+      ),
+    );
+  }
+
+  void _openSection(BuildContext context, DevToolSection section) {
+    switch (section) {
+      case DevToolSection.superLogin:
+        // DT-03: both super-login variants, backed by the app's DI. On success
+        // each writes the shared AuthTokenStore → the Jeeb app is authenticated.
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const SuperLoginPage()),
+        );
+      case DevToolSection.serverUrl:
+        // DT-08 / F4 — change gateway base URL at runtime.
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const ServerUrlPage()),
+        );
+      case DevToolSection.clearData:
+        // DT-08 / F5 — factory-reset local data on this device.
+        showClearLocalDataDialog(context);
+      case DevToolSection.screenCatalog:
+        // DT-04 / F2 — designer screen catalog with mocked UI states.
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const CatalogMenuScreen()),
+        );
+      case DevToolSection.actions:
+        // DT-06 / F3 — pick a seeded user and run a product action as them.
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const ActionsPage()),
+        );
+      case DevToolSection.users:
+        // DT-07 — seed users into a named lifecycle scenario.
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const ScenarioUsersPage()),
+        );
+    }
+  }
+}
+
+/// DT-03 — Super Login section. Offers both variants (both write the shared
+/// `AuthTokenStore`, so signing in here authenticates the Jeeb app):
+///  • Super Login       — the credential sheet directly.
+///  • Super Login Plus  — a demo-user picker, then the sheet pre-filled with the
+///    chosen user's id + passcode (the "super login plus" flow).
+class SuperLoginPage extends StatelessWidget {
+  const SuperLoginPage({super.key});
+
+  Future<void> _superLogin(BuildContext context) async {
+    final signedIn = await showSuperLoginSheet(context);
+    if (!context.mounted) return;
+    _reportResult(context, signedIn);
+  }
+
+  void _superLoginPlus(BuildContext context) {
+    // JEBV4-8: full live-user roster + credential-less mint login (the flow that
+    // works against the current gateway; the old demo-user passcode flow is
+    // rejected with "Invalid super admin passcode").
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const FullRosterLoginPage()),
+    );
+  }
+
+  void _reportResult(BuildContext context, bool? signedIn) {
+    if (signedIn != true) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Signed in — the Jeeb app now shares this session.'),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Super Login')),
+      body: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        children: [
+          ListTile(
+            leading: const Icon(Icons.login),
+            title: const Text('Super Login'),
+            subtitle: const Text('Enter a user id + passcode'),
+            onTap: () => _superLogin(context),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.people_alt),
+            title: const Text('Super Login Plus'),
+            subtitle: const Text('Pick from ALL live users (search) — instant login'),
+            onTap: () => _superLoginPlus(context),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Placeholder destination for a not-yet-implemented Dev Tool section. Each real
+/// section (catalog DT-04, actions DT-06, users DT-07, settings DT-08) replaces
+/// this with its screen.
+class DevToolSectionPage extends StatelessWidget {
+  const DevToolSectionPage({required this.section, super.key});
+
+  final DevToolSection section;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(section.title)),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(section.icon, size: 48),
+              const SizedBox(height: 16),
+              Text(section.subtitle, textAlign: TextAlign.center),
+              const SizedBox(height: 8),
+              Text(
+                'Implementation pending (${section.name})',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DevToolErrorScreen extends StatelessWidget {
+  const _DevToolErrorScreen({required this.error});
+
+  final Object error;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Dev Tool failed to start: $error',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    );
+  }
+}

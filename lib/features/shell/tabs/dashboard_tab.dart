@@ -62,7 +62,33 @@ enum _DevFeedView { empty, requests, pending, replies }
 /// the branch deterministically (65_W2_TEST_PLAN §3.1); release reports
 /// approved until the JM-036 engineer swaps in the real getMe/kyc-backed gate.
 class DashboardTab extends StatelessWidget {
-  const DashboardTab({super.key});
+  const DashboardTab({
+    super.key,
+    this.kycStatusGate,
+    this.availabilityGateway,
+    this.requestFeedRepository,
+    this.greetingRepository,
+  });
+
+  /// Test/preview seam: overrides the resolved [JeeberKycStatusGate].
+  /// Additive — when null the tab keeps its existing GetIt-then-seam-default
+  /// resolution (see [build]).
+  final JeeberKycStatusGate? kycStatusGate;
+
+  /// Test/preview seam: overrides `sl<AvailabilityGateway>()` for the hosted
+  /// [_JeeberHomeHost]. Additive — when null the existing GetIt resolution is
+  /// unchanged (DT-04 catalog hook, so a bare Dev Tool preview never fires the
+  /// live availability request).
+  final AvailabilityGateway? availabilityGateway;
+
+  /// Test/preview seam: overrides `sl<RequestFeedRepository>()` for the hosted
+  /// [_JeeberHomeHost]. Additive, same rationale as [availabilityGateway].
+  final RequestFeedRepository? requestFeedRepository;
+
+  /// Test/preview seam: overrides the greeting's [CustomerProfileRepository]
+  /// source for the hosted [_JeeberHomeHost]. Additive, same rationale as
+  /// [availabilityGateway].
+  final CustomerProfileRepository? greetingRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -73,11 +99,15 @@ class DashboardTab extends StatelessWidget {
     // default when DI isn't wired (regression harnesses that mount DashboardTab
     // without configuring the gate) so the tab never throws a GetIt "not
     // registered" on entry.
-    final gate = sl.isRegistered<JeeberKycStatusGate>()
-        ? sl<JeeberKycStatusGate>()
-        : const SeamJeeberKycStatusGate();
+    final gate = kycStatusGate ??
+        (sl.isRegistered<JeeberKycStatusGate>()
+            ? sl<JeeberKycStatusGate>()
+            : const SeamJeeberKycStatusGate());
     return _JeeberHomeHost(
       destination: JeeberDeliveryTabDestination.forStatus(gate.status),
+      availabilityGateway: availabilityGateway,
+      requestFeedRepository: requestFeedRepository,
+      greetingRepository: greetingRepository,
     );
   }
 
@@ -125,9 +155,23 @@ class DashboardTab extends StatelessWidget {
 /// [JeeberHomeScreen] — which re-exposes it via `BlocProvider.value` (a
 /// non-owning view) — instead of constructing a second, leaked instance.
 class _JeeberHomeHost extends StatelessWidget {
-  const _JeeberHomeHost({required this.destination});
+  const _JeeberHomeHost({
+    required this.destination,
+    this.availabilityGateway,
+    this.requestFeedRepository,
+    this.greetingRepository,
+  });
 
   final JeeberDeliveryTabDestination destination;
+
+  /// DT-04 catalog / test seam — see [DashboardTab.availabilityGateway].
+  final AvailabilityGateway? availabilityGateway;
+
+  /// DT-04 catalog / test seam — see [DashboardTab.requestFeedRepository].
+  final RequestFeedRepository? requestFeedRepository;
+
+  /// DT-04 catalog / test seam — see [DashboardTab.greetingRepository].
+  final CustomerProfileRepository? greetingRepository;
 
   /// The DELIVERY-tab body renders the register prompt (State 1) for both the
   /// `none` (not-onboarded) destination AND the `rejected` destination — the
@@ -141,6 +185,7 @@ class _JeeberHomeHost extends StatelessWidget {
   /// edit), mirroring how [CustomerProfileScreen] resolves its repo; `null` in
   /// a bare regression harness (no Dio registered) → the greeting stays generic.
   CustomerProfileRepository? _resolveGreetingRepository() {
+    if (greetingRepository != null) return greetingRepository;
     if (sl.isRegistered<CustomerProfileRepository>()) {
       return sl<CustomerProfileRepository>();
     }
@@ -155,12 +200,14 @@ class _JeeberHomeHost extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider<AvailabilityCubit>(
-          create: (_) => AvailabilityCubit(gateway: sl<AvailabilityGateway>()),
+          create: (_) => AvailabilityCubit(
+            gateway: availabilityGateway ?? sl<AvailabilityGateway>(),
+          ),
         ),
         BlocProvider<RequestFeedCubit>(
-          create: (_) =>
-              RequestFeedCubit(repository: sl<RequestFeedRepository>())
-                ..start(),
+          create: (_) => RequestFeedCubit(
+            repository: requestFeedRepository ?? sl<RequestFeedRepository>(),
+          )..start(),
         ),
         // P0-X06: source the jeeber-home greeting (name + avatar) from the live
         // `GET /users/me` (role-agnostic getMe) so the header shows the real

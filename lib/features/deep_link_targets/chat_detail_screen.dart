@@ -36,9 +36,40 @@ import 'dev_chat_detail_fixtures.dart';
 ///     `order-summary-pinned` (JM-031), and `order_chat_open_dispute` →
 ///     `dispute-open-evidence` (the `escalate` route, JM-060) — AC2/AC3.
 class ChatDetailScreen extends StatefulWidget {
-  const ChatDetailScreen({super.key, required this.chatId});
+  const ChatDetailScreen({
+    super.key,
+    required this.chatId,
+    this.debugGateway,
+    this.debugCounterpartName = '',
+    this.debugPhase,
+    this.debugHasWinner = false,
+    this.debugSummary,
+  });
 
   final String chatId;
+
+  /// Debug-only seam (DT-04 screen catalog): when non-null, the screen skips
+  /// its normal Dio/dev-fixture gateway resolution entirely and mounts
+  /// straight off this gateway + the accompanying debug fields below — no
+  /// network, no `GetIt`/`DevSeam` global state touched. Always `null` at
+  /// every existing call site, so default behavior (and every prior state
+  /// transition above) is unchanged when this is omitted.
+  final ChatGateway? debugGateway;
+
+  /// Paired with [debugGateway]: the resolved conversation title.
+  final String debugCounterpartName;
+
+  /// Paired with [debugGateway]: the conversation phase (defaults to
+  /// [ConversationPhase.unknown] when omitted, matching the non-debug
+  /// fallback).
+  final ConversationPhase? debugPhase;
+
+  /// Paired with [debugGateway]: whether the conversation has a winner.
+  final bool debugHasWinner;
+
+  /// Paired with [debugGateway]: the pinned locked-price summary (JM-025
+  /// AC2), when the debug state should render it.
+  final OrderChatSummary? debugSummary;
 
   @override
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
@@ -74,6 +105,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   @override
   void initState() {
     super.initState();
+    final debugGateway = widget.debugGateway;
+    if (debugGateway != null) {
+      // DT-04 screen catalog seam: mount directly off the injected debug
+      // gateway/fields, bypassing Dio/dev-fixture resolution entirely.
+      _finalize(
+        widget.chatId,
+        debugGateway,
+        widget.debugCounterpartName,
+        requestId: widget.chatId,
+        phase: widget.debugPhase ?? ConversationPhase.unknown,
+        hasWinner: widget.debugHasWinner,
+        summary: widget.debugSummary,
+      );
+      return;
+    }
     _resolveAndBuild();
   }
 

@@ -125,6 +125,7 @@ class DefaultSuperLoginService implements SuperLoginService {
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
+      case DioExceptionType.transformTimeout:
       case DioExceptionType.connectionError:
         return SuperLoginError.network;
       case DioExceptionType.badResponse:

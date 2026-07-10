@@ -26,10 +26,33 @@ import '../application/biometric_lock_state.dart';
 /// central redirect (not a screen-side `context.go`) honours the guardrail
 /// "don't police a screen's reachability inside the screen" (§12).
 class BiometricLockScreen extends StatelessWidget {
-  const BiometricLockScreen({super.key});
+  const BiometricLockScreen({super.key, this.cubit});
+
+  /// Optional cubit override. Defaults to `null`, which preserves the exact
+  /// original behaviour: the screen consumes the ambient app-level
+  /// [BiometricLockCubit] already provided via `BlocProvider.value` in
+  /// `app.dart` (the SAME instance the router watches in its
+  /// `refreshListenable`) via [BuildContext.read]. Passing an explicit
+  /// [cubit] wraps the body in a local `BlocProvider.value` instead, so a host
+  /// with no ambient DI tree (e.g. the devtool catalog) can preview each
+  /// phase/prompt combination for NO NETWORK. Additive-only: production call
+  /// sites that never pass [cubit] are completely unaffected.
+  final BiometricLockCubit? cubit;
 
   @override
   Widget build(BuildContext context) {
+    final body = _body(context);
+    final provided = cubit;
+    if (provided != null) {
+      return BlocProvider<BiometricLockCubit>.value(
+        value: provided,
+        child: body,
+      );
+    }
+    return body;
+  }
+
+  Widget _body(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Semantics(
       identifier: 'biometric_unlock_prompt',

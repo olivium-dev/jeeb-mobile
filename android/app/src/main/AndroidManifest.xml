@@ -59,6 +59,27 @@
         </activity>
 
         <!--
+            Jeeber Dev Tool — a SECOND launcher icon for the SAME app (same
+            applicationId, same process, same data → full access). It opens the
+            same MainActivity but routes Flutter into the Dev Tool via the
+            `/devtool` initial route (see MainActivity.getInitialRoute()).
+            Gated by @bool/jeeb_devtool_enabled: true in dev/staging, false in
+            production, so end users never see this icon.
+        -->
+        <activity-alias
+            android:name=".DevToolLauncher"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:enabled="@bool/jeeb_devtool_enabled"
+            android:label="Jeeber Dev Tool"
+            android:icon="@mipmap/ic_launcher">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <!--
             Default channel id for FCM. Lets the FCM SDK display
             notifications even before the Dart side has created the channel
             (cold push before bootstrap completes).

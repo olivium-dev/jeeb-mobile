@@ -46,6 +46,12 @@ android {
     }
 
     // ─── Flavor Configuration ────────────────────────────────────────────────
+    // ONE app (one applicationId per environment). The Jeeber Dev Tool is NOT a
+    // separate app — it is a SECOND LAUNCHER ICON on this same app (activity-alias
+    // `.DevToolLauncher` in AndroidManifest), so it shares the app's process, data
+    // and session (full access). The alias is gated by @bool/jeeb_devtool_enabled:
+    // true in dev/staging, false in production → the icon + tool exist only in
+    // test builds and are stripped from the shipped product.
     flavorDimensions "environment"
 
     productFlavors {
@@ -54,16 +60,19 @@ android {
             applicationIdSuffix ".dev"
             versionNameSuffix "-dev"
             resValue "string", "app_name", "Jeeb Dev"
+            resValue "bool", "jeeb_devtool_enabled", "true"
         }
         staging {
             dimension "environment"
             applicationIdSuffix ".staging"
             versionNameSuffix "-stg"
             resValue "string", "app_name", "Jeeb Staging"
+            resValue "bool", "jeeb_devtool_enabled", "true"
         }
         production {
             dimension "environment"
             resValue "string", "app_name", "Jeeb"
+            resValue "bool", "jeeb_devtool_enabled", "false"
         }
     }
 

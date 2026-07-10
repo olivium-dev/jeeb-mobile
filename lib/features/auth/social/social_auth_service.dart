@@ -238,6 +238,7 @@ class DefaultSocialAuthService implements SocialAuthService {
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
+      case DioExceptionType.transformTimeout:
       case DioExceptionType.connectionError:
         return SocialAuthError.network;
       case DioExceptionType.badResponse:
