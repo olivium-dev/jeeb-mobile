@@ -746,6 +746,10 @@ class AppLocalizations {
   String get kycIdBackLabel => _get('kycIdBackLabel');
   String get kycIdRetake => _get('kycIdRetake');
   String get kycIdCaptureCta => _get('kycIdCaptureCta');
+  String get kycIdNumberLabel => _get('kycIdNumberLabel');
+  String get kycIdNumberHint => _get('kycIdNumberHint');
+  String get kycIdNumberRequired => _get('kycIdNumberRequired');
+  String get kycIdNumberInvalid => _get('kycIdNumberInvalid');
 
   String get kycSelfieStepTitle => _get('kycSelfieStepTitle');
   String get kycSelfieStepSubtitle => _get('kycSelfieStepSubtitle');

@@ -33,6 +33,8 @@ enum IdSide { front, back }
 class KycSubmission extends Equatable {
   const KycSubmission({
     required this.status,
+    this.idType = defaultIdType,
+    this.idNumber,
     this.idFront,
     this.idBack,
     this.selfie,
@@ -42,7 +44,30 @@ class KycSubmission extends Equatable {
     this.submittedAt,
   });
 
+  /// The only ID variant the shipped wizard collects today (the form schema's
+  /// `variant=national_id`). E3 (JEBV4-197) ratifies the wider accepted set
+  /// {national_id, passport, residency}; expanding the wizard to the full
+  /// picker is deferred to that coordinated rollout, so this stays the default.
+  static const String defaultIdType = 'national_id';
+
+  /// 12-digit national-ID shape enforced by the live BFF
+  /// (`KycSubmissionBffController.ValidateSubmitFieldsAsync`, `^\d{12}$`) when
+  /// [idType] is `national_id`. Mirrored here so the client can present the
+  /// requirement instead of round-tripping to a 400.
+  static final RegExp nationalIdPattern = RegExp(r'^\d{12}$');
+
   final KycStatus status;
+
+  /// KYC identity-document type sent as `id_type` (E3/JEBV4-197 — REQUIRED on
+  /// the live contract). Defaults to [defaultIdType]; the shipped wizard is
+  /// national-ID only.
+  final String idType;
+
+  /// KYC identity-document number sent as `id_number` (E3/JEBV4-197 —
+  /// REQUIRED). For [defaultIdType] the live BFF requires exactly 12 digits
+  /// (see [nationalIdPattern]).
+  final String? idNumber;
+
   final PhotoAttachment? idFront;
   final PhotoAttachment? idBack;
   final PhotoAttachment? selfie;
@@ -71,8 +96,20 @@ class KycSubmission extends Equatable {
   bool get hasSelfie => selfie != null;
   bool get hasVehicleRegistration => vehicleRegistration != null;
 
+  /// Whether [idNumber] satisfies the live contract for the current [idType].
+  /// For `national_id` that is the BFF's `^\d{12}$` rule; other (deferred)
+  /// types only require a non-empty value.
+  bool get hasValidIdNumber {
+    final number = idNumber?.trim() ?? '';
+    if (number.isEmpty) return false;
+    if (idType == defaultIdType) return nationalIdPattern.hasMatch(number);
+    return true;
+  }
+
   KycSubmission copyWith({
     KycStatus? status,
+    String? idType,
+    String? idNumber,
     PhotoAttachment? idFront,
     PhotoAttachment? idBack,
     PhotoAttachment? selfie,
@@ -84,6 +121,8 @@ class KycSubmission extends Equatable {
   }) {
     return KycSubmission(
       status: status ?? this.status,
+      idType: idType ?? this.idType,
+      idNumber: idNumber ?? this.idNumber,
       idFront: idFront ?? this.idFront,
       idBack: idBack ?? this.idBack,
       selfie: selfie ?? this.selfie,
@@ -98,6 +137,8 @@ class KycSubmission extends Equatable {
   @override
   List<Object?> get props => [
         status,
+        idType,
+        idNumber,
         idFront,
         idBack,
         selfie,

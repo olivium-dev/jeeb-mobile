@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../l10n/app_localizations.dart';
 import '../../application/kyc_wizard_cubit.dart';
 import '../../application/kyc_wizard_state.dart';
+import '../../domain/kyc_submission.dart';
 import 'kyc_capture_tile.dart';
 import 'kyc_id_alignment_guide.dart';
 import 'kyc_liveness_prompt_card.dart';
@@ -30,10 +32,25 @@ class KycIdentityStep extends StatelessWidget {
 
   static const Key frontTileKey = Key('kyc-id-front-tile');
   static const Key backTileKey = Key('kyc-id-back-tile');
+  static const Key idNumberFieldKey = Key('kyc-id-number-field');
   static const Key selfieTileKey = Key('kyc-selfie-tile');
   static const Key livenessPromptKey = Key('kyc-selfie-liveness-prompt');
   static const Key tosCheckboxKey = Key('kyc-tos-accept-checkbox');
   static const Key submitButtonKey = Key('kyc-submit-cta');
+
+  static const int _nationalIdLength = 12;
+
+  /// Localized inline validation for the national-ID number, mirroring the live
+  /// BFF rule (`^\d{12}$` for `national_id`) so the user sees the requirement
+  /// rather than a round-trip 400 (E3/JEBV4-197).
+  static String? _idNumberError(AppLocalizations l10n, String? value) {
+    final trimmed = (value ?? '').trim();
+    if (trimmed.isEmpty) return l10n.kycIdNumberRequired;
+    if (!KycSubmission.nationalIdPattern.hasMatch(trimmed)) {
+      return l10n.kycIdNumberInvalid;
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -101,6 +118,25 @@ class KycIdentityStep extends StatelessWidget {
                               ? l10n.kycIdRetake
                               : l10n.kycIdCaptureCta,
                           onTap: cubit.captureIdBack,
+                        ),
+                      ),
+                      const SizedBox(height: Spacing.large),
+                      // ── National-ID number (E3/JEBV4-197: REQUIRED id_number)
+                      Semantics(
+                        identifier: 'kyc_id_number_input',
+                        textField: true,
+                        child: OmdsTextField(
+                          key: idNumberFieldKey,
+                          labelText: l10n.kycIdNumberLabel,
+                          hintText: l10n.kycIdNumberHint,
+                          isRequired: true,
+                          keyboardType: TextInputType.number,
+                          maxLength: _nationalIdLength,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          onChanged: cubit.setIdNumber,
+                          validator: (value) => _idNumberError(l10n, value),
                         ),
                       ),
                       const SizedBox(height: Spacing.xLarge),

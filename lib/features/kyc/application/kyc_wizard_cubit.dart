@@ -68,6 +68,20 @@ class KycWizardCubit extends Cubit<KycWizardState> {
   Future<void> captureIdBack() => _capture(KycCaptureSlot.idBack);
   Future<void> captureSelfie() => _capture(KycCaptureSlot.selfie);
 
+  // ── Identity fields (inline on the identity screen) ───────────────────────
+
+  /// Records the national-ID number typed on the identity screen. Sent as the
+  /// REQUIRED `id_number` on submit (E3/JEBV4-197); the live BFF enforces
+  /// `^\d{12}$` for `national_id`.
+  void setIdNumber(String value) {
+    final trimmed = value.trim();
+    if (trimmed == (state.submission.idNumber ?? '')) return;
+    emit(state.copyWith(
+      submission: state.submission.copyWith(idNumber: trimmed),
+      clearError: true,
+    ));
+  }
+
   // ── ToS acceptance (inline on the identity screen) ────────────────────────
 
   void setTosAccepted(bool accepted) {

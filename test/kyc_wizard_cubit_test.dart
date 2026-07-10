@@ -97,6 +97,23 @@ void main() {
       cubit.setTosAccepted(true);
       expect(cubit.state.canSubmitIdentity, isTrue);
     });
+
+    test('setIdNumber records the national-ID number on the submission '
+        '(E3/JEBV4-197)', () async {
+      final cubit = _buildCubit();
+      await cubit.loadSchema();
+      expect(cubit.state.submission.idType, 'national_id');
+      expect(cubit.state.submission.hasValidIdNumber, isFalse);
+
+      cubit.setIdNumber('12345');
+      expect(cubit.state.submission.idNumber, '12345');
+      expect(cubit.state.submission.hasValidIdNumber, isFalse,
+          reason: 'national_id requires exactly 12 digits');
+
+      cubit.setIdNumber('123456789012');
+      expect(cubit.state.submission.idNumber, '123456789012');
+      expect(cubit.state.submission.hasValidIdNumber, isTrue);
+    });
   });
 
   group('KycWizardCubit — submit + funding chain', () {

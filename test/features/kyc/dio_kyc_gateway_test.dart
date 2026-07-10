@@ -156,11 +156,50 @@ void main() {
         'cdn://obj/selfie_with_liveness/abc123',
       );
       expect(body.containsKey('vehicle_registration_url'), isFalse);
+      // E3/JEBV4-197: id_type is REQUIRED and always sent (national-ID default).
+      expect(body['id_type'], 'national_id');
       // The dead shape from before this fix must be fully gone.
       expect(body.containsKey('document_type'), isFalse);
       expect(body.containsKey('has_id_front'), isFalse);
       expect(body.containsKey('has_id_back'), isFalse);
       expect(body.containsKey('has_selfie'), isFalse);
+    });
+
+    test('sends id_type (always) and id_number (when captured) per E3 '
+        '(JEBV4-197)', () async {
+      final rec = _RecordingDio(_happyPath);
+      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio));
+      const draft = KycSubmission(status: KycStatus.notSubmitted);
+      final withId = draft.copyWith(
+        idFront: _photo('front'),
+        idBack: _photo('back'),
+        selfie: _photo('selfie'),
+        idNumber: '123456789012',
+      );
+
+      await gateway.submit(withId);
+
+      final body = rec.submitCall.data as Map<String, dynamic>;
+      expect(body['id_type'], 'national_id');
+      expect(body['id_number'], '123456789012');
+    });
+
+    test('omits id_number when the draft never captured one', () async {
+      final rec = _RecordingDio(_happyPath);
+      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio));
+      const draft = KycSubmission(status: KycStatus.notSubmitted);
+      final noId = draft.copyWith(
+        idFront: _photo('front'),
+        idBack: _photo('back'),
+        selfie: _photo('selfie'),
+      );
+
+      await gateway.submit(noId);
+
+      final body = rec.submitCall.data as Map<String, dynamic>;
+      // id_type is still always present; id_number is send-if-present.
+      expect(body['id_type'], 'national_id');
+      expect(body.containsKey('id_number'), isFalse);
     });
 
     test('includes vehicle_registration_url only when a vehicle asset '
