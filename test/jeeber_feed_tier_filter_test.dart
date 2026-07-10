@@ -44,7 +44,6 @@ DeliveryRequest _makeRequest({
 
 Widget _host({
   required List<DeliveryRequest> requests,
-  AvailabilityState avState = AvailabilityState.online,
   required AvailabilityCubit avCubit,
   required RequestFeedCubit feedCubit,
 }) {

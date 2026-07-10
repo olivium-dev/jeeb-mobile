@@ -107,13 +107,13 @@ void main() {
         routes: [
           GoRoute(
             path: '/',
-            builder: (_, __) => const Scaffold(
+            builder: (_, _) => const Scaffold(
               body: Center(child: Text('HOME_SHELL')),
             ),
           ),
           GoRoute(
             path: '/orders/:id/feedback',
-            builder: (_, __) => RatingScreen(
+            builder: (_, _) => RatingScreen(
               deliveryId: 'd-1',
               rateeName: 'Sami',
               repository: repo,

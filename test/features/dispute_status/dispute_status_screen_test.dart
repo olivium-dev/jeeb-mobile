@@ -95,14 +95,14 @@ Widget _harness(
       GoRoute(
         path: '/support',
         name: 'support-ticket',
-        builder: (_, __) => _stub('support_root'),
+        builder: (_, _) => _stub('support_root'),
       ),
       GoRoute(
         path: '/chat/:id',
         name: 'chat-detail',
         builder: (_, s) => _stub('order_chat_root_${s.pathParameters['id']}'),
       ),
-      GoRoute(path: '/', name: 'shell', builder: (_, __) => _stub('shell_root')),
+      GoRoute(path: '/', name: 'shell', builder: (_, _) => _stub('shell_root')),
     ],
   );
   return MaterialApp.router(

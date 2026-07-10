@@ -8,7 +8,6 @@
 //   T-MOB-031 AC1: fetchDelivery result contains dropOff address.
 //   T-MOB-032 AC2: tap-row behaviour — onTapStatement callback fires.
 
-import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -95,13 +94,13 @@ class _FakeSettlementRepo implements SettlementRepository {
 
   @override
   Future<List<SettlementStatement>> fetchStatements() async => [
-        SettlementStatement(
+        const SettlementStatement(
           id: 's-1',
           weekLabel: 'Week 1',
           totalPayout: 200,
           currency: 'USD',
           status: SettlementStatus.paid,
-          deliveries: const [],
+          deliveries: [],
         ),
       ];
 
@@ -251,14 +250,14 @@ void main() {
 
   group('T-MOB-032 AC2 — per-delivery breakdown data present', () {
     test('statement with deliveries has breakdown lines', () {
-      final stmt = SettlementStatement(
+      const stmt = SettlementStatement(
         id: 'stmt-detail',
         weekLabel: 'Week 3',
         totalPayout: 350.0,
         currency: 'USD',
         status: SettlementStatus.paid,
         deliveries: [
-          const SettlementDeliveryLine(
+          SettlementDeliveryLine(
             deliveryId: 'DLV-001',
             date: '2026-06-01',
             tier: 'Express',
@@ -267,7 +266,7 @@ void main() {
             commission: 5.0,
             currency: 'USD',
           ),
-          const SettlementDeliveryLine(
+          SettlementDeliveryLine(
             deliveryId: 'DLV-002',
             date: '2026-06-02',
             tier: 'Flash',

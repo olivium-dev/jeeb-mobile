@@ -12,15 +12,6 @@ class KycContractTemplate extends Equatable {
     required this.name,
   });
 
-  final String templateId;
-  final String tosVersion;
-
-  /// CDN URL of the ToS markdown document.
-  final String documentUrl;
-
-  final String locale;
-  final String name;
-
   factory KycContractTemplate.fromJson(Map<String, dynamic> json) {
     return KycContractTemplate(
       templateId: json['template_id'] as String? ?? '',
@@ -30,6 +21,15 @@ class KycContractTemplate extends Equatable {
       name: json['name'] as String? ?? '',
     );
   }
+
+  final String templateId;
+  final String tosVersion;
+
+  /// CDN URL of the ToS markdown document.
+  final String documentUrl;
+
+  final String locale;
+  final String name;
 
   @override
   List<Object?> get props =>
@@ -43,15 +43,15 @@ class KycSignStamp extends Equatable {
     required this.tosAcceptedVersion,
   });
 
-  final DateTime tosSignedAt;
-  final String tosAcceptedVersion;
-
   factory KycSignStamp.fromJson(Map<String, dynamic> json) {
     return KycSignStamp(
       tosSignedAt: DateTime.parse(json['tos_signed_at'] as String),
       tosAcceptedVersion: json['tos_accepted_version'] as String? ?? '',
     );
   }
+
+  final DateTime tosSignedAt;
+  final String tosAcceptedVersion;
 
   @override
   List<Object?> get props => [tosSignedAt, tosAcceptedVersion];

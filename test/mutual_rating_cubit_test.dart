@@ -15,10 +15,9 @@ import 'package:jeeb_mobile/features/rating/domain/entities/rating_status.dart';
 import 'package:jeeb_mobile/features/rating/domain/rating_repository.dart';
 
 class _FakeRatingRepo implements RatingRepository {
-  const _FakeRatingRepo({this.failSubmit = false, this.statusOverride});
+  const _FakeRatingRepo({this.failSubmit = false});
 
   final bool failSubmit;
-  final RatingStatus? statusOverride;
 
   @override
   Future<void> submitRating({
@@ -33,11 +32,10 @@ class _FakeRatingRepo implements RatingRepository {
 
   @override
   Future<RatingStatus> fetchRatingStatus({required String deliveryId}) async {
-    return statusOverride ??
-        RatingStatus(
-          deliveryId: deliveryId,
-          revealState: RatingRevealState.pendingTheirs,
-        );
+    return RatingStatus(
+      deliveryId: deliveryId,
+      revealState: RatingRevealState.pendingTheirs,
+    );
   }
 }
 

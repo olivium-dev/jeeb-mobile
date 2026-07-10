@@ -19,11 +19,6 @@
 class OfferEtaBand {
   const OfferEtaBand({required this.options});
 
-  /// The ordered, ascending list of selectable ETA values (minutes). Always
-  /// non-empty. `options.first` is the floor of the band, `options.last` the
-  /// tier SLA ceiling.
-  final List<int> options;
-
   /// Build a band for `[minMinutes, maxMinutes]` quantised to [stepMinutes].
   ///
   /// Defensive: clamps a non-positive / inverted range to a single sane option
@@ -53,6 +48,11 @@ class OfferEtaBand {
   /// per-tier promise we can't read.
   factory OfferEtaBand.defaultBand() =>
       OfferEtaBand.fromRange(minMinutes: 5, maxMinutes: 120);
+
+  /// The ordered, ascending list of selectable ETA values (minutes). Always
+  /// non-empty. `options.first` is the floor of the band, `options.last` the
+  /// tier SLA ceiling.
+  final List<int> options;
 
   /// Whether [minutes] is an allowed selection in this band.
   bool contains(int minutes) => options.contains(minutes);

@@ -118,7 +118,7 @@ class DioSavedLocationRepository implements SavedLocationRepository {
       'latitude': lat,
       'longitude': lng,
       'category': category.name,
-      if (address != null) 'address': address,
+      'address': ?address,
     };
   }
 

@@ -21,7 +21,7 @@ void main() {
     repo = _MockRepo();
   });
 
-  LiveTrackingCubit _cubit() => LiveTrackingCubit(
+  LiveTrackingCubit cubit0() => LiveTrackingCubit(
         repository: repo,
         deliveryId: 'DLV-770001',
         pollInterval: const Duration(days: 1), // disable auto-poll in tests
@@ -31,7 +31,7 @@ void main() {
     when(() => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
         .thenAnswer((_) async => _info(TrackingStage.inTransit));
 
-    final cubit = _cubit();
+    final cubit = cubit0();
     // Wait for the initial fetch to complete.
     await Future<void>.delayed(Duration.zero);
 
@@ -44,7 +44,7 @@ void main() {
     when(() => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
         .thenThrow(const LiveTrackingException(LiveTrackingErrorKind.network));
 
-    final cubit = _cubit();
+    final cubit = cubit0();
     await Future<void>.delayed(Duration.zero);
 
     expect(cubit.state.mode, LiveTrackingViewMode.error);
@@ -59,7 +59,7 @@ void main() {
     when(() => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
         .thenThrow(const LiveTrackingException(LiveTrackingErrorKind.notFound));
 
-    final cubit = _cubit();
+    final cubit = cubit0();
     await Future<void>.delayed(Duration.zero);
 
     expect(cubit.state.mode, LiveTrackingViewMode.error);
@@ -75,7 +75,7 @@ void main() {
     when(() => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
         .thenThrow(const LiveTrackingException(LiveTrackingErrorKind.server));
 
-    final cubit = _cubit();
+    final cubit = cubit0();
     await Future<void>.delayed(Duration.zero);
 
     expect(cubit.state.mode, LiveTrackingViewMode.error);
@@ -94,7 +94,7 @@ void main() {
           : _info(TrackingStage.inTransit);
     });
 
-    final cubit = _cubit();
+    final cubit = cubit0();
     await Future<void>.delayed(Duration.zero);
     expect(cubit.state.pendingEvent, LiveTrackingEvent.none);
 
@@ -115,7 +115,7 @@ void main() {
           : _info(TrackingStage.atDoor);
     });
 
-    final cubit = _cubit();
+    final cubit = cubit0();
     await Future<void>.delayed(Duration.zero);
 
     cubit.retry();
@@ -130,7 +130,7 @@ void main() {
     when(() => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
         .thenAnswer((_) async => _info(TrackingStage.inTransit));
 
-    final cubit = _cubit();
+    final cubit = cubit0();
     await Future<void>.delayed(Duration.zero);
 
     cubit.retry();

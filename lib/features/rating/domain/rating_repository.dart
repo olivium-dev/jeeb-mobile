@@ -10,6 +10,7 @@
 ///               revealed, ratings: [...], ratedCount }
 ///
 /// Mock contract verified against the Express mock score-taking-service on :4010.
+library;
 import 'entities/rating_status.dart';
 
 /// Typed failure surfaced to the cubit (UI never sees a `DioException`).

@@ -29,7 +29,6 @@ class _FakeRepo implements ActiveDeliveryRepository {
     this.transitionResult,
     this.transitionThrows,
     this.uploadResult,
-    this.uploadThrows,
     this.verifyOtpResult,
     this.verifyOtpThrows,
   });
@@ -39,7 +38,6 @@ class _FakeRepo implements ActiveDeliveryRepository {
   final JeeberDeliveryStatus? transitionResult;
   final ActiveDeliveryException? transitionThrows;
   final String? uploadResult;
-  final ActiveDeliveryException? uploadThrows;
   final JeeberDeliveryStatus? verifyOtpResult;
   final ActiveDeliveryException? verifyOtpThrows;
 
@@ -82,7 +80,6 @@ class _FakeRepo implements ActiveDeliveryRepository {
     required String deliveryId,
     required String filename,
   }) async {
-    if (uploadThrows != null) throw uploadThrows!;
     return uploadResult ?? 'https://cdn.jeeb.app/proof/$deliveryId.jpg';
   }
 }
@@ -303,7 +300,7 @@ void main() {
         repository: repo,
         deliveryId: 'DLV-770001',
       );
-      cubit.emit(ActiveDeliveryState(
+      cubit.emit(const ActiveDeliveryState(
         mode: ActiveDeliveryMode.ready,
         delivery: JeeberDelivery(
           id: 'DLV-770001',

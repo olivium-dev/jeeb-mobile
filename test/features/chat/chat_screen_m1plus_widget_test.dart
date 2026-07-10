@@ -14,7 +14,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -88,6 +87,9 @@ class _FakeGateway extends ChatGateway {
   @override
   Stream<ChatEvent> subscribe(String id) => _ctrl.stream;
 
+  /// Closes the broadcast controller at end of test (satisfies close_sinks).
+  void dispose() => _ctrl.close();
+
   @override
   Future<OfferAcceptResult> acceptOffer(
     String conversationId,
@@ -150,6 +152,7 @@ ChatCubit _cubit({
   _FakeGateway? gateway,
 }) {
   final gw = gateway ?? _FakeGateway(history: history, phase: phase);
+  addTearDown(gw.dispose);
   final c = ChatCubit(
     deliveryId: 'conv-test-001',
     gateway: gw,
@@ -196,7 +199,11 @@ void main() {
 
       final sendNode = tester
           .getSemantics(find.byKey(ChatComposer.sendButtonKey));
-      expect(sendNode.hasFlag(SemanticsFlag.isEnabled), isFalse);
+      expect(
+        sendNode.getSemanticsData().flagsCollection.isEnabled.toBoolOrNull() ??
+            false,
+        isFalse,
+      );
       handle.dispose();
     });
 

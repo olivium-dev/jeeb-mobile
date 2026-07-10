@@ -109,9 +109,9 @@ class _RatingScreenState extends State<RatingScreen> {
       // failure must not strand the user on the un-dismissable screen, so we
       // still route home. The score-taking submit is idempotent server-side.
     }
-    if (!context.mounted) return;
+    if (!mounted) return;
     // AC2/AC3: route to the role-aware shell (customer → customer-orders-home;
-    // jeeber → Dashboard tab). `context.mounted` guards the async gap.
+    // jeeber → Dashboard tab). State `mounted` guards the async gap.
     context.go('/');
   }
 

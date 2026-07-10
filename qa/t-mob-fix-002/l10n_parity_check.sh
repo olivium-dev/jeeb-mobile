@@ -68,14 +68,24 @@ for f in "${EN_ARB}" "${AR_ARB}" "${LOC_DART}"; do
   [[ -f "$f" ]] || { echo "ERROR: required file missing: $f" >&2; exit 2; }
 done
 
-# --- compute S1: l10n.<key> call sites ----------------------------------------
-# Match `l10n.<identifier>` anywhere in lib/**/*.dart EXCEPT inside l10n/ itself
-# (so we don't accidentally pick up _get('key') tokens or class definitions).
+# --- compute S1: l10n.<key> string-getter call sites --------------------------
+# Match `l10n.<identifier>` in lib/**/*.dart EXCEPT inside l10n/ itself. We only
+# want *string-getter* references, so we:
+#   (1) strip `//` line comments first — a key named only in a doc comment (e.g.
+#       "…once the integrator lands `l10n.savedAddressDefaultBadge`…") is not a
+#       real call site; and
+#   (2) drop method calls `l10n.x(` and property chains `l10n.x.` (e.g.
+#       `l10n.locale.languageCode`) — those resolve to parameterized ICU methods
+#       or non-string members and are validated by the compiler / `flutter
+#       analyze` (check f), not by string-getter parity.
 S1="${OUT_DIR}/s1_callsites.txt"
-grep -rohE '\bl10n\.([a-zA-Z_][a-zA-Z0-9_]*)' lib/ \
+grep -rhE '\bl10n\.[a-zA-Z_]' lib/ \
   --include='*.dart' \
   --exclude-dir='l10n' \
   2>/dev/null \
+  | sed -E 's://.*$::' \
+  | grep -oE '\bl10n\.[a-zA-Z_][a-zA-Z0-9_]*[.(]?' \
+  | grep -vE '[.(]$' \
   | sed -E 's/^l10n\.//' \
   | sort -u > "${S1}"
 
@@ -93,8 +103,28 @@ S4="${OUT_DIR}/s4_ar.txt"
 jq -r 'keys[] | select(startswith("@") | not)' "${EN_ARB}" | sort -u > "${S3}"
 jq -r 'keys[] | select(startswith("@") | not)' "${AR_ARB}" | sort -u > "${S4}"
 
+# --- known-member set for the (a) call-site check -----------------------------
+# A call site `l10n.<key>` is satisfied when it resolves to ANY real member —
+# not only an ARB `_get()` getter (S2). This repo also uses feature-local *L10n
+# resolver classes (bilingual EN/AR, the JM-008/JM-031 precedent) that are
+# conventionally bound to a variable named `l10n`, plus non-string
+# AppLocalizations members (e.g. the `locale` field). Those are NOT ARB keys and
+# must not be reported as "missing getters". This set is used ONLY by check (a);
+# checks (b)-(e) below still enforce full EN/AR ARB parity on the getter set S2.
+RESOLVER_GETTERS="${OUT_DIR}/resolver_getters.txt"  # getters on feature *L10n classes
+grep -rhoE 'String get [a-zA-Z_][a-zA-Z0-9_]*' lib/features --include='*_l10n.dart' 2>/dev/null \
+  | sed -E 's/String get //' | sort -u > "${RESOLVER_GETTERS}"
+APP_MEMBERS="${OUT_DIR}/app_members.txt"            # every member on AppLocalizations
+{
+  grep -oE 'get [a-zA-Z_][a-zA-Z0-9_]*' "${LOC_DART}" | sed -E 's/get //'
+  grep -oE '\b[a-zA-Z_][a-zA-Z0-9_]*\(' "${LOC_DART}" | tr -d '('
+  grep -oE 'final [A-Za-z0-9_<>?,. ]+ [a-zA-Z_][a-zA-Z0-9_]*;' "${LOC_DART}" | awk '{print $NF}' | tr -d ';'
+} 2>/dev/null | sort -u > "${APP_MEMBERS}"
+KNOWN_A="${OUT_DIR}/known_getters_a.txt"            # S2 ∪ resolver getters ∪ AppLocalizations members
+cat "${S2}" "${RESOLVER_GETTERS}" "${APP_MEMBERS}" | sort -u > "${KNOWN_A}"
+
 # --- diffs --------------------------------------------------------------------
-MISSING_GETTERS="${OUT_DIR}/missing_getters.txt"   # S1 \ S2  [strict]
+MISSING_GETTERS="${OUT_DIR}/missing_getters.txt"   # S1 \ KNOWN_A  [strict]
 ORPHAN_GETTERS="${OUT_DIR}/orphan_getters.txt"     # S2 \ S1  [warn]
 MISSING_EN="${OUT_DIR}/missing_en.txt"             # S2 \ S3  [strict]
 MISSING_AR="${OUT_DIR}/missing_ar.txt"             # S2 \ S4  [strict]
@@ -103,7 +133,7 @@ EXTRA_AR="${OUT_DIR}/extra_ar.txt"                 # S4 \ S2  [strict]
 EN_VAL_EQ_KEY="${OUT_DIR}/en_value_equals_key.txt" # value == key in EN [strict]
 AR_VAL_EQ_KEY="${OUT_DIR}/ar_value_equals_key.txt" # value == key in AR [strict]
 
-comm -23 "${S1}" "${S2}" > "${MISSING_GETTERS}"
+comm -23 "${S1}" "${KNOWN_A}" > "${MISSING_GETTERS}"
 comm -23 "${S2}" "${S1}" > "${ORPHAN_GETTERS}"
 comm -23 "${S2}" "${S3}" > "${MISSING_EN}"
 comm -23 "${S2}" "${S4}" > "${MISSING_AR}"
@@ -142,7 +172,7 @@ echo "S2 (_get('<key>') getters)           : ${s2_n}"
 echo "S3 (EN ARB keys, non-@)              : ${s3_n}"
 echo "S4 (AR ARB keys, non-@)              : ${s4_n}"
 echo "----"
-echo "(a) S1 \\ S2  missing getters         : ${mg_n}   [strict, must be 0]"
+echo "(a) S1 \\ known  missing getters      : ${mg_n}   [strict, must be 0]"
 echo "(b) S2 \\ S3  getters missing EN      : ${me_n}   [strict, must be 0]"
 echo "    S3 \\ S2  EN keys w/ no getter    : ${ee_n}   [strict, must be 0]"
 echo "(c) S2 \\ S4  getters missing AR      : ${ma_n}   [strict, must be 0]"

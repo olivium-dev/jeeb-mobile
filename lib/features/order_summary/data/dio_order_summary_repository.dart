@@ -160,7 +160,7 @@ class DioOrderSummaryRepository implements OrderSummaryRepository {
 
   /// Trim + normalise `''`/whitespace → null.
   static String? _str(Object? raw) {
-    if (raw is! String) return raw == null ? null : raw.toString();
+    if (raw is! String) return raw?.toString();
     final trimmed = raw.trim();
     return trimmed.isEmpty ? null : trimmed;
   }
