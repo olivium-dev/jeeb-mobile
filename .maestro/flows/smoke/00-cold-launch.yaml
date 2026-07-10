@@ -1,0 +1,28 @@
+# Android mock smoke: cold launch reaches first-run onboarding.
+#
+# Runtime expectation: 10-20s on a warm emulator; under the 60s refactor flag.
+# Debug output: pass --debug-output "$MAESTRO_DEBUG_ROOT".
+#
+# Blocked until onboarding exports checkpoint-008 Semantics identifiers.
+appId: ${APP_ID}
+tags:
+  - android
+  - smoke
+  - mock
+  - cold-launch
+  - critical
+  - blocked
+env:
+  LOCALE: en
+---
+- runFlow:
+    file: ../../_pages/_launch_android_fresh.yaml
+    env:
+      LOCALE: "${LOCALE}"
+- extendedWaitUntil:
+    visible:
+      id: "onboarding_next_button"
+    timeout: 20000
+- assertVisible:
+    id: "onboarding_skip_button"
+- takeScreenshot: "smoke_00_cold_launch_onboarding"

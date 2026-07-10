@@ -1,0 +1,27 @@
+# Expected app Semantics identifier from checkpoint 008:
+#   home_shell
+#
+# Secondary currently-present IDs:
+#   client_home_voice_request
+#   _request_empty_state_nav_requests
+#   _request_empty_state_nav_delivery
+#   _request_empty_state_nav_profile
+#
+# Current blocker:
+#   ShellScreen does not yet wrap the shell root in Semantics(identifier:
+#   'home_shell'). Keep home_shell as the primary assertion so the shared lane
+#   owns a single stable landing contract.
+appId: ${APP_ID}
+---
+- extendedWaitUntil:
+    visible:
+      id: "home_shell"
+    timeout: 25000
+- assertVisible:
+    id: "client_home_voice_request"
+- assertVisible:
+    id: "_request_empty_state_nav_requests"
+- assertVisible:
+    id: "_request_empty_state_nav_delivery"
+- assertVisible:
+    id: "_request_empty_state_nav_profile"

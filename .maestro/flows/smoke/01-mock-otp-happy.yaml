@@ -1,0 +1,36 @@
+# Android mock smoke: onboarding -> phone OTP -> home shell.
+#
+# Network contract from checkpoint 011:
+#   POST /v1/auth/otp/request -> 200
+#   POST /v1/auth/otp/verify with code 123456 -> 200
+#
+# Runtime expectation after semantic blockers are cleared: 35-55s.
+appId: ${APP_ID}
+tags:
+  - android
+  - smoke
+  - mock
+  - auth
+  - critical
+  - happy-path
+  - blocked
+env:
+  LOCALE: en
+  PHONE_NATIONAL: "71123456"
+  OTP_VALID: "123456"
+---
+- runFlow:
+    file: ../../_pages/_launch_android_fresh.yaml
+    env:
+      LOCALE: "${LOCALE}"
+- runFlow: ../../_pages/_onboarding_walkthrough.yaml
+- runFlow:
+    file: ../../_pages/_registration_phone.yaml
+    env:
+      PHONE_NATIONAL: "${PHONE_NATIONAL}"
+- runFlow:
+    file: ../../_pages/_otp_submit.yaml
+    env:
+      OTP_CODE: "${OTP_VALID}"
+- runFlow: ../../_pages/_shell_home.yaml
+- takeScreenshot: "smoke_01_mock_otp_home"
