@@ -18,6 +18,17 @@ if (localPropertiesFile.exists()) {
     }
 }
 
+// Release signing material — read from android/key.properties (gitignored; see
+// android/.gitignore). Absent on machines without the release keystore, in
+// which case the release build falls back to debug signing (below).
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withReader('UTF-8') { reader ->
+        keystoreProperties.load(reader)
+    }
+}
+
 def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
 if (flutterVersionCode == null) {
     flutterVersionCode = '1'
@@ -49,6 +60,14 @@ android {
         targetSdk 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+
+        // Android Maps SDK key injected via the ${MAPS_API_KEY} manifest
+        // placeholder (see the google_maps_flutter note in pubspec.yaml and the
+        // com.google.android.geo.API_KEY meta-data in AndroidManifest.xml).
+        // Sourced from the gitignored android/local.properties so the key is
+        // never committed. `+=` preserves Flutter's ${applicationName}
+        // placeholder. Empty string when unprovisioned (keyless placeholder map).
+        manifestPlaceholders += [MAPS_API_KEY: localProperties.getProperty('MAPS_API_KEY', '')]
     }
 
     // ─── Flavor Configuration ────────────────────────────────────────────────
@@ -79,9 +98,25 @@ android {
         }
     }
 
+    signingConfigs {
+        // Release signing, driven by android/key.properties (gitignored).
+        // Populated only when the properties file is present so CI/dev machines
+        // without the keystore can still assemble a (debug-signed) release.
+        release {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig signingConfigs.debug // TODO: replace with release keystore
+            // Use the real release keystore when key.properties is present;
+            // otherwise fall back to debug signing (previous placeholder behaviour).
+            signingConfig keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
