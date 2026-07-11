@@ -125,6 +125,20 @@
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="jeeb_default"/>
 
+        <!--
+            sprint-013: Google Maps SDK for Android API key. Injected from the
+            gitignored android/local.properties via the ${MAPS_API_KEY}
+            manifestPlaceholder (build.gradle defaultConfig) — the key itself is
+            never committed. The provisioned key is restricted to package
+            app.jeeb.mobile + the release SHA1 and to Maps SDK for Android +
+            Places API. Presence of com.google.android.geo.API_KEY here is what
+            the tracking_map_placeholder_route_test gate allows before the live
+            map (LiveTrackingScreen.useLiveMap) may be flipped back on.
+        -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}"/>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
