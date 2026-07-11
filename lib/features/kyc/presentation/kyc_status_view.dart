@@ -1,9 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/di/injection_container.dart';
+import '../../../core/role/jeeber_role_activator.dart';
+import '../../../core/role/role_availability_cubit.dart';
+import '../../../core/role/role_cubit.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../settings/domain/role_switch_repository.dart';
 import '../application/kyc_wizard_cubit.dart';
 import '../application/kyc_wizard_state.dart';
 import '../domain/kyc_submission.dart';
@@ -208,8 +215,87 @@ class _PendingBody extends StatelessWidget {
 }
 
 /// Approved: the three post-approval entry points (feed / wallet / top-up).
-class _ApprovedBody extends StatelessWidget {
+///
+/// ACTIVATION (jeeber role fix): reaching this body is the reliable "KYC just
+/// approved" signal, so it fires [JeeberRoleActivator.activate] — a
+/// `POST /v1/users/me/role/switch` that re-mints the jeeber-capable token and
+/// flips [RoleAvailabilityCubit] / [RoleCubit] to the Jeeber surface. Without it
+/// the token stayed client-scoped and `/v1/availability` 403'd ("Couldn't load
+/// your availability"), so the approved jeeber could never go online. It fires
+/// once on first render (so any CTA lands on the live jeeber surface) and again,
+/// awaited, on the "Go to feed" tap so navigation never precedes the re-mint.
+class _ApprovedBody extends StatefulWidget {
   const _ApprovedBody();
+
+  @override
+  State<_ApprovedBody> createState() => _ApprovedBodyState();
+}
+
+class _ApprovedBodyState extends State<_ApprovedBody> {
+  /// The in-flight (or completed) activation. Cached so the auto-fire on first
+  /// render and a later "Go to feed" tap share ONE switch call. Reset to null
+  /// after a failure so a subsequent tap retries; stays null forever in a bare
+  /// harness with no role cubits / DI (the view then degrades to plain nav).
+  Future<JeeberActivationOutcome>? _activation;
+
+  /// True while [_goToFeed] awaits activation, to disable the CTA meanwhile.
+  bool _navigating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Detect KYC=approved → activate the jeeber role the moment this view
+    // renders, so the token is re-minted and the shell lights up the Jeeber
+    // surface even before a CTA is tapped. Failures are surfaced on the
+    // explicit "Go to feed" tap, not here.
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => unawaited(_activate()));
+  }
+
+  /// Resolve the activator from the app-level role cubits + DI and kick the
+  /// switch once (cached). Returns null — a no-op — when the role cubits or a
+  /// registered [RoleSwitchRepository] are absent (a bare widget test), so the
+  /// approved view keeps working without an app shell.
+  Future<JeeberActivationOutcome>? _activate() {
+    if (!mounted) return _activation;
+    final existing = _activation;
+    if (existing != null) return existing;
+    final roleCubit = context.read<RoleCubit?>();
+    final availabilityCubit = context.read<RoleAvailabilityCubit?>();
+    if (roleCubit == null ||
+        availabilityCubit == null ||
+        !sl.isRegistered<RoleSwitchRepository>()) {
+      return null;
+    }
+    final activator = JeeberRoleActivator(
+      roleSwitch: sl<RoleSwitchRepository>(),
+      roleCubit: roleCubit,
+      availabilityCubit: availabilityCubit,
+    );
+    return _activation = activator.activate();
+  }
+
+  Future<void> _goToFeed() async {
+    if (_navigating) return;
+    setState(() => _navigating = true);
+    final pending = _activate();
+    final outcome = pending == null ? null : await pending;
+    if (!mounted) return;
+    setState(() => _navigating = false);
+    // A hard failure (network) or a still-gating 403 must NOT drop the jeeber
+    // onto a surface that will re-403; surface the error and let them retry.
+    if (outcome == JeeberActivationOutcome.failed ||
+        outcome == JeeberActivationOutcome.kycGated) {
+      _activation = null; // allow the next tap to retry the switch
+      showOmdsSnackbar(
+        context,
+        message: AppLocalizations.of(context).roleSettingSwitchError,
+      );
+      return;
+    }
+    // activated, or no activator in a bare harness → go to the jeeber feed.
+    context.goNamed('shell');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -224,7 +310,7 @@ class _ApprovedBody extends StatelessWidget {
       actions: [
         // → jeeber-requests-home. The feed lives in the DELIVERY tab of the
         // shell (no dedicated route); `shell` lands the approved jeeber on the
-        // feed (`jeeber_feed_root`, JM-036).
+        // feed (`jeeber_feed_root`, JM-036) — now with a jeeber-capable token.
         Semantics(
           identifier: 'kyc_status_feed_cta',
           button: true,
@@ -233,7 +319,8 @@ class _ApprovedBody extends StatelessWidget {
             // L10N-REQ: kycStatusFeedCta ("Go to feed") — reusing
             // jeeberFeedSectionTitle ("Available requests").
             text: l10n.jeeberFeedSectionTitle,
-            onTap: () => context.goNamed('shell'),
+            isEnabled: !_navigating,
+            onTap: () => unawaited(_goToFeed()),
           ),
         ),
         // → wallet-hub (`wallet`, lands `wallet_available_balance`).
