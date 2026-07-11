@@ -28,6 +28,11 @@ import 'package:jeeb_mobile/features/photo_attachment/domain/photo_attachment.da
 /// `/v1/kyc/submit` POST can each be answered distinctly. A resolver may
 /// throw a [DioException] to simulate an HTTP error response (e.g. the BFF's
 /// RFC-7807 400).
+///
+/// JEBV4-259: since the CDN signed-PUT now uses a DEDICATED, interceptor-free
+/// Dio, this recorder is passed as BOTH the broker Dio and (via
+/// `uploadDio: rec.dio`) the upload Dio, so the PUT stays observable here. The
+/// dedicated-Dio isolation itself is proven in dio_cdn_asset_gateway_test.dart.
 class _RecordingDio {
   _RecordingDio(this._resolve) {
     dio = Dio(BaseOptions(baseUrl: 'http://gateway.test'));
@@ -96,7 +101,7 @@ void main() {
     test('uploads idFront/idBack/selfie unconditionally, skips vehicle when '
         'absent from the draft', () async {
       final rec = _RecordingDio(_happyPath);
-      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio));
+      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio, uploadDio: rec.dio));
       const draft = KycSubmission(status: KycStatus.notSubmitted);
       final withPhotos = draft.copyWith(
         idFront: _photo('front'),
@@ -117,7 +122,7 @@ void main() {
     test('uploads the vehicle-registration asset too when present '
         '(send-if-present)', () async {
       final rec = _RecordingDio(_happyPath);
-      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio));
+      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio, uploadDio: rec.dio));
       const draft = KycSubmission(status: KycStatus.notSubmitted);
       final withVehicle = draft.copyWith(
         idFront: _photo('front'),
@@ -145,7 +150,7 @@ void main() {
         'selfie_with_liveness_url resolved from the CDN uploads, and no '
         'vehicle_registration_url when no vehicle asset exists', () async {
       final rec = _RecordingDio(_happyPath);
-      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio));
+      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio, uploadDio: rec.dio));
       const draft = KycSubmission(status: KycStatus.notSubmitted);
       final withPhotos = draft.copyWith(
         idFront: _photo('front'),
@@ -175,7 +180,7 @@ void main() {
     test('sends id_type (always) and id_number (when captured) per E3 '
         '(JEBV4-197)', () async {
       final rec = _RecordingDio(_happyPath);
-      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio));
+      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio, uploadDio: rec.dio));
       const draft = KycSubmission(status: KycStatus.notSubmitted);
       final withId = draft.copyWith(
         idFront: _photo('front'),
@@ -193,7 +198,7 @@ void main() {
 
     test('omits id_number when the draft never captured one', () async {
       final rec = _RecordingDio(_happyPath);
-      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio));
+      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio, uploadDio: rec.dio));
       const draft = KycSubmission(status: KycStatus.notSubmitted);
       final noId = draft.copyWith(
         idFront: _photo('front'),
@@ -217,7 +222,7 @@ void main() {
         KycIdType.residency: 'residency',
       }.entries) {
         final rec = _RecordingDio(_happyPath);
-        final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio));
+        final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio, uploadDio: rec.dio));
         const draft = KycSubmission(status: KycStatus.notSubmitted);
         final typed = draft.copyWith(
           idFront: _photo('front'),
@@ -237,7 +242,7 @@ void main() {
     test('includes vehicle_registration_url only when a vehicle asset '
         'exists in state (send-if-present)', () async {
       final rec = _RecordingDio(_happyPath);
-      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio));
+      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio, uploadDio: rec.dio));
       const draft = KycSubmission(status: KycStatus.notSubmitted);
       final withVehicle = draft.copyWith(
         idFront: _photo('front'),
@@ -258,7 +263,7 @@ void main() {
     test('threads tos_accepted_version into the submit body when present',
         () async {
       final rec = _RecordingDio(_happyPath);
-      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio));
+      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio, uploadDio: rec.dio));
       const draft = KycSubmission(status: KycStatus.notSubmitted);
       final withTos = draft.copyWith(
         idFront: _photo('front'),
@@ -276,7 +281,7 @@ void main() {
     test('omits tos_accepted_version when the draft never had it set',
         () async {
       final rec = _RecordingDio(_happyPath);
-      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio));
+      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio, uploadDio: rec.dio));
       const draft = KycSubmission(status: KycStatus.notSubmitted);
       final noTos = draft.copyWith(
         idFront: _photo('front'),
@@ -292,7 +297,7 @@ void main() {
 
     test('omits tos_accepted_version when it is set but empty', () async {
       final rec = _RecordingDio(_happyPath);
-      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio));
+      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio, uploadDio: rec.dio));
       const draft = KycSubmission(status: KycStatus.notSubmitted);
       final emptyTos = draft.copyWith(
         idFront: _photo('front'),
@@ -310,7 +315,7 @@ void main() {
     test('POSTs the submit body to /v1/kyc/submit and parses the response',
         () async {
       final rec = _RecordingDio(_happyPath);
-      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio));
+      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio, uploadDio: rec.dio));
       const draft = KycSubmission(status: KycStatus.notSubmitted);
       final withPhotos = draft.copyWith(
         idFront: _photo('front'),
@@ -362,7 +367,7 @@ void main() {
     test('a 400 problem carrying field throws KycSubmitFieldException with '
         'that field + detail', () async {
       final rec = _RecordingDio(rejectSubmit);
-      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio));
+      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio, uploadDio: rec.dio));
 
       await expectLater(
         gateway.submit(draftWithPhotos()),
@@ -395,7 +400,7 @@ void main() {
       }
 
       final rec = _RecordingDio(rejectPlain);
-      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio));
+      final gateway = DioKycGateway(rec.dio, DioCdnAssetGateway(rec.dio, uploadDio: rec.dio));
 
       await expectLater(
         gateway.submit(draftWithPhotos()),
