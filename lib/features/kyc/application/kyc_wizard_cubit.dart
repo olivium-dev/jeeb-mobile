@@ -160,7 +160,13 @@ class KycWizardCubit extends Cubit<KycWizardState> {
         submission: updated,
         contractTemplate: template,
         tosAcceptedVersion: stamp.tosAcceptedVersion,
-        justSubmitted: true,
+        // JEBV4-271: an AUTO-APPROVED submit (gateway returns state:Verified →
+        // KycStatus.approved) must NOT chain to `onboarding-funding`; it stays
+        // on the in-wizard status step so KycStatusView renders the approved
+        // body, which fires JeeberRoleActivator (POST /v1/users/me/role/switch,
+        // re-mints the jeeber-capable token) and the jeeber goes online with NO
+        // re-login. Only a still-pending submit chains to funding.
+        justSubmitted: updated.status != KycStatus.approved,
       ));
     } on KycSubmitFieldException catch (e) {
       // The BFF rejected a specific field (RFC-7807 `field` extension).

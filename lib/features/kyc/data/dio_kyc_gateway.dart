@@ -146,6 +146,14 @@ class DioKycGateway implements KycGateway {
       case 'Submitted':
         return KycStatus.pending;
       case 'Approved':
+      // The live kyc-service emits `Verified` (not `Approved`) on both the
+      // (auto-)approve submit RESPONSE and GET /v1/kyc/status — there is no
+      // Verified→Approved normalization in the gateway (JeebGateway
+      // KycServiceClient). Without this case `Verified` fell to `default`
+      // (notSubmitted): the approved status view never rendered (so the jeeber
+      // role never activated) AND "Start now" looped back to the KYC form
+      // (loadStatus read the terminal state as notSubmitted). JEBV4-271.
+      case 'Verified':
         return KycStatus.approved;
       case 'Rejected':
         return KycStatus.rejected;

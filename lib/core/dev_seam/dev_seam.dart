@@ -38,7 +38,13 @@ class DevSeam {
   /// actually provides, so e.g. an intent that sets only `jeeb.locale` still
   /// inherits a route from the device file or dart-define.
   static Future<void> resolve({List<DevSeamSource>? sources}) async {
-    if (!kDebugMode) {
+    // Release-inert (kDebugMode) PLUS a production kill-switch: a production
+    // build passes `--dart-define=JEEB_DISABLE_DEV_SEAM=true` so the seam is
+    // fully disabled even in a (non-release) debug PRODUCTION build — no source
+    // (incl. the persistent /data/local/tmp/jeeb-dev-seam.json device file) can
+    // populate `current`, so SessionSeamBootstrap.seed never clobbers the real
+    // login. Absent (dev/staging + all tests) → unchanged behaviour. JEBV4-272.
+    if (!kDebugMode || const bool.fromEnvironment('JEEB_DISABLE_DEV_SEAM')) {
       _current = DevSeamConfig.empty;
       return;
     }

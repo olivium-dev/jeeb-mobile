@@ -166,6 +166,42 @@ void main() {
   );
 
   testWidgets(
+    'JEBV4-271: an AUTO-APPROVED submit (gateway decision approved) renders the '
+    'in-wizard approved status view and does NOT chain to onboarding-funding '
+    '(so KycStatusView._ApprovedBody activates the jeeber role in-session)',
+    (tester) async {
+      var fundingNav = 0;
+      final cubit = _newCubit(
+        gateway: FakeKycGateway(decision: KycStatus.approved),
+      );
+      await tester.pumpWidget(
+        _host(cubit, onSubmitted: (_) => fundingNav++),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(KycIdentityStep.idNumberFieldKey),
+        '123456789012',
+      );
+      await tester.pump();
+
+      await tester.tap(find.byKey(KycIdentityStep.submitButtonKey));
+      await tester.pumpAndSettle();
+
+      // The funding chain must NOT fire for an auto-approved submit — it stays
+      // in-wizard so the jeeber role activates (no re-login).
+      expect(fundingNav, 0,
+          reason: 'auto-approve must not navigate away to onboarding-funding');
+      expect(cubit.state.justSubmitted, isFalse);
+      expect(cubit.state.submission.status, KycStatus.approved);
+      // The approved status view renders in-wizard. Its _ApprovedBody is what
+      // fires JeeberRoleActivator on the real app shell (a no-op in this bare
+      // widget harness with no role cubits / DI, so the view still renders).
+      expect(find.byKey(KycStatusView.approvedTitleKey), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'submit is reachable without driving the camera (server validates photos; '
     'the typed ID number is the one client gate)',
     (tester) async {
