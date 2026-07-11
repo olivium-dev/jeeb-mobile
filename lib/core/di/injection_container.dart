@@ -351,7 +351,11 @@ void configureDependencies({
 
   // KYC — submit + status from auth-service via gateway. `submit` composes
   // the CDN signed-PUT broker (`POST /api/cdn/assets`) to turn captured
-  // photos into `*_url` refs before posting (JEBV4-113).
+  // photos into `*_url` refs before posting (JEBV4-113). JEBV4-259: `sl<Dio>()`
+  // is passed as the BROKER-only client (it needs the Bearer token); the raw
+  // photo PUT goes through a dedicated interceptor-free Dio the gateway
+  // self-provides, so the shared client's auth/logging/JSON interceptors can
+  // never corrupt the binary body (the 415 fix).
   sl.registerLazySingleton<CdnAssetGateway>(
     () => DioCdnAssetGateway(sl<Dio>()),
   );

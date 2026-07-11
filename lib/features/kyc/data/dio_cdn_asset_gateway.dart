@@ -1,24 +1,56 @@
-import 'dart:typed_data';
-
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../domain/cdn_asset_gateway.dart';
 
 /// Dio-backed [CdnAssetGateway].
 ///
-/// Endpoint (gateway BFF signed-PUT broker, `docs/adr/0004-s03-kyc-service-
-/// and-gateway-bff.md`):
-///   POST /api/cdn/assets {slot, content_type}
-///     → {upload_url, object_ref, expires_in}
-/// followed by a direct `PUT` of the raw bytes to the returned `upload_url` —
-/// an absolute signed URL, uploaded as-is rather than joined to the gateway
-/// [Dio] instance's base path.
+/// Two-step CDN signed-PUT broker (ADR-0004 / JEBV4-259 "approach B" — the
+/// gateway now proxies the KYC-photo PUT to cdn-service internally and returns
+/// an ABSOLUTE, gateway-hosted upload URL):
+///   1. `POST /api/cdn/assets {slot, content_type}` on the SHARED authenticated
+///      gateway [Dio] (this call legitimately needs the Bearer token) →
+///      `{upload_url, object_ref, expires_in, method, required_headers}`.
+///      `upload_url` is ALWAYS absolute; `method` + `required_headers` are the
+///      exact verb + headers the signed-PUT must carry (`required_headers`
+///      always includes `Content-Type`).
+///   2. Upload the RAW bytes with `method` to the absolute `upload_url`,
+///      carrying `required_headers` verbatim — through a DEDICATED,
+///      interceptor-free [Dio] (see [_bareUploadDio]). The shared gateway Dio
+///      carries a Bearer-auth interceptor, diagnostic/redacting log
+///      interceptors, a gateway `baseUrl`, and a default
+///      `Content-Type: application/json`; routing the binary PUT through it is
+///      exactly what attached auth/JSON headers and (for a relative URL)
+///      redirected the request back at the gateway edge — the JEBV4-259 415.
+///      The dedicated client has NONE of those: no interceptors, no baseUrl, no
+///      JSON default, no `Authorization` header.
+///   3. Return `object_ref` for the caller to embed as the domain `*_url` field.
 class DioCdnAssetGateway implements CdnAssetGateway {
-  const DioCdnAssetGateway(this._dio);
+  DioCdnAssetGateway(this._brokerDio, {Dio? uploadDio})
+      : _uploadDio = uploadDio ?? _bareUploadDio();
 
-  final Dio _dio;
+  /// The SHARED authenticated gateway client — used ONLY for the broker POST.
+  final Dio _brokerDio;
+
+  /// The DEDICATED, interceptor-free client — used ONLY for the signed-PUT of
+  /// the raw bytes. Never the shared client.
+  final Dio _uploadDio;
 
   static const String _brokerPath = '/api/cdn/assets';
+
+  /// A fresh [Dio] with NO `baseUrl` and NO interceptors — Dio's default
+  /// [ImplyContentTypeInterceptor] is removed too — so nothing can mutate the
+  /// binary body or attach auth / `Content-Type: application/json` headers.
+  static Dio _bareUploadDio() {
+    final dio = Dio();
+    dio.interceptors.clear(keepImplyContentTypeInterceptor: false);
+    return dio;
+  }
+
+  /// The dedicated upload client, exposed so tests can assert it is
+  /// interceptor-free and distinct from the shared broker client.
+  @visibleForTesting
+  Dio get uploadDio => _uploadDio;
 
   @override
   Future<String> uploadAsset({
@@ -26,34 +58,63 @@ class DioCdnAssetGateway implements CdnAssetGateway {
     required Uint8List bytes,
     String contentType = 'image/jpeg',
   }) async {
-    final ticket = await _dio.post<Map<String, dynamic>>(
+    final ticket = await _brokerTicket(slot, contentType);
+    await _putBytes(ticket: ticket, bytes: bytes, slot: slot);
+    return ticket.objectRef;
+  }
+
+  /// Brokers the signed-PUT ticket on the shared authenticated Dio.
+  Future<_CdnUploadTicket> _brokerTicket(
+    CdnUploadSlot slot,
+    String contentType,
+  ) async {
+    final res = await _brokerDio.post<Map<String, dynamic>>(
       _brokerPath,
-      data: {
-        'slot': _wireSlot(slot),
-        'content_type': contentType,
-      },
+      data: {'slot': _wireSlot(slot), 'content_type': contentType},
     );
-    final body = ticket.data ?? const <String, dynamic>{};
-    final uploadUrl = body['upload_url'] as String?;
-    final objectRef = body['object_ref'] as String?;
-    if (uploadUrl == null || uploadUrl.isEmpty) {
-      throw const CdnUploadException(
-        'Missing upload_url in /api/cdn/assets response',
+    return _CdnUploadTicket.fromBroker(
+      res.data ?? const <String, dynamic>{},
+      fallbackContentType: contentType,
+    );
+  }
+
+  /// PUTs [bytes] verbatim through the dedicated interceptor-free Dio.
+  Future<void> _putBytes({
+    required _CdnUploadTicket ticket,
+    required Uint8List bytes,
+    required CdnUploadSlot slot,
+  }) async {
+    try {
+      final res = await _uploadDio.request<void>(
+        ticket.uploadUrl, // absolute — baseUrl is ignored, used verbatim
+        data: bytes, // raw Uint8List — Dio 5.x sends binary data untransformed
+        options: _putOptions(ticket),
+      );
+      _ensure2xx(res.statusCode ?? 0, slot);
+    } on DioException catch (e) {
+      throw CdnUploadException(
+        'CDN signed-PUT failed for ${_wireSlot(slot)}: ${e.message}',
       );
     }
-    if (objectRef == null || objectRef.isEmpty) {
-      throw const CdnUploadException(
-        'Missing object_ref in /api/cdn/assets response',
+  }
+
+  static Options _putOptions(_CdnUploadTicket ticket) {
+    return Options(
+      method: ticket.method,
+      headers: ticket.headers, // required_headers, verbatim
+      contentType: ticket.contentType, // e.g. image/jpeg — never JSON
+      responseType: ResponseType.plain,
+      // Surface non-2xx as a domain error below rather than a DioException.
+      validateStatus: (_) => true,
+    );
+  }
+
+  void _ensure2xx(int status, CdnUploadSlot slot) {
+    if (status < 200 || status >= 300) {
+      throw CdnUploadException(
+        'CDN signed-PUT returned $status for ${_wireSlot(slot)}',
       );
     }
-
-    await _dio.put<void>(
-      uploadUrl,
-      data: bytes,
-      options: Options(headers: {'Content-Type': contentType}),
-    );
-
-    return objectRef;
   }
 
   String _wireSlot(CdnUploadSlot slot) {
@@ -67,5 +128,79 @@ class DioCdnAssetGateway implements CdnAssetGateway {
       case CdnUploadSlot.selfieWithLiveness:
         return 'selfie_with_liveness';
     }
+  }
+}
+
+/// Parsed `POST /api/cdn/assets` response — the signed-PUT instructions the
+/// dedicated upload client replays verbatim.
+class _CdnUploadTicket {
+  const _CdnUploadTicket({
+    required this.uploadUrl,
+    required this.objectRef,
+    required this.method,
+    required this.headers,
+    required this.contentType,
+  });
+
+  factory _CdnUploadTicket.fromBroker(
+    Map<String, dynamic> body, {
+    required String fallbackContentType,
+  }) {
+    final headers = _resolveHeaders(body, fallbackContentType);
+    return _CdnUploadTicket(
+      uploadUrl: _requireField(body, 'upload_url'),
+      objectRef: _requireField(body, 'object_ref'),
+      method: _resolveMethod(body),
+      headers: headers,
+      contentType:
+          _headerValue(headers, 'Content-Type') ?? fallbackContentType,
+    );
+  }
+
+  final String uploadUrl;
+  final String objectRef;
+  final String method;
+  final Map<String, String> headers;
+  final String contentType;
+
+  static String _requireField(Map<String, dynamic> body, String key) {
+    final value = (body[key] as String?) ?? '';
+    if (value.isEmpty) {
+      throw CdnUploadException('Missing $key in /api/cdn/assets response');
+    }
+    return value;
+  }
+
+  static String _resolveMethod(Map<String, dynamic> body) {
+    final method = (body['method'] as String?)?.trim();
+    return (method == null || method.isEmpty) ? 'PUT' : method.toUpperCase();
+  }
+
+  /// `required_headers` verbatim; falls back to just `Content-Type` for an
+  /// older gateway that omits the field (it now always includes it).
+  static Map<String, String> _resolveHeaders(
+    Map<String, dynamic> body,
+    String fallbackContentType,
+  ) {
+    final headers = _stringMap(body['required_headers']);
+    if (headers.isEmpty) {
+      return <String, String>{'Content-Type': fallbackContentType};
+    }
+    return headers;
+  }
+
+  static String? _headerValue(Map<String, String> headers, String name) {
+    final lower = name.toLowerCase();
+    for (final entry in headers.entries) {
+      if (entry.key.toLowerCase() == lower) return entry.value;
+    }
+    return null;
+  }
+
+  static Map<String, String> _stringMap(Object? raw) {
+    if (raw is Map) {
+      return raw.map((key, value) => MapEntry('$key', '$value'));
+    }
+    return const <String, String>{};
   }
 }
