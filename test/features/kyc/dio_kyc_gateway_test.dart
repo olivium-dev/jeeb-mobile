@@ -144,6 +144,77 @@ void main() {
     });
   });
 
+  group('DioKycGateway.submit — response status parse (JEBV4-271)', () {
+    // Answers the CDN broker + signed PUT as usual, and the /v1/kyc/submit POST
+    // with the given `state` wire value, so the parse can be asserted.
+    Response<dynamic> Function(RequestOptions) submitReturning(String state) {
+      return (options) {
+        if (options.path == '/api/cdn/assets') {
+          final slot = (options.data as Map)['slot'] as String;
+          return Response<dynamic>(
+            data: <String, dynamic>{
+              'upload_url': 'https://signed.cdn.test/put/$slot',
+              'object_ref': 'cdn://obj/$slot/abc123',
+              'expires_in': 300,
+            },
+            statusCode: 200,
+            requestOptions: options,
+          );
+        }
+        if (options.path.startsWith('https://signed.cdn.test/put/')) {
+          return Response<dynamic>(
+              data: null, statusCode: 200, requestOptions: options);
+        }
+        if (options.path == '/v1/kyc/submit') {
+          return Response<dynamic>(
+            data: <String, dynamic>{'state': state},
+            statusCode: 201,
+            requestOptions: options,
+          );
+        }
+        throw StateError('Unexpected request in test: ${options.path}');
+      };
+    }
+
+    Future<KycSubmission> submitWithState(String state) async {
+      final rec = _RecordingDio(submitReturning(state));
+      final gateway = DioKycGateway(
+        rec.dio,
+        DioCdnAssetGateway(rec.dio, uploadDio: rec.dio),
+      );
+      const draft = KycSubmission(status: KycStatus.notSubmitted);
+      return gateway.submit(draft.copyWith(
+        idFront: _photo('front'),
+        idBack: _photo('back'),
+        selfie: _photo('selfie'),
+      ));
+    }
+
+    test(
+        'auto-approve state:"Verified" parses to KycStatus.approved (the live '
+        'kyc-service value — JEBV4-271 root cause: it previously fell to the '
+        'notSubmitted default, so the approved view never rendered and the '
+        'jeeber role never activated)', () async {
+      final result = await submitWithState('Verified');
+      expect(result.status, KycStatus.approved);
+    });
+
+    test('state:"Approved" still parses to approved (back-compat)', () async {
+      final result = await submitWithState('Approved');
+      expect(result.status, KycStatus.approved);
+    });
+
+    test('state:"Submitted" still parses to pending (unchanged)', () async {
+      final result = await submitWithState('Submitted');
+      expect(result.status, KycStatus.pending);
+    });
+
+    test('state:"Rejected" still parses to rejected (unchanged)', () async {
+      final result = await submitWithState('Rejected');
+      expect(result.status, KycStatus.rejected);
+    });
+  });
+
   group('DioKycGateway.submit — live submit body contract (JEBV4-113 §1)',
       () {
     test('sends id_document_front_url / id_document_back_url / '

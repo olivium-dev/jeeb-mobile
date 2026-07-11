@@ -71,6 +71,28 @@ class SessionSeamBootstrap {
   static String _accessTokenFor(String userId) => 'mock-jwt-access-$userId';
   static String _refreshTokenFor(String userId) => 'mock-jwt-refresh-$userId';
 
+  /// Production kill-switch (JEBV4-272). A production build passes
+  /// `--dart-define=JEEB_DISABLE_DEV_SEAM=true` so [seed] is inert even in a
+  /// (non-release) debug PRODUCTION build — defence-in-depth alongside the
+  /// `kDebugMode` gate (which already makes a release build seam-inert). This
+  /// stops the persistent `/data/local/tmp/jeeb-dev-seam.json` device-file seed
+  /// (`super_login_plus`) from CLEARING the real OTP login and re-seeding a
+  /// stale user on every cold start. Absent (dev/staging + all tests) → the
+  /// seam behaves exactly as before, so no existing seam test changes.
+  static const bool _devSeamDisabledByDefine =
+      bool.fromEnvironment('JEEB_DISABLE_DEV_SEAM');
+
+  /// Test-only override so a unit test can prove the kill-switch disables the
+  /// seam (a compile-time `const` can't be toggled at runtime). `null` → use the
+  /// dart-define value. Never set outside a test.
+  @visibleForTesting
+  static bool? debugSeamDisabledOverride;
+
+  /// True when the seam must not run: the production kill-switch is set (via the
+  /// dart-define) or a test forced it off.
+  static bool get _devSeamDisabled =>
+      debugSeamDisabledOverride ?? _devSeamDisabledByDefine;
+
   /// Seeds app state from `DevSeam.current.sessionSeed` (session/role/token/
   /// biometric/account-status) AND, when a `jeeb.seam.journey` value is present,
   /// makes the mock hold the deterministic mid-journey rows for it via
@@ -115,7 +137,7 @@ class SessionSeamBootstrap {
     Dio? mockSeedClient,
     bool awaitMockSeed = true,
   }) async {
-    if (!kDebugMode) return;
+    if (!kDebugMode || _devSeamDisabled) return;
     final seed = DevSeam.current.sessionSeed;
     final journey = DevSeam.current.journeySeed;
     final kyc = DevSeam.current.kycStatusSeed;

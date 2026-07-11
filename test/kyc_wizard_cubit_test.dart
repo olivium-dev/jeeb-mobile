@@ -190,6 +190,28 @@ void main() {
 
       expect(cubit.state.step, KycWizardStep.status);
       expect(cubit.state.submission.status, KycStatus.pending);
+      expect(cubit.state.justSubmitted, isTrue,
+          reason: 'a still-pending submit chains to onboarding-funding');
+    });
+
+    test(
+        'JEBV4-271: an AUTO-APPROVED submit (gateway state:Verified → approved) '
+        'stays on the status step and does NOT set justSubmitted, so the '
+        'in-wizard approved view renders and JeeberRoleActivator fires (jeeber '
+        'goes online with no re-login)', () async {
+      final cubit = _buildCubit(
+        gateway: FakeKycGateway(decision: KycStatus.approved),
+      );
+      await _completeIdentity(cubit);
+
+      await cubit.submit();
+
+      expect(cubit.state.step, KycWizardStep.status);
+      expect(cubit.state.submission.status, KycStatus.approved);
+      expect(cubit.state.justSubmitted, isFalse,
+          reason: 'auto-approve must NOT navigate to onboarding-funding; it '
+              'stays on the approved status view that activates the jeeber role '
+              'in-session');
     });
 
     test('submit with an EMPTY id_number never dials the gateway — inline '
