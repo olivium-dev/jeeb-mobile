@@ -9,6 +9,7 @@ import '../../../core/di/injection_container.dart';
 import '../../../core/role/jeeber_role_activator.dart';
 import '../../../core/role/role_availability_cubit.dart';
 import '../../../core/role/role_cubit.dart';
+import '../../../core/role/role_sync.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../settings/domain/role_switch_repository.dart';
 import '../application/kyc_wizard_cubit.dart';
@@ -301,6 +302,9 @@ class _ApprovedBodyState extends State<_ApprovedBody> {
   /// True while [_goToFeed] awaits activation, to disable the CTA meanwhile.
   bool _navigating = false;
 
+  /// One-shot guard so the post-activation session refresh fires at most once.
+  bool _sessionRefreshed = false;
+
   /// JEBV4-271 / JEBV4-279: the "do nothing" path must self-heal. The role grant
   /// commits on the gateway BEFORE the submit response returns, so the first
   /// switch normally succeeds — but a brief role-grant projection lag can answer
@@ -332,7 +336,10 @@ class _ApprovedBodyState extends State<_ApprovedBody> {
       if (pending == null) return; // no activator wired — degrade to plain nav
       final outcome = await pending;
       if (!mounted) return;
-      if (outcome == JeeberActivationOutcome.activated) return;
+      if (outcome == JeeberActivationOutcome.activated) {
+        _refreshSession();
+        return;
+      }
       // failed / kycGated → clear the cache so the next attempt re-issues the
       // switch, then back off briefly (the role grant may still be propagating).
       _activation = null;
@@ -385,7 +392,32 @@ class _ApprovedBodyState extends State<_ApprovedBody> {
       return;
     }
     // activated, or no activator in a bare harness → go to the jeeber feed.
+    if (outcome == JeeberActivationOutcome.activated) _refreshSession();
     context.goNamed('shell');
+  }
+
+  /// JEBV4-271: once the `role/switch` has re-minted a jeeber-capable token,
+  /// re-fetch the server session (`GET /v1/users/me` → `active_role` +
+  /// `available_roles`) via [RoleSync] so the local role state is reconciled to
+  /// the authoritative projection — keeping the additive shell, [RoleSync], and
+  /// the live KYC gate (JEBV4-267) consistent with NO re-login. Runs only AFTER
+  /// a confirmed [JeeberActivationOutcome.activated] (the token already encodes
+  /// `jeeber`, so getMe returns the jeeber projection and cannot demote the
+  /// just-activated jeeber). Fail-soft and fired at most once: [RoleSync.sync]
+  /// never throws, and it self-resolves the getMe repository from DI's [Dio],
+  /// degrading to a no-op in a bare harness that has no network wired.
+  void _refreshSession() {
+    if (_sessionRefreshed || !mounted) return;
+    final roleCubit = context.read<RoleCubit?>();
+    final availabilityCubit = context.read<RoleAvailabilityCubit?>();
+    if (roleCubit == null || availabilityCubit == null) return;
+    _sessionRefreshed = true;
+    unawaited(
+      RoleSync(
+        roleCubit: roleCubit,
+        availabilityCubit: availabilityCubit,
+      ).sync(),
+    );
   }
 
   @override
