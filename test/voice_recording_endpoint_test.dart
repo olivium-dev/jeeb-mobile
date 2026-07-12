@@ -3,11 +3,13 @@ import 'package:jeeb_mobile/features/voice_request/data/voice_recording_reposito
 
 void main() {
   group('HttpVoiceRecordingRepository', () {
-    test('endpoint is the gateway-shaped path /v1/voice/transcribe (T-MOB-011)', () {
-      // Acceptance-test note: endpoint verified against Mockoon :3055 POST /v1/voice/transcribe
+    test('endpoint is the real gateway route /transcribe (JEBV4-209)', () {
+      // JEBV4-209: /v1/voice/transcribe was never registered by jeeb-gateway
+      // (dead alias). The gateway's actual transcribe-only surface is
+      // TranscriptionController at POST /transcribe.
       expect(
         HttpVoiceRecordingRepository.endpoint,
-        equals('/v1/voice/transcribe'),
+        equals('/transcribe'),
       );
     });
 
