@@ -101,6 +101,8 @@ import '../../features/location/domain/current_location_resolver.dart';
 import '../../features/location/domain/saved_location_repository.dart';
 import '../../features/active_delivery_jeeber/data/dio_active_delivery_repository.dart';
 import '../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
+import '../../features/order_summary/data/dio_order_summary_repository.dart';
+import '../../features/order_summary/domain/order_summary_repository.dart';
 import '../../features/offers/data/dio_offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
@@ -524,6 +526,15 @@ void configureDependencies({
   // POST /v1/deliveries/{id}/transition.
   sl.registerLazySingleton<ActiveDeliveryRepository>(
     () => DioActiveDeliveryRepository(sl<Dio>()),
+  );
+
+  // JEBV4-285: order-summary (`view summary` → order-summary-pinned, JM-031)
+  // read the LIVE delivery aggregate. Without this binding the standalone
+  // OrderSummaryScreen fell back to FakeOrderSummaryRepository and rendered
+  // hardcoded demo data (Kamal Hajj / Spinneys / 9.00) on real deliveries.
+  // Same frozen origin plural route as ActiveDelivery (GET /v1/deliveries/{id}).
+  sl.registerLazySingleton<OrderSummaryRepository>(
+    () => DioOrderSummaryRepository(sl<Dio>()),
   );
 
   // T-MOB-032: Settlement statements — GET /v1/wallet/jeeb/earnings/statements.
