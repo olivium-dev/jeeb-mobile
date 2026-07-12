@@ -231,6 +231,7 @@ class _OfferHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return Row(
       children: [
         Expanded(
@@ -245,12 +246,20 @@ class _OfferHeader extends StatelessWidget {
           ),
         ),
         if (payload.rating > 0)
-          OmdsStarRatingDisplay(
-            averageRating: payload.rating,
-            starSize: Sizes.medium,
-            activeColor: theme.colorScheme.tertiary,
-            showRatingValue: false,
-            showReviewCount: false,
+          // a11y (JEBV4-98 / F13): the display suppresses the numeric value and
+          // review count, so — unlike offer_card.dart — the bare stars announce
+          // nothing to a screen reader. A Semantics label carries the rating.
+          Semantics(
+            label: l10n.chatOfferRatingA11y(payload.rating.toStringAsFixed(1)),
+            child: ExcludeSemantics(
+              child: OmdsStarRatingDisplay(
+                averageRating: payload.rating,
+                starSize: Sizes.medium,
+                activeColor: theme.colorScheme.tertiary,
+                showRatingValue: false,
+                showReviewCount: false,
+              ),
+            ),
           ),
       ],
     );

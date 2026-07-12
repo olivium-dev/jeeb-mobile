@@ -38,7 +38,8 @@ void main() {
       (tester) async {
     await _pump(tester, _order(amountMinor: 1234_00));
 
-    expect(find.text('\$1,234.00'), findsOneWidget);
+    // MoneyFormat wraps the token in an LTR isolate (JEBV4-98/F10).
+    expect(find.text('\u2066\$1,234.00\u2069'), findsOneWidget);
     expect(find.text('—'), findsNothing);
   });
 

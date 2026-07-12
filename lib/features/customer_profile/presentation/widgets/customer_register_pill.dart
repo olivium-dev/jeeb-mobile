@@ -13,9 +13,13 @@ class CustomerRegisterPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      identifier: 'customer_profile_register_button',
-      button: true,
+    // a11y (JEBV4-98 / F10-F11): this pill is the trailing affordance of the
+    // "Register as a delivery" row, which already exposes ONE interactive
+    // Semantics node (button + label) bound to the same [onTap]. A second
+    // button node here made screen readers announce two focusable "Register"
+    // targets for one action, so the pill's own semantics are excluded — the
+    // row remains the single announced control.
+    return ExcludeSemantics(
       child: OmdsPrimaryButton(
         key: const Key('customer-profile-register-button'),
         text: AppLocalizations.of(context).customerProfileRegisterCta,

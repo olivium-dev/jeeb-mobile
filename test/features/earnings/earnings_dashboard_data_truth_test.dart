@@ -110,6 +110,7 @@ void main() {
     expect(find.text('No earnings yet this period'), findsNothing);
     expect(find.text('Total cash earned'), findsOneWidget);
     // Rendered through the one money rule ($ for USD), not "1000.00 USD".
-    expect(find.text('\$1,000.00'), findsOneWidget);
+    // MoneyFormat wraps the token in an LTR isolate (JEBV4-98/F10).
+    expect(find.text('\u2066\$1,000.00\u2069'), findsOneWidget);
   });
 }

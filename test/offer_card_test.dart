@@ -31,7 +31,8 @@ void main() {
     // MoneyFormat renders USD as "$42.50" (currency-unification lane), carried
     // verbatim in the fee pill. Pre-existing stale assertion (was "42.50" + a
     // separate "USD") repaired here so the offers suite stays green.
-    expect(find.text(r'$42.50'), findsOneWidget);
+    // MoneyFormat wraps the token in an LTR isolate (JEBV4-98/F10).
+    expect(find.text('\u2066\$42.50\u2069'), findsOneWidget);
     expect(find.text('18 min ETA'), findsOneWidget);
     expect(find.text('Motorcycle'), findsOneWidget);
     expect(find.text('Accept'), findsOneWidget);

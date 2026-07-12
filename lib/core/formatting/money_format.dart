@@ -7,14 +7,34 @@
 /// symbol for USD (and for a missing/blank currency, which the gateway treats
 /// as USD); `<CODE> <value>` for any other ISO code. Pure Dart — no
 /// Flutter/intl imports so data and domain layers can use it too.
+///
+/// RTL safety (JEBV4-98 / F10): a money token mixes a strong-LTR symbol/ISO
+/// code (`$`, `LBP`) with Western digits. Dropped verbatim into an Arabic
+/// (RTL) paragraph the bidi algorithm reorders the symbol relative to the
+/// digits (`$12.00` reads as `12.00$` on the wrong side, `LBP 15,000.00`
+/// scrambles). Every result is therefore wrapped in a Unicode LTR *isolate*
+/// ([_lri]…[_pdi]) so the amount always lays out left-to-right and keeps its
+/// symbol placement regardless of the surrounding text direction, while
+/// staying a plain [String] usable from data/domain layers.
+///
+/// Digit-policy decision (recorded per the ticket's AC): the numerals stay
+/// Western/ASCII (`0-9`) in both locales — Arabic-Indic digits (`٠-٩`) are a
+/// deliberate *product* call, not made here. Isolation fixes the placement
+/// hazard without silently changing the digit system.
 abstract final class MoneyFormat {
+  /// U+2066 LEFT-TO-RIGHT ISOLATE — opens an LTR-directional run.
+  static const String _lri = '\u2066';
+
+  /// U+2069 POP DIRECTIONAL ISOLATE — closes the run opened by [_lri].
+  static const String _pdi = '\u2069';
+
   /// Formats [amount] in [currency] — `$12.00` for USD, `LBP 15,000.00`
-  /// otherwise.
+  /// otherwise, wrapped in an LTR isolate so it renders correctly in ar/RTL.
   static String format(double amount, {String currency = 'USD'}) {
     final value = _group(amount.toStringAsFixed(2));
     final code = currency.trim().toUpperCase();
-    if (code.isEmpty || code == 'USD') return '\$$value';
-    return '$code $value';
+    final token = (code.isEmpty || code == 'USD') ? '\$$value' : '$code $value';
+    return '$_lri$token$_pdi';
   }
 
   /// Inserts thousands separators into the integer part of a fixed-decimal

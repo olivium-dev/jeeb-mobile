@@ -43,6 +43,7 @@
   "chatVoiceNoteRecordingA11y": "جاري تسجيل رسالة صوتية…",
   "chatVoiceUploadFailed": "فشل إرسال الرسالة الصوتية. اضغط للمحاولة مجدداً.",
   "chatOfferEtaMinutes": "الوصول خلال {minutes} دقيقة",
+  "chatOfferRatingA11y": "تقييم {rating} نجوم",
   "chatSystemOfferAcceptedGeneric": "تم قبول العرض",
   "chatSystemOfferAcceptedNamed": "تم قبول عرض {name}",
   "chatSystemOfferRejectedGeneric": "تم سحب العرض",

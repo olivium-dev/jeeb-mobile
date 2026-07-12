@@ -93,7 +93,8 @@ void main() {
     expect(find.text('View summary'), findsOneWidget);
     // Party name: the customer sees the winning Jeeber.
     expect(find.text('Kamal Hajj'), findsOneWidget);
-    // Locked figures render verbatim.
+    // Locked figures render verbatim from the fixture's priceLabel (this
+    // widget takes an already-formatted label; it does not call MoneyFormat).
     expect(find.text(r'$9.00'), findsOneWidget);
     // Canonical status vocabulary (deliveryStage*).
     expect(find.text('Picked up'), findsOneWidget);

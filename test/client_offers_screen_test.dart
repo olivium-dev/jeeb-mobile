@@ -235,7 +235,8 @@ void main() {
     expect(find.text('Rana'), findsOneWidget);
     // Lane item 3: one MoneyFormat everywhere - the pill renders "$17.50",
     // not a bare "17.50" with a separate currency-code line.
-    expect(find.text('\$17.50'), findsOneWidget);
+    // MoneyFormat wraps the token in an LTR isolate (JEBV4-98/F10).
+    expect(find.text('\u2066\$17.50\u2069'), findsOneWidget);
     expect(find.text('22 min ETA'), findsOneWidget);
     expect(find.text('Bicycle'), findsOneWidget);
   });
@@ -298,6 +299,6 @@ void main() {
     expect(find.byKey(const Key('offer-empty-state')), findsNothing);
     // The parsed fee surfaces on the card via the unified MoneyFormat
     // (6.5 USD -> "$6.50", lane item 3).
-    expect(find.text('\$6.50'), findsWidgets);
+    expect(find.text('\u2066\$6.50\u2069'), findsWidgets);
   });
 }
