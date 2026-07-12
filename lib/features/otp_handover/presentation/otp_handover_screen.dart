@@ -456,12 +456,15 @@ class _OtpInstruction extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final hasError = state.errorMessage == 'invalid_otp';
-    return Text(
-      hasError ? _errorText(l10n) : l10n.otpJeeberInstruction,
-      style: theme.textTheme.titleMedium?.copyWith(
-        color: hasError ? theme.colorScheme.error : null,
+    return Semantics(
+      liveRegion: hasError,
+      child: Text(
+        hasError ? _errorText(l10n) : l10n.otpJeeberInstruction,
+        style: theme.textTheme.titleMedium?.copyWith(
+          color: hasError ? theme.colorScheme.error : null,
+        ),
+        textAlign: TextAlign.center,
       ),
-      textAlign: TextAlign.center,
     );
   }
 
@@ -525,12 +528,15 @@ class _AttemptHint extends StatelessWidget {
     final remaining = OtpHandoverState.maxAttempts - state.wrongAttempts;
     return Padding(
       padding: const EdgeInsets.only(top: Spacing.small),
-      child: Text(
-        l10n.otpAttemptsRemaining(remaining),
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.error,
+      child: Semantics(
+        liveRegion: true,
+        child: Text(
+          l10n.otpAttemptsRemaining(remaining),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.error,
+          ),
+          textAlign: TextAlign.center,
         ),
-        textAlign: TextAlign.center,
       ),
     );
   }
