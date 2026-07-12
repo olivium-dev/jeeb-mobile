@@ -3580,17 +3580,6 @@
   "@cancellationConfirmButton": {
     "description": "T-MOB-024: Submit button label"
   },
-  "cancellationRateLimitMessage": "Weekly cancellation limit reached. You can cancel again on {date}.",
-  "@cancellationRateLimitMessage": {
-    "description": "T-MOB-024: AC2 — rate-limit message shown on 429",
-    "placeholders": {
-      "date": { "type": "String" }
-    }
-  },
-  "cancellationFeeApplied": "Cancellation fee",
-  "@cancellationFeeApplied": {
-    "description": "T-MOB-024: AC3 — fee row label in success sheet"
-  },
   "cancellationWalletCta": "View in Wallet",
   "@cancellationWalletCta": {
     "description": "T-MOB-024: AC3 — CTA to open wallet after fee applied"

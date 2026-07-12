@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
@@ -137,8 +136,6 @@ class _CancellationViewState extends State<_CancellationView> {
   void _onStateChange(BuildContext context, CancellationState state) {
     if (state is CancellationSuccess) {
       _showSuccessSheet(context, state.result);
-    } else if (state is CancellationRateLimited) {
-      _showRateLimitSnack(context, state.retryAfter);
     } else if (state is CancellationTooLate) {
       showOmdsSnackbar(
         context,
@@ -152,23 +149,10 @@ class _CancellationViewState extends State<_CancellationView> {
     }
   }
 
-  void _showRateLimitSnack(BuildContext context, DateTime? retryAfter) {
-    final l10n = AppLocalizations.of(context);
-    final locale = Localizations.localeOf(context).toLanguageTag();
-    final dateStr =
-        retryAfter != null ? DateFormat.yMd(locale).format(retryAfter) : '';
-    final message = l10n.cancellationRateLimitMessage(dateStr);
-    showOmdsSnackbar(context, message: message);
-  }
-
   void _showSuccessSheet(BuildContext context, CancellationResult result) {
     CancellationSuccessSheet.show(
       context: context,
       result: result,
-      onWalletTap: () {
-        Navigator.of(context, rootNavigator: true).pop();
-        context.push('/wallet');
-      },
       onDone: () {
         Navigator.of(context, rootNavigator: true).pop();
         context.pop();

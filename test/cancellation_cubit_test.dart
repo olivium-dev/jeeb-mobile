@@ -21,15 +21,10 @@ class _FakeCancellationRepository implements CancellationRepository {
 
 CancellationResult _fakeResult() => const CancellationResult(
       deliveryId: 'DLV-770013',
-      feeApplied: 2.5,
       weeklyCount: 4,
     );
 
 Future<CancellationResult> _succeed() async => _fakeResult();
-
-Future<CancellationResult> _rateLimited() async {
-  throw CancellationRateLimitException(retryAfter: DateTime(2026, 6, 15));
-}
 
 Future<CancellationResult> _tooLate() async {
   throw const CancellationTooLateException();
@@ -59,29 +54,15 @@ void main() {
       expect(cubit.state, isA<CancellationSuccess>());
     });
 
-    test('Success result carries feeApplied', () async {
+    test('Success result carries the server payload (JEBV4-183: fee-free)',
+        () async {
       final cubit = CancellationCubit(
         _FakeCancellationRepository(behavior: _succeed),
       );
       await cubit.submit(deliveryId: kId, reason: 'changed_mind');
-      expect((cubit.state as CancellationSuccess).result.feeApplied, 2.5);
-    });
-
-    test('submit emits RateLimited on 429', () async {
-      final cubit = CancellationCubit(
-        _FakeCancellationRepository(behavior: _rateLimited),
-      );
-      await cubit.submit(deliveryId: kId, reason: 'changed_mind');
-      expect(cubit.state, isA<CancellationRateLimited>());
-    });
-
-    test('RateLimited carries retryAfter date', () async {
-      final cubit = CancellationCubit(
-        _FakeCancellationRepository(behavior: _rateLimited),
-      );
-      await cubit.submit(deliveryId: kId, reason: 'changed_mind');
-      final state = cubit.state as CancellationRateLimited;
-      expect(state.retryAfter?.year, 2026);
+      final state = cubit.state as CancellationSuccess;
+      expect(state.result.deliveryId, 'DLV-770013');
+      expect(state.result.weeklyCount, 4);
     });
 
     test('submit emits TooLate on 409', () async {

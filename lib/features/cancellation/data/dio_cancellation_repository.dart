@@ -10,7 +10,6 @@ import '../domain/cancellation_result.dart';
 ///       body: { "reason": string, "otherDetails"?: string }
 ///       200  → CancelDeliveryResponse
 ///       409  → too_late_to_cancel
-///       429  → cancel-rate-limit + retryAfter
 ///
 /// Observability: logs `delivery.cancel_requested` and
 /// `delivery.cancel_confirmed` per AC5.
@@ -49,7 +48,6 @@ class DioCancellationRepository implements CancellationRepository {
   CancellationResult _parse(Map<String, dynamic> json) {
     return CancellationResult(
       deliveryId: json['deliveryId'] as String? ?? '',
-      feeApplied: (json['feeApplied'] as num?)?.toDouble() ?? 0,
       weeklyCount: (json['weeklyCount'] as int?) ?? 0,
       retryAfter: _parseDate(json['retryAfter'] as String?),
       strikeCount: json['strikeCount'] as int?,
@@ -65,13 +63,6 @@ class DioCancellationRepository implements CancellationRepository {
 
   Never _handleDioError(DioException e) {
     final status = e.response?.statusCode;
-    if (status == 429) {
-      final data = e.response?.data;
-      final retryStr = data is Map ? data['retryAfter'] as String? : null;
-      throw CancellationRateLimitException(
-        retryAfter: retryStr != null ? DateTime.tryParse(retryStr) : null,
-      );
-    }
     if (status == 409 || status == 422) {
       throw const CancellationTooLateException();
     }

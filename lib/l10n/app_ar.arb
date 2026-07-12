@@ -1161,13 +1161,6 @@
   "cancellationReasonProhibitedItem": "عنصر ممنوع",
   "cancellationOtherHint": "يُرجى التوضيح",
   "cancellationConfirmButton": "تأكيد الإلغاء",
-  "cancellationRateLimitMessage": "وصلت إلى حد الإلغاء الأسبوعي. يمكنك الإلغاء مجددًا في {date}.",
-  "@cancellationRateLimitMessage": {
-    "placeholders": {
-      "date": { "type": "String" }
-    }
-  },
-  "cancellationFeeApplied": "رسوم الإلغاء",
   "cancellationWalletCta": "عرض في المحفظة",
   "cancellationSuccess": "تم إلغاء التوصيل",
   "cancellationTooLate": "فات الأوان على الإلغاء — السائق في الطريق.",

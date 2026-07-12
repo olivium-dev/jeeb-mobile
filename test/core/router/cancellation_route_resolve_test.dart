@@ -44,7 +44,6 @@ class _FakeCancellationRepository implements CancellationRepository {
   }) async {
     return const CancellationResult(
       deliveryId: 'ord_1',
-      feeApplied: 0,
       weeklyCount: 0,
     );
   }

@@ -91,7 +91,6 @@ class _FakeCancellationRepo implements CancellationRepository {
   }) async =>
       const CancellationResult(
         deliveryId: 'DLV-1',
-        feeApplied: 0,
         weeklyCount: 1,
       );
 }

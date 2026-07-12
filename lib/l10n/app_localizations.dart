@@ -1853,9 +1853,6 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('cancellationReasonProhibitedItem');
   String get cancellationOtherHint => _get('cancellationOtherHint');
   String get cancellationConfirmButton => _get('cancellationConfirmButton');
-  String cancellationRateLimitMessage(String date) =>
-      _get('cancellationRateLimitMessage').replaceFirst('{date}', date);
-  String get cancellationFeeApplied => _get('cancellationFeeApplied');
   String get cancellationWalletCta => _get('cancellationWalletCta');
   String get cancellationSuccess => _get('cancellationSuccess');
   String get cancellationTooLate => _get('cancellationTooLate');

@@ -9,7 +9,6 @@ abstract class CancellationRepository {
   /// [reason] is required for Jeeber callers; optional for clients.
   /// [otherDetails] carries free-text when reason == 'other'.
   ///
-  /// Throws [CancellationRateLimitException] on HTTP 429.
   /// Throws [CancellationTooLateException] on HTTP 409.
   /// Throws [CancellationException] on other failures.
   Future<CancellationResult> cancel({
@@ -17,14 +16,6 @@ abstract class CancellationRepository {
     required String reason,
     String? otherDetails,
   });
-}
-
-/// Thrown when the server returns 429 (weekly rate limit exceeded).
-class CancellationRateLimitException implements Exception {
-  const CancellationRateLimitException({this.retryAfter});
-
-  /// The moment the limit resets (ISO-8601 from `retryAfter` field).
-  final DateTime? retryAfter;
 }
 
 /// Thrown when the delivery is already in a terminal / post-pickup state.
