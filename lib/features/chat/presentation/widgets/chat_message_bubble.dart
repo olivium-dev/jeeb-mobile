@@ -214,7 +214,9 @@ class _PhotoBubble extends StatelessWidget {
         ? colorScheme.primary
         : colorScheme.surfaceContainerHigh;
     final onBubble = isSender ? colorScheme.onPrimary : colorScheme.onSurface;
-    return _DirectionalBubble(
+    final authorLabel = isSender ? 'You' : 'Jeeber';
+    final l10n = AppLocalizations.of(context);
+    final bubble = _DirectionalBubble(
       isSender: isSender,
       color: bubbleColor,
       bubbleKey: Key('chat-photo-${message.id}'),
@@ -255,6 +257,7 @@ class _PhotoBubble extends StatelessWidget {
         ],
       ),
     );
+    return Semantics(label: l10n.chatPhotoA11y(authorLabel), child: bubble);
   }
 }
 
@@ -273,7 +276,9 @@ class _ImageBubble extends StatelessWidget {
         : colorScheme.surfaceContainerHigh;
     final onBubble = isSender ? colorScheme.onPrimary : colorScheme.onSurface;
     final url = message.imageUrl ?? '';
-    return _DirectionalBubble(
+    final authorLabel = isSender ? 'You' : 'Jeeber';
+    final l10n = AppLocalizations.of(context);
+    final bubble = _DirectionalBubble(
       isSender: isSender,
       color: bubbleColor,
       symmetricRadius: true,
@@ -317,6 +322,7 @@ class _ImageBubble extends StatelessWidget {
         ],
       ),
     );
+    return Semantics(label: l10n.chatImageA11y(authorLabel), child: bubble);
   }
 }
 
@@ -567,15 +573,27 @@ class _StatusIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (status) {
       case MessageStatus.sending:
-        return Icon(
-          Icons.access_time,
-          size: Sizes.medium,
-          color: color.withValues(alpha: UIConstants.opacityMedium),
+        return Semantics(
+          identifier: 'chat_detail_message_sending',
+          label: AppLocalizations.of(context).chatMessageSendingA11y,
+          child: Icon(
+            Icons.access_time,
+            size: Sizes.medium,
+            color: color.withValues(alpha: UIConstants.opacityMedium),
+          ),
         );
       case MessageStatus.sent:
-        return Icon(Icons.done, size: Sizes.medium, color: color);
+        return Semantics(
+          identifier: 'chat_detail_message_sent',
+          label: AppLocalizations.of(context).chatMessageSentA11y,
+          child: Icon(Icons.done, size: Sizes.medium, color: color),
+        );
       case MessageStatus.delivered:
-        return Icon(Icons.done_all, size: Sizes.medium, color: color);
+        return Semantics(
+          identifier: 'chat_detail_message_delivered',
+          label: AppLocalizations.of(context).chatMessageDeliveredA11y,
+          child: Icon(Icons.done_all, size: Sizes.medium, color: color),
+        );
       case MessageStatus.read:
         return Semantics(
           identifier: 'chat_detail_message_read',
@@ -587,10 +605,14 @@ class _StatusIcon extends StatelessWidget {
           ),
         );
       case MessageStatus.failed:
-        return Icon(
-          Icons.error_outline,
-          size: Sizes.medium,
-          color: Theme.of(context).colorScheme.error,
+        return Semantics(
+          identifier: 'chat_detail_message_failed',
+          label: AppLocalizations.of(context).chatMessageFailedA11y,
+          child: Icon(
+            Icons.error_outline,
+            size: Sizes.medium,
+            color: Theme.of(context).colorScheme.error,
+          ),
         );
     }
   }
