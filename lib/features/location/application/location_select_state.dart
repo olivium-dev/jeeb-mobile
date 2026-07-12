@@ -121,8 +121,15 @@ class LocationSelectState extends Equatable {
     switch (choiceKind) {
       case LocationChoiceKind.current:
         return hasCurrentGps;
-      case LocationChoiceKind.saved:
       case LocationChoiceKind.pinned:
+        // JEBV4-176: a pinned choice is confirmable ONLY once a REAL picked
+        // coordinate was captured. The capture-location placeholder (no live
+        // map yet, B-23 owner-gated) pops WITHOUT a coordinate rather than
+        // fabricate the old Beirut default, so `markPinned(null, null)` leaves
+        // these null and Confirm stays disabled — no fabricated pickup can be
+        // created. A live map writes real pinnedLat/Lng and this re-enables.
+        return pinnedLat != null && pinnedLng != null;
+      case LocationChoiceKind.saved:
         return true;
     }
   }

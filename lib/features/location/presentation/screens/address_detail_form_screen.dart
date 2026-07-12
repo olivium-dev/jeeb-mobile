@@ -141,19 +141,21 @@ class _AddressFormView extends StatefulWidget {
 }
 
 class _AddressFormViewState extends State<_AddressFormView> {
-  // Beirut centre — the neutral fallback pin when neither an existing address
-  // nor a freshly-captured point is available (matches the JM-024 seed centre).
-  static const double _fallbackLat = 33.8886;
-  static const double _fallbackLng = 35.4955;
-
   late final TextEditingController _label;
   late final TextEditingController _building;
   late final TextEditingController _floorApt;
   late final TextEditingController _notes;
   late final TextEditingController _codPhone;
 
-  late double _latitude;
-  late double _longitude;
+  // JEBV4-176: coordinates are nullable and NEVER seeded with a fabricated
+  // fallback. The add path starts with no pin (null) — there used to be a
+  // hardcoded Beirut centre (`33.8886, 35.4955`) here, so a customer could
+  // save a "home" address pinned to downtown Beirut WITHOUT ever picking a
+  // point, silently persisting a fabricated coordinate. Now the user must drop
+  // a REAL pin via "Edit pin" before Save enables; an existing address opens
+  // on its own saved (real) point.
+  double? _latitude;
+  double? _longitude;
   late SavedLocationCategory _category;
   bool _hasPin = false;
 
@@ -166,14 +168,13 @@ class _AddressFormViewState extends State<_AddressFormView> {
     _floorApt = TextEditingController(text: e?.floorApt ?? '');
     _notes = TextEditingController(text: e?.deliveryNotes ?? '');
     _codPhone = TextEditingController(text: e?.codPhone ?? '');
-    _latitude = e?.latitude ?? _fallbackLat;
-    _longitude = e?.longitude ?? _fallbackLng;
+    _latitude = e?.latitude;
+    _longitude = e?.longitude;
     _category = e?.category ?? SavedLocationCategory.home;
-    // The add path opens centred on the neutral fallback point (a valid
-    // coordinate the user can re-pick via "Edit pin"); an existing address
-    // opens on its saved point. The pin preview is therefore always present
-    // (JM-050 AC: "has map pin/preview"), so the save gate is the label alone.
-    _hasPin = true;
+    // Editing an existing address opens on its saved point (pin present); the
+    // add path has no pin until the user picks one via "Edit pin" — no
+    // fabricated coordinate is ever assumed (JEBV4-176).
+    _hasPin = e != null;
   }
 
   @override
@@ -186,9 +187,15 @@ class _AddressFormViewState extends State<_AddressFormView> {
     super.dispose();
   }
 
-  // Save is gated on the label only — the pin preview always carries a valid
-  // coordinate (JM-050 AC; the jm-050 flow fills label-only then saves).
-  bool get _isValid => _label.text.trim().isNotEmpty;
+  // JEBV4-176: Save is gated on a non-empty label AND a REAL dropped pin. The
+  // add path no longer seeds a fabricated Beirut coordinate, so the customer
+  // must pick a point via "Edit pin" before the address can be saved — no
+  // saved address is ever persisted with an invented coordinate.
+  bool get _isValid =>
+      _label.text.trim().isNotEmpty &&
+      _hasPin &&
+      _latitude != null &&
+      _longitude != null;
 
   void _onEditPin() => unawaited(_editPin());
 
@@ -196,11 +203,19 @@ class _AddressFormViewState extends State<_AddressFormView> {
   /// the centre pin (JEBV4-110). Production builds a [GoogleMapPickerLauncher]
   /// from the current context; tests inject a fake via [widget.mapPickerLauncher].
   /// A null result (cancel) leaves the current pin untouched.
+  ///
+  /// JEBV4-176: on the add path there is no seeded coordinate, so `initial` is
+  /// null and the live picker centres on its own neutral camera start; only the
+  /// point the user actually drops is adopted.
   Future<void> _editPin() async {
     final launcher =
         widget.mapPickerLauncher ?? GoogleMapPickerLauncher(context);
+    final lat = _latitude;
+    final lng = _longitude;
     final result = await launcher.pickOnMap(
-      initial: LocationPoint(latitude: _latitude, longitude: _longitude),
+      initial: (lat != null && lng != null)
+          ? LocationPoint(latitude: lat, longitude: lng)
+          : null,
     );
     if (!mounted || result == null) return;
     setState(() {
@@ -214,8 +229,8 @@ class _AddressFormViewState extends State<_AddressFormView> {
     if (!_isValid) return;
     final draft = AddressFormDraft(
       label: _label.text.trim(),
-      latitude: _latitude,
-      longitude: _longitude,
+      latitude: _latitude!,
+      longitude: _longitude!,
       category: _category,
       building: _building.text.trim(),
       floorApt: _floorApt.text.trim(),
