@@ -38,7 +38,7 @@ import '../domain/kyc_submission.dart';
 /// D52/D87: rejection is FINAL — there is NO resubmit CTA here. The old
 /// `kyc-status-resubmit` path was removed for JM-042/043; the rejected branch
 /// now hands off to the dedicated `kyc-rejected` screen (appeal-via-support).
-class KycStatusView extends StatelessWidget {
+class KycStatusView extends StatefulWidget {
   const KycStatusView({super.key, this.onClose});
 
   static const Key pendingTitleKey = Key('kyc-status-pending-title');
@@ -51,6 +51,65 @@ class KycStatusView extends StatelessWidget {
   /// `Navigator.maybePop` so the view works standalone in tests. Used as the
   /// secondary "back to profile" exit on the pending/rejected variants.
   final VoidCallback? onClose;
+
+  @override
+  State<KycStatusView> createState() => _KycStatusViewState();
+}
+
+class _KycStatusViewState extends State<KycStatusView>
+    with WidgetsBindingObserver {
+  /// JEBV4-271 / JEBV4-279 — auto-online after auto-KYC with NO re-login.
+  ///
+  /// On MSI the gateway auto-approves inline, so the submit RESPONSE already maps
+  /// to `approved` and the wizard lands straight on [_ApprovedBody] (which fires
+  /// [JeeberRoleActivator]). This poller is the SAFETY NET for every path that
+  /// instead lands on the pending body: a best-effort auto-approve blip that
+  /// returned `Submitted`, an idempotent replay, or a slower admin approval. While
+  /// the status is still pending we re-read it on a timer AND on app-resume; the
+  /// moment it flips to `approved` the cubit emits it, [_ApprovedBody] renders,
+  /// and the jeeber goes online via `POST /v1/users/me/role/switch` — with NO
+  /// re-login and NO dependence on an FCM push (bug JEBV4-281). Polling stops as
+  /// soon as the status is terminal or the view is disposed, so it never runs
+  /// unbounded.
+  static const Duration _pollInterval = Duration(seconds: 3);
+  Timer? _poll;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _poll = Timer.periodic(_pollInterval, (_) => _refreshWhilePending());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) _refreshWhilePending();
+  }
+
+  /// Re-read status only while it is still non-terminal; cancel the timer once a
+  /// terminal decision is showing so a settled submission is never re-polled.
+  void _refreshWhilePending() {
+    if (!mounted) return;
+    final cubit = context.read<KycWizardCubit?>();
+    if (cubit == null) return;
+    final status = cubit.state.submission.status;
+    final isPending =
+        status == KycStatus.pending || status == KycStatus.notSubmitted;
+    if (!isPending) {
+      _poll?.cancel();
+      _poll = null;
+      return;
+    }
+    unawaited(cubit.refreshStatus());
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -92,8 +151,9 @@ class KycStatusView extends StatelessWidget {
   }
 
   void _close(BuildContext context) {
+    final onClose = widget.onClose;
     if (onClose != null) {
-      onClose!();
+      onClose();
       return;
     }
     Navigator.of(context).maybePop();
@@ -241,15 +301,46 @@ class _ApprovedBodyState extends State<_ApprovedBody> {
   /// True while [_goToFeed] awaits activation, to disable the CTA meanwhile.
   bool _navigating = false;
 
+  /// JEBV4-271 / JEBV4-279: the "do nothing" path must self-heal. The role grant
+  /// commits on the gateway BEFORE the submit response returns, so the first
+  /// switch normally succeeds — but a brief role-grant projection lag can answer
+  /// the first `role/switch` with a 403 ([JeeberActivationOutcome.kycGated]) or a
+  /// transient network blip ([failed]). Rather than strand an approved jeeber
+  /// until they tap "Go to feed", the auto-fire retries a bounded number of times
+  /// with a short backoff so the jeeber comes online on its own, no re-login.
+  static const int _autoActivateMaxAttempts = 5;
+  static const Duration _autoActivateRetryDelay = Duration(seconds: 2);
+
   @override
   void initState() {
     super.initState();
     // Detect KYC=approved → activate the jeeber role the moment this view
     // renders, so the token is re-minted and the shell lights up the Jeeber
-    // surface even before a CTA is tapped. Failures are surfaced on the
-    // explicit "Go to feed" tap, not here.
+    // surface even before a CTA is tapped — with a bounded auto-retry so a
+    // transient failure/projection-lag still resolves without a tap or re-login.
     WidgetsBinding.instance
-        .addPostFrameCallback((_) => unawaited(_activate()));
+        .addPostFrameCallback((_) => unawaited(_autoActivate()));
+  }
+
+  /// Fire the switch on first render and, on a transient failure or a
+  /// still-propagating KYC gate, retry (bounded) so an approved jeeber goes
+  /// online while doing NOTHING. Stops immediately on success, when there is no
+  /// activator (bare harness), or once the widget is gone.
+  Future<void> _autoActivate() async {
+    for (var attempt = 0; attempt < _autoActivateMaxAttempts; attempt++) {
+      final pending = _activate();
+      if (pending == null) return; // no activator wired — degrade to plain nav
+      final outcome = await pending;
+      if (!mounted) return;
+      if (outcome == JeeberActivationOutcome.activated) return;
+      // failed / kycGated → clear the cache so the next attempt re-issues the
+      // switch, then back off briefly (the role grant may still be propagating).
+      _activation = null;
+      if (attempt < _autoActivateMaxAttempts - 1) {
+        await Future<void>.delayed(_autoActivateRetryDelay);
+        if (!mounted) return;
+      }
+    }
   }
 
   /// Resolve the activator from the app-level role cubits + DI and kick the

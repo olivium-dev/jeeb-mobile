@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -6,11 +8,15 @@ import 'package:omds/omds.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
 import '../../../core/notifications/application/offer_lifecycle_signals.dart';
+import '../../../core/role/jeeber_role_activator.dart';
+import '../../../core/role/role_availability_cubit.dart';
+import '../../../core/role/role_cubit.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../jeeber_request_feed/cubit/request_feed_cubit.dart';
 import '../../jeeber_request_feed/cubit/request_feed_state.dart';
 import '../../jeeber_request_feed/cubit/submitted_offers_cubit.dart';
 import '../../jeeber_request_feed/data/dio_submitted_offers_repository.dart';
+import '../../settings/domain/role_switch_repository.dart';
 import '../application/availability_cubit.dart';
 import '../application/availability_state.dart';
 import '../domain/entities/availability_status.dart';
@@ -233,7 +239,24 @@ class _RootBody extends StatelessWidget {
 
 /// State 2/3 dispatch. Reads the availability cubit to choose between the
 /// load-error retry, the no-requests view, and the feed tab view.
-class _RegisteredBody extends StatelessWidget {
+///
+/// JEBV4-271 / JEBV4-279 — auto-online after auto-KYC with NO re-login
+/// (jeeber-surface safety net). When the availability load fails with a
+/// forbidden-capability 403 — the jeeber role is granted server-side but the
+/// local bearer is still CLIENT-scoped, so `/v1/availability` 403s and the
+/// screen shows "Couldn't load your availability" — this fires
+/// [JeeberRoleActivator.activate] (`POST /v1/users/me/role/switch`) to re-mint
+/// the jeeber-capable token, then reloads availability so the jeeber comes
+/// ONLINE on its own. It is the counterpart to KycStatusView's approved-body
+/// activation for EVERY path that reaches the Jeeber dashboard WITHOUT passing
+/// through the KYC approved screen — e.g. a relaunch that lands here via
+/// RoleSync adopting `available_roles: [..., jeeber]` while the token is still
+/// client-scoped (the on-device root cause: role/switch never fired from the
+/// jeeber surface). It runs at most once per mount, with a bounded auto-retry
+/// for a still-propagating role grant, and degrades to a no-op — leaving the
+/// manual Retry CTA — when no activator is wired (bare harness / DI-less test)
+/// or the switch stays gated (kyc) / failed (network).
+class _RegisteredBody extends StatefulWidget {
   const _RegisteredBody({
     required this.profileName,
     required this.onOpenFeedRequest,
@@ -249,19 +272,44 @@ class _RegisteredBody extends StatelessWidget {
   final Widget? activeDeliveriesBanner;
 
   @override
+  State<_RegisteredBody> createState() => _RegisteredBodyState();
+}
+
+class _RegisteredBodyState extends State<_RegisteredBody> {
+  /// A brief role-grant projection lag can answer the first `role/switch` with a
+  /// 403 (kycGated); retry a bounded number of times with a short backoff so the
+  /// jeeber still comes online on its own, mirroring the KYC approved body.
+  static const int _autoActivateMaxAttempts = 5;
+  static const Duration _autoActivateRetryDelay = Duration(seconds: 2);
+
+  /// One-shot per mount: never re-enter activation after a reload re-emits
+  /// loadError (a persistent non-403 failure), so there is no switch/reload loop.
+  bool _autoActivateTried = false;
+
+  @override
   Widget build(BuildContext context) {
     return BlocConsumer<AvailabilityCubit, AvailabilityViewState>(
-      listenWhen: (prev, curr) => prev.toggleError != curr.toggleError,
-      listener: _showToggleErrorSnackbar,
+      listenWhen: (prev, curr) =>
+          prev.toggleError != curr.toggleError ||
+          (curr.loadPhase == AvailabilityLoadPhase.loadError &&
+              prev.loadPhase != AvailabilityLoadPhase.loadError),
+      listener: _onStateChange,
       builder: (context, view) => _RegisteredViewSwitch(
         view: view,
-        profileName: profileName,
-        onOpenFeedRequest: onOpenFeedRequest,
-        hasFeedCubit: hasFeedCubit,
-        submittedOffersCubit: submittedOffersCubit,
-        activeDeliveriesBanner: activeDeliveriesBanner,
+        profileName: widget.profileName,
+        onOpenFeedRequest: widget.onOpenFeedRequest,
+        hasFeedCubit: widget.hasFeedCubit,
+        submittedOffersCubit: widget.submittedOffersCubit,
+        activeDeliveriesBanner: widget.activeDeliveriesBanner,
       ),
     );
+  }
+
+  void _onStateChange(BuildContext context, AvailabilityViewState view) {
+    if (view.toggleError) _showToggleErrorSnackbar(context, view);
+    if (view.loadPhase == AvailabilityLoadPhase.loadError) {
+      unawaited(_autoActivateJeeber());
+    }
   }
 
   void _showToggleErrorSnackbar(
@@ -272,6 +320,41 @@ class _RegisteredBody extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     showOmdsSnackbar(context, message: l10n.availabilityToggleErrorBody);
+  }
+
+  /// Self-heal the availability 403: switch to the jeeber role (re-minting a
+  /// jeeber-capable token) and reload availability. See [_RegisteredBody] doc.
+  Future<void> _autoActivateJeeber() async {
+    if (_autoActivateTried) return;
+    _autoActivateTried = true;
+    final roleCubit = context.read<RoleCubit?>();
+    final roleAvailabilityCubit = context.read<RoleAvailabilityCubit?>();
+    if (roleCubit == null ||
+        roleAvailabilityCubit == null ||
+        !sl.isRegistered<RoleSwitchRepository>()) {
+      return; // no activator wired — leave the manual Retry CTA untouched
+    }
+    // Capture the home cubit before any await so the reload never touches a
+    // possibly-unmounted BuildContext.
+    final availabilityCubit = context.read<AvailabilityCubit>();
+    final activator = JeeberRoleActivator(
+      roleSwitch: sl<RoleSwitchRepository>(),
+      roleCubit: roleCubit,
+      availabilityCubit: roleAvailabilityCubit,
+    );
+    for (var attempt = 0; attempt < _autoActivateMaxAttempts; attempt++) {
+      final outcome = await activator.activate();
+      if (!mounted) return;
+      if (outcome == JeeberActivationOutcome.activated) {
+        availabilityCubit.load(); // reload with the re-minted jeeber token
+        return;
+      }
+      // kycGated (projection lag) / failed (network): back off and retry.
+      if (attempt < _autoActivateMaxAttempts - 1) {
+        await Future<void>.delayed(_autoActivateRetryDelay);
+        if (!mounted) return;
+      }
+    }
   }
 }
 

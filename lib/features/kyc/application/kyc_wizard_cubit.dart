@@ -63,6 +63,43 @@ class KycWizardCubit extends Cubit<KycWizardState> {
     ));
   }
 
+  // ── Status refresh (poll while pending) ───────────────────────────────────
+
+  /// JEBV4-271 / JEBV4-279: quietly re-reads KYC status so a `pending → approved`
+  /// flip is picked up with NO re-login and NO dependence on an FCM push (the
+  /// gateway push path is unreliable, bug JEBV4-281).
+  ///
+  /// On MSI the gateway auto-approves INLINE — the `POST /v1/kyc/submit` RESPONSE
+  /// already carries `state: "Verified"`, so the wizard normally lands straight on
+  /// the approved body (which fires [JeeberRoleActivator]). But auto-approve is
+  /// best-effort server-side (`KycSubmissionBffController.TryAutoApproveAsync`
+  /// swallows any upstream blip and returns the still-`Submitted` state), and an
+  /// idempotent replay or a slower admin approval can likewise leave the caller on
+  /// `pending`. [KycStatusView] therefore polls this on a timer + on app-resume;
+  /// the moment the status turns `approved` the cubit emits it, the approved body
+  /// renders, and the jeeber goes online via `POST /v1/users/me/role/switch`.
+  ///
+  /// Fail-soft and quiet: a transient fetch error is swallowed (the poller just
+  /// retries) and — unlike [loadStatus] — it never toggles
+  /// [KycWizardState.isLoadingStatus], so the pending body never flickers. It
+  /// emits only on a real status change, and a `notSubmitted` read never regresses
+  /// an already-shown submission.
+  Future<void> refreshStatus() async {
+    if (state.step == KycWizardStep.submitting) return;
+    final KycSubmission snapshot;
+    try {
+      snapshot = await _gateway.fetchStatus();
+    } catch (_) {
+      return;
+    }
+    if (snapshot.status == state.submission.status) return;
+    if (snapshot.status == KycStatus.notSubmitted) return;
+    emit(state.copyWith(
+      submission: snapshot,
+      step: KycWizardStep.status,
+    ));
+  }
+
   // ── Capture ──────────────────────────────────────────────────────────────
 
   Future<void> captureIdFront() => _capture(KycCaptureSlot.idFront);
