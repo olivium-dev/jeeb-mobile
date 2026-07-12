@@ -16,6 +16,7 @@ import '../../../profile_name/domain/display_name_repository.dart';
 import '../../application/role_switch_cubit.dart';
 import '../../application/settings_cubit.dart';
 import '../../application/settings_state.dart';
+import '../../domain/account_deletion_policy.dart';
 import '../../domain/account_service.dart';
 import '../../domain/profile_repository.dart';
 import '../widgets/logout_delete_confirm_sheet.dart';
@@ -493,7 +494,7 @@ String? _bannerMessage(SettingsBanner banner, AppLocalizations l10n) {
     case SettingsBanner.signedOut:
       return l10n.signOutCompleted;
     case SettingsBanner.accountDeletionRequested:
-      return l10n.accountDeleteSubmitted;
+      return l10n.accountDeleteSubmitted(kAccountPurgeGraceDays);
     case SettingsBanner.networkError:
       return l10n.settingsNetworkError;
   }

@@ -239,11 +239,23 @@
   "biometricPinIncorrect": "رمز غير صحيح. حاول مجدداً.",
   "accountDeleteRow": "حذف الحساب",
   "accountDeleteSubtitle": "إزالة حسابك في جيب بشكل دائم",
-  "accountDeletePending": "تم طلب الحذف. سنتواصل معك.",
+  "accountDeletePending": "مُجدوَل للحذف. سجّل الدخول مجدداً للإلغاء.",
   "accountDeleteDialogTitle": "هل تريد حذف حسابك في جيب؟",
-  "accountDeleteDialogBody": "سيُدرج حسابك في قائمة الحذف. يجب إكمال الطلبات النشطة قبل إزالة بياناتك.",
+  "accountDeleteDialogBody": "سيتم تعطيل حسابك الآن وحذفه نهائياً بعد {days} يوماً. يجب إكمال أي طلبات نشطة أولاً. سجّل الدخول مجدداً قبل ذلك للإلغاء والاحتفاظ بحسابك.",
+  "@accountDeleteDialogBody": {
+    "description": "Delete-account confirm sheet body. Communicates the E20 soft-delete + scheduled-purge SLA: deactivated now, permanently purged after the grace window, reversible by signing in again. {days} is the purge grace window (kAccountPurgeGraceDays).",
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
   "accountDeleteConfirm": "حذف الحساب",
-  "accountDeleteSubmitted": "تم طلب الحذف. سنؤكد ذلك عبر البريد الإلكتروني.",
+  "accountDeleteSubmitted": "تمت جدولة حذف حسابك بعد {days} يوماً. سجّل الدخول مجدداً قبل ذلك للإلغاء.",
+  "@accountDeleteSubmitted": {
+    "description": "Banner after a delete request is queued. {days} is the purge grace window (kAccountPurgeGraceDays) before the scheduled permanent purge.",
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
   "actionSave": "حفظ",
   "actionDelete": "حذف",
   "actionContinue": "متابعة",

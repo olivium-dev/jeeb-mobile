@@ -357,9 +357,11 @@ class AppLocalizations {
   String get accountDeleteSubtitle => _get('accountDeleteSubtitle');
   String get accountDeletePending => _get('accountDeletePending');
   String get accountDeleteDialogTitle => _get('accountDeleteDialogTitle');
-  String get accountDeleteDialogBody => _get('accountDeleteDialogBody');
+  String accountDeleteDialogBody(int days) =>
+      _get('accountDeleteDialogBody').replaceFirst('{days}', '$days');
   String get accountDeleteConfirm => _get('accountDeleteConfirm');
-  String get accountDeleteSubmitted => _get('accountDeleteSubmitted');
+  String accountDeleteSubmitted(int days) =>
+      _get('accountDeleteSubmitted').replaceFirst('{days}', '$days');
 
   String get actionSave => _get('actionSave');
   String get actionDelete => _get('actionDelete');
