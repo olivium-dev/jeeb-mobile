@@ -10,6 +10,16 @@
 //
 // Both are exercised at a narrow 360x640 surface; the test fails if any
 // RenderFlex overflow (or other) exception is thrown while laying out.
+//
+// JEBV4-286 — a THIRD, distinct right-overflow (27px) was found on S908B
+// (run-26): that device's card content width sits *above* the side-by-side
+// threshold (so the two-Expanded Row is chosen instead of the stacked
+// Column), but the per-button slot is still narrower than "Manage
+// delivery"'s intrinsic icon+label width. Bumping the threshold only moves
+// the breakpoint to the next device, so the fix instead makes the button
+// label itself `Flexible` + ellipsizing (see `_ButtonLabel` in
+// active_deliveries_banner.dart). Exercised below at a 384-wide surface
+// (S908B's approximate logical width) in both LTR and RTL.
 
 import 'dart:async';
 
@@ -55,10 +65,11 @@ List<ActiveDeliverySummary> _deliveries(int n) => List.generate(
 Widget _host({
   required AvailabilityCubit availability,
   required ActiveDeliveriesCubit deliveries,
+  Locale locale = const Locale('en'),
 }) {
   return MaterialApp(
     theme: AppTheme.light(),
-    locale: const Locale('en'),
+    locale: locale,
     supportedLocales: AppLocalizations.supportedLocales,
     localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
       SyncAppLocalizationsDelegate(),
@@ -118,4 +129,43 @@ void main() {
       await deliveries.close();
     },
   );
+
+  for (final locale in [const Locale('en'), const Locale('ar')]) {
+    testWidgets(
+      'jeeber active-delivery card actions do not right-overflow on a '
+      'S908B-width (384) surface in ${locale.languageCode}',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(384, 740));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        final ticker = StreamController<DateTime>.broadcast();
+        addTearDown(ticker.close);
+        final availability = AvailabilityCubit(
+          gateway: InMemoryAvailabilityGateway(),
+          tickerFactory: () => ticker.stream,
+        );
+        addTearDown(availability.close);
+
+        final deliveries = ActiveDeliveriesCubit(
+          repository: _FakeActiveDeliveriesRepo(_deliveries(1)),
+        )..start();
+
+        await tester.pumpWidget(
+          _host(
+            availability: availability,
+            deliveries: deliveries,
+            locale: locale,
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+
+        expect(find.byType(ActiveDeliveriesBanner), findsOneWidget);
+        // JEBV4-286 regression guard: no RenderFlex overflow at this width.
+        expect(tester.takeException(), isNull);
+
+        await deliveries.close();
+      },
+    );
+  }
 }
