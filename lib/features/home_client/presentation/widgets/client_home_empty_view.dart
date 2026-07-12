@@ -205,7 +205,7 @@ class _EmptyHomeHero extends StatelessWidget {
 
   TextStyle? _subtitleStyle(ThemeData theme) =>
       theme.textTheme.bodyMedium?.copyWith(
-        color: theme.colorScheme.onSecondaryContainer,
+        color: theme.colorScheme.onSurfaceVariant,
       );
 }
 

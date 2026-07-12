@@ -106,7 +106,7 @@ class _PendingSummary extends StatelessWidget {
     return Text(
       text,
       style: theme.textTheme.bodySmall?.copyWith(
-        color: theme.colorScheme.onSecondaryContainer,
+        color: theme.colorScheme.onSurfaceVariant,
         letterSpacing: 0.4,
       ),
       maxLines: 2,

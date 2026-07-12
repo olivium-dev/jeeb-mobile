@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/auth/data/dio_auth_repository.dart';
 import '../../features/auth/domain/auth_repository.dart';
+import '../../features/background_gps/data/geolocator_geocapture_gateway.dart';
+import '../../features/background_gps/domain/location_permission.dart';
 import '../../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../../features/biometric_auth/data/dev_biometric_gateway.dart';
 import '../../features/biometric_auth/data/shared_prefs_pin_repository.dart';
@@ -383,7 +385,26 @@ void configureDependencies({
 
   // Availability toggle — Jeeber online/offline state via geolocation-service.
   sl.registerLazySingleton<AvailabilityGateway>(
-    () => DioAvailabilityGateway(sl<Dio>(), tokenStore: sl<AuthTokenStore>()),
+    () => DioAvailabilityGateway(
+      sl<Dio>(),
+      tokenStore: sl<AuthTokenStore>(),
+      // E16 (JEBV4-211): stamp the jeeber's REAL device fix onto go-online
+      // instead of the old hardcoded Damascus coordinates. Ensure a
+      // whileInUse/always grant before a one-shot fix; DioAvailabilityGateway
+      // degrades to "no coordinates" (never a fake fix) if this throws.
+      locationFix: () async {
+        final gateway = GeolocatorGeocaptureGateway();
+        var permission = await gateway.currentPermission();
+        if (permission == LocationPermission.denied ||
+            permission == LocationPermission.notDetermined) {
+          permission = await gateway.requestAlwaysPermission();
+        }
+        if (permission == LocationPermission.denied) {
+          throw StateError('location-permission-denied');
+        }
+        return gateway.currentFix();
+      },
+    ),
   );
 
   // Remote notification prefs — syncs with gateway notification-service.

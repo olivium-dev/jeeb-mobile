@@ -119,7 +119,7 @@ class _RepliesSummary extends StatelessWidget {
     return Text(
       text,
       style: theme.textTheme.bodySmall?.copyWith(
-        color: theme.colorScheme.onSecondaryContainer,
+        color: theme.colorScheme.onSurfaceVariant,
         letterSpacing: 0.4,
       ),
       maxLines: 2,
@@ -155,35 +155,29 @@ class _RepliesActions extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
         IntrinsicWidth(
-          child: SizedBox(
-            height: Sizes.twoXLarge,
-            child: Semantics(
-              // JM-027 AC: Accept → offer-accept-confirm sheet (JM-029).
-              identifier: 'replies_accept_cta',
-              button: true,
-              child: OMDSOutlinedButton(
-                key: Key('replies-accept-${request.id}'),
-                text: l10n.offersCardAccept,
-                onTap: onAccept,
-                borderRadius: OMDSBorderRadius.pill,
-              ),
+          child: Semantics(
+            // JM-027 AC: Accept → offer-accept-confirm sheet (JM-029).
+            identifier: 'replies_accept_cta',
+            button: true,
+            child: OMDSOutlinedButton(
+              key: Key('replies-accept-${request.id}'),
+              text: l10n.offersCardAccept,
+              onTap: onAccept,
+              borderRadius: OMDSBorderRadius.pill,
             ),
           ),
         ),
         const SizedBox(width: Spacing.small),
         IntrinsicWidth(
-          child: SizedBox(
-            height: Sizes.twoXLarge,
-            child: Semantics(
-              // JM-027 AC: Check Offers → offer-review-list (JM-028), NOT chat.
-              identifier: 'replies_check_offers_cta',
-              button: true,
-              child: OmdsPrimaryButton(
-                key: Key('replies-check-offers-${request.id}'),
-                text: l10n.homeRepliesCheckOffersCta,
-                onTap: onCheckOffers,
-                borderRadius: OmdsBorderRadius.pill,
-              ),
+          child: Semantics(
+            // JM-027 AC: Check Offers → offer-review-list (JM-028), NOT chat.
+            identifier: 'replies_check_offers_cta',
+            button: true,
+            child: OmdsPrimaryButton(
+              key: Key('replies-check-offers-${request.id}'),
+              text: l10n.homeRepliesCheckOffersCta,
+              onTap: onCheckOffers,
+              borderRadius: OmdsBorderRadius.pill,
             ),
           ),
         ),
@@ -269,7 +263,7 @@ class _OfferOverflowCount extends StatelessWidget {
     return Text(
       '+$extra',
       style: theme.textTheme.titleMedium?.copyWith(
-        color: theme.colorScheme.onSecondaryContainer,
+        color: theme.colorScheme.onSurfaceVariant,
         fontWeight: FontWeight.w500,
       ),
     );

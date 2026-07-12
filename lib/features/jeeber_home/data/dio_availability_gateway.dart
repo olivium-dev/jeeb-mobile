@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../../../core/network/auth_token_store.dart';
 import '../../../core/network/mock_gateway_client.dart';
+import '../../background_gps/domain/gps_sample.dart';
 import '../domain/entities/availability_status.dart';
 import '../domain/services/availability_gateway.dart';
 
@@ -20,10 +21,24 @@ import '../domain/services/availability_gateway.dart';
 /// the feed renders State 3 (JM-048). `available` maps to
 /// [AvailabilityState.online]/[AvailabilityState.offline].
 class DioAvailabilityGateway implements AvailabilityGateway {
-  const DioAvailabilityGateway(this._dio, {this.jeeberId, this.tokenStore});
+  const DioAvailabilityGateway(
+    this._dio, {
+    this.jeeberId,
+    this.tokenStore,
+    this.locationFix,
+  });
 
   final Dio _dio;
   final AuthTokenStore? tokenStore;
+
+  /// One-shot device GPS fix used to stamp the jeeber's REAL coordinates onto
+  /// the go-online toggle (E16 — replaces the hardcoded Damascus
+  /// 33.5138/36.2765 fallback). Injected as a function seam so this data layer
+  /// never imports `geolocator` directly (JEEB-BOUNDARIES §F9) and tests can
+  /// script a fix. When null, or when the fix throws (permission denied /
+  /// location services off), the jeeber still goes online but WITHOUT
+  /// coordinates — never a fabricated fix.
+  final Future<GpsSample> Function()? locationFix;
 
   /// The jeeber whose availability this gateway reads. Explicit override for
   /// tests / seams; when absent the REAL authenticated session id is resolved
@@ -77,19 +92,41 @@ class DioAvailabilityGateway implements AvailabilityGateway {
             )
           : await _dio.patch<Map<String, dynamic>>(
               _livePath,
-              data: goOnline
-                  ? {
-                      'online': true,
-                      'vehicleType': 'car',
-                      'zone': 'default',
-                      'latitude': 33.5138,
-                      'longitude': 36.2765,
-                    }
-                  : {'online': false},
+              data: goOnline ? await _onlinePayload() : {'online': false},
             );
       return _parse(response.data ?? {});
     } on DioException catch (e) {
       throw AvailabilityGatewayException(e.message ?? 'toggle failed');
+    }
+  }
+
+  /// Live-lane go-online body. Stamps the jeeber's REAL device coordinates
+  /// when a fix is available; on any failure the jeeber still goes online but
+  /// without coordinates (E16 removes the old hardcoded Damascus fallback
+  /// rather than swapping in another fake fix).
+  Future<Map<String, dynamic>> _onlinePayload() async {
+    final payload = <String, dynamic>{
+      'online': true,
+      'vehicleType': 'car',
+      'zone': 'default',
+    };
+    final fix = await _tryLocationFix();
+    if (fix != null) {
+      payload['latitude'] = fix.latitude;
+      payload['longitude'] = fix.longitude;
+    }
+    return payload;
+  }
+
+  Future<GpsSample?> _tryLocationFix() async {
+    final capture = locationFix;
+    if (capture == null) return null;
+    try {
+      return await capture();
+    } catch (_) {
+      // Permission denied / location services off / plugin error: go online
+      // without coordinates instead of substituting a fake city-centre fix.
+      return null;
     }
   }
 

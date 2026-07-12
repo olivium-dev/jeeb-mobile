@@ -239,7 +239,7 @@ class _SheetTextBlock extends StatelessWidget {
             subtitle,
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSecondaryContainer,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
         ),
