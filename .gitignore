@@ -87,10 +87,11 @@ docs/figma-cache/
 /org/
 /samples/
 
-# Firebase build input (secret) — never commit. Copy the committed
-# *.template files alongside these paths and fill in real values, or run
-# `flutterfire configure`.
-android/app/google-services.json
+# Firebase Android build input — the real jeeb-5a293 google-services.json is now
+# committed (JEBV4-173/JEBV4-223) so fresh clones build staging/production
+# without a skip-worktree overlay. google-services.json holds Firebase *client*
+# config (public by design), not a private key. iOS + generated options stay
+# ignored below; copy the committed *.template or run `flutterfire configure`.
 ios/Runner/GoogleService-Info.plist
 # FlutterFire-generated real options (placeholder template stays committed).
 lib/core/firebase/firebase_options.g.dart
