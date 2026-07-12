@@ -14,11 +14,7 @@ import '../session/session_state.dart';
 import 'profile_unavailable_screen.dart';
 import 'root_aware_back_scope.dart';
 import '../../features/account_status/presentation/account_status_screen.dart';
-import '../../features/auth/presentation/login_screen.dart';
-import '../../features/auth/presentation/recover_password_screen.dart';
 import '../../features/auth/presentation/set_password_screen.dart';
-import '../../features/auth/presentation/sign_up_screen.dart';
-import '../../features/auth/presentation/verify_recovery_code_screen.dart';
 import '../../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../../features/biometric_auth/application/biometric_lock_state.dart';
 import '../../features/biometric_auth/presentation/biometric_lock_screen.dart';
@@ -229,16 +225,15 @@ class AppRouter {
   AppRouter._();
 
   // Pre-auth destinations a logged-out user may reach WITHOUT the first-run
-  // session gate bouncing them back. The W0 auth funnel (CTO-D1) adds the new
-  // email-first screens alongside the legacy `/register` (kept as the reused
-  // phone-OTP verify step, JM-009). `/recover/verify` is nested under `/recover`
-  // and matched by prefix below (a `matchedLocation` startsWith check).
+  // session gate bouncing them back. The hidden email/password funnel
+  // (`/login`, `/sign-up`, `/recover`, `/recover/verify`) was removed in
+  // JEBV4-199 (Q-044); `/register` is now the sole phone-OTP auth entry, with
+  // Apple/Google social offered on it. `/set-password` survives for the
+  // authenticated password-security settings path (JM-061) and is retained here
+  // only for defensive routing (the gate lets it through when authenticated).
   static const Set<String> _preAuthRoutes = {
     '/onboarding',
     '/register',
-    '/login',
-    '/sign-up',
-    '/recover',
     '/set-password',
   };
   static const String _lockRoute = '/lock';
@@ -247,13 +242,8 @@ class AppRouter {
   /// (`status ∈ {suspended, locked}`) is forced here and ALL tabs are blocked.
   static const String _accountStatusRoute = '/account-status';
 
-  /// True when [loc] is one of the pre-auth funnel destinations (exact match or
-  /// nested under one, e.g. `/recover/verify` under `/recover`).
-  static bool _isPreAuth(String loc) {
-    if (_preAuthRoutes.contains(loc)) return true;
-    // Nested verify step lives at `/recover/verify`.
-    return loc.startsWith('/recover/');
-  }
+  /// True when [loc] is one of the pre-auth destinations.
+  static bool _isPreAuth(String loc) => _preAuthRoutes.contains(loc);
 
   /// Debug-only chat-capture selector, resolved at RUNTIME from [DevSeam]
   /// (replaces the compile-time `JEEB_DEV_CHAT`). When non-empty the router
@@ -315,8 +305,8 @@ class AppRouter {
   ///   * onboarding incomplete, not on a pre-auth route → `/onboarding`
   ///   * onboarding complete but on `/onboarding`        → `/`
   ///   * onboarding complete, NO valid token, not on a pre-auth route
-  ///       → `/login` (the W0 email-first login destination, CTO-D1; replaces
-  ///       the legacy `/register` target)
+  ///       → `/register` (the phone-OTP auth entry, with Apple/Google social;
+  ///       the hidden email/password `/login` funnel was removed, JEBV4-199)
   ///   * onboarding complete, token present, account `status ∈ {suspended,
   ///       locked}` → `/account-status` (D5; blocks ALL tabs, the only exits are
   ///       support + sign-out)
@@ -329,7 +319,7 @@ class AppRouter {
   ///
   /// The session check uses [SessionGate.isUnauthenticated] (not
   /// `!isAuthenticated`) so the cold-start `unknown` phase is a no-op and we
-  /// never flash `/login` while the keystore read is in flight. Likewise the
+  /// never flash `/register` while the keystore read is in flight. Likewise the
   /// account-status gate keys on [AccountStatusGate.isBlocked] (false until the
   /// status read resolves) so it never flashes `/account-status` on launch.
   static String? _firstRunRedirect(
@@ -343,9 +333,11 @@ class AppRouter {
     final atPreAuth = _isPreAuth(loc);
     if (!completed && !atPreAuth) return '/onboarding';
     if (completed && loc == '/onboarding') return '/';
-    // FR-P0-3: onboarded-but-tokenless user must log in before reaching Home.
+    // FR-P0-3: onboarded-but-tokenless user must authenticate before reaching
+    // Home. Lands on the phone-OTP entry (`/register`, with Apple/Google social)
+    // — the hidden email/password `/login` funnel was removed (JEBV4-199).
     if (completed && session.isUnauthenticated && !atPreAuth) {
-      return '/login';
+      return '/register';
     }
     // JM-066 / D5: a suspended/locked account is forced to `/account-status`
     // and cannot reach any tab. Only evaluated once a session exists (a blocked
@@ -403,13 +395,13 @@ class AppRouter {
   /// PUSHED screen still pops to its real parent; the fallback is only consumed
   /// at the true stack root. `/` is safe as a universal fallback because the
   /// first-run redirect re-routes it to the correct destination for the user's
-  /// auth state (Home when authenticated, `/onboarding` or `/login` otherwise),
-  /// so a wrapped screen can never strand a logged-out user on Home.
+  /// auth state (Home when authenticated, `/onboarding` or `/register`
+  /// otherwise), so a wrapped screen can never strand a logged-out user on Home.
   ///
   /// EXCLUSIONS — routes deliberately ABSENT here (never wrapped), and why:
-  ///   * tab/home + first-run roots (`shell`, `onboarding`, `register`,
-  ///     `login`): BACK there legitimately exits the app; wrapping would trap
-  ///     the user (BACK could never leave). (`login` also self-wraps below.)
+  ///   * tab/home + first-run roots (`shell`, `onboarding`, `register`):
+  ///     BACK there legitimately exits the app; wrapping would trap the user
+  ///     (BACK could never leave).
   ///   * gate screens (`biometric-lock`, `account-status`): BACK must not
   ///     bypass the lock / blocked-account gate.
   ///   * mandatory blind-rating screens (`feedback`, `mutual-rating`): they
@@ -423,11 +415,8 @@ class AppRouter {
   ///     (debug-only) — never a real user destination.
   @visibleForTesting
   static const Map<String, String> backFallbacks = {
-    // ── W0 auth funnel sub-screens (pre-auth; the redirect gate re-routes the
-    //    fallback for the user's auth state).
-    'sign-up': '/login',
-    'recover-password': '/login',
-    'recover-verify': '/recover',
+    // ── set-password (JM-061 password-security; the email/password sign-in
+    //    funnel that used to sit alongside it was removed in JEBV4-199).
     'set-password': '/',
     // ── W1 core customer journey.
     'offer-review': '/',
@@ -693,49 +682,23 @@ class AppRouter {
           // empty-state). The W0-A engineer fills in the cubit-driven body.
           builder: (context, state) => const BiometricLockScreen(),
         ),
-        // ── WAVE 0 auth funnel (CTO-D1 email-first; 21_NAV_PLAN §B batch W0,
-        //    50_EXECUTION_PLAN §"Exact W0 integrator route additions"). These
-        //    register the routes + reach their stub roots; the W0 engineers
-        //    (JM-007/008/020/021/022) replace each screen body. `/register`
-        //    above is kept as the reused phone-OTP verify step (JM-009).
-        GoRoute(
-          path: '/login',
-          name: 'login',
-          builder: (context, state) => const LoginScreen(),
-        ),
-        GoRoute(
-          path: '/sign-up',
-          name: 'sign-up',
-          builder: (context, state) => const SignUpScreen(),
-        ),
-        GoRoute(
-          path: '/recover',
-          name: 'recover-password',
-          builder: (context, state) => const RecoverPasswordScreen(),
-          routes: [
-            // Nested verify-code step (JM-021). Email-based recovery, NOT
-            // phone-anchored.
-            GoRoute(
-              path: 'verify',
-              name: 'recover-verify',
-              builder: (context, state) => const VerifyRecoveryCodeScreen(),
-            ),
-          ],
-        ),
+        // ── The hidden email/password auth funnel (`/login`, `/sign-up`,
+        //    `/recover`, `/recover/verify`) was REMOVED in JEBV4-199 (Q-044
+        //    RATIFIED): the only end-user auth surfaces are phone-OTP
+        //    (`/register`, above) + Apple/Google social (offered on it). The
+        //    app-side super-login dev/test path is unaffected (registration).
+        //    `/set-password` survives for the authenticated password-security
+        //    settings flow (JM-061) — a social-only account adding a password.
         GoRoute(
           path: '/set-password',
           name: 'set-password',
-          // JM-022 / D90 dual exit: `?mode=recovery|in-app-social`. Defaults to
-          // recovery (the most common entry) when absent/unrecognised (R-F).
-          //
-          // Recovery identity forwarding (50_ROUTE_REQUESTS JM-022): the
-          // verify-code step (JM-021) hands `email` + `resetToken` to this route
-          // via BOTH the query string AND `extra` (a `Map<String, String>`). The
-          // recovery-mode submit needs `resetToken` to reach
-          // `POST /v1/auth/set-password` (401 `invalid_token` otherwise,
-          // 42_GUARDRAILS_MOCK W-1 FLOOR). We read the query params first (they
-          // survive a cold reload of the URL), then fall back to the typed
-          // `extra` Map; in-app-social mode supplies neither and renders fine.
+          // JM-061 in-app-social only. The recovery mode + its email/password
+          // recovery funnel were removed in JEBV4-199, so this route now serves
+          // solely the authenticated "social-only account adds a password"
+          // settings path. `email`/`resetToken` remain optional inputs an
+          // authenticated caller may forward (read from the query first — they
+          // survive a cold URL reload — then the typed `extra` Map); neither is
+          // required in-app-social.
           builder: (context, state) {
             final query = state.uri.queryParameters;
             final extra = state.extra;
@@ -745,7 +708,6 @@ class AppRouter {
             final email = query['email'] ?? extraMap['email'] ?? '';
             final resetToken = query['resetToken'] ?? extraMap['resetToken'];
             return SetPasswordScreen(
-              mode: SetPasswordMode.fromQuery(query['mode']),
               email: email,
               resetToken: resetToken,
             );

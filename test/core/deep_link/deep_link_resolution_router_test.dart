@@ -195,7 +195,7 @@ void main() {
     });
 
     testWidgets(
-        'GUARDRAIL: unauthenticated jeeb://orders/d-1 is bounced to /login',
+        'GUARDRAIL: unauthenticated jeeb://orders/d-1 is bounced to /register',
         (tester) async {
       await pump(
         tester,
@@ -210,10 +210,9 @@ void main() {
       await tester.pumpAndSettle();
 
       // The auth gate refused to open the order; the deep link landed on the
-      // auth entry instead — `/login` (CTO-D1; it replaced the DEFECT-3-era
-      // `/register` target and promotes phone-OTP as primary when email auth
-      // is gated off).
-      expect(location(), '/login');
+      // auth entry instead — `/register` (phone-OTP + Apple/Google social; the
+      // email/password `/login` funnel was removed in JEBV4-199).
+      expect(location(), '/register');
       expect(find.byType(DeliveryDetailScreen), findsNothing);
     });
   });

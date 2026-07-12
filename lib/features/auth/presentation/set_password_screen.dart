@@ -11,47 +11,40 @@ import '../application/set_password_state.dart';
 import '../data/dio_auth_repository.dart';
 import '../domain/auth_repository.dart';
 
-/// The two exits of the set-password screen (D90 dual exit, JM-022).
-///   * [recovery]    — reached from `/recover/verify`; on success → `/login`.
-///   * inAppSocial   — reached from password-security for a social-only account;
+/// The exit of the set-password screen (JM-061 password-security, D90).
+///   * [inAppSocial] — reached from password-security for a social-only account;
 ///                     on success → customer-profile.
+///
+/// The former `recovery` mode (reached from the hidden email/password recovery
+/// funnel) was removed with that funnel (JEBV4-199, Q-044): the only end-user
+/// auth surfaces are phone-OTP + Apple/Google social, so there is no email
+/// recovery flow to land here anymore. This screen now serves ONLY the
+/// authenticated password-security settings path.
 enum SetPasswordMode {
-  recovery,
   inAppSocial;
 
-  /// Parses the `?mode=` query param. Defaults to [recovery] (the most common
-  /// entry, from the recovery funnel) when absent/unrecognised (R-F).
-  static SetPasswordMode fromQuery(String? value) {
-    switch (value) {
-      case 'in-app-social':
-        return SetPasswordMode.inAppSocial;
-      case 'recovery':
-      default:
-        return SetPasswordMode.recovery;
-    }
-  }
+  /// Parses the `?mode=` query param. Always resolves to [inAppSocial] — the
+  /// single surviving mode — regardless of the (now legacy) value (R-F).
+  static SetPasswordMode fromQuery(String? value) => SetPasswordMode.inAppSocial;
 }
 
-/// `auth-set-password` (JM-022). Dual-mode set-password screen
-/// (`?mode=recovery|in-app-social`, D90). New + confirm password fields with
+/// `auth-set-password` (JM-022, JM-061). In-app-social set-password screen
+/// (`?mode=in-app-social`, D90). New + confirm password fields with
 /// strength/mismatch validation and per-field eye toggles.
 ///
 /// Data flows through [AuthRepository.setPassword] → `POST /v1/auth/set-password`
-/// (the VERIFIED W-1 FLOOR contract, 42_GUARDRAILS_MOCK). On success:
-///   * recovery     → `/login` (`login` route, login_email_field)
-///   * in-app-social → customer-profile (`customer-profile` route,
-///                     customer_profile_wallet_chip) [D90, JM-035]
+/// (the VERIFIED W-1 FLOOR contract, 42_GUARDRAILS_MOCK). On success it lands on
+/// customer-profile (`customer-profile` route, customer_profile_wallet_chip)
+/// [D90, JM-035].
 ///
-/// `email` + `resetToken` arrive from the verify-code step (JM-021). The
-/// route builder passes the `mode` query param today; the integrator forwards
-/// `email`/`resetToken` via `extra` (see 50_ROUTE_REQUESTS.md). When absent
-/// (cold deep-link / the `jeeb.seam.set_password_mode` capture path) the screen
-/// still renders — the in-app-social mode does not require a reset token, and
-/// the recovery Maestro path supplies the token end-to-end.
+/// Reached ONLY from password-security (a social-only account adding a password
+/// from settings). The former recovery entry (email/password recovery funnel)
+/// was removed in JEBV4-199; `email`/`resetToken` stay as optional inputs the
+/// authenticated caller may forward but are not required in-app-social.
 class SetPasswordScreen extends StatelessWidget {
   const SetPasswordScreen({
     super.key,
-    this.mode = SetPasswordMode.recovery,
+    this.mode = SetPasswordMode.inAppSocial,
     this.email = '',
     this.resetToken,
     this.cubitFactory,
@@ -123,19 +116,13 @@ class _SetPasswordViewState extends State<_SetPasswordView> {
         );
   }
 
-  /// Routes off the screen on a successful set-password (D90 dual exit). Runs
-  /// only in the `listener` (never the builder), gated by the succeeded edge.
+  /// Routes off the screen on a successful set-password. Runs only in the
+  /// `listener` (never the builder), gated by the succeeded edge.
   void _onSucceeded(BuildContext context) {
-    switch (widget.mode) {
-      case SetPasswordMode.recovery:
-        // EDGE: set-password (recovery) → login (60_W0_TEST_PLAN nav matrix,
-        // JM-022 → JM-007).
-        context.goNamed('login');
-      case SetPasswordMode.inAppSocial:
-        // EDGE: set-password (in-app-social) → customer-profile
-        // (60_W0_TEST_PLAN nav matrix, JM-022 → JM-035, D90).
-        context.goNamed('customer-profile');
-    }
+    // EDGE: set-password (in-app-social) → customer-profile
+    // (60_W0_TEST_PLAN nav matrix, JM-022 → JM-035, D90). This is the only
+    // surviving exit now that the email recovery funnel is gone (JEBV4-199).
+    context.goNamed('customer-profile');
   }
 
   @override

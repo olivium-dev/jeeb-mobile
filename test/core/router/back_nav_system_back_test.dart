@@ -2,23 +2,24 @@
 //
 // DEFECT: pressing the SYSTEM back gesture (Android hardware/gesture back, the
 // `BackButtonDispatcher`/`PopScope` path — distinct from the AppBar back BUTTON
-// covered by `back_button_blank_surface_test.dart`) on `order-detail`, `Login`,
-// or `Saved-addresses` EXITED the app to the launcher instead of popping to the
-// parent.
+// covered by `back_button_blank_surface_test.dart`) on `order-detail` or
+// `Saved-addresses` EXITED the app to the launcher instead of popping to the
+// parent. (The `Login` case was removed with the email/password funnel in
+// JEBV4-199; `/register` is a shell root, exempt from the wrap.)
 //
 // ROOT CAUSE (go vs push): those screens can become the ROOT of the navigation
-// stack — reached via `context.go(...)`/`goNamed(...)` (the auth funnel →
-// `/login`, customer-profile → `/settings/addresses`) or via an inbound
-// delivery push-notification / deep link (`GoRouter.go('/orders/:id')`). `go`
-// REPLACES the stack, so there is nothing beneath the screen; the system BACK
-// gesture has no pop target and propagates to the OS, exiting the app.
-// (`context.push(...)` keeps the parent on the stack and does not exhibit this.)
+// stack — reached via `context.go(...)`/`goNamed(...)` (customer-profile →
+// `/settings/addresses`) or via an inbound delivery push-notification / deep
+// link (`GoRouter.go('/orders/:id')`). `go` REPLACES the stack, so there is
+// nothing beneath the screen; the system BACK gesture has no pop target and
+// propagates to the OS, exiting the app. (`context.push(...)` keeps the parent
+// on the stack and does not exhibit this.)
 //
 // FIX: each screen is wrapped in `RootAwareBackScope`, which pops normally when
 // a back stack exists and otherwise redirects BACK to the screen's logical
-// parent (`/` for order-detail, `/register` for login, `/settings` for
-// saved-addresses) instead of exiting. This test drives the REAL screens via a
-// router and the REAL system-back gesture (the `popRoute` platform message).
+// parent (`/` for order-detail, `/settings` for saved-addresses) instead of
+// exiting. This test drives the REAL screens via a router and the REAL
+// system-back gesture (the `popRoute` platform message).
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -26,7 +27,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:jeeb_mobile/features/auth/presentation/login_screen.dart';
 import 'package:jeeb_mobile/features/deep_link_targets/delivery_detail_screen.dart';
 import 'package:jeeb_mobile/features/location/domain/saved_location.dart';
 import 'package:jeeb_mobile/features/location/domain/saved_location_repository.dart';
@@ -87,11 +87,6 @@ void main() {
                 const Scaffold(body: Center(child: Text('HOME-SHELL'))),
           ),
           GoRoute(
-            path: '/register',
-            builder: (context, state) =>
-                const Scaffold(body: Center(child: Text('REGISTER-PARENT'))),
-          ),
-          GoRoute(
             path: '/settings',
             builder: (context, state) =>
                 const Scaffold(body: Center(child: Text('SETTINGS-PARENT'))),
@@ -100,10 +95,6 @@ void main() {
             path: '/orders/:id',
             builder: (context, state) =>
                 DeliveryDetailScreen(deliveryId: state.pathParameters['id']!),
-          ),
-          GoRoute(
-            path: '/login',
-            builder: (context, state) => const LoginScreen(),
           ),
           GoRoute(
             path: '/settings/addresses',
@@ -176,25 +167,6 @@ void main() {
 
       expect(locationOf(router), '/');
       expect(find.text('HOME-SHELL'), findsOneWidget);
-    },
-  );
-
-  testWidgets(
-    'system BACK from Login reached via go() (auth funnel root) pops to '
-    '/register, not the launcher',
-    (tester) async {
-      final router = await pump(tester);
-
-      router.go('/login');
-      await tester.pumpAndSettle();
-      expect(find.byType(LoginScreen), findsOneWidget);
-      expect(locationOf(router), '/login');
-
-      await systemBack(tester);
-      await tester.pumpAndSettle();
-
-      expect(locationOf(router), '/register');
-      expect(find.text('REGISTER-PARENT'), findsOneWidget);
     },
   );
 

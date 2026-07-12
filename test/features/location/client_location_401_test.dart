@@ -61,10 +61,10 @@ GoRouter _buildRouter() {
         ),
       ),
       GoRoute(
-        path: '/login',
-        name: 'login',
+        path: '/register',
+        name: 'register',
         builder: (context, state) =>
-            const Scaffold(body: Center(child: Text('LOGIN'))),
+            const Scaffold(body: Center(child: Text('REGISTER'))),
       ),
       GoRoute(
         path: '/waiting/:id',
@@ -155,8 +155,8 @@ void main() {
           'Please log in again to send your request.'),
       findsOneWidget,
     );
-    expect(_locationOf(router), '/login');
-    expect(find.text('LOGIN'), findsOneWidget);
+    expect(_locationOf(router), '/register');
+    expect(find.text('REGISTER'), findsOneWidget);
   });
 
   testWidgets(

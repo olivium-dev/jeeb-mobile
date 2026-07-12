@@ -830,11 +830,13 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
       // (e.g. an expired or seam-minted token the live gateway rejects) —
       // retrying with the same session can never succeed. Tell the user the
       // truth and route to re-auth instead of a dead-end generic failure.
+      // Re-auth is the phone-OTP entry (`/register`, with Apple/Google social);
+      // the email/password `/login` funnel was removed in JEBV4-199.
       if (e.failure == RequestSubmissionFailure.unauthorized) {
         messenger?.showSnackBar(
           SnackBar(content: Text(l10n.createSessionExpired)),
         );
-        router.goNamed('login');
+        router.goNamed('register');
         return;
       }
       // Stay on the location step and surface a retryable error — never hand

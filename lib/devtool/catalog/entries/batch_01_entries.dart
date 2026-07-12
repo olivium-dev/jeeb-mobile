@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -20,24 +19,14 @@ import '../../../features/active_delivery_jeeber/domain/jeeber_delivery_status.d
 import '../../../features/active_delivery_jeeber/presentation/active_delivery_jeeber_screen.dart';
 
 // ── auth ─────────────────────────────────────────────────────────────────────
-import '../../../features/auth/application/login_cubit.dart';
-import '../../../features/auth/application/login_state.dart';
-import '../../../features/auth/application/recover_password_cubit.dart';
-import '../../../features/auth/application/recover_password_state.dart';
+// The hidden email/password funnel entries (login / sign-up / recover /
+// verify-recovery / social-collision) were removed with that funnel in
+// JEBV4-199. Only the set-password screen survives (JM-061 password-security).
 import '../../../features/auth/application/set_password_cubit.dart';
 import '../../../features/auth/application/set_password_state.dart';
-import '../../../features/auth/application/sign_up_cubit.dart';
-import '../../../features/auth/application/sign_up_state.dart';
-import '../../../features/auth/application/verify_recovery_code_cubit.dart';
-import '../../../features/auth/application/verify_recovery_code_state.dart';
 import '../../../features/auth/domain/auth_repository.dart';
 import '../../../features/auth/domain/set_password_policy.dart';
-import '../../../features/auth/presentation/login_screen.dart';
-import '../../../features/auth/presentation/recover_password_screen.dart';
 import '../../../features/auth/presentation/set_password_screen.dart';
-import '../../../features/auth/presentation/sign_up_screen.dart';
-import '../../../features/auth/presentation/social_collision_sheet.dart';
-import '../../../features/auth/presentation/verify_recovery_code_screen.dart';
 
 // ── biometric_auth ──────────────────────────────────────────────────────────
 import '../../../features/biometric_auth/application/biometric_lock_cubit.dart';
@@ -64,12 +53,7 @@ import '../../../features/biometric_login/presentation/biometric_prompt_screen.d
 List<CatalogEntry> get batch01Entries => <CatalogEntry>[
       _accountStatusEntry,
       _activeDeliveryJeeberEntry,
-      _loginEntry,
-      _signUpEntry,
-      _recoverPasswordEntry,
       _setPasswordEntry,
-      _verifyRecoveryCodeEntry,
-      _socialCollisionSheetEntry,
       _biometricLockEntry,
       _biometricPromptEntry,
     ];
@@ -301,141 +285,6 @@ class _InertAuthRepository implements AuthRepository {
       throw const AuthRepositoryException(AuthFailure.unknown);
 }
 
-// ── login ────────────────────────────────────────────────────────────────────
-
-class _SeededLoginCubit extends LoginCubit {
-  _SeededLoginCubit(LoginState seed)
-      : super(repository: const _InertAuthRepository()) {
-    emit(seed);
-  }
-}
-
-final CatalogEntry _loginEntry = CatalogEntry(
-  feature: 'auth',
-  screen: 'LoginScreen',
-  states: [
-    CatalogState(
-      'Idle',
-      (context) => LoginScreen(
-        loginCubit: _SeededLoginCubit(const LoginState()),
-        biometricEnrolledOverride: false,
-      ),
-    ),
-    CatalogState(
-      'Biometric affordance (D23)',
-      (context) => LoginScreen(
-        loginCubit: _SeededLoginCubit(const LoginState()),
-        biometricEnrolledOverride: true,
-      ),
-    ),
-    CatalogState(
-      'Submitting',
-      (context) => LoginScreen(
-        loginCubit: _SeededLoginCubit(
-          const LoginState(
-            status: LoginStatus.submitting,
-            email: 'jeeber@example.com',
-            password: 'secret123',
-          ),
-        ),
-        biometricEnrolledOverride: false,
-      ),
-    ),
-  ],
-);
-
-// ── sign-up ──────────────────────────────────────────────────────────────────
-
-class _SeededSignUpCubit extends SignUpCubit {
-  _SeededSignUpCubit(SignUpState seed)
-      : super(repository: const _InertAuthRepository()) {
-    emit(seed);
-  }
-}
-
-final CatalogEntry _signUpEntry = CatalogEntry(
-  feature: 'auth',
-  screen: 'SignUpScreen',
-  states: [
-    CatalogState(
-      'Idle — empty form',
-      (context) => SignUpScreen(
-        cubitFactory: (repo) => _SeededSignUpCubit(const SignUpState()),
-      ),
-    ),
-    CatalogState(
-      'Strong password entered',
-      (context) => SignUpScreen(
-        cubitFactory: (repo) => _SeededSignUpCubit(
-          const SignUpState(
-            name: 'Layla Ahmed',
-            email: 'layla@example.com',
-            password: 'Str0ngPass!23',
-          ),
-        ),
-      ),
-    ),
-    CatalogState(
-      'Submitting',
-      (context) => SignUpScreen(
-        cubitFactory: (repo) => _SeededSignUpCubit(
-          const SignUpState(
-            name: 'Layla Ahmed',
-            email: 'layla@example.com',
-            password: 'Str0ngPass!23',
-            status: SignUpStatus.submitting,
-          ),
-        ),
-      ),
-    ),
-  ],
-);
-
-// ── recover-password ─────────────────────────────────────────────────────────
-
-class _SeededRecoverPasswordCubit extends RecoverPasswordCubit {
-  _SeededRecoverPasswordCubit(RecoverPasswordState seed)
-      : super(repository: const _InertAuthRepository()) {
-    emit(seed);
-  }
-}
-
-final CatalogEntry _recoverPasswordEntry = CatalogEntry(
-  feature: 'auth',
-  screen: 'RecoverPasswordScreen',
-  states: [
-    CatalogState(
-      'Idle',
-      (context) => RecoverPasswordScreen(
-        cubit: _SeededRecoverPasswordCubit(const RecoverPasswordState()),
-      ),
-    ),
-    CatalogState(
-      'Submitting',
-      (context) => RecoverPasswordScreen(
-        cubit: _SeededRecoverPasswordCubit(
-          const RecoverPasswordState(
-            status: RecoverPasswordStatus.submitting,
-            email: 'jeeber@example.com',
-          ),
-        ),
-      ),
-    ),
-    CatalogState(
-      'Failed (network)',
-      (context) => RecoverPasswordScreen(
-        cubit: _SeededRecoverPasswordCubit(
-          const RecoverPasswordState(
-            status: RecoverPasswordStatus.failed,
-            email: 'jeeber@example.com',
-            error: AuthFailure.network,
-          ),
-        ),
-      ),
-    ),
-  ],
-);
-
 // ── set-password ─────────────────────────────────────────────────────────────
 
 class _SeededSetPasswordCubit extends SetPasswordCubit {
@@ -454,16 +303,14 @@ final CatalogEntry _setPasswordEntry = CatalogEntry(
   screen: 'SetPasswordScreen',
   states: [
     CatalogState(
-      'Idle (recovery mode)',
+      'Idle',
       (context) => SetPasswordScreen(
-        mode: SetPasswordMode.recovery,
         cubitFactory: () => _SeededSetPasswordCubit(const SetPasswordState()),
       ),
     ),
     CatalogState(
       'Submitting',
       (context) => SetPasswordScreen(
-        mode: SetPasswordMode.recovery,
         cubitFactory: () => _SeededSetPasswordCubit(
           const SetPasswordState(status: SetPasswordStatus.submitting),
         ),
@@ -472,78 +319,11 @@ final CatalogEntry _setPasswordEntry = CatalogEntry(
     CatalogState(
       'Validation error — mismatch',
       (context) => SetPasswordScreen(
-        mode: SetPasswordMode.recovery,
         cubitFactory: () => _SeededSetPasswordCubit(
           const SetPasswordState(
             status: SetPasswordStatus.failed,
             validation: SetPasswordValidation.mismatch,
           ),
-        ),
-      ),
-    ),
-  ],
-);
-
-// ── verify-recovery-code ──────────────────────────────────────────────────────
-
-class _SeededVerifyRecoveryCodeCubit extends VerifyRecoveryCodeCubit {
-  _SeededVerifyRecoveryCodeCubit(VerifyRecoveryCodeState seed)
-      : super(authRepository: const _InertAuthRepository(), email: seed.email) {
-    emit(seed);
-  }
-}
-
-final CatalogEntry _verifyRecoveryCodeEntry = CatalogEntry(
-  feature: 'auth',
-  screen: 'VerifyRecoveryCodeScreen',
-  states: [
-    CatalogState(
-      'Idle — code entry',
-      (context) => VerifyRecoveryCodeScreen(
-        cubit: _SeededVerifyRecoveryCodeCubit(
-          const VerifyRecoveryCodeState(email: 'jeeber@example.com'),
-        ),
-      ),
-    ),
-    CatalogState(
-      'Error — invalid/expired code',
-      (context) => VerifyRecoveryCodeScreen(
-        cubit: _SeededVerifyRecoveryCodeCubit(
-          const VerifyRecoveryCodeState(
-            email: 'jeeber@example.com',
-            code: '123456',
-            error: VerifyRecoveryCodeError.invalidOrExpired,
-          ),
-        ),
-      ),
-    ),
-    CatalogState(
-      'Resending',
-      (context) => VerifyRecoveryCodeScreen(
-        cubit: _SeededVerifyRecoveryCodeCubit(
-          const VerifyRecoveryCodeState(
-            email: 'jeeber@example.com',
-            isResending: true,
-          ),
-        ),
-      ),
-    ),
-  ],
-);
-
-// ── social-collision-prompt (sheet, no cubit) ────────────────────────────────
-
-final CatalogEntry _socialCollisionSheetEntry = CatalogEntry(
-  feature: 'auth',
-  screen: 'SocialCollisionSheet',
-  states: [
-    CatalogState(
-      'Collision prompt',
-      (context) => Scaffold(
-        body: SocialCollisionSheet(
-          email: 'jeeber@example.com',
-          onContinue: () {},
-          onUseOtherEmail: () {},
         ),
       ),
     ),
