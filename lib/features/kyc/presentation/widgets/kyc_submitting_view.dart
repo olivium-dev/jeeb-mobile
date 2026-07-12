@@ -41,9 +41,19 @@ class _KycSubmittingViewState extends State<KycSubmittingView>
     with WidgetsBindingObserver {
   /// Let the normal (fast, auto-approving) submit win before the net probes, so
   /// a healthy in-flight submit is never yanked off the spinner prematurely.
-  static const Duration _graceBeforePoll = Duration(seconds: 12);
-  static const Duration _pollInterval = Duration(seconds: 3);
+  ///
+  /// JEBV4-271 (round 3): the reconcile poll is now a SHORT, BOUNDED retry
+  /// (2s × [_maxProbes]) instead of the old 12s-grace + unbounded 3s cadence —
+  /// the on-device rev2 spinner sat for minutes, so recovery must be prompt.
+  /// The bound keeps it from polling forever if the server never records the
+  /// submission (that branch is resolved by the CDN-upload timeout, not this
+  /// poll); the app-root role-arrived listener ([KycWizardCubit.onJeeberRoleGranted])
+  /// remains the timer-independent backstop.
+  static const Duration _graceBeforePoll = Duration(seconds: 2);
+  static const Duration _pollInterval = Duration(seconds: 2);
+  static const int _maxProbes = 5;
   Timer? _timer;
+  int _probes = 0;
 
   @override
   void initState() {
@@ -56,6 +66,12 @@ class _KycSubmittingViewState extends State<KycSubmittingView>
     if (!mounted) return;
     _probe();
     _timer = Timer.periodic(_pollInterval, (_) => _probe());
+  }
+
+  /// Stop the bounded retry once it has exhausted [_maxProbes].
+  void _stopPolling() {
+    _timer?.cancel();
+    _timer = null;
   }
 
   @override
@@ -73,11 +89,13 @@ class _KycSubmittingViewState extends State<KycSubmittingView>
     final cubit = context.read<KycWizardCubit?>();
     if (cubit == null) return;
     if (cubit.state.step != KycWizardStep.submitting) {
-      _timer?.cancel();
-      _timer = null;
+      _stopPolling();
       return;
     }
     unawaited(cubit.refreshWhileSubmitting());
+    // Bounded: stop after a short burst so a submit that never reaches the
+    // server (nothing to reconcile to) doesn't poll unbounded.
+    if (++_probes >= _maxProbes) _stopPolling();
   }
 
   @override

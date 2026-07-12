@@ -227,6 +227,81 @@ void main() {
     });
   });
 
+  group('KycWizardCubit — role-arrived signal (JEBV4-271 round 3)', () {
+    test(
+        'onJeeberRoleGranted un-sticks a HUNG submit: the /me role signal '
+        'advances the spinner straight onto the approved status view (no '
+        'restart, no /kyc/status poll needed)', () async {
+      final cubit = _buildCubit(
+        gateway: _HangingSubmitKycGateway(serverStatus: KycStatus.approved),
+      );
+      await _completeIdentity(cubit);
+
+      // Submit hangs forever — the wizard is stranded on the submit spinner.
+      unawaited(cubit.submit());
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(cubit.state.step, KycWizardStep.submitting);
+
+      // The role landed via /v1/users/me (RoleAvailabilityCubit gained jeeber);
+      // that authoritative grant advances the wizard with no server re-read.
+      cubit.onJeeberRoleGranted();
+
+      expect(cubit.state.step, KycWizardStep.status);
+      expect(cubit.state.submission.status, KycStatus.approved);
+      expect(cubit.state.justSubmitted, isFalse,
+          reason: 'lands on the in-wizard approved view (→ JeeberRoleActivator), '
+              'never the onboarding-funding chain');
+    });
+
+    test(
+        'onJeeberRoleGranted advances a PENDING status view to approved when the '
+        'role arrives (auto-approve returned Submitted, grant landed later)',
+        () async {
+      final cubit = _buildCubit(
+        gateway: FakeKycGateway(decision: KycStatus.pending),
+      );
+      await _completeIdentity(cubit);
+      await cubit.submit();
+      expect(cubit.state.step, KycWizardStep.status);
+      expect(cubit.state.submission.status, KycStatus.pending);
+
+      cubit.onJeeberRoleGranted();
+
+      expect(cubit.state.submission.status, KycStatus.approved);
+    });
+
+    test('onJeeberRoleGranted is a NO-OP off the submit/status steps (never '
+        'yanks the user out of capture)', () async {
+      final cubit = _buildCubit();
+      await cubit.loadSchema(); // identity step
+      expect(cubit.state.step, KycWizardStep.identity);
+
+      cubit.onJeeberRoleGranted();
+
+      expect(cubit.state.step, KycWizardStep.identity,
+          reason: 'the signal only advances a wizard already awaiting approval');
+    });
+
+    test('onJeeberRoleGranted never overrides a terminal REJECTED decision '
+        'with a stray role signal', () async {
+      final cubit = _buildCubit(
+        gateway: FakeKycGateway(
+          decision: KycStatus.rejected,
+          rejectionReason: KycRejectionReason.selfieMismatch,
+        ),
+      );
+      await _completeIdentity(cubit);
+      await cubit.submit();
+      expect(cubit.state.submission.status, KycStatus.rejected);
+
+      cubit.onJeeberRoleGranted();
+
+      expect(cubit.state.submission.status, KycStatus.rejected,
+          reason: 'a server rejection must never be masked as approved');
+    });
+  });
+
   group('KycWizardCubit — initial state', () {
     test('starts on the schema step before loadSchema is called', () {
       final cubit = _buildCubit();

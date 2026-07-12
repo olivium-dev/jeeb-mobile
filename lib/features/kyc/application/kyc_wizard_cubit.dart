@@ -142,6 +142,46 @@ class KycWizardCubit extends Cubit<KycWizardState> {
     ));
   }
 
+  // ── Role-arrived signal (JEBV4-271 round 3) ───────────────────────────────
+
+  /// An authoritative "jeeber role granted" signal arrived OUT-OF-BAND — the
+  /// `GET /v1/users/me` projection now lists `jeeber` in `available_roles`
+  /// (surfaced app-wide via [RoleAvailabilityCubit], populated by the login /
+  /// resume [RoleSync]), or the live KYC gate flipped to approved. That grant
+  /// only exists because the back-office approved this jeeber's KYC, so it is the
+  /// SAME server-confirmed decision a force-stop+relaunch reads back through
+  /// [loadStatus] — honour it in-session instead of forcing the restart.
+  ///
+  /// Round 1 (#110) reconciled off a FAILED submit and round 2 (#107) gated the
+  /// jeeber surface, but a SUCCESS-path submit whose future hangs — or a
+  /// best-effort auto-approve that returned `Submitted` and only granted the role
+  /// on a later `/me` poll (the on-device rev2 repro: `/me` returned `jeeber` at
+  /// 19:38 yet the spinner never moved) — left the wizard stranded with nothing
+  /// driving the approved transition. This is the reactive entry point for that
+  /// signal: while the wizard is still on the submit spinner ([submitting]) or a
+  /// non-terminal [status] view, advance straight onto the approved status view.
+  /// That renders [KycStatusView]'s approved body, which fires
+  /// [JeeberRoleActivator] (`POST /v1/users/me/role/switch`) and brings the
+  /// jeeber online with NO restart and NO re-login.
+  ///
+  /// Guarded and idempotent: it never fires off the submit/status steps (so it
+  /// can't yank the user out of capture), and it never overrides a terminal
+  /// decision already on screen — an approved view stays approved, and a
+  /// server `rejected` is never masked as approved by a stray role signal.
+  void onJeeberRoleGranted() {
+    final step = state.step;
+    if (step != KycWizardStep.submitting && step != KycWizardStep.status) {
+      return;
+    }
+    final status = state.submission.status;
+    if (status == KycStatus.approved || status == KycStatus.rejected) return;
+    emit(state.copyWith(
+      step: KycWizardStep.status,
+      submission: state.submission.copyWith(status: KycStatus.approved),
+      justSubmitted: false,
+    ));
+  }
+
   // ── Capture ──────────────────────────────────────────────────────────────
 
   Future<void> captureIdFront() => _capture(KycCaptureSlot.idFront);
