@@ -126,6 +126,22 @@
   "chatVoiceA11y": "Record a voice message",
   "chatSendA11y": "Send message",
   "chatMessageReadA11y": "Read",
+  "chatMessageSendingA11y": "Sending",
+  "chatMessageSentA11y": "Sent",
+  "chatMessageDeliveredA11y": "Delivered",
+  "chatMessageFailedA11y": "Failed to send",
+  "chatPhotoA11y": "Photo from {author}",
+  "@chatPhotoA11y": {
+    "placeholders": {
+      "author": { "type": "String" }
+    }
+  },
+  "chatImageA11y": "Image from {author}",
+  "@chatImageA11y": {
+    "placeholders": {
+      "author": { "type": "String" }
+    }
+  },
   "homeMicLabel": "Hold to speak",
   "homeRefreshHint": "Pull to refresh",
   "homeReorderAction": "Re-order",

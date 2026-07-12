@@ -130,6 +130,14 @@ class AppLocalizations {
   String get chatVoiceA11y => _get('chatVoiceA11y');
   String get chatSendA11y => _get('chatSendA11y');
   String get chatMessageReadA11y => _get('chatMessageReadA11y');
+  String get chatMessageSendingA11y => _get('chatMessageSendingA11y');
+  String get chatMessageSentA11y => _get('chatMessageSentA11y');
+  String get chatMessageDeliveredA11y => _get('chatMessageDeliveredA11y');
+  String get chatMessageFailedA11y => _get('chatMessageFailedA11y');
+  String chatPhotoA11y(String author) =>
+      _get('chatPhotoA11y').replaceFirst('{author}', author);
+  String chatImageA11y(String author) =>
+      _get('chatImageA11y').replaceFirst('{author}', author);
   String get homeMicLabel => _get('homeMicLabel');
   String get homeRefreshHint => _get('homeRefreshHint');
   String get homeReorderAction => _get('homeReorderAction');
