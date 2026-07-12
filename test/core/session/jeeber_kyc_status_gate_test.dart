@@ -113,6 +113,10 @@ void _liveGateTests() {
           KycStatus.pending: JeeberKycStatus.pending,
           KycStatus.approved: JeeberKycStatus.approved,
           KycStatus.rejected: JeeberKycStatus.rejected,
+          // E19 tri-state (JEBV4-214): the coarse gate treats a resubmit-requested
+          // submission like `pending` — browse the feed, offering stays gated
+          // (isApproved false). The distinct resubmit CTA lives in the status view.
+          KycStatus.resubmitRequested: JeeberKycStatus.pending,
         };
         for (final entry in cases.entries) {
           final gateway = _StubKycGateway(entry.key);

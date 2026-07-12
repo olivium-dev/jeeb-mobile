@@ -804,6 +804,14 @@ class AppLocalizations {
   String get kycStatusApprovedBody => _get('kycStatusApprovedBody');
   String get kycStatusRejectedTitle => _get('kycStatusRejectedTitle');
   String get kycStatusRejectedBody => _get('kycStatusRejectedBody');
+  String get kycStatusResubmitTitle => _get('kycStatusResubmitTitle');
+  String get kycStatusResubmitBody => _get('kycStatusResubmitBody');
+  String get kycStatusResubmitRequestedCta => _get('kycStatusResubmitRequestedCta');
+  String get kycResubmitStepIdFront => _get('kycResubmitStepIdFront');
+  String get kycResubmitStepIdBack => _get('kycResubmitStepIdBack');
+  String get kycResubmitStepSelfie => _get('kycResubmitStepSelfie');
+  String get kycResubmitStepIdNumber => _get('kycResubmitStepIdNumber');
+  String get kycResubmitStepOther => _get('kycResubmitStepOther');
   String get kycStatusBackToProfileCta => _get('kycStatusBackToProfileCta');
 
   String get kycRejectionReasonIdUnreadable =>

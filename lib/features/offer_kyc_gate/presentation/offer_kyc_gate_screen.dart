@@ -227,6 +227,13 @@ class _GateStatusLine extends StatelessWidget {
               l10n.kycStatusRejectedBody,
               theme.colorScheme.error,
             ),
+          // E19 tri-state: a resubmit-requested submission is actionable, not
+          // final — surface the fix-and-resend prompt with the warning role.
+          KycStatus.resubmitRequested => (
+              l10n.kycStatusResubmitTitle,
+              l10n.kycStatusResubmitBody,
+              context.jeebRoles.warning,
+            ),
           // Approved jeebers never reach this gate (JM-048 skips it); notSubmitted
           // shows no extra line.
           _ => (null, null, null),

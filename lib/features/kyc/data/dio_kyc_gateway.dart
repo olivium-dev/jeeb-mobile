@@ -125,10 +125,17 @@ class DioKycGateway implements KycGateway {
   KycSubmission _parseSubmission(Map<String, dynamic> json) {
     final stateRaw = json['state'] as String?;
     final status = _parseStatus(stateRaw);
+    // A reason is mandatory on both `Rejected` (final) and `ResubmitRequested`
+    // (fix-and-resend) — kyc-service enforces it on reject/request_resubmit.
     final reasonRaw = json['rejection_reason'] as String?;
-    final reason = status == KycStatus.rejected
+    final reason = (status == KycStatus.rejected ||
+            status == KycStatus.resubmitRequested)
         ? _parseReason(reasonRaw)
         : null;
+    // Per-document-slot resubmit list, only present on `ResubmitRequested`.
+    final resubmitSteps = status == KycStatus.resubmitRequested
+        ? _parseResubmitSteps(json['resubmit_steps'])
+        : const <KycResubmitStep>[];
     final submittedAtRaw = json['submitted_at'] as String?;
     final submittedAt = submittedAtRaw != null
         ? DateTime.tryParse(submittedAtRaw)
@@ -136,8 +143,24 @@ class DioKycGateway implements KycGateway {
     return KycSubmission(
       status: status,
       rejectionReason: reason,
+      resubmitSteps: resubmitSteps,
       submittedAt: submittedAt,
     );
+  }
+
+  /// Reads `resubmit_steps` — an array of snake_case slot names — into the
+  /// domain step list, de-duplicated and order-preserving. Non-list / non-string
+  /// entries are ignored so a malformed payload degrades to an empty list (the
+  /// resubmit CTA still shows; only the "what to fix" hints are omitted).
+  static List<KycResubmitStep> _parseResubmitSteps(Object? raw) {
+    if (raw is! List) return const [];
+    final steps = <KycResubmitStep>[];
+    for (final entry in raw) {
+      if (entry is! String || entry.isEmpty) continue;
+      final step = KycResubmitStep.fromWire(entry);
+      if (!steps.contains(step)) steps.add(step);
+    }
+    return steps;
   }
 
   KycStatus _parseStatus(String? raw) {
@@ -157,6 +180,10 @@ class DioKycGateway implements KycGateway {
         return KycStatus.approved;
       case 'Rejected':
         return KycStatus.rejected;
+      // E19 / Q-040 tri-state: kyc-service `request_resubmit` bounces the
+      // submission back for a fix-and-resend (distinct from final `Rejected`).
+      case 'ResubmitRequested':
+        return KycStatus.resubmitRequested;
       default:
         return KycStatus.notSubmitted;
     }

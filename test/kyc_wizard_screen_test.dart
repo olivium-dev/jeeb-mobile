@@ -491,4 +491,67 @@ void main() {
       expect(_byIdentifier('kyc_status_resubmit_cta'), findsNothing);
     },
   );
+
+  // E19 / Q-040 tri-state (JEBV4-214): a `ResubmitRequested` re-entry renders
+  // the resubmit branch — its reason, the per-slot "what to fix" list, and a
+  // resubmit CTA — and is DISTINCT from the final rejected branch (no
+  // view-rejection hand-off; the rejected title/CTA are absent).
+  testWidgets(
+    're-entry on a resubmit-requested KYC shows the resubmit CTA + steps, '
+    'distinct from the final rejected branch',
+    (tester) async {
+      final shared = FakeKycGateway(
+        initial: const KycSubmission(
+          status: KycStatus.resubmitRequested,
+          rejectionReason: KycRejectionReason.idUnreadable,
+          resubmitSteps: [KycResubmitStep.idFront, KycResubmitStep.selfie],
+        ),
+      );
+      final reentry = KycWizardCubit(
+        pickerService: StubPhotoPickerService(cameraPayload: _bytes(1024)),
+        gateway: shared,
+      )..loadStatus();
+      addTearDown(reentry.close);
+
+      await tester.pumpWidget(_host(reentry));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(KycStatusView.resubmitTitleKey), findsOneWidget);
+      expect(_byIdentifier('kyc_status_resubmit_cta'), findsOneWidget);
+      expect(_byIdentifier('kyc_status_resubmit_steps'), findsOneWidget);
+      // NOT the final rejected branch: no rejected title, no appeal hand-off.
+      expect(find.byKey(KycStatusView.rejectedTitleKey), findsNothing);
+      expect(_byIdentifier('kyc_status_view_rejection'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'tapping the resubmit CTA re-opens the wizard on the identity capture step',
+    (tester) async {
+      final shared = FakeKycGateway(
+        initial: const KycSubmission(
+          status: KycStatus.resubmitRequested,
+          rejectionReason: KycRejectionReason.idUnreadable,
+          resubmitSteps: [KycResubmitStep.idFront],
+        ),
+      );
+      final reentry = KycWizardCubit(
+        pickerService: StubPhotoPickerService(cameraPayload: _bytes(1024)),
+        gateway: shared,
+      )..loadStatus();
+      addTearDown(reentry.close);
+
+      await tester.pumpWidget(_host(reentry));
+      await tester.pumpAndSettle();
+      expect(find.byKey(KycStatusView.resubmitTitleKey), findsOneWidget);
+
+      await tester.tap(_byIdentifier('kyc_status_resubmit_cta'));
+      await tester.pumpAndSettle();
+
+      // resubmit() reset the draft and re-loaded the schema → identity capture.
+      expect(find.byKey(KycStatusView.resubmitTitleKey), findsNothing);
+      expect(_byIdentifier('kyc_submit_cta'), findsOneWidget);
+      expect(_byIdentifier('kyc_id_front_upload'), findsOneWidget);
+    },
+  );
 }
