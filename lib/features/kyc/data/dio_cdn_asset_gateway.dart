@@ -38,11 +38,33 @@ class DioCdnAssetGateway implements CdnAssetGateway {
 
   static const String _brokerPath = '/api/cdn/assets';
 
+  /// Bounded timeouts for the signed-PUT so a STALLED CDN upload fails fast
+  /// instead of hanging the KYC "submitting" spinner forever (JEBV4-259 latent
+  /// bug): the raw [Dio] previously carried NO timeouts, so a half-open socket
+  /// mid-upload blocked `DioKycGateway.submit()` — and therefore the whole KYC
+  /// wizard — unbounded (the ~98s spinner an on-device jeeber saw). The image
+  /// PUT is a SEND, so [_sendTimeout] is the load-bearing one — note the shared
+  /// gateway Dio sets connect/receive but NO send timeout — with connect +
+  /// receive bounded too. Values are generous for a compressed ID photo on a
+  /// slow link yet finite, so a genuine stall surfaces as a [CdnUploadException]
+  /// (→ retryable submit error) rather than an infinite hang.
+  static const Duration _connectTimeout = Duration(seconds: 20);
+  static const Duration _sendTimeout = Duration(seconds: 30);
+  static const Duration _receiveTimeout = Duration(seconds: 30);
+
   /// A fresh [Dio] with NO `baseUrl` and NO interceptors — Dio's default
   /// [ImplyContentTypeInterceptor] is removed too — so nothing can mutate the
   /// binary body or attach auth / `Content-Type: application/json` headers.
+  /// It DOES carry bounded connect/send/receive timeouts so a stalled upload
+  /// can never hang the submit indefinitely.
   static Dio _bareUploadDio() {
-    final dio = Dio();
+    final dio = Dio(
+      BaseOptions(
+        connectTimeout: _connectTimeout,
+        sendTimeout: _sendTimeout,
+        receiveTimeout: _receiveTimeout,
+      ),
+    );
     dio.interceptors.clear(keepImplyContentTypeInterceptor: false);
     return dio;
   }
@@ -106,6 +128,11 @@ class DioCdnAssetGateway implements CdnAssetGateway {
       responseType: ResponseType.plain,
       // Surface non-2xx as a domain error below rather than a DioException.
       validateStatus: (_) => true,
+      // Per-request bound so a stalled PUT fails fast even when a caller injects
+      // a custom upload Dio without timeouts on its BaseOptions (connectTimeout
+      // lives only on BaseOptions — see [_bareUploadDio]).
+      sendTimeout: _sendTimeout,
+      receiveTimeout: _receiveTimeout,
     );
   }
 

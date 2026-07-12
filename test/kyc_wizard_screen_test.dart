@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -12,6 +13,7 @@ import 'package:jeeb_mobile/features/kyc/domain/kyc_submission.dart';
 import 'package:jeeb_mobile/features/kyc/presentation/kyc_status_view.dart';
 import 'package:jeeb_mobile/features/kyc/presentation/kyc_wizard_screen.dart';
 import 'package:jeeb_mobile/features/kyc/presentation/widgets/kyc_identity_step.dart';
+import 'package:jeeb_mobile/features/kyc/presentation/widgets/kyc_submitting_view.dart';
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 import 'package:jeeb_mobile/features/photo_attachment/domain/photo_picker_service.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
@@ -84,6 +86,23 @@ KycWizardCubit _newCubit({
 Finder _byIdentifier(String id) => find.byWidgetPredicate(
       (w) => w is Semantics && w.properties.identifier == id,
     );
+
+/// Mimics the on-device submit-hang: `submit()` NEVER resolves (a stalled CDN
+/// upload / a 201 the client never receives), while the server-side status is
+/// scripted so the submitting-view safety-net poll can reconcile against it.
+class _HangingSubmitKycGateway extends FakeKycGateway {
+  _HangingSubmitKycGateway({required this.serverStatus});
+
+  final KycStatus serverStatus;
+
+  @override
+  Future<KycSubmission> submit(KycSubmission draft) =>
+      Completer<KycSubmission>().future; // never resolves
+
+  @override
+  Future<KycSubmission> fetchStatus() async =>
+      KycSubmission(status: serverStatus, submittedAt: DateTime.now());
+}
 
 void main() {
   setUpAll(_loadArbFromDisk);
@@ -198,6 +217,47 @@ void main() {
       // fires JeeberRoleActivator on the real app shell (a no-op in this bare
       // widget harness with no role cubits / DI, so the view still renders).
       expect(find.byKey(KycStatusView.approvedTitleKey), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'JEBV4-259/271: a HUNG submit auto-recovers — the submitting-view poller '
+    'reconciles against the server (Verified) after the grace window and '
+    'advances to the approved status view with NO force-stop',
+    (tester) async {
+      var fundingNav = 0;
+      final cubit = _newCubit(
+        gateway: _HangingSubmitKycGateway(serverStatus: KycStatus.approved),
+      );
+      await tester.pumpWidget(_host(cubit, onSubmitted: (_) => fundingNav++));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(KycIdentityStep.idNumberFieldKey),
+        '123456789012',
+      );
+      await tester.pump();
+
+      // Submit → the wizard shows the submitting spinner and STAYS there (the
+      // gateway submit future never resolves — the on-device ~98s hang).
+      await tester.tap(find.byKey(KycIdentityStep.submitButtonKey));
+      await tester.pump();
+      expect(find.byKey(KycSubmittingView.rootKey), findsOneWidget);
+      expect(find.byKey(KycStatusView.approvedTitleKey), findsNothing,
+          reason: 'still stuck before the grace window elapses');
+
+      // Advance past the safety-net grace window (12s). The poller re-reads the
+      // status, sees the server already recorded Verified, and advances the
+      // wizard off the spinner — no force-stop, no re-login.
+      await tester.pump(const Duration(seconds: 13));
+      await tester.pump(); // apply the emitted status transition
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(KycSubmittingView.rootKey), findsNothing);
+      expect(find.byKey(KycStatusView.approvedTitleKey), findsOneWidget);
+      expect(fundingNav, 0,
+          reason: 'the recovered submit lands on the in-wizard approved status '
+              'view (which activates the jeeber role), never funding');
     },
   );
 

@@ -1318,17 +1318,19 @@ class AppRouter {
                     ? sl<HandoverCodeStore>()
                     : null,
               ),
-              // sprint-009 P0 (stop-the-bleed): render the map placeholder, not
-              // a live GoogleMap. The manifest carries no
-              // `com.google.android.geo.API_KEY`, so a keyless map is a native
-              // FATAL (SIGKILL) that crashes all three inbound tracking CTAs
-              // (home "Track my order", delivery-detail "Live tracking", chat
-              // offer-accepted banner). Explicit here even though the default is
-              // now false, so this pin is visible at the crash site. sprint-013
-              // owns provisioning the real Maps key and flipping this back.
+              // Maps-ON: render the LIVE GoogleMap. The sprint-009 stop-the-bleed
+              // placeholder is retired now that the manifest wires
+              // `com.google.android.geo.API_KEY` (from `android/local.properties`
+              // `${MAPS_API_KEY}`) and Google-Cloud billing is enabled on
+              // `jeeb-5a293`, so the native Maps SDK serves instead of throwing
+              // the keyless-map IllegalStateException → SIGKILL it used to.
+              // Explicit here (matching the widget default) so this pin stays
+              // visible at the former crash site for all three inbound tracking
+              // CTAs (home "Track my order", delivery-detail "Live tracking",
+              // chat offer-accepted banner).
               child: LiveTrackingScreen(
                 deliveryId: deliveryId,
-                useLiveMap: false,
+                useLiveMap: true,
               ),
             );
           },

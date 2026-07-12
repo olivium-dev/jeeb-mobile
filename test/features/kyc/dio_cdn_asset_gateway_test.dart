@@ -82,6 +82,27 @@ void main() {
       expect(gateway.uploadDio.interceptors, isEmpty);
     });
 
+    test('the default upload Dio carries BOUNDED connect/send/receive timeouts '
+        'so a stalled CDN upload can never hang the submit forever '
+        '(JEBV4-259 latent-hang fix)', () {
+      final broker = _BrokerRecorder();
+      final gateway = DioCdnAssetGateway(broker.dio); // production default
+      final opts = gateway.uploadDio.options;
+
+      // The raw Dio() used to have NONE of these — a half-open socket during the
+      // signed-PUT blocked DioKycGateway.submit() (and the KYC wizard) unbounded.
+      expect(opts.connectTimeout, isNotNull,
+          reason: 'connect must be bounded');
+      expect(opts.sendTimeout, isNotNull,
+          reason: 'the image PUT is a SEND — this is the load-bearing bound');
+      expect(opts.receiveTimeout, isNotNull,
+          reason: 'receive must be bounded');
+      // Finite and sane (a compressed ID photo should never need > ~30s).
+      expect(opts.connectTimeout!.inSeconds, inInclusiveRange(1, 60));
+      expect(opts.sendTimeout!.inSeconds, inInclusiveRange(1, 60));
+      expect(opts.receiveTimeout!.inSeconds, inInclusiveRange(1, 60));
+    });
+
     test('PUTs to the ABSOLUTE upload_url verbatim — baseUrl never joined',
         () async {
       final broker = _BrokerRecorder();
