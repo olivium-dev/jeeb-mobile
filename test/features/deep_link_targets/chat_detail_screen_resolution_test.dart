@@ -332,11 +332,11 @@ class _ClientConversationIdProbeDio {
 
   /// True iff any leg of the owner-scoped pinned-summary triple-read fired.
   bool get emittedSummaryRead => paths.any(
-        (p) =>
-            p.startsWith('/v1/deliveries/') ||
-            p.startsWith('/v1/requests/') ||
-            p.startsWith('/v1/offers'),
-      );
+    (p) =>
+        p.startsWith('/v1/deliveries/') ||
+        p.startsWith('/v1/requests/') ||
+        p.startsWith('/v1/offers'),
+  );
 }
 
 /// AuthTokenStore double that returns a known session user id without touching
@@ -351,18 +351,21 @@ class _StubAuthTokenStore extends AuthTokenStore {
 const _sessionUserId = 'd1000000-0000-4000-8000-000000000001';
 
 Widget _host(RoleCubit role, String chatId) => MaterialApp(
-      localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
-        SyncAppLocalizationsDelegate(),
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: BlocProvider<RoleCubit>.value(
-        value: role,
-        child: ChatDetailScreen(chatId: chatId),
-      ),
-    );
+  localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+    SyncAppLocalizationsDelegate(),
+    GlobalMaterialLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+  ],
+  supportedLocales: AppLocalizations.supportedLocales,
+  home: BlocProvider<RoleCubit>.value(
+    value: role,
+    // JEBV4-282: this suite exercises live-contract RESOLUTION, not the
+    // pinned-summary poll. Disable the poll so its periodic timer never
+    // outlives pumpAndSettle (the poll itself is covered separately).
+    child: ChatDetailScreen(chatId: chatId, summaryPollInterval: null),
+  ),
+);
 
 Future<RoleCubit> _roleCubit(UserRole role) async {
   SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -404,39 +407,40 @@ void main() {
           (r) => r.path == '/v1/conversations',
           orElse: () => RequestOptions(path: '__none__'),
         );
-        expect(corr.path, '/v1/conversations',
-            reason: 'must query the live correlationKey route');
+        expect(
+          corr.path,
+          '/v1/conversations',
+          reason: 'must query the live correlationKey route',
+        );
         expect(corr.queryParameters['correlationKey'], _RecordingDio.requestId);
 
         // The historical create-only 404 prefix must NEVER be touched.
         expect(
           rec.paths.any((p) => p.startsWith('/v1/chat/jeeb/conversations')),
           isFalse,
-          reason: 'the create-only prefix 404s on live; never use it to resolve',
+          reason:
+              'the create-only prefix 404s on live; never use it to resolve',
         );
       },
     );
 
-    testWidgets(
-      'constructs DioChatGateway with the REAL session id, not '
-      'the hardcoded user-client-001 sentinel',
-      (tester) async {
-        final role = await _roleCubit(UserRole.client);
-        addTearDown(role.close);
+    testWidgets('constructs DioChatGateway with the REAL session id, not '
+        'the hardcoded user-client-001 sentinel', (tester) async {
+      final role = await _roleCubit(UserRole.client);
+      addTearDown(role.close);
 
-        await tester.pumpWidget(_host(role, _RecordingDio.requestId));
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(_host(role, _RecordingDio.requestId));
+      await tester.pumpAndSettle();
 
-        final chatScreen = tester.widget<ChatScreen>(find.byType(ChatScreen));
-        final gateway = chatScreen.gateway;
-        expect(gateway, isA<DioChatGateway>());
-        expect((gateway! as DioChatGateway).currentUserId, _sessionUserId);
-        expect(
-          (gateway as DioChatGateway).currentUserId,
-          isNot('user-client-001'),
-        );
-      },
-    );
+      final chatScreen = tester.widget<ChatScreen>(find.byType(ChatScreen));
+      final gateway = chatScreen.gateway;
+      expect(gateway, isA<DioChatGateway>());
+      expect((gateway! as DioChatGateway).currentUserId, _sessionUserId);
+      expect(
+        (gateway as DioChatGateway).currentUserId,
+        isNot('user-client-001'),
+      );
+    });
   });
 
   group('ChatDetailScreen — live snake_case conversation resolution (run-7)', () {
@@ -469,7 +473,8 @@ void main() {
         expect(
           chatScreen.deliveryId,
           _LiveSnakeCaseDio.conversationId,
-          reason: 'must resolve the snake_case `conversation_id`, not fall back '
+          reason:
+              'must resolve the snake_case `conversation_id`, not fall back '
               'to the requestId (the run-7 Step-5 404 blocker)',
         );
 
@@ -478,7 +483,8 @@ void main() {
         expect(
           live.paths.any(
             (p) =>
-                p == '/v1/conversations/${_LiveSnakeCaseDio.requestId}/messages',
+                p ==
+                '/v1/conversations/${_LiveSnakeCaseDio.requestId}/messages',
           ),
           isFalse,
           reason: 'sends/reads must target the conversationId, never requestId',
@@ -602,7 +608,8 @@ void main() {
         expect(
           chatScreen.deliveryId,
           kComposeConversationSentinel,
-          reason: 'no conversation yet → hand the gateway the sentinel, never '
+          reason:
+              'no conversation yet → hand the gateway the sentinel, never '
               'the requestId it would poll to a 404',
         );
         // Still the client compose surface (a first send creates/broadcasts the
@@ -662,7 +669,8 @@ void main() {
         expect(
           jeeb.correlationKeyLookups,
           1,
-          reason: 'correlationKey-first attempts the lookup once (404) then '
+          reason:
+              'correlationKey-first attempts the lookup once (404) then '
               'falls back to the probe; the gateway short-circuit prevents any '
               'further conversationId-keyed read (BUG-14 preserved)',
         );
@@ -718,7 +726,8 @@ void main() {
               '/v1/conversations/${_LiveSnakeCaseDio.requestId}/messages',
             ),
             isFalse,
-            reason: 'requestId messages-probe is a guaranteed 404 — never first',
+            reason:
+                'requestId messages-probe is a guaranteed 404 — never first',
           );
 
           // The FIRST conversation lookup is the correlationKey resolve.
@@ -739,8 +748,7 @@ void main() {
           );
 
           // Both roles land on the resolved conversation id for reads/sends.
-          final chatScreen =
-              tester.widget<ChatScreen>(find.byType(ChatScreen));
+          final chatScreen = tester.widget<ChatScreen>(find.byType(ChatScreen));
           expect(chatScreen.deliveryId, _LiveSnakeCaseDio.conversationId);
         },
       );
@@ -789,7 +797,8 @@ void main() {
         expect(
           probe.emittedSummaryRead,
           isFalse,
-          reason: 'probe-only resolution must not storm the summary triple-read',
+          reason:
+              'probe-only resolution must not storm the summary triple-read',
         );
       },
     );
@@ -839,8 +848,7 @@ void main() {
 
           // Still the client compose surface: the gateway holds the sentinel and
           // the first send creates + broadcasts the request.
-          final chatScreen =
-              tester.widget<ChatScreen>(find.byType(ChatScreen));
+          final chatScreen = tester.widget<ChatScreen>(find.byType(ChatScreen));
           expect(chatScreen.deliveryId, kComposeConversationSentinel);
           expect(chatScreen.onFirstMessageBroadcast, isNotNull);
         },

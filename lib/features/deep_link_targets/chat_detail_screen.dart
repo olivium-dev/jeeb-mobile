@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -56,9 +58,17 @@ class ChatDetailScreen extends StatefulWidget {
     this.debugHasWinner = false,
     this.debugSummary,
     this.debugCounterpartName = '',
+    this.summaryPollInterval = const Duration(seconds: 5),
   });
 
   final String chatId;
+
+  /// JEBV4-282: cadence at which the accepted-order pinned summary (the delivery
+  /// status chip) is re-fetched so it advances live. `null` disables polling —
+  /// widget tests that mount the live resolution path but don't exercise the
+  /// poll pass `null` to stay pumpAndSettle-safe. Production leaves the 5s
+  /// default, mirroring [LiveTrackingCubit].
+  final Duration? summaryPollInterval;
 
   /// DEVTOOL-ONLY seam (DT-04 screen catalog): when non-null, [initState]
   /// skips the entire async GetIt/Dio resolution below and mounts the screen
@@ -108,6 +118,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   /// or when the fetch could not resolve one (the strip then hides).
   OrderChatSummary? _summary;
 
+  /// JEBV4-282: periodic re-fetch of [_summary] so the pinned delivery-status
+  /// chip advances live (Ordered→Picked→InTransit→AtDoor→Done) without
+  /// leaving/reopening the chat. Null until the client-accepted resolution
+  /// starts it; cancelled in [dispose] and once the delivery is terminal.
+  Timer? _summaryPollTimer;
+
   ChatGateway? _gateway;
   bool _loading = true;
 
@@ -135,6 +151,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   @override
   void dispose() {
+    _summaryPollTimer?.cancel();
     final gateway = _gateway;
     if (gateway is DioChatGateway) {
       gateway.dispose();
@@ -242,10 +259,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         // to POSTing/GETting `/v1/conversations/{requestId}/messages` → 404 (the
         // run-7 Step-5 chat blocker). Mirrors the tolerant key handling in
         // `DioAcceptedConversationsRepository._string`.
-        final resolvedId = _stringField(
-          data,
-          const ['id', 'conversationId', 'conversation_id'],
-        );
+        final resolvedId = _stringField(data, const [
+          'id',
+          'conversationId',
+          'conversation_id',
+        ]);
         if (data != null && resolvedId.isNotEmpty) {
           conversationData = data;
           conversationId = resolvedId;
@@ -263,9 +281,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       // compose → treat it as accepted so the composer shows and a send POSTs
       // to this conversation (never re-broadcasts a new request).
       try {
-        await dio.get<dynamic>(
-          '/v1/conversations/$conversationId/messages',
-        );
+        await dio.get<dynamic>('/v1/conversations/$conversationId/messages');
         conversationData = <String, dynamic>{
           'id': conversationId,
           'phase': 'accepted',
@@ -322,25 +338,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // succeeded via the correlationKey lookup the row carries it explicitly;
     // when it succeeded ONLY via the messages probe (a conversationId param)
     // the row has NO request/correlation key, so [resolvedRequestId] is empty.
-    final resolvedRequestId = _stringField(
-      conversationData,
-      const ['requestId', 'correlationKey', 'request_id', 'correlation_key'],
-    );
+    final resolvedRequestId = _stringField(conversationData, const [
+      'requestId',
+      'correlationKey',
+      'request_id',
+      'correlation_key',
+    ]);
     // True iff the row carries a real request/correlation key — i.e. the
     // correlationKey lookup resolved it (NOT a probe-only conversationId).
     final resolvedByCorrelationKey = resolvedRequestId.isNotEmpty;
     // Fall back to the route id only as the compose/broadcast + phase-read id;
     // it is a conversationId in the probe-only case, so it must NEVER seed an
     // owner-scoped summary read (see the summary gate below).
-    final requestId =
-        resolvedByCorrelationKey ? resolvedRequestId : widget.chatId;
+    final requestId = resolvedByCorrelationKey
+        ? resolvedRequestId
+        : widget.chatId;
     final phase = ConversationPhase.fromWire(
       conversationData?['phase'] as String?,
     );
-    final winnerId = _stringField(
-      conversationData,
-      const ['winnerJeeberId', 'winner_jeeber_id'],
-    );
+    final winnerId = _stringField(conversationData, const [
+      'winnerJeeberId',
+      'winner_jeeber_id',
+    ]);
     // The LIVE conversation row does not carry a top-level `winnerJeeberId`;
     // the accepted winner is seated as a `jeeber_winner` participant in the
     // `participants` roster (and the row's `phase` can still read
@@ -365,9 +384,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // `/v1/requests/{convId}` + `/v1/offers?requestId={convId}` — a guaranteed
     // triple-404 (BUG-17). The summary strip degrades gracefully when null, so
     // skip the fetch entirely rather than storming the backend.
-    if (!isJeeber &&
+    final shouldTrackSummary =
+        !isJeeber &&
         resolvedByCorrelationKey &&
-        (phase == ConversationPhase.accepted || hasWinner)) {
+        (phase == ConversationPhase.accepted || hasWinner);
+    if (shouldTrackSummary) {
       summary = await _resolveSummary(dio, requestId, conversationId);
     }
 
@@ -377,8 +398,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // every poll tick (physical-run8 [Med] chat READ 404 #1). Once a
     // conversation exists the resolved `conversation_id` drives BOTH read and
     // send (unchanged — the proven Step-5 send path).
-    final gatewayConversationId =
-        conversationResolved ? conversationId : kComposeConversationSentinel;
+    final gatewayConversationId = conversationResolved
+        ? conversationId
+        : kComposeConversationSentinel;
     final getItForGateway = GetIt.instance;
     final gateway = DioChatGateway(
       dio: dio,
@@ -404,6 +426,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       hasWinner: hasWinner,
       summary: summary,
     );
+    // JEBV4-282: the pinned status chip is a LIVE view of the delivery — poll it
+    // (like [LiveTrackingCubit]) so it advances Ordered→Picked→InTransit→AtDoor→
+    // Done without leaving/reopening the chat. Only the client-accepted surface
+    // renders the strip, and only a correlationKey-resolved request id is
+    // owner-readable, so poll exactly the case that fetched it above. Skip when
+    // the delivery is already terminal (nothing left to advance) or when polling
+    // is disabled (widget tests pass a null interval).
+    if (shouldTrackSummary && !_isTerminalStatus(summary?.statusId)) {
+      _startSummaryPoll();
+    }
   }
 
   Future<String> _resolveTitle(
@@ -430,9 +462,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final winnerId = conversationData['winnerJeeberId'] as String?;
     if (winnerId != null && winnerId.isNotEmpty) {
       try {
-        final resp = await dio.get<Map<String, dynamic>>(
-          '/users/$winnerId',
-        );
+        final resp = await dio.get<Map<String, dynamic>>('/users/$winnerId');
         return resp.data?['name'] as String? ?? '';
       } on DioException {
         // Fall through.
@@ -460,6 +490,66 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     } catch (_) {
       return null;
     }
+  }
+
+  /// JEBV4-282: (re)arm the periodic summary poll so the pinned delivery-status
+  /// chip tracks the live delivery. Mirrors [LiveTrackingCubit]'s 5s
+  /// `Timer.periodic`. No-op when polling is disabled (`summaryPollInterval`
+  /// null — the widget-test seam).
+  void _startSummaryPoll() {
+    final interval = widget.summaryPollInterval;
+    if (interval == null) return;
+    _summaryPollTimer?.cancel();
+    _summaryPollTimer = Timer.periodic(interval, (_) => _pollSummary());
+  }
+
+  /// One poll tick: re-resolve the accepted-order summary and repaint the chip
+  /// only when the delivery actually advanced ([OrderChatSummary] is Equatable,
+  /// so an unchanged tick is a no-op). A failed/empty fetch keeps the last good
+  /// summary (the chip never blanks). Stops polling once the delivery is
+  /// terminal — there is nothing left to advance.
+  Future<void> _pollSummary() async {
+    if (!mounted) {
+      _summaryPollTimer?.cancel();
+      _summaryPollTimer = null;
+      return;
+    }
+    final getIt = GetIt.instance;
+    if (!getIt.isRegistered<Dio>()) return;
+    final next = await _resolveSummary(
+      getIt<Dio>(),
+      _resolvedRequestId,
+      _resolvedConversationId,
+    );
+    if (!mounted || next == null) return;
+    if (next != _summary) {
+      setState(() => _summary = next);
+    }
+    if (_isTerminalStatus(next.statusId)) {
+      _summaryPollTimer?.cancel();
+      _summaryPollTimer = null;
+    }
+  }
+
+  /// True when a delivery lifecycle status is terminal (Done/delivered/
+  /// cancelled/…). Mirrors the terminal collapse in
+  /// `JeeberDeliveryStatusX.fromApi` so the summary poll stops once the chip can
+  /// no longer advance. Tolerant of the CapitalCase, snake_case, and legacy
+  /// aliases the wire can carry.
+  static bool _isTerminalStatus(String? statusId) {
+    if (statusId == null || statusId.isEmpty) return false;
+    const terminal = <String>{
+      'done',
+      'delivered',
+      'completed',
+      'rated',
+      'cancelled',
+      'canceled',
+      'expired',
+      'disputed',
+      'failedneedsescalation',
+    };
+    return terminal.contains(statusId.toLowerCase().replaceAll('_', ''));
   }
 
   /// Resolves the authenticated session user id from [AuthTokenStore] (DI),
@@ -545,10 +635,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   /// tracking routes. Prefers the conversation's `requestId` (mock convention:
   /// `deliveryId == accepted-request-id`), falling back to the resolved
   /// conversation id.
-  String get _deliveryId =>
-      _resolvedRequestId.isNotEmpty
-          ? _resolvedRequestId
-          : _resolvedConversationId;
+  String get _deliveryId => _resolvedRequestId.isNotEmpty
+      ? _resolvedRequestId
+      : _resolvedConversationId;
 
   /// Human-facing header title (run-22 chat-cluster fix). The resolved title
   /// can be a request title (fine), a synthetic account handle
@@ -568,8 +657,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ? l10n.chatPartyCustomerFallback
           : l10n.chatPartyJeeberFallback;
     }
-    final id =
-        _resolvedRequestId.isNotEmpty ? _resolvedRequestId : widget.chatId;
+    final id = _resolvedRequestId.isNotEmpty
+        ? _resolvedRequestId
+        : widget.chatId;
     if (id.isEmpty || id == kComposeConversationSentinel) return l10n.navChat;
     return friendlyReference(id);
   }
@@ -610,8 +700,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
     // Prefer the resolved request id; fall back to the route id (the `new`
     // sentinel in fresh compose → the coordinator then creates a real request).
-    final existing =
-        _resolvedRequestId.isNotEmpty ? _resolvedRequestId : routeId;
+    final existing = _resolvedRequestId.isNotEmpty
+        ? _resolvedRequestId
+        : routeId;
     final realId = await coordinator.createAndBroadcast(
       existingRequestId: existing,
       firstMessage: firstMessage,
@@ -662,7 +753,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // This keeps the active-delivery seam (jeeb.seam.journey=active_delivery)
     // honest: order_chat_open_dispute renders even when the conversation phase is
     // not literally `accepted`. The ChatScreen applies the same widened gate.
-    final isClientDisputable = !isJeeber &&
+    final isClientDisputable =
+        !isJeeber &&
         !compose &&
         _phase != ConversationPhase.broadcasting &&
         _phase != ConversationPhase.closed;
@@ -692,7 +784,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       // for the client compose state; null otherwise (no compose entry).
       onFirstMessageBroadcast: compose
           ? (requestId, firstMessage) =>
-              _createBroadcastAndGoWaiting(requestId, firstMessage)
+                _createBroadcastAndGoWaiting(requestId, firstMessage)
           : null,
       // JM-025 AC2: pinned locked-price summary + view-summary link.
       pinnedSummary: isClientAccepted ? _summary : null,
@@ -700,9 +792,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           // EDGE: order_chat_view_summary_link → order-summary-pinned (JM-031,
           // route `order-summary`). 21_NAV_PLAN §C.
           ? () => context.pushNamed(
-                'order-summary',
-                pathParameters: {'id': _deliveryId},
-              )
+              'order-summary',
+              pathParameters: {'id': _deliveryId},
+            )
           : null,
       // JM-025 AC3: dispute affordance → dispute-open-evidence. The
       // `escalate` route (`/orders/:id/escalate`) IS the dispute-open-evidence
@@ -710,9 +802,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       // the client's accepted/active order (see `isClientDisputable`).
       onOpenDispute: isClientDisputable
           ? () => context.pushNamed(
-                'escalate',
-                pathParameters: {'id': _deliveryId},
-              )
+              'escalate',
+              pathParameters: {'id': _deliveryId},
+            )
           : null,
     );
   }
