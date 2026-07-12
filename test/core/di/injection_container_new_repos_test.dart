@@ -23,6 +23,8 @@ import 'package:jeeb_mobile/features/notification_prefs/domain/notification_pref
 import 'package:jeeb_mobile/core/notifications/domain/local_push_inbox.dart';
 import 'package:jeeb_mobile/features/notifications/data/local_merging_notifications_repository.dart';
 import 'package:jeeb_mobile/features/notifications/domain/notifications_repository.dart';
+import 'package:jeeb_mobile/features/order_summary/data/dio_order_summary_repository.dart';
+import 'package:jeeb_mobile/features/order_summary/domain/order_summary_repository.dart';
 import 'package:jeeb_mobile/features/rating/domain/rating_repository.dart';
 import 'package:jeeb_mobile/features/request_summary/application/compose_request_controller.dart';
 import 'package:jeeb_mobile/features/reviews/data/dio_reviews_repository.dart';
@@ -203,5 +205,20 @@ void main() {
     expect(GetIt.I.isRegistered<ComposeRequestController>(), isTrue);
     expect(() => GetIt.I<ComposeRequestController>(), returnsNormally);
     expect(GetIt.I<ComposeRequestController>(), isA<ComposeRequestController>());
+  });
+
+  // JEBV4-285: the `view summary` → order-summary screen fell back to the
+  // FakeOrderSummaryRepository (hardcoded Kamal Hajj / Spinneys / 9.00 demo
+  // data) on real deliveries because OrderSummaryRepository was NEVER bound in
+  // DI. Pin the LIVE Dio binding so the standalone summary reads the real
+  // delivery aggregate and can never regress to demo data.
+  test('OrderSummaryRepository is registered and binds REAL Dio (JEBV4-285)',
+      () {
+    expect(GetIt.I.isRegistered<OrderSummaryRepository>(), isTrue);
+    expect(() => GetIt.I<OrderSummaryRepository>(), returnsNormally);
+    expect(
+      GetIt.I<OrderSummaryRepository>(),
+      isA<DioOrderSummaryRepository>(),
+    );
   });
 }

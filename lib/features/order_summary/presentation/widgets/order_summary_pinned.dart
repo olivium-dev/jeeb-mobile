@@ -225,11 +225,22 @@ class _JeeberBlock extends StatelessWidget {
         ),
         if (summary.hasRating) ...[
           const SizedBox(height: Spacing.twoXSmall),
-          OmdsStarRatingDisplay(
-            averageRating: summary.jeeberRating!,
-            totalReviews: summary.jeeberRatingCount,
-            starSize: Sizes.medium,
-            reviewsLabelBuilder: (count) => '($count)',
+          // JEBV4-285: the stars + rating + review-count row is intrinsically
+          // wider than the Expanded name/rating block can be once the avatar and
+          // price pill claim their share of the header Row — a long review count
+          // (e.g. "(312)") pushed it past the edge and tripped a RenderFlex
+          // overflow stripe. scaleDown keeps the whole rating legible by shrinking
+          // it to the available width instead of clipping; centerStart keeps it
+          // leading-aligned in both LTR and RTL.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerStart,
+            child: OmdsStarRatingDisplay(
+              averageRating: summary.jeeberRating!,
+              totalReviews: summary.jeeberRatingCount,
+              starSize: Sizes.medium,
+              reviewsLabelBuilder: (count) => '($count)',
+            ),
           ),
         ],
       ],
