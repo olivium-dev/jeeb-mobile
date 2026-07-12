@@ -381,24 +381,21 @@ class _ActiveOrderActions extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           if (onOpenChat != null) ...[
-            SizedBox(
-              height: Sizes.twoXLarge,
-              child: Semantics(
-                identifier: 'orders_open_chat_button_$requestId',
-                button: true,
-                child: OMDSOutlinedButton(
-                  key: Key('active-open-chat-$requestId'),
-                  text: AppLocalizations.of(context).orderSummaryOpenChat,
-                  onTap: onOpenChat,
-                  // UX-AUDIT §T2/T3: `OMDSOutlinedButton` defaults to a navy
-                  // `secondaryContainer` fill with periwinkle text (the flagged
-                  // low-contrast "Open chat" chip on the white card). Bind it to
-                  // an explicit tonal pair — navy ink on the light surface
-                  // container (14:1) — so it reads as a clear secondary action
-                  // beside the primary Track pill. Both are ColorScheme roles.
-                  backgroundColor: theme.colorScheme.surfaceContainerHigh,
-                  textColor: theme.colorScheme.onSurface,
-                ),
+            Semantics(
+              identifier: 'orders_open_chat_button_$requestId',
+              button: true,
+              child: OMDSOutlinedButton(
+                key: Key('active-open-chat-$requestId'),
+                text: AppLocalizations.of(context).orderSummaryOpenChat,
+                onTap: onOpenChat,
+                // UX-AUDIT §T2/T3: `OMDSOutlinedButton` defaults to a navy
+                // `secondaryContainer` fill with periwinkle text (the flagged
+                // low-contrast "Open chat" chip on the white card). Bind it to
+                // an explicit tonal pair — navy ink on the light surface
+                // container (14:1) — so it reads as a clear secondary action
+                // beside the primary Track pill. Both are ColorScheme roles.
+                backgroundColor: theme.colorScheme.surfaceContainerHigh,
+                textColor: theme.colorScheme.onSurface,
               ),
             ),
             const SizedBox(width: Spacing.small),
@@ -424,17 +421,14 @@ class _TrackOrderButton extends StatelessWidget {
     // otherwise the Track CTA renders full-width instead of a trailing pill.
     // Alignment + top padding are owned by the parent [_ActiveOrderActions] row.
     return IntrinsicWidth(
-      child: SizedBox(
-        height: Sizes.twoXLarge,
-        child: Semantics(
-          identifier: 'orders_track_order_button_$requestId',
-          button: true,
-          child: OmdsPrimaryButton(
-            key: Key('active-track-order-$requestId'),
-            text: AppLocalizations.of(context).homeTrackOrderCta,
-            onTap: onTap,
-            borderRadius: OmdsBorderRadius.pill,
-          ),
+      child: Semantics(
+        identifier: 'orders_track_order_button_$requestId',
+        button: true,
+        child: OmdsPrimaryButton(
+          key: Key('active-track-order-$requestId'),
+          text: AppLocalizations.of(context).homeTrackOrderCta,
+          onTap: onTap,
+          borderRadius: OmdsBorderRadius.pill,
         ),
       ),
     );

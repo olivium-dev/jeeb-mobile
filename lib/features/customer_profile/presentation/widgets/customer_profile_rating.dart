@@ -60,7 +60,7 @@ class CustomerProfileRating extends StatelessWidget {
             child: Text(
               label,
               style: theme.textTheme.labelMedium?.copyWith(
-                color: colorScheme.onSecondaryContainer,
+                color: colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
               ),
               overflow: TextOverflow.ellipsis,

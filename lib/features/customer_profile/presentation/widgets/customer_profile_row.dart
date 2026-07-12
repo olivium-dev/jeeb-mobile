@@ -73,7 +73,7 @@ class _RowContent extends StatelessWidget {
           child: Text(
             label,
             style: theme.textTheme.labelLarge?.copyWith(
-              color: theme.colorScheme.onSecondaryContainer,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
             overflow: TextOverflow.ellipsis,
           ),

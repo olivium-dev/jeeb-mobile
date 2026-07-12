@@ -190,7 +190,7 @@ class _Email extends StatelessWidget {
     return AutoDirectionText(
       email,
       style: theme.textTheme.bodyMedium?.copyWith(
-        color: theme.colorScheme.onSecondaryContainer,
+        color: theme.colorScheme.onSurfaceVariant,
       ),
     );
   }

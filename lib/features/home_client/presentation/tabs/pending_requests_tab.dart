@@ -375,7 +375,7 @@ class _PendingCardSummary extends StatelessWidget {
     return Text(
       text.isNotEmpty ? text : l10n.pendingTabSearchingLabel,
       style: theme.textTheme.bodySmall?.copyWith(
-        color: theme.colorScheme.onSecondaryContainer,
+        color: theme.colorScheme.onSurfaceVariant,
         letterSpacing: 0.4,
       ),
       maxLines: 2,
@@ -418,13 +418,13 @@ class _CountdownRow extends StatelessWidget {
         Icon(
           Icons.access_time_outlined,
           size: Sizes.medium,
-          color: theme.colorScheme.onSecondaryContainer,
+          color: theme.colorScheme.onSurfaceVariant,
         ),
         const SizedBox(width: Spacing.twoXSmall),
         Text(
           l10n.pendingTabTtlLabel(m, s),
           style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSecondaryContainer,
+            color: theme.colorScheme.onSurfaceVariant,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -477,14 +477,11 @@ class _ExpiredRetryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return IntrinsicWidth(
-      child: SizedBox(
-        height: Sizes.twoXLarge,
-        child: OmdsPrimaryButton(
-          key: const Key('pending-expired-retry'),
-          text: l10n.pendingTabRetryCta,
-          onTap: onRetry,
-          borderRadius: OmdsBorderRadius.pill,
-        ),
+      child: OmdsPrimaryButton(
+        key: const Key('pending-expired-retry'),
+        text: l10n.pendingTabRetryCta,
+        onTap: onRetry,
+        borderRadius: OmdsBorderRadius.pill,
       ),
     );
   }
