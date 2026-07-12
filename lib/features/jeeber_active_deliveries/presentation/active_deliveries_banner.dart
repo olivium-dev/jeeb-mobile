@@ -166,15 +166,24 @@ class _ActiveDeliveryCard extends StatelessWidget {
 }
 
 /// The card's two action buttons ("Open chat" + "Manage delivery"), laid out
-/// responsively so the non-ellipsizing OMDS button labels never right-overflow
-/// on a narrow card.
+/// responsively so the OMDS button labels never right-overflow on a narrow
+/// card.
 ///
-/// [OmdsPrimaryButton] renders its icon + label in a `mainAxisSize.min` Row with
-/// a plain (non-ellipsizing) `Text`, so an `Expanded` box narrower than that
-/// intrinsic width lets the button content paint past its edge (the 39px
-/// right-overflow observed on SM-S921B). Below the side-by-side threshold we
-/// stack the two buttons full-width — each then has the whole card width and
-/// fits its icon+label; at/above it we keep the original side-by-side Row.
+/// [OmdsPrimaryButton]'s *default* content renders its icon + label in a
+/// `mainAxisSize.min` Row with a plain (non-ellipsizing) `Text`, so an
+/// `Expanded`/stretched box narrower than that intrinsic width lets the
+/// content paint past its edge — the 39px right-overflow observed on
+/// SM-S921B, and the 27px right-overflow observed on S908B (run-26), which
+/// hit a *different* narrow width (S908B's card sits above the side-by-side
+/// threshold below, so the two-Expanded Row is used, but the per-button slot
+/// is still narrower than "Manage delivery"'s intrinsic icon+label width).
+/// Rather than chase a wider width-based threshold (which just moves the
+/// breakpoint to the next device), both buttons use the `child:` override to
+/// supply their own icon+label Row with the label wrapped in [Flexible] +
+/// `overflow: ellipsis` — so the label truncates instead of overflowing at
+/// ANY slot width, side-by-side or stacked, LTR or RTL. Below the side-by-side
+/// threshold we still stack the two buttons full-width (each then has the
+/// whole card width, so the label rarely needs to truncate at all).
 class _ActiveDeliveryCardActions extends StatelessWidget {
   const _ActiveDeliveryCardActions({
     required this.l10n,
@@ -188,23 +197,35 @@ class _ActiveDeliveryCardActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final labelStyle = theme.textTheme.labelLarge?.copyWith(
+      fontWeight: FontWeight.w600,
+    );
     final openChat = OmdsPrimaryButton(
       text: l10n.jeeberActiveDeliveriesOpenChat,
-      icon: Icon(Icons.chat_bubble_outline, color: colorScheme.onPrimary),
       onTap: onOpenChat,
+      child: _ButtonLabel(
+        icon: Icon(Icons.chat_bubble_outline, color: colorScheme.onPrimary),
+        label: l10n.jeeberActiveDeliveriesOpenChat,
+        style: labelStyle?.copyWith(color: colorScheme.onPrimary),
+      ),
     );
     final manage = OmdsPrimaryButton(
       text: l10n.jeeberActiveDeliveriesManage,
       variant: OmdsButtonVariant.outlined,
-      icon: const Icon(Icons.local_shipping_outlined),
       onTap: onManageDelivery,
+      child: _ButtonLabel(
+        icon: const Icon(Icons.local_shipping_outlined),
+        label: l10n.jeeberActiveDeliveriesManage,
+        style: labelStyle?.copyWith(color: colorScheme.primary),
+      ),
     );
     return LayoutBuilder(
       builder: (context, constraints) {
         // Two icon+label buttons need ~300+ logical px to sit side by side
-        // without clipping their labels; below that (every standard phone card
-        // width) stack them so neither overflows.
+        // without their labels shrinking to an ellipsis; below that (every
+        // standard phone card width) stack them full-width instead.
         final sideBySide = constraints.maxWidth >= Sizes.threeHundredLarge;
         if (sideBySide) {
           return Row(
@@ -224,6 +245,44 @@ class _ActiveDeliveryCardActions extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// Icon + label content for an [OmdsPrimaryButton], supplied via its `child:`
+/// override so the label can be [Flexible] instead of the package's default
+/// non-ellipsizing `Text` (see [_ActiveDeliveryCardActions] doc for the
+/// overflow this fixes). Mirrors the icon-leading layout + spacing token the
+/// OMDS default content uses, so the button looks identical when it isn't
+/// squeezed — only truncating the label when the slot is too narrow.
+class _ButtonLabel extends StatelessWidget {
+  const _ButtonLabel({
+    required this.icon,
+    required this.label,
+    required this.style,
+  });
+
+  final Widget icon;
+  final String label;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        icon,
+        const SizedBox(width: Spacing.xSmall),
+        Flexible(
+          child: Text(
+            label,
+            style: style,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }
