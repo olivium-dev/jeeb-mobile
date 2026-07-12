@@ -71,8 +71,7 @@ List<CatalogEntry> get batch06Entries => <CatalogEntry>[
 /// [SharedPreferences] instance — read-only local prefs, no network — with a
 /// [deviceLocaleProvider] override so the two designed rows (English /
 /// Arabic selected) render deterministically regardless of any persisted
-/// choice on this device. Mirrors the equivalent preview in
-/// `lib/dev_tools/catalog/groups/settings_shared_screens.dart`.
+/// choice on this device.
 Widget _languageSettingsPreview(Locale deviceLocale) {
   final cubit = LocaleCubit(
     prefs: sl<SharedPreferences>(),

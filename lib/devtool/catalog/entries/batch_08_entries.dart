@@ -33,8 +33,8 @@ import '../catalog_models.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 // onboarding — the three-slide first-launch carousel. OnboardingCubit and
 // LocaleCubit both need a real SharedPreferences instance, so this preview
-// mirrors the legacy `dev_tools/catalog/groups/auth_first_run_screens.dart`
-// async-seam pattern: build the cubits once `SharedPreferences.getInstance()`
+// mirrors the legacy async-seam pattern: build the cubits once
+// `SharedPreferences.getInstance()`
 // resolves, then provide them. `onComplete` is a no-op so Get Started / Skip
 // never attempt a `goNamed('register')` outside a Router.
 // ─────────────────────────────────────────────────────────────────────────────
