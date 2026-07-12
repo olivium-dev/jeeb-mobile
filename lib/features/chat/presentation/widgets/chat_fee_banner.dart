@@ -17,10 +17,12 @@ enum ChatFeeBannerTrailing {
 
 /// Jeeber-only balance-deduction notice strip shown above the chat thread.
 ///
-/// A full-bleed periwinkle band (`colorScheme.onSecondaryContainer` — the
-/// Figma `#777FC0` "On Secondary Container" role) with white body copy and an
-/// optional trailing control. The fee amount is supplied pre-formatted by the
-/// gateway fee config; the banner never computes currency itself.
+/// A full-bleed navy band (`colorScheme.secondaryContainer`) with white body
+/// copy (`onPrimary`) and an optional trailing control — an M3-guaranteed
+/// ≥4.5:1 pair. (The prior `onSecondaryContainer` periwinkle `#777FC0` fill
+/// under the same white copy failed the contrast bar — JEBV4-92.) The fee
+/// amount is supplied pre-formatted by the gateway fee config; the banner
+/// never computes currency itself.
 ///
 /// OMDS has no flat notice-strip primitive (`OMDSProgressBanner` is a
 /// progress-ring card, not this band), so the band is composed from OMDS
@@ -65,7 +67,7 @@ class ChatFeeBanner extends StatelessWidget {
       child: Container(
         key: bannerKey,
         width: double.infinity,
-        color: colorScheme.onSecondaryContainer,
+        color: colorScheme.secondaryContainer,
         padding: const EdgeInsetsDirectional.symmetric(
           horizontal: Spacing.xLarge,
           vertical: Spacing.medium,
