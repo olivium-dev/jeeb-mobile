@@ -13,13 +13,11 @@ import '../../../../core/session/profile_refresh_signals.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../profile_name/data/dio_display_name_repository.dart';
 import '../../../profile_name/domain/display_name_repository.dart';
-import '../../application/role_switch_cubit.dart';
 import '../../application/settings_cubit.dart';
 import '../../application/settings_state.dart';
 import '../../domain/account_service.dart';
 import '../../domain/profile_repository.dart';
 import '../widgets/logout_delete_confirm_sheet.dart';
-import '../widgets/role_toggle_setting.dart';
 
 /// Settings screen (T-mobile-031).
 ///
@@ -40,8 +38,6 @@ class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
     super.key,
     this.cubit,
-    this.roleSwitchCubit,
-    this.availableRoles = const [],
     this.appVersion = '1.0.0',
   });
 
@@ -50,14 +46,6 @@ class SettingsScreen extends StatelessWidget {
   /// so they don't have to plumb SharedPreferences.
   final SettingsCubit? cubit;
 
-  /// T-MOB-028: Optional role-switch cubit. When non-null and [availableRoles]
-  /// contains both 'client' and 'jeeber', the Active Role toggle is shown.
-  final RoleSwitchCubit? roleSwitchCubit;
-
-  /// T-MOB-028: Available role identifiers for the logged-in user. Drives
-  /// [RoleToggleSetting] visibility.
-  final List<String> availableRoles;
-
   /// Human-readable app version surfaced in the About section. Defaults to
   /// the pubspec value; production wiring should pass the build-time
   /// resolved string.
@@ -65,11 +53,7 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final view = _SettingsView(
-      appVersion: appVersion,
-      roleSwitchCubit: roleSwitchCubit,
-      availableRoles: availableRoles,
-    );
+    final view = _SettingsView(appVersion: appVersion);
     if (cubit != null) {
       return BlocProvider<SettingsCubit>.value(value: cubit!, child: view);
     }
@@ -103,15 +87,9 @@ class SettingsScreen extends StatelessWidget {
 }
 
 class _SettingsView extends StatelessWidget {
-  const _SettingsView({
-    required this.appVersion,
-    this.roleSwitchCubit,
-    this.availableRoles = const [],
-  });
+  const _SettingsView({required this.appVersion});
 
   final String appVersion;
-  final RoleSwitchCubit? roleSwitchCubit;
-  final List<String> availableRoles;
 
   @override
   Widget build(BuildContext context) {
@@ -149,13 +127,11 @@ class _SettingsView extends StatelessWidget {
               _AddressesSection(),
               _LanguageSection(),
               _NotificationsSection(state: state),
-              // T-MOB-028: Role toggle — only shown when both roles available
-              // and a RoleSwitchCubit is wired by the host (shell/profile-tab).
-              if (roleSwitchCubit != null)
-                RoleToggleSetting(
-                  availableRoles: availableRoles,
-                  cubit: roleSwitchCubit!,
-                ),
+              // JEBV4-204 (E9 / Q-037 / ADR-004): the in-app role SWITCH was
+              // removed. The additive 5-tab shell surfaces both the client and
+              // jeeber bodies, and KYC approval auto-activates the jeeber role
+              // (JeeberRoleActivator, JEBV4-271) — so a manual role toggle here
+              // is redundant.
               _AboutSection(appVersion: appVersion),
               _AccountSection(state: state),
             ],

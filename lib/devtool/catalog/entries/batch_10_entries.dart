@@ -17,11 +17,9 @@ import '../../../features/reviews/data/empty_reviews_repository.dart';
 import '../../../features/reviews/data/stub_reviews_repository.dart';
 import '../../../features/reviews/domain/reviews_repository.dart';
 import '../../../features/reviews/presentation/reviews_list_screen.dart';
-import '../../../features/settings/application/role_switch_cubit.dart';
 import '../../../features/settings/application/settings_cubit.dart';
 import '../../../features/settings/domain/account_service.dart';
 import '../../../features/settings/domain/profile_repository.dart';
-import '../../../features/settings/domain/role_switch_repository.dart';
 import '../../../features/settings/domain/account_session_terminator.dart';
 import '../../../features/settings/domain/user_profile.dart';
 import '../../../features/settings/presentation/screens/notification_preferences_screen.dart';
@@ -238,14 +236,6 @@ class _FakeAccountService implements AccountService {
   Future<AccountActionOutcome> signOut() async => AccountActionOutcome.success;
 }
 
-class _NoopRoleSwitchRepository implements RoleSwitchRepository {
-  const _NoopRoleSwitchRepository();
-
-  @override
-  Future<RoleSwitchResult> switchRole(String role) async =>
-      RoleSwitchResult.success;
-}
-
 UserProfile _sampleProfile() => const UserProfile(
       phoneE164: '+96170123456',
       name: 'Maya Haddad',
@@ -270,13 +260,11 @@ SettingsCubit _settingsCubit({UserProfile? profile, bool driveDeletion = false})
 }
 
 /// Async-seam host for [SettingsScreen] (see file-header note): resolves a
-/// real [SharedPreferences] instance, builds the [LocaleCubit] it needs, and
-/// optionally a [RoleSwitchCubit] when [withRoleToggle] is set.
+/// real [SharedPreferences] instance and builds the [LocaleCubit] it needs.
 class _SettingsPreview extends StatefulWidget {
-  const _SettingsPreview({required this.cubit, this.withRoleToggle = false});
+  const _SettingsPreview({required this.cubit});
 
   final SettingsCubit cubit;
-  final bool withRoleToggle;
 
   @override
   State<_SettingsPreview> createState() => _SettingsPreviewState();
@@ -284,7 +272,6 @@ class _SettingsPreview extends StatefulWidget {
 
 class _SettingsPreviewState extends State<_SettingsPreview> {
   LocaleCubit? _locale;
-  RoleSwitchCubit? _roleSwitch;
 
   @override
   void initState() {
@@ -298,27 +285,18 @@ class _SettingsPreviewState extends State<_SettingsPreview> {
       prefs: prefs,
       deviceLocaleProvider: () => const Locale('en'),
     );
-    final roleSwitch = widget.withRoleToggle
-        ? RoleSwitchCubit(
-            repository: const _NoopRoleSwitchRepository(),
-            initialRole: 'client',
-          )
-        : null;
     if (!mounted) {
       await locale.close();
-      await roleSwitch?.close();
       return;
     }
     setState(() {
       _locale = locale;
-      _roleSwitch = roleSwitch;
     });
   }
 
   @override
   void dispose() {
     _locale?.close();
-    _roleSwitch?.close();
     widget.cubit.close();
     super.dispose();
   }
@@ -329,12 +307,7 @@ class _SettingsPreviewState extends State<_SettingsPreview> {
     if (locale == null) return const SizedBox.shrink();
     return BlocProvider<LocaleCubit>.value(
       value: locale,
-      child: SettingsScreen(
-        cubit: widget.cubit,
-        roleSwitchCubit: _roleSwitch,
-        availableRoles:
-            widget.withRoleToggle ? const ['client', 'jeeber'] : const [],
-      ),
+      child: SettingsScreen(cubit: widget.cubit),
     );
   }
 }
@@ -650,13 +623,6 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
           CatalogState(
             'Loaded — Deletion Pending',
             (_) => _SettingsPreview(cubit: _settingsCubit(driveDeletion: true)),
-          ),
-          CatalogState(
-            'Loaded — Role Toggle',
-            (_) => _SettingsPreview(
-              cubit: _settingsCubit(),
-              withRoleToggle: true,
-            ),
           ),
         ],
       ),

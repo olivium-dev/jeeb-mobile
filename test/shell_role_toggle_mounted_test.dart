@@ -16,14 +16,13 @@ import 'package:jeeb_mobile/features/earnings/domain/earnings_repository.dart';
 import 'package:jeeb_mobile/features/earnings/domain/earnings_summary.dart';
 import 'package:jeeb_mobile/features/jeeber_home/domain/services/availability_gateway.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_repository.dart';
-import 'package:jeeb_mobile/features/settings/presentation/widgets/role_toggle_setting.dart';
 import 'package:jeeb_mobile/features/shell/shell_screen.dart';
 import 'package:jeeb_mobile/features/shell/widgets/jeeber_tab_empty_state.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 /// UX LAW (S0-E2E-08): the jeeber surfaces are ADDITIVE tabs, not a mode the
-/// user flips into. The in-app role *switch* (the old DEFECT-C [RoleToggleSetting]
-/// mounted in the Profile tab) is therefore REMOVED — neither a single-role
+/// user flips into. The in-app role *switch* (the old DEFECT-C RoleToggleSetting
+/// mounted in the Profile tab) was DELETED in JEBV4-204 — neither a single-role
 /// client nor a dual-role user sees it. The dual-role user simply gets the LIVE
 /// jeeber tab bodies; the single-role user gets the same tabs with EMPTY STATES.
 
@@ -126,7 +125,10 @@ void main() {
     await _openProfile(tester);
 
     // The role SWITCH is gone (UX LAW: additive tabs, no mode flip).
-    expect(find.byKey(RoleToggleSetting.rootKey), findsNothing);
+    // JEBV4-204: RoleToggleSetting was DELETED; assert against its former key
+    // literal so this stays a live regression guard against a role switch
+    // reappearing in the Profile tab.
+    expect(find.byKey(const Key('role-toggle-setting-root')), findsNothing);
   });
 
   testWidgets('single-role client does NOT see a role toggle either',
@@ -138,7 +140,10 @@ void main() {
     await tester.pumpAndSettle();
     await _openProfile(tester);
 
-    expect(find.byKey(RoleToggleSetting.rootKey), findsNothing);
+    // JEBV4-204: RoleToggleSetting was DELETED; assert against its former key
+    // literal so this stays a live regression guard against a role switch
+    // reappearing in the Profile tab.
+    expect(find.byKey(const Key('role-toggle-setting-root')), findsNothing);
   });
 
   testWidgets('dual-role user gets the LIVE jeeber tab bodies (no empty state)',
