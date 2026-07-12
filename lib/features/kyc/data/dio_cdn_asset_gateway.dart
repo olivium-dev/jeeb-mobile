@@ -154,6 +154,8 @@ class DioCdnAssetGateway implements CdnAssetGateway {
         return 'vehicle_registration';
       case CdnUploadSlot.selfieWithLiveness:
         return 'selfie_with_liveness';
+      case CdnUploadSlot.proofOfDelivery:
+        return 'proof_of_delivery';
     }
   }
 }

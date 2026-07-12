@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../photo_attachment/domain/photo_picker_service.dart';
 import '../application/active_delivery_cubit.dart';
 import '../domain/active_delivery_repository.dart';
 import '../domain/jeeber_delivery.dart';
@@ -30,6 +31,7 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
     this.onOpenOtp,
     this.onEnterGoodsCost,
     this.repository,
+    this.photoPicker,
     this.cubit,
     this.mapsUrlBuilder,
   });
@@ -55,6 +57,11 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
 
   /// Injectable repo — production uses DI; tests supply a fake.
   final ActiveDeliveryRepository? repository;
+
+  /// Injectable proof-photo camera picker (JEBV4-200) — production passes the
+  /// real `image_picker` binding from DI; when null the cubit falls back to its
+  /// canned-bytes stub (devtool/tests).
+  final PhotoPickerService? photoPicker;
 
   /// Pre-built cubit — optional test seam.
   final ActiveDeliveryCubit? cubit;
@@ -82,9 +89,11 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
       return const _Unavailable();
     }
     return BlocProvider<ActiveDeliveryCubit>(
-      create: (_) =>
-          ActiveDeliveryCubit(repository: repo, deliveryId: deliveryId)
-            ..loadDelivery(),
+      create: (_) => ActiveDeliveryCubit(
+        repository: repo,
+        deliveryId: deliveryId,
+        photoPicker: photoPicker,
+      )..loadDelivery(),
       child: _Body(
         deliveryId: deliveryId,
         onOpenChat: onOpenChat,
@@ -196,9 +205,7 @@ class _Body extends StatelessWidget {
           onAdvance: () =>
               context.read<ActiveDeliveryCubit>().advanceStatus(),
           onCaptureProof: () =>
-              context.read<ActiveDeliveryCubit>().captureProofPhoto(
-                    'proof_${DateTime.now().millisecondsSinceEpoch}.jpg',
-                  ),
+              context.read<ActiveDeliveryCubit>().captureProofPhoto(),
           onNoteChanged: (v) =>
               context.read<ActiveDeliveryCubit>().setNote(v),
           onMarkDelivered: () =>
@@ -295,6 +302,7 @@ class _ReadyContent extends StatelessWidget {
           MarkDeliveredPanel(
             delivery: delivery,
             proofPhotoStatus: state.proofPhotoStatus,
+            proofPhotoBytes: state.proofPhotoBytes,
             isMarking: state.isTransitioning,
             onCaptureProof: onCaptureProof,
             onNoteChanged: onNoteChanged,

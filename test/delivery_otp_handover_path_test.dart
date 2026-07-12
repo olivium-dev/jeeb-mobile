@@ -8,16 +8,33 @@
 // the rewrite and 404'd against the Express mock. These tests pin the paths so
 // the regression can't silently come back.
 
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/active_delivery_jeeber/data/dio_active_delivery_repository.dart';
+import 'package:jeeb_mobile/features/kyc/domain/cdn_asset_gateway.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/active_delivery_repository.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
 import 'package:jeeb_mobile/features/otp_handover/data/dio_otp_handover_repository.dart';
 import 'package:jeeb_mobile/features/otp_handover/domain/otp_handover_repository.dart';
 
 /// Records every GET/POST path + body, returns scripted responses.
+/// The OTP-handover paths never upload a proof photo — this inert CDN gateway
+/// only satisfies the [DioActiveDeliveryRepository] constructor.
+class _UnusedCdnAssetGateway implements CdnAssetGateway {
+  const _UnusedCdnAssetGateway();
+
+  @override
+  Future<String> uploadAsset({
+    required CdnUploadSlot slot,
+    required Uint8List bytes,
+    String contentType = 'image/jpeg',
+  }) =>
+      throw UnimplementedError();
+}
+
 class _RecordingDio extends Fake implements Dio {
   final List<String> getPaths = [];
   final List<String> postPaths = [];
@@ -193,7 +210,10 @@ void main() {
       final dio = _RecordingDio()
         ..nextGetData = {'code': '1234'}
         ..nextPostData = {'verified': true, 'status': 'Done'};
-      final repo = DioActiveDeliveryRepository(dio);
+      final repo = DioActiveDeliveryRepository(
+      dio,
+      cdnAssetGateway: const _UnusedCdnAssetGateway(),
+    );
 
       final status =
           await repo.verifyDoorOtp(deliveryId: 'delivery-005', code: '1234');
@@ -214,7 +234,10 @@ void main() {
       final dio = _RecordingDio()
         ..nextGetData = {'code': '1234'}
         ..nextPostError = _httpError(401);
-      final repo = DioActiveDeliveryRepository(dio);
+      final repo = DioActiveDeliveryRepository(
+      dio,
+      cdnAssetGateway: const _UnusedCdnAssetGateway(),
+    );
 
       await expectLater(
         repo.verifyDoorOtp(deliveryId: 'delivery-005', code: '0000'),
@@ -232,7 +255,10 @@ void main() {
       final dio = _RecordingDio()
         ..nextGetData = {'code': '1234'}
         ..nextPostError = _httpError(423);
-      final repo = DioActiveDeliveryRepository(dio);
+      final repo = DioActiveDeliveryRepository(
+      dio,
+      cdnAssetGateway: const _UnusedCdnAssetGateway(),
+    );
 
       await expectLater(
         repo.verifyDoorOtp(deliveryId: 'delivery-005', code: '0000'),

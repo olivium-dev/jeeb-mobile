@@ -31,25 +31,70 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/data/dio_active_delivery_repository.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/active_delivery_repository.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
+import 'package:jeeb_mobile/features/kyc/domain/cdn_asset_gateway.dart';
 
 const _deliveryId = 'req-uuid-0001';
 
 void main() {
   late _RecordingAdapter adapter;
   late Dio dio;
+  late _RecordingCdnAssetGateway cdn;
 
   setUp(() {
     adapter = _RecordingAdapter();
+    cdn = _RecordingCdnAssetGateway();
     // ORIGIN-ONLY base (ARCH-01): host is irrelevant to the contract — the
     // recording adapter never opens a socket. Path-shape is what we assert.
     dio = Dio(BaseOptions(baseUrl: 'http://origin.test'))
       ..httpClientAdapter = adapter;
   });
 
-  DioActiveDeliveryRepository originRepo() =>
-      DioActiveDeliveryRepository(dio, originGateway: true);
-  DioActiveDeliveryRepository mockRepo() =>
-      DioActiveDeliveryRepository(dio, originGateway: false);
+  DioActiveDeliveryRepository originRepo() => DioActiveDeliveryRepository(
+        dio,
+        originGateway: true,
+        cdnAssetGateway: cdn,
+      );
+  DioActiveDeliveryRepository mockRepo() => DioActiveDeliveryRepository(
+        dio,
+        originGateway: false,
+        cdnAssetGateway: cdn,
+      );
+
+  group('Proof-photo upload (D3, JEBV4-200) — real bytes via CDN broker', () {
+    test('uploadProofPhoto streams the REAL image bytes to the CDN broker '
+        'under the proof_of_delivery slot, returning the object_ref', () async {
+      final payload = Uint8List.fromList(
+        List<int>.generate(4096, (i) => (i * 7) % 256),
+      );
+      final ref = await originRepo().uploadProofPhoto(
+        deliveryId: _deliveryId,
+        bytes: payload,
+      );
+      // The bytes handed to the broker are the actual image payload — never a
+      // filename/path string.
+      expect(cdn.lastBytes, equals(payload));
+      expect(cdn.lastSlot, CdnUploadSlot.proofOfDelivery);
+      expect(ref, cdn.returnedRef);
+    });
+
+    test('a CDN upload failure surfaces as ActiveDeliveryFailure.server',
+        () async {
+      cdn.failure = const CdnUploadException('boom');
+      await expectLater(
+        originRepo().uploadProofPhoto(
+          deliveryId: _deliveryId,
+          bytes: Uint8List.fromList(const [1, 2, 3]),
+        ),
+        throwsA(
+          isA<ActiveDeliveryException>().having(
+            (e) => e.failure,
+            'failure',
+            ActiveDeliveryFailure.server,
+          ),
+        ),
+      );
+    });
+  });
 
   group('Origin :10090 (Contract 8) — frozen plural routes', () {
     test('fetchDelivery reads GET /v1/deliveries/{id} (plural, 8c) and parses '
@@ -275,6 +320,29 @@ ResponseBody _json(Map<String, Object?> body, {int status = 200}) =>
         Headers.contentTypeHeader: [Headers.jsonContentType],
       },
     );
+
+/// Records the bytes + slot the repository hands to the CDN broker, so a test
+/// can assert a proof upload transmits REAL image bytes (JEBV4-200).
+class _RecordingCdnAssetGateway implements CdnAssetGateway {
+  Uint8List? lastBytes;
+  CdnUploadSlot? lastSlot;
+  String? lastContentType;
+  final String returnedRef = 'cdn://obj/proof-ref-0001';
+  CdnUploadException? failure;
+
+  @override
+  Future<String> uploadAsset({
+    required CdnUploadSlot slot,
+    required Uint8List bytes,
+    String contentType = 'image/jpeg',
+  }) async {
+    if (failure != null) throw failure!;
+    lastSlot = slot;
+    lastBytes = bytes;
+    lastContentType = contentType;
+    return returnedRef;
+  }
+}
 
 class _RecordingAdapter implements HttpClientAdapter {
   ResponseBody Function(String path)? onGet;

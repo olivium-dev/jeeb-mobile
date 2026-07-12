@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
@@ -29,6 +31,7 @@ class MarkDeliveredPanel extends StatelessWidget {
     required this.proofPhotoStatus,
     required this.isMarking,
     required this.onCaptureProof,
+    this.proofPhotoBytes,
     required this.onNoteChanged,
     required this.onMarkDelivered,
     required this.l10n,
@@ -40,6 +43,11 @@ class MarkDeliveredPanel extends StatelessWidget {
 
   final JeeberDelivery delivery;
   final ProofPhotoStatus proofPhotoStatus;
+
+  /// JEBV4-200: the just-captured proof-photo bytes, rendered from memory so the
+  /// jeeber sees the actual image (the stamped `evidenceUrl` is an opaque CDN
+  /// `object_ref` the gateway resolves later on the customer receipt).
+  final Uint8List? proofPhotoBytes;
   final bool isMarking;
   final VoidCallback onCaptureProof;
   final ValueChanged<String> onNoteChanged;
@@ -72,6 +80,7 @@ class MarkDeliveredPanel extends StatelessWidget {
         _ProofPhoto(
           delivery: delivery,
           status: proofPhotoStatus,
+          bytes: proofPhotoBytes,
           onCapture: onCaptureProof,
           l10n: l10n,
         ),
@@ -194,12 +203,17 @@ class _ProofPhoto extends StatelessWidget {
   const _ProofPhoto({
     required this.delivery,
     required this.status,
+    required this.bytes,
     required this.onCapture,
     required this.l10n,
   });
 
   final JeeberDelivery delivery;
   final ProofPhotoStatus status;
+
+  /// The just-captured bytes (JEBV4-200) — preferred over the stamped
+  /// `evidenceUrl` for the local thumbnail so the jeeber sees the real photo.
+  final Uint8List? bytes;
   final VoidCallback onCapture;
   final AppLocalizations l10n;
 
@@ -209,9 +223,8 @@ class _ProofPhoto extends StatelessWidget {
     final uploading = status == ProofPhotoStatus.uploading;
     final captured =
         status == ProofPhotoStatus.captured && delivery.hasProofPhoto;
-    // EXEMPT: image capture is device-native (image_picker). Wired to the
-    // cubit's proof-upload (D1m sink) via [onCapture]; the camera sheet is a
-    // release follow-up — the stubbed filename round-trips the mock today.
+    // JEBV4-200: the camera capture is wired to the cubit's real-bytes CDN
+    // upload via [onCapture]; the captured frame renders from memory below.
     return Semantics(
       identifier: 'mark_delivered_proof_photo',
       button: true,
@@ -228,12 +241,19 @@ class _ProofPhoto extends StatelessWidget {
               height: 180,
               width: double.infinity,
               child: captured
-                  ? OmdsCachedImage(
-                      url: delivery.proofPhotoUrl!,
-                      height: 180,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    )
+                  ? (bytes != null
+                      ? Image.memory(
+                          bytes!,
+                          height: 180,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        )
+                      : OmdsCachedImage(
+                          url: delivery.proofPhotoUrl!,
+                          height: 180,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ))
                   : Container(
                       color: theme.colorScheme.surfaceContainerHighest,
                       alignment: Alignment.center,

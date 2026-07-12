@@ -3,12 +3,20 @@ import 'dart:typed_data';
 /// Upload slots recognized by the gateway's CDN signed-PUT broker
 /// (`POST /api/cdn/assets`). Wire values are the broker's `slot` enum
 /// (`CdnController.AllowedUploadSlots`): `id_document_front`,
-/// `id_document_back`, `vehicle_registration`, `selfie_with_liveness`.
+/// `id_document_back`, `vehicle_registration`, `selfie_with_liveness`,
+/// `proof_of_delivery`.
 enum CdnUploadSlot {
   idDocumentFront,
   idDocumentBack,
   vehicleRegistration,
   selfieWithLiveness,
+
+  /// JEBV4-200 (D3): the proof-of-delivery photo the jeeber captures at
+  /// handover. Reuses the SAME shipped CDN streaming-proxy path as the KYC
+  /// slots (JEBV4-259 / PR #257) — only the broker allowlist entry differs.
+  /// Wire value `proof_of_delivery`; gateway `CdnController.AllowedUploadSlots`
+  /// must include it (companion one-line gateway change).
+  proofOfDelivery,
 }
 
 /// Client for the CDN signed-upload broker described in

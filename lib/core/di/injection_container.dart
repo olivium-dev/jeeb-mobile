@@ -525,7 +525,12 @@ void configureDependencies({
   // T-MOB-031: Active delivery (Jeeber) — GET /v1/deliveries/{id} +
   // POST /v1/deliveries/{id}/transition.
   sl.registerLazySingleton<ActiveDeliveryRepository>(
-    () => DioActiveDeliveryRepository(sl<Dio>()),
+    // JEBV4-200: proof-of-delivery photo BYTES stream through the shipped CDN
+    // signed-PUT broker+proxy (JEBV4-259 / PR #257), same as the KYC photos.
+    () => DioActiveDeliveryRepository(
+      sl<Dio>(),
+      cdnAssetGateway: sl<CdnAssetGateway>(),
+    ),
   );
 
   // JEBV4-285: order-summary (`view summary` → order-summary-pinned, JM-031)
