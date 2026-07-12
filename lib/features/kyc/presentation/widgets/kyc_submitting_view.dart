@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../l10n/app_localizations.dart';
+import '../../application/kyc_wizard_cubit.dart';
+import '../../application/kyc_wizard_state.dart';
 
 /// Loading state rendered while [KycWizardCubit.submit] is in flight.
 ///
@@ -11,7 +16,17 @@ import '../../../../l10n/app_localizations.dart';
 /// design parity with the other capture steps: an icon, a headline, body
 /// copy, and a single in-line spinner row, with a live region semantic so
 /// VoiceOver / TalkBack announce the state change.
-class KycSubmittingView extends StatelessWidget {
+///
+/// JEBV4-259/271 — it also owns the submit-hang SAFETY NET. A healthy submit
+/// (the gateway auto-approves at t+0) leaves this view within a few seconds, so
+/// the net never fires. Only when `submit()` HANGS past [_graceBeforePoll] —
+/// e.g. a stalled CDN upload or a 201 the client never receives — does the
+/// poller start re-reading `GET /v1/kyc/status`; the moment the server shows
+/// the submission recorded it advances the wizard off this spinner (see
+/// [KycWizardCubit.refreshWhileSubmitting]) so an approved jeeber comes online
+/// with NO force-stop+relaunch. Mirrors [KycStatusView]'s poller: a timer +
+/// app-resume probe, both cancelled in [dispose] so nothing runs unbounded.
+class KycSubmittingView extends StatefulWidget {
   const KycSubmittingView({super.key});
 
   static const Key rootKey = Key('kyc-submitting-root');
@@ -19,10 +34,64 @@ class KycSubmittingView extends StatelessWidget {
   static const Key spinnerKey = Key('kyc-submitting-spinner');
 
   @override
+  State<KycSubmittingView> createState() => _KycSubmittingViewState();
+}
+
+class _KycSubmittingViewState extends State<KycSubmittingView>
+    with WidgetsBindingObserver {
+  /// Let the normal (fast, auto-approving) submit win before the net probes, so
+  /// a healthy in-flight submit is never yanked off the spinner prematurely.
+  static const Duration _graceBeforePoll = Duration(seconds: 12);
+  static const Duration _pollInterval = Duration(seconds: 3);
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _timer = Timer(_graceBeforePoll, _beginPolling);
+  }
+
+  void _beginPolling() {
+    if (!mounted) return;
+    _probe();
+    _timer = Timer.periodic(_pollInterval, (_) => _probe());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Returning from background (the OS may have paused a stalled upload) — the
+    // submission could already be Verified server-side, so probe immediately.
+    if (state == AppLifecycleState.resumed) _probe();
+  }
+
+  /// Ask the cubit to reconcile against the server while we are still stuck on
+  /// the spinner; stop polling the instant we leave the submitting step.
+  void _probe() {
+    if (!mounted) return;
+    final cubit = context.read<KycWizardCubit?>();
+    if (cubit == null) return;
+    if (cubit.state.step != KycWizardStep.submitting) {
+      _timer?.cancel();
+      _timer = null;
+      return;
+    }
+    unawaited(cubit.refreshWhileSubmitting());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Semantics(
-      key: rootKey,
+      key: KycSubmittingView.rootKey,
       container: true,
       liveRegion: true,
       label: l10n.kycSubmittingTitle,

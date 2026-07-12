@@ -100,6 +100,48 @@ class KycWizardCubit extends Cubit<KycWizardState> {
     ));
   }
 
+  // ── Submit safety-net (poll while STUCK on the submitting spinner) ─────────
+
+  /// JEBV4-259/271 safety-net for a STALLED [submit]: when the in-flight
+  /// `submit()` future never completes — a half-open CDN-upload socket, or a
+  /// `POST /v1/kyc/submit` whose 201 response the client never receives even
+  /// though the gateway already auto-approved it (`Verified`) — the wizard is
+  /// stranded on [KycWizardStep.submitting] with nothing polling ([refreshStatus]
+  /// deliberately no-ops while submitting, and [KycStatusView]'s poller only
+  /// mounts once we reach [KycWizardStep.status]). [KycSubmittingView] drives
+  /// this out-of-band once the spinner outlives a short grace window.
+  ///
+  /// It re-reads `GET /v1/kyc/status`; if the SERVER already recorded the
+  /// submission (anything but [KycStatus.notSubmitted]) the local future is hung,
+  /// so it advances the wizard off the spinner onto the [status] step. On an
+  /// auto-approved `Verified` that renders [KycStatusView]'s approved body, which
+  /// fires [JeeberRoleActivator] (`POST /v1/users/me/role/switch`) and brings the
+  /// jeeber online — the SAME self-heal a force-stop+relaunch achieves via
+  /// [loadStatus], but with NO force-stop and NO re-login.
+  ///
+  /// Fail-soft: a transient fetch error is swallowed (the poller retries) and a
+  /// `notSubmitted` read (submit hasn't reached the server yet) never advances.
+  /// The step is re-checked after the await so a `submit()` that completed
+  /// meanwhile wins the race. [justSubmitted] stays false so a recovered submit
+  /// lands on the in-wizard status view (whose own poller tracks a later
+  /// approval) instead of silently chaining to `onboarding-funding`.
+  Future<void> refreshWhileSubmitting() async {
+    if (state.step != KycWizardStep.submitting) return;
+    final KycSubmission snapshot;
+    try {
+      snapshot = await _gateway.fetchStatus();
+    } catch (_) {
+      return;
+    }
+    if (state.step != KycWizardStep.submitting) return;
+    if (snapshot.status == KycStatus.notSubmitted) return;
+    emit(state.copyWith(
+      step: KycWizardStep.status,
+      submission: snapshot,
+      justSubmitted: false,
+    ));
+  }
+
   // ── Capture ──────────────────────────────────────────────────────────────
 
   Future<void> captureIdFront() => _capture(KycCaptureSlot.idFront);

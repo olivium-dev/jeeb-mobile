@@ -34,7 +34,7 @@ class LiveTrackingScreen extends StatelessWidget {
   const LiveTrackingScreen({
     super.key,
     required this.deliveryId,
-    this.useLiveMap = false,
+    this.useLiveMap = true,
   });
 
   final String deliveryId;
@@ -42,15 +42,17 @@ class LiveTrackingScreen extends StatelessWidget {
   /// T-MOB-017 / sprint-009 P0: when false the deterministic map placeholder is
   /// rendered instead of a live GoogleMap.
   ///
-  /// DEFAULTS TO FALSE (sprint-009 stop-the-bleed): `AndroidManifest.xml` has no
-  /// `com.google.android.geo.API_KEY`, so mounting a live GoogleMap makes the
-  /// native Maps SDK throw an UNCAUGHT `IllegalStateException` off the platform
-  /// thread → SIGKILL (a native FATAL that no Dart try/catch can contain). A
-  /// keyless map is therefore never safe to mount from ANY caller. sprint-013
-  /// owns provisioning the real Maps key and flipping this default back to true;
-  /// until then the screen shows the full stepper / Jeeber card / OTP card with
-  /// a static placeholder tile — no user-facing dead end. Callers that pass
-  /// `useLiveMap` explicitly (widget tests) are unaffected.
+  /// DEFAULTS TO TRUE. The sprint-009 stop-the-bleed default of `false` guarded
+  /// against a keyless-map native SIGKILL: mounting a live GoogleMap with no
+  /// `com.google.android.geo.API_KEY` makes the native Maps SDK throw an
+  /// UNCAUGHT `IllegalStateException` off the platform thread — a native FATAL
+  /// no Dart try/catch can contain. That precondition is now satisfied:
+  /// `AndroidManifest.xml` wires `com.google.android.geo.API_KEY` from the
+  /// gitignored `android/local.properties` `${MAPS_API_KEY}`, and Google-Cloud
+  /// billing is enabled on the `jeeb-5a293` project, so the Maps SDK serves. The
+  /// customer tracking surface now renders the live courier map by default;
+  /// callers can still pass `useLiveMap: false` explicitly (e.g. tests, or a
+  /// deliberate placeholder) to fall back to the static tile.
   final bool useLiveMap;
 
   @override

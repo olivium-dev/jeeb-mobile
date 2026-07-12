@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -67,7 +68,89 @@ class _FieldRejectingKycGateway extends FakeKycGateway {
   }
 }
 
+/// Mimics the on-device submit-hang: `submit()` NEVER completes (a stalled CDN
+/// upload, or a 201 the client never receives), while the server-side status is
+/// scripted so the safety-net poll can reconcile against it (JEBV4-259/271).
+class _HangingSubmitKycGateway extends FakeKycGateway {
+  _HangingSubmitKycGateway({required this.serverStatus});
+
+  /// What `GET /v1/kyc/status` reports while the submit future is hung.
+  final KycStatus serverStatus;
+
+  @override
+  Future<KycSubmission> submit(KycSubmission draft) =>
+      Completer<KycSubmission>().future; // never resolves
+
+  @override
+  Future<KycSubmission> fetchStatus() async => KycSubmission(
+        status: serverStatus,
+        submittedAt: DateTime.now(),
+      );
+}
+
 void main() {
+  group('KycWizardCubit — submit-hang safety net (refreshWhileSubmitting)', () {
+    test(
+        'un-sticks a HUNG submit: server already Verified → advances off the '
+        'spinner to the approved status view (no force-stop needed)', () async {
+      final cubit = _buildCubit(
+        gateway: _HangingSubmitKycGateway(serverStatus: KycStatus.approved),
+      );
+      await _completeIdentity(cubit);
+
+      // Kick off a submit that HANGS forever — the wizard is stranded on the
+      // submitting spinner, exactly the on-device ~98s hang.
+      unawaited(cubit.submit());
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(cubit.state.step, KycWizardStep.submitting,
+          reason: 'submit() emitted submitting then hung on the gateway');
+
+      // The safety-net poll reconciles against the server, which already
+      // recorded the auto-approved submission → advance off the spinner.
+      await cubit.refreshWhileSubmitting();
+
+      expect(cubit.state.step, KycWizardStep.status);
+      expect(cubit.state.submission.status, KycStatus.approved);
+      expect(cubit.state.justSubmitted, isFalse,
+          reason: 'a recovered submit lands on the in-wizard status view '
+              '(→ KycStatusView._ApprovedBody fires JeeberRoleActivator), '
+              'never silently chains to onboarding-funding');
+    });
+
+    test('keeps the spinner when the server has NO submission yet '
+        '(a stall BEFORE the POST reached the server)', () async {
+      final cubit = _buildCubit(
+        gateway:
+            _HangingSubmitKycGateway(serverStatus: KycStatus.notSubmitted),
+      );
+      await _completeIdentity(cubit);
+      unawaited(cubit.submit());
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(cubit.state.step, KycWizardStep.submitting);
+
+      await cubit.refreshWhileSubmitting();
+
+      expect(cubit.state.step, KycWizardStep.submitting,
+          reason: 'nothing recorded server-side → never leave the spinner '
+              '(the CDN upload timeout, not the poll, resolves this branch)');
+    });
+
+    test('is a no-op when not on the submitting step', () async {
+      final cubit = _buildCubit(
+        gateway: _HangingSubmitKycGateway(serverStatus: KycStatus.approved),
+      );
+      await cubit.loadSchema(); // identity step
+      expect(cubit.state.step, KycWizardStep.identity);
+
+      await cubit.refreshWhileSubmitting();
+
+      expect(cubit.state.step, KycWizardStep.identity,
+          reason: 'the net only ever fires while stuck on the spinner');
+    });
+  });
+
   group('KycWizardCubit — initial state', () {
     test('starts on the schema step before loadSchema is called', () {
       final cubit = _buildCubit();

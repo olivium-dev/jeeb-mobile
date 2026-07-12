@@ -1,20 +1,20 @@
-// sprint-009 P0 (stop-the-bleed) — the /orders/:id/tracking route must render
-// the map PLACEHOLDER, never a live GoogleMap, until sprint-013 provisions the
-// Maps key.
+// Maps-ON guard — the /orders/:id/tracking route now renders the LIVE
+// GoogleMap. The sprint-009 stop-the-bleed placeholder default is retired:
+// `android/app/src/main/AndroidManifest.xml` wires
+// `com.google.android.geo.API_KEY` from the gitignored
+// `android/local.properties` `${MAPS_API_KEY}`, and Google-Cloud billing is
+// enabled on the `jeeb-5a293` project, so the native Maps SDK serves instead of
+// throwing the keyless-map IllegalStateException → SIGKILL it used to.
 //
-// Root cause (QA-diagnosed): `android/app/src/main/AndroidManifest.xml` carries
-// NO `com.google.android.geo.API_KEY`, so mounting a live GoogleMap makes the
-// native Maps SDK throw an UNCAUGHT IllegalStateException off the platform
-// thread → SIGKILL. Three inbound CTAs (home "Track my order", delivery-detail
-// "Live tracking", chat offer-accepted banner) all converge on this one route
-// builder, so pinning it here guards all three.
+// Three inbound CTAs (home "Track my order", delivery-detail "Live tracking",
+// chat offer-accepted banner) all converge on this one route builder, so
+// asserting it here covers all three.
 //
-// Two pins:
+// Two pins (the inverse of the old stop-the-bleed pins):
 //   (a) the /orders/:id/tracking builder constructs LiveTrackingScreen with
-//       useLiveMap == false (and no live TrackingGoogleMap mounts).
-//   (b) a manifest gate: useLiveMap default == false OR the manifest contains
-//       the geo API key — so when sprint-013 flips the default back to true,
-//       this test DEMANDS the key be present first.
+//       useLiveMap == true AND a live TrackingGoogleMap mounts on the route.
+//   (b) a safety invariant: a true default is only allowed WITH the geo API key
+//       present in the manifest — a live map must never be keyless again.
 
 import 'dart:io';
 
@@ -137,8 +137,8 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('the /orders/:id/tracking builder pins useLiveMap == false '
-      '(no live GoogleMap mounts) — P0 keyless-map crash guard', (tester) async {
+  testWidgets('the /orders/:id/tracking builder wires useLiveMap == true '
+      'and a live TrackingGoogleMap mounts — Maps-ON', (tester) async {
     await pump(tester);
     built.router.goNamed('live-tracking', pathParameters: {'id': 'd-1'});
     await tester.pumpAndSettle();
@@ -151,15 +151,17 @@ void main() {
     final screen = tester.widget<LiveTrackingScreen>(
       find.byType(LiveTrackingScreen),
     );
-    expect(screen.useLiveMap, isFalse,
-        reason: 'the route must not mount a keyless live map (native SIGKILL)');
-    // Belt-and-suspenders: no live map platform view is in the tree.
-    expect(find.byType(TrackingGoogleMap), findsNothing);
+    expect(screen.useLiveMap, isTrue,
+        reason: 'the route now opts into the live map (key provisioned, '
+            'billing enabled)');
+    // The live map platform view is actually in the tree on the route (the
+    // demo tracking repo supplies a ready snapshot, so the surface goes live).
+    expect(find.byType(TrackingGoogleMap), findsOneWidget);
   });
 
-  test('manifest gate: LiveTrackingScreen default useLiveMap == false OR the '
-      'AndroidManifest contains com.google.android.geo.API_KEY '
-      '(sprint-013 must add the key before flipping the default back)', () {
+  test('safety invariant: a true default useLiveMap REQUIRES '
+      'com.google.android.geo.API_KEY in the AndroidManifest '
+      '(a live map must never be keyless)', () {
     final defaultUseLiveMap =
         const LiveTrackingScreen(deliveryId: 'x').useLiveMap;
 
@@ -168,12 +170,18 @@ void main() {
     final manifestHasGeoKey =
         manifest.contains('com.google.android.geo.API_KEY');
 
+    // The default is now ON.
+    expect(defaultUseLiveMap, isTrue,
+        reason: 'Maps is enabled — the tracking surface renders the live map');
+    // A true default is only safe WITH the key present (invariant:
+    // NOT(default true AND no key)). This DEMANDS the key stay in the manifest
+    // so a live map is never mounted keyless (native FATAL).
     expect(
       defaultUseLiveMap == false || manifestHasGeoKey,
       isTrue,
-      reason: 'A live map with no geo API key is a native FATAL. Either keep '
-          'useLiveMap defaulting to false, or provision the key in the '
-          'manifest (sprint-013) before defaulting it back to true.',
+      reason: 'A live map with no geo API key is a native FATAL. With '
+          'useLiveMap defaulting to true, the manifest MUST carry '
+          'com.google.android.geo.API_KEY.',
     );
   });
 }
