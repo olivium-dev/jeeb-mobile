@@ -9,6 +9,7 @@ import '../domain/settlement_statement.dart';
 ///
 /// Shows per-delivery breakdown for a single weekly statement.
 /// Route: /jeeber/settlement/:id
+// ORPHAN (JEBV4-227, verified 2026-07-12): dead chain from orphaned SettlementScreen — see docs/project-understanding/reconciliation/orphans.md
 class SettlementDetailScreen extends StatelessWidget {
   const SettlementDetailScreen({
     super.key,

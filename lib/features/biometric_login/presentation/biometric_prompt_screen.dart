@@ -4,6 +4,7 @@ import 'package:omds/omds.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/biometric_cubit.dart';
 
+// ORPHAN (JEBV4-227, verified 2026-07-12): superseded by biometric_auth/biometric_lock_cubit — see docs/project-understanding/reconciliation/orphans.md
 class BiometricPromptScreen extends StatelessWidget {
   const BiometricPromptScreen({super.key, this.cubit});
 

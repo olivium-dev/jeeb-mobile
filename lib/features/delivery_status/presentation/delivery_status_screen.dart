@@ -25,6 +25,7 @@ typedef ContactJeeberHandler = void Function(String phoneE164);
 ///
 /// Owns its own [DeliveryStatusCubit] — wiring is intentionally thin so
 /// widget tests can inject either a pre-built cubit or a scripted gateway.
+// ORPHAN (JEBV4-227, verified 2026-07-12): dead parallel re-implementation of tracking, zero external refs — see docs/project-understanding/reconciliation/orphans.md
 class DeliveryStatusScreen extends StatelessWidget {
   const DeliveryStatusScreen({
     super.key,

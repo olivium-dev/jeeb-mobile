@@ -38,6 +38,7 @@ import '../../jeeber_request_feed/presentation/pending_offer_row.dart';
 /// `const JeeberPendingOffersScreen()` with no DI param (mirrors
 /// `WalletHubScreen`). The optional [repository]/[jeeberId] are constructor test
 /// seams (40_GUARDRAILS_ARCH §5.4).
+// ORPHAN (JEBV4-227, verified 2026-07-12): only reachable via a degenerate push-notification fallback, no in-app nav callsite — see docs/project-understanding/reconciliation/orphans.md
 class JeeberPendingOffersScreen extends StatelessWidget {
   const JeeberPendingOffersScreen({super.key, this.repository, this.jeeberId});
 

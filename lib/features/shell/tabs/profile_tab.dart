@@ -15,6 +15,7 @@ import '../../settings/presentation/widgets/become_jeeber_card.dart';
 /// profile, language, notifications, addresses, biometric, account, and
 /// version. Role-switching stays here because it is a QA-only affordance
 /// driven by the [RoleCubit] and not part of the user-facing settings AC.
+// ORPHAN (JEBV4-227, verified 2026-07-12): zero refs; legacy role-switch UX, violates the no-role-switch core UX rule — see docs/project-understanding/reconciliation/orphans.md
 class ProfileTab extends StatelessWidget {
   const ProfileTab({super.key});
 

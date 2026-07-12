@@ -41,6 +41,7 @@ class DiagSessionFileInfo {
 ///
 /// All side-effecting seams (file listing, share sheet, clipboard) are
 /// constructor-injectable so widget tests run without platform channels.
+// ORPHAN (JEBV4-227, verified 2026-07-12): dead chain via orphaned /settings; dev-gated — see docs/project-understanding/reconciliation/orphans.md
 class DiagnosticsScreen extends StatefulWidget {
   const DiagnosticsScreen({
     super.key,

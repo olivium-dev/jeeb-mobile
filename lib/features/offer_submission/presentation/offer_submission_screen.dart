@@ -4,6 +4,7 @@ import 'package:omds/omds.dart';
 
 import '../application/offer_submission_cubit.dart';
 
+// ORPHAN (JEBV4-227, verified 2026-07-12): duplicate of features/offers/ variant, which is the one devtool and product code actually use — see docs/project-understanding/reconciliation/orphans.md
 class OfferSubmissionScreen extends StatelessWidget {
   const OfferSubmissionScreen({super.key, required this.requestId});
   final String requestId;

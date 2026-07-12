@@ -53,6 +53,7 @@ import 'widgets/review_row.dart';
 ///   `review_<id>_report_cta`       — per-row report (dynamic id, D27)
 ///   `reviews_load_more`            — in-list next-page skeleton (D73 infinite)
 ///   `reviews_back`                 — → jeeber-profile-reviews
+// ORPHAN (JEBV4-227, verified 2026-07-12): path-param route twin, zero callsites (query-param twin is live) — see docs/project-understanding/reconciliation/orphans.md
 class ReviewsListScreen extends StatelessWidget {
   const ReviewsListScreen({
     super.key,

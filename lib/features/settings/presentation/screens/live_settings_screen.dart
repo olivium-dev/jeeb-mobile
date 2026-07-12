@@ -24,6 +24,7 @@ import 'settings_screen.dart';
 /// injectable seams. This host supplies those seams from the real gateway:
 /// `GET /v1/users/me` for profile/role metadata and
 /// `POST /v1/users/me/role/switch` through [RoleSwitchCubit].
+// ORPHAN (JEBV4-227, verified 2026-07-12): legacy settings hub, no forward-nav entry point (customer-profile is the live surface) — see docs/project-understanding/reconciliation/orphans.md
 class LiveSettingsScreen extends StatefulWidget {
   const LiveSettingsScreen({super.key});
 

@@ -12,6 +12,7 @@ import 'location_search_bar.dart';
 /// Entry-point for the pickup → dropoff selection flow. The host wires the
 /// cubit through DI; if [cubit] is left null the screen reads it off the
 /// surrounding [BlocProvider] (matches the kyc / registration patterns).
+// ORPHAN (JEBV4-227, verified 2026-07-12): real cubit-based picker, unwired — /location route mounts a placeholder instead — see docs/project-understanding/reconciliation/orphans.md
 class LocationPickerScreen extends StatelessWidget {
   const LocationPickerScreen({
     super.key,

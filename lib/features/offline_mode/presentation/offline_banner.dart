@@ -6,6 +6,7 @@ import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/offline_cubit.dart';
 
+// ORPHAN (JEBV4-227, verified 2026-07-12): zero refs — see docs/project-understanding/reconciliation/orphans.md
 class OfflineBanner extends StatelessWidget {
   const OfflineBanner({super.key});
 
