@@ -20,8 +20,9 @@ class NotificationPrefsRepositoryException implements Exception {
 ///
 /// JM-058 / D64. Gateway-contract path (the [MockGatewayClient] interceptor
 /// rewrites `/v1/notifications` → `/notification-service/v1/notifications`):
-///   GET  /v1/notifications/preferences  → [NotificationPrefs]
-///   PUT  /v1/notifications/preferences  → [NotificationPrefs]
+///   GET    /v1/notifications/preferences  → [NotificationPrefs]
+///   PATCH  /v1/notifications/preferences  → [NotificationPrefs]
+/// (PUT/POST are 405 on the live gateway — the save verb is PATCH, DEFECT-2.)
 ///
 /// Categories = offers / order-status / wallet / marketing; the transactional
 /// class is locked (never sent in the toggle map). Push is the only channel the
@@ -30,7 +31,8 @@ abstract class NotificationPrefsRepository {
   /// Fetches the user's current preferences from the gateway.
   Future<NotificationPrefs> fetch();
 
-  /// PUTs the full updated category map to the gateway and returns the
-  /// server-confirmed snapshot. The transactional class is never included.
+  /// PATCHes the updated category toggles to the gateway (flat booleans) and
+  /// returns the server-confirmed snapshot. The transactional class is never
+  /// included.
   Future<NotificationPrefs> save(NotificationCategoryPrefs categories);
 }
