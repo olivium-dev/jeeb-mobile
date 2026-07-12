@@ -77,6 +77,7 @@ import '../../features/order_summary/presentation/order_summary_screen.dart';
 import '../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
 import '../../features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
 import '../../features/active_delivery_jeeber/presentation/active_delivery_jeeber_screen.dart';
+import '../../features/photo_attachment/domain/photo_picker_service.dart';
 import '../../features/offers/domain/offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
 import '../../features/offers/presentation/offer_submission_screen.dart';
@@ -1396,6 +1397,9 @@ class AppRouter {
             return ActiveDeliveryJeeberScreen(
               deliveryId: deliveryId,
               repository: sl<ActiveDeliveryRepository>(),
+              // JEBV4-200: real camera picker so the proof photo captures REAL
+              // image bytes (streamed to the CDN broker), not a filename stub.
+              photoPicker: sl<PhotoPickerService>(),
               // Post-accept entry point from the ACTIVE delivery surface: open
               // the order conversation. chat-detail resolves the conversation
               // against the live gateway from this delivery id (== request id

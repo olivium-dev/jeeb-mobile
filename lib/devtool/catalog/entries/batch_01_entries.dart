@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -154,7 +156,8 @@ class _InertActiveDeliveryRepository implements ActiveDeliveryRepository {
   @override
   Future<String> uploadProofPhoto({
     required String deliveryId,
-    required String filename,
+    required Uint8List bytes,
+    String contentType = 'image/jpeg',
   }) =>
       throw const ActiveDeliveryException(ActiveDeliveryFailure.network);
 }

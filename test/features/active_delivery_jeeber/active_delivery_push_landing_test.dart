@@ -13,6 +13,7 @@
 //      renders the retryable OMDS error state, NOT a blank surface.
 
 import 'dart:async';
+import 'dart:typed_data';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -60,7 +61,8 @@ class _FakeRepo implements ActiveDeliveryRepository {
   @override
   Future<String> uploadProofPhoto({
     required String deliveryId,
-    required String filename,
+    required Uint8List bytes,
+    String contentType = 'image/jpeg',
   }) async => 'https://cdn.jeeb.app/proof/$deliveryId.jpg';
 }
 
@@ -92,7 +94,8 @@ class _BlockingRepo implements ActiveDeliveryRepository {
   @override
   Future<String> uploadProofPhoto({
     required String deliveryId,
-    required String filename,
+    required Uint8List bytes,
+    String contentType = 'image/jpeg',
   }) async => 'https://cdn.jeeb.app/proof/$deliveryId.jpg';
 }
 

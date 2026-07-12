@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'jeeber_delivery.dart';
 import 'jeeber_delivery_status.dart';
 
@@ -18,7 +20,9 @@ import 'jeeber_delivery_status.dart';
 ///                                          un-versioned `/deliveries/{id}/
 ///                                          verify-otp` is DEAD on live :10090
 ///                                          (400 otp-not-in-handover-state).
-///   POST /v1/delivery/proof-photo       → { url, evidenceUrl, deliveryId } (D1m)
+///   Proof-photo upload (D3, JEBV4-200): the REAL image bytes stream through the
+///   gateway CDN signed-PUT broker (`POST /api/cdn/assets` + streaming proxy,
+///   JEBV4-259 / PR #257) → durable `object_ref` stamped as `evidenceUrl`.
 abstract class ActiveDeliveryRepository {
   /// Fetch the current snapshot for [deliveryId].
   Future<JeeberDelivery> fetchDelivery(String deliveryId);
@@ -56,12 +60,18 @@ abstract class ActiveDeliveryRepository {
     required String code,
   });
 
-  /// Upload a proof-of-delivery photo (D3, mock-fix D1m) and return the stable
-  /// evidence URL the mock minted. [filename] shapes the returned URL; the mock
-  /// does not store bytes. Throws [ActiveDeliveryException] on failure.
+  /// Upload the proof-of-delivery photo BYTES (D3, JEBV4-200) and return the
+  /// durable evidence reference to stamp as the delivery's `evidenceUrl` on the
+  /// terminal `AtDoor → Done` transition.
+  ///
+  /// Transmits the REAL captured image [bytes] — never a filename stand-in —
+  /// through the gateway's shipped CDN signed-PUT streaming proxy (JEBV4-259 /
+  /// PR #257). [contentType] is the media type of the bytes (e.g. `image/jpeg`).
+  /// Throws [ActiveDeliveryException] on failure.
   Future<String> uploadProofPhoto({
     required String deliveryId,
-    required String filename,
+    required Uint8List bytes,
+    String contentType = 'image/jpeg',
   });
 }
 

@@ -6,10 +6,14 @@
 //   - advanceStatus reverts and sets transitionError on 422 (AC3).
 //   - Network failure on load emits error mode.
 
+import 'dart:typed_data';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/active_delivery_jeeber/application/active_delivery_cubit.dart';
+import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
+import 'package:jeeb_mobile/features/photo_attachment/domain/photo_picker_service.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/active_delivery_repository.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
@@ -43,6 +47,10 @@ class _FakeRepo implements ActiveDeliveryRepository {
 
   /// Records the last evidenceUrl handed to [transition] (JM-051 chain check).
   String? lastEvidenceUrl;
+
+  /// JEBV4-200: records the REAL image bytes handed to [uploadProofPhoto] so a
+  /// test can assert a proof upload transmits bytes, never a filename stub.
+  Uint8List? lastUploadedBytes;
 
   /// Records the last code handed to [verifyDoorOtp] (iter6 close-tail check).
   String? lastOtpCode;
@@ -78,8 +86,10 @@ class _FakeRepo implements ActiveDeliveryRepository {
   @override
   Future<String> uploadProofPhoto({
     required String deliveryId,
-    required String filename,
+    required Uint8List bytes,
+    String contentType = 'image/jpeg',
   }) async {
+    lastUploadedBytes = bytes;
     return uploadResult ?? 'https://cdn.jeeb.app/proof/$deliveryId.jpg';
   }
 }
@@ -214,16 +224,21 @@ void main() {
           uploadResult: 'https://cdn.jeeb.app/proof/DLV-770001.jpg',
         ),
         deliveryId: 'DLV-770001',
+        photoPicker: StubPhotoPickerService(),
       ),
       seed: () => ActiveDeliveryState(
         mode: ActiveDeliveryMode.ready,
         delivery: _delivery(JeeberDeliveryStatus.atDoor),
       ),
-      act: (c) => c.captureProofPhoto('proof.jpg'),
+      act: (c) => c.captureProofPhoto(),
       expect: () => [
         predicate<ActiveDeliveryState>(
-          (s) => s.proofPhotoStatus == ProofPhotoStatus.uploading,
-          'uploading',
+          (s) =>
+              s.proofPhotoStatus == ProofPhotoStatus.uploading &&
+              // JEBV4-200: the captured bytes are retained for the local
+              // thumbnail — proof the upload carries REAL image data.
+              (s.proofPhotoBytes?.isNotEmpty ?? false),
+          'uploading with captured bytes',
         ),
         predicate<ActiveDeliveryState>(
           (s) =>
@@ -233,6 +248,56 @@ void main() {
           'captured with evidence url',
         ),
       ],
+    );
+
+    test(
+      'captureProofPhoto transmits REAL image bytes, not a filename stub '
+      '(JEBV4-200 DoD)',
+      () async {
+        final repo = _FakeRepo(
+          uploadResult: 'https://cdn.jeeb.app/proof/DLV-770001.jpg',
+        );
+        final payload = Uint8List.fromList(
+          List<int>.generate(2048, (i) => i % 256),
+        );
+        final cubit = ActiveDeliveryCubit(
+          repository: repo,
+          deliveryId: 'DLV-770001',
+          photoPicker: StubPhotoPickerService(cameraPayload: payload),
+        )..emit(
+            ActiveDeliveryState(
+              mode: ActiveDeliveryMode.ready,
+              delivery: _delivery(JeeberDeliveryStatus.atDoor),
+            ),
+          );
+
+        await cubit.captureProofPhoto();
+
+        // The bytes handed to the repository are the actual captured image
+        // payload — never a filename/path string.
+        expect(repo.lastUploadedBytes, isNotNull);
+        expect(repo.lastUploadedBytes, equals(payload));
+        expect(repo.lastUploadedBytes!.isNotEmpty, isTrue);
+        await cubit.close();
+      },
+    );
+
+    blocTest<ActiveDeliveryCubit, ActiveDeliveryState>(
+      'captureProofPhoto is a silent no-op when the jeeber cancels the camera '
+      '(JEBV4-200)',
+      build: () => ActiveDeliveryCubit(
+        repository: _FakeRepo(),
+        deliveryId: 'DLV-770001',
+        photoPicker: StubPhotoPickerService(
+          cameraFailure: PhotoPickFailure.cancelled,
+        ),
+      ),
+      seed: () => ActiveDeliveryState(
+        mode: ActiveDeliveryMode.ready,
+        delivery: _delivery(JeeberDeliveryStatus.atDoor),
+      ),
+      act: (c) => c.captureProofPhoto(),
+      expect: () => <ActiveDeliveryState>[],
     );
 
     blocTest<ActiveDeliveryCubit, ActiveDeliveryState>(

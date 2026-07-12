@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../photo_attachment/data/stub_photo_picker_service.dart';
+import '../../photo_attachment/domain/photo_compressor.dart';
+import '../../photo_attachment/domain/photo_picker_service.dart';
 import '../domain/active_delivery_repository.dart';
 import '../domain/jeeber_delivery.dart';
 import '../domain/jeeber_delivery_status.dart';
@@ -21,6 +25,7 @@ class ActiveDeliveryState extends Equatable {
     this.transitionError,
     this.errorMessage,
     this.proofPhotoStatus = ProofPhotoStatus.none,
+    this.proofPhotoBytes,
     this.note,
     this.delivered = false,
     this.otpRequired = false,
@@ -39,6 +44,12 @@ class ActiveDeliveryState extends Equatable {
 
   /// Proof-of-delivery photo capture/upload lifecycle (JM-051 AC1).
   final ProofPhotoStatus proofPhotoStatus;
+
+  /// JEBV4-200: the locally captured proof-photo bytes, retained so the jeeber
+  /// sees the ACTUAL image they just took (rendered from memory) while the
+  /// stamped `evidenceUrl` is a durable `object_ref` the gateway resolves on the
+  /// customer receipt read. Null until a photo is captured this session.
+  final Uint8List? proofPhotoBytes;
 
   /// Optional Jeeber note attached to the delivery (JM-051 AC1).
   final String? note;
@@ -75,6 +86,7 @@ class ActiveDeliveryState extends Equatable {
     String? errorMessage,
     bool clearError = false,
     ProofPhotoStatus? proofPhotoStatus,
+    Uint8List? proofPhotoBytes,
     String? note,
     bool clearNote = false,
     bool? delivered,
@@ -91,6 +103,7 @@ class ActiveDeliveryState extends Equatable {
           : (transitionError ?? this.transitionError),
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       proofPhotoStatus: proofPhotoStatus ?? this.proofPhotoStatus,
+      proofPhotoBytes: proofPhotoBytes ?? this.proofPhotoBytes,
       note: clearNote ? null : (note ?? this.note),
       delivered: delivered ?? this.delivered,
       otpRequired: otpRequired ?? this.otpRequired,
@@ -106,6 +119,7 @@ class ActiveDeliveryState extends Equatable {
         transitionError,
         errorMessage,
         proofPhotoStatus,
+        proofPhotoBytes,
         note,
         delivered,
         otpRequired,
@@ -126,13 +140,26 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
   ActiveDeliveryCubit({
     required ActiveDeliveryRepository repository,
     required this.deliveryId,
+    PhotoPickerService? photoPicker,
+    PhotoCompressor compressor = const HalvingPhotoCompressor(),
     Duration pollInterval = const Duration(seconds: 5),
   })  : _repository = repository,
+        _photoPicker = photoPicker ?? StubPhotoPickerService(),
+        _compressor = compressor,
         _pollInterval = pollInterval,
         super(const ActiveDeliveryState());
 
   final ActiveDeliveryRepository _repository;
   final String deliveryId;
+
+  /// Captures the proof-of-delivery photo from the device camera (JEBV4-200).
+  /// Defaults to [StubPhotoPickerService] (canned bytes) so devtool/tests run
+  /// without a real camera; production injects [ImagePickerPhotoPickerService].
+  final PhotoPickerService _photoPicker;
+
+  /// Shrinks the captured photo under the upload ceiling before it streams to
+  /// the CDN broker — reused from the KYC/attachment capture path.
+  final PhotoCompressor _compressor;
 
   /// JEBV4-282: while the active-delivery screen is open the cubit re-polls the
   /// delivery so a backend-side transition (the customer/system advancing or
@@ -270,23 +297,44 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     }
   }
 
-  /// Capture + upload the proof-of-delivery photo (D3 / D1m, JM-051 AC1).
+  /// Capture + upload the proof-of-delivery photo (D3, JM-051 AC1, JEBV4-200).
   ///
-  /// [filename] names the captured image; the mock mints a stable evidence URL
-  /// which is stamped onto the delivery so the thumbnail renders and the
-  /// `AtDoor → Done` transition can carry it.
-  Future<void> captureProofPhoto(String filename) async {
+  /// Opens the device camera, compresses the captured frame, and streams the
+  /// REAL image BYTES through the gateway CDN signed-PUT proxy — never a
+  /// filename stand-in. The durable `object_ref` the upload returns is stamped
+  /// as the delivery's `evidenceUrl` so the `AtDoor → Done` transition carries
+  /// it; the captured bytes are retained in state so the jeeber sees the actual
+  /// photo they just took.
+  ///
+  /// A cancelled capture is a silent no-op (the jeeber backed out of the camera);
+  /// a permission/hardware failure reverts to the tappable placeholder to retry.
+  Future<void> captureProofPhoto() async {
     final current = state.delivery;
     if (current == null) return;
     if (state.isUploadingProof) return;
+
+    final Uint8List bytes;
+    try {
+      final raw = await _photoPicker.pickFromCamera();
+      bytes = await _compressor.compress(raw.bytes);
+    } on PhotoPickException catch (e) {
+      // Cancelled → leave the capture affordance untouched. Any other pick
+      // failure (permission/hardware) → drop back to the retryable placeholder.
+      if (e.failure != PhotoPickFailure.cancelled) {
+        emit(state.copyWith(proofPhotoStatus: ProofPhotoStatus.none));
+      }
+      return;
+    }
+
     emit(state.copyWith(
       proofPhotoStatus: ProofPhotoStatus.uploading,
+      proofPhotoBytes: bytes,
       clearTransitionError: true,
     ));
     try {
       final url = await _repository.uploadProofPhoto(
         deliveryId: deliveryId,
-        filename: filename,
+        bytes: bytes,
       );
       emit(state.copyWith(
         delivery: current.withProofPhoto(url),

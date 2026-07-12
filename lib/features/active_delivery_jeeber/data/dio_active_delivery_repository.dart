@@ -1,6 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 
 import '../../../core/network/mock_gateway_client.dart';
+import '../../kyc/domain/cdn_asset_gateway.dart';
 import '../domain/active_delivery_repository.dart';
 import '../domain/jeeber_delivery.dart';
 import '../domain/jeeber_delivery_status.dart';
@@ -32,8 +35,9 @@ import '../domain/jeeber_delivery_status.dart';
 ///   GET  /v1/deliveries/{id}/otp        → get-or-issue handover OTP (Contract 8d)
 ///   POST /v1/deliveries/{id}/otp/verify → body { code } — completes a
 ///                                          phone-bearing delivery to Done
-///   POST /v1/delivery/proof-photo       → body { deliveryId, filename }
-///                                          201 → { url, evidenceUrl, deliveryId }
+///   Proof-photo (D3, JEBV4-200): the REAL image bytes stream through the
+///   gateway CDN signed-PUT broker (`POST /api/cdn/assets` + streaming proxy,
+///   JEBV4-259 / PR #257) via [CdnAssetGateway] → durable `object_ref`.
 ///
 /// **D2 (route ambiguity):** which delivery route `:10090` actually serves is
 /// NOT safe to assume — the plural `PATCH /v1/deliveries/{id}/status` is the
@@ -48,10 +52,19 @@ class DioActiveDeliveryRepository implements ActiveDeliveryRepository {
   /// shape always tracks the base the same Dio is pointed at (Contract 8b:
   /// "MockGatewayClient selects by base — never hardcode a host"). Tests inject
   /// the flag explicitly to exercise both surfaces under a plain `flutter test`.
-  const DioActiveDeliveryRepository(this._dio, {bool? originGateway})
-      : originGateway = originGateway ?? !MockGatewayClient.useMockPrefixes;
+  const DioActiveDeliveryRepository(
+    this._dio, {
+    required CdnAssetGateway cdnAssetGateway,
+    bool? originGateway,
+  })  : _cdn = cdnAssetGateway,
+        originGateway = originGateway ?? !MockGatewayClient.useMockPrefixes;
 
   final Dio _dio;
+
+  /// The shipped gateway CDN signed-PUT broker+proxy (JEBV4-259 / PR #257). The
+  /// proof-of-delivery bytes stream through it exactly like the KYC photos — no
+  /// filename stand-in, no bytes buffered in the gateway.
+  final CdnAssetGateway _cdn;
 
   /// Whether to use the frozen origin-only `:10090` plural lifecycle routes
   /// (`GET /v1/deliveries/{id}`, `PATCH /v1/deliveries/{id}/status`) instead of
@@ -179,24 +192,25 @@ class DioActiveDeliveryRepository implements ActiveDeliveryRepository {
   @override
   Future<String> uploadProofPhoto({
     required String deliveryId,
-    required String filename,
+    required Uint8List bytes,
+    String contentType = 'image/jpeg',
   }) async {
+    // JEBV4-200: transmit the REAL captured image bytes through the gateway's
+    // shipped CDN signed-PUT streaming proxy (JEBV4-259 / PR #257). The two-step
+    // broker mints a signed upload URL, the raw bytes stream to cdn-service, and
+    // the durable `object_ref` returned here is stamped as the delivery's
+    // `evidenceUrl` on `AtDoor → Done`. NO filename stand-in — the bytes ARE
+    // sent (mirrors the KYC ID-photo upload). [deliveryId] is retained on the
+    // contract for call-site clarity; the broker scopes the object to the
+    // authenticated jeeber via the JWT subject.
     try {
-      final response = await _dio.post<Map<String, dynamic>>(
-        '/v1/delivery/proof-photo',
-        data: <String, dynamic>{
-          'deliveryId': deliveryId,
-          'filename': filename,
-        },
+      return await _cdn.uploadAsset(
+        slot: CdnUploadSlot.proofOfDelivery,
+        bytes: bytes,
+        contentType: contentType,
       );
-      final url = response.data?['evidenceUrl'] as String? ??
-          response.data?['url'] as String?;
-      if (url == null || url.isEmpty) {
-        throw const ActiveDeliveryException(ActiveDeliveryFailure.server);
-      }
-      return url;
-    } on DioException catch (e) {
-      throw _mapError(e);
+    } on CdnUploadException {
+      throw const ActiveDeliveryException(ActiveDeliveryFailure.server);
     }
   }
 
