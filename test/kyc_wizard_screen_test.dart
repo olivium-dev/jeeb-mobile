@@ -3,9 +3,11 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/role/role_availability_cubit.dart';
 import 'package:jeeb_mobile/features/kyc/application/kyc_wizard_cubit.dart';
 import 'package:jeeb_mobile/features/kyc/application/kyc_wizard_state.dart';
 import 'package:jeeb_mobile/features/kyc/domain/kyc_gateway.dart';
@@ -58,6 +60,31 @@ Widget _host(
       GlobalCupertinoLocalizations.delegate,
     ],
     home: KycWizardScreen(cubit: cubit, onSubmitted: onSubmitted),
+  );
+}
+
+/// Host that also provides the app-root [RoleAvailabilityCubit] above the
+/// wizard, so the JEBV4-271 round-3 role-arrived listener is wired (production
+/// shell parity). The returned cubit lets the test publish a late `jeeber`
+/// grant — the exact out-of-band `/v1/users/me` signal from the rev2 repro.
+Widget _hostWithRoles(
+  KycWizardCubit cubit,
+  RoleAvailabilityCubit availability, {
+  void Function(BuildContext context)? onSubmitted,
+}) {
+  return MaterialApp(
+    locale: const Locale('en'),
+    supportedLocales: AppLocalizations.supportedLocales,
+    localizationsDelegates: [
+      _syncDelegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    home: BlocProvider<RoleAvailabilityCubit>.value(
+      value: availability,
+      child: KycWizardScreen(cubit: cubit, onSubmitted: onSubmitted),
+    ),
   );
 }
 
@@ -257,6 +284,51 @@ void main() {
       expect(find.byKey(KycStatusView.approvedTitleKey), findsOneWidget);
       expect(fundingNav, 0,
           reason: 'the recovered submit lands on the in-wizard approved status '
+              'view (which activates the jeeber role), never funding');
+    },
+  );
+
+  testWidgets(
+    'JEBV4-271 (round 3): a HUNG submit auto-recovers off the role-arrived '
+    'signal — when the getMe available_roles projection gains jeeber, the '
+    'wizard advances off the spinner to the approved status view (no restart, '
+    'no /kyc/status poll)',
+    (tester) async {
+      var fundingNav = 0;
+      final cubit = _newCubit(
+        gateway: _HangingSubmitKycGateway(serverStatus: KycStatus.approved),
+      );
+      final availability = RoleAvailabilityCubit();
+      addTearDown(availability.close);
+      await tester.pumpWidget(
+        _hostWithRoles(cubit, availability, onSubmitted: (_) => fundingNav++),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(KycIdentityStep.idNumberFieldKey),
+        '123456789012',
+      );
+      await tester.pump();
+
+      // Submit hangs → the wizard is stranded on the submit spinner.
+      await tester.tap(find.byKey(KycIdentityStep.submitButtonKey));
+      await tester.pump();
+      expect(find.byKey(KycSubmittingView.rootKey), findsOneWidget);
+      expect(find.byKey(KycStatusView.approvedTitleKey), findsNothing);
+
+      // The jeeber role lands out-of-band via /v1/users/me (RoleSync publishes
+      // it) — WITHOUT the submit future ever resolving and WITHOUT any
+      // /kyc/status poll. The listener must drive the approved transition.
+      availability.setAvailableRoles(const ['client', 'jeeber']);
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(KycSubmittingView.rootKey), findsNothing);
+      expect(find.byKey(KycStatusView.approvedTitleKey), findsOneWidget);
+      expect(cubit.state.submission.status, KycStatus.approved);
+      expect(fundingNav, 0,
+          reason: 'the role-recovered submit lands on the in-wizard approved '
               'view (which activates the jeeber role), never funding');
     },
   );

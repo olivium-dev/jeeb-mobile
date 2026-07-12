@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/role/role_availability_cubit.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../photo_attachment/data/stub_photo_picker_service.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
@@ -111,6 +112,23 @@ class _WizardScaffold extends StatelessWidget {
                     prev.error != curr.error && curr.error != null,
                 listener: _surfaceError,
               ),
+              // JEBV4-271 (round 3): the authoritative role-arrived signal. When
+              // the getMe `available_roles` projection (published app-wide by
+              // RoleSync on login/resume) gains `jeeber` while the wizard is
+              // still on the submit spinner or a pending status view, advance
+              // straight onto the approved status view — the exact on-device
+              // rev2 gap where `/v1/users/me` returned `jeeber` yet nothing drove
+              // the transition. Only wired when the app-root RoleAvailabilityCubit
+              // is in scope (production shell); a bare wizard harness has none, so
+              // this listener is simply not added.
+              if (context.read<RoleAvailabilityCubit?>() != null)
+                BlocListener<RoleAvailabilityCubit, RoleAvailability>(
+                  listenWhen: (prev, curr) =>
+                      !prev.roles.contains('jeeber') &&
+                      curr.roles.contains('jeeber'),
+                  listener: (context, _) =>
+                      context.read<KycWizardCubit>().onJeeberRoleGranted(),
+                ),
             ],
             child: BlocBuilder<KycWizardCubit, KycWizardState>(
               builder: (context, state) => _buildBody(context, state, l10n),
