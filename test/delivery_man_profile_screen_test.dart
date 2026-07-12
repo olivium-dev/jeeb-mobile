@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb_verified_badge.dart';
 import 'package:jeeb_mobile/features/delivery_man_profile/domain/delivery_man_profile_view_data.dart';
 import 'package:jeeb_mobile/features/delivery_man_profile/presentation/delivery_man_profile_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
@@ -42,13 +43,17 @@ DeliveryReviewData _review(String id) => DeliveryReviewData(
       helpfulCount: 24,
     );
 
-DeliveryManProfileViewData _data({List<DeliveryReviewData>? reviews}) =>
+DeliveryManProfileViewData _data({
+  List<DeliveryReviewData>? reviews,
+  bool isVerified = true,
+}) =>
     DeliveryManProfileViewData(
       name: 'Kamal Hajj',
       rating: 4.3,
       reviewCount: 113,
       location: 'Lebanon',
       isAvailable: true,
+      isVerified: isVerified,
       reviews: reviews ?? [_review('r1'), _review('r2')],
     );
 
@@ -103,6 +108,24 @@ void main() {
       // Assaf" → "Karl").
       expect(find.text('Karl'), findsNWidgets(2));
       expect(find.text('Karl Assaf'), findsNothing);
+    });
+
+    testWidgets(
+        'E11 trust badge: renders JeebVerifiedBadge when the jeeber is '
+        'verified (default)', (tester) async {
+      await tester.pumpWidget(_harness());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(JeebVerifiedBadge), findsOneWidget);
+    });
+
+    testWidgets(
+        'E11 trust badge: no JeebVerifiedBadge when isVerified is false',
+        (tester) async {
+      await tester.pumpWidget(_harness(data: _data(isVerified: false)));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(JeebVerifiedBadge), findsNothing);
     });
 
     testWidgets('uses the localized verified-client reviewer label, not '
