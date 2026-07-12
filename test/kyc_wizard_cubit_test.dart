@@ -88,7 +88,83 @@ class _HangingSubmitKycGateway extends FakeKycGateway {
       );
 }
 
+/// Mimics a submit whose round-trip FAILS or times out — a slow inline-approve
+/// that outran the receive-timeout, or a 201 the client never received — even
+/// though the gateway already RECORDED (and here auto-approved) the submission
+/// server-side. `submit()` throws a plain transport error (NOT a field
+/// rejection); `GET /v1/kyc/status` reports the recorded decision so the cubit
+/// can reconcile off the spinner with no restart (JEBV4-271).
+class _FailingSubmitButRecordedKycGateway extends FakeKycGateway {
+  _FailingSubmitButRecordedKycGateway({required this.serverStatus});
+
+  final KycStatus serverStatus;
+  int statusReads = 0;
+
+  @override
+  Future<KycSubmission> submit(KycSubmission draft) =>
+      Future<KycSubmission>.error(StateError('dropped response'));
+
+  @override
+  Future<KycSubmission> fetchStatus() async {
+    statusReads++;
+    return KycSubmission(status: serverStatus, submittedAt: DateTime.now());
+  }
+}
+
 void main() {
+  group(
+      'KycWizardCubit — failed submit reconciles against the server '
+      '(JEBV4-271 no-restart)', () {
+    test(
+        'a dropped/slow submit whose server-side decision is Verified advances '
+        'onto the approved status view instead of the submit-failed form',
+        () async {
+      final gateway = _FailingSubmitButRecordedKycGateway(
+        serverStatus: KycStatus.approved,
+      );
+      final cubit = _buildCubit(gateway: gateway);
+      await _completeIdentity(cubit);
+
+      await cubit.submit();
+
+      expect(cubit.state.step, KycWizardStep.status);
+      expect(cubit.state.submission.status, KycStatus.approved);
+      expect(cubit.state.error, isNull,
+          reason: 'the server already approved — never surface a submit error '
+              'or bounce back to the identity form (which forced the restart)');
+      expect(cubit.state.justSubmitted, isFalse,
+          reason: 'lands on the in-wizard approved view that activates the '
+              'jeeber role, not the onboarding-funding chain');
+      expect(gateway.statusReads, greaterThan(0));
+    });
+
+    test(
+        'a submit that failed BEFORE reaching the server still surfaces the '
+        'retryable submit error (nothing recorded to reconcile to)', () async {
+      final gateway = _FailingSubmitButRecordedKycGateway(
+        serverStatus: KycStatus.notSubmitted,
+      );
+      final cubit = _buildCubit(gateway: gateway);
+      await _completeIdentity(cubit);
+
+      await cubit.submit();
+
+      expect(cubit.state.step, KycWizardStep.identity);
+      expect(cubit.state.error, KycWizardError.submitFailed);
+    });
+
+    test('a field-scoped 400 stays authoritative and does NOT reconcile',
+        () async {
+      final cubit =
+          _buildCubit(gateway: _FieldRejectingKycGateway('id_number'));
+      await _completeIdentity(cubit);
+
+      await cubit.submit();
+
+      expect(cubit.state.step, KycWizardStep.identity);
+      expect(cubit.state.submitFieldError, KycSubmitFieldError.idNumber);
+    });
+  });
   group('KycWizardCubit — submit-hang safety net (refreshWhileSubmitting)', () {
     test(
         'un-sticks a HUNG submit: server already Verified → advances off the '

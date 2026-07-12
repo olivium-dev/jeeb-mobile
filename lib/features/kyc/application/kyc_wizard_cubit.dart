@@ -260,11 +260,54 @@ class KycWizardCubit extends Cubit<KycWizardState> {
         error: fieldError == null ? KycWizardError.submitFailed : null,
       ));
     } catch (_) {
+      // JEBV4-271: the submit round-trip failed or timed out — but the gateway
+      // auto-approves INLINE and may already have RECORDED (and `Verified`) the
+      // submission before the response reached us: a slow inline-approve that
+      // outran the receive-timeout, or a 201 the client never received. Bouncing
+      // straight back to the identity form here (or, as users perceived it,
+      // leaving the fresh jeeber staring at the submit spinner until they
+      // force-restart) DISCARDS that server-side approval — the exact "role only
+      // lands after a full app restart" defect. So reconcile against
+      // GET /v1/kyc/status FIRST; if the server already holds a terminal/
+      // submitted decision, advance onto the in-wizard status view (an
+      // auto-approved `Verified` renders [KycStatusView]'s approved body, which
+      // fires [JeeberRoleActivator] and brings the jeeber online) with NO
+      // re-login and NO restart. Only a genuinely un-recorded submit falls
+      // through to the retryable submit-failed error.
+      if (await _reconcileTerminalStatus()) return;
       emit(state.copyWith(
         step: KycWizardStep.identity,
         error: KycWizardError.submitFailed,
       ));
     }
+  }
+
+  /// Re-reads `GET /v1/kyc/status` after a failed/stalled [submit] and, when the
+  /// server already recorded the submission (anything but
+  /// [KycStatus.notSubmitted]), advances the wizard off [KycWizardStep.submitting]
+  /// onto the [KycWizardStep.status] step so a terminal server decision is never
+  /// lost to a dropped/slow response (JEBV4-271). Returns whether it advanced.
+  ///
+  /// Fail-soft: a fetch error — or a still-[KycStatus.notSubmitted] read (the
+  /// submit never reached the server) — returns false so the caller surfaces the
+  /// retryable submit error. Like [refreshWhileSubmitting] it keeps
+  /// [KycWizardState.justSubmitted] false, so a recovered submit lands on the
+  /// in-wizard status view (whose poller tracks any later approval) rather than
+  /// silently chaining to `onboarding-funding`.
+  Future<bool> _reconcileTerminalStatus() async {
+    final KycSubmission snapshot;
+    try {
+      snapshot = await _gateway.fetchStatus();
+    } catch (_) {
+      return false;
+    }
+    if (snapshot.status == KycStatus.notSubmitted) return false;
+    emit(state.copyWith(
+      step: KycWizardStep.status,
+      submission: snapshot,
+      justSubmitted: false,
+    ));
+    return true;
   }
 
   /// Maps the BFF's snake_case `field` extension to the inline-error surface.
