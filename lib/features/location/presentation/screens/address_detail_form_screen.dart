@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,6 +14,9 @@ import '../../application/address_form_cubit.dart';
 import '../../application/address_form_state.dart';
 import '../../data/dio_address_form_repository.dart';
 import '../../data/fake_address_form_repository.dart';
+import '../../data/google_map_picker_launcher.dart';
+import '../../data/location_repository.dart';
+import '../../data/map_picker_launcher.dart';
 import '../../domain/address_form_repository.dart';
 import '../../domain/saved_location.dart';
 import '../widgets/capture_location_pin.dart';
@@ -41,6 +46,7 @@ class AddressDetailFormScreen extends StatelessWidget {
     this.existing,
     this.userId,
     this.repository,
+    this.mapPickerLauncher,
   });
 
   /// Optional saved-address id passed as `?id=` for the edit path; absent for
@@ -62,6 +68,11 @@ class AddressDetailFormScreen extends StatelessWidget {
   /// Constructor test seam (40_GUARDRAILS_ARCH §5/§6). Never the DI default.
   final AddressFormRepository? repository;
 
+  /// Injectable map-picker seam. Tests pass a fake; production defaults to a
+  /// [GoogleMapPickerLauncher] built from the current context when the user
+  /// taps "Edit pin" (JEBV4-110 — previously a dead no-op).
+  final MapPickerLauncher? mapPickerLauncher;
+
   @override
   Widget build(BuildContext context) {
     final editId = addressId ?? existing?.id;
@@ -77,7 +88,7 @@ class AddressDetailFormScreen extends StatelessWidget {
           userId: injected,
           editId: editId,
         ),
-        child: _AddressFormView(existing: existing),
+        child: _AddressFormView(existing: existing, mapPickerLauncher: mapPickerLauncher),
       );
     }
     return FutureBuilder<String?>(
@@ -93,7 +104,7 @@ class AddressDetailFormScreen extends StatelessWidget {
             userId: resolvedId,
             editId: editId,
           ),
-          child: _AddressFormView(existing: existing),
+          child: _AddressFormView(existing: existing, mapPickerLauncher: mapPickerLauncher),
         );
       },
     );
@@ -120,9 +131,10 @@ class AddressDetailFormScreen extends StatelessWidget {
 }
 
 class _AddressFormView extends StatefulWidget {
-  const _AddressFormView({this.existing});
+  const _AddressFormView({this.existing, this.mapPickerLauncher});
 
   final SavedLocation? existing;
+  final MapPickerLauncher? mapPickerLauncher;
 
   @override
   State<_AddressFormView> createState() => _AddressFormViewState();
@@ -178,11 +190,24 @@ class _AddressFormViewState extends State<_AddressFormView> {
   // coordinate (JM-050 AC; the jm-050 flow fills label-only then saves).
   bool get _isValid => _label.text.trim().isNotEmpty;
 
-  void _onEditPin() {
-    // P2 placeholder pin re-capture: re-confirm the current centre. A live map
-    // SDK round-trip (returning new lat/lng) is map-platform work (flagged in
-    // 50_ROUTE_REQUESTS); the id + a11y are honest today.
-    setState(() => _hasPin = true);
+  void _onEditPin() => unawaited(_editPin());
+
+  /// Opens the interactive map picker and adopts the point the user parks under
+  /// the centre pin (JEBV4-110). Production builds a [GoogleMapPickerLauncher]
+  /// from the current context; tests inject a fake via [widget.mapPickerLauncher].
+  /// A null result (cancel) leaves the current pin untouched.
+  Future<void> _editPin() async {
+    final launcher =
+        widget.mapPickerLauncher ?? GoogleMapPickerLauncher(context);
+    final result = await launcher.pickOnMap(
+      initial: LocationPoint(latitude: _latitude, longitude: _longitude),
+    );
+    if (!mounted || result == null) return;
+    setState(() {
+      _latitude = result.latitude;
+      _longitude = result.longitude;
+      _hasPin = true;
+    });
   }
 
   void _onSave() {
