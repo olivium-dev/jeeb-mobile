@@ -268,8 +268,12 @@ class _ReadyContent extends StatelessWidget {
     // Core Flow step 7 (jeeber terminal): once the handover OTP completes the
     // delivery to V3 `Done`, render an explicit delivered/completed final state
     // so a re-entry / poll-update lands on a clear terminal UI (not a stale
-    // "advance" affordance).
-    final isCompleted = delivery.status == JeeberDeliveryStatus.done;
+    // "advance" affordance). Gated on !isTransitioning so an OPTIMISTIC
+    // AtDoor→Done still awaiting server/OTP confirmation does not flash the
+    // "Delivered" panel prematurely (JEBV4-276) — the OTP path reverts to
+    // AtDoor and surfaces the OTP entry instead.
+    final isCompleted =
+        delivery.status == JeeberDeliveryStatus.done && !state.isTransitioning;
     return ListView(
       padding: const EdgeInsets.all(Spacing.medium),
       children: [
