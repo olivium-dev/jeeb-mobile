@@ -218,7 +218,7 @@ void main() {
       final sink = makeSink(flushThresholdLines: 1000);
       await sink.start();
       Diag.api(method: 'GET', path: '/v1/x', status: 500, ms: 10);
-      await pumpEventQueue();
+      await sink.pendingIo;
 
       final raw = await File(sink.sessionFilePath!).readAsString();
       expect(raw, contains('"status":500'));
@@ -228,7 +228,7 @@ void main() {
       final sink = makeSink(flushThresholdLines: 1000);
       await sink.start();
       Diag.event('offer_accept_error', {'code': 'timeout'});
-      await pumpEventQueue();
+      await sink.pendingIo;
 
       final raw = await File(sink.sessionFilePath!).readAsString();
       expect(raw, contains('offer_accept_error'));
