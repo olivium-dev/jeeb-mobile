@@ -104,12 +104,13 @@ class BiometricLockCubit extends Cubit<BiometricLockState> {
     }
   }
 
-  /// JM-005 AC3 — the user chose "use password instead". Releasing the routing
+  /// JM-005 AC3 — the user chose the sign-in fallback. Releasing the routing
   /// gate (phase → unlocked) is required BEFORE the screen navigates to
-  /// `/login`: while `phase == locked` the router gate would bounce any
-  /// off-`/lock` location straight back to `/lock`. The screen emits this, then
-  /// `goNamed('login')`; the synchronous redirect for `/login` sees a non-locked
-  /// phase and a non-`/lock` location, so login sticks (no bounce-to-`/`).
+  /// `/register` (the phone-OTP re-auth entry; the email/password `/login`
+  /// funnel was removed in JEBV4-199): while `phase == locked` the router gate
+  /// would bounce any off-`/lock` location straight back to `/lock`. The screen
+  /// emits this, then `goNamed('register')`; the synchronous redirect sees a
+  /// non-locked phase and a non-`/lock` location, so the entry sticks.
   void usePasswordFallback() {
     _emit(
       state.copyWith(

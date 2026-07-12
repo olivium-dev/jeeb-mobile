@@ -1,23 +1,19 @@
 // W0-INT route-resolution gate.
 //
-// Proves the Wave-0 integrator route batch (CTO-D1; 50_EXECUTION_PLAN
-// §"Exact W0 integrator route additions") is REGISTERED and that each new route
-// resolves to its stub screen — the integrator's Phase-A exit gate ("every new
-// route reaches its stub root"). These are nav-honesty pins (CTO brief §6.7):
-// before the W0 engineers wire any call site, the targets must exist.
+// Proves the surviving integrator route batch is REGISTERED and each route
+// resolves to its screen — the integrator's Phase-A exit gate ("every route
+// reaches its root"). These are nav-honesty pins (CTO brief §6.7).
 //
-//   /login            → LoginScreen                (JM-007)
-//   /sign-up          → SignUpScreen               (JM-008)
-//   /recover          → RecoverPasswordScreen      (JM-020)
-//   /recover/verify   → VerifyRecoveryCodeScreen   (JM-021, nested)
-//   /set-password     → SetPasswordScreen          (JM-022, ?mode=)
+//   /set-password     → SetPasswordScreen          (JM-022 / JM-061, in-app-social)
 //   /lock             → BiometricLockScreen (REAL, not the placeholder) (JM-005)
 //   /account-status   → AccountStatusScreen        (JM-066)
 //
-// The redirect gate is exercised in fr_gating_first_run_test.dart
-// (logged-out → /register, the DEFECT-3 phone-OTP entry) and the
-// account-status branch defaults to a no-op gate, so navigation to these
-// pre-auth routes is allowed here.
+// The hidden email/password funnel routes (`/login`, `/sign-up`, `/recover`,
+// `/recover/verify`) were REMOVED in JEBV4-199 (Q-044); this file now also
+// asserts they no longer resolve (their names throw). The redirect gate is
+// exercised in fr_gating_first_run_test.dart (logged-out → /register, the
+// phone-OTP entry) and the account-status branch defaults to a no-op gate, so
+// navigation to these pre-auth routes is allowed here.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -32,11 +28,7 @@ import 'package:jeeb_mobile/core/role/role_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_eligibility_cubit.dart';
 import 'package:jeeb_mobile/core/router/app_router.dart';
 import 'package:jeeb_mobile/features/account_status/presentation/account_status_screen.dart';
-import 'package:jeeb_mobile/features/auth/presentation/login_screen.dart';
-import 'package:jeeb_mobile/features/auth/presentation/recover_password_screen.dart';
 import 'package:jeeb_mobile/features/auth/presentation/set_password_screen.dart';
-import 'package:jeeb_mobile/features/auth/presentation/sign_up_screen.dart';
-import 'package:jeeb_mobile/features/auth/presentation/verify_recovery_code_screen.dart';
 import 'package:jeeb_mobile/features/biometric_auth/application/biometric_lock_cubit.dart';
 import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_repository.dart';
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
@@ -126,52 +118,23 @@ void main() {
       built.router.routerDelegate.currentConfiguration.uri.toString();
 
   group('W0 integrator routes resolve to their stubs', () {
-    testWidgets('/login → LoginScreen', (tester) async {
-      await pump(tester);
-      built.router.goNamed('login');
-      await tester.pumpAndSettle();
-      expect(location(), '/login');
-      expect(find.byType(LoginScreen), findsOneWidget);
-    });
+    // JEBV4-199: the hidden email/password funnel route names are GONE. A
+    // removed name has no location, so `namedLocation` throws — the positive
+    // proof that the funnel routes were deleted (not merely hidden).
+    for (final removed in const ['login', 'sign-up', 'recover-password',
+        'recover-verify']) {
+      testWidgets('removed funnel route "$removed" no longer resolves',
+          (tester) async {
+        await pump(tester);
+        expect(
+          () => built.router.namedLocation(removed),
+          throwsA(anything),
+          reason: 'JEBV4-199 deleted the $removed route',
+        );
+      });
+    }
 
-    testWidgets('/sign-up → SignUpScreen', (tester) async {
-      await pump(tester);
-      built.router.goNamed('sign-up');
-      await tester.pumpAndSettle();
-      expect(location(), '/sign-up');
-      expect(find.byType(SignUpScreen), findsOneWidget);
-    });
-
-    testWidgets('/recover → RecoverPasswordScreen', (tester) async {
-      await pump(tester);
-      built.router.goNamed('recover-password');
-      await tester.pumpAndSettle();
-      expect(location(), '/recover');
-      expect(find.byType(RecoverPasswordScreen), findsOneWidget);
-    });
-
-    testWidgets('/recover/verify → VerifyRecoveryCodeScreen (nested)',
-        (tester) async {
-      await pump(tester);
-      built.router.goNamed('recover-verify');
-      await tester.pumpAndSettle();
-      expect(location(), '/recover/verify');
-      expect(find.byType(VerifyRecoveryCodeScreen), findsOneWidget);
-    });
-
-    testWidgets('/set-password?mode=recovery → SetPasswordScreen (recovery)',
-        (tester) async {
-      await pump(tester);
-      built.router.go('/set-password?mode=recovery');
-      await tester.pumpAndSettle();
-      expect(location(), '/set-password?mode=recovery');
-      final screen = tester.widget<SetPasswordScreen>(
-        find.byType(SetPasswordScreen),
-      );
-      expect(screen.mode, SetPasswordMode.recovery);
-    });
-
-    testWidgets('/set-password?mode=in-app-social → SetPasswordScreen (social)',
+    testWidgets('/set-password → SetPasswordScreen (in-app-social)',
         (tester) async {
       await pump(tester);
       built.router.go('/set-password?mode=in-app-social');

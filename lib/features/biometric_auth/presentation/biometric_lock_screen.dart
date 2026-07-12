@@ -110,11 +110,13 @@ class BiometricLockScreen extends StatelessWidget {
                           variant: OmdsButtonVariant.text,
                           // AC3: release the routing gate FIRST (so the gate
                           // doesn't bounce us back to `/lock`), then route to
-                          // `/login`. The emit is synchronous, the
+                          // `/register` (the phone-OTP re-auth entry; the
+                          // email/password `/login` funnel was removed in
+                          // JEBV4-199). The emit is synchronous, the
                           // `refreshListenable` notify is async, so the
-                          // synchronous `goNamed('login')` redirect already sees
-                          // a released (non-locked) phase + a non-`/lock`
-                          // location → login sticks.
+                          // synchronous `goNamed('register')` redirect already
+                          // sees a released (non-locked) phase + a non-`/lock`
+                          // location → the entry sticks.
                           onTap: () => _usePasswordFallback(context),
                         ),
                       ),
@@ -131,7 +133,9 @@ class BiometricLockScreen extends StatelessWidget {
 
   void _usePasswordFallback(BuildContext context) {
     context.read<BiometricLockCubit>().usePasswordFallback();
-    // EDGE: biometric-unlock → login (JM-005 AC3, 60_W0_TEST_PLAN §3).
-    context.goNamed('login');
+    // EDGE: biometric-unlock → phone-OTP re-auth entry (`/register`). The
+    // email/password `/login` funnel was removed in JEBV4-199 (Q-044), so the
+    // biometric fallback now re-authenticates via phone-OTP + social.
+    context.goNamed('register');
   }
 }
