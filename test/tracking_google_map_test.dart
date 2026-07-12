@@ -69,6 +69,25 @@ void main() {
         isEmpty,
       );
     });
+
+    // JEBV4-218 / Q-061 (pilot fidelity): the route is drawn as a STRAIGHT LINE
+    // between pickup and drop-off — `geodesic: false` — not a great-circle or
+    // road-snapped path. Locks the pilot straight-line rendering contract.
+    test('draws a straight line (geodesic:false) pickup→dropoff', () {
+      const pickup = GpsPoint(lat: 33.8938, lng: 35.5018);
+      const dropoff = GpsPoint(lat: 33.8869, lng: 35.5131);
+      final polylines = trackingPolylines(
+        _info(polyline: const [pickup, dropoff]),
+      );
+      final line = polylines.single;
+      // Straight-line, not geodesic — the pilot does not curve the route.
+      expect(line.geodesic, isFalse);
+      // Exactly the two endpoints, in order — a single straight segment.
+      expect(line.points, const [
+        LatLng(33.8938, 35.5018),
+        LatLng(33.8869, 35.5131),
+      ]);
+    });
   });
 
   group('trackingCamera', () {

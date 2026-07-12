@@ -63,6 +63,7 @@ class DeliveryTrackingInfo extends Equatable {
     this.lifecycle = TrackingLifecycle.active,
     this.distanceLabel,
     this.etaMinutes,
+    this.deadline,
     this.jeeberPosition,
     this.polyline = const [],
     this.jeeber,
@@ -158,6 +159,7 @@ class DeliveryTrackingInfo extends Equatable {
       lifecycle: _parseLifecycle(status),
       distanceLabel: _str(json['distanceLabel']),
       etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
+      deadline: _parseDeadline(json),
       jeeber: _parseJeeber(json),
       requestId: _str(json['requestId'] ?? json['request_id']),
       conversationId:
@@ -197,6 +199,27 @@ class DeliveryTrackingInfo extends Equatable {
   static String? _currency(Object? raw) {
     if (raw is Map) return _str(raw['currency']);
     return null;
+  }
+
+  /// Q-061 / D18: the LOCKED absolute delivery deadline — the fixed wall-clock
+  /// instant the order must arrive by, frozen at order creation (NOT a sliding
+  /// ETA). Parsed defensively from any of the aliases the delivery row may
+  /// carry, normalized to a UTC instant via [ServerTime] so the panel renders
+  /// the true local wall clock. Null when the row omits a deadline (the panel
+  /// then simply hides the line).
+  static DateTime? _parseDeadline(Map<String, dynamic> json) {
+    final raw = _str(json['deadline'] ??
+        json['deliveryDeadline'] ??
+        json['delivery_deadline'] ??
+        json['deadlineAt'] ??
+        json['deadline_at'] ??
+        json['slaDeadline'] ??
+        json['sla_deadline'] ??
+        json['dueBy'] ??
+        json['due_by'] ??
+        json['etaDeadline'] ??
+        json['eta_deadline']);
+    return ServerTime.parse(raw);
   }
 
   static void _populateTimestamps(
@@ -289,6 +312,12 @@ class DeliveryTrackingInfo extends Equatable {
 
   /// Estimated minutes to arrival. Null when unknown.
   final int? etaMinutes;
+
+  /// Q-061 / D18: the LOCKED absolute delivery deadline (UTC instant) the order
+  /// must arrive by — fixed at order creation, distinct from the live [etaMinutes]
+  /// countdown. Null when the delivery row omits one. Rendered by the tracking
+  /// panel as an "Arrives by {time}" line.
+  final DateTime? deadline;
 
   /// T-MOB-017: Latest Jeeber GPS position from tracking feed.
   final GpsPoint? jeeberPosition;
@@ -433,6 +462,7 @@ class DeliveryTrackingInfo extends Equatable {
         lifecycle,
         distanceLabel,
         etaMinutes,
+        deadline,
         jeeberPosition,
         polyline,
         jeeber,
