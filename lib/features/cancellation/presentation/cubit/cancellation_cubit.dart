@@ -8,7 +8,6 @@ import 'cancellation_state.dart';
 /// Lifecycle:
 ///   [CancellationIdle] → user fills form → [submit] →
 ///   [CancellationLoading] → 200 → [CancellationSuccess]
-///                         → 429 → [CancellationRateLimited]
 ///                         → 409 → [CancellationTooLate]
 ///                         → 5xx → [CancellationError]
 class CancellationCubit extends Cubit<CancellationState> {
@@ -37,8 +36,6 @@ class CancellationCubit extends Cubit<CancellationState> {
         otherDetails: otherDetails,
       );
       emit(CancellationSuccess(result));
-    } on CancellationRateLimitException catch (e) {
-      emit(CancellationRateLimited(retryAfter: e.retryAfter));
     } on CancellationTooLateException {
       emit(const CancellationTooLate());
     } on CancellationException catch (e) {

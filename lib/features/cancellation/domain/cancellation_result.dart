@@ -1,13 +1,12 @@
 /// Result returned by a successful POST /v1/deliveries/{id}/cancel call.
 ///
 /// Contract per D5 `CancelDeliveryResponse`:
-/// `feeApplied`, `weeklyCount`, `retryAfter`, `strikeCount`, `restriction`,
+/// `weeklyCount`, `retryAfter`, `strikeCount`, `restriction`,
 /// `pendingApproval`, `jeeberRestricted` — some fields are invented for
 /// mock fidelity (T-BE-030 / d5-delivery-lifecycle.contract.md).
 class CancellationResult {
   const CancellationResult({
     required this.deliveryId,
-    required this.feeApplied,
     required this.weeklyCount,
     this.retryAfter,
     this.strikeCount,
@@ -16,10 +15,6 @@ class CancellationResult {
   });
 
   final String deliveryId;
-
-  /// Fee charged to client wallet, in local currency minor units.
-  /// Zero when no fee applies (pre-soft-limit cancellations).
-  final double feeApplied;
 
   /// Cancellations this ISO-week (client only).
   final int weeklyCount;

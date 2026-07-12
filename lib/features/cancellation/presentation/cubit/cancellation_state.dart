@@ -30,16 +30,6 @@ final class CancellationSuccess extends CancellationState {
   List<Object?> get props => [result];
 }
 
-/// Rate-limit hit (HTTP 429). [retryAfter] is when the limit resets.
-final class CancellationRateLimited extends CancellationState {
-  const CancellationRateLimited({this.retryAfter});
-
-  final DateTime? retryAfter;
-
-  @override
-  List<Object?> get props => [retryAfter];
-}
-
 /// Delivery already picked-up or terminal — cannot cancel.
 final class CancellationTooLate extends CancellationState {
   const CancellationTooLate();

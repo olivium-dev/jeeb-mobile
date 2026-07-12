@@ -116,7 +116,6 @@ class _CatalogCancellationRepository implements CancellationRepository {
   }) async {
     return CancellationResult(
       deliveryId: deliveryId,
-      feeApplied: reason == 'wait_too_long' ? 5.0 : 0.0,
       weeklyCount: 1,
     );
   }
@@ -159,29 +158,13 @@ final CatalogEntry _cancellationSuccessSheetEntry = CatalogEntry(
   screen: 'cancellation_success_sheet',
   states: [
     CatalogState(
-      'Fee applied — wallet CTA',
+      'Cancellation success',
       (_) => _sheetHost(
         CancellationSuccessSheet(
           result: const CancellationResult(
             deliveryId: 'delivery-demo-1',
-            feeApplied: 5.0,
-            weeklyCount: 2,
-          ),
-          onWalletTap: () {},
-          onDone: () {},
-        ),
-      ),
-    ),
-    CatalogState(
-      'No fee — done only',
-      (_) => _sheetHost(
-        CancellationSuccessSheet(
-          result: const CancellationResult(
-            deliveryId: 'delivery-demo-1',
-            feeApplied: 0,
             weeklyCount: 1,
           ),
-          onWalletTap: () {},
           onDone: () {},
         ),
       ),

@@ -4,7 +4,7 @@ import 'package:omds/omds.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/cancellation_result.dart';
 
-/// Bottom sheet shown after a successful cancellation (AC3: fee + wallet CTA).
+/// Bottom sheet shown after a successful cancellation.
 ///
 /// EXEMPT: OmdsBottomSheet lacks a `show` static factory with the required
 /// scroll-safe body layout. Using Flutter's `showModalBottomSheet` directly
@@ -13,18 +13,15 @@ class CancellationSuccessSheet extends StatelessWidget {
   const CancellationSuccessSheet({
     super.key,
     required this.result,
-    required this.onWalletTap,
     required this.onDone,
   });
 
   final CancellationResult result;
-  final VoidCallback onWalletTap;
   final VoidCallback onDone;
 
   static Future<void> show({
     required BuildContext context,
     required CancellationResult result,
-    required VoidCallback onWalletTap,
     required VoidCallback onDone,
   }) {
     return showModalBottomSheet<void>(
@@ -37,7 +34,6 @@ class CancellationSuccessSheet extends StatelessWidget {
       ),
       builder: (_) => CancellationSuccessSheet(
         result: result,
-        onWalletTap: onWalletTap,
         onDone: onDone,
       ),
     );
@@ -56,26 +52,9 @@ class CancellationSuccessSheet extends StatelessWidget {
             _SuccessIcon(),
             const SizedBox(height: Spacing.medium),
             _SuccessTitle(text: l10n.cancellationSuccess),
-            if (result.feeApplied > 0) ...[
-              const SizedBox(height: Spacing.small),
-              _FeeRow(
-                label: l10n.cancellationFeeApplied,
-                fee: result.feeApplied,
-              ),
-              const SizedBox(height: Spacing.medium),
-              OmdsPrimaryButton(
-                text: l10n.cancellationWalletCta,
-                onTap: onWalletTap,
-              ),
-              const SizedBox(height: Spacing.small),
-            ] else ...[
-              const SizedBox(height: Spacing.medium),
-            ],
+            const SizedBox(height: Spacing.medium),
             OmdsPrimaryButton(
               text: l10n.actionDone,
-              variant: result.feeApplied > 0
-                  ? OmdsButtonVariant.outlined
-                  : OmdsButtonVariant.primary,
               onTap: onDone,
             ),
           ],
@@ -107,32 +86,6 @@ class _SuccessTitle extends StatelessWidget {
       text,
       textAlign: TextAlign.center,
       style: Theme.of(context).textTheme.titleLarge,
-    );
-  }
-}
-
-class _FeeRow extends StatelessWidget {
-  const _FeeRow({required this.label, required this.fee});
-
-  final String label;
-  final double fee;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        Text(
-          fee.toStringAsFixed(2),
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-        ),
-      ],
     );
   }
 }
