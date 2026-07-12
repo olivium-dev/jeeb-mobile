@@ -165,32 +165,50 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
 
   Widget _buildBody(BuildContext context, AvailabilityViewState avState) {
     final isOffline = avState.status.state != AvailabilityState.online;
+    // JEBV4-284: the fixed header stack (greeting + availability card, plus —
+    // once online — the search bar + tab/tier strips) has enough natural
+    // height that once the on-screen keyboard shows (search field focused)
+    // and eats into the viewport, a plain Column + Expanded still overflows:
+    // Expanded floors at zero, but the *non-flexible* header total alone
+    // already exceeds what is left ("BOTTOM OVERFLOWED BY 100 PIXELS" on
+    // SM-S921B, run-26). A CustomScrollView lets the whole body scroll
+    // instead of overflow when squeezed — the same remedy `_NoRequestsScope`
+    // above already applies for its own tall-content overflow (Fix 6(b)).
     return SafeArea(
       key: JeeberFeedTabView.rootKey,
-      child: Column(
-        children: [
-          JeeberHomeGreeting(
-            name: widget.profileName,
-            avatarUrl: widget.profileAvatarUrl,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: JeeberHomeGreeting(
+              name: widget.profileName,
+              avatarUrl: widget.profileAvatarUrl,
+            ),
           ),
           // §G2/SW-23: the availability control is persistent across dashboard
           // states — the compact card renders here too, so going busy (feed
           // non-empty) never hides the online/offline switch.
-          Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(
-              Spacing.medium,
-              0,
-              Spacing.medium,
-              Spacing.small,
-            ),
-            child: AvailabilityCard(
-              view: avState,
-              onToggle: () => context.read<AvailabilityCubit>().toggle(),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                Spacing.medium,
+                0,
+                Spacing.medium,
+                Spacing.small,
+              ),
+              child: AvailabilityCard(
+                view: avState,
+                onToggle: () => context.read<AvailabilityCubit>().toggle(),
+              ),
             ),
           ),
-          if (isOffline) _OfflineBanner(),
-          if (!isOffline) ..._feedControls(),
-          Expanded(child: _feedContent(isOffline)),
+          if (isOffline) SliverToBoxAdapter(child: _OfflineBanner()),
+          if (!isOffline)
+            ..._feedControls().map((w) => SliverToBoxAdapter(child: w)),
+          SliverFillRemaining(
+            hasScrollBody: true,
+            child: _feedContent(isOffline),
+          ),
         ],
       ),
     );
