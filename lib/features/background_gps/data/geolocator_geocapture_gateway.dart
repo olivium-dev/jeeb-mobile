@@ -87,6 +87,24 @@ class GeolocatorGeocaptureGateway implements GeocaptureGateway {
     return _toSample(position);
   }
 
+  /// Whether the device's location services (the OS-level GPS toggle) are on.
+  /// A `false` here is distinct from a denied app permission: the recovery UI
+  /// (JEBV4-176) routes it to the "turn on location services" affordance
+  /// ([openLocationSettings]) rather than the app-permission one. Not on the
+  /// streaming [GeocaptureGateway] port — the one-shot current-location
+  /// resolver calls it directly via this concrete adapter.
+  Future<bool> isLocationServiceEnabled() =>
+      geo.Geolocator.isLocationServiceEnabled();
+
+  /// Opens the OS location-services settings page (device GPS toggle). Used by
+  /// the GPS-recovery UI's "open settings" CTA when location services are off.
+  Future<bool> openLocationSettings() => geo.Geolocator.openLocationSettings();
+
+  /// Opens this app's OS settings page so the user can grant the location
+  /// permission after a permanent denial. Used by the GPS-recovery UI's
+  /// "open settings" CTA when the app permission is denied.
+  Future<bool> openAppSettings() => geo.Geolocator.openAppSettings();
+
   GpsSample _toSample(geo.Position position) {
     final heading = position.heading;
     return GpsSample(

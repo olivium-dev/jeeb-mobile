@@ -29,6 +29,23 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
 
+    <!--
+        JEBV4-176: device-GPS for the "Current Location" pickup option.
+        - ACCESS_FINE_LOCATION / ACCESS_COARSE_LOCATION are required by the
+          `geolocator` plugin; WITHOUT them geolocator throws
+          PermissionDefinitionsNotFoundException at checkPermission(), so every
+          getCurrentPosition() call fails before the OS can even show the
+          runtime permission dialog — collapsing the whole GPS-recovery flow to
+          the "failed" card on every launch. Declaring them here is what lets
+          geolocator's checkPermission()/requestPermission() surface the real
+          OS dialog and resolve a genuine fix. The runtime prompt itself is
+          triggered from Dart (CurrentLocationResolver → geolocator); denial is
+          mapped to the honest permission-denied recovery card (no Beirut
+          fallback), and services-off maps to the services-off card.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"

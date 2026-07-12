@@ -1,28 +1,26 @@
-// B-35 — the map-pinned coordinate must survive back to client-location.
+// JEBV4-176 — the capture-location placeholder must NOT fabricate a coordinate.
 //
-// The capture-location route used to pop WITHOUT the picked LocationPoint (and
-// the router even overrode the screen's own result-consuming handler with a
-// fire-and-forget push), so a confirmed pin was silently discarded and every
-// pinned pickup collapsed to the Beirut fallback.
+// The capture-location route used to seed its map controller with a hardcoded
+// Beirut-downtown centre (33.8938, 35.5018) and pop THAT back on "Pin Location".
+// Because the neutral placeholder viewport never pans (no live map is injected
+// yet — B-23, Maps key owner-gated), every confirmed pin silently collapsed to
+// downtown Beirut and could create a Beirut-pinned request. JEBV4-176 removes
+// that silent fabrication: the placeholder route now pops WITHOUT a coordinate,
+// so `markPinned(null, null)` leaves the pinned choice un-confirmable (Confirm
+// stays disabled) exactly like the GPS-recovery path — no fabricated pickup can
+// reach `POST /requests`.
 //
 // This test drives the REAL production `AppRouter` end-to-end:
 //   request-type → location-select → capture-location (the ACTUAL
 //   `CaptureLocationRoute` builder) → Pin Location → back to location-select →
-//   Confirm/create.
-// It asserts the coordinate the router pops reaches the `POST /requests` draft.
-//
-// It deliberately exercises `AppRouter`'s own `/capture-location` builder (NOT a
-// hand-rolled stub GoRouter), so it FAILS if that builder ever regresses to a
-// value-less `context.pop()` — the exact production regression the previous,
-// stub-router version of this test could not catch.
-//
-// PLUMBING-COMPLETE-PENDING-B-23: no live draggable map is injected in
-// production yet (B-23, Maps key owner-gated), so the placeholder viewport never
-// calls `MapCaptureController.updateCenter` and the confirmed pin carries the
-// canonical default centre (33.8938, 35.5018). We therefore assert THAT
-// coordinate — NOT a fabricated "picked" point — reaches the draft, and prove it
-// is NOT the value-less-pop fallback (33.8886, 35.4955). Once B-23 injects a
-// live `GoogleMap` mapBuilder, the same pop will carry a real user-picked point.
+//   attempt Confirm.
+// It asserts that after the placeholder pin, NO create draft is submitted (the
+// Confirm CTA is gated off) — and therefore the old Beirut default never
+// reaches a request. It deliberately exercises `AppRouter`'s own
+// `/capture-location` builder (NOT a hand-rolled stub GoRouter), so it FAILS if
+// that builder ever regresses to fabricating a coordinate on pop. Once B-23
+// injects a live `GoogleMap` mapBuilder, the pop will carry a real user-picked
+// point and the choice becomes confirmable again.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -42,6 +40,7 @@ import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_reposi
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
 import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
 import 'package:jeeb_mobile/features/location/domain/location_select_repository.dart';
+import 'package:jeeb_mobile/features/location/domain/current_location_resolver.dart';
 import 'package:jeeb_mobile/features/no_offer_timeout/data/fake_waiting_repository.dart';
 import 'package:jeeb_mobile/features/no_offer_timeout/domain/waiting_repository.dart';
 import 'package:jeeb_mobile/features/request_summary/application/compose_request_controller.dart';
@@ -50,19 +49,9 @@ import 'package:jeeb_mobile/features/settings/data/repositories/biometric_prefer
 import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
+import '../../support/fake_current_location_resolver.dart';
 import '../../support/fake_request_submission_service.dart';
 import '../../support/sync_app_localizations.dart';
-
-// The canonical default centre the production router seeds the capture
-// controller with (app_router `_captureDefaultCenter`). The value-less-pop
-// regression would instead collapse to the compose fallback below.
-const double _defaultCenterLat = 33.8938;
-const double _defaultCenterLng = 35.5018;
-
-// The Beirut fallback the compose controller applies ONLY when no pin/saved
-// coordinate reaches it — i.e. what a value-less pop would produce.
-const double _fallbackLat = 33.8886;
-const double _fallbackLng = 35.4955;
 
 Future<({
   GoRouter router,
@@ -120,7 +109,8 @@ Widget _harness(
 }
 
 void main() {
-  group('B-35 — the map-pinned coordinate survives via the REAL AppRouter', () {
+  group('JEBV4-176 — the placeholder pin does NOT fabricate via the REAL '
+      'AppRouter', () {
     late FakeRequestSubmissionService submission;
 
     setUp(() async {
@@ -142,6 +132,10 @@ void main() {
       sl.registerLazySingleton<LocationSelectRepository>(
         FakeLocationSelectRepository.new,
       );
+      // JEBV4-176: current-location resolves a REAL device fix (non-Beirut).
+      sl.registerLazySingleton<CurrentLocationResolver>(
+        FakeCurrentLocationResolver.new,
+      );
       sl.registerLazySingleton<TierRepository>(FakeTierRepository.new);
       // Cold-load failure keeps the post-create waiting screen timer-free.
       sl.registerLazySingleton<WaitingRepository>(
@@ -156,8 +150,8 @@ void main() {
     });
 
     testWidgets(
-      'the coordinate popped by the production /capture-location builder '
-      'reaches the create draft (not the value-less-pop fallback)',
+      'the production /capture-location builder pops WITHOUT a coordinate, so '
+      'the pinned choice is un-confirmable and no fabricated draft is created',
       (tester) async {
         final built = await _buildRouter();
         built.router.go('/request-type');
@@ -180,11 +174,14 @@ void main() {
         expect(find.bySemanticsIdentifier('capture_location_pin_cta'),
             findsOneWidget);
 
-        // Confirm the pin — the production builder pops its controller's centre.
+        // Confirm the pin — the production builder pops WITHOUT a coordinate
+        // (JEBV4-176: no fabricated Beirut default).
         await tester.tap(find.bySemanticsIdentifier('capture_location_pin_cta'));
         await tester.pumpAndSettle();
 
-        // Back on location-select: supply the G1 description, then confirm.
+        // Back on location-select: supply the G1 description, then attempt to
+        // confirm. The pinned choice has NO real coordinate, so `canConfirm` is
+        // false and the Confirm CTA is disabled — the tap is a no-op.
         await tester.enterText(
           find.byKey(const Key('clientLocation.descriptionField')),
           'A cake from Sea Sweet',
@@ -195,18 +192,12 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // The coordinate the REAL router popped reached the POST /requests draft
-        // verbatim — the canonical default centre, NOT the Beirut value-less-pop
-        // fallback. A regression to `context.pop()` (no value) would clear the
-        // pin and collapse this to (_fallbackLat, _fallbackLng), failing here.
-        final draft = submission.lastDraft;
-        expect(draft, isNotNull);
-        expect(draft!.pickupLat, _defaultCenterLat);
-        expect(draft.pickupLng, _defaultCenterLng);
-        expect(draft.dropoffLat, _defaultCenterLat);
-        expect(draft.dropoffLng, _defaultCenterLng);
-        expect(draft.pickupLat, isNot(_fallbackLat));
-        expect(draft.pickupLng, isNot(_fallbackLng));
+        // No create draft was submitted: the placeholder pin fabricated nothing,
+        // so `POST /requests` was never called. A regression that re-fabricated
+        // a coordinate on pop would make the choice confirmable and submit a
+        // draft carrying the removed Beirut default — failing here.
+        expect(submission.submitCount, 0);
+        expect(submission.lastDraft, isNull);
       },
     );
   });

@@ -96,6 +96,8 @@ import '../../features/cancel_request/domain/cancel_request_repository.dart';
 import '../../features/cancellation/data/dio_cancellation_repository.dart';
 import '../../features/cancellation/domain/cancellation_repository.dart';
 import '../../features/location/data/dio_saved_location_repository.dart';
+import '../../features/location/data/geolocator_current_location_resolver.dart';
+import '../../features/location/domain/current_location_resolver.dart';
 import '../../features/location/domain/saved_location_repository.dart';
 import '../../features/active_delivery_jeeber/data/dio_active_delivery_repository.dart';
 import '../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
@@ -418,6 +420,15 @@ void configureDependencies({
   // T-MOB-012: Saved locations — GET/POST /api/users/me/saved-locations (live).
   sl.registerLazySingleton<SavedLocationRepository>(
     () => DioSavedLocationRepository(sl<Dio>()),
+  );
+
+  // JEBV4-176 (Q-060): device-GPS resolver for the "Current Location" pickup
+  // option. Replaces the silent Beirut fallback with a REAL one-shot fix +
+  // honest recovery. Registered so the location-select screen (and dev/test
+  // seams) resolve it from DI; the screen defaults to this same geolocator
+  // implementation when unregistered.
+  sl.registerLazySingleton<CurrentLocationResolver>(
+    GeolocatorCurrentLocationResolver.new,
   );
 
   // T-MOB-024: Cancellation flow — POST /v1/deliveries/{id}/cancel.

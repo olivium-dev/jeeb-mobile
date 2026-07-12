@@ -55,17 +55,6 @@ class ComposeRequestController {
   String? _transcription;
   String? _audioUrl;
 
-  /// Beirut downtown — the safe non-null fallback when the chosen location
-  /// carries no coordinates (the "current location" / freshly-pinned options do
-  /// not capture a real lat/lng in the installed build — there is no GPS/map
-  /// plugin wired yet). The gateway REQUIRES both `pickupLocation` and
-  /// `dropoffLocation` as `{lat,lng}` (verified live: a body without them →
-  /// 400 `location-required`), so a non-null pair is mandatory to create at
-  /// all. Mirrors the existing `address_detail_form_screen` fallback so we do
-  /// not invent a new constant.
-  static const double _fallbackLat = 33.8886;
-  static const double _fallbackLng = 35.4955;
-
   /// Records the tier the customer selected on the `request-type` step. Called
   /// by the Continue CTA before navigating to `location-select`. Resets the
   /// per-compose recipient phone AND the description/voice-note so a stale
@@ -143,22 +132,29 @@ class ComposeRequestController {
   }
 
   RequestDraft _buildDraft(LocationSelectState location) {
-    // Resolve coordinates from the confirmed location. A selected saved address
-    // carries real gateway coordinates (`GET /users/:id/saved-locations`); the
-    // current-location / pinned options have none captured in the installed
-    // build, so we fall back to the Beirut constant to satisfy the gateway's
-    // required-coordinates contract.
-    // Coordinate precedence (S0-REQ-03):
-    //   1. a selected SAVED address's real gateway coordinates;
+    // Resolve coordinates from the confirmed location. There is NO Beirut
+    // fallback (JEBV4-176 / Q-060) — every pickup coordinate is a REAL point.
+    // Coordinate precedence:
+    //   1. a selected SAVED address's real gateway coordinates
+    //      (`GET /users/:id/saved-locations`);
     //   2. the REAL map-PINNED coordinate the customer dropped on
-    //      capture-location (now carried on the state — previously dropped, so
-    //      the pin silently became Beirut);
-    //   3. the Beirut constant, used ONLY when neither a saved nor a pinned
-    //      coordinate exists (e.g. the GPS-less "Current Location" default), so
-    //      the gateway's required-coordinates contract is still satisfied.
+    //      capture-location (carried on the state);
+    //   3. the REAL device-GPS fix resolved for the "Current Location" option
+    //      (`LocationSelectState.gpsLat/gpsLng`, set only once the OS returned
+    //      a fix — the location-select Confirm CTA is gated on it, so this is
+    //      non-null by the time a create is submitted).
     final saved = _selectedSaved(location);
-    final lat = saved?.latitude ?? location.pinnedLat ?? _fallbackLat;
-    final lng = saved?.longitude ?? location.pinnedLng ?? _fallbackLng;
+    final lat = saved?.latitude ?? location.pinnedLat ?? location.gpsLat;
+    final lng = saved?.longitude ?? location.pinnedLng ?? location.gpsLng;
+    // Defensive honesty: if no real coordinate is present we REFUSE to create
+    // rather than silently invent one (the gateway also 400s without
+    // pickup/dropoff locations). The UI gate (`canConfirm`) makes this
+    // unreachable in the live flow; it guards dev seams / misuse.
+    if (lat == null || lng == null) {
+      throw const RequestSubmissionException(
+        RequestSubmissionFailure.invalidInput,
+      );
+    }
     // ADDRESS (iter6 feed-drop fix): the gateway stores pickup/dropoff `address`
     // and the jeeber feed parser (`dio_request_feed_repository._parseLocation`)
     // DROPS any row whose location has a null `address` — so an order created

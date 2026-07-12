@@ -43,6 +43,9 @@ import 'package:jeeb_mobile/features/settings/data/repositories/biometric_prefer
 import 'package:jeeb_mobile/features/shell/shell_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
+import 'package:jeeb_mobile/features/location/domain/current_location_resolver.dart';
+
+import '../../support/fake_current_location_resolver.dart';
 import '../../support/sync_app_localizations.dart';
 
 /// A scripted gate so the router's session check is deterministic without a
@@ -146,6 +149,11 @@ void main() {
     await sl.reset();
     sl.registerLazySingleton<OtpService>(
       () => const FakeOtpService(latency: Duration.zero),
+    );
+    // JEBV4-176: current-location resolves a REAL device fix (no geolocator in
+    // the headless harness) so the location-select screen renders normally.
+    sl.registerLazySingleton<CurrentLocationResolver>(
+      FakeCurrentLocationResolver.new,
     );
   });
 

@@ -20,11 +20,13 @@ import 'package:go_router/go_router.dart';
 import 'package:jeeb_mobile/core/di/injection_container.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
+import 'package:jeeb_mobile/features/location/domain/current_location_resolver.dart';
 import 'package:jeeb_mobile/features/location/presentation/client_location_screen.dart';
 import 'package:jeeb_mobile/features/request_summary/application/compose_request_controller.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/request_submission_service.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
+import '../../support/fake_current_location_resolver.dart';
 import '../../support/fake_request_submission_service.dart';
 
 class _SyncDelegate extends LocalizationsDelegate<AppLocalizations> {
@@ -113,6 +115,11 @@ void main() {
     view.devicePixelRatio = 1.0;
     addTearDown(view.resetPhysicalSize);
     addTearDown(view.resetDevicePixelRatio);
+    // JEBV4-176: the current-location option resolves a REAL device fix so the
+    // Confirm CTA enables (the create-then-401 path under test depends on it).
+    sl.registerLazySingleton<CurrentLocationResolver>(
+      FakeCurrentLocationResolver.new,
+    );
   });
 
   tearDown(() async {

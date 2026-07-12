@@ -14,8 +14,11 @@ import 'package:jeeb_mobile/features/location/application/location_select_cubit.
 import 'package:jeeb_mobile/features/location/application/location_select_state.dart';
 import 'package:jeeb_mobile/features/location/data/dio_location_select_repository.dart';
 import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
+import 'package:jeeb_mobile/features/location/domain/current_location_resolver.dart';
 import 'package:jeeb_mobile/features/location/domain/location_select_repository.dart';
 import 'package:jeeb_mobile/features/location/domain/saved_location.dart';
+
+import '../../support/fake_current_location_resolver.dart';
 
 String? _capturedPath;
 
@@ -46,11 +49,24 @@ Dio _dioThrowing(DioException error) {
 
 void main() {
   group('LocationSelectCubit', () {
-    test('load() → loaded with the saved addresses', () async {
-      final cubit = LocationSelectCubit(
-        repository: const FakeLocationSelectRepository(),
-        userId: 'user-client-001',
-      );
+    // JEBV4-176 (Q-060): the default fake resolves a REAL (non-Beirut) fix, so
+    // the current-location option becomes confirmable via a genuine GPS
+    // coordinate — never the old `33.8886, 35.4955` fallback.
+    LocationSelectCubit buildCubit({
+      LocationSelectRepository repository = const FakeLocationSelectRepository(),
+      CurrentLocationResult gps = const CurrentLocationResult.resolved(
+        33.8959,
+        35.4797,
+      ),
+    }) =>
+        LocationSelectCubit(
+          repository: repository,
+          userId: 'user-client-001',
+          currentLocationResolver: FakeCurrentLocationResolver(result: gps),
+        );
+
+    test('load() → loaded + resolves a REAL current-GPS fix', () async {
+      final cubit = buildCubit();
       addTearDown(cubit.close);
 
       await cubit.load();
@@ -58,17 +74,20 @@ void main() {
       expect(cubit.state.status, LocationSelectStatus.loaded);
       expect(cubit.state.hasSavedAddresses, isTrue);
       expect(cubit.state.savedAddresses.length, 2);
-      // Default selection is "Current Location" so Confirm is reachable.
       expect(cubit.state.choiceKind, LocationChoiceKind.current);
+      // Confirm is reachable ONLY because a real fix resolved (not Beirut).
+      expect(cubit.state.currentGpsStatus, CurrentGpsStatus.resolved);
+      expect(cubit.state.gpsLat, 33.8959);
+      expect(cubit.state.gpsLng, 35.4797);
       expect(cubit.state.canConfirm, isTrue);
     });
 
-    test('load() → failed surfaces the typed failure', () async {
-      final cubit = LocationSelectCubit(
+    test('load() → failed saved-fetch still resolves current GPS + confirmable',
+        () async {
+      final cubit = buildCubit(
         repository: const FakeLocationSelectRepository(
           failWith: LocationSelectFailure.network,
         ),
-        userId: 'user-client-001',
       );
       addTearDown(cubit.close);
 
@@ -76,32 +95,73 @@ void main() {
 
       expect(cubit.state.status, LocationSelectStatus.failed);
       expect(cubit.state.error, LocationSelectFailure.network);
-      // P0 REGRESSION (order-create blocker): a failed saved-addresses fetch
-      // (a GENUINE transport error — offline / 5xx) must NOT block confirming
-      // Current Location (the default choice). Gating Confirm on `loaded`
-      // dead-ended order creation (tier → location → Confirm disabled).
-      // Current/pinned stay confirmable on `failed`; only an explicit saved
-      // choice does not. (An EMPTY customer is NOT a failure — the live gateway
-      // returns 200 {items:[]}, so the screen reaches `loaded` with no rows.)
+      // A failed saved-addresses fetch (offline / 5xx) must NOT block the flow:
+      // the customer still creates via the resolved current GPS (JEBV4-176).
+      expect(cubit.state.choiceKind, LocationChoiceKind.current);
+      expect(cubit.state.hasCurrentGps, isTrue);
+      expect(cubit.state.canConfirm, isTrue,
+          reason: 'a resolved current GPS fix stays confirmable after a saved-'
+              'load failure');
+    });
+
+    test(
+        'current option is NOT confirmable until a real fix resolves '
+        '(permission denied → recovery, no Beirut)', () async {
+      final cubit = buildCubit(
+        gps: const CurrentLocationResult.permissionDenied(),
+      );
+      addTearDown(cubit.close);
+
+      await cubit.load();
+
       expect(cubit.state.choiceKind, LocationChoiceKind.current);
       expect(
-        cubit.state.canConfirm,
-        isTrue,
-        reason: 'Current Location must remain confirmable after a 404/save-load '
-            'failure (JM-024 AC4)',
+          cubit.state.currentGpsStatus, CurrentGpsStatus.permissionDenied);
+      expect(cubit.state.gpsLat, isNull);
+      expect(cubit.state.gpsLng, isNull);
+      // The old silent Beirut fallback made this `true`; now Confirm is gated.
+      expect(cubit.state.canConfirm, isFalse);
+    });
+
+    test('services-off and failed map to their recovery states', () async {
+      final off = buildCubit(
+        gps: const CurrentLocationResult.serviceDisabled(),
       );
+      addTearDown(off.close);
+      await off.load();
+      expect(off.state.currentGpsStatus, CurrentGpsStatus.serviceDisabled);
+      expect(off.state.canConfirm, isFalse);
+
+      final failed = buildCubit(gps: const CurrentLocationResult.failed());
+      addTearDown(failed.close);
+      await failed.load();
+      expect(failed.state.currentGpsStatus, CurrentGpsStatus.failed);
+      expect(failed.state.canConfirm, isFalse);
+    });
+
+    test('retry (resolveCurrentGps) re-attempts the fix', () async {
+      final resolver = FakeCurrentLocationResolver(
+        result: const CurrentLocationResult.serviceDisabled(),
+      );
+      final cubit = LocationSelectCubit(
+        repository: const FakeLocationSelectRepository(),
+        userId: 'user-client-001',
+        currentLocationResolver: resolver,
+      );
+      addTearDown(cubit.close);
+      await cubit.load();
+      expect(resolver.resolveCount, 1);
+
+      await cubit.resolveCurrentGps();
+      expect(resolver.resolveCount, 2);
     });
 
     test('failed + explicitly-selected saved address is NOT confirmable',
         () async {
-      // Guard the other half of the fix: if the user had picked a saved address
-      // (which by definition could not have loaded on a failed fetch), Confirm
-      // must stay disabled rather than forward a phantom selection.
-      final cubit = LocationSelectCubit(
+      final cubit = buildCubit(
         repository: const FakeLocationSelectRepository(
           failWith: LocationSelectFailure.network,
         ),
-        userId: 'user-client-001',
       );
       addTearDown(cubit.close);
 
@@ -115,10 +175,7 @@ void main() {
 
     test('selectSaved / selectCurrent / markPinned toggle the choice',
         () async {
-      final cubit = LocationSelectCubit(
-        repository: const FakeLocationSelectRepository(),
-        userId: 'user-client-001',
-      );
+      final cubit = buildCubit();
       addTearDown(cubit.close);
       await cubit.load();
 
@@ -135,10 +192,7 @@ void main() {
     });
 
     test('load() is re-entry guarded', () async {
-      final cubit = LocationSelectCubit(
-        repository: const FakeLocationSelectRepository(),
-        userId: 'user-client-001',
-      );
+      final cubit = buildCubit();
       addTearDown(cubit.close);
       await cubit.load();
       final snapshot = cubit.state;

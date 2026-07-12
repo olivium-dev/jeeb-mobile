@@ -24,6 +24,20 @@ Tier _flash({String? wireId}) => Tier(
       vehicleClass: TierVehicleClass.any,
     );
 
+// JEBV4-176 (Q-060): the "Current Location" choice now carries a REAL resolved
+// device-GPS coordinate (Hamra, non-Beirut) instead of the removed
+// `33.8886, 35.4955` fallback. Every current-location create test seeds one.
+const double _gpsLat = 33.8959;
+const double _gpsLng = 35.4797;
+
+LocationSelectState _currentLoaded() => const LocationSelectState(
+      status: LocationSelectStatus.loaded,
+      choiceKind: LocationChoiceKind.current,
+      currentGpsStatus: CurrentGpsStatus.resolved,
+      gpsLat: _gpsLat,
+      gpsLng: _gpsLng,
+    );
+
 void main() {
   group('ComposeRequestController', () {
     late FakeRequestSubmissionService submission;
@@ -38,7 +52,7 @@ void main() {
       controller.setTier(_flash(wireId: '0be308ce-uuid'));
 
       final id = await controller.submitFromLocation(
-        const LocationSelectState(status: LocationSelectStatus.loaded),
+        _currentLoaded(),
       );
 
       expect(id, 'req-123');
@@ -49,7 +63,7 @@ void main() {
       controller.setTier(_flash(wireId: '0be308ce-uuid'));
 
       await controller.submitFromLocation(
-        const LocationSelectState(status: LocationSelectStatus.loaded),
+        _currentLoaded(),
       );
 
       expect(submission.lastDraft!.tierId, '0be308ce-uuid',
@@ -61,7 +75,7 @@ void main() {
       controller.setTier(_flash());
 
       await controller.submitFromLocation(
-        const LocationSelectState(status: LocationSelectStatus.loaded),
+        _currentLoaded(),
       );
 
       expect(submission.lastDraft!.tierId, 'flash');
@@ -99,25 +113,44 @@ void main() {
     );
 
     test(
-      'supplies non-null fallback coordinates for the current-location choice '
-      '(the gateway REQUIRES pickup + dropoff lat/lng)',
+      'JEBV4-176: current-location pickup uses the REAL resolved GPS fix '
+      '(never the removed 33.8886/35.4955 Beirut fallback)',
       () async {
         controller.setTier(_flash(wireId: 'uuid'));
 
-        await controller.submitFromLocation(
-          const LocationSelectState(
-            status: LocationSelectStatus.loaded,
-            choiceKind: LocationChoiceKind.current,
-          ),
-        );
+        await controller.submitFromLocation(_currentLoaded());
 
         final draft = submission.lastDraft!;
-        // Must be non-null so the create body carries pickupLocation +
-        // dropoffLocation (a body without them is rejected 400 live).
-        expect(draft.pickupLat, isNotNull);
-        expect(draft.pickupLng, isNotNull);
-        expect(draft.dropoffLat, isNotNull);
-        expect(draft.dropoffLng, isNotNull);
+        // The coordinate is the device fix seeded on the state, verbatim.
+        expect(draft.pickupLat, _gpsLat);
+        expect(draft.pickupLng, _gpsLng);
+        expect(draft.dropoffLat, _gpsLat);
+        expect(draft.dropoffLng, _gpsLng);
+        // The old silent Beirut fallback must NEVER appear.
+        expect(draft.pickupLat, isNot(33.8886));
+        expect(draft.pickupLng, isNot(35.4955));
+      },
+    );
+
+    test(
+      'JEBV4-176: a current-location choice WITHOUT a resolved fix REFUSES to '
+      'create (no fabricated coordinate)',
+      () async {
+        controller.setTier(_flash(wireId: 'uuid'));
+
+        // A current choice whose GPS never resolved (permission denied / off).
+        // The UI gates this out, but the controller must not invent a point.
+        expect(
+          () => controller.submitFromLocation(
+            const LocationSelectState(
+              status: LocationSelectStatus.loaded,
+              choiceKind: LocationChoiceKind.current,
+              currentGpsStatus: CurrentGpsStatus.permissionDenied,
+            ),
+          ),
+          throwsA(isA<RequestSubmissionException>()),
+        );
+        expect(submission.submitCount, 0);
       },
     );
 
@@ -127,27 +160,21 @@ void main() {
     // and no jeeber can ever see the order. The label must embed the coords so
     // the jeeber can still locate the point until reverse-geocoding lands.
     test(
-      'current-location order carries a non-null address (so the jeeber feed '
-      'parser keeps the row)',
+      'current-location order carries a non-null address embedding the REAL '
+      'GPS coords (so the jeeber feed parser keeps the row)',
       () async {
         controller.setTier(_flash(wireId: 'uuid'));
 
-        await controller.submitFromLocation(
-          const LocationSelectState(
-            status: LocationSelectStatus.loaded,
-            choiceKind: LocationChoiceKind.current,
-          ),
-        );
+        await controller.submitFromLocation(_currentLoaded());
 
         final draft = submission.lastDraft!;
         expect(draft.pickupAddress, isNotNull,
             reason: 'a null address makes the jeeber feed drop the order');
         expect(draft.dropoffAddress, isNotNull);
         expect(draft.pickupAddress, isNotEmpty);
-        // The label embeds the fallback coordinates so the jeeber still knows
-        // roughly where the pickup is.
-        expect(draft.pickupAddress, contains('33.8886'));
-        expect(draft.pickupAddress, contains('35.4955'));
+        // The label embeds the resolved device coordinates.
+        expect(draft.pickupAddress, contains('33.8959'));
+        expect(draft.pickupAddress, contains('35.4797'));
       },
     );
 
@@ -160,10 +187,13 @@ void main() {
         const LocationSelectState(
           status: LocationSelectStatus.loaded,
           choiceKind: LocationChoiceKind.pinned,
+          pinnedLat: 33.8869,
+          pinnedLng: 35.5131,
         ),
       );
 
       final draft = submission.lastDraft!;
+      expect(draft.pickupLat, 33.8869);
       expect(draft.pickupAddress, isNotNull);
       expect(draft.dropoffAddress, isNotNull);
     });
@@ -176,7 +206,7 @@ void main() {
 
       expect(
         () => controller.submitFromLocation(
-          const LocationSelectState(status: LocationSelectStatus.loaded),
+          _currentLoaded(),
         ),
         throwsA(isA<RequestSubmissionException>()),
       );
@@ -190,7 +220,7 @@ void main() {
       controller.setRecipientPhone('+9613000001');
 
       await controller.submitFromLocation(
-        const LocationSelectState(status: LocationSelectStatus.loaded),
+        _currentLoaded(),
       );
 
       expect(submission.lastDraft!.recipientPhone, '+9613000001');
@@ -202,7 +232,7 @@ void main() {
       controller.setRecipientPhone('   ');
 
       await controller.submitFromLocation(
-        const LocationSelectState(status: LocationSelectStatus.loaded),
+        _currentLoaded(),
       );
 
       expect(submission.lastDraft!.recipientPhone, isNull);
@@ -215,7 +245,7 @@ void main() {
       controller.setTier(_flash(wireId: 'uuid2'));
 
       await controller.submitFromLocation(
-        const LocationSelectState(status: LocationSelectStatus.loaded),
+        _currentLoaded(),
       );
 
       expect(submission.lastDraft!.recipientPhone, isNull);
@@ -231,7 +261,7 @@ void main() {
         controller.setDescription('2 shawarma + cola from Barbar');
 
         await controller.submitFromLocation(
-          const LocationSelectState(status: LocationSelectStatus.loaded),
+          _currentLoaded(),
         );
 
         final draft = submission.lastDraft!;
@@ -248,7 +278,7 @@ void main() {
       controller.setDescription('  a birthday cake  ');
 
       await controller.submitFromLocation(
-        const LocationSelectState(status: LocationSelectStatus.loaded),
+        _currentLoaded(),
       );
 
       expect(submission.lastDraft!.description, 'a birthday cake');
@@ -261,7 +291,7 @@ void main() {
         controller.setTier(_flash(wireId: 'uuid'));
 
         await controller.submitFromLocation(
-          const LocationSelectState(status: LocationSelectStatus.loaded),
+          _currentLoaded(),
         );
 
         final draft = submission.lastDraft!;
@@ -279,7 +309,7 @@ void main() {
       controller.setDescription('   ');
 
       await controller.submitFromLocation(
-        const LocationSelectState(status: LocationSelectStatus.loaded),
+        _currentLoaded(),
       );
 
       expect(submission.lastDraft!.description, 'Delivery request');
@@ -296,7 +326,7 @@ void main() {
       );
 
       await controller.submitFromLocation(
-        const LocationSelectState(status: LocationSelectStatus.loaded),
+        _currentLoaded(),
       );
 
       final draft = submission.lastDraft!;
@@ -313,7 +343,7 @@ void main() {
       controller.setTier(_flash(wireId: 'uuid2'));
 
       await controller.submitFromLocation(
-        const LocationSelectState(status: LocationSelectStatus.loaded),
+        _currentLoaded(),
       );
 
       final draft = submission.lastDraft!;
