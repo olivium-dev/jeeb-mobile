@@ -64,7 +64,7 @@ class ChatConnectionBanner extends StatelessWidget {
         return (
           l10n.chatStatusConnected,
           scheme.secondaryContainer,
-          scheme.onSecondaryContainer,
+          scheme.onPrimary,
           Icons.cloud_done_outlined,
         );
       case ConnectionStatus.connecting:
