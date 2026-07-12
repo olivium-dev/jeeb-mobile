@@ -46,10 +46,13 @@ class DioAccountService implements AccountService {
     }
   }
 
-  /// `POST /v1/auth/logout { refreshToken }` → 2xx. On success the local
-  /// keystore is cleared so the session is actually dropped. A transport/5xx
-  /// failure maps to [AccountActionOutcome.networkError] and the local session
-  /// is left intact (the cubit surfaces the error; the user stays signed in).
+  /// `POST /v1/auth/logout { refreshToken }`, best-effort. Sign-out is
+  /// **fail-safe** (JEBV4-245): the local keystore is ALWAYS cleared (in the
+  /// `finally`) and the outcome is ALWAYS [AccountActionOutcome.success] — even
+  /// when the server logout fails, times out, or 5xx's. A failed network
+  /// round-trip must NEVER strand the user signed-in; a server that never hears
+  /// the logout is acceptable (the token is dead client-side). Mirrors the
+  /// fail-safe [AccountSessionTerminator] contract.
   @override
   Future<AccountActionOutcome> signOut() async {
     try {
@@ -58,12 +61,12 @@ class DioAccountService implements AccountService {
         '/v1/auth/logout',
         data: <String, dynamic>{'refreshToken': ?refreshToken},
       );
-      await _tokenStore.clear();
-      return AccountActionOutcome.success;
-    } on DioException catch (_) {
-      return AccountActionOutcome.networkError;
     } catch (_) {
-      return AccountActionOutcome.networkError;
+      // Swallow — the local clear below is the load-bearing step; a user
+      // trapped in a signed-in shell is worse than a server missing the logout.
+    } finally {
+      await _tokenStore.clear();
     }
+    return AccountActionOutcome.success;
   }
 }
