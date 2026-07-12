@@ -29,8 +29,8 @@ class TranscriptionKeys {
 /// The voice TRANSCRIPTION-RESULT screen.
 ///
 /// Reached from the voice composer via `/voice-request/transcription` once the
-/// recording has been uploaded to `POST /v1/voice/transcribe` (the gateway mock
-/// at :3055 echoes `{ audioId, transcription, language }`). The screen lets the
+/// recording has been uploaded to `POST /transcribe` (JEBV4-209; the gateway
+/// echoes `{ audioId, status, transcription, language, reason }`). The screen lets the
 /// user review the machine transcription, edit it, replay the original audio,
 /// or re-record, then confirm — which forwards a [RequestDraft]-shaped payload
 /// to the next create-request step (`/request-summary`).

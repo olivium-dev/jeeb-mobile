@@ -551,9 +551,10 @@ void configureDependencies({
   sl.registerFactory<VoiceRecorder>(() => RecordVoiceRecorder());
   sl.registerFactory<VoicePlayer>(() => AudioPlayersVoicePlayer());
 
-  // T-MOB-011: Voice upload repository — POST /v1/voice/transcribe (gateway
-  // proxies voice-transcription-service). Registered so the screen resolves
-  // it from DI in release builds instead of self-constructing.
+  // T-MOB-011 / JEBV4-209: Voice upload repository — POST /transcribe (the
+  // gateway's real transcribe-only route; /v1/voice/transcribe was a dead
+  // alias). Registered so the screen resolves it from DI in release builds
+  // instead of self-constructing.
   sl.registerLazySingleton<VoiceRecordingRepository>(
     () => HttpVoiceRecordingRepository(dio: sl<Dio>()),
   );

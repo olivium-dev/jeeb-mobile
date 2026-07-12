@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:equatable/equatable.dart';
 
@@ -37,40 +39,37 @@ abstract class VoiceRecordingRepository {
 class HttpVoiceRecordingRepository implements VoiceRecordingRepository {
   HttpVoiceRecordingRepository({required Dio dio}) : _dio = dio;
 
-  /// Endpoint verified against Mockoon :3055 — `POST /v1/voice/transcribe`.
-  /// Acceptance-test note (T-MOB-011 AC): mock returns 200 with audioId +
-  /// transcription fields. Path passes through unchanged (useMockPrefixes=false).
-  static const String endpoint = '/v1/voice/transcribe';
+  /// JEBV4-209: `/v1/voice/transcribe` is a dead alias — jeeb-gateway never
+  /// registers that route (`RequestVoiceController` owns `POST /v1/requests`
+  /// for the full voice-order create; the standalone transcribe-only surface
+  /// this repository needs, for populating the compose field, is
+  /// `TranscriptionController` at `POST /transcribe`). That controller takes
+  /// JSON `{fileName, contentType, audioBase64}`, not multipart.
+  static const String endpoint = '/transcribe';
 
   final Dio _dio;
 
   @override
   Future<TranscriptionResult> upload(VoiceClip clip) async {
     try {
-      final form = FormData.fromMap({
-        'durationMs': clip.duration.inMilliseconds,
-        'audio': MultipartFile.fromBytes(
-          clip.bytes,
-          filename: 'voice-request.m4a',
-          contentType: DioMediaType.parse(clip.mimeType),
-        ),
-      });
       final response = await _dio.post<Map<String, dynamic>>(
         endpoint,
-        data: form,
-        options: Options(
-          contentType: 'multipart/form-data',
-        ),
+        data: {
+          'fileName': 'voice-request.m4a',
+          'contentType': clip.mimeType,
+          'audioBase64': base64Encode(clip.bytes),
+        },
+        options: Options(contentType: 'application/json'),
       );
       final body = response.data ?? const <String, dynamic>{};
-      // Mock contract: { audioId, transcription, status, language }
-      final id = (body['audioId'] ?? body['id']) as String?;
+      // Gateway contract (TranscribeResponse): { audioId, status, transcription, language, reason }
+      final id = body['audioId'] as String?;
       if (id == null || id.isEmpty) {
         throw const VoiceUploadException(VoiceUploadFailure.server);
       }
       return TranscriptionResult(
         id: id,
-        transcript: (body['transcription'] ?? body['transcript']) as String?,
+        transcript: body['transcription'] as String?,
       );
     } on DioException catch (e) {
       throw VoiceUploadException(_mapDio(e));
