@@ -35,6 +35,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:jeeb_mobile/core/dev_seam/dev_seam.dart';
 import 'package:jeeb_mobile/core/dev_seam/dev_seam_config.dart';
+import 'package:jeeb_mobile/core/di/injection_container.dart';
+import 'package:jeeb_mobile/features/location/domain/current_location_resolver.dart';
 import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
 import 'package:jeeb_mobile/core/onboarding/onboarding_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_cubit.dart';
@@ -50,6 +52,7 @@ import 'package:jeeb_mobile/features/settings/data/repositories/biometric_prefer
 import 'package:jeeb_mobile/features/shell/shell_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
+import '../../support/fake_current_location_resolver.dart';
 import '../../support/sync_app_localizations.dart';
 
 typedef _Built = ({
@@ -112,7 +115,18 @@ void main() {
   // Guard: the seam getters are only live in debug; these tests assume it.
   assert(kDebugMode, 'dev-seam route-pin tests must run in debug');
 
-  tearDown(DevSeam.debugReset);
+  setUp(() {
+    // JEBV4-176: the /client-location screen resolves a device-GPS fix; provide
+    // a fake (no real geolocator in the headless harness) so it renders normally.
+    sl.registerLazySingleton<CurrentLocationResolver>(
+      FakeCurrentLocationResolver.new,
+    );
+  });
+
+  tearDown(() async {
+    DevSeam.debugReset();
+    await sl.reset();
+  });
 
   // We assert on the MOUNTED screen widget rather than
   // `router.currentConfiguration.uri`, because go_router's imperative `push`

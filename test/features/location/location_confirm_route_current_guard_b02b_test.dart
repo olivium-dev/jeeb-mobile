@@ -37,6 +37,7 @@ import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_reposi
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
 import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
 import 'package:jeeb_mobile/features/location/domain/location_select_repository.dart';
+import 'package:jeeb_mobile/features/location/domain/current_location_resolver.dart';
 import 'package:jeeb_mobile/features/location/presentation/client_location_screen.dart'
     show shouldRouteAfterCreate;
 import 'package:jeeb_mobile/features/location/presentation/widgets/client_location_add_row.dart';
@@ -49,6 +50,7 @@ import 'package:jeeb_mobile/features/settings/data/repositories/biometric_prefer
 import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
+import '../../support/fake_current_location_resolver.dart';
 import '../../support/sync_app_localizations.dart';
 
 /// A submission service whose [submit] blocks on a gate the test releases, so
@@ -147,6 +149,10 @@ void main() {
       );
       sl.registerLazySingleton<LocationSelectRepository>(
         FakeLocationSelectRepository.new,
+      );
+      // JEBV4-176: current-location resolves a REAL device fix (non-Beirut).
+      sl.registerLazySingleton<CurrentLocationResolver>(
+        FakeCurrentLocationResolver.new,
       );
       sl.registerLazySingleton<TierRepository>(FakeTierRepository.new);
       // If the guard regressed and the waiting surface DID mount, a failing

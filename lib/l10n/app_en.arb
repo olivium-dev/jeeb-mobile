@@ -1297,6 +1297,50 @@
   "@clientLocationAddSemantic": {
     "description": "Accessibility label for the circular add-location button"
   },
+  "clientLocationGpsResolving": "Finding your location…",
+  "@clientLocationGpsResolving": {
+    "description": "Shown under the Current Location option while acquiring a GPS fix"
+  },
+  "clientLocationGpsResolved": "Using your current location",
+  "@clientLocationGpsResolved": {
+    "description": "Confirmation that a real device GPS fix is set as the pickup"
+  },
+  "clientLocationGpsPermissionDeniedTitle": "Location permission needed",
+  "@clientLocationGpsPermissionDeniedTitle": {
+    "description": "Recovery title when the app's location permission is denied"
+  },
+  "clientLocationGpsPermissionDeniedMessage": "Allow location access so we can set your pickup to where you are.",
+  "@clientLocationGpsPermissionDeniedMessage": {
+    "description": "Recovery message when the app's location permission is denied"
+  },
+  "clientLocationGpsServiceDisabledTitle": "Location is turned off",
+  "@clientLocationGpsServiceDisabledTitle": {
+    "description": "Recovery title when device location services are off"
+  },
+  "clientLocationGpsServiceDisabledMessage": "Turn on location services so we can set your pickup to where you are.",
+  "@clientLocationGpsServiceDisabledMessage": {
+    "description": "Recovery message when device location services are off"
+  },
+  "clientLocationGpsFailedTitle": "Couldn't get your location",
+  "@clientLocationGpsFailedTitle": {
+    "description": "Recovery title when acquiring a GPS fix failed"
+  },
+  "clientLocationGpsFailedMessage": "We couldn't read your GPS. Try again, or pin your pickup on the map.",
+  "@clientLocationGpsFailedMessage": {
+    "description": "Recovery message when acquiring a GPS fix failed"
+  },
+  "clientLocationGpsRetry": "Try again",
+  "@clientLocationGpsRetry": {
+    "description": "Retry CTA for re-attempting a GPS fix"
+  },
+  "clientLocationGpsOpenAppSettings": "Open settings",
+  "@clientLocationGpsOpenAppSettings": {
+    "description": "CTA that opens the app settings page to grant location permission"
+  },
+  "clientLocationGpsOpenLocationSettings": "Turn on location",
+  "@clientLocationGpsOpenLocationSettings": {
+    "description": "CTA that opens the OS location-services settings page"
+  },
   "recipientPhoneLabel": "Recipient phone",
   "@recipientPhoneLabel": {
     "description": "Label for the recipient-phone field on the location-confirm step of the create-request flow"

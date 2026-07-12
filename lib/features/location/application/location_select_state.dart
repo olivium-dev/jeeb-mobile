@@ -14,6 +14,34 @@ enum LocationSelectStatus { initial, loading, loaded, failed }
 /// the map step is held transiently as [pinned].
 enum LocationChoiceKind { current, saved, pinned }
 
+/// Lifecycle of the one-shot device-GPS acquisition for the "Current Location"
+/// option (JEBV4-176 / Q-060). This is what REPLACED the silent Beirut
+/// fallback: instead of pretending `33.8886, 35.4955` is the customer's
+/// location, the screen resolves a REAL fix and, when it cannot, surfaces the
+/// honest recovery state below (which gates the Confirm CTA).
+enum CurrentGpsStatus {
+  /// Not attempted yet (e.g. no resolver wired in an isolated dev/test host).
+  idle,
+
+  /// Acquiring a fix (permission prompt / reading the sensor).
+  resolving,
+
+  /// A real device coordinate is held ([LocationSelectState.gpsLat] /
+  /// [LocationSelectState.gpsLng] are non-null). Only in this state may a
+  /// current-location request be confirmed.
+  resolved,
+
+  /// The app's location permission is denied. Recovery: open app settings.
+  permissionDenied,
+
+  /// The device's location services (OS GPS toggle) are off. Recovery: open
+  /// location settings.
+  serviceDisabled,
+
+  /// The platform failed to produce a fix. Recovery: retry.
+  failed,
+}
+
 class LocationSelectState extends Equatable {
   const LocationSelectState({
     this.status = LocationSelectStatus.initial,
@@ -22,6 +50,9 @@ class LocationSelectState extends Equatable {
     this.selectedSavedId,
     this.pinnedLat,
     this.pinnedLng,
+    this.currentGpsStatus = CurrentGpsStatus.idle,
+    this.gpsLat,
+    this.gpsLng,
     this.error,
   });
 
@@ -40,31 +71,61 @@ class LocationSelectState extends Equatable {
   final double? pinnedLat;
   final double? pinnedLng;
 
+  /// Lifecycle of the device-GPS acquisition for the "Current Location" option.
+  final CurrentGpsStatus currentGpsStatus;
+
+  /// The REAL device coordinate for the "Current Location" option, set only
+  /// when [currentGpsStatus] is [CurrentGpsStatus.resolved]. Threaded into the
+  /// create draft as the pickup coordinate (JEBV4-176) — there is no Beirut
+  /// fallback: a null here keeps the current-location choice un-confirmable.
+  final double? gpsLat;
+  final double? gpsLng;
+
   /// Non-null only when [status] is [LocationSelectStatus.failed].
   final LocationSelectFailure? error;
 
   bool get hasSavedAddresses => savedAddresses.isNotEmpty;
 
-  /// A location is always confirmable: "Current Location" is the safe default,
-  /// so the Confirm CTA is reachable on first paint (JM-024 AC4). The selection
-  /// only changes WHICH location is forwarded to order-chat.
+  /// True once the device GPS has yielded a real fix for the current option.
+  bool get hasCurrentGps =>
+      currentGpsStatus == CurrentGpsStatus.resolved &&
+      gpsLat != null &&
+      gpsLng != null;
+
+  /// Whether the customer has a confirmable pickup selection.
   ///
-  /// The saved-addresses fetch (`GET /api/users/me/saved-locations`) can still
-  /// fail on a GENUINE transport error (offline / 5xx). That failure must only
-  /// degrade the saved-addresses sub-list; it must NOT block confirming Current
-  /// Location / a freshly-pinned point — gating solely on `loaded` would violate
-  /// the AC4 invariant above and dead-end order creation (tier → location →
-  /// [BLOCKED]) on any network blip. So `failed` stays confirmable UNLESS the
+  /// The saved-addresses fetch (`GET /api/users/me/saved-locations`) can fail
+  /// on a GENUINE transport error (offline / 5xx). That failure must only
+  /// degrade the saved-addresses sub-list; it must NOT block confirming a
+  /// freshly-pinned point — gating solely on `loaded` would dead-end order
+  /// creation on any network blip. So `failed` stays confirmable UNLESS the
   /// user explicitly chose a saved address (which by definition never loaded).
   ///
-  /// NOTE (post-fix): an EMPTY customer is NOT a failure. The live gateway
-  /// returns `200 {items:[]}` for a customer with no saved addresses, so the
-  /// screen reaches `loaded` with an empty list (the old `/users/:id/...` path
-  /// 404'd here — that was the saved-locations-404 bug, since corrected).
-  bool get canConfirm =>
-      status == LocationSelectStatus.loaded ||
-      (status == LocationSelectStatus.failed &&
-          choiceKind != LocationChoiceKind.saved);
+  /// JEBV4-176 (Q-060): the "Current Location" option is NO LONGER
+  /// unconditionally confirmable. It used to fall through to a hardcoded Beirut
+  /// coordinate (`33.8886, 35.4955`), so a customer with GPS off / permission
+  /// denied silently created a request pinned to downtown Beirut. Now the
+  /// current option is confirmable ONLY once a REAL device fix has resolved
+  /// ([hasCurrentGps]); until then the screen shows the GPS-recovery UI and
+  /// Confirm stays disabled. A saved address or a map-pinned point (both carry
+  /// real coordinates) remain confirmable as before.
+  ///
+  /// NOTE: an EMPTY customer is NOT a failure. The live gateway returns
+  /// `200 {items:[]}` for a customer with no saved addresses, so the screen
+  /// reaches `loaded` with an empty list.
+  bool get canConfirm {
+    final baseLoaded = status == LocationSelectStatus.loaded ||
+        (status == LocationSelectStatus.failed &&
+            choiceKind != LocationChoiceKind.saved);
+    if (!baseLoaded) return false;
+    switch (choiceKind) {
+      case LocationChoiceKind.current:
+        return hasCurrentGps;
+      case LocationChoiceKind.saved:
+      case LocationChoiceKind.pinned:
+        return true;
+    }
+  }
 
   bool isSavedSelected(String id) =>
       choiceKind == LocationChoiceKind.saved && selectedSavedId == id;
@@ -78,6 +139,10 @@ class LocationSelectState extends Equatable {
     double? pinnedLat,
     double? pinnedLng,
     bool clearPinned = false,
+    CurrentGpsStatus? currentGpsStatus,
+    double? gpsLat,
+    double? gpsLng,
+    bool clearGps = false,
     LocationSelectFailure? error,
     bool clearError = false,
   }) {
@@ -89,6 +154,9 @@ class LocationSelectState extends Equatable {
           clearSelectedSaved ? null : (selectedSavedId ?? this.selectedSavedId),
       pinnedLat: clearPinned ? null : (pinnedLat ?? this.pinnedLat),
       pinnedLng: clearPinned ? null : (pinnedLng ?? this.pinnedLng),
+      currentGpsStatus: currentGpsStatus ?? this.currentGpsStatus,
+      gpsLat: clearGps ? null : (gpsLat ?? this.gpsLat),
+      gpsLng: clearGps ? null : (gpsLng ?? this.gpsLng),
       error: clearError ? null : (error ?? this.error),
     );
   }
@@ -101,6 +169,9 @@ class LocationSelectState extends Equatable {
         selectedSavedId,
         pinnedLat,
         pinnedLng,
+        currentGpsStatus,
+        gpsLat,
+        gpsLng,
         error,
       ];
 }

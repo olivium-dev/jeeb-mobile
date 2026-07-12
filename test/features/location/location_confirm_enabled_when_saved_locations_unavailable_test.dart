@@ -34,6 +34,7 @@ import 'package:jeeb_mobile/features/biometric_auth/application/biometric_lock_c
 import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_repository.dart';
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
 import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
+import 'package:jeeb_mobile/features/location/domain/current_location_resolver.dart';
 import 'package:jeeb_mobile/features/location/domain/location_select_repository.dart';
 import 'package:jeeb_mobile/features/no_offer_timeout/data/fake_waiting_repository.dart';
 import 'package:jeeb_mobile/features/no_offer_timeout/domain/waiting_repository.dart';
@@ -44,6 +45,7 @@ import 'package:jeeb_mobile/features/settings/data/repositories/biometric_prefer
 import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
+import '../../support/fake_current_location_resolver.dart';
 import '../../support/fake_request_submission_service.dart';
 import '../../support/sync_app_localizations.dart';
 
@@ -155,6 +157,12 @@ void main() {
         () => ComposeRequestController(sl<RequestSubmissionService>()),
       );
       sl.registerLazySingleton<LocationSelectRepository>(() => repo);
+      // JEBV4-176: the current-location option resolves a REAL device fix — the
+      // fake resolves a non-Beirut coordinate so Confirm enables on a genuine
+      // GPS point (never the removed 33.8886/35.4955 fallback).
+      sl.registerLazySingleton<CurrentLocationResolver>(
+        FakeCurrentLocationResolver.new,
+      );
       sl.registerLazySingleton<TierRepository>(FakeTierRepository.new);
       // Confirm now routes to the WAITING screen (waiting-no-coverage). Register
       // a WaitingRepository whose cold-load FAILS so NoOfferTimeoutScreen mounts
@@ -188,8 +196,11 @@ void main() {
         await _driveToLocationSelect(tester);
 
         // The saved-locations error banner is shown — proving the fetch failed.
+        // (Found by type: bySemanticsIdentifier can race the async GPS-recovery
+        // rebuild's semantics flush in this headless harness; the OmdsErrorState
+        // widget itself renders deterministically.)
         expect(
-          find.bySemanticsIdentifier('location_select_saved_addresses_error'),
+          find.byType(OmdsErrorState, skipOffstage: false),
           findsOneWidget,
           reason: 'the saved-locations fetch must have failed in this case',
         );

@@ -28,7 +28,14 @@ class _GatedSubmission implements RequestSubmissionService {
   }
 }
 
-const _loaded = LocationSelectState(status: LocationSelectStatus.loaded);
+// JEBV4-176: a current-location choice now carries a REAL resolved GPS fix
+// (non-Beirut) — the controller refuses to create without a real coordinate.
+const _loaded = LocationSelectState(
+  status: LocationSelectStatus.loaded,
+  currentGpsStatus: CurrentGpsStatus.resolved,
+  gpsLat: 33.8959,
+  gpsLng: 35.4797,
+);
 
 void main() {
   group('B-02b — ComposeRequestController in-flight guard', () {

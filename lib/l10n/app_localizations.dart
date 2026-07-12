@@ -681,6 +681,28 @@ class AppLocalizations {
   String get clientLocationNewOption => _get('clientLocationNewOption');
   String get clientLocationAddSemantic => _get('clientLocationAddSemantic');
 
+  // JEBV4-176 (Q-060) — honest GPS-acquisition + recovery on the Current
+  // Location option (no silent Beirut fallback).
+  String get clientLocationGpsResolving => _get('clientLocationGpsResolving');
+  String get clientLocationGpsResolved => _get('clientLocationGpsResolved');
+  String get clientLocationGpsPermissionDeniedTitle =>
+      _get('clientLocationGpsPermissionDeniedTitle');
+  String get clientLocationGpsPermissionDeniedMessage =>
+      _get('clientLocationGpsPermissionDeniedMessage');
+  String get clientLocationGpsServiceDisabledTitle =>
+      _get('clientLocationGpsServiceDisabledTitle');
+  String get clientLocationGpsServiceDisabledMessage =>
+      _get('clientLocationGpsServiceDisabledMessage');
+  String get clientLocationGpsFailedTitle =>
+      _get('clientLocationGpsFailedTitle');
+  String get clientLocationGpsFailedMessage =>
+      _get('clientLocationGpsFailedMessage');
+  String get clientLocationGpsRetry => _get('clientLocationGpsRetry');
+  String get clientLocationGpsOpenAppSettings =>
+      _get('clientLocationGpsOpenAppSettings');
+  String get clientLocationGpsOpenLocationSettings =>
+      _get('clientLocationGpsOpenLocationSettings');
+
   // Recipient-phone capture on the location-confirm step (iter6 OTP-phone v2).
   String get recipientPhoneLabel => _get('recipientPhoneLabel');
   String get recipientPhoneHint => _get('recipientPhoneHint');

@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/di/injection_container.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
+import 'package:jeeb_mobile/features/location/domain/current_location_resolver.dart';
 import 'package:jeeb_mobile/features/location/presentation/capture_location_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/client_location_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/widgets/capture_map_viewport.dart';
@@ -14,6 +16,8 @@ import 'package:jeeb_mobile/features/request_type/presentation/request_tier_card
 import 'package:jeeb_mobile/features/request_type/presentation/request_type_screen.dart';
 import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
+
+import 'support/fake_current_location_resolver.dart';
 
 /// Synchronous ARB-backed delegate so tests render the real EN/AR strings.
 class _SyncDelegate extends LocalizationsDelegate<AppLocalizations> {
@@ -67,6 +71,15 @@ void main() {
     view.devicePixelRatio = 1.0;
     addTearDown(view.resetPhysicalSize);
     addTearDown(view.resetDevicePixelRatio);
+    // JEBV4-176: the location-select screen resolves a device-GPS fix; provide
+    // a fake so it renders normally (no real geolocator in the headless test).
+    sl.registerLazySingleton<CurrentLocationResolver>(
+      FakeCurrentLocationResolver.new,
+    );
+  });
+
+  tearDown(() async {
+    await sl.reset();
   });
 
   group('RequestTypeScreen (Figma 56535:2392)', () {

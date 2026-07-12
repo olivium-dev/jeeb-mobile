@@ -19,12 +19,14 @@ import '../../transcription/domain/voice_clip.dart';
 import '../application/location_select_cubit.dart';
 import '../application/location_select_state.dart';
 import '../data/dio_location_select_repository.dart';
+import '../data/geolocator_current_location_resolver.dart';
 import '../data/location_repository.dart' show LocationPoint;
 import '../data/fake_location_select_repository.dart';
+import '../domain/current_location_resolver.dart';
 import '../domain/location_select_repository.dart';
 import '../domain/saved_location.dart';
 import 'widgets/client_location_add_row.dart';
-import 'widgets/client_location_option_card.dart';
+import 'widgets/current_location_status_card.dart';
 import 'widgets/delivery_create_layout.dart';
 
 /// B-02b: the create-success navigation fires only when the footer is BOTH
@@ -63,6 +65,7 @@ class ClientLocationScreen extends StatelessWidget {
   const ClientLocationScreen({
     super.key,
     this.repository,
+    this.currentLocationResolver,
     this.userId,
     this.onAddLocation,
     this.onConfirm,
@@ -76,6 +79,12 @@ class ClientLocationScreen extends StatelessWidget {
   });
 
   final LocationSelectRepository? repository;
+
+  /// Device-GPS resolver for the "Current Location" option (JEBV4-176). When
+  /// null (the live mount) it is resolved from DI, else a real geolocator-backed
+  /// resolver is constructed. Injectable so tests script the GPS outcome (and
+  /// the recovery states) without a platform channel.
+  final CurrentLocationResolver? currentLocationResolver;
 
   /// Owning user id. When null (the live router mount), it is resolved from
   /// the authenticated session ([AuthTokenStore]) at build time — no mock
@@ -100,50 +109,25 @@ class ClientLocationScreen extends StatelessWidget {
   final bool? currentSelected;
   final VoidCallback? onSelectCurrent;
 
+  // Delegates to a stateful host so the authenticated-user-id future and the
+  // resolved repo/GPS-resolver are computed EXACTLY ONCE. Previously the build
+  // method called `_authTokenStore().userId` inline, minting a NEW future on
+  // every rebuild — the FutureBuilder then thrashed (waiting→done→waiting…),
+  // rebuilding a fresh cubit each time and dropping the async GPS-resolution
+  // emit before the UI could render it (JEBV4-176). Memoizing fixes that.
   @override
-  Widget build(BuildContext context) {
-    final scaffold = _Scaffold(
-      onAddLocation: onAddLocation,
-      onConfirm: onConfirm,
-      onOpenSavedAddresses: onOpenSavedAddresses,
-      onDictate: onDictate,
-      legacyCurrentSelected: currentSelected,
-      onSelectCurrent: onSelectCurrent,
-    );
-    // DEFECT A: never default to the mock `user-client-001`. When the caller
-    // did not inject an explicit [userId] (the live router mount), resolve the
-    // authenticated id from [AuthTokenStore] before building the cubit. The
-    // saved-locations read is `me`-scoped (identity from the bearer token), so
-    // this id is for logging/selection coherence — but it must be the REAL
-    // user, never a hardcoded mock.
-    final injected = userId;
-    if (injected != null) {
-      return BlocProvider<LocationSelectCubit>(
-        create: (_) => LocationSelectCubit(
-          repository: repository ?? _resolveRepository(),
-          userId: injected,
-        )..load(),
-        child: scaffold,
-      );
+  Widget build(BuildContext context) => _LocationSelectHost(config: this);
+
+  /// Resolves the current-location GPS resolver: the injected test seam first,
+  /// then a DI-registered one, else a real geolocator-backed resolver so the
+  /// live app always attempts a REAL device fix (JEBV4-176 — never Beirut).
+  CurrentLocationResolver _resolveGpsResolver() {
+    final injected = currentLocationResolver;
+    if (injected != null) return injected;
+    if (sl.isRegistered<CurrentLocationResolver>()) {
+      return sl<CurrentLocationResolver>();
     }
-    return FutureBuilder<String?>(
-      future: _authTokenStore().userId,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Scaffold(body: Center(child: OmdsLoadingState()));
-        }
-        // Empty string when the session has no stored id; the `me` route still
-        // resolves identity from the bearer token, so the list loads correctly.
-        final resolvedId = snapshot.data ?? '';
-        return BlocProvider<LocationSelectCubit>(
-          create: (_) => LocationSelectCubit(
-            repository: repository ?? _resolveRepository(),
-            userId: resolvedId,
-          )..load(),
-          child: scaffold,
-        );
-      },
-    );
+    return GeolocatorCurrentLocationResolver();
   }
 
   /// Resolves [AuthTokenStore] from DI when registered (so tests can mock it),
@@ -164,6 +148,72 @@ class ClientLocationScreen extends StatelessWidget {
       return DioLocationSelectRepository(sl<Dio>());
     }
     return const FakeLocationSelectRepository();
+  }
+}
+
+/// Stable host for [ClientLocationScreen]: resolves the user-id future, the
+/// saved-locations repository, and the GPS resolver ONCE in [initState] so the
+/// [BlocProvider]/[LocationSelectCubit] (and its async GPS resolution) are not
+/// churned by rebuilds (JEBV4-176).
+class _LocationSelectHost extends StatefulWidget {
+  const _LocationSelectHost({required this.config});
+
+  final ClientLocationScreen config;
+
+  @override
+  State<_LocationSelectHost> createState() => _LocationSelectHostState();
+}
+
+class _LocationSelectHostState extends State<_LocationSelectHost> {
+  late final LocationSelectRepository _repository;
+  late final CurrentLocationResolver _resolver;
+  late final Future<String?> _userIdFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    final config = widget.config;
+    _repository = config.repository ?? config._resolveRepository();
+    _resolver = config._resolveGpsResolver();
+    // DEFECT A: never default to the mock `user-client-001`. An injected id
+    // (tests / dev seams) wins; otherwise resolve the authenticated id from
+    // [AuthTokenStore] — the REAL user, never a hardcoded mock. Computed once.
+    final injected = config.userId;
+    _userIdFuture = injected != null
+        ? Future<String?>.value(injected)
+        : config._authTokenStore().userId;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final config = widget.config;
+    final scaffold = _Scaffold(
+      onAddLocation: config.onAddLocation,
+      onConfirm: config.onConfirm,
+      onOpenSavedAddresses: config.onOpenSavedAddresses,
+      onDictate: config.onDictate,
+      legacyCurrentSelected: config.currentSelected,
+      onSelectCurrent: config.onSelectCurrent,
+    );
+    return FutureBuilder<String?>(
+      future: _userIdFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(body: Center(child: OmdsLoadingState()));
+        }
+        // Empty string when the session has no stored id; the `me` route still
+        // resolves identity from the bearer token, so the list loads correctly.
+        final resolvedId = snapshot.data ?? '';
+        return BlocProvider<LocationSelectCubit>(
+          create: (_) => LocationSelectCubit(
+            repository: _repository,
+            userId: resolvedId,
+            currentLocationResolver: _resolver,
+          )..load(),
+          child: scaffold,
+        );
+      },
+    );
   }
 }
 
@@ -311,10 +361,21 @@ class _Body extends StatelessWidget {
         const SizedBox(height: Spacing.xLarge),
         _Heading(text: l10n.clientLocationHeading),
         const SizedBox(height: Spacing.large),
-        ClientLocationOptionCard(
-          label: l10n.clientLocationCurrentOption,
+        // JEBV4-176 (Q-060): the "Current Location" option now reflects the
+        // REAL device-GPS acquisition state and offers honest recovery
+        // (permission / services-off / retry) instead of silently pinning the
+        // pickup to a hardcoded Beirut coordinate. The Confirm CTA stays
+        // disabled until a real fix resolves (see LocationSelectState.canConfirm).
+        CurrentLocationStatusCard(
+          status: state.currentGpsStatus,
           selected: currentSelected,
-          onTap: () => _onSelectCurrent(context),
+          onSelect: () => _onSelectCurrent(context),
+          onRetry: () =>
+              context.read<LocationSelectCubit>().resolveCurrentGps(),
+          onOpenLocationSettings: () =>
+              context.read<LocationSelectCubit>().openLocationSettings(),
+          onOpenAppSettings: () =>
+              context.read<LocationSelectCubit>().openAppSettings(),
         ),
         // The saved-addresses ENTRY row is an unconditional affordance
         // (63_W1_TEST_PLAN §2.3 — `location_select_saved_addresses_row` →

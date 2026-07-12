@@ -10,6 +10,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/location/application/location_select_state.dart';
 import 'package:jeeb_mobile/features/request_summary/application/compose_request_controller.dart';
+import 'package:jeeb_mobile/features/request_summary/domain/request_submission_service.dart';
 import 'package:jeeb_mobile/features/tier_selection/domain/tier.dart';
 
 import '../../support/fake_request_submission_service.dart';
@@ -63,21 +64,21 @@ void main() {
     });
 
     test(
-      'a pinned choice WITHOUT a captured coordinate still falls back to '
-      'Beirut (non-null contract preserved)',
+      'JEBV4-176: a pinned choice WITHOUT a captured coordinate REFUSES to '
+      'create — it no longer fabricates a Beirut fallback',
       () async {
         controller.setTier(_flash());
 
-        await controller.submitFromLocation(
-          const LocationSelectState(
-            status: LocationSelectStatus.loaded,
-            choiceKind: LocationChoiceKind.pinned,
+        expect(
+          () => controller.submitFromLocation(
+            const LocationSelectState(
+              status: LocationSelectStatus.loaded,
+              choiceKind: LocationChoiceKind.pinned,
+            ),
           ),
+          throwsA(isA<RequestSubmissionException>()),
         );
-
-        final draft = submission.lastDraft!;
-        expect(draft.pickupLat, 33.8886);
-        expect(draft.pickupLng, 35.4955);
+        expect(submission.submitCount, 0);
       },
     );
   });

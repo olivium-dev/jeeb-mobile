@@ -28,6 +28,7 @@ import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_reposi
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
 import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
 import 'package:jeeb_mobile/features/location/domain/location_select_repository.dart';
+import 'package:jeeb_mobile/features/location/domain/current_location_resolver.dart';
 import 'package:jeeb_mobile/features/no_offer_timeout/data/fake_waiting_repository.dart';
 import 'package:jeeb_mobile/features/no_offer_timeout/domain/waiting_repository.dart';
 import 'package:jeeb_mobile/features/no_offer_timeout/presentation/no_offer_timeout_screen.dart';
@@ -37,6 +38,7 @@ import 'package:jeeb_mobile/features/settings/data/repositories/biometric_prefer
 import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
+import '../../support/fake_current_location_resolver.dart';
 import '../../support/fake_request_submission_service.dart';
 import '../../support/sync_app_localizations.dart';
 
@@ -112,6 +114,10 @@ void main() {
       );
       // The request-type step resolves TierRepository via sl and pre-selects
       // Flash, so the Continue CTA is enabled on first paint.
+      // JEBV4-176: current-location resolves a REAL device fix (non-Beirut).
+      sl.registerLazySingleton<CurrentLocationResolver>(
+        FakeCurrentLocationResolver.new,
+      );
       sl.registerLazySingleton<TierRepository>(FakeTierRepository.new);
       // Post-create nav fix: Confirm now routes to the WAITING screen
       // (`waiting-no-coverage` → NoOfferTimeoutScreen). Its self-provided

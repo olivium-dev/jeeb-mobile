@@ -32,6 +32,7 @@ import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_reposi
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
 import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
 import 'package:jeeb_mobile/features/location/domain/location_select_repository.dart';
+import 'package:jeeb_mobile/features/location/domain/current_location_resolver.dart';
 import 'package:jeeb_mobile/features/no_offer_timeout/data/fake_waiting_repository.dart';
 import 'package:jeeb_mobile/features/no_offer_timeout/domain/waiting_repository.dart';
 import 'package:jeeb_mobile/features/request_summary/application/compose_request_controller.dart';
@@ -41,6 +42,7 @@ import 'package:jeeb_mobile/features/settings/data/repositories/biometric_prefer
 import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
+import '../../support/fake_current_location_resolver.dart';
 import '../../support/sync_app_localizations.dart';
 
 /// A submission service whose [submit] blocks on a gate the test releases, so
@@ -129,6 +131,10 @@ void main() {
       );
       sl.registerLazySingleton<LocationSelectRepository>(
         FakeLocationSelectRepository.new,
+      );
+      // JEBV4-176: current-location resolves a REAL device fix (non-Beirut).
+      sl.registerLazySingleton<CurrentLocationResolver>(
+        FakeCurrentLocationResolver.new,
       );
       sl.registerLazySingleton<TierRepository>(FakeTierRepository.new);
       // Cold-load failure keeps the post-create waiting screen timer-free.

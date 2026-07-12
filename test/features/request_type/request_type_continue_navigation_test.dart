@@ -29,6 +29,7 @@ import 'package:jeeb_mobile/features/biometric_auth/application/biometric_lock_c
 import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_repository.dart';
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
 import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
+import 'package:jeeb_mobile/features/location/domain/current_location_resolver.dart';
 import 'package:jeeb_mobile/features/location/domain/location_select_repository.dart';
 import 'package:jeeb_mobile/features/location/presentation/client_location_screen.dart';
 import 'package:jeeb_mobile/features/request_summary/application/compose_request_controller.dart';
@@ -38,6 +39,7 @@ import 'package:jeeb_mobile/features/settings/data/repositories/biometric_prefer
 import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
+import '../../support/fake_current_location_resolver.dart';
 import '../../support/fake_request_submission_service.dart';
 import '../../support/sync_app_localizations.dart';
 
@@ -104,6 +106,9 @@ void main() {
       await sl.reset();
       // `/request-type` resolves TierRepository via sl (pre-selects Flash so the
       // Continue CTA is enabled on first paint).
+      sl.registerLazySingleton<CurrentLocationResolver>(
+        FakeCurrentLocationResolver.new,
+      );
       sl.registerLazySingleton<TierRepository>(FakeTierRepository.new);
       // `/client-location` self-provides LocationSelectCubit; it resolves a
       // DioLocationSelectRepository when sl<Dio> is present. We DON'T register
