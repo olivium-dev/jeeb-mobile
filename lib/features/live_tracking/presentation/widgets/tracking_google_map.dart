@@ -88,6 +88,11 @@ Set<Marker> trackingMarkers(DeliveryTrackingInfo info) {
 
 /// The route polyline. Empty when fewer than two points are known. Pure so the
 /// polyline set is unit-testable without a platform view.
+///
+/// Q-061 (pilot fidelity): the pilot renders a STRAIGHT-LINE route, not a
+/// road-snapped or great-circle path — `geodesic: false` draws the polyline as
+/// straight screen segments between the pickup and drop-off points the gateway
+/// supplies (road-network routing is deferred post-pilot).
 Set<Polyline> trackingPolylines(DeliveryTrackingInfo info) {
   if (info.polyline.length < 2) return const <Polyline>{};
   return {
@@ -97,7 +102,7 @@ Set<Polyline> trackingPolylines(DeliveryTrackingInfo info) {
         for (final p in info.polyline) LatLng(p.lat, p.lng),
       ],
       width: 5,
-      geodesic: true,
+      geodesic: false,
     ),
   };
 }

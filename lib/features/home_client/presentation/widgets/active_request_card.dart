@@ -154,7 +154,7 @@ class _ActiveOrderBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final onOpenChat = this.onOpenChat;
-    final showChat = _canTrack(request.status) && onOpenChat != null;
+    final showChat = _hasJeeber(request.status) && onOpenChat != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -175,10 +175,22 @@ class _ActiveOrderBody extends StatelessWidget {
     );
   }
 
-  /// The "Track my order" CTA shows once a Jeeber is engaged and the order is
-  /// physically trackable — accepted, at pickup, or en route. A request that is
-  /// still merely searching for a Jeeber has nothing to track yet.
+  /// Q-085 (option A, ratified) — the "Track my order" CTA renders on EVERY
+  /// In-Progress card. Even a still-searching order is trackable: opening the
+  /// tracking view shows the pilot straight-line route + locked D18 deadline
+  /// (Q-061), and gracefully handles the "no delivery row yet" 404. Only the
+  /// terminal states — delivered / cancelled — have nothing to track (and are
+  /// filtered out of In Progress upstream anyway; this stays defensive).
   static bool _canTrack(ClientRequestStatus s) =>
+      s != ClientRequestStatus.delivered &&
+      s != ClientRequestStatus.cancelled;
+
+  /// The "Open chat" re-entry pill is a DISTINCT gate from tracking: it only
+  /// makes sense once a Jeeber is actually engaged (accepted → at pickup → en
+  /// route), because a still-searching / offers-received order has no accepted
+  /// 1:1 conversation to re-open yet. Decoupled from [_canTrack] so widening
+  /// the Track CTA to every card (Q-085) does not surface a phantom chat CTA.
+  static bool _hasJeeber(ClientRequestStatus s) =>
       s == ClientRequestStatus.accepted ||
       s == ClientRequestStatus.atPickup ||
       s == ClientRequestStatus.enRoute;

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../l10n/app_localizations.dart';
@@ -35,6 +36,12 @@ class DeliveryTrackingPanel extends StatelessWidget {
             _TrackingDistanceLine(distanceLabel: info.distanceLabel),
             const SizedBox(height: Spacing.xSmall),
             _TrackingEtaLine(etaMinutes: info.etaMinutes),
+            // Q-061 / D18: the LOCKED absolute deadline. Only mounts when the
+            // delivery row carries one, so pre-fix rows render unchanged.
+            if (info.deadline != null) ...[
+              const SizedBox(height: Spacing.xSmall),
+              _TrackingDeadlineLine(deadline: info.deadline!),
+            ],
           ],
         ),
       ),
@@ -112,6 +119,28 @@ class _TrackingEtaLine extends StatelessWidget {
     return _TrackingPanelText(
       identifier: 'tracking_eta_label',
       text: text,
+    );
+  }
+}
+
+/// Q-061 / D18: the LOCKED absolute arrival deadline. Distinct from the live
+/// [_TrackingEtaLine] countdown — this is the fixed wall-clock instant the
+/// order must arrive by, frozen at order creation. The time is formatted
+/// locale-aware (`jm` — e.g. `3:45 PM` / `٣:٤٥ م`) and normalized to the
+/// device wall clock via `toLocal()`.
+class _TrackingDeadlineLine extends StatelessWidget {
+  const _TrackingDeadlineLine({required this.deadline});
+
+  final DateTime deadline;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final localeTag = Localizations.localeOf(context).toLanguageTag();
+    final time = DateFormat.jm(localeTag).format(deadline.toLocal());
+    return _TrackingPanelText(
+      identifier: 'tracking_deadline_label',
+      text: l10n.trackingDeadlineLocked(time),
     );
   }
 }

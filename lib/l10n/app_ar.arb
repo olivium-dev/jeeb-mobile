@@ -724,6 +724,7 @@
   "trackingEstimatedTime": "الوقت المقدّر: {minutes} دقيقة",
   "trackingDistanceUnknown": "يتم تحديث المسافة…",
   "trackingEtaUnknown": "الوقت المقدّر: —",
+  "trackingDeadlineLocked": "يصل بحلول {time}",
   "trackingMapSemanticLabel": "خريطة التوصيل المباشرة",
   "trackingStepAccepted": "تم القبول",
   "trackingStepPickedUp": "تم الاستلام",

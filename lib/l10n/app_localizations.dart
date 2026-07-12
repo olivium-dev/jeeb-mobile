@@ -1221,6 +1221,8 @@ class AppLocalizations {
       _get('trackingEstimatedTime').replaceFirst('{minutes}', '$minutes');
   String get trackingDistanceUnknown => _get('trackingDistanceUnknown');
   String get trackingEtaUnknown => _get('trackingEtaUnknown');
+  String trackingDeadlineLocked(String time) =>
+      _get('trackingDeadlineLocked').replaceFirst('{time}', time);
   String get trackingMapSemanticLabel => _get('trackingMapSemanticLabel');
   String get trackingStepAccepted => _get('trackingStepAccepted');
   String get trackingStepPickedUp => _get('trackingStepPickedUp');

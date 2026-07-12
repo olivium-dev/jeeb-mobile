@@ -209,12 +209,14 @@ void main() {
       );
     });
 
-    // S12 — the OTHER side of the gate: a genuinely-pending row still searching
-    // for a Jeeber (`searching`) has nothing to track, so the Track CTA must be
-    // ABSENT. This is why the fix lives in the status mapping, not in widening
-    // `_canTrack` — a `searching` row must never offer a Track CTA (it 404s).
-    testWidgets('S12: a still-searching row (no Jeeber) hides the Track CTA',
-        (tester) async {
+    // JEBV4-218 / Q-085 (option A, RATIFIED): the Track-my-order CTA renders on
+    // EVERY In-Progress card — INCLUDING a still-`searching` row (no Jeeber
+    // engaged yet). This SUPERSEDES the earlier S12 assertion that a searching
+    // row HID the Track CTA: the ratified UX policy is "CTA on every In-Progress
+    // card", and the tracking view handles the "no delivery row yet" case
+    // gracefully (pilot straight-line route + locked deadline, graceful 404).
+    testWidgets('JEBV4-218: a still-searching row STILL shows the Track CTA '
+        '(Q-085 — CTA on every In-Progress card)', (tester) async {
       final request = _activeRequest(
         id: 'ip-searching',
         status: ClientRequestStatus.searching,
@@ -229,6 +231,56 @@ void main() {
 
       expect(
         find.byKey(const Key('active-track-order-ip-searching')),
+        findsOneWidget,
+      );
+    });
+
+    // JEBV4-218 / Q-085: an offers-received row (offers back, sender still
+    // choosing — no Jeeber engaged) ALSO shows the Track CTA. Guards the full
+    // widening of `_canTrack` across every non-terminal In-Progress status.
+    testWidgets('JEBV4-218: an offers-received row shows the Track CTA',
+        (tester) async {
+      final request = _activeRequest(
+        id: 'ip-offers',
+        status: ClientRequestStatus.offersReceived,
+        progressStep: 0,
+      );
+      final repo = InMemoryClientHomeRepository.fromSnapshot(
+        ClientHomeSnapshot(inProgress: [request]),
+        latency: Duration.zero,
+      );
+      await tester.pumpWidget(_harness(repo: repo));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('active-track-order-ip-offers')),
+        findsOneWidget,
+      );
+    });
+
+    // JEBV4-218: the "Open chat" CTA stays DECOUPLED from the widened Track
+    // gate — a still-searching row (no accepted conversation yet) must NOT
+    // surface a phantom Open-chat pill even though it now shows Track.
+    testWidgets('JEBV4-218: a searching row hides the Open-chat CTA '
+        '(chat gate decoupled from track)', (tester) async {
+      final request = _activeRequest(
+        id: 'ip-searching-chat',
+        status: ClientRequestStatus.searching,
+        progressStep: 0,
+      );
+      final repo = InMemoryClientHomeRepository.fromSnapshot(
+        ClientHomeSnapshot(inProgress: [request]),
+        latency: Duration.zero,
+      );
+      await tester.pumpWidget(_harness(repo: repo, onOpenChat: (_) {}));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('active-track-order-ip-searching-chat')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('active-open-chat-ip-searching-chat')),
         findsNothing,
       );
     });

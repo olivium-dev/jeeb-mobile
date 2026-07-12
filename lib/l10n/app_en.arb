@@ -2335,6 +2335,13 @@
   "@trackingEtaUnknown": {
     "description": "Tracking panel — placeholder when ETA is not yet known"
   },
+  "trackingDeadlineLocked": "Arrives by {time}",
+  "@trackingDeadlineLocked": {
+    "description": "Tracking panel — the locked absolute delivery deadline (Q-061/D18). {time} is a locale-formatted wall-clock time.",
+    "placeholders": {
+      "time": { "type": "String", "example": "3:45 PM" }
+    }
+  },
   "trackingMapSemanticLabel": "Live delivery map",
   "@trackingMapSemanticLabel": {
     "description": "Accessibility label for the tracking map surface (Figma 56560:1772)"

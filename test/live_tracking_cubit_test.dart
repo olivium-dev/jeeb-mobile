@@ -1,3 +1,4 @@
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -124,6 +125,46 @@ void main() {
     expect(cubit.state.pendingEvent, LiveTrackingEvent.jeeberAtDoor);
     expect(cubit.state.isAtDoor, isTrue);
     await cubit.close();
+  });
+
+  // JEBV4-218 / Q-061 (pilot fidelity): the tracking view polls the delivery
+  // status at a 5-SECOND cadence by DEFAULT (no explicit interval). Drives the
+  // real Timer.periodic under fake time and asserts a re-fetch fires at each
+  // 5s tick — never sooner. Locks the ratified pilot polling interval.
+  test('JEBV4-218: polls at a 5-second cadence by default', () {
+    fakeAsync((async) {
+      var calls = 0;
+      when(() => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
+          .thenAnswer((_) async {
+        calls++;
+        return _info(TrackingStage.inTransit);
+      });
+
+      // DEFAULT interval — the constructor's `Duration(seconds: 5)`.
+      final cubit =
+          LiveTrackingCubit(repository: repo, deliveryId: 'DLV-770001');
+
+      // Initial fetch on construction.
+      async.flushMicrotasks();
+      expect(calls, 1);
+
+      // No extra poll before the 5s interval elapses.
+      async.elapse(const Duration(seconds: 4));
+      expect(calls, 1);
+
+      // The first periodic poll fires exactly at 5s.
+      async.elapse(const Duration(seconds: 1));
+      async.flushMicrotasks();
+      expect(calls, 2);
+
+      // ...and again one interval later (10s).
+      async.elapse(const Duration(seconds: 5));
+      async.flushMicrotasks();
+      expect(calls, 3);
+
+      cubit.close();
+      async.flushMicrotasks();
+    });
   });
 
   test('no event emitted when stage does not change', () async {
