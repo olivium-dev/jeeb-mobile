@@ -133,6 +133,12 @@ class DiagFileSink implements DiagPersistentSink {
   @visibleForTesting
   bool get isBroken => _broken;
 
+  /// Test-only handle on the in-flight IO chain. `await sink.pendingIo`
+  /// deterministically joins the real append a force-flush already scheduled,
+  /// so coverage runs don't race a bare `pumpEventQueue()` (JEBV4-255).
+  @visibleForTesting
+  Future<void> get pendingIo => _ioChain;
+
   /// Builds the production sink, installs it as [Diag.persistentSink], starts
   /// the session file, and (best-effort) enriches the stream with the device
   /// model and the user-sub prefix. Debug/dev builds only — a release build
