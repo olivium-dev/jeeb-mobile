@@ -146,7 +146,7 @@ class NotificationCategoryPrefs extends Equatable {
   List<Object?> get props => [offers, orderStatus, wallet, marketing];
 }
 
-/// Full preferences snapshot from `GET/PUT /v1/notifications/preferences`.
+/// Full preferences snapshot from `GET/PATCH /v1/notifications/preferences`.
 ///
 /// `pushEnabled` reflects the gateway `push` channel flag; the screen surfaces a
 /// push-only note (R2) so the user understands every category here is a *push*
