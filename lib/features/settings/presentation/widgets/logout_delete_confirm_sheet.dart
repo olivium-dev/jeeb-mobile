@@ -8,6 +8,7 @@ import '../../../../core/network/auth_token_store.dart';
 import '../../../../core/session/session_cubit.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../data/dio_account_session_terminator.dart';
+import '../../domain/account_deletion_policy.dart';
 import '../../domain/account_session_terminator.dart';
 
 /// Which terminal action the [LogoutDeleteConfirmSheet] confirms.
@@ -167,8 +168,9 @@ class _LogoutDeleteConfirmSheetState extends State<LogoutDeleteConfirmSheet> {
 
     final title =
         isDelete ? l10n.accountDeleteDialogTitle : l10n.signOutDialogTitle;
-    final body =
-        isDelete ? l10n.accountDeleteDialogBody : l10n.signOutDialogBody;
+    final body = isDelete
+        ? l10n.accountDeleteDialogBody(kAccountPurgeGraceDays)
+        : l10n.signOutDialogBody;
 
     // Build the confirm CTA(s). For [both] we render the logout CTA then the
     // delete CTA so the flow can assert (and tap) either by id.

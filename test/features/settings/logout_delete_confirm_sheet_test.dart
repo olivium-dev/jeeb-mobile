@@ -27,6 +27,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
+import 'package:jeeb_mobile/features/settings/domain/account_deletion_policy.dart';
 import 'package:jeeb_mobile/features/settings/domain/account_session_terminator.dart';
 import 'package:jeeb_mobile/features/settings/presentation/widgets/logout_delete_confirm_sheet.dart';
 
@@ -137,6 +138,35 @@ void main() {
 
       expect(find.bySemanticsIdentifier('delete_confirm_cta'), findsOneWidget);
       expect(find.bySemanticsIdentifier('logout_confirm_cta'), findsNothing);
+    });
+
+    testWidgets(
+        'E20 (JEBV4-215) — delete mode communicates the scheduled-purge SLA',
+        (tester) async {
+      // Proves the soft-delete + scheduled-purge SLA copy renders from the
+      // SHIPPED en ARB (not a fixture): the confirm body must name the purge
+      // grace window (kAccountPurgeGraceDays) and the sign-in-again reversal so
+      // the user knows the deletion is scheduled + cancellable, not immediate.
+      await tester.pumpWidget(
+        _harness(
+          LogoutDeleteConfirmSheet(
+            mode: LogoutDeleteMode.delete,
+            terminator: _FakeTerminator(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.textContaining('$kAccountPurgeGraceDays days'),
+        findsOneWidget,
+        reason: 'delete body must surface the purge grace window (E20 SLA)',
+      );
+      expect(
+        find.textContaining('Sign in again'),
+        findsOneWidget,
+        reason: 'delete body must state the sign-in-again reversal (E20)',
+      );
     });
 
     testWidgets('AC2 — logout_confirm_cta clears the session + reports completed',

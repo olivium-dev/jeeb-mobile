@@ -542,11 +542,23 @@
   },
   "accountDeleteRow": "Delete account",
   "accountDeleteSubtitle": "Permanently remove your Jeeb account",
-  "accountDeletePending": "Deletion requested. We'll be in touch.",
+  "accountDeletePending": "Scheduled for deletion. Sign in again to cancel.",
   "accountDeleteDialogTitle": "Delete your Jeeb account?",
-  "accountDeleteDialogBody": "This will queue your account for deletion. Active orders must be completed before your data is removed.",
+  "accountDeleteDialogBody": "Your account will be deactivated now and permanently deleted after {days} days. Any active orders must be completed first. Sign in again before then to cancel and keep your account.",
+  "@accountDeleteDialogBody": {
+    "description": "Delete-account confirm sheet body. Communicates the E20 soft-delete + scheduled-purge SLA: deactivated now, permanently purged after the grace window, reversible by signing in again. {days} is the purge grace window (kAccountPurgeGraceDays).",
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
   "accountDeleteConfirm": "Delete account",
-  "accountDeleteSubmitted": "Deletion requested. We'll confirm by email.",
+  "accountDeleteSubmitted": "Account scheduled for deletion in {days} days. Sign in again before then to cancel.",
+  "@accountDeleteSubmitted": {
+    "description": "Banner after a delete request is queued. {days} is the purge grace window (kAccountPurgeGraceDays) before the scheduled permanent purge.",
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
   "actionSave": "Save",
   "actionDelete": "Delete",
   "actionContinue": "Continue",

@@ -232,7 +232,8 @@ void main() {
       await cubit.requestAccountDeletion();
       await tester.pumpAndSettle();
 
-      expect(find.text('Deletion requested. We\'ll be in touch.'),
+      // E20 (JEBV4-215): pending row now states the scheduled-purge reversal.
+      expect(find.text('Scheduled for deletion. Sign in again to cancel.'),
           findsOneWidget);
     });
   });
