@@ -303,8 +303,8 @@ class _CatalogActiveDeliveriesRepository implements ActiveDeliveriesRepository {
 }
 
 /// A million-day poll interval keeps the cubit's `Timer.periodic` from ever
-/// firing again during a preview session (mirrors the existing
-/// `lib/dev_tools/catalog` convention for long-lived preview cubits).
+/// firing again during a preview session (the long-lived preview-cubit
+/// convention).
 Widget _activeDeliveriesBanner(List<ActiveDeliverySummary> deliveries) {
   final cubit = ActiveDeliveriesCubit(
     repository: _CatalogActiveDeliveriesRepository(deliveries),
