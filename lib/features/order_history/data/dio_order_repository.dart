@@ -18,15 +18,31 @@ import '../domain/order_summary.dart';
 /// `hasMore` is derived as `items.length == pageSize` so we don't depend on
 /// `totalCount` (the gateway is allowed to skip it for cheap queries).
 class DioOrderRepository implements OrderRepository {
-  DioOrderRepository(this._dio);
+  DioOrderRepository(this._dio, {bool asJeeber = false}) : _asJeeber = asJeeber;
 
   final Dio _dio;
 
-  // Gateway-contract path. MUST carry exactly one `/v1` (ARCH-01/INFRA-01
+  /// When true, this repository loads the signed-in user's JEEBER delivery jobs
+  /// (`GET /v1/deliveries?role=jeeber` — the gateway `JeebOrdersListController`
+  /// scoped to `JeeberId == caller`) instead of their own CUSTOMER request list
+  /// (`GET /v1/requests`). Role-GATED at the wiring layer ([OrdersTab]) so a
+  /// pure customer's Delivery view is byte-for-byte unchanged.
+  ///
+  /// Both endpoints return the same `{items:[...]}` envelope of the same row
+  /// shape (id / createdAt / pickup / dropoff / status / tier / amount?), and
+  /// the delivery vocabulary (Ordered → Picked → InTransit → AtDoor → Done) is
+  /// already understood by [OrderRequestStatus.parse] — so the SAME [_parsePage]
+  /// / [_parseOrder] path maps both, and the client-side per-tab re-bucketing
+  /// splits the jeeber's full delivery list across Active/Completed/Cancelled.
+  final bool _asJeeber;
+
+  // Gateway-contract paths. MUST carry exactly one `/v1` (ARCH-01/INFRA-01
   // anti-drift contract in app_config.dart): the base URL is origin-only, so a
   // bare `/requests` (no `/v1`) 404s on the live gateway and never rewrites in
-  // the mock (§6B DEFECT-A). Mirrors the customer request list (`/v1/requests`).
-  static const _path = '/v1/requests';
+  // the mock (§6B DEFECT-A). The customer list mirrors `/v1/requests`; the
+  // jeeber's assigned deliveries live at the delivery-scoped `/v1/deliveries`.
+  static const _customerPath = '/v1/requests';
+  static const _jeeberPath = '/v1/deliveries';
 
   @override
   Future<OrderPage> fetchPage({
@@ -37,9 +53,15 @@ class DioOrderRepository implements OrderRepository {
   }) async {
     try {
       final response = await _dio.get<dynamic>(
-        _path,
+        _asJeeber ? _jeeberPath : _customerPath,
         queryParameters: {
-          'status': _statusParam(tab),
+          // Jeeber: scope to the bearer's ASSIGNED deliveries. The delivery
+          // endpoint speaks the Ordered/Picked/InTransit/AtDoor/Done vocabulary
+          // and returns ALL of the jeeber's rows; the client-side re-bucketing
+          // below splits them across the tabs, so no customer `status=` filter
+          // is sent (it would not match the delivery vocabulary). Customer: the
+          // per-tab status filter, unchanged.
+          if (_asJeeber) 'role': 'jeeber' else 'status': _statusParam(tab),
           'page': page,
           'pageSize': pageSize,
           if (range.from != null)
@@ -81,10 +103,15 @@ class DioOrderRepository implements OrderRepository {
     int requestedPage,
     int pageSize,
   ) {
-    final rawItems = _items(data);
-    if (rawItems.isEmpty && data is! List) {
+    // D2 (parse guard): a well-formed but EMPTY envelope (`{"items":[]}`) is a
+    // valid EMPTY page, not an error. Only a malformed Map — one that carries no
+    // `items` list at all — is a parse failure. The old guard threw on any empty
+    // result unless it was a bare List, so a customer/jeeber with zero rows hit
+    // "Couldn't load orders" instead of the empty state.
+    if (data is Map<String, dynamic> && data['items'] is! List) {
       throw const FormatException('items missing or not a list');
     }
+    final rawItems = _items(data);
     final items = <OrderSummary>[];
     for (final raw in rawItems) {
       if (raw is Map<String, dynamic>) {
