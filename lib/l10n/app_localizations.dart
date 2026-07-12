@@ -110,6 +110,8 @@ class AppLocalizations {
   String get chatVoiceUploadFailed => _get('chatVoiceUploadFailed');
   String chatOfferEtaMinutes(int minutes) =>
       _get('chatOfferEtaMinutes').replaceFirst('{minutes}', '$minutes');
+  String chatOfferRatingA11y(String rating) =>
+      _get('chatOfferRatingA11y').replaceFirst('{rating}', rating);
   String get chatSystemOfferAcceptedGeneric =>
       _get('chatSystemOfferAcceptedGeneric');
   String chatSystemOfferAcceptedNamed(String name) =>

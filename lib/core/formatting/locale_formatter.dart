@@ -25,13 +25,4 @@ class LocaleFormatter {
   String formatDateTime(DateTime dateTime) {
     return DateFormat.yMMMd(locale).add_Hm().format(dateTime);
   }
-
-  String formatRelativeTime(DateTime dateTime) {
-    final diff = DateTime.now().difference(dateTime);
-    if (diff.inMinutes < 1) return locale == 'ar' ? 'الآن' : 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m';
-    if (diff.inHours < 24) return '${diff.inHours}h';
-    if (diff.inDays < 7) return '${diff.inDays}d';
-    return formatDate(dateTime);
-  }
 }
