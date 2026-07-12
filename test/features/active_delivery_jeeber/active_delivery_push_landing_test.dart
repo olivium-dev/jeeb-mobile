@@ -12,6 +12,7 @@
 //   2. MISSING: the by-id fetch fails (expired/404/network) → the screen
 //      renders the retryable OMDS error state, NOT a blank surface.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -49,6 +50,38 @@ class _FakeRepo implements ActiveDeliveryRepository {
     required JeeberDeliveryStatus to,
     String? evidenceUrl,
   }) async => to;
+
+  @override
+  Future<JeeberDeliveryStatus> verifyDoorOtp({
+    required String deliveryId,
+    required String code,
+  }) async => JeeberDeliveryStatus.done;
+
+  @override
+  Future<String> uploadProofPhoto({
+    required String deliveryId,
+    required String filename,
+  }) async => 'https://cdn.jeeb.app/proof/$deliveryId.jpg';
+}
+
+/// Repo whose `transition` blocks on [gate] so the test can observe the
+/// OPTIMISTIC (status=done, transitioning) frame before server confirmation.
+class _BlockingRepo implements ActiveDeliveryRepository {
+  _BlockingRepo({required this.fetchResult, required this.gate});
+
+  final JeeberDelivery fetchResult;
+  final Completer<JeeberDeliveryStatus> gate;
+
+  @override
+  Future<JeeberDelivery> fetchDelivery(String deliveryId) async => fetchResult;
+
+  @override
+  Future<JeeberDeliveryStatus> transition({
+    required String deliveryId,
+    required JeeberDeliveryStatus from,
+    required JeeberDeliveryStatus to,
+    String? evidenceUrl,
+  }) => gate.future;
 
   @override
   Future<JeeberDeliveryStatus> verifyDoorOtp({
@@ -166,4 +199,52 @@ void main() {
     );
     semantics.dispose();
   });
+
+  testWidgets(
+    'no premature Delivered panel while the optimistic AtDoor→Done is '
+    'transitioning (JEBV4-276)',
+    (tester) async {
+      final gate = Completer<JeeberDeliveryStatus>();
+      addTearDown(() {
+        if (!gate.isCompleted) gate.complete(JeeberDeliveryStatus.done);
+      });
+      final semantics = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _host(
+          _BlockingRepo(
+            fetchResult: _delivery(JeeberDeliveryStatus.atDoor),
+            gate: gate,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // AtDoor: the mark-delivered surface is shown, no completed panel.
+      expect(find.bySemanticsIdentifier('mark_delivered_cta'), findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('delivery_completed_state'),
+        findsNothing,
+      );
+
+      // Optimistic AtDoor→Done: tapping flips status→done AND mode→transitioning
+      // while the (blocked) server transition is in flight.
+      await tester.ensureVisible(
+        find.bySemanticsIdentifier('mark_delivered_cta'),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.bySemanticsIdentifier('mark_delivered_cta'));
+      await tester.pump();
+
+      // Status is now optimistically `done` (the mark surface is gone)…
+      expect(find.bySemanticsIdentifier('mark_delivered_cta'), findsNothing);
+      // …but the fix keeps the completed panel hidden until the transition is
+      // server-confirmed (!isTransitioning) — no premature Delivered banner.
+      expect(
+        find.bySemanticsIdentifier('delivery_completed_state'),
+        findsNothing,
+        reason: 'premature Delivered banner during the optimistic transition',
+      );
+      semantics.dispose();
+    },
+  );
 }
