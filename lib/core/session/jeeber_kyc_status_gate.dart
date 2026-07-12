@@ -1,5 +1,10 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+
+import '../../features/kyc/domain/kyc_gateway.dart';
+import '../../features/kyc/domain/kyc_submission.dart';
 import '../dev_seam/dev_seam.dart';
 import '../dev_seam/dev_seam_config.dart';
 
@@ -73,25 +78,37 @@ abstract class JeeberKycStatusGate {
   bool get isApproved => status == JeeberKycStatus.approved;
 }
 
-/// Debug-aware default gate. In DEBUG it reads the `jeeb.seam.kyc_status` seam
+/// Debug-only dev-seam gate. In DEBUG it reads the `jeeb.seam.kyc_status` seam
 /// ([DevSeamConfig.kycStatusSeed], 65_W2_TEST_PLAN §3.1) so a Maestro flow can
 /// drive the DELIVERY-tab/offer gate deterministically:
 ///   * `none`/`pending`/`rejected` (or absent for a jeeber session) → NOT
 ///     approved → register prompt / gate.
 ///   * `approved` → the feed / composer.
 ///
-/// In RELEASE the seam is inert ([DevSeam.current] is empty), so this gate
-/// reports [JeeberKycStatus.approved] — preserving the prior behaviour (the
-/// jeeber Dashboard tab rendered the feed) for every call site until the JM-036
-/// engineer wires the real getMe/kyc-backed gate. That is the least-surprising
-/// production-safe default (R-F): it does not REGRESS the existing jeeber feed,
-/// and it is overridden the moment the real status source lands.
+/// The dev seam is the "explicit dev flag" ([kDebugMode]) side of the gate: it
+/// exists ONLY so Maestro/widget tests can script a deterministic KYC status
+/// without a network round-trip. Production never depends on it — DI registers
+/// the network-backed [LiveJeeberKycStatusGate] (which delegates to THIS gate in
+/// debug for seam determinism, and queries the live BFF in release).
+///
+/// In RELEASE the seam is inert ([DevSeam.current] is empty). This gate reports
+/// [JeeberKycStatus.none] — a CONSERVATIVE, non-approved default (JEBV4-267). It
+/// used to hardcode [JeeberKycStatus.approved] in release, which made every
+/// release build treat unapproved jeebers as approved (the delivery tab + offer
+/// composer showed jeeber UX that then 403'd server-side). This gate is only
+/// ever reached in release as a defensive DI-fallback (DI always registers the
+/// live gate); returning `none` keeps that fallback honest — it never
+/// default-approves. The real, network-backed source is [LiveJeeberKycStatusGate].
 class SeamJeeberKycStatusGate implements JeeberKycStatusGate {
   const SeamJeeberKycStatusGate();
 
   @override
   JeeberKycStatus get status {
-    if (!kDebugMode) return JeeberKycStatus.approved;
+    // RELEASE: never default-approve (JEBV4-267). This const gate has no live
+    // source of its own, so the honest conservative fallback is `none`
+    // (register-prompt), NOT `approved`. Production resolves the real status via
+    // [LiveJeeberKycStatusGate]; this branch is a defensive DI-fallback only.
+    if (!kDebugMode) return JeeberKycStatus.none;
     switch (DevSeam.current.kycStatusSeed) {
       case KycStatusSeed.approved:
         return JeeberKycStatus.approved;
@@ -119,4 +136,118 @@ class SeamJeeberKycStatusGate implements JeeberKycStatusGate {
 
   @override
   bool get isApproved => status == JeeberKycStatus.approved;
+}
+
+/// The REAL, network-backed jeeber KYC gate (JM-036, JEBV4-267). Registered in
+/// DI as the production [JeeberKycStatusGate] so the DELIVERY tab, the offer
+/// make-offer routing, and the wallet KYC banner all read the LIVE status in
+/// release instead of the old hardcoded `approved` no-op.
+///
+/// Source: [KycGateway.fetchStatus] (`GET /v1/kyc/status`, mock-rewritten to the
+/// `/user-management/…/kyc` path — U1), the same live decision the offer-KYC
+/// gate's status line already reads. The BFF auto-approves KYC on submit
+/// (gateway f3bdef9 / PR #261), so a jeeber who has completed onboarding reads
+/// back `Verified` → [JeeberKycStatus.approved] and reaches the feed/composer
+/// immediately; honest gating therefore does NOT brick new jeebers.
+///
+/// Build-mode behaviour:
+///   * DEBUG — delegates to [SeamJeeberKycStatusGate] verbatim, so every
+///     existing Maestro/widget flow that scripts `jeeb.seam.kyc_status` keeps
+///     driving the branch deterministically (no network in test). The dev seam
+///     is preserved behind the explicit [kDebugMode] flag; no live fetch runs.
+///   * RELEASE — reports the cached live status. Until the first fetch resolves
+///     it returns a CONSERVATIVE non-approved default ([JeeberKycStatus.none]),
+///     never `approved` (JEBV4-267 invariant: never default-approve in release).
+///     A [ChangeNotifier] fires when the fetch lands so [JeeberKycGateBuilder]
+///     consumers (the DELIVERY tab) re-resolve their destination. Server-side
+///     gating still enforces the invariant (403) if a read ever fails.
+class LiveJeeberKycStatusGate extends ChangeNotifier
+    implements JeeberKycStatusGate {
+  /// [useLiveSource] selects the status source and defaults to `!kDebugMode`:
+  ///   * RELEASE (`true`) — query the live BFF via [KycGateway] and cache it.
+  ///   * DEBUG   (`false`) — delegate to the dev seam ([SeamJeeberKycStatusGate])
+  ///     so Maestro/widget flows keep driving `jeeb.seam.kyc_status`.
+  /// It is exposed only so tests can exercise the release path deterministically
+  /// (`useLiveSource: true`); production always takes the [kDebugMode] default,
+  /// so this flag never changes real build behaviour.
+  LiveJeeberKycStatusGate(this._gateway, {bool? useLiveSource})
+    : _useLiveSource = useLiveSource ?? !kDebugMode {
+    // The live fetch runs only when the live source is active (release): in
+    // debug the dev seam is the source of truth, so we never touch the network.
+    if (_useLiveSource) unawaited(refresh());
+  }
+
+  final KycGateway _gateway;
+  final bool _useLiveSource;
+
+  /// Last-known live status, or `null` before the first successful fetch.
+  JeeberKycStatus? _cached;
+
+  @override
+  JeeberKycStatus get status {
+    // DEBUG: preserve the deterministic dev-seam behaviour verbatim so no
+    // existing Maestro/widget flow changes (the seam is the dev-flag source).
+    if (!_useLiveSource) return const SeamJeeberKycStatusGate().status;
+    // RELEASE: honest live status. Conservative non-approved default until the
+    // first fetch resolves — an unapproved jeeber is client-gated, never treated
+    // as approved (JEBV4-267). Consumers rebuild via [JeeberKycGateBuilder] when
+    // [refresh] notifies.
+    return _cached ?? JeeberKycStatus.none;
+  }
+
+  @override
+  bool get isApproved => status == JeeberKycStatus.approved;
+
+  /// Re-reads the live KYC decision and, on a change, notifies listeners so the
+  /// reactive consumers ([JeeberKycGateBuilder]) re-resolve. A network failure
+  /// leaves the cache untouched (conservative default holds); the server still
+  /// gates the action, so a failed read never wrongly approves.
+  Future<void> refresh() async {
+    try {
+      final submission = await _gateway.fetchStatus();
+      final next = _map(submission.status);
+      if (next != _cached) {
+        _cached = next;
+        notifyListeners();
+      }
+    } catch (_) {
+      // Keep the conservative default; server-side 403 remains the backstop.
+    }
+  }
+
+  static JeeberKycStatus _map(KycStatus status) => switch (status) {
+    KycStatus.notSubmitted => JeeberKycStatus.none,
+    KycStatus.pending => JeeberKycStatus.pending,
+    KycStatus.approved => JeeberKycStatus.approved,
+    KycStatus.rejected => JeeberKycStatus.rejected,
+  };
+}
+
+/// Rebuilds [builder] whenever [gate] reports a new KYC status. When [gate] is a
+/// [Listenable] (the release [LiveJeeberKycStatusGate], which notifies after its
+/// live fetch resolves) the subtree re-resolves so a late `approved`/`pending`
+/// read reaches the DELIVERY-tab destination without a re-login. For a plain
+/// synchronous gate (the const seam gate or a test fake) it builds exactly once,
+/// so debug/Maestro behaviour is unchanged.
+class JeeberKycGateBuilder extends StatelessWidget {
+  const JeeberKycGateBuilder({
+    super.key,
+    required this.gate,
+    required this.builder,
+  });
+
+  final JeeberKycStatusGate gate;
+  final Widget Function(BuildContext context, JeeberKycStatusGate gate) builder;
+
+  @override
+  Widget build(BuildContext context) {
+    final gate = this.gate;
+    if (gate is Listenable) {
+      return ListenableBuilder(
+        listenable: gate as Listenable,
+        builder: (context, _) => builder(context, this.gate),
+      );
+    }
+    return builder(context, gate);
+  }
 }

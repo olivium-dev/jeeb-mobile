@@ -84,8 +84,17 @@ class DashboardTab extends StatelessWidget {
     final gate = sl.isRegistered<JeeberKycStatusGate>()
         ? sl<JeeberKycStatusGate>()
         : const SeamJeeberKycStatusGate();
-    return _JeeberHomeHost(
-      destination: JeeberDeliveryTabDestination.forStatus(gate.status),
+    // JEBV4-267: resolve the destination REACTIVELY. The release
+    // LiveJeeberKycStatusGate reports a conservative non-approved status until
+    // its live KYC fetch resolves, then notifies — JeeberKycGateBuilder rebuilds
+    // so an approved/pending jeeber reaches the feed without a re-login. For the
+    // const seam gate / test fakes (not Listenable) this builds exactly once, so
+    // debug + Maestro behaviour is unchanged.
+    return JeeberKycGateBuilder(
+      gate: gate,
+      builder: (context, gate) => _JeeberHomeHost(
+        destination: JeeberDeliveryTabDestination.forStatus(gate.status),
+      ),
     );
   }
 
