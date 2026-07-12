@@ -17,9 +17,6 @@ import '../../../features/reviews/data/empty_reviews_repository.dart';
 import '../../../features/reviews/data/stub_reviews_repository.dart';
 import '../../../features/reviews/domain/reviews_repository.dart';
 import '../../../features/reviews/presentation/reviews_list_screen.dart';
-import '../../../features/search/domain/search_repository.dart';
-import '../../../features/search/presentation/search_results_screen.dart';
-import '../../../features/search/presentation/search_screen.dart';
 import '../../../features/settings/application/role_switch_cubit.dart';
 import '../../../features/settings/application/settings_cubit.dart';
 import '../../../features/settings/domain/account_service.dart';
@@ -199,53 +196,6 @@ class _ColdStartReviewsRepository implements ReviewsRepository {
   @override
   Future<void> reportReview(String reviewId) async {}
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// search — the compose screen (SearchScreen, no seams — a static prompt +
-// input, all navigation is behind `onSubmitted`) and the results screen
-// (SearchResultsScreen, `repository` is an existing constructor test seam).
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _FakeSearchRepository implements SearchRepository {
-  const _FakeSearchRepository({this.results, this.failure});
-
-  final List<SearchResult>? results;
-  final SearchFailure? failure;
-
-  @override
-  Future<List<SearchResult>> search(String query) async {
-    final f = failure;
-    if (f != null) throw SearchRepositoryException(f);
-    return results ?? const <SearchResult>[];
-  }
-}
-
-/// Never resolves — keeps the results screen on its loading state.
-class _PendingSearchRepository implements SearchRepository {
-  const _PendingSearchRepository();
-
-  @override
-  Future<List<SearchResult>> search(String query) {
-    return Completer<List<SearchResult>>().future;
-  }
-}
-
-List<SearchResult> _sampleSearchResults() => const [
-      SearchResult(
-        id: 'r-1',
-        kind: SearchResultKind.order,
-        title: 'Order #REQ-1042',
-        subtitle: 'En route · Hamra → Achrafieh',
-        refId: 'REQ-1042',
-      ),
-      SearchResult(
-        id: 'r-2',
-        kind: SearchResultKind.conversation,
-        title: 'Chat with Rami Chidiac',
-        subtitle: 'Last message 2h ago',
-        refId: 'CONV-2044',
-      ),
-    ];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // settings — SettingsScreen (`cubit` is an existing constructor test seam)
@@ -685,56 +635,6 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
             (_) => const ReviewsListScreen(
               jeeberId: _reviewsJeeberId,
               repository: _FailingReviewsRepository(ReviewsFailure.network),
-            ),
-          ),
-        ],
-      ),
-      CatalogEntry(
-        feature: 'search',
-        screen: 'SearchScreen',
-        states: [
-          CatalogState('Prompt', (_) => const SearchScreen()),
-        ],
-      ),
-      CatalogEntry(
-        feature: 'search',
-        screen: 'SearchResultsScreen',
-        states: [
-          CatalogState(
-            'Loading',
-            (_) => const SearchResultsScreen(
-              query: 'pharmacy',
-              repository: _PendingSearchRepository(),
-            ),
-          ),
-          CatalogState(
-            'Loaded — Results',
-            (_) => SearchResultsScreen(
-              query: 'pharmacy',
-              repository: _FakeSearchRepository(results: _sampleSearchResults()),
-            ),
-          ),
-          CatalogState(
-            'Loaded — No Results',
-            (_) => const SearchResultsScreen(
-              query: 'xyz123',
-              repository: _FakeSearchRepository(),
-            ),
-          ),
-          CatalogState(
-            'Failed — Unavailable',
-            (_) => const SearchResultsScreen(
-              query: 'pharmacy',
-              repository: _FakeSearchRepository(
-                failure: SearchFailure.unavailable,
-              ),
-            ),
-          ),
-          CatalogState(
-            'Failed — Network',
-            (_) => const SearchResultsScreen(
-              query: 'pharmacy',
-              repository: _FakeSearchRepository(failure: SearchFailure.network),
             ),
           ),
         ],
