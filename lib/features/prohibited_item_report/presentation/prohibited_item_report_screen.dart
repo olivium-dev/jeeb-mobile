@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+// ORPHAN (JEBV4-227, verified 2026-07-12): zero refs; live path is ProhibitedItemReportService in jeeber_request_detail — see docs/project-understanding/reconciliation/orphans.md
 class ProhibitedItemReportScreen extends StatefulWidget {
   const ProhibitedItemReportScreen({
     super.key,

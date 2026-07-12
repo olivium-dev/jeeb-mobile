@@ -4,6 +4,7 @@ import 'package:omds/omds.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/masked_call_cubit.dart';
 
+// ORPHAN (JEBV4-227, verified 2026-07-12): zero refs; gateway carries an equally-uncalled twin endpoint — see docs/project-understanding/reconciliation/orphans.md
 class MaskedCallButton extends StatelessWidget {
 
   const MaskedCallButton({super.key, required this.orderId, this.cubit});

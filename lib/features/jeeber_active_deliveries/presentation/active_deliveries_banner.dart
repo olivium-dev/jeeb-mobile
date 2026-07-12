@@ -24,6 +24,7 @@ import '../domain/active_delivery_summary.dart';
 /// [onOpenChat] / [onManageDelivery] are injected by the host (the Dashboard
 /// tab) so this widget owns no navigation — keeping it testable and the route
 /// strings in one place.
+// ORPHAN (JEBV4-227, verified 2026-07-12): zero refs; live banner is jeeber_home's own implementation — see docs/project-understanding/reconciliation/orphans.md
 class ActiveDeliveriesBanner extends StatelessWidget {
   const ActiveDeliveriesBanner({
     super.key,

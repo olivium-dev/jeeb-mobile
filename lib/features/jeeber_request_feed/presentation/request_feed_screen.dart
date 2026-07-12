@@ -20,6 +20,7 @@ import 'request_card.dart';
 /// expired requests on the same cadence — the screen's ticker is decoupled
 /// because the cubit's sweep operates on `_clock()` (testable), while the
 /// chrome needs a live tick to animate the seconds badge.
+// ORPHAN (JEBV4-227, verified 2026-07-12): zero refs; live feed UI is jeeber_home/jeeber_feed_tab_view.dart (its repository stays live via DI) — see docs/project-understanding/reconciliation/orphans.md
 class RequestFeedScreen extends StatelessWidget {
   const RequestFeedScreen({super.key, this.cubit});
 

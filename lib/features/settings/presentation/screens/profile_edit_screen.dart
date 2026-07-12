@@ -19,6 +19,7 @@ import '../widgets/profile_avatar.dart';
 /// (T-mobile-002). Talks to the screen-wide [SettingsCubit] so the same
 /// state powers the parent settings list — there is no separate
 /// `ProfileCubit`.
+// ORPHAN (JEBV4-227, verified 2026-07-12): only reachable via orphaned /settings — see docs/project-understanding/reconciliation/orphans.md
 class ProfileEditScreen extends StatefulWidget {
   const ProfileEditScreen({
     super.key,

@@ -14,6 +14,7 @@ import '../domain/settlement_statement.dart';
 /// Lists weekly statements with status chips (paid / pending).
 /// Tap a row → [SettlementDetailScreen].
 /// Download CTA → GET /v1/wallet/jeeb/earnings/statements/{id}/pdf.
+// ORPHAN (JEBV4-227, verified 2026-07-12): registered route, zero inbound nav (T-MOB-032 designed but never linked) — see docs/project-understanding/reconciliation/orphans.md
 class SettlementScreen extends StatelessWidget {
   const SettlementScreen({
     super.key,

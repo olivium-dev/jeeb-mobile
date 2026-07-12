@@ -19,6 +19,7 @@ import 'tier_card.dart';
 /// [TierCard]s with a sticky confirm CTA — once confirmed, the host (router /
 /// caller-provided [onConfirmed]) is notified via [TierSelectionState.
 /// confirmedTierId].
+// ORPHAN (JEBV4-227, verified 2026-07-12): legacy route removed; cubit/repo remain live via RequestTypeScreen — see docs/project-understanding/reconciliation/orphans.md
 class TierSelectionScreen extends StatelessWidget {
   const TierSelectionScreen({
     super.key,

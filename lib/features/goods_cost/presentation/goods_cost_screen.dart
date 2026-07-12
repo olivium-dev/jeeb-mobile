@@ -22,6 +22,7 @@ import '../domain/goods_cost_repository.dart';
 /// `sl<Dio>()` so the running app reaches the real gateway; a DI-less
 /// widget/router test falls back to the in-memory fake. Mirrors
 /// `DeliveryReceiptScreen`'s self-resolving pattern.
+// ORPHAN (JEBV4-227, verified 2026-07-12): zero external refs; its backend endpoint is also broken — see docs/project-understanding/reconciliation/orphans.md
 class GoodsCostScreen extends StatelessWidget {
   const GoodsCostScreen({
     super.key,

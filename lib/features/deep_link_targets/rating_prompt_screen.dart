@@ -11,6 +11,7 @@ import 'package:omds/omds.dart';
 ///
 /// The router call-site passes a `deliveryId` (deep-link route param); the
 /// field is retained but unused so the import-graph stays green.
+// ORPHAN (JEBV4-227, verified 2026-07-12): route always redirects to mutual-rate in production; builder dead except in dev-catalog capture — see docs/project-understanding/reconciliation/orphans.md
 class RatingPromptScreen extends StatefulWidget {
   const RatingPromptScreen({super.key, required this.deliveryId});
 

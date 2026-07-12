@@ -12,6 +12,7 @@ import '../../../l10n/app_localizations.dart';
 /// Lists active conversations backed by the mock backend. Each card
 /// corresponds to a delivery or request that has a linked conversation.
 /// Tapping navigates to `/chat/:id` (handled by [ChatDetailScreen]).
+// ORPHAN (JEBV4-227, verified 2026-07-12): zero refs; only conversations-inbox UX ever built — see docs/project-understanding/reconciliation/orphans.md
 class ChatTab extends StatefulWidget {
   const ChatTab({super.key});
 

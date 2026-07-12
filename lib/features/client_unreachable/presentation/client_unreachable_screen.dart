@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+// ORPHAN (JEBV4-227, verified 2026-07-12): zero refs; live flow is live_tracking + tracking_noshow_sheet — see docs/project-understanding/reconciliation/orphans.md
 class ClientUnreachableScreen extends StatelessWidget {
   const ClientUnreachableScreen({super.key, required this.deliveryId});
   final String deliveryId;

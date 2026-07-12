@@ -26,6 +26,7 @@ import 'background_gps_state.dart';
 ///
 /// The cubit is pure state — it never imports the `geocapture-flutter`
 /// plugin directly. Boundaries §F9.
+// ORPHAN (JEBV4-227, verified 2026-07-12): unwired; dead feature dir background_gps/ (11 files) — see docs/project-understanding/reconciliation/orphans.md
 class BackgroundGpsCubit extends Cubit<BackgroundGpsState> {
   BackgroundGpsCubit({
     required GeocaptureGateway gateway,
