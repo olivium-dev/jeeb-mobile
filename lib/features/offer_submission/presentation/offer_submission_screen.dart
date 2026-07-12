@@ -55,7 +55,7 @@ class _PriceField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OmdsTextField(
-      labelText: 'Offer Price (LBP)',
+      labelText: 'Offer Price (USD)',
       keyboardType: TextInputType.number,
       prefixIcon: const Icon(Icons.attach_money),
       onChanged: (v) {

@@ -27,7 +27,10 @@ class StubWalletRepository implements WalletRepository {
       affordabilityState: WalletAffordability.enough,
       reservedNow: 0.0,
       giftCredit: 50.0,
-      currency: 'SAR',
+      // USD to match the settlement currency and every other money data source
+      // (the offer composer renders this via `_wallet?.currency`); a prior
+      // `'SAR'` here surfaced "SAR" on the fee lines (JEBV4 currency fix).
+      currency: 'USD',
     );
   }
 }

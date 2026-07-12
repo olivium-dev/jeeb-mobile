@@ -62,13 +62,19 @@ class LiveTrackingScreen extends StatelessWidget {
         showBackButton: true,
         centerTitle: true,
       ),
-      body: BlocConsumer<LiveTrackingCubit, LiveTrackingState>(
-        listenWhen: _hasNewEvent,
-        listener: _onEvent,
-        builder: (context, state) => _TrackingStateView(
-          state: state,
-          deliveryId: deliveryId,
-          useLiveMap: useLiveMap,
+      // JEBV4-282: force an immediate re-fetch when the app returns to the
+      // foreground (the 5s poll timer is suspended while backgrounded), so the
+      // customer's status stepper reflects a transition that happened off-screen
+      // instead of staying stale.
+      body: _ResumeRefresh(
+        child: BlocConsumer<LiveTrackingCubit, LiveTrackingState>(
+          listenWhen: _hasNewEvent,
+          listener: _onEvent,
+          builder: (context, state) => _TrackingStateView(
+            state: state,
+            deliveryId: deliveryId,
+            useLiveMap: useLiveMap,
+          ),
         ),
       ),
     );
@@ -494,4 +500,47 @@ class _TrackingErrorBody extends StatelessWidget {
       ),
     );
   }
+}
+
+/// JEBV4-282: re-fetches the tracked delivery when the app returns to the
+/// foreground. Mounted between the [LiveTrackingCubit] provider and the body so
+/// its [State] resolves the cubit via `context.read`. The cubit already polls
+/// every 5s while on-screen; this closes the gap where the OS suspends Dart
+/// timers in the background, so the customer's status stepper is never left
+/// stale after a transition that landed while the app was away. A transparent
+/// pass-through outside a lifecycle event.
+class _ResumeRefresh extends StatefulWidget {
+  const _ResumeRefresh({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_ResumeRefresh> createState() => _ResumeRefreshState();
+}
+
+class _ResumeRefreshState extends State<_ResumeRefresh>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<LiveTrackingCubit>().refreshNow();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

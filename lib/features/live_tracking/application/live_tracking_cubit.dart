@@ -117,6 +117,19 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     _fetchAndSchedule();
   }
 
+  /// JEBV4-282: force an immediate re-fetch + re-arm the poll. The screen wires
+  /// this to app-resume so a status advanced while the app was backgrounded
+  /// (Dart timers are suspended there) surfaces on return instead of waiting up
+  /// to one poll interval — or forever, if the OS dropped the timer. Silent (no
+  /// loading flash): [_fetch] keeps the last good `trackingInfo` on a failure,
+  /// and a terminal cancelled row is left untouched (nothing more to poll).
+  Future<void> refreshNow() async {
+    if (isClosed) return;
+    if (state.trackingInfo?.isCancelled ?? false) return;
+    await _fetch();
+    if (!isClosed) _schedulePoll();
+  }
+
   String _mapError(LiveTrackingErrorKind kind) {
     switch (kind) {
       case LiveTrackingErrorKind.network:

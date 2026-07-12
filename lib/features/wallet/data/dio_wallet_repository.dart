@@ -43,12 +43,15 @@ class DioWalletRepository implements WalletRepository {
       ),
       reservedNow: _num(json['reservedNow'] ?? json['reserved_now']),
       giftCredit: _num(json['giftCredit'] ?? json['gift_credit']),
-      // Currency is gateway-verbatim (40_GUARDRAILS_ARCH §5). TODO(backender):
-      // the wallet balance response should ALWAYS include an explicit
-      // `currency` so the client never has to default. The current `'SAR'`
-      // fallback is also inconsistent with the `'USD'` default used by the
-      // other wallet/order/offer data sources — unify on the gateway value.
-      currency: _str(json['currency']) ?? 'SAR',
+      // Currency is gateway-verbatim (40_GUARDRAILS_ARCH §5). The client-side
+      // fallback is `USD` — the settlement currency ($100 goods → $10 fee) and
+      // the same default every other wallet/order/offer data source uses. A
+      // prior `'SAR'` fallback here leaked "SAR" onto the offer composer's
+      // fee/net/reserve lines (it reads `_wallet?.currency`) while the money is
+      // USD (JEBV4 currency-consistency fix). TODO(backender): the wallet
+      // balance response should ALWAYS include an explicit `currency` so the
+      // client never has to default at all.
+      currency: _str(json['currency']) ?? 'USD',
     );
   }
 
