@@ -131,9 +131,14 @@ class _Body extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<ActiveDeliveryCubit, ActiveDeliveryState>(
-      listener: _onStateChange,
-      builder: _buildScaffold,
+    // JEBV4-282: force an immediate re-fetch when the app returns to the
+    // foreground (the cubit's periodic poll timer is suspended while
+    // backgrounded), so a stepper advanced server-side lands on resume.
+    return _ResumeRefresh(
+      child: BlocConsumer<ActiveDeliveryCubit, ActiveDeliveryState>(
+        listener: _onStateChange,
+        builder: _buildScaffold,
+      ),
     );
   }
 
@@ -446,4 +451,49 @@ class _ActionButtons extends StatelessWidget {
       ],
     );
   }
+}
+
+/// JEBV4-282: re-fetches the active delivery when the app returns to the
+/// foreground. Mounted between the [ActiveDeliveryCubit] provider and the body,
+/// so its [State] resolves the cubit via `context.read`. The cubit's periodic
+/// poll keeps the stepper fresh while the screen is on-screen; this covers the
+/// gap where the OS suspends Dart timers in the background (a delivery advanced
+/// server-side while backgrounded surfaces immediately on resume). Outside a
+/// lifecycle event it is a transparent pass-through.
+class _ResumeRefresh extends StatefulWidget {
+  const _ResumeRefresh({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_ResumeRefresh> createState() => _ResumeRefreshState();
+}
+
+class _ResumeRefreshState extends State<_ResumeRefresh>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    // Post-frame + mounted-guard so a refresh scheduled during teardown never
+    // touches a defunct element.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<ActiveDeliveryCubit>().refresh();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

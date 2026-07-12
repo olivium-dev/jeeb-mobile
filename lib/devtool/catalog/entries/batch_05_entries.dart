@@ -63,7 +63,7 @@ final CatalogEntry _onboardingFundingEntry = CatalogEntry(
             affordabilityState: WalletAffordability.enough,
             reservedNow: 20,
             giftCredit: 50,
-            currency: 'SAR',
+            currency: 'USD',
           ),
         ),
       ),

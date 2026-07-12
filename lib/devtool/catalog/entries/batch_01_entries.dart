@@ -187,7 +187,7 @@ JeeberDelivery _demoDelivery({
       ),
       clientName: 'Sara Al-Otaibi',
       conversationId: 'demo-conversation-01',
-      amountText: '42.00 SAR',
+      amountText: '\$42.00',
       cashNote: 'Customer confirms receipt and pays cash on delivery.',
       proofPhotoUrl: proofPhotoUrl,
     );

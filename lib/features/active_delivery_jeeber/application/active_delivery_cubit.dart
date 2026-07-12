@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -124,11 +126,23 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
   ActiveDeliveryCubit({
     required ActiveDeliveryRepository repository,
     required this.deliveryId,
+    Duration pollInterval = const Duration(seconds: 5),
   })  : _repository = repository,
+        _pollInterval = pollInterval,
         super(const ActiveDeliveryState());
 
   final ActiveDeliveryRepository _repository;
   final String deliveryId;
+
+  /// JEBV4-282: while the active-delivery screen is open the cubit re-polls the
+  /// delivery so a backend-side transition (the customer/system advancing or
+  /// cancelling the row) surfaces WITHOUT the jeeber having to leave and
+  /// re-enter. Pre-fix the stepper only ever moved on the jeeber's own
+  /// optimistic taps and otherwise stayed frozen at step 1. Injectable so
+  /// timing-sensitive tests can pin a long interval; the poll never fights an
+  /// in-flight transition / OTP entry (see [_poll]).
+  final Duration _pollInterval;
+  Timer? _pollTimer;
 
   Future<void> loadDelivery() async {
     emit(state.copyWith(mode: ActiveDeliveryMode.loading, clearError: true));
@@ -142,12 +156,72 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
             ? ProofPhotoStatus.captured
             : ProofPhotoStatus.none,
       ));
+      // JEBV4-282: begin re-polling once we have a live (non-terminal) row.
+      _schedulePoll();
     } on ActiveDeliveryException catch (e) {
       emit(state.copyWith(
         mode: ActiveDeliveryMode.error,
         errorMessage: _mapLoadError(e),
       ));
     }
+  }
+
+  /// JEBV4-282: (re)arm the background poll. No-op once the delivery is terminal
+  /// (`Done`) — a completed row never changes again, so we stop hitting the
+  /// gateway (mirrors [LiveTrackingCubit]'s terminal-stop).
+  void _schedulePoll() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    final delivery = state.delivery;
+    if (delivery == null || delivery.status.isTerminal) return;
+    _pollTimer = Timer.periodic(_pollInterval, (_) => _poll());
+  }
+
+  /// Silent background re-fetch (no loading flash). Skips while a user-driven
+  /// transition / proof upload / door-OTP entry is in flight so the poll never
+  /// clobbers optimistic state or the OTP surface; a fetch failure is swallowed
+  /// (the last good snapshot stays on screen and the next tick retries).
+  Future<void> _poll() async {
+    if (isClosed) return;
+    if (!_canPoll(state)) return;
+    try {
+      final fresh = await _repository.fetchDelivery(deliveryId);
+      if (isClosed || !_canPoll(state)) return;
+      // Preserve a proof photo captured locally this session that the backend
+      // snapshot may not carry yet.
+      final localProof = state.delivery?.proofPhotoUrl;
+      final merged = (fresh.proofPhotoUrl == null && localProof != null)
+          ? fresh.withProofPhoto(localProof)
+          : fresh;
+      emit(state.copyWith(mode: ActiveDeliveryMode.ready, delivery: merged));
+      if (merged.status.isTerminal) {
+        _pollTimer?.cancel();
+        _pollTimer = null;
+      }
+    } on ActiveDeliveryException {
+      // Swallow — keep the last good snapshot; the next tick retries.
+    }
+  }
+
+  /// True when a silent poll may safely overwrite [delivery] with the backend
+  /// snapshot — i.e. we have a live, non-terminal row and no user-driven flow
+  /// (transition / proof upload / door OTP) is mid-flight.
+  bool _canPoll(ActiveDeliveryState s) {
+    final delivery = s.delivery;
+    return delivery != null &&
+        !delivery.status.isTerminal &&
+        !s.isTransitioning &&
+        !s.isUploadingProof &&
+        !s.otpRequired &&
+        !s.isVerifyingOtp;
+  }
+
+  /// JEBV4-282: force an immediate silent re-fetch + re-arm the poll. The screen
+  /// wires this to app-resume so a delivery advanced while the app was
+  /// backgrounded (Dart timers are suspended there) surfaces on return.
+  Future<void> refresh() async {
+    await _poll();
+    _schedulePoll();
   }
 
   /// Advance status to the next valid stage (Ordered → Picked → InTransit).
@@ -354,6 +428,12 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
   /// not re-fire the rating route.
   void acknowledgeDelivered() {
     emit(state.copyWith(delivered: false));
+  }
+
+  @override
+  Future<void> close() {
+    _pollTimer?.cancel();
+    return super.close();
   }
 
   JeeberDelivery _withStatus(JeeberDelivery d, JeeberDeliveryStatus s) {
