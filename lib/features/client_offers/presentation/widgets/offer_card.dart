@@ -459,12 +459,22 @@ class _NameTapTarget extends StatelessWidget {
           child: InkWell(
             key: Key('offer-card-name-$name'),
             onTap: onTap,
-            child: Text(
-              name,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                decoration: TextDecoration.underline,
-                decorationColor: theme.colorScheme.primary,
+            // 48dp-tall hit target (WCAG) that still hugs the name's width so
+            // the tap zone isn't a full-row grab: Align(widthFactor: 1.0)
+            // shrink-wraps horizontally and vertically centres the label.
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: Sizes.fourXLarge),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                widthFactor: 1.0,
+                child: Text(
+                  name,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    decoration: TextDecoration.underline,
+                    decorationColor: theme.colorScheme.primary,
+                  ),
+                ),
               ),
             ),
           ),
