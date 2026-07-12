@@ -1,20 +1,16 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/network/auth_token_store.dart';
-import '../../../../core/role/role_cubit.dart';
 import '../../../../core/role/user_role.dart';
 import '../../../../core/session/profile_refresh_signals.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../profile_name/data/dio_display_name_repository.dart';
-import '../../application/role_switch_cubit.dart';
 import '../../application/settings_cubit.dart';
 import '../../data/dio_account_service.dart';
 import '../../domain/profile_repository.dart';
-import '../../domain/role_switch_repository.dart';
 import '../../domain/user_profile.dart';
 import 'settings_screen.dart';
 
@@ -22,8 +18,10 @@ import 'settings_screen.dart';
 ///
 /// The generic [SettingsScreen] remains a testable presentation surface with
 /// injectable seams. This host supplies those seams from the real gateway:
-/// `GET /v1/users/me` for profile/role metadata and
-/// `POST /v1/users/me/role/switch` through [RoleSwitchCubit].
+/// `GET /v1/users/me` for profile metadata.
+///
+/// JEBV4-204 (E9): the in-app role SWITCH was removed (the additive 5-tab shell
+/// + auto-activation supersede it), so this host no longer wires a role toggle.
 // ORPHAN (JEBV4-227, verified 2026-07-12): legacy settings hub, no forward-nav entry point (customer-profile is the live surface) — see docs/project-understanding/reconciliation/orphans.md
 class LiveSettingsScreen extends StatefulWidget {
   const LiveSettingsScreen({super.key});
@@ -93,31 +91,15 @@ class _LoadedLiveSettingsState extends State<_LoadedLiveSettings> {
         : null,
   )..load();
 
-  late final RoleSwitchCubit _roleSwitchCubit = RoleSwitchCubit(
-    repository: sl<RoleSwitchRepository>(),
-    initialRole: _initialRole,
-  );
-
-  String get _initialRole {
-    final active = widget.snapshot.activeRole;
-    if (active != null && active.isNotEmpty) return active;
-    return context.read<RoleCubit>().state.storageKey;
-  }
-
   @override
   void dispose() {
-    _roleSwitchCubit.close();
     _settingsCubit.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return SettingsScreen(
-      cubit: _settingsCubit,
-      roleSwitchCubit: _roleSwitchCubit,
-      availableRoles: widget.snapshot.availableRoles,
-    );
+    return SettingsScreen(cubit: _settingsCubit);
   }
 }
 

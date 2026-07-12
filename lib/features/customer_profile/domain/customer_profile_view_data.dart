@@ -59,13 +59,14 @@ class CustomerProfileViewData extends Equatable {
   final String? activeRole;
 
   /// All role identifiers this user MAY act as from getMe (`availableRoles`),
-  /// e.g. `['client', 'jeeber']` for a dual-role user. DEFECT-C: gates whether
-  /// the in-app role toggle is shown — only a user whose list contains BOTH
-  /// `client` and `jeeber` sees the toggle (single-role clients never do).
+  /// e.g. `['client', 'jeeber']` for a dual-role user. Drives whether the
+  /// additive jeeber surfaces render live bodies (dual-role) vs empty states
+  /// (single-role client). The manual in-app role toggle was removed in
+  /// JEBV4-204 (the additive 5-tab shell + auto-activation supersede it).
   final List<String> availableRoles;
 
-  /// True when the user can act as BOTH client and jeeber, so the in-app role
-  /// toggle (DEFECT-C, [RoleToggleSetting]) should be mounted for them.
+  /// True when the user can act as BOTH client and jeeber — i.e. the additive
+  /// jeeber tab bodies render live rather than as become-a-jeeber empty states.
   bool get isDualRole =>
       availableRoles.contains('client') && availableRoles.contains('jeeber');
 
