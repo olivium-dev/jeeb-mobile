@@ -10,6 +10,7 @@ import '../../../core/role/jeeber_role_activator.dart';
 import '../../../core/role/role_availability_cubit.dart';
 import '../../../core/role/role_cubit.dart';
 import '../../../core/role/role_sync.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../settings/domain/role_switch_repository.dart';
 import '../application/kyc_wizard_cubit.dart';
@@ -45,6 +46,7 @@ class KycStatusView extends StatefulWidget {
   static const Key pendingTitleKey = Key('kyc-status-pending-title');
   static const Key approvedTitleKey = Key('kyc-status-approved-title');
   static const Key rejectedTitleKey = Key('kyc-status-rejected-title');
+  static const Key resubmitTitleKey = Key('kyc-status-resubmit-title');
   static const Key backCtaKey = Key('kyc-status-back');
   static const Key rejectionReasonKey = Key('kyc-status-rejection-reason');
 
@@ -143,6 +145,13 @@ class _KycStatusViewState extends State<KycStatusView>
         return _PendingBody(onBackToProfile: () => _close(context));
       case KycStatus.approved:
         return const _ApprovedBody();
+      case KycStatus.resubmitRequested:
+        return _ResubmitBody(
+          reason: state.submission.rejectionReason,
+          steps: state.submission.resubmitSteps,
+          onResubmit: () => context.read<KycWizardCubit>().resubmit(),
+          onBackToProfile: () => _close(context),
+        );
       case KycStatus.rejected:
         return _RejectedBody(
           reason: state.submission.rejectionReason,
@@ -524,6 +533,129 @@ class _RejectedBody extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Resubmit-requested (E19 / Q-040 tri-state): the back-office asked the jeeber
+/// to fix specific documents and send them again. UNLIKE [_RejectedBody] (which
+/// is FINAL/appeal-only per D52/D87 and offers NO resubmit), this body shows the
+/// reason, the per-slot "what to fix" list, and a `kyc_status_resubmit_cta` that
+/// re-opens the wizard via [KycWizardCubit.resubmit] (reset draft → identity
+/// step) so the jeeber can resubmit in place — no re-login, no restart.
+class _ResubmitBody extends StatelessWidget {
+  const _ResubmitBody({
+    required this.reason,
+    required this.steps,
+    required this.onResubmit,
+    required this.onBackToProfile,
+  });
+
+  final KycRejectionReason? reason;
+  final List<KycResubmitStep> steps;
+  final VoidCallback onResubmit;
+  final VoidCallback onBackToProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return _StatusScaffold(
+      titleKey: KycStatusView.resubmitTitleKey,
+      icon: Icons.upload_file_rounded,
+      iconColor: context.jeebRoles.warning,
+      title: l10n.kycStatusResubmitTitle,
+      body: l10n.kycStatusResubmitBody,
+      extra: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _RejectionReasonNotice(reason: reason),
+          if (steps.isNotEmpty) ...[
+            const SizedBox(height: Spacing.medium),
+            _ResubmitStepsList(steps: steps),
+          ],
+        ],
+      ),
+      actions: [
+        Semantics(
+          identifier: 'kyc_status_resubmit_cta',
+          button: true,
+          container: true,
+          child: OmdsPrimaryButton(
+            text: l10n.kycStatusResubmitRequestedCta,
+            onTap: onResubmit,
+          ),
+        ),
+        Semantics(
+          identifier: 'kyc_status_back',
+          button: true,
+          container: true,
+          child: OmdsPrimaryButton(
+            key: KycStatusView.backCtaKey,
+            text: l10n.kycStatusBackToProfileCta,
+            variant: OmdsButtonVariant.text,
+            onTap: onBackToProfile,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The "what to fix" checklist rendered under the resubmit reason: one
+/// localized line per [KycResubmitStep] the back-office flagged.
+class _ResubmitStepsList extends StatelessWidget {
+  const _ResubmitStepsList({required this.steps});
+
+  final List<KycResubmitStep> steps;
+
+  String _label(AppLocalizations l10n, KycResubmitStep step) {
+    switch (step) {
+      case KycResubmitStep.idFront:
+        return l10n.kycResubmitStepIdFront;
+      case KycResubmitStep.idBack:
+        return l10n.kycResubmitStepIdBack;
+      case KycResubmitStep.selfie:
+        return l10n.kycResubmitStepSelfie;
+      case KycResubmitStep.idNumber:
+        return l10n.kycResubmitStepIdNumber;
+      case KycResubmitStep.other:
+        return l10n.kycResubmitStepOther;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return Semantics(
+      identifier: 'kyc_status_resubmit_steps',
+      container: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final step in steps)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(bottom: Spacing.xSmall),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    size: Sizes.small,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: Spacing.small),
+                  Expanded(
+                    child: Text(
+                      _label(l10n, step),
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

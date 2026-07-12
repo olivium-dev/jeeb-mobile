@@ -479,4 +479,83 @@ void main() {
       );
     });
   });
+
+  // E19 / Q-040 tri-state: GET /v1/kyc/status parses the third `ResubmitRequested`
+  // path — its mandatory reason AND the per-document-slot `resubmit_steps` list —
+  // distinctly from the final `Rejected` state.
+  group('DioKycGateway.fetchStatus — ResubmitRequested tri-state (JEBV4-214)',
+      () {
+    Future<KycSubmission> statusReturning(Map<String, dynamic> body) async {
+      final rec = _RecordingDio((options) {
+        if (options.path == '/v1/kyc/status') {
+          return Response<dynamic>(
+            data: body,
+            statusCode: 200,
+            requestOptions: options,
+          );
+        }
+        throw StateError('Unexpected request in test: ${options.path}');
+      });
+      final gateway = DioKycGateway(
+        rec.dio,
+        DioCdnAssetGateway(rec.dio, uploadDio: rec.dio),
+      );
+      return gateway.fetchStatus();
+    }
+
+    test('state:"ResubmitRequested" parses to KycStatus.resubmitRequested — '
+        'NOT rejected (distinct tri-state path)', () async {
+      final result = await statusReturning(<String, dynamic>{
+        'state': 'ResubmitRequested',
+      });
+      expect(result.status, KycStatus.resubmitRequested);
+    });
+
+    test('carries the mandatory reason on ResubmitRequested', () async {
+      final result = await statusReturning(<String, dynamic>{
+        'state': 'ResubmitRequested',
+        'rejection_reason': 'id_document_illegible',
+      });
+      expect(result.status, KycStatus.resubmitRequested);
+      expect(result.rejectionReason, KycRejectionReason.idUnreadable);
+    });
+
+    test('parses resubmit_steps into ordered, de-duplicated slots; '
+        'unknown slots fold into KycResubmitStep.other', () async {
+      final result = await statusReturning(<String, dynamic>{
+        'state': 'ResubmitRequested',
+        'resubmit_steps': <String>[
+          'id_document_front',
+          'selfie_with_liveness',
+          'id_document_front', // duplicate — dropped
+          'passport_scan', // unknown — folds to other
+        ],
+      });
+      expect(result.resubmitSteps, <KycResubmitStep>[
+        KycResubmitStep.idFront,
+        KycResubmitStep.selfie,
+        KycResubmitStep.other,
+      ]);
+    });
+
+    test('a malformed resubmit_steps payload degrades to an empty list', () async {
+      final result = await statusReturning(<String, dynamic>{
+        'state': 'ResubmitRequested',
+        'resubmit_steps': 'not-a-list',
+      });
+      expect(result.status, KycStatus.resubmitRequested);
+      expect(result.resubmitSteps, isEmpty);
+    });
+
+    test('resubmit_steps is ignored (empty) for a final Rejected state', () async {
+      final result = await statusReturning(<String, dynamic>{
+        'state': 'Rejected',
+        'rejection_reason': 'selfie_mismatch',
+        'resubmit_steps': <String>['selfie_with_liveness'],
+      });
+      expect(result.status, KycStatus.rejected);
+      expect(result.resubmitSteps, isEmpty);
+      expect(result.rejectionReason, KycRejectionReason.selfieMismatch);
+    });
+  });
 }

@@ -220,6 +220,15 @@ class LiveJeeberKycStatusGate extends ChangeNotifier
     KycStatus.pending => JeeberKycStatus.pending,
     KycStatus.approved => JeeberKycStatus.approved,
     KycStatus.rejected => JeeberKycStatus.rejected,
+    // E19 tri-state: `ResubmitRequested` is NOT approved and NOT the terminal
+    // final rejection — the jeeber has a submission on file that needs a
+    // fix-and-resend. For the COARSE delivery/offer gate that is the same
+    // contract as `pending`: browse the feed, but offering stays gated
+    // (feed_make_offer_cta → offer_kyc_gate) and never unlocks the composer
+    // (isApproved stays false). The DISTINCT resubmit affordance lives in the
+    // KYC status view + the offer-gate status line, which read the fine-grained
+    // [KycStatus] directly and render the resubmit CTA/prompt.
+    KycStatus.resubmitRequested => JeeberKycStatus.pending,
   };
 }
 

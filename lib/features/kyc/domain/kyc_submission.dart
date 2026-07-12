@@ -4,7 +4,50 @@ import '../../photo_attachment/domain/photo_attachment.dart';
 
 /// Decision the back-office returned for a [KycSubmission]. `pending` is the
 /// state immediately after submit; `approved`/`rejected` are terminal.
-enum KycStatus { notSubmitted, pending, approved, rejected }
+///
+/// [resubmitRequested] is the tri-state third path (E19 / Q-040 / SM-6): the
+/// kyc-service `request_resubmit` review action bounces a submission back for
+/// the jeeber to FIX-AND-RESEND specific documents (wire state
+/// `ResubmitRequested`, `kyc-service Contracts.cs:12-28`). It is deliberately
+/// DISTINCT from [rejected], which is FINAL/appeal-only (D52/D87): resubmit is
+/// actionable — the jeeber re-opens the wizard and submits again — so the
+/// status view renders a resubmit CTA (never shown on the rejected branch).
+enum KycStatus { notSubmitted, pending, approved, rejected, resubmitRequested }
+
+/// A single document slot the back-office asked the jeeber to re-capture when a
+/// submission lands in [KycStatus.resubmitRequested] (the per-document-slot
+/// resubmit list, `kyc-service Contracts.cs:30-42`). The UI renders one "what to
+/// fix" line per step. Server-owned taxonomy: an unrecognised slot maps to
+/// [other] so a new server slot degrades to a generic prompt instead of
+/// vanishing.
+enum KycResubmitStep {
+  idFront,
+  idBack,
+  selfie,
+  idNumber,
+  other;
+
+  /// Parses the snake_case slot name carried in `resubmit_steps`. Accepts both
+  /// the submit-body document names (`id_document_front` …) and their short
+  /// aliases; anything else folds into [other].
+  static KycResubmitStep fromWire(String raw) {
+    switch (raw) {
+      case 'id_document_front':
+      case 'id_front':
+        return KycResubmitStep.idFront;
+      case 'id_document_back':
+      case 'id_back':
+        return KycResubmitStep.idBack;
+      case 'selfie_with_liveness':
+      case 'selfie':
+        return KycResubmitStep.selfie;
+      case 'id_number':
+        return KycResubmitStep.idNumber;
+      default:
+        return KycResubmitStep.other;
+    }
+  }
+}
 
 /// Structured reason returned with a rejected submission. Kept as an enum so
 /// the UI can render localized copy and analytics can be keyed on the cause.
@@ -61,6 +104,7 @@ class KycSubmission extends Equatable {
     this.vehicleRegistration,
     this.tosAcceptedVersion,
     this.rejectionReason,
+    this.resubmitSteps = const [],
     this.submittedAt,
   });
 
@@ -105,8 +149,15 @@ class KycSubmission extends Equatable {
   /// `tos_accepted_version` (JEBV4-113).
   final String? tosAcceptedVersion;
 
-  /// Only set when [status] is [KycStatus.rejected].
+  /// Reason attached to a terminal-or-actionable decision. Set when [status]
+  /// is [KycStatus.rejected] (final) OR [KycStatus.resubmitRequested] — the
+  /// kyc-service makes a reason mandatory on both `reject` and
+  /// `request_resubmit` (`KycStore.cs:226-240`).
   final KycRejectionReason? rejectionReason;
+
+  /// The document slots the back-office asked the jeeber to re-capture. Only
+  /// populated when [status] is [KycStatus.resubmitRequested]; empty otherwise.
+  final List<KycResubmitStep> resubmitSteps;
 
   /// Server-assigned timestamp echoed in the status response. Null pre-submit.
   final DateTime? submittedAt;
@@ -140,6 +191,7 @@ class KycSubmission extends Equatable {
     String? tosAcceptedVersion,
     KycRejectionReason? rejectionReason,
     bool clearRejectionReason = false,
+    List<KycResubmitStep>? resubmitSteps,
     DateTime? submittedAt,
   }) {
     return KycSubmission(
@@ -153,6 +205,7 @@ class KycSubmission extends Equatable {
       tosAcceptedVersion: tosAcceptedVersion ?? this.tosAcceptedVersion,
       rejectionReason:
           clearRejectionReason ? null : (rejectionReason ?? this.rejectionReason),
+      resubmitSteps: resubmitSteps ?? this.resubmitSteps,
       submittedAt: submittedAt ?? this.submittedAt,
     );
   }
@@ -168,6 +221,7 @@ class KycSubmission extends Equatable {
         vehicleRegistration,
         tosAcceptedVersion,
         rejectionReason,
+        resubmitSteps,
         submittedAt,
       ];
 }
