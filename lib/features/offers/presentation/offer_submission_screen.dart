@@ -217,12 +217,25 @@ class _OfferComposerState extends State<_OfferComposer> {
       case OfferFormMode.insufficientBalance:
         _showInsufficientSheet(context, state.insufficientBalance);
       case OfferFormMode.error:
-        _snack(context, state.errorMessage ?? l10n.errorGeneric);
+        _snack(context, _errorText(l10n, state));
         context.read<OfferFormCubit>().acknowledgeError();
       case OfferFormMode.idle:
       case OfferFormMode.submitting:
         break;
     }
+  }
+
+  /// Localized error-snack copy. The offer-cap literal has no localized copy
+  /// yet so it rides [OfferFormState.errorMessage]; everything else localizes
+  /// off [OfferFormState.errorReason] so the ready Arabic copy isn't shadowed
+  /// by a hardcoded English string (JEBV4-246).
+  String _errorText(OfferComposerL10n l10n, OfferFormState state) {
+    final literal = state.errorMessage;
+    if (literal != null) return literal;
+    return switch (state.errorReason) {
+      OfferSubmissionFailure.network => l10n.errorNetwork,
+      _ => l10n.errorGeneric,
+    };
   }
 
   void _snack(BuildContext context, String message) {

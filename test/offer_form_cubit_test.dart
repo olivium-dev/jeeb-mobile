@@ -187,7 +187,8 @@ void main() {
     );
 
     blocTest<OfferFormCubit, OfferFormState>(
-      'network failure emits error mode',
+      'network failure carries the REASON (no hardcoded message) so the view '
+      'localizes it — JEBV4-246',
       build: () => OfferFormCubit(
         repository: _FakeOfferRepo(
           throws: const OfferSubmissionException(OfferSubmissionFailure.network),
@@ -202,8 +203,35 @@ void main() {
         predicate<OfferFormState>((s) => s.isSubmitting),
         predicate<OfferFormState>(
           (s) =>
-              s.mode == OfferFormMode.error && s.errorMessage != null,
-          'error with message',
+              s.mode == OfferFormMode.error &&
+              s.errorReason == OfferSubmissionFailure.network &&
+              s.errorMessage == null,
+          'error carrying the network reason, NOT a hardcoded English message',
+        ),
+      ],
+    );
+
+    blocTest<OfferFormCubit, OfferFormState>(
+      'generic/server failure ALSO carries the reason (no hardcoded message) '
+      'so the view localizes it — JEBV4-246',
+      build: () => OfferFormCubit(
+        repository: _FakeOfferRepo(
+          throws: const OfferSubmissionException(OfferSubmissionFailure.server),
+        ),
+      ),
+      act: (c) => c.submit(
+        requestId: 'req-1',
+        priceUsd: 5.0,
+        etaMinutes: 10,
+      ),
+      expect: () => [
+        predicate<OfferFormState>((s) => s.isSubmitting),
+        predicate<OfferFormState>(
+          (s) =>
+              s.mode == OfferFormMode.error &&
+              s.errorReason == OfferSubmissionFailure.server &&
+              s.errorMessage == null,
+          'error carrying the server reason, no hardcoded message',
         ),
       ],
     );

@@ -26,6 +26,7 @@ class OfferFormState extends Equatable {
     this.etaError,
     this.conversationId,
     this.errorMessage,
+    this.errorReason,
     this.insufficientBalance,
   });
 
@@ -40,8 +41,15 @@ class OfferFormState extends Equatable {
   /// Set on [OfferFormMode.success] — used by the router to open chat.
   final String? conversationId;
 
-  /// Set on [OfferFormMode.error] — displayed as a snack.
+  /// Set on [OfferFormMode.error] — displayed as a snack. Non-null ONLY for the
+  /// offer-cap literal (no localized copy yet); network/generic carry
+  /// [errorReason] instead so the view localizes them (JEBV4-246).
   final String? errorMessage;
+
+  /// Set on [OfferFormMode.error] for the network/generic failures — the view
+  /// maps it to localized copy so a hardcoded English string never shadows the
+  /// ready Arabic (JEBV4-246).
+  final OfferSubmissionFailure? errorReason;
 
   /// Set on [OfferFormMode.insufficientBalance] — the parsed 402
   /// `{needed, available, currency}` (O1) the JM-046 sheet renders.
@@ -57,6 +65,7 @@ class OfferFormState extends Equatable {
     bool clearEtaError = false,
     String? conversationId,
     String? errorMessage,
+    OfferSubmissionFailure? errorReason,
     bool clearError = false,
     InsufficientBalanceInfo? insufficientBalance,
     bool clearInsufficientBalance = false,
@@ -67,6 +76,7 @@ class OfferFormState extends Equatable {
       etaError: clearEtaError ? null : (etaError ?? this.etaError),
       conversationId: conversationId ?? this.conversationId,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      errorReason: clearError ? null : (errorReason ?? this.errorReason),
       insufficientBalance: clearInsufficientBalance
           ? null
           : (insufficientBalance ?? this.insufficientBalance),
@@ -80,6 +90,7 @@ class OfferFormState extends Equatable {
         etaError,
         conversationId,
         errorMessage,
+        errorReason,
         insufficientBalance,
       ];
 }
@@ -163,18 +174,21 @@ class OfferFormCubit extends Cubit<OfferFormState> {
       ));
       return;
     }
-    // sprint-009: the 20-offer cap is a distinct, actionable error — surface a
-    // dedicated message (NOT the generic "try again") so the jeeber understands
-    // they must withdraw an existing offer first. Stays in the error mode (an
-    // acknowledgeable snack), not requestGone, so the composer draft survives.
-    final msg = switch (e.failure) {
-      OfferSubmissionFailure.network => 'No internet connection',
-      OfferSubmissionFailure.offerCapReached =>
-        'You have reached the maximum of 20 live offers. '
+    // sprint-009: the 20-offer cap is a distinct, actionable error with no
+    // localized copy yet — keep its dedicated literal. Stays in the error mode
+    // (an acknowledgeable snack), not requestGone, so the composer draft
+    // survives.
+    if (e.failure == OfferSubmissionFailure.offerCapReached) {
+      emit(state.copyWith(
+        mode: OfferFormMode.error,
+        errorMessage: 'You have reached the maximum of 20 live offers. '
             'Withdraw one to submit a new offer.',
-      _ => 'Unable to submit offer. Please try again.',
-    };
-    emit(state.copyWith(mode: OfferFormMode.error, errorMessage: msg));
+      ));
+      return;
+    }
+    // network + generic: carry only the reason so the view localizes it — a
+    // hardcoded English string must not shadow the ready Arabic copy (JEBV4-246).
+    emit(state.copyWith(mode: OfferFormMode.error, errorReason: e.failure));
   }
 
   void _logSubmitted(String requestId, double price, int eta) {
