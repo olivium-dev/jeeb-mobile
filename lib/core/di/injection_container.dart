@@ -154,17 +154,23 @@ void configureDependencies({
   // (post-OTP onboarding step, settings profile edit) publish after a
   // successful PUT /api/User/profile; the greeting cubits subscribe and
   // re-pull getMe so headers pick the real name up immediately.
-  sl.registerLazySingleton<ProfileRefreshSignals>(() => ProfileRefreshSignals());
+  sl.registerLazySingleton<ProfileRefreshSignals>(
+    () => ProfileRefreshSignals(),
+  );
 
   // Offer-lifecycle bus (sprint-009): the push handler publishes an
   // offer_accepted/offer_lost event; the jeeber's pending-offers list
   // subscribes, flips the row badge, and re-pulls. Shared single instance.
-  sl.registerLazySingleton<OfferLifecycleSignals>(() => OfferLifecycleSignals());
+  sl.registerLazySingleton<OfferLifecycleSignals>(
+    () => OfferLifecycleSignals(),
+  );
 
   // JM-064 / JEBV4-13: native store-review sheet (in_app_review). The
   // customer-profile rate-app row resolves this registration and stops
   // falling back to the NoopAppReviewLauncher (wave-1 P2-1 dead CTA).
-  sl.registerLazySingleton<AppReviewLauncher>(() => const InAppReviewLauncher());
+  sl.registerLazySingleton<AppReviewLauncher>(
+    () => const InAppReviewLauncher(),
+  );
 
   // BUG-7 (physical-run6): inject the local profile store so a successful
   // phone-OTP verify PERSISTS the signed-in E.164 phone to `settings.profile.v1`
@@ -175,8 +181,9 @@ void configureDependencies({
     () => DioOtpService(
       sl<Dio>(),
       sl<AuthTokenStore>(),
-      profileRepository:
-          SharedPrefsProfileRepository(prefs: sl<SharedPreferences>()),
+      profileRepository: SharedPrefsProfileRepository(
+        prefs: sl<SharedPreferences>(),
+      ),
     ),
   );
 
@@ -466,8 +473,9 @@ void configureDependencies({
   sl.registerLazySingleton<RecipientPhoneResolver>(
     () => ChainedRecipientPhoneResolver(<RecipientPhoneResolver>[
       SharedPrefsRecipientPhoneResolver(
-        profileRepository:
-            SharedPrefsProfileRepository(prefs: sl<SharedPreferences>()),
+        profileRepository: SharedPrefsProfileRepository(
+          prefs: sl<SharedPreferences>(),
+        ),
       ),
       DioRecipientPhoneResolver(sl<Dio>()),
     ]),
@@ -480,10 +488,7 @@ void configureDependencies({
   // BUG-7: the resolver is now injected so a create with no compose-form phone
   // still carries the signed-in client's own phone as `recipientPhone`.
   sl.registerLazySingleton<RequestSubmissionService>(
-    () => DioRequestSubmissionService(
-      sl<Dio>(),
-      sl<RecipientPhoneResolver>(),
-    ),
+    () => DioRequestSubmissionService(sl<Dio>(), sl<RecipientPhoneResolver>()),
   );
 
   // BUG-6 create-payload fix: register the shared compose controller so the
@@ -543,16 +548,17 @@ void configureDependencies({
     () => DioWalletRepository(sl<Dio>()),
   );
 
-  // JM-036: the DELIVERY-tab KYC gate source (register-prompt vs feed) + the
-  // offer gate (JM-044). The DELIVERY tab body reads `sl<JeeberKycStatusGate>()`
-  // .isApproved. SeamJeeberKycStatusGate is debug-aware (reads
-  // `jeeb.seam.kyc_status` so Maestro drives the branch) and production-safe
-  // (reports approved in release until the JM-036 engineer swaps in the real
-  // getMe/kyc-backed gate — GET /user-management/users/:userId/kyc, U1; it
-  // depends on the JeeberKycStatusGate interface, not this impl, so the swap is
-  // a one-line DI change with no tab-body edit).
+  // JM-036 / JEBV4-267: the DELIVERY-tab KYC gate source (register-prompt vs
+  // feed) + the offer gate (JM-044) + the wallet KYC banner all read
+  // `sl<JeeberKycStatusGate>()`. This binds the REAL, network-backed
+  // LiveJeeberKycStatusGate (JEBV4-267) so release builds query the live KYC
+  // decision (KycGateway.fetchStatus → GET /v1/kyc/status, U1) instead of the
+  // old SeamJeeberKycStatusGate no-op that hardcoded `approved` in release. The
+  // live gate delegates to the dev seam in DEBUG (so Maestro flows still drive
+  // `jeeb.seam.kyc_status` deterministically) and notifies its
+  // JeeberKycGateBuilder consumers when the release fetch resolves.
   sl.registerLazySingleton<JeeberKycStatusGate>(
-    () => const SeamJeeberKycStatusGate(),
+    () => LiveJeeberKycStatusGate(sl<KycGateway>()),
   );
 
   // ── WAVE 3 (S2) integrator registrations — wallet ledger + transaction ─────
