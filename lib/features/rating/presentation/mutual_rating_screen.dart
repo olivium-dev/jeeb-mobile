@@ -193,7 +193,32 @@ class _CommentField extends StatelessWidget {
   }
 }
 
-const _kAvailableTags = ['Punctual', 'Careful', 'Friendly', 'Fast'];
+/// A selectable rating tag. [key] is the ON-THE-WIRE value sent to the gateway
+/// and MUST be drawn from the gateway's Jeeb rating tag taxonomy
+/// (`JeebRatingVocabulary.AllowedTags`: `punctuality`, `communication`,
+/// `package_condition`, `courtesy`, `navigation`). [label] is the display text.
+///
+/// JEBV4-297: previously the chips sent their DISPLAY LABELS
+/// (`Punctual`/`Careful`/`Friendly`/`Fast`) as the wire value. The gateway
+/// lowercases each tag and rejects anything outside the taxonomy with a 400
+/// (`'<tag>' is not a recognised Jeeb rating tag.`), so selecting ANY tag made
+/// `POST /v1/ratings/jeeb/submit` fail. The wire value is now the canonical key.
+class MutualRatingTag {
+  const MutualRatingTag({required this.key, required this.label});
+  final String key;
+  final String label;
+}
+
+/// Canonical Jeeb rating tags — [MutualRatingTag.key] values mirror the gateway
+/// `JeebRatingVocabulary.AllowedTags` taxonomy and are the ON-THE-WIRE values.
+/// Exposed for the JEBV4-297 wire-contract test.
+const kMutualRatingTags = <MutualRatingTag>[
+  MutualRatingTag(key: 'punctuality', label: 'Punctual'),
+  MutualRatingTag(key: 'communication', label: 'Communication'),
+  MutualRatingTag(key: 'package_condition', label: 'Careful'),
+  MutualRatingTag(key: 'courtesy', label: 'Friendly'),
+  MutualRatingTag(key: 'navigation', label: 'Navigation'),
+];
 
 class _TagsSection extends StatelessWidget {
   const _TagsSection({required this.selectedTags});
@@ -212,8 +237,9 @@ class _TagsSection extends StatelessWidget {
         const SizedBox(height: Spacing.xSmall),
         Wrap(
           spacing: Spacing.xSmall,
-          children: _kAvailableTags
-              .map((t) => _TagChip(tag: t, selected: selectedTags.contains(t)))
+          children: kMutualRatingTags
+              .map((t) =>
+                  _TagChip(tag: t, selected: selectedTags.contains(t.key)))
               .toList(),
         ),
       ],
@@ -223,15 +249,16 @@ class _TagsSection extends StatelessWidget {
 
 class _TagChip extends StatelessWidget {
   const _TagChip({required this.tag, required this.selected});
-  final String tag;
+  final MutualRatingTag tag;
   final bool selected;
 
   @override
   Widget build(BuildContext context) {
     return OmdsChip(
-      label: tag,
+      label: tag.label,
       isSelected: selected,
-      onTap: () => context.read<MutualRatingCubit>().toggleTag(tag),
+      // Send the canonical taxonomy KEY, not the display label (JEBV4-297).
+      onTap: () => context.read<MutualRatingCubit>().toggleTag(tag.key),
     );
   }
 }
