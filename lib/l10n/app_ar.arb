@@ -1539,5 +1539,11 @@
   "profilePhotoPermissionDenied": "اسمح بالوصول إلى الكاميرا أو الصور من الإعدادات لتغيير صورتك.",
   "profilePhotoChangeFailed": "تعذّر تحديث صورتك. يرجى المحاولة مرة أخرى.",
   "offlineBannerMessage": "أنت غير متصل بالإنترنت. ستتم مزامنة التغييرات عند استعادة الاتصال.",
-  "createSessionExpired": "انتهت صلاحية جلستك. يرجى تسجيل الدخول مرة أخرى لإرسال طلبك."
+  "createSessionExpired": "انتهت صلاحية جلستك. يرجى تسجيل الدخول مرة أخرى لإرسال طلبك.",
+  "customerWalletStubTitle": "المحفظة",
+  "customerWalletStubHeadline": "تدفع نقداً",
+  "customerWalletStubBody": "جيب يعتمد الدفع النقدي عند التوصيل. لا يوجد رصيد داخل التطبيق لشحنه — تدفع لمندوب التوصيل سعر التوصيل مباشرةً عند وصول طلبك.",
+  "customerWalletStubCodTitle": "الدفع عند التوصيل",
+  "customerWalletStubCodBody": "سترى السعر المتفق عليه في كل عرض. ادفع هذا المبلغ نقداً لمندوب التوصيل عند تسليمه طلبك.",
+  "customerWalletStubDoneCta": "حسناً"
 }

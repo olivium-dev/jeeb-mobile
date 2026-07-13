@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/role/role_availability_cubit.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/support_cubit.dart';
 import '../application/support_state.dart';
@@ -188,12 +189,29 @@ class _CategoryField extends StatelessWidget {
             style: theme.textTheme.titleSmall,
           ),
           const SizedBox(height: Spacing.xSmall),
-          ...SupportCategory.values.map(
+          ..._visibleCategories(context).map(
             (c) => _CategoryTile(category: c, selected: c == selected),
           ),
         ],
       ),
     );
+  }
+
+  /// F6 / JEBV4-303 role-bleed: `payment` (rendered "Earnings") and `kycAppeal`
+  /// (rendered "Appeal") are JEEBER-only support topics — a pure customer has no
+  /// earnings and no KYC to appeal. Trim them for non-jeebers so a customer
+  /// never sees jeeber-only categories. Gated on the jeeber CAPABILITY
+  /// (`available_roles`, not the active role): a dual-role user IS a jeeber and
+  /// may legitimately need to appeal their KYC even while browsing as a client,
+  /// so they keep the full set. Nullable read keeps bare tests on the full set.
+  List<SupportCategory> _visibleCategories(BuildContext context) {
+    final roles = context.watch<RoleAvailabilityCubit?>()?.state.roles;
+    final isJeeber = roles?.contains('jeeber') ?? false;
+    if (isJeeber) return SupportCategory.values;
+    return SupportCategory.values
+        .where((c) =>
+            c != SupportCategory.payment && c != SupportCategory.kycAppeal)
+        .toList(growable: false);
   }
 }
 
