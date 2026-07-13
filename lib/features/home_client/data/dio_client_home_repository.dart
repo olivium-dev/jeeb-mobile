@@ -50,6 +50,13 @@ class DioClientHomeRepository implements ClientHomeRepository {
 
   final Dio _dio;
 
+  /// In-flight GET dedupe (F3): collapses accidental duplicate same-cycle reads
+  /// (same path + query) onto a single network call instead of firing N
+  /// identical requests. Entries self-evict when their future completes, so this
+  /// is a single-flight coalescer, never a stale cache.
+  final Map<String, Future<Response<dynamic>>> _inFlightGets =
+      <String, Future<Response<dynamic>>>{};
+
   // D5 contract: GET /deliveries?stage=<stage>&limit=<n>
   static const _activeDeliveriesPath = '/deliveries';
   static const _requestsPath = '/requests';
@@ -65,6 +72,13 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// (a customer realistically has a handful of open requests). Beyond this we
   /// fall back to the payload's denormalised `offersCount`.
   static const int _maxOfferProbes = 10;
+
+  /// Max offer probes in flight at once (F3). The old code fired up to
+  /// [_maxOfferProbes] concurrent `GET /v1/offers` per poll cycle — a fan-out
+  /// that, ticking every few seconds, blew past the gateway's per-subscription
+  /// rate budget and tripped 429s. We now drain the probes through a bounded
+  /// worker pool of this width so at most a couple ever hit the wire together.
+  static const int _probeConcurrency = 2;
 
   /// Offer statuses that still count as a live, acceptable bid (mirrors
   /// `DioOffersRepository._liveStatuses`). Withdrawn/expired/accepted/superseded
@@ -108,17 +122,25 @@ class DioClientHomeRepository implements ClientHomeRepository {
 
   @override
   Future<ClientHomeSnapshot> loadSnapshot() async {
+    // F3 dedupe: the `role=client` list backs BOTH the auction buckets AND the
+    // recent-deliveries strip. Fetch it ONCE and derive both from the same
+    // payload instead of firing two near-identical `GET /requests?role=client`
+    // reads per poll cycle.
     final results = await Future.wait([
       _fetchInProgress(),
-      _fetchClientRequests(),
-      _fetchRecentDeliveries(),
+      _fetchRoleClientRows(),
       _fetchActiveRequests(),
     ]);
 
     final shipments = results[0] as List<ClientHomeRequest>;
-    final buckets = results[1] as _ClientRequestBuckets;
-    final recentDeliveries = results[2] as List<RecentDeliverySummary>;
-    final activeRequests = results[3] as List<ClientHomeRequest>;
+    final roleClientRows = results[1];
+    final activeRequests = results[2] as List<ClientHomeRequest>;
+
+    // Partition the single role=client payload into buckets (the offer probes
+    // run here, coalesced) and derive the recent-deliveries strip from the same
+    // rows — no second network read.
+    final buckets = await _partitionClientRequests(roleClientRows);
+    final recentDeliveries = _recentDeliveries(roleClientRows);
 
     // Merge accepted orders into In Progress, deduped against any live shipment
     // by id so the same order never renders twice. A delivery that already
@@ -189,9 +211,9 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// never leak into In Progress through this path.
   Future<List<ClientHomeRequest>> _fetchActiveRequests() async {
     try {
-      final response = await _dio.get<dynamic>(
+      final response = await _get(
         _requestsPath,
-        queryParameters: {
+        const {
           'status': 'active',
           'role': 'client',
           'page': 1,
@@ -216,9 +238,9 @@ class DioClientHomeRepository implements ClientHomeRepository {
 
   Future<List<ClientHomeRequest>> _fetchInProgress() async {
     try {
-      final response = await _dio.get<dynamic>(
+      final response = await _get(
         _activeDeliveriesPath,
-        queryParameters: {'stage': 'active', 'limit': 50},
+        const {'stage': 'active', 'limit': 50},
       );
       final rawItems = _items(response.data, fallbackKey: 'shipments');
       final items = <ClientHomeRequest>[];
@@ -236,24 +258,38 @@ class DioClientHomeRepository implements ClientHomeRepository {
     }
   }
 
-  /// Single `GET /requests?role=client` call, partitioned client-side into the
-  /// accepted / replies / pending buckets (S007-P1B, BUG-3). The gateway only
-  /// filters by `role`, so the split is done here:
+  /// Single `GET /requests?role=client` read (F3), shared between the auction
+  /// buckets and the recent-deliveries strip. Returns the raw row list (or an
+  /// empty list on any transport/parse failure) so callers can derive their
+  /// projections without re-fetching.
+  Future<List<dynamic>> _fetchRoleClientRows() async {
+    try {
+      final response = await _get(
+        _requestsPath,
+        const {'role': 'client', 'page': 1, 'pageSize': 50},
+      );
+      return _items(response.data);
+    } on DioException {
+      return const [];
+    } on FormatException {
+      return const [];
+    }
+  }
+
+  /// Partitions the `role=client` rows client-side into the accepted / replies
+  /// / pending buckets (S007-P1B, BUG-3). The gateway only filters by `role`:
   ///   * `status == accepted` → In Progress (chat re-entry).
   ///   * else live offer count > 0 → Replies.
   ///   * else → Pending.
   ///
   /// BUG-3: the live `role=client` payload omits any offer indicator, so the
   /// replies-vs-pending decision is driven by an authoritative per-request
-  /// `GET /v1/offers?requestId` probe (best-effort, concurrent, capped) rather
-  /// than the row's (absent) `offersCount`.
-  Future<_ClientRequestBuckets> _fetchClientRequests() async {
+  /// `GET /v1/offers?requestId` probe (best-effort, coalesced, capped — see
+  /// [_resolveOfferCounts]) rather than the row's (absent) `offersCount`.
+  Future<_ClientRequestBuckets> _partitionClientRequests(
+    List<dynamic> rawItems,
+  ) async {
     try {
-      final response = await _dio.get<dynamic>(
-        _requestsPath,
-        queryParameters: {'role': 'client', 'page': 1, 'pageSize': 50},
-      );
-      final rawItems = _items(response.data);
       final accepted = <ClientHomeRequest>[];
       final candidates = <Map<String, dynamic>>[];
       for (final raw in rawItems) {
@@ -321,10 +357,13 @@ class DioClientHomeRepository implements ClientHomeRepository {
     }
   }
 
-  /// Live offer count per candidate request, aligned by index. Probes run
-  /// concurrently and are capped at [_maxOfferProbes]; each probe is
-  /// best-effort (a failure leaves the payload's denormalised count in place),
-  /// so a degraded/erroring offers endpoint never breaks the home load.
+  /// Live offer count per candidate request, aligned by index. Probes are
+  /// COALESCED (F3): only rows whose bucket is still unknown are probed, at most
+  /// [_maxOfferProbes] of them, drained through a bounded worker pool of width
+  /// [_probeConcurrency] with a per-cycle memo so a duplicate request id shares
+  /// one GET. Each probe is best-effort — a failure leaves the payload's
+  /// denormalised count in place, so a degraded/erroring offers endpoint never
+  /// breaks the home load.
   Future<List<int>> _resolveOfferCounts(
     List<Map<String, dynamic>> candidates,
   ) async {
@@ -333,18 +372,45 @@ class DioClientHomeRepository implements ClientHomeRepository {
       (i) => (candidates[i]['offersCount'] as num?)?.toInt() ?? 0,
       growable: false,
     );
-    final probes = <Future<void>>[];
-    for (var i = 0; i < candidates.length && i < _maxOfferProbes; i++) {
+
+    // Skip rows we already know are Replies: a payload count > 0 buckets the row
+    // into Replies regardless of the probe (the probe can only raise the count),
+    // so probing it is a wasted GET. Cap the remaining fan-out.
+    final jobs = <int>[];
+    for (var i = 0;
+        i < candidates.length && jobs.length < _maxOfferProbes;
+        i++) {
       final id = candidates[i]['id'] as String?;
       if (id == null || id.isEmpty) continue;
-      final index = i;
-      probes.add(
-        _fetchLiveOfferCount(id).then((live) {
-          if (live != null && live > counts[index]) counts[index] = live;
-        }),
-      );
+      if (counts[i] > 0) continue;
+      jobs.add(i);
     }
-    if (probes.isNotEmpty) await Future.wait(probes);
+    if (jobs.isEmpty) return counts;
+
+    // Per-cycle memo: distinct request ids only ever hit `/v1/offers` once.
+    final memo = <String, int?>{};
+    var next = 0;
+
+    Future<void> drain() async {
+      while (true) {
+        if (next >= jobs.length) return;
+        final index = jobs[next++];
+        final id = candidates[index]['id'] as String;
+        final int? live;
+        if (memo.containsKey(id)) {
+          live = memo[id];
+        } else {
+          live = await _fetchLiveOfferCount(id);
+          memo[id] = live;
+        }
+        if (live != null && live > counts[index]) counts[index] = live;
+      }
+    }
+
+    final workers = jobs.length < _probeConcurrency
+        ? jobs.length
+        : _probeConcurrency;
+    await Future.wait([for (var w = 0; w < workers; w++) drain()]);
     return counts;
   }
 
@@ -356,9 +422,9 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// must not surface as an error or crash the load.
   Future<int?> _fetchLiveOfferCount(String requestId) async {
     try {
-      final response = await _dio.get<dynamic>(
+      final response = await _get(
         _offersPath,
-        queryParameters: {'requestId': requestId},
+        {'requestId': requestId},
       );
       final data = response.data;
       final List<dynamic> items;
@@ -381,26 +447,20 @@ class DioClientHomeRepository implements ClientHomeRepository {
     }
   }
 
-  Future<List<RecentDeliverySummary>> _fetchRecentDeliveries() async {
-    try {
-      final response = await _dio.get<dynamic>(
-        _requestsPath,
-        queryParameters: {'role': 'client', 'page': 1, 'pageSize': 10},
-      );
-      final rawItems = _items(response.data);
-      final items = <RecentDeliverySummary>[];
-      for (final raw in rawItems) {
-        if (raw is Map<String, dynamic>) {
-          final summary = _parseRecentDelivery(raw);
-          if (summary != null) items.add(summary);
-        }
+  /// Recent-deliveries strip, derived from the SAME `role=client` rows the
+  /// buckets are built from (F3 — no separate `pageSize=10` read). The cubit
+  /// caps this to a single entry, and the gateway returns the newest rows
+  /// first, so the shared 50-row payload yields the identical head element the
+  /// old dedicated 10-row read did.
+  List<RecentDeliverySummary> _recentDeliveries(List<dynamic> rawItems) {
+    final items = <RecentDeliverySummary>[];
+    for (final raw in rawItems) {
+      if (raw is Map<String, dynamic>) {
+        final summary = _parseRecentDelivery(raw);
+        if (summary != null) items.add(summary);
       }
-      return items;
-    } on DioException {
-      return const [];
-    } on FormatException {
-      return const [];
     }
+    return items;
   }
 
   static ClientHomeRequest? _parseActiveDelivery(Map<String, dynamic> json) {
@@ -621,6 +681,42 @@ class DioClientHomeRepository implements ClientHomeRepository {
       default:
         return ClientRequestStatus.searching;
     }
+  }
+
+  /// Single-flight GET (F3): if an identical read (same path + query) is
+  /// already in flight, return that same future instead of issuing a duplicate
+  /// network call. The entry self-evicts on completion, so this coalesces
+  /// concurrent duplicates within a poll cycle without ever caching a stale
+  /// body across cycles.
+  Future<Response<dynamic>> _get(String path, Map<String, dynamic> query) {
+    final key = _cacheKey(path, query);
+    final existing = _inFlightGets[key];
+    if (existing != null) return existing;
+    final future = _dio.get<dynamic>(path, queryParameters: query);
+    _inFlightGets[key] = future;
+    // Evict the entry once settled. `.ignore()` on the whenComplete-derived
+    // future is deliberate: it is a SEPARATE future that would otherwise
+    // resurface the original's error as an unhandled async error — the real
+    // error is still delivered to whoever awaits [future] itself.
+    future.whenComplete(() {
+      if (identical(_inFlightGets[key], future)) _inFlightGets.remove(key);
+    }).ignore();
+    return future;
+  }
+
+  /// Order-independent (path, query) key for [_get] dedupe.
+  static String _cacheKey(String path, Map<String, dynamic> query) {
+    final entries = query.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    final buffer = StringBuffer(path)..write('?');
+    for (final entry in entries) {
+      buffer
+        ..write(entry.key)
+        ..write('=')
+        ..write(entry.value)
+        ..write('&');
+    }
+    return buffer.toString();
   }
 
   static List<dynamic> _items(Object? data, {String fallbackKey = 'items'}) {
