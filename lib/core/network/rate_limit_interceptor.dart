@@ -79,13 +79,23 @@ class RateLimitInterceptor extends Interceptor {
 
   @override
   void onResponse(Response<dynamic> response, ResponseInterceptorHandler handler) {
-    // A clean response means the window (if any) is effectively clear — drop it
-    // so we do not keep suppressing after the gateway recovered early.
-    if (response.statusCode != null &&
-        response.statusCode! < 400 &&
-        _suppressedUntil != null) {
-      _suppressedUntil = null;
-    }
+    // BUG-C: DO NOT clear the back-off window on a 2xx. The window is purely
+    // time-based and self-heals the instant the honored Retry-After elapses
+    // (onRequest gates on `_now().isBefore(until)`), so an early clear buys
+    // nothing — but it is actively harmful under the customer-home fan-out.
+    //
+    // The pollers fire many reads near-simultaneously (up to ~10 `GET
+    // /v1/offers?requestId` probes + `/deliveries` + `/requests` per cycle,
+    // overlapping the waiting-nearby `/v1/requests/:id` poll). When the gateway
+    // rate limits, ONE of that batch 429s and opens the window — but the OTHER
+    // in-flight reads, which passed onRequest before the window opened, land as
+    // 2xx a moment later and, with the old clear-on-success logic, immediately
+    // wiped the window. The very next scheduled poll then hammered the still
+    // rate-limited gateway again, 429'd, re-opened the window, was wiped by the
+    // next success… a self-sustaining storm (run-26: 97/97 `/v1/requests/:id`
+    // polls 429, never a single recovery). Letting the window stand for the full
+    // Retry-After is exactly what the gateway asked for and is what actually
+    // pauses the fleet of pollers long enough for the limiter to drain.
     handler.next(response);
   }
 
