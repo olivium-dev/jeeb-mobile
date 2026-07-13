@@ -213,6 +213,71 @@ void main() {
       final result = await submitWithState('Rejected');
       expect(result.status, KycStatus.rejected);
     });
+
+    test(
+        'the EXACT round-5 on-device 201 body (with null vehicle/tos fields) '
+        'parses to approved WITHOUT throwing — proves the submit-success '
+        'continuation is not killed by a body-shape mismatch (JEBV4-271 round 6, '
+        'submissionId 3b17dbfb...)', () async {
+      // Verbatim body from the round-5 device diag (build 9469778c, account
+      // 71888006): POST /v1/kyc/submit → 201. The nulls (vehicle_registration_url,
+      // tos_signed_at, tos_accepted_version) are the exact shape the app receives
+      // in production — none of them may make _parseSubmission throw.
+      Response<dynamic> resolver(RequestOptions options) {
+        if (options.path == '/api/cdn/assets') {
+          final slot = (options.data as Map)['slot'] as String;
+          return Response<dynamic>(
+            data: <String, dynamic>{
+              'upload_url': 'https://signed.cdn.test/put/$slot',
+              'object_ref': 'cdn://obj/$slot/abc123',
+              'expires_in': 300,
+            },
+            statusCode: 200,
+            requestOptions: options,
+          );
+        }
+        if (options.path.startsWith('https://signed.cdn.test/put/')) {
+          return Response<dynamic>(
+              data: null, statusCode: 200, requestOptions: options);
+        }
+        if (options.path == '/v1/kyc/submit') {
+          return Response<dynamic>(
+            data: <String, dynamic>{
+              'submissionId': '3b17dbfb-c5c9-479f-8a55-15e58086e322',
+              'state': 'Verified',
+              'id_type': 'national_id',
+              'id_document_front_url':
+                  'id_document_front/9974ac4e76014636a0ce8a1b594c93ad.jpg',
+              'id_document_back_url':
+                  'id_document_back/1487110042a24f089d00dcfa5da27fdf.jpg',
+              'vehicle_registration_url': null,
+              'selfie_with_liveness_url':
+                  'selfie_with_liveness/5762130237dc459a8983319115e67be7.jpg',
+              'tos_signed_at': null,
+              'tos_accepted_version': null,
+            },
+            statusCode: 201,
+            requestOptions: options,
+          );
+        }
+        throw StateError('Unexpected request in test: ${options.path}');
+      }
+
+      final rec = _RecordingDio(resolver);
+      final gateway = DioKycGateway(
+        rec.dio,
+        DioCdnAssetGateway(rec.dio, uploadDio: rec.dio),
+      );
+      const draft = KycSubmission(status: KycStatus.notSubmitted);
+
+      final result = await gateway.submit(draft.copyWith(
+        idFront: _photo('front'),
+        idBack: _photo('back'),
+        selfie: _photo('selfie'),
+      ));
+
+      expect(result.status, KycStatus.approved);
+    });
   });
 
   group('DioKycGateway.submit — live submit body contract (JEBV4-113 §1)',

@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/diagnostics/diagnostics.dart';
 import '../../../core/text/digit_normalization.dart';
 import '../../photo_attachment/domain/photo_attachment.dart';
 import '../../photo_attachment/domain/photo_compressor.dart';
@@ -38,7 +39,28 @@ class KycWizardCubit extends Cubit<KycWizardState> {
   // ── Schema load ──────────────────────────────────────────────────────────
 
   Future<void> loadSchema() async {
-    emit(state.copyWith(step: KycWizardStep.schema, clearError: true));
+    // JEBV4-271 (round 6) ROOT CAUSE FIX: entering the interactive schema/
+    // identity flow MUST clear the [loadStatus] loading flag. A FRESH jeeber
+    // enters via `KycWizardScreen(..loadStatus())`; `loadStatus()` emits
+    // `isLoadingStatus: true`, then `GET /v1/kyc/status` 404s → notSubmitted →
+    // it hands off to [loadSchema] and returns WITHOUT ever resetting the flag.
+    // Every subsequent `copyWith` (capture, submit) then preserves
+    // `isLoadingStatus: true` untouched. When submit later succeeds with a 201
+    // `state: Verified`, [submit] correctly emits `step: status` + an approved
+    // submission — but [KycStatusView.build] short-circuits on
+    // `if (state.isLoadingStatus)` to a BARE centred spinner and never builds
+    // `_ApprovedBody`, so [JeeberRoleActivator] never fires: the on-device
+    // spinner-forever, "jeeber only online after a restart" defect (the diag
+    // stream goes silent right after the 201 — no role/switch, no nav — because
+    // the status-view poller sees `approved`, not `pending`, and cancels at
+    // once). The schema step renders its own step-based loading UI
+    // (`_SchemaLoadingView` keys off `step == schema`, not this flag), so
+    // clearing it here removes no needed spinner.
+    emit(state.copyWith(
+      step: KycWizardStep.schema,
+      isLoadingStatus: false,
+      clearError: true,
+    ));
     try {
       final schema = await _gateway.fetchFormSchema();
       emit(state.copyWith(formSchema: schema, step: KycWizardStep.identity));
@@ -52,6 +74,10 @@ class KycWizardCubit extends Cubit<KycWizardState> {
   Future<void> loadStatus() async {
     emit(state.copyWith(isLoadingStatus: true, clearError: true));
     final snapshot = await _gateway.fetchStatus();
+    // JEBV4-271 (round 6) breadcrumb: makes the cold-start routing decision
+    // visible in the diag stream so a future stuck-flag/masked-view regression
+    // is diagnosable from logs instead of silent.
+    Diag.event('kyc_load_status', {'status': snapshot.status.name});
     if (snapshot.status == KycStatus.notSubmitted) {
       await loadSchema();
       return;
@@ -274,6 +300,18 @@ class KycWizardCubit extends Cubit<KycWizardState> {
           tosAcceptedVersion: stamp.tosAcceptedVersion,
         ),
       );
+      // JEBV4-271 (round 6) breadcrumb: the submit round-trip resolved and was
+      // parsed. Emitted BEFORE the state emit so the diag stream proves the
+      // success continuation ran and what status it carries — the exact signal
+      // missing from the round-5 device trace (where the stream went silent
+      // after the 201 and it was impossible to tell, from logs, whether the
+      // cubit emitted approved or died). If a future run shows this breadcrumb
+      // with status=approved yet the jeeber never goes online, the fault is
+      // downstream of the cubit (the view), not in parsing.
+      Diag.event('kyc_submit_success', {
+        'status': updated.status.name,
+        'isLoadingStatus': state.isLoadingStatus,
+      });
       emit(state.copyWith(
         step: KycWizardStep.status,
         submission: updated,
@@ -314,6 +352,11 @@ class KycWizardCubit extends Cubit<KycWizardState> {
       // fires [JeeberRoleActivator] and brings the jeeber online) with NO
       // re-login and NO restart. Only a genuinely un-recorded submit falls
       // through to the retryable submit-failed error.
+      //
+      // JEBV4-271 (round 6) breadcrumb: a caught submit exception is otherwise
+      // invisible (the generic `catch (_)` swallows the object). Record that we
+      // entered the reconcile path so a future silent hang/throw is greppable.
+      Diag.event('kyc_submit_error');
       if (await _reconcileTerminalStatus()) return;
       emit(state.copyWith(
         step: KycWizardStep.identity,
