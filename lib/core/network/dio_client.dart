@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../diagnostics/diagnostics.dart';
 import 'auth_interceptor.dart';
 import 'auth_token_store.dart';
+import 'rate_limit_interceptor.dart';
 import 'redacting_log_interceptor.dart';
 
 /// Real gateway [Dio] factory. Talks the raw gateway `/v1/*` contract directly
@@ -57,6 +58,12 @@ class DioClient {
         headers: Map<String, String>.from(_defaultHeaders),
       ),
     );
+
+    // 429 back-off gate FIRST (F3): while a `Retry-After` window is open it
+    // short-circuits scheduled reads locally, before they ever reach the auth
+    // interceptors or the network — so the customer home poll never retries on
+    // schedule into a rate-limited gateway and turns one 429 into a storm.
+    dio.interceptors.add(RateLimitInterceptor());
 
     dio.interceptors.add(BearerAuthInterceptor(store));
     dio.interceptors.add(
