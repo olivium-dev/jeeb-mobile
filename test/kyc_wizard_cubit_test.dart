@@ -671,4 +671,60 @@ void main() {
       expect(cubit.state.contractTemplate!.tosVersion, isNotEmpty);
     });
   });
+
+  group(
+      'KycWizardCubit — fresh-user entry then auto-approved submit '
+      '(JEBV4-271 round 6: stale isLoadingStatus must not mask the approved '
+      'view)', () {
+    test(
+        'a FRESH jeeber (loadStatus → GET /v1/kyc/status 404 → notSubmitted → '
+        'loadSchema) who submits and gets 201 state=Verified lands on the '
+        'approved status view with isLoadingStatus CLEARED — so KycStatusView '
+        'renders _ApprovedBody (fires JeeberRoleActivator) instead of the bare '
+        'isLoadingStatus spinner that stranded the on-device rev2/round-5 jeeber',
+        () async {
+      // Production entry path: the wizard is created with `..loadStatus()`.
+      // A fresh jeeber has no prior submission, so the gateway's fetchStatus
+      // reports notSubmitted (the live GET /v1/kyc/status 404), and submit
+      // echoes the inline auto-approve (state:Verified → approved).
+      final cubit = _buildCubit(
+        gateway: FakeKycGateway(decision: KycStatus.approved),
+      );
+
+      await cubit.loadStatus();
+      expect(cubit.state.step, KycWizardStep.identity,
+          reason: 'a notSubmitted cold read routes into the capture flow');
+      // REGRESSION GUARD: before the round-6 fix, loadStatus left
+      // isLoadingStatus=true here (notSubmitted → loadSchema returned without
+      // resetting it), and it stayed true through capture + submit.
+      expect(cubit.state.isLoadingStatus, isFalse,
+          reason: 'entering the interactive schema/identity flow must clear the '
+              'loadStatus loading flag');
+
+      // Complete the identity step, then submit (auto-approved).
+      await cubit.captureIdFront();
+      await cubit.captureIdBack();
+      await cubit.captureSelfie();
+      cubit.setIdNumber('123456789012');
+      cubit.setTosAccepted(true);
+      await cubit.submit();
+
+      expect(cubit.state.step, KycWizardStep.status);
+      expect(cubit.state.submission.status, KycStatus.approved);
+      expect(cubit.state.justSubmitted, isFalse,
+          reason: 'an auto-approved submit stays on the in-wizard approved view '
+              '(fires JeeberRoleActivator), it does NOT chain to funding');
+      // THE DECISIVE ASSERTION: with isLoadingStatus stuck true (pre-fix),
+      // KycStatusView.build short-circuits to `Center(OmdsLoadingState())` and
+      // never builds _ApprovedBody, so the jeeber role is never activated and
+      // the wizard is stuck on the spinner until a restart. The status-view
+      // poller then sees `approved` (not pending) and cancels immediately, so
+      // the diag stream goes silent right after the 201 — exactly the round-5
+      // device repro.
+      expect(cubit.state.isLoadingStatus, isFalse,
+          reason: 'the approved emit must not carry a stale isLoadingStatus=true; '
+              'otherwise KycStatusView renders a bare spinner instead of the '
+              'approved body and JeeberRoleActivator never fires (JEBV4-271)');
+    });
+  });
 }
