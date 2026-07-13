@@ -78,6 +78,13 @@ enum OrderRequestStatus {
   /// Which history tab this status belongs to. `unknown` lands in `active`
   /// so new backend states are visible to the user (and to QA) rather than
   /// being silently dropped.
+  ///
+  /// E24/Q-086 tab semantics: the ratified rule is **"Requests" tab =
+  /// not-yet-accepted (on-hold); "Delivery" tab = accepted onward**. [pending]
+  /// is on-hold (searching/offered — no Jeeber has accepted yet), so even
+  /// though it groups here for enum-exhaustiveness, [DioOrderRepository]
+  /// drops [pending] rows via [isOnHold] BEFORE this getter is consulted —
+  /// a pending row must never actually render on any Delivery-tab list.
   OrderHistoryTab get tab {
     switch (this) {
       case OrderRequestStatus.delivered:
@@ -93,6 +100,16 @@ enum OrderRequestStatus {
         return OrderHistoryTab.active;
     }
   }
+
+  /// True for a request that has **not yet been accepted** by a Jeeber — the
+  /// "on hold" state owned exclusively by the customer's Requests tab (Q-086
+  /// verbatim: *"Requests are not accepted yet, they are on hold"*). The
+  /// Delivery tab (this order-history screen) must NEVER surface an on-hold
+  /// row, even though the gateway's advisory `status=active` filter has been
+  /// observed to loosely include them (see [DioOrderRepository]'s re-bucketing
+  /// comment) — that repository drops any [isOnHold] row before it reaches
+  /// [tab]-based bucketing, for every history tab (Active/Completed/Cancelled).
+  bool get isOnHold => this == OrderRequestStatus.pending;
 }
 
 /// Tier the request was booked at. Mirrors the five tiers defined in

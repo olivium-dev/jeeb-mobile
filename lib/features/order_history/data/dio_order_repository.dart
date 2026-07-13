@@ -116,6 +116,14 @@ class DioOrderRepository implements OrderRepository {
     for (final raw in rawItems) {
       if (raw is Map<String, dynamic>) {
         final order = _parseOrder(raw);
+        // E24/Q-086 tab semantics: "Requests" tab = not-yet-accepted
+        // (on-hold); "Delivery" tab = accepted onward. A pending/searching/
+        // offered request is on-hold and belongs exclusively to the
+        // Requests-tab summary (ClientHomeCubit) — it must NEVER surface here,
+        // on ANY Delivery-tab list (Active/Completed/Cancelled), even though
+        // the server's advisory `status=active` filter has been observed to
+        // loosely include it (see the re-bucketing note below).
+        if (order.status.isOnHold) continue;
         // Lane item 6 / run-22 P1-B: the tabs must ACTUALLY filter. The
         // server-side `status=` filter is advisory — gateways have been
         // observed returning loosely-filtered rows and the canonical-vs-legacy
