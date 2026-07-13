@@ -1,0 +1,22 @@
+# PAGE OBJECT — Dashboard / Earnings tab ("Become a Jeeber" upsell)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: shell (Dashboard or Earnings tab — IndexedStack children, no route push).
+# Reached by: bottom-nav Dashboard (52%,92%) or Earnings (73%,92%).
+# For a pure CUSTOMER, BOTH of these tabs render only the identical "Become a
+# Jeeber / Start now" upsell — role-bleed clutter, see BUGS.md #3. We deliberately
+# do NOT tap "Start now" (that enters jeeber onboarding, out of customer scope).
+#
+# Coordinate fractions:
+#   Start now: 50%,60%   (JEEBER-SKIP — captured, never tapped in customer flows)
+#
+# Params: APP_ID; SHOT.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  SHOT: tab-become-jeeber
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${SHOT}"
+# Intentionally no tap: "Start now" leaves the customer role. Capture only.

@@ -1,0 +1,27 @@
+# PAGE OBJECT — onboarding (3-page pager: "Voice-first deliveries" ... "Live tracking")
+# ─────────────────────────────────────────────────────────────────────────────
+# route: onboarding. Reached by: fresh app launch (paints over the notification
+# OS dialog). Advances to the register screen via Skip.
+#
+# Coordinate fractions of 1080x2340 (Flutter semantics OFF -> coordinate-only):
+#   Skip:                 50%,88%
+#   Next / Get Started:   50%,80%   (not used on the fast path)
+#   English toggle:       66%,9%
+#   العربية pill:         86%,9%
+#
+# Params:
+#   SHOT (optional) — screenshot basename; default onboarding.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  SHOT: onboarding
+---
+- waitForAnimationToEnd:
+    timeout: 6000
+- takeScreenshot: "${SHOT}"
+# Skip the whole pager straight to phone entry.
+- tapOn:
+    point: "50%,88%"
+- waitForAnimationToEnd:
+    timeout: 4000

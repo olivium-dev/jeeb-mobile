@@ -1,0 +1,18 @@
+# PAGE OBJECT: onboarding — "Voice-first deliveries" 3-page carousel.
+# Reached by: app launch (auto). Screen has NO Flutter semantics -> coordinate taps.
+# Params: none.
+# Default action: SKIP (bypasses all 3 pages) -> lands on register.
+# Alternative (commented): tap Next x3 to walk the carousel to "Get Started".
+# Language toggles (top-right): EN 68.5%,7.7% / AR 87.2%,7.7% — not tapped here.
+---
+- tapOn:
+    point: "50%,88.5%"        # Skip
+- waitForAnimationToEnd:
+    timeout: 4000
+# --- Alternative: walk the carousel instead of Skip ---
+# - tapOn: { point: "50%,81%" }   # Next (page 1 -> 2)
+# - waitForAnimationToEnd
+# - tapOn: { point: "50%,81%" }   # Next (page 2 -> 3)
+# - waitForAnimationToEnd
+# - tapOn: { point: "50%,81%" }   # Get Started (page 3)
+# - waitForAnimationToEnd

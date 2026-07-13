@@ -1,0 +1,47 @@
+# PAGE OBJECT — client-location / "What do you need?" (compose + location picker)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: client-location. Reached by: Continue from request-type.
+#   => GET /api/users/me/saved-locations 200 (~1.6s SLOW call, see BUGS.md #2)
+#      + OS location dialog on entry.
+# Types the required description (Confirm stays disabled until non-empty), hides
+# the keyboard, and Confirms => POST /v1/requests 201 => route waiting-no-coverage.
+#
+# Coordinate fractions:
+#   description text field:  50%,26%
+#   voice mic button:        88%,25%
+#   Current Location (row):  50%,51%   (pre-selected when location granted)
+#   Saved addresses >:       31%,64%
+#   New Location +:          88%,73%
+#   Confirm location:        50%,87%
+#
+# Params: APP_ID; DESC (required to enable Confirm); SHOT.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  DESC: "Maestro automated test delivery"
+  SHOT: client-location
+---
+- waitForAnimationToEnd:
+    timeout: 4000
+# Location OS dialog may pop on entry — dismiss optionally (system UI, text works).
+- tapOn:
+    text: "While using the app"
+    optional: true
+- tapOn:
+    text: "Only this time"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${SHOT}"
+- tapOn:
+    point: "50%,26%"          # description field
+- inputText: "${DESC}"
+- hideKeyboard
+- waitForAnimationToEnd:
+    timeout: 2000
+- takeScreenshot: "${SHOT}_filled"
+- tapOn:
+    point: "50%,87%"          # Confirm location -> POST /v1/requests 201
+- waitForAnimationToEnd:
+    timeout: 6000

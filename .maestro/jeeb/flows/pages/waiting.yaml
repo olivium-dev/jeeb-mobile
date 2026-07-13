@@ -1,0 +1,32 @@
+# PAGE OBJECT — waiting-no-coverage / "Finding Jeebers" (deepest solo customer state)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: waiting-no-coverage (id param = requestId). Reached by: Confirm location
+#   => POST /v1/requests 201. This is the DEEPEST state a SOLO customer run can
+#   reach: with no jeeber in the area the live gateway returns the no-coverage
+#   variant and a 5-min offer countdown. With a second device acting as a jeeber
+#   this screen becomes the offers list — see INDEX.md "FULL cash-loop needs a
+#   second device".
+#
+# Coordinate fractions:
+#   Re-target request:  50%,67%
+#   Cancel request:     50%,75%
+#
+# Default action: just capture (this is a terminal customer state). Pass
+# ACTION=cancel to open the cancel sheet.
+#
+# Params: APP_ID; ACTION (none|cancel, default none); SHOT.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  ACTION: none
+  SHOT: waiting-no-coverage
+---
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: "${SHOT}"
+- runFlow:
+    when: { true: "${ACTION == 'cancel'}" }
+    commands: [ { tapOn: { point: "50%,75%" } } ]      # Cancel request -> cancel sheet
+- waitForAnimationToEnd:
+    timeout: 2000

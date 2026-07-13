@@ -1,0 +1,23 @@
+# PAGE OBJECT: client-location-compose — "What do you need?" (desc + map + recipient).
+# Reached by: request-type Continue. Location system dialog fires on entry — the
+# caller should runFlow location-permission.yaml right after entering this screen.
+# Coordinate taps (no semantics). GPS auto-resolves "Current Location".
+# Params:
+#   DESC — free-text description of the delivery, e.g. "Two coffees from the corner
+#          shop" (required). NOTE: map tile only renders a grey placeholder on this
+#          device (UX bug, see FINDINGS) — location resolves via GPS, not the map.
+# Selectors: DescField 50%,23.1% / Mic 88.4%,23.1% / CurrentLoc 50%,47.6% /
+#            SavedAddr 50%,60% / NewLoc 88.5%,68.6% / RecipientPhone 50%,82.4% /
+#            Confirm 50%,87.4%.
+# Effect: types DESC, hides keyboard, taps Confirm location
+#         -> POST /v1/requests (201) -> waiting-no-coverage.
+---
+- tapOn:
+    point: "50%,23.1%"        # Description field
+- inputText: "${DESC}"
+- hideKeyboard
+- takeScreenshot: r5_location_desc_entered
+- tapOn:
+    point: "50%,87.4%"        # Confirm location -> POST /v1/requests 201
+- waitForAnimationToEnd:
+    timeout: 6000

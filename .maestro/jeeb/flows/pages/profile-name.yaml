@@ -1,0 +1,41 @@
+# PAGE OBJECT — "What should we call you?" (profile-name capture / skip)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: profile-name. Reached by: OTP verify 200.
+# Default action: Skip for now (fastest) => route shell (authenticated home),
+# GET /v1/users/me now 200. Passing MODE=name types NAME + Continue instead.
+#
+# Coordinate fractions:
+#   Name field:   50%,29%
+#   Continue:     50%,38%
+#   Skip for now: 50%,45%
+#
+# Params: APP_ID; MODE (skip|name, default skip); NAME; SHOT.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  MODE: skip
+  NAME: "Maestro Tester"
+  SHOT: profile-name
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${SHOT}"
+- runFlow:
+    when:
+      true: ${MODE == 'name'}
+    commands:
+      - tapOn:
+          point: "50%,29%"      # name field
+      - inputText: "${NAME}"
+      - hideKeyboard
+      - tapOn:
+          point: "50%,38%"      # Continue
+- runFlow:
+    when:
+      true: ${MODE == 'skip'}
+    commands:
+      - tapOn:
+          point: "50%,45%"      # Skip for now (alt: text: "Skip for now")
+- waitForAnimationToEnd:
+    timeout: 4000

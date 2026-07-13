@@ -1,0 +1,18 @@
+# PAGE OBJECT — Notifications inbox ("You're all caught up")
+# ─────────────────────────────────────────────────────────────────────────────
+# route: notifications (pushed with prev:"shell"). Reached by: header bell icon
+# (91%,8%) on shell. => GET /v1/notifications 200. Empty inbox for a fresh user.
+#
+# Coordinate fractions:
+#   Back arrow: 8%,8%  (returns to shell)
+#
+# Params: APP_ID; SHOT.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  SHOT: notifications
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${SHOT}"

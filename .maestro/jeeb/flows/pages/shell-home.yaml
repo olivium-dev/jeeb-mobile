@@ -1,0 +1,58 @@
+# PAGE OBJECT — shell / "Everything, One Place" (Requests tab = authenticated home)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: shell. Reached by: Skip for now / Continue from profile-name.
+# Default action: New Order => route request-type. The bottom-nav taps are
+# exposed as an ACTION param so the tour can jump straight to any tab.
+#
+# Coordinate fractions of the screen:
+#   New Order:          50%,81%
+#   FAB (+):            88%,74%
+#   wallet icon:        78%,8%
+#   notification bell:  91%,8%
+#   avatar / help:      7%,8%
+#   nav Requests:       10%,92%
+#   nav Delivery:       31%,92%
+#   nav Dashboard:      52%,92%   (jeeber upsell — role-bleed, see BUGS.md #3)
+#   nav Earnings:       73%,92%   (jeeber upsell — role-bleed, see BUGS.md #3)
+#   nav Profile:        91%,92%
+#
+# Params:
+#   ACTION — new_order (default) | none | requests | delivery | dashboard |
+#            earnings | profile | wallet | bell
+#   SHOT.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  ACTION: new_order
+  SHOT: shell-home
+---
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: "${SHOT}"
+- runFlow:
+    when: { true: "${ACTION == 'new_order'}" }
+    commands: [ { tapOn: { point: "50%,81%" } } ]      # New Order -> request-type
+- runFlow:
+    when: { true: "${ACTION == 'requests'}" }
+    commands: [ { tapOn: { point: "10%,92%" } } ]
+- runFlow:
+    when: { true: "${ACTION == 'delivery'}" }
+    commands: [ { tapOn: { point: "31%,92%" } } ]
+- runFlow:
+    when: { true: "${ACTION == 'dashboard'}" }
+    commands: [ { tapOn: { point: "52%,92%" } } ]
+- runFlow:
+    when: { true: "${ACTION == 'earnings'}" }
+    commands: [ { tapOn: { point: "73%,92%" } } ]
+- runFlow:
+    when: { true: "${ACTION == 'profile'}" }
+    commands: [ { tapOn: { point: "91%,92%" } } ]
+- runFlow:
+    when: { true: "${ACTION == 'wallet'}" }
+    commands: [ { tapOn: { point: "78%,8%" } } ]
+- runFlow:
+    when: { true: "${ACTION == 'bell'}" }
+    commands: [ { tapOn: { point: "91%,8%" } } ]
+- waitForAnimationToEnd:
+    timeout: 4000

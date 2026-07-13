@@ -1,0 +1,39 @@
+# JOURNEY (phase 1 of the live fastest path) — fresh launch -> Send code.
+# ─────────────────────────────────────────────────────────────────────────────
+# Leaves the app parked on the OTP screen. helpers/run-fastest-path.sh then reads
+# the freshly-written code from jeeb-otpdb and runs fastest-path-continue.yaml
+# (which has NO launchApp, so it resumes from here). Standalone-runnable too.
+#
+# Params (env):
+#   APP_ID (default app.jeeb.mobile)
+#   PHONE  (default 71963130) — 8-digit LB mobile, +961 auto-prefixed.
+#
+# Run:
+#   ~/.maestro/bin/maestro --device RFCX306JSRT test \
+#     flows/journeys/auth-send-code.yaml -e PHONE=71963130
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  PHONE: "71963130"
+tags:
+  - rfcx306jsrt
+  - auth
+  - customer
+---
+- launchApp:
+    clearState: true
+- runFlow:
+    file: ../pages/_os-permissions.yaml
+    env:
+      APP_ID: ${APP_ID}
+- runFlow:
+    file: ../pages/_onboarding.yaml
+    env:
+      APP_ID: ${APP_ID}
+- runFlow:
+    file: ../pages/_register-send-code.yaml
+    env:
+      APP_ID: ${APP_ID}
+      PHONE: ${PHONE}
+- takeScreenshot: rfcx-01-otp-screen-awaiting-code

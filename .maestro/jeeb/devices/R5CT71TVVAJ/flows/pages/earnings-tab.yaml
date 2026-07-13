@@ -1,0 +1,8 @@
+# PAGE OBJECT: earnings-tab — "Become a Jeeber" upsell (jeeber-gated, shell).
+# Reached by: bottom nav Earnings (73.2%,90.5%). Coordinate taps (no semantics).
+# Params: none. Captures the upsell. "Start now" 50%,58.1% is [JEEBER-SKIP]
+# (delivery-side onboarding — out of scope for the customer suite; do NOT tap it).
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: r5_earnings_tab_become_jeeber

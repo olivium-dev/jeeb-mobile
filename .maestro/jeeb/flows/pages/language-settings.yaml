@@ -1,0 +1,31 @@
+# PAGE OBJECT — Language settings (English | العربية)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: language-settings (pushed with prev:"shell"). Reached by:
+# Profile -> Language. Toggles app locale; العربية switches to RTL.
+#
+# Coordinate fractions:
+#   English (active by default): 12%,23%
+#   العربية:                     10%,30%
+#
+# Default action: none (capture). Pass LANG=ar to switch to Arabic/RTL, en to
+# switch back.
+#
+# Params: APP_ID; LANG (none|en|ar, default none); SHOT.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  LANG: none
+  SHOT: language-settings
+---
+- waitForAnimationToEnd:
+    timeout: 2000
+- takeScreenshot: "${SHOT}"
+- runFlow:
+    when: { true: "${LANG == 'ar'}" }
+    commands: [ { tapOn: { point: "10%,30%" } } ]    # العربية (alt: text: "العربية")
+- runFlow:
+    when: { true: "${LANG == 'en'}" }
+    commands: [ { tapOn: { point: "12%,23%" } } ]    # English (alt: text: "English")
+- waitForAnimationToEnd:
+    timeout: 2000

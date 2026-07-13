@@ -1,0 +1,35 @@
+# PAGE OBJECT — shell-home-requests / "Everything, One Place" (Requests tab, home)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: shell. Reached by: Skip for now / Continue from profile-name.
+# This is the authenticated home. Default action: start a New Order => route
+# request-type. Bottom nav taps are exposed as params for the tour.
+#
+# Coordinate fractions of 1080x2340:
+#   New Order:        50%,81%
+#   FAB (+):          88%,74%
+#   wallet icon:      78%,8%
+#   notification bell:91%,8%
+#   avatar / help:    7%,8%
+#   nav Requests:     10%,92%
+#   nav Delivery:     31%,92%
+#   nav Dashboard:    52%,92%
+#   nav Earnings:     73%,92%
+#   nav Profile:      91%,92%
+#
+# Params:
+#   ACTION (optional) — "new_order" (default) taps New Order; "none" just captures.
+#   SHOT (optional)   — screenshot basename; default shell-home.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  SHOT: shell-home
+---
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: "${SHOT}"
+# Default: begin a new order.
+- tapOn:
+    point: "50%,81%"
+- waitForAnimationToEnd:
+    timeout: 5000

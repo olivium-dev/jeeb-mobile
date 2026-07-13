@@ -1,0 +1,24 @@
+# PAGE OBJECT — OS permission dialogs (notifications + location)
+# ─────────────────────────────────────────────────────────────────────────────
+# System dialogs (NOT Flutter) — text: selectors DO work here on every device.
+# The notification dialog pops over onboarding on fresh launch; the location
+# dialog pops on entry to client-location. Both are pre-granted by helpers/prep.sh,
+# so every tap here is optional: this page is a safety net for un-prepped devices.
+#
+# Params: APP_ID.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+---
+- tapOn:
+    text: "Allow"
+    optional: true
+- tapOn:
+    text: "While using the app"
+    optional: true
+- tapOn:
+    text: "Only this time"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 2000

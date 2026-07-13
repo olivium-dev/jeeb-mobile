@@ -1,0 +1,42 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Jeeb CUSTOMER Maestro suite — CANONICAL config
+# ─────────────────────────────────────────────────────────────────────────────
+# One reusable, indexed suite that consolidates the per-device customer
+# exploration runs (SM-S921B / SM-A33 / SM-S908B). The canonical flows live in
+# flows/; the raw per-device suites are preserved under devices/<serial>/.
+#
+# App under test (prod flavor v6, installed versionName 1.0.0):
+#   appId:  app.jeeb.mobile          launcher .MainActivity
+# Gateway (LIVE, NOT a mock):        http://192.168.2.39:10090
+# Role: customer/user only (jeeber onboarding deliberately not entered).
+#
+# DEFAULT SELECTOR MODE = COORDINATE FRACTIONS (Maestro percentage points,
+# e.g. "50%,88%"), because the prod build ships with Flutter accessibility
+# semantics UNRELIABLE (empty a11y tree on S921B/S908B; present-but-idless on
+# A33). Percentages are resolution-independent so one flow drives every device.
+# Each page object carries a commented text:/id: alternative where the A33
+# semantics evidence proved one works. See INDEX.md for the full story.
+#
+# Shared parameters (each flow re-declares these under its own env: block so it
+# runs standalone; the defaults below are the human/CI reference):
+#   APP_ID  = app.jeeb.mobile
+#   PHONE   = 71963130          # 8-digit LB mobile; the app auto-prefixes +961
+#   OTP     = <runtime>         # real 4-digit code from jeeb-otpdb (1234 NEVER works)
+#   DESC    = "Maestro automated test delivery"  # required to enable Confirm location
+#
+# Run a journey on a specific device (Maestro --device takes the serial):
+#   ~/.maestro/bin/maestro --device RFCX306JSRT test \
+#     .maestro/jeeb/flows/journeys/fastest-path.yaml \
+#     -e PHONE=71963130 -e OTP=$(.maestro/jeeb/helpers/otp.sh 71963130) \
+#     -e DESC="Maestro automated test delivery"
+#
+# See INDEX.md for the device matrix, run commands, and caveats.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: app.jeeb.mobile
+flows:
+  - "flows/journeys/*.yaml"
+env:
+  APP_ID: app.jeeb.mobile
+  PHONE: "71963130"
+  OTP: "0000"
+  DESC: "Maestro automated test delivery"

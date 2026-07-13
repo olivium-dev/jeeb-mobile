@@ -1,0 +1,65 @@
+# JOURNEY — fastest path: fresh install -> deepest solo customer state
+# ─────────────────────────────────────────────────────────────────────────────
+# The empirically fastest customer traversal to a LIVE request, composed from the
+# page objects via runFlow includes. ~13 taps (+3 text inputs), ~55s wall.
+# Deepest solo-reachable state = waiting-no-coverage ("Finding Jeebers") after
+# POST /v1/requests 201. Coordinate-mode (Flutter semantics unreliable in prod).
+#
+# OTP NOTE: pass an OTP that is CURRENTLY VALID (codes expire 5 min; dev 1234
+# NEVER works). Because the code is generated only when Send code is tapped in
+# THIS run, a bare invocation needs a still-valid pre-requested code. For a
+# hands-off live run that reads the code from jeeb-otpdb right after Send code,
+# split the run around helpers/otp.sh:
+#   ~/.maestro/bin/maestro --device <SERIAL> test ../pages/register-auth-phone.yaml -e PHONE=71963130
+#   OTP=$(../../helpers/otp.sh 71963130)
+#   ~/.maestro/bin/maestro --device <SERIAL> test fastest-path.yaml -e OTP=$OTP   # (skips re-send; or resume)
+# See INDEX.md "exact run commands".
+#
+# Params (env): APP_ID, PHONE, OTP (required valid), DESC.
+#
+# Run (pre-grant perms first to drop the 2 OS dialogs):
+#   ../../helpers/prep.sh <SERIAL>
+#   ~/.maestro/bin/maestro --device <SERIAL> test flows/journeys/fastest-path.yaml \
+#     -e PHONE=71963130 -e OTP=$(../../helpers/otp.sh 71963130) \
+#     -e DESC="Maestro automated test delivery"
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  PHONE: "71963130"
+  OTP: "0000"
+  DESC: "Maestro automated test delivery"
+tags:
+  - jeeb
+  - customer
+  - fastest-path
+---
+- launchApp:
+    clearState: true
+- runFlow:
+    file: ../pages/os-permissions.yaml
+    env: { APP_ID: "${APP_ID}" }
+- runFlow:
+    file: ../pages/onboarding.yaml
+    env: { APP_ID: "${APP_ID}", MODE: skip }
+- runFlow:
+    file: ../pages/register-auth-phone.yaml
+    env: { APP_ID: "${APP_ID}", PHONE: "${PHONE}" }
+- runFlow:
+    file: ../pages/auth-otp.yaml
+    env: { APP_ID: "${APP_ID}", OTP: "${OTP}" }
+- runFlow:
+    file: ../pages/profile-name.yaml
+    env: { APP_ID: "${APP_ID}", MODE: skip }
+- runFlow:
+    file: ../pages/shell-home.yaml
+    env: { APP_ID: "${APP_ID}", ACTION: new_order }
+- runFlow:
+    file: ../pages/request-type.yaml
+    env: { APP_ID: "${APP_ID}", TIER: flash }
+- runFlow:
+    file: ../pages/client-location.yaml
+    env: { APP_ID: "${APP_ID}", DESC: "${DESC}" }
+- runFlow:
+    file: ../pages/waiting.yaml
+    env: { APP_ID: "${APP_ID}", SHOT: fastpath-waiting-no-coverage }

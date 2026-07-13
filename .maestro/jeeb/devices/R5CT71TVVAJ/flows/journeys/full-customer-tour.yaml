@@ -1,0 +1,108 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JOURNEY: full-customer-tour — screenshot sweep of every mapped CUSTOMER screen.
+#          Phase-2 continuation (NO launchApp/clearState): continues the session
+#          parked on the OTP screen by auth-request-otp.yaml. Requires -e OTP.
+#          Jeeber-side screens are [JEEBER-SKIP] (captured but never actioned).
+# ─────────────────────────────────────────────────────────────────────────────
+# Coverage: home shell -> wallet -> notifications -> delivery/dashboard/earnings
+#           tabs -> profile -> language -> saved addresses -> address-detail ->
+#           back to home -> create-request (request-type -> location -> waiting)
+#           -> cancel back out. All assertion is visual (screenshots).
+#
+# Bottom-nav x-fractions @ y=90.5%:  Delivery 30.6% · Dashboard 51.7% ·
+#           Earnings 73.2% · Profile 91.4%.  (Requests/home tab x not mapped —
+#           we return to home with hardware Back.)
+#
+# RUN (after Phase 1 auth-request-otp + otp.sh):
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   OTP="$(.maestro/devices/R5CT71TVVAJ/helpers/otp.sh 76543201)"
+#   ~/.maestro/bin/maestro --device R5CT71TVVAJ test \
+#     -e APP_ID=app.jeeb.mobile -e OTP="$OTP" \
+#     .maestro/devices/R5CT71TVVAJ/flows/journeys/full-customer-tour.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  OTP: "0000"                       # override with -e OTP=<real 4-digit>
+  DESC: "Two coffees from the corner shop"
+  TIER_POINT: "50%,23.2%"
+---
+# ── Auth continuation -> shell home ──────────────────────────────────────────
+- runFlow:
+    file: ../pages/otp-entry.yaml
+    env:
+      OTP: "${OTP}"
+- runFlow: ../pages/name-capture.yaml
+- takeScreenshot: r5_tour_01_home_shell
+
+# ── Wallet (home wallet icon 79.2%,6.2%) then back ───────────────────────────
+- tapOn:
+    point: "79.2%,6.2%"
+- runFlow: ../pages/wallet.yaml
+- pressKey: Back
+- waitForAnimationToEnd:
+    timeout: 2000
+
+# ── Notifications (home bell 91.7%,6.2%) then back ───────────────────────────
+- tapOn:
+    point: "91.7%,6.2%"
+- runFlow: ../pages/notifications.yaml
+- pressKey: Back
+- waitForAnimationToEnd:
+    timeout: 2000
+
+# ── Bottom-nav tabs: Delivery / Dashboard / Earnings ─────────────────────────
+- tapOn:
+    point: "30.6%,90.5%"            # Delivery tab
+- runFlow: ../pages/delivery-tab.yaml
+- tapOn:
+    point: "51.7%,90.5%"            # Dashboard tab (Become a Jeeber upsell)
+- runFlow: ../pages/dashboard-tab.yaml
+- tapOn:
+    point: "73.2%,90.5%"            # Earnings tab (Become a Jeeber upsell)
+- runFlow: ../pages/earnings-tab.yaml
+
+# ── Profile -> Language -> Saved addresses -> Address detail ─────────────────
+- tapOn:
+    point: "91.4%,90.5%"            # Profile tab
+- runFlow: ../pages/profile.yaml
+- tapOn:
+    point: "50%,54.2%"             # Language
+- runFlow: ../pages/language-settings.yaml
+- pressKey: Back                    # back to profile (do NOT switch to Arabic/RTL)
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    point: "50%,61%"              # Saved addresses
+- runFlow:
+    file: ../pages/settings-addresses.yaml
+- runFlow:
+    file: ../pages/address-detail.yaml
+    env:
+      LABEL: "Home"
+      BUILDING: "Cedar Tower"
+      FLOOR: "3rd, apt 12"
+
+# ── Back to home, then the create-request deep path ──────────────────────────
+- pressKey: Back
+- pressKey: Back
+- waitForAnimationToEnd:
+    timeout: 2000
+# Return to Requests/home tab and start a new order.
+- runFlow: ../pages/home-requests-empty.yaml
+- runFlow:
+    file: ../pages/request-type.yaml
+    env:
+      TIER_POINT: "${TIER_POINT}"
+- runFlow: ../pages/location-permission.yaml
+- runFlow:
+    file: ../pages/client-location-compose.yaml
+    env:
+      DESC: "${DESC}"
+- runFlow: ../pages/waiting-no-coverage.yaml
+
+# ── Cancel the broadcast to leave a clean state ──────────────────────────────
+- tapOn:
+    point: "50%,66.8%"             # Cancel request -> cancel sheet
+- runFlow: ../pages/cancel-delivery-sheet.yaml
+- takeScreenshot: r5_tour_99_after_cancel

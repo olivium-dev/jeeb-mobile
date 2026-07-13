@@ -1,0 +1,17 @@
+# Page object: S05 -> S07 — "Continue with Google" -> Google Play sign-in
+# From the register screen (S05), tap Continue with Google (49%,38.2%, Flutter
+# coordinate). This hands off to the NATIVE Google Play sign-in UI (S07).
+# On THIS offline device S07 is a DEAD-END: "Something went wrong — You don't
+# have a network connection." On a networked device it proceeds to Google auth.
+#
+# Parameters:
+#   SHOT   — screenshot basename captured on the Google screen (e.g. google_signin)
+---
+- tapOn:
+    point: "49%,38.2%"
+- waitForAnimationToEnd
+- takeScreenshot: "${SHOT}"
+# Correctness is verified by VISION on ${SHOT} (offline dead-end = "You don't
+# have a network connection"). No structural assert here: assertVisible would
+# hard-fail on a networked device that instead shows the Google account picker,
+# and this page object must stay reusable across both network states.

@@ -1,0 +1,29 @@
+# PAGE OBJECT — Android OS permission dialogs (notifications + location)
+# ─────────────────────────────────────────────────────────────────────────────
+# These are SYSTEM dialogs (Android permission controller), NOT Flutter, so they
+# DO expose real accessibility text — text: selectors work here even though every
+# in-app screen on this build is coordinate-only. Every tap is optional so this
+# page is a no-op when helpers/grant-permissions.sh pre-granted, or when a dialog
+# simply isn't showing at this moment.
+#
+# Params: none.
+# Reached by: overlays the onboarding launch (notifications) and the
+#             request-type -> client-location transition (location).
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+---
+# POST_NOTIFICATIONS (Android 13+): the primary button reads "Allow".
+- tapOn:
+    text: "Allow"
+    optional: true
+# ACCESS_FINE_LOCATION: newer dialogs offer "While using the app" / "Only this time".
+- tapOn:
+    text: "While using the app"
+    optional: true
+- tapOn:
+    text: "Only this time"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000

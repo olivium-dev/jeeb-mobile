@@ -1,0 +1,137 @@
+# JOURNEY — full customer tour (exhaustive customer traversal)
+# ─────────────────────────────────────────────────────────────────────────────
+# Walks every CUSTOMER screen from the S921B map: auth -> home -> create a live
+# request (waiting) -> back through the cancel sheet -> every bottom-nav tab and
+# every Profile sub-page (wallet, notifications, language, notif prefs, password,
+# addresses, delivery history, jeeber-upsell tabs). Coordinate-mode.
+#
+# Because the app has no global "back to shell" button on every screen, this tour
+# re-enters shell via a fresh launch after the request leg, then fans out to the
+# tabs/sub-pages from home. Each sub-page is captured then we return home.
+#
+# Params (env): APP_ID, PHONE, OTP (required valid), DESC.
+# See INDEX.md for run commands. Onboarding uses MODE=walk to exercise all pages.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  PHONE: "71963130"
+  OTP: "0000"
+  DESC: "Maestro automated test delivery"
+tags:
+  - jeeb
+  - customer
+  - full-tour
+---
+# ---- Auth (walk onboarding to exercise all 3 pages) ----
+- launchApp:
+    clearState: true
+- runFlow:
+    file: ../pages/os-permissions.yaml
+    env: { APP_ID: "${APP_ID}" }
+- runFlow:
+    file: ../pages/onboarding.yaml
+    env: { APP_ID: "${APP_ID}", MODE: walk }
+- runFlow:
+    file: ../pages/register-auth-phone.yaml
+    env: { APP_ID: "${APP_ID}", PHONE: "${PHONE}" }
+- runFlow:
+    file: ../pages/auth-otp.yaml
+    env: { APP_ID: "${APP_ID}", OTP: "${OTP}" }
+- runFlow:
+    file: ../pages/profile-name.yaml
+    env: { APP_ID: "${APP_ID}", MODE: skip }
+# ---- Create a live request, reach waiting, open+dismiss cancel sheet ----
+- runFlow:
+    file: ../pages/shell-home.yaml
+    env: { APP_ID: "${APP_ID}", ACTION: new_order }
+- runFlow:
+    file: ../pages/request-type.yaml
+    env: { APP_ID: "${APP_ID}", TIER: flash }
+- runFlow:
+    file: ../pages/client-location.yaml
+    env: { APP_ID: "${APP_ID}", DESC: "${DESC}" }
+- runFlow:
+    file: ../pages/waiting.yaml
+    env: { APP_ID: "${APP_ID}", ACTION: cancel, SHOT: tour-waiting }
+- runFlow:
+    file: ../pages/cancel-delivery-sheet.yaml
+    env: { APP_ID: "${APP_ID}", CONFIRM: "false" }   # Keep delivery (non-destructive)
+# ---- Re-enter shell and fan out to every tab / sub-page ----
+- launchApp:
+    clearState: false            # session persists; lands back on shell
+- runFlow:
+    file: ../pages/shell-home.yaml
+    env: { APP_ID: "${APP_ID}", ACTION: wallet }
+- runFlow:
+    file: ../pages/wallet.yaml
+    env: { APP_ID: "${APP_ID}" }
+- launchApp: { clearState: false }
+- runFlow:
+    file: ../pages/shell-home.yaml
+    env: { APP_ID: "${APP_ID}", ACTION: bell }
+- runFlow:
+    file: ../pages/notifications.yaml
+    env: { APP_ID: "${APP_ID}" }
+- launchApp: { clearState: false }
+- runFlow:
+    file: ../pages/shell-home.yaml
+    env: { APP_ID: "${APP_ID}", ACTION: delivery }
+- runFlow:
+    file: ../pages/tab-delivery.yaml
+    env: { APP_ID: "${APP_ID}", SUBTAB: active }
+- launchApp: { clearState: false }
+- runFlow:
+    file: ../pages/shell-home.yaml
+    env: { APP_ID: "${APP_ID}", ACTION: dashboard }
+- runFlow:
+    file: ../pages/tab-become-jeeber.yaml
+    env: { APP_ID: "${APP_ID}", SHOT: tour-dashboard-upsell }
+- launchApp: { clearState: false }
+- runFlow:
+    file: ../pages/shell-home.yaml
+    env: { APP_ID: "${APP_ID}", ACTION: earnings }
+- runFlow:
+    file: ../pages/tab-become-jeeber.yaml
+    env: { APP_ID: "${APP_ID}", SHOT: tour-earnings-upsell }
+# ---- Profile + its sub-pages ----
+- launchApp: { clearState: false }
+- runFlow:
+    file: ../pages/shell-home.yaml
+    env: { APP_ID: "${APP_ID}", ACTION: profile }
+- runFlow:
+    file: ../pages/tab-profile.yaml
+    env: { APP_ID: "${APP_ID}", ACTION: language }
+- runFlow:
+    file: ../pages/language-settings.yaml
+    env: { APP_ID: "${APP_ID}" }
+- launchApp: { clearState: false }
+- runFlow:
+    file: ../pages/shell-home.yaml
+    env: { APP_ID: "${APP_ID}", ACTION: profile }
+- runFlow:
+    file: ../pages/tab-profile.yaml
+    env: { APP_ID: "${APP_ID}", ACTION: notifications }
+- runFlow:
+    file: ../pages/settings-notifications.yaml
+    env: { APP_ID: "${APP_ID}" }
+- launchApp: { clearState: false }
+- runFlow:
+    file: ../pages/shell-home.yaml
+    env: { APP_ID: "${APP_ID}", ACTION: profile }
+- runFlow:
+    file: ../pages/tab-profile.yaml
+    env: { APP_ID: "${APP_ID}", ACTION: password }
+- runFlow:
+    file: ../pages/password-security.yaml
+    env: { APP_ID: "${APP_ID}" }
+- launchApp: { clearState: false }
+- runFlow:
+    file: ../pages/shell-home.yaml
+    env: { APP_ID: "${APP_ID}", ACTION: profile }
+- runFlow:
+    file: ../pages/tab-profile.yaml
+    env: { APP_ID: "${APP_ID}", ACTION: addresses }
+- runFlow:
+    file: ../pages/settings-addresses.yaml
+    env: { APP_ID: "${APP_ID}" }
