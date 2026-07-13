@@ -6,6 +6,7 @@ import '../../../l10n/app_localizations.dart';
 import 'social_auth_cubit.dart';
 import 'social_auth_error.dart';
 import 'social_auth_state.dart';
+import 'social_collision_sheet.dart';
 import 'social_provider.dart';
 import 'social_sign_in_button.dart';
 
@@ -32,7 +33,7 @@ class SocialSignInSection extends StatelessWidget {
     return BlocConsumer<SocialAuthCubit, SocialAuthState>(
       listenWhen: (prev, curr) =>
           prev.status != curr.status || prev.error != curr.error,
-      listener: (context, state) {
+      listener: (context, state) async {
         if (state.status == SocialAuthStatus.failed && state.error != null) {
           final message = _errorCopy(state.error!, l10n);
           // EXEMPT(omds-snackbar): OMDS ships `showOmdsErrorSnackbar` for
@@ -42,6 +43,16 @@ class SocialSignInSection extends StatelessWidget {
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
           showOmdsErrorSnackbar(context, message: message);
           context.read<SocialAuthCubit>().clearError();
+        }
+        if (state.status == SocialAuthStatus.collision) {
+          // D22 (JM-019): the gateway returned 409 email_collision — the social
+          // email is already registered another way. Block the second method
+          // with an explicit prompt (identity linking is user-management's,
+          // GR-2), then reset so the buttons are tappable and the sheet does
+          // not re-fire on the next rebuild.
+          final cubit = context.read<SocialAuthCubit>();
+          await showSocialCollisionSheet(context);
+          cubit.acknowledgeCollision();
         }
         if (state.status == SocialAuthStatus.authenticated) {
           onAuthenticated?.call(state);

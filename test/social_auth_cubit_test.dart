@@ -174,6 +174,32 @@ void main() {
       ],
     );
 
+    blocTest<SocialAuthCubit, SocialAuthState>(
+      'D22: a 409 collision emits the collision state and does NOT persist',
+      build: build,
+      setUp: () {
+        when(() => service.signIn(SocialProvider.google)).thenAnswer(
+          (_) async => const SocialAuthFailure(SocialAuthError.collision),
+        );
+      },
+      act: (c) => c.signInWith(SocialProvider.google),
+      skip: 1,
+      expect: () => [
+        predicate<SocialAuthState>(
+          (s) =>
+              s.status == SocialAuthStatus.collision &&
+              s.isCollision &&
+              s.error == SocialAuthError.collision &&
+              s.activeProvider == SocialProvider.google,
+        ),
+      ],
+      verify: (_) {
+        // Identity linking is user-management's (GR-2); the client never
+        // persists a session on a blocked second method.
+        expect(store.saveCalls, 0);
+      },
+    );
+
     test('ignores a second tap while a sign-in is in flight', () async {
       final completer = Completer<SocialAuthResult>();
       when(() => service.signIn(SocialProvider.google))
@@ -220,6 +246,35 @@ void main() {
       build: build,
       seed: () => const SocialAuthState(status: SocialAuthStatus.idle),
       act: (c) => c.clearError(),
+      expect: () => const <SocialAuthState>[],
+    );
+  });
+
+  group('acknowledgeCollision', () {
+    blocTest<SocialAuthCubit, SocialAuthState>(
+      'resets a collision state back to idle so the buttons re-arm',
+      build: build,
+      seed: () => const SocialAuthState(
+        status: SocialAuthStatus.collision,
+        activeProvider: SocialProvider.google,
+        error: SocialAuthError.collision,
+      ),
+      act: (c) => c.acknowledgeCollision(),
+      expect: () => [
+        predicate<SocialAuthState>(
+          (s) =>
+              s.status == SocialAuthStatus.idle &&
+              s.error == null &&
+              !s.isCollision,
+        ),
+      ],
+    );
+
+    blocTest<SocialAuthCubit, SocialAuthState>(
+      'is a no-op when the state is not a collision',
+      build: build,
+      seed: () => const SocialAuthState(status: SocialAuthStatus.idle),
+      act: (c) => c.acknowledgeCollision(),
       expect: () => const <SocialAuthState>[],
     );
   });
