@@ -1509,6 +1509,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get orderHistoryTabActive => _get('orderHistoryTabActive');
   String get orderHistoryTabCancelled => _get('orderHistoryTabCancelled');
   String get orderHistoryTabCompleted => _get('orderHistoryTabCompleted');
+  String get registrationSocialCollisionTitle => _get('registrationSocialCollisionTitle');
+  String get registrationSocialCollisionBody => _get('registrationSocialCollisionBody');
+  String get registrationSocialCollisionDismiss => _get('registrationSocialCollisionDismiss');
   String get registrationSocialErrorAccountDisabled => _get('registrationSocialErrorAccountDisabled');
   String get registrationSocialErrorGeneric => _get('registrationSocialErrorGeneric');
   String get registrationSocialErrorInvalidToken => _get('registrationSocialErrorInvalidToken');

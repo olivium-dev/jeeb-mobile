@@ -2825,6 +2825,18 @@
   "orderHistoryTabActive": "Active",
   "orderHistoryTabCancelled": "Cancelled",
   "orderHistoryTabCompleted": "Completed",
+  "registrationSocialCollisionTitle": "You already have an account",
+  "@registrationSocialCollisionTitle": {
+    "description": "Title of the D22 block-second-method sheet shown when a social sign-in email is already registered another way."
+  },
+  "registrationSocialCollisionBody": "This email is already registered with a different sign-in method. Please sign in the way you did the first time.",
+  "@registrationSocialCollisionBody": {
+    "description": "Body of the D22 block-second-method sheet explaining that the account exists and to use the original sign-in method."
+  },
+  "registrationSocialCollisionDismiss": "Got it",
+  "@registrationSocialCollisionDismiss": {
+    "description": "Dismiss button on the D22 block-second-method sheet."
+  },
   "registrationSocialErrorAccountDisabled": "This account isn't allowed to sign in. Contact support.",
   "registrationSocialErrorGeneric": "Something went wrong. Please try again.",
   "registrationSocialErrorInvalidToken": "We couldn't verify your account. Please try again.",
