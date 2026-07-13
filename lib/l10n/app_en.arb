@@ -447,6 +447,8 @@
   "notificationCategoryChatSubtitle": "New messages from your Jeeber",
   "notificationCategoryStatus": "Order status",
   "notificationCategoryStatusSubtitle": "Pickup, hand-off, and delivery alerts",
+  "notificationCategoryWallet": "Wallet",
+  "notificationCategoryWalletSubtitle": "Top-ups, refunds, and balance updates",
   "notificationCategoryRatingReminders": "Rating reminders",
   "notificationCategoryRatingRemindersSubtitle": "Reminders to rate completed deliveries",
   "notificationCategoryOtp": "Security codes",
@@ -2138,7 +2140,11 @@
   },
   "offersErrorGeneric": "Something went wrong accepting this offer. Please try again.",
   "@offersErrorGeneric": {
-    "description": "Inline error banner copy for unclassified acceptance failures"
+    "description": "Inline error banner copy for unclassified acceptance failures (accept phase only)"
+  },
+  "offersLoadErrorGeneric": "Couldn't load offers. Please try again.",
+  "@offersLoadErrorGeneric": {
+    "description": "Full-screen error copy when the offers list itself fails to load (load phase; never mentions 'accepting')"
   },
   "offersAcceptedBannerTitle": "Offer accepted",
   "@offersAcceptedBannerTitle": {

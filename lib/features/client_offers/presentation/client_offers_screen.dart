@@ -129,7 +129,11 @@ class _ClientOffersView extends StatelessWidget {
               case OffersScreenStatus.failed:
                 return OmdsErrorState(
                   key: const Key('offer-load-error'),
-                  message: _errorCopy(l10n, state.error),
+                  message: offersFailureCopy(
+                    l10n,
+                    state.error,
+                    phase: OffersErrorPhase.load,
+                  ),
                   retryLabel: l10n.offersRetryAction,
                   onRetry: () => context.read<ClientOffersCubit>().refresh(),
                 );
@@ -150,21 +154,6 @@ class _ClientOffersView extends StatelessWidget {
     );
   }
 
-  static String _errorCopy(AppLocalizations l10n, OffersFailure? failure) {
-    switch (failure) {
-      case OffersFailure.network:
-        return l10n.offersErrorNetwork;
-      case OffersFailure.requestNotOpen:
-        return l10n.offersErrorRequestNotOpen;
-      case OffersFailure.offerNotPending:
-        return l10n.offersErrorOfferNotPending;
-      case OffersFailure.jeeberAtCapacity:
-        return l10n.offersErrorJeeberAtCapacity;
-      case OffersFailure.unknown:
-      case null:
-        return l10n.offersErrorGeneric;
-    }
-  }
 }
 
 class _LoadedBody extends StatelessWidget {
@@ -221,7 +210,11 @@ class _LoadedBody extends StatelessWidget {
           if (state.error != null) ...[
             const SizedBox(height: Spacing.small),
             _ErrorBanner(
-              message: _errorCopyFor(l10n, state.error!),
+              message: offersFailureCopy(
+                l10n,
+                state.error!,
+                phase: OffersErrorPhase.accept,
+              ),
               onDismiss: () =>
                   context.read<ClientOffersCubit>().acknowledgeError(),
             ),
@@ -356,19 +349,37 @@ class _LoadedBody extends StatelessWidget {
     );
   }
 
-  static String _errorCopyFor(AppLocalizations l10n, OffersFailure failure) {
-    switch (failure) {
-      case OffersFailure.network:
-        return l10n.offersErrorNetwork;
-      case OffersFailure.requestNotOpen:
-        return l10n.offersErrorRequestNotOpen;
-      case OffersFailure.offerNotPending:
-        return l10n.offersErrorOfferNotPending;
-      case OffersFailure.jeeberAtCapacity:
-        return l10n.offersErrorJeeberAtCapacity;
-      case OffersFailure.unknown:
-        return l10n.offersErrorGeneric;
-    }
+}
+
+/// Which phase of the offer-review flow raised the failure — the classified
+/// branches share copy, only the unclassified/`unknown` fallback is
+/// phase-specific (F9): a load failure must never say "accepting".
+enum OffersErrorPhase { load, accept }
+
+/// Single shared source of truth for offer-review failure copy (F9). Both the
+/// full-screen load error ([OmdsErrorState]) and the inline accept banner route
+/// through here so the five [OffersFailure] strings stay consistent; only the
+/// generic fallback diverges by [phase].
+String offersFailureCopy(
+  AppLocalizations l10n,
+  OffersFailure? failure, {
+  required OffersErrorPhase phase,
+}) {
+  switch (failure) {
+    case OffersFailure.network:
+      return l10n.offersErrorNetwork;
+    case OffersFailure.requestNotOpen:
+      return l10n.offersErrorRequestNotOpen;
+    case OffersFailure.offerNotPending:
+      return l10n.offersErrorOfferNotPending;
+    case OffersFailure.jeeberAtCapacity:
+      return l10n.offersErrorJeeberAtCapacity;
+    case OffersFailure.unknown:
+    case null:
+      return switch (phase) {
+        OffersErrorPhase.load => l10n.offersLoadErrorGeneric,
+        OffersErrorPhase.accept => l10n.offersErrorGeneric,
+      };
   }
 }
 
