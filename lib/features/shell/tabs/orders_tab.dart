@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/di/injection_container.dart';
-import '../../../core/role/role_availability_cubit.dart';
 import '../../../core/role/role_cubit.dart';
 import '../../../core/role/user_role.dart';
 import '../../order_history/application/order_history_cubit.dart';
@@ -51,23 +50,27 @@ class OrdersTab extends StatelessWidget {
     );
   }
 
-  /// True when the signed-in user is acting as a jeeber. Two signals, either of
-  /// which is sufficient:
-  ///  * the active [UserRole] is `jeeber` ([RoleCubit]) — persisted and known
-  ///    SYNCHRONOUSLY at first build for a returning jeeber, so their Delivery
-  ///    tab loads deliveries immediately with no customer-list flash; and
-  ///  * the user holds the `jeeber` capability ([RoleAvailabilityCubit], from
-  ///    getMe `available_roles`) — covers the dual-role user and a fresh login
-  ///    whose active role resolves a beat after the shell first builds.
+  /// True when the signed-in user is ACTIVELY acting as a jeeber — the single
+  /// axis the Delivery-tab scope keys on (F6 / JEBV4-303 role-bleed fix).
   ///
-  /// A pure customer is neither (RoleSync only ever adopts `jeeber` when it is
-  /// an allowed role), so [_resolveRepository] keeps the `/v1/requests` path.
-  /// Nullable reads keep bare widget tests (no role providers wired) on the
-  /// customer path instead of throwing a ProviderNotFound.
+  /// Source of truth is the active [UserRole] ([RoleCubit]) — persisted and
+  /// known SYNCHRONOUSLY at first build for a returning jeeber, and set from the
+  /// gateway `active_role` by [RoleSync] on login/resume. Only an active jeeber
+  /// loads the jeeber JOB feed (`/v1/deliveries?role=jeeber`); a client — a pure
+  /// customer OR a DUAL-ROLE user acting as client — loads only their own
+  /// requests (`/v1/requests`, role=client scope).
+  ///
+  /// Deliberately does NOT fall back to the `jeeber` CAPABILITY
+  /// (`RoleAvailabilityCubit` / `available_roles`): a dual-role account browsing
+  /// as a customer HOLDS the jeeber capability, and OR-ing it in leaked the
+  /// jeeber job feed onto the customer's Delivery tab (the A33 role-bleed). The
+  /// Dashboard/Earnings jeeber tabs keep their capability-based visibility
+  /// (documented product decision); only the Delivery-tab list is active-role
+  /// scoped. A returning jeeber's role is persisted so there is no client-list
+  /// flash; a fresh jeeber login re-keys the cubit once `active_role` resolves.
+  /// Nullable read keeps bare widget tests (no RoleCubit) on the customer path.
   bool _actingAsJeeber(BuildContext context) {
-    if (context.watch<RoleCubit?>()?.state == UserRole.jeeber) return true;
-    final roles = context.watch<RoleAvailabilityCubit?>()?.state.roles;
-    return roles?.contains('jeeber') ?? false;
+    return context.watch<RoleCubit?>()?.state == UserRole.jeeber;
   }
 
   OrderRepository _resolveRepository(bool actingAsJeeber) {

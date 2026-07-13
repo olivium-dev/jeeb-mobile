@@ -2257,4 +2257,13 @@ extension AppLocalizationsRestored on AppLocalizations {
 
   // JEBV4-108: honest 401-at-create handling (session expiry → re-auth)
   String get createSessionExpired => _get('createSessionExpired');
+
+  // F6 / JEBV4-303 customer-wallet stub (role-bleed): the customer-appropriate
+  // wallet surface the top-bar wallet chip routes a client to.
+  String get customerWalletStubTitle => _get('customerWalletStubTitle');
+  String get customerWalletStubHeadline => _get('customerWalletStubHeadline');
+  String get customerWalletStubBody => _get('customerWalletStubBody');
+  String get customerWalletStubCodTitle => _get('customerWalletStubCodTitle');
+  String get customerWalletStubCodBody => _get('customerWalletStubCodBody');
+  String get customerWalletStubDoneCta => _get('customerWalletStubDoneCta');
 }
