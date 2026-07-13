@@ -29,6 +29,14 @@ import '../request_summary/data/dio_request_submission_service.dart';
 import '../request_summary/domain/recipient_phone_resolver.dart';
 import 'dev_chat_detail_fixtures.dart';
 
+/// Canonical post-delivery blind mutual-rating route (T-MOB-020). Mirrors the
+/// builder the OTP-handover completion uses (`otp_handover_screen.dart`): the
+/// client leg carries no `mode`, the jeeber leg appends `?mode=jeeber`, and the
+/// router resolves `isClient = mode != 'jeeber'`. Kept as a tiny local helper
+/// so this screen never hard-codes the audience suffix in two places.
+String _mutualRateRoute(String deliveryId, {required bool isClient}) =>
+    '/orders/$deliveryId/mutual-rate${isClient ? '' : '?mode=jeeber'}';
+
 /// Deep-link entry point for `/chat/:id` — the `order-chat` surface (JM-025).
 ///
 /// The route param can be a conversation id **or** a delivery/request id.
@@ -123,6 +131,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   /// leaving/reopening the chat. Null until the client-accepted resolution
   /// starts it; cancelled in [dispose] and once the delivery is terminal.
   Timer? _summaryPollTimer;
+
+  /// One-shot guard for the delivery-complete → mutual-rating auto-navigation.
+  /// Set the first time the polled delivery status reaches a delivered-class
+  /// terminal (Done/delivered/completed) so a re-emit / late poll tick can't
+  /// push the rating route twice, and so a completion that already routed the
+  /// user (e.g. via the OTP-handover leg) is never double-pushed from here.
+  bool _ratingNavFired = false;
 
   ChatGateway? _gateway;
   bool _loading = true;
@@ -529,6 +544,41 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       _summaryPollTimer?.cancel();
       _summaryPollTimer = null;
     }
+    // Delivery just completed while the client is sitting on the order-chat.
+    // Advance to the MANDATORY blind mutual-rating (the SAME canonical
+    // post-delivery route the OTP-handover and jeeber active-delivery
+    // completions use), so the client is never stranded on a finished chat
+    // with no forward path. Delivered-class only (Done/delivered/completed) —
+    // a cancelled/expired/disputed terminal must NOT open the rating screen.
+    if (_isDeliveredStatus(next.statusId)) {
+      _navigateToRatingOnce();
+    }
+  }
+
+  /// Navigate to the blind mutual-rating screen exactly once when the delivery
+  /// this chat is bound to reaches a delivered-class terminal status while the
+  /// client is on the thread. Guarded so a re-emit / late poll tick can't push
+  /// twice, and short-circuited when the screen was already popped.
+  void _navigateToRatingOnce() {
+    if (_ratingNavFired || !mounted) return;
+    _ratingNavFired = true;
+    // Pick the leg from the app-global role (client → no `mode`, jeeber →
+    // `?mode=jeeber`); the summary poll only runs for the client-accepted
+    // surface, so this resolves the client leg in practice, but reading the
+    // role keeps the leg correct if the observation ever widens.
+    final isJeeber = _readRole(context) == UserRole.jeeber;
+    context.go(_mutualRateRoute(_deliveryId, isClient: !isJeeber));
+  }
+
+  /// True when a delivery lifecycle status is a SUCCESSFUL delivery completion
+  /// (Done/delivered/completed) — the subset of [_isTerminalStatus] that earns
+  /// a rating. Cancelled/expired/disputed/failed terminals are deliberately
+  /// excluded (no rating for a non-delivered order). Tolerant of the
+  /// CapitalCase, snake_case, and legacy aliases the wire can carry.
+  static bool _isDeliveredStatus(String? statusId) {
+    if (statusId == null || statusId.isEmpty) return false;
+    const delivered = <String>{'done', 'delivered', 'completed'};
+    return delivered.contains(statusId.toLowerCase().replaceAll('_', ''));
   }
 
   /// True when a delivery lifecycle status is terminal (Done/delivered/
