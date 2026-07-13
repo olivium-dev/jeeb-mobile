@@ -93,6 +93,50 @@ void main() {
     expect(adapter.callCount, 2);
   });
 
+  test(
+      'a concurrent 2xx does NOT wipe an open Retry-After window '
+      '(BUG-C fan-out storm regression)', () async {
+    // Reproduces the run-26 storm: the customer-home poll fires many reads
+    // near-simultaneously. When the gateway rate limits, ONE of the batch 429s
+    // and opens the back-off window, but the OTHER in-flight reads — which
+    // passed onRequest before the window opened — land as 2xx a moment later.
+    // The OLD onResponse cleared the window on any 2xx, so that trailing success
+    // wiped the pause and the next scheduled poll immediately re-hammered the
+    // still rate-limited gateway. The window must now stand for the full
+    // Retry-After regardless of concurrent successes.
+    final adapter = _ScriptedAdapter((opts) {
+      if (opts.path == '/req429') return _body(429, headers: {'retry-after': ['30']});
+      return _body(200); // /req200 (the concurrent success) and /poll
+    });
+    final dio = buildDio(adapter);
+
+    // Fire the 429-bound read and a sibling success CONCURRENTLY: both pass
+    // onRequest (window still closed — the 429's onError runs only after its
+    // async adapter resolves) and both reach the wire.
+    final f429 = dio.get<dynamic>('/req429');
+    final f200 = dio.get<dynamic>('/req200');
+    await expectLater(f429, throwsA(isA<DioException>()));
+    final ok = await f200;
+    expect(ok.statusCode, 200);
+    expect(adapter.callCount, 2, reason: 'both concurrent reads hit the wire');
+
+    // The trailing 2xx must NOT have cleared the window: a poll fired inside the
+    // still-open 30s window is short-circuited locally and never reaches the
+    // wire. (Under the old clear-on-2xx logic this read would have hit the wire.)
+    await expectLater(
+      dio.get<dynamic>('/poll'),
+      throwsA(isA<DioException>()),
+    );
+    expect(adapter.callCount, 2,
+        reason: 'window still open after a concurrent success — poll suppressed');
+
+    // And it still self-heals once Retry-After elapses.
+    now = now.add(const Duration(seconds: 31));
+    final resumed = await dio.get<dynamic>('/poll');
+    expect(resumed.statusCode, 200);
+    expect(adapter.callCount, 3);
+  });
+
   test('writes (POST) are NEVER suppressed by the back-off window', () async {
     final adapter = _ScriptedAdapter(
       (opts) => opts.method == 'GET' && opts.path == '/requests'
