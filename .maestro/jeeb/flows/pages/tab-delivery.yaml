@@ -1,0 +1,32 @@
+# PAGE OBJECT — Delivery tab / order history (Active | Completed | Cancelled)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: shell (Delivery tab — IndexedStack child, no route push).
+# Reached by: bottom-nav Delivery. Shows the customer's order history with a
+# date filter and three status sub-tabs.
+#
+# Coordinate fractions:
+#   Filter by date: 50%,8%
+#   Active tab:     17%,14%
+#   Completed tab:  50%,14%
+#   Cancelled tab:  83%,14%
+#
+# Params: APP_ID; SUBTAB (active|completed|cancelled, default active); SHOT.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  SUBTAB: active
+  SHOT: tab-delivery
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${SHOT}"
+- runFlow:
+    when: { true: "${SUBTAB == 'completed'}" }
+    commands: [ { tapOn: { point: "50%,14%" } } ]
+- runFlow:
+    when: { true: "${SUBTAB == 'cancelled'}" }
+    commands: [ { tapOn: { point: "83%,14%" } } ]
+- waitForAnimationToEnd:
+    timeout: 2000
+- takeScreenshot: "${SHOT}_${SUBTAB}"

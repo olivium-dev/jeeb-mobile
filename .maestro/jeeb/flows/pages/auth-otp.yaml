@@ -1,0 +1,38 @@
+# PAGE OBJECT — "Enter the code" (OTP entry + verify)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: register (OTP step). Reached by: Send code.
+# Types the real 4-digit OTP (read from jeeb-otpdb by helpers/otp.sh; dev 1234
+# NEVER works). Typing auto-fills the 4 boxes; on some builds the 4th digit
+# auto-submits, on others a Verify tap is needed — so we type, then tap Verify
+# (the tap is harmless if already submitted) => POST /v1/auth/otp/verify 200
+# => route profile-name.
+#
+# Coordinate fractions:
+#   OTP box row (focus): 50%,28%
+#   Verify:              50%,38%
+#   Resend:              50%,45%
+#   Change phone number: 50%,51%
+#
+# Params: APP_ID; OTP (required, currently valid); SHOT.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  OTP: "0000"
+  SHOT: auth-otp
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${SHOT}"
+- tapOn:
+    point: "50%,28%"          # focus the OTP box row
+- inputText: "${OTP}"         # auto-fills the 4 boxes
+- hideKeyboard
+- waitForAnimationToEnd:
+    timeout: 1500
+# Verify tap — harmless if the 4th digit already auto-submitted.
+- tapOn:
+    point: "50%,38%"          # Verify  (alt: - tapOn: { text: "Verify" })
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: "${SHOT}_verified"

@@ -1,0 +1,43 @@
+# PAGE OBJECT — register / "Enter your phone" (auth entry, Send code)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: register. Reached by: Skip/Get Started from onboarding.
+# Types the 8-digit LB mobile (app auto-prefixes +961), hides the keyboard, taps
+# Send code => POST /v1/auth/otp/request 200 => the "Enter the code" OTP screen.
+#
+# Coordinate fractions:
+#   Continue with Google: 50%,42%
+#   Phone field:          50%,59%
+#   Send code:            50%,67%
+#
+# GOTCHA (all devices): `adb`/Maestro inputText can drop or duplicate a digit and
+# a stray tap can land a digit mid-string. We eraseText first so re-runs on a
+# dirty field are safe, then type.
+#
+# DUAL-SELECTOR (A33 semantics-on proved these): swap point for
+#   - tapOn: { text: "Send code" }              # A33-proven
+#   - phone field: tapOn: { id: "phone" } once real ids ship.
+# Requested real ids: phone field, Send code.
+#
+# Params: APP_ID; PHONE; SHOT.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  PHONE: "71963130"
+  SHOT: register
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${SHOT}"
+- tapOn:
+    point: "50%,59%"          # phone field (alt: id/text once semantics ship)
+- eraseText: 20
+- inputText: "${PHONE}"
+- hideKeyboard
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: "${SHOT}_filled"
+- tapOn:
+    point: "50%,67%"          # Send code  (alt: - tapOn: { text: "Send code" })
+- waitForAnimationToEnd:
+    timeout: 4000

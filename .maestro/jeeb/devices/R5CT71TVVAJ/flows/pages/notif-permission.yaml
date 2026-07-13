@@ -1,0 +1,13 @@
+# PAGE OBJECT: notif-permission — "Allow Jeeb to send you notifications?" (system).
+# Reached by: app launch overlay. This is Android SYSTEM UI (not Flutter), so its
+# text IS matchable even though the app exports no semantics -> use text + optional
+# (robust to the dialog not appearing, e.g. already granted or OS-suppressed).
+# Params: none. Coordinate fallback: Allow 50%,81.2% / Don't allow 50%,87.5%.
+---
+- tapOn:
+    text: "Allow"
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 3000
+# Coordinate fallback if the text matcher ever misses on this OEM skin:
+# - tapOn: { point: "50%,81.2%" }   # Allow

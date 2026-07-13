@@ -1,0 +1,43 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JOURNEY: after-otp — Phase 2 of the two-phase login + the rest of the fastest
+#          path to the DEEPEST state (waiting / "Finding a Jeeber").
+#          Does NOT launchApp/clearState — it CONTINUES the session parked on the
+#          OTP screen by auth-request-otp.yaml (Phase 1). Requires -e OTP=<code>.
+# ─────────────────────────────────────────────────────────────────────────────
+# Sequence: input OTP (auto-submit /v1/auth/otp/verify 200) -> skip name -> shell
+#           -> New Order -> Flash + Continue -> grant location -> describe +
+#           Confirm (POST /v1/requests 201) -> waiting-no-coverage.
+#
+# RUN (after Phase 1 + otp.sh):
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   OTP="$(.maestro/devices/R5CT71TVVAJ/helpers/otp.sh 76543201)"
+#   ~/.maestro/bin/maestro --device R5CT71TVVAJ test \
+#     -e APP_ID=app.jeeb.mobile -e OTP="$OTP" \
+#     -e DESC="Two coffees from the corner shop" \
+#     .maestro/devices/R5CT71TVVAJ/flows/journeys/after-otp.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  OTP: "0000"                       # override with -e OTP=<real 4-digit>
+  DESC: "Two coffees from the corner shop"
+  TIER_POINT: "50%,23.2%"           # Flash tier
+---
+# NOTE: intentionally NO launchApp here — continue the Phase-1 session.
+- runFlow:
+    file: ../pages/otp-entry.yaml
+    env:
+      OTP: "${OTP}"
+- runFlow: ../pages/name-capture.yaml
+- takeScreenshot: r5_home_shell
+- runFlow: ../pages/home-requests-empty.yaml
+- runFlow:
+    file: ../pages/request-type.yaml
+    env:
+      TIER_POINT: "${TIER_POINT}"
+- runFlow: ../pages/location-permission.yaml
+- runFlow:
+    file: ../pages/client-location-compose.yaml
+    env:
+      DESC: "${DESC}"
+- runFlow: ../pages/waiting-no-coverage.yaml

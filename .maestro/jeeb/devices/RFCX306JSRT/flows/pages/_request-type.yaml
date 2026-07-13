@@ -1,0 +1,30 @@
+# PAGE OBJECT — request-type / "Choose your request" (tiers)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: request-type. Reached by: New Order or FAB from shell => GET /tiers 200.
+# Flash tier is pre-selected, so the fast path only taps Continue => route
+# client-location. Express/Standard rows are exposed for the tour.
+#
+# Coordinate fractions of 1080x2340:
+#   Flash radio (row):  50%,26%   (pre-selected)
+#   Express (row):      50%,38%
+#   Standard (row):     50%,51%
+#   Change Location:    72%,71%
+#   Continue:           50%,87%
+#
+# Params:
+#   TIER (optional) — "flash" (default, no tap needed), "express", or "standard".
+#   SHOT (optional) — screenshot basename; default request-type.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  SHOT: request-type
+---
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: "${SHOT}"
+# Flash is pre-selected; fast path proceeds directly.
+- tapOn:
+    point: "50%,87%"
+- waitForAnimationToEnd:
+    timeout: 5000

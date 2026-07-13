@@ -1,0 +1,27 @@
+# PAGE OBJECT — Saved addresses ("No saved addresses yet")
+# ─────────────────────────────────────────────────────────────────────────────
+# route: settings-addresses (pushed with prev:"shell"). Reached by:
+# Profile -> Saved addresses. Empty for a fresh user.
+#
+# Coordinate fractions:
+#   Add new location: 70%,88%   (-> address-detail form)
+#   Back arrow:       8%,8%
+#
+# Default action: none (capture). Pass ACTION=add to open the new-address form.
+#
+# Params: APP_ID; ACTION (none|add, default none); SHOT.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  ACTION: none
+  SHOT: settings-addresses
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${SHOT}"
+- runFlow:
+    when: { true: "${ACTION == 'add'}" }
+    commands: [ { tapOn: { point: "70%,88%" } } ]      # Add new location
+- waitForAnimationToEnd:
+    timeout: 2000

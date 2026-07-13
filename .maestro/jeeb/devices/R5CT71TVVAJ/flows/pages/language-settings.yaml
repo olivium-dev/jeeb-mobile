@@ -1,0 +1,11 @@
+# PAGE OBJECT: language-settings — English / العربية.
+# Reached by: Profile -> Language. Coordinate taps (no semantics).
+# Params: none. Captures the language screen (English active by default).
+# CTAs: English 50%,20.7% / Arabic 50%,27.5% / Back 8.3%,6.7%.
+# WARNING: tapping Arabic flips the app to RTL — every point selector here mirrors
+#          horizontally. Only switch locale in a dedicated RTL journey, never mid
+#          a happy-path run that expects LTR coordinates.
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: r5_language_settings

@@ -1,0 +1,24 @@
+# PAGE OBJECT — Notification preferences (Offers / Order status / Wallet / Rating)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: settings-notifications (pushed with prev:"shell"). Reached by:
+# Profile -> Notification. => GET /v1/notifications/preferences 200 (~1.6s SLOW,
+# see BUGS.md #2). Four category toggles; "Security codes" is locked.
+# NOTE: two subtitles are wrong copy — see BUGS.md #4.
+#
+# Coordinate fractions:
+#   Category toggles (right-aligned switches): ~87%, y-per-row
+#   Back arrow: 8%,8%
+#
+# Default action: none (capture). Toggling a preference is param-gated to avoid
+# mutating the account's notification settings by default.
+#
+# Params: APP_ID; SHOT.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  SHOT: settings-notifications
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${SHOT}"

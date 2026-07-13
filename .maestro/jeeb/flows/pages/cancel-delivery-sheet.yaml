@@ -1,0 +1,29 @@
+# PAGE OBJECT — Cancel Delivery (bottom sheet)
+# ─────────────────────────────────────────────────────────────────────────────
+# Reached by: Cancel request from waiting-no-coverage.
+# Default action: Keep delivery (non-destructive, keeps the live request). Pass
+# CONFIRM=true to actually cancel (red Cancel button).
+#
+# Coordinate fractions:
+#   Cancel (red, confirm): 50%,81%
+#   Keep delivery:         50%,88%
+#
+# Params: APP_ID; CONFIRM (false default -> Keep delivery); SHOT.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  CONFIRM: "false"
+  SHOT: cancel-delivery-sheet
+---
+- waitForAnimationToEnd:
+    timeout: 2000
+- takeScreenshot: "${SHOT}"
+- runFlow:
+    when: { true: "${CONFIRM == 'true'}" }
+    commands: [ { tapOn: { point: "50%,81%" } } ]      # Cancel (red) — destructive
+- runFlow:
+    when: { true: "${CONFIRM == 'false'}" }
+    commands: [ { tapOn: { point: "50%,88%" } } ]      # Keep delivery (safe default)
+- waitForAnimationToEnd:
+    timeout: 3000

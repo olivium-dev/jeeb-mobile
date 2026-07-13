@@ -1,0 +1,36 @@
+# PAGE OBJECT — delivery-order-history / "Delivery" (Active/Completed/Cancelled)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: shell (Delivery tab). Reached by: Delivery bottom-nav tab (31%,92%).
+# Cycles the three history sub-tabs and captures each.
+#
+# Coordinate fractions of 1080x2340:
+#   Filter by date:  50%,8%
+#   Active tab:      17%,14%
+#   Completed tab:   50%,14%
+#   Cancelled tab:   83%,14%
+#
+# Params:
+#   SHOT (optional) — screenshot basename prefix; default delivery.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  SHOT: delivery
+---
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: "${SHOT}_active"
+- tapOn:
+    point: "50%,14%"
+- waitForAnimationToEnd:
+    timeout: 2000
+- takeScreenshot: "${SHOT}_completed"
+- tapOn:
+    point: "83%,14%"
+- waitForAnimationToEnd:
+    timeout: 2000
+- takeScreenshot: "${SHOT}_cancelled"
+- tapOn:
+    point: "17%,14%"
+- waitForAnimationToEnd:
+    timeout: 2000

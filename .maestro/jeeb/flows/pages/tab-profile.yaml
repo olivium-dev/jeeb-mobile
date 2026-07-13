@@ -1,0 +1,41 @@
+# PAGE OBJECT — Profile tab
+# ─────────────────────────────────────────────────────────────────────────────
+# route: shell (Profile tab). Reached by: bottom-nav Profile (91%,92%).
+# Username shows as jeeb-<hash> (phone-only identity). Hosts the settings
+# sub-navigation. Default action: none (capture). Pass ACTION to open a sub-page.
+#
+# Coordinate fractions:
+#   Register as delivery [JEEBER-SKIP]: 81%,43%
+#   Password and security:              39%,51%
+#   Notification:                       29%,58%
+#   Language:                           27%,65%
+#   Saved addresses:                    34%,72%
+#   (scroll for) Contact us / Rate app / Sign out
+#
+# Params:
+#   ACTION — none (default) | password | notifications | language | addresses | signout
+#   SHOT.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  ACTION: none
+  SHOT: tab-profile
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${SHOT}"
+- runFlow:
+    when: { true: "${ACTION == 'password'}" }
+    commands: [ { tapOn: { point: "39%,51%" } } ]
+- runFlow:
+    when: { true: "${ACTION == 'notifications'}" }
+    commands: [ { tapOn: { point: "29%,58%" } } ]
+- runFlow:
+    when: { true: "${ACTION == 'language'}" }
+    commands: [ { tapOn: { point: "27%,65%" } } ]
+- runFlow:
+    when: { true: "${ACTION == 'addresses'}" }
+    commands: [ { tapOn: { point: "34%,72%" } } ]
+- waitForAnimationToEnd:
+    timeout: 3000

@@ -1,0 +1,91 @@
+# Journey: FULL customer tour of the OFFLINE-reachable surface (RZCT505K7WF)
+# Traverses every one of the 8 mapped pre-auth screens, capturing a screenshot
+# of each for visual/parity verification, then attempts the phone-OTP submit
+# (which fails at the network on this offline device) and the Google dead-end.
+#
+# WHERE THIS TOUR STOPS: authenticated screens (home, compose-request, address
+# picker, Requests/Delivery/Wallet/Profile tabs, wallet, notifications, order
+# history) are NOT included — they are UNREACHABLE while the device cannot reach
+# gateway 192.168.2.39:10090 (see FINDINGS "CRITICAL BLOCKER"). Extend this tour
+# with authenticated page objects once the device has LAN access.
+#
+# Run:
+#   maestro test --device RZCT505K7WF \
+#     -e PHONE=71888123 \
+#     flows/journeys/full-customer-tour.yaml
+#
+# Drive mode: coordinate-fraction taps (empty Flutter semantics tree).
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  PHONE: "71888123"        # local part; 71888xxx passes the client validator
+---
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+
+# ---- S00: notification permission dialog ----
+- takeScreenshot: tour_00_notif_perm
+- runFlow:
+    file: ../pages/_notif-permission.yaml
+    env:
+      CHOICE: "Don't allow"
+
+# ---- S01: onboarding 1/3 (EN, "Voice-first deliveries") -> Next ----
+- runFlow:
+    file: ../pages/_onboarding-page.yaml
+    env:
+      CTA: "Next"
+      CTA_POINT: "50%,81.5%"
+      SHOT: tour_01_onboard_1
+
+# ---- S04: Arabic/RTL variant (toggle to AR, screenshot, toggle back) ----
+#   Demonstrates the language toggle + RTL onboarding. Done from page 2 which
+#   still shows the العربية toggle; we return to EN to continue the EN tour.
+- runFlow:
+    file: ../pages/_language-toggle.yaml
+    env:
+      LANG: "العربية"
+      LANG_POINT: "87%,7.8%"
+      SHOT: tour_04_onboard_arabic
+- runFlow:
+    file: ../pages/_language-toggle.yaml
+    env:
+      LANG: "English"
+      LANG_POINT: "31%,7.8%"
+      SHOT: tour_02_onboard_2_en
+
+# ---- S02: onboarding 2/3 (EN, "Trusted Jeebers") -> Next ----
+- runFlow:
+    file: ../pages/_onboarding-page.yaml
+    env:
+      CTA: "Next"
+      CTA_POINT: "50%,81.5%"
+      SHOT: tour_02_onboard_2
+
+# ---- S03: onboarding 3/3 (EN, "Live tracking") -> Get Started ----
+- runFlow:
+    file: ../pages/_onboarding-page.yaml
+    env:
+      CTA: "Get Started"
+      CTA_POINT: "50%,81.5%"
+      SHOT: tour_03_onboard_3
+
+# ---- S05: register (enter phone, submit) ----
+#   SUBMIT=true exercises the Send code path. On this OFFLINE device the request
+#   never reaches the gateway and the app mis-renders the network failure as
+#   "Enter a valid Lebanese phone number" (FINDINGS bug #3) -> register_after_send.
+- runFlow:
+    file: ../pages/_register.yaml
+    env:
+      PHONE: "${PHONE}"
+      SUBMIT: "true"
+      SHOT: tour_05_register_filled
+
+# ---- S07: Continue with Google -> Google Play sign-in dead-end ----
+#   NOTE: this navigates OUT of the Jeeb app to the native Google UI; keep it
+#   LAST in the tour. Relaunch the app if you chain more steps after this.
+- runFlow:
+    file: ../pages/_google-signin.yaml
+    env:
+      SHOT: tour_07_google_signin

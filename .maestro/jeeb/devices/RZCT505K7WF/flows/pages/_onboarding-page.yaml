@@ -1,0 +1,19 @@
+# Page object: S01/S02/S03 — a single onboarding page (1/3, 2/3, 3/3)
+# Route: `onboarding`. The Flutter surface exports an EMPTY semantics tree on
+# this device (`maestro hierarchy` shows no text/id), so this page object
+# DRIVES BY COORDINATE (point:) — the proven driver. Screenshot is captured
+# first so correctness is verified by vision, not by an (empty) hierarchy.
+#
+# Parameters:
+#   CTA        — human label, for readability/logs only: "Next"/"Get Started"/"Skip"
+#   CTA_POINT  — coordinate fraction (of 1080x2400) to tap:
+#                  Next / Get Started -> "50%,81.5%"
+#                  Skip               -> "50%,88.9%"
+#   SHOT       — screenshot basename captured BEFORE tapping CTA (e.g. onboard_1)
+---
+- waitForAnimationToEnd
+- takeScreenshot: "${SHOT}"
+# CTA = ${CTA}. No semantics id/text on this Flutter surface -> coordinate tap.
+- tapOn:
+    point: "${CTA_POINT}"
+- waitForAnimationToEnd

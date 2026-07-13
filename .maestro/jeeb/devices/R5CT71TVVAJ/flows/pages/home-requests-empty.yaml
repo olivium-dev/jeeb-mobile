@@ -1,0 +1,10 @@
+# PAGE OBJECT: home-requests-empty — "Everything, One Place / No orders yet" (shell).
+# Reached by: name-capture Skip for now. Coordinate taps (no semantics).
+# Params: none. Primary action: tap New Order -> request-type.
+# Other CTAs on this screen (tap inline in a journey when needed):
+#   FAB +   88.5%,75.2%   |  Wallet 79.2%,6.2%  |  Bell 91.7%,6.2%  |  Help 6.7%,6.8%
+---
+- tapOn:
+    point: "50%,82.4%"        # New Order -> request-type
+- waitForAnimationToEnd:
+    timeout: 4000

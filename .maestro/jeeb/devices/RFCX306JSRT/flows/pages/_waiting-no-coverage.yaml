@@ -1,0 +1,23 @@
+# PAGE OBJECT — waiting-no-coverage / "Finding Jeebers" (deepest customer state)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: waiting-no-coverage. Reached by: Confirm location => POST /v1/requests
+# 201 (request live, 5-min offer timer) => GET /v1/offers 200. With drivers in
+# area this same screen shows the offers list; solo it stays "Finding Jeebers".
+#
+# Coordinate fractions of 1080x2340:
+#   Re-target request:  50%,67%
+#   Cancel request:     50%,75%   (opens the Cancel Delivery bottom sheet)
+#
+# Params:
+#   ACTION (optional) — "capture" (default) just screenshots the live state;
+#                       "cancel" taps Cancel request to open the cancel sheet.
+#   SHOT (optional)   — screenshot basename; default waiting-no-coverage.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  SHOT: waiting-no-coverage
+---
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: "${SHOT}"

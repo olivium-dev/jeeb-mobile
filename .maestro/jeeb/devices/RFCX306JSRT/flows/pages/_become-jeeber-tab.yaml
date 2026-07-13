@@ -1,0 +1,21 @@
+# PAGE OBJECT — Dashboard / Earnings tabs ("Become a Jeeber" upsell)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: shell (Dashboard tab 52%,92% OR Earnings tab 73%,92%). For a phone-only
+# CUSTOMER both tabs are dead-ends showing only the "Become a Jeeber" upsell
+# (UX bug: 2 of 5 nav slots wasted for customers). We CAPTURE the upsell but
+# deliberately do NOT tap "Start now" — jeeber onboarding is out of scope.
+#
+# Coordinate fractions of 1080x2340:
+#   Start now:  50%,60%   (NOT tapped — role=customer)
+#
+# Params:
+#   SHOT (optional) — screenshot basename; default become-jeeber.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  SHOT: become-jeeber
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${SHOT}"

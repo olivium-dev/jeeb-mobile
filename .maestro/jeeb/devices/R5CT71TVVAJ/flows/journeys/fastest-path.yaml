@@ -1,0 +1,73 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JOURNEY: fastest-path — cold launch -> DEEPEST customer state (waiting / "Finding
+#          a Jeeber", request broadcasting after POST /v1/requests 201).
+#          ~11 taps, ~90s wall. Composed from device page objects via runFlow.
+# ─────────────────────────────────────────────────────────────────────────────
+# DEVICE: R5CT71TVVAJ (SM-S908B). No Flutter semantics -> every in-app step is a
+#         coordinate tap; assertions are screenshots (empty-semantics fallback).
+#
+# ⚠ OTP AUTH IS TWO-PHASE. You cannot know the code before send-code fires, so a
+#   single clearState launch that both sends AND consumes an OTP needs the OTP
+#   injected out-of-band. THIS file requires `-e OTP=<code>`:
+#     • If you already hold a valid latest code for PHONE, run this file directly.
+#     • Otherwise use the runnable split (recommended on a real device):
+#         1) maestro ... test flows/journeys/auth-request-otp.yaml   # sends code
+#         2) OTP="$(helpers/otp.sh 76543201)"                        # reads code
+#         3) maestro ... test -e OTP="$OTP" flows/journeys/after-otp.yaml
+#   See FINDINGS-R5CT71TVVAJ.md "How to run on THIS device".
+#
+# RUN (all-in-one, OTP already known):
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device R5CT71TVVAJ test \
+#     -e APP_ID=app.jeeb.mobile -e PHONE=76543201 -e OTP=4472 \
+#     -e DESC="Two coffees from the corner shop" \
+#     .maestro/devices/R5CT71TVVAJ/flows/journeys/fastest-path.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  PHONE: "76543201"
+  OTP: "0000"                       # override with -e OTP=<real 4-digit>
+  DESC: "Two coffees from the corner shop"
+  TIER_POINT: "50%,23.2%"           # Flash tier (default, pre-selected)
+---
+- launchApp:
+    clearState: true                # AP-4: no state bleed between runs
+- takeScreenshot: r5_cold_launch    # onboarding "Voice-first deliveries"
+
+# System notif dialog (Android UI — text-matchable), then skip onboarding.
+- runFlow: ../pages/notif-permission.yaml
+- runFlow: ../pages/onboarding.yaml
+
+# Phone -> send code (POST /v1/auth/otp/request 200).
+- runFlow:
+    file: ../pages/register.yaml
+    env:
+      PHONE: "${PHONE}"
+
+# OTP auto-submits on 4th digit (POST /v1/auth/otp/verify 200).
+- runFlow:
+    file: ../pages/otp-entry.yaml
+    env:
+      OTP: "${OTP}"
+
+# Post-auth name screen -> Skip for now -> shell home.
+- runFlow: ../pages/name-capture.yaml
+- takeScreenshot: r5_home_shell
+
+# New Order -> request-type -> Flash + Continue.
+- runFlow: ../pages/home-requests-empty.yaml
+- runFlow:
+    file: ../pages/request-type.yaml
+    env:
+      TIER_POINT: "${TIER_POINT}"
+
+# Location dialog (grant), then describe + Confirm (POST /v1/requests 201).
+- runFlow: ../pages/location-permission.yaml
+- runFlow:
+    file: ../pages/client-location-compose.yaml
+    env:
+      DESC: "${DESC}"
+
+# DEEPEST state reached.
+- runFlow: ../pages/waiting-no-coverage.yaml

@@ -1,0 +1,54 @@
+# PAGE OBJECT — onboarding (3-page "Voice-first deliveries" pager)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: onboarding. Reached by: fresh launch. Default action: Skip (1 tap
+# collapses all 3 pages) => route register. Passing MODE=walk taps Next x2 +
+# Get Started instead (3 taps) to exercise every page.
+#
+# Coordinate fractions of the screen (device-independent %):
+#   Next / Get Started (primary btn): 50%,80%
+#   Skip:                             50%,88%
+#   Language EN toggle:               66%,9%
+#   Language العربية toggle:          86%,9%
+#
+# DUAL-SELECTOR (A33 semantics-on evidence proved these text labels resolve;
+# on S921B/S908B the a11y tree is empty so they will NOT — coordinate is the
+# safe default). To try id/text mode, swap the tapOn.point for:
+#   - tapOn: { text: "Skip" }            # A33-proven
+#   - tapOn: { text: "Get Started" }     # A33-proven (page 3)
+# Requested real ids: Semantics(identifier:) on Next / Skip / GetStarted.
+#
+# Params: APP_ID; MODE (skip|walk, default skip); SHOT.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  MODE: skip
+  SHOT: onboarding
+---
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: "${SHOT}"
+# Default fast path: Skip collapses the whole pager in one tap.
+- runFlow:
+    when:
+      true: ${MODE == 'skip'}
+    commands:
+      - tapOn:
+          point: "50%,88%"        # Skip  (alt: - tapOn: { text: "Skip" })
+# Exhaustive path: walk all three pages.
+- runFlow:
+    when:
+      true: ${MODE == 'walk'}
+    commands:
+      - tapOn:
+          point: "50%,80%"        # Next (page 1 -> 2)
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - tapOn:
+          point: "50%,80%"        # Next (page 2 -> 3)
+      - waitForAnimationToEnd:
+          timeout: 1500
+      - tapOn:
+          point: "50%,80%"        # Get Started (page 3)  (alt: text: "Get Started")
+- waitForAnimationToEnd:
+    timeout: 4000

@@ -1,0 +1,7 @@
+# PAGE OBJECT: notifications — "You're all caught up".
+# Reached by: home Bell icon (91.7%,6.2%). Coordinate taps (no semantics).
+# Params: none. CTA: Back 8.3%,6.7%.
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: r5_notifications

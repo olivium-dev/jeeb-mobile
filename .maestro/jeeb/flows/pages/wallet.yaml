@@ -1,0 +1,36 @@
+# PAGE OBJECT — Wallet (balance 0.00 USD)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: wallet (pushed with prev:"shell"). Reached by: header wallet icon
+# (78%,8%) on shell. => GET /v1/jeeb/wallet 200.
+#
+# Coordinate fractions:
+#   Top up:            50%,52%
+#   How fees work:     50%,60%
+#   Earnings & fees:   50%,70%
+#   See all activity:  50%,77%
+#
+# Default action: none (capture). Non-destructive by default — Top up opens a
+# payment flow, so it is param-gated.
+#
+# Params: APP_ID; ACTION (none|topup|fees|activity, default none); SHOT.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  ACTION: none
+  SHOT: wallet
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${SHOT}"
+- runFlow:
+    when: { true: "${ACTION == 'fees'}" }
+    commands: [ { tapOn: { point: "50%,60%" } } ]
+- runFlow:
+    when: { true: "${ACTION == 'activity'}" }
+    commands: [ { tapOn: { point: "50%,77%" } } ]
+- runFlow:
+    when: { true: "${ACTION == 'topup'}" }
+    commands: [ { tapOn: { point: "50%,52%" } } ]
+- waitForAnimationToEnd:
+    timeout: 2000

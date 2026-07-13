@@ -1,0 +1,33 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Device config — R5CT71TVVAJ  (Samsung SM-S908B / Galaxy S22 Ultra, Android)
+# ─────────────────────────────────────────────────────────────────────────────
+# DEVICE PROFILE (see FINDINGS-R5CT71TVVAJ.md for the full write-up):
+#   - Physical device, real MSI backend, PROD flavor  -> appId app.jeeb.mobile
+#     (NOT the .dev flavor — this suite drives real phone-OTP auth, no seams).
+#   - Flutter semantics tree is EMPTY on this handset: `maestro hierarchy` returns
+#     nodes with no resource-id / text for app content. => drive_mode = COORDINATE.
+#     Every in-app tap is a `point:` percentage; no `assertVisible: id`. Correctness
+#     is proven by screenshots (maestro-visual-capture empty-semantics fallback).
+#   - EXCEPTION: Android *system* permission dialogs (notifications, location) are
+#     native UI, so their `text:` ("Allow", "While using the app") IS matchable —
+#     those taps use text matchers with optional:true (robust to dialog absence).
+#
+# This is a Maestro workspace-config (valid keys: flows / executionOrder). Maestro
+# does NOT read appId or env from here, so those live as documented defaults below
+# and are injected per-run via `-e` (each flow also declares its own env defaults).
+#
+# SHARED DEFAULTS (pass with -e, or rely on each flow's top-level env: block):
+#   APP_ID = app.jeeb.mobile      # prod flavor on the physical device
+#   PHONE  = 76543201             # fresh +961 8-digit; stored as +96176543201
+#   OTP    = 0000                 # placeholder; real 4-digit is two-phase — fetch
+#                                 # with helpers/otp.sh AFTER the send-code step
+#                                 # (1234 NEVER works; auto-submits on 4th digit)
+#
+# RUN (see FINDINGS "How to run on THIS device" for the full two-phase recipe):
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device R5CT71TVVAJ test \
+#     -e APP_ID=app.jeeb.mobile -e PHONE=76543201 \
+#     .maestro/devices/R5CT71TVVAJ/flows/journeys/fastest-path.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+flows:
+  - "flows/journeys/*.yaml"

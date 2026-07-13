@@ -1,0 +1,37 @@
+# PAGE OBJECT — request-type / "Choose your request" (Flash/Express/Standard tiers)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: request-type. Reached by: New Order (or FAB+) from shell.
+#   => GET /tiers 200. Flash is pre-selected. Default action: Continue (keeps the
+#   pre-selected tier) => route client-location.
+#
+# Coordinate fractions:
+#   Flash tier radio:    50%,26%   (default/pre-selected)
+#   Express tier radio:  50%,38%
+#   Standard tier radio: 50%,51%
+#   Change Location:     72%,71%
+#   Continue:            50%,87%
+#
+# Params:
+#   TIER — flash (default) | express | standard  (which radio to select)
+#   SHOT.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  TIER: flash
+  SHOT: request-type
+---
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: "${SHOT}"
+- runFlow:
+    when: { true: "${TIER == 'express'}" }
+    commands: [ { tapOn: { point: "50%,38%" } } ]
+- runFlow:
+    when: { true: "${TIER == 'standard'}" }
+    commands: [ { tapOn: { point: "50%,51%" } } ]
+# Flash is pre-selected — no tap needed for the default.
+- tapOn:
+    point: "50%,87%"          # Continue -> client-location
+- waitForAnimationToEnd:
+    timeout: 4000

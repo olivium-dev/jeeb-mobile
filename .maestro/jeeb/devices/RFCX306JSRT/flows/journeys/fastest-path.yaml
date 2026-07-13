@@ -1,0 +1,77 @@
+# JOURNEY — fastest path: fresh install -> deepest customer state, one file.
+# ─────────────────────────────────────────────────────────────────────────────
+# Device RFCX306JSRT (SM-S921B / Galaxy S24), prod app.jeeb.mobile, live gateway
+# http://192.168.2.39:10090. 13 taps, ~55s wall. Deepest solo-reachable customer
+# state = waiting-no-coverage ("Finding Jeebers", live request via POST /v1/requests
+# 201). Flutter semantics OFF -> every in-app tap is a coordinate fraction.
+#
+# OTP NOTE: this single-file version requires OTP to be supplied and CURRENTLY
+# VALID (codes expire 5 min; dev code 1234 never works). Because the code is only
+# generated when Send code is tapped inside this same run, a bare invocation only
+# works if you pass a still-valid pre-requested code. For a hands-off live run
+# that fetches the code from jeeb-otpdb right after Send code, use:
+#     helpers/run-fastest-path.sh
+# which splits auth-send-code.yaml + fastest-path-continue.yaml around otp.sh.
+# This file is kept as the readable end-to-end reference and for --dry-run parse.
+#
+# Params (env): APP_ID, PHONE, OTP (required, valid), DESC.
+#
+# Run (tightest, pre-granted permissions):
+#   helpers/grant-permissions.sh RFCX306JSRT
+#   OTP=$(helpers/otp.sh 71963130)   # only if a valid code was just requested
+#   ~/.maestro/bin/maestro --device RFCX306JSRT test flows/journeys/fastest-path.yaml \
+#     -e PHONE=71963130 -e OTP=$OTP -e DESC="Maestro automated test delivery"
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  PHONE: "71963130"
+  OTP: "0000"
+  DESC: "Maestro automated test delivery"
+tags:
+  - rfcx306jsrt
+  - customer
+  - fastest-path
+---
+- launchApp:
+    clearState: true
+- runFlow:
+    file: ../pages/_os-permissions.yaml
+    env:
+      APP_ID: ${APP_ID}
+- runFlow:
+    file: ../pages/_onboarding.yaml
+    env:
+      APP_ID: ${APP_ID}
+- runFlow:
+    file: ../pages/_register-send-code.yaml
+    env:
+      APP_ID: ${APP_ID}
+      PHONE: ${PHONE}
+- runFlow:
+    file: ../pages/_otp-verify.yaml
+    env:
+      APP_ID: ${APP_ID}
+      OTP: ${OTP}
+- runFlow:
+    file: ../pages/_profile-name.yaml
+    env:
+      APP_ID: ${APP_ID}
+- runFlow:
+    file: ../pages/_shell-home.yaml
+    env:
+      APP_ID: ${APP_ID}
+- runFlow:
+    file: ../pages/_request-type.yaml
+    env:
+      APP_ID: ${APP_ID}
+- runFlow:
+    file: ../pages/_client-location.yaml
+    env:
+      APP_ID: ${APP_ID}
+      DESC: ${DESC}
+- runFlow:
+    file: ../pages/_waiting-no-coverage.yaml
+    env:
+      APP_ID: ${APP_ID}
+      SHOT: rfcx-fastpath-waiting-no-coverage
