@@ -15,6 +15,7 @@ import '../core/accessibility/accessibility.dart';
 import '../core/dev_seam/dev_seam.dart';
 import '../core/dev_seam/session_seam_bootstrap.dart';
 import '../core/diagnostics/diag.dart';
+import '../core/locale/language_preference_repository.dart';
 import '../core/locale/locale_cubit.dart';
 import '../core/notifications/application/badge_count_cubit.dart';
 import '../core/di/injection_container.dart';
@@ -203,6 +204,19 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       widget.sessionGate == null ? SessionCubit(tokenStore: AuthTokenStore()) : null;
   late final SessionGate _session = widget.sessionGate ?? _ownedSession!;
 
+  /// JEBV4-205 (E10): the app-language cubit, held as a member so the
+  /// authenticated-transition listener can call [LocaleCubit.syncFromServer]
+  /// after login. The remote-user-preferences store is resolved optionally from
+  /// DI (guarded so widget tests without `configureDependencies` stay local-
+  /// only); when present the chosen language is mirrored server-side and
+  /// re-hydrated on a fresh install (survives reinstall — the ticket DoD).
+  late final LocaleCubit _locale = LocaleCubit(
+    prefs: widget.preferences,
+    remote: sl.isRegistered<LanguagePreferenceRepository>()
+        ? sl<LanguagePreferenceRepository>()
+        : null,
+  );
+
   /// JM-006 / D5 account-status gate. In DEBUG we wire a [SeededAccountStatusGate]
   /// so the `jeeb.seam.session=suspended` harness routes to `/account-status`
   /// (62_SEAM_HARNESS.md); the flag was written during bootstrap, before this is
@@ -306,6 +320,11 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     _sessionSub = session.stream.listen((state) {
       if (state.isAuthenticated) {
         _syncRole();
+        // JEBV4-205 (E10): re-hydrate the server-persisted language on the
+        // login-completion trigger. On a fresh install the local locale cache
+        // is empty, so this restores the user's saved language from the
+        // remote-user-preferences store (survives reinstall). Best-effort.
+        unawaited(_locale.syncFromServer());
         // run-15 + JEBV4-159: re-arm device-token registration on EVERY
         // transition into authenticated — the initial interactive login (the
         // cold-start poll may have already expired), AND every later sign-out→
@@ -484,6 +503,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     _onboarding.close();
     _sessionSub?.cancel();
     _ownedSession?.close();
+    _locale.close();
     _router.dispose();
     super.dispose();
   }
@@ -492,7 +512,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider(create: (_) => LocaleCubit(prefs: widget.preferences)),
+        BlocProvider.value(value: _locale),
         BlocProvider.value(value: _role),
         BlocProvider.value(value: _roleAvailability),
         BlocProvider.value(value: _roleEligibility),

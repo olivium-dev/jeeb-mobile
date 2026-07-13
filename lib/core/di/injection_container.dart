@@ -35,8 +35,10 @@ import '../../features/photo_attachment/data/image_picker_photo_picker_service.d
 import '../../features/photo_attachment/domain/photo_picker_service.dart';
 import '../../features/live_tracking/data/dio_live_tracking_repository.dart';
 import '../../features/live_tracking/domain/live_tracking_repository.dart';
+import '../../features/language/data/dio_language_preference_repository.dart';
 import '../../features/notification_prefs/data/dio_notification_prefs_repository.dart';
 import '../../features/notification_prefs/data/notification_prefs_store.dart';
+import '../locale/language_preference_repository.dart';
 import '../../features/notification_prefs/domain/notification_prefs_repository.dart';
 import '../../features/order_history/data/dio_order_repository.dart';
 import '../../features/order_history/domain/order_repository.dart';
@@ -282,6 +284,13 @@ void configureDependencies({
 
   sl.registerLazySingleton<NotificationPrefsStore>(
     () => NotificationPrefsStore(sl<SharedPreferences>()),
+  );
+
+  // JEBV4-205 (E10): server-persisted app language via the remote-user-
+  // preferences BFF (GR-2 store — never user-management, never gateway-local).
+  // LocaleCubit resolves this optionally so the language survives a reinstall.
+  sl.registerLazySingleton<LanguagePreferenceRepository>(
+    () => DioLanguagePreferenceRepository(sl<Dio>()),
   );
 
   // T-MOB-010: DioTierRepository replaces FakeTierRepository as the DI default.
