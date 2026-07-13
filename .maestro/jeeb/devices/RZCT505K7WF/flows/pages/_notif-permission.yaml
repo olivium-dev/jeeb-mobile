@@ -1,0 +1,27 @@
+# Page object: S00 — Android notification permission dialog
+# Route: (system runtime-permission dialog shown over `onboarding` on fresh launch)
+# This is a NATIVE Android dialog, so `text:` selectors DO resolve here; a
+# coordinate `point:` fallback is provided because the dialog may not appear on
+# every launch (already-decided permission) — the whole page is `optional`.
+#
+# Parameters:
+#   CHOICE   — "Don't allow" (default, fastest) or "Allow"
+#              Coordinates (1080x2400 fractions):
+#                Allow        -> 50%,82.0%
+#                Don't allow  -> 50%,88.2%
+---
+# Primary: tap by text (native dialog exposes it). optional=true so the flow
+# does not fail if the permission was already handled and no dialog is shown.
+- tapOn:
+    text: "${CHOICE}"
+    optional: true
+# Coordinate fallback for "Don't allow" (the default fast path) in case the
+# localized text differs. Only fires if the dialog is still up.
+- runFlow:
+    when:
+      visible:
+        text: "Allow"
+    commands:
+      - tapOn:
+          point: "50%,88.2%"
+- waitForAnimationToEnd

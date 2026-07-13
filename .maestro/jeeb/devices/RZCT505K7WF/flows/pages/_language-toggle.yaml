@@ -1,0 +1,16 @@
+# Page object: S01<->S04 — onboarding language toggle (EN <-> AR/RTL)
+# Route: `onboarding`. Tapping العربية switches onboarding to the Arabic/RTL
+# variant (S04, "توصيل بالصوت أولًا"); tapping English switches back.
+# Flutter surface => empty semantics tree => coordinate driver.
+#
+# Parameters:
+#   LANG        — human label for logs: "العربية" (to AR) or "English" (to EN)
+#   LANG_POINT  — coordinate fraction:
+#                   العربية (to Arabic) -> "87%,7.8%"
+#                   English (to English) -> "31%,7.8%"
+#   SHOT        — screenshot basename captured AFTER the toggle settles
+---
+- tapOn:
+    point: "${LANG_POINT}"
+- waitForAnimationToEnd
+- takeScreenshot: "${SHOT}"

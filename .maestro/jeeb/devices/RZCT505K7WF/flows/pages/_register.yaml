@@ -1,0 +1,41 @@
+# Page object: S05 — "Welcome to Jeeb" / register (phone-OTP auth entry)
+# Route: `register`. This is the DEEPEST state reachable on this OFFLINE device.
+# Flutter surface => empty semantics tree => coordinate driver.
+#
+# Parameters:
+#   PHONE   — E.164 number to type into the +961 field. The gateway contract
+#             uses field name `phone` and requires +961 (E.164). Use a number
+#             the CLIENT validator accepts: the 71888xxx range passes; 71893001
+#             is WRONGLY rejected client-side (see FINDINGS bug #2). Pass the
+#             LOCAL part only if the field already shows the +961 prefix — this
+#             page types PHONE verbatim, so pass the local digits, e.g. 71888123.
+#   SUBMIT  — "true" (default) to tap Send code after typing, "false" to stop at
+#             the filled state (screenshot only).
+#   SHOT    — screenshot basename captured after typing (e.g. register_filled)
+#
+# Coordinates (1080x2400 fractions):
+#   Continue with Google -> 49%,38.2%
+#   Phone field          -> 46%,54.0%
+#   Send code            -> 50%,62.1%
+---
+- waitForAnimationToEnd
+- takeScreenshot: register_entry
+# Focus the +961 phone field and type the local number.
+- tapOn:
+    point: "46%,54.0%"
+- inputText: "${PHONE}"
+- hideKeyboard
+- waitForAnimationToEnd
+- takeScreenshot: "${SHOT}"
+# Optionally submit. On THIS offline device the request never reaches the
+# gateway (status:null) and the app mis-renders the network failure as
+# "Enter a valid Lebanese phone number" (FINDINGS bug #3). On a NETWORKED
+# device this advances to the OTP-entry screen.
+- runFlow:
+    when:
+      true: ${SUBMIT == 'true'}
+    commands:
+      - tapOn:
+          point: "50%,62.1%"
+      - waitForAnimationToEnd
+      - takeScreenshot: register_after_send

@@ -1,0 +1,60 @@
+# Journey: S06 — reproduce the register validation bugs (RZCT505K7WF)
+# Captures evidence for two FINDINGS bugs on the `register` screen:
+#   bug #2 — the well-formed Lebanese number 71893001 is WRONGLY rejected
+#            client-side with "Enter a valid Lebanese phone number".
+#   bug #3 — on THIS offline device, a client-VALID number (71888123) shows the
+#            SAME red validation error on Send code instead of a network error.
+# Both are verified by VISION on the captured screenshots.
+#
+# Run:
+#   maestro test --device RZCT505K7WF flows/journeys/register-validation-bugs.yaml
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+---
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+
+# Get to register fast via Skip.
+- runFlow:
+    file: ../pages/_notif-permission.yaml
+    env:
+      CHOICE: "Don't allow"
+- runFlow:
+    file: ../pages/_onboarding-page.yaml
+    env:
+      CTA: "Skip"
+      CTA_POINT: "50%,88.9%"
+      SHOT: valbug_onboarding
+
+# bug #2 — client-valid number 71893001 rejected. SUBMIT to trigger validator.
+- runFlow:
+    file: ../pages/_register.yaml
+    env:
+      PHONE: "71893001"
+      SUBMIT: "true"
+      SHOT: valbug_02_71893001_filled
+- takeScreenshot: valbug_02_rejected_valid_number
+
+# Relaunch clean for bug #3 (network fault mis-surfaced as validation error).
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+- runFlow:
+    file: ../pages/_notif-permission.yaml
+    env:
+      CHOICE: "Don't allow"
+- runFlow:
+    file: ../pages/_onboarding-page.yaml
+    env:
+      CTA: "Skip"
+      CTA_POINT: "50%,88.9%"
+      SHOT: valbug_onboarding_2
+- runFlow:
+    file: ../pages/_register.yaml
+    env:
+      PHONE: "71888123"
+      SUBMIT: "true"
+      SHOT: valbug_03_71888123_filled
+- takeScreenshot: valbug_03_network_shown_as_validation

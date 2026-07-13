@@ -1,0 +1,34 @@
+# Journey: FASTEST fresh-install -> deepest-reachable-state (RZCT505K7WF)
+# Deepest state reachable on this OFFLINE device = `register` (auth entry).
+# Path = 2 taps, ~9s: dismiss notif dialog, then Skip collapses all 3
+# onboarding pages at once.
+#
+# Run:
+#   maestro test --device RZCT505K7WF flows/journeys/fastest-path.yaml
+#
+# Drive mode: coordinate-fraction taps (empty Flutter semantics tree — see
+# config.yaml / FINDINGS). Screenshots are the correctness evidence.
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+---
+- launchApp:
+    clearState: true
+- waitForAnimationToEnd
+
+# S00 — Android notification permission dialog -> Don't allow (1 tap)
+- runFlow:
+    file: ../pages/_notif-permission.yaml
+    env:
+      CHOICE: "Don't allow"
+
+# S01/2/3 onboarding -> Skip collapses all 3 pages -> register (1 tap)
+- runFlow:
+    file: ../pages/_onboarding-page.yaml
+    env:
+      CTA: "Skip"
+      CTA_POINT: "50%,88.9%"
+      SHOT: fastest_onboarding
+
+# S05 — register (deepest offline-reachable state)
+- takeScreenshot: fastest_register

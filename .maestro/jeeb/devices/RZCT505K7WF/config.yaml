@@ -1,0 +1,43 @@
+# Device-scoped Maestro config — RZCT505K7WF (SM-A336B / A33)
+# ---------------------------------------------------------------------------
+# This file documents the per-device defaults for the Jeeb CUSTOMER app on the
+# single physical phone RZCT505K7WF. It is a Maestro workspace config (the
+# `flows` glob + `executionOrder`) PLUS the env defaults every journey/page
+# expects. Override any value at the CLI with `-e KEY=VALUE`.
+#
+#   maestro test --device RZCT505K7WF \
+#     -e APP_ID=app.jeeb.mobile \
+#     -e PHONE=+96171888123 \
+#     -e OTP=$(helpers/otp.sh +96171888123) \
+#     flows/journeys/fastest-path.yaml
+#
+# DRIVE MODE on this device: coordinate-fraction taps (point:).
+#   The Flutter surface exports an EMPTY semantics tree here — `maestro
+#   hierarchy` returns no text/resource-id for onboarding/register, so
+#   `tapOn: id:` and `tapOn: text:` do NOT resolve on Flutter screens.
+#   Native system dialogs (Android notification permission, Google Play
+#   sign-in) DO expose text, so those are tapped by `text:` with a `point:`
+#   fallback. See FINDINGS-RZCT505K7WF.md for the full selector table.
+#   All point: values are percentages of the 1080x2400 screen, so they stay
+#   correct if the app is rebuilt at the same layout / device.
+# ---------------------------------------------------------------------------
+
+appId: app.jeeb.mobile
+
+# Env defaults consumed by the journeys (each flow also declares its own
+# `env:` block with the same defaults so it runs standalone).
+env:
+  APP_ID: app.jeeb.mobile          # prod flavor; .dev / .staging for other builds
+  PHONE: "+96171888123"            # E.164, field name is `phone` (NOT phoneNumber)
+  OTP: ""                          # 1234 NEVER works — fill live via helpers/otp.sh
+  # NOTE: this device is OFFLINE (no LAN route to gateway 192.168.2.39:10090).
+  # OTP submit / all authenticated screens are UNREACHABLE here until the phone
+  # can reach the LAN. See FINDINGS "CRITICAL BLOCKER".
+
+# Only the composed journeys are runnable top-level flows; pages/*.yaml are
+# `_`-prefixed page objects included via runFlow and are skipped by dir-scan.
+flows:
+  - "flows/journeys/*.yaml"
+
+executionOrder:
+  continueOnFailure: false
