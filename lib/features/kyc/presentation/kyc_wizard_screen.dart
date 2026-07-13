@@ -195,6 +195,8 @@ class _WizardScaffold extends StatelessWidget {
         return l10n.kycErrorCompressionFailed;
       case KycWizardError.submitFailed:
         return l10n.kycErrorSubmitFailed;
+      case KycWizardError.submitValidationFailed:
+        return l10n.kycErrorSubmitValidationFailed;
       case KycWizardError.schemaLoadFailed:
         return l10n.kycErrorSchemaLoadFailed;
       case KycWizardError.contractLoadFailed:

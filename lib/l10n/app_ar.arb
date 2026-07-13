@@ -568,6 +568,8 @@
   "kycErrorUnavailable": "تعذر فتح الكاميرا. حاول مرة أخرى.",
   "kycErrorCompressionFailed": "الصورة كبيرة جدًا. حاول إعادة التقاطها.",
   "kycErrorSubmitFailed": "تعذر إرسال طلب التحقق. تحقق من اتصالك وحاول مرة أخرى.",
+  "kycErrorSubmitValidationFailed": "تعذر إرسال طلب التحقق: بعض المعلومات لم تجتز المراجعة. يرجى التحقق من بياناتك والمحاولة مرة أخرى.",
+  "kycScrollForSelfieHint": "مرر للأسفل لالتقاط صورة السيلفي",
   "profileKycSectionTitle": "التحقق",
   "profileKycStatusNotSubmitted": "لم يبدأ",
   "profileKycStatusPending": "قيد المراجعة",

@@ -131,6 +131,19 @@ class _HangingSubmitKycGateway extends FakeKycGateway {
       KycSubmission(status: serverStatus, submittedAt: DateTime.now());
 }
 
+/// JEBV4-295: throws a field-scoped BFF rejection on submit, mimicking the
+/// RFC-7807 `field` extension the live gateway returns on a 400.
+class _FieldRejectingKycGateway extends FakeKycGateway {
+  _FieldRejectingKycGateway(this.field);
+
+  final String field;
+
+  @override
+  Future<KycSubmission> submit(KycSubmission draft) {
+    throw KycSubmitFieldException(field: field, detail: 'server said no');
+  }
+}
+
 void main() {
   setUpAll(_loadArbFromDisk);
 
@@ -192,7 +205,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // The ID number is the one hard client gate (E3) — fill it first.
+      // JEBV4-295: the selfie is a hard client gate alongside the ID number.
+      await cubit.captureSelfie();
+      // The ID number is the other hard client gate (E3) — fill it too.
       await tester.enterText(
         find.byKey(KycIdentityStep.idNumberFieldKey),
         '123456789012',
@@ -225,6 +240,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      // JEBV4-295: the selfie is a hard client gate alongside the ID number.
+      await cubit.captureSelfie();
       await tester.enterText(
         find.byKey(KycIdentityStep.idNumberFieldKey),
         '123456789012',
@@ -259,6 +276,8 @@ void main() {
       await tester.pumpWidget(_host(cubit, onSubmitted: (_) => fundingNav++));
       await tester.pumpAndSettle();
 
+      // JEBV4-295: the selfie is a hard client gate alongside the ID number.
+      await cubit.captureSelfie();
       await tester.enterText(
         find.byKey(KycIdentityStep.idNumberFieldKey),
         '123456789012',
@@ -305,6 +324,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      // JEBV4-295: the selfie is a hard client gate alongside the ID number.
+      await cubit.captureSelfie();
       await tester.enterText(
         find.byKey(KycIdentityStep.idNumberFieldKey),
         '123456789012',
@@ -334,13 +355,19 @@ void main() {
   );
 
   testWidgets(
-    'submit is reachable without driving the camera (server validates photos; '
-    'the typed ID number is the one client gate)',
+    'submit is reachable without driving the ID front/back camera (server '
+    'validates ID-photo completeness; only the ID number + selfie are '
+    'client gates)',
     (tester) async {
-      // Mirrors the JM-040 Maestro flow: it cannot drive the camera, so it
-      // types the ID number (text input IS Maestro-drivable), taps
-      // kyc_submit_cta, and expects the chain to funding to fire — photo
-      // completeness stays back-office validated (JM-051 convention).
+      // Mirrors the JM-040 Maestro flow for the gov-ID photos: it cannot
+      // drive the OS camera for the front/back ID tiles, so it leaves them
+      // uncaptured and relies on the ID number (text input IS Maestro-
+      // drivable) plus the selfie tile — ID front/back completeness stays
+      // back-office validated (JM-051 convention). JEBV4-295: the selfie is
+      // now a hard client gate too (submitting without one always 400'd
+      // server-side), so this test captures it directly via the cubit,
+      // exactly as a Maestro flow does by driving the selfie tile's stub
+      // camera picker.
       var fundingNav = 0;
       final cubit = _newCubit(
         gateway: FakeKycGateway(decision: KycStatus.pending),
@@ -350,7 +377,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // No capture tiles tapped — just the ID number, then submit.
+      // No ID front/back tiles tapped — only the selfie + the ID number.
+      await cubit.captureSelfie();
       await tester.enterText(
         find.byKey(KycIdentityStep.idNumberFieldKey),
         '123456789012',
@@ -398,6 +426,135 @@ void main() {
           reason: 'nothing may reach the gateway with an invalid id_number');
     },
   );
+
+  group('JEBV4-295: identity-step UX gaps', () {
+    testWidgets(
+      'submit-disabled-without-selfie: a VALID id number alone must NOT '
+      'unlock the CTA — tapping it fires no POST until a selfie is captured',
+      (tester) async {
+        var fundingNav = 0;
+        final gateway = FakeKycGateway(decision: KycStatus.pending);
+        final cubit = _newCubit(gateway: gateway);
+        await tester.pumpWidget(
+          _host(cubit, onSubmitted: (_) => fundingNav++),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.byKey(KycIdentityStep.idNumberFieldKey),
+          '123456789012',
+        );
+        await tester.pump();
+        expect(cubit.state.submission.hasValidIdNumber, isTrue);
+
+        // A valid ID number alone must NOT enable the CTA — the selfie is a
+        // hard gate too (the client previously let this fire a POST that
+        // always 400'd server-side on selfie_with_liveness_url: null).
+        await tester.tap(find.byKey(KycIdentityStep.submitButtonKey));
+        await tester.pump();
+        await tester.pump();
+        expect(fundingNav, 0,
+            reason: 'a valid ID number without a selfie must never reach '
+                'the network');
+        expect(cubit.state.submission.status, KycStatus.notSubmitted);
+        expect(cubit.state.step, KycWizardStep.identity);
+
+        // Capturing the selfie unlocks the CTA.
+        await cubit.captureSelfie();
+        await tester.pump();
+        expect(cubit.state.submission.hasSelfie, isTrue);
+        await tester.tap(find.byKey(KycIdentityStep.submitButtonKey));
+        await tester.pump();
+        await tester.pump();
+        expect(fundingNav, 1,
+            reason: 'once the selfie is captured the same tap now submits');
+      },
+    );
+
+    testWidgets(
+      'the RTL-safe scroll-for-selfie cue (kyc_scroll_hint) is visible '
+      'before the selfie is captured, and hidden once it is',
+      (tester) async {
+        final cubit = _newCubit();
+        await tester.pumpWidget(_host(cubit));
+        await tester.pumpAndSettle();
+
+        expect(_byIdentifier('kyc_scroll_hint'), findsOneWidget,
+            reason: 'the selfie section is below the fold and not yet '
+                'captured — the affordance must be visible');
+
+        await cubit.captureSelfie();
+        await tester.pumpAndSettle();
+
+        expect(_byIdentifier('kyc_scroll_hint'), findsNothing,
+            reason: 'once the selfie is captured the cue has nothing left '
+                'to prompt for');
+      },
+    );
+
+    testWidgets(
+      'tapping kyc_scroll_hint scrolls the identity screen towards the '
+      'selfie tile',
+      (tester) async {
+        final cubit = _newCubit();
+        await tester.pumpWidget(_host(cubit));
+        await tester.pumpAndSettle();
+
+        // The selfie tile is off-screen (below the fold) — present in the
+        // element tree (it's a plain Column, not a lazy list) but not
+        // hit-testable at its actual (off-viewport) paint position.
+        expect(find.byKey(KycIdentityStep.selfieTileKey).hitTestable(),
+            findsNothing);
+
+        // The cue itself sits at the ID/selfie fold boundary and may also
+        // start below the fold — bring it into view (a minimal scroll, as a
+        // real user's first swipe would) before tapping it.
+        await tester.ensureVisible(
+          find.byKey(KycIdentityStep.scrollHintKey),
+        );
+        await tester.pump();
+        await tester.tap(find.byKey(KycIdentityStep.scrollHintKey));
+        // Let the scroll animation run to completion.
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(KycIdentityStep.selfieTileKey).hitTestable(),
+            findsOneWidget,
+            reason: 'the scroll-hint tap must reveal the selfie tile');
+      },
+    );
+
+    testWidgets(
+      'an unmapped field-400 surfaces its real (validation) message, never '
+      'the generic "check your connection" copy',
+      (tester) async {
+        final cubit = _newCubit(
+          gateway: _FieldRejectingKycGateway('tos_accepted_version'),
+        );
+        await tester.pumpWidget(_host(cubit));
+        await tester.pumpAndSettle();
+
+        await cubit.captureSelfie();
+        await tester.enterText(
+          find.byKey(KycIdentityStep.idNumberFieldKey),
+          '123456789012',
+        );
+        await tester.pump();
+
+        await tester.tap(find.byKey(KycIdentityStep.submitButtonKey));
+        await tester.pump();
+        await tester.pump();
+
+        final message = await _syncDelegate.load(const Locale('en'));
+        expect(find.text(message.kycErrorSubmitValidationFailed),
+            findsOneWidget,
+            reason: 'a field-scoped 400 is a validation rejection, not a '
+                'connectivity failure');
+        expect(find.text(message.kycErrorSubmitFailed), findsNothing,
+            reason: 'the mislabeled "check your connection" toast must not '
+                'appear for a validation 400');
+      },
+    );
+  });
 
   testWidgets(
     'typing a too-short national ID surfaces the localized inline error',

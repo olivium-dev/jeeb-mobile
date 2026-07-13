@@ -38,6 +38,13 @@ enum KycWizardError {
   signFailed,
   fileTooLarge,
   fileTypeNotAllowed,
+
+  /// JEBV4-295: a field-scoped BFF 400 whose `field` extension names a field
+  /// the client has no inline surface for (unlike `id_number`/`id_type`).
+  /// This IS a validation rejection, not a connectivity failure — kept
+  /// distinct from [submitFailed] so the surfaced copy never mislabels a
+  /// "your submission is invalid" 400 as a "check your connection" toast.
+  submitValidationFailed,
 }
 
 /// A submit failure scoped to a single identity field, surfaced INLINE on the
