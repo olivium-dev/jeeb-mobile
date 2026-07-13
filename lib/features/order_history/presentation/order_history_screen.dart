@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/role/role_cubit.dart';
+import '../../../core/role/user_role.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/order_history_cubit.dart';
 import '../application/order_history_state.dart';
@@ -213,6 +215,18 @@ class _OrderTabViewState extends State<_OrderTabView>
       builder: (context, state) {
         final tabState = state.tabs[widget.tab]!;
         final l10n = AppLocalizations.of(context);
+        // BUG-A (courier progression): the Delivery tab is SHARED by clients and
+        // jeebers (F6/JEBV4-303 scopes the LIST by active role). A tapped row must
+        // route to the surface that matches the ACTIVE role: a client opens the
+        // read-only customer delivery detail (`/orders/:id`); an ACTIVE jeeber opens
+        // the jeeber active-delivery screen (`/jeeber/deliveries/:id/active`) — the
+        // Ordered→Picked→InTransit→AtDoor→Done stepper with the Mark-as controls.
+        // Before this, every row went to `/orders/:id`, so a matched jeeber landed
+        // on the customer's Live-tracking/Verify-OTP detail with NO way to advance
+        // the delivery (it stayed at Ordered). Nullable read keeps bare widget tests
+        // (no RoleCubit ancestor) on the unchanged customer path.
+        final actingAsJeeber =
+            context.watch<RoleCubit?>()?.state == UserRole.jeeber;
 
         if (tabState.status == OrderTabStatus.loadingFirstPage) {
           return const Center(
@@ -275,7 +289,11 @@ class _OrderTabViewState extends State<_OrderTabView>
               final order = tabState.orders[index];
               return OrderHistoryCard(
                 order: order,
-                onTap: () => context.push('/orders/${order.id}'),
+                onTap: () => context.push(
+                  actingAsJeeber
+                      ? '/jeeber/deliveries/${order.id}/active'
+                      : '/orders/${order.id}',
+                ),
               );
             },
           ),
