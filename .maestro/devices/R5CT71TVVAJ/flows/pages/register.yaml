@@ -1,0 +1,22 @@
+# PAGE OBJECT: register — "Enter your phone / Welcome to Jeeb".
+# Reached by: onboarding Skip (or Next x3). Coordinate taps (no semantics).
+# Params:
+#   PHONE  — bare 8-digit +961 local number, e.g. 76543201 (required)
+# Effect: taps phone field, clears any residual, types PHONE, taps Send code
+#         -> fires POST /v1/auth/otp/request (200) -> lands on otp-entry.
+# NOTE: field is +961-prefixed already; type the 8 local digits only.
+# NOTE: Maestro inputText is per-char via the driver and is reliable here; the
+#       corruption warning in the recipe is about RAW `adb shell input text`.
+#       We still eraseText first to guard against residual/autofill.
+# Selectors: Google 50%,38.7% (not used) / PhoneField 60%,54.7% / SendCode 50%,63%.
+---
+- tapOn:
+    point: "60%,54.7%"        # phone number field (+961 …)
+- eraseText: 15
+- inputText: "${PHONE}"
+- hideKeyboard
+- takeScreenshot: r5_register_phone_entered
+- tapOn:
+    point: "50%,63%"          # Send code -> POST /v1/auth/otp/request 200
+- waitForAnimationToEnd:
+    timeout: 5000

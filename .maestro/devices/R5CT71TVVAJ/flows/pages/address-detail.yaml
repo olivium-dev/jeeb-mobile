@@ -1,0 +1,35 @@
+# PAGE OBJECT: address-detail — map picker + form.
+# Reached by: settings-addresses -> Add new location. Coordinate taps (no semantics).
+# Params (all optional strings; pass only the fields you want filled):
+#   LABEL          — e.g. "Home"
+#   BUILDING       — e.g. "Cedar Tower"
+#   FLOOR          — e.g. "3rd, apt 12"
+#   DELIVERY_NOTES — e.g. "Ring twice"
+#   COD_PHONE      — cash-on-delivery contact number
+# Selectors: EditPin 50%,38.9% / Label 50%,46.4% / Building 50%,54.2% /
+#            Floor 50%,62% / DeliveryNotes 50%,72.7% / CODphone 50%,83.4% /
+#            SaveAddress 50%,91.2%.
+# NOTE: map only renders a grey "Map preview" placeholder on this device (UX bug,
+#       see FINDINGS) — Edit pin is unreliable; rely on GPS-resolved default pin.
+# This page fills Label + Building + Floor and Saves. Extend inline as needed.
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: r5_address_detail_empty
+- tapOn:
+    point: "50%,46.4%"        # Label
+- inputText: "${LABEL}"
+- hideKeyboard
+- tapOn:
+    point: "50%,54.2%"        # Building
+- inputText: "${BUILDING}"
+- hideKeyboard
+- tapOn:
+    point: "50%,62%"          # Floor / apartment
+- inputText: "${FLOOR}"
+- hideKeyboard
+- takeScreenshot: r5_address_detail_filled
+- tapOn:
+    point: "50%,91.2%"        # Save address
+- waitForAnimationToEnd:
+    timeout: 4000

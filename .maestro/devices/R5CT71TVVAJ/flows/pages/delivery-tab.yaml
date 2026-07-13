@@ -1,0 +1,9 @@
+# PAGE OBJECT: delivery-tab — "Delivery" Active/Completed/Cancelled (shell).
+# Reached by: bottom nav Delivery (30.6%,90.5%). Coordinate taps (no semantics).
+# Params: none. Captures the delivery tab ("No orders yet" for a fresh customer).
+# CTAs: FilterDate 50%,6.8% / Active 16.1%,12.1% / Completed 49.4%,12.1% /
+#       Cancelled 82.8%,12.1%.
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: r5_delivery_tab

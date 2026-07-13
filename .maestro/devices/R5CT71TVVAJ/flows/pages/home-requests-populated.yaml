@@ -1,0 +1,11 @@
+# PAGE OBJECT: home-requests-populated — Requests tab w/ list + voice record.
+# Reached by: after a request exists. Coordinate taps (no semantics).
+# Params: none. Primary action: tap Record a request (voice) -> voice-request.
+# Other CTAs (tap inline when needed):
+#   Search 50%,26.3% | Chip In-Progress 16.7%,34.7% | Chip Pending 49.3%,34.7% |
+#   Chip Replies 78.8%,34.7% | FAB + 88.5%,75.2%
+---
+- tapOn:
+    point: "50%,19.5%"        # Record a request (voice) -> voice-request
+- waitForAnimationToEnd:
+    timeout: 4000

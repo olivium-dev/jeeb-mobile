@@ -1,0 +1,12 @@
+# PAGE OBJECT: settings-addresses — "Saved addresses / No saved addresses yet".
+# Reached by: Profile -> Saved addresses. Coordinate taps (no semantics).
+# Params: none. Primary action: tap Add new location -> address-detail.
+# CTAs: AddNewLoc 74%,88.8% / Back 8.3%,6.7%.
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: r5_settings_addresses
+- tapOn:
+    point: "74%,88.8%"        # Add new location -> address-detail
+- waitForAnimationToEnd:
+    timeout: 4000

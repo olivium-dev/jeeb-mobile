@@ -1,0 +1,17 @@
+# PAGE OBJECT: request-type — "Choose your request" (Flash / Express / Standard).
+# Reached by: home New Order or FAB +. Coordinate taps (no semantics).
+# Params:
+#   TIER_POINT — y-fraction point of the tier tile to select.
+#                Default "50%,23.2%" = Flash (already pre-selected).
+#                Express = "50%,35.7%" · Standard = "50%,48%".
+# Effect: taps the tier tile, then Continue -> client-location.
+# Other CTAs: Change Location 71.3%,65.9% · Back 8.3%,6.7%.
+---
+- tapOn:
+    point: "${TIER_POINT}"     # tier tile (default Flash 50%,23.2%)
+- waitForAnimationToEnd:
+    timeout: 2000
+- tapOn:
+    point: "50%,87.4%"        # Continue -> client-location
+- waitForAnimationToEnd:
+    timeout: 4000

@@ -1,0 +1,30 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JOURNEY: auth-request-otp — Phase 1 of the two-phase real-OTP login.
+#          Cold launch -> skip onboarding -> enter PHONE -> Send code.
+#          Leaves the app parked on the OTP-entry screen (does NOT clearState
+#          after — so Phase 2 (after-otp.yaml) continues the SAME app session).
+# ─────────────────────────────────────────────────────────────────────────────
+# After this completes, fetch the code:  OTP="$(helpers/otp.sh 76543201)"
+# then run flows/journeys/after-otp.yaml -e OTP="$OTP".
+#
+# RUN:
+#   export JAVA_HOME="$(/usr/libexec/java_home)"
+#   ~/.maestro/bin/maestro --device R5CT71TVVAJ test \
+#     -e APP_ID=app.jeeb.mobile -e PHONE=76543201 \
+#     .maestro/devices/R5CT71TVVAJ/flows/journeys/auth-request-otp.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  PHONE: "76543201"
+---
+- launchApp:
+    clearState: true
+- takeScreenshot: r5_cold_launch
+- runFlow: ../pages/notif-permission.yaml
+- runFlow: ../pages/onboarding.yaml
+- runFlow:
+    file: ../pages/register.yaml
+    env:
+      PHONE: "${PHONE}"
+- takeScreenshot: r5_otp_screen_awaiting_code   # parked here for Phase 2

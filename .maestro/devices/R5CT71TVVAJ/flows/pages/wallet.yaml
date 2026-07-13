@@ -1,0 +1,10 @@
+# PAGE OBJECT: wallet — balance / top up.
+# Reached by: home Wallet icon (79.2%,6.2%). Coordinate taps (no semantics).
+# Params: none. Captures the wallet screen.
+# CTAs: TopUp 50%,46% / HowFees 50%,53.2% / EarningsFees 50%,61.1% /
+#       AllActivity 50%,68.3% / Back 8.3%,6.7%.
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: r5_wallet
+# e.g. tapOn { point: "50%,46%" } for Top up

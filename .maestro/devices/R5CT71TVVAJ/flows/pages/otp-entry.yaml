@@ -1,0 +1,17 @@
+# PAGE OBJECT: otp-entry — "Enter the code" (4-digit box).
+# Reached by: register Send code. Coordinate taps (no semantics).
+# Params:
+#   OTP — the REAL 4-digit code (fetch with helpers/otp.sh AFTER send-code;
+#         1234 NEVER works). Two-phase: see helpers/otp.sh header. (required)
+# Effect: focuses box 1, types OTP; the field AUTO-SUBMITS on the 4th digit
+#         -> POST /v1/auth/otp/verify (200). There is NO Verify tap on success.
+# Selectors: OTPbox1 28%,24.5% / Verify 50%,35.3% / ChangePhone 50%,46.9% / Back 8.3%,6.7%.
+---
+- tapOn:
+    point: "28%,24.5%"        # first OTP box (focuses the 4-digit input)
+- inputText: "${OTP}"         # auto-submits on 4th digit -> /v1/auth/otp/verify 200
+- waitForAnimationToEnd:
+    timeout: 6000
+- takeScreenshot: r5_otp_submitted
+# If auto-submit ever fails to fire, uncomment the explicit Verify tap:
+# - tapOn: { point: "50%,35.3%" }   # Verify

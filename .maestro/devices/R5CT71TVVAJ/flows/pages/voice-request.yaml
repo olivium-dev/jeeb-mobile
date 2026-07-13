@@ -1,0 +1,15 @@
+# PAGE OBJECT: voice-request — "Record your request" (press-and-hold mic).
+# Reached by: Requests tab -> Record a request. Coordinate taps (no semantics).
+# Params:
+#   HOLD_MS — press-and-hold duration in ms for the mic (default 2500).
+# Selectors: MicHold 41.7%,54.9% / Back 8.3%,6.7%.
+# NOTE: a real hold needs a long-press; Maestro `longPressOn point` holds ~1s, so
+#       we issue swipe-in-place with a duration to emulate a longer hold.
+---
+- takeScreenshot: r5_voice_request_idle
+- longPressOn:
+    point: "41.7%,54.9%"      # hold-to-record mic
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: r5_voice_request_after_hold
+# Back out: tapOn { point: "8.3%,6.7%" }

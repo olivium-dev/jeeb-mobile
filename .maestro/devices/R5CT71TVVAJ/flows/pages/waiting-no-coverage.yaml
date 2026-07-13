@@ -1,0 +1,12 @@
+# PAGE OBJECT: waiting-no-coverage — "Finding a Jeeber" (DEEPEST customer state).
+# Reached by: client-location Confirm (POST /v1/requests 201). The request is now
+# broadcasting. Coordinate taps (no semantics). This page just captures the state;
+# pass ACTION to drive an exit.
+# Params:
+#   ACTION — none (default, just screenshot) | retarget | cancel
+# Selectors: Retarget 50%,59.5% / CancelRequest 50%,66.8%.
+---
+- takeScreenshot: r5_waiting_finding_a_jeeber   # DEEPEST reached state
+# Exit actions are opt-in; a journey taps these inline when it wants them:
+#   Re-target request  -> tapOn { point: "50%,59.5%" }   (back to request-type)
+#   Cancel request     -> tapOn { point: "50%,66.8%" }   (opens cancel-delivery sheet)

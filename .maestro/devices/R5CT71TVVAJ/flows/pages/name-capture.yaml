@@ -1,0 +1,16 @@
+# PAGE OBJECT: name-capture — "What should we call you?" (post-auth).
+# Reached by: OTP auto-submit (POST /v1/auth/otp/verify 200). Coordinate taps.
+# Params: none (default action: SKIP FOR NOW -> lands on shell home).
+# Alternative (commented): type a name then Continue.
+# Selectors: NameField 50%,23.6% / Continue 50%,32.4% / SkipForNow 50%,39.7%.
+---
+- tapOn:
+    point: "50%,39.7%"        # Skip for now -> shell home
+- waitForAnimationToEnd:
+    timeout: 4000
+# --- Alternative: set a name ---
+# - tapOn: { point: "50%,23.6%" }   # Name field
+# - inputText: "${NAME}"
+# - hideKeyboard
+# - tapOn: { point: "50%,32.4%" }   # Continue
+# - waitForAnimationToEnd
