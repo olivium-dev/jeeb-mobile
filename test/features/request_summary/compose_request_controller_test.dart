@@ -71,14 +71,21 @@ void main() {
       expect(submission.lastDraft!.tierName, 'flash');
     });
 
-    test('falls back to the enum name when no wireId was captured', () async {
+    test(
+        'JEBV4-300: with no wireId the tierId is null (never the enum slug) — '
+        'a serverId-less fallback tier must not put a fake id on the wire',
+        () async {
+      // A tier with no serverId comes from the bundled fallback catalog; its
+      // enum slug is NOT an id the gateway ever minted (and On-the-Way / Eco
+      // are tiers the server does not sell). Sending null yields a tier-less
+      // create (accepted; only the delivery-row seed is skipped) instead.
       controller.setTier(_flash());
 
       await controller.submitFromLocation(
         _currentLoaded(),
       );
 
-      expect(submission.lastDraft!.tierId, 'flash');
+      expect(submission.lastDraft!.tierId, isNull);
     });
 
     test(

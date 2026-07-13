@@ -99,11 +99,19 @@ class ComposeRequestController {
     _recipientPhone = (trimmed == null || trimmed.isEmpty) ? null : trimmed;
   }
 
-  /// The wire-side tier id request-create must echo. Prefers the server UUID
-  /// preserved on [Tier.wireId] (live gateway shape, PR #64); falls back to the
-  /// enum name only if no wireId was captured (e.g. an offline/fixture catalog)
-  /// so we never POST a null tier.
-  String? get _tierId => _tier?.wireId ?? _tier?.id.name;
+  /// The wire-side tier id request-create must echo: ONLY the server UUID
+  /// preserved on [Tier.wireId] (live gateway shape, PR #64).
+  ///
+  /// JEBV4-300: we deliberately do NOT fall back to the [TierId] enum slug.
+  /// A tier without a [Tier.serverId] comes from the bundled fallback catalog
+  /// (offline/fixture), and its enum slug is NOT an id the gateway ever minted —
+  /// posting it either 400s `tier-required`-style or, worse, names a tier the
+  /// server does not sell. When [wireId] is null we send no `tierId` at all;
+  /// the gateway accepts a tier-less create (it only skips the delivery-row
+  /// seed). The primary defense is upstream — [TierSelectionCubit] now surfaces
+  /// a retry instead of serving the fallback catalog — so in the live flow this
+  /// getter is always a real UUID; the null path only guards dev/test seams.
+  String? get _tierId => _tier?.wireId;
 
   /// Tracks the single outstanding `POST /requests` so a re-entrant submit
   /// (B-02b) — e.g. the confirm CTA re-tapped after backing out to the tier

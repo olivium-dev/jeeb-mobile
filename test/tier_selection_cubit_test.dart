@@ -32,7 +32,7 @@ void main() {
     );
 
     blocTest<TierSelectionCubit, TierSelectionState>(
-      'falls back to the bundled catalog when the repository throws (AC3)',
+      'surfaces the failure instead of serving the fallback catalog (JEBV4-300)',
       build: () => TierSelectionCubit(
         repository: const FakeTierRepository(failWith: TierLoadFailure.network),
       ),
@@ -41,16 +41,18 @@ void main() {
         predicate<TierSelectionState>(
           (s) => s.status == TierSelectionStatus.loading,
         ),
-        // AC3 graceful offline fallback: instead of surfacing an error, the
-        // cubit serves FakeTierRepository.defaultCatalog and flags the state
-        // with usingCachedFallback so the view can show the soft warning.
+        // JEBV4-300: the fallback catalog's tiers carry serverId == null, so
+        // confirming one would post a client-side enum slug the gateway never
+        // minted. On failure the cubit lands on error (blocking Continue and
+        // showing a retry) rather than silently serving the bundled catalog.
         predicate<TierSelectionState>(
           (s) =>
-              s.status == TierSelectionStatus.loaded &&
-              s.usingCachedFallback == true &&
-              s.tiers == FakeTierRepository.defaultCatalog &&
-              s.failure == null,
-          'lands on loaded with the cached fallback catalog',
+              s.status == TierSelectionStatus.error &&
+              s.failure == TierLoadFailure.network &&
+              s.usingCachedFallback == false &&
+              s.selectedTierId == null &&
+              s.canConfirm == false,
+          'lands on error with the failure surfaced and no selection',
         ),
       ],
     );
@@ -66,7 +68,7 @@ void main() {
       expect(cubit.state.tiers, FakeTierRepository.defaultCatalog);
     });
 
-    test('retry after a cached fallback restores the live loaded state',
+    test('retry after a surfaced failure restores the live loaded state',
         () async {
       var shouldFail = true;
       final cubit = TierSelectionCubit(
@@ -74,16 +76,17 @@ void main() {
       );
       addTearDown(cubit.close);
       await cubit.load();
-      // AC3: the first load fails the network and serves the bundled catalog,
-      // so we are already loaded — flagged as a cached fallback, not error.
-      expect(cubit.state.status, TierSelectionStatus.loaded);
-      expect(cubit.state.usingCachedFallback, isTrue);
-      expect(cubit.state.failure, isNull);
+      // JEBV4-300: the first load fails the network and surfaces the error
+      // rather than serving the bundled catalog — Continue stays blocked.
+      expect(cubit.state.status, TierSelectionStatus.error);
+      expect(cubit.state.failure, TierLoadFailure.network);
+      expect(cubit.state.usingCachedFallback, isFalse);
+      expect(cubit.state.canConfirm, isFalse);
 
       shouldFail = false;
       await cubit.load();
-      // Retry succeeds against the live repository: still loaded, but now
-      // serving fresh data so the cached-fallback flag clears.
+      // Retry succeeds against the live repository: now loaded with real tiers
+      // (each carrying its gateway serverId) and the failure cleared.
       expect(cubit.state.status, TierSelectionStatus.loaded);
       expect(cubit.state.usingCachedFallback, isFalse);
       expect(cubit.state.failure, isNull);
