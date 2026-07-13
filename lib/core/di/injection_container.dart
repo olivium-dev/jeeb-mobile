@@ -9,6 +9,7 @@ import '../../features/background_gps/data/geolocator_geocapture_gateway.dart';
 import '../../features/background_gps/domain/location_permission.dart';
 import '../../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../../features/biometric_auth/data/dev_biometric_gateway.dart';
+import '../../features/biometric_auth/data/local_auth_biometric_gateway.dart';
 import '../../features/biometric_auth/data/shared_prefs_pin_repository.dart';
 import '../../features/biometric_auth/domain/biometric_gateway.dart';
 import '../../features/client_offers/data/dio_offers_repository.dart';
@@ -211,20 +212,25 @@ void configureDependencies({
   // JM-005 screen + JM-006 splash resolve a real cubit from DI. The cubit's
   // real evaluate()/authenticate() behaviour is the JM-005 engineer's to fill
   // in (the type + wiring is real now).
-  // RC-3 (JM-005, demo-critical): the production [UnavailableBiometricGateway]
-  // always returns `false` from authenticate(), so on the emulator (no enrolled
-  // biometric) the `/lock` screen can never release → the shell is never
-  // reached. In DEBUG only we wire [DevBiometricGateway] whose authenticate()
-  // resolves `true`, so tapping `biometric_unlock_authenticate_cta` succeeds and
-  // [BiometricLockCubit] transitions `locked → unlocked` → router releases to
-  // `shell_tab_requests`. isAvailable() stays false on both, so the lock is
-  // still HELD on entry via the seam-seeded PIN (`hasPin → canChallenge`).
-  // RELEASE behaviour is unchanged (kDebugMode is a const false → the dev path
-  // is tree-shaken out).
+  // DEBUG (JM-005 demo / CI seam): [DevBiometricGateway] resolves authenticate()
+  // to `true` so on the emulator (no enrolled biometric) tapping
+  // `biometric_unlock_authenticate_cta` succeeds and [BiometricLockCubit]
+  // transitions `locked → unlocked` → router releases to `shell_tab_requests`.
+  // isAvailable() stays false, so the lock is still HELD on entry via the
+  // seam-seeded PIN (`hasPin → canChallenge`). This keeps every Maestro/dev-seam
+  // flow deterministic.
+  //
+  // RELEASE (JEBV4-213 / E18): [LocalAuthBiometricGateway] drives the REAL OS
+  // biometric dialog via `local_auth`. isAvailable() reflects actual biometric
+  // enrolment; authenticate() runs with `biometricOnly: false` so a device with
+  // no enrolled biometric falls back to the device credential (PIN/password) and
+  // still unlocks (the ticket DoD). kDebugMode is a const false in release, so
+  // the DevBiometricGateway branch is tree-shaken out and the plugin is only on
+  // the release path.
   sl.registerLazySingleton<BiometricGateway>(
     () => kDebugMode
         ? const DevBiometricGateway()
-        : const UnavailableBiometricGateway(),
+        : LocalAuthBiometricGateway(),
   );
   sl.registerFactory<SharedPrefsPinRepository>(
     () => SharedPrefsPinRepository(prefs: sl<SharedPreferences>()),

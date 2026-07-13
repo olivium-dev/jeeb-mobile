@@ -78,8 +78,13 @@
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
-	<string>Main</string>
-	<key>UISupportedInterfaceOrientations</key>
+		<string>Main</string>
+		<!-- JEBV4-213 (E18): required by local_auth for Face ID; shown in the
+		     system Face ID consent prompt. Touch ID / device-passcode fallback
+		     needs no plist key. -->
+		<key>NSFaceIDUsageDescription</key>
+		<string>Jeeb uses Face ID to unlock the app quickly and securely.</string>
+		<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>

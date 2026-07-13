@@ -3,12 +3,18 @@ package app.jeeb.mobile
 import android.os.Build
 import android.os.Bundle
 import androidx.core.view.WindowCompat
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
-class MainActivity : FlutterActivity() {
+// JEBV4-213 (E18): the `local_auth` plugin's Android implementation renders the
+// BiometricPrompt inside the host Activity and REQUIRES it to be a
+// FragmentActivity — with the previous FlutterActivity base, authenticate()
+// throws `local_auth plugin requires activity to be a FragmentActivity` at
+// runtime. FlutterFragmentActivity is a drop-in replacement that keeps the same
+// configureFlutterEngine / getInitialRoute / onCreate seam wiring below intact.
+class MainActivity : FlutterFragmentActivity() {
     private val seamChannelName = "app.jeeb.mobile/dev_seam"
 
     // Debug-only seam keys read from `adb shell am start … -e <key> <value>`.

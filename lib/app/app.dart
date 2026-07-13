@@ -47,6 +47,7 @@ import '../core/session/session_state.dart';
 import '../core/theme/app_theme.dart';
 import '../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../features/biometric_auth/data/dev_biometric_gateway.dart';
+import '../features/biometric_auth/data/local_auth_biometric_gateway.dart';
 import '../features/biometric_auth/data/shared_prefs_pin_repository.dart';
 import '../features/biometric_auth/domain/biometric_gateway.dart';
 import '../features/settings/data/repositories/biometric_preference_repository_impl.dart';
@@ -185,13 +186,16 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     // `/lock` screen consumes (BlocProvider.value) — the SAME instance whose
     // authenticate() must succeed for JM-005 to release to the shell. RC-3: in
     // DEBUG (no test override) wire [DevBiometricGateway] so the challenge
-    // resolves `true`. A test-injected `biometricGateway` always wins; release
-    // keeps the production [UnavailableBiometricGateway] (kDebugMode const false
-    // → dev path tree-shaken).
+    // resolves `true` on the emulator/CI seam. A test-injected `biometricGateway`
+    // always wins. JEBV4-213 / E18: RELEASE now wires the real
+    // [LocalAuthBiometricGateway] (OS biometric dialog via `local_auth`, with a
+    // device-credential PIN/password fallback), replacing the inert
+    // [UnavailableBiometricGateway]. kDebugMode is a const false in release, so
+    // the DevBiometricGateway branch is tree-shaken out.
     gateway: widget.biometricGateway ??
         (kDebugMode
             ? const DevBiometricGateway()
-            : const UnavailableBiometricGateway()),
+            : LocalAuthBiometricGateway()),
     pinRepository: SharedPrefsPinRepository(prefs: widget.preferences),
   )..evaluate();
 

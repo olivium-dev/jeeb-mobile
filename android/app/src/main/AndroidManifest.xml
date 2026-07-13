@@ -12,6 +12,19 @@
           to the channel we register at runtime.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!--
+        JEBV4-213 (E18): biometric unlock via the `local_auth` plugin.
+        - USE_BIOMETRIC is the modern (API 28+) permission for BiometricPrompt;
+          USE_FINGERPRINT is its pre-28 predecessor, kept for older devices.
+          Neither is a runtime (dangerous) permission, so no prompt is shown; the
+          BiometricPrompt/device-credential dialog is driven from Dart via
+          LocalAuthBiometricGateway.authenticate(). The Activity must also be a
+          FlutterFragmentActivity (see MainActivity.kt).
+    -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+    <uses-permission android:name="android.permission.USE_FINGERPRINT"/>
+
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
