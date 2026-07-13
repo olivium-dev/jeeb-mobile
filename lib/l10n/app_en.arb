@@ -704,6 +704,26 @@
   "@mutualRatingTagsLabel": {
     "description": "T-MOB-020: Label above the tag chips row"
   },
+  "mutualRatingTagPunctuality": "Punctual",
+  "@mutualRatingTagPunctuality": {
+    "description": "JEBV4-296/297: quick-tag chip label for the canonical gateway tag `punctuality` — the counterpart was on time"
+  },
+  "mutualRatingTagCommunication": "Communication",
+  "@mutualRatingTagCommunication": {
+    "description": "JEBV4-296/297: quick-tag chip label for the canonical gateway tag `communication` — the counterpart communicated well"
+  },
+  "mutualRatingTagPackageCondition": "Careful",
+  "@mutualRatingTagPackageCondition": {
+    "description": "JEBV4-296/297: quick-tag chip label for the canonical gateway tag `package_condition` — the counterpart handled the order/goods carefully"
+  },
+  "mutualRatingTagCourtesy": "Friendly",
+  "@mutualRatingTagCourtesy": {
+    "description": "JEBV4-296/297: quick-tag chip label for the canonical gateway tag `courtesy` — the counterpart was friendly/courteous"
+  },
+  "mutualRatingTagNavigation": "Navigation",
+  "@mutualRatingTagNavigation": {
+    "description": "JEBV4-296/297: quick-tag chip label for the canonical gateway tag `navigation` — the counterpart navigated the route well"
+  },
   "mutualRatingSubmit": "Submit rating",
   "@mutualRatingSubmit": {
     "description": "T-MOB-020: Submit button on mutual rating screen"
