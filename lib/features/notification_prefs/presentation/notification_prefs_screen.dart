@@ -237,22 +237,21 @@ class _CategoriesSection extends StatelessWidget {
         ),
         _CategoryRow(
           identifier: 'notif_prefs_wallet_toggle',
-          // l10n reuse (CTO-D R-F): wallet title + generic subtitle until the
-          // dedicated `notifPrefsWallet*` keys land (50_ROUTE_REQUESTS JM-058).
-          title: l10n.walletHubTitle,
-          subtitle: l10n.notificationPreferencesRowSubtitle,
+          // Dedicated wallet-notification copy (F9): title + a wallet-specific
+          // subtitle, not the page-header "manage what you get notified about".
+          title: l10n.notificationCategoryWallet,
+          subtitle: l10n.notificationCategoryWalletSubtitle,
           value: c.wallet,
           onChanged: (v) =>
               cubit.toggleCategory(NotificationCategory.wallet, v),
         ),
         _CategoryRow(
           identifier: 'notif_prefs_marketing_toggle',
-          // l10n reuse (CTO-D R-F): the offers-subtitle ("Discounts and seasonal
-          // promotions") is the closest marketing copy; the offers row already
-          // owns its title, so marketing reuses the rating-reminders title
-          // getter as a neutral placeholder until the dedicated key lands.
+          // Surfaced as the rating-reminders category (D64 mapping): use the
+          // dedicated rating-reminders subtitle, not the duplicated offers copy
+          // ("Discounts and seasonal promotions") — F9.
           title: l10n.notificationCategoryRatingReminders,
-          subtitle: l10n.notificationCategoryOffersSubtitle,
+          subtitle: l10n.notificationCategoryRatingRemindersSubtitle,
           value: c.marketing,
           onChanged: (v) =>
               cubit.toggleCategory(NotificationCategory.marketing, v),

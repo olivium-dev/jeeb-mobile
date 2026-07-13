@@ -146,6 +146,30 @@ void main() {
       },
     );
 
+    testWidgets(
+      'wallet + rating-reminders rows use dedicated subtitles (F9)',
+      (tester) async {
+        await _pumpLoaded(tester);
+
+        // Wallet row: dedicated wallet-notification subtitle, not the
+        // page-header "Manage what you get notified about" copy.
+        expect(
+          find.text('Top-ups, refunds, and balance updates'),
+          findsOneWidget,
+        );
+
+        // Rating-reminders row: dedicated rating copy, not the offers copy.
+        expect(
+          find.text('Reminders to rate completed deliveries'),
+          findsOneWidget,
+        );
+
+        // The offers subtitle must now appear exactly once (the offers row
+        // only) — it is no longer duplicated onto the rating-reminders row.
+        expect(find.text('Discounts and seasonal promotions'), findsOneWidget);
+      },
+    );
+
     testWidgets('toggling a category drives a debounced PUT', (tester) async {
       final repo = await _pumpLoaded(tester);
 
