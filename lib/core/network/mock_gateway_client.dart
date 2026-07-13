@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../diagnostics/diag_dio_interceptor.dart';
 import 'auth_token_store.dart';
+import 'rate_limit_interceptor.dart';
 import 'redacting_log_interceptor.dart';
 
 /// Maps gateway-style paths to the mock backend's per-service prefix paths.
@@ -234,6 +235,21 @@ class MockGatewayClient {
         },
       ),
     );
+
+    // 429 back-off gate FIRST (BUG-C): this is the app-wide Dio DI registers
+    // (injection_container.dart `sl<Dio>()`), so it backs EVERY poller — the
+    // customer-home multi-probe load, the waiting-nearby `GET /v1/requests/:id`
+    // 5s poll, the offers `GET /v1/offers?requestId` poll, chat, tracking. The
+    // earlier F3 fix installed [RateLimitInterceptor] only on `DioClient`, which
+    // NO live call site uses, so the Retry-After back-off never actually ran
+    // against the gateway: a single 429 turned into a sustained storm (run-26
+    // logcat: 97/97 `GET /v1/requests/:id` polls returned 429, 0 succeeded,
+    // every poller hammering a rate-limited window on a fixed 5s cadence).
+    // Wired FIRST so a suppressed read short-circuits locally before the path
+    // rewrite / auth interceptors and never reaches the wire. A single shared
+    // instance here means one 429 pauses ALL pollers in lock-step (with jitter),
+    // honoring the gateway's Retry-After across the whole app — not per-screen.
+    dio.interceptors.add(RateLimitInterceptor());
 
     if (useMockPrefixes) {
       dio.interceptors.add(_PathRewriteInterceptor());
