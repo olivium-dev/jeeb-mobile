@@ -144,6 +144,19 @@ dependencies:
   # on Android.
   flutter_secure_storage: ^9.2.2
 
+  # Real on-device unlock (JEBV4-213 / E18, Q-077). local_auth drives the OS
+  # biometric dialog (Face ID / fingerprint) via the platform's BiometricPrompt
+  # / LAContext. LocalAuthBiometricGateway wraps it behind the existing
+  # `BiometricGateway` port so the `/lock` screen + BiometricLockCubit stay
+  # plugin-agnostic. authenticate() is called with `biometricOnly: false` so the
+  # OS offers the device credential (PIN / pattern / password) as the fallback
+  # when no biometric is enrolled (the DoD emulator path). Android additionally
+  # requires the host Activity to be a FlutterFragmentActivity (see MainActivity)
+  # and the USE_BIOMETRIC permission (see AndroidManifest). Debug builds keep the
+  # deterministic DevBiometricGateway (emulator/CI seam), so this plugin is only
+  # on the release code path.
+  local_auth: ^2.3.0
+
   # Diagnostics persistence + export (diag-persistence lane). share_plus drives
   # the platform share sheet that exports the on-device `[jeeb-diag]` JSONL
   # session files from the dev-only Settings → Diagnostics screen;
@@ -168,6 +181,12 @@ dev_dependencies:
   # (chat_connection_cubit_test.dart). Ships transitively with flutter_test but
   # imported directly, so declared explicitly per depend_on_referenced_packages.
   fake_async: ^1.3.3
+  # JEBV4-213 (E18): the biometric-gateway test fakes LocalAuthPlatform.instance
+  # (the "fake auth channel") to drive LocalAuthBiometricGateway without a real
+  # device. Both ship transitively via local_auth but are imported directly, so
+  # declared explicitly per depend_on_referenced_packages.
+  local_auth_platform_interface: ^1.1.0
+  plugin_platform_interface: ^2.1.8
   # Provides StreamChannelMixin for the in-memory WebSocketChannel fake in
   # live_realtime_chat_socket_test.dart. Ships transitively with
   # web_socket_channel but imported directly, so declared explicitly per
