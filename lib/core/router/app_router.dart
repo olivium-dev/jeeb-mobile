@@ -37,6 +37,7 @@ import '../../features/offer_kyc_gate/presentation/delivery_register_prompt_scre
 import '../../features/offer_kyc_gate/presentation/offer_kyc_gate_screen.dart';
 import '../../features/wallet/presentation/transaction_detail_screen.dart';
 import '../../features/wallet/presentation/wallet_activity_list_screen.dart';
+import '../../features/wallet/presentation/customer_wallet_stub_screen.dart';
 import '../../features/wallet/presentation/wallet_charge_info_screen.dart';
 import '../../features/wallet/presentation/wallet_hub_screen.dart';
 import '../../features/dispute_status/presentation/dispute_status_screen.dart';
@@ -459,6 +460,7 @@ class AppRouter {
     'kyc-rejected': '/',
     'jeeber-pending-offers': '/',
     'wallet': '/',
+    'customer-wallet': '/',
     'wallet-charge-info': '/wallet',
     'earnings': '/',
     // ── W3 wallet ledger.
@@ -1484,6 +1486,15 @@ class AppRouter {
           path: '/wallet',
           name: 'wallet',
           builder: (context, state) => const WalletHubScreen(),
+        ),
+        // F6 / JEBV4-303 customer-wallet — the customer-appropriate wallet
+        // surface. The top-bar wallet chip routes a client here (NOT the jeeber
+        // bidding wallet-hub above) so a pure customer never hits `/v1/jeeb/*`
+        // or the "Top up to bid / customer pays YOU" copy. Static, no network.
+        GoRoute(
+          path: '/wallet/customer',
+          name: 'customer-wallet',
+          builder: (context, state) => const CustomerWalletStubScreen(),
         ),
         // JM-054 wallet-charge-info — static, no-payment instructional screen
         // (D92/D93). Every "+ Top up" CTA across the app targets this route.

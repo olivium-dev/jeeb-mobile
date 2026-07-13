@@ -34,7 +34,8 @@ void main() {
       );
     });
 
-    testWidgets('shows cached banner when network fails (AC3)', (tester) async {
+    testWidgets('surfaces an error state when network fails (JEBV4-300)',
+        (tester) async {
       await tester.pumpWidget(
         wrapForTest(
           const TierSelectionScreen(
@@ -46,16 +47,18 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // Cubit uses bundled fallback, so tier cards should still render.
+      // JEBV4-300: no fallback catalog is served — no tier cards render, so no
+      // serverId-less tier can ever be confirmed onto the wire.
       expect(
         find.byKey(TierSelectionScreen.cardKey(TierId.flash)),
-        findsOneWidget,
+        findsNothing,
       );
-      // The cached banner must be visible.
+      // No cached banner — the failure is surfaced as a retryable error state.
       expect(
         find.byKey(const Key('tier-selection-cached-banner')),
-        findsOneWidget,
+        findsNothing,
       );
+      expect(find.byType(OmdsErrorState), findsOneWidget);
     });
 
     testWidgets('confirm button is disabled until a tier is selected',
@@ -122,7 +125,7 @@ void main() {
       expect(btn.isEnabled, isTrue);
     });
 
-    testWidgets('retry button triggers reload from cubit (AC3 retry)',
+    testWidgets('retry button re-fetches and recovers to loaded (JEBV4-300)',
         (tester) async {
       var callCount = 0;
       await tester.pumpWidget(
@@ -143,9 +146,24 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // First load fails → falls back to cached (banner visible).
+      // First load fails → error state with a Retry action (no cached banner).
+      expect(find.byType(OmdsErrorState), findsOneWidget);
       expect(
         find.byKey(const Key('tier-selection-cached-banner')),
+        findsNothing,
+      );
+
+      // Tapping Retry re-runs GET /tiers; the second fetch succeeds → loaded.
+      // OmdsErrorState renders its retry as a FilledButton.icon (see
+      // jeeber_pending_offers_screen_test): match the FilledButton supertype.
+      await tester.tap(find.byWidgetPredicate((w) => w is FilledButton));
+      await tester.pump();
+      await tester.pump();
+
+      expect(callCount, 2);
+      expect(find.byType(OmdsErrorState), findsNothing);
+      expect(
+        find.byKey(TierSelectionScreen.cardKey(TierId.flash)),
         findsOneWidget,
       );
     });

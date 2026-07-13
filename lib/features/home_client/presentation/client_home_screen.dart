@@ -63,8 +63,15 @@ class ClientHomeScreen extends StatefulWidget {
   State<ClientHomeScreen> createState() => _ClientHomeScreenState();
 }
 
-class _ClientHomeScreenState extends State<ClientHomeScreen> {
+class _ClientHomeScreenState extends State<ClientHomeScreen>
+    with WidgetsBindingObserver {
   late ClientHomeTab _selectedTab = widget.initialTab;
+
+  /// Whether the app is in the foreground. The 10s home poll must NOT keep
+  /// firing while the app is backgrounded (F3 — offers polling storm): a hidden
+  /// app hammering `/requests` + `/deliveries` + `/v1/offers` is pure waste and
+  /// a fast path to a 429. Starts true (a freshly-built screen is foreground).
+  bool _appResumed = true;
 
   /// True once a sub-tab has been chosen — either by the user tapping a chip or
   /// by the one-shot "land on the first populated tab" affordance below. Guards
@@ -83,12 +90,36 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final cubit = context.read<ClientHomeCubit>();
       if (cubit.state.status == ClientHomeStatus.initial) {
         cubit.load();
       }
+    });
+  }
+
+  /// Pause the poll while the app is backgrounded and resume (with one
+  /// immediate silent refresh) when it returns to the foreground. The refresh
+  /// on resume means a status change that landed while backgrounded surfaces at
+  /// once instead of waiting up to a full poll interval. [_syncPolling] applies
+  /// the tab/sub-tab gate on top of [_appResumed], so polling only actually
+  /// runs when the Requests → In Progress surface is visible AND foreground.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    final resumed = state == AppLifecycleState.resumed;
+    if (resumed == _appResumed) return;
+    _appResumed = resumed;
+    _syncPolling();
+    if (!resumed) return;
+    // Back-to-foreground: one immediate refresh iff this tab is on-screen.
+    final cubit = _homeCubit;
+    final isVisible = TabVisibility.maybeOf(context)?.isVisible ?? true;
+    if (cubit == null || !isVisible) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) cubit.refresh();
     });
   }
 
@@ -119,13 +150,14 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   }
 
   /// Start the home poll iff the Requests tab is visible AND the In Progress
-  /// sub-tab is the active one; otherwise stop it. Both cubit calls are
-  /// idempotent, so this is safe to call on every visibility / tab change.
+  /// sub-tab is the active one AND the app is foreground; otherwise stop it.
+  /// Both cubit calls are idempotent, so this is safe to call on every
+  /// visibility / tab / lifecycle change.
   void _syncPolling() {
     final cubit = _homeCubit;
     if (cubit == null) return;
     final isVisible = TabVisibility.maybeOf(context)?.isVisible ?? true;
-    if (isVisible && _selectedTab == ClientHomeTab.inProgress) {
+    if (isVisible && _selectedTab == ClientHomeTab.inProgress && _appResumed) {
       cubit.startPolling();
     } else {
       cubit.stopPolling();
@@ -134,6 +166,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _homeCubit?.stopPolling();
     super.dispose();
   }

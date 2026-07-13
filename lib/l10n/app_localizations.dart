@@ -314,6 +314,9 @@ class AppLocalizations {
   String get notificationCategoryStatus => _get('notificationCategoryStatus');
   String get notificationCategoryStatusSubtitle =>
       _get('notificationCategoryStatusSubtitle');
+  String get notificationCategoryWallet => _get('notificationCategoryWallet');
+  String get notificationCategoryWalletSubtitle =>
+      _get('notificationCategoryWalletSubtitle');
   String get notificationCategoryRatingReminders =>
       _get('notificationCategoryRatingReminders');
   String get notificationCategoryRatingRemindersSubtitle =>
@@ -1135,6 +1138,7 @@ class AppLocalizations {
   String get offersErrorOfferNotPending => _get('offersErrorOfferNotPending');
   String get offersErrorJeeberAtCapacity => _get('offersErrorJeeberAtCapacity');
   String get offersErrorGeneric => _get('offersErrorGeneric');
+  String get offersLoadErrorGeneric => _get('offersLoadErrorGeneric');
   String get offersAcceptedBannerTitle => _get('offersAcceptedBannerTitle');
   String get offersAcceptedBannerBody => _get('offersAcceptedBannerBody');
   // JM-028 offer-review additions.
@@ -2257,4 +2261,13 @@ extension AppLocalizationsRestored on AppLocalizations {
 
   // JEBV4-108: honest 401-at-create handling (session expiry → re-auth)
   String get createSessionExpired => _get('createSessionExpired');
+
+  // F6 / JEBV4-303 customer-wallet stub (role-bleed): the customer-appropriate
+  // wallet surface the top-bar wallet chip routes a client to.
+  String get customerWalletStubTitle => _get('customerWalletStubTitle');
+  String get customerWalletStubHeadline => _get('customerWalletStubHeadline');
+  String get customerWalletStubBody => _get('customerWalletStubBody');
+  String get customerWalletStubCodTitle => _get('customerWalletStubCodTitle');
+  String get customerWalletStubCodBody => _get('customerWalletStubCodBody');
+  String get customerWalletStubDoneCta => _get('customerWalletStubDoneCta');
 }

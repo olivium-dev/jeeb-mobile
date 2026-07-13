@@ -202,12 +202,16 @@ class _AvailabilityRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final availability = _availabilityLabel(l10n);
+    // F9: only join location + availability with the separator dot when a
+    // location is actually present; otherwise show availability alone so we
+    // never render a stray leading "· Available".
+    final text = location.trim().isEmpty
+        ? availability
+        : l10n.deliveryManProfileLocationAvailability(location, availability);
     return DeliveryManMetaRow(
       icon: Icons.location_on,
-      text: l10n.deliveryManProfileLocationAvailability(
-        location,
-        _availabilityLabel(l10n),
-      ),
+      text: text,
       semanticsId: 'delivery_man_profile_availability',
     );
   }

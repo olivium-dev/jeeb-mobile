@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/role/role_cubit.dart';
+import '../../../core/role/user_role.dart';
 import '../../../l10n/app_localizations.dart';
 
 /// Persistent header actions — the **wallet chip** + **notification bell** — that
@@ -14,9 +17,11 @@ import '../../../l10n/app_localizations.dart';
 ///   * Profile header  → `customer_profile_wallet_chip` / `customer_profile_bell`
 ///
 /// Navigation targets (both registered → honest navigation, CTO brief §6.7):
-///   * **wallet** route is registered (the `/wallet` stub, replaced by
-///     `WalletHubScreen` in W2.5/JM-053), so the chip navigates via
-///     `goNamed('wallet')`.
+///   * **wallet** chip is ROLE-GATED (F6 / JEBV4-303): an active jeeber goes to
+///     the jeeber bidding wallet-hub (`goNamed('wallet')` → `WalletHubScreen`),
+///     while a client (pure customer or dual-role acting as client) goes to the
+///     customer cash-on-delivery stub (`goNamed('customer-wallet')`) so no
+///     jeeber money surface (`/v1/jeeb/*`, Earnings-403) bleeds onto a customer.
 ///   * **notifications** (`/notifications`, JM-057) landed in W4-INT, so the
 ///     bell now navigates via `goNamed('notifications')` — the W1/W2 coming-soon
 ///     guard is REMOVED (W3+W4 final-wave integrator). The bell ids
@@ -47,9 +52,19 @@ class ShellHeaderActions extends StatelessWidget {
               Icons.account_balance_wallet_outlined,
               color: colorScheme.primary,
             ),
-            // Wallet route IS registered (the `/wallet` stub, → WalletHubScreen
-            // in W2.5/JM-053) — honest navigation.
-            onPressed: () => context.goNamed('wallet'),
+            // F6 / JEBV4-303 role-bleed gate: the `/wallet` hub is the JEEBER
+            // BIDDING wallet (`/v1/jeeb/wallet` + Earnings-403 + "Top up to bid /
+            // customer pays YOU" copy). Only route there when the user is
+            // ACTIVELY a jeeber (RoleCubit == jeeber). A client — pure customer
+            // OR a dual-role user acting as client — gets the customer-appropriate
+            // cash-on-delivery stub (`customer-wallet`) instead, so no jeeber
+            // money surface bleeds onto the customer experience. Nullable read so
+            // a bare harness with no RoleCubit falls back to the customer stub.
+            onPressed: () {
+              final isJeeber =
+                  context.read<RoleCubit?>()?.state == UserRole.jeeber;
+              context.goNamed(isJeeber ? 'wallet' : 'customer-wallet');
+            },
           ),
         ),
         Semantics(
