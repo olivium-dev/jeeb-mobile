@@ -6,9 +6,13 @@ import 'tier_selection_state.dart';
 
 /// Owns the tier-catalog fetch and the user's selection. Three calls:
 ///
-///   - [load] pulls `GET /tiers` on first mount and on retry; falls back to
-///     [FakeTierRepository.defaultCatalog] when the network is unreachable
-///     so the screen remains usable offline (AC3).
+///   - [load] pulls `GET /tiers` on first mount and on retry; on failure it
+///     surfaces [TierSelectionStatus.error] so the screen blocks Continue and
+///     shows a retry banner. It deliberately does NOT fall back to the bundled
+///     [FakeTierRepository.defaultCatalog] (JEBV4-300): those tiers carry no
+///     gateway [Tier.serverId], so confirming one would put a client-side enum
+///     slug on the wire for a tier the gateway never minted (and On-the-Way /
+///     Eco are tiers the server does not even sell).
 ///   - [selectTier] records the user's choice without confirming it.
 ///   - [confirm] commits the choice; the host listens for
 ///     [TierSelectionState.confirmedTierId] to drive navigation.
@@ -31,15 +35,15 @@ class TierSelectionCubit extends Cubit<TierSelectionState> {
     ));
     try {
       final tiers = await _repository.fetchTiers();
-      _emitLoaded(tiers, fromCache: false);
-    } on TierLoadException {
-      _useFallback();
+      _emitLoaded(tiers);
+    } on TierLoadException catch (e) {
+      _emitFailure(e.failure);
     } catch (_) {
-      _useFallback();
+      _emitFailure(TierLoadFailure.network);
     }
   }
 
-  void _emitLoaded(List<Tier> tiers, {required bool fromCache}) {
+  void _emitLoaded(List<Tier> tiers) {
     final preselected = _recommendedId(tiers) ?? state.selectedTierId;
     emit(state.copyWith(
       status: TierSelectionStatus.loaded,
@@ -47,12 +51,22 @@ class TierSelectionCubit extends Cubit<TierSelectionState> {
       selectedTierId: preselected,
       clearSelectedTier: preselected == null && state.selectedTierId != null,
       clearFailure: true,
-      usingCachedFallback: fromCache,
+      usingCachedFallback: false,
     ));
   }
 
-  void _useFallback() {
-    _emitLoaded(FakeTierRepository.defaultCatalog, fromCache: true);
+  /// JEBV4-300: surface the fetch failure instead of silently serving the
+  /// bundled fallback catalog. The screen renders a retry banner and keeps the
+  /// Continue CTA hidden, so no fallback tier (serverId == null) can ever reach
+  /// `POST /requests`. Retry re-runs [load] → `GET /tiers`.
+  void _emitFailure(TierLoadFailure failure) {
+    emit(state.copyWith(
+      status: TierSelectionStatus.error,
+      failure: failure,
+      clearSelectedTier: true,
+      clearConfirmedTier: true,
+      usingCachedFallback: false,
+    ));
   }
 
   void selectTier(TierId id) {
