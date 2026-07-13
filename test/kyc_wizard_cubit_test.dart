@@ -521,8 +521,10 @@ void main() {
       expect(cubit.state.error, isNull);
     });
 
-    test('a field-scoped 400 naming an UNKNOWN field falls back to the '
-        'generic submit-failed surface (never silent)', () async {
+    test(
+        'JEBV4-295: a field-scoped 400 naming an UNKNOWN field falls back to '
+        'the VALIDATION surface (never silent, and never mislabelled as a '
+        'connectivity failure)', () async {
       final cubit = _buildCubit(
         gateway: _FieldRejectingKycGateway('tos_accepted_version'),
       );
@@ -531,7 +533,10 @@ void main() {
       await cubit.submit();
 
       expect(cubit.state.submitFieldError, isNull);
-      expect(cubit.state.error, KycWizardError.submitFailed);
+      // Not submitFailed ("check your connection") — this 400 means the BFF
+      // parsed the request and rejected its content, which is not a
+      // connectivity problem.
+      expect(cubit.state.error, KycWizardError.submitValidationFailed);
     });
 
     test('a fresh submit sets the one-shot justSubmitted navigation flag',

@@ -328,14 +328,23 @@ class KycWizardCubit extends Cubit<KycWizardState> {
     } on KycSubmitFieldException catch (e) {
       // The BFF rejected a specific field (RFC-7807 `field` extension).
       // Surface it INLINE on the offending field — not the generic snackbar.
-      // Unknown field names fall back to the generic surface so the failure
-      // is never silent. (state.error is already null here — cleared at
-      // submit start — so the known-field branch adds no snackbar.)
+      // Unknown field names fall back to a generic surface so the failure is
+      // never silent, but JEBV4-295: this is a VALIDATION rejection (the BFF
+      // parsed the request and 400'd on its content — e.g. a missing-doc
+      // field this client build has no inline slot for yet), never a
+      // connectivity failure. Mapping it to [KycWizardError.submitFailed]
+      // (whose copy reads "check your connection and try again") mislabelled
+      // a validation 400 as a network error — surface
+      // [KycWizardError.submitValidationFailed] instead so the toast matches
+      // what actually happened. (state.error is already null here — cleared
+      // at submit start — so the known-field branch adds no snackbar.)
       final fieldError = _mapFieldError(e.field);
       emit(state.copyWith(
         step: KycWizardStep.identity,
         submitFieldError: fieldError,
-        error: fieldError == null ? KycWizardError.submitFailed : null,
+        error: fieldError == null
+            ? KycWizardError.submitValidationFailed
+            : null,
       ));
     } catch (_) {
       // JEBV4-271: the submit round-trip failed or timed out — but the gateway

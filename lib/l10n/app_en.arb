@@ -1553,6 +1553,8 @@
   "kycErrorUnavailable": "Couldn't open the camera. Try again.",
   "kycErrorCompressionFailed": "That photo is too large. Try retaking it.",
   "kycErrorSubmitFailed": "We couldn't submit your verification. Check your connection and try again.",
+  "kycErrorSubmitValidationFailed": "We couldn't submit your verification: some information didn't pass review. Please check your details and try again.",
+  "kycScrollForSelfieHint": "Scroll for selfie",
   "profileKycSectionTitle": "Verification",
   "profileKycStatusNotSubmitted": "Not started",
   "profileKycStatusPending": "Pending review",

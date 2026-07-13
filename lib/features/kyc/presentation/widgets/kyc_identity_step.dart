@@ -28,10 +28,17 @@ import 'kyc_liveness_prompt_card.dart';
 ///
 /// Tapping `kyc_submit_cta` signs the ToS + POSTs the submission via the
 /// cubit; on a fresh success the host screen navigates to
-/// `onboarding-funding` (JM-041). Photo completeness stays back-office
-/// validated (JM-051 convention) and does NOT disable the CTA, but the ID
-/// NUMBER is a hard client gate (E3 contract-required): the CTA disables and
-/// the cubit refuses to dial until [KycSubmission.hasValidIdNumber] holds.
+/// `onboarding-funding` (JM-041). Gov-ID front/back completeness stays
+/// back-office validated (JM-051 convention) and does NOT disable the CTA,
+/// but the ID NUMBER and the SELFIE are both hard client gates: the CTA
+/// disables until [KycSubmission.hasValidIdNumber] AND
+/// [KycSubmission.hasSelfie] hold (JEBV4-295 — submitting without a captured
+/// selfie always 400'd server-side on `selfie_with_liveness_url: null`).
+///
+/// The selfie tile sits below the fold on this single-scroll screen behind a
+/// static "ID | Selfie" progress header with no tap behaviour of its own; a
+/// `kyc_scroll_hint` affordance (JEBV4-295) nudges the user to scroll and can
+/// drive the scroll itself, so the selfie section is never silently missed.
 class KycIdentityStep extends StatefulWidget {
   const KycIdentityStep({super.key});
 
@@ -45,6 +52,10 @@ class KycIdentityStep extends StatefulWidget {
   static const Key livenessPromptKey = Key('kyc-selfie-liveness-prompt');
   static const Key tosCheckboxKey = Key('kyc-tos-accept-checkbox');
   static const Key submitButtonKey = Key('kyc-submit-cta');
+
+  /// JEBV4-295: tappable "scroll for selfie" affordance shown while the
+  /// selfie section is still below the fold and not yet captured.
+  static const Key scrollHintKey = Key('kyc-scroll-hint');
 
   static const int _nationalIdLength = 12;
 
@@ -81,17 +92,32 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
   /// review finding 4).
   late final TextEditingController _idNumberController;
 
+  /// JEBV4-295: owns the identity screen's single scroll view so the
+  /// "scroll for selfie" affordance (`kyc_scroll_hint`) can drive it.
+  late final ScrollController _scrollController;
+
   @override
   void initState() {
     super.initState();
     _idNumberController = TextEditingController(
       text: context.read<KycWizardCubit>().state.submission.idNumber ?? '',
     );
+    _scrollController = ScrollController();
+  }
+
+  void _scrollToSelfie() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.animateTo(
+      _scrollController.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOut,
+    );
   }
 
   @override
   void dispose() {
     _idNumberController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -179,6 +205,7 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
             children: [
               Expanded(
                 child: SingleChildScrollView(
+                  controller: _scrollController,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -314,6 +341,24 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
                       ),
                       const SizedBox(height: Spacing.xLarge),
 
+                      // JEBV4-295: the selfie tile sits below the fold on
+                      // this single-scroll screen behind a static
+                      // "ID | Selfie" header that has no tap/scroll
+                      // behaviour of its own — an automated driver and a
+                      // first-time user can both miss it. Show a tappable
+                      // "scroll for selfie" cue right at this fold boundary
+                      // until the selfie is captured; tapping it animates
+                      // the scroll the rest of the way for the user.
+                      if (!state.submission.hasSelfie) ...[
+                        Center(
+                          child: _ScrollForSelfieHint(
+                            label: l10n.kycScrollForSelfieHint,
+                            onTap: _scrollToSelfie,
+                          ),
+                        ),
+                        const SizedBox(height: Spacing.large),
+                      ],
+
                       // ── Selfie section ──────────────────────────────────
                       Text(
                         l10n.kycSelfieStepTitle,
@@ -381,12 +426,18 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
                   text: state.step == KycWizardStep.submitting
                       ? l10n.kycWizardSubmitting
                       : l10n.kycWizardSubmit,
-                  // Photo completeness stays back-office validated (JM-051
-                  // convention) and does NOT disable the CTA. The ID number
-                  // is the one hard client gate (E3 contract-required): a
-                  // blank/invalid value disables submit so it can never
-                  // reach the network (the cubit guard is the backstop).
+                  // JEBV4-295: the selfie IS now a hard client gate
+                  // alongside the ID number — the previous "photo
+                  // completeness stays back-office validated" convention
+                  // (JM-051) let the user fire an incomplete submit whenever
+                  // the ID number alone was valid, which always 400'd
+                  // server-side (`selfie_with_liveness_url: null`). Gov-ID
+                  // front/back completeness is unchanged (still back-office
+                  // validated, does NOT disable the CTA) — only the selfie
+                  // and the ID number block the tap so it can never reach
+                  // the network (the cubit guard is the backstop).
                   isEnabled: state.step != KycWizardStep.submitting &&
+                      state.submission.hasSelfie &&
                       state.submission.hasValidIdNumber,
                   onTap: () => cubit.submit(),
                 ),
@@ -395,6 +446,59 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
           ),
         );
       },
+    );
+  }
+}
+
+/// JEBV4-295: a tappable pill cueing that more content (the selfie section)
+/// sits below the fold, and driving the scroll there on tap. Purely a visual
+/// affordance — it never blocks or replaces manual scrolling.
+class _ScrollForSelfieHint extends StatelessWidget {
+  const _ScrollForSelfieHint({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Semantics(
+      identifier: 'kyc_scroll_hint',
+      button: true,
+      label: label,
+      child: Material(
+        color: colorScheme.primaryContainer,
+        borderRadius: OmdsBorderRadius.pill,
+        child: InkWell(
+          key: KycIdentityStep.scrollHintKey,
+          borderRadius: OmdsBorderRadius.pill,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: Spacing.medium,
+              vertical: Spacing.xSmall,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: textTheme.labelMedium?.copyWith(
+                    color: colorScheme.onPrimaryContainer,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: Spacing.xSmall),
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: colorScheme.onPrimaryContainer,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -851,6 +851,9 @@ class AppLocalizations {
   String get kycErrorUnavailable => _get('kycErrorUnavailable');
   String get kycErrorCompressionFailed => _get('kycErrorCompressionFailed');
   String get kycErrorSubmitFailed => _get('kycErrorSubmitFailed');
+  String get kycErrorSubmitValidationFailed =>
+      _get('kycErrorSubmitValidationFailed');
+  String get kycScrollForSelfieHint => _get('kycScrollForSelfieHint');
 
   String get profileKycSectionTitle => _get('profileKycSectionTitle');
   String get profileKycStatusNotSubmitted =>
