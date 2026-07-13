@@ -1828,6 +1828,16 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get mutualRatingTitle => _get('mutualRatingTitle');
   String get mutualRatingSubtitle => _get('mutualRatingSubtitle');
   String get mutualRatingTagsLabel => _get('mutualRatingTagsLabel');
+  // JEBV4-296/297: localized quick-tag chip labels — one per canonical
+  // gateway rating-tag key (wire values stay the English taxonomy keys,
+  // see `kMutualRatingTags` / `_tagLabel` in mutual_rating_screen.dart).
+  String get mutualRatingTagPunctuality => _get('mutualRatingTagPunctuality');
+  String get mutualRatingTagCommunication =>
+      _get('mutualRatingTagCommunication');
+  String get mutualRatingTagPackageCondition =>
+      _get('mutualRatingTagPackageCondition');
+  String get mutualRatingTagCourtesy => _get('mutualRatingTagCourtesy');
+  String get mutualRatingTagNavigation => _get('mutualRatingTagNavigation');
   String get mutualRatingSubmit => _get('mutualRatingSubmit');
   String get mutualRatingAwaitingTitle => _get('mutualRatingAwaitingTitle');
   String get mutualRatingAwaitingBody => _get('mutualRatingAwaitingBody');

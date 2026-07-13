@@ -196,7 +196,11 @@ class _CommentField extends StatelessWidget {
 /// A selectable rating tag. [key] is the ON-THE-WIRE value sent to the gateway
 /// and MUST be drawn from the gateway's Jeeb rating tag taxonomy
 /// (`JeebRatingVocabulary.AllowedTags`: `punctuality`, `communication`,
-/// `package_condition`, `courtesy`, `navigation`). [label] is the display text.
+/// `package_condition`, `courtesy`, `navigation`). [label] is a stable
+/// English fallback — used by the JEBV4-297 wire-contract test below and as
+/// the `_tagLabel` default for any future tag added here without a matching
+/// ARB key. The actual ON-SCREEN label is localized via `_tagLabel`
+/// (JEBV4-296), never this field directly.
 ///
 /// JEBV4-297: previously the chips sent their DISPLAY LABELS
 /// (`Punctual`/`Careful`/`Friendly`/`Fast`) as the wire value. The gateway
@@ -220,6 +224,27 @@ const kMutualRatingTags = <MutualRatingTag>[
   MutualRatingTag(key: 'navigation', label: 'Navigation'),
 ];
 
+/// JEBV4-296: maps a canonical wire key to its localized ARB label. Falls
+/// back to [MutualRatingTag.label] for any future tag added to
+/// `kMutualRatingTags` without a matching ARB key, so the screen never
+/// renders blank.
+String _tagLabel(AppLocalizations l10n, MutualRatingTag tag) {
+  switch (tag.key) {
+    case 'punctuality':
+      return l10n.mutualRatingTagPunctuality;
+    case 'communication':
+      return l10n.mutualRatingTagCommunication;
+    case 'package_condition':
+      return l10n.mutualRatingTagPackageCondition;
+    case 'courtesy':
+      return l10n.mutualRatingTagCourtesy;
+    case 'navigation':
+      return l10n.mutualRatingTagNavigation;
+    default:
+      return tag.label;
+  }
+}
+
 class _TagsSection extends StatelessWidget {
   const _TagsSection({required this.selectedTags});
   final List<String> selectedTags;
@@ -235,11 +260,22 @@ class _TagsSection extends StatelessWidget {
           style: Theme.of(context).textTheme.labelMedium,
         ),
         const SizedBox(height: Spacing.xSmall),
+        // JEBV4-296: `textDirection` is passed explicitly (rather than
+        // relying on Wrap's implicit ambient-Directionality fallback) so the
+        // chip order is provably RTL-safe under `ar` — logical order stays
+        // punctuality→communication→package_condition→courtesy→navigation,
+        // mirrored right-to-left on screen.
         Wrap(
           spacing: Spacing.xSmall,
+          textDirection: Directionality.of(context),
           children: kMutualRatingTags
-              .map((t) =>
-                  _TagChip(tag: t, selected: selectedTags.contains(t.key)))
+              .map(
+                (t) => _TagChip(
+                  tag: t,
+                  label: _tagLabel(l10n, t),
+                  selected: selectedTags.contains(t.key),
+                ),
+              )
               .toList(),
         ),
       ],
@@ -248,14 +284,19 @@ class _TagsSection extends StatelessWidget {
 }
 
 class _TagChip extends StatelessWidget {
-  const _TagChip({required this.tag, required this.selected});
+  const _TagChip({
+    required this.tag,
+    required this.label,
+    required this.selected,
+  });
   final MutualRatingTag tag;
+  final String label;
   final bool selected;
 
   @override
   Widget build(BuildContext context) {
     return OmdsChip(
-      label: tag.label,
+      label: label,
       isSelected: selected,
       // Send the canonical taxonomy KEY, not the display label (JEBV4-297).
       onTap: () => context.read<MutualRatingCubit>().toggleTag(tag.key),
