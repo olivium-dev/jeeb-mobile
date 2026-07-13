@@ -1,0 +1,132 @@
+# JOURNEY — full customer tour: auth + every customer-reachable screen captured.
+# ─────────────────────────────────────────────────────────────────────────────
+# Device RFCX306JSRT (SM-S921B / Galaxy S24), prod app.jeeb.mobile, live gateway.
+# Walks auth, then all five bottom-nav tabs (Requests / Delivery / Dashboard /
+# Earnings / Profile), then the create flow down to waiting-no-coverage and the
+# Cancel Delivery sheet (kept, not cancelled). One screenshot per screen state.
+# Flutter semantics OFF -> every in-app tap is a coordinate fraction of 1080x2340.
+#
+# OTP NOTE (same as fastest-path.yaml): OTP must be supplied and currently valid.
+# For a hands-off run that fetches the code from jeeb-otpdb, front this with the
+# auth-send-code.yaml + otp.sh split (see helpers/run-fastest-path.sh) and drop
+# the launchApp + auth page-runs below into a no-launch continuation. Kept here
+# as the readable end-to-end tour and for --dry-run parse.
+#
+# Params (env): APP_ID, PHONE, OTP (required, valid), DESC.
+#
+# Nav-tab coordinate fractions: Requests 10%,92% | Delivery 31%,92% |
+#   Dashboard 52%,92% | Earnings 73%,92% | Profile 91%,92%.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  PHONE: "71963130"
+  OTP: "0000"
+  DESC: "Maestro automated test delivery"
+tags:
+  - rfcx306jsrt
+  - customer
+  - tour
+---
+# ── Auth ─────────────────────────────────────────────────────────────────────
+- launchApp:
+    clearState: true
+- runFlow:
+    file: ../pages/_os-permissions.yaml
+    env:
+      APP_ID: ${APP_ID}
+- runFlow:
+    file: ../pages/_onboarding.yaml
+    env:
+      APP_ID: ${APP_ID}
+- runFlow:
+    file: ../pages/_register-send-code.yaml
+    env:
+      APP_ID: ${APP_ID}
+      PHONE: ${PHONE}
+- runFlow:
+    file: ../pages/_otp-verify.yaml
+    env:
+      APP_ID: ${APP_ID}
+      OTP: ${OTP}
+- runFlow:
+    file: ../pages/_profile-name.yaml
+    env:
+      APP_ID: ${APP_ID}
+
+# ── Home (Requests tab) — capture only, do not start an order yet ─────────────
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: tour-01-shell-home-requests
+
+# ── Delivery tab (order history: Active/Completed/Cancelled) ──────────────────
+- tapOn:
+    point: "31%,92%"
+- runFlow:
+    file: ../pages/_delivery-history.yaml
+    env:
+      APP_ID: ${APP_ID}
+      SHOT: tour-02-delivery
+
+# ── Dashboard tab (Become a Jeeber upsell — role=customer, not entered) ───────
+- tapOn:
+    point: "52%,92%"
+- runFlow:
+    file: ../pages/_become-jeeber-tab.yaml
+    env:
+      APP_ID: ${APP_ID}
+      SHOT: tour-03-dashboard-become-jeeber
+
+# ── Earnings tab (Become a Jeeber upsell — role=customer, not entered) ────────
+- tapOn:
+    point: "73%,92%"
+- runFlow:
+    file: ../pages/_become-jeeber-tab.yaml
+    env:
+      APP_ID: ${APP_ID}
+      SHOT: tour-04-earnings-become-jeeber
+
+# ── Profile tab ──────────────────────────────────────────────────────────────
+- tapOn:
+    point: "91%,92%"
+- runFlow:
+    file: ../pages/_profile.yaml
+    env:
+      APP_ID: ${APP_ID}
+      SHOT: tour-05-profile
+
+# ── Back to Requests, then the create flow -> waiting-no-coverage ─────────────
+- tapOn:
+    point: "10%,92%"
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow:
+    file: ../pages/_shell-home.yaml
+    env:
+      APP_ID: ${APP_ID}
+      SHOT: tour-06-shell-home-before-order
+- runFlow:
+    file: ../pages/_request-type.yaml
+    env:
+      APP_ID: ${APP_ID}
+      SHOT: tour-07-request-type
+- runFlow:
+    file: ../pages/_client-location.yaml
+    env:
+      APP_ID: ${APP_ID}
+      DESC: ${DESC}
+      SHOT: tour-08-client-location
+- runFlow:
+    file: ../pages/_waiting-no-coverage.yaml
+    env:
+      APP_ID: ${APP_ID}
+      SHOT: tour-09-waiting-no-coverage
+
+# ── Cancel Delivery sheet — open and Keep (non-destructive; request stays live) ─
+- tapOn:
+    point: "50%,75%"
+- runFlow:
+    file: ../pages/_cancel-delivery-sheet.yaml
+    env:
+      APP_ID: ${APP_ID}
+      SHOT: tour-10-cancel-delivery-sheet

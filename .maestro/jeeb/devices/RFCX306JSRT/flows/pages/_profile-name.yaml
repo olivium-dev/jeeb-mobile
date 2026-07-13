@@ -1,0 +1,28 @@
+# PAGE OBJECT — profile-name / "What should we call you?"
+# ─────────────────────────────────────────────────────────────────────────────
+# route: pushed unnamed (prev=otp). Reached by: Verify => otp/verify 200.
+# Fast path skips naming via "Skip for now" => route shell (authenticated home).
+#
+# Coordinate fractions of 1080x2340:
+#   Name field:    50%,29%
+#   Continue:      50%,38%
+#   Skip for now:  50%,45%
+#
+# Params:
+#   MODE (optional) — "skip" (default) taps Skip for now; "name" types NAME then Continue.
+#   NAME (optional) — used only when MODE=name.
+#   SHOT (optional) — screenshot basename; default profile-name.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  SHOT: profile-name
+---
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: "${SHOT}"
+# Default fast path: Skip for now.
+- tapOn:
+    point: "50%,45%"
+- waitForAnimationToEnd:
+    timeout: 5000

@@ -1,0 +1,41 @@
+# PAGE OBJECT — register / "Enter your phone" -> Send code
+# ─────────────────────────────────────────────────────────────────────────────
+# route: register. Reached by: Skip / Get Started from onboarding.
+# Types the LB mobile, hides the keyboard, taps Send code
+#   => POST /v1/auth/otp/request 200. Leaves the app on the OTP screen.
+#
+# Coordinate fractions of 1080x2340:
+#   Continue with Google: 50%,42%   (out of scope)
+#   phone number field:   50%,59%   (+961 already prefixed by the field)
+#   Send code:            50%,67%
+#
+# Phone-field fragility (UX bug): tapping mid-string inserts stray digits and
+# there is no select-all. Mitigation here: focus the field, eraseText a generous
+# 15 chars to clear any stray/pre-filled content, THEN type the 8 digits. If a
+# device still drifts, the FINDINGS doc has the adb keyevent fallback.
+#
+# Params:
+#   PHONE — 8-digit LB mobile without +961 (e.g. 71963130).
+#   SHOT (optional) — screenshot basename; default register.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  PHONE: "71963130"
+  SHOT: register
+---
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: "${SHOT}"
+- tapOn:
+    point: "50%,59%"
+- eraseText: 15
+- inputText: "${PHONE}"
+- hideKeyboard
+- waitForAnimationToEnd:
+    timeout: 2000
+- takeScreenshot: "${SHOT}_filled"
+- tapOn:
+    point: "50%,67%"
+- waitForAnimationToEnd:
+    timeout: 5000

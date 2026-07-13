@@ -1,0 +1,27 @@
+# PAGE OBJECT — cancel-delivery-sheet / "Cancel Delivery" (bottom sheet)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: modal (prev=waiting-no-coverage). Reached by: Cancel request on the
+# waiting screen. Default keeps the delivery (non-destructive) so the tour does
+# NOT actually cancel the live request; pass ACTION=cancel to confirm cancel.
+#
+# Coordinate fractions of 1080x2340:
+#   Cancel (red):    50%,81%
+#   Keep delivery:   50%,88%
+#
+# Params:
+#   ACTION (optional) — "keep" (default) taps Keep delivery; "cancel" confirms cancel.
+#   SHOT (optional)   — screenshot basename; default cancel-delivery-sheet.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  SHOT: cancel-delivery-sheet
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${SHOT}"
+# Default: keep the delivery (do not tear down the live request).
+- tapOn:
+    point: "50%,88%"
+- waitForAnimationToEnd:
+    timeout: 3000

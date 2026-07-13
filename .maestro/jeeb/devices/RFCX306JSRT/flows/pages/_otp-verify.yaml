@@ -1,0 +1,40 @@
+# PAGE OBJECT — otp-verify / "Enter the code" (4-digit)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: pushed unnamed (prev=register). Reached by: Send code => otp/request 200.
+# A single inputText of the 4-digit code auto-fills all four boxes. Then Verify
+#   => POST /v1/auth/otp/verify 200 -> profile-name.
+#
+# The dev code 1234 NEVER works; codes expire in 5 min. OTP must be the REAL code
+# read from jeeb-otpdb (helpers/otp.sh) after Send code — inject via -e OTP=....
+#
+# Coordinate fractions of 1080x2340:
+#   OTP boxes row (tap to focus): 50%,28%
+#   Verify:                       50%,38%
+#   Resend in Ns:                 50%,45%
+#   Change phone number:          50%,51%
+#
+# Params:
+#   OTP — real 4-digit code from jeeb-otpdb.
+#   SHOT (optional) — screenshot basename; default otp-verify.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  OTP: "0000"
+  SHOT: otp-verify
+---
+- waitForAnimationToEnd:
+    timeout: 4000
+- takeScreenshot: "${SHOT}"
+- tapOn:
+    point: "50%,28%"
+- eraseText: 6
+- inputText: "${OTP}"
+- hideKeyboard
+- waitForAnimationToEnd:
+    timeout: 2000
+- takeScreenshot: "${SHOT}_entered"
+- tapOn:
+    point: "50%,38%"
+- waitForAnimationToEnd:
+    timeout: 6000

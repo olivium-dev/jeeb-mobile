@@ -1,0 +1,32 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Maestro workspace config — device RFCX306JSRT (Samsung SM-S921B / Galaxy S24)
+# ─────────────────────────────────────────────────────────────────────────────
+# DEVICE-SCOPED suite. Every selector in this tree is a COORDINATE FRACTION of
+# 1080x2340 expressed as a Maestro percentage point ("50%,88%"), because this
+# prod build ships with Flutter accessibility semantics DISABLED — the a11y tree
+# is all-empty, so text:/id: selectors do not resolve. See FINDINGS-RFCX306JSRT.md.
+#
+# App under test (prod flavor, installed vName 1.0.0):
+#   appId:  app.jeeb.mobile
+# Gateway (live, NOT a mock): http://192.168.2.39:10090
+# Role: customer only (jeeber onboarding deliberately not entered).
+#
+# Shared parameters (each flow re-declares these under its own env: block so the
+# files run standalone; defaults live here for humans + CI reference):
+#   APP_ID  = app.jeeb.mobile
+#   PHONE   = 71963130            # 8-digit LB mobile, +961 auto-prefixed by the app
+#   OTP     = <runtime>           # real 4-digit code, read from jeeb-otpdb by helpers/otp.sh
+#   DESC    = "Maestro automated test delivery"   # client-location description (required to enable Confirm)
+#
+# Run a journey on THIS device (Maestro global --device flag takes the serial):
+#   ~/.maestro/bin/maestro --device RFCX306JSRT test \
+#     .maestro/jeeb/devices/RFCX306JSRT/flows/journeys/fastest-path.yaml \
+#     -e APP_ID=app.jeeb.mobile -e PHONE=71963130 -e OTP=1731 \
+#     -e DESC="Maestro automated test delivery"
+#
+# For a LIVE run (OTP fetched from the DB right after Send code), use the
+# orchestrator instead of a bare journey:
+#   .maestro/jeeb/devices/RFCX306JSRT/helpers/run-fastest-path.sh
+# ─────────────────────────────────────────────────────────────────────────────
+flows:
+  - "flows/journeys/*.yaml"

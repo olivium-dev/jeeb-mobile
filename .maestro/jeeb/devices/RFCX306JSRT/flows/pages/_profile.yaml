@@ -1,0 +1,32 @@
+# PAGE OBJECT — profile / "Profile" (customer settings)
+# ─────────────────────────────────────────────────────────────────────────────
+# route: shell (Profile tab 91%,92%). Account: jeeb-ae5ded9bd2be,
+# phone-only@jeeb.internal. "Register (as a delivery)" is the jeeber upsell and
+# is deliberately NOT tapped (role=customer).
+#
+# Coordinate fractions of 1080x2340 (top block):
+#   Register (as a delivery):  81%,43%   (NOT tapped)
+#   Password and security:     39%,51%
+#   Notification:              29%,58%
+#   Language:                  27%,65%
+#   Saved addresses:           34%,72%
+# Scrolled block (after one scroll):
+#   Contact us:  28%,60%
+#   Rate the app:30%,67%
+#   Sign out:    25%,75%   (NOT tapped by the tour — non-destructive)
+#
+# Params:
+#   SHOT (optional) — screenshot basename; default profile.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  SHOT: profile
+---
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: "${SHOT}_top"
+- scroll
+- waitForAnimationToEnd:
+    timeout: 2000
+- takeScreenshot: "${SHOT}_scrolled"

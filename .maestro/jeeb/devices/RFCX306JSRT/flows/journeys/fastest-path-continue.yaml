@@ -1,0 +1,51 @@
+# JOURNEY (phase 2 of the live fastest path) — OTP -> waiting-no-coverage.
+# ─────────────────────────────────────────────────────────────────────────────
+# INTENTIONALLY has NO launchApp: it resumes from the OTP screen that
+# auth-send-code.yaml left on screen, so the real (already-requested) code stays
+# valid. Enters OTP, verifies, skips naming, then drives the create flow to the
+# deepest solo-reachable customer state (waiting-no-coverage).
+#
+# Params (env):
+#   APP_ID (default app.jeeb.mobile)
+#   OTP    (REQUIRED) — real 4-digit code from jeeb-otpdb (helpers/otp.sh).
+#   DESC   (default) — client-location description (required to enable Confirm).
+#
+# Normally invoked by helpers/run-fastest-path.sh, not by hand.
+# ─────────────────────────────────────────────────────────────────────────────
+appId: ${APP_ID}
+env:
+  APP_ID: app.jeeb.mobile
+  OTP: "0000"
+  DESC: "Maestro automated test delivery"
+tags:
+  - rfcx306jsrt
+  - customer
+---
+- runFlow:
+    file: ../pages/_otp-verify.yaml
+    env:
+      APP_ID: ${APP_ID}
+      OTP: ${OTP}
+- runFlow:
+    file: ../pages/_profile-name.yaml
+    env:
+      APP_ID: ${APP_ID}
+- takeScreenshot: rfcx-02-shell-home
+- runFlow:
+    file: ../pages/_shell-home.yaml
+    env:
+      APP_ID: ${APP_ID}
+- runFlow:
+    file: ../pages/_request-type.yaml
+    env:
+      APP_ID: ${APP_ID}
+- runFlow:
+    file: ../pages/_client-location.yaml
+    env:
+      APP_ID: ${APP_ID}
+      DESC: ${DESC}
+- runFlow:
+    file: ../pages/_waiting-no-coverage.yaml
+    env:
+      APP_ID: ${APP_ID}
+      SHOT: rfcx-03-waiting-no-coverage
