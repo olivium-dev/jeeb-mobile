@@ -403,6 +403,10 @@ class _OfferAcceptView extends StatelessWidget {
         return l10n.offersErrorOfferNotPending;
       case OffersFailure.jeeberAtCapacity:
         return l10n.offersErrorJeeberAtCapacity;
+      // Accepts are POSTs — never suppressed by the 429 back-off — so
+      // rateLimited cannot reach the accept surface; fold into the generic copy
+      // for switch-exhaustiveness (defensive only).
+      case OffersFailure.rateLimited:
       case OffersFailure.unknown:
         return l10n.offersErrorGeneric;
     }

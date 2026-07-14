@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/formatting/friendly_reference.dart';
+import '../../../core/network/single_flight_get.dart';
 import '../../chat/data/dio_accepted_conversations_repository.dart';
 import '../domain/client_home_repository.dart';
 import '../domain/client_home_request.dart';
@@ -46,16 +47,17 @@ import '../domain/recent_delivery_summary.dart';
 /// The [MockGatewayClient] interceptor rewrites these paths to their
 /// service-prefixed counterparts automatically.
 class DioClientHomeRepository implements ClientHomeRepository {
-  DioClientHomeRepository(this._dio);
+  DioClientHomeRepository(Dio dio, {SingleFlightGet? coalescer})
+      : _coalescer = coalescer ?? SingleFlightGet(dio);
 
-  final Dio _dio;
-
-  /// In-flight GET dedupe (F3): collapses accidental duplicate same-cycle reads
-  /// (same path + query) onto a single network call instead of firing N
-  /// identical requests. Entries self-evict when their future completes, so this
-  /// is a single-flight coalescer, never a stale cache.
-  final Map<String, Future<Response<dynamic>>> _inFlightGets =
-      <String, Future<Response<dynamic>>>{};
+  /// In-flight GET dedupe (F3), promoted to the shared network layer (FIX-A):
+  /// collapses accidental duplicate same-cycle reads (same path + query) onto a
+  /// single network call. DI injects ONE instance across the home / waiting /
+  /// offers-review repos, so this repo's `GET /v1/offers?requestId` probes now
+  /// coalesce against the offers-review and waiting pollers too — not just its
+  /// own. Entries self-evict on completion, so it is a single-flight coalescer,
+  /// never a stale cache.
+  final SingleFlightGet _coalescer;
 
   // D5 contract: GET /deliveries?stage=<stage>&limit=<n>
   static const _activeDeliveriesPath = '/deliveries';
@@ -683,41 +685,12 @@ class DioClientHomeRepository implements ClientHomeRepository {
     }
   }
 
-  /// Single-flight GET (F3): if an identical read (same path + query) is
-  /// already in flight, return that same future instead of issuing a duplicate
-  /// network call. The entry self-evicts on completion, so this coalesces
-  /// concurrent duplicates within a poll cycle without ever caching a stale
-  /// body across cycles.
-  Future<Response<dynamic>> _get(String path, Map<String, dynamic> query) {
-    final key = _cacheKey(path, query);
-    final existing = _inFlightGets[key];
-    if (existing != null) return existing;
-    final future = _dio.get<dynamic>(path, queryParameters: query);
-    _inFlightGets[key] = future;
-    // Evict the entry once settled. `.ignore()` on the whenComplete-derived
-    // future is deliberate: it is a SEPARATE future that would otherwise
-    // resurface the original's error as an unhandled async error — the real
-    // error is still delivered to whoever awaits [future] itself.
-    future.whenComplete(() {
-      if (identical(_inFlightGets[key], future)) _inFlightGets.remove(key);
-    }).ignore();
-    return future;
-  }
-
-  /// Order-independent (path, query) key for [_get] dedupe.
-  static String _cacheKey(String path, Map<String, dynamic> query) {
-    final entries = query.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
-    final buffer = StringBuffer(path)..write('?');
-    for (final entry in entries) {
-      buffer
-        ..write(entry.key)
-        ..write('=')
-        ..write(entry.value)
-        ..write('&');
-    }
-    return buffer.toString();
-  }
+  /// Single-flight GET (F3), delegated to the SHARED [SingleFlightGet] (FIX-A):
+  /// an identical read (same path + query) already in flight — issued by THIS
+  /// repo or by the offers-review / waiting pollers over the same Dio — returns
+  /// that same future instead of a duplicate network call.
+  Future<Response<dynamic>> _get(String path, Map<String, dynamic> query) =>
+      _coalescer.get(path, queryParameters: query);
 
   static List<dynamic> _items(Object? data, {String fallbackKey = 'items'}) {
     if (data is List) return data;

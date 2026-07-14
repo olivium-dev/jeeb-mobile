@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/network/single_flight_get.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../cancel_request/presentation/cancel_request_sheet.dart';
@@ -80,7 +81,16 @@ class NoOfferTimeoutScreen extends StatelessWidget {
     // construct the real Dio repo over the registered `sl<Dio>()` so the screen
     // is still bound to `:4010`. Fall back to the fake only if Dio itself is
     // unavailable (e.g. a bare widget test without DI).
-    if (sl.isRegistered<Dio>()) return DioWaitingRepository(sl<Dio>());
+    if (sl.isRegistered<Dio>()) {
+      // FIX-A: share the app-wide coalescer (when registered) so the waiting
+      // screen's `GET /v1/offers?requestId` probe dedupes against the offers /
+      // home pollers.
+      return DioWaitingRepository(
+        sl<Dio>(),
+        coalescer:
+            sl.isRegistered<SingleFlightGet>() ? sl<SingleFlightGet>() : null,
+      );
+    }
     return FakeWaitingRepository();
   }
 

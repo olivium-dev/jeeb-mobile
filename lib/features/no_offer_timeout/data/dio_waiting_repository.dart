@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/network/single_flight_get.dart';
 import '../domain/waiting_repository.dart';
 import '../domain/waiting_request.dart';
 
@@ -22,9 +23,15 @@ import '../domain/waiting_request.dart';
 /// BEFORE the user lands here — the seam seeds an already-broadcasting request.
 /// This screen only READS the resulting state, so it does not re-broadcast.
 class DioWaitingRepository implements WaitingRepository {
-  const DioWaitingRepository(this._dio);
+  DioWaitingRepository(Dio dio, {SingleFlightGet? coalescer})
+      : _dio = dio,
+        // FIX-A: share the single-flight coalescer so this screen's
+        // `GET /v1/offers?requestId` offer-count probe collapses onto the same
+        // wire call the offers-review and home pollers issue for the same id.
+        _coalescer = coalescer ?? SingleFlightGet(dio);
 
   final Dio _dio;
+  final SingleFlightGet _coalescer;
 
   static const _requestsPath = '/v1/requests';
   static const _offersPath = '/v1/offers';
@@ -74,7 +81,7 @@ class DioWaitingRepository implements WaitingRepository {
   @override
   Future<int> fetchOfferCount(String requestId, {int fallback = 0}) async {
     try {
-      final response = await _dio.get<dynamic>(
+      final response = await _coalescer.get(
         _offersPath,
         queryParameters: {'requestId': requestId},
       );
