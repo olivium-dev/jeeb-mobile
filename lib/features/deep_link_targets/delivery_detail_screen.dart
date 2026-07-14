@@ -3,10 +3,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../core/di/injection_container.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/role/user_role.dart';
 import '../../core/router/root_aware_back_scope.dart';
 import '../../l10n/app_localizations.dart';
+import '../rating/domain/entities/rating_status.dart';
+import '../rating/domain/rating_repository.dart';
 
 /// Client order-detail action hub (B-P0).
 ///
@@ -18,20 +21,38 @@ import '../../l10n/app_localizations.dart';
 ///   - `chat-detail` (named)   — order conversation
 ///   - `/orders/:id/otp`       — handover OTP confirmation
 ///   - `/orders/:id/cancel`    — destructive cancellation
-///   - `/orders/:id/feedback`  — post-delivery rating (canonical surface)
+///   - `/orders/:id/mutual-rate` — post-delivery rating (status-aware entry,
+///     JEBV4-308; already-rated deliveries show a read-only summary instead)
 ///   - `/orders/:id/escalate`  — report an issue
 ///
 /// Status-gating note: this hub has no delivery-status cubit yet, so all
 /// CTAs render unconditionally. Each target defends its own empty/invalid
-/// state, so this is acceptable until a status cubit is wired (future
-/// ticket). Rating is standardized on `/feedback` (RatingScreen); the frozen
-/// `/orders/:id/rate` (JEB-137) and the blind `/orders/:id/mutual-rate`
-/// routes are intentionally NOT linked here (mutual-rate orphaned-by-design,
-/// to be reconciled with /feedback in a product follow-up).
+/// state, so this is acceptable until a status cubit is wired (future ticket).
+///
+/// Rating entry (JEBV4-308): the rating row is now STATUS-AWARE. It previously
+/// pushed the blank legacy `/orders/:id/feedback` [RatingScreen] uncondition-
+/// ally, which let an already-rated user re-open a re-editable form and never
+/// reflected the server-owned reveal state (`GET /v1/ratings/jeeb/{id}/status`,
+/// the reconciliation the old comment deferred). The row now reads that status
+/// first: a not-yet-rated delivery routes to the canonical mandatory terminal
+/// (`/orders/:id/mutual-rate`, the blind mutual-rating screen), while an
+/// already-rated one shows a read-only submitted/revealed summary instead of a
+/// re-editable form. The frozen `/orders/:id/rate` (JEB-137) stays unlinked;
+/// the legacy `/feedback` route is retained (deep-link compat) but no longer
+/// reached from this hub.
 class DeliveryDetailScreen extends StatefulWidget {
-  const DeliveryDetailScreen({super.key, required this.deliveryId});
+  const DeliveryDetailScreen({
+    super.key,
+    required this.deliveryId,
+    this.ratingRepository,
+  });
 
   final String deliveryId;
+
+  /// Test seam — defaults to `sl<RatingRepository>()` at runtime. Injected by
+  /// widget tests so the status-aware rating entry can be exercised without the
+  /// full DI graph.
+  final RatingRepository? ratingRepository;
 
   @override
   State<DeliveryDetailScreen> createState() => _DeliveryDetailScreenState();
@@ -117,7 +138,11 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen> {
         semanticsId: 'order-detail-rate',
         title: l10n.ratingPromptTitle,
         leadingIcon: Icons.star_outline,
-        onTap: (c) => c.push('/orders/$id/feedback'),
+        // JEBV4-308: status-aware entry (see class doc). Fire-and-forget the
+        // async handler; `_ActionRow` invokes this from a sync `onTap`.
+        onTap: (c) {
+          _onRateTapped(c);
+        },
       ),
       _DeliveryAction(
         semanticsId: 'order-detail-escalate',
@@ -126,6 +151,160 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen> {
         onTap: (c) => c.push('/orders/$id/escalate'),
       ),
     ];
+  }
+
+  /// Resolves the rating repository from the test seam, falling back to DI.
+  /// Returns `null` when neither is available (previews / isolated tests that
+  /// do not boot DI) so the caller can degrade to the rating terminal.
+  RatingRepository? get _ratingRepository =>
+      widget.ratingRepository ??
+      (sl.isRegistered<RatingRepository>() ? sl<RatingRepository>() : null);
+
+  /// JEBV4-308: status-aware rating entry. Reads the server-owned reveal state
+  /// before navigating so an already-rated delivery shows a read-only summary
+  /// instead of the blank re-editable form. If the status is unavailable
+  /// (offline / server error / no DI) we degrade to the canonical rating
+  /// terminal so the user is never blocked from rating.
+  Future<void> _onRateTapped(BuildContext context) async {
+    final repo = _ratingRepository;
+    if (repo == null) {
+      context.push(_mutualRateLocation(context));
+      return;
+    }
+    RatingStatus? status;
+    try {
+      status = await repo.fetchRatingStatus(deliveryId: widget.deliveryId);
+    } on RatingRepositoryException {
+      status = null;
+    }
+    if (!context.mounted) return;
+    if (status == null ||
+        status.revealState == RatingRevealState.pendingMine) {
+      // Not yet rated by this user (or status unavailable) → canonical
+      // mandatory rating terminal.
+      context.push(_mutualRateLocation(context));
+      return;
+    }
+    await _showRatingSummary(context, status);
+  }
+
+  /// Canonical blind mutual-rating route for this delivery, role-aware: a
+  /// jeeber rates the customer (`?mode=jeeber`), a customer rates the jeeber
+  /// (no query). Reads [RoleCubit] defensively (this hub is also mounted from
+  /// push deep links / isolated tests where the cubit may be absent).
+  String _mutualRateLocation(BuildContext context) {
+    UserRole role;
+    try {
+      role = context.read<RoleCubit>().state;
+    } on ProviderNotFoundException {
+      role = UserRole.client;
+    }
+    final suffix = role == UserRole.jeeber ? '?mode=jeeber' : '';
+    return '/orders/${widget.deliveryId}/mutual-rate$suffix';
+  }
+
+  /// Read-only summary for an already-rated delivery (no re-editable form):
+  /// `pendingTheirs` = you submitted, awaiting the counterpart; `bothRated` /
+  /// `autoRevealed` = both revealed, showing the counterpart's stars.
+  ///
+  /// Rendered as a modal bottom sheet (not [OmdsConfirmationDialog], whose
+  /// single-action layout puts an `Expanded` inside an `OverflowBar` and throws
+  /// a parent-data assertion — that OMDS defect is out of scope for JEBV4-308).
+  Future<void> _showRatingSummary(
+    BuildContext context,
+    RatingStatus status,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final counterpart = status.counterpartRating;
+    final revealedBody = counterpart == null
+        ? l10n.mutualRatingNoCounterRating
+        : l10n.mutualRatingTheirStars(counterpart.stars);
+    final (title, content) = switch (status.revealState) {
+      RatingRevealState.pendingTheirs => (
+          l10n.mutualRatingAwaitingTitle,
+          l10n.mutualRatingAwaitingBody,
+        ),
+      RatingRevealState.autoRevealed => (
+          l10n.mutualRatingAutoRevealedTitle,
+          revealedBody,
+        ),
+      RatingRevealState.bothRated => (
+          l10n.mutualRatingRevealedTitle,
+          revealedBody,
+        ),
+      // Unreachable — the caller routes pendingMine to the rating terminal.
+      RatingRevealState.pendingMine => (
+          l10n.mutualRatingAwaitingTitle,
+          l10n.mutualRatingAwaitingBody,
+        ),
+    };
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => _RatingSummarySheet(
+        title: title,
+        content: content,
+        doneLabel: l10n.mutualRatingDone,
+      ),
+    );
+  }
+}
+
+/// Read-only, non-editable summary of an already-submitted rating (JEBV4-308).
+/// Presented instead of the blank rating form when the delivery has already
+/// been rated by this user.
+class _RatingSummarySheet extends StatelessWidget {
+  const _RatingSummarySheet({
+    required this.title,
+    required this.content,
+    required this.doneLabel,
+  });
+
+  final String title;
+  final String content;
+  final String doneLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      identifier: 'delivery-rating-summary',
+      container: true,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(Spacing.large),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Icon(
+                Icons.star_rounded,
+                size: 40,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(height: Spacing.medium),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleLarge,
+              ),
+              const SizedBox(height: Spacing.small),
+              Text(
+                content,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: Spacing.large),
+              OmdsPrimaryButton(
+                key: const Key('delivery-rating-summary-done'),
+                text: doneLabel,
+                onTap: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
