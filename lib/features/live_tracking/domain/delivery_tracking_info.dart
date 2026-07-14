@@ -454,6 +454,38 @@ class DeliveryTrackingInfo extends Equatable {
     }
   }
 
+  /// JEBV4-269: overlays the live Jeeber position + route [polyline] (read from
+  /// the gateway's `GET /deliveries/{id}/tracking` snapshot) onto the
+  /// stage-driving snapshot the tracking screen polls from the delivery row.
+  /// Every other field is preserved verbatim — this is the merge that feeds the
+  /// live map marker without disturbing the stepper / pinned-summary fields the
+  /// delivery-row read already populated. Returns an identical instance
+  /// (Equatable-equal, so no rebuild) when the overlay carries no new position.
+  DeliveryTrackingInfo withLivePosition({
+    GpsPoint? jeeberPosition,
+    List<GpsPoint> polyline = const [],
+  }) {
+    return DeliveryTrackingInfo(
+      deliveryId: deliveryId,
+      currentStage: currentStage,
+      stageTimestamps: stageTimestamps,
+      lifecycle: lifecycle,
+      distanceLabel: distanceLabel,
+      etaMinutes: etaMinutes,
+      deadline: deadline,
+      jeeberPosition: jeeberPosition ?? this.jeeberPosition,
+      polyline: polyline.isNotEmpty ? polyline : this.polyline,
+      jeeber: jeeber,
+      requestId: requestId,
+      conversationId: conversationId,
+      price: price,
+      currency: currency,
+      jeeberName: jeeberName,
+      tier: tier,
+      itemSummary: itemSummary,
+    );
+  }
+
   @override
   List<Object?> get props => [
         deliveryId,

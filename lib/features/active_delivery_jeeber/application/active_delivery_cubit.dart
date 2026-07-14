@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../background_gps/application/background_gps_cubit.dart';
+import '../../background_gps/application/background_gps_state.dart';
 import '../../photo_attachment/data/stub_photo_picker_service.dart';
 import '../../photo_attachment/domain/photo_compressor.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
@@ -143,14 +145,27 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     PhotoPickerService? photoPicker,
     PhotoCompressor compressor = const HalvingPhotoCompressor(),
     Duration pollInterval = const Duration(seconds: 5),
+    BackgroundGpsCubit? gpsUploader,
   })  : _repository = repository,
         _photoPicker = photoPicker ?? StubPhotoPickerService(),
         _compressor = compressor,
         _pollInterval = pollInterval,
+        _gpsUploader = gpsUploader,
         super(const ActiveDeliveryState());
 
   final ActiveDeliveryRepository _repository;
   final String deliveryId;
+
+  /// JEBV4-269: the jeeber's live-GPS upload pipeline, owned for the lifetime
+  /// of this cubit. While the delivery is en route (`InTransit`) the uploader
+  /// streams the jeeber's position to the gateway so the customer's live map
+  /// has data; it is stopped the moment the delivery leaves InTransit (AtDoor /
+  /// Done / any terminal state) or the screen closes — the gateway only ingests
+  /// during the en-route phase (409 otherwise) and battery is spared the rest
+  /// of the time. Null in tests/devtool that don't exercise GPS; every call
+  /// site is null-guarded via [_syncGpsUpload]. Its own lifecycle (permissions,
+  /// stream teardown) is delegated entirely to [BackgroundGpsCubit].
+  final BackgroundGpsCubit? _gpsUploader;
 
   /// Captures the proof-of-delivery photo from the device camera (JEBV4-200).
   /// Defaults to [StubPhotoPickerService] (canned bytes) so devtool/tests run
@@ -185,6 +200,10 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
       ));
       // JEBV4-282: begin re-polling once we have a live (non-terminal) row.
       _schedulePoll();
+      // JEBV4-269: (re)evaluate GPS upload against the freshly loaded status —
+      // a deep-link straight into an already-InTransit delivery starts
+      // streaming immediately.
+      _syncGpsUpload();
     } on ActiveDeliveryException catch (e) {
       emit(state.copyWith(
         mode: ActiveDeliveryMode.error,
@@ -225,8 +244,32 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
         _pollTimer?.cancel();
         _pollTimer = null;
       }
+      // JEBV4-269: a backend-driven status flip (customer/system advancing the
+      // row to InTransit, or completing/cancelling it) starts or stops the GPS
+      // upload without the jeeber tapping anything.
+      _syncGpsUpload();
     } on ActiveDeliveryException {
       // Swallow — keep the last good snapshot; the next tick retries.
+    }
+  }
+
+  /// JEBV4-269: reconcile the live-GPS uploader with the current delivery
+  /// status. The uploader runs for exactly one window — while the delivery is
+  /// `InTransit` (the en-route phase, the only phase the gateway ingests fixes
+  /// for and the only phase the customer needs a live map) — and is idle every
+  /// other stage. [BackgroundGpsCubit.start] is idempotent (a no-op when
+  /// already tracking this delivery), so this is safe to call on every poll
+  /// tick and status transition; the `stop` is guarded on the uploader not
+  /// already being idle so a stationary Ordered/Picked delivery doesn't churn
+  /// its state. No-op when no uploader was injected (tests / devtool).
+  void _syncGpsUpload() {
+    final gps = _gpsUploader;
+    if (gps == null) return;
+    final enRoute = state.delivery?.status == JeeberDeliveryStatus.inTransit;
+    if (enRoute) {
+      unawaited(gps.start(deliveryId));
+    } else if (gps.state.phase != BackgroundGpsPhase.idle) {
+      unawaited(gps.stop());
     }
   }
 
@@ -287,6 +330,9 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
         mode: ActiveDeliveryMode.ready,
         delivery: confirmedDelivery,
       ));
+      // JEBV4-269: the jeeber's own `Picked → InTransit` tap starts the GPS
+      // upload immediately (no wait for the next poll tick).
+      _syncGpsUpload();
     } on ActiveDeliveryException catch (e) {
       // Revert
       emit(state.copyWith(
@@ -399,6 +445,10 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
         delivery: _withStatus(original, from),
         delivered: from == JeeberDeliveryStatus.done,
       ));
+      // JEBV4-269: mark-delivered walks the row past InTransit (→ AtDoor → Done),
+      // so this stops the GPS upload — the jeeber has arrived and the customer
+      // no longer needs a live position.
+      _syncGpsUpload();
     } on ActiveDeliveryException catch (e) {
       // iter6 close-tail: a phone-bearing delivery answers the terminal
       // `AtDoor → Done` with 422 `otp_required`. Don't show "transition not
@@ -412,6 +462,9 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
           clearTransitionError: true,
           clearOtpError: true,
         ));
+        // JEBV4-269: held at AtDoor awaiting the recipient OTP — past the
+        // en-route window, so the uploader stops here too.
+        _syncGpsUpload();
         return;
       }
       emit(state.copyWith(
@@ -455,6 +508,9 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
         delivered: done,
         clearOtpError: true,
       ));
+      // JEBV4-269: door-OTP verification completes the row (Done) — ensure the
+      // uploader is stopped (it already is post-AtDoor; defensive/idempotent).
+      _syncGpsUpload();
     } on ActiveDeliveryException catch (e) {
       emit(state.copyWith(
         isVerifyingOtp: false,
@@ -479,8 +535,16 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
   }
 
   @override
-  Future<void> close() {
+  Future<void> close() async {
     _pollTimer?.cancel();
+    // JEBV4-269: the uploader is owned for this cubit's lifetime — tear its GPS
+    // stream down and close it so no fixes leak past the screen (battery + no
+    // stray uploads for a delivery the jeeber has navigated away from).
+    final gps = _gpsUploader;
+    if (gps != null) {
+      await gps.stop();
+      await gps.close();
+    }
     return super.close();
   }
 
