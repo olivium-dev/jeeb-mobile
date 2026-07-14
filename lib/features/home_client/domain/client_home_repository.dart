@@ -22,6 +22,8 @@ class ClientHomeSnapshot {
     this.pending = const [],
     this.replies = const [],
     this.recentDeliveries = const [],
+    this.rateLimited = false,
+    this.retryAfter,
     List<ClientHomeRequest>? activeRequests,
   }) : _activeRequestsOverride = activeRequests;
 
@@ -29,6 +31,21 @@ class ClientHomeSnapshot {
   final List<ClientHomeRequest> pending;
   final List<ClientHomeRequest> replies;
   final List<RecentDeliverySummary> recentDeliveries;
+
+  /// F3 (offers-polling storm): `true` when at least one of the home reads was
+  /// throttled with HTTP 429 during this load. The snapshot still carries
+  /// whatever partial/cached data DID come back — a 429 must degrade the home
+  /// tab gracefully, never fail it. The cubit keeps the already-rendered data
+  /// and backs the poll off; it must NEVER surface the full-screen connection
+  /// error on a 429.
+  final bool rateLimited;
+
+  /// Server-advertised `Retry-After` (when [rateLimited]), parsed from the 429
+  /// response. The cubit uses it to back the poll off for at least this long so
+  /// the client stops hammering the throttled gateway. `null` when the header
+  /// was absent/unparseable — the cubit then falls back to its poll cadence.
+  final Duration? retryAfter;
+
   final List<ClientHomeRequest>? _activeRequestsOverride;
 
   /// Backward-compat alias — older callers used a single list. Returns the

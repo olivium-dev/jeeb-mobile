@@ -124,14 +124,21 @@ class DioClientHomeRepository implements ClientHomeRepository {
 
   @override
   Future<ClientHomeSnapshot> loadSnapshot() async {
+    // F3 (offers-polling storm): a 429 on ANY of the home reads must NOT fail
+    // the load — each sub-fetch already degrades to empty/partial data. We only
+    // RECORD that a throttle happened (and its Retry-After) so the cubit can
+    // keep the cached data, back the poll off, and never show the full-screen
+    // connection error. This tracker is shared across every read of this load.
+    final rateLimit = _RateLimitTracker();
+
     // F3 dedupe: the `role=client` list backs BOTH the auction buckets AND the
     // recent-deliveries strip. Fetch it ONCE and derive both from the same
     // payload instead of firing two near-identical `GET /requests?role=client`
     // reads per poll cycle.
     final results = await Future.wait([
-      _fetchInProgress(),
-      _fetchRoleClientRows(),
-      _fetchActiveRequests(),
+      _fetchInProgress(rateLimit),
+      _fetchRoleClientRows(rateLimit),
+      _fetchActiveRequests(rateLimit),
     ]);
 
     final shipments = results[0] as List<ClientHomeRequest>;
@@ -141,7 +148,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
     // Partition the single role=client payload into buckets (the offer probes
     // run here, coalesced) and derive the recent-deliveries strip from the same
     // rows — no second network read.
-    final buckets = await _partitionClientRequests(roleClientRows);
+    final buckets = await _partitionClientRequests(roleClientRows, rateLimit);
     final recentDeliveries = _recentDeliveries(roleClientRows);
 
     // Merge accepted orders into In Progress, deduped against any live shipment
@@ -195,6 +202,9 @@ class DioClientHomeRepository implements ClientHomeRepository {
       pending: buckets.pending,
       replies: buckets.replies,
       recentDeliveries: recentDeliveries,
+      // F3: surface (never throw) the throttle so the cubit degrades gracefully.
+      rateLimited: rateLimit.rateLimited,
+      retryAfter: rateLimit.retryAfter,
     );
   }
 
@@ -211,7 +221,9 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// role). Only genuinely on-the-road rows are kept ([_mapRequestStatus]);
   /// pending / offers-received / terminal rows are dropped here so they can
   /// never leak into In Progress through this path.
-  Future<List<ClientHomeRequest>> _fetchActiveRequests() async {
+  Future<List<ClientHomeRequest>> _fetchActiveRequests(
+    _RateLimitTracker rateLimit,
+  ) async {
     try {
       final response = await _get(
         _requestsPath,
@@ -231,14 +243,17 @@ class DioClientHomeRepository implements ClientHomeRepository {
         }
       }
       return items;
-    } on DioException {
+    } on DioException catch (e) {
+      rateLimit.record(e);
       return const [];
     } on FormatException {
       return const [];
     }
   }
 
-  Future<List<ClientHomeRequest>> _fetchInProgress() async {
+  Future<List<ClientHomeRequest>> _fetchInProgress(
+    _RateLimitTracker rateLimit,
+  ) async {
     try {
       final response = await _get(
         _activeDeliveriesPath,
@@ -253,7 +268,8 @@ class DioClientHomeRepository implements ClientHomeRepository {
         }
       }
       return items;
-    } on DioException {
+    } on DioException catch (e) {
+      rateLimit.record(e);
       return const [];
     } on FormatException {
       return const [];
@@ -264,14 +280,17 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// buckets and the recent-deliveries strip. Returns the raw row list (or an
   /// empty list on any transport/parse failure) so callers can derive their
   /// projections without re-fetching.
-  Future<List<dynamic>> _fetchRoleClientRows() async {
+  Future<List<dynamic>> _fetchRoleClientRows(
+    _RateLimitTracker rateLimit,
+  ) async {
     try {
       final response = await _get(
         _requestsPath,
         const {'role': 'client', 'page': 1, 'pageSize': 50},
       );
       return _items(response.data);
-    } on DioException {
+    } on DioException catch (e) {
+      rateLimit.record(e);
       return const [];
     } on FormatException {
       return const [];
@@ -290,6 +309,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// [_resolveOfferCounts]) rather than the row's (absent) `offersCount`.
   Future<_ClientRequestBuckets> _partitionClientRequests(
     List<dynamic> rawItems,
+    _RateLimitTracker rateLimit,
   ) async {
     try {
       final accepted = <ClientHomeRequest>[];
@@ -327,7 +347,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
       // Resolve the live offer count for each non-accepted request so an
       // offer-bearing request surfaces in Replies deterministically — not only
       // when an FCM push happened to update a denormalised count.
-      final offerCounts = await _resolveOfferCounts(candidates);
+      final offerCounts = await _resolveOfferCounts(candidates, rateLimit);
 
       final pending = <ClientHomeRequest>[];
       final replies = <ClientHomeRequest>[];
@@ -368,6 +388,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// breaks the home load.
   Future<List<int>> _resolveOfferCounts(
     List<Map<String, dynamic>> candidates,
+    _RateLimitTracker rateLimit,
   ) async {
     final counts = List<int>.generate(
       candidates.length,
@@ -402,7 +423,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
         if (memo.containsKey(id)) {
           live = memo[id];
         } else {
-          live = await _fetchLiveOfferCount(id);
+          live = await _fetchLiveOfferCount(id, rateLimit);
           memo[id] = live;
         }
         if (live != null && live > counts[index]) counts[index] = live;
@@ -422,7 +443,10 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// enrichment must never tear down an already-known reply. The broad catch is
   /// intentional: this is a best-effort signal on the home critical path and
   /// must not surface as an error or crash the load.
-  Future<int?> _fetchLiveOfferCount(String requestId) async {
+  Future<int?> _fetchLiveOfferCount(
+    String requestId,
+    _RateLimitTracker rateLimit,
+  ) async {
     try {
       final response = await _get(
         _offersPath,
@@ -444,6 +468,12 @@ class DioClientHomeRepository implements ClientHomeRepository {
         final status = o['status'] as String?;
         return status == null || _liveOfferStatuses.contains(status);
       }).length;
+    } on DioException catch (e) {
+      // A throttled probe degrades to the payload count (null) — but RECORD the
+      // 429 so the home load reports `rateLimited` and the cubit backs off
+      // instead of hammering the throttled offers endpoint every poll tick.
+      rateLimit.record(e);
+      return null;
     } catch (_) {
       return null;
     }
@@ -719,4 +749,45 @@ class _ClientRequestBuckets {
   final List<ClientHomeRequest> accepted;
   final List<ClientHomeRequest> pending;
   final List<ClientHomeRequest> replies;
+}
+
+/// Accumulates whether ANY read in a single [DioClientHomeRepository.loadSnapshot]
+/// was throttled with HTTP 429, and the longest advertised `Retry-After`.
+///
+/// F3 (offers-polling storm): the home reads are best-effort — a 429 degrades
+/// each one to empty/partial data rather than failing the load. This tracker is
+/// how that otherwise-swallowed 429 is surfaced (never thrown) so the cubit can
+/// keep the cached data, honor `Retry-After`, and NEVER show the full-screen
+/// connection error on a throttle.
+class _RateLimitTracker {
+  bool rateLimited = false;
+
+  /// Longest `Retry-After` seen this load (a 429 from a slower-recovering
+  /// endpoint should win so we back off for the full window).
+  Duration? retryAfter;
+
+  /// Folds a [DioException] into the tracker. Non-429 errors are ignored — they
+  /// are handled (and degraded) by each read's own catch and must not flip the
+  /// rate-limit signal, which is 429-specific.
+  void record(DioException error) {
+    if (error.response?.statusCode != 429) return;
+    rateLimited = true;
+    final advertised = _parseRetryAfter(
+      error.response?.headers.value('retry-after'),
+    );
+    if (advertised == null) return;
+    final current = retryAfter;
+    if (current == null || advertised > current) retryAfter = advertised;
+  }
+
+  /// Parses an HTTP `Retry-After` value. Supports the common delta-seconds form
+  /// (`Retry-After: 30`); an HTTP-date form or an unparseable value yields
+  /// `null`, so the cubit falls back to its own poll-cadence backoff. Negative
+  /// values are clamped away (treated as absent).
+  static Duration? _parseRetryAfter(String? raw) {
+    if (raw == null) return null;
+    final seconds = int.tryParse(raw.trim());
+    if (seconds == null || seconds < 0) return null;
+    return Duration(seconds: seconds);
+  }
 }
