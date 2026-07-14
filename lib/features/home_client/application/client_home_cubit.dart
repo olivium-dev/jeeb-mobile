@@ -45,6 +45,12 @@ class ClientHomeCubit extends Cubit<ClientHomeState> {
   final Duration _pollInterval;
   Timer? _pollTimer;
 
+  /// F3 (offers-polling storm): while a 429 `Retry-After` window is open, poll
+  /// refreshes are skipped so the client stops hammering the throttled gateway.
+  /// `null` when we are not backing off. A manual [load] (initial / retry CTA)
+  /// bypasses this — only the silent poll/refresh path honors it.
+  DateTime? _rateLimitedUntil;
+
   /// Initial load. Safe to call from `initState` — re-entrant calls while
   /// a load is in flight are dropped on the floor.
   Future<void> load() async {
@@ -64,6 +70,11 @@ class ClientHomeCubit extends Cubit<ClientHomeState> {
   /// empty flash.
   Future<void> refresh() async {
     if (state.status == ClientHomeStatus.loading) return;
+    // Honor an open 429 Retry-After window — silently skip this poll/refresh
+    // tick rather than pile another read onto the throttled gateway. The
+    // already-rendered data stays on screen.
+    final backoffUntil = _rateLimitedUntil;
+    if (backoffUntil != null && DateTime.now().isBefore(backoffUntil)) return;
     await _fetch();
   }
 
@@ -87,6 +98,26 @@ class ClientHomeCubit extends Cubit<ClientHomeState> {
     try {
       final snapshot = await _repository.loadSnapshot();
       if (isClosed) return;
+
+      // F3 (offers-polling storm): a throttled load must degrade gracefully. A
+      // 429 must NEVER surface the full-screen "Couldn't reach Jeeb" error and
+      // must never blank a working screen back to empty.
+      if (snapshot.rateLimited) {
+        // Back the poll off for the advertised Retry-After (or one poll cycle).
+        _rateLimitedUntil = DateTime.now().add(
+          snapshot.retryAfter ?? _pollInterval,
+        );
+        // Already showing data → keep it verbatim. The partial/empty rows the
+        // throttled load returned must not overwrite the good cached lists.
+        if (state.status == ClientHomeStatus.ready) return;
+        // Cold load got throttled: fall through and paint whatever partial data
+        // arrived (often empty) as a normal READY screen — New Order stays
+        // reachable, and the retry/poll picks the rest up once the window ends.
+      } else {
+        // A clean load clears any backoff so polling resumes at full cadence.
+        _rateLimitedUntil = null;
+      }
+
       emit(
         state.copyWith(
           status: ClientHomeStatus.ready,
@@ -100,6 +131,10 @@ class ClientHomeCubit extends Cubit<ClientHomeState> {
       );
     } catch (_) {
       if (isClosed) return;
+      // Defence in depth: an unexpected error must not blow away a working
+      // screen. Only surface the full-screen connection error on a COLD failure
+      // (nothing cached yet) — a failed background refresh keeps prior data.
+      if (state.status == ClientHomeStatus.ready) return;
       emit(state.copyWith(status: ClientHomeStatus.failed));
     }
   }
