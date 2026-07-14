@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../background_gps/application/background_gps_cubit.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
 import '../application/active_delivery_cubit.dart';
 import '../domain/active_delivery_repository.dart';
@@ -34,6 +35,7 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
     this.photoPicker,
     this.cubit,
     this.mapsUrlBuilder,
+    this.gpsUploader,
   });
 
   final String deliveryId;
@@ -69,6 +71,12 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
   /// Override for url_launcher in tests.
   final Future<void> Function(String url)? mapsUrlBuilder;
 
+  /// JEBV4-269: the jeeber's live-GPS uploader, handed in by the route builder
+  /// (production). Ownership transfers to the [ActiveDeliveryCubit] built below,
+  /// which starts it while the delivery is `InTransit` and closes it on dispose.
+  /// Null in tests/devtool that seed their own [cubit] or don't exercise GPS.
+  final BackgroundGpsCubit? gpsUploader;
+
   @override
   Widget build(BuildContext context) {
     final provided = cubit;
@@ -93,6 +101,8 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
         repository: repo,
         deliveryId: deliveryId,
         photoPicker: photoPicker,
+        // JEBV4-269: stream the jeeber's GPS to the gateway while InTransit.
+        gpsUploader: gpsUploader,
       )..loadDelivery(),
       child: _Body(
         deliveryId: deliveryId,

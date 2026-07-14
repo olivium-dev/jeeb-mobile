@@ -26,7 +26,12 @@ import 'background_gps_state.dart';
 ///
 /// The cubit is pure state — it never imports the `geocapture-flutter`
 /// plugin directly. Boundaries §F9.
-// ORPHAN (JEBV4-227, verified 2026-07-12): unwired; dead feature dir background_gps/ (11 files) — see docs/project-understanding/reconciliation/orphans.md
+///
+/// JEBV4-269 (2026-07-14): WIRED. Previously an orphan (JEBV4-227) — the whole
+/// pipeline was built for JEEB-73 but never mounted, so a jeeber's GPS never
+/// reached the gateway and the customer's live-tracking map had no data. It is
+/// now owned by [ActiveDeliveryCubit], which calls [start]/[stop] as the
+/// delivery enters/leaves the `InTransit` phase (see its `_syncGpsUpload`).
 class BackgroundGpsCubit extends Cubit<BackgroundGpsState> {
   BackgroundGpsCubit({
     required GeocaptureGateway gateway,

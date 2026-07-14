@@ -71,6 +71,11 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
           _pollTimer = null;
         }
       }
+      // JEBV4-269: overlay the jeeber's live GPS position + route onto the
+      // stage/summary snapshot so the map marker moves. Best-effort + AFTER the
+      // stage emit so a missing/late position never delays or faults the
+      // stepper.
+      await _overlayLivePosition(info);
     } on LiveTrackingException catch (e) {
       if (!isClosed) {
         if (state.trackingInfo == null) {
@@ -82,6 +87,33 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
         }
       }
     }
+  }
+
+  /// JEBV4-269: best-effort live-position overlay. When the repository can
+  /// supply GPS ([LivePositionSource]) and the delivery is still live, read the
+  /// latest Jeeber position + route from the gateway tracking snapshot and merge
+  /// it onto the current [DeliveryTrackingInfo]. A null/empty overlay, a closed
+  /// cubit, or a repo that doesn't provide positions is a silent no-op — the
+  /// stepper snapshot already emitted stands. The merge emit carries no
+  /// `pendingEvent` (copyWith resets it to `none`), so it never re-fires the
+  /// at-door / delivered navigation.
+  Future<void> _overlayLivePosition(DeliveryTrackingInfo info) async {
+    final repo = _repository;
+    if (repo is! LivePositionSource) return;
+    final source = repo as LivePositionSource;
+    // No moving jeeber to plot on a terminal row.
+    if (info.isCancelled || info.isDelivered) return;
+    final DeliveryLivePosition? overlay =
+        await source.fetchLivePosition(deliveryId: deliveryId);
+    if (isClosed || overlay == null || overlay.isEmpty) return;
+    final current = state.trackingInfo;
+    if (current == null) return;
+    emit(state.copyWith(
+      trackingInfo: current.withLivePosition(
+        jeeberPosition: overlay.jeeberPosition,
+        polyline: overlay.polyline,
+      ),
+    ));
   }
 
   /// T-MOB-017 AC3/AC4 + JM-032 AC2: detect stage transitions and emit one-shot

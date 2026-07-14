@@ -5,7 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/auth/data/dio_auth_repository.dart';
 import '../../features/auth/domain/auth_repository.dart';
+import '../../features/background_gps/application/background_gps_cubit.dart';
 import '../../features/background_gps/data/geolocator_geocapture_gateway.dart';
+import '../../features/background_gps/data/http_location_uploader.dart';
 import '../../features/background_gps/domain/location_permission.dart';
 import '../../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../../features/biometric_auth/data/dev_biometric_gateway.dart';
@@ -558,6 +560,19 @@ void configureDependencies({
     () => DioActiveDeliveryRepository(
       sl<Dio>(),
       cdnAssetGateway: sl<CdnAssetGateway>(),
+    ),
+  );
+
+  // JEBV4-269: jeeber live-GPS uploader. A fresh cubit per active-delivery
+  // screen (registerFactory) — it owns a geolocator stream + upload loop scoped
+  // to one delivery and is closed by the ActiveDeliveryCubit on dispose. Posts
+  // the jeeber's fix to the shipped `POST /location/update` ingest while the
+  // delivery is InTransit, which backs the customer's live-tracking map
+  // (`GET /deliveries/{id}/tracking`).
+  sl.registerFactory<BackgroundGpsCubit>(
+    () => BackgroundGpsCubit(
+      gateway: GeolocatorGeocaptureGateway(),
+      uploader: HttpLocationUploader(dio: sl<Dio>()),
     ),
   );
 

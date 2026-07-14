@@ -65,9 +65,12 @@ Dio _scriptedDio(_ScriptedAdapter adapter) {
 
 void main() {
   group('HttpLocationUploader', () {
-    test('sends the expected JSON body to /api/location/update', () async {
+    test(
+        'JEBV4-269: posts the frozen gateway wire shape to /location/update '
+        '(delivery-scoped single-point batch, device fix time preserved)',
+        () async {
       final adapter = _ScriptedAdapter((options, responder) {
-        responder.respondWith(204);
+        responder.respondWith(200, body: {'accepted': 1, 'rejected': 0});
       });
       final uploader = HttpLocationUploader(dio: _scriptedDio(adapter));
 
@@ -77,16 +80,51 @@ void main() {
       );
 
       expect(outcome, LocationUploadOutcome.accepted);
-      expect(adapter.lastRequest?.path, '/api/location/update');
+      // Gateway route is the bare `/location/update` (LocationController.Update),
+      // NOT the stale `/api/location/update` the orphan stub used.
+      expect(adapter.lastRequest?.path, '/location/update');
       expect(adapter.lastRequest?.method, 'POST');
       final body = adapter.lastRequest?.data as Map<String, dynamic>;
-      expect(body['delivery_id'], 'delivery-1');
-      expect(body['latitude'], closeTo(33.88, 1e-9));
-      expect(body['longitude'], closeTo(35.5, 1e-9));
-      expect(body['accuracy_m'], 12);
-      expect(body['speed_mps'], 5);
-      expect(body['heading_deg'], 92);
-      expect(body['recorded_at'], '2026-05-17T14:23:11.000Z');
+      // Delivery scope drives the gateway's party + in-transit gate (S09).
+      expect(body['deliveryId'], 'delivery-1');
+      final points = body['points'] as List<dynamic>;
+      expect(points, hasLength(1));
+      final point = points.single as Map<String, dynamic>;
+      expect(point['lat'], closeTo(33.88, 1e-9));
+      expect(point['lng'], closeTo(35.5, 1e-9));
+      expect(point['accuracy'], 12);
+      // The DEVICE fix time is preserved for the gateway's stale-detection —
+      // not re-stamped with the server clock (the batch shape, not the
+      // single-point convenience form).
+      expect(point['timestamp'], '2026-05-17T14:23:11.000Z');
+    });
+
+    test(
+        'JEBV4-269: maps 409 (not-in-transit gate) to transient so a tail-race '
+        'never permanently kills the upload loop', () async {
+      final adapter = _ScriptedAdapter((options, responder) {
+        responder.respondWith(409);
+      });
+      final uploader = HttpLocationUploader(dio: _scriptedDio(adapter));
+
+      final outcome = await uploader.upload(
+        deliveryId: 'd',
+        sample: _sample(),
+      );
+      expect(outcome, LocationUploadOutcome.transientFailure);
+    });
+
+    test('badResponse 409 also maps to transient', () async {
+      final adapter = _ScriptedAdapter((options, responder) {
+        responder.fail(DioExceptionType.badResponse, status: 409);
+      });
+      final uploader = HttpLocationUploader(dio: _scriptedDio(adapter));
+
+      final outcome = await uploader.upload(
+        deliveryId: 'd',
+        sample: _sample(),
+      );
+      expect(outcome, LocationUploadOutcome.transientFailure);
     });
 
     test('maps 5xx to a transient failure so the cubit retries', () async {

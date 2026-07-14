@@ -29,7 +29,8 @@ import '../domain/live_tracking_repository.dart';
 /// the `order_summary_pinned` header renders (D11/D71). The screen polls this
 /// every 5s (LiveTrackingCubit); when the status reaches the terminal delivered
 /// state the screen auto-advances to the receipt prompt (JM-033).
-class DioLiveTrackingRepository implements LiveTrackingRepository {
+class DioLiveTrackingRepository
+    implements LiveTrackingRepository, LivePositionSource {
   /// [originGateway] selects the wire shape. When `true` (the device/real
   /// default) the read speaks the FROZEN plural `:10090` route
   /// `GET /v1/deliveries/{id}` (the materialized aggregate — BUG-8 fix); when
@@ -83,6 +84,40 @@ class DioLiveTrackingRepository implements LiveTrackingRepository {
       throw LiveTrackingException(kind, e);
     } on FormatException catch (e) {
       throw LiveTrackingException(LiveTrackingErrorKind.parse, e);
+    }
+  }
+
+  /// JEBV4-269: best-effort read of the jeeber's live position + route from the
+  /// shipped gateway tracking snapshot `GET /deliveries/{id}/tracking` (the same
+  /// store the jeeber's uploader writes to; parsed via the frozen
+  /// `TrackingPolylineDto` shape). A plain `Accept: application/json` (Dio's
+  /// default) gets the one-shot polyline snapshot, NOT the held SSE stream.
+  ///
+  /// Deliberately total: ANY failure — 404 (no fix yet / not-a-party 403,
+  /// transport error, malformed body) — returns null so the tracking screen
+  /// keeps its stage/summary read and simply shows no marker yet. Only attempted
+  /// on the origin gateway (the `:4010` mock has no tracking route); returns
+  /// null in mock mode.
+  @override
+  Future<DeliveryLivePosition?> fetchLivePosition({
+    required String deliveryId,
+  }) async {
+    if (!originGateway) return null;
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/deliveries/$deliveryId/tracking',
+      );
+      final data = response.data;
+      if (data == null) return null;
+      final info = DeliveryTrackingInfo.fromTrackingJson(deliveryId, data);
+      return DeliveryLivePosition(
+        jeeberPosition: info.jeeberPosition,
+        polyline: info.polyline,
+      );
+    } on DioException {
+      return null;
+    } on FormatException {
+      return null;
     }
   }
 }

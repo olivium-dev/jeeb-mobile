@@ -74,6 +74,7 @@ import '../../features/order_summary/presentation/order_summary_screen.dart';
 import '../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
 import '../../features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
 import '../../features/active_delivery_jeeber/presentation/active_delivery_jeeber_screen.dart';
+import '../../features/background_gps/application/background_gps_cubit.dart';
 import '../../features/photo_attachment/domain/photo_picker_service.dart';
 import '../../features/offers/domain/offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
@@ -1364,6 +1365,11 @@ class AppRouter {
               // JEBV4-200: real camera picker so the proof photo captures REAL
               // image bytes (streamed to the CDN broker), not a filename stub.
               photoPicker: sl<PhotoPickerService>(),
+              // JEBV4-269: the live-GPS uploader for this delivery. The cubit
+              // built by the screen starts it while InTransit (streaming the
+              // jeeber's fix to the gateway so the customer's map has data) and
+              // closes it on dispose.
+              gpsUploader: sl<BackgroundGpsCubit>(),
               // Post-accept entry point from the ACTIVE delivery surface: open
               // the order conversation. chat-detail resolves the conversation
               // against the live gateway from this delivery id (== request id
