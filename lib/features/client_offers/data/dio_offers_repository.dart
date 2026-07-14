@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 
+import '../../../core/network/single_flight_get.dart';
 import '../../otp_handover/domain/handover_code_store.dart';
 import '../domain/jeeber_vehicle.dart';
 import '../domain/offer.dart';
@@ -32,10 +33,22 @@ import '../domain/offers_repository.dart';
 /// to sane defaults. Surfacing the real name/rating on the list row is a
 /// backender enrichment gap — flagged O-list-enrich in 50_ROUTE_REQUESTS.md.
 class DioOffersRepository implements OffersRepository {
-  const DioOffersRepository(this._dio, {HandoverCodeStore? handoverCodeStore})
-      : _handoverCodeStore = handoverCodeStore;
+  DioOffersRepository(
+    Dio dio, {
+    HandoverCodeStore? handoverCodeStore,
+    SingleFlightGet? coalescer,
+  })  : _dio = dio,
+        _handoverCodeStore = handoverCodeStore,
+        // FIX-A: route the `GET /v1/offers` reads through the SHARED
+        // single-flight coalescer (DI injects one instance across the offers /
+        // waiting / home repos) so a duplicate concurrent probe for the same
+        // requestId collapses onto ONE wire call instead of fanning out into a
+        // 429-tripping storm. Falls back to a private per-instance coalescer so
+        // a bare `DioOffersRepository(dio)` (widget tests) still dedupes.
+        _coalescer = coalescer ?? SingleFlightGet(dio);
 
   final Dio _dio;
+  final SingleFlightGet _coalescer;
 
   /// G4: sink for the accept response's `handoverCode`. The accept response is
   /// the only wire moment the customer is given the code, so the parse site is
@@ -61,7 +74,7 @@ class DioOffersRepository implements OffersRepository {
   @override
   Future<OffersSnapshot> fetchOffers(String requestId) async {
     try {
-      final response = await _dio.get<dynamic>(
+      final response = await _coalescer.get(
         '/v1/offers',
         queryParameters: <String, dynamic>{'requestId': requestId},
       );
@@ -292,13 +305,49 @@ class DioOffersRepository implements OffersRepository {
     return JeeberVehicle.scooter;
   }
 
+  /// Small default back-off for a rate-limited read when the server sent no
+  /// (parseable) `Retry-After`. The [RateLimitInterceptor] still owns the exact
+  /// suppression window; this only paces the cubit's cold-load auto-retry.
+  static const Duration _rateLimitRetryFallback = Duration(seconds: 5);
+
   Never _rethrowDio(DioException e) {
+    // FIX-A: a 429 — or the RateLimitInterceptor's local suppression rejection
+    // (a synthetic `DioExceptionType.cancel` raised while a Retry-After window
+    // is open) — is TRANSIENT back-pressure, never a fatal cold-load failure.
+    // Map it to the retryable [OffersFailure.rateLimited] so the offers screen
+    // stays in loading and auto-retries after Retry-After, instead of dropping
+    // to the connection-error page.
+    if (_isRateLimited(e)) {
+      throw OffersRepositoryException(
+        OffersFailure.rateLimited,
+        'rate limited',
+        _retryAfterOf(e),
+      );
+    }
     if (e.type == DioExceptionType.connectionError ||
         e.type == DioExceptionType.connectionTimeout ||
         e.type == DioExceptionType.receiveTimeout) {
       throw const OffersRepositoryException(OffersFailure.network);
     }
     throw const OffersRepositoryException(OffersFailure.unknown);
+  }
+
+  /// True when [e] is a rate-limit signal: a gateway 429 OR the local
+  /// [RateLimitInterceptor] suppression rejection (the ONLY source of a
+  /// `DioExceptionType.cancel` on this read path — this repo never cancels a
+  /// request itself).
+  static bool _isRateLimited(DioException e) =>
+      e.response?.statusCode == 429 || e.type == DioExceptionType.cancel;
+
+  /// Best-effort `Retry-After` (delta-seconds) off a real 429; the local
+  /// suppression rejection carries no response, so it falls back to
+  /// [_rateLimitRetryFallback]. The interceptor still enforces the precise
+  /// window, so an early retry simply re-suppresses and the loop self-heals.
+  Duration _retryAfterOf(DioException e) {
+    final raw = e.response?.headers.value('retry-after')?.trim();
+    final seconds = raw == null ? null : int.tryParse(raw);
+    if (seconds != null && seconds > 0) return Duration(seconds: seconds);
+    return _rateLimitRetryFallback;
   }
 
   Never _rethrowAccept(DioException e) {

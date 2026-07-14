@@ -16,6 +16,14 @@ enum OffersFailure {
   /// never the misleading "this offer is no longer available"
   /// ([offerNotPending]) message. See fix/offer-accept-409-mislabel.
   jeeberAtCapacity,
+
+  /// The gateway (or the client-side [RateLimitInterceptor] while a Retry-After
+  /// window is open) rejected the read with HTTP 429 / a local back-off
+  /// suppression. This is TRANSIENT back-pressure, NOT a fatal load failure:
+  /// the cubit must keep the screen in its loading state and auto-retry after
+  /// [OffersRepositoryException.retryAfter] rather than dropping to the
+  /// full-screen connection-error page (FIX-A / fix/neworder-429-dedupe).
+  rateLimited,
   unknown,
 }
 
@@ -105,10 +113,21 @@ abstract class OffersRepository {
 /// Typed exception the repository raises so the cubit can map cleanly without
 /// peeking at the underlying transport.
 class OffersRepositoryException implements Exception {
-  const OffersRepositoryException(this.failure, [this.message]);
+  const OffersRepositoryException(
+    this.failure, [
+    this.message,
+    this.retryAfter,
+  ]);
   final OffersFailure failure;
   final String? message;
 
+  /// Only set for [OffersFailure.rateLimited]: how long the caller should wait
+  /// before re-attempting the read (honours the gateway's `Retry-After`; falls
+  /// back to a small default when the header is absent — e.g. the local
+  /// suppression rejection carries no response). Null for every other failure.
+  final Duration? retryAfter;
+
   @override
-  String toString() => 'OffersRepositoryException($failure, $message)';
+  String toString() =>
+      'OffersRepositoryException($failure, $message, retryAfter: $retryAfter)';
 }

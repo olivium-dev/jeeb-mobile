@@ -114,6 +114,7 @@ import '../../features/settlement/domain/settlement_repository.dart';
 import '../config/dev_base_url.dart';
 import '../network/auth_token_store.dart';
 import '../network/mock_gateway_client.dart';
+import '../network/single_flight_get.dart';
 import '../observability/crash_reporter.dart';
 
 final sl = GetIt.instance;
@@ -150,6 +151,15 @@ void configureDependencies({
       baseUrl: DevBaseUrl.read(sl<SharedPreferences>()),
     ),
   );
+
+  // FIX-A (fix/neworder-429-dedupe): ONE shared single-flight coalescer over the
+  // app-wide Dio, injected into every repo that reads `GET /v1/offers?requestId`
+  // (offers-review, waiting, customer-home). A single instance is load-bearing:
+  // it is what collapses the three uncoordinated pollers' duplicate concurrent
+  // probes for the same request onto ONE wire call, instead of a 429-tripping
+  // fan-out on the "Choose a Jeeber" path.
+  sl.registerLazySingleton<SingleFlightGet>(() => SingleFlightGet(sl<Dio>()));
+
   sl.registerLazySingleton<AuthTokenStore>(() => AuthTokenStore());
 
   // Push→refetch bus (sprint-009 live refresh): the push handler publishes a
@@ -265,7 +275,7 @@ void configureDependencies({
   );
 
   sl.registerLazySingleton<ClientHomeRepository>(
-    () => DioClientHomeRepository(sl<Dio>()),
+    () => DioClientHomeRepository(sl<Dio>(), coalescer: sl<SingleFlightGet>()),
   );
 
   sl.registerLazySingleton<EarningsRepository>(
@@ -315,6 +325,9 @@ void configureDependencies({
       // G4: persist the accept response's handoverCode so the customer can
       // show it at the door (and after an app restart).
       handoverCodeStore: sl<HandoverCodeStore>(),
+      // FIX-A: share the app-wide coalescer so this poller's offers reads
+      // dedupe against the waiting/home pollers.
+      coalescer: sl<SingleFlightGet>(),
     ),
   );
 

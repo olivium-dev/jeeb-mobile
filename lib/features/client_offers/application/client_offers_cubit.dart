@@ -28,6 +28,7 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
     Duration tickInterval = const Duration(seconds: 1),
     Stream<void>? pollTicks,
     Stream<void>? clockTicks,
+    Future<void> Function(Duration)? retryDelay,
   }) : _repository = repository,
        _requestId = requestId,
        _now = now ?? DateTime.now,
@@ -35,7 +36,10 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
        _tickInterval = tickInterval,
        _externalPollTicks = pollTicks,
        _externalClockTicks = clockTicks,
+       _retryDelay = retryDelay ?? _wallClockDelay,
        super(const ClientOffersState());
+
+  static Future<void> _wallClockDelay(Duration d) => Future<void>.delayed(d);
 
   final OffersRepository _repository;
   final String _requestId;
@@ -45,8 +49,19 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
   final Stream<void>? _externalPollTicks;
   final Stream<void>? _externalClockTicks;
 
+  /// Injected back-off timer for the rate-limited cold-load auto-retry. Real
+  /// wall-clock in production; tests pass a deterministic/controllable delay so
+  /// the retry fires without a real wait (and no timer leaks into the binding).
+  final Future<void> Function(Duration) _retryDelay;
+
   StreamSubscription<void>? _pollSubscription;
   StreamSubscription<void>? _clockSubscription;
+
+  /// True while a `GET /v1/offers` poll is on the wire — a second poll tick that
+  /// overlaps a slow response is dropped so overlapping ticks never fire
+  /// duplicate concurrent reads (FIX-A: the shared coalescer would collapse
+  /// them anyway, but this stops the wasted work at the source).
+  bool _pollInFlight = false;
 
   /// Cold-load entry-point. Pulls the first snapshot, then wires the poll and
   /// the countdown tick. Subsequent calls are no-ops so the host route can
@@ -60,13 +75,28 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
         clearError: true,
       ),
     );
+    await _attemptColdLoad();
+  }
+
+  /// One cold-load attempt. On success wires the streams; on a fatal failure
+  /// drops to `failed`; on a rate-limit (429 / local suppression) it KEEPS the
+  /// screen in `loading` and schedules an auto-retry after Retry-After — the
+  /// connection-error page is never shown for transient back-pressure (FIX-A).
+  Future<void> _attemptColdLoad() async {
     try {
       final snapshot = await _repository.fetchOffers(_requestId);
+      if (isClosed) return;
       _emitSnapshot(snapshot, statusOverride: OffersScreenStatus.loaded);
       _attachStreams();
     } on OffersRepositoryException catch (e) {
+      if (isClosed) return;
+      if (e.failure == OffersFailure.rateLimited) {
+        _scheduleColdRetry(e.retryAfter);
+        return;
+      }
       emit(state.copyWith(status: OffersScreenStatus.failed, error: e.failure));
     } catch (_) {
+      if (isClosed) return;
       emit(
         state.copyWith(
           status: OffersScreenStatus.failed,
@@ -76,6 +106,20 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
     }
   }
 
+  /// Re-attempts the cold load after [after] (Retry-After, or a small default),
+  /// while the screen stays in its loading state. Guarded so it no-ops once the
+  /// cubit closes or the load has already resolved to another status.
+  void _scheduleColdRetry(Duration? after) {
+    final delay = after ?? const Duration(seconds: 5);
+    _retryDelay(delay).then((_) {
+      if (isClosed) return;
+      // A concurrent success/failure may have moved us off `loading`; only the
+      // still-loading cold path should re-attempt.
+      if (state.status != OffersScreenStatus.loading) return;
+      _attemptColdLoad();
+    });
+  }
+
   /// Manual pull-to-refresh trigger. Doesn't change the status flag — the UI
   /// reflects refresh via the pull indicator, not a full-screen spinner.
   Future<void> refresh() async {
@@ -83,6 +127,10 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
       final snapshot = await _repository.fetchOffers(_requestId);
       _emitSnapshot(snapshot);
     } on OffersRepositoryException catch (e) {
+      // A rate-limit during a manual refresh is transient back-pressure: the
+      // RateLimitInterceptor has already paused the reads and the next poll
+      // resumes once Retry-After clears. Don't flash an error banner for it.
+      if (e.failure == OffersFailure.rateLimited) return;
       emit(state.copyWith(error: e.failure));
     } catch (_) {
       emit(state.copyWith(error: OffersFailure.unknown));
@@ -199,15 +247,23 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
 
   Future<void> _poll() async {
     if (!state.requestIsOpen) return;
+    // In-flight guard (FIX-A): behind a slow proxy a `GET /v1/offers` can take
+    // longer than the poll cadence; without this a new tick would fire a second
+    // concurrent read over the first. Drop the overlapping tick — the next one
+    // picks up once the current read settles.
+    if (_pollInFlight) return;
+    _pollInFlight = true;
     try {
       final snapshot = await _repository.fetchOffers(_requestId);
       _emitSnapshot(snapshot);
     } on OffersRepositoryException catch (_) {
-      // Swallow transient poll failures — the foreground refresh and accept
-      // paths surface errors. We don't want a flaky network to flash an error
-      // banner every 5 seconds.
+      // Swallow transient poll failures (including rate-limits) — the foreground
+      // refresh and accept paths surface errors. We don't want a flaky network
+      // or a 429 back-off to flash an error banner every 5 seconds.
     } catch (_) {
       /* same — swallow */
+    } finally {
+      _pollInFlight = false;
     }
   }
 
