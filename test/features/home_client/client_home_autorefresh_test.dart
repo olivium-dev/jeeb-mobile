@@ -101,9 +101,16 @@ Widget _harness({
         ),
         child: ValueListenableBuilder<bool>(
           valueListenable: visible,
+          // JEBV4-298: the In-Progress live-tracking list was relocated off
+          // the default Requests view (now Pending/Replies). This test asserts
+          // the S13 refocus re-pull surfaces a freshly-accepted IN-PROGRESS
+          // order, so pin that surface explicitly. The refocus re-pull itself
+          // is a Requests-tab-level behavior and is unchanged.
           builder: (_, isVisible, _) => TabVisibility(
             isVisible: isVisible,
-            child: const ClientHomeScreen(),
+            child: const ClientHomeScreen(
+              initialTab: ClientHomeTab.inProgress,
+            ),
           ),
         ),
       ),

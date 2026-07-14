@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
+import 'package:jeeb_mobile/features/home_client/application/client_home_state.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/presentation/client_home_screen.dart';
 import 'package:jeeb_mobile/features/shell/tab_visibility.dart';
@@ -70,9 +71,13 @@ Widget _harness({required _CountingRepo repo}) {
           greetingNameProvider: () => 'Sami',
           pollInterval: const Duration(milliseconds: 40),
         ),
+        // JEBV4-298: the 10s live-refresh poll is a property of the
+        // In-Progress live-tracking surface, which was relocated off the
+        // default Requests view (now Pending/Replies). Pin the In-Progress
+        // tab so this test still exercises the poll lifecycle machinery.
         child: const TabVisibility(
           isVisible: true,
-          child: ClientHomeScreen(),
+          child: ClientHomeScreen(initialTab: ClientHomeTab.inProgress),
         ),
       ),
     ),
