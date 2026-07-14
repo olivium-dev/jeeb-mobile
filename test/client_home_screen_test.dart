@@ -371,15 +371,24 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('filter chips carry stable Semantics identifiers',
+    testWidgets(
+        'filter chips carry stable Semantics identifiers — Pending + Replies '
+        'only (JEBV4-298: In-Progress relocated to Delivery tab)',
         (tester) async {
-      await tester.pumpWidget(_harness(repo: _threeTabRepo()));
+      await tester.pumpWidget(
+        _harness(
+          repo: _threeTabRepo(),
+          initialTab: ClientHomeTab.pendingRequests,
+        ),
+      );
       await tester.pumpAndSettle();
 
       final handle = tester.ensureSemantics();
+      // E24/Q-086: the Requests tab is on-hold only. The accepted-onward
+      // In-Progress live-tracking chip is no longer part of this tab bar.
       expect(
         find.bySemanticsIdentifier('orders_filter_inProgress'),
-        findsOneWidget,
+        findsNothing,
       );
       expect(
         find.bySemanticsIdentifier('orders_filter_pendingRequests'),
@@ -390,6 +399,100 @@ void main() {
         findsOneWidget,
       );
       handle.dispose();
+    });
+  });
+
+  // JEBV4-298 (E24/Q-086): the Requests bottom-nav tab is the ON-HOLD surface
+  // only. The accepted-onward In-Progress live-tracking surface was relocated
+  // to the Delivery tab (its Active order detail exposes map/ETA/Track via
+  // `/orders/:id/tracking`). These lock the residual literal-DoD fix.
+  group('ClientHomeScreen Requests = on-hold only (JEBV4-298)', () {
+    testWidgets('widget default landing tab is Pending Requests',
+        (tester) async {
+      // The production host (HomeTab) leaves initialTab at the widget default;
+      // it must be Pending Requests, never the relocated In-Progress surface.
+      expect(
+        const ClientHomeScreen().initialTab,
+        ClientHomeTab.pendingRequests,
+      );
+    });
+
+    testWidgets(
+        'Requests tab bar omits the In-Progress chip and renders Pending first',
+        (tester) async {
+      // Pump with the widget default (Pending) landing tab and a snapshot that
+      // populates all three underlying lists.
+      await tester.pumpWidget(
+        _harness(
+          repo: _threeTabRepo(),
+          initialTab: ClientHomeTab.pendingRequests,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // No In-Progress chip on the Requests tab bar.
+      expect(
+        find.byKey(const Key('client-home-tab-inProgress')),
+        findsNothing,
+      );
+      // Only the two on-hold chips are present.
+      expect(
+        find.byKey(const Key('client-home-tab-pendingRequests')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('client-home-tab-replies')),
+        findsOneWidget,
+      );
+      // Default landing surface is the Pending list, NOT an active-request card.
+      expect(
+        find.byKey(const Key('pending-requests-tab-list')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('active-request-card-ip-1')), findsNothing);
+    });
+
+    testWidgets(
+        'with an empty Pending list the Requests tab advances to Replies '
+        '(never to the relocated In-Progress surface)', (tester) async {
+      // Only In-Progress + Replies populated; Pending empty. The one-shot
+      // "land where the content is" affordance must pick Replies, not the
+      // relocated In-Progress surface.
+      final repo = InMemoryClientHomeRepository.fromSnapshot(
+        const ClientHomeSnapshot(
+          inProgress: [
+            ClientHomeRequest(
+              id: 'ip-1',
+              title: 'Kamal Hajj',
+              destinationLabel: 'items',
+              status: ClientRequestStatus.enRoute,
+              tier: ClientRequestTier.flash,
+              progressStep: 3,
+            ),
+          ],
+          replies: [
+            ClientHomeRequest(
+              id: 'rep-1',
+              title: 'ORD-23470',
+              displayId: 'ORD-23470',
+              destinationLabel: 'items',
+              status: ClientRequestStatus.offersReceived,
+              tier: ClientRequestTier.express,
+              offerCount: 9,
+              offerAvatarUrls: ['', '', ''],
+              conversationId: 'conv-rep-1',
+            ),
+          ],
+        ),
+        latency: Duration.zero,
+      );
+      await tester.pumpWidget(
+        _harness(repo: repo, initialTab: ClientHomeTab.pendingRequests),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('replies-card-rep-1')), findsOneWidget);
+      expect(find.byKey(const Key('active-request-card-ip-1')), findsNothing);
     });
   });
 

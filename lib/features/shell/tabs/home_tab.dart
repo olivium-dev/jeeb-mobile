@@ -79,7 +79,11 @@ class HomeTab extends StatelessWidget {
       ],
       child: ClientHomeScreen(
         key: const Key('home-tab-root'),
-        initialTab: devTab ?? ClientHomeTab.inProgress,
+        // JEBV4-298 (E24/Q-086): the Requests tab is on-hold only, so it
+        // opens on Pending Requests. The In-Progress live-tracking surface now
+        // lives on the Delivery tab. The dev seam may still pin any tab
+        // (including In-Progress) for a debug-only capture of that surface.
+        initialTab: devTab ?? ClientHomeTab.pendingRequests,
         onCreateRequest: () => _openRequestType(context),
         onOpenRequest: (request) => _openChat(context, request),
         onTrack: (request) => _openTracking(context, request),

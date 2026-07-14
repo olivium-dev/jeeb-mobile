@@ -32,7 +32,7 @@ class ClientHomeScreen extends StatefulWidget {
     this.onCreateRequest,
     this.onRecordVoice,
     this.onTrack,
-    this.initialTab = ClientHomeTab.inProgress,
+    this.initialTab = ClientHomeTab.pendingRequests,
   });
 
   /// Legacy "open the conversation for a request" hook. Retained for API
@@ -54,9 +54,15 @@ class ClientHomeScreen extends StatefulWidget {
   /// HomeTab shell; when null the voice CTA is not rendered.
   final VoidCallback? onRecordVoice;
 
-  /// Which filter chip is selected on first render. Defaults to In Progress;
-  /// the dev seam drives this so a single APK can land on Pending / Replies
-  /// for capture without a rebuild.
+  /// Which filter chip is selected on first render. Defaults to Pending
+  /// Requests — JEBV4-298 (E24/Q-086): the Requests bottom-nav tab is the
+  /// ON-HOLD surface only (Pending + Replies). The accepted-onward
+  /// In-Progress live-tracking surface was relocated to the Delivery tab
+  /// (`/orders/:id` → Track → `/orders/:id/tracking`), so the In-Progress
+  /// chip is no longer part of this tab bar. The dev seam may still pin an
+  /// explicit tab (including [ClientHomeTab.inProgress] for a debug-only
+  /// capture of the isolated surface) so a single APK can land on any list
+  /// without a rebuild.
   final ClientHomeTab initialTab;
 
   @override
@@ -171,24 +177,23 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
     super.dispose();
   }
 
-  /// JM-023 AC2: when data first lands, surface the requests that actually
-  /// exist. If the caller left the default In Progress chip selected (i.e. the
-  /// dev seam / a deep-link did NOT pin a specific tab) and In Progress is
-  /// empty while another tab has content, advance to the first populated tab —
-  /// Pending Requests first (the seeded pending journey), then Replies. This is
-  /// a one-shot "land where the content is" affordance; once the user taps a
-  /// chip [_tabResolved] is set and the selection is never overridden again.
+  /// JM-023 AC2 (updated for JEBV4-298): when data first lands, surface the
+  /// requests that actually exist. The Requests tab is now on-hold only, so the
+  /// default landing chip is Pending Requests. If the caller left that default
+  /// selected (i.e. the dev seam / a deep-link did NOT pin a specific tab) and
+  /// Pending is empty while Replies has content, advance to Replies. This is a
+  /// one-shot "land where the content is" affordance; once the user taps a chip
+  /// [_tabResolved] is set and the selection is never overridden again.
   void _resolveInitialTab(ClientHomeState state) {
     if (_tabResolved) return;
     if (state.status != ClientHomeStatus.ready) return;
     _tabResolved = true;
     // Respect an explicit (non-default) starting tab — capture flows pin one.
-    if (widget.initialTab != ClientHomeTab.inProgress) return;
-    if (state.inProgress.isNotEmpty) return;
-    final ClientHomeTab? populated = state.pending.isNotEmpty
-        ? ClientHomeTab.pendingRequests
-        : (state.replies.isNotEmpty ? ClientHomeTab.replies : null);
-    if (populated == null || populated == _selectedTab) return;
+    if (widget.initialTab != ClientHomeTab.pendingRequests) return;
+    if (state.pending.isNotEmpty) return;
+    if (state.replies.isEmpty) return;
+    const populated = ClientHomeTab.replies;
+    if (populated == _selectedTab) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       setState(() => _selectedTab = populated);
@@ -569,8 +574,12 @@ class _ClientHomeTabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // JEBV4-298 (E24/Q-086): the Requests tab is the ON-HOLD surface only —
+    // Pending Requests + Replies. The accepted-onward In-Progress live-tracking
+    // chip was relocated to the Delivery tab (its Active order detail exposes
+    // the map/ETA/Track surface via `/orders/:id/tracking`), so it is
+    // intentionally NOT listed here.
     final tabs = <_TabSpec>[
-      _TabSpec(ClientHomeTab.inProgress, l10n.homeTabInProgress),
       _TabSpec(ClientHomeTab.pendingRequests, l10n.homeTabPendingRequests),
       _TabSpec(ClientHomeTab.replies, l10n.homeTabReplies),
     ];
