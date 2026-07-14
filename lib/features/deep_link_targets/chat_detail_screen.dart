@@ -7,6 +7,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../core/delivery/delivery_status_vocab.dart';
 import '../../core/formatting/friendly_reference.dart';
 import '../../core/network/auth_token_store.dart';
 import '../../core/role/role_cubit.dart';
@@ -572,35 +573,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   /// True when a delivery lifecycle status is a SUCCESSFUL delivery completion
   /// (Done/delivered/completed) — the subset of [_isTerminalStatus] that earns
-  /// a rating. Cancelled/expired/disputed/failed terminals are deliberately
-  /// excluded (no rating for a non-delivered order). Tolerant of the
-  /// CapitalCase, snake_case, and legacy aliases the wire can carry.
-  static bool _isDeliveredStatus(String? statusId) {
-    if (statusId == null || statusId.isEmpty) return false;
-    const delivered = <String>{'done', 'delivered', 'completed'};
-    return delivered.contains(statusId.toLowerCase().replaceAll('_', ''));
-  }
+  /// a rating. Delegates to the shared [DeliveryStatusVocab] (JEBV4-309) so the
+  /// chat status chip and the customer delivery-details hub classify the wire
+  /// `statusId` identically.
+  static bool _isDeliveredStatus(String? statusId) =>
+      DeliveryStatusVocab.isDelivered(statusId);
 
   /// True when a delivery lifecycle status is terminal (Done/delivered/
-  /// cancelled/…). Mirrors the terminal collapse in
-  /// `JeeberDeliveryStatusX.fromApi` so the summary poll stops once the chip can
-  /// no longer advance. Tolerant of the CapitalCase, snake_case, and legacy
-  /// aliases the wire can carry.
-  static bool _isTerminalStatus(String? statusId) {
-    if (statusId == null || statusId.isEmpty) return false;
-    const terminal = <String>{
-      'done',
-      'delivered',
-      'completed',
-      'rated',
-      'cancelled',
-      'canceled',
-      'expired',
-      'disputed',
-      'failedneedsescalation',
-    };
-    return terminal.contains(statusId.toLowerCase().replaceAll('_', ''));
-  }
+  /// cancelled/…). Delegates to the shared [DeliveryStatusVocab] (JEBV4-309),
+  /// which mirrors the terminal collapse in `JeeberDeliveryStatusX.fromApi`.
+  static bool _isTerminalStatus(String? statusId) =>
+      DeliveryStatusVocab.isTerminal(statusId);
 
   /// Resolves the authenticated session user id from [AuthTokenStore] (DI),
   /// populated at login / super-login. Returns '' when the store is absent or

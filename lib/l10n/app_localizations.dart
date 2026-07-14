@@ -1305,6 +1305,17 @@ class AppLocalizations {
   String get deliveryActionCancellingLabel =>
       _get('deliveryActionCancellingLabel');
 
+  // JEBV4-309 — state-aware customer delivery-details hub.
+  String get deliveryActionReceipt => _get('deliveryActionReceipt');
+  String get deliveryDetailDeliveredBanner =>
+      _get('deliveryDetailDeliveredBanner');
+  String get deliveryDetailDeliveredBannerBody =>
+      _get('deliveryDetailDeliveredBannerBody');
+  String get deliveryDetailCancelledBanner =>
+      _get('deliveryDetailCancelledBanner');
+  String get deliveryDetailCancelledBannerBody =>
+      _get('deliveryDetailCancelledBannerBody');
+
   String get deliveryCancelDialogTitle => _get('deliveryCancelDialogTitle');
   String get deliveryCancelDialogBody => _get('deliveryCancelDialogBody');
   String get deliveryCancelDialogConfirm => _get('deliveryCancelDialogConfirm');

@@ -2600,6 +2600,26 @@
   "@deliveryActionContact": {
     "description": "Primary CTA — opens the dialer with the Jeeber's number"
   },
+  "deliveryActionReceipt": "View receipt",
+  "@deliveryActionReceipt": {
+    "description": "JEBV4-309 — row on the delivered delivery-details hub opening the cash-receipt screen (/orders/:id/receipt)"
+  },
+  "deliveryDetailDeliveredBanner": "Delivered",
+  "@deliveryDetailDeliveredBanner": {
+    "description": "JEBV4-309 — banner title on the customer delivery-details hub once the delivery is complete"
+  },
+  "deliveryDetailDeliveredBannerBody": "This delivery is complete.",
+  "@deliveryDetailDeliveredBannerBody": {
+    "description": "JEBV4-309 — supporting line under the Delivered banner on the delivery-details hub"
+  },
+  "deliveryDetailCancelledBanner": "Cancelled",
+  "@deliveryDetailCancelledBanner": {
+    "description": "JEBV4-309 — banner title on the customer delivery-details hub for a cancelled delivery"
+  },
+  "deliveryDetailCancelledBannerBody": "This delivery was cancelled.",
+  "@deliveryDetailCancelledBannerBody": {
+    "description": "JEBV4-309 — supporting line under the Cancelled banner on the delivery-details hub"
+  },
   "deliveryActionCancellingLabel": "Cancelling…",
   "@deliveryActionCancellingLabel": {
     "description": "Label shown on the cancel CTA while the gateway request is in flight"
