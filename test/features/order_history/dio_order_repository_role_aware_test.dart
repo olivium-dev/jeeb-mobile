@@ -50,7 +50,7 @@ void main() {
     );
 
     test(
-      'jeeber hits /v1/deliveries?role=jeeber and sends NO customer status',
+      'jeeber hits /v1/deliveries?role=jeeber and sends the per-tab status bucket',
       () async {
         adapter.body = {'items': const <Object?>[]};
 
@@ -61,11 +61,35 @@ void main() {
 
         expect(adapter.lastPath, '/v1/deliveries');
         expect(adapter.lastQuery['role'], 'jeeber');
-        // The delivery endpoint speaks its own vocabulary; the customer `status=`
-        // value must not be sent (client-side re-bucketing splits the tabs).
-        expect(adapter.lastQuery.containsKey('status'), isFalse);
+        // JEBV4-307: the delivery endpoint honours the `status=` bucket token
+        // (gateway MatchesBucket). Absent status = active-only, which stranded
+        // the Completed/Cancelled tabs empty — so the per-tab bucket IS sent.
+        expect(adapter.lastQuery['status'], 'active');
         expect(adapter.lastQuery['page'], 1);
         expect(adapter.lastQuery['pageSize'], 20);
+      },
+    );
+
+    test(
+      'jeeber Completed/Cancelled tabs request the delivered/cancelled buckets',
+      () async {
+        adapter.body = {'items': const <Object?>[]};
+
+        await DioOrderRepository(
+          dio,
+          asJeeber: true,
+        ).fetchPage(tab: OrderHistoryTab.completed, page: 1, pageSize: 20);
+        // JEBV4-307 regression lock: the jeeber Completed tab must ask the
+        // gateway for the terminal-Done bucket, not the active-only default.
+        expect(adapter.lastPath, '/v1/deliveries');
+        expect(adapter.lastQuery['role'], 'jeeber');
+        expect(adapter.lastQuery['status'], 'delivered');
+
+        await DioOrderRepository(
+          dio,
+          asJeeber: true,
+        ).fetchPage(tab: OrderHistoryTab.cancelled, page: 1, pageSize: 20);
+        expect(adapter.lastQuery['status'], 'cancelled');
       },
     );
 
