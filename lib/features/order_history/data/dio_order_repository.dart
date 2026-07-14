@@ -55,13 +55,19 @@ class DioOrderRepository implements OrderRepository {
       final response = await _dio.get<dynamic>(
         _asJeeber ? _jeeberPath : _customerPath,
         queryParameters: {
-          // Jeeber: scope to the bearer's ASSIGNED deliveries. The delivery
-          // endpoint speaks the Ordered/Picked/InTransit/AtDoor/Done vocabulary
-          // and returns ALL of the jeeber's rows; the client-side re-bucketing
-          // below splits them across the tabs, so no customer `status=` filter
-          // is sent (it would not match the delivery vocabulary). Customer: the
-          // per-tab status filter, unchanged.
-          if (_asJeeber) 'role': 'jeeber' else 'status': _statusParam(tab),
+          // Jeeber: scope to the bearer's ASSIGNED deliveries with `role=jeeber`.
+          // JEBV4-307: the delivery endpoint ALSO honours the per-tab `status=`
+          // bucket token — the gateway `JeebOrdersListController.MatchesBucket`
+          // maps `active|delivered|cancelled` to the in-flight / canonical-Done /
+          // Cancelled surfaces, and an ABSENT status defaults to the active-only
+          // bucket (terminal Done/Cancelled excluded). Omitting it therefore made
+          // the jeeber Completed/Cancelled tabs structurally empty — the gateway
+          // only ever returned active rows. Send the same `_statusParam(tab)` as
+          // the customer path so each tab asks the server for its bucket; the
+          // client-side re-bucketing in `_parsePage` stays as a backstop.
+          // Customer: the per-tab status filter, unchanged.
+          if (_asJeeber) 'role': 'jeeber',
+          'status': _statusParam(tab),
           'page': page,
           'pageSize': pageSize,
           if (range.from != null)
