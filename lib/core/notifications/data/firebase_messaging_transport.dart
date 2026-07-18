@@ -7,6 +7,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../diagnostics/diag.dart';
+import '../../observability/session_trace/session_trace.dart';
 import '../domain/local_push_inbox.dart';
 import '../domain/notification_message.dart';
 import 'shared_prefs_local_push_inbox.dart';
@@ -186,6 +187,13 @@ class FirebaseMessagingTransport implements PushTransport {
         ),
         payload: domain.id,
       );
+      // Session-trace observability tool (devtool-only, Module 3): richer,
+      // redacted SHOWN event for the exact moment the Android heads-up
+      // banner is actually rendered (FCM does not auto-display foreground
+      // messages). Hard no-op (tree-shaken out) in a production build.
+      if (kObsCompiledIn) {
+        ObsNotificationRecorder.recordShown(domain);
+      }
     }
   }
 

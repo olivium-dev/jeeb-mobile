@@ -108,6 +108,7 @@ import '../../features/voice_request/presentation/voice_request_screen.dart';
 import '../di/injection_container.dart';
 import '../diagnostics/diagnostics.dart';
 import '../diagnostics/diagnostics_screen.dart';
+import '../observability/session_trace/session_trace.dart';
 import '../onboarding/onboarding_cubit.dart';
 
 /// `/capture-location` route host (B-35).
@@ -554,7 +555,16 @@ class AppRouter {
       // `{"t":"nav",...}` line per push/pop/replace so a device run can be
       // grepped for exactly which screens opened. Inert in release (every
       // `Diag.*` call early-returns when `Diag.enabled` is false).
-      observers: [DiagNavObserver()],
+      //
+      // ObsNavObserver (session-trace devtool tool, Module 1): runs ALONGSIDE
+      // DiagNavObserver, never replacing it. Compile-time gated on
+      // `kObsCompiledIn` (a `const false` in a production build tree-shakes
+      // `ObsNavObserver` out entirely) and, at runtime, every override is a
+      // total no-op unless `Observability.instance.recording` is true.
+      observers: [
+        DiagNavObserver(),
+        if (kObsCompiledIn) ObsNavObserver(),
+      ],
       refreshListenable: _MergedRefreshListenable([
         _CubitRefreshListenable<bool>(onboarding),
         _CubitRefreshListenable<BiometricLockState>(biometricLock),

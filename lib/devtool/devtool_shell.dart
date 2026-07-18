@@ -3,6 +3,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../app/bootstrap.dart';
 import '../core/dev_flags.dart';
+import '../core/observability/session_trace/observability_config.dart';
+import '../core/observability/session_trace/presentation/obs_overlay.dart';
 import '../core/theme/app_theme.dart';
 import 'actions/actions_page.dart';
 import 'catalog/catalog_screen.dart';
@@ -60,6 +62,17 @@ class _DevToolAppState extends State<DevToolApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      // Session-trace observability tool (devtool-only): mounts the SAME
+      // floating overlay `lib/app/app.dart` mounts over the product app, so
+      // the Dev Tool shell (reached via its own launcher icon OR
+      // `main_devtool.dart`) also carries a start/stop/export affordance.
+      // Additive only; `kObsCompiledIn` is compile-time `false` in a
+      // production build, so this builder (and `ObsOverlayHost`) is
+      // tree-shaken out and `child` is returned unchanged.
+      builder: (context, child) {
+        final content = child ?? const SizedBox.shrink();
+        return kObsCompiledIn ? ObsOverlayHost(child: content) : content;
+      },
       home: FutureBuilder<BootstrapResult>(
         future: _bootstrap,
         builder: (context, snapshot) {

@@ -32,6 +32,8 @@ import '../core/notifications/domain/notification_deep_link.dart';
 import '../core/notifications/presentation/push_banner_host.dart';
 import '../core/observability/crash_context_bridge.dart';
 import '../core/observability/crash_reporter.dart';
+import '../core/observability/session_trace/observability_config.dart';
+import '../core/observability/session_trace/presentation/obs_overlay.dart';
 import '../core/network/auth_token_store.dart';
 import '../core/onboarding/onboarding_cubit.dart';
 import '../core/role/role_availability_cubit.dart';
@@ -592,7 +594,18 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
                         },
                         child: content,
                       );
-                return jeebA11yBuilder(context, wrapped);
+                final routed = jeebA11yBuilder(context, wrapped);
+                // Session-trace observability tool (devtool-only): a floating
+                // bubble/panel overlay so a developer can start/stop tracing,
+                // watch live screen/api/notification/interaction events, and
+                // export the session — WITHOUT touching the routed content
+                // underneath. Additive only (`Stack`s the overlay on top);
+                // `kObsCompiledIn` is compile-time `false` in a production
+                // build, so this line (and `ObsOverlayHost` itself) is
+                // tree-shaken out and `routed` is returned unchanged.
+                return kObsCompiledIn
+                    ? ObsOverlayHost(child: routed)
+                    : routed;
               },
             ),
           );
