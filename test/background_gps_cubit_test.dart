@@ -83,11 +83,11 @@ void main() {
           reason: 'no system prompt when permission is already always');
     });
 
-    test('prompts when current permission is not always, succeeds on grant',
+    test('prompts when permission needs granting, succeeds on grant',
         () async {
       final gateway = FakeGeocaptureGateway(
         permissionScript: [
-          LocationPermission.whileInUse, // currentPermission
+          LocationPermission.denied, // currentPermission → must prompt
           LocationPermission.always, // requestAlwaysPermission
         ],
       );
@@ -121,7 +121,7 @@ void main() {
       expect(cubit.state.uploadedCount, 0);
     });
 
-    test('whileInUse (foreground only) is treated as denied for background',
+    test('whileInUse (foreground) is accepted — uploader starts (JEBV4-269 Option A)',
         () async {
       final gateway = FakeGeocaptureGateway(
         permissionScript: [
@@ -135,7 +135,10 @@ void main() {
       );
 
       await cubit.start('delivery-1');
-      expect(cubit.state.phase, BackgroundGpsPhase.permissionDenied);
+      // Foreground grant is sufficient: the uploader subscribes and tracks, and
+      // no always-prompt is issued (background 'always' is unobtainable here).
+      expect(cubit.state.phase, BackgroundGpsPhase.tracking);
+      expect(gateway.requestCount, 0);
     });
   });
 

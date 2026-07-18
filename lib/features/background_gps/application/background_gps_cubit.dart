@@ -69,10 +69,15 @@ class BackgroundGpsCubit extends Cubit<BackgroundGpsState> {
     ));
 
     var permission = await _gateway.currentPermission();
-    if (permission != LocationPermission.always) {
+    // JEBV4-269 (Option A): a foreground ("while in use") grant is sufficient —
+    // the uploader only streams while the active-delivery screen is foregrounded,
+    // and background "always" is unobtainable on this build (no manifest perm).
+    if (permission != LocationPermission.always &&
+        permission != LocationPermission.whileInUse) {
       permission = await _gateway.requestAlwaysPermission();
     }
-    if (permission != LocationPermission.always) {
+    if (permission != LocationPermission.always &&
+        permission != LocationPermission.whileInUse) {
       emit(state.copyWith(phase: BackgroundGpsPhase.permissionDenied));
       return;
     }
