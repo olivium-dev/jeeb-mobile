@@ -66,11 +66,75 @@ class _ObsOverlayHostState extends State<ObsOverlayHost> {
     return Stack(
       children: [
         widget.child,
+        _ObsOverlayLayer(controller: _controller),
+      ],
+    );
+  }
+}
+
+/// Gives the bubble/panel their OWN [Overlay] ancestor.
+///
+/// `ObsOverlayHost` is mounted from `MaterialApp.router`'s `builder:`
+/// (`lib/app/app.dart`), where the incoming `child` is the ALREADY-BUILT
+/// `Router`/`Navigator` — the app's real [Overlay] lives INSIDE that
+/// subtree, not around it. Placing the bubble/panel as a `Stack` SIBLING of
+/// that `child` (the previous shape of this file) put every `Tooltip`-
+/// bearing descendant (e.g. `ObsOverlayPanelHeader`'s close button, which
+/// sets `tooltip: 'Close'`) outside any `Overlay` ancestor. `Tooltip`
+/// resolves its `Overlay` during `build()` — not only on hover/long-press —
+/// so this threw "No Overlay widget found" the instant the panel first
+/// expanded; the substituted `ErrorWidget`'s large intrinsic diagnostic-text
+/// size (not an unbounded layout in `ObsOverlayPanel` itself, which was
+/// already `_kHeightFraction`-bounded with an `Expanded` event list) is what
+/// produced the companion "BOTTOM OVERFLOWED BY 99778 PIXELS" — one root
+/// cause, two visible symptoms.
+///
+/// A private, dedicated `Overlay` — entirely separate from the app's real
+/// one, and never the nearest ancestor for anything inside the routed
+/// `child` — is the standard Flutter shape for floating chrome mounted
+/// outside the routed tree (the same shape `Navigator` itself uses
+/// internally).
+class _ObsOverlayLayer extends StatelessWidget {
+  const _ObsOverlayLayer({required this.controller});
+
+  final ObsOverlayController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Overlay(
+      initialEntries: [
+        OverlayEntry(
+          builder: (_) => _ObsOverlayContent(controller: controller),
+        ),
+      ],
+    );
+  }
+}
+
+/// The actual floating content hosted by [_ObsOverlayLayer]'s `Overlay`: a
+/// full-screen [Stack] (the theatre the `Overlay` sizes to) whose single
+/// reactive child is the collapsed bubble or the expanded panel. The [Stack]
+/// is REQUIRED, not decorative: both [ObsOverlayBubble] and [ObsOverlayPanel]
+/// return a [Positioned] to anchor themselves bottom-right, and `Positioned`
+/// is a `ParentDataWidget` that must resolve against a `Stack` — without one
+/// it is ignored and the child inherits the overlay's tight full-screen
+/// constraints and balloons to fill the screen. Ink/selection `Material`
+/// ancestors are supplied locally by the bubble (`_BubbleButton`) and the
+/// panel (`_PanelShell`), so none is needed at this level.
+class _ObsOverlayContent extends StatelessWidget {
+  const _ObsOverlayContent({required this.controller});
+
+  final ObsOverlayController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
         ListenableBuilder(
-          listenable: _controller,
-          builder: (context, _) => _controller.expanded
-              ? ObsOverlayPanel(controller: _controller)
-              : ObsOverlayBubble(controller: _controller),
+          listenable: controller,
+          builder: (context, _) => controller.expanded
+              ? ObsOverlayPanel(controller: controller)
+              : ObsOverlayBubble(controller: controller),
         ),
       ],
     );

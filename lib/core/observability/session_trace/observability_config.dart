@@ -13,17 +13,19 @@ const bool kObsCompiledIn = kDevToolEnabled;
 /// Runtime configuration for the session-trace tool.
 ///
 /// Mutable singleton so the dev UI (module 5) and `main_devtool.dart` can
-/// toggle it live. Defaults are chosen so a FRESH devtool build records
-/// NOTHING until explicitly enabled — [enabled] defaults to `false` even in
-/// a devtool build; only `main_devtool.dart`'s dedicated dev inner-loop
-/// entrypoint flips it on by default (wiring point W5).
+/// toggle it live. [enabled] defaults to [kObsCompiledIn]: ON in any devtool
+/// build (so the tool — and the host-side ADB recorder that tails the trace
+/// file — captures from first launch, no manual Start required), and a
+/// compile-time `false` in production (where the whole tool is tree-shaken
+/// out anyway). The dev UI can still toggle it off live.
 final class ObservabilityConfig {
   ObservabilityConfig._();
 
   static final ObservabilityConfig instance = ObservabilityConfig._();
 
-  /// Runtime master switch. Default OFF even in a devtool build.
-  bool enabled = false;
+  /// Runtime master switch. ON by default in a devtool build ([kObsCompiledIn]
+  /// true), a compile-time `false` in production.
+  bool enabled = kObsCompiledIn;
 
   // Per-signal toggles (all default ON, effective only when [enabled]).
   bool captureScreens = true;

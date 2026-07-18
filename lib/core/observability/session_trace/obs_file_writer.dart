@@ -174,6 +174,11 @@ final class ObsFileWriter implements ObservabilitySink {
             baseDirectoryProvider ?? getApplicationDocumentsDirectory,
         sessionId: sessionId,
         role: role,
+        // Flush every event to disk immediately: the host-side ADB recorder
+        // tails this file live over `adb run-as`, so buffering (default 32
+        // lines) would make the web feed lag badly. Devtool-only path — the
+        // extra IO never runs in production (installAsGlobal is compiled out).
+        flushThresholdLines: 1,
         sessionMeta: <String, Object?>{
           'os': Platform.operatingSystem,
           'osVersion': Platform.operatingSystemVersion,
