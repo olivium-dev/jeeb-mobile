@@ -15,12 +15,13 @@
 # This script does NOT log in for you and never touches the super-admin
 # passcode — read it on MSI at run time from ~/iter5-runtime/keys and drive
 # super-login per device from the adb loop (see CODEX-MAESTRO-TESTING-KB.md).
-# Firebase: the real dev google-services.json (project jeeb-5a293) must already
-# be in android/app/src/dev/ + android/app/ via `git update-index --skip-worktree`
-# (never committed — the secret hook does NOT catch Firebase assets).
+# Firebase: the real dev google-services.json must already be injected at
+# android/app/src/dev/google-services.json. The path is ignored by git; start
+# from google-services.json.template or the protected CI secret, never VCS.
 #
 # Prereqs: both emulators booted (Google-Play image, FCM-capable); the dev
-# google-services.json in place; MSI gateway reachable (ufw 10090 open).
+# google-services.json in place; the three DEV_FIREBASE_EXPECTED_* identity
+# inputs exported from the protected environment; MSI gateway reachable.
 set -euo pipefail
 
 MSI_GATEWAY="${MSI_GATEWAY:-http://192.168.2.39:10090}"
@@ -32,7 +33,13 @@ ADB="${ADB:-$HOME/Library/Android/sdk/platform-tools/adb}"
 DEFINES=(
   --dart-define=USE_MOCK_GATEWAY=false
   --dart-define=GATEWAY_BASE_URL="${MSI_GATEWAY}"
+  --dart-define=REQUIRE_REAL_PUSH=true
 )
+
+if ! bash tool/validate_dev_google_services.sh; then
+  echo '[run_msi_dual] Dev Firebase config preflight failed — abort' >&2
+  exit 1
+fi
 
 echo "[run_msi_dual] MSI gateway target: ${MSI_GATEWAY}"
 echo "[run_msi_dual] pre-flight: gateway /health"
@@ -54,7 +61,8 @@ for SERIAL in "${CLIENT_SERIAL}" "${JEEBER_SERIAL}"; do
   "${ADB}" -s "${SERIAL}" shell pm grant "${PKG}" android.permission.POST_NOTIFICATIONS || true
 done
 
-echo "[run_msi_dual] done. Drive super-login per device via adb:"
+echo "[run_msi_dual] install complete; push acceptance is not ready until authenticated registration returns 2xx."
+echo "[run_msi_dual] Drive super-login per device via adb:"
 echo "  CLIENT  ${CLIENT_SERIAL}: userId d1000000-0000-4000-8000-000000000001 (Nour)"
 echo "  JEEBER  ${JEEBER_SERIAL}: userId d1000000-0000-4000-8000-000000000002 (Karim)"
 echo "  POST ${MSI_GATEWAY}/api/User/user-id-login {userId, superAdminPassCode}"

@@ -53,6 +53,52 @@ import '../features/biometric_auth/domain/biometric_gateway.dart';
 import '../features/settings/data/repositories/biometric_preference_repository_impl.dart';
 import '../l10n/app_localizations.dart';
 
+/// Maximum time a strict dev acceptance boot waits for FCM token acquisition.
+const Duration requiredPushTokenReadinessTimeout = Duration(seconds: 30);
+
+Future<void> _requirePushTokenReadiness(PushTransport transport) async {
+  final token = await transport.getToken().timeout(
+    requiredPushTokenReadinessTimeout,
+  );
+  if (token == null || token.trim().isEmpty) {
+    throw StateError('Required real push did not acquire an FCM token');
+  }
+}
+
+/// Resolves the real FCM transport or the normal fail-soft fallback.
+///
+/// Acceptance builds opt into [requireRealPush], which preserves the original
+/// failure and additionally requires a nonempty FCM token. Token acquisition
+/// proves Firebase messaging readiness, but authenticated gateway registration
+/// remains a separate post-login gate owned by [DeviceTokenRegistrar].
+@visibleForTesting
+Future<PushTransport> resolvePushTransport({
+  required Future<void> Function() firebaseInitializer,
+  required Future<PushTransport> Function() transportBuilder,
+  required bool requireRealPush,
+}) async {
+  PushTransport? transport;
+  try {
+    await firebaseInitializer();
+    transport = await transportBuilder();
+    if (requireRealPush) await _requirePushTokenReadiness(transport);
+    return transport;
+  } catch (error, stackTrace) {
+    if (requireRealPush) {
+      try {
+        await transport?.dispose();
+      } catch (_) {
+        // Preserve the readiness failure; cleanup is best-effort.
+      }
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+    if (kDebugMode) {
+      debugPrint('[push] FCM transport unavailable; using fake: $error');
+    }
+    return FakePushTransport();
+  }
+}
+
 /// Root widget. Owns the global cubits (locale, role, onboarding), wires the
 /// OMDS-themed `MaterialApp.router`, and lets Flutter apply RTL automatically
 /// for Arabic. The router is built once per [JeebApp] instance so the
@@ -70,6 +116,7 @@ class JeebApp extends StatefulWidget {
     this.pushTransport,
     this.firebaseInitializer,
     this.fcmTransportBuilder,
+    this.requireRealPush = const bool.fromEnvironment('REQUIRE_REAL_PUSH'),
     this.pushDeviceRegistrar,
     this.biometricGateway,
     this.localizationsDelegateOverride,
@@ -109,10 +156,20 @@ class JeebApp extends StatefulWidget {
 
   /// FIX-1 test seam. Builds (and initializes) the real push transport AFTER
   /// [firebaseInitializer] resolves. Production leaves this null and uses
-  /// [_defaultFcmTransportBuilder]. A throw here degrades to [FakePushTransport]
-  /// (a genuine bridge failure must never crash the app). Only exercised when
-  /// [pushTransport] is null.
+  /// [_defaultFcmTransportBuilder]. A throw here normally degrades to
+  /// [FakePushTransport]; acceptance builds with [requireRealPush] preserve the
+  /// failure. Only exercised when [pushTransport] is null.
   final Future<PushTransport> Function()? fcmTransportBuilder;
+
+  /// Fail-fast gate for acceptance builds that require end-to-end FCM.
+  ///
+  /// The default is false, preserving the fail-soft production behavior. The
+  /// MSI dev launcher and dev APK CI set `REQUIRE_REAL_PUSH=true`, so Firebase
+  /// initialization/token failures surface instead of silently installing an
+  /// in-memory [FakePushTransport], and authenticated registration must return
+  /// 2xx. Explicit [pushTransport] test overrides remain valid and bypass the
+  /// Firebase token gate.
+  final bool requireRealPush;
 
   /// Optional override for the device-token registrar. When supplied it is wired
   /// through [PushNotificationHandler.onToken] so the boot/refresh FCM token is
@@ -140,8 +197,9 @@ class JeebApp extends StatefulWidget {
 }
 
 class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
-  late final OnboardingCubit _onboarding =
-      OnboardingCubit(prefs: widget.preferences);
+  late final OnboardingCubit _onboarding = OnboardingCubit(
+    prefs: widget.preferences,
+  );
   late final RoleCubit _role = RoleCubit(
     prefs: widget.preferences,
     initialRole: _devSeamRole,
@@ -180,8 +238,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   // production DI graph still wires the same impls behind these interfaces;
   // this constructor just doesn't depend on it being initialized.
   late final BiometricLockCubit _biometricLock = BiometricLockCubit(
-    preference:
-        BiometricPreferenceRepositoryImpl(prefs: widget.preferences),
+    preference: BiometricPreferenceRepositoryImpl(prefs: widget.preferences),
     // This is the app-level cubit the router gate watches AND the one the
     // `/lock` screen consumes (BlocProvider.value) — the SAME instance whose
     // authenticate() must succeed for JM-005 to release to the shell. RC-3: in
@@ -192,7 +249,8 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     // device-credential PIN/password fallback), replacing the inert
     // [UnavailableBiometricGateway]. kDebugMode is a const false in release, so
     // the DevBiometricGateway branch is tree-shaken out.
-    gateway: widget.biometricGateway ??
+    gateway:
+        widget.biometricGateway ??
         (kDebugMode
             ? const DevBiometricGateway()
             : LocalAuthBiometricGateway()),
@@ -204,8 +262,9 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   /// We hold a reference to the [SessionCubit] only when WE created it, so
   /// dispose closes exactly what we own. The router reads it as a [SessionGate];
   /// [_evaluateSession] kicks the first keystore read after first frame.
-  late final SessionCubit? _ownedSession =
-      widget.sessionGate == null ? SessionCubit(tokenStore: AuthTokenStore()) : null;
+  late final SessionCubit? _ownedSession = widget.sessionGate == null
+      ? SessionCubit(tokenStore: AuthTokenStore())
+      : null;
   late final SessionGate _session = widget.sessionGate ?? _ownedSession!;
 
   /// JEBV4-205 (E10): the app-language cubit, held as a member so the
@@ -292,8 +351,8 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     _wireSessionRoleSync();
     SchedulerBinding.instance.addPostFrameCallback((_) {
       // FIX-1: the push chain is async — it awaits the Firebase-init gate before
-      // building the real transport. Fire-and-forget; failures degrade to the
-      // in-memory fake inside [_initPushChainAsync] and never crash cold start.
+      // building the real transport. Normal builds fail-soft; strict dev
+      // acceptance surfaces init/token-readiness failures to the error boundary.
       unawaited(_initPushChainAsync());
       // BUG-1: resolve `available_roles` from getMe after the first frame
       // paints (never blocks cold start). A returning dual-role jeeber lands on
@@ -337,6 +396,8 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
         // whenever the identity changed (idempotent per (user, token)), so a
         // switched-in user is never left with zero server-side tokens.
         final registrar = _deviceRegistrar;
+        // Strict acceptance treats a non-2xx result as an unhandled diagnostic
+        // failure. Normal builds retain the registrar's fail-soft behavior.
         if (registrar != null) unawaited(registrar.notifyLogin());
       } else if (state.isUnauthenticated) {
         // JEBV4-159: on sign-out, clear the registrar's (user, token) dedup so
@@ -386,7 +447,8 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   /// Now the chain AWAITS the Firebase-init gate ([firebaseInitializer]) BEFORE
   /// building the real transport ([fcmTransportBuilder]). An injected
   /// [pushTransport] short-circuits both (the test seam is used verbatim). A
-  /// genuine build failure still degrades to the fake so the app never crashes.
+  /// genuine build failure still degrades to the fake unless [requireRealPush]
+  /// is enabled for an acceptance build.
   Future<void> _initPushChainAsync() async {
     if (!mounted) return;
     final override = widget.pushTransport;
@@ -394,19 +456,13 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     if (override != null) {
       transport = override;
     } else {
-      PushTransport built;
-      try {
-        await (widget.firebaseInitializer ?? _defaultFirebaseInitializer)();
-        built = await (widget.fcmTransportBuilder ?? _defaultFcmTransportBuilder)();
-      } catch (error) {
-        // No Firebase config, or a real FCM/bridge failure. Degrade to the
-        // in-memory fake so the banner UI still works and cold start survives.
-        if (kDebugMode) {
-          debugPrint('[push] FCM transport unavailable; using fake: $error');
-        }
-        built = FakePushTransport();
-      }
-      transport = built;
+      transport = await resolvePushTransport(
+        firebaseInitializer:
+            widget.firebaseInitializer ?? _defaultFirebaseInitializer,
+        transportBuilder:
+            widget.fcmTransportBuilder ?? _defaultFcmTransportBuilder,
+        requireRealPush: widget.requireRealPush,
+      );
     }
     // A late unmount (dispose raced the await) must not leak the transport.
     if (!mounted) {
@@ -449,6 +505,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
         tokenStore: sl<AuthTokenStore>(),
         transport: transport,
         prefs: widget.preferences,
+        requireSuccessfulRegistration: widget.requireRealPush,
       );
       unawaited(registrar.start());
       _deviceRegistrar = registrar;

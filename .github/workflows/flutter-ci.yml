@@ -47,6 +47,11 @@ jobs:
       - name: Run tests
         run: flutter test --coverage
 
+      - name: Run dev Firebase gate shell tests
+        run: |
+          bash tool/test_validate_dev_google_services.sh
+          bash tool/test_run_msi_dual_preflight.sh
+
       - name: Coverage summary (lcov)
         # Surfaces aggregate line coverage from coverage/lcov.info produced above.
         # Raise the failure threshold here once a baseline is agreed (e.g. add
@@ -55,5 +60,36 @@ jobs:
           sudo apt-get update && sudo apt-get install -y lcov
           lcov --summary coverage/lcov.info
 
+      - name: Inject and validate dev Firebase config
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        env:
+          DEV_GOOGLE_SERVICES_JSON_B64: ${{ secrets.DEV_GOOGLE_SERVICES_JSON_B64 }}
+          DEV_FIREBASE_EXPECTED_PROJECT_NUMBER: ${{ secrets.DEV_FIREBASE_EXPECTED_PROJECT_NUMBER }}
+          DEV_FIREBASE_EXPECTED_PROJECT_ID: ${{ secrets.DEV_FIREBASE_EXPECTED_PROJECT_ID }}
+          DEV_FIREBASE_EXPECTED_APP_ID: ${{ secrets.DEV_FIREBASE_EXPECTED_APP_ID }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${DEV_GOOGLE_SERVICES_JSON_B64:-}" ||
+                -z "${DEV_FIREBASE_EXPECTED_PROJECT_NUMBER:-}" ||
+                -z "${DEV_FIREBASE_EXPECTED_PROJECT_ID:-}" ||
+                -z "${DEV_FIREBASE_EXPECTED_APP_ID:-}" ]]; then
+            echo "::error::Protected dev Firebase config and expected identity inputs are required"
+            exit 1
+          fi
+          umask 077
+          printf '%s' "${DEV_GOOGLE_SERVICES_JSON_B64}" \
+            | base64 --decode > android/app/src/dev/google-services.json
+          chmod 600 android/app/src/dev/google-services.json
+          bash tool/validate_dev_google_services.sh
+
+      - name: Skip dev FCM APK for fork PR
+        if: ${{ github.event_name == 'pull_request' }}
+        run: >-
+          echo "PR analysis and tests passed; dev FCM APK build is safely skipped
+          because protected Firebase inputs are unavailable to pull requests."
+
       - name: Build APK (debug)
-        run: flutter build apk --flavor dev --debug
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: >-
+          flutter build apk --flavor dev --debug
+          --dart-define=REQUIRE_REAL_PUSH=true

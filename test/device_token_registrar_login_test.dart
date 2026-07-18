@@ -11,6 +11,9 @@ import 'package:jeeb_mobile/core/notifications/data/push_transport.dart';
 /// fired exactly once. Mirrors the RecordingDio fake in
 /// `test/push_registration_e2e_test.dart`.
 class _RecordingDio extends Fake implements Dio {
+  _RecordingDio({this.statusCode = 201});
+
+  final int statusCode;
   final List<String> paths = <String>[];
   final List<Map<String, dynamic>> bodies = <Map<String, dynamic>>[];
 
@@ -28,7 +31,7 @@ class _RecordingDio extends Fake implements Dio {
     bodies.add(data! as Map<String, dynamic>);
     return Response<T>(
       requestOptions: RequestOptions(path: path),
-      statusCode: 201,
+      statusCode: statusCode,
     );
   }
 }
@@ -45,8 +48,7 @@ class _FakeSecureStorage extends Fake implements FlutterSecureStorage {
     WebOptions? webOptions,
     MacOsOptions? mOptions,
     WindowsOptions? wOptions,
-  }) async =>
-      _data[key];
+  }) async => _data[key];
 
   @override
   Future<void> write({
@@ -87,46 +89,50 @@ void main() {
   });
 
   test(
-      'notifyLogin registers once after the poll window expires with no userId '
-      '(run-15 root cause)', () async {
-    final storage = _FakeSecureStorage();
-    final tokenStore = AuthTokenStore(storage: storage);
-    final transport = FakePushTransport(token: 'fcm-login-token');
-    final dio = _RecordingDio();
-    final registrar = DeviceTokenRegistrar(
-      dio: dio,
-      tokenStore: tokenStore,
-      transport: transport,
-      prefs: prefs,
-      retryInterval: Duration.zero,
-      // Exactly one attempt: the poll gives up immediately (no session yet).
-      maxAttempts: 1,
-    );
+    'notifyLogin registers once after the poll window expires with no userId '
+    '(run-15 root cause)',
+    () async {
+      final storage = _FakeSecureStorage();
+      final tokenStore = AuthTokenStore(storage: storage);
+      final transport = FakePushTransport(token: 'fcm-login-token');
+      final dio = _RecordingDio();
+      final registrar = DeviceTokenRegistrar(
+        dio: dio,
+        tokenStore: tokenStore,
+        transport: transport,
+        prefs: prefs,
+        retryInterval: Duration.zero,
+        // Exactly one attempt: the poll gives up immediately (no session yet).
+        maxAttempts: 1,
+      );
 
-    // Start with NO userId — the bounded poll runs out and registers nothing.
-    await registrar.start();
-    await Future<void>.delayed(Duration.zero);
-    expect(dio.paths, isEmpty,
-        reason: 'poll must not register before a userId exists');
+      // Start with NO userId — the bounded poll runs out and registers nothing.
+      await registrar.start();
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        dio.paths,
+        isEmpty,
+        reason: 'poll must not register before a userId exists',
+      );
 
-    // Interactive login lands: a userId is now persisted and the session
-    // transition drives JeebApp to call notifyLogin().
-    await tokenStore.save(
-      accessToken: 'mock-jwt-access-u1',
-      refreshToken: 'mock-refresh-u1',
-      userId: 'u1',
-    );
-    await registrar.notifyLogin();
+      // Interactive login lands: a userId is now persisted and the session
+      // transition drives JeebApp to call notifyLogin().
+      await tokenStore.save(
+        accessToken: 'mock-jwt-access-u1',
+        refreshToken: 'mock-refresh-u1',
+        userId: 'u1',
+      );
+      await registrar.notifyLogin();
 
-    expect(dio.paths, [registerPath]);
-    expect(dio.bodies.single['fcmToken'], 'fcm-login-token');
-    expect(dio.bodies.single['deviceId'], isNotEmpty);
+      expect(dio.paths, [registerPath]);
+      expect(dio.bodies.single['fcmToken'], 'fcm-login-token');
+      expect(dio.bodies.single['deviceId'], isNotEmpty);
 
-    await registrar.dispose();
-  });
+      await registrar.dispose();
+    },
+  );
 
-  test('notifyLogin does not double-register when already registered',
-      () async {
+  test('notifyLogin does not double-register when already registered', () async {
     final storage = _FakeSecureStorage();
     final tokenStore = AuthTokenStore(storage: storage);
     final transport = FakePushTransport(token: 'fcm-login-token');
@@ -158,7 +164,57 @@ void main() {
   });
 
   test(
-      'JEBV4-159: a SECOND authenticated transition as a DIFFERENT user '
+    'strict acceptance registration fails on a non-2xx gateway response',
+    () async {
+      final storage = _FakeSecureStorage();
+      final tokenStore = AuthTokenStore(storage: storage);
+      final dio = _RecordingDio(statusCode: 503);
+      final registrar = DeviceTokenRegistrar(
+        dio: dio,
+        tokenStore: tokenStore,
+        transport: FakePushTransport(token: 'sensitive-fcm-token'),
+        prefs: prefs,
+        requireSuccessfulRegistration: true,
+      );
+      await tokenStore.save(
+        accessToken: 'mock-jwt-access-u1',
+        refreshToken: 'mock-refresh-u1',
+        userId: 'u1',
+      );
+
+      await expectLater(
+        registrar.notifyLogin(),
+        throwsA(isA<PushRegistrationFailure>()),
+      );
+      await registrar.dispose();
+    },
+  );
+
+  test(
+    'default registration remains fail-soft on a non-2xx response',
+    () async {
+      final storage = _FakeSecureStorage();
+      final tokenStore = AuthTokenStore(storage: storage);
+      final dio = _RecordingDio(statusCode: 503);
+      final registrar = DeviceTokenRegistrar(
+        dio: dio,
+        tokenStore: tokenStore,
+        transport: FakePushTransport(token: 'sensitive-fcm-token'),
+        prefs: prefs,
+      );
+      await tokenStore.save(
+        accessToken: 'mock-jwt-access-u1',
+        refreshToken: 'mock-refresh-u1',
+        userId: 'u1',
+      );
+
+      await registrar.notifyLogin();
+      expect(dio.paths, [registerPath]);
+      await registrar.dispose();
+    },
+  );
+
+  test('JEBV4-159: a SECOND authenticated transition as a DIFFERENT user '
       '(account switch) RE-fires register for the new user', () async {
     final storage = _FakeSecureStorage();
     final tokenStore = AuthTokenStore(storage: storage);
@@ -193,87 +249,96 @@ void main() {
     await registrar.notifyLogin();
 
     // TWO registers — one per identity — not one.
-    expect(dio.paths, [registerPath, registerPath],
-        reason: 'account switch must re-register the new user');
+    expect(dio.paths, [
+      registerPath,
+      registerPath,
+    ], reason: 'account switch must re-register the new user');
     // The device id is stable across the switch (one row per device, re-owned).
     expect(dio.bodies[0]['deviceId'], dio.bodies[1]['deviceId']);
-    expect(dio.bodies.every((b) => b['fcmToken'] == 'fcm-shared-token'), isTrue);
-
-    await registrar.dispose();
-  });
-
-  test('onTokenRefresh re-registers the rotated token under the current user',
-      () async {
-    final storage = _FakeSecureStorage();
-    final tokenStore = AuthTokenStore(storage: storage);
-    final transport = FakePushTransport(token: 'fcm-token-v1');
-    final dio = _RecordingDio();
-    final registrar = DeviceTokenRegistrar(
-      dio: dio,
-      tokenStore: tokenStore,
-      transport: transport,
-      prefs: prefs,
-      retryInterval: Duration.zero,
-      maxAttempts: 1,
+    expect(
+      dio.bodies.every((b) => b['fcmToken'] == 'fcm-shared-token'),
+      isTrue,
     );
-
-    await tokenStore.save(
-      accessToken: 'mock-jwt-access-u1',
-      refreshToken: 'mock-refresh-u1',
-      userId: 'u1',
-    );
-    // start() subscribes to onTokenRefresh AND polls for the userId (present),
-    // so it registers v1 once. Let its async _attempt chain settle.
-    await registrar.start();
-    await Future<void>.delayed(const Duration(milliseconds: 20));
-    expect(dio.paths, [registerPath]);
-    expect(dio.bodies.single['fcmToken'], 'fcm-token-v1');
-
-    // FCM rotates the token (reinstall / restore). The refresh listener must
-    // re-register the new token — the (user, token) key changed.
-    transport.emitTokenRefresh('fcm-token-v2');
-    await Future<void>.delayed(const Duration(milliseconds: 20));
-
-    expect(dio.paths, [registerPath, registerPath]);
-    expect(dio.bodies.last['fcmToken'], 'fcm-token-v2');
 
     await registrar.dispose();
   });
 
   test(
-      'register is idempotent: repeated notifyLogin for the same (user, token) '
-      'sends exactly one PUT', () async {
-    final storage = _FakeSecureStorage();
-    final tokenStore = AuthTokenStore(storage: storage);
-    final transport = FakePushTransport(token: 'fcm-idem-token');
-    final dio = _RecordingDio();
-    final registrar = DeviceTokenRegistrar(
-      dio: dio,
-      tokenStore: tokenStore,
-      transport: transport,
-      prefs: prefs,
-      retryInterval: Duration.zero,
-      maxAttempts: 1,
-    );
+    'onTokenRefresh re-registers the rotated token under the current user',
+    () async {
+      final storage = _FakeSecureStorage();
+      final tokenStore = AuthTokenStore(storage: storage);
+      final transport = FakePushTransport(token: 'fcm-token-v1');
+      final dio = _RecordingDio();
+      final registrar = DeviceTokenRegistrar(
+        dio: dio,
+        tokenStore: tokenStore,
+        transport: transport,
+        prefs: prefs,
+        retryInterval: Duration.zero,
+        maxAttempts: 1,
+      );
 
-    await tokenStore.save(
-      accessToken: 'mock-jwt-access-u1',
-      refreshToken: 'mock-refresh-u1',
-      userId: 'u1',
-    );
+      await tokenStore.save(
+        accessToken: 'mock-jwt-access-u1',
+        refreshToken: 'mock-refresh-u1',
+        userId: 'u1',
+      );
+      // start() subscribes to onTokenRefresh AND polls for the userId (present),
+      // so it registers v1 once. Let its async _attempt chain settle.
+      await registrar.start();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(dio.paths, [registerPath]);
+      expect(dio.bodies.single['fcmToken'], 'fcm-token-v1');
 
-    await registrar.notifyLogin();
-    await registrar.notifyLogin();
-    await registrar.notifyLogin();
+      // FCM rotates the token (reinstall / restore). The refresh listener must
+      // re-register the new token — the (user, token) key changed.
+      transport.emitTokenRefresh('fcm-token-v2');
+      await Future<void>.delayed(const Duration(milliseconds: 20));
 
-    expect(dio.paths, [registerPath],
-        reason: 'same identity + token must not re-hit the gateway');
+      expect(dio.paths, [registerPath, registerPath]);
+      expect(dio.bodies.last['fcmToken'], 'fcm-token-v2');
 
-    await registrar.dispose();
-  });
+      await registrar.dispose();
+    },
+  );
 
   test(
-      'JEBV4-159: a login AFTER sign-out re-registers even as the SAME user '
+    'register is idempotent: repeated notifyLogin for the same (user, token) '
+    'sends exactly one PUT',
+    () async {
+      final storage = _FakeSecureStorage();
+      final tokenStore = AuthTokenStore(storage: storage);
+      final transport = FakePushTransport(token: 'fcm-idem-token');
+      final dio = _RecordingDio();
+      final registrar = DeviceTokenRegistrar(
+        dio: dio,
+        tokenStore: tokenStore,
+        transport: transport,
+        prefs: prefs,
+        retryInterval: Duration.zero,
+        maxAttempts: 1,
+      );
+
+      await tokenStore.save(
+        accessToken: 'mock-jwt-access-u1',
+        refreshToken: 'mock-refresh-u1',
+        userId: 'u1',
+      );
+
+      await registrar.notifyLogin();
+      await registrar.notifyLogin();
+      await registrar.notifyLogin();
+
+      expect(dio.paths, [
+        registerPath,
+      ], reason: 'same identity + token must not re-hit the gateway');
+
+      await registrar.dispose();
+    },
+  );
+
+  test('JEBV4-159: a login AFTER sign-out re-registers even as the SAME user '
       '(the DELETE /device on logout removed the token row)', () async {
     final storage = _FakeSecureStorage();
     final tokenStore = AuthTokenStore(storage: storage);
@@ -311,9 +376,13 @@ void main() {
     );
     await registrar.notifyLogin();
 
-    expect(dio.paths, [registerPath, registerPath],
-        reason: 'a login after sign-out must re-register even for the same '
-            'user, since DELETE /device dropped the token row');
+    expect(
+      dio.paths,
+      [registerPath, registerPath],
+      reason:
+          'a login after sign-out must re-register even for the same '
+          'user, since DELETE /device dropped the token row',
+    );
 
     await registrar.dispose();
   });

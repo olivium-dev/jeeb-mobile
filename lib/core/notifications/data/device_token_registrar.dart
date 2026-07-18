@@ -8,6 +8,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../network/auth_token_store.dart';
 import 'push_transport.dart';
 
+/// Redacted acceptance-gate failure. It carries status only, never token/body.
+class PushRegistrationFailure implements Exception {
+  const PushRegistrationFailure({this.statusCode});
+
+  final int? statusCode;
+
+  @override
+  String toString() => statusCode == null
+      ? 'Required push registration failed'
+      : 'Required push registration failed with HTTP $statusCode';
+}
+
 /// Registers this install's FCM registration token with the push-notification
 /// service (via the gateway) so server-side notifications — chat, delivery,
 /// KYC, ratings — can target this device.
@@ -27,9 +39,11 @@ import 'push_transport.dart';
 /// login / OTP / biometric all persist it), fires the register once, and then
 /// re-registers on every FCM token rotation.
 ///
-/// Fail-safe: any transport/HTTP failure is swallowed and logged — push
-/// registration must never crash or block the app. The status (never the token)
-/// is logged in debug so a QA run can confirm a 2xx on the wire.
+/// Default fail-safe: transport/HTTP failures are swallowed and logged so push
+/// registration does not crash a production cold start. Strict dev acceptance
+/// mode changes only the authenticated registration boundary: [notifyLogin]
+/// throws a redacted [PushRegistrationFailure] unless the gateway returns 2xx.
+/// Token values and response bodies are never logged by this class.
 class DeviceTokenRegistrar {
   DeviceTokenRegistrar({
     required Dio dio,
@@ -38,12 +52,14 @@ class DeviceTokenRegistrar {
     required SharedPreferences prefs,
     Duration retryInterval = const Duration(seconds: 3),
     int maxAttempts = 40,
-  })  : _dio = dio,
-        _tokenStore = tokenStore,
-        _transport = transport,
-        _prefs = prefs,
-        _retryInterval = retryInterval,
-        _maxAttempts = maxAttempts;
+    bool requireSuccessfulRegistration = false,
+  }) : _dio = dio,
+       _tokenStore = tokenStore,
+       _transport = transport,
+       _prefs = prefs,
+       _retryInterval = retryInterval,
+       _maxAttempts = maxAttempts,
+       _requireSuccessfulRegistration = requireSuccessfulRegistration;
 
   final Dio _dio;
   final AuthTokenStore _tokenStore;
@@ -51,6 +67,7 @@ class DeviceTokenRegistrar {
   final SharedPreferences _prefs;
   final Duration _retryInterval;
   final int _maxAttempts;
+  final bool _requireSuccessfulRegistration;
 
   StreamSubscription<String>? _refreshSub;
   Timer? _retryTimer;
@@ -114,6 +131,8 @@ class DeviceTokenRegistrar {
   /// Idempotent PER IDENTITY: a duplicate emission for the SAME `(userId, token)`
   /// is skipped inside [_register], but a change in the authenticated user (a
   /// switch) always re-registers the CURRENT user's token. Disposed → no-op.
+  /// In strict acceptance mode this future completes only after a 2xx response;
+  /// non-2xx and network failures throw a redacted [PushRegistrationFailure].
   Future<void> notifyLogin() async {
     if (_disposed) return;
     // The cold-start poll may still be pending; cancel it so we don't race a
@@ -159,8 +178,10 @@ class DeviceTokenRegistrar {
       }
       if (n + 1 >= _maxAttempts) {
         if (kDebugMode) {
-          debugPrint('[push][register] gave up after $_maxAttempts attempts '
-              '(no userId — user never logged in)');
+          debugPrint(
+            '[push][register] gave up after $_maxAttempts attempts '
+            '(no userId — user never logged in)',
+          );
         }
         return;
       }
@@ -170,64 +191,118 @@ class DeviceTokenRegistrar {
 
   Future<void> _register({required String reason, String? userId}) async {
     if (_disposed) return;
-    final token = _lastToken;
-    if (token == null || token.isEmpty) {
-      if (kDebugMode) {
-        debugPrint('[push][register] skip ($reason): no FCM token yet');
-      }
-      return;
-    }
-    // userId is resolved server-side from the JWT; we only gate on having a
-    // session (a userId present) so we don't register before login.
-    final uid = userId ?? await _safeUserId();
-    if (uid == null || uid.isEmpty) {
-      if (kDebugMode) {
-        debugPrint('[push][register] skip ($reason): no session yet');
-      }
-      return;
-    }
-    // Idempotent PER IDENTITY (JEBV4-159): skip only when this exact
-    // `(userId, token)` pair was already confirmed. A different user (account
-    // switch) or a rotated token changes the key and re-registers, so the
-    // CURRENT user always has a live token row on the server.
+    final token = _availableToken(reason);
+    if (token == null) return;
+    final uid = await _availableUserId(reason, userId);
+    if (uid == null) return;
     final key = _key(uid, token);
-    if (key == _lastRegisteredKey) {
-      if (kDebugMode) {
-        debugPrint('[push][register] skip ($reason): already registered '
-            'for this (user, token)');
-      }
+    if (_isAlreadyRegistered(key, reason)) return;
+    await _sendRegistration(token: token, key: key, reason: reason);
+  }
+
+  String? _availableToken(String reason) {
+    final token = _lastToken;
+    if (token != null && token.isNotEmpty) return token;
+    if (kDebugMode) {
+      debugPrint('[push][register] skip ($reason): no FCM token yet');
+    }
+    return null;
+  }
+
+  Future<String?> _availableUserId(String reason, String? userId) async {
+    final resolved = userId ?? await _safeUserId();
+    if (resolved != null && resolved.isNotEmpty) return resolved;
+    if (kDebugMode) {
+      debugPrint('[push][register] skip ($reason): no session yet');
+    }
+    return null;
+  }
+
+  bool _isAlreadyRegistered(String key, String reason) {
+    if (key != _lastRegisteredKey) return false;
+    if (kDebugMode) {
+      debugPrint(
+        '[push][register] skip ($reason): already registered '
+        'for this (user, token)',
+      );
+    }
+    return true;
+  }
+
+  Future<void> _sendRegistration({
+    required String token,
+    required String key,
+    required String reason,
+  }) async {
+    final int code;
+    try {
+      code = await _putRegistration(token);
+    } on DioException catch (error, stackTrace) {
+      _handleDioFailure(reason, error, stackTrace);
+      return;
+    } catch (error, stackTrace) {
+      _handleUnexpectedFailure(reason, error, stackTrace);
       return;
     }
-    try {
-      // NOTE (auth header): the shared Dio LogInterceptor prints request
-      // bodies in debug — which would expose the FCM token. We send the token
-      // in the body per contract; QA must filter logcat on the `[push]`
-      // status lines below (which never contain the token), not the Dio body.
-      final res = await _dio.put<dynamic>(
-        _registerPath,
-        data: <String, dynamic>{
-          'fcmToken': token,
-          'deviceId': _deviceId(),
-        },
+    _handleRegistrationStatus(key: key, reason: reason, code: code);
+  }
+
+  Future<int> _putRegistration(String token) async {
+    final response = await _dio.put<dynamic>(
+      _registerPath,
+      data: <String, dynamic>{'fcmToken': token, 'deviceId': _deviceId()},
+    );
+    return response.statusCode ?? 0;
+  }
+
+  void _handleRegistrationStatus({
+    required String key,
+    required String reason,
+    required int code,
+  }) {
+    final succeeded = code >= 200 && code < 300;
+    if (succeeded) {
+      _lastRegisteredKey = key;
+      _retryTimer?.cancel();
+    }
+    if (kDebugMode) {
+      debugPrint('[push][register] ($reason) PUT $_registerPath -> $code');
+    }
+    if (!succeeded && _requireSuccessfulRegistration) {
+      throw PushRegistrationFailure(statusCode: code);
+    }
+  }
+
+  void _handleDioFailure(
+    String reason,
+    DioException error,
+    StackTrace stackTrace,
+  ) {
+    final code = error.response?.statusCode;
+    if (kDebugMode) {
+      debugPrint(
+        '[push][register] FAILED ($reason) '
+        'PUT $_registerPath -> $code type=${error.type}',
       );
-      final code = res.statusCode ?? 0;
-      if (code >= 200 && code < 300) {
-        _lastRegisteredKey = key;
-        _retryTimer?.cancel();
-      }
-      if (kDebugMode) {
-        // NEVER log the token — only the wire status so QA can confirm 201.
-        debugPrint('[push][register] ($reason) '
-            'PUT $_registerPath -> $code');
-      }
-    } on DioException catch (e) {
-      if (kDebugMode) {
-        debugPrint('[push][register] FAILED ($reason) '
-            'PUT $_registerPath -> ${e.response?.statusCode} '
-            'body=${e.response?.data}');
-      }
-    } catch (e) {
-      if (kDebugMode) debugPrint('[push][register] FAILED ($reason): $e');
+    }
+    if (_requireSuccessfulRegistration) {
+      Error.throwWithStackTrace(
+        PushRegistrationFailure(statusCode: code),
+        stackTrace,
+      );
+    }
+  }
+
+  void _handleUnexpectedFailure(
+    String reason,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    if (kDebugMode) {
+      debugPrint('[push][register] FAILED ($reason): ${error.runtimeType}');
+    }
+    if (_requireSuccessfulRegistration) {
+      Error.throwWithStackTrace(const PushRegistrationFailure(), stackTrace);
     }
   }
 
@@ -238,9 +313,10 @@ class DeviceTokenRegistrar {
     final existing = _prefs.getString(_deviceIdKey);
     if (existing != null && existing.isNotEmpty) return existing;
     final r = Random.secure();
-    final id = List<int>.generate(16, (_) => r.nextInt(256))
-        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-        .join();
+    final id = List<int>.generate(
+      16,
+      (_) => r.nextInt(256),
+    ).map((b) => b.toRadixString(16).padLeft(2, '0')).join();
     _prefs.setString(_deviceIdKey, id);
     return id;
   }

@@ -1,0 +1,30 @@
+{
+  "__comment": "TEMPLATE ONLY. Copy to google-services.json and replace every TODO value with the Firebase Android config for app.jeeb.mobile.dev. Never commit the injected file.",
+  "project_info": {
+    "project_number": "TODO_PROJECT_NUMBER",
+    "project_id": "TODO_PROJECT_ID",
+    "storage_bucket": "TODO_STORAGE_BUCKET"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "TODO_ANDROID_APP_ID",
+        "android_client_info": {
+          "package_name": "app.jeeb.mobile.dev"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "TODO_ANDROID_API_KEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

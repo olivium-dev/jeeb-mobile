@@ -85,11 +85,17 @@ jobs:
       - name: Run tests
         run: flutter test --reporter=expanded
 
+      - name: Run dev Firebase gate shell tests
+        run: |
+          bash tool/test_validate_dev_google_services.sh
+          bash tool/test_run_msi_dual_preflight.sh
+
   build-apk:
     name: Build APK (dev)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: test
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -121,5 +127,40 @@ jobs:
         id: pub_get
         run: flutter pub get
 
+      - name: Inject and validate dev Firebase config
+        env:
+          DEV_GOOGLE_SERVICES_JSON_B64: ${{ secrets.DEV_GOOGLE_SERVICES_JSON_B64 }}
+          DEV_FIREBASE_EXPECTED_PROJECT_NUMBER: ${{ secrets.DEV_FIREBASE_EXPECTED_PROJECT_NUMBER }}
+          DEV_FIREBASE_EXPECTED_PROJECT_ID: ${{ secrets.DEV_FIREBASE_EXPECTED_PROJECT_ID }}
+          DEV_FIREBASE_EXPECTED_APP_ID: ${{ secrets.DEV_FIREBASE_EXPECTED_APP_ID }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${DEV_GOOGLE_SERVICES_JSON_B64:-}" ||
+                -z "${DEV_FIREBASE_EXPECTED_PROJECT_NUMBER:-}" ||
+                -z "${DEV_FIREBASE_EXPECTED_PROJECT_ID:-}" ||
+                -z "${DEV_FIREBASE_EXPECTED_APP_ID:-}" ]]; then
+            echo "::error::Protected dev Firebase config and expected identity inputs are required"
+            exit 1
+          fi
+          umask 077
+          printf '%s' "${DEV_GOOGLE_SERVICES_JSON_B64}" \
+            | base64 --decode > android/app/src/dev/google-services.json
+          chmod 600 android/app/src/dev/google-services.json
+          bash tool/validate_dev_google_services.sh
+
       - name: Build APK
-        run: flutter build apk --flavor dev --debug --dart-define=APP_FLAVOR=dev
+        run: >-
+          flutter build apk --flavor dev --debug
+          --dart-define=APP_FLAVOR=dev
+          --dart-define=REQUIRE_REAL_PUSH=true
+
+  build-apk-fork-skip:
+    name: Skip dev FCM APK for fork PR
+    runs-on: ubuntu-latest
+    needs: test
+    if: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - name: Skip dev FCM APK for fork PR
+        run: >-
+          echo "PR analysis and tests passed; dev FCM APK build is safely skipped
+          because protected Firebase inputs are unavailable to pull requests."
