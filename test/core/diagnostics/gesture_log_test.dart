@@ -26,6 +26,29 @@ Widget _tappable({required String id, required String text}) => Semantics(
       ),
     );
 
+/// A dual-identity, tappable box: a legacy OUTER `Semantics(identifier: [outer])`
+/// merges a newer INNER `Semantics(identifier: [inner])` into a single platform
+/// node (via [MergeSemantics]). Flutter's a11y bridge exposes only [outer] — the
+/// inner id is folded away and invisible to Maestro. Mirrors the real nested
+/// (legacy + JM-010) Semantics ids the record/replay mismatch was proven against.
+Widget _dualIdentity({
+  required String outer,
+  required String inner,
+  required String text,
+}) =>
+    MergeSemantics(
+      child: Semantics(
+        identifier: outer,
+        child: Semantics(
+          identifier: inner,
+          child: GestureDetector(
+            onTap: () {},
+            child: SizedBox(width: 120, height: 48, child: Text(text)),
+          ),
+        ),
+      ),
+    );
+
 void main() {
   late List<String> lines;
 
@@ -89,6 +112,53 @@ void main() {
       expect(line, contains('"id":"submit_btn"'));
       expect(line, contains('"text":"Submit"'));
       handle.dispose();
+    });
+
+    testWidgets(
+        'nested Semantics records the OUTER a11y-exposed id (debug node path)',
+        (tester) async {
+      // ensureSemantics compiles the tree, so the hook reads the authoritative
+      // merged SemanticsNode — the same node the platform a11y bridge exposes.
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _harness(_dualIdentity(
+          outer: 'onboarding_next_button',
+          inner: 'walkthrough_next_cta',
+          text: 'Next',
+        )),
+      );
+      await tester.tap(find.text('Next'));
+      await tester.pump();
+
+      final line = gestureLine();
+      // The recorded id is the OUTER one Maestro/uiautomator can actually match…
+      expect(line, contains('"id":"onboarding_next_button"'));
+      // …never the inner one the platform folds away (the original bug).
+      expect(line, isNot(contains('"id":"walkthrough_next_cta"')));
+      // The inner id survives only as a debugging breadcrumb.
+      expect(line, contains('"idInner":"walkthrough_next_cta"'));
+      handle.dispose();
+    });
+
+    testWidgets(
+        'nested Semantics records the OUTER id via MergeSemantics (profile path)',
+        (tester) async {
+      // No ensureSemantics ⇒ no compiled SemanticsNode, mirroring a profile
+      // Dev-Tool build; resolution falls back to the MergeSemantics boundary.
+      await tester.pumpWidget(
+        _harness(_dualIdentity(
+          outer: 'onboarding_next_button',
+          inner: 'walkthrough_next_cta',
+          text: 'Next',
+        )),
+      );
+      await tester.tap(find.text('Next'));
+      await tester.pump();
+
+      final line = gestureLine();
+      expect(line, contains('"id":"onboarding_next_button"'));
+      expect(line, isNot(contains('"id":"walkthrough_next_cta"')));
+      expect(line, contains('"idInner":"walkthrough_next_cta"'));
     });
 
     testWidgets('a drag beyond the move threshold classifies as swipe',

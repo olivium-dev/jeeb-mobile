@@ -143,6 +143,7 @@ class _GestureLogListenerState extends State<GestureLogListener> {
       text: hit?.text,
       target: hit?.target,
       key: hit?.key,
+      idInner: hit?.idInner,
     );
   }
 
@@ -221,11 +222,25 @@ class _GestureTrack {
 /// Derived widget identity at the tap point. All fields are best-effort and
 /// null when unknown — never fabricated.
 class _HitInfo {
-  _HitInfo({this.id, this.text, this.target, this.key, this.isTextInput = false});
+  _HitInfo({
+    this.id,
+    this.idInner,
+    this.text,
+    this.target,
+    this.key,
+    this.isTextInput = false,
+  });
 
-  /// `SemanticsProperties.identifier` — the value Flutter maps to the Android
-  /// view resource-id, i.e. Maestro's `tapOn: { id: … }`. Never redacted.
+  /// The `SemanticsProperties.identifier` the PLATFORM accessibility tree
+  /// EXPOSES at the tap point — the value Flutter maps to the Android view
+  /// resource-id, i.e. what Maestro's `tapOn: { id: … }` matches. When ids are
+  /// nested/merged this is the OUTER (surviving) identifier, not the innermost.
+  /// Never redacted.
   final String? id;
+
+  /// The INNERMOST identifier at the tap point. Non-null ONLY when it differs
+  /// from [id] (a nested/merged Semantics group), as a debugging breadcrumb.
+  final String? idInner;
 
   /// Nearest visible text (semantics label or a short `Text` descendant),
   /// already redacted. Null for text inputs — a field's content never logs.
@@ -253,13 +268,30 @@ String _classify(double moved, Duration elapsed, _HitInfo? hit) {
 /// identifier + label, editable-ness), then falls back to a descendant `Text`
 /// for the visible-text selector. Bounded and allocation-light.
 class _AncestorProbe {
-  String? id;
+  /// The identifier the PLATFORM accessibility tree EXPOSES at the tap point —
+  /// what Maestro's `tapOn: { id: … }` matches. Resolved by [_captureSemantics].
+  String? _idExposed;
+
+  /// The innermost identifier at the tap point (a debugging breadcrumb).
+  String? _idInner;
+
+  /// The outermost identifier seen so far while climbing. Promoted to
+  /// [_idExposed] when a merge boundary folds this cluster into one platform node.
+  String? _outerId;
+
   String? label;
   String? target;
   String? key;
   Element? anchor;
   bool isTextInput = false;
   int _seen = 0;
+
+  /// The accessibility-exposed identifier (see [_HitInfo.id]).
+  String? get id => _idExposed;
+
+  /// The innermost identifier, surfaced only when it differs from [id].
+  String? get idInner =>
+      (_idInner != null && _idInner != _idExposed) ? _idInner : null;
 
   void scan(Element hit) {
     _consider(hit);
@@ -274,11 +306,12 @@ class _AncestorProbe {
     _captureSemantics(element, widget);
     if (widget is EditableText) isTextInput = true;
     _seen++;
-    return _seen < _kAncestorBudget && !_complete;
+    // Climb the full (bounded) ancestor chain rather than stopping at the first
+    // identifier: the EXPOSED id can live on an OUTER merged ancestor ABOVE the
+    // innermost one, so an early-out on `id` would re-introduce the record/replay
+    // mismatch. target/key/label stay first-wins and cost ~nothing once set.
+    return _seen < _kAncestorBudget;
   }
-
-  bool get _complete =>
-      target != null && key != null && id != null && label != null;
 
   void _captureTarget(Element element, Widget widget) {
     if (target != null) return;
@@ -298,25 +331,63 @@ class _AncestorProbe {
     }
   }
 
-  /// Reads the semantics identifier + label at this node: first from a
-  /// [Semantics] WIDGET's properties (available in every build mode), then from
-  /// the merged [SemanticsNode] via `debugSemantics` when present (debug builds
-  /// — the most accurate read of the internal tree). Fail-soft.
+  /// Resolves the identifier the platform a11y tree ACTUALLY exposes at the tap
+  /// point (what Maestro / uiautomator sees), plus the visible label.
+  ///
+  /// Flutter's accessibility bridge exposes the identifier of the OUTERMOST node
+  /// of a merged Semantics group and folds descendants — and their identifiers —
+  /// up into it. So where a legacy OUTER `Semantics(identifier:…)` merges a newer
+  /// INNER `Semantics(identifier:…)`, only the OUTER id survives to the platform;
+  /// recording the inner one yields a `tapOn: { id: … }` step Maestro can never
+  /// match. The rule encoded here:
+  ///   • [_idInner] = the innermost identifier (first seen) — a debug breadcrumb.
+  ///   • [_idExposed] starts as the innermost (it is itself the exposed node when
+  ///     nothing merges), then is PROMOTED to the outermost identifier of any
+  ///     ancestor whose node MERGES its descendants into itself — that merge root
+  ///     is the node the platform keeps. Only when no merging ancestor carries an
+  ///     identifier is the inner id kept.
+  ///
+  /// Merge detection is authoritative in DEBUG via the compiled [SemanticsNode]
+  /// (`mergeAllDescendantsIntoThisNode`); PROFILE Dev-Tool builds (no
+  /// `debugSemantics`) fall back to the [MergeSemantics] widget boundary. Reads
+  /// the [Semantics] WIDGET first so an identifier is captured in every build
+  /// mode. Fail-soft — any inspection gap degrades to the innermost id.
   void _captureSemantics(Element element, Widget widget) {
     if (widget is Semantics) {
-      id ??= _nonEmpty(widget.properties.identifier);
+      final widgetId = _nonEmpty(widget.properties.identifier);
+      if (widgetId != null) {
+        _idInner ??= widgetId;
+        _idExposed ??= widgetId;
+        _outerId = widgetId;
+      }
       label ??= _nonEmpty(widget.properties.label);
     }
-    if (id != null && label != null) return;
+
     final node = element.renderObject?.debugSemantics;
-    if (node == null) return;
-    final data = node.getSemanticsData();
-    id ??= _nonEmpty(data.identifier);
-    label ??= _nonEmpty(data.label);
+    if (node != null) {
+      final data = node.getSemanticsData();
+      final nodeId = _nonEmpty(data.identifier);
+      if (nodeId != null) {
+        _idInner ??= nodeId;
+        _idExposed ??= nodeId;
+        _outerId ??= nodeId;
+        // A node that folds its descendants up is the one the platform exposes;
+        // promote to the outermost identifier collected within this merge group
+        // (deterministic — independent of the framework's internal merge order).
+        if (node.mergeAllDescendantsIntoThisNode) _idExposed = _outerId ?? nodeId;
+      }
+      label ??= _nonEmpty(data.label);
+    } else if (widget is MergeSemantics && _outerId != null) {
+      // Profile fallback (no compiled node): this boundary folds its descendant
+      // Semantics into one platform node, so the OUTERMOST identifier of the
+      // group — not the innermost — is what Maestro will see.
+      _idExposed = _outerId;
+    }
   }
 
   _HitInfo toInfo() => _HitInfo(
-        id: id,
+        id: _idExposed,
+        idInner: idInner,
         // A field's visible text may be its typed value — never log it. id +
         // coordinates still let Maestro target the field.
         text: isTextInput ? null : _redactText(label),
