@@ -38,8 +38,10 @@ class BecomeJeeberCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Semantics(
       key: rootKey,
+      identifier: 'become_jeeber_card_cta',
       label: l10n.becomeJeeberCardSemantic,
       button: true,
+      container: true,
       child: ExcludeSemantics(
         child: _BecomeJeeberCardBody(l10n: l10n, onTap: onTap),
       ),

@@ -19,10 +19,17 @@ class TierCard extends StatelessWidget {
     required this.vehicleIcon,
     required this.selected,
     required this.onTap,
+    this.identifier,
     this.recommendedBadgeText,
     this.semanticLabel,
     this.selectedHint,
   });
+
+  /// Stable, screen-scoped accessibility identifier for the whole card tap
+  /// target (e.g. `tier_selection_card_flash`). Applied to the card's own
+  /// [Semantics] node so QA/maestro can target the tier without depending on
+  /// the localized label. Null in generic/preview usages that don't need one.
+  final String? identifier;
 
   /// Localized tier name (Express / Standard / On-the-way).
   final String name;
@@ -129,6 +136,8 @@ class TierCard extends StatelessWidget {
     );
 
     return Semantics(
+      identifier: identifier,
+      container: true,
       button: true,
       selected: selected,
       label: semanticLabel ??

@@ -252,10 +252,15 @@ class _OfferComposerState extends State<_OfferComposer> {
       child: Scaffold(
         appBar: OMDSAppBar(
           title: l10n.title,
-          leading: IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: widget.onWithdrawn,
-            tooltip: l10n.closeTooltip,
+          leading: Semantics(
+            identifier: 'offer_composer_close_cta',
+            button: true,
+            container: true,
+            child: IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: widget.onWithdrawn,
+              tooltip: l10n.closeTooltip,
+            ),
           ),
         ),
         body: SingleChildScrollView(

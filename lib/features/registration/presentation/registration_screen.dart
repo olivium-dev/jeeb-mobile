@@ -376,7 +376,11 @@ class _SendCodeButton extends StatelessWidget {
     // the CTA can't be wrongly disabled when the controller leads the cubit.
     final renderedReady =
         LebanonPhone.tryParse(phoneController.text) != null || state.isPhoneReady;
-    return OmdsLoadingButton(
+    return Semantics(
+      identifier: 'register_phone_submit_cta',
+      button: true,
+      container: true,
+      child: OmdsLoadingButton(
       key: const Key('registration.sendCode'),
       text: l10n.registrationSendCode,
       isLoading: state.isSendingCode,
@@ -392,6 +396,7 @@ class _SendCodeButton extends StatelessWidget {
       onTap: () => context
           .read<RegistrationCubit>()
           .sendCode(renderedPhone: phoneController.text),
+      ),
     );
   }
 }
@@ -528,7 +533,11 @@ class _PhoneField extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    return TextField(
+    return Semantics(
+      identifier: 'register_phone_field',
+      textField: true,
+      container: true,
+      child: TextField(
       key: const Key('registration.phoneField'),
       controller: controller,
       enabled: enabled,
@@ -574,6 +583,7 @@ class _PhoneField extends StatelessWidget {
         ),
       ),
       onChanged: onChanged,
+      ),
     );
   }
 }

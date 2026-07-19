@@ -128,7 +128,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ? Brightness.light
                 : Brightness.dark,
       ),
-      child: Scaffold(
+      child: Semantics(
+        identifier: 'onboarding_root',
+        container: true,
+        child: Scaffold(
         backgroundColor: colorScheme.secondaryContainer,
         body: Stack(
           children: [
@@ -148,6 +151,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             const _LanguageToggle(),
           ],
         ),
+      ),
       ),
     );
   }

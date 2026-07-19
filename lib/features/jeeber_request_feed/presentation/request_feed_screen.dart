@@ -76,13 +76,17 @@ class _RequestFeedViewState extends State<_RequestFeedView> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: OMDSAppBar(title: l10n.requestFeedTitle, centerTitle: false),
-      body: SafeArea(
-        child: BlocConsumer<RequestFeedCubit, RequestFeedState>(
-          listenWhen: (prev, curr) => prev.lastEffect != curr.lastEffect,
-          listener: _onEffect,
-          builder: (context, state) => _FeedColumn(state: state, now: _now),
+    return Semantics(
+      identifier: 'request_feed_root',
+      container: true,
+      child: Scaffold(
+        appBar: OMDSAppBar(title: l10n.requestFeedTitle, centerTitle: false),
+        body: SafeArea(
+          child: BlocConsumer<RequestFeedCubit, RequestFeedState>(
+            listenWhen: (prev, curr) => prev.lastEffect != curr.lastEffect,
+            listener: _onEffect,
+            builder: (context, state) => _FeedColumn(state: state, now: _now),
+          ),
         ),
       ),
     );

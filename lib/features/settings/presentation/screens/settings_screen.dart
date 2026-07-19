@@ -219,6 +219,7 @@ class _LanguageSection extends StatelessWidget {
       children: [
         _LanguageRow(
           rowKey: const Key('settings-row-language-en'),
+          identifier: 'settings_language_en_option',
           title: l10n.settingsLanguageEnglish,
           selected: locale.languageCode == 'en',
           onTap: () =>
@@ -226,6 +227,7 @@ class _LanguageSection extends StatelessWidget {
         ),
         _LanguageRow(
           rowKey: const Key('settings-row-language-ar'),
+          identifier: 'settings_language_ar_option',
           title: l10n.settingsLanguageArabic,
           selected: locale.languageCode == 'ar',
           onTap: () =>
@@ -239,12 +241,14 @@ class _LanguageSection extends StatelessWidget {
 class _LanguageRow extends StatelessWidget {
   const _LanguageRow({
     required this.rowKey,
+    required this.identifier,
     required this.title,
     required this.selected,
     required this.onTap,
   });
 
   final Key rowKey;
+  final String identifier;
   final String title;
   final bool selected;
   final VoidCallback onTap;
@@ -252,8 +256,10 @@ class _LanguageRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
+      identifier: identifier,
       label: title,
       button: true,
+      container: true,
       inMutuallyExclusiveGroup: true,
       selected: selected,
       child: ExcludeSemantics(
@@ -280,37 +286,57 @@ class _NotificationsSection extends StatelessWidget {
     return OmdsSettingsSection(
       title: l10n.settingsNotificationsSection,
       children: [
-        OmdsSettingsSwitchRow(
-          key: const Key('settings-row-notifications-offers'),
-          title: l10n.notificationCategoryOffers,
-          subtitle: l10n.notificationCategoryOffersSubtitle,
-          value: state.notifications.offers,
-          onChanged: (v) =>
-              cubit.setNotification(NotificationCategory.offers, v),
+        Semantics(
+          identifier: 'settings_notifications_offers_toggle',
+          toggled: state.notifications.offers,
+          container: true,
+          child: OmdsSettingsSwitchRow(
+            key: const Key('settings-row-notifications-offers'),
+            title: l10n.notificationCategoryOffers,
+            subtitle: l10n.notificationCategoryOffersSubtitle,
+            value: state.notifications.offers,
+            onChanged: (v) =>
+                cubit.setNotification(NotificationCategory.offers, v),
+          ),
         ),
-        OmdsSettingsSwitchRow(
-          key: const Key('settings-row-notifications-chat'),
-          title: l10n.notificationCategoryChat,
-          subtitle: l10n.notificationCategoryChatSubtitle,
-          value: state.notifications.chat,
-          onChanged: (v) =>
-              cubit.setNotification(NotificationCategory.chat, v),
+        Semantics(
+          identifier: 'settings_notifications_chat_toggle',
+          toggled: state.notifications.chat,
+          container: true,
+          child: OmdsSettingsSwitchRow(
+            key: const Key('settings-row-notifications-chat'),
+            title: l10n.notificationCategoryChat,
+            subtitle: l10n.notificationCategoryChatSubtitle,
+            value: state.notifications.chat,
+            onChanged: (v) =>
+                cubit.setNotification(NotificationCategory.chat, v),
+          ),
         ),
-        OmdsSettingsSwitchRow(
-          key: const Key('settings-row-notifications-status'),
-          title: l10n.notificationCategoryStatus,
-          subtitle: l10n.notificationCategoryStatusSubtitle,
-          value: state.notifications.status,
-          onChanged: (v) =>
-              cubit.setNotification(NotificationCategory.status, v),
+        Semantics(
+          identifier: 'settings_notifications_status_toggle',
+          toggled: state.notifications.status,
+          container: true,
+          child: OmdsSettingsSwitchRow(
+            key: const Key('settings-row-notifications-status'),
+            title: l10n.notificationCategoryStatus,
+            subtitle: l10n.notificationCategoryStatusSubtitle,
+            value: state.notifications.status,
+            onChanged: (v) =>
+                cubit.setNotification(NotificationCategory.status, v),
+          ),
         ),
-        OmdsSettingsSwitchRow(
-          key: const Key('settings-row-notifications-ratings'),
-          title: l10n.notificationCategoryRatingReminders,
-          subtitle: l10n.notificationCategoryRatingRemindersSubtitle,
-          value: state.notifications.ratingReminders,
-          onChanged: (v) => cubit.setNotification(
-              NotificationCategory.ratingReminders, v),
+        Semantics(
+          identifier: 'settings_notifications_ratings_toggle',
+          toggled: state.notifications.ratingReminders,
+          container: true,
+          child: OmdsSettingsSwitchRow(
+            key: const Key('settings-row-notifications-ratings'),
+            title: l10n.notificationCategoryRatingReminders,
+            subtitle: l10n.notificationCategoryRatingRemindersSubtitle,
+            value: state.notifications.ratingReminders,
+            onChanged: (v) => cubit.setNotification(
+                NotificationCategory.ratingReminders, v),
+          ),
         ),
         OmdsSettingsRow(
           key: const Key('settings-row-notifications-otp'),

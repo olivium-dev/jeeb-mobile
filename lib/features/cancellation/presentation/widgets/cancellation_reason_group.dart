@@ -53,7 +53,12 @@ class _ReasonTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    // Screen-scoped to the cancellation reason picker; `reason` is the stable
+    // backend reason code (e.g. `changed_mind`, `other`), so the id survives
+    // i18n/reorder (dynamic-list-item form, mirrors `dispute_reason_<name>`).
     return Semantics(
+      identifier: 'cancellation_reason_$reason',
+      container: true,
       label: label,
       selected: isSelected,
       button: true,

@@ -104,12 +104,16 @@ class _Body extends StatelessWidget {
 
   Widget _buildScaffold(BuildContext context, SettlementState state) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: OMDSAppBar(
-        title: l10n.settlementTitle,
-        showBackButton: true,
+    return Semantics(
+      identifier: 'settlement_root',
+      container: true,
+      child: Scaffold(
+        appBar: OMDSAppBar(
+          title: l10n.settlementTitle,
+          showBackButton: true,
+        ),
+        body: _buildBody(context, state, l10n),
       ),
-      body: _buildBody(context, state, l10n),
     );
   }
 
@@ -209,7 +213,11 @@ class _StatementRow extends StatelessWidget {
     return Semantics(
       label: l10n.settlementRowSemantics(amountStr, chipLabel),
       child: Card(
-        child: InkWell(
+        child: Semantics(
+          identifier: 'settlement_statement_row_${statement.id}',
+          button: true,
+          container: true,
+          child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
@@ -258,16 +266,23 @@ class _StatementRow extends StatelessWidget {
                             height: 20,
                             child: OmdsLoadingState(),
                           )
-                        : IconButton(
-                            icon: const Icon(Icons.download),
-                            tooltip: l10n.settlementDownloadTooltip,
-                            onPressed: onDownload,
-                            iconSize: 20,
+                        : Semantics(
+                            identifier:
+                                'settlement_download_${statement.id}',
+                            button: true,
+                            container: true,
+                            child: IconButton(
+                              icon: const Icon(Icons.download),
+                              tooltip: l10n.settlementDownloadTooltip,
+                              onPressed: onDownload,
+                              iconSize: 20,
+                            ),
                           ),
                   ],
                 ),
               ],
             ),
+          ),
           ),
         ),
       ),

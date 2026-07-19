@@ -53,9 +53,14 @@ class CancellationSuccessSheet extends StatelessWidget {
             const SizedBox(height: Spacing.medium),
             _SuccessTitle(text: l10n.cancellationSuccess),
             const SizedBox(height: Spacing.medium),
-            OmdsPrimaryButton(
-              text: l10n.actionDone,
-              onTap: onDone,
+            Semantics(
+              identifier: 'cancellation_sheet_done_cta',
+              container: true,
+              button: true,
+              child: OmdsPrimaryButton(
+                text: l10n.actionDone,
+                onTap: onDone,
+              ),
             ),
           ],
         ),

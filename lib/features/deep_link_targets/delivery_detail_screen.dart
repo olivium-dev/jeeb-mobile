@@ -188,15 +188,19 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen> {
     // parent when there is one and otherwise lands on Home instead of exiting.
     return RootAwareBackScope(
       fallbackLocation: '/',
-      child: Scaffold(
-        appBar: OMDSAppBar(
-          title: l10n.deliveryDetailsTitle,
-          showBackButton: true,
-        ),
-        body: ListView(
-          key: const Key('delivery-detail-list'),
-          padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
-          children: _buildChildren(context, l10n),
+      child: Semantics(
+        identifier: 'order-detail-root',
+        container: true,
+        child: Scaffold(
+          appBar: OMDSAppBar(
+            title: l10n.deliveryDetailsTitle,
+            showBackButton: true,
+          ),
+          body: ListView(
+            key: const Key('delivery-detail-list'),
+            padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
+            children: _buildChildren(context, l10n),
+          ),
         ),
       ),
     );
@@ -498,10 +502,15 @@ class _RatingSummarySheet extends StatelessWidget {
                 style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: Spacing.large),
-              OmdsPrimaryButton(
-                key: const Key('delivery-rating-summary-done'),
-                text: doneLabel,
-                onTap: () => Navigator.of(context).pop(),
+              Semantics(
+                identifier: 'delivery-rating-summary-done',
+                button: true,
+                container: true,
+                child: OmdsPrimaryButton(
+                  key: const Key('delivery-rating-summary-done'),
+                  text: doneLabel,
+                  onTap: () => Navigator.of(context).pop(),
+                ),
               ),
             ],
           ),

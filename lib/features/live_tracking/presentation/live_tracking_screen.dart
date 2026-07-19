@@ -58,24 +58,28 @@ class LiveTrackingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: OMDSAppBar(
-        title: l10n.trackingTitle,
-        showBackButton: true,
-        centerTitle: true,
-      ),
-      // JEBV4-282: force an immediate re-fetch when the app returns to the
-      // foreground (the 5s poll timer is suspended while backgrounded), so the
-      // customer's status stepper reflects a transition that happened off-screen
-      // instead of staying stale.
-      body: _ResumeRefresh(
-        child: BlocConsumer<LiveTrackingCubit, LiveTrackingState>(
-          listenWhen: _hasNewEvent,
-          listener: _onEvent,
-          builder: (context, state) => _TrackingStateView(
-            state: state,
-            deliveryId: deliveryId,
-            useLiveMap: useLiveMap,
+    return Semantics(
+      identifier: 'tracking_root',
+      container: true,
+      child: Scaffold(
+        appBar: OMDSAppBar(
+          title: l10n.trackingTitle,
+          showBackButton: true,
+          centerTitle: true,
+        ),
+        // JEBV4-282: force an immediate re-fetch when the app returns to the
+        // foreground (the 5s poll timer is suspended while backgrounded), so the
+        // customer's status stepper reflects a transition that happened off-screen
+        // instead of staying stale.
+        body: _ResumeRefresh(
+          child: BlocConsumer<LiveTrackingCubit, LiveTrackingState>(
+            listenWhen: _hasNewEvent,
+            listener: _onEvent,
+            builder: (context, state) => _TrackingStateView(
+              state: state,
+              deliveryId: deliveryId,
+              useLiveMap: useLiveMap,
+            ),
           ),
         ),
       ),
@@ -175,12 +179,17 @@ class _TrackingCancelledBody extends StatelessWidget {
                 subtitle: l10n.trackingCancelledBody,
               ),
               const SizedBox(height: Spacing.large),
-              OmdsPrimaryButton(
-                key: const Key('tracking-cancelled-home-cta'),
-                text: l10n.trackingCancelledHomeCta,
-                // `context.go('/')` resolves the role-aware shell home — the
-                // same terminal destination the cancel-request sheet uses.
-                onTap: () => context.go('/'),
+              Semantics(
+                identifier: 'tracking_cancelled_home_cta',
+                container: true,
+                button: true,
+                child: OmdsPrimaryButton(
+                  key: const Key('tracking-cancelled-home-cta'),
+                  text: l10n.trackingCancelledHomeCta,
+                  // `context.go('/')` resolves the role-aware shell home — the
+                  // same terminal destination the cancel-request sheet uses.
+                  onTap: () => context.go('/'),
+                ),
               ),
             ],
           ),

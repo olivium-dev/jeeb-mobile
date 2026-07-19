@@ -453,10 +453,15 @@ class _ErrorBanner extends StatelessWidget {
               ),
             ),
           ),
-          IconButton(
-            tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-            icon: Icon(Icons.close, color: colors.onErrorContainer),
-            onPressed: onDismiss,
+          Semantics(
+            identifier: 'offer_review_error_dismiss_cta',
+            button: true,
+            container: true,
+            child: IconButton(
+              tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+              icon: Icon(Icons.close, color: colors.onErrorContainer),
+              onPressed: onDismiss,
+            ),
           ),
         ],
       ),

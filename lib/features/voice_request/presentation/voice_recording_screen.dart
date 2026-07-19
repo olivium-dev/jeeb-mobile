@@ -595,10 +595,14 @@ class _ActionRow extends StatelessWidget {
         return Row(
           children: [
             Expanded(
-              child: OMDSOutlinedButton(
-                key: VoiceRecordingKeys.discardButton,
-                text: l10n.voiceRecordingDiscard,
-                onTap: () => cubit.discardClip(),
+              child: Semantics(
+                identifier: 'voice_request_discard_button',
+                container: true,
+                child: OMDSOutlinedButton(
+                  key: VoiceRecordingKeys.discardButton,
+                  text: l10n.voiceRecordingDiscard,
+                  onTap: () => cubit.discardClip(),
+                ),
               ),
             ),
             const SizedBox(width: Spacing.medium),

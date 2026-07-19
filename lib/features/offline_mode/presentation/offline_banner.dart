@@ -46,11 +46,16 @@ class _OfflineMaterialBanner extends StatelessWidget {
       ),
       backgroundColor: roles.warningContainer,
       actions: [
-        OmdsPrimaryButton(
-          text: l10n.commonDismiss,
-          variant: OmdsButtonVariant.text,
-          textColor: roles.onWarningContainer,
-          onTap: () => context.read<OfflineCubit>().dismissBanner(),
+        Semantics(
+          identifier: 'offline_banner_dismiss_cta',
+          container: true,
+          button: true,
+          child: OmdsPrimaryButton(
+            text: l10n.commonDismiss,
+            variant: OmdsButtonVariant.text,
+            textColor: roles.onWarningContainer,
+            onTap: () => context.read<OfflineCubit>().dismissBanner(),
+          ),
         ),
       ],
     );

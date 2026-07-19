@@ -613,12 +613,17 @@ class _DeclineButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OmdsPrimaryButton(
-      key: Key('requestFeed.card.decline.$requestId'),
-      text: label,
-      variant: OmdsButtonVariant.outlined,
-      isEnabled: enabled,
-      onTap: onTap,
+    return Semantics(
+      identifier: 'request_feed_decline_$requestId',
+      container: true,
+      button: true,
+      child: OmdsPrimaryButton(
+        key: Key('requestFeed.card.decline.$requestId'),
+        text: label,
+        variant: OmdsButtonVariant.outlined,
+        isEnabled: enabled,
+        onTap: onTap,
+      ),
     );
   }
 }
@@ -638,11 +643,16 @@ class _AcceptButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OmdsPrimaryButton(
-      key: Key('requestFeed.card.accept.$requestId'),
-      text: label,
-      isEnabled: enabled,
-      onTap: onTap,
+    return Semantics(
+      identifier: 'request_feed_accept_$requestId',
+      container: true,
+      button: true,
+      child: OmdsPrimaryButton(
+        key: Key('requestFeed.card.accept.$requestId'),
+        text: label,
+        isEnabled: enabled,
+        onTap: onTap,
+      ),
     );
   }
 }

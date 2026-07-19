@@ -442,32 +442,47 @@ class _ActionButtons extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        OmdsPrimaryButton(
-          text: l10n.activeDeliveryOpenMapsButton,
-          // `OmdsPrimaryButton` only colors its text child, not a passed icon,
-          // so the leading icon must be given the on-navy token explicitly —
-          // otherwise it inherits the ambient (near-black) IconTheme color and
-          // renders black-on-navy. Match the white text via `onPrimary`.
-          icon: Icon(Icons.map_outlined, color: colorScheme.onPrimary),
-          onTap: onOpenMaps,
+        Semantics(
+          identifier: 'mark_delivered_open_maps_cta',
+          container: true,
+          button: true,
+          child: OmdsPrimaryButton(
+            text: l10n.activeDeliveryOpenMapsButton,
+            // `OmdsPrimaryButton` only colors its text child, not a passed icon,
+            // so the leading icon must be given the on-navy token explicitly —
+            // otherwise it inherits the ambient (near-black) IconTheme color and
+            // renders black-on-navy. Match the white text via `onPrimary`.
+            icon: Icon(Icons.map_outlined, color: colorScheme.onPrimary),
+            onTap: onOpenMaps,
+          ),
         ),
         const SizedBox(height: Spacing.small),
-        OmdsPrimaryButton(
-          text: l10n.activeDeliveryOpenChatButton,
-          variant: OmdsButtonVariant.outlined,
-          icon: const Icon(Icons.chat_bubble_outline),
-          onTap: onOpenChat,
+        Semantics(
+          identifier: 'mark_delivered_open_chat_cta',
+          container: true,
+          button: true,
+          child: OmdsPrimaryButton(
+            text: l10n.activeDeliveryOpenChatButton,
+            variant: OmdsButtonVariant.outlined,
+            icon: const Icon(Icons.chat_bubble_outline),
+            onTap: onOpenChat,
+          ),
         ),
         // Sprint 2 Stream G: goods-cost entry point (D11). Only shown when the
         // caller wired the navigation closure — keeps existing tests/callers
         // (which omit it) rendering exactly the prior two buttons.
         if (enterGoodsCost != null) ...[
           const SizedBox(height: Spacing.small),
-          OmdsPrimaryButton(
-            text: l10n.activeDeliveryEnterGoodsCostButton,
-            variant: OmdsButtonVariant.outlined,
-            icon: const Icon(Icons.receipt_long_outlined),
-            onTap: enterGoodsCost,
+          Semantics(
+            identifier: 'mark_delivered_goods_cost_cta',
+            container: true,
+            button: true,
+            child: OmdsPrimaryButton(
+              text: l10n.activeDeliveryEnterGoodsCostButton,
+              variant: OmdsButtonVariant.outlined,
+              icon: const Icon(Icons.receipt_long_outlined),
+              onTap: enterGoodsCost,
+            ),
           ),
         ],
       ],

@@ -89,9 +89,24 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
             TabBar(
               controller: _tabController,
               tabs: [
-                Tab(text: l10n.orderHistoryTabActive),
-                Tab(text: l10n.orderHistoryTabCompleted),
-                Tab(text: l10n.orderHistoryTabCancelled),
+                Semantics(
+                  identifier: 'order_history_active_tab',
+                  container: true,
+                  button: true,
+                  child: Tab(text: l10n.orderHistoryTabActive),
+                ),
+                Semantics(
+                  identifier: 'order_history_completed_tab',
+                  container: true,
+                  button: true,
+                  child: Tab(text: l10n.orderHistoryTabCompleted),
+                ),
+                Semantics(
+                  identifier: 'order_history_cancelled_tab',
+                  container: true,
+                  button: true,
+                  child: Tab(text: l10n.orderHistoryTabCancelled),
+                ),
               ],
             ),
             Expanded(
@@ -152,12 +167,17 @@ class _FilterBar extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: OmdsChip(
-              key: const Key('order-history-filter-chip'),
-              label: label,
-              icon: const Icon(Icons.tune, size: Sizes.medium),
-              isSelected: !range.isEmpty,
-              onTap: onTap,
+            child: Semantics(
+              identifier: 'order_history_filter_chip',
+              container: true,
+              button: true,
+              child: OmdsChip(
+                key: const Key('order-history-filter-chip'),
+                label: label,
+                icon: const Icon(Icons.tune, size: Sizes.medium),
+                isSelected: !range.isEmpty,
+                onTap: onTap,
+              ),
             ),
           ),
         ],

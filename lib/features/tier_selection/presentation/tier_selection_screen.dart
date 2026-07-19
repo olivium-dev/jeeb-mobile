@@ -88,24 +88,28 @@ class _Scaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      key: TierSelectionScreen.rootKey,
-      appBar: OMDSAppBar(
-        title: l10n.tierSelectionTitle,
-        centerTitle: false,
-      ),
-      body: SafeArea(
-        child: BlocConsumer<TierSelectionCubit, TierSelectionState>(
-          listenWhen: (prev, curr) =>
-              prev.confirmedTierId != curr.confirmedTierId &&
-              curr.confirmedTierId != null,
-          listener: (context, state) {
-            final tier = state.selectedTier;
-            if (tier != null) {
-              onConfirmed?.call(tier);
-            }
-          },
-          builder: (context, state) => _Body(state: state),
+    return Semantics(
+      identifier: 'tier_selection_root',
+      container: true,
+      child: Scaffold(
+        key: TierSelectionScreen.rootKey,
+        appBar: OMDSAppBar(
+          title: l10n.tierSelectionTitle,
+          centerTitle: false,
+        ),
+        body: SafeArea(
+          child: BlocConsumer<TierSelectionCubit, TierSelectionState>(
+            listenWhen: (prev, curr) =>
+                prev.confirmedTierId != curr.confirmedTierId &&
+                curr.confirmedTierId != null,
+            listener: (context, state) {
+              final tier = state.selectedTier;
+              if (tier != null) {
+                onConfirmed?.call(tier);
+              }
+            },
+            builder: (context, state) => _Body(state: state),
+          ),
         ),
       ),
     );
@@ -183,11 +187,16 @@ class _LoadedView extends StatelessWidget {
         ),
         Padding(
           padding: const EdgeInsets.all(Spacing.large),
-          child: OmdsPrimaryButton(
-            key: TierSelectionScreen.confirmButtonKey,
-            text: l10n.tierSelectionConfirm,
-            isEnabled: state.canConfirm,
-            onTap: () => context.read<TierSelectionCubit>().confirm(),
+          child: Semantics(
+            identifier: 'tier_selection_confirm_cta',
+            container: true,
+            button: true,
+            child: OmdsPrimaryButton(
+              key: TierSelectionScreen.confirmButtonKey,
+              text: l10n.tierSelectionConfirm,
+              isEnabled: state.canConfirm,
+              onTap: () => context.read<TierSelectionCubit>().confirm(),
+            ),
           ),
         ),
       ],
@@ -263,6 +272,7 @@ class _TierListEntry extends StatelessWidget {
       key: TierSelectionScreen.cardKey(tier.id),
       padding: EdgeInsets.zero,
       child: TierCard(
+        identifier: 'tier_selection_card_${tier.id.name}',
         name: name,
         description: description,
         estimatedTime: eta,

@@ -295,11 +295,19 @@ class _TagChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OmdsChip(
-      label: label,
-      isSelected: selected,
-      // Send the canonical taxonomy KEY, not the display label (JEBV4-297).
-      onTap: () => context.read<MutualRatingCubit>().toggleTag(tag.key),
+    // Dynamic per-tag id keyed on the canonical taxonomy key (stable across
+    // i18n/RTL) — 41_GUARDRAILS_TESTING §1.1 dynamic-item form.
+    return Semantics(
+      identifier: 'mutual_rating_tag_${tag.key}',
+      container: true,
+      button: true,
+      selected: selected,
+      child: OmdsChip(
+        label: label,
+        isSelected: selected,
+        // Send the canonical taxonomy KEY, not the display label (JEBV4-297).
+        onTap: () => context.read<MutualRatingCubit>().toggleTag(tag.key),
+      ),
     );
   }
 }

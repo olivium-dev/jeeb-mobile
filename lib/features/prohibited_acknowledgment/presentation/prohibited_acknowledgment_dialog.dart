@@ -125,24 +125,58 @@ class _ProhibitedAcknowledgmentDialog extends StatelessWidget {
     ProhibitedAcknowledgmentState state,
   ) {
     if (state.status == ProhibitedAckStatus.error) {
-      return OmdsPrimaryButton(
-        text: l10n.prohibitedItemsDialogRetry,
-        onTap: () =>
-            context.read<ProhibitedAcknowledgmentCubit>().load(),
-      );
+      return _retryCta(context, l10n);
     }
     if (state.status == ProhibitedAckStatus.acknowledging) {
-      return OmdsLoadingButton(
+      return _acknowledgingCta(l10n);
+    }
+    return _acknowledgeCta(context, l10n, state);
+  }
+
+  /// Error-recovery CTA. `container: true` keeps the id on an addressable node
+  /// (the documented merge guard); the OMDS button owns the tap surface.
+  Widget _retryCta(BuildContext context, AppLocalizations l10n) {
+    return Semantics(
+      identifier: 'prohibited_acknowledgment_sheet_retry_cta',
+      container: true,
+      button: true,
+      child: OmdsPrimaryButton(
+        text: l10n.prohibitedItemsDialogRetry,
+        onTap: () => context.read<ProhibitedAcknowledgmentCubit>().load(),
+      ),
+    );
+  }
+
+  /// In-flight variant of the acknowledge CTA — shares the acknowledge id so the
+  /// tap target stays stable across the loaded → acknowledging transition.
+  Widget _acknowledgingCta(AppLocalizations l10n) {
+    return Semantics(
+      identifier: 'prohibited_acknowledgment_sheet_acknowledge_cta',
+      container: true,
+      button: true,
+      child: OmdsLoadingButton(
         text: l10n.prohibitedItemsDialogAcknowledge,
         isLoading: true,
         onTap: () {},
-      );
-    }
-    return OmdsPrimaryButton(
-      text: l10n.prohibitedItemsDialogAcknowledge,
-      isEnabled: state.status == ProhibitedAckStatus.loaded,
-      onTap: () =>
-          context.read<ProhibitedAcknowledgmentCubit>().acknowledge(),
+      ),
+    );
+  }
+
+  Widget _acknowledgeCta(
+    BuildContext context,
+    AppLocalizations l10n,
+    ProhibitedAcknowledgmentState state,
+  ) {
+    return Semantics(
+      identifier: 'prohibited_acknowledgment_sheet_acknowledge_cta',
+      container: true,
+      button: true,
+      child: OmdsPrimaryButton(
+        text: l10n.prohibitedItemsDialogAcknowledge,
+        isEnabled: state.status == ProhibitedAckStatus.loaded,
+        onTap: () =>
+            context.read<ProhibitedAcknowledgmentCubit>().acknowledge(),
+      ),
     );
   }
 }

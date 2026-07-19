@@ -153,6 +153,7 @@ class _ActiveDeliveryCard extends StatelessWidget {
                 ],
                 const SizedBox(height: Spacing.small),
                 _ActiveDeliveryCardActions(
+                  deliveryId: delivery.id,
                   l10n: l10n,
                   onOpenChat: onOpenChat,
                   onManageDelivery: onManageDelivery,
@@ -187,11 +188,15 @@ class _ActiveDeliveryCard extends StatelessWidget {
 /// whole card width, so the label rarely needs to truncate at all).
 class _ActiveDeliveryCardActions extends StatelessWidget {
   const _ActiveDeliveryCardActions({
+    required this.deliveryId,
     required this.l10n,
     required this.onOpenChat,
     required this.onManageDelivery,
   });
 
+  /// The stable backend id of the delivery this card represents — used to make
+  /// each card's action-button Semantics identifiers unique in the list.
+  final String deliveryId;
   final AppLocalizations l10n;
   final VoidCallback onOpenChat;
   final VoidCallback onManageDelivery;
@@ -203,23 +208,33 @@ class _ActiveDeliveryCardActions extends StatelessWidget {
     final labelStyle = theme.textTheme.labelLarge?.copyWith(
       fontWeight: FontWeight.w600,
     );
-    final openChat = OmdsPrimaryButton(
-      text: l10n.jeeberActiveDeliveriesOpenChat,
-      onTap: onOpenChat,
-      child: _ButtonLabel(
-        icon: Icon(Icons.chat_bubble_outline, color: colorScheme.onPrimary),
-        label: l10n.jeeberActiveDeliveriesOpenChat,
-        style: labelStyle?.copyWith(color: colorScheme.onPrimary),
+    final openChat = Semantics(
+      identifier: 'jeeber_active_delivery_open_chat_$deliveryId',
+      container: true,
+      button: true,
+      child: OmdsPrimaryButton(
+        text: l10n.jeeberActiveDeliveriesOpenChat,
+        onTap: onOpenChat,
+        child: _ButtonLabel(
+          icon: Icon(Icons.chat_bubble_outline, color: colorScheme.onPrimary),
+          label: l10n.jeeberActiveDeliveriesOpenChat,
+          style: labelStyle?.copyWith(color: colorScheme.onPrimary),
+        ),
       ),
     );
-    final manage = OmdsPrimaryButton(
-      text: l10n.jeeberActiveDeliveriesManage,
-      variant: OmdsButtonVariant.outlined,
-      onTap: onManageDelivery,
-      child: _ButtonLabel(
-        icon: const Icon(Icons.local_shipping_outlined),
-        label: l10n.jeeberActiveDeliveriesManage,
-        style: labelStyle?.copyWith(color: colorScheme.primary),
+    final manage = Semantics(
+      identifier: 'jeeber_active_delivery_manage_$deliveryId',
+      container: true,
+      button: true,
+      child: OmdsPrimaryButton(
+        text: l10n.jeeberActiveDeliveriesManage,
+        variant: OmdsButtonVariant.outlined,
+        onTap: onManageDelivery,
+        child: _ButtonLabel(
+          icon: const Icon(Icons.local_shipping_outlined),
+          label: l10n.jeeberActiveDeliveriesManage,
+          style: labelStyle?.copyWith(color: colorScheme.primary),
+        ),
       ),
     );
     return LayoutBuilder(

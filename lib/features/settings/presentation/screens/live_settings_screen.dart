@@ -132,7 +132,15 @@ class _LiveSettingsError extends StatelessWidget {
                 style: theme.textTheme.titleMedium,
               ),
               const SizedBox(height: Spacing.large),
-              FilledButton(onPressed: onRetry, child: Text(l10n.kycRetry)),
+              Semantics(
+                identifier: 'live_settings_retry_cta',
+                button: true,
+                container: true,
+                child: FilledButton(
+                  onPressed: onRetry,
+                  child: Text(l10n.kycRetry),
+                ),
+              ),
             ],
           ),
         ),
