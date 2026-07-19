@@ -90,6 +90,53 @@ class _GestureLogListenerState extends State<GestureLogListener> {
   /// stay distinct and a scroll never leaks per-move events — we emit on UP.
   final Map<int, _GestureTrack> _tracks = <int, _GestureTrack>{};
 
+  /// Held while logging is ON so Flutter COMPILES and maintains the semantics
+  /// tree — the SAME tree the platform accessibility bridge (uiautomator /
+  /// Maestro) exposes. Without it, an adb-injected `input tap` on a normal run
+  /// (no a11y service attached) leaves `RenderObject.debugSemantics` null, so the
+  /// hook could not read the EXPOSED identifier and would fall back to a stale /
+  /// inner guess. Acquired/released in lock-step with [GestureLog.enabled];
+  /// fail-soft — a handle failure never breaks the app or the pointer path.
+  SemanticsHandle? _semanticsHandle;
+
+  @override
+  void initState() {
+    super.initState();
+    GestureLog.instance.enabledListenable.addListener(_syncSemantics);
+    _syncSemantics();
+  }
+
+  @override
+  void dispose() {
+    GestureLog.instance.enabledListenable.removeListener(_syncSemantics);
+    _releaseSemantics();
+    super.dispose();
+  }
+
+  /// Mirrors the a11y-tree handle to the live on/off flag: forced ON only during
+  /// an active recording session, released the moment logging is turned off.
+  void _syncSemantics() {
+    if (GestureLog.instance.enabled) {
+      _acquireSemantics();
+    } else {
+      _releaseSemantics();
+    }
+  }
+
+  void _acquireSemantics() {
+    if (_semanticsHandle != null) return;
+    try {
+      _semanticsHandle = SemanticsBinding.instance.ensureSemantics();
+    } catch (_) {
+      _semanticsHandle = null; // fail-soft: a dev tool must never crash the app.
+    }
+  }
+
+  void _releaseSemantics() {
+    _semanticsHandle?.dispose();
+    _semanticsHandle = null;
+  }
+
   @override
   Widget build(BuildContext context) {
     // translucent => never absorbs; children still receive their own events.
@@ -268,16 +315,20 @@ String _classify(double moved, Duration elapsed, _HitInfo? hit) {
 /// identifier + label, editable-ness), then falls back to a descendant `Text`
 /// for the visible-text selector. Bounded and allocation-light.
 class _AncestorProbe {
-  /// The identifier the PLATFORM accessibility tree EXPOSES at the tap point —
-  /// what Maestro's `tapOn: { id: … }` matches. Resolved by [_captureSemantics].
-  String? _idExposed;
+  /// The identifier of the nearest ancestor SemanticsNode that is NOT merged
+  /// into its parent (`isMergedIntoParent == false`) — i.e. the merge ROOT the
+  /// platform accessibility tree actually exposes, what Maestro's
+  /// `tapOn: { id: … }` matches. The AUTHORITATIVE answer (debug builds).
+  String? _idExposedNode;
 
-  /// The innermost identifier at the tap point (a debugging breadcrumb).
+  /// PROFILE fallback (no `debugSemantics`): the OUTERMOST [Semantics] WIDGET
+  /// identifier. Merging only ever promotes identity UPWARD, so the outer id is
+  /// never less visible than the inner — the best guess when node flags are
+  /// unavailable. Never overrides [_idExposedNode].
+  String? _idExposedWidget;
+
+  /// The innermost identifier ANNOTATION at the tap point (a debug breadcrumb).
   String? _idInner;
-
-  /// The outermost identifier seen so far while climbing. Promoted to
-  /// [_idExposed] when a merge boundary folds this cluster into one platform node.
-  String? _outerId;
 
   String? label;
   String? target;
@@ -286,12 +337,15 @@ class _AncestorProbe {
   bool isTextInput = false;
   int _seen = 0;
 
-  /// The accessibility-exposed identifier (see [_HitInfo.id]).
-  String? get id => _idExposed;
+  /// The accessibility-exposed identifier (see [_HitInfo.id]): the merge-root
+  /// node id, else the outermost-widget fallback, else the innermost.
+  String? get id => _idExposedNode ?? _idExposedWidget ?? _idInner;
 
   /// The innermost identifier, surfaced only when it differs from [id].
-  String? get idInner =>
-      (_idInner != null && _idInner != _idExposed) ? _idInner : null;
+  String? get idInner {
+    final resolved = id;
+    return (_idInner != null && _idInner != resolved) ? _idInner : null;
+  }
 
   void scan(Element hit) {
     _consider(hit);
@@ -334,31 +388,36 @@ class _AncestorProbe {
   /// Resolves the identifier the platform a11y tree ACTUALLY exposes at the tap
   /// point (what Maestro / uiautomator sees), plus the visible label.
   ///
-  /// Flutter's accessibility bridge exposes the identifier of the OUTERMOST node
-  /// of a merged Semantics group and folds descendants — and their identifiers —
-  /// up into it. So where a legacy OUTER `Semantics(identifier:…)` merges a newer
-  /// INNER `Semantics(identifier:…)`, only the OUTER id survives to the platform;
-  /// recording the inner one yields a `tapOn: { id: … }` step Maestro can never
-  /// match. The rule encoded here:
-  ///   • [_idInner] = the innermost identifier (first seen) — a debug breadcrumb.
-  ///   • [_idExposed] starts as the innermost (it is itself the exposed node when
-  ///     nothing merges), then is PROMOTED to the outermost identifier of any
-  ///     ancestor whose node MERGES its descendants into itself — that merge root
-  ///     is the node the platform keeps. Only when no merging ancestor carries an
-  ///     identifier is the inner id kept.
+  /// Flutter's accessibility bridge does NOT expose a SemanticsNode that is
+  /// MERGED INTO an ancestor: a button (Material / OMDS) or any merging boundary
+  /// folds its descendants — and their identifiers — up into ONE node. So a newer
+  /// INNER `Semantics(identifier: 'walkthrough_next_cta')` placed inside a legacy
+  /// button that already owns `Semantics(identifier: 'onboarding_next_button')`
+  /// is INVISIBLE at replay: the inner node's `isMergedIntoParent == true`, and
+  /// only the button's node survives to the platform tree. Recording the inner id
+  /// yields a `tapOn: { id: … }` step Maestro can never match.
   ///
-  /// Merge detection is authoritative in DEBUG via the compiled [SemanticsNode]
-  /// (`mergeAllDescendantsIntoThisNode`); PROFILE Dev-Tool builds (no
-  /// `debugSemantics`) fall back to the [MergeSemantics] widget boundary. Reads
-  /// the [Semantics] WIDGET first so an identifier is captured in every build
-  /// mode. Fail-soft — any inspection gap degrades to the innermost id.
+  /// Rule (keyed on the node flag that the a11y bridge itself uses):
+  ///   • [_idExposedNode] = the identifier of the NEAREST ancestor SemanticsNode
+  ///     with `isMergedIntoParent == false` AND a non-empty identifier — the
+  ///     merge ROOT the platform keeps. Nodes with `isMergedIntoParent == true`
+  ///     are folded away and skipped. (NB: the OLD `mergeAllDescendantsIntoThisNode`
+  ///     check missed the real case — a container/button merge leaves that flag
+  ///     `false` on the root while still absorbing the inner id.)
+  ///   • [_idInner] = the innermost Semantics WIDGET identifier — a breadcrumb.
+  ///   • [_idExposedWidget] = the outermost Semantics WIDGET identifier — the
+  ///     PROFILE fallback where `debugSemantics` is null.
+  ///
+  /// The node path is authoritative and requires the compiled semantics tree,
+  /// which the hook forces via a held [SemanticsHandle] while enabled — so it
+  /// works for an on-device adb/Maestro tap. Fail-soft: any gap degrades to the
+  /// widget fallbacks, never a throw.
   void _captureSemantics(Element element, Widget widget) {
     if (widget is Semantics) {
       final widgetId = _nonEmpty(widget.properties.identifier);
       if (widgetId != null) {
-        _idInner ??= widgetId;
-        _idExposed ??= widgetId;
-        _outerId = widgetId;
+        _idInner ??= widgetId; // innermost annotation (first seen climbing up)
+        _idExposedWidget = widgetId; // outermost annotation (last write wins)
       }
       label ??= _nonEmpty(widget.properties.label);
     }
@@ -367,26 +426,17 @@ class _AncestorProbe {
     if (node != null) {
       final data = node.getSemanticsData();
       final nodeId = _nonEmpty(data.identifier);
-      if (nodeId != null) {
-        _idInner ??= nodeId;
-        _idExposed ??= nodeId;
-        _outerId ??= nodeId;
-        // A node that folds its descendants up is the one the platform exposes;
-        // promote to the outermost identifier collected within this merge group
-        // (deterministic — independent of the framework's internal merge order).
-        if (node.mergeAllDescendantsIntoThisNode) _idExposed = _outerId ?? nodeId;
+      // The nearest node NOT folded into its parent is the platform-exposed one;
+      // climbing inner→outer, the FIRST such node with an identifier wins.
+      if (nodeId != null && !node.isMergedIntoParent) {
+        _idExposedNode ??= nodeId;
       }
       label ??= _nonEmpty(data.label);
-    } else if (widget is MergeSemantics && _outerId != null) {
-      // Profile fallback (no compiled node): this boundary folds its descendant
-      // Semantics into one platform node, so the OUTERMOST identifier of the
-      // group — not the innermost — is what Maestro will see.
-      _idExposed = _outerId;
     }
   }
 
   _HitInfo toInfo() => _HitInfo(
-        id: _idExposed,
+        id: id,
         idInner: idInner,
         // A field's visible text may be its typed value — never log it. id +
         // coordinates still let Maestro target the field.

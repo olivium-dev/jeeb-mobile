@@ -26,12 +26,37 @@ Widget _tappable({required String id, required String text}) => Semantics(
       ),
     );
 
-/// A dual-identity, tappable box: a legacy OUTER `Semantics(identifier: [outer])`
-/// merges a newer INNER `Semantics(identifier: [inner])` into a single platform
-/// node (via [MergeSemantics]). Flutter's a11y bridge exposes only [outer] — the
-/// inner id is folded away and invisible to Maestro. Mirrors the real nested
-/// (legacy + JM-010) Semantics ids the record/replay mismatch was proven against.
-Widget _dualIdentity({
+/// REAL-bug topology (proven by a Maestro hierarchy dump): a legacy OUTER
+/// `Semantics(container: true, identifier: [outer])` — a button-style merge
+/// boundary — ABSORBS a newer INNER `Semantics(identifier: [inner])` into ONE
+/// platform node. The a11y bridge exposes ONLY [outer]; the inner id has no
+/// separate node at all, so `tapOn: id:[inner]` can never match at replay.
+///
+/// Crucially the merge root's `mergeAllDescendantsIntoThisNode` stays FALSE here
+/// (only `isMergedIntoParent` on the folded descendants tells the story) — which
+/// is exactly why a fix keyed on the former flag passed synthetic tests yet
+/// failed on the real device.
+Widget _buttonMergedIdentity({
+  required String outer,
+  required String inner,
+  required String text,
+}) =>
+    Semantics(
+      container: true,
+      identifier: outer,
+      child: Semantics(
+        identifier: inner,
+        child: GestureDetector(
+          onTap: () {},
+          child: SizedBox(width: 120, height: 48, child: Text(text)),
+        ),
+      ),
+    );
+
+/// Explicit-merge variant: a [MergeSemantics] boundary collapses the group into
+/// one node whose `mergeAllDescendantsIntoThisNode` is TRUE. The OUTER id still
+/// wins — both merge shapes must resolve to [outer].
+Widget _mergeSemanticsIdentity({
   required String outer,
   required String inner,
   required String text,
@@ -45,6 +70,28 @@ Widget _dualIdentity({
             onTap: () {},
             child: SizedBox(width: 120, height: 48, child: Text(text)),
           ),
+        ),
+      ),
+    );
+
+/// Both-exposed topology: two `container: true` boundaries keep the OUTER and
+/// INNER identifiers as SEPARATE non-merged nodes — both visible to the a11y
+/// bridge. The tighter (nearest) exposed id is the one at the tap point, so the
+/// hook must record [inner], not blindly climb to the outermost [outer].
+Widget _bothExposedIdentity({
+  required String outer,
+  required String inner,
+  required String text,
+}) =>
+    Semantics(
+      container: true,
+      identifier: outer,
+      child: Semantics(
+        container: true,
+        identifier: inner,
+        child: GestureDetector(
+          onTap: () {},
+          child: SizedBox(width: 120, height: 48, child: Text(text)),
         ),
       ),
     );
@@ -98,9 +145,36 @@ void main() {
   });
 
   group('GestureLogListener', () {
+    testWidgets(
+        'holds a semantics handle only while logging is enabled',
+        (tester) async {
+      // Device-critical: an adb-injected tap has no accessibility service
+      // attached, so the hook itself must COMPILE the semantics tree by HOLDING
+      // a SemanticsHandle — otherwise `debugSemantics` (the node path) reads null
+      // on-device and the exposed id can't be resolved. (`semanticsEnabled` is
+      // always true under the test binding, so we assert the handle COUNT delta,
+      // which isolates the hook's own handle from the binding's baseline.)
+      final binding = tester.binding;
+      GestureLog.instance.enabled = false;
+      await tester.pumpWidget(
+        _harness(_tappable(id: 'submit_btn', text: 'Submit')),
+      );
+      final baseline = binding.debugOutstandingSemanticsHandles;
+
+      GestureLog.instance.enabled = true;
+      await tester.pump();
+      expect(binding.debugOutstandingSemanticsHandles, baseline + 1,
+          reason: 'hook must acquire one SemanticsHandle when logging turns on');
+
+      GestureLog.instance.enabled = false;
+      await tester.pump();
+      expect(binding.debugOutstandingSemanticsHandles, baseline,
+          reason: 'hook must release its SemanticsHandle when logging turns off');
+    });
+
     testWidgets('a tap emits one record with semantics id + visible text',
         (tester) async {
-      final handle = tester.ensureSemantics();
+      // No tester.ensureSemantics(): the hook forces the semantics tree itself.
       await tester.pumpWidget(
         _harness(_tappable(id: 'submit_btn', text: 'Submit')),
       );
@@ -111,17 +185,17 @@ void main() {
       expect(line, contains('"type":"tap"'));
       expect(line, contains('"id":"submit_btn"'));
       expect(line, contains('"text":"Submit"'));
-      handle.dispose();
     });
 
     testWidgets(
-        'nested Semantics records the OUTER a11y-exposed id (debug node path)',
+        'button-merged nested Semantics records the OUTER exposed id, not inner',
         (tester) async {
-      // ensureSemantics compiles the tree, so the hook reads the authoritative
-      // merged SemanticsNode — the same node the platform a11y bridge exposes.
-      final handle = tester.ensureSemantics();
+      // The real onboarding-Next topology: the inner id is ABSORBED into the
+      // button's node (isMergedIntoParent) and never reaches the platform a11y
+      // tree. NO tester.ensureSemantics(): the hook's own SemanticsHandle
+      // compiles the tree, exactly as it must on-device.
       await tester.pumpWidget(
-        _harness(_dualIdentity(
+        _harness(_buttonMergedIdentity(
           outer: 'onboarding_next_button',
           inner: 'walkthrough_next_cta',
           text: 'Next',
@@ -137,16 +211,13 @@ void main() {
       expect(line, isNot(contains('"id":"walkthrough_next_cta"')));
       // The inner id survives only as a debugging breadcrumb.
       expect(line, contains('"idInner":"walkthrough_next_cta"'));
-      handle.dispose();
     });
 
     testWidgets(
-        'nested Semantics records the OUTER id via MergeSemantics (profile path)',
+        'MergeSemantics-merged nested Semantics also records the OUTER id',
         (tester) async {
-      // No ensureSemantics ⇒ no compiled SemanticsNode, mirroring a profile
-      // Dev-Tool build; resolution falls back to the MergeSemantics boundary.
       await tester.pumpWidget(
-        _harness(_dualIdentity(
+        _harness(_mergeSemanticsIdentity(
           outer: 'onboarding_next_button',
           inner: 'walkthrough_next_cta',
           text: 'Next',
@@ -158,7 +229,27 @@ void main() {
       final line = gestureLine();
       expect(line, contains('"id":"onboarding_next_button"'));
       expect(line, isNot(contains('"id":"walkthrough_next_cta"')));
-      expect(line, contains('"idInner":"walkthrough_next_cta"'));
+    });
+
+    testWidgets(
+        'when BOTH ids stay exposed, records the nearest (deepest) exposed id',
+        (tester) async {
+      // Two non-merged boundaries ⇒ both ids are in the exposed tree; the hook
+      // must pick the one AT the tap point (nearest non-merged node) — proving
+      // it reads real SemanticsNode flags, not the outermost widget id.
+      await tester.pumpWidget(
+        _harness(_bothExposedIdentity(
+          outer: 'onboarding_next_button',
+          inner: 'walkthrough_next_cta',
+          text: 'Next',
+        )),
+      );
+      await tester.tap(find.text('Next'));
+      await tester.pump();
+
+      final line = gestureLine();
+      expect(line, contains('"id":"walkthrough_next_cta"'));
+      expect(line, isNot(contains('"id":"onboarding_next_button"')));
     });
 
     testWidgets('a drag beyond the move threshold classifies as swipe',
