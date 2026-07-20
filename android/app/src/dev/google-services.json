@@ -1,27 +1,87 @@
 {
-  "__comment": "COMMITTED-SAFE PLACEHOLDER — NOT a real Firebase config. This file exists ONLY so the `dev` product flavor (applicationId app.jeeb.mobile.dev) can compile: the com.google.gms.google-services Gradle plugin requires a client whose package_name matches the variant applicationId, and the real android/app/google-services.json (gitignored) only carries the production package app.jeeb.mobile. Every value below is an intentionally fake placeholder and carries NO live credential. Because the google-services plugin resolves per-flavor source sets (src/<flavor>/ takes priority over app/), the `dev` flavor uses this placeholder while `production`/`staging` still use the real, gitignored android/app/google-services.json. RUNTIME NOTE: with this fake api_key, Firebase.initializeApp() parses fine and the app boots, but FCM token retrieval and Crashlytics upload will log a benign 'invalid API key' warning. To get real FCM/Crashlytics on dev, drop a real google-services.json (with an app.jeeb.mobile.dev client) here or at android/app/google-services.json — it stays gitignored. NEVER replace these placeholder values in this committed file with a real key.",
   "project_info": {
-    "project_number": "000000000000",
-    "project_id": "jeeb-mobile-dev-placeholder",
-    "storage_bucket": "jeeb-mobile-dev-placeholder.appspot.com"
+    "project_number": "1051234312170",
+    "project_id": "jeeb-5a293",
+    "storage_bucket": "jeeb-5a293.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+        "mobilesdk_app_id": "1:1051234312170:android:3cbb5f318510879923dc93",
         "android_client_info": {
-          "package_name": "app.jeeb.mobile.dev"
+          "package_name": "app.jeeb.mobile"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1051234312170-al92qmhpni2sq9k5dub718nsr96e4vfl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "app.jeeb.mobile",
+            "certificate_hash": "77485a6b9faa39a7f7a3a2a7e7f8070cb44f430d"
+          }
+        },
+        {
+          "client_id": "1051234312170-8hbgasvbfmerg6h2rk3vgu80ojh4hq3d.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyDUMMY-DEV-PLACEHOLDER-KEY-NOT-REAL-000"
+          "current_key": "AIzaSyAkf3yIvW8U0w3artJ7ZAeoWBu1F6LT4Us"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1051234312170-8hbgasvbfmerg6h2rk3vgu80ojh4hq3d.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1051234312170-q1mjbv7s37sgv2s2ols57m0jehn2di40.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "app.jeeb.jeebMobile"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1051234312170:android:146d7f24f109e38523dc93",
+        "android_client_info": {
+          "package_name": "app.jeeb.mobile.dev"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1051234312170-8hbgasvbfmerg6h2rk3vgu80ojh4hq3d.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAkf3yIvW8U0w3artJ7ZAeoWBu1F6LT4Us"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1051234312170-8hbgasvbfmerg6h2rk3vgu80ojh4hq3d.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1051234312170-q1mjbv7s37sgv2s2ols57m0jehn2di40.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "app.jeeb.jeebMobile"
+              }
+            }
+          ]
         }
       }
     }
