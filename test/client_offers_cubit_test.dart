@@ -16,7 +16,7 @@ OffersSnapshot _snapshot(
 }) =>
     OffersSnapshot(
       offers: offers,
-      windowExpiresAt: deadline ?? kBaseTime.add(const Duration(minutes: 5)),
+      windowExpiresAt: deadline ?? kBaseTime.add(const Duration(minutes: 15)),
       requestIsOpen: requestIsOpen,
     );
 

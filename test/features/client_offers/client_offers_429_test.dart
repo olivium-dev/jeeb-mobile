@@ -88,7 +88,7 @@ class _FlakyRateLimitedRepository implements OffersRepository {
     }
     return OffersSnapshot(
       offers: const [],
-      windowExpiresAt: DateTime.utc(2026, 1, 1, 0, 5),
+      windowExpiresAt: DateTime.utc(2026, 1, 1, 0, 15),
       requestIsOpen: true,
     );
   }

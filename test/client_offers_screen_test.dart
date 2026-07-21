@@ -48,7 +48,7 @@ OffersSnapshot _snapshot(
 }) =>
     OffersSnapshot(
       offers: List.unmodifiable(offers),
-      windowExpiresAt: deadline ?? DateTime.now().add(const Duration(minutes: 5)),
+      windowExpiresAt: deadline ?? DateTime.now().add(const Duration(minutes: 15)),
       requestIsOpen: requestIsOpen,
     );
 
