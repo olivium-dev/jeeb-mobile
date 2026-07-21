@@ -1963,6 +1963,10 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get jeeberActiveDeliveriesFallbackTitle => _get('jeeberActiveDeliveriesFallbackTitle');
   String get jeeberActiveDeliveriesOpenChat => _get('jeeberActiveDeliveriesOpenChat');
   String get jeeberActiveDeliveriesManage => _get('jeeberActiveDeliveriesManage');
+  String jeeberActiveDeliveriesViewAll(int count) =>
+      _get('jeeberActiveDeliveriesViewAll').replaceFirst('{count}', '$count');
+  String get jeeberActiveDeliveriesShowLess =>
+      _get('jeeberActiveDeliveriesShowLess');
   String get activeDeliveryMarkPicked => _get('activeDeliveryMarkPicked');
   String get activeDeliveryMarkInTransit => _get('activeDeliveryMarkInTransit');
   String get activeDeliveryMarkAtDoor => _get('activeDeliveryMarkAtDoor');

@@ -24,7 +24,11 @@ import '../domain/active_delivery_summary.dart';
 /// [onOpenChat] / [onManageDelivery] are injected by the host (the Dashboard
 /// tab) so this widget owns no navigation — keeping it testable and the route
 /// strings in one place.
-// ORPHAN (JEBV4-227, verified 2026-07-12): zero refs; live banner is jeeber_home's own implementation — see docs/project-understanding/reconciliation/orphans.md
+// LIVE (re-verified 2026-07-21): the shell Dashboard renders THIS widget —
+// dashboard_tab.dart builds `ActiveDeliveriesBanner(...)` and injects it via
+// `JeeberHomeScreen(activeDeliveriesBanner:)`. The stale "ORPHAN (JEBV4-227)"
+// note predated that wiring (commit bf99d34); jeeber_home's own
+// JeeberActiveDeliveriesBanner is now only the `??` fallback the shell never hits.
 class ActiveDeliveriesBanner extends StatelessWidget {
   const ActiveDeliveriesBanner({
     super.key,
@@ -66,18 +70,118 @@ class ActiveDeliveriesBanner extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: Spacing.small),
-                for (final delivery in state.deliveries)
-                  _ActiveDeliveryCard(
-                    delivery: delivery,
-                    onOpenChat: () => onOpenChat(delivery),
-                    onManageDelivery: () => onManageDelivery(delivery),
-                    l10n: l10n,
-                  ),
+                _ActiveDeliveriesCardList(
+                  deliveries: state.deliveries,
+                  onOpenChat: onOpenChat,
+                  onManageDelivery: onManageDelivery,
+                  l10n: l10n,
+                ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+}
+
+/// Lays out the active-delivery cards, capping how many render at rest so a
+/// jeeber juggling several concurrent orders doesn't bury the pending-request
+/// feed below the fold — on a 360x800 viewport four full cards pushed the feed a
+/// whole screen down. At most [_maxCollapsedCards] cards show while collapsed;
+/// any beyond that are revealed in place by a "view all" toggle. The banner owns
+/// no navigation (its only outward hooks are onOpenChat/onManageDelivery and
+/// there is no "all deliveries" route), so the disclosure is an in-place expand
+/// rather than a push — every delivery stays reachable without new host wiring.
+class _ActiveDeliveriesCardList extends StatefulWidget {
+  const _ActiveDeliveriesCardList({
+    required this.deliveries,
+    required this.onOpenChat,
+    required this.onManageDelivery,
+    required this.l10n,
+  });
+
+  final List<ActiveDeliverySummary> deliveries;
+  final void Function(ActiveDeliverySummary delivery) onOpenChat;
+  final void Function(ActiveDeliverySummary delivery) onManageDelivery;
+  final AppLocalizations l10n;
+
+  @override
+  State<_ActiveDeliveriesCardList> createState() =>
+      _ActiveDeliveriesCardListState();
+}
+
+class _ActiveDeliveriesCardListState extends State<_ActiveDeliveriesCardList> {
+  /// At most this many cards render while collapsed; the rest hide behind the
+  /// "view all" toggle so the feed below stays within one screen-height.
+  static const int _maxCollapsedCards = 2;
+
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final deliveries = widget.deliveries;
+    final overflowing = deliveries.length > _maxCollapsedCards;
+    final visible = (overflowing && !_expanded)
+        ? deliveries.take(_maxCollapsedCards)
+        : deliveries;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final delivery in visible)
+          _ActiveDeliveryCard(
+            delivery: delivery,
+            onOpenChat: () => widget.onOpenChat(delivery),
+            onManageDelivery: () => widget.onManageDelivery(delivery),
+            l10n: widget.l10n,
+          ),
+        if (overflowing)
+          _ViewAllToggle(
+            expanded: _expanded,
+            totalCount: deliveries.length,
+            l10n: widget.l10n,
+            onToggle: () => setState(() => _expanded = !_expanded),
+          ),
+      ],
+    );
+  }
+}
+
+/// The "view all (N)" / "show less" disclosure control for the capped card
+/// list. A borderless OMDS text button that only flips the list's expand state
+/// in place (no navigation); carries a stable Semantics identifier so UI test
+/// drivers can address it.
+class _ViewAllToggle extends StatelessWidget {
+  const _ViewAllToggle({
+    required this.expanded,
+    required this.totalCount,
+    required this.l10n,
+    required this.onToggle,
+  });
+
+  final bool expanded;
+  final int totalCount;
+  final AppLocalizations l10n;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Spacing.small),
+      child: OmdsPrimaryButton(
+        identifier: 'jeeber_active_deliveries_view_all',
+        variant: OmdsButtonVariant.text,
+        text: expanded
+            ? l10n.jeeberActiveDeliveriesShowLess
+            : l10n.jeeberActiveDeliveriesViewAll(totalCount),
+        icon: Icon(
+          expanded ? Icons.expand_less : Icons.expand_more,
+          color: colorScheme.primary,
+        ),
+        onTap: onToggle,
+      ),
     );
   }
 }
