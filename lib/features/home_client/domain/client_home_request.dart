@@ -77,6 +77,8 @@ class ClientHomeRequest extends Equatable {
     this.ttlSeconds,
     this.deliveryId,
     this.chatCorrelationId,
+    this.createdAt,
+    this.hasNewOffers = false,
   });
 
   /// Server-side identifier; also used as the deep-link key.
@@ -193,6 +195,19 @@ class ClientHomeRequest extends Equatable {
   /// `Check Offers` CTA navigates to `/chat/{conversationId}`.
   final String? conversationId;
 
+  /// Server creation instant of the request, when the gateway list row carries
+  /// one (`createdAt`/`created_at`). Parsed via ServerTime so a zone-less ISO
+  /// string is read as UTC. NULL when the payload omits it — the card then
+  /// shows no age line. Never fabricated into "now": a missing timestamp is
+  /// UNKNOWN, not zero-age. Unlike [ttlSeconds] this is a PAST fact (a growing
+  /// "created N ago"), never a future-facing countdown/expiry.
+  final DateTime? createdAt;
+
+  /// Whether this request has offers the sender has not seen yet. Drives the
+  /// emphasised (filled) state of the pending-card offers badge; defaults to
+  /// false. The live list row sets `hasNewOffers`/`has_new_offers` when known.
+  final bool hasNewOffers;
+
   ClientHomeRequest copyWith({
     String? id,
     String? title,
@@ -210,6 +225,8 @@ class ClientHomeRequest extends Equatable {
     Object? ttlSeconds = _sentinel,
     Object? deliveryId = _sentinel,
     Object? chatCorrelationId = _sentinel,
+    Object? createdAt = _sentinel,
+    bool? hasNewOffers,
   }) {
     return ClientHomeRequest(
       id: id ?? this.id,
@@ -244,6 +261,10 @@ class ClientHomeRequest extends Equatable {
       chatCorrelationId: identical(chatCorrelationId, _sentinel)
           ? this.chatCorrelationId
           : chatCorrelationId as String?,
+      createdAt: identical(createdAt, _sentinel)
+          ? this.createdAt
+          : createdAt as DateTime?,
+      hasNewOffers: hasNewOffers ?? this.hasNewOffers,
     );
   }
 
@@ -265,6 +286,8 @@ class ClientHomeRequest extends Equatable {
         ttlSeconds,
         deliveryId,
         chatCorrelationId,
+        createdAt,
+        hasNewOffers,
       ];
 }
 
