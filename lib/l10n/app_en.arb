@@ -1710,6 +1710,10 @@
   "@jeeberFeedOfferAction": {
     "description": "Primary action on an incoming feed card — opens the offer submission flow"
   },
+  "jeeberFeedAnonymousClient": "Customer",
+  "@jeeberFeedAnonymousClient": {
+    "description": "Intentional Jeeber-feed identity fallback while the privacy-filtered gateway item omits customer name and avatar"
+  },
   "jeeberFeedDistanceAway": "{distance} away from you",
   "@jeeberFeedDistanceAway": {
     "description": "Distance from the Jeeber to the request pickup; distance is pre-formatted with its unit",
@@ -3227,11 +3231,15 @@
   "@pendingTabRetryCta": {
     "description": "CTA button label on an expired pending request card."
   },
+  "pendingTabSearchingLabel": "Searching for Jeebers…",
+  "@pendingTabSearchingLabel": {
+    "description": "Sub-line shown on each pending request card while the system is finding a Jeeber (Figma 56535:1783 / T-MOB-007)."
+  },
   "pendingTabReconnecting": "Reconnecting…",
   "@pendingTabReconnecting": {
     "description": "Faint banner shown at the top of the Pending tab when the WebSocket is disconnected and falling back to polling."
   },
-  "pendingCardA11yLabel": "Pending request {title}, {ttl} remaining",
+  "pendingCardA11yLabel": "Pending request {title}, {ttl}",
   "@pendingCardA11yLabel": {
     "description": "Accessibility label for a pending request card.",
     "placeholders": {

@@ -195,8 +195,9 @@ class DioRequestFeedRepository implements RequestFeedRepository {
       currency: currency,
       expiresAt: expires,
       // Privacy: the feed strips `clientId`; `senderName` is only present on
-      // the legacy shape.
-      senderName: json['senderName'] as String? ?? json['clientId'] as String?,
+      // the legacy shape. Never substitute an opaque id as a person's name —
+      // the card owns a localized, intentional identity fallback.
+      senderName: json['senderName'] as String?,
       senderAvatarUrl: json['senderAvatarUrl'] as String?,
       // `description` is the deliverable summary the client authored for
       // jeebers (the card body line).

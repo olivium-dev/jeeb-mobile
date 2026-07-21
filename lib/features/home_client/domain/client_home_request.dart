@@ -176,9 +176,10 @@ class ClientHomeRequest extends Equatable {
   /// [ClientRequestStatus.searching] or [ClientRequestStatus.offersReceived].
   final String? jeeberName;
 
-  /// Remaining seconds before the pending request expires, as returned by the
-  /// server at fetch time. The UI drives a local countdown from this snapshot.
-  /// `null` for requests that are not pending.
+  /// Legacy optional duration from older/mock list contracts. The current live
+  /// gateway does not send it, and the UI must never use it to override the
+  /// authoritative request [status]. A truthful countdown requires a server
+  /// expiry instant, not a client-side decrement from this value.
   final int? ttlSeconds;
 
   /// Number of offers received so far (Replies tab only).

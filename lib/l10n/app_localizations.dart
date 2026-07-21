@@ -939,6 +939,7 @@ class AppLocalizations {
   String get jeeberFeedFilterReplies => _get('jeeberFeedFilterReplies');
   String get jeeberFeedIgnoreAction => _get('jeeberFeedIgnoreAction');
   String get jeeberFeedOfferAction => _get('jeeberFeedOfferAction');
+  String get jeeberFeedAnonymousClient => _get('jeeberFeedAnonymousClient');
   String jeeberFeedDistanceAway(String distance) =>
       _get('jeeberFeedDistanceAway').replaceFirst('{distance}', distance);
   String get jeeberFeedStatusPending => _get('jeeberFeedStatusPending');

@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -15,13 +13,10 @@ import '../widgets/active_request_card.dart' show ClientHomeTierBadge;
 /// T-MOB-007: Isolated Pending Requests tab widget.
 ///
 /// Renders requests that are broadcast but not yet matched. Each card shows
-/// an order summary, a "Searching for Jeebers…" sub-line, and a per-card
-/// TTL countdown that decrements locally every second from the server-supplied
-/// [ClientHomeRequest.ttlSeconds]. When TTL hits 0 the card shows "Expired"
-/// with a Retry CTA.
-///
-/// Performance: each card manages its own [Stream.periodic] so only the
-/// affected card rebuilds on each tick — no full-list setState.
+/// an order summary and a "Searching for Jeebers…" status derived from its
+/// authoritative server-side `pending` bucket. The live gateway list carries
+/// no expiry timestamp, so this surface deliberately does not manufacture a
+/// client deadline. A server-terminal request is removed on the next snapshot.
 ///
 /// Mock endpoint: GET /v1/requests?status=pending  (Mockoon :3055)
 class PendingRequestsTab extends StatelessWidget {
@@ -34,10 +29,7 @@ class PendingRequestsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<ClientHomeCubit, ClientHomeState>(
       buildWhen: _rebuildWhen,
-      builder: (context, state) => _PendingContent(
-        state: state,
-        onTap: onTap,
-      ),
+      builder: (context, state) => _PendingContent(state: state, onTap: onTap),
     );
   }
 
@@ -62,9 +54,7 @@ class _PendingContent extends StatelessWidget {
       return const _PendingLoading();
     }
     if (state.pending.isEmpty) {
-      return _PendingEmpty(
-        onCreateRequest: () => _openCreateRequest(context),
-      );
+      return _PendingEmpty(onCreateRequest: () => _openCreateRequest(context));
     }
     return _PendingList(requests: state.pending, onTap: onTap);
   }
@@ -79,10 +69,7 @@ class _PendingLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      key: Key('pending-loading'),
-      child: OmdsLoadingState(),
-    );
+    return const Center(key: Key('pending-loading'), child: OmdsLoadingState());
   }
 }
 
@@ -156,122 +143,38 @@ class _PendingList extends StatelessWidget {
   }
 }
 
-/// Card that owns its own 1-Hz [Stream.periodic] countdown so only this widget
-/// rebuilds every second — the parent list is unaffected (AC5 of T-MOB-007).
-///
-/// The stream starts from [ClientHomeRequest.ttlSeconds] as the server-provided
-/// baseline at fetch time, decrements by 1 each second, and stops at 0.
-class PendingCountdownCard extends StatefulWidget {
-  const PendingCountdownCard({
-    super.key,
-    required this.request,
-    this.onTap,
-    this.onRetry,
-  });
+/// Backward-compatible public card name retained for callers/tests from the
+/// original countdown implementation. Status is now server-owned: membership
+/// in this list means the repository observed a live pending request.
+class PendingCountdownCard extends StatelessWidget {
+  const PendingCountdownCard({super.key, required this.request, this.onTap});
 
   final ClientHomeRequest request;
   final VoidCallback? onTap;
-  final VoidCallback? onRetry;
-
-  @override
-  State<PendingCountdownCard> createState() => _PendingCountdownCardState();
-}
-
-class _PendingCountdownCardState extends State<PendingCountdownCard> {
-  StreamSubscription<int>? _ticker;
-  late int _remaining;
-  bool _announcedMinute = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _remaining = widget.request.ttlSeconds ?? 0;
-    _startTicker();
-  }
-
-  void _startTicker() {
-    if (_remaining <= 0) return;
-    _ticker = Stream.periodic(const Duration(seconds: 1), (i) => i + 1)
-        .listen(_onTick);
-  }
-
-  void _onTick(int elapsed) {
-    final newVal = (_remaining - 1).clamp(0, _remaining);
-    if (!mounted) return;
-    setState(() => _remaining = newVal);
-    if (newVal % 60 == 0 && newVal > 0 && !_announcedMinute) {
-      _announcedMinute = true;
-      // Polite live-region announcement every 60s (AC4 of T-MOB-007).
-      // debugPrint used as a side-channel until sendAnnouncement API stabilises.
-      debugPrint('a11y: pending TTL ${_ttlLabel(newVal)}');
-    } else if (newVal % 60 != 0) {
-      _announcedMinute = false;
-    }
-    if (newVal <= 0) _ticker?.cancel();
-  }
-
-  @override
-  void dispose() {
-    _ticker?.cancel();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
-    final isExpired = _remaining <= 0;
+    final l10n = AppLocalizations.of(context);
     return Semantics(
-      identifier: 'pending_requests_item_${widget.request.id}',
-      button: widget.onTap != null,
-      label: _semanticsLabel(context, isExpired),
+      identifier: 'pending_requests_item_${request.id}',
+      button: onTap != null,
+      label: l10n.pendingCardA11yLabel(
+        request.displayId ?? request.title,
+        l10n.pendingTabSearchingLabel,
+      ),
       child: InkWell(
-        key: Key('pending-countdown-card-${widget.request.id}'),
-        // BUG-3: the local TTL is a COSMETIC client countdown, not the server's
-        // truth. The backend may still hold the request `pending` with a live
-        // offer after this hits 0, so expiry must NOT dead-lock the row — keep
-        // it tappable so the customer can re-enter the waiting/offers surface
-        // (which re-polls `GET /v1/offers?requestId`) instead of being trapped
-        // on a dead "Expired" card while an acceptable offer waits server-side.
-        onTap: widget.onTap,
-        child: _PendingCardBody(
-          request: widget.request,
-          remaining: _remaining,
-          isExpired: isExpired,
-          onRetry: widget.onRetry,
-        ),
+        key: Key('pending-countdown-card-${request.id}'),
+        onTap: onTap,
+        child: _PendingCardBody(request: request),
       ),
     );
-  }
-
-  String _semanticsLabel(BuildContext context, bool isExpired) {
-    final l10n = AppLocalizations.of(context);
-    final ttl = isExpired
-        ? l10n.pendingTabExpiredLabel
-        : _ttlLabel(_remaining);
-    return l10n.pendingCardA11yLabel(
-      widget.request.displayId ?? widget.request.title,
-      ttl,
-    );
-  }
-
-  static String _ttlLabel(int seconds) {
-    final m = (seconds ~/ 60).toString().padLeft(2, '0');
-    final s = (seconds % 60).toString().padLeft(2, '0');
-    return '~$m:$s';
   }
 }
 
 class _PendingCardBody extends StatelessWidget {
-  const _PendingCardBody({
-    required this.request,
-    required this.remaining,
-    required this.isExpired,
-    required this.onRetry,
-  });
+  const _PendingCardBody({required this.request});
 
   final ClientHomeRequest request;
-  final int remaining;
-  final bool isExpired;
-  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -283,15 +186,13 @@ class _PendingCardBody extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _PendingCardRow(
-            request: request,
-            remaining: remaining,
-            isExpired: isExpired,
-            onRetry: onRetry,
-          ),
+          _PendingCardRow(request: request),
           Padding(
             padding: const EdgeInsetsDirectional.only(top: Spacing.small),
-            child: Divider(height: 1, color: colorScheme.outlineVariant),
+            child: Divider(
+              height: UIConstants.dividerWidth,
+              color: colorScheme.outlineVariant,
+            ),
           ),
         ],
       ),
@@ -300,17 +201,9 @@ class _PendingCardBody extends StatelessWidget {
 }
 
 class _PendingCardRow extends StatelessWidget {
-  const _PendingCardRow({
-    required this.request,
-    required this.remaining,
-    required this.isExpired,
-    required this.onRetry,
-  });
+  const _PendingCardRow({required this.request});
 
   final ClientHomeRequest request;
-  final int remaining;
-  final bool isExpired;
-  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -320,12 +213,8 @@ class _PendingCardRow extends StatelessWidget {
         _PendingCardHeader(request: request),
         const SizedBox(height: Spacing.twoXSmall),
         _PendingCardSummary(text: request.summaryLine),
-        const SizedBox(height: Spacing.twoXSmall),
-        _PendingCardTtlRow(
-          remaining: remaining,
-          isExpired: isExpired,
-          onRetry: onRetry,
-        ),
+        const SizedBox(height: Spacing.xSmall),
+        const _PendingServerStatus(),
       ],
     );
   }
@@ -376,7 +265,6 @@ class _PendingCardSummary extends StatelessWidget {
       text.isNotEmpty ? text : l10n.pendingTabSearchingLabel,
       style: theme.textTheme.bodySmall?.copyWith(
         color: theme.colorScheme.onSurfaceVariant,
-        letterSpacing: 0.4,
       ),
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
@@ -384,105 +272,30 @@ class _PendingCardSummary extends StatelessWidget {
   }
 }
 
-class _PendingCardTtlRow extends StatelessWidget {
-  const _PendingCardTtlRow({
-    required this.remaining,
-    required this.isExpired,
-    required this.onRetry,
-  });
-
-  final int remaining;
-  final bool isExpired;
-  final VoidCallback? onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    if (isExpired) return _ExpiredRow(onRetry: onRetry);
-    return _CountdownRow(remaining: remaining);
-  }
-}
-
-class _CountdownRow extends StatelessWidget {
-  const _CountdownRow({required this.remaining});
-
-  final int remaining;
+class _PendingServerStatus extends StatelessWidget {
+  const _PendingServerStatus();
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    final m = (remaining ~/ 60).toString().padLeft(2, '0');
-    final s = (remaining % 60).toString().padLeft(2, '0');
     return Row(
+      key: const Key('pending-server-status'),
       children: [
         Icon(
-          Icons.access_time_outlined,
+          Icons.search_rounded,
           size: Sizes.medium,
-          color: theme.colorScheme.onSurfaceVariant,
+          color: theme.colorScheme.primary,
         ),
         const SizedBox(width: Spacing.twoXSmall),
         Text(
-          l10n.pendingTabTtlLabel(m, s),
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+          l10n.pendingTabSearchingLabel,
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: theme.colorScheme.primary,
             fontWeight: FontWeight.w500,
           ),
         ),
-        const SizedBox(width: Spacing.small),
-        Text(
-          l10n.pendingTabSearchingLabel,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.outline,
-            fontStyle: FontStyle.italic,
-          ),
-        ),
       ],
-    );
-  }
-}
-
-class _ExpiredRow extends StatelessWidget {
-  const _ExpiredRow({required this.onRetry});
-
-  final VoidCallback? onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    return Row(
-      children: [
-        Text(
-          l10n.pendingTabExpiredLabel,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.error,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        if (onRetry != null) ...[
-          const SizedBox(width: Spacing.small),
-          _ExpiredRetryButton(onRetry: onRetry!),
-        ],
-      ],
-    );
-  }
-}
-
-class _ExpiredRetryButton extends StatelessWidget {
-  const _ExpiredRetryButton({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return IntrinsicWidth(
-      child: OmdsPrimaryButton(
-        key: const Key('pending-expired-retry'),
-        text: l10n.pendingTabRetryCta,
-        onTap: onRetry,
-        borderRadius: OmdsBorderRadius.pill,
-      ),
     );
   }
 }
@@ -511,16 +324,13 @@ class PendingReconnectBanner extends StatelessWidget {
       child: Row(
         children: [
           // OMDS: OmdsLoadingState replaces CircularProgressIndicator (OMDS-only policy).
-          OmdsLoadingState(
-            size: Sizes.medium,
-            color: roles.onWarningContainer,
-          ),
+          OmdsLoadingState(size: Sizes.medium, color: roles.onWarningContainer),
           const SizedBox(width: Spacing.xSmall),
           Text(
             l10n.pendingTabReconnecting,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: roles.onWarningContainer,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: roles.onWarningContainer),
           ),
         ],
       ),

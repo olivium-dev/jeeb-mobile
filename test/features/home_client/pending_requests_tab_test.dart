@@ -1,8 +1,8 @@
-// Tests for T-MOB-007: PendingRequestsTab with TTL countdown.
+// Tests for the server-truth PendingRequestsTab status contract.
 //
-// Verifies AC1 (row with TTL countdown renders), AC2 (expires to "Expired"
-// label), AC5 (per-card timer, not full-list rebuild), and the reconnect
-// banner visibility (AC6).
+// The gateway list does not include an expiry instant. A request returned in
+// the pending bucket must remain "Searching" until a refreshed server snapshot
+// moves or removes it; no local duration may manufacture an "Expired" label.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -47,7 +47,7 @@ Widget _harness({
 ClientHomeRequest _pendingRequest({
   String id = 'pen-1',
   String displayId = 'ORD-23470',
-  int ttlSeconds = 600,
+  int? ttlSeconds,
 }) =>
     ClientHomeRequest(
       id: id,
@@ -58,6 +58,15 @@ ClientHomeRequest _pendingRequest({
       tier: ClientRequestTier.express,
       ttlSeconds: ttlSeconds,
     );
+
+class _MutableClientHomeRepository implements ClientHomeRepository {
+  _MutableClientHomeRepository(this.snapshot);
+
+  ClientHomeSnapshot snapshot;
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() async => snapshot;
+}
 
 void main() {
   group('PendingRequestsTab — T-MOB-007', () {
@@ -75,22 +84,23 @@ void main() {
       expect(find.text('ORD-23470'), findsOneWidget);
     });
 
-    testWidgets('AC1: TTL countdown label visible with correct format',
+    testWidgets('server-pending row without expiry shows searching, not expired',
         (tester) async {
       final repo = InMemoryClientHomeRepository.fromSnapshot(
         ClientHomeSnapshot(
-          pending: [_pendingRequest(ttlSeconds: 600)],
+          pending: [_pendingRequest()],
         ),
         latency: Duration.zero,
       );
       await tester.pumpWidget(_harness(repo: repo));
       await tester.pumpAndSettle();
 
-      // 600s = 10:00 minutes
-      expect(find.textContaining('~10:00'), findsOneWidget);
+      expect(find.text('Searching for Jeebers…'), findsOneWidget);
+      expect(find.text('Expired'), findsNothing);
+      expect(find.byKey(const Key('pending-server-status')), findsOneWidget);
     });
 
-    testWidgets('AC2: expired card shows "Expired" label when TTL is 0',
+    testWidgets('legacy zero TTL cannot override authoritative pending status',
         (tester) async {
       final repo = InMemoryClientHomeRepository.fromSnapshot(
         ClientHomeSnapshot(
@@ -101,12 +111,12 @@ void main() {
       await tester.pumpWidget(_harness(repo: repo));
       await tester.pumpAndSettle();
 
-      expect(find.text('Expired'), findsOneWidget);
+      expect(find.text('Searching for Jeebers…'), findsOneWidget);
+      expect(find.text('Expired'), findsNothing);
     });
 
     testWidgets(
-        'BUG-3: an EXPIRED pending card stays tappable (cosmetic timer must '
-        'not dead-lock the offer surface while pending server-side)',
+        'server-pending card stays tappable even when a legacy zero TTL exists',
         (tester) async {
       var tapped = 0;
       await tester.pumpWidget(
@@ -130,31 +140,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // The cosmetic "Expired" label renders…
-      expect(find.text('Expired'), findsOneWidget);
-      // …but the row is NOT dead — tapping still routes (re-enters the offers
-      // surface), so the customer can still reach/accept a server-side offer.
+      expect(find.text('Expired'), findsNothing);
+      expect(find.text('Searching for Jeebers…'), findsOneWidget);
       await tester.tap(find.byKey(const Key('pending-countdown-card-pen-1')));
       expect(tapped, 1);
-    });
-
-    testWidgets('AC2: countdown decrements from 2 to 1 after 1s tick',
-        (tester) async {
-      final repo = InMemoryClientHomeRepository.fromSnapshot(
-        ClientHomeSnapshot(
-          pending: [_pendingRequest(ttlSeconds: 2)],
-        ),
-        latency: Duration.zero,
-      );
-      await tester.pumpWidget(_harness(repo: repo));
-      await tester.pumpAndSettle();
-
-      // Initial state: ~00:02
-      expect(find.textContaining('~00:02'), findsOneWidget);
-
-      // Advance 1 second
-      await tester.pump(const Duration(seconds: 1));
-      expect(find.textContaining('~00:01'), findsOneWidget);
     });
 
     testWidgets('empty state when no pending requests', (tester) async {
@@ -166,13 +155,13 @@ void main() {
       expect(find.byKey(const Key('pending-requests-tab-list')), findsNothing);
     });
 
-    testWidgets('AC5: two pending cards each have their own countdown widget',
+    testWidgets('each pending row renders its own server-derived status',
         (tester) async {
       final repo = InMemoryClientHomeRepository.fromSnapshot(
         ClientHomeSnapshot(
           pending: [
-            _pendingRequest(id: 'p1', displayId: 'ORD-001', ttlSeconds: 300),
-            _pendingRequest(id: 'p2', displayId: 'ORD-002', ttlSeconds: 120),
+            _pendingRequest(id: 'p1', displayId: 'ORD-001'),
+            _pendingRequest(id: 'p2', displayId: 'ORD-002'),
           ],
         ),
         latency: Duration.zero,
@@ -180,14 +169,38 @@ void main() {
       await tester.pumpWidget(_harness(repo: repo));
       await tester.pumpAndSettle();
 
-      // Both cards are rendered as separate PendingCountdownCard widgets.
       expect(
         find.byType(PendingCountdownCard),
         findsNWidgets(2),
       );
-      // Different TTLs produce different labels.
-      expect(find.textContaining('~05:00'), findsOneWidget);
-      expect(find.textContaining('~02:00'), findsOneWidget);
+      expect(find.text('Searching for Jeebers…'), findsNWidgets(2));
+      expect(find.text('Expired'), findsNothing);
+    });
+
+    testWidgets('refresh removes a row only when the server snapshot removes it',
+        (tester) async {
+      final repo = _MutableClientHomeRepository(
+        ClientHomeSnapshot(pending: [_pendingRequest()]),
+      );
+      await tester.pumpWidget(_harness(repo: repo));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('pending-countdown-card-pen-1')),
+        findsOneWidget,
+      );
+
+      repo.snapshot = const ClientHomeSnapshot();
+      final cubit = BlocProvider.of<ClientHomeCubit>(
+        tester.element(find.byType(PendingRequestsTab)),
+      );
+      await cubit.refresh();
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('pending-countdown-card-pen-1')),
+        findsNothing,
+      );
+      expect(find.byKey(const Key('pending-empty')), findsOneWidget);
     });
 
     testWidgets('reconnect banner hidden when visible=false', (tester) async {
