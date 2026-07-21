@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/formatting/friendly_reference.dart';
+import '../../../core/formatting/server_time.dart';
 import '../../../core/network/single_flight_get.dart';
 import '../../chat/data/dio_accepted_conversations_repository.dart';
 import '../domain/client_home_repository.dart';
@@ -640,6 +641,17 @@ class DioClientHomeRepository implements ClientHomeRepository {
       offerAvatarUrls: offerAvatarUrls,
       conversationId: json['conversationId'] as String?,
       ttlSeconds: (json['ttlSeconds'] as num?)?.toInt(),
+      // Real server creation instant when present (the captured `/v1/requests`
+      // row carries `createdAt`). Best-effort + nullable via ServerTime: a
+      // missing/unparseable value stays null so the card shows NO age line
+      // rather than a fabricated one. This is a past "created N ago", never a
+      // countdown — the removed manufactured-deadline lie is not reintroduced.
+      createdAt: ServerTime.parse(
+        json['createdAt'] as String? ?? json['created_at'] as String?,
+      ),
+      hasNewOffers: (json['hasNewOffers'] as bool?) ??
+          (json['has_new_offers'] as bool?) ??
+          false,
     );
   }
 

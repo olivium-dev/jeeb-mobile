@@ -1771,6 +1771,43 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('pendingCardA11yLabel')
           .replaceFirst('{title}', title)
           .replaceFirst('{ttl}', ttl);
+  String pendingCardOffersBadge(int count) {
+    if (count == 0) return _get('pendingCardOffersBadgeZero');
+    if (count == 1) return _get('pendingCardOffersBadgeOne');
+    if (count == 2) return _get('pendingCardOffersBadgeTwo');
+    final mod = count % 100;
+    if (mod >= 3 && mod <= 10) return _get('pendingCardOffersBadgeFew').replaceFirst('{count}', '$count');
+    if (mod >= 11 && mod <= 99) return _get('pendingCardOffersBadgeMany').replaceFirst('{count}', '$count');
+    return _get('pendingCardOffersBadgeOther').replaceFirst('{count}', '$count');
+  }
+  String get pendingCardCreatedJustNow => _get('pendingCardCreatedJustNow');
+  String pendingCardCreatedMinutes(int count) {
+    if (count == 0) return _get('pendingCardCreatedMinutesZero');
+    if (count == 1) return _get('pendingCardCreatedMinutesOne');
+    if (count == 2) return _get('pendingCardCreatedMinutesTwo');
+    final mod = count % 100;
+    if (mod >= 3 && mod <= 10) return _get('pendingCardCreatedMinutesFew').replaceFirst('{count}', '$count');
+    if (mod >= 11 && mod <= 99) return _get('pendingCardCreatedMinutesMany').replaceFirst('{count}', '$count');
+    return _get('pendingCardCreatedMinutesOther').replaceFirst('{count}', '$count');
+  }
+  String pendingCardCreatedHours(int count) {
+    if (count == 0) return _get('pendingCardCreatedHoursZero');
+    if (count == 1) return _get('pendingCardCreatedHoursOne');
+    if (count == 2) return _get('pendingCardCreatedHoursTwo');
+    final mod = count % 100;
+    if (mod >= 3 && mod <= 10) return _get('pendingCardCreatedHoursFew').replaceFirst('{count}', '$count');
+    if (mod >= 11 && mod <= 99) return _get('pendingCardCreatedHoursMany').replaceFirst('{count}', '$count');
+    return _get('pendingCardCreatedHoursOther').replaceFirst('{count}', '$count');
+  }
+  String pendingCardCreatedDays(int count) {
+    if (count == 0) return _get('pendingCardCreatedDaysZero');
+    if (count == 1) return _get('pendingCardCreatedDaysOne');
+    if (count == 2) return _get('pendingCardCreatedDaysTwo');
+    final mod = count % 100;
+    if (mod >= 3 && mod <= 10) return _get('pendingCardCreatedDaysFew').replaceFirst('{count}', '$count');
+    if (mod >= 11 && mod <= 99) return _get('pendingCardCreatedDaysMany').replaceFirst('{count}', '$count');
+    return _get('pendingCardCreatedDaysOther').replaceFirst('{count}', '$count');
+  }
   String inProgressTabA11yLabel(String title, String status, String eta) =>
       _get('inProgressTabA11yLabel')
           .replaceFirst('{title}', title)

@@ -155,12 +155,18 @@ class PendingCountdownCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // The a11y status mirrors what the card shows: the offers count once offers
+    // exist, otherwise the honest server-owned "searching" state. Default
+    // (offerCount == 0) keeps the pre-existing label verbatim.
+    final statusLabel = request.offerCount > 0
+        ? l10n.pendingCardOffersBadge(request.offerCount)
+        : l10n.pendingTabSearchingLabel;
     return Semantics(
       identifier: 'pending_requests_item_${request.id}',
       button: onTap != null,
       label: l10n.pendingCardA11yLabel(
         request.displayId ?? request.title,
-        l10n.pendingTabSearchingLabel,
+        statusLabel,
       ),
       child: InkWell(
         key: Key('pending-countdown-card-${request.id}'),
@@ -207,14 +213,33 @@ class _PendingCardRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final createdAt = request.createdAt;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _PendingCardHeader(request: request),
         const SizedBox(height: Spacing.twoXSmall),
         _PendingCardSummary(text: request.summaryLine),
+        // Age line — shown ONLY when the server row carried a real `createdAt`.
+        // It is a past-fact "created N ago" (grows over time), NOT a countdown
+        // or expiry; the manufactured-deadline lie stays removed.
+        if (createdAt != null) ...[
+          const SizedBox(height: Spacing.twoXSmall),
+          _PendingCreatedAge(createdAt: createdAt),
+        ],
         const SizedBox(height: Spacing.xSmall),
-        const _PendingServerStatus(),
+        // Once offers have arrived, surface them prominently instead of the flat
+        // "Searching…" line. NB: on the live client-home path an offer-bearing
+        // request is bucketed into Replies (offerCount>0), so on the Pending tab
+        // this branch lights up for denormalised counts / non-dio repositories;
+        // the searching line remains the default pending state.
+        if (request.offerCount > 0)
+          _PendingOffersBadge(
+            count: request.offerCount,
+            emphasize: request.hasNewOffers,
+          )
+        else
+          const _PendingServerStatus(),
       ],
     );
   }
@@ -298,6 +323,83 @@ class _PendingServerStatus extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Prominent "N offers" badge shown on a pending card once offers have already
+/// arrived, in place of the flat "Searching…" line. Emphasised (filled) when
+/// [emphasize] — the request's unseen-offers flag — is set, softer (tonal)
+/// otherwise. Display-only: the whole card row stays the single tap target.
+class _PendingOffersBadge extends StatelessWidget {
+  const _PendingOffersBadge({required this.count, required this.emphasize});
+
+  final int count;
+  final bool emphasize;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: OmdsChip(
+        key: const Key('pending-offers-badge'),
+        label: l10n.pendingCardOffersBadge(count),
+        icon: const Icon(Icons.local_offer_outlined),
+        isSelected: emphasize,
+        unselectedColor: colorScheme.primaryContainer,
+        unselectedTextColor: colorScheme.onPrimaryContainer,
+      ),
+    );
+  }
+}
+
+/// Age line ("Created 12 minutes ago") derived from the server [createdAt]
+/// instant. Uses the device clock only to age a PAST fact; it never counts
+/// down to a fabricated deadline. Rendered by the caller only when a real
+/// timestamp exists.
+class _PendingCreatedAge extends StatelessWidget {
+  const _PendingCreatedAge({required this.createdAt});
+
+  final DateTime createdAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return Text(
+      pendingCreatedAgeLabel(l10n, createdAt, DateTime.now()),
+      key: const Key('pending-created-age'),
+      style: theme.textTheme.labelSmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+    );
+  }
+}
+
+/// Builds the pending-card age label from a server [createdAtUtc] instant and
+/// the current [now]. Pure + deterministic so it can be unit-tested with fixed
+/// times. Only ever renders a PAST "created N ago": a future/negative delta
+/// (clock skew) and anything under a minute both degrade to "just now" — there
+/// is deliberately no future-facing countdown here.
+@visibleForTesting
+String pendingCreatedAgeLabel(
+  AppLocalizations l10n,
+  DateTime createdAtUtc,
+  DateTime now,
+) {
+  const minutesInHour = 60;
+  const hoursInDay = 24;
+  final elapsed = now.difference(createdAtUtc);
+  if (elapsed.isNegative || elapsed.inMinutes < 1) {
+    return l10n.pendingCardCreatedJustNow;
+  }
+  if (elapsed.inMinutes < minutesInHour) {
+    return l10n.pendingCardCreatedMinutes(elapsed.inMinutes);
+  }
+  if (elapsed.inHours < hoursInDay) {
+    return l10n.pendingCardCreatedHours(elapsed.inHours);
+  }
+  return l10n.pendingCardCreatedDays(elapsed.inDays);
 }
 
 /// Faint reconnect banner shown at the top of the Pending tab when the
