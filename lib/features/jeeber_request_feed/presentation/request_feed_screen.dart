@@ -14,12 +14,10 @@ import 'request_card.dart';
 
 /// Jeeber-mode realtime delivery request feed (JEEB-66 / T-mobile-013).
 ///
-/// Hosts the [RequestFeedCubit], drives a 1Hz UI ticker so each card's
-/// countdown badge updates without re-emitting cubit state, and surfaces
-/// accept/decline outcomes via OMDS snackbars. The cubit also retires
-/// expired requests on the same cadence — the screen's ticker is decoupled
-/// because the cubit's sweep operates on `_clock()` (testable), while the
-/// chrome needs a live tick to animate the seconds badge.
+/// Hosts the [RequestFeedCubit], drives a 1Hz UI ticker so each card with a
+/// server deadline can update its countdown badge without re-emitting cubit
+/// state, and surfaces accept/decline outcomes via OMDS snackbars. The cubit
+/// also retires requests with real deadlines on the same cadence.
 // ORPHAN (JEBV4-227, verified 2026-07-12): zero refs; live feed UI is jeeber_home/jeeber_feed_tab_view.dart (its repository stays live via DI) — see docs/project-understanding/reconciliation/orphans.md
 class RequestFeedScreen extends StatelessWidget {
   const RequestFeedScreen({super.key, this.cubit});
@@ -231,8 +229,10 @@ class _FeedListRow extends StatelessWidget {
     );
   }
 
-  int _secondsLeft() {
-    final diff = request.expiresAt.difference(now).inSeconds;
+  int? _secondsLeft() {
+    final expiresAt = request.expiresAt;
+    if (expiresAt == null) return null;
+    final diff = expiresAt.difference(now).inSeconds;
     return diff.clamp(0, 1 << 31);
   }
 }

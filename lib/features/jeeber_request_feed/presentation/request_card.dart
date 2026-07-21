@@ -27,10 +27,9 @@ class RequestCard extends StatelessWidget {
   final DeliveryRequest request;
   final RequestActionStatus actionStatus;
 
-  /// Seconds left on the per-card countdown — owned by the screen layer's
-  /// ticker, not the cubit (the cubit handles the actual expiry, this is
-  /// just the visual counter).
-  final int secondsRemaining;
+  /// Seconds left on a server-supplied per-card deadline. `null` hides the
+  /// countdown and leaves actions enabled until the snapshot drops the row.
+  final int? secondsRemaining;
 
   final VoidCallback onAccept;
   final VoidCallback onDecline;
@@ -80,20 +79,23 @@ class _CardBody extends StatelessWidget {
 
   final DeliveryRequest request;
   final RequestActionStatus actionStatus;
-  final int secondsRemaining;
+  final int? secondsRemaining;
   final VoidCallback onAccept;
   final VoidCallback onDecline;
 
   bool get _actionsLocked =>
-      actionStatus != RequestActionStatus.idle || secondsRemaining <= 0;
+      actionStatus != RequestActionStatus.idle ||
+      (secondsRemaining != null && secondsRemaining! <= 0);
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _CardHeader(tier: request.tier, secondsRemaining: secondsRemaining),
-        const SizedBox(height: Spacing.medium),
+        if (request.tier != null || secondsRemaining != null) ...[
+          _CardHeader(tier: request.tier, secondsRemaining: secondsRemaining),
+          const SizedBox(height: Spacing.medium),
+        ],
         _CardSections(
           request: request,
           actionStatus: actionStatus,
@@ -109,8 +111,8 @@ class _CardBody extends StatelessWidget {
 class _CardHeader extends StatelessWidget {
   const _CardHeader({required this.tier, required this.secondsRemaining});
 
-  final JeeberRequestTier tier;
-  final int secondsRemaining;
+  final JeeberRequestTier? tier;
+  final int? secondsRemaining;
 
   @override
   Widget build(BuildContext context) {
@@ -265,8 +267,8 @@ class _Header extends StatelessWidget {
     required this.l10n,
   });
 
-  final JeeberRequestTier tier;
-  final int secondsRemaining;
+  final JeeberRequestTier? tier;
+  final int? secondsRemaining;
   final ColorScheme colorScheme;
   final TextTheme textTheme;
   final AppLocalizations l10n;
@@ -275,14 +277,21 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        _TierChip(tier: tier, colorScheme: colorScheme, textTheme: textTheme, l10n: l10n),
-        const Spacer(),
-        _CountdownBadge(
-          secondsRemaining: secondsRemaining,
-          colorScheme: colorScheme,
-          textTheme: textTheme,
-          l10n: l10n,
-        ),
+        if (tier case final knownTier?)
+          _TierChip(
+            tier: knownTier,
+            colorScheme: colorScheme,
+            textTheme: textTheme,
+            l10n: l10n,
+          ),
+        if (tier != null && secondsRemaining != null) const Spacer(),
+        if (secondsRemaining case final seconds?)
+          _CountdownBadge(
+            secondsRemaining: seconds,
+            colorScheme: colorScheme,
+            textTheme: textTheme,
+            l10n: l10n,
+          ),
       ],
     );
   }
@@ -656,5 +665,4 @@ class _AcceptButton extends StatelessWidget {
     );
   }
 }
-
 

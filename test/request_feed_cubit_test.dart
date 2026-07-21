@@ -16,6 +16,7 @@ DeliveryRequest _req({
   Duration ttl = const Duration(seconds: 90),
   JeeberRequestTier tier = JeeberRequestTier.standard,
   DateTime? now,
+  bool hasServerExpiry = true,
 }) {
   final clock = now ?? DateTime(2026, 5, 17, 12);
   return DeliveryRequest(
@@ -34,7 +35,7 @@ DeliveryRequest _req({
     estimatedDistanceKm: 3.4,
     potentialEarnings: 5.2,
     currency: 'USD',
-    expiresAt: clock.add(ttl),
+    expiresAt: hasServerExpiry ? clock.add(ttl) : null,
   );
 }
 
@@ -295,6 +296,22 @@ void main() {
   });
 
   group('honest lifetime — server expiresAt is the ONLY deadline (G3)', () {
+    test('a card with no server expiry never self-expires', () async {
+      var now = DateTime(2026, 5, 17, 12);
+      when(() => repo.refresh()).thenAnswer(
+        (_) async => [_req(id: 'r1', now: now, hasServerExpiry: false)],
+      );
+      final cubit = build(clock: () => now);
+      await cubit.start();
+
+      now = now.add(const Duration(days: 1));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      expect(cubit.state.requests.map((request) => request.id), ['r1']);
+      expect(cubit.state.isExpired('r1'), isFalse);
+      await cubit.close();
+    });
+
     // THE G3 regression test. Pre-fix the cubit truncated every card at
     // min(expiresAt, addTime + 60s), so this card (server window 300s)
     // vanished at 60s — FOUR minutes before the request actually died.

@@ -19,12 +19,13 @@ DeliveryRequest _request({
   String? senderName = 'Sami Fawaz',
   String? senderAvatarUrl,
   double? senderRating = 4,
+  JeeberRequestTier? tier = JeeberRequestTier.flash,
 }) {
   return DeliveryRequest(
     id: id,
     pickup: const RequestLocation(label: 'Hamra', latitude: 0, longitude: 0),
     dropoff: const RequestLocation(label: 'Verdun', latitude: 0, longitude: 0),
-    tier: JeeberRequestTier.flash,
+    tier: tier,
     estimatedDistanceKm: 3,
     potentialEarnings: 4,
     currency: 'USD',
@@ -53,6 +54,17 @@ void main() {
     expect(find.text('3km away from you'), findsOneWidget);
     expect(find.text('Flash'), findsOneWidget);
     expect(find.byType(OmdsStarRatingDisplay), findsOneWidget);
+  });
+
+  testWidgets('unknown tier renders no fabricated tier chip', (tester) async {
+    await tester.pumpWidget(
+      _host(JeeberFeedCard(request: _request(tier: null), onOffer: () {})),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(OmdsChip), findsNothing);
+    expect(find.text('Light'), findsNothing);
+    expect(find.text('Offer'), findsOneWidget);
   });
 
   testWidgets('missing gateway identity renders an intentional OMDS fallback',

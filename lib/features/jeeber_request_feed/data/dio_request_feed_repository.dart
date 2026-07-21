@@ -179,10 +179,7 @@ class DioRequestFeedRepository implements RequestFeedRepository {
     final distanceMeters = (json['distanceMeters'] as num?)?.toDouble();
     final expiresRaw =
         json['broadcastExpiresAt'] as String? ?? json['expiresAt'] as String?;
-    final expires = expiresRaw != null
-        ? _parseServerTime(expiresRaw) ??
-              DateTime.now().add(const Duration(minutes: 5))
-        : DateTime.now().add(const Duration(minutes: 5));
+    final expires = expiresRaw == null ? null : _parseServerTime(expiresRaw);
     final createdRaw = json['createdAt'] as String?;
     return DeliveryRequest(
       id: id,
@@ -281,7 +278,7 @@ class DioRequestFeedRepository implements RequestFeedRepository {
     return null;
   }
 
-  JeeberRequestTier _parseTier(String? raw) {
+  JeeberRequestTier? _parseTier(String? raw) {
     switch (raw) {
       case 'flash':
         return JeeberRequestTier.flash;
@@ -296,7 +293,7 @@ class DioRequestFeedRepository implements RequestFeedRepository {
       case 'bulk':
         return JeeberRequestTier.bulk;
       default:
-        return JeeberRequestTier.light;
+        return null;
     }
   }
 }

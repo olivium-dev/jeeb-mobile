@@ -20,8 +20,8 @@ import '../data/request_feed_models.dart';
 /// * [JeeberFeedItemStatus.pendingResponse] — italic "Pending" status.
 /// * [JeeberFeedItemStatus.accepted] — a delivery state-machine action pill.
 ///
-/// G3 graceful exit: when [isExpired] is true (the request's server
-/// `expiresAt` has passed and the card is in its brief linger window), the
+/// G3 graceful exit: when [isExpired] is true (a supplied server `expiresAt`
+/// has passed and the card is in its brief linger window), the
 /// card fades and the action row is replaced by an "Expired" status — the
 /// request never silently vanishes mid-glance.
 ///
@@ -58,9 +58,9 @@ class JeeberFeedCard extends StatelessWidget {
   /// Whether the accepted-status action button is mid-flight (shows a loader).
   final bool isActionBusy;
 
-  /// G3: the request's server `expiresAt` has passed and the card is in its
-  /// linger window — faded, actions replaced by the "Expired" status, taps
-  /// inert. The feed cubit removes it after the linger elapses.
+  /// G3: a supplied server `expiresAt` has passed and the card is in its linger
+  /// window — faded, actions replaced by the "Expired" status, taps inert. The
+  /// feed cubit removes it after the linger elapses.
   final bool isExpired;
 
   /// JM-048: when true, this card's "Offer" button additionally carries the
@@ -468,12 +468,14 @@ class _CardFooter extends StatelessWidget {
       key: const Key('jeeber-feed-card-footer'),
       width: double.infinity,
       child: Wrap(
-        alignment: WrapAlignment.spaceBetween,
+        alignment: request.tier == null
+            ? WrapAlignment.end
+            : WrapAlignment.spaceBetween,
         crossAxisAlignment: WrapCrossAlignment.center,
         spacing: Spacing.xSmall,
         runSpacing: Spacing.xSmall,
         children: [
-          _TierChip(tier: request.tier),
+          if (request.tier case final tier?) _TierChip(tier: tier),
           if (isExpired)
             _ExpiredStatus(requestId: request.id)
           else

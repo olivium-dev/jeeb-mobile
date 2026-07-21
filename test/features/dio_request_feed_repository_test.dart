@@ -117,6 +117,55 @@ void main() {
       expect(r.distanceFromYouKm, 2.5);
       // No existing offer → incoming (Ignore/Offer card)
       expect(r.feedStatus, JeeberFeedItemStatus.incoming);
+      expect(r.expiresAt, isNull,
+          reason: 'an omitted server expiry must not become a client deadline');
+    });
+
+    test('preserves a real server expiry exactly', () async {
+      dio.nextResponse = _resp({
+        'items': [
+          {
+            'requestId': 'req-expiring',
+            'status': 'pending',
+            'description': 'Flowers',
+            'createdAt': '2026-06-30T09:41:00Z',
+            'expiresAt': '2026-06-30T10:11:00Z',
+            'myOffer': null,
+          },
+        ],
+        'totalCount': 1,
+      });
+
+      final result = await repo.refresh();
+
+      expect(result.single.expiresAt, DateTime.utc(2026, 6, 30, 10, 11));
+    });
+
+    test('unknown and absent tier ids remain unidentified', () async {
+      dio.nextResponse = _resp({
+        'items': [
+          {
+            'requestId': 'req-unknown-tier',
+            'status': 'pending',
+            'description': 'Potatoes',
+            'tierId': '2bd0d5df-0000-0000-0000-000000000000',
+            'createdAt': '2026-06-30T09:41:00Z',
+            'myOffer': null,
+          },
+          {
+            'requestId': 'req-no-tier',
+            'status': 'pending',
+            'description': 'Documents',
+            'createdAt': '2026-06-30T09:42:00Z',
+            'myOffer': null,
+          },
+        ],
+        'totalCount': 2,
+      });
+
+      final result = await repo.refresh();
+
+      expect(result.map((request) => request.tier), everyElement(isNull));
     });
 
     test('myOffer present → pendingResponse and feeCents → earnings', () async {

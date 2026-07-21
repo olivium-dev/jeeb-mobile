@@ -49,9 +49,9 @@ class RequestFeedState extends Equatable {
   /// renders a "reconnecting" caption while [FeedTransport.polling].
   final FeedTransport transport;
 
-  /// Active feed, sorted by `expiresAt` ascending so the closest-to-expire
-  /// card is at the top. The cubit owns the sort; the screen renders in
-  /// list order.
+  /// Active feed, with server-expiring requests sorted by `expiresAt`
+  /// ascending ahead of requests for which the server supplied no deadline.
+  /// The cubit owns the sort; the screen renders in list order.
   final List<DeliveryRequest> requests;
 
   /// Ids of requests whose server `expiresAt` has passed but which are still

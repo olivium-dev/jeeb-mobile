@@ -80,7 +80,10 @@ class DeliveryRequest extends Equatable {
   final String id;
   final RequestLocation pickup;
   final RequestLocation dropoff;
-  final JeeberRequestTier tier;
+
+  /// Client-known tier metadata. `null` means the gateway omitted the tier or
+  /// supplied an identifier this app cannot truthfully label.
+  final JeeberRequestTier? tier;
 
   /// Distance the Jeeber will cover end-to-end, in kilometres. The card
   /// formats this with one decimal place — the cubit emits the raw value.
@@ -95,11 +98,11 @@ class DeliveryRequest extends Equatable {
   final String currency;
 
   /// Server-supplied deadline — the ONLY lifetime authority for the card
-  /// (G3). When it passes, the cubit flips the card to a visible "Expired"
-  /// state and collapses it shortly after; there is no client-side
-  /// truncation. A payload missing the field is defaulted at parse time
-  /// (`dio_request_feed_repository` stamps now+5min).
-  final DateTime expiresAt;
+  /// (G3). When present and passed, the cubit flips the card to a visible
+  /// "Expired" state and collapses it shortly after. `null` means the gateway
+  /// supplied no deadline, so the card remains live until a later snapshot no
+  /// longer lists it.
+  final DateTime? expiresAt;
 
   /// Optional sender display name. Surfaces in screen readers and on the
   /// card subtitle when present; the gateway may omit it for privacy.
