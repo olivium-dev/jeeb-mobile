@@ -9,6 +9,7 @@ import '../../application/client_home_cubit.dart';
 import '../../application/client_home_state.dart';
 import '../../domain/client_home_request.dart';
 import '../widgets/active_request_card.dart' show ClientHomeTierBadge;
+import '../widgets/client_home_empty_view.dart';
 
 /// T-MOB-007: Isolated Pending Requests tab widget.
 ///
@@ -20,16 +21,21 @@ import '../widgets/active_request_card.dart' show ClientHomeTierBadge;
 ///
 /// Mock endpoint: GET /v1/requests?status=pending  (Mockoon :3055)
 class PendingRequestsTab extends StatelessWidget {
-  const PendingRequestsTab({super.key, this.onTap});
+  const PendingRequestsTab({super.key, this.onTap, this.onCreateRequest});
 
   /// Called when a card row is tapped. If null the tap is a no-op.
   final void Function(ClientHomeRequest request)? onTap;
+  final VoidCallback? onCreateRequest;
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<ClientHomeCubit, ClientHomeState>(
       buildWhen: _rebuildWhen,
-      builder: (context, state) => _PendingContent(state: state, onTap: onTap),
+      builder: (context, state) => _PendingContent(
+        state: state,
+        onTap: onTap,
+        onCreateRequest: onCreateRequest,
+      ),
     );
   }
 
@@ -38,10 +44,15 @@ class PendingRequestsTab extends StatelessWidget {
 }
 
 class _PendingContent extends StatelessWidget {
-  const _PendingContent({required this.state, required this.onTap});
+  const _PendingContent({
+    required this.state,
+    required this.onTap,
+    required this.onCreateRequest,
+  });
 
   final ClientHomeState state;
   final void Function(ClientHomeRequest)? onTap;
+  final VoidCallback? onCreateRequest;
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +65,10 @@ class _PendingContent extends StatelessWidget {
       return const _PendingLoading();
     }
     if (state.pending.isEmpty) {
-      return _PendingEmpty(onCreateRequest: () => _openCreateRequest(context));
+      return ClientHomeEmptyView(
+        key: const Key('pending-empty'),
+        onNewOrder: onCreateRequest ?? () => _openCreateRequest(context),
+      );
     }
     return _PendingList(requests: state.pending, onTap: onTap);
   }
@@ -88,25 +102,6 @@ class _PendingError extends StatelessWidget {
       message: l10n.homeErrorRetry,
       retryLabel: l10n.homeLoadFailedRetry,
       onRetry: onRetry,
-    );
-  }
-}
-
-class _PendingEmpty extends StatelessWidget {
-  const _PendingEmpty({required this.onCreateRequest});
-
-  final VoidCallback onCreateRequest;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return OmdsEmptyState(
-      key: const Key('pending-empty'),
-      icon: Icons.hourglass_empty_rounded,
-      title: l10n.homeEmptyTitle,
-      subtitle: l10n.homePendingEmpty,
-      buttonText: l10n.homeEmptyCta,
-      onButtonTap: onCreateRequest,
     );
   }
 }
@@ -168,8 +163,9 @@ class PendingCountdownCard extends StatelessWidget {
         request.displayId ?? request.title,
         statusLabel,
       ),
-      child: InkWell(
+      child: GestureDetector(
         key: Key('pending-countdown-card-${request.id}'),
+        behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: _PendingCardBody(request: request),
       ),

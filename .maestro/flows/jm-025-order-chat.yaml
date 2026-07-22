@@ -49,7 +49,7 @@ appId: ${APP_ID}
     timeout: 30000
 
 - tapOn:
-    id: "orders_home_new_order_fab"
+    id: "orders_create_request_button"
 
 - extendedWaitUntil:
     visible:

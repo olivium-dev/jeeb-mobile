@@ -1,11 +1,28 @@
-# PAGE OBJECT: home-requests-populated — Requests tab w/ list + voice record.
-# Reached by: after a request exists. Coordinate taps (no semantics).
-# Params: none. Primary action: tap Record a request (voice) -> voice-request.
-# Other CTAs (tap inline when needed):
-#   Search 50%,26.3% | Chip In-Progress 16.7%,34.7% | Chip Pending 49.3%,34.7% |
-#   Chip Replies 78.8%,34.7% | FAB + 88.5%,75.2%
+# PAGE OBJECT: populated customer Requests screen.
+# Primary action: use the semantic header plus to start request creation.
+# Search, voice CTA, and the floating FAB are intentionally absent.
 ---
+- assertVisible:
+    id: "orders_create_request_button"
+- assertVisible:
+    id: "orders_filter_pendingRequests"
+- assertVisible:
+    id: "orders_filter_replies"
+- assertNotVisible:
+    id: "orders_search_bar"
+- assertNotVisible:
+    id: "client_home_voice_request"
+- assertNotVisible:
+    id: "orders_home_new_order_fab"
+
+# Select Pending and pin that the populated request list is reachable by id.
 - tapOn:
-    point: "50%,19.5%"        # Record a request (voice) -> voice-request
+    id: "orders_filter_pendingRequests"
+- assertVisible:
+    id: "orders_home_request_row_0"
+
+# Start the create flow through the only always-visible Requests entry point.
+- tapOn:
+    id: "orders_create_request_button"
 - waitForAnimationToEnd:
     timeout: 4000

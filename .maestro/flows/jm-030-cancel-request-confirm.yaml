@@ -6,7 +6,7 @@
 #        states "free before accept, nothing charged" [D69];
 #        cancel_request_free_note is visible.
 #   AC2: cancel_request_confirm_cta → customer-orders-home
-#        (orders_home_new_order_fab visible).
+#        (orders_create_request_button visible).
 #   AC3: cancel_request_keep_cta dismisses the sheet (returns to caller;
 #        cancel_request_sheet no longer visible).
 #
@@ -66,7 +66,7 @@ appId: ${APP_ID}
 
 - extendedWaitUntil:
     visible:
-      id: "orders_home_new_order_fab"
+      id: "orders_create_request_button"
     timeout: 15000
 
 - takeScreenshot: jm030_ac2_confirm_to_orders_home

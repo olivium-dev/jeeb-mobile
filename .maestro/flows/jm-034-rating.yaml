@@ -6,7 +6,7 @@
 #        mandatory path; rating_skip_cta must NOT be visible; back is suppressed
 #        [D56]. rating_submit_cta is present.
 #   AC2: Given a customer submit, When rating_submit_cta tapped, Then route to
-#        customer-orders-home (orders_home_new_order_fab visible).
+#        customer-orders-home (orders_create_request_button visible).
 #   AC3: Given a jeeber submit (?mode=jeeber), When rating_submit_cta tapped, Then
 #        route to the DELIVERY/Dashboard tab (shell_tab_dashboard visible).
 #   AC4: Reconcile /feedback vs /mutual-rate (mutual is compliant) — assert
@@ -84,7 +84,7 @@ appId: ${APP_ID}
 # rating POST + getMe-style refresh can exceed 15s on a loaded emulator).
 - extendedWaitUntil:
     visible:
-      id: "orders_home_new_order_fab"
+      id: "orders_create_request_button"
     timeout: 30000
 
 - takeScreenshot: jm034_ac2_customer_rating_to_home

@@ -14,7 +14,7 @@ import '../application/mutual_rating_state.dart';
 /// the system back gesture is suppressed (`PopScope(canPop: false)`).
 /// AC2/AC3: a successful submit navigates to the role-aware shell
 /// (`context.go('/')`) — customer → customer-orders-home (Requests tab,
-/// `orders_home_new_order_fab`); jeeber → Dashboard tab (`shell_tab_dashboard`).
+/// `orders_create_request_button`); jeeber → Dashboard tab (`shell_tab_dashboard`).
 /// AC4: `rating_root` is the signature id present on this canonical terminal
 /// (the legacy `/feedback` `RatingScreen` exposes the same id).
 class MutualRatingScreen extends StatelessWidget {
