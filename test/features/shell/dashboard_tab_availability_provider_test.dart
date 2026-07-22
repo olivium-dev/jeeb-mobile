@@ -83,10 +83,13 @@ GoRouter _router() {
   );
 }
 
-Widget _app(LocalizationsDelegate<AppLocalizations> delegate) {
+Widget _app(
+  LocalizationsDelegate<AppLocalizations> delegate, {
+  Locale locale = const Locale('en'),
+}) {
   return MaterialApp.router(
     theme: AppTheme.light(),
-    locale: const Locale('en'),
+    locale: locale,
     supportedLocales: AppLocalizations.supportedLocales,
     localizationsDelegates: [
       delegate,
@@ -126,32 +129,74 @@ void main() {
   });
 
   testWidgets(
-      'DashboardTab provides AvailabilityCubit above JeeberHomeScreen so the '
-      'role-switch into the Jeeber surface does not throw ProviderNotFound',
-      (tester) async {
-    await tester.pumpWidget(_app(delegate));
+    'DashboardTab provides AvailabilityCubit above JeeberHomeScreen so the '
+    'role-switch into the Jeeber surface does not throw ProviderNotFound',
+    (tester) async {
+      await tester.pumpWidget(_app(delegate));
+      await tester.pumpAndSettle();
+
+      // 1. Bringing the Jeeber surface up threw nothing (pre-fix: a
+      //    FlutterError carrying `ProviderNotFound<AvailabilityCubit>`).
+      expect(
+        tester.takeException(),
+        isNull,
+        reason:
+            'JeeberHomeScreen must mount with an AvailabilityCubit in scope; '
+            'a ProviderNotFound here is the E2E "Switch to Jeeber" crash.',
+      );
+
+      // 2. The registered Jeeber home actually rendered.
+      expect(find.byType(JeeberHomeScreen), findsOneWidget);
+      expect(find.byKey(JeeberHomeScreen.scaffoldKey), findsOneWidget);
+
+      // 3. The cubit is STRUCTURALLY resolvable from inside JeeberHomeScreen's
+      //    subtree (not merely "no error") — proving a live cubit is wired, not
+      //    that the read was swallowed. read<T>() throws if the provider is
+      //    absent, so a non-null instance is the structural guarantee.
+      final BuildContext screenCtx = tester.element(
+        find.byType(JeeberHomeScreen),
+      );
+      final cubit = screenCtx.read<AvailabilityCubit>();
+      expect(cubit, isA<AvailabilityCubit>());
+
+      // 4. Dashboard simplify: the personalized greeting is the ONE page title;
+      //    neither former generic title may remain anywhere in its subtree.
+      final dashboard = find.byType(JeeberHomeScreen);
+      expect(
+        find.descendant(
+          of: dashboard,
+          matching: find.text('Welcome back', skipOffstage: false),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: dashboard,
+          matching: find.text('Jeeber Home', skipOffstage: false),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: dashboard,
+          matching: find.text('Everything, One Place', skipOffstage: false),
+        ),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets('the one dashboard title is localized and RTL in Arabic', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(delegate, locale: const Locale('ar')));
     await tester.pumpAndSettle();
 
-    // 1. Bringing the Jeeber surface up threw nothing (pre-fix: a
-    //    FlutterError carrying `ProviderNotFound<AvailabilityCubit>`).
+    expect(find.text('مرحبًا بعودتك'), findsOneWidget);
+    expect(find.text('شاشة الجِيبر الرئيسية'), findsNothing);
     expect(
-      tester.takeException(),
-      isNull,
-      reason: 'JeeberHomeScreen must mount with an AvailabilityCubit in scope; '
-          'a ProviderNotFound here is the E2E "Switch to Jeeber" crash.',
+      Directionality.of(tester.element(find.byType(JeeberHomeScreen))),
+      TextDirection.rtl,
     );
-
-    // 2. The registered Jeeber home actually rendered.
-    expect(find.byType(JeeberHomeScreen), findsOneWidget);
-    expect(find.byKey(JeeberHomeScreen.scaffoldKey), findsOneWidget);
-
-    // 3. The cubit is STRUCTURALLY resolvable from inside JeeberHomeScreen's
-    //    subtree (not merely "no error") — proving a live cubit is wired, not
-    //    that the read was swallowed. read<T>() throws if the provider is
-    //    absent, so a non-null instance is the structural guarantee.
-    final BuildContext screenCtx =
-        tester.element(find.byType(JeeberHomeScreen));
-    final cubit = screenCtx.read<AvailabilityCubit>();
-    expect(cubit, isA<AvailabilityCubit>());
   });
 }

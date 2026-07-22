@@ -1,12 +1,10 @@
-// sprint-009 §G2 — the compact M3 availability card that replaced the legacy
-// 168-px glowing green disc.
+// Jeeber Dashboard availability hierarchy regression proof.
 //
 // Proves:
-//   1. Offline state: Switch OFF, neutral status chip, "You're offline" copy.
-//   2. Online state: Switch ON, chip + switch colors resolve from the THEME's
-//      semantic success role (`JeebColorRoles`) — never a raw hex green.
-//   3. The corrected copy: "You're online — receiving requests" (jeebers
-//      RECEIVE requests and MAKE offers), en + ar.
+//   1. Offline state: a full OMDS section with Switch OFF + status copy.
+//   2. Online state: one compact OMDS switch row, with the semantic success role
+//      (`JeebColorRoles`) and no delivery-count/idle supporting lines.
+//   3. The compact copy says "You're online — receiving requests", en + ar.
 //   4. Toggling forwards to the cubit wiring (onToggle) and the in-flight
 //      frame swaps the switch for the legacy-keyed spinner (tap-blocked).
 //   5. §SW-23 persistence: the card also renders in the FEED state
@@ -43,10 +41,7 @@ AvailabilityViewState _viewState(
 }) {
   return AvailabilityViewState(
     loadPhase: AvailabilityLoadPhase.ready,
-    status: AvailabilityStatus(
-      state: state,
-      activeDeliveryCount: deliveries,
-    ),
+    status: AvailabilityStatus(state: state, activeDeliveryCount: deliveries),
     isToggleInFlight: inFlight,
   );
 }
@@ -66,10 +61,85 @@ Widget _host(Widget child, {Locale locale = const Locale('en')}) {
   );
 }
 
+class _ExpandedOnlineCopyDelegate
+    extends LocalizationsDelegate<AppLocalizations> {
+  const _ExpandedOnlineCopyDelegate(this.onlineCopy);
+
+  final String onlineCopy;
+
+  @override
+  bool isSupported(Locale locale) => locale.languageCode == 'en';
+
+  @override
+  Future<AppLocalizations> load(Locale locale) async =>
+      AppLocalizations(locale, {
+        'availabilityStatusOnline': onlineCopy,
+        'availabilityIndicatorSemanticOnline': onlineCopy,
+      });
+
+  @override
+  bool shouldReload(_ExpandedOnlineCopyDelegate old) =>
+      onlineCopy != old.onlineCopy;
+}
+
+const String _expandedOnlineCopy =
+    'You are online and receiving delivery requests from nearby customers '
+    'across your whole service area right now';
+
+Widget _contractHost({TextScaler textScaler = TextScaler.noScaling}) {
+  return MaterialApp(
+    theme: AppTheme.light(),
+    locale: const Locale('en'),
+    supportedLocales: AppLocalizations.supportedLocales,
+    localizationsDelegates: const [
+      _ExpandedOnlineCopyDelegate(_expandedOnlineCopy),
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+      child: child!,
+    ),
+    home: Scaffold(
+      body: AvailabilityCard(
+        view: _viewState(AvailabilityState.online),
+        onToggle: _noop,
+      ),
+    ),
+  );
+}
+
+void _noop() {}
+
+void _expectOnlineCopyWithinTwoLineBudget(WidgetTester tester) {
+  final textFinder = find.text(_expandedOnlineCopy);
+  final text = tester.widget<Text>(textFinder);
+  final context = tester.element(textFinder);
+  final defaults = DefaultTextStyle.of(context);
+  final effectiveStyle = defaults.style.merge(text.style);
+  final linePainter = TextPainter(
+    text: TextSpan(text: 'M', style: effectiveStyle),
+    textDirection: Directionality.of(context),
+    textScaler: MediaQuery.textScalerOf(context),
+  )..layout();
+  final twoLineHeight = linePainter.preferredLineHeight * 2;
+  linePainter.dispose();
+
+  expect(
+    tester.getSize(textFinder).height,
+    lessThanOrEqualTo(twoLineHeight),
+    reason: 'Expanded online copy must render within two text lines.',
+  );
+  expect(defaults.maxLines, 2);
+  expect(defaults.overflow, TextOverflow.ellipsis);
+}
+
 void main() {
-  group('AvailabilityCard — states and copy (G2)', () {
-    testWidgets('offline: switch OFF, neutral chip, "You\'re offline" copy',
-        (tester) async {
+  group('AvailabilityCard — state-aware density', () {
+    testWidgets('offline: full OMDS section, switch OFF, offline copy', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(
           AvailabilityCard(
@@ -80,26 +150,18 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final switchWidget =
-          tester.widget<Switch>(find.byKey(AvailabilityCard.toggleKey));
+      final switchWidget = tester.widget<OmdsSwitchTile>(
+        find.byKey(AvailabilityCard.toggleKey),
+      );
       expect(switchWidget.value, isFalse);
-
-      final context = tester.element(find.byKey(AvailabilityCard.rootKey));
-      final scheme = Theme.of(context).colorScheme;
-      final chip =
-          tester.widget<OmdsChip>(find.byKey(AvailabilityCard.statusChipKey));
-      expect(chip.label, 'Offline');
-      expect(chip.selectedColor, scheme.surfaceContainerHighest,
-          reason: 'Offline chip must use the neutral surface role.');
+      expect(find.byType(OMDSSectionCard), findsOneWidget);
 
       expect(find.text("You're offline"), findsOneWidget);
-      // Idle hint + deliveries line are online-only.
       expect(find.text('Auto-offline after 8 h idle'), findsNothing);
     });
 
-    testWidgets(
-        'online: switch ON, chip + track colors come from the THEME success '
-        'role (no raw hex), corrected copy + idle hint render', (tester) async {
+    testWidgets('online: one compact OMDS row uses the success role and omits '
+        'supporting availability lines', (tester) async {
       await tester.pumpWidget(
         _host(
           AvailabilityCard(
@@ -113,30 +175,36 @@ void main() {
       final context = tester.element(find.byKey(AvailabilityCard.rootKey));
       final roles = Theme.of(context).extension<JeebColorRoles>()!;
 
-      final switchWidget =
-          tester.widget<Switch>(find.byKey(AvailabilityCard.toggleKey));
+      final switchWidget = tester.widget<OmdsSwitchTile>(
+        find.byKey(AvailabilityCard.toggleKey),
+      );
       expect(switchWidget.value, isTrue);
-      expect(switchWidget.activeTrackColor, roles.success,
-          reason: 'Online track color must resolve from the semantic success '
-              'role of the active theme — not a hex literal.');
+      expect(
+        switchWidget.activeColor,
+        roles.success,
+        reason:
+            'Online track color must resolve from the semantic success '
+            'role of the active theme.',
+      );
 
-      final chip =
-          tester.widget<OmdsChip>(find.byKey(AvailabilityCard.statusChipKey));
-      expect(chip.label, 'Online');
-      expect(chip.selectedColor, roles.successContainer);
-      expect(chip.selectedTextColor, roles.onSuccessContainer);
-      // The legacy disc's raw green must be gone from the resolved colors.
-      expect(chip.selectedColor, isNot(const Color(0xFF22C55E)));
-      expect(switchWidget.activeTrackColor, isNot(const Color(0xFF22C55E)));
-
-      // G2 copy fix: jeebers RECEIVE requests (they MAKE offers).
       expect(find.text("You're online — receiving requests"), findsOneWidget);
-      expect(find.text('2 active deliveries'), findsOneWidget);
-      expect(find.text('Auto-offline after 8 h idle'), findsOneWidget);
+      expect(find.text('2 active deliveries'), findsNothing);
+      expect(find.text('Auto-offline after 8 h idle'), findsNothing);
+      expect(
+        find.byType(OMDSSectionCard),
+        findsNothing,
+        reason: 'The full section is reserved for offline/toggling states.',
+      );
+      expect(
+        tester.getSize(find.byKey(AvailabilityCard.rootKey)).height,
+        lessThanOrEqualTo(Sizes.sevenXLarge),
+        reason: 'Online availability must remain a one-row dashboard control.',
+      );
     });
 
-    testWidgets('arabic copy: online status says تستقبل الطلبات (requests)',
-        (tester) async {
+    testWidgets('arabic copy: online status says تستقبل الطلبات (requests)', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _host(
           AvailabilityCard(
@@ -149,7 +217,34 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('أنت متصل — تستقبل الطلبات'), findsOneWidget);
-      expect(find.text('متصل'), findsWidgets); // chip label
+      expect(find.byType(OMDSSectionCard), findsNothing);
+      expect(
+        tester.getSize(find.byKey(AvailabilityCard.rootKey)).height,
+        lessThanOrEqualTo(Sizes.sevenXLarge),
+      );
+    });
+
+    testWidgets('online copy stays within two lines on a 320dp surface', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(320, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(_contractHost());
+      await tester.pumpAndSettle();
+
+      _expectOnlineCopyWithinTwoLineBudget(tester);
+    });
+
+    testWidgets('online copy stays within two lines at 200% text scale', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _contractHost(textScaler: const TextScaler.linear(2)),
+      );
+      await tester.pumpAndSettle();
+
+      _expectOnlineCopyWithinTwoLineBudget(tester);
     });
 
     testWidgets('tapping the switch forwards to onToggle; in-flight swaps the '
@@ -181,9 +276,17 @@ void main() {
       );
       await tester.pump();
       expect(find.byKey(AvailabilityCard.spinnerKey), findsOneWidget);
-      expect(find.byKey(AvailabilityCard.toggleKey), findsNothing,
-          reason: 'No tappable switch while the PUT is in-flight.');
+      expect(
+        find.byKey(AvailabilityCard.toggleKey),
+        findsNothing,
+        reason: 'No tappable switch while the PUT is in-flight.',
+      );
       expect(find.text('Updating…'), findsOneWidget);
+      expect(
+        find.byType(OMDSSectionCard),
+        findsOneWidget,
+        reason: 'Toggling needs the full progress section.',
+      );
     });
 
     testWidgets('switch exposes toggle semantics for TalkBack', (tester) async {
@@ -208,8 +311,9 @@ void main() {
   });
 
   group('AvailabilityCard — §SW-23 persistence in the feed state', () {
-    testWidgets('renders inside JeeberFeedTabView when the feed has requests',
-        (tester) async {
+    testWidgets('renders inside JeeberFeedTabView when the feed has requests', (
+      tester,
+    ) async {
       final ticker = StreamController<DateTime>.broadcast();
       addTearDown(ticker.close);
       final avCubit = AvailabilityCubit(

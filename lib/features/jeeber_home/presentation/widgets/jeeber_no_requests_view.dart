@@ -10,10 +10,10 @@ import 'jeeber_home_greeting.dart';
 /// State 2 of the Jeeber home: registered, availability card visible, no
 /// active requests on the feed yet.
 ///
-/// Composes the compact `AvailabilityCard` (M3 switch + status chip, §G2) +
-/// optional `InactivityWarningBanner` with an `OmdsEmptyState` underneath
+/// Composes the state-aware `AvailabilityCard`, an optional compact active-work
+/// disclosure, and `InactivityWarningBanner` with an `OmdsEmptyState` underneath
 /// so the Jeeber always knows the feed is live but empty rather than
-/// broken. The shared `JeeberHomeGreeting` sits above the card so the
+/// broken. The single-line `JeeberHomeGreeting` sits above availability so the
 /// transition into State 3 only changes the band beneath the greeting.
 class JeeberNoRequestsView extends StatelessWidget {
   const JeeberNoRequestsView({
@@ -22,6 +22,7 @@ class JeeberNoRequestsView extends StatelessWidget {
     required this.onToggle,
     required this.onExtendActivity,
     this.profileName,
+    this.activeDeliveriesBanner,
   });
 
   static const Key rootKey = Key('jeeber-no-requests-view-root');
@@ -38,15 +39,20 @@ class JeeberNoRequestsView extends StatelessWidget {
   /// Optional profile display name for the greeting.
   final String? profileName;
 
+  /// Compact disclosure for accepted/active work. It self-hides when empty.
+  final Widget? activeDeliveriesBanner;
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       key: rootKey,
       child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.only(bottom: Spacing.large),
         child: _NoRequestsColumn(
           view: view,
           profileName: profileName,
+          activeDeliveriesBanner: activeDeliveriesBanner,
           onToggle: onToggle,
           onExtendActivity: onExtendActivity,
         ),
@@ -61,10 +67,12 @@ class _NoRequestsColumn extends StatelessWidget {
     required this.profileName,
     required this.onToggle,
     required this.onExtendActivity,
+    required this.activeDeliveriesBanner,
   });
 
   final AvailabilityViewState view;
   final String? profileName;
+  final Widget? activeDeliveriesBanner;
   final VoidCallback onToggle;
   final VoidCallback onExtendActivity;
 
@@ -74,12 +82,8 @@ class _NoRequestsColumn extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         JeeberHomeGreeting(name: profileName),
-        Padding(
-          padding: const EdgeInsetsDirectional.symmetric(
-            horizontal: Spacing.medium,
-          ),
-          child: AvailabilityCard(view: view, onToggle: onToggle),
-        ),
+        AvailabilityCard(view: view, onToggle: onToggle),
+        ?activeDeliveriesBanner,
         if (view.warningVisible) ...[
           const SizedBox(height: Spacing.large),
           InactivityWarningBanner(onExtend: onExtendActivity),
