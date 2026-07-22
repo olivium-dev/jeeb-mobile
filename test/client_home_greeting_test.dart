@@ -41,8 +41,16 @@ void _loadArbs() {
   _syncDelegate = _SyncDelegate({'en': en, 'ar': ar});
 }
 
-Widget _harness({String? name, GreetingProfileState? profile}) {
-  final child = ClientHomeGreeting(name: name, onAddPressed: () {});
+Widget _harness({
+  String? name,
+  GreetingProfileState? profile,
+  String? avatarSemanticsIdentifier,
+}) {
+  final child = ClientHomeGreeting(
+    name: name,
+    onAddPressed: () {},
+    avatarSemanticsIdentifier: avatarSemanticsIdentifier,
+  );
   return MaterialApp(
     theme: AppTheme.light(),
     locale: const Locale('en'),
@@ -173,5 +181,24 @@ void main() {
         expect(_avatar(tester).initial, 'A');
       },
     );
+
+    testWidgets('optionally exposes the preserved empty-state avatar id', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _harness(
+          name: 'Sami',
+          avatarSemanticsIdentifier: '_request_empty_state_avatar',
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsIdentifier('_request_empty_state_avatar'),
+        findsOneWidget,
+      );
+      handle.dispose();
+    });
   });
 }

@@ -35,6 +35,27 @@ void main() {
 
   group('D1 — role-aware endpoint', () {
     test(
+      'serializes the local half-open date range without UTC conversion',
+      () async {
+        adapter.body = {'items': const <Object?>[]};
+        final range = OrderDateRange.forInclusiveDays(
+          from: DateTime(2026, 10, 25),
+          to: DateTime(2026, 10, 25),
+        );
+
+        await DioOrderRepository(dio).fetchPage(
+          tab: OrderHistoryTab.active,
+          page: 1,
+          pageSize: 20,
+          range: range,
+        );
+
+        expect(adapter.lastQuery['fromDate'], '2026-10-25T00:00:00.000');
+        expect(adapter.lastQuery['toDate'], '2026-10-26T00:00:00.000');
+      },
+    );
+
+    test(
       'customer (default) hits /v1/requests with the status filter',
       () async {
         adapter.body = {'items': const <Object?>[]};

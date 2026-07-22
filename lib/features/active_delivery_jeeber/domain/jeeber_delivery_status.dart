@@ -1,6 +1,8 @@
-/// The Jeeber-side delivery status stages.
+/// The Jeeber-side delivery lifecycle.
 ///
-/// These map directly to the gateway transition machine (T-BE-009).
+/// The first five values map directly to the successful gateway transition
+/// machine (T-BE-009). The remaining values are unsuccessful terminal states
+/// and deliberately remain distinct so they can never render as `Done`.
 /// The valid forward transitions are:
 ///   ordered → picked → in_transit → at_door → done
 enum JeeberDeliveryStatus {
@@ -9,7 +11,19 @@ enum JeeberDeliveryStatus {
   inTransit,
   atDoor,
   done,
+  cancelled,
+  expired,
+  disputed,
 }
+
+/// Ordered stages shown by the successful-delivery progress stepper.
+const jeeberDeliveryProgressStages = <JeeberDeliveryStatus>[
+  JeeberDeliveryStatus.ordered,
+  JeeberDeliveryStatus.picked,
+  JeeberDeliveryStatus.inTransit,
+  JeeberDeliveryStatus.atDoor,
+  JeeberDeliveryStatus.done,
+];
 
 extension JeeberDeliveryStatusX on JeeberDeliveryStatus {
   /// Gateway string for this status used in the POST body.
@@ -30,18 +44,33 @@ extension JeeberDeliveryStatusX on JeeberDeliveryStatus {
         return 'AtDoor';
       case JeeberDeliveryStatus.done:
         return 'Done';
+      case JeeberDeliveryStatus.cancelled:
+        return 'Cancelled';
+      case JeeberDeliveryStatus.expired:
+        return 'Expired';
+      case JeeberDeliveryStatus.disputed:
+        return 'FailedNeedsEscalation';
     }
   }
 
   /// The next valid forward status, or null if this is terminal.
   JeeberDeliveryStatus? get next {
-    const values = JeeberDeliveryStatus.values;
-    final idx = values.indexOf(this);
-    if (idx < 0 || idx >= values.length - 1) return null;
-    return values[idx + 1];
+    final idx = jeeberDeliveryProgressStages.indexOf(this);
+    if (idx < 0 || this == JeeberDeliveryStatus.done) return null;
+    return jeeberDeliveryProgressStages[idx + 1];
   }
 
-  bool get isTerminal => this == JeeberDeliveryStatus.done;
+  /// True for a successfully delivered terminal.
+  bool get isSuccessfulTerminal => this == JeeberDeliveryStatus.done;
+
+  /// True for cancellation, expiry, or a disputed/admin-escalated terminal.
+  bool get isUnsuccessfulTerminal =>
+      this == JeeberDeliveryStatus.cancelled ||
+      this == JeeberDeliveryStatus.expired ||
+      this == JeeberDeliveryStatus.disputed;
+
+  /// True once the delivery can no longer advance.
+  bool get isTerminal => isSuccessfulTerminal || isUnsuccessfulTerminal;
 
   /// Parse a gateway status. Tolerates both the real-mock CapitalCase form
   /// (`InTransit`, `AtDoor`, `Done`) and the legacy lowercase/underscore form
@@ -67,21 +96,19 @@ extension JeeberDeliveryStatusX on JeeberDeliveryStatus {
         return JeeberDeliveryStatus.inTransit;
       case 'atdoor':
         return JeeberDeliveryStatus.atDoor;
-      // Terminal states all collapse to `done` so the existing `!= done`
-      // in-flight filter drops a cancelled/expired/delivered/rated delivery
-      // from the jeeber's active list instead of re-rendering it as `ordered`.
-      // `FailedNeedsEscalation` (legacy `disputed`) also collapses here: the
-      // delivery is admin-parked and out of the jeeber's hands (ADR-002), so
-      // it must not resurrect as a fresh `ordered` row.
       case 'done':
       case 'delivered':
+      case 'completed':
+      case 'rated':
+        return JeeberDeliveryStatus.done;
       case 'cancelled':
       case 'canceled':
+        return JeeberDeliveryStatus.cancelled;
       case 'expired':
-      case 'rated':
+        return JeeberDeliveryStatus.expired;
       case 'disputed':
       case 'failedneedsescalation':
-        return JeeberDeliveryStatus.done;
+        return JeeberDeliveryStatus.disputed;
     }
     return JeeberDeliveryStatus.ordered;
   }

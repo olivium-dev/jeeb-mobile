@@ -1,24 +1,20 @@
-// UI-cap regression proof for the jeeber active-deliveries banner.
+// Compact active-work regression proof for the Jeeber Dashboard.
 //
-// Before this cap the banner rendered EVERY active delivery as a full card in
-// an unbounded Column. A jeeber juggling 4 concurrent orders got 4 tall cards
-// stacked above the pending-request feed, pushing the feed a whole screen down
-// on a 360x800 viewport (the feed rides its own sliver below the banner, so it
-// was reachable only by a long scroll). The banner now shows at most 2 cards at
-// rest and discloses the rest in place via a "view all (N)" toggle.
+// Full active-delivery cards used to sit above incoming requests. Even the old
+// two-card cap could consume the first viewport, so the banner now renders one
+// summary/disclosure row at rest and builds cards only after "view all (N)".
 //
 // These tests pin that contract directly on [ActiveDeliveriesBanner]:
-//   * at most 2 cards render collapsed (the 3rd/4th are not even built),
-//   * the "view all" toggle reveals the rest in place (and "show less" folds),
-//   * onOpenChat / onManageDelivery still fire for both the always-shown and the
-//     newly-revealed cards,
-//   * with <= 2 deliveries there is no toggle (nothing to reveal),
+//   * no cards render at rest, regardless of the active count,
+//   * "view all" reveals every card in place and "show less" folds them,
+//   * onOpenChat / onManageDelivery still fire for revealed cards,
 //   * an empty active-deliveries list still collapses the banner to nothing.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
@@ -42,16 +38,16 @@ class _StaticRepo implements ActiveDeliveriesRepository {
 /// `n` distinct active deliveries, ids 'd0'..'d(n-1)', titles 'Delivery 0'..,
 /// so each card's title is individually findable and the cards stay unique.
 List<ActiveDeliverySummary> _deliveries(int n) => List.generate(
-      n,
-      (i) => ActiveDeliverySummary(
-        id: 'd$i',
-        status: JeeberDeliveryStatus.ordered,
-        conversationId: 'conv-$i',
-        title: 'Delivery $i',
-        dropoffAddress: 'Dropoff $i',
-      ),
-      growable: false,
-    );
+  n,
+  (i) => ActiveDeliverySummary(
+    id: 'd$i',
+    status: JeeberDeliveryStatus.ordered,
+    conversationId: 'conv-$i',
+    title: 'Delivery $i',
+    dropoffAddress: 'Dropoff $i',
+  ),
+  growable: false,
+);
 
 Widget _host({
   required ActiveDeliveriesCubit deliveries,
@@ -80,17 +76,15 @@ Widget _host({
   );
 }
 
-/// Cards inside the banner (one [Card] per rendered delivery row).
+/// OMDS cards inside the banner (one per rendered delivery row).
 Finder get _bannerCards => find.descendant(
-      of: find.byType(ActiveDeliveriesBanner),
-      matching: find.byType(Card),
-    );
+  of: find.byType(ActiveDeliveriesBanner),
+  matching: find.byType(OMDSGlassCard),
+);
 
 void main() {
-  // A tall surface so the cap/reveal logic — which is height-independent (it
-  // always keeps at most 2 cards until toggled) — is exercised without a
-  // scroll-view host: the fully-expanded 4-card list fits, so every card is
-  // on-stage and directly assertable.
+  // A tall surface lets the fully-expanded four-card list stay directly
+  // assertable without introducing a separate scroll-view harness.
   const surface = Size(360, 1400);
 
   Future<ActiveDeliveriesCubit> pump(
@@ -121,16 +115,16 @@ void main() {
     return cubit;
   }
 
-  testWidgets('caps the collapsed banner at 2 cards + a "view all (4)" toggle', (
+  testWidgets('collapsed banner is one summary row with no delivery cards', (
     tester,
   ) async {
     final cubit = await pump(tester, 4);
 
     expect(find.byType(ActiveDeliveriesBanner), findsOneWidget);
-    // Only the first two cards render; the 3rd and 4th are not built at all.
-    expect(_bannerCards, findsNWidgets(2));
-    expect(find.text('Delivery 0'), findsOneWidget);
-    expect(find.text('Delivery 1'), findsOneWidget);
+    expect(_bannerCards, findsNothing);
+    expect(find.text('Your active deliveries'), findsOneWidget);
+    expect(find.text('Delivery 0'), findsNothing);
+    expect(find.text('Delivery 1'), findsNothing);
     expect(find.text('Delivery 2'), findsNothing);
     expect(find.text('Delivery 3'), findsNothing);
     // The disclosure toggle is present and labelled with the TOTAL count.
@@ -156,10 +150,11 @@ void main() {
     expect(find.byIcon(Icons.expand_less), findsOneWidget);
     expect(find.text('Show less'), findsOneWidget);
 
-    // Folding back returns to the 2-card cap.
+    // Folding back returns to the one-row summary and removes every full card.
     await tester.tap(find.byIcon(Icons.expand_less));
     await tester.pump();
-    expect(_bannerCards, findsNWidgets(2));
+    expect(_bannerCards, findsNothing);
+    expect(find.text('Delivery 0'), findsNothing);
     expect(find.text('Delivery 3'), findsNothing);
     expect(find.byIcon(Icons.expand_more), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -168,27 +163,25 @@ void main() {
   });
 
   testWidgets(
-    'onOpenChat / onManageDelivery fire for shown cards AND for cards revealed '
-    'by "view all"',
+    'onOpenChat / onManageDelivery fire for cards revealed by "view all"',
     (tester) async {
       final opened = <String>[];
       final managed = <String>[];
       final cubit = await pump(tester, 4, opened: opened, managed: managed);
 
-      // Tapping an always-shown card body opens its chat.
+      await tester.tap(find.byIcon(Icons.expand_more));
+      await tester.pump();
+
+      // Tapping a revealed card body opens its chat.
       await tester.tap(find.text('Delivery 0'));
       await tester.pump();
       expect(opened, ['d0']);
 
-      // Its "Manage delivery" action fires the manage callback (first visible
-      // card's manage button).
+      // Its "Manage delivery" action still fires the manage callback.
       await tester.tap(find.byIcon(Icons.local_shipping_outlined).first);
       await tester.pump();
       expect(managed, ['d0']);
 
-      // Reveal the rest, then a newly-shown card must fire its callback too.
-      await tester.tap(find.byIcon(Icons.expand_more));
-      await tester.pump();
       await tester.tap(find.text('Delivery 3'));
       await tester.pump();
       expect(opened, ['d0', 'd3']);
@@ -198,33 +191,37 @@ void main() {
     },
   );
 
-  testWidgets('with exactly 2 deliveries every card shows and there is no toggle',
-      (tester) async {
-    final cubit = await pump(tester, 2);
+  testWidgets(
+    'exactly 2 deliveries are also compact until explicitly expanded',
+    (tester) async {
+      final cubit = await pump(tester, 2);
 
-    expect(_bannerCards, findsNWidgets(2));
-    expect(find.text('Delivery 0'), findsOneWidget);
-    expect(find.text('Delivery 1'), findsOneWidget);
-    // Nothing hidden → no disclosure control.
-    expect(find.byIcon(Icons.expand_more), findsNothing);
-    expect(find.byIcon(Icons.expand_less), findsNothing);
-    expect(tester.takeException(), isNull);
+      expect(_bannerCards, findsNothing);
+      expect(find.text('Delivery 0'), findsNothing);
+      expect(find.text('Delivery 1'), findsNothing);
+      expect(find.byIcon(Icons.expand_more), findsOneWidget);
+      expect(find.text('View all (2)'), findsOneWidget);
+      expect(find.byIcon(Icons.expand_less), findsNothing);
+      expect(tester.takeException(), isNull);
 
-    await cubit.close();
-  });
+      await cubit.close();
+    },
+  );
 
-  testWidgets('an empty active-deliveries list collapses the banner to nothing',
-      (tester) async {
-    final cubit = await pump(tester, 0);
+  testWidgets(
+    'an empty active-deliveries list collapses the banner to nothing',
+    (tester) async {
+      final cubit = await pump(tester, 0);
 
-    // The widget is mounted but renders SizedBox.shrink: no title, no cards,
-    // no toggle — so it never disturbs the empty/feed states.
-    expect(find.byType(ActiveDeliveriesBanner), findsOneWidget);
-    expect(_bannerCards, findsNothing);
-    expect(find.text('Your active deliveries'), findsNothing);
-    expect(find.byIcon(Icons.expand_more), findsNothing);
-    expect(tester.takeException(), isNull);
+      // The widget is mounted but renders SizedBox.shrink: no title, no cards,
+      // no toggle — so it never disturbs the empty/feed states.
+      expect(find.byType(ActiveDeliveriesBanner), findsOneWidget);
+      expect(_bannerCards, findsNothing);
+      expect(find.text('Your active deliveries'), findsNothing);
+      expect(find.byIcon(Icons.expand_more), findsNothing);
+      expect(tester.takeException(), isNull);
 
-    await cubit.close();
-  });
+      await cubit.close();
+    },
+  );
 }

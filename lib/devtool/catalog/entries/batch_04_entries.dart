@@ -54,13 +54,13 @@ import '../../../features/jeeber_onboarding/presentation/dm_onboarding_screen.da
 /// `*_state.dart`). Every state renders the REAL screen with an explicit local
 /// fake/stub collaborator — no GetIt, no network.
 List<CatalogEntry> get batch04Entries => <CatalogEntry>[
-      _escalateEntry,
-      _goodsCostEntry,
-      _clientHomeEntry,
-      _jeeberActiveDeliveriesEntry,
-      _jeeberHomeEntry,
-      _jeeberOnboardingEntry,
-    ];
+  _escalateEntry,
+  _goodsCostEntry,
+  _clientHomeEntry,
+  _jeeberActiveDeliveriesEntry,
+  _jeeberHomeEntry,
+  _jeeberOnboardingEntry,
+];
 
 // ═════════════════════════════════════════════════════════════════════════
 // escalate — dispute-open-evidence (JM-060)
@@ -69,7 +69,12 @@ List<CatalogEntry> get batch04Entries => <CatalogEntry>[
 /// Behaviour switch for [_CatalogEscalateRepository] — each catalog state
 /// scripts a different collaborator response so the real [EscalateScreen] /
 /// [EscalateCubit] land in a distinct designed state with no network.
-enum _EscalateFixture { evidenceLoaded, evidenceDegraded, submitting, submitError }
+enum _EscalateFixture {
+  evidenceLoaded,
+  evidenceDegraded,
+  submitting,
+  submitError,
+}
 
 /// Local fake `EscalateRepository` — never hits `compliment-service`.
 /// [_EscalateFixture.submitting] returns a Future that never completes (a
@@ -217,7 +222,7 @@ class _FailingClientHomeRepository implements ClientHomeRepository {
 }
 
 /// Wraps [ClientHomeScreen] in the [BlocProvider] + [Scaffold] it expects
-/// from its host shell (its root is a bare `Stack`, not a `Scaffold`). The
+/// from its host shell. The
 /// screen's own `initState` calls `cubit.load()`, so no manual trigger is
 /// needed here.
 Widget _clientHome({
@@ -235,7 +240,6 @@ Widget _clientHome({
         initialTab: initialTab,
         onCreateRequest: () {},
         onTrack: (_) {},
-        onRecordVoice: () {},
       ),
     ),
   );
@@ -276,7 +280,7 @@ final CatalogEntry _clientHomeEntry = CatalogEntry(
       'Empty (no requests)',
       (_) => _clientHome(
         repository: InMemoryClientHomeRepository(latency: Duration.zero),
-        initialTab: ClientHomeTab.inProgress,
+        initialTab: ClientHomeTab.pendingRequests,
       ),
     ),
     CatalogState(

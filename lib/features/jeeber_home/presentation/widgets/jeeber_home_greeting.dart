@@ -6,13 +6,11 @@ import '../../../../core/formatting/friendly_reference.dart';
 import '../../../../core/session/greeting_profile_cubit.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// Greeting header shown at the top of every Jeeber home state.
+/// The Jeeber dashboard's single page title.
 ///
-/// Mirrors the client-side `ClientHomeGreeting` so both roles share the
-/// "Hello, {name}" + "Everything, One Place" branding (Figma node
-/// 56535:1525). The header is intentionally identical across the three
-/// Jeeber-home states (unregistered / available-no-requests /
-/// available-with-requests) — only the body below it changes.
+/// The personalized "Hello, {name}" line replaces the former generic
+/// "Jeeber Home" app-bar title and the marketing subtitle. Keeping one compact
+/// title prevents three peer headings from competing above the request feed.
 ///
 /// P0-X06: when an ambient [GreetingProfileCubit] is provided above this widget
 /// (the DashboardTab shell wires it from the live `GET /users/me`), its real
@@ -51,16 +49,9 @@ class JeeberHomeGreeting extends StatelessWidget {
         Spacing.medium,
         Spacing.medium,
         Spacing.medium,
-        Spacing.xSmall,
+        Spacing.twoXSmall,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _GreetingRow(name: resolvedName, avatarUrl: resolvedAvatar),
-          const SizedBox(height: Sizes.threeXSmall),
-          const _GreetingHeadline(),
-        ],
-      ),
+      child: _GreetingRow(name: resolvedName, avatarUrl: resolvedAvatar),
     );
   }
 
@@ -144,22 +135,5 @@ class _GreetingLine extends StatelessWidget {
     // Greet with the first name only ("Hello, Sami", not "Hello, Sami Fawaz").
     final firstName = trimmed.split(RegExp(r'\s+')).first;
     return l10n.homeGreetingNamed(firstName);
-  }
-}
-
-class _GreetingHeadline extends StatelessWidget {
-  const _GreetingHeadline();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    return Text(
-      l10n.homeGreetingSubtitle,
-      style: theme.textTheme.titleLarge?.copyWith(
-        color: theme.colorScheme.primary,
-        fontWeight: FontWeight.w800,
-      ),
-    );
   }
 }

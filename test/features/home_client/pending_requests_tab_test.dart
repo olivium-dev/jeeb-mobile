@@ -25,6 +25,7 @@ import '../../support/sync_app_localizations.dart';
 Widget _harness({
   required ClientHomeRepository repo,
   Locale locale = const Locale('en'),
+  VoidCallback? onCreateRequest,
 }) {
   return MaterialApp(
     theme: AppTheme.light(),
@@ -42,7 +43,7 @@ Widget _harness({
           repository: repo,
           greetingNameProvider: () => 'Sami',
         )..load(),
-        child: const PendingRequestsTab(),
+        child: PendingRequestsTab(onCreateRequest: onCreateRequest),
       ),
     ),
   );
@@ -55,19 +56,18 @@ ClientHomeRequest _pendingRequest({
   int offerCount = 0,
   bool hasNewOffers = false,
   DateTime? createdAt,
-}) =>
-    ClientHomeRequest(
-      id: id,
-      displayId: displayId,
-      title: displayId,
-      status: ClientRequestStatus.searching,
-      destinationLabel: 'Achrafieh',
-      tier: ClientRequestTier.express,
-      ttlSeconds: ttlSeconds,
-      offerCount: offerCount,
-      hasNewOffers: hasNewOffers,
-      createdAt: createdAt,
-    );
+}) => ClientHomeRequest(
+  id: id,
+  displayId: displayId,
+  title: displayId,
+  status: ClientRequestStatus.searching,
+  destinationLabel: 'Achrafieh',
+  tier: ClientRequestTier.express,
+  ttlSeconds: ttlSeconds,
+  offerCount: offerCount,
+  hasNewOffers: hasNewOffers,
+  createdAt: createdAt,
+);
 
 class _MutableClientHomeRepository implements ClientHomeRepository {
   _MutableClientHomeRepository(this.snapshot);
@@ -80,8 +80,9 @@ class _MutableClientHomeRepository implements ClientHomeRepository {
 
 void main() {
   group('PendingRequestsTab — T-MOB-007', () {
-    testWidgets('AC1: pending row renders with order id and tier',
-        (tester) async {
+    testWidgets('AC1: pending row renders with order id and tier', (
+      tester,
+    ) async {
       final repo = InMemoryClientHomeRepository.fromSnapshot(
         ClientHomeSnapshot(pending: [_pendingRequest()]),
         latency: Duration.zero,
@@ -89,72 +90,79 @@ void main() {
       await tester.pumpWidget(_harness(repo: repo));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('pending-requests-tab-list')), findsOneWidget);
-      expect(find.byKey(const Key('pending-countdown-card-pen-1')), findsOneWidget);
+      expect(
+        find.byKey(const Key('pending-requests-tab-list')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('pending-countdown-card-pen-1')),
+        findsOneWidget,
+      );
       expect(find.text('ORD-23470'), findsOneWidget);
     });
 
-    testWidgets('server-pending row without expiry shows searching, not expired',
-        (tester) async {
-      final repo = InMemoryClientHomeRepository.fromSnapshot(
-        ClientHomeSnapshot(
-          pending: [_pendingRequest()],
-        ),
-        latency: Duration.zero,
-      );
-      await tester.pumpWidget(_harness(repo: repo));
-      await tester.pumpAndSettle();
+    testWidgets(
+      'server-pending row without expiry shows searching, not expired',
+      (tester) async {
+        final repo = InMemoryClientHomeRepository.fromSnapshot(
+          ClientHomeSnapshot(pending: [_pendingRequest()]),
+          latency: Duration.zero,
+        );
+        await tester.pumpWidget(_harness(repo: repo));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Searching for Jeebers…'), findsOneWidget);
-      expect(find.text('Expired'), findsNothing);
-      expect(find.byKey(const Key('pending-server-status')), findsOneWidget);
-    });
-
-    testWidgets('legacy zero TTL cannot override authoritative pending status',
-        (tester) async {
-      final repo = InMemoryClientHomeRepository.fromSnapshot(
-        ClientHomeSnapshot(
-          pending: [_pendingRequest(ttlSeconds: 0)],
-        ),
-        latency: Duration.zero,
-      );
-      await tester.pumpWidget(_harness(repo: repo));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Searching for Jeebers…'), findsOneWidget);
-      expect(find.text('Expired'), findsNothing);
-    });
+        expect(find.text('Searching for Jeebers…'), findsOneWidget);
+        expect(find.text('Expired'), findsNothing);
+        expect(find.byKey(const Key('pending-server-status')), findsOneWidget);
+      },
+    );
 
     testWidgets(
-        'server-pending card stays tappable even when a legacy zero TTL exists',
-        (tester) async {
-      var tapped = 0;
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light(),
-          locale: const Locale('en'),
-          supportedLocales: const [Locale('en'), Locale('ar')],
-          localizationsDelegates: const [
-            SyncAppLocalizationsDelegate(),
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          home: Scaffold(
-            body: PendingCountdownCard(
-              request: _pendingRequest(ttlSeconds: 0),
-              onTap: () => tapped++,
+      'legacy zero TTL cannot override authoritative pending status',
+      (tester) async {
+        final repo = InMemoryClientHomeRepository.fromSnapshot(
+          ClientHomeSnapshot(pending: [_pendingRequest(ttlSeconds: 0)]),
+          latency: Duration.zero,
+        );
+        await tester.pumpWidget(_harness(repo: repo));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Searching for Jeebers…'), findsOneWidget);
+        expect(find.text('Expired'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'server-pending card stays tappable even when a legacy zero TTL exists',
+      (tester) async {
+        var tapped = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light(),
+            locale: const Locale('en'),
+            supportedLocales: const [Locale('en'), Locale('ar')],
+            localizationsDelegates: const [
+              SyncAppLocalizationsDelegate(),
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: Scaffold(
+              body: PendingCountdownCard(
+                request: _pendingRequest(ttlSeconds: 0),
+                onTap: () => tapped++,
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('Expired'), findsNothing);
-      expect(find.text('Searching for Jeebers…'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('pending-countdown-card-pen-1')));
-      expect(tapped, 1);
-    });
+        expect(find.text('Expired'), findsNothing);
+        expect(find.text('Searching for Jeebers…'), findsOneWidget);
+        await tester.tap(find.byKey(const Key('pending-countdown-card-pen-1')));
+        expect(tapped, 1);
+      },
+    );
 
     testWidgets('empty state when no pending requests', (tester) async {
       final repo = InMemoryClientHomeRepository(latency: Duration.zero);
@@ -163,10 +171,36 @@ void main() {
 
       expect(find.byKey(const Key('pending-empty')), findsOneWidget);
       expect(find.byKey(const Key('pending-requests-tab-list')), findsNothing);
+      expect(find.text('What do you need?'), findsOneWidget);
+      expect(find.text('Create your first request'), findsOneWidget);
+      expect(find.byIcon(Icons.hourglass_empty_rounded), findsNothing);
+      final image = tester.widget<Image>(find.byType(Image));
+      expect(image.image, isA<AssetImage>());
+      expect(
+        (image.image as AssetImage).assetName,
+        'assets/illustrations/empty_orders.png',
+      );
     });
 
-    testWidgets('each pending row renders its own server-derived status',
-        (tester) async {
+    testWidgets('empty CTA prefers the injected create-request callback', (
+      tester,
+    ) async {
+      var taps = 0;
+      final repo = InMemoryClientHomeRepository(latency: Duration.zero);
+      await tester.pumpWidget(
+        _harness(repo: repo, onCreateRequest: () => taps++),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Create your first request'));
+      await tester.pump();
+
+      expect(taps, 1);
+    });
+
+    testWidgets('each pending row renders its own server-derived status', (
+      tester,
+    ) async {
       final repo = InMemoryClientHomeRepository.fromSnapshot(
         ClientHomeSnapshot(
           pending: [
@@ -179,39 +213,38 @@ void main() {
       await tester.pumpWidget(_harness(repo: repo));
       await tester.pumpAndSettle();
 
-      expect(
-        find.byType(PendingCountdownCard),
-        findsNWidgets(2),
-      );
+      expect(find.byType(PendingCountdownCard), findsNWidgets(2));
       expect(find.text('Searching for Jeebers…'), findsNWidgets(2));
       expect(find.text('Expired'), findsNothing);
     });
 
-    testWidgets('refresh removes a row only when the server snapshot removes it',
-        (tester) async {
-      final repo = _MutableClientHomeRepository(
-        ClientHomeSnapshot(pending: [_pendingRequest()]),
-      );
-      await tester.pumpWidget(_harness(repo: repo));
-      await tester.pumpAndSettle();
-      expect(
-        find.byKey(const Key('pending-countdown-card-pen-1')),
-        findsOneWidget,
-      );
+    testWidgets(
+      'refresh removes a row only when the server snapshot removes it',
+      (tester) async {
+        final repo = _MutableClientHomeRepository(
+          ClientHomeSnapshot(pending: [_pendingRequest()]),
+        );
+        await tester.pumpWidget(_harness(repo: repo));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const Key('pending-countdown-card-pen-1')),
+          findsOneWidget,
+        );
 
-      repo.snapshot = const ClientHomeSnapshot();
-      final cubit = BlocProvider.of<ClientHomeCubit>(
-        tester.element(find.byType(PendingRequestsTab)),
-      );
-      await cubit.refresh();
-      await tester.pumpAndSettle();
+        repo.snapshot = const ClientHomeSnapshot();
+        final cubit = BlocProvider.of<ClientHomeCubit>(
+          tester.element(find.byType(PendingRequestsTab)),
+        );
+        await cubit.refresh();
+        await tester.pumpAndSettle();
 
-      expect(
-        find.byKey(const Key('pending-countdown-card-pen-1')),
-        findsNothing,
-      );
-      expect(find.byKey(const Key('pending-empty')), findsOneWidget);
-    });
+        expect(
+          find.byKey(const Key('pending-countdown-card-pen-1')),
+          findsNothing,
+        );
+        expect(find.byKey(const Key('pending-empty')), findsOneWidget);
+      },
+    );
 
     testWidgets('reconnect banner hidden when visible=false', (tester) async {
       await tester.pumpWidget(
@@ -224,9 +257,7 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          home: Scaffold(
-            body: PendingReconnectBanner(visible: false),
-          ),
+          home: Scaffold(body: PendingReconnectBanner(visible: false)),
         ),
       );
       expect(find.byKey(const Key('pending-reconnect-banner')), findsNothing);
@@ -243,9 +274,7 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          home: Scaffold(
-            body: PendingReconnectBanner(visible: true),
-          ),
+          home: Scaffold(body: PendingReconnectBanner(visible: true)),
         ),
       );
       expect(find.byKey(const Key('pending-reconnect-banner')), findsOneWidget);
@@ -257,20 +286,22 @@ void main() {
   // prominently instead of the flat "Searching…" line, emphasised when the
   // offers are new/unseen.
   group('PendingRequestsTab — M2 offers badge', () {
-    testWidgets('offers badge replaces the searching line when offerCount > 0',
-        (tester) async {
-      final repo = InMemoryClientHomeRepository.fromSnapshot(
-        ClientHomeSnapshot(pending: [_pendingRequest(offerCount: 3)]),
-        latency: Duration.zero,
-      );
-      await tester.pumpWidget(_harness(repo: repo));
-      await tester.pumpAndSettle();
+    testWidgets(
+      'offers badge replaces the searching line when offerCount > 0',
+      (tester) async {
+        final repo = InMemoryClientHomeRepository.fromSnapshot(
+          ClientHomeSnapshot(pending: [_pendingRequest(offerCount: 3)]),
+          latency: Duration.zero,
+        );
+        await tester.pumpWidget(_harness(repo: repo));
+        await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('pending-offers-badge')), findsOneWidget);
-      expect(find.text('3 offers'), findsOneWidget);
-      expect(find.text('Searching for Jeebers…'), findsNothing);
-      expect(find.byKey(const Key('pending-server-status')), findsNothing);
-    });
+        expect(find.byKey(const Key('pending-offers-badge')), findsOneWidget);
+        expect(find.text('3 offers'), findsOneWidget);
+        expect(find.text('Searching for Jeebers…'), findsNothing);
+        expect(find.byKey(const Key('pending-server-status')), findsNothing);
+      },
+    );
 
     testWidgets('a single offer uses the singular form', (tester) async {
       final repo = InMemoryClientHomeRepository.fromSnapshot(
@@ -282,12 +313,15 @@ void main() {
       expect(find.text('1 offer'), findsOneWidget);
     });
 
-    testWidgets('badge is emphasised (filled) only when hasNewOffers is set',
-        (tester) async {
+    testWidgets('badge is emphasised (filled) only when hasNewOffers is set', (
+      tester,
+    ) async {
       final repo = InMemoryClientHomeRepository.fromSnapshot(
-        ClientHomeSnapshot(pending: [
-          _pendingRequest(id: 'p-new', offerCount: 2, hasNewOffers: true),
-        ]),
+        ClientHomeSnapshot(
+          pending: [
+            _pendingRequest(id: 'p-new', offerCount: 2, hasNewOffers: true),
+          ],
+        ),
         latency: Duration.zero,
       );
       await tester.pumpWidget(_harness(repo: repo));
@@ -298,12 +332,13 @@ void main() {
       expect(chip.isSelected, isTrue);
     });
 
-    testWidgets('badge is tonal (not filled) when the offers are not new',
-        (tester) async {
+    testWidgets('badge is tonal (not filled) when the offers are not new', (
+      tester,
+    ) async {
       final repo = InMemoryClientHomeRepository.fromSnapshot(
-        ClientHomeSnapshot(pending: [
-          _pendingRequest(offerCount: 2, hasNewOffers: false),
-        ]),
+        ClientHomeSnapshot(
+          pending: [_pendingRequest(offerCount: 2, hasNewOffers: false)],
+        ),
         latency: Duration.zero,
       );
       await tester.pumpWidget(_harness(repo: repo));
@@ -319,9 +354,7 @@ void main() {
         ClientHomeSnapshot(pending: [_pendingRequest(offerCount: 1)]),
         latency: Duration.zero,
       );
-      await tester.pumpWidget(
-        _harness(repo: repo, locale: const Locale('ar')),
-      );
+      await tester.pumpWidget(_harness(repo: repo, locale: const Locale('ar')));
       await tester.pumpAndSettle();
       expect(find.text('عرض واحد'), findsOneWidget);
     });
@@ -330,11 +363,12 @@ void main() {
   // M2 behaviour 2: a truthful "created N ago" line from the real server
   // timestamp — shown only when present, never fabricated.
   group('PendingRequestsTab — M2 age line', () {
-    testWidgets('shows "created N ago" derived from a real createdAt',
-        (tester) async {
+    testWidgets('shows "created N ago" derived from a real createdAt', (
+      tester,
+    ) async {
       final created = DateTime.now().toUtc().subtract(
-            const Duration(minutes: 12, seconds: 30),
-          );
+        const Duration(minutes: 12, seconds: 30),
+      );
       final repo = InMemoryClientHomeRepository.fromSnapshot(
         ClientHomeSnapshot(pending: [_pendingRequest(createdAt: created)]),
         latency: Duration.zero,
@@ -346,8 +380,9 @@ void main() {
       expect(find.text('Created 12 minutes ago'), findsOneWidget);
     });
 
-    testWidgets('no age line at all when createdAt is null (no fabrication)',
-        (tester) async {
+    testWidgets('no age line at all when createdAt is null (no fabrication)', (
+      tester,
+    ) async {
       final repo = InMemoryClientHomeRepository.fromSnapshot(
         ClientHomeSnapshot(pending: [_pendingRequest()]),
         latency: Duration.zero,
@@ -360,10 +395,12 @@ void main() {
       expect(find.byKey(const Key('pending-server-status')), findsOneWidget);
     });
 
-    testWidgets('a fresh request (<1 min old) reads "just now"',
-        (tester) async {
-      final created =
-          DateTime.now().toUtc().subtract(const Duration(seconds: 20));
+    testWidgets('a fresh request (<1 min old) reads "just now"', (
+      tester,
+    ) async {
+      final created = DateTime.now().toUtc().subtract(
+        const Duration(seconds: 20),
+      );
       final repo = InMemoryClientHomeRepository.fromSnapshot(
         ClientHomeSnapshot(pending: [_pendingRequest(createdAt: created)]),
         latency: Duration.zero,
@@ -374,15 +411,14 @@ void main() {
     });
 
     testWidgets('age line renders localized Arabic text', (tester) async {
-      final created =
-          DateTime.now().toUtc().subtract(const Duration(minutes: 3));
+      final created = DateTime.now().toUtc().subtract(
+        const Duration(minutes: 3),
+      );
       final repo = InMemoryClientHomeRepository.fromSnapshot(
         ClientHomeSnapshot(pending: [_pendingRequest(createdAt: created)]),
         latency: Duration.zero,
       );
-      await tester.pumpWidget(
-        _harness(repo: repo, locale: const Locale('ar')),
-      );
+      await tester.pumpWidget(_harness(repo: repo, locale: const Locale('ar')));
       await tester.pumpAndSettle();
       expect(find.text('أُنشئ قبل 3 دقائق'), findsOneWidget);
     });

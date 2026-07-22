@@ -11,7 +11,6 @@
   "navDelivery": "التوصيل",
   "homeTitle": "مرحبًا بك في جيب",
   "homeEmptyTitle": "ماذا تحتاج؟",
-  "homeEmptySubtitle": "اضغط على الميكروفون وأخبرنا — وسنجد لك جِيبرًا.",
   "homeEmptyCta": "أنشئ أول طلب لك",
   "homeActiveSectionTitle": "الطلبات النشطة",
   "homeRecentSectionTitle": "اطلب مرة أخرى",
@@ -22,7 +21,6 @@
   "homePendingEmpty": "لا توجد طلبات معلّقة — أنشئ طلبًا جديدًا لتلقّي العروض.",
   "homeRepliesEmpty": "لا توجد ردود بعد — ستظهر هنا الطلبات المعلّقة التي وردت لها عروض.",
   "homeRepliesCheckOffersCta": "عرض العروض",
-  "homeSearchHint": "بحث...",
   "homeTrackOrderCta": "تتبّع طلبي",
   "homeOpenChatCta": "فتح المحادثة",
   "homeStageOrdered": "تم الطلب",
@@ -857,13 +855,9 @@
   "homeGreetingNamed": "أهلاً، {name}",
   "homeGreetingSubtitle": "كل شيء في مكان واحد",
   "homeAvatarA11yLabel": "الصورة الشخصية لـ {name}",
-  "homeEmptyOrdersTitle": "لا توجد طلبات بعد",
-  "homeEmptyOrdersBody": "كل ما تطلبه يظهر هنا.",
-  "homeNewOrderCta": "طلب جديد",
   "homeLoadFailedBody": "تأكد من اتصالك بالإنترنت ثم حاول مرة أخرى.",
   "homeLoadFailedRetry": "إعادة المحاولة",
   "homeLoadFailedTitle": "تعذّر تحميل الشاشة الرئيسية",
-  "homeRecordVoiceRequest": "سجّل طلبًا",
   "homeRequestCardSemanticLabel": "توصيل نشط {title}، الحالة {status}",
   "homeRequestEtaUnknown": "الوقت المتوقع لاحقًا",
   "homeRequestJeeberAssigned": "مع {name}",
@@ -915,6 +909,13 @@
   "orderHistoryFilterAnyDate": "أي تاريخ",
   "orderHistoryFilterApply": "تطبيق",
   "orderHistoryFilterClear": "مسح",
+  "orderHistoryFilterClearDate": "مسح تاريخ {field}",
+  "@orderHistoryFilterClearDate": {
+    "description": "تلميح إمكانية الوصول لمسح أحد طرفي نطاق التاريخ في سجل الطلبات.",
+    "placeholders": {
+      "field": { "type": "String" }
+    }
+  },
   "orderHistoryFilterCta": "تصفية حسب التاريخ",
   "orderHistoryFilterFrom": "من",
   "orderHistoryFilterTitle": "تصفية حسب التاريخ",
@@ -1269,12 +1270,52 @@
   "offerSubmitRequestGone": "هذا الطلب لم يعد متاحاً.",
 
   "activeDeliveryTitle": "توصيل نشط",
+  "activeDeliveryProgressTitle": "تقدّم التوصيل",
+  "@activeDeliveryProgressTitle": {
+    "description": "عنوان أعلى مؤشر مراحل التقدّم الخمس في شاشة التوصيل النشط للمندوب."
+  },
+  "activeDeliveryCancelledTitle": "تم إلغاء التوصيلة",
+  "@activeDeliveryCancelledTitle": {
+    "description": "عنوان الحالة النهائية في شاشة التوصيل النشط للمندوب عند إلغاء التوصيلة."
+  },
+  "activeDeliveryCancelledBody": "تم إلغاء هذه التوصيلة ولم تعد نشطة.",
+  "@activeDeliveryCancelledBody": {
+    "description": "نص الحالة النهائية في شاشة التوصيل النشط للمندوب عند إلغاء التوصيلة."
+  },
+  "activeDeliveryExpiredTitle": "انتهت صلاحية التوصيلة",
+  "@activeDeliveryExpiredTitle": {
+    "description": "عنوان الحالة النهائية في شاشة التوصيل النشط للمندوب عند انتهاء صلاحية التوصيلة."
+  },
+  "activeDeliveryExpiredBody": "انتهت صلاحية هذه التوصيلة قبل إتمامها.",
+  "@activeDeliveryExpiredBody": {
+    "description": "نص الحالة النهائية في شاشة التوصيل النشط للمندوب عند انتهاء صلاحية التوصيلة."
+  },
+  "activeDeliveryDisputedTitle": "التوصيلة قيد المراجعة",
+  "@activeDeliveryDisputedTitle": {
+    "description": "عنوان الحالة النهائية في شاشة التوصيل النشط للمندوب للتوصيلة المتنازع عليها أو المصعّدة."
+  },
+  "activeDeliveryDisputedBody": "لم تعد هذه التوصيلة نشطة. يقوم فريق الدعم بمراجعتها.",
+  "@activeDeliveryDisputedBody": {
+    "description": "نص الحالة النهائية في شاشة التوصيل النشط للمندوب للتوصيلة المتنازع عليها أو المصعّدة."
+  },
   "activeDeliveryDropOffLabel": "عنوان التسليم",
   "activeDeliveryStatusOrdered": "مطلوب",
   "activeDeliveryStatusPicked": "تم الاستلام",
   "activeDeliveryStatusInTransit": "في الطريق",
   "activeDeliveryStatusAtDoor": "عند الباب",
   "activeDeliveryStatusDone": "تم",
+  "activeDeliveryStageCompletedState": "مكتملة",
+  "@activeDeliveryStageCompletedState": {
+    "description": "حالة إمكانية الوصول المعلنة للمرحلة المكتملة في مؤشر التوصيل النشط."
+  },
+  "activeDeliveryStageCurrentState": "حالية",
+  "@activeDeliveryStageCurrentState": {
+    "description": "حالة إمكانية الوصول المعلنة للمرحلة الحالية في مؤشر التوصيل النشط."
+  },
+  "activeDeliveryStageUpcomingState": "قادمة",
+  "@activeDeliveryStageUpcomingState": {
+    "description": "حالة إمكانية الوصول المعلنة للمرحلة القادمة في مؤشر التوصيل النشط."
+  },
   "activeDeliveryMarkPicked": "تحديد كـ: تم الاستلام",
   "activeDeliveryMarkInTransit": "تحديد كـ: في الطريق",
   "activeDeliveryMarkAtDoor": "تحديد كـ: عند الباب",
@@ -1530,9 +1571,9 @@
   "jeeberActiveDeliveriesManage": "إدارة التوصيل",
   "@jeeberActiveDeliveriesManage": {"description": "iter6: secondary CTA on an active-delivery row — opens the active-delivery (Ordered→…→AtDoor) screen."},
   "jeeberActiveDeliveriesViewAll": "عرض الكل ({count})",
-  "@jeeberActiveDeliveriesViewAll": {"description": "UI-cap: disclosure toggle under the capped active-delivery list; reveals the deliveries hidden past the first two. {count} is the total number of active deliveries.", "placeholders": {"count": {"type": "int"}}},
+  "@jeeberActiveDeliveriesViewAll": {"description": "Dashboard simplify: disclosure toggle in the compact active-deliveries summary; reveals every full delivery card. {count} is the total number of active deliveries.", "placeholders": {"count": {"type": "int"}}},
   "jeeberActiveDeliveriesShowLess": "عرض أقل",
-  "@jeeberActiveDeliveriesShowLess": {"description": "UI-cap: collapses the expanded active-delivery list back to the first two cards."},
+  "@jeeberActiveDeliveriesShowLess": {"description": "Dashboard simplify: collapses the expanded full-card list back to one compact summary row."},
   "shellSearchLabel": "بحث",
   "searchTitle": "بحث",
   "searchHint": "ابحث في الطلبات والمحادثات",

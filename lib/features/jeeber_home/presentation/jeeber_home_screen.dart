@@ -164,16 +164,11 @@ class _JeeberHomeScreenState extends State<JeeberHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     return Semantics(
       identifier: 'jeeber_home_root',
       container: true,
       child: Scaffold(
         key: JeeberHomeScreen.scaffoldKey,
-        appBar: OMDSAppBar(
-          title: l10n.availabilityHomeTitle,
-          centerTitle: false,
-        ),
         body: _RootBody(
           isRegistered: widget.isRegistered,
           profileName: widget.profileName,
@@ -471,41 +466,23 @@ class _NoRequestsScope extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cubit = context.read<AvailabilityCubit>();
-    // S007-P1B + iter6: surface the jeeber's ACCEPTED (won) deliveries above the
-    // no-requests state so they are reachable in-app, not push-only. Prefer the
+    // S007-P1B + iter6: keep the jeeber's ACCEPTED (won) deliveries reachable in
+    // the no-requests state. Prefer the
     // host-injected banner (Dashboard owns navigation + the ActiveDeliveriesCubit
     // lifecycle); fall back to the self-contained banner for callers/tests that
     // do not inject one. Either renders nothing when there are none, so the prior
     // layout is unchanged.
-    // Fix 6 (b): the active-deliveries banner is an unbounded Column of cards.
-    // Placing it as a fixed child above an `Expanded` no-requests view let the
-    // banner push the Column past the viewport when it held one or more tall
-    // cards (45px / 477px bottom RenderFlex overflow on SM-S921B). A
-    // CustomScrollView lets the surface SCROLL when the banner is tall, while
-    // `SliverFillRemaining(hasScrollBody: false)` keeps the no-requests view
-    // filling the remaining space when there is room (unchanged when the banner
-    // self-hides / holds a single card).
-    return CustomScrollView(
-      // JEBV4-13 P2-6: without AlwaysScrollable physics this scroll view
-      // rejects the drag when its content fits the viewport (the common empty
-      // state), so the enclosing OmdsPullToRefresh could never fire. The inner
-      // JeeberNoRequestsView scroll view keeps default physics and therefore
-      // yields the gesture to this one when it has nothing to scroll.
-      physics: const AlwaysScrollableScrollPhysics(),
-      slivers: [
-        SliverToBoxAdapter(
-          child: activeDeliveriesBanner ?? const JeeberActiveDeliveriesBanner(),
-        ),
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: JeeberNoRequestsView(
-            view: view,
-            profileName: profileName,
-            onToggle: cubit.toggle,
-            onExtendActivity: cubit.extendActivity,
-          ),
-        ),
-      ],
+    // The no-requests view owns one scroll surface and places the compact active
+    // disclosure after the page title + availability row. This prevents active
+    // work from preceding the dashboard title while keeping pull-to-refresh
+    // available even when all content fits.
+    return JeeberNoRequestsView(
+      view: view,
+      profileName: profileName,
+      activeDeliveriesBanner:
+          activeDeliveriesBanner ?? const JeeberActiveDeliveriesBanner(),
+      onToggle: cubit.toggle,
+      onExtendActivity: cubit.extendActivity,
     );
   }
 }

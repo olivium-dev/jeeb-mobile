@@ -38,7 +38,6 @@
   },
   "homeTitle": "Welcome to Jeeb",
   "homeEmptyTitle": "What do you need?",
-  "homeEmptySubtitle": "Tap the mic and tell us — we'll find a Jeeber for you.",
   "homeEmptyCta": "Create your first request",
   "homeActiveSectionTitle": "Active requests",
   "homeRecentSectionTitle": "Order again",
@@ -49,7 +48,6 @@
   "homePendingEmpty": "No pending requests — broadcast a new one to get offers.",
   "homeRepliesEmpty": "No replies yet — pending requests with offers will appear here.",
   "homeRepliesCheckOffersCta": "Check Offers",
-  "homeSearchHint": "Search...",
   "homeTrackOrderCta": "Track my order",
   "homeOpenChatCta": "Open chat",
   "homeStageOrdered": "Ordered",
@@ -2773,22 +2771,9 @@
       "name": { "type": "String", "example": "Sami" }
     }
   },
-  "homeEmptyOrdersTitle": "No orders yet",
-  "@homeEmptyOrdersTitle": {
-    "description": "Title of the zero-orders hero empty state on the client home (Figma 56535:1520)."
-  },
-  "homeEmptyOrdersBody": "Everything you order shows up here.",
-  "@homeEmptyOrdersBody": {
-    "description": "Body copy of the zero-orders hero empty state on the client home (Figma 56535:1523)."
-  },
-  "homeNewOrderCta": "New Order",
-  "@homeNewOrderCta": {
-    "description": "Primary CTA on the client home zero-orders empty state that starts a new order (Figma 56611:18659)."
-  },
   "homeLoadFailedBody": "Check your connection and try again.",
   "homeLoadFailedRetry": "Retry",
   "homeLoadFailedTitle": "Couldn't load your home",
-  "homeRecordVoiceRequest": "Record a request",
   "homeRequestCardSemanticLabel": "Active delivery {title}, status {status}",
   "homeRequestEtaUnknown": "ETA pending",
   "homeRequestJeeberAssigned": "with {name}",
@@ -2840,6 +2825,13 @@
   "orderHistoryFilterAnyDate": "Any date",
   "orderHistoryFilterApply": "Apply",
   "orderHistoryFilterClear": "Clear",
+  "orderHistoryFilterClearDate": "Clear {field} date",
+  "@orderHistoryFilterClearDate": {
+    "description": "Accessibility tooltip for clearing one endpoint of the order-history date range.",
+    "placeholders": {
+      "field": { "type": "String" }
+    }
+  },
   "orderHistoryFilterCta": "Filter by date",
   "orderHistoryFilterFrom": "From",
   "orderHistoryFilterTitle": "Filter by date",
@@ -3870,6 +3862,34 @@
   "@activeDeliveryTitle": {
     "description": "T-MOB-031: App-bar title for the Jeeber active-delivery screen."
   },
+  "activeDeliveryProgressTitle": "Delivery progress",
+  "@activeDeliveryProgressTitle": {
+    "description": "Heading above the five-stage progress stepper on the Jeeber active-delivery screen."
+  },
+  "activeDeliveryCancelledTitle": "Delivery cancelled",
+  "@activeDeliveryCancelledTitle": {
+    "description": "Title of the Jeeber active-delivery terminal state when the delivery was cancelled."
+  },
+  "activeDeliveryCancelledBody": "This delivery was cancelled and is no longer active.",
+  "@activeDeliveryCancelledBody": {
+    "description": "Body of the Jeeber active-delivery terminal state when the delivery was cancelled."
+  },
+  "activeDeliveryExpiredTitle": "Delivery expired",
+  "@activeDeliveryExpiredTitle": {
+    "description": "Title of the Jeeber active-delivery terminal state when the delivery expired."
+  },
+  "activeDeliveryExpiredBody": "This delivery expired before it could be completed.",
+  "@activeDeliveryExpiredBody": {
+    "description": "Body of the Jeeber active-delivery terminal state when the delivery expired."
+  },
+  "activeDeliveryDisputedTitle": "Delivery under review",
+  "@activeDeliveryDisputedTitle": {
+    "description": "Title of the Jeeber active-delivery terminal state for a disputed or escalated delivery."
+  },
+  "activeDeliveryDisputedBody": "This delivery is no longer active. Support is reviewing it.",
+  "@activeDeliveryDisputedBody": {
+    "description": "Body of the Jeeber active-delivery terminal state for a disputed or escalated delivery."
+  },
   "activeDeliveryDropOffLabel": "Drop-off address",
   "@activeDeliveryDropOffLabel": {
     "description": "T-MOB-031 AC1: Label above the drop-off address."
@@ -3893,6 +3913,18 @@
   "activeDeliveryStatusDone": "Done",
   "@activeDeliveryStatusDone": {
     "description": "T-MOB-031: Status step label — done."
+  },
+  "activeDeliveryStageCompletedState": "Completed",
+  "@activeDeliveryStageCompletedState": {
+    "description": "Accessibility state announced for a completed stage in the active-delivery stepper."
+  },
+  "activeDeliveryStageCurrentState": "Current",
+  "@activeDeliveryStageCurrentState": {
+    "description": "Accessibility state announced for the current stage in the active-delivery stepper."
+  },
+  "activeDeliveryStageUpcomingState": "Upcoming",
+  "@activeDeliveryStageUpcomingState": {
+    "description": "Accessibility state announced for an upcoming stage in the active-delivery stepper."
   },
   "activeDeliveryMarkPicked": "Mark as Picked",
   "@activeDeliveryMarkPicked": {
@@ -4423,9 +4455,9 @@
   "jeeberActiveDeliveriesManage": "Manage delivery",
   "@jeeberActiveDeliveriesManage": {"description": "iter6: secondary CTA on an active-delivery row — opens the active-delivery (Ordered→…→AtDoor) screen."},
   "jeeberActiveDeliveriesViewAll": "View all ({count})",
-  "@jeeberActiveDeliveriesViewAll": {"description": "UI-cap: disclosure toggle under the capped active-delivery list; reveals the deliveries hidden past the first two. {count} is the total number of active deliveries.", "placeholders": {"count": {"type": "int"}}},
+  "@jeeberActiveDeliveriesViewAll": {"description": "Dashboard simplify: disclosure toggle in the compact active-deliveries summary; reveals every full delivery card. {count} is the total number of active deliveries.", "placeholders": {"count": {"type": "int"}}},
   "jeeberActiveDeliveriesShowLess": "Show less",
-  "@jeeberActiveDeliveriesShowLess": {"description": "UI-cap: collapses the expanded active-delivery list back to the first two cards."},
+  "@jeeberActiveDeliveriesShowLess": {"description": "Dashboard simplify: collapses the expanded full-card list back to one compact summary row."},
   "shellSearchLabel": "Search",
   "@shellSearchLabel": { "description": "Sprint-5 Stream C: shell header search affordance (orders_home_search / customer_profile_search) → search compose screen." },
   "searchTitle": "Search",

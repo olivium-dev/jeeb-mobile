@@ -41,10 +41,9 @@ class DioActiveDeliveriesRepository implements ActiveDeliveriesRepository {
     return items
         .whereType<Map<String, dynamic>>()
         .map(ActiveDeliverySummary.fromJson)
-        // Only surface rows that still carry an id and are not already done —
-        // a completed delivery belongs to the rating/history surfaces, not the
-        // "active" list.
-        .where((d) => d.id.isNotEmpty && d.status != JeeberDeliveryStatus.done)
+        // Every terminal (successful, cancelled, expired, or disputed) belongs
+        // to history/support surfaces, never the active-delivery banner.
+        .where((d) => d.id.isNotEmpty && !d.status.isTerminal)
         .toList(growable: false);
   }
 }

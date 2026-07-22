@@ -71,8 +71,13 @@ class DioOrderRepository implements OrderRepository {
           'page': page,
           'pageSize': pageSize,
           if (range.from != null)
-            'fromDate': range.from!.toUtc().toIso8601String(),
-          if (range.to != null) 'toDate': range.to!.toUtc().toIso8601String(),
+            // Inclusive start: picked local day at local midnight. Preserve
+            // that wall-clock boundary; the gateway owns zone interpretation.
+            'fromDate': range.from!.toIso8601String(),
+          if (range.to != null)
+            // Exclusive end: the filter model already advances the inclusive
+            // picked end day to the next local midnight.
+            'toDate': range.to!.toIso8601String(),
         },
       );
       return _parsePage(response.data, tab, page, pageSize);

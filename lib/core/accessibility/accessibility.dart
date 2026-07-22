@@ -23,21 +23,51 @@ class A11y {
   /// preserves the AC while protecting users who crank the OS slider beyond.
   static const double maxTextScaleFactor = 2.0;
 
-  /// Floor on the text scaler. Users who disable scaling entirely (or some
-  /// older Android variants reporting <1.0) still get readable type.
-  static const double minTextScaleFactor = 1.0;
-
-  /// Returns a copy of [data] with its text scaler clamped to
-  /// `[minTextScaleFactor, maxTextScaleFactor]`. Drop in inside
-  /// `MaterialApp.builder` to enforce the policy across every screen.
+  /// Returns a copy of [data] with its text scaler capped at
+  /// [maxTextScaleFactor]. The cap deliberately delegates scaling instead of
+  /// calling [TextScaler.clamp]: framework widgets such as Material's date
+  /// picker apply their own tighter clamps, and intersecting their limits with
+  /// an inherited private clamp can create an invalid min == max range.
   static MediaQueryData clampTextScaler(MediaQueryData data) {
     return data.copyWith(
-      textScaler: data.textScaler.clamp(
-        minScaleFactor: minTextScaleFactor,
+      textScaler: _MaxTextScaler(
+        delegate: data.textScaler,
         maxScaleFactor: maxTextScaleFactor,
       ),
     );
   }
+}
+
+/// Caps a scaler's output without carrying any existing clamp bounds forward.
+///
+/// [TextScaler.clamp] remains available through the base implementation, so a
+/// descendant starts a fresh range around this delegate instead of intersecting
+/// with an app-level `_ClampedTextScaler` range.
+class _MaxTextScaler extends TextScaler {
+  const _MaxTextScaler({required this.delegate, required this.maxScaleFactor});
+
+  final TextScaler delegate;
+  final double maxScaleFactor;
+
+  @override
+  double scale(double fontSize) {
+    final scaled = delegate.scale(fontSize);
+    final maximum = maxScaleFactor * fontSize;
+    return scaled > maximum ? maximum : scaled;
+  }
+
+  @override
+  double get textScaleFactor => scale(1);
+
+  @override
+  bool operator ==(Object other) {
+    return other is _MaxTextScaler &&
+        other.delegate == delegate &&
+        other.maxScaleFactor == maxScaleFactor;
+  }
+
+  @override
+  int get hashCode => Object.hash(delegate, maxScaleFactor);
 }
 
 /// Builder for [MaterialApp.builder] that enforces [A11y.clampTextScaler] for

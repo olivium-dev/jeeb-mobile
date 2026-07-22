@@ -20,10 +20,16 @@ import '../../../../l10n/app_localizations.dart';
 /// widget tests) the widget falls back to the passed [name] and the initials
 /// avatar — preserving the prior contract.
 class ClientHomeGreeting extends StatelessWidget {
-  const ClientHomeGreeting({super.key, required this.name, this.onAddPressed});
+  const ClientHomeGreeting({
+    super.key,
+    required this.name,
+    this.onAddPressed,
+    this.avatarSemanticsIdentifier,
+  });
 
   final String? name;
   final VoidCallback? onAddPressed;
+  final String? avatarSemanticsIdentifier;
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +56,11 @@ class ClientHomeGreeting extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _GreetingLine(name: resolvedName, avatarUrl: avatarUrl),
+          _GreetingLine(
+            name: resolvedName,
+            avatarUrl: avatarUrl,
+            avatarSemanticsIdentifier: avatarSemanticsIdentifier,
+          ),
           const SizedBox(height: Sizes.threeXSmall),
           _GreetingHeadline(onAddPressed: onAddPressed),
         ],
@@ -70,10 +80,15 @@ class ClientHomeGreeting extends StatelessWidget {
 }
 
 class _GreetingLine extends StatelessWidget {
-  const _GreetingLine({required this.name, this.avatarUrl});
+  const _GreetingLine({
+    required this.name,
+    required this.avatarSemanticsIdentifier,
+    this.avatarUrl,
+  });
 
   final String? name;
   final String? avatarUrl;
+  final String? avatarSemanticsIdentifier;
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +100,11 @@ class _GreetingLine extends StatelessWidget {
         : l10n.homeGreetingNamed(firstName);
     return Row(
       children: [
-        _GreetingAvatar(initial: firstName, avatarUrl: avatarUrl),
+        _GreetingAvatar(
+          initial: firstName,
+          avatarUrl: avatarUrl,
+          semanticsIdentifier: avatarSemanticsIdentifier,
+        ),
         const SizedBox(width: Spacing.xSmall),
         Flexible(child: _GreetingText(text: greeting)),
       ],
@@ -121,10 +140,15 @@ class _GreetingText extends StatelessWidget {
 }
 
 class _GreetingAvatar extends StatelessWidget {
-  const _GreetingAvatar({required this.initial, this.avatarUrl});
+  const _GreetingAvatar({
+    required this.initial,
+    required this.semanticsIdentifier,
+    this.avatarUrl,
+  });
 
   final String? initial;
   final String? avatarUrl;
+  final String? semanticsIdentifier;
 
   @override
   Widget build(BuildContext context) {
@@ -136,7 +160,7 @@ class _GreetingAvatar extends StatelessWidget {
         ? trimmed[0].toUpperCase()
         : '?';
     final url = avatarUrl?.trim();
-    return OmdsProfileAvatar(
+    final avatar = OmdsProfileAvatar(
       key: const Key('client-home-greeting-avatar'),
       initial: seed,
       profilePicUrl: (url == null || url.isEmpty) ? null : url,
@@ -144,6 +168,9 @@ class _GreetingAvatar extends StatelessWidget {
       backgroundColor: colorScheme.surfaceContainerHigh,
       initialColor: colorScheme.primary,
     );
+    final identifier = semanticsIdentifier;
+    if (identifier == null) return avatar;
+    return Semantics(identifier: identifier, image: true, child: avatar);
   }
 }
 
@@ -184,9 +211,11 @@ class _AddRequestButton extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Semantics(
       identifier: 'orders_create_request_button',
+      container: true,
+      explicitChildNodes: true,
       button: true,
       label: l10n.homeEmptyCta,
-      child: IconButton.filled(
+      child: IconButton(
         key: const Key('client-home-greeting-add'),
         onPressed: onPressed,
         icon: const Icon(Icons.add, size: Sizes.xLarge),

@@ -4,9 +4,11 @@ import 'package:omds/omds.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/jeeber_delivery_status.dart';
 
-/// Horizontal stepper showing the 5-stage delivery status for the Jeeber.
+/// Horizontal stepper showing the successful delivery stages for the Jeeber.
 ///
-/// Only the next valid tap is enabled (AC2 — in-order only).
+/// OMDS owns the stage circles, connectors, and completed/current/upcoming
+/// colors through [OmdsStepIndicator]. This feature layer supplies only the
+/// delivery-specific icons, labels, and accessibility copy.
 class DeliveryStatusStepper extends StatelessWidget {
   const DeliveryStatusStepper({
     super.key,
@@ -21,20 +23,24 @@ class DeliveryStatusStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (currentStatus.isUnsuccessfulTerminal) {
+      return const SizedBox.shrink();
+    }
     final l10n = AppLocalizations.of(context);
     // JM-051: during the delivering phase (InTransit / AtDoor) the journey to
     // Done is owned by the MarkDeliveredPanel's `mark_delivered_cta` (it needs
     // the proof photo + the done→rating chain), so the stepper suppresses its
     // own advance button there. Earlier stages (Ordered → Picked → InTransit)
     // keep the inline advance button.
-    final showAdvance = !currentStatus.isTerminal &&
+    final showAdvance =
+        !currentStatus.isTerminal &&
         currentStatus != JeeberDeliveryStatus.inTransit &&
         currentStatus != JeeberDeliveryStatus.atDoor;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _StepsRow(currentStatus: currentStatus),
-        const SizedBox(height: Spacing.small),
+        _DeliveryProgress(currentStatus: currentStatus, l10n: l10n),
+        const SizedBox(height: Spacing.large),
         if (showAdvance)
           _AdvanceButton(
             nextStatus: currentStatus.next!,
@@ -47,93 +53,157 @@ class DeliveryStatusStepper extends StatelessWidget {
   }
 }
 
-class _StepsRow extends StatelessWidget {
-  const _StepsRow({required this.currentStatus});
+class _DeliveryProgress extends StatelessWidget {
+  const _DeliveryProgress({required this.currentStatus, required this.l10n});
 
   final JeeberDeliveryStatus currentStatus;
+  final AppLocalizations l10n;
 
   @override
   Widget build(BuildContext context) {
-    const statuses = JeeberDeliveryStatus.values;
-    final l10n = AppLocalizations.of(context);
-    return Semantics(
-      label: _semanticsLabel(currentStatus, l10n),
-      child: Row(
-        children: List.generate(statuses.length * 2 - 1, (i) {
-          if (i.isOdd) return const Expanded(child: Divider(height: 2));
-          final status = statuses[i ~/ 2];
-          return _StepDot(
-            status: status,
-            isCurrent: status == currentStatus,
-            isDone: status.index < currentStatus.index,
-          );
-        }),
-      ),
+    final currentIndex = jeeberDeliveryProgressStages.indexOf(currentStatus);
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            OmdsStepIndicator(
+              currentStep: currentIndex + 1,
+              totalSteps: jeeberDeliveryProgressStages.length,
+              completedColor: colors.primary,
+              activeColor: colors.primaryContainer,
+              pendingColor: colors.surfaceContainerHighest,
+              lineColor: colors.outlineVariant,
+              stepSize: Sizes.threeXLarge,
+              lineHeight: Sizes.threeXSmall,
+              showNumbers: false,
+              showCheckmark: false,
+            ),
+            ExcludeSemantics(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  for (
+                    var index = 0;
+                    index < jeeberDeliveryProgressStages.length;
+                    index++
+                  )
+                    _StageIcon(
+                      status: jeeberDeliveryProgressStages[index],
+                      state: _stateAt(index, currentIndex),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: Spacing.small),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (
+              var index = 0;
+              index < jeeberDeliveryProgressStages.length;
+              index++
+            )
+              Expanded(
+                child: _StageLabel(
+                  status: jeeberDeliveryProgressStages[index],
+                  state: _stateAt(index, currentIndex),
+                  l10n: l10n,
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 
-  String _semanticsLabel(
-    JeeberDeliveryStatus current,
-    AppLocalizations l10n,
-  ) {
-    final next = current.next;
-    final currentLabel = _statusLabel(current, l10n);
-    if (next == null) {
-      return l10n.activeDeliveryStepperCurrentDone(currentLabel);
-    }
-    return l10n.activeDeliveryStepperA11y(
-      currentLabel,
-      _statusLabel(next, l10n),
-    );
-  }
-
-  String _statusLabel(JeeberDeliveryStatus s, AppLocalizations l10n) {
-    switch (s) {
-      case JeeberDeliveryStatus.ordered:
-        return l10n.activeDeliveryStatusOrdered;
-      case JeeberDeliveryStatus.picked:
-        return l10n.activeDeliveryStatusPicked;
-      case JeeberDeliveryStatus.inTransit:
-        return l10n.activeDeliveryStatusInTransit;
-      case JeeberDeliveryStatus.atDoor:
-        return l10n.activeDeliveryStatusAtDoor;
-      case JeeberDeliveryStatus.done:
-        return l10n.activeDeliveryStatusDone;
-    }
+  _DeliveryStageState _stateAt(int index, int currentIndex) {
+    if (index < currentIndex) return _DeliveryStageState.completed;
+    if (index == currentIndex) return _DeliveryStageState.current;
+    return _DeliveryStageState.upcoming;
   }
 }
 
-class _StepDot extends StatelessWidget {
-  const _StepDot({
-    required this.status,
-    required this.isCurrent,
-    required this.isDone,
-  });
+enum _DeliveryStageState { completed, current, upcoming }
+
+class _StageIcon extends StatelessWidget {
+  const _StageIcon({required this.status, required this.state});
 
   final JeeberDeliveryStatus status;
-  final bool isCurrent;
-  final bool isDone;
+  final _DeliveryStageState state;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final color = isDone || isCurrent
-        ? colorScheme.primary
-        : colorScheme.outlineVariant;
-    return Container(
-      width: 28,
-      height: 28,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: color,
-        border: isCurrent
-            ? Border.all(color: colorScheme.primary, width: 2)
-            : null,
+    final colors = Theme.of(context).colorScheme;
+    final color = switch (state) {
+      _DeliveryStageState.completed => colors.onPrimary,
+      _DeliveryStageState.current => colors.onPrimaryContainer,
+      _DeliveryStageState.upcoming => colors.onSurfaceVariant,
+    };
+    return SizedBox.square(
+      key: ValueKey<String>(
+        'active_delivery_stage_${status.name.toLowerCase()}_${state.name}',
       ),
-      child: isDone
-          ? Icon(Icons.check, size: 16, color: colorScheme.onPrimary)
-          : null,
+      dimension: Sizes.threeXLarge,
+      child: Icon(status.stepIcon, size: Sizes.large, color: color),
     );
+  }
+}
+
+class _StageLabel extends StatelessWidget {
+  const _StageLabel({
+    required this.status,
+    required this.state,
+    required this.l10n,
+  });
+
+  final JeeberDeliveryStatus status;
+  final _DeliveryStageState state;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = status.statusLabel(l10n);
+    return Semantics(
+      identifier: 'active_delivery_stage_${status.name.toLowerCase()}',
+      container: true,
+      label: '$label, ${_stateLabel(l10n)}',
+      child: ExcludeSemantics(
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: _textStyle(context),
+        ),
+      ),
+    );
+  }
+
+  String _stateLabel(AppLocalizations l10n) => switch (state) {
+    _DeliveryStageState.completed => l10n.activeDeliveryStageCompletedState,
+    _DeliveryStageState.current => l10n.activeDeliveryStageCurrentState,
+    _DeliveryStageState.upcoming => l10n.activeDeliveryStageUpcomingState,
+  };
+
+  TextStyle? _textStyle(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return switch (state) {
+      _DeliveryStageState.completed => theme.textTheme.labelSmall?.copyWith(
+        color: colors.primary,
+        fontWeight: FontWeight.w600,
+      ),
+      _DeliveryStageState.current => theme.textTheme.labelSmall?.copyWith(
+        color: colors.onSurface,
+        fontWeight: FontWeight.w700,
+      ),
+      _DeliveryStageState.upcoming => theme.textTheme.labelSmall?.copyWith(
+        color: colors.onSurfaceVariant,
+        fontWeight: FontWeight.w400,
+      ),
+    };
   }
 }
 
@@ -153,11 +223,6 @@ class _AdvanceButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = _buttonLabel(nextStatus, l10n);
-    // Screen-scoped to the active-delivery / mark-delivered screen (the only
-    // host of this stepper), matching its `mark_delivered_*` id family. The
-    // element is the status-advance action; the visible label rotates per stage
-    // (Mark Picked / In Transit / At Door) so the id is derived from role, not
-    // copy.
     return Semantics(
       identifier: 'mark_delivered_advance_cta',
       container: true,
@@ -170,8 +235,8 @@ class _AdvanceButton extends StatelessWidget {
     );
   }
 
-  String _buttonLabel(JeeberDeliveryStatus s, AppLocalizations l10n) {
-    switch (s) {
+  String _buttonLabel(JeeberDeliveryStatus status, AppLocalizations l10n) {
+    switch (status) {
       case JeeberDeliveryStatus.ordered:
         return l10n.activeDeliveryStatusOrdered;
       case JeeberDeliveryStatus.picked:
@@ -182,6 +247,50 @@ class _AdvanceButton extends StatelessWidget {
         return l10n.activeDeliveryMarkAtDoor;
       case JeeberDeliveryStatus.done:
         return l10n.activeDeliveryMarkDone;
+      case JeeberDeliveryStatus.cancelled:
+      case JeeberDeliveryStatus.expired:
+      case JeeberDeliveryStatus.disputed:
+        throw StateError('Terminal deliveries cannot be advanced');
+    }
+  }
+}
+
+extension on JeeberDeliveryStatus {
+  IconData get stepIcon {
+    switch (this) {
+      case JeeberDeliveryStatus.ordered:
+        return Icons.receipt_long_outlined;
+      case JeeberDeliveryStatus.picked:
+        return Icons.inventory_2_outlined;
+      case JeeberDeliveryStatus.inTransit:
+        return Icons.local_shipping_outlined;
+      case JeeberDeliveryStatus.atDoor:
+        return Icons.home_outlined;
+      case JeeberDeliveryStatus.done:
+        return Icons.check_circle_outline;
+      case JeeberDeliveryStatus.cancelled:
+      case JeeberDeliveryStatus.expired:
+      case JeeberDeliveryStatus.disputed:
+        throw StateError('Terminal deliveries are not progress stages');
+    }
+  }
+
+  String statusLabel(AppLocalizations l10n) {
+    switch (this) {
+      case JeeberDeliveryStatus.ordered:
+        return l10n.activeDeliveryStatusOrdered;
+      case JeeberDeliveryStatus.picked:
+        return l10n.activeDeliveryStatusPicked;
+      case JeeberDeliveryStatus.inTransit:
+        return l10n.activeDeliveryStatusInTransit;
+      case JeeberDeliveryStatus.atDoor:
+        return l10n.activeDeliveryStatusAtDoor;
+      case JeeberDeliveryStatus.done:
+        return l10n.activeDeliveryStatusDone;
+      case JeeberDeliveryStatus.cancelled:
+      case JeeberDeliveryStatus.expired:
+      case JeeberDeliveryStatus.disputed:
+        throw StateError('Terminal deliveries are not progress stages');
     }
   }
 }

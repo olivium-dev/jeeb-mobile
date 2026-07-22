@@ -56,27 +56,16 @@ class ActiveDeliveriesBanner extends StatelessWidget {
           identifier: 'jeeber_active_deliveries',
           explicitChildNodes: true,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              Spacing.medium,
-              Spacing.medium,
-              Spacing.medium,
-              0,
+            padding: const EdgeInsetsDirectional.only(
+              start: Spacing.medium,
+              top: Spacing.xSmall,
+              end: Spacing.medium,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.jeeberActiveDeliveriesTitle,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: Spacing.small),
-                _ActiveDeliveriesCardList(
-                  deliveries: state.deliveries,
-                  onOpenChat: onOpenChat,
-                  onManageDelivery: onManageDelivery,
-                  l10n: l10n,
-                ),
-              ],
+            child: _ActiveDeliveriesCardList(
+              deliveries: state.deliveries,
+              onOpenChat: onOpenChat,
+              onManageDelivery: onManageDelivery,
+              l10n: l10n,
             ),
           ),
         );
@@ -85,14 +74,9 @@ class ActiveDeliveriesBanner extends StatelessWidget {
   }
 }
 
-/// Lays out the active-delivery cards, capping how many render at rest so a
-/// jeeber juggling several concurrent orders doesn't bury the pending-request
-/// feed below the fold — on a 360x800 viewport four full cards pushed the feed a
-/// whole screen down. At most [_maxCollapsedCards] cards show while collapsed;
-/// any beyond that are revealed in place by a "view all" toggle. The banner owns
-/// no navigation (its only outward hooks are onOpenChat/onManageDelivery and
-/// there is no "all deliveries" route), so the disclosure is an in-place expand
-/// rather than a push — every delivery stays reachable without new host wiring.
+/// Keeps active work to one summary row at rest so it cannot bury the incoming
+/// request feed. The full cards are built only after the Jeeber explicitly asks
+/// to view them; "show less" returns to the compact dashboard hierarchy.
 class _ActiveDeliveriesCardList extends StatefulWidget {
   const _ActiveDeliveriesCardList({
     required this.deliveries,
@@ -112,48 +96,43 @@ class _ActiveDeliveriesCardList extends StatefulWidget {
 }
 
 class _ActiveDeliveriesCardListState extends State<_ActiveDeliveriesCardList> {
-  /// At most this many cards render while collapsed; the rest hide behind the
-  /// "view all" toggle so the feed below stays within one screen-height.
-  static const int _maxCollapsedCards = 2;
-
   bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
-    final deliveries = widget.deliveries;
-    final overflowing = deliveries.length > _maxCollapsedCards;
-    final visible = (overflowing && !_expanded)
-        ? deliveries.take(_maxCollapsedCards)
-        : deliveries;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final delivery in visible)
-          _ActiveDeliveryCard(
-            delivery: delivery,
-            onOpenChat: () => widget.onOpenChat(delivery),
-            onManageDelivery: () => widget.onManageDelivery(delivery),
-            l10n: widget.l10n,
-          ),
-        if (overflowing)
-          _ViewAllToggle(
-            expanded: _expanded,
-            totalCount: deliveries.length,
-            l10n: widget.l10n,
-            onToggle: () => setState(() => _expanded = !_expanded),
-          ),
+        _ActiveDeliveriesSummaryRow(
+          expanded: _expanded,
+          totalCount: widget.deliveries.length,
+          l10n: widget.l10n,
+          onToggle: () => setState(() => _expanded = !_expanded),
+        ),
+        if (_expanded) ...[
+          const SizedBox(height: Spacing.small),
+          for (final delivery in widget.deliveries)
+            _ActiveDeliveryCard(
+              delivery: delivery,
+              onOpenChat: () => widget.onOpenChat(delivery),
+              onManageDelivery: () => widget.onManageDelivery(delivery),
+              l10n: widget.l10n,
+            ),
+        ],
       ],
     );
   }
 }
 
-/// The "view all (N)" / "show less" disclosure control for the capped card
-/// list. A borderless OMDS text button that only flips the list's expand state
-/// in place (no navigation); carries a stable Semantics identifier so UI test
-/// drivers can address it.
-class _ViewAllToggle extends StatelessWidget {
-  const _ViewAllToggle({
+/// Max visible lines for the compact active-deliveries summary title before it
+/// ellipsizes.
+const int _kActiveDeliveriesSummaryTitleMaxLines = 2;
+
+/// One-row disclosure that keeps existing work discoverable without giving it
+/// more initial vertical weight than the incoming-request task.
+class _ActiveDeliveriesSummaryRow extends StatelessWidget {
+  const _ActiveDeliveriesSummaryRow({
     required this.expanded,
     required this.totalCount,
     required this.l10n,
@@ -167,21 +146,28 @@ class _ViewAllToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: Spacing.small),
-      child: OmdsPrimaryButton(
-        identifier: 'jeeber_active_deliveries_view_all',
-        variant: OmdsButtonVariant.text,
-        text: expanded
-            ? l10n.jeeberActiveDeliveriesShowLess
-            : l10n.jeeberActiveDeliveriesViewAll(totalCount),
-        icon: Icon(
-          expanded ? Icons.expand_less : Icons.expand_more,
-          color: colorScheme.primary,
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            l10n.jeeberActiveDeliveriesTitle,
+            maxLines: _kActiveDeliveriesSummaryTitleMaxLines,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleSmall,
+          ),
         ),
-        onTap: onToggle,
-      ),
+        const SizedBox(width: Spacing.small),
+        OmdsPrimaryButton(
+          identifier: 'jeeber_active_deliveries_view_all',
+          variant: OmdsButtonVariant.text,
+          text: expanded
+              ? l10n.jeeberActiveDeliveriesShowLess
+              : l10n.jeeberActiveDeliveriesViewAll(totalCount),
+          icon: Icon(expanded ? Icons.expand_less : Icons.expand_more),
+          onTap: onToggle,
+        ),
+      ],
     );
   }
 }
@@ -204,65 +190,75 @@ class _ActiveDeliveryCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final title = delivery.title ?? l10n.jeeberActiveDeliveriesFallbackTitle;
-    return Semantics(
-      identifier: 'jeeber_active_delivery_row_${delivery.id}',
-      button: true,
-      child: Card(
-        margin: const EdgeInsets.only(bottom: Spacing.small),
-        child: InkWell(
-          // Tapping the card opens the chat — the primary entry the blocker
-          // stranded the jeeber out of. "Start/Manage delivery" lives in the
-          // chat and on the secondary button.
-          onTap: onOpenChat,
-          child: Padding(
-            padding: const EdgeInsets.all(Spacing.medium),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: theme.textTheme.titleSmall,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    _StatusChip(status: delivery.status, l10n: l10n),
-                  ],
-                ),
-                if (delivery.dropoffAddress != null) ...[
-                  const SizedBox(height: Spacing.xSmall),
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(bottom: Spacing.small),
+      child: Semantics(
+        identifier: 'jeeber_active_delivery_row_${delivery.id}',
+        button: true,
+        child: OMDSGlassCard(
+          backgroundColor: colorScheme.surfaceContainerLow,
+          borderRadius: OMDSBorderRadius.lg,
+          padding: EdgeInsets.zero,
+          border: Border.all(
+            color: colorScheme.outlineVariant,
+            width: UIConstants.dividerWidth,
+          ),
+          child: InkWell(
+            // Tapping the card opens the chat — the primary entry the blocker
+            // stranded the jeeber out of. "Start/Manage delivery" lives in the
+            // chat and on the secondary button.
+            onTap: onOpenChat,
+            borderRadius: OmdsBorderRadius.large,
+            child: Padding(
+              padding: const EdgeInsets.all(Spacing.medium),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Row(
                     children: [
-                      Icon(
-                        Icons.location_on_outlined,
-                        size: Sizes.small,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: Spacing.twoXSmall),
                       Expanded(
                         child: Text(
-                          delivery.dropoffAddress!,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
+                          title,
+                          style: theme.textTheme.titleSmall,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      _StatusChip(status: delivery.status, l10n: l10n),
                     ],
                   ),
+                  if (delivery.dropoffAddress != null) ...[
+                    const SizedBox(height: Spacing.xSmall),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.location_on_outlined,
+                          size: Sizes.small,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: Spacing.twoXSmall),
+                        Expanded(
+                          child: Text(
+                            delivery.dropoffAddress!,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: Spacing.small),
+                  _ActiveDeliveryCardActions(
+                    deliveryId: delivery.id,
+                    l10n: l10n,
+                    onOpenChat: onOpenChat,
+                    onManageDelivery: onManageDelivery,
+                  ),
                 ],
-                const SizedBox(height: Spacing.small),
-                _ActiveDeliveryCardActions(
-                  deliveryId: delivery.id,
-                  l10n: l10n,
-                  onOpenChat: onOpenChat,
-                  onManageDelivery: onManageDelivery,
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -415,23 +411,12 @@ class _StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.small,
-        vertical: Spacing.twoXSmall,
-      ),
-      decoration: BoxDecoration(
-        color: colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(Sizes.xSmall),
-      ),
-      child: Text(
-        _label(l10n, status),
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: colorScheme.onPrimaryContainer,
-        ),
-      ),
+    final colorScheme = Theme.of(context).colorScheme;
+    return OmdsChip(
+      label: _label(l10n, status),
+      isSelected: true,
+      selectedColor: colorScheme.primaryContainer,
+      selectedTextColor: colorScheme.onPrimaryContainer,
     );
   }
 
@@ -447,6 +432,12 @@ class _StatusChip extends StatelessWidget {
         return l10n.activeDeliveryStatusAtDoor;
       case JeeberDeliveryStatus.done:
         return l10n.activeDeliveryStatusDone;
+      case JeeberDeliveryStatus.cancelled:
+        return l10n.activeDeliveryCancelledTitle;
+      case JeeberDeliveryStatus.expired:
+        return l10n.activeDeliveryExpiredTitle;
+      case JeeberDeliveryStatus.disputed:
+        return l10n.activeDeliveryDisputedTitle;
     }
   }
 }
