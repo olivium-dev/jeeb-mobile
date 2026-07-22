@@ -6,11 +6,9 @@ import '../../../../core/formatting/friendly_reference.dart';
 import '../../../../core/session/greeting_profile_cubit.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// Greeting header matching the Figma design (node 56611:18771).
-///
-/// Layout: "Hello, **{name}**" with a small [OmdsProfileAvatar] prefix,
-/// then "**Everything, One Place**" in extrabold with a filled circular
-/// "+" icon button (themed via [OmdsButtonStyles.iconButtonFilled]).
+/// Customer home header with "Hello, **{name}**", a small
+/// [OmdsProfileAvatar] prefix, and a filled circular "+" icon button (themed
+/// via [OmdsButtonStyles.iconButtonFilled]).
 ///
 /// P0-X06: the greeting name + avatar are sourced from the signed-in user's
 /// real profile via the ambient [GreetingProfileCubit] when one is provided
@@ -53,16 +51,17 @@ class ClientHomeGreeting extends StatelessWidget {
         Spacing.medium,
         Spacing.xSmall,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          _GreetingLine(
-            name: resolvedName,
-            avatarUrl: avatarUrl,
-            avatarSemanticsIdentifier: avatarSemanticsIdentifier,
+          Expanded(
+            child: _GreetingLine(
+              name: resolvedName,
+              avatarUrl: avatarUrl,
+              avatarSemanticsIdentifier: avatarSemanticsIdentifier,
+            ),
           ),
-          const SizedBox(height: Sizes.threeXSmall),
-          _GreetingHeadline(onAddPressed: onAddPressed),
+          const SizedBox(width: Spacing.small),
+          _AddRequestButton(onPressed: onAddPressed),
         ],
       ),
     );
@@ -171,32 +170,6 @@ class _GreetingAvatar extends StatelessWidget {
     final identifier = semanticsIdentifier;
     if (identifier == null) return avatar;
     return Semantics(identifier: identifier, image: true, child: avatar);
-  }
-}
-
-class _GreetingHeadline extends StatelessWidget {
-  const _GreetingHeadline({required this.onAddPressed});
-
-  final VoidCallback? onAddPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            l10n.homeGreetingSubtitle,
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-        _AddRequestButton(onPressed: onAddPressed),
-      ],
-    );
   }
 }
 

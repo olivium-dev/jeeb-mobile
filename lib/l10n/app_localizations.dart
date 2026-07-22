@@ -1456,7 +1456,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get chatStatusReconnecting => _get('chatStatusReconnecting');
   String get homeGreetingFallback => _get('homeGreetingFallback');
   String homeGreetingNamed(String name) => _get('homeGreetingNamed').replaceFirst('{name}', name);
-  String get homeGreetingSubtitle => _get('homeGreetingSubtitle');
   String homeAvatarA11yLabel(String name) => _get('homeAvatarA11yLabel').replaceFirst('{name}', name);
   String get homeLoadFailedBody => _get('homeLoadFailedBody');
   String get homeLoadFailedRetry => _get('homeLoadFailedRetry');
