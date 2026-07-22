@@ -5,10 +5,9 @@
 #   The client shell renders the Pending Requests list (lean rows: order id +
 #   items + tier, no avatar/progress/CTA), elements targeted BY SEMANTIC ID:
 #     orders_filter_pendingRequests    — Pending Requests chip (selected here)
-#     orders_filter_inProgress         — In Progress chip
 #     orders_filter_replies            — Replies chip
 #     pending_requests_item_*           — a pending row (per-id)
-#     orders_search_bar                — pill search bar
+#     orders_search_bar                — absent (search was removed)
 #     orders_create_request_button     — filled "+" create-request CTA
 #
 # PRIMARY INTERACTION
@@ -47,12 +46,10 @@ appId: ${APP_ID}
     timeout: 5000
 - takeScreenshot: 13_request_pending_requests
 
-# All three filter chips + shared chrome present.
-- assertVisible:
-    id: "orders_filter_inProgress"
+# Both Requests filter chips + top create entry present; search absent.
 - assertVisible:
     id: "orders_filter_replies"
-- assertVisible:
+- assertNotVisible:
     id: "orders_search_bar"
 - assertVisible:
     id: "orders_create_request_button"

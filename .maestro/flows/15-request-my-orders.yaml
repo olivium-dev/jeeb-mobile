@@ -5,18 +5,17 @@
 #   The authenticated client shell renders the My Orders "In Progress" list,
 #   and its key elements are present in the LIVE hierarchy, targeted BY SEMANTIC
 #   ID (never localized text — AP-5; never coordinates — AP-1):
-#     orders_filter_inProgress         — In Progress filter chip (selected)
 #     orders_filter_pendingRequests    — Pending Requests filter chip
 #     orders_filter_replies            — Replies filter chip
-#     orders_search_bar                — pill search bar
+#     orders_search_bar                — absent (search was removed)
 #     orders_create_request_button     — filled "+" create-request CTA
 #     orders_track_order_button_*       (CTA inside the trackable card — by text fallback)
 #
 # PRIMARY INTERACTION
 #   Switching the filter chip is the screen's core interaction. We tap the
 #   Pending and Replies chips by id and prove the list swaps (the In Progress
-#   card disappears, the Pending order-id row appears), then return to In
-#   Progress. Chip selection is fully satisfied by the seeded dev fixtures, so
+#   card disappears and the on-hold lists appear). Chip selection is fully
+#   satisfied by the seeded dev fixtures, so
 #   this is a real pass (not an optimistic assertion — AP-9).
 #
 # BACKEND
@@ -45,11 +44,12 @@ appId: ${APP_ID}
       jeeb.route: "/"
       jeeb.home_tab: "in_progress"
 
-# In Progress filter chip — waited+asserted by id (cold launch through the
-# authed shell + seeded load).
+# Top create entry — waited+asserted by id (cold launch through the authed shell
+# + seeded load). The debug seam pins In Progress content without exposing an
+# In Progress chip on the Requests screen.
 - extendedWaitUntil:
     visible:
-      id: "orders_filter_inProgress"
+      id: "orders_create_request_button"
     timeout: 25000
 
 # Settle the entrance before the evidence frame.
@@ -57,13 +57,13 @@ appId: ${APP_ID}
     timeout: 5000
 - takeScreenshot: 15_request_my_orders_in_progress
 
-# All three filter chips present.
+# Both Requests filter chips present.
 - assertVisible:
     id: "orders_filter_pendingRequests"
 - assertVisible:
     id: "orders_filter_replies"
-# Shared chrome: search bar + create-request CTA.
-- assertVisible:
+# Search is intentionally absent; the header plus remains the create entry.
+- assertNotVisible:
     id: "orders_search_bar"
 - assertVisible:
     id: "orders_create_request_button"
@@ -78,11 +78,3 @@ appId: ${APP_ID}
     timeout: 5000
 - assertVisible:
     id: "orders_filter_pendingRequests"
-
-# Return to In Progress; the trackable card's CTA re-appears.
-- tapOn:
-    id: "orders_filter_inProgress"
-- waitForAnimationToEnd:
-    timeout: 5000
-- assertVisible:
-    id: "orders_filter_inProgress"

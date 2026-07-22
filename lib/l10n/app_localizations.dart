@@ -70,7 +70,6 @@ class AppLocalizations {
 
   String get homeTitle => _get('homeTitle');
   String get homeEmptyTitle => _get('homeEmptyTitle');
-  String get homeEmptySubtitle => _get('homeEmptySubtitle');
   String get homeEmptyCta => _get('homeEmptyCta');
   String get homeActiveSectionTitle => _get('homeActiveSectionTitle');
   String get homeRecentSectionTitle => _get('homeRecentSectionTitle');
@@ -81,7 +80,6 @@ class AppLocalizations {
   String get homePendingEmpty => _get('homePendingEmpty');
   String get homeRepliesEmpty => _get('homeRepliesEmpty');
   String get homeRepliesCheckOffersCta => _get('homeRepliesCheckOffersCta');
-  String get homeSearchHint => _get('homeSearchHint');
   String get homeTrackOrderCta => _get('homeTrackOrderCta');
   String get homeOpenChatCta => _get('homeOpenChatCta');
   String get homeStageOrdered => _get('homeStageOrdered');
@@ -1387,8 +1385,12 @@ extension AppLocalizationsRestored on AppLocalizations {
     if (count == 1) return _get('availabilityActiveDeliveriesOne');
     if (count == 2) return _get('availabilityActiveDeliveriesTwo');
     final mod = count % 100;
-    if (mod >= 3 && mod <= 10) return _get('availabilityActiveDeliveriesFew').replaceFirst('{count}', '$count');
-    if (mod >= 11 && mod <= 99) return _get('availabilityActiveDeliveriesMany').replaceFirst('{count}', '$count');
+    if (mod >= 3 && mod <= 10) {
+      return _get('availabilityActiveDeliveriesFew').replaceFirst('{count}', '$count');
+    }
+    if (mod >= 11 && mod <= 99) {
+      return _get('availabilityActiveDeliveriesMany').replaceFirst('{count}', '$count');
+    }
     return _get('availabilityActiveDeliveriesOther').replaceFirst('{count}', '$count');
   }
   String get availabilityActiveDeliveriesLabel => _get('availabilityActiveDeliveries');
@@ -1435,8 +1437,12 @@ extension AppLocalizationsRestored on AppLocalizations {
     if (count == 1) return _get('chatPendingMessagesOne');
     if (count == 2) return _get('chatPendingMessagesTwo');
     final mod = count % 100;
-    if (mod >= 3 && mod <= 10) return _get('chatPendingMessagesFew').replaceFirst('{count}', '$count');
-    if (mod >= 11 && mod <= 99) return _get('chatPendingMessagesMany').replaceFirst('{count}', '$count');
+    if (mod >= 3 && mod <= 10) {
+      return _get('chatPendingMessagesFew').replaceFirst('{count}', '$count');
+    }
+    if (mod >= 11 && mod <= 99) {
+      return _get('chatPendingMessagesMany').replaceFirst('{count}', '$count');
+    }
     return _get('chatPendingMessagesOther').replaceFirst('{count}', '$count');
   }
   String get chatPendingMessagesLabel => _get('chatPendingMessages');
@@ -1452,13 +1458,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   String homeGreetingNamed(String name) => _get('homeGreetingNamed').replaceFirst('{name}', name);
   String get homeGreetingSubtitle => _get('homeGreetingSubtitle');
   String homeAvatarA11yLabel(String name) => _get('homeAvatarA11yLabel').replaceFirst('{name}', name);
-  String get homeEmptyOrdersTitle => _get('homeEmptyOrdersTitle');
-  String get homeEmptyOrdersBody => _get('homeEmptyOrdersBody');
-  String get homeNewOrderCta => _get('homeNewOrderCta');
   String get homeLoadFailedBody => _get('homeLoadFailedBody');
   String get homeLoadFailedRetry => _get('homeLoadFailedRetry');
   String get homeLoadFailedTitle => _get('homeLoadFailedTitle');
-  String get homeRecordVoiceRequest => _get('homeRecordVoiceRequest');
   String homeRequestCardSemanticLabel({required String title, required String status}) => _get('homeRequestCardSemanticLabel').replaceFirst('{title}', title).replaceFirst('{status}', status);
   String get homeRequestEtaUnknown => _get('homeRequestEtaUnknown');
   String homeRequestJeeberAssigned(String name) => _get('homeRequestJeeberAssigned').replaceFirst('{name}', name);
@@ -1776,8 +1778,12 @@ extension AppLocalizationsRestored on AppLocalizations {
     if (count == 1) return _get('pendingCardOffersBadgeOne');
     if (count == 2) return _get('pendingCardOffersBadgeTwo');
     final mod = count % 100;
-    if (mod >= 3 && mod <= 10) return _get('pendingCardOffersBadgeFew').replaceFirst('{count}', '$count');
-    if (mod >= 11 && mod <= 99) return _get('pendingCardOffersBadgeMany').replaceFirst('{count}', '$count');
+    if (mod >= 3 && mod <= 10) {
+      return _get('pendingCardOffersBadgeFew').replaceFirst('{count}', '$count');
+    }
+    if (mod >= 11 && mod <= 99) {
+      return _get('pendingCardOffersBadgeMany').replaceFirst('{count}', '$count');
+    }
     return _get('pendingCardOffersBadgeOther').replaceFirst('{count}', '$count');
   }
   String get pendingCardCreatedJustNow => _get('pendingCardCreatedJustNow');
@@ -1786,8 +1792,12 @@ extension AppLocalizationsRestored on AppLocalizations {
     if (count == 1) return _get('pendingCardCreatedMinutesOne');
     if (count == 2) return _get('pendingCardCreatedMinutesTwo');
     final mod = count % 100;
-    if (mod >= 3 && mod <= 10) return _get('pendingCardCreatedMinutesFew').replaceFirst('{count}', '$count');
-    if (mod >= 11 && mod <= 99) return _get('pendingCardCreatedMinutesMany').replaceFirst('{count}', '$count');
+    if (mod >= 3 && mod <= 10) {
+      return _get('pendingCardCreatedMinutesFew').replaceFirst('{count}', '$count');
+    }
+    if (mod >= 11 && mod <= 99) {
+      return _get('pendingCardCreatedMinutesMany').replaceFirst('{count}', '$count');
+    }
     return _get('pendingCardCreatedMinutesOther').replaceFirst('{count}', '$count');
   }
   String pendingCardCreatedHours(int count) {
@@ -1795,8 +1805,12 @@ extension AppLocalizationsRestored on AppLocalizations {
     if (count == 1) return _get('pendingCardCreatedHoursOne');
     if (count == 2) return _get('pendingCardCreatedHoursTwo');
     final mod = count % 100;
-    if (mod >= 3 && mod <= 10) return _get('pendingCardCreatedHoursFew').replaceFirst('{count}', '$count');
-    if (mod >= 11 && mod <= 99) return _get('pendingCardCreatedHoursMany').replaceFirst('{count}', '$count');
+    if (mod >= 3 && mod <= 10) {
+      return _get('pendingCardCreatedHoursFew').replaceFirst('{count}', '$count');
+    }
+    if (mod >= 11 && mod <= 99) {
+      return _get('pendingCardCreatedHoursMany').replaceFirst('{count}', '$count');
+    }
     return _get('pendingCardCreatedHoursOther').replaceFirst('{count}', '$count');
   }
   String pendingCardCreatedDays(int count) {
@@ -1804,8 +1818,12 @@ extension AppLocalizationsRestored on AppLocalizations {
     if (count == 1) return _get('pendingCardCreatedDaysOne');
     if (count == 2) return _get('pendingCardCreatedDaysTwo');
     final mod = count % 100;
-    if (mod >= 3 && mod <= 10) return _get('pendingCardCreatedDaysFew').replaceFirst('{count}', '$count');
-    if (mod >= 11 && mod <= 99) return _get('pendingCardCreatedDaysMany').replaceFirst('{count}', '$count');
+    if (mod >= 3 && mod <= 10) {
+      return _get('pendingCardCreatedDaysFew').replaceFirst('{count}', '$count');
+    }
+    if (mod >= 11 && mod <= 99) {
+      return _get('pendingCardCreatedDaysMany').replaceFirst('{count}', '$count');
+    }
     return _get('pendingCardCreatedDaysOther').replaceFirst('{count}', '$count');
   }
   String inProgressTabA11yLabel(String title, String status, String eta) =>

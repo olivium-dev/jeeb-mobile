@@ -38,7 +38,6 @@
   },
   "homeTitle": "Welcome to Jeeb",
   "homeEmptyTitle": "What do you need?",
-  "homeEmptySubtitle": "Tap the mic and tell us — we'll find a Jeeber for you.",
   "homeEmptyCta": "Create your first request",
   "homeActiveSectionTitle": "Active requests",
   "homeRecentSectionTitle": "Order again",
@@ -49,7 +48,6 @@
   "homePendingEmpty": "No pending requests — broadcast a new one to get offers.",
   "homeRepliesEmpty": "No replies yet — pending requests with offers will appear here.",
   "homeRepliesCheckOffersCta": "Check Offers",
-  "homeSearchHint": "Search...",
   "homeTrackOrderCta": "Track my order",
   "homeOpenChatCta": "Open chat",
   "homeStageOrdered": "Ordered",
@@ -2773,22 +2771,9 @@
       "name": { "type": "String", "example": "Sami" }
     }
   },
-  "homeEmptyOrdersTitle": "No orders yet",
-  "@homeEmptyOrdersTitle": {
-    "description": "Title of the zero-orders hero empty state on the client home (Figma 56535:1520)."
-  },
-  "homeEmptyOrdersBody": "Everything you order shows up here.",
-  "@homeEmptyOrdersBody": {
-    "description": "Body copy of the zero-orders hero empty state on the client home (Figma 56535:1523)."
-  },
-  "homeNewOrderCta": "New Order",
-  "@homeNewOrderCta": {
-    "description": "Primary CTA on the client home zero-orders empty state that starts a new order (Figma 56611:18659)."
-  },
   "homeLoadFailedBody": "Check your connection and try again.",
   "homeLoadFailedRetry": "Retry",
   "homeLoadFailedTitle": "Couldn't load your home",
-  "homeRecordVoiceRequest": "Record a request",
   "homeRequestCardSemanticLabel": "Active delivery {title}, status {status}",
   "homeRequestEtaUnknown": "ETA pending",
   "homeRequestJeeberAssigned": "with {name}",

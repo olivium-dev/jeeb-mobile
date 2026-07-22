@@ -2,11 +2,11 @@
 //
 // A 429 while loading the customer home must degrade GRACEFULLY: it must never
 // paint the full-screen "Couldn't reach Jeeb" connection error, must keep any
-// already-rendered data, and must leave the New Order create-flow reachable.
+// already-rendered data, and must leave both approved create entries reachable.
 //
 // These tests pin that behaviour at the cubit + screen seam:
 //   1. a COLD load that is rate-limited lands on READY (not FAILED), so the
-//      empty-state hero + New Order CTA render — the full-screen error never
+//      pending empty state + first-request CTA render — the full-screen error never
 //      shows;
 //   2. a rate-limited background REFRESH keeps the previously-loaded data on
 //      screen (no blank, no error) and honors Retry-After by skipping the next
@@ -37,7 +37,8 @@ class _ScriptedRepo implements ClientHomeRepository {
 
   @override
   Future<ClientHomeSnapshot> loadSnapshot() async {
-    final snapshot = _script[calls < _script.length ? calls : _script.length - 1];
+    final snapshot =
+        _script[calls < _script.length ? calls : _script.length - 1];
     calls += 1;
     return snapshot;
   }
@@ -76,22 +77,19 @@ void _loadArbs() {
 }
 
 Widget _harness(ClientHomeCubit cubit) => MaterialApp(
-      theme: AppTheme.light(),
-      locale: const Locale('en'),
-      supportedLocales: AppLocalizations.supportedLocales,
-      localizationsDelegates: [
-        _syncDelegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      home: Scaffold(
-        body: BlocProvider.value(
-          value: cubit,
-          child: const ClientHomeScreen(),
-        ),
-      ),
-    );
+  theme: AppTheme.light(),
+  locale: const Locale('en'),
+  supportedLocales: AppLocalizations.supportedLocales,
+  localizationsDelegates: [
+    _syncDelegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+  ],
+  home: Scaffold(
+    body: BlocProvider.value(value: cubit, child: const ClientHomeScreen()),
+  ),
+);
 
 void main() {
   setUpAll(_loadArbs);
@@ -99,7 +97,10 @@ void main() {
   group('ClientHomeCubit 429 tolerance', () {
     test('a cold rate-limited load lands on READY, never FAILED', () async {
       final repo = _ScriptedRepo([
-        const ClientHomeSnapshot(rateLimited: true, retryAfter: Duration(seconds: 30)),
+        const ClientHomeSnapshot(
+          rateLimited: true,
+          retryAfter: Duration(seconds: 30),
+        ),
       ]);
       final cubit = ClientHomeCubit(
         repository: repo,
@@ -109,32 +110,41 @@ void main() {
 
       await cubit.load();
 
-      expect(cubit.state.status, ClientHomeStatus.ready,
-          reason: 'a 429 must degrade to a usable (empty) home, never the '
-              'full-screen connection error');
-    });
-
-    test('a rate-limited REFRESH keeps the previously-loaded data on screen',
-        () async {
-      final repo = _ScriptedRepo([
-        const ClientHomeSnapshot(inProgress: [_order]), // clean first load
-        const ClientHomeSnapshot(rateLimited: true), // throttled refresh
-      ]);
-      final cubit = ClientHomeCubit(
-        repository: repo,
-        greetingNameProvider: () => 'Sami',
+      expect(
+        cubit.state.status,
+        ClientHomeStatus.ready,
+        reason:
+            'a 429 must degrade to a usable (empty) home, never the '
+            'full-screen connection error',
       );
-      addTearDown(cubit.close);
-
-      await cubit.load();
-      expect(cubit.state.inProgress, hasLength(1));
-
-      await cubit.refresh();
-
-      expect(cubit.state.status, ClientHomeStatus.ready);
-      expect(cubit.state.inProgress, hasLength(1),
-          reason: 'a throttled refresh must not blank the cached data');
     });
+
+    test(
+      'a rate-limited REFRESH keeps the previously-loaded data on screen',
+      () async {
+        final repo = _ScriptedRepo([
+          const ClientHomeSnapshot(inProgress: [_order]), // clean first load
+          const ClientHomeSnapshot(rateLimited: true), // throttled refresh
+        ]);
+        final cubit = ClientHomeCubit(
+          repository: repo,
+          greetingNameProvider: () => 'Sami',
+        );
+        addTearDown(cubit.close);
+
+        await cubit.load();
+        expect(cubit.state.inProgress, hasLength(1));
+
+        await cubit.refresh();
+
+        expect(cubit.state.status, ClientHomeStatus.ready);
+        expect(
+          cubit.state.inProgress,
+          hasLength(1),
+          reason: 'a throttled refresh must not blank the cached data',
+        );
+      },
+    );
 
     test('Retry-After backs the poll off — a refresh inside the window is a '
         'no-op (no extra repository read)', () async {
@@ -156,24 +166,25 @@ void main() {
 
       // Inside the 5-minute Retry-After window: refresh must be skipped.
       await cubit.refresh();
-      expect(repo.calls, 1,
-          reason: 'refresh must honor the open Retry-After backoff window');
+      expect(
+        repo.calls,
+        1,
+        reason: 'refresh must honor the open Retry-After backoff window',
+      );
     });
   });
 
   group('ClientHomeScreen 429 tolerance (widget)', () {
-    testWidgets(
-        'a cold 429 renders the empty home with a reachable New Order FAB — '
-        'never the full-screen connection error', (tester) async {
-      final repo = _ScriptedRepo([
-        const ClientHomeSnapshot(rateLimited: true),
-      ]);
+    testWidgets('a cold 429 keeps the top plus and empty-state CTA reachable — '
+        'without the removed FAB', (tester) async {
+      final repo = _ScriptedRepo([const ClientHomeSnapshot(rateLimited: true)]);
       final cubit = ClientHomeCubit(
         repository: repo,
         greetingNameProvider: () => 'Sami',
       );
       addTearDown(cubit.close);
 
+      final handle = tester.ensureSemantics();
       await tester.pumpWidget(_harness(cubit));
       await cubit.load();
       await tester.pumpAndSettle();
@@ -181,14 +192,20 @@ void main() {
       // The status never regressed to the full-screen failure state.
       expect(cubit.state.status, ClientHomeStatus.ready);
 
-      // The New Order create-flow entry (FAB) is present and tappable — a 429
-      // must never block reaching New Order.
-      final fab = find.bySemanticsLabel(
-        AppLocalizations.of(tester.element(find.byType(ClientHomeScreen)))
-            .homeNewOrderCta,
+      expect(
+        find.bySemanticsIdentifier('orders_create_request_button'),
+        findsOneWidget,
       );
-      expect(fab, findsWidgets,
-          reason: 'the New Order entry must stay reachable after a 429');
+      expect(
+        find.bySemanticsIdentifier('_request_empty_state_new_order_button'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('orders_home_new_order_fab'),
+        findsNothing,
+      );
+      handle.dispose();
+      expect(find.byType(FloatingActionButton), findsNothing);
     });
   });
 }

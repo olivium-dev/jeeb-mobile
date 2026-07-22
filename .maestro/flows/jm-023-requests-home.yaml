@@ -6,7 +6,7 @@
 #        and orders_home_bell (→ notifications-list JM-057) are present.
 #   AC2: Given a pending request row, When tapped, Then route to waiting-no-coverage
 #        (waiting_notified_count visible, not chat) [JM-026].
-#   AC3: Given orders_home_new_order_fab tapped, Then route to request-type-selection
+#   AC3: Given orders_create_request_button tapped, Then route to request-type-selection
 #        (request_type_continue_cta visible) [JM-024].
 #
 # Mock: GET /delivery-service/v1/requests?status=pending|offers-received|active
@@ -136,7 +136,7 @@ appId: ${APP_ID}
 
 - takeScreenshot: jm023_ac2_pending_row_tapped_to_waiting
 
-# ── AC3: New order FAB → request-type-selection ───────────────────────────────
+# ── AC3: Header top plus → request-type-selection ─────────────────────────────
 - launchApp:
     clearState: true
     arguments:
@@ -151,11 +151,11 @@ appId: ${APP_ID}
     id: "shell_tab_requests"
 
 - tapOn:
-    id: "orders_home_new_order_fab"
+    id: "orders_create_request_button"
 
 - extendedWaitUntil:
     visible:
       id: "request_type_continue_cta"
     timeout: 15000
 
-- takeScreenshot: jm023_ac3_fab_to_request_type
+- takeScreenshot: jm023_ac3_top_plus_to_request_type

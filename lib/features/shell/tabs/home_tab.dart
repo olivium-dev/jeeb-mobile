@@ -28,11 +28,7 @@ import '../../home_client/presentation/client_home_screen.dart';
 /// `/api/clients/me/home-summary` endpoint exists. Callers can inject a
 /// real repository through the constructor (used by widget tests).
 class HomeTab extends StatelessWidget {
-  const HomeTab({
-    super.key,
-    this.repository,
-    this.greetingNameProvider,
-  });
+  const HomeTab({super.key, this.repository, this.greetingNameProvider});
 
   /// Injection hook so tests + the future DI wiring can swap in a Dio-
   /// backed repository without modifying the tab.
@@ -87,7 +83,6 @@ class HomeTab extends StatelessWidget {
         onCreateRequest: () => _openRequestType(context),
         onOpenRequest: (request) => _openChat(context, request),
         onTrack: (request) => _openTracking(context, request),
-        onRecordVoice: () => _openVoiceRequest(context),
       ),
     );
   }
@@ -166,7 +161,8 @@ class HomeTab extends StatelessWidget {
     }
   }
 
-  /// Opens the delivery-create flow from the home "+" FAB. Wiring this non-null
+  /// Opens the delivery-create flow from the Requests header top plus
+  /// (`orders_create_request_button`). Wiring this non-null
   /// callback is what makes the `IconButton.filled` render ENABLED (navy
   /// `colorScheme.primary` fill) instead of the disabled-gray state a null
   /// `onPressed` produces — see `client_home_greeting.dart` `_AddRequestButton`.
@@ -183,10 +179,13 @@ class HomeTab extends StatelessWidget {
   /// wasted 404 probe. Fall back to the conversationId only when no request id
   /// is available.
   void _openChat(BuildContext context, ClientHomeRequest request) {
-    final target =
-        request.id.isNotEmpty ? request.id : (request.conversationId ?? '');
+    final target = request.id.isNotEmpty
+        ? request.id
+        : (request.conversationId ?? '');
     if (target.isEmpty) return;
-    GoRouter.of(context).pushNamed('chat-detail', pathParameters: {'id': target});
+    GoRouter.of(
+      context,
+    ).pushNamed('chat-detail', pathParameters: {'id': target});
   }
 
   /// Routes an in-progress card's "Track my order" CTA to the live-tracking
@@ -209,11 +208,5 @@ class HomeTab extends StatelessWidget {
           'deliveryId': request.deliveryId!,
       },
     );
-  }
-
-  /// Opens the voice-request capture flow (`/voice-request`, route
-  /// `voice-request`) from the home voice CTA.
-  void _openVoiceRequest(BuildContext context) {
-    GoRouter.of(context).pushNamed('voice-request');
   }
 }
