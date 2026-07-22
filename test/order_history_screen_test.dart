@@ -24,6 +24,21 @@ class _FetchCall {
   final OrderDateRange range;
 }
 
+/// Mirrors the non-linear-capable [SystemTextScaler] supplied by Android.
+///
+/// Even at the S24's 1.0 system font scale this must not be replaced by
+/// [TextScaler.linear]: the linear implementation optimizes app-level clamps
+/// away and therefore cannot reproduce nested framework clamp composition.
+class _DeviceTextScaler extends TextScaler {
+  const _DeviceTextScaler(this.textScaleFactor);
+
+  @override
+  final double textScaleFactor;
+
+  @override
+  double scale(double fontSize) => fontSize * textScaleFactor;
+}
+
 class _FakeRepo implements OrderRepository {
   _FakeRepo(this._orders);
 
@@ -77,6 +92,7 @@ Widget _host(
   OrderRepository repo, {
   RoleCubit? roleCubit,
   double textScaleFactor = 1,
+  TextScaler? textScaler,
   int pageSize = 2,
 }) {
   final cubit = OrderHistoryCubit(repository: repo, pageSize: pageSize);
@@ -120,7 +136,7 @@ Widget _host(
     builder: (context, child) {
       final scaled = MediaQuery.of(
         context,
-      ).copyWith(textScaler: TextScaler.linear(textScaleFactor));
+      ).copyWith(textScaler: textScaler ?? TextScaler.linear(textScaleFactor));
       return MediaQuery(
         data: scaled,
         child: Builder(
@@ -132,6 +148,35 @@ Widget _host(
 }
 
 void main() {
+  testWidgets(
+    'S24 regression: From opens DatePickerDialog with the device 1.0 scaler',
+    (tester) async {
+      tester.view.physicalSize = const Size(1080, 2340);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final repo = _FakeRepo({
+        OrderHistoryTab.active: [_o('s24-order', OrderRequestStatus.enRoute)],
+      });
+      final installedRouteScaler = const _DeviceTextScaler(
+        1,
+      ).clamp(minScaleFactor: 1, maxScaleFactor: A11y.maxTextScaleFactor);
+      await tester.pumpWidget(_host(repo, textScaler: installedRouteScaler));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.bySemanticsIdentifier('order_history_filter_chip'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.bySemanticsIdentifier('order_history_sheet_from_cta'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DatePickerDialog), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('renders the three tabs', (tester) async {
     final repo = _FakeRepo({
       OrderHistoryTab.active: [_o('a1', OrderRequestStatus.enRoute)],

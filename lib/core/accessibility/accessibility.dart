@@ -24,16 +24,50 @@ class A11y {
   static const double maxTextScaleFactor = 2.0;
 
   /// Returns a copy of [data] with its text scaler capped at
-  /// [maxTextScaleFactor]. Keeping the lower bound unconstrained is important:
-  /// framework widgets such as Material's date picker apply their own tighter
-  /// maximum, and nested clamps must retain a valid range.
+  /// [maxTextScaleFactor]. The cap deliberately delegates scaling instead of
+  /// calling [TextScaler.clamp]: framework widgets such as Material's date
+  /// picker apply their own tighter clamps, and intersecting their limits with
+  /// an inherited private clamp can create an invalid min == max range.
   static MediaQueryData clampTextScaler(MediaQueryData data) {
     return data.copyWith(
-      textScaler: data.textScaler.clamp(
+      textScaler: _MaxTextScaler(
+        delegate: data.textScaler,
         maxScaleFactor: maxTextScaleFactor,
       ),
     );
   }
+}
+
+/// Caps a scaler's output without carrying any existing clamp bounds forward.
+///
+/// [TextScaler.clamp] remains available through the base implementation, so a
+/// descendant starts a fresh range around this delegate instead of intersecting
+/// with an app-level `_ClampedTextScaler` range.
+class _MaxTextScaler extends TextScaler {
+  const _MaxTextScaler({required this.delegate, required this.maxScaleFactor});
+
+  final TextScaler delegate;
+  final double maxScaleFactor;
+
+  @override
+  double scale(double fontSize) {
+    final scaled = delegate.scale(fontSize);
+    final maximum = maxScaleFactor * fontSize;
+    return scaled > maximum ? maximum : scaled;
+  }
+
+  @override
+  double get textScaleFactor => scale(1);
+
+  @override
+  bool operator ==(Object other) {
+    return other is _MaxTextScaler &&
+        other.delegate == delegate &&
+        other.maxScaleFactor == maxScaleFactor;
+  }
+
+  @override
+  int get hashCode => Object.hash(delegate, maxScaleFactor);
 }
 
 /// Builder for [MaterialApp.builder] that enforces [A11y.clampTextScaler] for
