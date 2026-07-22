@@ -174,9 +174,7 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
     // SM-S921B, run-26). A CustomScrollView lets the whole body scroll
     // instead of overflow when squeezed — the same remedy `_NoRequestsScope`
     // above already applies for its own tall-content overflow (Fix 6(b)).
-    return SafeArea(
-      key: JeeberFeedTabView.rootKey,
-      child: CustomScrollView(
+    final scrollView = CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           SliverToBoxAdapter(
@@ -205,12 +203,30 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
           if (isOffline) SliverToBoxAdapter(child: _OfflineBanner()),
           if (!isOffline)
             ..._feedControls().map((w) => SliverToBoxAdapter(child: w)),
-          SliverFillRemaining(
-            hasScrollBody: true,
-            child: _feedContent(isOffline),
-          ),
+          // JEBV4 feed-invisibility fix: the active-deliveries banner rides as
+          // its OWN sliver, not as row 0 of the feed list. Inside the list it
+          // consumed the whole `SliverFillRemaining` viewport (~209dp on
+          // SM-S908B once the greeting + availability + search + tab/tier
+          // strips are laid out), so the request rows below it were never even
+          // built — an online jeeber saw an empty feed while the gateway was
+          // returning pending requests. As a sliver the banner scrolls with the
+          // page and the list keeps its full viewport for requests.
+          if (!isOffline && widget.leadingBanner != null)
+            SliverToBoxAdapter(child: widget.leadingBanner!),
+          ..._feedSlivers(isOffline),
         ],
-      ),
+    );
+    // Pull-to-refresh owns the whole page (it used to wrap only the inner feed
+    // list). Offline there is no feed cubit contract to refresh, so the plain
+    // scroll view is returned.
+    return SafeArea(
+      key: JeeberFeedTabView.rootKey,
+      child: isOffline
+          ? scrollView
+          : OmdsPullToRefresh(
+              onRefresh: () => context.read<RequestFeedCubit>().refresh(),
+              child: scrollView,
+            ),
     );
   }
 
@@ -226,29 +242,48 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
           ),
       ];
 
-  Widget _feedContent(bool isOffline) {
-    if (isOffline) return const _OfflineEmptyBody();
+  /// The feed body as SLIVERS of the page's own scroll view.
+  ///
+  /// It used to be one `SliverFillRemaining(hasScrollBody: true)` holding a
+  /// nested `ListView`. That nested viewport was only what the header stack
+  /// left over (~209dp on SM-S908B), so its rows were laid out inside a box far
+  /// too small to show them and the outer scroll view — being exactly viewport
+  /// sized — had nothing to scroll, leaving the rows unreachable. Flattening
+  /// the rows into the page's slivers means one scroll surface for everything.
+  List<Widget> _feedSlivers(bool isOffline) {
+    if (isOffline) {
+      return const [
+        SliverFillRemaining(hasScrollBody: false, child: _OfflineEmptyBody()),
+      ];
+    }
     // JM-048 AC3: the Pending-Response sub-tab is backed by the jeeber's
     // submitted offers (real data) when a [SubmittedOffersCubit] is supplied;
     // otherwise it falls back to the request-feed-derived pending view.
     if (_activeTab == JeeberFeedTab.pendingResponse &&
         widget.submittedOffersCubit != null) {
-      return _PendingOffersList(
-        cubit: widget.submittedOffersCubit!,
-        // JM-047 AC4 (RD-2): the pending sub-tab's back edge → delivery-requests.
-        // Tabs are not routes here (the feed lives inside the shell), so "back"
-        // switches the active sub-tab back to Requests (jeeber-requests-home).
-        onBack: () => _onTabChanged(JeeberFeedTab.requests),
-      );
+      return [
+        SliverFillRemaining(
+          hasScrollBody: true,
+          child: _PendingOffersList(
+            cubit: widget.submittedOffersCubit!,
+            // JM-047 AC4 (RD-2): the pending sub-tab's back edge →
+            // delivery-requests. Tabs are not routes here (the feed lives
+            // inside the shell), so "back" switches the active sub-tab back to
+            // Requests (jeeber-requests-home).
+            onBack: () => _onTabChanged(JeeberFeedTab.requests),
+          ),
+        ),
+      ];
     }
-    return _FeedRequestList(
-      activeTab: _activeTab,
-      tierFilter: _tierFilter,
-      query: _query,
-      onOpenRequest: widget.onOpenRequest,
-      onMakeOffer: (req) => _onMakeOffer(context, req),
-      leadingBanner: widget.leadingBanner,
-    );
+    return [
+      _FeedRequestSliver(
+        activeTab: _activeTab,
+        tierFilter: _tierFilter,
+        query: _query,
+        onOpenRequest: widget.onOpenRequest,
+        onMakeOffer: (req) => _onMakeOffer(context, req),
+      ),
+    ];
   }
 
   void _onTabChanged(JeeberFeedTab? next) {
@@ -459,14 +494,19 @@ class _FeedTabStrip extends StatelessWidget {
   }
 }
 
-class _FeedRequestList extends StatelessWidget {
-  const _FeedRequestList({
+/// The request rows as a SLIVER of the page scroll view.
+///
+/// Sliver (not a nested `ListView`) so the rows share the page's single scroll
+/// surface: a tall active-deliveries banner above them pushes them down the
+/// page instead of squeezing them out of a fixed-height inner viewport, and
+/// they stay reachable by scrolling.
+class _FeedRequestSliver extends StatelessWidget {
+  const _FeedRequestSliver({
     required this.activeTab,
     required this.tierFilter,
     required this.query,
     required this.onOpenRequest,
     required this.onMakeOffer,
-    this.leadingBanner,
   });
 
   final JeeberFeedTab activeTab;
@@ -474,33 +514,30 @@ class _FeedRequestList extends StatelessWidget {
   final String query;
   final ValueChanged<DeliveryRequest>? onOpenRequest;
   final ValueChanged<DeliveryRequest> onMakeOffer;
-  final Widget? leadingBanner;
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<RequestFeedCubit, RequestFeedState>(
-      builder: (context, state) => _FeedRequestListBody(
+      builder: (context, state) => _FeedRequestSliverBody(
         state: state,
         activeTab: activeTab,
         tierFilter: tierFilter,
         query: query,
         onOpenRequest: onOpenRequest,
         onMakeOffer: onMakeOffer,
-        leadingBanner: leadingBanner,
       ),
     );
   }
 }
 
-class _FeedRequestListBody extends StatelessWidget {
-  const _FeedRequestListBody({
+class _FeedRequestSliverBody extends StatelessWidget {
+  const _FeedRequestSliverBody({
     required this.state,
     required this.activeTab,
     required this.tierFilter,
     required this.query,
     required this.onOpenRequest,
     required this.onMakeOffer,
-    this.leadingBanner,
   });
 
   final RequestFeedState state;
@@ -509,26 +546,58 @@ class _FeedRequestListBody extends StatelessWidget {
   final String query;
   final ValueChanged<DeliveryRequest>? onOpenRequest;
   final ValueChanged<DeliveryRequest> onMakeOffer;
-  final Widget? leadingBanner;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final visible = _visibleRequests(state.requests);
-    return OmdsPullToRefresh(
-      onRefresh: () => context.read<RequestFeedCubit>().refresh(),
-      // PUSH-UI-REACTION: even when the visible tab has NO requests, render the
-      // active-deliveries banner above the empty state (inside a scroll view so
-      // pull-to-refresh still fires) — a just-won delivery must surface here too.
-      child: visible.isEmpty
-          ? _EmptyTabWithBanner(l10n: l10n, leadingBanner: leadingBanner)
-          : _FeedListView(
-              requests: visible,
-              expiredIds: state.expiredIds,
-              onOpenRequest: onOpenRequest,
-              onMakeOffer: onMakeOffer,
-              leadingBanner: leadingBanner,
-            ),
+    if (visible.isEmpty) {
+      return SliverFillRemaining(
+        hasScrollBody: true,
+        child: _EmptyTabState(l10n: l10n),
+      );
+    }
+    final cubit = context.read<RequestFeedCubit>();
+    // JM-048: the FIRST incoming row exposes the screen-level
+    // `feed_make_offer_cta` so the QA flow taps an unambiguous make-offer CTA
+    // — never an expired card, whose offer affordance is inert.
+    final firstIncomingIndex = visible.indexWhere(
+      (r) =>
+          r.feedStatus == JeeberFeedItemStatus.incoming &&
+          !state.expiredIds.contains(r.id),
+    );
+    return SliverPadding(
+      padding: const EdgeInsetsDirectional.symmetric(vertical: Spacing.small),
+      sliver: SliverList.builder(
+        key: JeeberFeedTabView.listKey,
+        itemCount: visible.length,
+        itemBuilder: (context, index) {
+          final request = visible[index];
+          return JeeberFeedCard(
+            request: request,
+            isExpired: state.expiredIds.contains(request.id),
+            // JM-048: card tap opens detail; the "Offer" button routes through
+            // the KYC gate / composer (D38), distinct from a plain detail open.
+            // POST-ACCEPT ENTRY POINT: an ACCEPTED (Replies-tab) card is the
+            // jeeber's surface for a delivery whose offer the customer
+            // accepted — tapping it opens the order conversation (chat-detail
+            // keyed on the request id == correlationKey, resolved against the
+            // live gateway), NOT the pre-offer make-offer/decline detail.
+            onTap: request.feedStatus == JeeberFeedItemStatus.accepted
+                ? () => GoRouter.of(context).pushNamed(
+                      'chat-detail',
+                      pathParameters: {'id': request.id},
+                    )
+                : onOpenRequest == null
+                    ? null
+                    : () => onOpenRequest!(request),
+            onIgnore: () => cubit.decline(request.id),
+            onOffer: () => onMakeOffer(request),
+            onAdvanceStatus: () => cubit.accept(request.id),
+            exposeMakeOfferId: index == firstIncomingIndex,
+          );
+        },
+      ),
     );
   }
 
@@ -572,113 +641,6 @@ class _FeedRequestListBody extends StatelessWidget {
   }
 }
 
-class _FeedListView extends StatelessWidget {
-  const _FeedListView({
-    required this.requests,
-    required this.expiredIds,
-    required this.onOpenRequest,
-    required this.onMakeOffer,
-    this.leadingBanner,
-  });
-
-  final List<DeliveryRequest> requests;
-
-  /// G3: ids in their expired-linger window — their card renders the faded
-  /// "Expired" state (actions inert) until the cubit's sweep collapses it.
-  final Set<String> expiredIds;
-
-  final ValueChanged<DeliveryRequest>? onOpenRequest;
-  final ValueChanged<DeliveryRequest> onMakeOffer;
-
-  /// PUSH-UI-REACTION: an optional card rendered as the first, scrolling item
-  /// above the request rows (self-hides to zero height when empty).
-  final Widget? leadingBanner;
-
-  @override
-  Widget build(BuildContext context) {
-    final cubit = context.read<RequestFeedCubit>();
-    // JM-048: the FIRST incoming row exposes the screen-level
-    // `feed_make_offer_cta` so the QA flow taps an unambiguous make-offer CTA
-    // — never an expired card, whose offer affordance is inert.
-    final firstIncomingIndex = requests.indexWhere(
-      (r) =>
-          r.feedStatus == JeeberFeedItemStatus.incoming &&
-          !expiredIds.contains(r.id),
-    );
-    // Offset every request row by one when a leading banner rides at index 0, so
-    // the make-offer-cta / expired logic stays keyed to the request itself.
-    final hasBanner = leadingBanner != null;
-    final leadCount = hasBanner ? 1 : 0;
-    return ListView.builder(
-      key: JeeberFeedTabView.listKey,
-      padding: const EdgeInsetsDirectional.symmetric(vertical: Spacing.small),
-      itemCount: requests.length + leadCount,
-      itemBuilder: (context, rawIndex) {
-        if (hasBanner && rawIndex == 0) return leadingBanner!;
-        final index = rawIndex - leadCount;
-        return JeeberFeedCard(
-          request: requests[index],
-          isExpired: expiredIds.contains(requests[index].id),
-        // JM-048: card tap opens detail; the "Offer" button routes through the
-        // KYC gate / composer (D38), distinct from a plain detail open.
-        // POST-ACCEPT ENTRY POINT: an ACCEPTED (Replies-tab) card is the
-        // jeeber's surface for a delivery whose offer the customer accepted —
-        // tapping it opens the order conversation (chat-detail keyed on the
-        // request id == correlationKey, resolved against the live gateway),
-        // NOT the pre-offer make-offer/decline detail.
-        onTap: requests[index].feedStatus == JeeberFeedItemStatus.accepted
-            ? () => GoRouter.of(context).pushNamed(
-                  'chat-detail',
-                  pathParameters: {'id': requests[index].id},
-                )
-            : onOpenRequest == null
-                ? null
-                : () => onOpenRequest!(requests[index]),
-        onIgnore: () => cubit.decline(requests[index].id),
-        onOffer: () => onMakeOffer(requests[index]),
-        onAdvanceStatus: () => cubit.accept(requests[index].id),
-          exposeMakeOfferId: index == firstIncomingIndex,
-        );
-      },
-    );
-  }
-}
-
-/// The empty-tab state with the active-deliveries banner riding above it inside
-/// a scroll view (so pull-to-refresh still fires and a just-won delivery shows
-/// even when the visible tab has no requests). Falls back to the bare, centered
-/// empty state when no banner is injected.
-class _EmptyTabWithBanner extends StatelessWidget {
-  const _EmptyTabWithBanner({required this.l10n, this.leadingBanner});
-
-  final AppLocalizations l10n;
-  final Widget? leadingBanner;
-
-  @override
-  Widget build(BuildContext context) {
-    final banner = leadingBanner;
-    if (banner == null) return _EmptyTabState(l10n: l10n);
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              banner,
-              OmdsEmptyState(
-                icon: Icons.inbox_outlined,
-                title: l10n.jeeberFeedEmptyTitle,
-                subtitle: l10n.jeeberFeedEmptySubtitle,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _EmptyTabState extends StatelessWidget {
   const _EmptyTabState({required this.l10n});

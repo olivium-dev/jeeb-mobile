@@ -354,11 +354,19 @@ class _AttachSection extends StatelessWidget {
             spacing: Spacing.xSmall,
             children: paths.indexed
                 .map(
-                  (e) => OmdsChip(
-                    label: l10n.escalatePhotoAttached(e.$1 + 1),
-                    isSelected: true,
-                    onTap: () =>
-                        context.read<SupportCubit>().removeAttachment(e.$2),
+                  (e) => Semantics(
+                    // Positional id — the attachment path is a device-native
+                    // placeholder with no stable backend id (precedent:
+                    // diag_session_row_$index). Tap removes the attachment.
+                    identifier: 'support_attach_item_${e.$1}',
+                    container: true,
+                    button: true,
+                    child: OmdsChip(
+                      label: l10n.escalatePhotoAttached(e.$1 + 1),
+                      isSelected: true,
+                      onTap: () =>
+                          context.read<SupportCubit>().removeAttachment(e.$2),
+                    ),
                   ),
                 )
                 .toList(),

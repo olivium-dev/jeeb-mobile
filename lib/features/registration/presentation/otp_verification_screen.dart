@@ -136,11 +136,16 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           appBar: OMDSAppBar(
             title: l10n.registrationOtpTitle,
             centerTitle: false,
-            leading: IconButton(
+            leading: Semantics(
+              identifier: 'phone_otp_back_cta',
+              button: true,
+              container: true,
+              child: IconButton(
               key: const Key('registration.otpBack'),
               icon: Icon(DirectionalIcons.back(context)),
               onPressed: () =>
                   context.read<RegistrationCubit>().changePhone(),
+            ),
             ),
           ),
           body: SafeArea(
@@ -218,12 +223,17 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       secondsRemaining: state.resendSecondsRemaining,
                     ),
                     const SizedBox(height: Spacing.small),
-                    OmdsPrimaryButton(
+                    Semantics(
+                      identifier: 'phone_otp_change_phone_cta',
+                      button: true,
+                      container: true,
+                      child: OmdsPrimaryButton(
                       key: const Key('registration.changePhone'),
                       text: l10n.registrationChangePhone,
                       variant: OmdsButtonVariant.text,
                       onTap: () =>
                           context.read<RegistrationCubit>().changePhone(),
+                    ),
                     ),
                   ],
                 ],

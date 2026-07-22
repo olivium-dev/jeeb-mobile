@@ -179,10 +179,7 @@ class DioRequestFeedRepository implements RequestFeedRepository {
     final distanceMeters = (json['distanceMeters'] as num?)?.toDouble();
     final expiresRaw =
         json['broadcastExpiresAt'] as String? ?? json['expiresAt'] as String?;
-    final expires = expiresRaw != null
-        ? _parseServerTime(expiresRaw) ??
-              DateTime.now().add(const Duration(minutes: 5))
-        : DateTime.now().add(const Duration(minutes: 5));
+    final expires = expiresRaw == null ? null : _parseServerTime(expiresRaw);
     final createdRaw = json['createdAt'] as String?;
     return DeliveryRequest(
       id: id,
@@ -195,8 +192,9 @@ class DioRequestFeedRepository implements RequestFeedRepository {
       currency: currency,
       expiresAt: expires,
       // Privacy: the feed strips `clientId`; `senderName` is only present on
-      // the legacy shape.
-      senderName: json['senderName'] as String? ?? json['clientId'] as String?,
+      // the legacy shape. Never substitute an opaque id as a person's name —
+      // the card owns a localized, intentional identity fallback.
+      senderName: json['senderName'] as String?,
       senderAvatarUrl: json['senderAvatarUrl'] as String?,
       // `description` is the deliverable summary the client authored for
       // jeebers (the card body line).
@@ -280,7 +278,7 @@ class DioRequestFeedRepository implements RequestFeedRepository {
     return null;
   }
 
-  JeeberRequestTier _parseTier(String? raw) {
+  JeeberRequestTier? _parseTier(String? raw) {
     switch (raw) {
       case 'flash':
         return JeeberRequestTier.flash;
@@ -295,7 +293,7 @@ class DioRequestFeedRepository implements RequestFeedRepository {
       case 'bulk':
         return JeeberRequestTier.bulk;
       default:
-        return JeeberRequestTier.light;
+        return null;
     }
   }
 }

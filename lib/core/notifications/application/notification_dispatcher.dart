@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:go_router/go_router.dart';
 
 import '../../diagnostics/diag.dart';
+import '../../observability/session_trace/session_trace.dart';
 import '../data/push_transport.dart';
 import '../domain/notification_deep_link.dart';
 import '../domain/notification_message.dart';
@@ -53,6 +54,14 @@ class NotificationDispatcher {
       'deepLink': path,
       'resolved': path != null,
     });
+    // Session-trace observability tool (devtool-only, Module 3): richer,
+    // redacted OPENED event alongside the `[jeeb-diag]` line above. Emitted
+    // even when `path` is null (the tap itself is still an observed signal;
+    // it just records no destination). Hard no-op (tree-shaken out) in a
+    // production build.
+    if (kObsCompiledIn) {
+      ObsNotificationRecorder.recordOpened(message, deepLink: path);
+    }
     if (path == null) return;
     _router.go(path);
   }

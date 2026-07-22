@@ -29,20 +29,24 @@ class OtpHandoverScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: OMDSAppBar(
-        title: isClient
-            ? l10n.otpHandoverClientTitle
-            : l10n.otpHandoverJeeberTitle,
-        showBackButton: true,
-      ),
-      body: BlocConsumer<OtpHandoverCubit, OtpHandoverState>(
-        listenWhen: _shouldListen,
-        listener: _onStateChange,
-        builder: (context, state) => _OtpBody(
-          state: state,
-          isClient: isClient,
-          deliveryId: deliveryId,
+    return Semantics(
+      identifier: 'otp_handover_root',
+      container: true,
+      child: Scaffold(
+        appBar: OMDSAppBar(
+          title: isClient
+              ? l10n.otpHandoverClientTitle
+              : l10n.otpHandoverJeeberTitle,
+          showBackButton: true,
+        ),
+        body: BlocConsumer<OtpHandoverCubit, OtpHandoverState>(
+          listenWhen: _shouldListen,
+          listener: _onStateChange,
+          builder: (context, state) => _OtpBody(
+            state: state,
+            isClient: isClient,
+            deliveryId: deliveryId,
+          ),
         ),
       ),
     );
@@ -184,11 +188,18 @@ class _DoneBody extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: Spacing.xLarge),
-            OmdsLoadingButton(
-              text: l10n.otpRateNowCta,
-              isLoading: false,
-              isEnabled: true,
-              onTap: () => context.go(_mutualRateRoute(deliveryId, isClient)),
+            Semantics(
+              // Post-verify success-state rate-now CTA (shared by both legs).
+              // Distinct from the client OTP-display's `client_otp_rate_now`.
+              identifier: 'otp_done_rate_now',
+              container: true,
+              button: true,
+              child: OmdsLoadingButton(
+                text: l10n.otpRateNowCta,
+                isLoading: false,
+                isEnabled: true,
+                onTap: () => context.go(_mutualRateRoute(deliveryId, isClient)),
+              ),
             ),
           ],
         ),

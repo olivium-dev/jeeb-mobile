@@ -24,21 +24,17 @@ import '../domain/waiting_request.dart';
 /// This screen only READS the resulting state, so it does not re-broadcast.
 class DioWaitingRepository implements WaitingRepository {
   DioWaitingRepository(Dio dio, {SingleFlightGet? coalescer})
-      : _dio = dio,
-        // FIX-A: share the single-flight coalescer so this screen's
-        // `GET /v1/offers?requestId` offer-count probe collapses onto the same
-        // wire call the offers-review and home pollers issue for the same id.
-        _coalescer = coalescer ?? SingleFlightGet(dio);
+    : _dio = dio,
+      // FIX-A: share the single-flight coalescer so this screen's
+      // `GET /v1/offers?requestId` offer-count probe collapses onto the same
+      // wire call the offers-review and home pollers issue for the same id.
+      _coalescer = coalescer ?? SingleFlightGet(dio);
 
   final Dio _dio;
   final SingleFlightGet _coalescer;
 
   static const _requestsPath = '/v1/requests';
   static const _offersPath = '/v1/offers';
-
-  // Gateway omits a broadcast deadline on some payloads; fall back to a local
-  // 5-minute window so `waiting_countdown` always renders.
-  static const Duration _defaultWindow = Duration(minutes: 5);
 
   @override
   Future<WaitingRequest> fetchWaiting(String requestId) async {
@@ -90,7 +86,8 @@ class DioWaitingRepository implements WaitingRepository {
       if (data is List) {
         items = data;
       } else if (data is Map<String, dynamic>) {
-        items = (data['offers'] as List?) ??
+        items =
+            (data['offers'] as List?) ??
             (data['items'] as List?) ??
             const <dynamic>[];
       } else {
@@ -134,20 +131,41 @@ class DioWaitingRepository implements WaitingRepository {
   }
 
   WaitingRequestPhase _phaseFor(String? status, int offerCount) {
-    if (offerCount > 0 || status == 'offers-received') {
+    final normalized = (status ?? '').trim().toLowerCase().replaceAll('_', '-');
+    // Status is authoritative and wins over stale denormalised offer counts.
+    // In particular, an old offer must not resurrect a cancelled/expired/
+    // matched request as an active offer-review flow.
+    switch (normalized) {
+      case 'matched':
+      case 'accepted':
+      case 'picked':
+      case 'picked-up':
+      case 'in-transit':
+      case 'at-door':
+      case 'heading-off':
+        return WaitingRequestPhase.matched;
+      case 'cancelled':
+      case 'canceled':
+        return WaitingRequestPhase.cancelled;
+      case 'expired':
+        return WaitingRequestPhase.expired;
+      case 'delivered':
+      case 'done':
+      case 'rated':
+        return WaitingRequestPhase.closed;
+    }
+    if (offerCount > 0 || normalized == 'offers-received') {
       return WaitingRequestPhase.offersArrived;
     }
-    if (status == 'pending') return WaitingRequestPhase.broadcasting;
-    // accepted / matched / cancelled / delivered / expired — nothing to wait
-    // for on this pre-accept surface.
-    if (status == null) return WaitingRequestPhase.broadcasting;
+    if (normalized.isEmpty || normalized == 'pending') {
+      return WaitingRequestPhase.broadcasting;
+    }
+    // Any other server phase has left this narrowly-scoped waiting flow.
     return WaitingRequestPhase.closed;
   }
 
-  DateTime _parseDeadline(String? raw) {
-    if (raw == null) return DateTime.now().add(_defaultWindow);
-    return DateTime.tryParse(raw) ?? DateTime.now().add(_defaultWindow);
-  }
+  DateTime? _parseDeadline(String? raw) =>
+      raw == null ? null : DateTime.tryParse(raw);
 
   Never _rethrowRequest(DioException e) {
     final status = e.response?.statusCode;

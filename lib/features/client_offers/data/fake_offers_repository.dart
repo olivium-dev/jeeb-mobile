@@ -18,7 +18,7 @@ class FakeOffersRepository implements OffersRepository {
     Duration incomingInterval = const Duration(seconds: 5),
     OffersFailure? acceptFailure,
   })  : _windowExpiresAt =
-            windowExpiresAt ?? DateTime.now().add(const Duration(minutes: 5)),
+            windowExpiresAt ?? DateTime.now().add(const Duration(minutes: 15)),
         _offers = List<Offer>.of(seed ?? _defaultSeed()),
         _incoming = List<Offer>.of(incoming ?? const <Offer>[]),
         _incomingInterval = incomingInterval,

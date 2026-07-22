@@ -43,7 +43,9 @@ class OrderHistoryCard extends StatelessWidget {
         amountKnown ? amountLabel : l10n.orderHistoryAmountUnavailable;
 
     return Semantics(
+      identifier: 'order_history_card_${order.id}',
       button: true,
+      container: true,
       label: l10n.orderHistoryCardSemanticLabel(order.id),
       child: InkWell(
         key: Key('order-history-card-${order.id}'),

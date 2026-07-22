@@ -33,10 +33,15 @@ class _MaskedCallButtonView extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocConsumer<MaskedCallCubit, MaskedCallState>(
       listener: _onState,
-      builder: (context, state) => OmdsLoadingButton(
-        text: AppLocalizations.of(context).callButtonLabel,
-        isLoading: state.isLoading,
-        onTap: () => context.read<MaskedCallCubit>().initiateCall(orderId),
+      builder: (context, state) => Semantics(
+        identifier: 'masked_call_cta',
+        button: true,
+        container: true,
+        child: OmdsLoadingButton(
+          text: AppLocalizations.of(context).callButtonLabel,
+          isLoading: state.isLoading,
+          onTap: () => context.read<MaskedCallCubit>().initiateCall(orderId),
+        ),
       ),
     );
   }

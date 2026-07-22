@@ -1710,6 +1710,10 @@
   "@jeeberFeedOfferAction": {
     "description": "Primary action on an incoming feed card — opens the offer submission flow"
   },
+  "jeeberFeedAnonymousClient": "Customer",
+  "@jeeberFeedAnonymousClient": {
+    "description": "Intentional Jeeber-feed identity fallback while the privacy-filtered gateway item omits customer name and avatar"
+  },
   "jeeberFeedDistanceAway": "{distance} away from you",
   "@jeeberFeedDistanceAway": {
     "description": "Distance from the Jeeber to the request pickup; distance is pre-formatted with its unit",
@@ -3227,17 +3231,65 @@
   "@pendingTabRetryCta": {
     "description": "CTA button label on an expired pending request card."
   },
+  "pendingTabSearchingLabel": "Searching for Jeebers…",
+  "@pendingTabSearchingLabel": {
+    "description": "Sub-line shown on each pending request card while the system is finding a Jeeber (Figma 56535:1783 / T-MOB-007)."
+  },
   "pendingTabReconnecting": "Reconnecting…",
   "@pendingTabReconnecting": {
     "description": "Faint banner shown at the top of the Pending tab when the WebSocket is disconnected and falling back to polling."
   },
-  "pendingCardA11yLabel": "Pending request {title}, {ttl} remaining",
+  "pendingCardA11yLabel": "Pending request {title}, {ttl}",
   "@pendingCardA11yLabel": {
     "description": "Accessibility label for a pending request card.",
     "placeholders": {
       "title": { "type": "String", "example": "ORD-23470" },
       "ttl": { "type": "String", "example": "~10:00 left" }
     }
+  },
+  "pendingCardOffersBadgeZero": "No offers",
+  "pendingCardOffersBadgeOne": "1 offer",
+  "pendingCardOffersBadgeTwo": "2 offers",
+  "pendingCardOffersBadgeFew": "{count} offers",
+  "pendingCardOffersBadgeMany": "{count} offers",
+  "pendingCardOffersBadgeOther": "{count} offers",
+  "@pendingCardOffersBadgeOther": {
+    "description": "Badge on a pending request card showing how many offers have already arrived (surfaced instead of the flat 'Searching…' line). All six Arabic CLDR plural forms are provided; English reuses one/other.",
+    "placeholders": { "count": { "type": "int", "example": "3" } }
+  },
+  "pendingCardCreatedJustNow": "Created just now",
+  "@pendingCardCreatedJustNow": {
+    "description": "Age line on a pending request card created less than a minute ago (or on clock skew). Derived from the server createdAt instant only — a past fact, never a fabricated deadline/countdown."
+  },
+  "pendingCardCreatedMinutesZero": "Created just now",
+  "pendingCardCreatedMinutesOne": "Created 1 minute ago",
+  "pendingCardCreatedMinutesTwo": "Created 2 minutes ago",
+  "pendingCardCreatedMinutesFew": "Created {count} minutes ago",
+  "pendingCardCreatedMinutesMany": "Created {count} minutes ago",
+  "pendingCardCreatedMinutesOther": "Created {count} minutes ago",
+  "@pendingCardCreatedMinutesOther": {
+    "description": "Age line: whole minutes since the pending request's server createdAt. All six Arabic CLDR plural forms provided.",
+    "placeholders": { "count": { "type": "int", "example": "12" } }
+  },
+  "pendingCardCreatedHoursZero": "Created just now",
+  "pendingCardCreatedHoursOne": "Created 1 hour ago",
+  "pendingCardCreatedHoursTwo": "Created 2 hours ago",
+  "pendingCardCreatedHoursFew": "Created {count} hours ago",
+  "pendingCardCreatedHoursMany": "Created {count} hours ago",
+  "pendingCardCreatedHoursOther": "Created {count} hours ago",
+  "@pendingCardCreatedHoursOther": {
+    "description": "Age line: whole hours since the pending request's server createdAt. All six Arabic CLDR plural forms provided.",
+    "placeholders": { "count": { "type": "int", "example": "3" } }
+  },
+  "pendingCardCreatedDaysZero": "Created just now",
+  "pendingCardCreatedDaysOne": "Created 1 day ago",
+  "pendingCardCreatedDaysTwo": "Created 2 days ago",
+  "pendingCardCreatedDaysFew": "Created {count} days ago",
+  "pendingCardCreatedDaysMany": "Created {count} days ago",
+  "pendingCardCreatedDaysOther": "Created {count} days ago",
+  "@pendingCardCreatedDaysOther": {
+    "description": "Age line: whole days since the pending request's server createdAt. All six Arabic CLDR plural forms provided.",
+    "placeholders": { "count": { "type": "int", "example": "2" } }
   },
   "inProgressTabA11yLabel": "Active delivery {title}, status {status}, ETA {eta}",
   "@inProgressTabA11yLabel": {
@@ -4370,6 +4422,10 @@
   "@jeeberActiveDeliveriesOpenChat": {"description": "iter6: primary CTA on an active-delivery row — opens the order chat."},
   "jeeberActiveDeliveriesManage": "Manage delivery",
   "@jeeberActiveDeliveriesManage": {"description": "iter6: secondary CTA on an active-delivery row — opens the active-delivery (Ordered→…→AtDoor) screen."},
+  "jeeberActiveDeliveriesViewAll": "View all ({count})",
+  "@jeeberActiveDeliveriesViewAll": {"description": "UI-cap: disclosure toggle under the capped active-delivery list; reveals the deliveries hidden past the first two. {count} is the total number of active deliveries.", "placeholders": {"count": {"type": "int"}}},
+  "jeeberActiveDeliveriesShowLess": "Show less",
+  "@jeeberActiveDeliveriesShowLess": {"description": "UI-cap: collapses the expanded active-delivery list back to the first two cards."},
   "shellSearchLabel": "Search",
   "@shellSearchLabel": { "description": "Sprint-5 Stream C: shell header search affordance (orders_home_search / customer_profile_search) → search compose screen." },
   "searchTitle": "Search",

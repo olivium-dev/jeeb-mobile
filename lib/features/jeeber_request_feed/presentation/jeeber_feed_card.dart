@@ -11,15 +11,17 @@ import '../data/request_feed_models.dart';
 /// 26 `56560:1523`).
 ///
 /// One card renders a single [DeliveryRequest] as the Jeeber sees it: client
-/// avatar + name + rating + tier badge, an items summary, the distance line,
-/// and a status-driven action affordance:
+/// identity + time, an items summary, tier/distance metadata, and a
+/// status-driven action affordance. All of those elements share one bordered
+/// surface and one content column, so a missing gateway identity cannot split
+/// the row into visually unrelated fragments.
 ///
 /// * [JeeberFeedItemStatus.incoming] — Ignore (text) + Offer (filled pill).
 /// * [JeeberFeedItemStatus.pendingResponse] — italic "Pending" status.
 /// * [JeeberFeedItemStatus.accepted] — a delivery state-machine action pill.
 ///
-/// G3 graceful exit: when [isExpired] is true (the request's server
-/// `expiresAt` has passed and the card is in its brief linger window), the
+/// G3 graceful exit: when [isExpired] is true (a supplied server `expiresAt`
+/// has passed and the card is in its brief linger window), the
 /// card fades and the action row is replaced by an "Expired" status — the
 /// request never silently vanishes mid-glance.
 ///
@@ -56,9 +58,9 @@ class JeeberFeedCard extends StatelessWidget {
   /// Whether the accepted-status action button is mid-flight (shows a loader).
   final bool isActionBusy;
 
-  /// G3: the request's server `expiresAt` has passed and the card is in its
-  /// linger window — faded, actions replaced by the "Expired" status, taps
-  /// inert. The feed cubit removes it after the linger elapses.
+  /// G3: a supplied server `expiresAt` has passed and the card is in its linger
+  /// window — faded, actions replaced by the "Expired" status, taps inert. The
+  /// feed cubit removes it after the linger elapses.
   final bool isExpired;
 
   /// JM-048: when true, this card's "Offer" button additionally carries the
@@ -70,17 +72,9 @@ class JeeberFeedCard extends StatelessWidget {
   /// is inert for them.
   final bool exposeMakeOfferId;
 
-  /// Opacity the whole card fades to while expired. A named constant (not a
-  /// design token — OMDS has no opacity scale) so the dim level is single-
-  /// sourced and documented: content stays legible, but clearly inactive.
-  static const double _expiredOpacity = 0.55;
-
-  /// Fade duration for the expired transition — matches the Material
-  /// short-duration motion used elsewhere in the app.
-  static const Duration _expiredFadeDuration = Duration(milliseconds: 250);
-
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     // `explicitChildNodes: true` keeps the card identifier a non-merging
     // boundary so the nested `jeeber_feed_request_action_<id>` (and ignore/
     // offer) button ids stay independently queryable as their own native
@@ -90,20 +84,37 @@ class JeeberFeedCard extends StatelessWidget {
       button: !isExpired && onTap != null,
       explicitChildNodes: true,
       child: AnimatedOpacity(
-        opacity: isExpired ? _expiredOpacity : 1.0,
-        duration: _expiredFadeDuration,
-        child: InkWell(
-          key: Key('jeeber-feed-card-${request.id}'),
-          // An expired card is display-only for its linger window.
-          onTap: isExpired ? null : onTap,
-          child: _CardColumn(
-            request: request,
-            onIgnore: onIgnore,
-            onOffer: onOffer,
-            onAdvanceStatus: onAdvanceStatus,
-            isActionBusy: isActionBusy,
-            isExpired: isExpired,
-            exposeMakeOfferId: exposeMakeOfferId,
+        opacity: isExpired ? UIConstants.opacityDisabled : 1.0,
+        duration: UIConstants.animationFast,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.symmetric(
+            horizontal: Spacing.medium,
+            vertical: Spacing.xSmall,
+          ),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerLow,
+              borderRadius: OmdsBorderRadius.medium,
+              border: Border.all(
+                color: colorScheme.outlineVariant,
+                width: UIConstants.dividerWidth,
+              ),
+            ),
+            child: GestureDetector(
+              key: Key('jeeber-feed-card-${request.id}'),
+              behavior: HitTestBehavior.opaque,
+              // An expired card is display-only for its linger window.
+              onTap: isExpired ? null : onTap,
+              child: _CardColumn(
+                request: request,
+                onIgnore: onIgnore,
+                onOffer: onOffer,
+                onAdvanceStatus: onAdvanceStatus,
+                isActionBusy: isActionBusy,
+                isExpired: isExpired,
+                exposeMakeOfferId: exposeMakeOfferId,
+              ),
+            ),
           ),
         ),
       ),
@@ -132,42 +143,39 @@ class _CardColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.medium,
-        vertical: Spacing.small,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _CardRow(request: request),
-          if (isExpired)
-            _ExpiredStatus(requestId: request.id)
-          else
-            _ActionArea(
-              request: request,
-              onIgnore: onIgnore,
-              onOffer: onOffer,
-              onAdvanceStatus: onAdvanceStatus,
-              isActionBusy: isActionBusy,
-              exposeMakeOfferId: exposeMakeOfferId,
-            ),
-          _Timestamp(receivedAt: request.receivedAt),
-          Padding(
-            padding: const EdgeInsetsDirectional.only(top: Spacing.small),
-            child: Divider(height: 1, color: colorScheme.outlineVariant),
-          ),
-        ],
+      padding: const EdgeInsets.all(Spacing.medium),
+      child: _CardRow(
+        request: request,
+        onIgnore: onIgnore,
+        onOffer: onOffer,
+        onAdvanceStatus: onAdvanceStatus,
+        isActionBusy: isActionBusy,
+        isExpired: isExpired,
+        exposeMakeOfferId: exposeMakeOfferId,
       ),
     );
   }
 }
 
 class _CardRow extends StatelessWidget {
-  const _CardRow({required this.request});
+  const _CardRow({
+    required this.request,
+    required this.onIgnore,
+    required this.onOffer,
+    required this.onAdvanceStatus,
+    required this.isActionBusy,
+    required this.isExpired,
+    required this.exposeMakeOfferId,
+  });
 
   final DeliveryRequest request;
+  final VoidCallback? onIgnore;
+  final VoidCallback? onOffer;
+  final VoidCallback? onAdvanceStatus;
+  final bool isActionBusy;
+  final bool isExpired;
+  final bool exposeMakeOfferId;
 
   @override
   Widget build(BuildContext context) {
@@ -176,7 +184,17 @@ class _CardRow extends StatelessWidget {
       children: [
         _ClientAvatar(request: request),
         const SizedBox(width: Spacing.small),
-        Expanded(child: _CardInfo(request: request)),
+        Expanded(
+          child: _CardInfo(
+            request: request,
+            onIgnore: onIgnore,
+            onOffer: onOffer,
+            onAdvanceStatus: onAdvanceStatus,
+            isActionBusy: isActionBusy,
+            isExpired: isExpired,
+            exposeMakeOfferId: exposeMakeOfferId,
+          ),
+        ),
       ],
     );
   }
@@ -190,79 +208,107 @@ class _ClientAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final displayName = _clientDisplayName(context, request);
     return OmdsProfileAvatar(
-      initial: _initial(request.senderName),
+      key: const Key('jeeber-feed-card-avatar'),
+      initial: displayName[0].toUpperCase(),
       profilePicUrl: request.senderAvatarUrl,
       size: Sizes.fourXLarge,
       backgroundColor: colorScheme.surfaceContainerHigh,
       initialColor: colorScheme.primary,
     );
   }
-
-  static String _initial(String? name) {
-    final trimmed = name?.trim() ?? '';
-    return trimmed.isEmpty ? '?' : trimmed[0].toUpperCase();
-  }
 }
 
 class _CardInfo extends StatelessWidget {
-  const _CardInfo({required this.request});
+  const _CardInfo({
+    required this.request,
+    required this.onIgnore,
+    required this.onOffer,
+    required this.onAdvanceStatus,
+    required this.isActionBusy,
+    required this.isExpired,
+    required this.exposeMakeOfferId,
+  });
+
+  final DeliveryRequest request;
+  final VoidCallback? onIgnore;
+  final VoidCallback? onOffer;
+  final VoidCallback? onAdvanceStatus;
+  final bool isActionBusy;
+  final bool isExpired;
+  final bool exposeMakeOfferId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: const Key('jeeber-feed-card-content'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _IdentityBlock(request: request),
+        const SizedBox(height: Spacing.xSmall),
+        if (request.itemsSummary != null)
+          _SummaryLine(text: request.itemsSummary!),
+        if (request.distanceFromYouKm != null) ...[
+          const SizedBox(height: Spacing.xSmall),
+          _DistanceLine(distanceKm: request.distanceFromYouKm!),
+        ],
+        const SizedBox(height: Spacing.small),
+        _CardFooter(
+          request: request,
+          onIgnore: onIgnore,
+          onOffer: onOffer,
+          onAdvanceStatus: onAdvanceStatus,
+          isActionBusy: isActionBusy,
+          isExpired: isExpired,
+          exposeMakeOfferId: exposeMakeOfferId,
+        ),
+      ],
+    );
+  }
+}
+
+class _IdentityBlock extends StatelessWidget {
+  const _IdentityBlock({required this.request});
 
   final DeliveryRequest request;
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      key: const Key('jeeber-feed-card-identity'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _NameRow(request: request),
-        const SizedBox(height: Spacing.twoXSmall),
-        if (request.itemsSummary != null)
-          _SummaryLine(text: request.itemsSummary!),
-        if (request.distanceFromYouKm != null) ...[
-          const SizedBox(height: Spacing.twoXSmall),
-          _DistanceLine(distanceKm: request.distanceFromYouKm!),
-        ],
-      ],
-    );
-  }
-}
-
-class _NameRow extends StatelessWidget {
-  const _NameRow({required this.request});
-
-  final DeliveryRequest request;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Flexible(child: _ClientName(name: request.senderName)),
+        Row(
+          children: [
+            Expanded(child: _ClientName(request: request)),
+            const SizedBox(width: Spacing.xSmall),
+            _Timestamp(receivedAt: request.receivedAt),
+          ],
+        ),
         if (request.senderRating != null) ...[
-          const SizedBox(width: Spacing.small),
+          const SizedBox(height: Spacing.twoXSmall),
           _RatingCluster(rating: request.senderRating!),
         ],
-        const Spacer(),
-        _TierLabel(tier: request.tier),
       ],
     );
   }
 }
 
 class _ClientName extends StatelessWidget {
-  const _ClientName({required this.name});
+  const _ClientName({required this.request});
 
-  final String? name;
+  final DeliveryRequest request;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Text(
-      name ?? '',
-      style: theme.textTheme.titleLarge?.copyWith(
-        color: theme.colorScheme.secondaryContainer,
-        fontWeight: FontWeight.w400,
+      _clientDisplayName(context, request),
+      key: const Key('jeeber-feed-card-client-name'),
+      style: theme.textTheme.titleMedium?.copyWith(
+        color: theme.colorScheme.onSurface,
+        fontWeight: FontWeight.w600,
       ),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
@@ -294,10 +340,11 @@ class _RatingCluster extends StatelessWidget {
   }
 }
 
-/// Delivery tier badge (Figma "Flash"), colored from [JeebTierColors] so the
-/// same theme extension drives the visual treatment everywhere.
-class _TierLabel extends StatelessWidget {
-  const _TierLabel({required this.tier});
+/// Delivery tier chip, colored from [JeebTierColors] so the same theme
+/// extension drives the visual treatment everywhere. Using [OmdsChip] makes
+/// the tier read as metadata attached to this card instead of a floating word.
+class _TierChip extends StatelessWidget {
+  const _TierChip({required this.tier});
 
   final JeeberRequestTier tier;
 
@@ -305,32 +352,36 @@ class _TierLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = theme.extension<JeebTierColors>();
-    return Text(
-      _label(AppLocalizations.of(context)),
-      style: theme.textTheme.labelSmall?.copyWith(
+    final color = _color(tokens, theme.colorScheme);
+    return OmdsChip(
+      label: _label(AppLocalizations.of(context)),
+      unselectedColor: color.withValues(alpha: UIConstants.opacityPrimaryLight),
+      unselectedTextColor: color,
+      borderColor: color.withValues(alpha: UIConstants.opacityOverlay),
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: Spacing.xSmall,
+        vertical: Spacing.twoXSmall,
+      ),
+      textStyle: theme.textTheme.labelSmall?.copyWith(
         fontWeight: FontWeight.w600,
-        color: _color(tokens, theme.colorScheme),
-        letterSpacing: 0.5,
+        color: color,
       ),
     );
   }
 
   String _label(AppLocalizations l10n) => switch (tier) {
-        JeeberRequestTier.flash => l10n.requestFeedTierFlash,
-        JeeberRequestTier.light => l10n.requestFeedTierLight,
-        JeeberRequestTier.standard => l10n.requestFeedTierStandard,
-        JeeberRequestTier.bulk => l10n.requestFeedTierBulk,
-      };
+    JeeberRequestTier.flash => l10n.requestFeedTierFlash,
+    JeeberRequestTier.light => l10n.requestFeedTierLight,
+    JeeberRequestTier.standard => l10n.requestFeedTierStandard,
+    JeeberRequestTier.bulk => l10n.requestFeedTierBulk,
+  };
 
   Color _color(JeebTierColors? tokens, ColorScheme scheme) => switch (tier) {
-        JeeberRequestTier.flash =>
-          tokens?.flash ?? scheme.primaryContainer,
-        JeeberRequestTier.light => tokens?.eco ?? scheme.tertiary,
-        JeeberRequestTier.standard =>
-          tokens?.standard ?? scheme.secondaryContainer,
-        JeeberRequestTier.bulk =>
-          tokens?.express ?? scheme.primaryContainer,
-      };
+    JeeberRequestTier.flash => tokens?.flash ?? scheme.primaryContainer,
+    JeeberRequestTier.light => tokens?.eco ?? scheme.tertiary,
+    JeeberRequestTier.standard => tokens?.standard ?? scheme.secondaryContainer,
+    JeeberRequestTier.bulk => tokens?.express ?? scheme.primaryContainer,
+  };
 }
 
 /// G1 (sprint-009 P0): the request CONTENT line — the customer's own
@@ -351,6 +402,7 @@ class _SummaryLine extends StatelessWidget {
       key: const Key('jeeber-feed-card-summary'),
       style: theme.textTheme.bodyMedium?.copyWith(
         color: theme.colorScheme.onSurface,
+        fontWeight: FontWeight.w500,
       ),
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
@@ -371,7 +423,6 @@ class _DistanceLine extends StatelessWidget {
       l10n.jeeberFeedDistanceAway(_formatDistance(context, distanceKm)),
       style: theme.textTheme.labelSmall?.copyWith(
         color: theme.colorScheme.onSecondaryContainer,
-        letterSpacing: 0.5,
       ),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
@@ -382,6 +433,63 @@ class _DistanceLine extends StatelessWidget {
     final locale = Localizations.localeOf(context).toLanguageTag();
     final formatted = NumberFormat.decimalPattern(locale).format(km);
     return '${formatted}km';
+  }
+}
+
+String _clientDisplayName(BuildContext context, DeliveryRequest request) {
+  final name = request.senderName?.trim() ?? '';
+  return name.isNotEmpty
+      ? name
+      : AppLocalizations.of(context).jeeberFeedAnonymousClient;
+}
+
+class _CardFooter extends StatelessWidget {
+  const _CardFooter({
+    required this.request,
+    required this.onIgnore,
+    required this.onOffer,
+    required this.onAdvanceStatus,
+    required this.isActionBusy,
+    required this.isExpired,
+    required this.exposeMakeOfferId,
+  });
+
+  final DeliveryRequest request;
+  final VoidCallback? onIgnore;
+  final VoidCallback? onOffer;
+  final VoidCallback? onAdvanceStatus;
+  final bool isActionBusy;
+  final bool isExpired;
+  final bool exposeMakeOfferId;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      key: const Key('jeeber-feed-card-footer'),
+      width: double.infinity,
+      child: Wrap(
+        alignment: request.tier == null
+            ? WrapAlignment.end
+            : WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: Spacing.xSmall,
+        runSpacing: Spacing.xSmall,
+        children: [
+          if (request.tier case final tier?) _TierChip(tier: tier),
+          if (isExpired)
+            _ExpiredStatus(requestId: request.id)
+          else
+            _ActionArea(
+              request: request,
+              onIgnore: onIgnore,
+              onOffer: onOffer,
+              onAdvanceStatus: onAdvanceStatus,
+              isActionBusy: isActionBusy,
+              exposeMakeOfferId: exposeMakeOfferId,
+            ),
+        ],
+      ),
+    );
   }
 }
 
@@ -407,24 +515,21 @@ class _ActionArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(top: Spacing.small),
-      child: switch (request.feedStatus) {
-        JeeberFeedItemStatus.incoming => _IncomingActions(
-            requestId: request.id,
-            onIgnore: onIgnore,
-            onOffer: onOffer,
-            exposeMakeOfferId: exposeMakeOfferId,
-          ),
-        JeeberFeedItemStatus.pendingResponse => const _PendingStatus(),
-        JeeberFeedItemStatus.accepted => _AcceptedAction(
-            requestId: request.id,
-            action: request.nextDeliveryAction,
-            onTap: onAdvanceStatus,
-            isBusy: isActionBusy,
-          ),
-      },
-    );
+    return switch (request.feedStatus) {
+      JeeberFeedItemStatus.incoming => _IncomingActions(
+        requestId: request.id,
+        onIgnore: onIgnore,
+        onOffer: onOffer,
+        exposeMakeOfferId: exposeMakeOfferId,
+      ),
+      JeeberFeedItemStatus.pendingResponse => const _PendingStatus(),
+      JeeberFeedItemStatus.accepted => _AcceptedAction(
+        requestId: request.id,
+        action: request.nextDeliveryAction,
+        onTap: onAdvanceStatus,
+        isBusy: isActionBusy,
+      ),
+    };
   }
 }
 
@@ -444,10 +549,10 @@ class _IncomingActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
       children: [
         _IgnoreButton(requestId: requestId, onTap: onIgnore),
-        const SizedBox(width: Spacing.medium),
+        const SizedBox(width: Spacing.xSmall),
         _OfferButton(
           requestId: requestId,
           onTap: onOffer,
@@ -534,33 +639,27 @@ class _ExpiredStatus extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final color = theme.colorScheme.onSurfaceVariant;
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(top: Spacing.small),
-      child: Align(
-        alignment: AlignmentDirectional.centerEnd,
-        child: Semantics(
-          identifier: 'jeeber_feed_request_expired_$requestId',
-          container: true,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.hourglass_disabled_outlined,
-                size: Sizes.medium,
-                color: color,
-              ),
-              const SizedBox(width: Spacing.twoXSmall),
-              Text(
-                AppLocalizations.of(context).jeeberFeedStatusExpired,
-                key: Key('jeeber-feed-expired-status-$requestId'),
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: color,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ],
+    return Semantics(
+      identifier: 'jeeber_feed_request_expired_$requestId',
+      container: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.hourglass_disabled_outlined,
+            size: Sizes.medium,
+            color: color,
           ),
-        ),
+          const SizedBox(width: Spacing.twoXSmall),
+          Text(
+            AppLocalizations.of(context).jeeberFeedStatusExpired,
+            key: Key('jeeber-feed-expired-status-$requestId'),
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: color,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -572,15 +671,12 @@ class _PendingStatus extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Align(
-      alignment: AlignmentDirectional.centerEnd,
-      child: Text(
-        AppLocalizations.of(context).jeeberFeedStatusPending,
-        key: const Key('jeeber-feed-pending-status'),
-        style: theme.textTheme.labelMedium?.copyWith(
-          color: theme.colorScheme.onSecondaryContainer,
-          fontStyle: FontStyle.italic,
-        ),
+    return Text(
+      AppLocalizations.of(context).jeeberFeedStatusPending,
+      key: const Key('jeeber-feed-pending-status'),
+      style: theme.textTheme.labelMedium?.copyWith(
+        color: theme.colorScheme.onSecondaryContainer,
+        fontStyle: FontStyle.italic,
       ),
     );
   }
@@ -612,29 +708,26 @@ class _AcceptedAction extends StatelessWidget {
     // the home-client Check Offers / Track CTAs (screens 14/15, commit 9e0ed57).
     // Stays 100% OMDS; the `width:` param is the alternative but it would
     // hardcode a magic pixel value, which the design-tokens rule forbids.
-    return Align(
-      alignment: AlignmentDirectional.centerEnd,
-      child: IntrinsicWidth(
-        child: Semantics(
-          identifier: 'jeeber_feed_request_action_$requestId',
-          button: true,
-          child: OmdsLoadingButton(
-            key: Key('jeeber-feed-action-$requestId'),
-            text: _label(AppLocalizations.of(context)),
-            isLoading: isBusy,
-            borderRadius: OmdsBorderRadius.pill,
-            onTap: onTap ?? () {},
-          ),
+    return IntrinsicWidth(
+      child: Semantics(
+        identifier: 'jeeber_feed_request_action_$requestId',
+        button: true,
+        child: OmdsLoadingButton(
+          key: Key('jeeber-feed-action-$requestId'),
+          text: _label(AppLocalizations.of(context)),
+          isLoading: isBusy,
+          borderRadius: OmdsBorderRadius.pill,
+          onTap: onTap ?? () {},
         ),
       ),
     );
   }
 
   String _label(AppLocalizations l10n) => switch (action) {
-        JeeberDeliveryAction.headingToDropOff =>
-          l10n.jeeberFeedActionHeadingToDropOff,
-        JeeberDeliveryAction.orderPicked || null => l10n.chatDmOrderPickedAction,
-      };
+    JeeberDeliveryAction.headingToDropOff =>
+      l10n.jeeberFeedActionHeadingToDropOff,
+    JeeberDeliveryAction.orderPicked || null => l10n.chatDmOrderPickedAction,
+  };
 }
 
 class _Timestamp extends StatelessWidget {
@@ -647,17 +740,15 @@ class _Timestamp extends StatelessWidget {
     if (receivedAt == null) return const SizedBox.shrink();
     final theme = Theme.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
-    return Align(
-      alignment: AlignmentDirectional.centerEnd,
-      child: Text(
-        // SW-03: `receivedAt` arrives as a UTC instant from the gateway —
-        // convert to DEVICE-LOCAL time before formatting. Pre-fix the card
-        // formatted the raw UTC fields ("12:31" under a 14:31 status bar),
-        // making every fresh request look hours stale.
-        DateFormat.Hm(locale).format(receivedAt!.toLocal()),
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
+    return Text(
+      // SW-03: `receivedAt` arrives as a UTC instant from the gateway —
+      // convert to DEVICE-LOCAL time before formatting. Pre-fix the card
+      // formatted the raw UTC fields ("12:31" under a 14:31 status bar),
+      // making every fresh request look hours stale.
+      DateFormat.Hm(locale).format(receivedAt!.toLocal()),
+      key: const Key('jeeber-feed-card-timestamp'),
+      style: theme.textTheme.labelSmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
       ),
     );
   }

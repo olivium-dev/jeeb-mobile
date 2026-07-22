@@ -177,6 +177,57 @@ abstract final class Diag {
     });
   }
 
+  /// Emits a GESTURE record: an interaction the Flutter engine received —
+  /// INCLUDING adb/Maestro-injected taps that `getevent` (kernel `/dev/input`)
+  /// cannot see — so a host recorder tailing `[jeeb-diag]` can correlate
+  /// automated input with a real widget identity and replay it as a Maestro
+  /// step. Coordinates are DEVICE pixels (logical × devicePixelRatio) so a host
+  /// marker lines up with `getevent` + screenshots.
+  ///
+  /// Selectors are best-effort, read from the in-engine semantics tree at the
+  /// tap point (null when unknown, never fabricated): [id] is the
+  /// `SemanticsProperties.identifier` the PLATFORM accessibility tree actually
+  /// EXPOSES at that point — the value Maestro's `tapOn: { id: … }` matches, i.e.
+  /// the OUTER/merged identifier when ids are nested (see `gesture_log.dart`).
+  /// [text] is the nearest visible text (Maestro `tapOn: { text: … }`), ALREADY
+  /// redacted by the caller — never the content of a text field. [target]
+  /// (widget runtimeType) and [key] (`ValueKey` string) are debugging aids.
+  ///
+  /// [idInner] is the INNERMOST identifier at the tap point, emitted ONLY when it
+  /// differs from the exposed [id] (a nested/merged Semantics group) — a
+  /// debugging breadcrumb, never used for replay. It is OMITTED from the wire
+  /// when null, so the record shape is byte-identical to before for the common
+  /// single-identifier case.
+  ///
+  /// Rides the same enablement gate as the rest of the stream: no-op unless the
+  /// diag stream is active ([enabled]); the caller additionally gates on the
+  /// runtime GestureLog toggle.
+  static void gesture({
+    required String type,
+    required int x,
+    required int y,
+    String? screen,
+    String? id,
+    String? text,
+    String? target,
+    String? key,
+    String? idInner,
+  }) {
+    if (!enabled) return;
+    _write(<String, Object?>{
+      't': 'gesture',
+      'type': type,
+      'x': x,
+      'y': y,
+      'screen': screen,
+      'id': id,
+      'text': text,
+      'target': target,
+      'key': key,
+      'idInner': ?idInner,
+    });
+  }
+
   /// Stamps [record] with `ts`, encodes it, prefixes it, and hands it to the
   /// sink(s). Total: a serialization failure degrades to a marker line rather
   /// than throwing into a caller's hot path.

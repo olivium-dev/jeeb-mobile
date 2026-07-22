@@ -939,6 +939,7 @@ class AppLocalizations {
   String get jeeberFeedFilterReplies => _get('jeeberFeedFilterReplies');
   String get jeeberFeedIgnoreAction => _get('jeeberFeedIgnoreAction');
   String get jeeberFeedOfferAction => _get('jeeberFeedOfferAction');
+  String get jeeberFeedAnonymousClient => _get('jeeberFeedAnonymousClient');
   String jeeberFeedDistanceAway(String distance) =>
       _get('jeeberFeedDistanceAway').replaceFirst('{distance}', distance);
   String get jeeberFeedStatusPending => _get('jeeberFeedStatusPending');
@@ -1770,6 +1771,43 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('pendingCardA11yLabel')
           .replaceFirst('{title}', title)
           .replaceFirst('{ttl}', ttl);
+  String pendingCardOffersBadge(int count) {
+    if (count == 0) return _get('pendingCardOffersBadgeZero');
+    if (count == 1) return _get('pendingCardOffersBadgeOne');
+    if (count == 2) return _get('pendingCardOffersBadgeTwo');
+    final mod = count % 100;
+    if (mod >= 3 && mod <= 10) return _get('pendingCardOffersBadgeFew').replaceFirst('{count}', '$count');
+    if (mod >= 11 && mod <= 99) return _get('pendingCardOffersBadgeMany').replaceFirst('{count}', '$count');
+    return _get('pendingCardOffersBadgeOther').replaceFirst('{count}', '$count');
+  }
+  String get pendingCardCreatedJustNow => _get('pendingCardCreatedJustNow');
+  String pendingCardCreatedMinutes(int count) {
+    if (count == 0) return _get('pendingCardCreatedMinutesZero');
+    if (count == 1) return _get('pendingCardCreatedMinutesOne');
+    if (count == 2) return _get('pendingCardCreatedMinutesTwo');
+    final mod = count % 100;
+    if (mod >= 3 && mod <= 10) return _get('pendingCardCreatedMinutesFew').replaceFirst('{count}', '$count');
+    if (mod >= 11 && mod <= 99) return _get('pendingCardCreatedMinutesMany').replaceFirst('{count}', '$count');
+    return _get('pendingCardCreatedMinutesOther').replaceFirst('{count}', '$count');
+  }
+  String pendingCardCreatedHours(int count) {
+    if (count == 0) return _get('pendingCardCreatedHoursZero');
+    if (count == 1) return _get('pendingCardCreatedHoursOne');
+    if (count == 2) return _get('pendingCardCreatedHoursTwo');
+    final mod = count % 100;
+    if (mod >= 3 && mod <= 10) return _get('pendingCardCreatedHoursFew').replaceFirst('{count}', '$count');
+    if (mod >= 11 && mod <= 99) return _get('pendingCardCreatedHoursMany').replaceFirst('{count}', '$count');
+    return _get('pendingCardCreatedHoursOther').replaceFirst('{count}', '$count');
+  }
+  String pendingCardCreatedDays(int count) {
+    if (count == 0) return _get('pendingCardCreatedDaysZero');
+    if (count == 1) return _get('pendingCardCreatedDaysOne');
+    if (count == 2) return _get('pendingCardCreatedDaysTwo');
+    final mod = count % 100;
+    if (mod >= 3 && mod <= 10) return _get('pendingCardCreatedDaysFew').replaceFirst('{count}', '$count');
+    if (mod >= 11 && mod <= 99) return _get('pendingCardCreatedDaysMany').replaceFirst('{count}', '$count');
+    return _get('pendingCardCreatedDaysOther').replaceFirst('{count}', '$count');
+  }
   String inProgressTabA11yLabel(String title, String status, String eta) =>
       _get('inProgressTabA11yLabel')
           .replaceFirst('{title}', title)
@@ -1962,6 +2000,10 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get jeeberActiveDeliveriesFallbackTitle => _get('jeeberActiveDeliveriesFallbackTitle');
   String get jeeberActiveDeliveriesOpenChat => _get('jeeberActiveDeliveriesOpenChat');
   String get jeeberActiveDeliveriesManage => _get('jeeberActiveDeliveriesManage');
+  String jeeberActiveDeliveriesViewAll(int count) =>
+      _get('jeeberActiveDeliveriesViewAll').replaceFirst('{count}', '$count');
+  String get jeeberActiveDeliveriesShowLess =>
+      _get('jeeberActiveDeliveriesShowLess');
   String get activeDeliveryMarkPicked => _get('activeDeliveryMarkPicked');
   String get activeDeliveryMarkInTransit => _get('activeDeliveryMarkInTransit');
   String get activeDeliveryMarkAtDoor => _get('activeDeliveryMarkAtDoor');

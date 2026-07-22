@@ -7,8 +7,7 @@ import 'package:omds/omds.dart';
 
 import 'support/sync_app_localizations.dart';
 
-/// Wraps a feed card in a Material host (the production tree always sits inside
-/// a Scaffold) so the card's `InkWell`/`Ink` find a Material ancestor in tests.
+/// Wraps a feed card in the same themed Scaffold host used by production.
 Widget _host(Widget child, {Locale locale = const Locale('en')}) =>
     wrapForTest(Scaffold(body: child), locale: locale);
 
@@ -17,18 +16,23 @@ DeliveryRequest _request({
   JeeberFeedItemStatus status = JeeberFeedItemStatus.incoming,
   JeeberDeliveryAction? action,
   DateTime? receivedAt,
+  String? senderName = 'Sami Fawaz',
+  String? senderAvatarUrl,
+  double? senderRating = 4,
+  JeeberRequestTier? tier = JeeberRequestTier.flash,
 }) {
   return DeliveryRequest(
     id: id,
     pickup: const RequestLocation(label: 'Hamra', latitude: 0, longitude: 0),
     dropoff: const RequestLocation(label: 'Verdun', latitude: 0, longitude: 0),
-    tier: JeeberRequestTier.flash,
+    tier: tier,
     estimatedDistanceKm: 3,
     potentialEarnings: 4,
     currency: 'USD',
     expiresAt: DateTime(2030),
-    senderName: 'Sami Fawaz',
-    senderRating: 4,
+    senderName: senderName,
+    senderAvatarUrl: senderAvatarUrl,
+    senderRating: senderRating,
     itemsSummary: '1 kilo potato, water gallon, coffee blend',
     distanceFromYouKm: 3,
     receivedAt: receivedAt ?? DateTime(2026, 6, 11, 9, 41),
@@ -50,6 +54,95 @@ void main() {
     expect(find.text('3km away from you'), findsOneWidget);
     expect(find.text('Flash'), findsOneWidget);
     expect(find.byType(OmdsStarRatingDisplay), findsOneWidget);
+  });
+
+  testWidgets('unknown tier renders no fabricated tier chip', (tester) async {
+    await tester.pumpWidget(
+      _host(JeeberFeedCard(request: _request(tier: null), onOffer: () {})),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(OmdsChip), findsNothing);
+    expect(find.text('Light'), findsNothing);
+    expect(find.text('Offer'), findsOneWidget);
+  });
+
+  testWidgets('missing gateway identity renders an intentional OMDS fallback',
+      (tester) async {
+    await tester.pumpWidget(
+      _host(
+        JeeberFeedCard(
+          request: _request(senderName: null, senderRating: null),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Customer'), findsOneWidget);
+    expect(find.text('?'), findsNothing);
+    final avatar = tester.widget<OmdsProfileAvatar>(
+      find.byKey(const Key('jeeber-feed-card-avatar')),
+    );
+    expect(avatar.initial, 'C');
+    expect(avatar.profilePicUrl, isNull);
+  });
+
+  testWidgets('row groups identity, summary, metadata, and actions coherently',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _host(
+        JeeberFeedCard(
+          request: _request(senderName: null, senderRating: null),
+          onIgnore: () {},
+          onOffer: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final avatarRect = tester.getRect(
+      find.byKey(const Key('jeeber-feed-card-avatar')),
+    );
+    final contentRect = tester.getRect(
+      find.byKey(const Key('jeeber-feed-card-content')),
+    );
+    final summaryRect = tester.getRect(
+      find.byKey(const Key('jeeber-feed-card-summary')),
+    );
+    final timeRect = tester.getRect(
+      find.byKey(const Key('jeeber-feed-card-timestamp')),
+    );
+    final footerRect = tester.getRect(
+      find.byKey(const Key('jeeber-feed-card-footer')),
+    );
+    final offerRect = tester.getRect(
+      find.byKey(const Key('jeeber-feed-offer-req-1')),
+    );
+
+    expect(contentRect.left, greaterThan(avatarRect.right));
+    expect(summaryRect.left, closeTo(contentRect.left, 0.1));
+    expect(timeRect.top, lessThan(summaryRect.top));
+    expect(footerRect.top, greaterThan(summaryRect.bottom));
+    expect(offerRect.top, greaterThan(summaryRect.bottom));
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('jeeber-feed-card-footer')),
+        matching: find.text('Flash'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('jeeber-feed-card-footer')),
+        matching: find.byKey(const Key('jeeber-feed-offer-req-1')),
+      ),
+      findsOneWidget,
+    );
   });
 
   // G1 (sprint-009 P0): the description is the request CONTENT the jeeber
@@ -209,7 +302,7 @@ void main() {
   });
 
   // End-alignment proof: the hugged pill's right edge is flush with the card's
-  // content right edge (LTR), confirming `Align(AlignmentDirectional.centerEnd)`.
+  // tokenized inset (LTR), while the tier stays at the opposite edge.
   testWidgets('accepted-action pill is end-aligned (right-flush in LTR)',
       (tester) async {
     tester.view.physicalSize = const Size(800, 600);
@@ -233,10 +326,16 @@ void main() {
         tester.getRect(find.byKey(const Key('jeeber-feed-action-req-1')));
     final cardRect = tester.getRect(find.byType(JeeberFeedCard));
 
-    // Right edges flush (within card horizontal padding tolerance), and the pill
-    // does NOT start at the card's left gutter (so it is not full-width).
-    expect((cardRect.right - pillRect.right).abs(), lessThan(24));
-    expect(pillRect.left, greaterThan(cardRect.left + 24));
+    // Right edges flush within the outer + inner OMDS inset, and the pill does
+    // NOT start at the card's left gutter (so it is not full-width).
+    expect(
+      (cardRect.right - pillRect.right).abs(),
+      lessThan(Spacing.threeXLarge),
+    );
+    expect(
+      pillRect.left,
+      greaterThan(cardRect.left + Spacing.xLarge),
+    );
   });
 
   testWidgets('exposes a stable card semantics identifier', (tester) async {

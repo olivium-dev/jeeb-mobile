@@ -153,10 +153,20 @@ class _AdvanceButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = _buttonLabel(nextStatus, l10n);
-    return OmdsLoadingButton(
-      text: label,
-      isLoading: isLoading,
-      onTap: onAdvance,
+    // Screen-scoped to the active-delivery / mark-delivered screen (the only
+    // host of this stepper), matching its `mark_delivered_*` id family. The
+    // element is the status-advance action; the visible label rotates per stage
+    // (Mark Picked / In Transit / At Door) so the id is derived from role, not
+    // copy.
+    return Semantics(
+      identifier: 'mark_delivered_advance_cta',
+      container: true,
+      button: true,
+      child: OmdsLoadingButton(
+        text: label,
+        isLoading: isLoading,
+        onTap: onAdvance,
+      ),
     );
   }
 

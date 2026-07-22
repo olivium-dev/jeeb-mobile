@@ -36,12 +36,16 @@ class _BiometricPromptScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<BiometricCubit, BiometricState>(
       builder: (context, state) {
-        return Scaffold(
+        return Semantics(
+          identifier: 'biometric_prompt_root',
+          container: true,
+          child: Scaffold(
           body: SafeArea(
             child: Center(
               child: _PromptColumn(state: state),
             ),
           ),
+        ),
         );
       },
     );
@@ -101,10 +105,15 @@ class _PromptAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state == BiometricState.available) {
-      return OmdsPrimaryButton(
+      return Semantics(
+        identifier: 'biometric_prompt_authenticate_cta',
+        button: true,
+        container: true,
+        child: OmdsPrimaryButton(
         text: 'Authenticate',
         icon: const Icon(Icons.fingerprint),
         onTap: () => context.read<BiometricCubit>().authenticate(),
+      ),
       );
     }
     if (state == BiometricState.checking) {

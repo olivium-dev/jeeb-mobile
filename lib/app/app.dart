@@ -12,9 +12,11 @@ import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/accessibility/accessibility.dart';
+import '../core/dev_flags.dart';
 import '../core/dev_seam/dev_seam.dart';
 import '../core/dev_seam/session_seam_bootstrap.dart';
 import '../core/diagnostics/diag.dart';
+import '../core/diagnostics/gesture_log.dart';
 import '../core/locale/language_preference_repository.dart';
 import '../core/locale/locale_cubit.dart';
 import '../core/notifications/application/badge_count_cubit.dart';
@@ -32,6 +34,8 @@ import '../core/notifications/domain/notification_deep_link.dart';
 import '../core/notifications/presentation/push_banner_host.dart';
 import '../core/observability/crash_context_bridge.dart';
 import '../core/observability/crash_reporter.dart';
+import '../core/observability/session_trace/observability_config.dart';
+import '../core/observability/session_trace/presentation/obs_overlay.dart';
 import '../core/network/auth_token_store.dart';
 import '../core/onboarding/onboarding_cubit.dart';
 import '../core/role/role_availability_cubit.dart';
@@ -592,7 +596,30 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
                         },
                         child: content,
                       );
-                return jeebA11yBuilder(context, wrapped);
+                final routed = jeebA11yBuilder(context, wrapped);
+                // Session-trace observability tool (devtool-only): a floating
+                // bubble/panel overlay so a developer can start/stop tracing,
+                // watch live screen/api/notification/interaction events, and
+                // export the session — WITHOUT touching the routed content
+                // underneath. Additive only (`Stack`s the overlay on top);
+                // `kObsCompiledIn` is compile-time `false` in a production
+                // build, so this line (and `ObsOverlayHost` itself) is
+                // tree-shaken out and `routed` is returned unchanged.
+                final observed = kObsCompiledIn
+                    ? ObsOverlayHost(child: routed)
+                    : routed;
+                // GESTURE-LOG hook (dev-affordances only): a translucent,
+                // pass-through root Listener that records taps/gestures the
+                // Flutter engine receives — INCLUDING adb/Maestro-injected taps
+                // `getevent` can't see — onto the `[jeeb-diag]` stream, with
+                // Maestro-ready selectors read from the in-engine semantics.
+                // Additive + non-consuming; `kDevAffordancesAllowed` is a
+                // compile-time `false` in production, so this wrap (and
+                // `GestureLogListener` itself) is tree-shaken out and `observed`
+                // is returned byte-identically. Default OFF at runtime.
+                return kDevAffordancesAllowed
+                    ? GestureLogListener(child: observed)
+                    : observed;
               },
             ),
           );

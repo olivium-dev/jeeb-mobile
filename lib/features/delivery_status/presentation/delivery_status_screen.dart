@@ -94,41 +94,45 @@ class _Scaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      key: rootKey,
-      appBar: OMDSAppBar(
-        title: l10n.deliveryStatusTitle,
-        showBackButton: true,
-        centerTitle: false,
-      ),
-      body: SafeArea(
-        child: BlocConsumer<DeliveryStatusCubit, DeliveryStatusState>(
-          listenWhen: (prev, curr) =>
-              prev.error != curr.error && curr.error != null,
-          listener: _surfaceError,
-          builder: (context, state) {
-            switch (state.mode) {
-              case DeliveryStatusViewMode.loading:
-                return _LoadingView(l10n: l10n);
-              case DeliveryStatusViewMode.error:
-                return _ErrorView(
-                  l10n: l10n,
-                  onRetry: () =>
-                      context.read<DeliveryStatusCubit>().retry(),
-                );
-              case DeliveryStatusViewMode.ready:
-                final snapshot = state.snapshot;
-                if (snapshot == null) {
+    return Semantics(
+      identifier: 'delivery_status_root',
+      container: true,
+      child: Scaffold(
+        key: rootKey,
+        appBar: OMDSAppBar(
+          title: l10n.deliveryStatusTitle,
+          showBackButton: true,
+          centerTitle: false,
+        ),
+        body: SafeArea(
+          child: BlocConsumer<DeliveryStatusCubit, DeliveryStatusState>(
+            listenWhen: (prev, curr) =>
+                prev.error != curr.error && curr.error != null,
+            listener: _surfaceError,
+            builder: (context, state) {
+              switch (state.mode) {
+                case DeliveryStatusViewMode.loading:
                   return _LoadingView(l10n: l10n);
-                }
-                return _ReadyView(
-                  snapshot: snapshot,
-                  isCancelling: state.isCancelling,
-                  deliveryId: deliveryId,
-                  onContactJeeber: onContactJeeber,
-                );
-            }
-          },
+                case DeliveryStatusViewMode.error:
+                  return _ErrorView(
+                    l10n: l10n,
+                    onRetry: () =>
+                        context.read<DeliveryStatusCubit>().retry(),
+                  );
+                case DeliveryStatusViewMode.ready:
+                  final snapshot = state.snapshot;
+                  if (snapshot == null) {
+                    return _LoadingView(l10n: l10n);
+                  }
+                  return _ReadyView(
+                    snapshot: snapshot,
+                    isCancelling: state.isCancelling,
+                    deliveryId: deliveryId,
+                    onContactJeeber: onContactJeeber,
+                  );
+              }
+            },
+          ),
         ),
       ),
     );
@@ -318,23 +322,33 @@ class _ActionBar extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (snapshot.canContactJeeber)
-          OmdsPrimaryButton(
-            key: _ReadyView.contactButtonKey,
-            text: l10n.deliveryActionContact,
-            icon: const Icon(Icons.phone, size: 18),
-            onTap: () => _onContactPressed(context),
+          Semantics(
+            identifier: 'delivery_status_contact_cta',
+            container: true,
+            button: true,
+            child: OmdsPrimaryButton(
+              key: _ReadyView.contactButtonKey,
+              text: l10n.deliveryActionContact,
+              icon: const Icon(Icons.phone, size: 18),
+              onTap: () => _onContactPressed(context),
+            ),
           ),
         if (snapshot.canContactJeeber && snapshot.canCancel)
           const SizedBox(height: Spacing.small),
         if (snapshot.canCancel)
-          OmdsPrimaryButton(
-            key: _ReadyView.cancelButtonKey,
-            text: isCancelling
-                ? l10n.deliveryActionCancellingLabel
-                : l10n.deliveryActionCancel,
-            variant: OmdsButtonVariant.outlined,
-            isEnabled: !isCancelling,
-            onTap: () => _onCancelPressed(context),
+          Semantics(
+            identifier: 'delivery_status_cancel_cta',
+            container: true,
+            button: true,
+            child: OmdsPrimaryButton(
+              key: _ReadyView.cancelButtonKey,
+              text: isCancelling
+                  ? l10n.deliveryActionCancellingLabel
+                  : l10n.deliveryActionCancel,
+              variant: OmdsButtonVariant.outlined,
+              isEnabled: !isCancelling,
+              onTap: () => _onCancelPressed(context),
+            ),
           ),
       ],
     );

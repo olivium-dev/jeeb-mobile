@@ -8,35 +8,54 @@ class ClientUnreachableScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const OMDSAppBar(title: 'Client Unreachable'),
-      body: Padding(
-        padding: const EdgeInsets.all(Spacing.medium),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const _UnreachableNoticeCard(),
-            const SizedBox(height: Spacing.xLarge),
-            OmdsPrimaryButton(
-              text: 'Try Calling Again',
-              variant: OmdsButtonVariant.outlined,
-              icon: const Icon(Icons.phone),
-              onTap: () {},
-            ),
-            const SizedBox(height: Spacing.small),
-            OmdsPrimaryButton(
-              text: 'Send Chat Message',
-              variant: OmdsButtonVariant.outlined,
-              icon: const Icon(Icons.chat),
-              onTap: () {},
-            ),
-            const Spacer(),
-            OmdsPrimaryButton(
-              text: 'Flag as Unreachable',
-              backgroundColor: Theme.of(context).colorScheme.error,
-              onTap: () => Navigator.of(context).pop(true),
-            ),
-          ],
+    return Semantics(
+      identifier: 'client_unreachable_root',
+      container: true,
+      child: Scaffold(
+        appBar: const OMDSAppBar(title: 'Client Unreachable'),
+        body: Padding(
+          padding: const EdgeInsets.all(Spacing.medium),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _UnreachableNoticeCard(),
+              const SizedBox(height: Spacing.xLarge),
+              Semantics(
+                identifier: 'client_unreachable_call_again_cta',
+                container: true,
+                button: true,
+                child: OmdsPrimaryButton(
+                  text: 'Try Calling Again',
+                  variant: OmdsButtonVariant.outlined,
+                  icon: const Icon(Icons.phone),
+                  onTap: () {},
+                ),
+              ),
+              const SizedBox(height: Spacing.small),
+              Semantics(
+                identifier: 'client_unreachable_chat_cta',
+                container: true,
+                button: true,
+                child: OmdsPrimaryButton(
+                  text: 'Send Chat Message',
+                  variant: OmdsButtonVariant.outlined,
+                  icon: const Icon(Icons.chat),
+                  onTap: () {},
+                ),
+              ),
+              const Spacer(),
+              Semantics(
+                identifier: 'client_unreachable_flag_cta',
+                container: true,
+                button: true,
+                child: OmdsPrimaryButton(
+                  text: 'Flag as Unreachable',
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  onTap: () => Navigator.of(context).pop(true),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

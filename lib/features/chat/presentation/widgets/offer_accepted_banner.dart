@@ -145,7 +145,9 @@ class _OfferAcceptedDismiss extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Semantics(
+      identifier: 'offer_accepted_dismiss_cta',
       button: true,
+      container: true,
       label: AppLocalizations.of(context).commonDismiss,
       child: GestureDetector(
         onTap: onDismiss,

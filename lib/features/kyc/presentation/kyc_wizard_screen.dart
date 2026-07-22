@@ -240,9 +240,14 @@ class _SchemaErrorView extends StatelessWidget {
         children: [
           Text(l10n.kycErrorSchemaLoadFailed),
           const SizedBox(height: Spacing.medium),
-          OMDSOutlinedButton(
-            text: l10n.kycRetry,
-            onTap: () => context.read<KycWizardCubit>().loadSchema(),
+          Semantics(
+            identifier: 'kyc_wizard_retry_cta',
+            container: true,
+            button: true,
+            child: OMDSOutlinedButton(
+              text: l10n.kycRetry,
+              onTap: () => context.read<KycWizardCubit>().loadSchema(),
+            ),
           ),
         ],
       ),

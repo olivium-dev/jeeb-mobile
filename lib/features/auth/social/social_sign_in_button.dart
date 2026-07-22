@@ -60,12 +60,19 @@ class SocialSignInButton extends StatelessWidget {
     required this.onTap,
     this.isBusy = false,
     this.isEnabled = true,
+    this.identifier,
   });
 
   final SocialProvider provider;
   final VoidCallback onTap;
   final bool isBusy;
   final bool isEnabled;
+
+  /// Screen-scoped Maestro/accessibility identifier the caller stamps on the
+  /// button's own interactive node (e.g. `login_social_google`). Null leaves
+  /// the button unlabelled for tests — the subtree is otherwise unchanged, so
+  /// every existing call site is byte-identical.
+  final String? identifier;
 
   /// Whether the Apple button should render on the current platform. Static
   /// helper so the registration screen can decide whether to add the widget
@@ -84,6 +91,8 @@ class SocialSignInButton extends StatelessWidget {
     switch (provider) {
       case SocialProvider.google:
         return Semantics(
+          identifier: identifier,
+          container: true,
           button: true,
           enabled: isEnabled && !isBusy,
           label: l10n.registrationContinueWithGoogle,
@@ -95,6 +104,8 @@ class SocialSignInButton extends StatelessWidget {
         );
       case SocialProvider.facebook:
         return Semantics(
+          identifier: identifier,
+          container: true,
           button: true,
           enabled: isEnabled && !isBusy,
           // Visible label reuses the locale-safe generic `actionContinue`
@@ -114,6 +125,8 @@ class SocialSignInButton extends StatelessWidget {
       case SocialProvider.apple:
         final isDark = brightness == Brightness.dark;
         return Semantics(
+          identifier: identifier,
+          container: true,
           button: true,
           enabled: isEnabled && !isBusy,
           label: l10n.registrationContinueWithApple,

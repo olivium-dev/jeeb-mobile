@@ -22,7 +22,7 @@ import '../domain/offers_repository.dart';
 /// W1-INT (JM-028): the list path moved from the dead `/v1/requests/:id/offers`
 /// (no mock route exists — it 404s) to the offer-service query-param endpoint
 /// the mock actually serves. The offer-window deadline is derived from the
-/// first offer's `createdAt` + 5 min because the list endpoint omits
+/// first offer's `createdAt` + 15 min because the list endpoint omits
 /// `windowExpiresAt`.
 ///
 /// Wire-shape note (mock + journey-seed `offers_received`): each offer row is
@@ -57,7 +57,7 @@ class DioOffersRepository implements OffersRepository {
   /// persistence.
   final HandoverCodeStore? _handoverCodeStore;
 
-  static const Duration _defaultWindow = Duration(minutes: 5);
+  static const Duration _defaultWindow = Duration(minutes: 15);
 
   /// Offer statuses that are still live (a client can accept them). Withdrawn /
   /// superseded / expired / accepted offers are filtered out of the review list

@@ -499,12 +499,17 @@ class _SuperLoginSubmitButton extends StatelessWidget {
     return BlocBuilder<SuperLoginCubit, SuperLoginState>(
       buildWhen: (prev, curr) => prev.isSubmitting != curr.isSubmitting,
       builder: (context, state) {
-        return OmdsLoadingButton(
+        return Semantics(
+          identifier: '_super_login_submit_cta',
+          button: true,
+          container: true,
+          child: OmdsLoadingButton(
           key: const Key('superLogin.submit'),
           text: l10n.superLoginSubmit,
           isLoading: state.isSubmitting,
           isEnabled: canSubmit,
           onTap: onSubmit,
+        ),
         );
       },
     );

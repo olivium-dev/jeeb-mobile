@@ -610,10 +610,15 @@ class _LoadErrorContent extends StatelessWidget {
           style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: Spacing.medium),
-        OmdsPrimaryButton(
-          key: JeeberHomeScreen.loadErrorRetryKey,
-          text: retryLabel,
-          onTap: onRetry,
+        Semantics(
+          identifier: 'jeeber_home_load_error_retry_cta',
+          container: true,
+          button: true,
+          child: OmdsPrimaryButton(
+            key: JeeberHomeScreen.loadErrorRetryKey,
+            text: retryLabel,
+            onTap: onRetry,
+          ),
         ),
       ],
     );

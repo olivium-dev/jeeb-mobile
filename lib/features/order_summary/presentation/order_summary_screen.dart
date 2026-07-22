@@ -77,7 +77,10 @@ class _OrderSummaryView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = OrderSummaryL10n.of(context);
-    return Scaffold(
+    return Semantics(
+      identifier: 'order_summary_root',
+      container: true,
+      child: Scaffold(
       appBar: OMDSAppBar(title: l10n.title, showBackButton: true),
       body: SafeArea(
         child: BlocBuilder<OrderSummaryCubit, OrderSummaryState>(
@@ -100,6 +103,7 @@ class _OrderSummaryView extends StatelessWidget {
             }
           },
         ),
+      ),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../diagnostics/diagnostics.dart';
+import '../observability/session_trace/session_trace.dart';
 import 'auth_interceptor.dart';
 import 'auth_token_store.dart';
 import 'rate_limit_interceptor.dart';
@@ -80,6 +81,17 @@ class DioClient {
     // headers or bodies. Safe by construction; the redaction lives in the
     // interceptor, not here.
     dio.interceptors.add(const DiagDioInterceptor());
+
+    // Session-trace observability tool (devtool-only, Module 2): captures the
+    // full redacted HTTP exchange into the richer `ObsApiEvent` stream. Runs
+    // ALONGSIDE DiagDioInterceptor, never replacing it. Compile-time gated on
+    // `kObsCompiledIn` (a production build tree-shakes `ObsDioInterceptor` out
+    // entirely); at runtime it never short-circuits a request and builds the
+    // full (redacted) event only when `Observability.instance.recording` and
+    // the `api` signal are both on.
+    if (kObsCompiledIn) {
+      dio.interceptors.add(const ObsDioInterceptor());
+    }
 
     // PII GATE: request/response bodies carry phones, JWTs and addresses.
     // Only ever logged in debug builds (kDebugMode is a const false in

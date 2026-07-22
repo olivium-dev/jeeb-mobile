@@ -34,9 +34,9 @@ typedef SoundNotifier = void Function();
 /// The old client-side `requestTimeout` — `min(expiresAt, addTime + 60s)` —
 /// silently retired cards FOUR MINUTES before the server's 5:00 broadcast
 /// window, so a jeeber who dismissed the push and opened the app 90s later
-/// saw "No requests" for a request that was still live. A payload missing
-/// `expiresAt` is defaulted at PARSE time (`dio_request_feed_repository`
-/// stamps now+5min), so no client-side truncation is ever needed here.
+/// saw "No requests" for a request that was still live. When the gateway omits
+/// `expiresAt`, no deadline is tracked: snapshot membership remains the only
+/// lifetime signal for that request.
 class RequestFeedCubit extends Cubit<RequestFeedState> {
   RequestFeedCubit({
     required RequestFeedRepository repository,
@@ -112,8 +112,10 @@ class RequestFeedCubit extends Cubit<RequestFeedState> {
       for (final r in snapshot) {
         // A row the server STILL lists is live by definition — if we had
         // locally expired it (clock skew), revive it off the fresh row.
-        final wasExpired = expiredIds.remove(r.id);
-        if (!existingById.containsKey(r.id) || wasExpired) _trackDeadline(r);
+        expiredIds.remove(r.id);
+        // Re-track every authoritative row so a newly supplied deadline is
+        // honoured and a newly omitted deadline clears any older local entry.
+        _trackDeadline(r);
         reconciled[r.id] = r;
       }
       for (final entry in existingById.entries) {
@@ -269,13 +271,24 @@ class RequestFeedCubit extends Cubit<RequestFeedState> {
   /// truncation (G3). Re-tracking an id also clears any scheduled removal,
   /// so a re-listed/re-pushed request is live again.
   void _trackDeadline(DeliveryRequest request) {
-    _deadlines[request.id] = request.expiresAt;
+    final expiresAt = request.expiresAt;
+    if (expiresAt == null) {
+      _deadlines.remove(request.id);
+    } else {
+      _deadlines[request.id] = expiresAt;
+    }
     _removals.remove(request.id);
   }
 
   List<DeliveryRequest> _sorted(Iterable<DeliveryRequest> requests) {
     final list = requests.toList()
-      ..sort((a, b) => a.expiresAt.compareTo(b.expiresAt));
+      ..sort((a, b) {
+        final aExpiry = a.expiresAt;
+        final bExpiry = b.expiresAt;
+        if (aExpiry == null) return bExpiry == null ? 0 : 1;
+        if (bExpiry == null) return -1;
+        return aExpiry.compareTo(bExpiry);
+      });
     return List.unmodifiable(list);
   }
 

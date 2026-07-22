@@ -161,13 +161,18 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 const SizedBox(height: Spacing.large),
                 _PhoneRow(phoneE164: state.profile.phoneE164),
                 const SizedBox(height: Spacing.large),
-                OmdsPrimaryButton(
-                  key: const Key('profile-edit-save'),
-                  text: state.isSavingProfile
-                      ? l10n.profileSaving
-                      : l10n.profileSave,
-                  isEnabled: !state.isSavingProfile,
-                  onTap: () => _onSave(l10n),
+                Semantics(
+                  identifier: 'profile_edit_save_cta',
+                  button: true,
+                  container: true,
+                  child: OmdsPrimaryButton(
+                    key: const Key('profile-edit-save'),
+                    text: state.isSavingProfile
+                        ? l10n.profileSaving
+                        : l10n.profileSave,
+                    isEnabled: !state.isSavingProfile,
+                    onTap: () => _onSave(l10n),
+                  ),
                 ),
               ],
             ),
@@ -199,23 +204,33 @@ class _ProfileAvatarBlock extends StatelessWidget {
           photoUrl: state.profile.photoUrl,
         ),
         const SizedBox(height: Spacing.small),
-        OmdsPrimaryButton(
-          key: const Key('profile-edit-change-avatar'),
-          text: l10n.profileAvatarChange,
-          variant: OmdsButtonVariant.text,
-          isEnabled: !state.isSavingProfile && !isChangingPhoto,
-          // JEBV4-13: was `onTap: () {}` — a dead CTA on a primary profile
-          // affordance. Now opens the camera/gallery source sheet and saves
-          // the picked photo (see _onChangePhoto).
-          onTap: onChangePhoto,
+        Semantics(
+          identifier: 'profile_edit_change_avatar_cta',
+          button: true,
+          container: true,
+          child: OmdsPrimaryButton(
+            key: const Key('profile-edit-change-avatar'),
+            text: l10n.profileAvatarChange,
+            variant: OmdsButtonVariant.text,
+            isEnabled: !state.isSavingProfile && !isChangingPhoto,
+            // JEBV4-13: was `onTap: () {}` — a dead CTA on a primary profile
+            // affordance. Now opens the camera/gallery source sheet and saves
+            // the picked photo (see _onChangePhoto).
+            onTap: onChangePhoto,
+          ),
         ),
         if (state.profile.photoUrl != null)
-          OmdsPrimaryButton(
-            key: const Key('profile-edit-remove-avatar'),
-            text: l10n.profileAvatarRemove,
-            variant: OmdsButtonVariant.text,
-            isEnabled: !state.isSavingProfile,
-            onTap: () => context.read<SettingsCubit>().removePhoto(),
+          Semantics(
+            identifier: 'profile_edit_remove_avatar_cta',
+            button: true,
+            container: true,
+            child: OmdsPrimaryButton(
+              key: const Key('profile-edit-remove-avatar'),
+              text: l10n.profileAvatarRemove,
+              variant: OmdsButtonVariant.text,
+              isEnabled: !state.isSavingProfile,
+              onTap: () => context.read<SettingsCubit>().removePhoto(),
+            ),
           ),
       ],
     );
@@ -237,14 +252,19 @@ class _NameField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OmdsTextField(
-      key: const Key('profile-edit-name'),
-      controller: controller,
-      labelText: label,
-      hintText: hint,
-      errorText: errorText,
-      isRequired: true,
-      textCapitalization: TextCapitalization.words,
+    return Semantics(
+      identifier: 'profile_edit_name_field',
+      textField: true,
+      container: true,
+      child: OmdsTextField(
+        key: const Key('profile-edit-name'),
+        controller: controller,
+        labelText: label,
+        hintText: hint,
+        errorText: errorText,
+        isRequired: true,
+        textCapitalization: TextCapitalization.words,
+      ),
     );
   }
 }

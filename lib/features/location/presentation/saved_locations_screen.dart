@@ -292,6 +292,7 @@ class _LocationTile extends StatelessWidget {
               onTap: isMutating ? null : () => _onEdit(context),
             ),
             _MoreButton(
+              index: index,
               label: location.label,
               onTap: isMutating ? null : () => _onMore(context),
             ),
@@ -447,17 +448,38 @@ class _EditButton extends StatelessWidget {
 }
 
 class _MoreButton extends StatelessWidget {
-  const _MoreButton({required this.label, required this.onTap});
+  const _MoreButton({
+    required this.index,
+    required this.label,
+    required this.onTap,
+  });
 
+  /// List position; drives the `saved_address_<index>_more` id, mirroring the
+  /// sibling `saved_address_<index>_edit` (63 §2.16 index-0 pattern).
+  final int index;
   final String label;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.more_vert),
-      tooltip: label,
-      onPressed: onTap,
+    // Same first-class-node treatment as the sibling [_EditButton]: this button
+    // sits inside the tile's InkWell, so a button-flagged Semantics with no
+    // action of its own would be merged into that parent button and lose its
+    // identifier. A real `onTap` action keeps it separate and addressable;
+    // `ExcludeSemantics` hides the inner IconButton's duplicate node.
+    return Semantics(
+      identifier: 'saved_address_${index}_more',
+      button: true,
+      enabled: onTap != null,
+      label: label,
+      onTap: onTap,
+      child: ExcludeSemantics(
+        child: IconButton(
+          icon: const Icon(Icons.more_vert),
+          tooltip: label,
+          onPressed: onTap,
+        ),
+      ),
     );
   }
 }
@@ -494,21 +516,31 @@ class _ActionSheet extends StatelessWidget {
               ),
             ),
             const Divider(),
-            OmdsSettingsRow(
-              title: editLabel,
-              leadingIcon: Icons.edit_outlined,
-              trailing: const SizedBox.shrink(),
-              onTap: () => Navigator.of(context).pop(_Action.edit),
-            ),
-            OmdsSettingsRow(
-              title: deleteLabel,
-              leadingIcon: Icons.delete_outline,
-              leadingIconColor: Theme.of(context).colorScheme.error,
-              titleStyle: TextStyle(
-                color: Theme.of(context).colorScheme.error,
+            Semantics(
+              identifier: 'saved_address_sheet_edit_cta',
+              container: true,
+              button: true,
+              child: OmdsSettingsRow(
+                title: editLabel,
+                leadingIcon: Icons.edit_outlined,
+                trailing: const SizedBox.shrink(),
+                onTap: () => Navigator.of(context).pop(_Action.edit),
               ),
-              trailing: const SizedBox.shrink(),
-              onTap: () => Navigator.of(context).pop(_Action.delete),
+            ),
+            Semantics(
+              identifier: 'saved_address_sheet_delete_cta',
+              container: true,
+              button: true,
+              child: OmdsSettingsRow(
+                title: deleteLabel,
+                leadingIcon: Icons.delete_outline,
+                leadingIconColor: Theme.of(context).colorScheme.error,
+                titleStyle: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                trailing: const SizedBox.shrink(),
+                onTap: () => Navigator.of(context).pop(_Action.delete),
+              ),
             ),
           ],
         ),

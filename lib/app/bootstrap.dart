@@ -16,6 +16,7 @@ import '../core/network/auth_token_store.dart';
 import '../core/observability/crash_reporter.dart';
 import '../core/observability/crash_reporting_initializer.dart';
 import '../core/observability/firebase_crashlytics_reporter.dart';
+import '../core/observability/session_trace/session_trace.dart';
 import '../core/observability/swappable_crash_reporter.dart';
 import '../core/role/role_cubit.dart';
 import '../core/role/user_role.dart';
@@ -123,6 +124,20 @@ class Bootstrap {
             subLookup: () => AuthTokenStore().userId,
           ),
         );
+      }
+      // Session-trace observability tool (devtool-only; architecture-contract
+      // wiring point W4): arms the process-global interaction observer
+      // (a passive pointer-route + focus listener — never wraps a widget,
+      // never alters hit-testing/gesture/focus behavior). This ONLY starts
+      // watching; it records nothing on its own — every capture site (this
+      // one, the nav observer, the dio interceptor, the notification hooks)
+      // stays a hard no-op until a devtool session is actively started via
+      // the in-app overlay (or `main_devtool.dart`'s inner-loop default).
+      // `kObsCompiledIn` is compile-time `false` in a production build, so
+      // this whole branch (and `ObsInteractionObserver` itself) is
+      // tree-shaken out entirely — the normal app entry is unaffected.
+      if (kObsCompiledIn && ObservabilityConfig.instance.captureInteractions) {
+        ObsInteractionObserver.instance.install();
       }
       return BootstrapResult(preferences: preferences, crashReporter: reporter);
     } finally {

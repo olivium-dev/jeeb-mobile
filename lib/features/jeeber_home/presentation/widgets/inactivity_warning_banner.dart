@@ -107,10 +107,15 @@ class _BannerCta extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Align(
       alignment: AlignmentDirectional.centerEnd,
-      child: OmdsPrimaryButton(
-        key: InactivityWarningBanner.ctaKey,
-        text: l10n.availabilityInactivityWarningCta,
-        onTap: onExtend,
+      child: Semantics(
+        identifier: 'availability_inactivity_extend_cta',
+        container: true,
+        button: true,
+        child: OmdsPrimaryButton(
+          key: InactivityWarningBanner.ctaKey,
+          text: l10n.availabilityInactivityWarningCta,
+          onTap: onExtend,
+        ),
       ),
     );
   }

@@ -5,6 +5,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../diagnostics/diag.dart';
+import '../../observability/session_trace/session_trace.dart';
 import '../data/push_transport.dart';
 import '../domain/local_push_inbox.dart';
 import '../domain/notification_message.dart';
@@ -170,6 +171,13 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
       'id': message.id,
       'category': message.category.name,
     });
+    // Session-trace observability tool (devtool-only, Module 3): richer,
+    // redacted RECEIVED event alongside the `[jeeb-diag]` line above. Runs
+    // ALONGSIDE it, never replacing it; a hard no-op (tree-shaken out) in a
+    // production build.
+    if (kObsCompiledIn) {
+      ObsNotificationRecorder.recordReceived(message, mode: 'foreground');
+    }
     if (_seenIds.contains(message.id)) return;
     _seenIds.addLast(message.id);
     while (_seenIds.length > _seenIdsLimit) {

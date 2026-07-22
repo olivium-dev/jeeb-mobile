@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:omds/omds.dart';
 
 import '../app/bootstrap.dart';
 import '../core/dev_flags.dart';
+import '../core/diagnostics/gesture_log.dart';
+import '../core/observability/session_trace/observability_config.dart';
+import '../core/observability/session_trace/presentation/obs_overlay.dart';
 import '../core/theme/app_theme.dart';
 import 'actions/actions_page.dart';
 import 'catalog/catalog_screen.dart';
@@ -60,6 +64,17 @@ class _DevToolAppState extends State<DevToolApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      // Session-trace observability tool (devtool-only): mounts the SAME
+      // floating overlay `lib/app/app.dart` mounts over the product app, so
+      // the Dev Tool shell (reached via its own launcher icon OR
+      // `main_devtool.dart`) also carries a start/stop/export affordance.
+      // Additive only; `kObsCompiledIn` is compile-time `false` in a
+      // production build, so this builder (and `ObsOverlayHost`) is
+      // tree-shaken out and `child` is returned unchanged.
+      builder: (context, child) {
+        final content = child ?? const SizedBox.shrink();
+        return kObsCompiledIn ? ObsOverlayHost(child: content) : content;
+      },
       home: FutureBuilder<BootstrapResult>(
         future: _bootstrap,
         builder: (context, snapshot) {
@@ -91,20 +106,28 @@ class DevToolShell extends StatelessWidget {
         title: const Text('Jeeber Dev Tool'),
         centerTitle: false,
       ),
-      body: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: DevToolSection.values.length,
-        separatorBuilder: (_, _) => const Divider(height: 1),
-        itemBuilder: (context, i) {
-          final section = DevToolSection.values[i];
-          return ListTile(
-            leading: Icon(section.icon),
-            title: Text(section.title),
-            subtitle: Text(section.subtitle),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _openSection(context, section),
-          );
-        },
+      body: Column(
+        children: [
+          const _GestureLoggingSwitch(),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: DevToolSection.values.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (context, i) {
+                final section = DevToolSection.values[i];
+                return ListTile(
+                  leading: Icon(section.icon),
+                  title: Text(section.title),
+                  subtitle: Text(section.subtitle),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _openSection(context, section),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -141,6 +164,32 @@ class DevToolShell extends StatelessWidget {
           MaterialPageRoute<void>(builder: (_) => const ScenarioUsersPage()),
         );
     }
+  }
+}
+
+/// Live on/off for the GESTURE-LOG hook. Flips [GestureLog.enabled] instantly
+/// (no restart) and reflects the current state — records taps/gestures (incl.
+/// adb/Maestro-injected) onto the `[jeeb-diag]` stream. Default OFF; a test
+/// build can start it ON via `--dart-define=JEEB_GESTURE_LOG_DEFAULT=true`.
+/// OMDS component + design tokens; carries an accessibility key so the toggle
+/// itself is targetable by automated flows.
+class _GestureLoggingSwitch extends StatelessWidget {
+  const _GestureLoggingSwitch();
+
+  @override
+  Widget build(BuildContext context) {
+    final gestureLog = GestureLog.instance;
+    return ValueListenableBuilder<bool>(
+      valueListenable: gestureLog.enabledListenable,
+      builder: (context, enabled, _) => OmdsSwitchTile(
+        key: const ValueKey('devtool.gestureLoggingSwitch'),
+        leading: const Icon(Icons.touch_app),
+        title: 'Gesture Logging',
+        subtitle: enabled ? 'On — taps logged to diag stream' : 'Off',
+        value: enabled,
+        onChanged: (value) => gestureLog.enabled = value,
+      ),
+    );
   }
 }
 

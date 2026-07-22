@@ -231,9 +231,9 @@ void main() {
         expect(snapshot.windowExpiresAt.isAfter(DateTime.now()), isTrue);
       });
 
-      test('derives deadline = first-offer createdAt + 5 min when absent',
+      test('derives deadline = first-offer createdAt + 15 min when absent',
           () async {
-        // Use a recent timestamp (1 min ago) so windowExpiresAt = +4 min is
+        // Use a recent timestamp (1 min ago) so windowExpiresAt = +14 min is
         // still in the future and the assertion does not become stale over time.
         final created = DateTime.now().toUtc().subtract(const Duration(minutes: 1));
         final repo = DioOffersRepository(
@@ -251,16 +251,16 @@ void main() {
         final snapshot = await repo.fetchOffers('req-1');
         expect(
           snapshot.windowExpiresAt,
-          created.add(const Duration(minutes: 5)),
+          created.add(const Duration(minutes: 15)),
         );
       });
 
-      test('falls back to 5-min window when offer list is empty', () async {
+      test('falls back to 15-min window when offer list is empty', () async {
         final before = DateTime.now();
         final repo = DioOffersRepository(_dioRespond(<dynamic>[]));
 
         final snapshot = await repo.fetchOffers('req-1');
-        final after = DateTime.now().add(const Duration(minutes: 5));
+        final after = DateTime.now().add(const Duration(minutes: 15));
         expect(
           snapshot.windowExpiresAt.isAfter(before),
           isTrue,

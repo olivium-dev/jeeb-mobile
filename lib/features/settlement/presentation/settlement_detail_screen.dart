@@ -21,25 +21,29 @@ class SettlementDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: OMDSAppBar(
-        title: statement.weekLabel,
-        showBackButton: true,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(Spacing.medium),
-        children: [
-          _SummaryCard(statement: statement, l10n: l10n),
-          const SizedBox(height: Spacing.medium),
-          Text(
-            l10n.settlementBreakdownTitle,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: Spacing.small),
-          ...statement.deliveries.map(
-            (d) => _DeliveryLineRow(line: d, l10n: l10n),
-          ),
-        ],
+    return Semantics(
+      identifier: 'settlement_detail_root',
+      container: true,
+      child: Scaffold(
+        appBar: OMDSAppBar(
+          title: statement.weekLabel,
+          showBackButton: true,
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(Spacing.medium),
+          children: [
+            _SummaryCard(statement: statement, l10n: l10n),
+            const SizedBox(height: Spacing.medium),
+            Text(
+              l10n.settlementBreakdownTitle,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: Spacing.small),
+            ...statement.deliveries.map(
+              (d) => _DeliveryLineRow(line: d, l10n: l10n),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -35,15 +35,22 @@ class WaitingState extends Equatable {
   /// from [WaitingRequest.notifiedCount], which the gateway never populates
   /// (jeebers pull `GET /v1/jeebers/me/feed`; there is no push-notify counter).
   bool get isNoOffersYet =>
-      request != null && !hasOffers && remaining == Duration.zero;
+      request != null &&
+      !isTerminal &&
+      !hasOffers &&
+      remaining == Duration.zero;
 
   /// True once at least one offer has arrived — drives the review-offers CTA.
-  bool get hasOffers => (request?.hasOffers ?? false);
+  bool get hasOffers => !isTerminal && (request?.hasOffers ?? false);
+
+  /// True when the server says this request has left the waiting flow.
+  bool get isTerminal => request?.phase.isTerminal ?? false;
 
   /// Remaining time until the broadcast deadline, clamped at zero. Returns
   /// [Duration.zero] when there is no snapshot/deadline yet so the countdown
   /// label can render a stable "0:00".
   Duration get remaining {
+    if (isTerminal) return Duration.zero;
     final deadline = request?.broadcastExpiresAt;
     final clock = now;
     if (deadline == null || clock == null) return Duration.zero;
@@ -57,13 +64,12 @@ class WaitingState extends Equatable {
     DateTime? now,
     WaitingFailure? error,
     bool clearError = false,
-  }) =>
-      WaitingState(
-        status: status ?? this.status,
-        request: request ?? this.request,
-        now: now ?? this.now,
-        error: clearError ? null : (error ?? this.error),
-      );
+  }) => WaitingState(
+    status: status ?? this.status,
+    request: request ?? this.request,
+    now: now ?? this.now,
+    error: clearError ? null : (error ?? this.error),
+  );
 
   @override
   List<Object?> get props => [status, request, now, error];

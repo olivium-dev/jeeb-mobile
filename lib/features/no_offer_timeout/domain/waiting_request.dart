@@ -12,11 +12,29 @@ import 'package:equatable/equatable.dart';
 
 /// Lifecycle of the request as the waiting screen reads it.
 ///
-/// Only the pre-accept states matter here: a request is either still
-/// `broadcasting` (waiting for the first offer), has `offersArrived` (at least
-/// one bid is in — show the review CTA), or is `closed` (accepted/cancelled/
-/// expired — the screen has nothing more to wait for).
-enum WaitingRequestPhase { broadcasting, offersArrived, closed }
+/// The waiting surface distinguishes its two live phases from the server-owned
+/// outcomes that end waiting. The terminal variants let the UI show an honest
+/// next state instead of leaving a dead request under a live countdown.
+enum WaitingRequestPhase {
+  broadcasting,
+  offersArrived,
+  matched,
+  cancelled,
+  expired,
+  closed,
+}
+
+extension WaitingRequestPhaseX on WaitingRequestPhase {
+  /// Whether this phase has left the pre-accept waiting flow.
+  bool get isTerminal => switch (this) {
+    WaitingRequestPhase.broadcasting ||
+    WaitingRequestPhase.offersArrived => false,
+    WaitingRequestPhase.matched ||
+    WaitingRequestPhase.cancelled ||
+    WaitingRequestPhase.expired ||
+    WaitingRequestPhase.closed => true,
+  };
+}
 
 /// Immutable snapshot of the pre-accept request driving the waiting screen.
 class WaitingRequest extends Equatable {
@@ -49,9 +67,9 @@ class WaitingRequest extends Equatable {
   /// review-offers CTA (AC2).
   final int offerCount;
 
-  /// Server-provided broadcast deadline. Drives the countdown; `null` when the
-  /// gateway omits it (the cubit then falls back to a local window so the
-  /// `waiting_countdown` still renders).
+  /// Server-provided broadcast deadline. `null` means the gateway omitted it;
+  /// the cubit may then anchor one presentation-only fallback for this request.
+  /// That fallback never decides whether the server-owned request is terminal.
   final DateTime? broadcastExpiresAt;
 
   /// Human-facing reference (e.g. `ORD-501001`) for the header.
@@ -70,13 +88,13 @@ class WaitingRequest extends Equatable {
 
   @override
   List<Object?> get props => [
-        requestId,
-        phase,
-        notifiedCount,
-        offerCount,
-        broadcastExpiresAt,
-        displayId,
-        tier,
-        title,
-      ];
+    requestId,
+    phase,
+    notifiedCount,
+    offerCount,
+    broadcastExpiresAt,
+    displayId,
+    tier,
+    title,
+  ];
 }

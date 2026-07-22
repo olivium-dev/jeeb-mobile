@@ -167,18 +167,22 @@ class _CancellationViewState extends State<_CancellationView> {
 
     return BlocListener<CancellationCubit, CancellationState>(
       listener: _onStateChange,
-      child: Scaffold(
-        appBar: OMDSAppBar(
-          title: l10n.cancellationTitle,
-          showBackButton: true,
-        ),
-        body: _Body(
-          reasons: reasons,
-          selectedReason: _selectedReason,
-          otherController: _otherController,
-          label: (r) => _label(r, l10n),
-          onReasonChanged: (r) => setState(() => _selectedReason = r),
-          onSubmit: () => _submit(context),
+      child: Semantics(
+        identifier: 'cancellation_root',
+        container: true,
+        child: Scaffold(
+          appBar: OMDSAppBar(
+            title: l10n.cancellationTitle,
+            showBackButton: true,
+          ),
+          body: _Body(
+            reasons: reasons,
+            selectedReason: _selectedReason,
+            otherController: _otherController,
+            label: (r) => _label(r, l10n),
+            onReasonChanged: (r) => setState(() => _selectedReason = r),
+            onSubmit: () => _submit(context),
+          ),
         ),
       ),
     );
@@ -269,10 +273,16 @@ class _OtherTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return OmdsTextField(
-      controller: controller,
-      labelText: l10n.cancellationOtherHint,
-      maxLines: 3,
+    // Identifier on a wrapping node so Maestro can locate the free-text "other"
+    // reason input; the field owns its own editable semantics underneath.
+    return Semantics(
+      identifier: 'cancellation_other_field',
+      textField: true,
+      child: OmdsTextField(
+        controller: controller,
+        labelText: l10n.cancellationOtherHint,
+        maxLines: 3,
+      ),
     );
   }
 }
@@ -289,12 +299,17 @@ class _SubmitButton extends StatelessWidget {
     return BlocBuilder<CancellationCubit, CancellationState>(
       builder: (context, state) {
         final loading = state is CancellationLoading;
-        return OmdsPrimaryButton(
-          text: loading
-              ? l10n.deliveryActionCancellingLabel
-              : l10n.cancellationConfirmButton,
-          isEnabled: isEnabled && !loading,
-          onTap: onSubmit,
+        return Semantics(
+          identifier: 'cancellation_submit_cta',
+          container: true,
+          button: true,
+          child: OmdsPrimaryButton(
+            text: loading
+                ? l10n.deliveryActionCancellingLabel
+                : l10n.cancellationConfirmButton,
+            isEnabled: isEnabled && !loading,
+            onTap: onSubmit,
+          ),
         );
       },
     );

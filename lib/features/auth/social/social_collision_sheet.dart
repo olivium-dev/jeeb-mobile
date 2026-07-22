@@ -73,10 +73,15 @@ class SocialCollisionSheet extends StatelessWidget {
               const SizedBox(height: Spacing.large),
               SizedBox(
                 width: double.infinity,
-                child: OMDSOutlinedButton(
-                  key: const Key('registration.socialCollisionDismiss'),
-                  text: l10n.registrationSocialCollisionDismiss,
-                  onTap: () => Navigator.of(context).pop(),
+                child: Semantics(
+                  identifier: 'social_collision_sheet_dismiss_cta',
+                  button: true,
+                  container: true,
+                  child: OMDSOutlinedButton(
+                    key: const Key('registration.socialCollisionDismiss'),
+                    text: l10n.registrationSocialCollisionDismiss,
+                    onTap: () => Navigator.of(context).pop(),
+                  ),
                 ),
               ),
             ],

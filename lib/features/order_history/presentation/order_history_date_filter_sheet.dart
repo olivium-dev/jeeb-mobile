@@ -64,6 +64,7 @@ class _OrderHistoryDateFilterSheetState
           const SizedBox(height: Spacing.medium),
           _DateRow(
             key: const Key('order-history-filter-from'),
+            fieldId: 'order_history_sheet_from',
             label: l10n.orderHistoryFilterFrom,
             value: _from,
             placeholder: l10n.orderHistoryFilterAnyDate,
@@ -82,6 +83,7 @@ class _OrderHistoryDateFilterSheetState
           const SizedBox(height: Spacing.xSmall),
           _DateRow(
             key: const Key('order-history-filter-to'),
+            fieldId: 'order_history_sheet_to',
             label: l10n.orderHistoryFilterTo,
             value: _to,
             placeholder: l10n.orderHistoryFilterAnyDate,
@@ -101,24 +103,34 @@ class _OrderHistoryDateFilterSheetState
           Row(
             children: [
               Expanded(
-                child: OMDSOutlinedButton(
-                  key: const Key('order-history-filter-clear'),
-                  text: l10n.orderHistoryFilterClear,
-                  onTap: () {
-                    Navigator.of(context).pop(const OrderDateRange());
-                  },
+                child: Semantics(
+                  identifier: 'order_history_sheet_clear_cta',
+                  container: true,
+                  button: true,
+                  child: OMDSOutlinedButton(
+                    key: const Key('order-history-filter-clear'),
+                    text: l10n.orderHistoryFilterClear,
+                    onTap: () {
+                      Navigator.of(context).pop(const OrderDateRange());
+                    },
+                  ),
                 ),
               ),
               const SizedBox(width: Spacing.small),
               Expanded(
-                child: OmdsPrimaryButton(
-                  key: const Key('order-history-filter-apply'),
-                  text: l10n.orderHistoryFilterApply,
-                  onTap: () {
-                    Navigator.of(context).pop(
-                      OrderDateRange(from: _from, to: _to),
-                    );
-                  },
+                child: Semantics(
+                  identifier: 'order_history_sheet_apply_cta',
+                  container: true,
+                  button: true,
+                  child: OmdsPrimaryButton(
+                    key: const Key('order-history-filter-apply'),
+                    text: l10n.orderHistoryFilterApply,
+                    onTap: () {
+                      Navigator.of(context).pop(
+                        OrderDateRange(from: _from, to: _to),
+                      );
+                    },
+                  ),
                 ),
               ),
             ],
@@ -132,6 +144,7 @@ class _OrderHistoryDateFilterSheetState
 class _DateRow extends StatelessWidget {
   const _DateRow({
     super.key,
+    required this.fieldId,
     required this.label,
     required this.value,
     required this.placeholder,
@@ -140,6 +153,9 @@ class _DateRow extends StatelessWidget {
     required this.onClear,
   });
 
+  /// Semantics id prefix for this row's date-picker button (`${fieldId}_cta`)
+  /// and its clear affordance (`${fieldId}_clear_cta`).
+  final String fieldId;
   final String label;
   final DateTime? value;
   final String placeholder;
@@ -157,15 +173,25 @@ class _DateRow extends StatelessWidget {
           child: Text(label, style: theme.textTheme.bodyMedium),
         ),
         Expanded(
-          child: OMDSOutlinedButton(
-            text: value == null ? placeholder : formatter.format(value!),
-            onTap: onTap,
+          child: Semantics(
+            identifier: '${fieldId}_cta',
+            container: true,
+            button: true,
+            child: OMDSOutlinedButton(
+              text: value == null ? placeholder : formatter.format(value!),
+              onTap: onTap,
+            ),
           ),
         ),
-        IconButton(
-          onPressed: onClear,
-          icon: const Icon(Icons.close),
-          tooltip: onClear == null ? null : placeholder,
+        Semantics(
+          identifier: '${fieldId}_clear_cta',
+          container: true,
+          button: true,
+          child: IconButton(
+            onPressed: onClear,
+            icon: const Icon(Icons.close),
+            tooltip: onClear == null ? null : placeholder,
+          ),
         ),
       ],
     );
