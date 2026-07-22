@@ -12,6 +12,10 @@ import '../domain/jeeber_delivery_status.dart';
 import 'widgets/delivery_status_stepper.dart';
 import 'widgets/mark_delivered_panel.dart';
 
+/// Minimum width needed to keep the two quick actions on one row without
+/// truncating their localized labels at the default text scale.
+const double _kInlineQuickActionsMinWidth = 448;
+
 /// Jeeber active-delivery / mark-delivered screen (T-MOB-031, JM-051).
 ///
 /// Route: `/jeeber/deliveries/:id/active` (seam-pinned for the
@@ -178,10 +182,7 @@ class _Body extends StatelessWidget {
   Widget _buildScaffold(BuildContext context, ActiveDeliveryState state) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: OMDSAppBar(
-        title: l10n.activeDeliveryTitle,
-        showBackButton: true,
-      ),
+      appBar: OMDSAppBar(title: l10n.activeDeliveryTitle, showBackButton: true),
       // mark_delivered_root (JM-051) — root of the active-delivery /
       // mark-delivered screen, asserted on first frame by the seam route pin.
       body: Semantics(
@@ -212,12 +213,10 @@ class _Body extends StatelessWidget {
         return _ReadyContent(
           state: state,
           delivery: delivery,
-          onAdvance: () =>
-              context.read<ActiveDeliveryCubit>().advanceStatus(),
+          onAdvance: () => context.read<ActiveDeliveryCubit>().advanceStatus(),
           onCaptureProof: () =>
               context.read<ActiveDeliveryCubit>().captureProofPhoto(),
-          onNoteChanged: (v) =>
-              context.read<ActiveDeliveryCubit>().setNote(v),
+          onNoteChanged: (v) => context.read<ActiveDeliveryCubit>().setNote(v),
           onMarkDelivered: () =>
               context.read<ActiveDeliveryCubit>().markDelivered(),
           // iter6 close-tail: submit the recipient door OTP to complete the
@@ -235,8 +234,7 @@ class _Body extends StatelessWidget {
   Future<void> _launchMaps(JeeberDelivery delivery) async {
     final lat = delivery.dropOff.lat;
     final lng = delivery.dropOff.lng;
-    final url =
-        'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng';
+    final url = 'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng';
     final launch = mapsUrlBuilder;
     if (launch != null) {
       await launch(url);
@@ -274,6 +272,9 @@ class _ReadyContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (delivery.status.isUnsuccessfulTerminal) {
+      return _UnsuccessfulTerminalContent(status: delivery.status, l10n: l10n);
+    }
     // JM-051: the mark-delivered panel is surfaced during the delivering phase
     // (InTransit or AtDoor) — the seam seeds `jeeber_active_delivery` at
     // InTransit, and the flow asserts the panel on first frame. `markDelivered`
@@ -281,7 +282,7 @@ class _ReadyContent extends StatelessWidget {
     // stamping the proof evidenceUrl on the final transition.
     final showMarkDelivered =
         delivery.status == JeeberDeliveryStatus.inTransit ||
-            delivery.status == JeeberDeliveryStatus.atDoor;
+        delivery.status == JeeberDeliveryStatus.atDoor;
     // Core Flow step 7 (jeeber terminal): once the handover OTP completes the
     // delivery to V3 `Done`, render an explicit delivered/completed final state
     // so a re-entry / poll-update lands on a clear terminal UI (not a stale
@@ -300,10 +301,14 @@ class _ReadyContent extends StatelessWidget {
         ],
         _AddressCard(delivery: delivery, l10n: l10n),
         const SizedBox(height: Spacing.large),
-        DeliveryStatusStepper(
-          currentStatus: delivery.status,
-          isTransitioning: state.isTransitioning,
-          onAdvance: onAdvance,
+        OMDSSectionCard(
+          title: l10n.activeDeliveryProgressTitle,
+          showDivider: false,
+          content: DeliveryStatusStepper(
+            currentStatus: delivery.status,
+            isTransitioning: state.isTransitioning,
+            onAdvance: onAdvance,
+          ),
         ),
         const SizedBox(height: Spacing.large),
         // JM-051 AC1/AC2: surface the mark-delivered panel — proof photo (D3)
@@ -336,6 +341,68 @@ class _ReadyContent extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Neutral terminal treatment for deliveries that did not complete
+/// successfully. Mirrors the existing live-tracking cancelled-state precedent:
+/// an [OmdsEmptyState], with no success banner, progress stepper, or delivery
+/// actions. Cancellation, expiry, and dispute remain visually and semantically
+/// distinguishable.
+class _UnsuccessfulTerminalContent extends StatelessWidget {
+  const _UnsuccessfulTerminalContent({
+    required this.status,
+    required this.l10n,
+  });
+
+  final JeeberDeliveryStatus status;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      identifier: _identifier,
+      container: true,
+      child: ListView(
+        padding: const EdgeInsets.all(Spacing.large),
+        children: [
+          OmdsEmptyState(
+            key: ValueKey<String>(_identifier),
+            icon: _icon,
+            title: _title,
+            subtitle: _body,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String get _identifier => switch (status) {
+    JeeberDeliveryStatus.cancelled => 'delivery_cancelled_state',
+    JeeberDeliveryStatus.expired => 'delivery_expired_state',
+    JeeberDeliveryStatus.disputed => 'delivery_disputed_state',
+    _ => throw StateError('Expected an unsuccessful terminal status'),
+  };
+
+  IconData get _icon => switch (status) {
+    JeeberDeliveryStatus.cancelled => Icons.cancel_outlined,
+    JeeberDeliveryStatus.expired => Icons.timer_off_outlined,
+    JeeberDeliveryStatus.disputed => Icons.report_problem_outlined,
+    _ => throw StateError('Expected an unsuccessful terminal status'),
+  };
+
+  String get _title => switch (status) {
+    JeeberDeliveryStatus.cancelled => l10n.activeDeliveryCancelledTitle,
+    JeeberDeliveryStatus.expired => l10n.activeDeliveryExpiredTitle,
+    JeeberDeliveryStatus.disputed => l10n.activeDeliveryDisputedTitle,
+    _ => throw StateError('Expected an unsuccessful terminal status'),
+  };
+
+  String get _body => switch (status) {
+    JeeberDeliveryStatus.cancelled => l10n.activeDeliveryCancelledBody,
+    JeeberDeliveryStatus.expired => l10n.activeDeliveryExpiredBody,
+    JeeberDeliveryStatus.disputed => l10n.activeDeliveryDisputedBody,
+    _ => throw StateError('Expected an unsuccessful terminal status'),
+  };
 }
 
 /// `delivery_completed_state` — the jeeber-side delivered/completed terminal
@@ -390,34 +457,142 @@ class _AddressCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final colorScheme = Theme.of(context).colorScheme;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(Spacing.medium),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.activeDeliveryDropOffLabel,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
+    return OMDSSectionCard(
+      title: l10n.activeDeliveryDropOffLabel,
+      showDivider: false,
+      content: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.location_on_outlined,
+            color: colorScheme.primary,
+            size: Sizes.xLarge,
+          ),
+          const SizedBox(width: Spacing.small),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  delivery.dropOff.label,
+                  style: theme.textTheme.titleMedium,
+                ),
+                if (delivery.dropOff.detail != null) ...[
+                  const SizedBox(height: Spacing.xSmall),
+                  Text(
+                    delivery.dropOff.detail!,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
+                ],
+              ],
             ),
-            const SizedBox(height: Spacing.xSmall),
-            Text(
-              delivery.dropOff.label,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            if (delivery.dropOff.detail != null) ...[
-              const SizedBox(height: Spacing.xSmall),
-              Text(
-                delivery.dropOff.detail!,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
-          ],
-        ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _QuickAction extends StatelessWidget {
+  const _QuickAction({
+    required this.identifier,
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String identifier;
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Semantics(
+      identifier: identifier,
+      container: true,
+      button: true,
+      child: OmdsPrimaryButton(
+        text: label,
+        variant: OmdsButtonVariant.outlined,
+        icon: Icon(icon, color: colorScheme.primary),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _QuickActions extends StatelessWidget {
+  const _QuickActions({
+    required this.onOpenMaps,
+    required this.onOpenChat,
+    required this.l10n,
+  });
+
+  final VoidCallback onOpenMaps;
+  final VoidCallback onOpenChat;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    final maps = _QuickAction(
+      identifier: 'mark_delivered_open_maps_cta',
+      label: l10n.activeDeliveryOpenMapsButton,
+      icon: Icons.map_outlined,
+      onTap: onOpenMaps,
+    );
+    final chat = _QuickAction(
+      identifier: 'mark_delivered_open_chat_cta',
+      label: l10n.activeDeliveryOpenChatButton,
+      icon: Icons.chat_bubble_outline,
+      onTap: onOpenChat,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stackActions =
+            constraints.maxWidth < _kInlineQuickActionsMinWidth ||
+            MediaQuery.textScalerOf(context).scale(Spacing.medium) >
+                Spacing.large;
+        if (stackActions) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              maps,
+              const SizedBox(height: Spacing.small),
+              chat,
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: maps),
+            const SizedBox(width: Spacing.small),
+            Expanded(child: chat),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _GoodsCostAction extends StatelessWidget {
+  const _GoodsCostAction({required this.onTap, required this.l10n});
+
+  final VoidCallback onTap;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    return _QuickAction(
+      identifier: 'mark_delivered_goods_cost_cta',
+      label: l10n.activeDeliveryEnterGoodsCostButton,
+      icon: Icons.receipt_long_outlined,
+      onTap: onTap,
     );
   }
 }
@@ -437,53 +612,21 @@ class _ActionButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final enterGoodsCost = onEnterGoodsCost;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Semantics(
-          identifier: 'mark_delivered_open_maps_cta',
-          container: true,
-          button: true,
-          child: OmdsPrimaryButton(
-            text: l10n.activeDeliveryOpenMapsButton,
-            // `OmdsPrimaryButton` only colors its text child, not a passed icon,
-            // so the leading icon must be given the on-navy token explicitly —
-            // otherwise it inherits the ambient (near-black) IconTheme color and
-            // renders black-on-navy. Match the white text via `onPrimary`.
-            icon: Icon(Icons.map_outlined, color: colorScheme.onPrimary),
-            onTap: onOpenMaps,
-          ),
-        ),
-        const SizedBox(height: Spacing.small),
-        Semantics(
-          identifier: 'mark_delivered_open_chat_cta',
-          container: true,
-          button: true,
-          child: OmdsPrimaryButton(
-            text: l10n.activeDeliveryOpenChatButton,
-            variant: OmdsButtonVariant.outlined,
-            icon: const Icon(Icons.chat_bubble_outline),
-            onTap: onOpenChat,
-          ),
+        _QuickActions(
+          onOpenMaps: onOpenMaps,
+          onOpenChat: onOpenChat,
+          l10n: l10n,
         ),
         // Sprint 2 Stream G: goods-cost entry point (D11). Only shown when the
         // caller wired the navigation closure — keeps existing tests/callers
         // (which omit it) rendering exactly the prior two buttons.
         if (enterGoodsCost != null) ...[
           const SizedBox(height: Spacing.small),
-          Semantics(
-            identifier: 'mark_delivered_goods_cost_cta',
-            container: true,
-            button: true,
-            child: OmdsPrimaryButton(
-              text: l10n.activeDeliveryEnterGoodsCostButton,
-              variant: OmdsButtonVariant.outlined,
-              icon: const Icon(Icons.receipt_long_outlined),
-              onTap: enterGoodsCost,
-            ),
-          ),
+          _GoodsCostAction(onTap: enterGoodsCost, l10n: l10n),
         ],
       ],
     );

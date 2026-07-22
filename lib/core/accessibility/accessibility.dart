@@ -23,17 +23,13 @@ class A11y {
   /// preserves the AC while protecting users who crank the OS slider beyond.
   static const double maxTextScaleFactor = 2.0;
 
-  /// Floor on the text scaler. Users who disable scaling entirely (or some
-  /// older Android variants reporting <1.0) still get readable type.
-  static const double minTextScaleFactor = 1.0;
-
-  /// Returns a copy of [data] with its text scaler clamped to
-  /// `[minTextScaleFactor, maxTextScaleFactor]`. Drop in inside
-  /// `MaterialApp.builder` to enforce the policy across every screen.
+  /// Returns a copy of [data] with its text scaler capped at
+  /// [maxTextScaleFactor]. Keeping the lower bound unconstrained is important:
+  /// framework widgets such as Material's date picker apply their own tighter
+  /// maximum, and nested clamps must retain a valid range.
   static MediaQueryData clampTextScaler(MediaQueryData data) {
     return data.copyWith(
       textScaler: data.textScaler.clamp(
-        minScaleFactor: minTextScaleFactor,
         maxScaleFactor: maxTextScaleFactor,
       ),
     );

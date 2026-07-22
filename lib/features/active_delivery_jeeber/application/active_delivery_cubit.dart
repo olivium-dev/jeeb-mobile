@@ -413,7 +413,7 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     final original = state.delivery;
     if (original == null) return;
     if (state.isTransitioning) return;
-    if (original.status == JeeberDeliveryStatus.done) return;
+    if (original.status.isTerminal) return;
 
     emit(state.copyWith(
       mode: ActiveDeliveryMode.transitioning,

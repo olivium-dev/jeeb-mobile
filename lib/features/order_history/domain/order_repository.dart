@@ -12,7 +12,8 @@ abstract class OrderRepository {
   ///
   /// - [tab] determines the `status` filter sent to the gateway.
   /// - [page] is 1-based to match the gateway pagination convention.
-  /// - [range] is optional; when both ends are null no date filter is sent.
+  /// - [range] is optional and half-open (`[from, to)`); when both ends are
+  ///   null no date filter is sent.
   Future<OrderPage> fetchPage({
     required OrderHistoryTab tab,
     required int page,

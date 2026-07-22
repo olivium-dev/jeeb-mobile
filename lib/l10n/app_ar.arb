@@ -909,6 +909,13 @@
   "orderHistoryFilterAnyDate": "أي تاريخ",
   "orderHistoryFilterApply": "تطبيق",
   "orderHistoryFilterClear": "مسح",
+  "orderHistoryFilterClearDate": "مسح تاريخ {field}",
+  "@orderHistoryFilterClearDate": {
+    "description": "تلميح إمكانية الوصول لمسح أحد طرفي نطاق التاريخ في سجل الطلبات.",
+    "placeholders": {
+      "field": { "type": "String" }
+    }
+  },
   "orderHistoryFilterCta": "تصفية حسب التاريخ",
   "orderHistoryFilterFrom": "من",
   "orderHistoryFilterTitle": "تصفية حسب التاريخ",
@@ -1263,12 +1270,52 @@
   "offerSubmitRequestGone": "هذا الطلب لم يعد متاحاً.",
 
   "activeDeliveryTitle": "توصيل نشط",
+  "activeDeliveryProgressTitle": "تقدّم التوصيل",
+  "@activeDeliveryProgressTitle": {
+    "description": "عنوان أعلى مؤشر مراحل التقدّم الخمس في شاشة التوصيل النشط للمندوب."
+  },
+  "activeDeliveryCancelledTitle": "تم إلغاء التوصيلة",
+  "@activeDeliveryCancelledTitle": {
+    "description": "عنوان الحالة النهائية في شاشة التوصيل النشط للمندوب عند إلغاء التوصيلة."
+  },
+  "activeDeliveryCancelledBody": "تم إلغاء هذه التوصيلة ولم تعد نشطة.",
+  "@activeDeliveryCancelledBody": {
+    "description": "نص الحالة النهائية في شاشة التوصيل النشط للمندوب عند إلغاء التوصيلة."
+  },
+  "activeDeliveryExpiredTitle": "انتهت صلاحية التوصيلة",
+  "@activeDeliveryExpiredTitle": {
+    "description": "عنوان الحالة النهائية في شاشة التوصيل النشط للمندوب عند انتهاء صلاحية التوصيلة."
+  },
+  "activeDeliveryExpiredBody": "انتهت صلاحية هذه التوصيلة قبل إتمامها.",
+  "@activeDeliveryExpiredBody": {
+    "description": "نص الحالة النهائية في شاشة التوصيل النشط للمندوب عند انتهاء صلاحية التوصيلة."
+  },
+  "activeDeliveryDisputedTitle": "التوصيلة قيد المراجعة",
+  "@activeDeliveryDisputedTitle": {
+    "description": "عنوان الحالة النهائية في شاشة التوصيل النشط للمندوب للتوصيلة المتنازع عليها أو المصعّدة."
+  },
+  "activeDeliveryDisputedBody": "لم تعد هذه التوصيلة نشطة. يقوم فريق الدعم بمراجعتها.",
+  "@activeDeliveryDisputedBody": {
+    "description": "نص الحالة النهائية في شاشة التوصيل النشط للمندوب للتوصيلة المتنازع عليها أو المصعّدة."
+  },
   "activeDeliveryDropOffLabel": "عنوان التسليم",
   "activeDeliveryStatusOrdered": "مطلوب",
   "activeDeliveryStatusPicked": "تم الاستلام",
   "activeDeliveryStatusInTransit": "في الطريق",
   "activeDeliveryStatusAtDoor": "عند الباب",
   "activeDeliveryStatusDone": "تم",
+  "activeDeliveryStageCompletedState": "مكتملة",
+  "@activeDeliveryStageCompletedState": {
+    "description": "حالة إمكانية الوصول المعلنة للمرحلة المكتملة في مؤشر التوصيل النشط."
+  },
+  "activeDeliveryStageCurrentState": "حالية",
+  "@activeDeliveryStageCurrentState": {
+    "description": "حالة إمكانية الوصول المعلنة للمرحلة الحالية في مؤشر التوصيل النشط."
+  },
+  "activeDeliveryStageUpcomingState": "قادمة",
+  "@activeDeliveryStageUpcomingState": {
+    "description": "حالة إمكانية الوصول المعلنة للمرحلة القادمة في مؤشر التوصيل النشط."
+  },
   "activeDeliveryMarkPicked": "تحديد كـ: تم الاستلام",
   "activeDeliveryMarkInTransit": "تحديد كـ: في الطريق",
   "activeDeliveryMarkAtDoor": "تحديد كـ: عند الباب",

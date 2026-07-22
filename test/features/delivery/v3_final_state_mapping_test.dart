@@ -19,18 +19,27 @@ void main() {
       final info = parse('Done');
       expect(info.currentStage, TrackingStage.delivered);
       expect(info.isDelivered, isTrue);
-      expect(info.trackingStepIndex4, 3,
-          reason: 'delivered is the final (4th) step of the tracking stepper');
+      expect(
+        info.trackingStepIndex4,
+        3,
+        reason: 'delivered is the final (4th) step of the tracking stepper',
+      );
     });
 
-    test('the lowercase `delivered` / `completed` aliases also map to delivered',
-        () {
-      for (final s in ['delivered', 'completed', 'DONE']) {
-        final info = parse(s);
-        expect(info.currentStage, TrackingStage.delivered, reason: 'status=$s');
-        expect(info.isDelivered, isTrue, reason: 'status=$s');
-      }
-    });
+    test(
+      'the lowercase `delivered` / `completed` aliases also map to delivered',
+      () {
+        for (final s in ['delivered', 'completed', 'DONE']) {
+          final info = parse(s);
+          expect(
+            info.currentStage,
+            TrackingStage.delivered,
+            reason: 'status=$s',
+          );
+          expect(info.isDelivered, isTrue, reason: 'status=$s');
+        }
+      },
+    );
 
     test('an in-flight V3 state is NOT delivered', () {
       for (final entry in {
@@ -50,8 +59,11 @@ void main() {
     test('fromApi parses the V3 CapitalCase `Done` to the done stage', () {
       expect(JeeberDeliveryStatusX.fromApi('Done'), JeeberDeliveryStatus.done);
       expect(JeeberDeliveryStatus.done.isTerminal, isTrue);
-      expect(JeeberDeliveryStatus.done.next, isNull,
-          reason: 'Done has no forward transition');
+      expect(
+        JeeberDeliveryStatus.done.next,
+        isNull,
+        reason: 'Done has no forward transition',
+      );
     });
 
     test('non-terminal stages report a valid next stage', () {
@@ -60,30 +72,51 @@ void main() {
       expect(JeeberDeliveryStatus.done.apiValue, 'Done');
     });
 
-    test('all terminal statuses collapse to done so the != done filter drops '
-        'them (Lane C)', () {
+    test('successful terminal aliases map to done (Lane C)', () {
       for (final raw in const [
         'Done',
         'delivered',
         'Delivered',
-        'Cancelled',
-        'cancelled',
-        'canceled',
-        'Expired',
-        'expired',
         'Rated',
         'rated',
       ]) {
-        expect(JeeberDeliveryStatusX.fromApi(raw), JeeberDeliveryStatus.done,
-            reason: raw);
+        expect(
+          JeeberDeliveryStatusX.fromApi(raw),
+          JeeberDeliveryStatus.done,
+          reason: raw,
+        );
       }
     });
 
+    test(
+      'unsuccessful terminal aliases remain distinct from done (Lane C)',
+      () {
+        for (final raw in const ['Cancelled', 'cancelled', 'canceled']) {
+          expect(
+            JeeberDeliveryStatusX.fromApi(raw),
+            JeeberDeliveryStatus.cancelled,
+            reason: raw,
+          );
+        }
+        for (final raw in const ['Expired', 'expired']) {
+          expect(
+            JeeberDeliveryStatusX.fromApi(raw),
+            JeeberDeliveryStatus.expired,
+            reason: raw,
+          );
+        }
+      },
+    );
+
     test('accepted parses to the ordered (pre-pickup) stage (Lane C)', () {
-      expect(JeeberDeliveryStatusX.fromApi('accepted'),
-          JeeberDeliveryStatus.ordered);
-      expect(JeeberDeliveryStatusX.fromApi('Accepted'),
-          JeeberDeliveryStatus.ordered);
+      expect(
+        JeeberDeliveryStatusX.fromApi('accepted'),
+        JeeberDeliveryStatus.ordered,
+      );
+      expect(
+        JeeberDeliveryStatusX.fromApi('Accepted'),
+        JeeberDeliveryStatus.ordered,
+      );
     });
   });
 }
