@@ -12,6 +12,10 @@ import '../domain/order_summary.dart';
 import 'order_history_card.dart';
 import 'order_history_date_filter_sheet.dart';
 
+/// Text scale above which the compact filter chip switches to a scrollable,
+/// icon-free layout to preserve its accessible label without clipping.
+const double _kLargeFilterTextScaleThreshold = 1.5;
+
 /// The screen the user lands on from the "Orders" bottom tab. Owns the
 /// TabBar (Active / Completed / Cancelled), the date filter affordance,
 /// and the per-tab list with pull-to-refresh + infinite scroll.
@@ -81,44 +85,44 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
           identifier: 'order_history_root',
           container: true,
           child: Column(
-          children: [
-            _FilterBar(
-              range: state.dateRange,
-              onTap: () => _openFilter(state.dateRange),
-            ),
-            TabBar(
-              controller: _tabController,
-              tabs: [
-                Semantics(
-                  identifier: 'order_history_active_tab',
-                  container: true,
-                  button: true,
-                  child: Tab(text: l10n.orderHistoryTabActive),
-                ),
-                Semantics(
-                  identifier: 'order_history_completed_tab',
-                  container: true,
-                  button: true,
-                  child: Tab(text: l10n.orderHistoryTabCompleted),
-                ),
-                Semantics(
-                  identifier: 'order_history_cancelled_tab',
-                  container: true,
-                  button: true,
-                  child: Tab(text: l10n.orderHistoryTabCancelled),
-                ),
-              ],
-            ),
-            Expanded(
-              child: TabBarView(
+            children: [
+              _FilterBar(
+                range: state.dateRange,
+                onTap: () => _openFilter(state.dateRange),
+              ),
+              TabBar(
                 controller: _tabController,
-                children: [
-                  for (final tab in OrderHistoryTab.values)
-                    _OrderTabView(tab: tab, key: ValueKey(tab)),
+                tabs: [
+                  Semantics(
+                    identifier: 'order_history_active_tab',
+                    container: true,
+                    button: true,
+                    child: Tab(text: l10n.orderHistoryTabActive),
+                  ),
+                  Semantics(
+                    identifier: 'order_history_completed_tab',
+                    container: true,
+                    button: true,
+                    child: Tab(text: l10n.orderHistoryTabCompleted),
+                  ),
+                  Semantics(
+                    identifier: 'order_history_cancelled_tab',
+                    container: true,
+                    button: true,
+                    child: Tab(text: l10n.orderHistoryTabCancelled),
+                  ),
                 ],
               ),
-            ),
-          ],
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    for (final tab in OrderHistoryTab.values)
+                      _OrderTabView(tab: tab, key: ValueKey(tab)),
+                  ],
+                ),
+              ),
+            ],
           ),
         );
       },
@@ -154,31 +158,40 @@ class _FilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final usesLargeText =
+        MediaQuery.textScalerOf(context).scale(1) >
+        _kLargeFilterTextScaleThreshold;
     final label = range.isEmpty
         ? l10n.orderHistoryFilterCta
         : l10n.orderHistoryFilterActive;
+    final chip = Semantics(
+      identifier: 'order_history_filter_chip',
+      container: true,
+      button: true,
+      child: OmdsChip(
+        key: const Key('order-history-filter-chip'),
+        label: label,
+        icon: usesLargeText ? null : const Icon(Icons.tune, size: Sizes.medium),
+        isSelected: !range.isEmpty,
+        onTap: onTap,
+      ),
+    );
     return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        Spacing.medium,
+      padding: EdgeInsetsDirectional.fromSTEB(
+        usesLargeText ? 0 : Spacing.medium,
         Spacing.small,
-        Spacing.medium,
+        usesLargeText ? 0 : Spacing.medium,
         Spacing.twoXSmall,
       ),
       child: Row(
         children: [
           Expanded(
-            child: Semantics(
-              identifier: 'order_history_filter_chip',
-              container: true,
-              button: true,
-              child: OmdsChip(
-                key: const Key('order-history-filter-chip'),
-                label: label,
-                icon: const Icon(Icons.tune, size: Sizes.medium),
-                isSelected: !range.isEmpty,
-                onTap: onTap,
-              ),
-            ),
+            child: usesLargeText
+                ? SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: chip,
+                  )
+                : chip,
           ),
         ],
       ),

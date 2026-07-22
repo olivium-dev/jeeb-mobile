@@ -447,6 +447,12 @@ class _StatusChip extends StatelessWidget {
         return l10n.activeDeliveryStatusAtDoor;
       case JeeberDeliveryStatus.done:
         return l10n.activeDeliveryStatusDone;
+      case JeeberDeliveryStatus.cancelled:
+        return l10n.activeDeliveryCancelledTitle;
+      case JeeberDeliveryStatus.expired:
+        return l10n.activeDeliveryExpiredTitle;
+      case JeeberDeliveryStatus.disputed:
+        return l10n.activeDeliveryDisputedTitle;
     }
   }
 }

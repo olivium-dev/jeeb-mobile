@@ -35,8 +35,7 @@ enum OrderRequestStatus {
   /// Comparison is case-insensitive with underscores stripped, so
   /// `InTransit`, `IN_TRANSIT`, `in_transit` and `intransit` all resolve.
   static OrderRequestStatus parse(String? raw) {
-    final normalized =
-        (raw ?? '').trim().toLowerCase().replaceAll('_', '');
+    final normalized = (raw ?? '').trim().toLowerCase().replaceAll('_', '');
     switch (normalized) {
       // Auction / not-yet-assigned.
       case 'pending':
@@ -188,15 +187,15 @@ class OrderSummary extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        createdAt,
-        pickupAddress,
-        dropoffAddress,
-        status,
-        tier,
-        amountMinor,
-        currency,
-      ];
+    id,
+    createdAt,
+    pickupAddress,
+    dropoffAddress,
+    status,
+    tier,
+    amountMinor,
+    currency,
+  ];
 }
 
 /// Page of orders returned by the repository. `hasMore` is the only signal
@@ -218,15 +217,49 @@ class OrderPage extends Equatable {
   List<Object?> get props => [items, page, hasMore];
 }
 
-/// Inclusive date range used by the filter sheet. Both ends are optional so
-/// "from yesterday" and "up to a specific date" are both expressible.
+/// Half-open local date range sent to the order-history gateway: `[from, to)`.
+///
+/// [from] is the picked start day at local midnight (inclusive). [to] is the
+/// local midnight immediately after the picked end day (exclusive). Both ends
+/// remain optional so "from yesterday" and "up to a specific date" are
+/// expressible without inventing sentinel dates.
 class OrderDateRange extends Equatable {
   const OrderDateRange({this.from, this.to});
 
+  /// Builds the gateway range from the inclusive calendar days shown by the
+  /// filter sheet. Constructing the next midnight by calendar components (not
+  /// by adding 24 hours) keeps the boundary at local midnight across DST.
+  factory OrderDateRange.forInclusiveDays({DateTime? from, DateTime? to}) {
+    return OrderDateRange(
+      from: from == null ? null : _localMidnight(from),
+      to: to == null ? null : _nextLocalMidnight(to),
+    );
+  }
+
+  /// Inclusive lower bound, at local midnight when created by the filter UI.
   final DateTime? from;
+
+  /// Exclusive upper bound: local midnight after the selected end day.
   final DateTime? to;
 
+  /// Inclusive calendar end displayed when reopening the filter sheet.
+  DateTime? get inclusiveToDay {
+    final exclusiveEnd = to;
+    if (exclusiveEnd == null) return null;
+    return DateTime(
+      exclusiveEnd.year,
+      exclusiveEnd.month,
+      exclusiveEnd.day - 1,
+    );
+  }
+
   bool get isEmpty => from == null && to == null;
+
+  static DateTime _localMidnight(DateTime value) =>
+      DateTime(value.year, value.month, value.day);
+
+  static DateTime _nextLocalMidnight(DateTime value) =>
+      DateTime(value.year, value.month, value.day + 1);
 
   @override
   List<Object?> get props => [from, to];

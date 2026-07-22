@@ -63,10 +63,9 @@ class ActiveDeliverySummary extends Equatable {
   final String? pickupAddress;
   final String? dropoffAddress;
 
-  /// True while the delivery is still in flight (anything before `Done`). Done
-  /// deliveries are dropped from the active list by the repository, but this
-  /// keeps the surface honest if one slips through.
-  bool get isActive => status != JeeberDeliveryStatus.done;
+  /// True only while the delivery can still advance. Every successful or
+  /// unsuccessful terminal is excluded from the active banner.
+  bool get isActive => !status.isTerminal;
 
   /// The id the chat surface should open with (BUG-18 client side).
   ///

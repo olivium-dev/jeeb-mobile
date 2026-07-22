@@ -166,6 +166,48 @@ void main() {
     semantics.dispose();
   });
 
+  for (final scenario
+      in <({JeeberDeliveryStatus status, String semanticsId, String title})>[
+        (
+          status: JeeberDeliveryStatus.cancelled,
+          semanticsId: 'delivery_cancelled_state',
+          title: 'Delivery cancelled',
+        ),
+        (
+          status: JeeberDeliveryStatus.expired,
+          semanticsId: 'delivery_expired_state',
+          title: 'Delivery expired',
+        ),
+      ]) {
+    testWidgets(
+      '${scenario.status.name} landing renders a distinct unsuccessful '
+      'terminal state, never Done',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _host(_FakeRepo(fetchResult: _delivery(scenario.status))),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.bySemanticsIdentifier(scenario.semanticsId),
+          findsOneWidget,
+        );
+        expect(find.text(scenario.title), findsOneWidget);
+        expect(
+          find.bySemanticsIdentifier('delivery_completed_state'),
+          findsNothing,
+        );
+        expect(find.byType(OmdsStepIndicator), findsNothing);
+        expect(
+          find.bySemanticsIdentifier('active_delivery_stage_done'),
+          findsNothing,
+        );
+        semantics.dispose();
+      },
+    );
+  }
+
   testWidgets(
     'MISSING edge: a failed by-id fetch renders the retryable error state '
     '(never a blank surface / empty list)',
@@ -203,51 +245,48 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets(
-    'no premature Delivered panel while the optimistic AtDoor→Done is '
-    'transitioning (JEBV4-276)',
-    (tester) async {
-      final gate = Completer<JeeberDeliveryStatus>();
-      addTearDown(() {
-        if (!gate.isCompleted) gate.complete(JeeberDeliveryStatus.done);
-      });
-      final semantics = tester.ensureSemantics();
-      await tester.pumpWidget(
-        _host(
-          _BlockingRepo(
-            fetchResult: _delivery(JeeberDeliveryStatus.atDoor),
-            gate: gate,
-          ),
+  testWidgets('no premature Delivered panel while the optimistic AtDoor→Done is '
+      'transitioning (JEBV4-276)', (tester) async {
+    final gate = Completer<JeeberDeliveryStatus>();
+    addTearDown(() {
+      if (!gate.isCompleted) gate.complete(JeeberDeliveryStatus.done);
+    });
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(
+      _host(
+        _BlockingRepo(
+          fetchResult: _delivery(JeeberDeliveryStatus.atDoor),
+          gate: gate,
         ),
-      );
-      await tester.pumpAndSettle();
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      // AtDoor: the mark-delivered surface is shown, no completed panel.
-      expect(find.bySemanticsIdentifier('mark_delivered_cta'), findsOneWidget);
-      expect(
-        find.bySemanticsIdentifier('delivery_completed_state'),
-        findsNothing,
-      );
+    // AtDoor: the mark-delivered surface is shown, no completed panel.
+    expect(find.bySemanticsIdentifier('mark_delivered_cta'), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('delivery_completed_state'),
+      findsNothing,
+    );
 
-      // Optimistic AtDoor→Done: tapping flips status→done AND mode→transitioning
-      // while the (blocked) server transition is in flight.
-      await tester.ensureVisible(
-        find.bySemanticsIdentifier('mark_delivered_cta'),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.bySemanticsIdentifier('mark_delivered_cta'));
-      await tester.pump();
+    // Optimistic AtDoor→Done: tapping flips status→done AND mode→transitioning
+    // while the (blocked) server transition is in flight.
+    await tester.ensureVisible(
+      find.bySemanticsIdentifier('mark_delivered_cta'),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsIdentifier('mark_delivered_cta'));
+    await tester.pump();
 
-      // Status is now optimistically `done` (the mark surface is gone)…
-      expect(find.bySemanticsIdentifier('mark_delivered_cta'), findsNothing);
-      // …but the fix keeps the completed panel hidden until the transition is
-      // server-confirmed (!isTransitioning) — no premature Delivered banner.
-      expect(
-        find.bySemanticsIdentifier('delivery_completed_state'),
-        findsNothing,
-        reason: 'premature Delivered banner during the optimistic transition',
-      );
-      semantics.dispose();
-    },
-  );
+    // Status is now optimistically `done` (the mark surface is gone)…
+    expect(find.bySemanticsIdentifier('mark_delivered_cta'), findsNothing);
+    // …but the fix keeps the completed panel hidden until the transition is
+    // server-confirmed (!isTransitioning) — no premature Delivered banner.
+    expect(
+      find.bySemanticsIdentifier('delivery_completed_state'),
+      findsNothing,
+      reason: 'premature Delivered banner during the optimistic transition',
+    );
+    semantics.dispose();
+  });
 }

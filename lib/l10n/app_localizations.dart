@@ -1510,6 +1510,8 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get orderHistoryFilterAnyDate => _get('orderHistoryFilterAnyDate');
   String get orderHistoryFilterApply => _get('orderHistoryFilterApply');
   String get orderHistoryFilterClear => _get('orderHistoryFilterClear');
+  String orderHistoryFilterClearDate(String field) =>
+      _get('orderHistoryFilterClearDate').replaceFirst('{field}', field);
   String get orderHistoryFilterCta => _get('orderHistoryFilterCta');
   String get orderHistoryFilterFrom => _get('orderHistoryFilterFrom');
   String get orderHistoryFilterTitle => _get('orderHistoryFilterTitle');
@@ -1989,6 +1991,18 @@ extension AppLocalizationsRestored on AppLocalizations {
 
   // T-MOB-031: Active delivery (Jeeber)
   String get activeDeliveryTitle => _get('activeDeliveryTitle');
+  String get activeDeliveryProgressTitle =>
+      _get('activeDeliveryProgressTitle');
+  String get activeDeliveryCancelledTitle =>
+      _get('activeDeliveryCancelledTitle');
+  String get activeDeliveryCancelledBody =>
+      _get('activeDeliveryCancelledBody');
+  String get activeDeliveryExpiredTitle => _get('activeDeliveryExpiredTitle');
+  String get activeDeliveryExpiredBody => _get('activeDeliveryExpiredBody');
+  String get activeDeliveryDisputedTitle =>
+      _get('activeDeliveryDisputedTitle');
+  String get activeDeliveryDisputedBody =>
+      _get('activeDeliveryDisputedBody');
   String get activeDeliveryDropOffLabel => _get('activeDeliveryDropOffLabel');
   String get activeDeliveryStatusOrdered => _get('activeDeliveryStatusOrdered');
   String get activeDeliveryStatusPicked => _get('activeDeliveryStatusPicked');
@@ -1996,6 +2010,12 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('activeDeliveryStatusInTransit');
   String get activeDeliveryStatusAtDoor => _get('activeDeliveryStatusAtDoor');
   String get activeDeliveryStatusDone => _get('activeDeliveryStatusDone');
+  String get activeDeliveryStageCompletedState =>
+      _get('activeDeliveryStageCompletedState');
+  String get activeDeliveryStageCurrentState =>
+      _get('activeDeliveryStageCurrentState');
+  String get activeDeliveryStageUpcomingState =>
+      _get('activeDeliveryStageUpcomingState');
   String get jeeberActiveDeliveriesTitle => _get('jeeberActiveDeliveriesTitle');
   String get jeeberActiveDeliveriesFallbackTitle => _get('jeeberActiveDeliveriesFallbackTitle');
   String get jeeberActiveDeliveriesOpenChat => _get('jeeberActiveDeliveriesOpenChat');
