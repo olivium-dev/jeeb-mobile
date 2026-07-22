@@ -4,16 +4,17 @@
 // jeeber's offer, an `offer_accepted` push lands (~1.2s) and drives an immediate
 // `GET /v1/deliveries?role=jeeber` refetch that returns the just-won delivery
 // (status "Ordered"). The ActiveDeliveriesCubit emits — but the Dashboard "Your
-// active deliveries" CARD only rendered in the NO-REQUESTS scope, never above
+// active deliveries" disclosure only rendered in the NO-REQUESTS scope, never above
 // the live feed. Right after offering, the offered (still-pending) request keeps
-// the feed NON-EMPTY, so the feed body renders and the card's BlocBuilder was
-// absent from the tree; the card therefore surfaced only ~95s later, when the
+// the feed NON-EMPTY, so the feed body renders and the banner's BlocBuilder was
+// absent from the tree; active work therefore surfaced only ~95s later, when the
 // feed emptied and the no-requests scope finally mounted the banner.
 //
 // This test drives the exact failing state: an ONLINE jeeber with a non-empty
 // feed (feed body path), then a refresh signal (the push) with a repo that now
-// returns the won Ordered delivery. It proves the card re-renders within a
-// couple frames — above the feed — not on the slow poll cadence.
+// returns the won Ordered delivery. It proves the compact disclosure re-renders
+// within a couple frames — above the feed — and the full card appears only after
+// explicit expansion, not on the slow poll cadence.
 
 import 'dart:async';
 
@@ -60,16 +61,24 @@ final _wonDelivery = ActiveDeliverySummary.fromJson(const {
 });
 
 DeliveryRequest _feedRequest(String id) => DeliveryRequest(
-      id: id,
-      pickup: const RequestLocation(label: 'Pickup', latitude: 33.8, longitude: 35.5),
-      dropoff: const RequestLocation(label: 'Dropoff', latitude: 33.9, longitude: 35.6),
-      tier: JeeberRequestTier.flash,
-      estimatedDistanceKm: 1.2,
-      potentialEarnings: 5.0,
-      currency: 'USD',
-      expiresAt: DateTime.now().add(const Duration(minutes: 5)),
-      feedStatus: JeeberFeedItemStatus.incoming,
-    );
+  id: id,
+  pickup: const RequestLocation(
+    label: 'Pickup',
+    latitude: 33.8,
+    longitude: 35.5,
+  ),
+  dropoff: const RequestLocation(
+    label: 'Dropoff',
+    latitude: 33.9,
+    longitude: 35.6,
+  ),
+  tier: JeeberRequestTier.flash,
+  estimatedDistanceKm: 1.2,
+  potentialEarnings: 5.0,
+  currency: 'USD',
+  expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+  feedStatus: JeeberFeedItemStatus.incoming,
+);
 
 Widget _host({
   required AvailabilityCubit availability,
@@ -106,7 +115,8 @@ Widget _host({
 
 void main() {
   testWidgets(
-    'the active-deliveries CARD re-renders on a push refresh signal while the '
+    'the compact active-deliveries disclosure re-renders on a push refresh '
+    'signal while the '
     'jeeber is ONLINE with a non-empty feed (not gated to the no-requests scope '
     'or the slow poll)',
     (tester) async {
@@ -155,11 +165,18 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
-      // We are in the feed body (online, request pending) and the card is
+      // We are in the feed body (online, request pending) and active work is
       // hidden pre-accept.
       expect(find.byType(JeeberHomeScreen), findsOneWidget);
-      expect(find.text('Flash delivery request'), findsNothing,
-          reason: 'no active delivery yet → the card must be hidden');
+      expect(
+        find.bySemanticsIdentifier('jeeber_feed_request_card_pending-1'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Flash delivery request'),
+        findsNothing,
+        reason: 'no active delivery yet → the disclosure must be hidden',
+      );
 
       // Customer accepts: the next refetch returns the won delivery and the
       // `offer_accepted` push publishes a refresh signal.
@@ -170,14 +187,30 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
-      // The card is now on screen (rebuilt off the push-triggered refetch),
-      // mounted ABOVE the still-showing feed.
+      // The compact disclosure is now on screen (rebuilt off the push-triggered
+      // refetch), mounted above the still-showing feed. The full delivery card
+      // remains unbuilt until the Jeeber explicitly expands it.
       expect(find.byType(ActiveDeliveriesBanner), findsOneWidget);
+      expect(find.text('Your active deliveries'), findsOneWidget);
+      expect(find.text('View all (1)'), findsOneWidget);
+      expect(find.text('Flash delivery request'), findsNothing);
+      expect(
+        find.bySemanticsIdentifier('jeeber_feed_request_card_pending-1'),
+        findsOneWidget,
+        reason: 'surfacing active work must not displace the live feed',
+      );
+
+      await tester.tap(
+        find.bySemanticsIdentifier('jeeber_active_deliveries_view_all'),
+      );
+      await tester.pump();
+
       expect(
         find.text('Flash delivery request'),
         findsOneWidget,
-        reason: 'the just-won Ordered delivery card must render on the push '
-            'refetch while the feed is non-empty, not 95s later',
+        reason:
+            'the just-won Ordered delivery card must be available from the '
+            'push-rendered disclosure while the feed is non-empty',
       );
       expect(repo.calls, greaterThanOrEqualTo(2)); // initial + push refetch
       expect(tester.takeException(), isNull);

@@ -7,24 +7,15 @@ import '../../application/availability_state.dart';
 import '../../domain/entities/availability_status.dart';
 import 'availability_status_block.dart';
 
-/// Compact "Availability" card — the M3 replacement for the legacy 168-px
-/// glowing green disc (UX-AUDIT sprint-009 §G2).
+/// Max visible lines for the compact online-state copy before it ellipsizes.
+const int _kCompactOnlineTitleMaxLines = 2;
+
+/// Persistent dashboard availability control.
 ///
-/// Availability is a persistent binary *state*, not a momentary action, so
-/// per Material 3 the control is a [Switch] with a label, a status chip, and
-/// supporting text — never a jumbo filled CTA with a power glyph. All colors
-/// resolve through the theme's semantic role layer (`context.jeebRoles.*`);
-/// the old `availableNow*` raw greens (#22C55E family) are deleted.
-///
-/// The card renders in BOTH dashboard states — the no-requests view AND the
-/// live feed — so the availability control never disappears exactly when the
-/// Jeeber is busy (§SW-23).
-///
-/// Wiring is unchanged from the disc it replaces: the host passes the
-/// [AvailabilityViewState] from `AvailabilityCubit` and a tap-through to
-/// `AvailabilityCubit.toggle`. While a toggle PUT is in-flight the switch is
-/// replaced by a spinner and stays tap-blocking so the Jeeber can't fire two
-/// PUTs in a row.
+/// The common ONLINE state is intentionally one compact OMDS switch row: its
+/// only copy is "online — receiving requests", so it consumes at most one or
+/// two wrapped lines on a phone. OFFLINE, auto-offline, and in-flight states use
+/// the full OMDS section because they need more explanation or progress feedback.
 class AvailabilityCard extends StatelessWidget {
   const AvailabilityCard({
     super.key,
@@ -34,112 +25,86 @@ class AvailabilityCard extends StatelessWidget {
 
   static const Key rootKey = Key('availability-card-root');
 
-  /// Preserved from the legacy `AvailabilityToggle` so tests and flows that
-  /// target the availability control by its long-standing key keep working.
+  /// Preserved from the legacy availability control for existing harnesses.
   static const Key toggleKey = Key('availability-toggle-root');
   static const Key spinnerKey = Key('availability-toggle-spinner');
-  static const Key statusChipKey = Key('availability-card-status-chip');
 
-  /// Current availability snapshot from the cubit.
   final AvailabilityViewState view;
+  final VoidCallback onToggle;
 
-  /// Toggle callback. Wired to `AvailabilityCubit.toggle` by the host.
+  bool get _isCompactOnline =>
+      view.status.state == AvailabilityState.online && !view.isToggleInFlight;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      key: rootKey,
+      identifier: 'availability_card',
+      container: true,
+      explicitChildNodes: true,
+      child: _isCompactOnline
+          ? _CompactOnlineAvailability(onToggle: onToggle)
+          : _FullAvailabilitySection(view: view, onToggle: onToggle),
+    );
+  }
+}
+
+class _CompactOnlineAvailability extends StatelessWidget {
+  const _CompactOnlineAvailability({required this.onToggle});
+
   final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     return Semantics(
-      identifier: 'availability_card',
+      identifier: 'availability_switch',
       container: true,
-      child: Container(
-        key: rootKey,
-        padding: const EdgeInsets.all(Spacing.medium),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerLow,
-          borderRadius: OmdsBorderRadius.large,
-          border: Border.all(color: theme.colorScheme.outlineVariant),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    l10n.availabilityCardTitle,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: theme.colorScheme.onSurface,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                _StatusChip(state: view.status.state),
-              ],
-            ),
-            const SizedBox(height: Spacing.small),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(child: AvailabilityStatusBlock(view: view)),
-                const SizedBox(width: Spacing.small),
-                _AvailabilitySwitch(view: view, onToggle: onToggle),
-              ],
-            ),
-          ],
+      toggled: true,
+      label: l10n.availabilityIndicatorSemanticOnline,
+      child: DefaultTextStyle.merge(
+        maxLines: _kCompactOnlineTitleMaxLines,
+        overflow: TextOverflow.ellipsis,
+        child: OmdsSwitchTile(
+          key: AvailabilityCard.toggleKey,
+          title: l10n.availabilityStatusOnline,
+          value: true,
+          activeColor: context.jeebRoles.success,
+          dense: true,
+          contentPadding: const EdgeInsetsDirectional.symmetric(
+            horizontal: Spacing.medium,
+            vertical: Spacing.xSmall,
+          ),
+          onChanged: (_) => onToggle(),
         ),
       ),
     );
   }
 }
 
-/// Non-interactive status chip: success container roles when online, neutral
-/// surface roles when offline, warning container roles when the system forced
-/// the Jeeber offline (attention state — mirrors the feed's offline banner).
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.state});
+class _FullAvailabilitySection extends StatelessWidget {
+  const _FullAvailabilitySection({required this.view, required this.onToggle});
 
-  final AvailabilityState state;
+  final AvailabilityViewState view;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
-    final roles = context.jeebRoles;
-    final scheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
-    final (label, background, foreground) = switch (state) {
-      AvailabilityState.online => (
-          l10n.availabilityToggleOnline,
-          roles.successContainer,
-          roles.onSuccessContainer,
-        ),
-      AvailabilityState.offline => (
-          l10n.availabilityToggleOffline,
-          scheme.surfaceContainerHighest,
-          scheme.onSurfaceVariant,
-        ),
-      AvailabilityState.autoOffline => (
-          l10n.availabilityIndicatorSemanticAutoOffline,
-          roles.warningContainer,
-          roles.onWarningContainer,
-        ),
-    };
-    return OmdsChip(
-      key: AvailabilityCard.statusChipKey,
-      label: label,
-      isSelected: true,
-      selectedColor: background,
-      selectedTextColor: foreground,
+    return OMDSSectionCard(
+      title: l10n.availabilityCardTitle,
+      horizontalPadding: Spacing.medium,
+      spacing: Spacing.twoXSmall,
+      showDivider: false,
+      content: view.isToggleInFlight
+          ? _AvailabilityProgress(view: view)
+          : _AvailabilitySwitchRow(view: view, onToggle: onToggle),
     );
   }
 }
 
-/// The M3 switch that owns the actual toggle interaction. Swapped for a
-/// spinner (same key as the legacy disc's) while the PUT is in-flight so the
-/// control stays visibly busy and tap-blocked.
-class _AvailabilitySwitch extends StatelessWidget {
-  const _AvailabilitySwitch({required this.view, required this.onToggle});
+class _AvailabilitySwitchRow extends StatelessWidget {
+  const _AvailabilitySwitchRow({required this.view, required this.onToggle});
 
   final AvailabilityViewState view;
   final VoidCallback onToggle;
@@ -148,44 +113,63 @@ class _AvailabilitySwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (view.isToggleInFlight) {
-      return const SizedBox(
-        // Keep the in-flight footprint no smaller than the a11y minimum so
-        // the row doesn't jump and the touch target stays compliant.
-        width: Sizes.fiveXLarge,
-        height: Sizes.threeXLarge,
-        child: Center(
-          child: OmdsLoadingState(
-            key: AvailabilityCard.spinnerKey,
-            size: Sizes.large,
-            padding: EdgeInsets.zero,
-          ),
-        ),
-      );
-    }
-    final roles = context.jeebRoles;
+    final l10n = AppLocalizations.of(context);
     return Semantics(
       identifier: 'availability_switch',
       container: true,
       toggled: _isOnline,
-      label: _semanticLabel(context),
-      child: Switch(
+      label: _semanticLabel(l10n),
+      child: OmdsSwitchTile(
         key: AvailabilityCard.toggleKey,
+        title: _title(l10n),
+        subtitle: view.status.state == AvailabilityState.autoOffline
+            ? l10n.availabilityAutoOfflineHint
+            : null,
         value: _isOnline,
-        activeTrackColor: roles.success,
-        activeThumbColor: roles.onSuccess,
+        activeColor: context.jeebRoles.success,
+        contentPadding: EdgeInsets.zero,
         onChanged: (_) => onToggle(),
       ),
     );
   }
 
-  String _semanticLabel(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return switch (view.status.state) {
-      AvailabilityState.online => l10n.availabilityIndicatorSemanticOnline,
-      AvailabilityState.offline => l10n.availabilityIndicatorSemanticOffline,
-      AvailabilityState.autoOffline =>
-        l10n.availabilityIndicatorSemanticAutoOffline,
-    };
+  String _title(AppLocalizations l10n) => switch (view.status.state) {
+    AvailabilityState.online => l10n.availabilityStatusOnline,
+    AvailabilityState.offline => l10n.availabilityStatusOffline,
+    AvailabilityState.autoOffline => l10n.availabilityStatusAutoOffline,
+  };
+
+  String _semanticLabel(AppLocalizations l10n) => switch (view.status.state) {
+    AvailabilityState.online => l10n.availabilityIndicatorSemanticOnline,
+    AvailabilityState.offline => l10n.availabilityIndicatorSemanticOffline,
+    AvailabilityState.autoOffline =>
+      l10n.availabilityIndicatorSemanticAutoOffline,
+  };
+}
+
+class _AvailabilityProgress extends StatelessWidget {
+  const _AvailabilityProgress({required this.view});
+
+  final AvailabilityViewState view;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: AvailabilityStatusBlock(view: view)),
+        const SizedBox(width: Spacing.small),
+        const SizedBox(
+          width: Sizes.fiveXLarge,
+          height: Sizes.threeXLarge,
+          child: Center(
+            child: OmdsLoadingState(
+              key: AvailabilityCard.spinnerKey,
+              size: Sizes.large,
+              padding: EdgeInsets.zero,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

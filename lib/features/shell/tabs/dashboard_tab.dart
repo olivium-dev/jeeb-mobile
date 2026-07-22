@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:omds/omds.dart';
 
 import '../../../core/dev_seam/dev_seam.dart';
 import '../../../core/di/injection_container.dart';
@@ -11,7 +10,6 @@ import '../../../core/notifications/application/push_refresh_signals.dart';
 import '../../../core/session/greeting_profile_cubit.dart';
 import '../../../core/session/jeeber_kyc_status_gate.dart';
 import '../../../core/session/profile_refresh_signals.dart';
-import '../../../l10n/app_localizations.dart';
 import '../../customer_profile/data/dio_customer_profile_repository.dart';
 import '../../customer_profile/domain/customer_profile_repository.dart';
 import '../../jeeber_home/application/availability_cubit.dart';
@@ -397,10 +395,8 @@ class _DevFeedScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     return Scaffold(
       key: const Key('dashboard-tab-dev-feed'),
-      appBar: OMDSAppBar(title: l10n.availabilityHomeTitle, centerTitle: false),
       body: _DevFeedBody(view: view, name: _name, avatarUrl: _avatarUrl),
     );
   }

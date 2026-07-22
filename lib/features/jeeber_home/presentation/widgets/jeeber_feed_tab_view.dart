@@ -40,8 +40,9 @@ enum JeeberTierFilter { all, flash, express, standard }
 /// State 3 of the Jeeber home: registered, available, and at least one
 /// live request in the feed.
 ///
-/// Renders the shared greeting → OMDS search bar → OmdsFilterChips tab
-/// strip → [JeeberFeedCard] list. The list reads from [RequestFeedCubit] —
+/// Renders the single greeting title → state-aware availability → compact
+/// active-work disclosure → OMDS search bar → feed tabs/filters →
+/// [JeeberFeedCard] list. The list reads from [RequestFeedCubit] —
 /// the host (the screen) is responsible for providing the cubit through
 /// the widget tree.
 class JeeberFeedTabView extends StatefulWidget {
@@ -62,7 +63,9 @@ class JeeberFeedTabView extends StatefulWidget {
   static const Key tierStripKey = Key('jeeber-feed-tab-view-tier-strip');
   static const Key listKey = Key('jeeber-feed-tab-view-list');
   static const Key pendingListKey = Key('jeeber-feed-tab-view-pending-list');
-  static const Key offlineBannerKey = Key('jeeber-feed-tab-view-offline-banner');
+  static const Key offlineBannerKey = Key(
+    'jeeber-feed-tab-view-offline-banner',
+  );
 
   /// Profile display name for the shared greeting.
   final String? profileName;
@@ -175,46 +178,33 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
     // instead of overflow when squeezed — the same remedy `_NoRequestsScope`
     // above already applies for its own tall-content overflow (Fix 6(b)).
     final scrollView = CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(
-            child: JeeberHomeGreeting(
-              name: widget.profileName,
-              avatarUrl: widget.profileAvatarUrl,
-            ),
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverToBoxAdapter(
+          child: JeeberHomeGreeting(
+            name: widget.profileName,
+            avatarUrl: widget.profileAvatarUrl,
           ),
-          // §G2/SW-23: the availability control is persistent across dashboard
-          // states — the compact card renders here too, so going busy (feed
-          // non-empty) never hides the online/offline switch.
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(
-                Spacing.medium,
-                0,
-                Spacing.medium,
-                Spacing.small,
-              ),
-              child: AvailabilityCard(
-                view: avState,
-                onToggle: () => context.read<AvailabilityCubit>().toggle(),
-              ),
-            ),
+        ),
+        // §G2/SW-23: the availability control is persistent across dashboard
+        // states — the state-aware row renders here too, so going busy (feed
+        // non-empty) never hides the online/offline switch.
+        SliverToBoxAdapter(
+          child: AvailabilityCard(
+            view: avState,
+            onToggle: () => context.read<AvailabilityCubit>().toggle(),
           ),
-          if (isOffline) SliverToBoxAdapter(child: _OfflineBanner()),
-          if (!isOffline)
-            ..._feedControls().map((w) => SliverToBoxAdapter(child: w)),
-          // JEBV4 feed-invisibility fix: the active-deliveries banner rides as
-          // its OWN sliver, not as row 0 of the feed list. Inside the list it
-          // consumed the whole `SliverFillRemaining` viewport (~209dp on
-          // SM-S908B once the greeting + availability + search + tab/tier
-          // strips are laid out), so the request rows below it were never even
-          // built — an online jeeber saw an empty feed while the gateway was
-          // returning pending requests. As a sliver the banner scrolls with the
-          // page and the list keeps its full viewport for requests.
-          if (!isOffline && widget.leadingBanner != null)
-            SliverToBoxAdapter(child: widget.leadingBanner!),
-          ..._feedSlivers(isOffline),
-        ],
+        ),
+        if (isOffline) SliverToBoxAdapter(child: _OfflineBanner()),
+        // Existing delivery work stays visible without burying the earning
+        // task: ActiveDeliveriesBanner is collapsed to one disclosure row at
+        // rest and expands only on explicit request.
+        if (!isOffline && widget.leadingBanner != null)
+          SliverToBoxAdapter(child: widget.leadingBanner!),
+        if (!isOffline)
+          ..._feedControls().map((w) => SliverToBoxAdapter(child: w)),
+        ..._feedSlivers(isOffline),
+      ],
     );
     // Pull-to-refresh owns the whole page (it used to wrap only the inner feed
     // list). Offline there is no feed cubit contract to refresh, so the plain
@@ -231,16 +221,13 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
   }
 
   List<Widget> _feedControls() => [
-        _FeedSearchBar(onChanged: (q) => setState(() => _query = q)),
-        const SizedBox(height: Spacing.small),
-        _FeedTabStrip(active: _activeTab, onChanged: _onTabChanged),
-        const SizedBox(height: Spacing.small),
-        if (_activeTab == JeeberFeedTab.requests)
-          _TierFilterStrip(
-            active: _tierFilter,
-            onChanged: _onTierChanged,
-          ),
-      ];
+    _FeedSearchBar(onChanged: (q) => setState(() => _query = q)),
+    const SizedBox(height: Spacing.small),
+    _FeedTabStrip(active: _activeTab, onChanged: _onTabChanged),
+    const SizedBox(height: Spacing.small),
+    if (_activeTab == JeeberFeedTab.requests)
+      _TierFilterStrip(active: _tierFilter, onChanged: _onTierChanged),
+  ];
 
   /// The feed body as SLIVERS of the page's own scroll view.
   ///
@@ -330,7 +317,9 @@ class _OfflineBannerContent extends StatelessWidget {
       children: [
         Icon(Icons.wifi_off, color: color, size: Sizes.large),
         const SizedBox(width: Spacing.small),
-        Expanded(child: _OfflineBannerText(l10n: l10n, color: color)),
+        Expanded(
+          child: _OfflineBannerText(l10n: l10n, color: color),
+        ),
       ],
     );
   }
@@ -402,11 +391,23 @@ class _TierFilterStrip extends StatelessWidget {
   }
 
   List<OmdsFilterOption<JeeberTierFilter>> _filters(AppLocalizations l10n) => [
-        OmdsFilterOption(label: l10n.jeeberFeedTierAll, value: JeeberTierFilter.all),
-        OmdsFilterOption(label: l10n.jeeberFeedTierFlash, value: JeeberTierFilter.flash),
-        OmdsFilterOption(label: l10n.jeeberFeedTierExpress, value: JeeberTierFilter.express),
-        OmdsFilterOption(label: l10n.jeeberFeedTierStandard, value: JeeberTierFilter.standard),
-      ];
+    OmdsFilterOption(
+      label: l10n.jeeberFeedTierAll,
+      value: JeeberTierFilter.all,
+    ),
+    OmdsFilterOption(
+      label: l10n.jeeberFeedTierFlash,
+      value: JeeberTierFilter.flash,
+    ),
+    OmdsFilterOption(
+      label: l10n.jeeberFeedTierExpress,
+      value: JeeberTierFilter.express,
+    ),
+    OmdsFilterOption(
+      label: l10n.jeeberFeedTierStandard,
+      value: JeeberTierFilter.standard,
+    ),
+  ];
 }
 
 class _FeedSearchBar extends StatelessWidget {
@@ -451,7 +452,9 @@ class _FeedTabStrip extends StatelessWidget {
     return SingleChildScrollView(
       key: JeeberFeedTabView.tabStripKey,
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsetsDirectional.symmetric(horizontal: Spacing.medium),
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: Spacing.medium,
+      ),
       child: Row(
         children: [
           _tabChip(
@@ -584,13 +587,12 @@ class _FeedRequestSliverBody extends StatelessWidget {
             // keyed on the request id == correlationKey, resolved against the
             // live gateway), NOT the pre-offer make-offer/decline detail.
             onTap: request.feedStatus == JeeberFeedItemStatus.accepted
-                ? () => GoRouter.of(context).pushNamed(
-                      'chat-detail',
-                      pathParameters: {'id': request.id},
-                    )
+                ? () => GoRouter.of(
+                    context,
+                  ).pushNamed('chat-detail', pathParameters: {'id': request.id})
                 : onOpenRequest == null
-                    ? null
-                    : () => onOpenRequest!(request),
+                ? null
+                : () => onOpenRequest!(request),
             onIgnore: () => cubit.decline(request.id),
             onOffer: () => onMakeOffer(request),
             onAdvanceStatus: () => cubit.accept(request.id),
@@ -605,19 +607,21 @@ class _FeedRequestSliverBody extends StatelessWidget {
   /// query.
   List<DeliveryRequest> _visibleRequests(List<DeliveryRequest> source) {
     final lowered = query.trim().toLowerCase();
-    return source.where((r) {
-      if (lowered.isNotEmpty && !_matchesQuery(r, lowered)) return false;
-      if (r.feedStatus != _statusForTab(activeTab)) return false;
-      if (!_matchesTier(r)) return false;
-      return true;
-    }).toList(growable: false);
+    return source
+        .where((r) {
+          if (lowered.isNotEmpty && !_matchesQuery(r, lowered)) return false;
+          if (r.feedStatus != _statusForTab(activeTab)) return false;
+          if (!_matchesTier(r)) return false;
+          return true;
+        })
+        .toList(growable: false);
   }
 
   JeeberFeedItemStatus _statusForTab(JeeberFeedTab tab) => switch (tab) {
-        JeeberFeedTab.requests => JeeberFeedItemStatus.incoming,
-        JeeberFeedTab.pendingResponse => JeeberFeedItemStatus.pendingResponse,
-        JeeberFeedTab.replies => JeeberFeedItemStatus.accepted,
-      };
+    JeeberFeedTab.requests => JeeberFeedItemStatus.incoming,
+    JeeberFeedTab.pendingResponse => JeeberFeedItemStatus.pendingResponse,
+    JeeberFeedTab.replies => JeeberFeedItemStatus.accepted,
+  };
 
   /// Returns true when the request matches the selected tier filter (AC2).
   ///
@@ -626,11 +630,9 @@ class _FeedRequestSliverBody extends StatelessWidget {
     return switch (tierFilter) {
       JeeberTierFilter.all => true,
       JeeberTierFilter.flash => r.tier == JeeberRequestTier.flash,
-      JeeberTierFilter.express =>
-        r.tier == JeeberRequestTier.standard,
+      JeeberTierFilter.express => r.tier == JeeberRequestTier.standard,
       JeeberTierFilter.standard =>
-        r.tier == JeeberRequestTier.light ||
-            r.tier == JeeberRequestTier.bulk,
+        r.tier == JeeberRequestTier.light || r.tier == JeeberRequestTier.bulk,
     };
   }
 
@@ -640,7 +642,6 @@ class _FeedRequestSliverBody extends StatelessWidget {
         r.pickup.label.toLowerCase().contains(q);
   }
 }
-
 
 class _EmptyTabState extends StatelessWidget {
   const _EmptyTabState({required this.l10n});
@@ -705,9 +706,7 @@ class _PendingOffersList extends StatelessWidget {
       return const Center(child: OmdsLoadingState());
     }
     if (state.offers.isEmpty) {
-      return _PendingEmptyState(
-        l10n: AppLocalizations.of(context),
-      );
+      return _PendingEmptyState(l10n: AppLocalizations.of(context));
     }
     return ListView.builder(
       key: JeeberFeedTabView.pendingListKey,
@@ -746,9 +745,7 @@ class _PendingOffersBackBar extends StatelessWidget {
         identifier: 'pending_offers_back',
         button: true,
         container: true,
-        child: BackButton(
-          onPressed: onBack ?? () {},
-        ),
+        child: BackButton(onPressed: onBack ?? () {}),
       ),
     );
   }
