@@ -107,17 +107,30 @@ class JeeberFeedTabView extends StatefulWidget {
 
 class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
   late JeeberFeedTab _activeTab = widget.initialTab;
+  // Keep the editing session at screen lifetime: local filtering rebuilds the
+  // feed on every keystroke and must not transfer IME state to a new owner.
+  late final TextEditingController _searchController;
+  late final FocusNode _searchFocusNode;
   JeeberTierFilter _tierFilter = JeeberTierFilter.all;
   String _query = '';
 
   @override
   void initState() {
     super.initState();
+    _searchController = TextEditingController();
+    _searchFocusNode = FocusNode();
     // Lazily warm the pending list if the view opens directly on the Pending
     // tab (deep-link / dev-seam `initialTab`).
     if (_activeTab == JeeberFeedTab.pendingResponse) {
       _loadPendingOffers();
     }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
   }
 
   @override
@@ -221,7 +234,11 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
   }
 
   List<Widget> _feedControls() => [
-    _FeedSearchBar(onChanged: (q) => setState(() => _query = q)),
+    _FeedSearchBar(
+      controller: _searchController,
+      focusNode: _searchFocusNode,
+      onChanged: (query) => setState(() => _query = query),
+    ),
     const SizedBox(height: Spacing.small),
     _FeedTabStrip(active: _activeTab, onChanged: _onTabChanged),
     const SizedBox(height: Spacing.small),
@@ -411,8 +428,14 @@ class _TierFilterStrip extends StatelessWidget {
 }
 
 class _FeedSearchBar extends StatelessWidget {
-  const _FeedSearchBar({required this.onChanged});
+  const _FeedSearchBar({
+    required this.controller,
+    required this.focusNode,
+    required this.onChanged,
+  });
 
+  final TextEditingController controller;
+  final FocusNode focusNode;
   final ValueChanged<String> onChanged;
 
   @override
@@ -425,6 +448,8 @@ class _FeedSearchBar extends StatelessWidget {
         identifier: 'jeeber_feed_search_field',
         child: OmdsSearchBar(
           key: JeeberFeedTabView.searchBarKey,
+          controller: controller,
+          focusNode: focusNode,
           hintText: AppLocalizations.of(context).jeeberFeedSearchHint,
           onChanged: onChanged,
         ),
