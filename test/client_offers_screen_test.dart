@@ -6,6 +6,7 @@ import 'package:jeeb_mobile/features/client_offers/data/dio_offers_repository.da
 import 'package:jeeb_mobile/features/client_offers/domain/jeeber_vehicle.dart';
 import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart';
 import 'package:jeeb_mobile/features/client_offers/presentation/client_offers_screen.dart';
+import 'package:omds/omds.dart';
 
 import 'support/offers_fixtures.dart';
 import 'support/scripted_offers_repository.dart';
@@ -15,12 +16,21 @@ import 'support/sync_app_localizations.dart';
 /// a test can drive the REAL [DioOffersRepository] off a canned wire payload —
 /// no mock-server, no network. Used to reproduce the exact LIVE gateway
 /// `GET /v1/offers?requestId=` envelope on the on-device path.
-Dio _dioRespond(Object? body) {
+Dio _dioRespond(
+  Object? offersBody, {
+  Object? requestBody = const {'status': 'pending'},
+}) {
   final dio = Dio(BaseOptions(baseUrl: 'http://test'));
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) => handler.resolve(
-        Response(data: body, statusCode: 200, requestOptions: options),
+        Response(
+          data: options.path.startsWith('/v1/requests/')
+              ? requestBody
+              : offersBody,
+          statusCode: 200,
+          requestOptions: options,
+        ),
       ),
     ),
   );
@@ -251,7 +261,6 @@ void main() {
     // gateway-collapsed `status: "pending"` (offer-service submitted/edited/
     // pending → gateway pending). Drives the REAL DioOffersRepository → cubit →
     // screen so this is the genuine on-device parse+render path, not a fixture.
-    final now = DateTime.now().toUtc().toIso8601String();
     final repo = DioOffersRepository(
       _dioRespond({
         'items': [
@@ -263,7 +272,7 @@ void main() {
             'fee': 6.5,
             'etaMinutes': 18,
             'note': 'Karim here, on my way',
-            'createdAt': now,
+            'createdAt': '2026-07-04T23:05:45.994303Z',
           },
         ],
       }),
@@ -297,8 +306,52 @@ void main() {
     );
     // The "Waiting for offers" empty-state must NOT show when items is non-empty.
     expect(find.byKey(const Key('offer-empty-state')), findsNothing);
+    expect(find.byKey(const Key('offer-window-timer')), findsNothing);
+    expect(find.text('Offer window expired'), findsNothing);
+    final accept = tester.widget<OmdsPrimaryButton>(
+      find.byKey(const Key('offer-card-accept-a7e85c0b-real-offer')),
+    );
+    expect(accept.isEnabled, isTrue);
     // The parsed fee surfaces on the card via the unified MoneyFormat
     // (6.5 USD -> "$6.50", lane item 3).
     expect(find.text('\u2066\$6.50\u2069'), findsWidgets);
+  });
+
+  testWidgets(
+      'ClientOffersScreen — expires only on a terminal server snapshot',
+      (tester) async {
+    final repo = ScriptedOffersRepository(
+      snapshots: [
+        OffersSnapshot(
+          offers: [buildOffer(id: 'server-expired', jeeberName: 'Karim')],
+          windowExpiresAt: null,
+          requestIsOpen: false,
+          requestIsExpired: true,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      wrapForTest(
+        ClientOffersScreen(
+          requestId: 'req-expired',
+          repository: repo,
+          cubitFactory: _testCubitFactory,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Offer window expired'), findsOneWidget);
+    expect(
+      tester
+          .widget<OmdsPrimaryButton>(
+            find.byKey(const Key('offer-card-accept-server-expired')),
+          )
+          .isEnabled,
+      isFalse,
+    );
+    expect(find.byKey(const Key('offer-review-cancel-cta')), findsNothing);
   });
 }

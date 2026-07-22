@@ -173,8 +173,17 @@ void main() {
     adapter.gate.complete();
     await a;
     await b;
-    // The two different repos' identical probes collapsed to one wire call.
-    expect(adapter.callCount, 1);
+    // The two different repos' identical offer probes collapsed to one wire
+    // call. Offer-review additionally reads the owner-scoped request status.
+    expect(
+      adapter.requests.where((request) => request.path == '/v1/offers'),
+      hasLength(1),
+    );
+    expect(
+      adapter.requests.where((request) => request.path == '/v1/requests/r1'),
+      hasLength(1),
+    );
+    expect(adapter.callCount, 2);
   });
 
   group('ClientOffersCubit does not fail the screen on a rate-limited load',

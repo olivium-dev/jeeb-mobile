@@ -32,6 +32,7 @@ class ClientOffersState extends Equatable {
     this.windowExpiresAt,
     this.now,
     this.requestIsOpen = true,
+    this.requestIsExpired = false,
     this.acceptingOfferId,
     this.acceptedOfferId,
     this.acceptStatus = AcceptStatus.idle,
@@ -45,7 +46,7 @@ class ClientOffersState extends Equatable {
 
   final OfferSortMode sortMode;
 
-  /// Server-stamped deadline for the offer window. Null until first snapshot.
+  /// Server-stamped display deadline. Null when the latest snapshot omitted it.
   final DateTime? windowExpiresAt;
 
   /// Cubit's notion of "now" used to compute [windowRemaining]. Injected so
@@ -55,6 +56,10 @@ class ClientOffersState extends Equatable {
   /// False once the gateway tells us the request has been matched / cancelled
   /// / expired — used by the view to render the closed banner.
   final bool requestIsOpen;
+
+  /// True only when the latest request snapshot explicitly says `expired`.
+  /// Local countdown progress never sets this lifecycle flag.
+  final bool requestIsExpired;
 
   /// Id of the offer the accept call is in-flight on. Lets every card decide
   /// whether to render the Accept CTA, a spinner, or a disabled state.
@@ -78,11 +83,6 @@ class ClientOffersState extends Equatable {
     return diff.isNegative ? Duration.zero : diff;
   }
 
-  bool get windowExpired =>
-      windowExpiresAt != null &&
-      now != null &&
-      !now!.isBefore(windowExpiresAt!);
-
   bool get hasOffers => offers.isNotEmpty;
 
   ClientOffersState copyWith({
@@ -90,8 +90,10 @@ class ClientOffersState extends Equatable {
     List<Offer>? offers,
     OfferSortMode? sortMode,
     DateTime? windowExpiresAt,
+    bool clearWindowExpiresAt = false,
     DateTime? now,
     bool? requestIsOpen,
+    bool? requestIsExpired,
     String? acceptingOfferId,
     bool clearAcceptingOfferId = false,
     String? acceptedOfferId,
@@ -104,9 +106,12 @@ class ClientOffersState extends Equatable {
       status: status ?? this.status,
       offers: offers ?? this.offers,
       sortMode: sortMode ?? this.sortMode,
-      windowExpiresAt: windowExpiresAt ?? this.windowExpiresAt,
+      windowExpiresAt: clearWindowExpiresAt
+          ? null
+          : (windowExpiresAt ?? this.windowExpiresAt),
       now: now ?? this.now,
       requestIsOpen: requestIsOpen ?? this.requestIsOpen,
+      requestIsExpired: requestIsExpired ?? this.requestIsExpired,
       acceptingOfferId:
           clearAcceptingOfferId ? null : (acceptingOfferId ?? this.acceptingOfferId),
       acceptedOfferId:
@@ -124,6 +129,7 @@ class ClientOffersState extends Equatable {
         windowExpiresAt,
         now,
         requestIsOpen,
+        requestIsExpired,
         acceptingOfferId,
         acceptedOfferId,
         acceptStatus,

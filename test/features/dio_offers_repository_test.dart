@@ -21,6 +21,16 @@ void main() {
 
   setUp(() {
     mockDio = _MockDio();
+    when(() => mockDio.get<dynamic>(
+          any(that: startsWith('/v1/requests/')),
+          queryParameters: any(named: 'queryParameters'),
+        )).thenAnswer(
+      (_) async => Response<dynamic>(
+        requestOptions: RequestOptions(path: ''),
+        data: const {'status': 'pending'},
+        statusCode: 200,
+      ),
+    );
     repo = DioOffersRepository(mockDio);
   });
 
@@ -28,7 +38,7 @@ void main() {
     test('parses { items } envelope and returns OffersSnapshot', () async {
       final now = DateTime.now().toUtc().toIso8601String();
       when(() => mockDio.get<dynamic>(
-            any(),
+            '/v1/offers',
             queryParameters: any(named: 'queryParameters'),
           )).thenAnswer(
         (_) async => Response<dynamic>(
@@ -69,7 +79,7 @@ void main() {
       // "Waiting for offers" even though the offer arrived 200. This is the
       // exact wire shape captured from the live gateway on 2026-06-30.
       when(() => mockDio.get<dynamic>(
-            any(),
+            '/v1/offers',
             queryParameters: any(named: 'queryParameters'),
           )).thenAnswer(
         (_) async => Response<dynamic>(
@@ -100,7 +110,7 @@ void main() {
 
     test('throws OffersRepositoryException(network) on DioException', () {
       when(() => mockDio.get<dynamic>(
-            any(),
+            '/v1/offers',
             queryParameters: any(named: 'queryParameters'),
           )).thenThrow(
         DioException(

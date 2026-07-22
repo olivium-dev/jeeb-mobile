@@ -87,7 +87,7 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
       final snapshot = await _repository.fetchOffers(_requestId);
       if (isClosed) return;
       _emitSnapshot(snapshot, statusOverride: OffersScreenStatus.loaded);
-      _attachStreams();
+      if (snapshot.requestIsOpen) _attachStreams();
     } on OffersRepositoryException catch (e) {
       if (isClosed) return;
       if (e.failure == OffersFailure.rateLimited) {
@@ -125,7 +125,9 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
   Future<void> refresh() async {
     try {
       final snapshot = await _repository.fetchOffers(_requestId);
+      if (isClosed) return;
       _emitSnapshot(snapshot);
+      if (!snapshot.requestIsOpen) await _stopStreams();
     } on OffersRepositoryException catch (e) {
       // A rate-limit during a manual refresh is transient back-pressure: the
       // RateLimitInterceptor has already paused the reads and the next poll
@@ -156,7 +158,11 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
   /// wiring the previously-dead `acceptingOfferId` mechanism into the real
   /// (sheet-based) accept path. Cleared by [endAccept] when the sheet closes.
   void beginAccept(String offerId) {
-    if (isClosed || state.acceptStatus == AcceptStatus.inFlight) return;
+    if (isClosed ||
+        !state.requestIsOpen ||
+        state.acceptStatus == AcceptStatus.inFlight) {
+      return;
+    }
     emit(
       state.copyWith(
         acceptingOfferId: offerId,
@@ -182,7 +188,9 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
   /// Accepts [offerId]. Emits in-flight → succeeded states so the card UI can
   /// swap to a spinner without the host route owning that flag.
   Future<void> acceptOffer(String offerId) async {
-    if (state.acceptStatus == AcceptStatus.inFlight) return;
+    if (!state.requestIsOpen || state.acceptStatus == AcceptStatus.inFlight) {
+      return;
+    }
     emit(
       state.copyWith(
         acceptingOfferId: offerId,
@@ -200,8 +208,7 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
           clearAcceptingOfferId: true,
         ),
       );
-      await _pollSubscription?.cancel();
-      _pollSubscription = null;
+      await _stopStreams();
     } on OffersRepositoryException catch (e) {
       emit(
         state.copyWith(
@@ -231,6 +238,9 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
   /// Exposed so widget tests can drive it manually rather than depending on
   /// real wall-clock ticks.
   void tick() {
+    if (isClosed || !state.requestIsOpen || state.windowExpiresAt == null) {
+      return;
+    }
     emit(state.copyWith(now: _now()));
   }
 
@@ -255,7 +265,9 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
     _pollInFlight = true;
     try {
       final snapshot = await _repository.fetchOffers(_requestId);
+      if (isClosed) return;
       _emitSnapshot(snapshot);
+      if (!snapshot.requestIsOpen) await _stopStreams();
     } on OffersRepositoryException catch (_) {
       // Swallow transient poll failures (including rate-limits) — the foreground
       // refresh and accept paths surface errors. We don't want a flaky network
@@ -277,10 +289,19 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
         status: statusOverride ?? OffersScreenStatus.loaded,
         offers: sorted,
         windowExpiresAt: snapshot.windowExpiresAt,
+        clearWindowExpiresAt: snapshot.windowExpiresAt == null,
         now: _now(),
         requestIsOpen: snapshot.requestIsOpen,
+        requestIsExpired: snapshot.requestIsExpired,
       ),
     );
+  }
+
+  Future<void> _stopStreams() async {
+    await _pollSubscription?.cancel();
+    await _clockSubscription?.cancel();
+    _pollSubscription = null;
+    _clockSubscription = null;
   }
 
   /// Stable ordering: price asc (then newest first) or rating desc (then
@@ -306,8 +327,7 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
 
   @override
   Future<void> close() async {
-    await _pollSubscription?.cancel();
-    await _clockSubscription?.cancel();
+    await _stopStreams();
     return super.close();
   }
 }

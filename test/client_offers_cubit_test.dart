@@ -270,10 +270,46 @@ void main() {
       // repository because the subscription was cancelled.
       expect(repo.fetchCalls, 1);
     });
+
+    test('terminal server emission closes immediately and stops later polls',
+        () async {
+      final repo = ScriptedOffersRepository(
+        snapshots: [
+          _snapshot(
+            [buildOffer(id: 'a')],
+            deadline: kBaseTime.add(const Duration(minutes: 1)),
+          ),
+          OffersSnapshot(
+            offers: [buildOffer(id: 'a')],
+            windowExpiresAt: null,
+            requestIsOpen: false,
+            requestIsExpired: true,
+          ),
+        ],
+      );
+      final pollTrigger = StreamController<void>();
+      final cubit = _buildCubit(
+        repository: repo,
+        pollTicks: pollTrigger.stream,
+      );
+      addTearDown(pollTrigger.close);
+      await cubit.load();
+
+      pollTrigger.add(null);
+      await pumpEventQueue();
+
+      expect(cubit.state.requestIsOpen, isFalse);
+      expect(cubit.state.requestIsExpired, isTrue);
+      expect(cubit.state.windowExpiresAt, isNull);
+
+      pollTrigger.add(null);
+      await pumpEventQueue();
+      expect(repo.fetchCalls, 2);
+    });
   });
 
   group('ClientOffersCubit — countdown', () {
-    test('tick advances "now" and flips windowExpired past the deadline',
+    test('elapsed display deadline never closes a server-live request',
         () async {
       var fakeNow = kBaseTime;
       final repo = ScriptedOffersRepository(snapshots: [
@@ -294,7 +330,8 @@ void main() {
 
       await cubit.load();
       expect(cubit.state.windowRemaining, const Duration(seconds: 10));
-      expect(cubit.state.windowExpired, isFalse);
+      expect(cubit.state.requestIsOpen, isTrue);
+      expect(cubit.state.requestIsExpired, isFalse);
 
       fakeNow = kBaseTime.add(const Duration(seconds: 5));
       cubit.tick();
@@ -303,7 +340,8 @@ void main() {
       fakeNow = kBaseTime.add(const Duration(seconds: 15));
       cubit.tick();
       expect(cubit.state.windowRemaining, Duration.zero);
-      expect(cubit.state.windowExpired, isTrue);
+      expect(cubit.state.requestIsOpen, isTrue);
+      expect(cubit.state.requestIsExpired, isFalse);
     });
   });
 }
