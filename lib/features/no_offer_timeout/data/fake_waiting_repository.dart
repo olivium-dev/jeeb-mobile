@@ -24,7 +24,9 @@ class FakeWaitingRepository implements WaitingRepository {
         phase: WaitingRequestPhase.broadcasting,
         notifiedCount: 4,
         offerCount: 0,
-        broadcastExpiresAt: DateTime.now().add(const Duration(minutes: 5)),
+        // Match the live gateway's deadline-optional contract. WaitingCubit
+        // anchors one stable presentation deadline for this request.
+        broadcastExpiresAt: null,
         displayId: 'ORD-FAKE',
         tier: 'express',
         title: 'Waiting for Jeebers',

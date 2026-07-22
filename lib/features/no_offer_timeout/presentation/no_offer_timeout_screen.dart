@@ -14,15 +14,14 @@ import '../application/waiting_state.dart';
 import '../data/dio_waiting_repository.dart';
 import '../data/fake_waiting_repository.dart';
 import '../domain/waiting_repository.dart';
+import '../domain/waiting_request.dart';
 
 /// Signature for the optional cubit factory the screen exposes for tests.
 /// Production wiring leaves it `null` so the default ticker-driven cubit is
 /// used; tests pass a factory that injects empty `pollTicks` / `clockTicks` so
 /// the test binding doesn't complain about pending timers.
-typedef WaitingCubitFactory = WaitingCubit Function(
-  WaitingRepository repository,
-  String requestId,
-);
+typedef WaitingCubitFactory =
+    WaitingCubit Function(WaitingRepository repository, String requestId);
 
 /// JM-026 — Waiting / No-Coverage state [D48, D69].
 ///
@@ -39,6 +38,8 @@ typedef WaitingCubitFactory = WaitingCubit Function(
 ///    (clock-driven, never gated on notifiedCount — BUG-4 / JM-026).
 ///  - **Offers arrived:** the cubit polls; once an offer lands the screen flips
 ///    live to `waiting_review_offers_cta` → `offer-review` (AC2, JM-028).
+///  - **Terminal server status:** the countdown and polling stop, and
+///    `waiting_terminal_state` offers a role-aware Home exit.
 ///  - `waiting_retarget_cta` → `request-type` (re-target, D48; AC3).
 ///  - `waiting_cancel_cta` → `CancelRequestSheet` (free pre-accept, D69; AC4).
 ///
@@ -56,6 +57,8 @@ typedef WaitingCubitFactory = WaitingCubit Function(
 ///   waiting_review_offers_cta  — appears when offers arrive → offer-review-list
 ///   waiting_retarget_cta       — re-target → request-type-selection (D48)
 ///   waiting_cancel_cta         — cancel → cancel-request-confirm sheet (D69)
+///   waiting_terminal_state     — matched/cancelled/expired/closed request
+///   waiting_terminal_home_cta  — terminal exit → role-aware Home
 class NoOfferTimeoutScreen extends StatelessWidget {
   const NoOfferTimeoutScreen({
     super.key,
@@ -87,8 +90,9 @@ class NoOfferTimeoutScreen extends StatelessWidget {
       // home pollers.
       return DioWaitingRepository(
         sl<Dio>(),
-        coalescer:
-            sl.isRegistered<SingleFlightGet>() ? sl<SingleFlightGet>() : null,
+        coalescer: sl.isRegistered<SingleFlightGet>()
+            ? sl<SingleFlightGet>()
+            : null,
       );
     }
     return FakeWaitingRepository();
@@ -99,7 +103,8 @@ class NoOfferTimeoutScreen extends StatelessWidget {
     final repo = _resolveRepository();
     return BlocProvider<WaitingCubit>(
       create: (_) {
-        final cubit = cubitFactory?.call(repo, requestId) ??
+        final cubit =
+            cubitFactory?.call(repo, requestId) ??
             WaitingCubit(repository: repo, requestId: requestId);
         cubit.load();
         return cubit;
@@ -117,24 +122,30 @@ class _WaitingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: OMDSAppBar(title: l10n.waitingTitle),
-      body: SafeArea(
-        child: BlocBuilder<WaitingCubit, WaitingState>(
-          builder: (context, state) {
-            if (state.isLoading) {
-              return const _WaitingLoading();
-            }
-            if (state.status == WaitingScreenStatus.failed) {
-              return _WaitingError(
-                onRetry: () => context.read<WaitingCubit>().retry(),
-              );
-            }
-            return _WaitingLoaded(requestId: requestId, state: state);
-          },
+    return BlocBuilder<WaitingCubit, WaitingState>(
+      builder: (context, state) => Scaffold(
+        appBar: OMDSAppBar(
+          title: state.isTerminal
+              ? l10n.offersRequestClosedTitle
+              : l10n.waitingTitle,
         ),
+        body: SafeArea(child: _body(context, state)),
       ),
     );
+  }
+
+  Widget _body(BuildContext context, WaitingState state) {
+    if (state.isLoading) return const _WaitingLoading();
+    if (state.status == WaitingScreenStatus.failed) {
+      return _WaitingError(onRetry: () => context.read<WaitingCubit>().retry());
+    }
+    if (state.isTerminal) {
+      return _WaitingTerminal(
+        requestId: requestId,
+        phase: state.request!.phase,
+      );
+    }
+    return _WaitingLoaded(requestId: requestId, state: state);
   }
 }
 
@@ -165,13 +176,78 @@ class _WaitingError extends StatelessWidget {
       child: Semantics(
         identifier: 'waiting_error_state',
         container: true,
-        child: OmdsErrorState(
-          message: l10n.waitingErrorBody,
-          onRetry: onRetry,
+        child: OmdsErrorState(message: l10n.waitingErrorBody, onRetry: onRetry),
+      ),
+    );
+  }
+}
+
+/// Server-owned terminal state. There is deliberately no countdown, retry,
+/// re-target, or cancel action here: this request has left the waiting flow.
+class _WaitingTerminal extends StatelessWidget {
+  const _WaitingTerminal({required this.requestId, required this.phase});
+
+  final String requestId;
+  final WaitingRequestPhase phase;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      identifier: 'waiting_terminal_state',
+      container: true,
+      explicitChildNodes: true,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(Spacing.large),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              OmdsEmptyState(
+                key: const Key('waiting-terminal-empty-state'),
+                icon: _icon,
+                title: _title(l10n),
+                subtitle: _subtitle(l10n),
+              ),
+              const SizedBox(height: Spacing.large),
+              Semantics(
+                identifier: 'waiting_terminal_home_cta',
+                container: true,
+                button: true,
+                child: OmdsPrimaryButton(
+                  key: const Key('waiting-terminal-home-cta'),
+                  text: l10n.trackingCancelledHomeCta,
+                  onTap: () => context.go('/'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
+
+  IconData get _icon => switch (phase) {
+    WaitingRequestPhase.matched => Icons.check_circle_outline,
+    WaitingRequestPhase.cancelled => Icons.cancel_outlined,
+    WaitingRequestPhase.expired => Icons.timer_off_outlined,
+    _ => Icons.lock_outline,
+  };
+
+  String _title(AppLocalizations l10n) => switch (phase) {
+    WaitingRequestPhase.matched => l10n.deliveryStageMatched,
+    WaitingRequestPhase.cancelled => l10n.deliveryStageCancelled,
+    WaitingRequestPhase.expired => l10n.requestSummaryExpiredTitle,
+    _ => l10n.offersRequestClosedTitle,
+  };
+
+  String? _subtitle(AppLocalizations l10n) => switch (phase) {
+    WaitingRequestPhase.expired => l10n.requestSummaryExpiredBody,
+    WaitingRequestPhase.cancelled ||
+    WaitingRequestPhase.closed => l10n.requestNoLongerAvailable(requestId),
+    _ => null,
+  };
 }
 
 class _WaitingLoaded extends StatelessWidget {
@@ -183,10 +259,7 @@ class _WaitingLoaded extends StatelessWidget {
   void _openReviewOffers(BuildContext context) {
     // EDGE: waiting_review_offers_cta → offer-review-list (JM-028). The route
     // `offer-review` (`/requests/:id/offers`) is registered by the W1 integrator.
-    context.pushNamed(
-      'offer-review',
-      pathParameters: {'id': requestId},
-    );
+    context.pushNamed('offer-review', pathParameters: {'id': requestId});
   }
 
   void _retarget(BuildContext context) {
