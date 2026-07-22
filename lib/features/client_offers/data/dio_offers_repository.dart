@@ -12,18 +12,16 @@ import '../domain/offers_repository.dart';
 ///
 /// Endpoints (gateway contract; `MockGatewayClient` rewrites the `/v1/...`
 /// prefix to the `:4010` service prefix — 40_GUARDRAILS_ARCH §4):
-///   GET  `/v1/offers?requestId=<id>` → `/offer-service/v1/offers` — JSON
-///                                       `{ items: [...], cursor }` envelope
-///                                       (JM-028, 42_GUARDRAILS_MOCK §1.2).
+///   GET  `/v1/offers?requestId=<id>` → current offer rows.
+///   GET  `/v1/requests/:requestId`   → owner-scoped request status and an
+///                                       optional server deadline.
 ///   POST /v1/offers/:offerId/accept  → `/offer-service/v1/offers/:id/accept` —
 ///                                       `{ offer, conversationId, ... }` on 200,
 ///                                       409 race-conflict, 410 gone.
 ///
-/// W1-INT (JM-028): the list path moved from the dead `/v1/requests/:id/offers`
-/// (no mock route exists — it 404s) to the offer-service query-param endpoint
-/// the mock actually serves. The offer-window deadline is derived from the
-/// first offer's `createdAt` + 15 min because the list endpoint omits
-/// `windowExpiresAt`.
+/// The offer-list response does not own request lifecycle. The repository joins
+/// it with the request row so Accept follows the server status. A countdown is
+/// exposed only when either response carries a parseable server deadline.
 ///
 /// Wire-shape note (mock + journey-seed `offers_received`): each offer row is
 /// `{ id, requestId, jeeberId, amount: { value, currency }, price: { value },
@@ -57,8 +55,6 @@ class DioOffersRepository implements OffersRepository {
   /// persistence.
   final HandoverCodeStore? _handoverCodeStore;
 
-  static const Duration _defaultWindow = Duration(minutes: 15);
-
   /// Offer statuses that are still live (a client can accept them). Withdrawn /
   /// superseded / expired / accepted offers are filtered out of the review list
   /// — the screen only shows live bids.
@@ -74,11 +70,14 @@ class DioOffersRepository implements OffersRepository {
   @override
   Future<OffersSnapshot> fetchOffers(String requestId) async {
     try {
-      final response = await _coalescer.get(
+      final offersResponse = await _coalescer.get(
         '/v1/offers',
         queryParameters: <String, dynamic>{'requestId': requestId},
       );
-      return _parseSnapshot(response.data);
+      final requestResponse = await _dio.get<dynamic>(
+        '/v1/requests/${Uri.encodeComponent(requestId)}',
+      );
+      return _parseSnapshot(offersResponse.data, requestResponse.data);
     } on DioException catch (e) {
       _rethrowDio(e);
     }
@@ -145,7 +144,7 @@ class DioOffersRepository implements OffersRepository {
     );
   }
 
-  OffersSnapshot _parseSnapshot(dynamic data) {
+  OffersSnapshot _parseSnapshot(dynamic data, dynamic requestData) {
     // Tolerate every shape the gateway / mock can emit: the offer-service
     // `{ items: [...] }` envelope (current mock), a legacy `{ offers: [...] }`
     // key, or a bare top-level array.
@@ -176,40 +175,47 @@ class DioOffersRepository implements OffersRepository {
         .whereType<Offer>()
         .toList(growable: false);
 
-    final deadline = _deriveDeadline(data, offers);
-    // Honour an explicit `requestIsOpen` flag if the gateway sends one;
-    // otherwise derive it from the accepted-offer presence.
-    final open = data is Map<String, dynamic>
-        ? (data['requestIsOpen'] as bool?) ?? !hasAccepted
-        : !hasAccepted;
+    final requestStatus = _requestStatus(requestData);
+    final deadline = _serverDeadline(requestData) ?? _serverDeadline(data);
+    final explicitlyOpen = _explicitOpen(requestData) ?? _explicitOpen(data);
+    final statusIsOpen = _liveRequestStatuses.contains(requestStatus);
+    final open = !hasAccepted &&
+        (requestStatus.isNotEmpty ? statusIsOpen : explicitlyOpen ?? false);
     return OffersSnapshot(
       offers: offers,
       windowExpiresAt: deadline,
       requestIsOpen: open,
+      requestIsExpired: requestStatus == 'expired',
     );
   }
 
-  DateTime _deriveDeadline(dynamic data, List<Offer> offers) {
-    if (data is Map<String, dynamic>) {
-      final raw = data['windowExpiresAt'] as String?;
-      if (raw != null) {
-        return DateTime.tryParse(raw) ?? _fallbackDeadline(offers);
-      }
-    }
-    return _fallbackDeadline(offers);
+  static const Set<String> _liveRequestStatuses = {
+    'pending',
+    'open',
+    'broadcasting',
+    'offers-received',
+  };
+
+  String _requestStatus(dynamic data) {
+    if (data is! Map) return '';
+    final raw = data['status'];
+    if (raw is! String) return '';
+    return raw.trim().toLowerCase().replaceAll('_', '-');
   }
 
-  DateTime _fallbackDeadline(List<Offer> offers) {
-    // The list endpoint omits `windowExpiresAt` entirely, so the client has no
-    // server-authoritative deadline. The window is anchored on the first
-    // offer's `submittedAt` (`createdAt`) + [_defaultWindow] — the
-    // first-offer-opens-the-window contract documented at the top of this file.
-    // When the list is empty there is no offer to anchor on, so we default to a
-    // LIVE window from "now" (the review list only renders for an open,
-    // offers-received request, so a freshly loaded list must not present a
-    // retroactively expired window).
-    if (offers.isEmpty) return DateTime.now().add(_defaultWindow);
-    return offers.first.submittedAt.add(_defaultWindow);
+  bool? _explicitOpen(dynamic data) {
+    if (data is! Map) return null;
+    final raw = data['requestIsOpen'];
+    return raw is bool ? raw : null;
+  }
+
+  DateTime? _serverDeadline(dynamic data) {
+    if (data is! Map) return null;
+    final raw = data['windowExpiresAt'] ??
+        data['offerWindowExpiresAt'] ??
+        data['broadcastExpiresAt'] ??
+        data['expiresAt'];
+    return raw is String ? DateTime.tryParse(raw) : null;
   }
 
   Offer? _parseOffer(Map<String, dynamic> json) {

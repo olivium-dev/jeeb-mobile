@@ -78,20 +78,23 @@ class OfferAcceptResult {
 
 /// Snapshot of the open offer set for a single request.
 ///
-/// [windowExpiresAt] is the server-stamped deadline after which the request
-/// auto-cancels if nothing has been accepted (T-mobile-035 hard expiry). The
-/// cubit drives a local countdown from this value — no clock skew correction,
-/// the server is authoritative.
+/// [windowExpiresAt] is a server-stamped display deadline when the gateway
+/// supplies one. It is nullable by contract: an omitted deadline must never be
+/// replaced with a client-authored window. [requestIsOpen] remains the action
+/// authority, while [requestIsExpired] distinguishes a server-expired request
+/// from other terminal outcomes.
 class OffersSnapshot {
   const OffersSnapshot({
     required this.offers,
     required this.windowExpiresAt,
     required this.requestIsOpen,
+    this.requestIsExpired = false,
   });
 
   final List<Offer> offers;
-  final DateTime windowExpiresAt;
+  final DateTime? windowExpiresAt;
   final bool requestIsOpen;
+  final bool requestIsExpired;
 }
 
 /// Read-side contract for the offer cards screen. Implementations call the

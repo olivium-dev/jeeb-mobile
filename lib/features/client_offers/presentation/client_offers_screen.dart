@@ -176,10 +176,9 @@ class _LoadedBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // The card Accept CTA opens the JM-029 confirm sheet (it does not accept
-    // inline), so it stays tappable while the request is open; only the
-    // window-expired / closed states inert it.
-    final acceptDisabled = state.windowExpired || !state.requestIsOpen;
+    // Request status is the action authority. A locally elapsed display
+    // deadline cannot disable a server-live offer.
+    final acceptDisabled = !state.requestIsOpen;
     // B-01: the id whose accept-confirm sheet is currently open/in flight (null
     // when none). Drives the accept-exactly-ONE list guard below.
     final acceptingOfferId = state.acceptingOfferId;
@@ -195,10 +194,11 @@ class _LoadedBody extends StatelessWidget {
         ),
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          OfferWindowTimer(
-            remaining: state.windowRemaining,
-            expired: state.windowExpired,
-          ),
+          if (state.windowExpiresAt != null || state.requestIsExpired)
+            OfferWindowTimer(
+              remaining: state.windowRemaining,
+              expired: state.requestIsExpired,
+            ),
           if (!state.requestIsOpen) ...[
             const SizedBox(height: Spacing.small),
             _Banner(

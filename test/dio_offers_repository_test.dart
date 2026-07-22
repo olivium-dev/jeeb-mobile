@@ -3,11 +3,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/client_offers/data/dio_offers_repository.dart';
 import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart';
 
-Dio _dioRespond(Object? body, {int status = 200}) {
+Dio _dioRespond(
+  Object? offersBody, {
+  int status = 200,
+  Object? requestBody = const {'status': 'pending'},
+}) {
   final dio = Dio(BaseOptions(baseUrl: 'http://test'));
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) {
+        final body = options.path.startsWith('/v1/requests/')
+            ? requestBody
+            : offersBody;
         handler.resolve(
           Response(
             data: body,
@@ -100,7 +107,7 @@ void main() {
         // Before the fix the repo's live-status set was {submitted, edited}, so
         // this real on-device offer was silently dropped → the Choose-a-Jeeber
         // screen showed "Waiting for offers" even though the body had the offer.
-        final now = DateTime.now().toUtc().toIso8601String();
+        const submittedAt = '2026-07-04T23:05:45.994303Z';
         final repo = DioOffersRepository(
           _dioRespond({
             'items': [
@@ -112,7 +119,7 @@ void main() {
                 'fee': 6.5,
                 'etaMinutes': 18,
                 'note': 'Karim here, on my way',
-                'createdAt': now,
+                'createdAt': submittedAt,
               },
             ],
           }),
@@ -130,6 +137,9 @@ void main() {
         expect(snapshot.offers.first.etaMinutes, 18);
         expect(snapshot.offers.first.note, 'Karim here, on my way');
         expect(snapshot.requestIsOpen, isTrue);
+        expect(snapshot.requestIsExpired, isFalse);
+        expect(snapshot.windowExpiresAt, isNull,
+            reason: 'an old offer timestamp must not become a client deadline');
       });
 
       test(
@@ -228,14 +238,12 @@ void main() {
         expect(snapshot.offers[0].fee, 35.00);
         expect(snapshot.offers[1].id, 'e-offer-rana');
         expect(snapshot.requestIsOpen, isTrue);
-        expect(snapshot.windowExpiresAt.isAfter(DateTime.now()), isTrue);
+        expect(snapshot.windowExpiresAt, isNull);
       });
 
-      test('derives deadline = first-offer createdAt + 15 min when absent',
+      test('does not derive a deadline from first-offer createdAt when absent',
           () async {
-        // Use a recent timestamp (1 min ago) so windowExpiresAt = +14 min is
-        // still in the future and the assertion does not become stale over time.
-        final created = DateTime.now().toUtc().subtract(const Duration(minutes: 1));
+        final created = DateTime.utc(2026, 7, 4, 23, 5, 45);
         final repo = DioOffersRepository(
           _dioRespond([
             {
@@ -249,26 +257,61 @@ void main() {
         );
 
         final snapshot = await repo.fetchOffers('req-1');
-        expect(
-          snapshot.windowExpiresAt,
-          created.add(const Duration(minutes: 15)),
-        );
+        expect(snapshot.windowExpiresAt, isNull);
       });
 
-      test('falls back to 15-min window when offer list is empty', () async {
-        final before = DateTime.now();
+      test('does not fabricate a deadline when the offer list is empty',
+          () async {
         final repo = DioOffersRepository(_dioRespond(<dynamic>[]));
 
         final snapshot = await repo.fetchOffers('req-1');
-        final after = DateTime.now().add(const Duration(minutes: 15));
-        expect(
-          snapshot.windowExpiresAt.isAfter(before),
-          isTrue,
+        expect(snapshot.windowExpiresAt, isNull);
+      });
+
+      test('preserves a server-provided request deadline exactly', () async {
+        final repo = DioOffersRepository(
+          _dioRespond(
+            const {'items': <dynamic>[]},
+            requestBody: const {
+              'status': 'pending',
+              'windowExpiresAt': '2026-07-22T17:00:00Z',
+            },
+          ),
         );
-        expect(
-          snapshot.windowExpiresAt.isBefore(after.add(const Duration(seconds: 1))),
-          isTrue,
+
+        final snapshot = await repo.fetchOffers('req-1');
+
+        expect(snapshot.windowExpiresAt, DateTime.utc(2026, 7, 22, 17));
+        expect(snapshot.requestIsOpen, isTrue);
+      });
+
+      test('terminal request status wins over a stale pending offer row',
+          () async {
+        final repo = DioOffersRepository(
+          _dioRespond(
+            const {
+              'items': [
+                {
+                  'id': 'stale-offer',
+                  'jeeberId': 'jeeber-1',
+                  'status': 'pending',
+                  'createdAt': '2026-07-04T23:05:45Z',
+                },
+              ],
+            },
+            requestBody: const {
+              'status': 'expired',
+              'requestIsOpen': true,
+            },
+          ),
         );
+
+        final snapshot = await repo.fetchOffers('req-1');
+
+        expect(snapshot.offers, hasLength(1));
+        expect(snapshot.requestIsOpen, isFalse);
+        expect(snapshot.requestIsExpired, isTrue);
+        expect(snapshot.windowExpiresAt, isNull);
       });
 
       test('throws network failure on connection error', () async {
@@ -288,14 +331,12 @@ void main() {
 
       test('uses path /v1/offers with requestId query (JM-028 contract)',
           () async {
-        String? capturedPath;
-        Map<String, dynamic>? capturedQuery;
+        final captured = <RequestOptions>[];
         final dio = Dio(BaseOptions(baseUrl: 'http://test'));
         dio.interceptors.add(
           InterceptorsWrapper(
             onRequest: (options, handler) {
-              capturedPath = options.path;
-              capturedQuery = options.queryParameters;
+              captured.add(options);
               handler.resolve(
                 Response(
                   data: const {'items': <dynamic>[]},
@@ -308,8 +349,11 @@ void main() {
         );
 
         await DioOffersRepository(dio).fetchOffers('req-abc');
-        expect(capturedPath, '/v1/offers');
-        expect(capturedQuery, {'requestId': 'req-abc'});
+        expect(
+          captured.map((request) => request.path),
+          ['/v1/offers', '/v1/requests/req-abc'],
+        );
+        expect(captured.first.queryParameters, {'requestId': 'req-abc'});
       });
     });
 
