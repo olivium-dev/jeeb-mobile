@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 
 import '../../../core/formatting/server_time.dart';
+import '../../../core/requests/server_request_status.dart';
 import 'request_feed_models.dart';
 import 'request_feed_repository.dart';
 
@@ -181,6 +182,7 @@ class DioRequestFeedRepository implements RequestFeedRepository {
         json['broadcastExpiresAt'] as String? ?? json['expiresAt'] as String?;
     final expires = expiresRaw == null ? null : _parseServerTime(expiresRaw);
     final createdRaw = json['createdAt'] as String?;
+    final requestStatus = ServerRequestStatus.normalize(json['status']);
     return DeliveryRequest(
       id: id,
       pickup: pickup,
@@ -207,6 +209,11 @@ class DioRequestFeedRepository implements RequestFeedRepository {
           : (json['distanceFromYouKm'] as num?)?.toDouble(),
       receivedAt: createdRaw != null ? _parseServerTime(createdRaw) : null,
       feedStatus: feedStatus,
+      // Contract B requires `status`; tolerate legacy rows that omit it, but
+      // fail closed for every present unknown/terminal value. This is the same
+      // server-owned status policy used by the customer offer-review path.
+      requestIsOpen: requestStatus.isEmpty ||
+          ServerRequestStatus.isOpen(requestStatus),
     );
   }
 

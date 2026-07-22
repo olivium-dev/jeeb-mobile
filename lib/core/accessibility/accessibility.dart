@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:omds/omds.dart';
 
 /// Accessibility tokens and helpers shared across Jeeb screens.
 ///
@@ -15,7 +16,7 @@ class A11y {
   /// Minimum logical pixels every interactive element must occupy on either
   /// axis. 48 satisfies Android's 48dp guideline; iOS's 44pt is comfortably
   /// covered because Flutter logical pixels map 1:1 to iOS points.
-  static const double minTapTargetSize = 48.0;
+  static const double minTapTargetSize = UIConstants.buttonHeight;
 
   /// Hard ceiling we apply to the system text scale factor. The AC requires
   /// scaling to 200% without overflow — anything beyond that is unsupported
@@ -85,8 +86,9 @@ Widget jeebA11yBuilder(BuildContext context, Widget? child) {
 /// surface that doesn't already inherit a ListTile / IconButton's enforced
 /// minimum.
 class MinTapTarget extends StatelessWidget {
-  const MinTapTarget({super.key, required this.child});
+  const MinTapTarget({super.key, required this.onTap, required this.child});
 
+  final VoidCallback onTap;
   final Widget child;
 
   @override
@@ -96,7 +98,17 @@ class MinTapTarget extends StatelessWidget {
         minWidth: A11y.minTapTargetSize,
         minHeight: A11y.minTapTargetSize,
       ),
-      child: child,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Align(
+          widthFactor: 1,
+          heightFactor: 1,
+          // The outer gesture owns the complete target. The visual child stays
+          // compact and cannot compete with it for the same pointer event.
+          child: IgnorePointer(child: child),
+        ),
+      ),
     );
   }
 }

@@ -109,9 +109,20 @@ class RequestFeedCubit extends Cubit<RequestFeedState> {
       final existingById = {for (final r in state.requests) r.id: r};
       final reconciled = <String, DeliveryRequest>{};
       final expiredIds = <String>{...state.expiredIds};
+      final serverClosedIds = <String>{};
       for (final r in snapshot) {
-        // A row the server STILL lists is live by definition — if we had
-        // locally expired it (clock skew), revive it off the fresh row.
+        // Contract B carries the request status on every item. Presence alone
+        // is not action authority: a stale terminal row must immediately
+        // retire instead of recovering Ignore / Offer actions.
+        if (!r.requestIsOpen) {
+          serverClosedIds.add(r.id);
+          expiredIds.remove(r.id);
+          _deadlines.remove(r.id);
+          _removals.remove(r.id);
+          continue;
+        }
+        // A row the server still reports OPEN revives a locally expired mark
+        // (for example after device clock skew).
         expiredIds.remove(r.id);
         // Re-track every authoritative row so a newly supplied deadline is
         // honoured and a newly omitted deadline clears any older local entry.
@@ -120,6 +131,7 @@ class RequestFeedCubit extends Cubit<RequestFeedState> {
       }
       for (final entry in existingById.entries) {
         if (reconciled.containsKey(entry.key)) continue;
+        if (serverClosedIds.contains(entry.key)) continue;
         final inFlight =
             state.actionStatusFor(entry.key) != RequestActionStatus.idle;
         if (inFlight || expiredIds.contains(entry.key)) {
@@ -166,7 +178,10 @@ class RequestFeedCubit extends Cubit<RequestFeedState> {
     required RequestActionStatus busy,
     required Future<RequestActionOutcome> Function(String) call,
   }) async {
-    if (!state.requests.any((r) => r.id == id)) return;
+    final requestIndex = state.requests.indexWhere((r) => r.id == id);
+    if (requestIndex == -1 || !state.requests[requestIndex].requestIsOpen) {
+      return;
+    }
     // An expired card is display-only during its linger window — the request
     // is dead server-side, so accept/decline would only round-trip an error.
     if (state.isExpired(id)) return;
@@ -208,6 +223,24 @@ class RequestFeedCubit extends Cubit<RequestFeedState> {
   }
 
   void _onIncoming(DeliveryRequest request) {
+    if (!request.requestIsOpen) {
+      _deadlines.remove(request.id);
+      _removals.remove(request.id);
+      final requests = state.requests
+          .where((r) => r.id != request.id)
+          .toList(growable: false);
+      final expiredIds = <String>{...state.expiredIds}..remove(request.id);
+      final actionStatuses = Map<String, RequestActionStatus>.from(
+        state.actionStatuses,
+      )..remove(request.id);
+      emit(state.copyWith(
+        status: RequestFeedStatus.ready,
+        requests: requests,
+        expiredIds: expiredIds,
+        actionStatuses: actionStatuses,
+      ));
+      return;
+    }
     final exists = state.requests.any((r) => r.id == request.id);
     final byId = {for (final r in state.requests) r.id: r};
     byId[request.id] = request;

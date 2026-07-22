@@ -114,6 +114,15 @@ class AppTheme {
     ].cast<ThemeExtension<dynamic>>();
 
     return base.copyWith(
+      // OMDS search bars use the ambient input hint style over
+      // `surfaceContainerHighest`. Pair that surface with the semantic
+      // on-surface-variant role; the default OMDS secondary/periwinkle token
+      // does not meet AA on this field fill in Jeeb's light palette.
+      inputDecorationTheme: base.inputDecorationTheme.copyWith(
+        hintStyle: base.inputDecorationTheme.hintStyle?.copyWith(
+          color: colorScheme.onSurfaceVariant,
+        ),
+      ),
       appBarTheme: base.appBarTheme.copyWith(
         centerTitle: false,
         backgroundColor: colorScheme.surface,

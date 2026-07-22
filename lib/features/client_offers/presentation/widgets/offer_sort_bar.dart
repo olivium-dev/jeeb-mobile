@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/accessibility/accessibility.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/client_offers_state.dart';
 
@@ -42,11 +43,13 @@ class OfferSortBar extends StatelessWidget {
           label: l10n.offersSortByPrice,
           onTap: () => onChanged(OfferSortMode.byPrice),
           child: ExcludeSemantics(
-            child: OmdsChip(
+            child: MinTapTarget(
               key: const Key('offer-sort-price'),
-              label: l10n.offersSortByPrice,
-              isSelected: mode == OfferSortMode.byPrice,
               onTap: () => onChanged(OfferSortMode.byPrice),
+              child: OmdsChip(
+                label: l10n.offersSortByPrice,
+                isSelected: mode == OfferSortMode.byPrice,
+              ),
             ),
           ),
         ),
@@ -58,11 +61,13 @@ class OfferSortBar extends StatelessWidget {
           label: l10n.offersSortByRating,
           onTap: () => onChanged(OfferSortMode.byRating),
           child: ExcludeSemantics(
-            child: OmdsChip(
+            child: MinTapTarget(
               key: const Key('offer-sort-rating'),
-              label: l10n.offersSortByRating,
-              isSelected: mode == OfferSortMode.byRating,
               onTap: () => onChanged(OfferSortMode.byRating),
+              child: OmdsChip(
+                label: l10n.offersSortByRating,
+                isSelected: mode == OfferSortMode.byRating,
+              ),
             ),
           ),
         ),

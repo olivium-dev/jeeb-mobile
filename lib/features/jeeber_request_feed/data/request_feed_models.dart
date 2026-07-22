@@ -74,6 +74,7 @@ class DeliveryRequest extends Equatable {
     this.distanceFromYouKm,
     this.receivedAt,
     this.feedStatus = JeeberFeedItemStatus.incoming,
+    this.requestIsOpen = true,
     this.nextDeliveryAction,
   });
 
@@ -132,6 +133,14 @@ class DeliveryRequest extends Equatable {
   /// Lifecycle bucket driving which action affordance the card shows
   /// (Ignore/Offer · Pending · delivery-action button).
   final JeeberFeedItemStatus feedStatus;
+
+  /// Whether the server-owned request lifecycle still permits an action.
+  ///
+  /// The discovery endpoint is expected to return only live requests, but its
+  /// item also carries a required request `status`. Keeping that authority on
+  /// the model prevents a stale/terminal row from becoming actionable merely
+  /// because it was still present in a feed snapshot.
+  final bool requestIsOpen;
 
   /// The next delivery transition the Jeeber can trigger once a request is
   /// [JeeberFeedItemStatus.accepted] (Figma screen 26). `null` for the

@@ -128,5 +128,16 @@ void main() {
       expect(contrast(cs.onSurface, cs.surfaceContainerHigh),
           greaterThanOrEqualTo(aaText));
     });
+
+    test('search hint uses onSurfaceVariant on its field surface and is AA',
+        () {
+      final hintColor = light.inputDecorationTheme.hintStyle?.color;
+      expect(hintColor, cs.onSurfaceVariant);
+      expect(
+        contrast(hintColor!, cs.surfaceContainerHighest),
+        greaterThanOrEqualTo(aaText),
+        reason: 'OmdsSearchBar paints its hint on surfaceContainerHighest.',
+      );
+    });
   });
 }
