@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/accessibility/accessibility.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/session/jeeber_kyc_status_gate.dart';
 import '../../../../core/theme/jeeb_color_roles.dart';
@@ -393,16 +394,45 @@ class _TierFilterStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final filters = _filters(l10n);
     return Padding(
       padding: const EdgeInsetsDirectional.symmetric(
         horizontal: Spacing.medium,
       ),
-      child: OmdsFilterChips<JeeberTierFilter>(
+      child: SingleChildScrollView(
         key: JeeberFeedTabView.tierStripKey,
-        filters: _filters(l10n),
-        selectedValue: active,
-        onFilterChanged: onChanged,
-        showCounts: false,
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: filters.indexed.map((entry) {
+            final (index, filter) = entry;
+            return Padding(
+              padding: EdgeInsetsDirectional.only(
+                end: index < filters.length - 1 ? Spacing.xSmall : 0,
+              ),
+              child: _tierChip(index, filter),
+            );
+          }).toList(growable: false),
+        ),
+      ),
+    );
+  }
+
+  Widget _tierChip(int index, OmdsFilterOption<JeeberTierFilter> filter) {
+    void onTap() => onChanged(filter.value);
+    return Semantics(
+      identifier: 'jeeber_feed_tier_chip_$index',
+      button: true,
+      selected: active == filter.value,
+      label: filter.label,
+      onTap: onTap,
+      child: ExcludeSemantics(
+        child: MinTapTarget(
+          onTap: onTap,
+          child: OmdsChip(
+            label: filter.label,
+            isSelected: active == filter.value,
+          ),
+        ),
       ),
     );
   }
@@ -509,14 +539,21 @@ class _FeedTabStrip extends StatelessWidget {
     required String label,
     required JeeberFeedTab tab,
   }) {
+    void onTap() => onChanged(tab);
     return Semantics(
       identifier: identifier,
       button: true,
       selected: active == tab,
-      child: OmdsChip(
-        label: label,
-        isSelected: active == tab,
-        onTap: () => onChanged(tab),
+      label: label,
+      onTap: onTap,
+      child: ExcludeSemantics(
+        child: MinTapTarget(
+          onTap: onTap,
+          child: OmdsChip(
+            label: label,
+            isSelected: active == tab,
+          ),
+        ),
       ),
     );
   }
@@ -634,6 +671,10 @@ class _FeedRequestSliverBody extends StatelessWidget {
     final lowered = query.trim().toLowerCase();
     return source
         .where((r) {
+          // The request status on the feed item is server-owned action
+          // authority. Never expose a stale terminal row as offerable even if
+          // a repository/cubit seam still supplies it during reconciliation.
+          if (!r.requestIsOpen) return false;
           if (lowered.isNotEmpty && !_matchesQuery(r, lowered)) return false;
           if (r.feedStatus != _statusForTab(activeTab)) return false;
           if (!_matchesTier(r)) return false;

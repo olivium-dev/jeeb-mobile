@@ -141,6 +141,27 @@ void main() {
       expect(result.single.expiresAt, DateTime.utc(2026, 6, 30, 10, 11));
     });
 
+    test('terminal request status is preserved as non-actionable authority',
+        () async {
+      dio.nextResponse = _resp({
+        'items': [
+          {
+            'requestId': 'req-stale',
+            'status': 'Expired',
+            'description': 'No longer available',
+            'createdAt': '2026-06-30T09:41:00Z',
+            'myOffer': null,
+          },
+        ],
+        'totalCount': 1,
+      });
+
+      final result = await repo.refresh();
+
+      expect(result, hasLength(1));
+      expect(result.single.requestIsOpen, isFalse);
+    });
+
     test('unknown and absent tier ids remain unidentified', () async {
       dio.nextResponse = _resp({
         'items': [

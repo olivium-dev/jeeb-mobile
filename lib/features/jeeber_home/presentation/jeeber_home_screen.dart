@@ -33,7 +33,7 @@ import 'widgets/jeeber_unregistered_view.dart';
 /// * **State 2 — Registered, available, no requests**: greeting +
 ///   `AvailabilityCard` + empty hero.
 /// * **State 3 — Registered, available, with requests**: greeting +
-///   search bar + [OmdsFilterChips] tab strip + live request feed.
+///   search bar + [OmdsChip] tab strip + live request feed.
 ///
 /// The cubit is provided by the host (typically the role-aware shell) so
 /// the auto-offline ticker keeps running across rebuilds. The feed cubit

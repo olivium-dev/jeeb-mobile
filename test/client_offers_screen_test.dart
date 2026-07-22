@@ -132,6 +132,42 @@ void main() {
         reason: 'rating desc — best rating first');
   });
 
+  testWidgets('offer sort chips expose tokenized minimum hit targets',
+      (tester) async {
+    final repo = ScriptedOffersRepository(snapshots: [
+      _snapshot([
+        buildOffer(id: 'a', fee: 10),
+        buildOffer(id: 'b', fee: 20),
+      ]),
+    ]);
+    await tester.pumpWidget(
+      wrapForTest(
+        ClientOffersScreen(
+          requestId: 'req-targets',
+          repository: repo,
+          cubitFactory: _testCubitFactory,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    for (final key in const [
+      Key('offer-sort-price'),
+      Key('offer-sort-rating'),
+    ]) {
+      final target = find.byKey(key);
+      final visual = find.descendant(
+        of: target,
+        matching: find.byType(OmdsChip),
+      );
+      expect(tester.getSize(target).height,
+          greaterThanOrEqualTo(UIConstants.buttonHeight));
+      expect(tester.getSize(visual).height, lessThan(tester.getSize(target).height),
+          reason: 'the hit target grows without inflating the visual capsule');
+    }
+  });
+
   testWidgets(
       'ClientOffersScreen — accept tap opens the offer-accept-confirm sheet '
       '(JM-029, not inline accept)', (tester) async {

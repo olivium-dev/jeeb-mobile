@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 
 import '../../../core/network/single_flight_get.dart';
+import '../../../core/requests/server_request_status.dart';
 import '../../otp_handover/domain/handover_code_store.dart';
 import '../domain/jeeber_vehicle.dart';
 import '../domain/offer.dart';
@@ -175,32 +176,20 @@ class DioOffersRepository implements OffersRepository {
         .whereType<Offer>()
         .toList(growable: false);
 
-    final requestStatus = _requestStatus(requestData);
+    final requestStatus = ServerRequestStatus.normalize(
+      requestData is Map ? requestData['status'] : null,
+    );
     final deadline = _serverDeadline(requestData) ?? _serverDeadline(data);
     final explicitlyOpen = _explicitOpen(requestData) ?? _explicitOpen(data);
-    final statusIsOpen = _liveRequestStatuses.contains(requestStatus);
+    final statusIsOpen = ServerRequestStatus.isOpen(requestStatus);
     final open = !hasAccepted &&
         (requestStatus.isNotEmpty ? statusIsOpen : explicitlyOpen ?? false);
     return OffersSnapshot(
       offers: offers,
       windowExpiresAt: deadline,
       requestIsOpen: open,
-      requestIsExpired: requestStatus == 'expired',
+      requestIsExpired: ServerRequestStatus.isExpired(requestStatus),
     );
-  }
-
-  static const Set<String> _liveRequestStatuses = {
-    'pending',
-    'open',
-    'broadcasting',
-    'offers-received',
-  };
-
-  String _requestStatus(dynamic data) {
-    if (data is! Map) return '';
-    final raw = data['status'];
-    if (raw is! String) return '';
-    return raw.trim().toLowerCase().replaceAll('_', '-');
   }
 
   bool? _explicitOpen(dynamic data) {
