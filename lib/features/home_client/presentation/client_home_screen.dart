@@ -17,7 +17,7 @@ import 'widgets/client_home_greeting.dart';
 /// Client home screen matching the Figma design (node 56535:1525).
 ///
 /// Layout top-to-bottom:
-/// 1. Greeting header with avatar, "Hello, {name}", "Everything, One Place", and "+" button
+/// 1. Greeting header with avatar, "Hello, {name}", and "+" button
 /// 2. Tab chips row: Pending Requests | Replies (`OmdsChip`)
 /// 3. Request list or its application-illustration empty state.
 ///

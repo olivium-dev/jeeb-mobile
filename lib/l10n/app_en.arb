@@ -2763,7 +2763,6 @@
   "chatStatusReconnecting": "Reconnecting…",
   "homeGreetingFallback": "Welcome back",
   "homeGreetingNamed": "Hello, {name}",
-  "homeGreetingSubtitle": "Everything, One Place",
   "homeAvatarA11yLabel": "Profile photo of {name}",
   "@homeAvatarA11yLabel": {
     "description": "Accessibility label for the client home greeting avatar (Figma 56535:1517).",

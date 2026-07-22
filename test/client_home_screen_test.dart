@@ -157,7 +157,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Hello, Layla'), findsOneWidget);
-      expect(find.text('Everything, One Place'), findsOneWidget);
+      expect(find.text('Everything, One Place'), findsNothing);
       expect(
         find.bySemanticsIdentifier('orders_create_request_button'),
         findsOneWidget,

@@ -853,7 +853,6 @@
   "chatStatusReconnecting": "إعادة الاتصال…",
   "homeGreetingFallback": "مرحبًا بعودتك",
   "homeGreetingNamed": "أهلاً، {name}",
-  "homeGreetingSubtitle": "كل شيء في مكان واحد",
   "homeAvatarA11yLabel": "الصورة الشخصية لـ {name}",
   "homeLoadFailedBody": "تأكد من اتصالك بالإنترنت ثم حاول مرة أخرى.",
   "homeLoadFailedRetry": "إعادة المحاولة",
