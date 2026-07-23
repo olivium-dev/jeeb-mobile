@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'catalog_network_guard.dart';
 import 'screen_catalog.dart';
 
 /// DT-04 / F2 — Screen Catalog menu. Lists every cataloged screen; tapping one
@@ -78,9 +79,9 @@ class CatalogStatesScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (previewContext) => _CatalogPreview(
+                builder: (_) => _CatalogPreview(
                   title: '${entry.screen} · ${state.label}',
-                  child: state.builder(previewContext),
+                  childBuilder: state.builder,
                 ),
               ),
             ),
@@ -94,16 +95,16 @@ class CatalogStatesScreen extends StatelessWidget {
 /// Hosts a previewed screen with a thin overlay bar so the reviewer can always
 /// get back (the previewed screen owns its own Scaffold/AppBar).
 class _CatalogPreview extends StatelessWidget {
-  const _CatalogPreview({required this.title, required this.child});
+  const _CatalogPreview({required this.title, required this.childBuilder});
 
   final String title;
-  final Widget child;
+  final WidgetBuilder childBuilder;
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        Positioned.fill(child: child),
+        Positioned.fill(child: CatalogNetworkGuard(builder: childBuilder)),
         Positioned(
           top: MediaQuery.of(context).padding.top + 4,
           left: 4,
