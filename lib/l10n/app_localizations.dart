@@ -1711,6 +1711,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get deliveryManProfileEmptyReviewsSubtitle =>
       _get('deliveryManProfileEmptyReviewsSubtitle');
   String get reviewerVerifiedBadge => _get('reviewerVerifiedBadge');
+  String get reviewerAnonymousLabel => _get('reviewerAnonymousLabel');
   String reviewRatingStarsLabel(String rating) =>
       _get('reviewRatingStarsLabel').replaceFirst('{rating}', rating);
   String get reviewHelpfulAction => _get('reviewHelpfulAction');

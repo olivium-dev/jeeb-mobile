@@ -3072,6 +3072,10 @@
   "@reviewerVerifiedBadge": {
     "description": "Subtitle under a reviewer name marking them as a verified client (domain-corrected from the Figma 'Verified Technician' per spec flag)."
   },
+  "reviewerAnonymousLabel": "Jeeb customer",
+  "@reviewerAnonymousLabel": {
+    "description": "Privacy-safe localized display name for a review whose client name is blank."
+  },
   "reviewRatingStarsLabel": "{rating} of 5 stars",
   "@reviewRatingStarsLabel": {
     "description": "Screen-reader label for the otherwise visual-only star score on an individual review.",

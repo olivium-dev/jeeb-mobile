@@ -32,6 +32,9 @@ class OtpHandoverScreen extends StatelessWidget {
     return Semantics(
       identifier: 'otp_handover_root',
       container: true,
+      // The root signature must not merge away the code-display and CTA
+      // identifiers that Maestro targets inside this screen.
+      explicitChildNodes: true,
       child: Scaffold(
         appBar: OMDSAppBar(
           title: isClient
@@ -54,7 +57,8 @@ class OtpHandoverScreen extends StatelessWidget {
 
   bool _shouldListen(OtpHandoverState prev, OtpHandoverState next) =>
       next.escalate && !prev.escalate ||
-      next.mode == OtpHandoverViewMode.success && prev.mode != OtpHandoverViewMode.success;
+      next.mode == OtpHandoverViewMode.success &&
+          prev.mode != OtpHandoverViewMode.success;
 
   void _onStateChange(BuildContext context, OtpHandoverState state) {
     if (state.escalate) {
@@ -401,12 +405,12 @@ class _JeeberOtpEntryState extends State<_JeeberOtpEntry>
   }
 
   Animation<double> _buildShakeAnimation() => TweenSequence<double>([
-        TweenSequenceItem(tween: Tween(begin: 0, end: -8), weight: 1),
-        TweenSequenceItem(tween: Tween(begin: -8, end: 8), weight: 2),
-        TweenSequenceItem(tween: Tween(begin: 8, end: -6), weight: 2),
-        TweenSequenceItem(tween: Tween(begin: -6, end: 6), weight: 2),
-        TweenSequenceItem(tween: Tween(begin: 6, end: 0), weight: 1),
-      ]).animate(_shakeCtrl);
+    TweenSequenceItem(tween: Tween(begin: 0, end: -8), weight: 1),
+    TweenSequenceItem(tween: Tween(begin: -8, end: 8), weight: 2),
+    TweenSequenceItem(tween: Tween(begin: 8, end: -6), weight: 2),
+    TweenSequenceItem(tween: Tween(begin: -6, end: 6), weight: 2),
+    TweenSequenceItem(tween: Tween(begin: 6, end: 0), weight: 1),
+  ]).animate(_shakeCtrl);
 
   @override
   void didUpdateWidget(_JeeberOtpEntry old) {

@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -85,6 +87,7 @@ void main() {
         RepaintBoundary(
           key: const Key('active-delivery-golden'),
           child: MaterialApp(
+            debugShowCheckedModeBanner: false,
             theme: withGoldenTestFonts(AppTheme.light()),
             locale: scenario.locale,
             supportedLocales: AppLocalizations.supportedLocales,
@@ -111,9 +114,10 @@ void main() {
         ),
         isArabic ? TextDirection.rtl : TextDirection.ltr,
       );
-      await expectLater(
+      await _expectGoldenWithLinuxDiagnostic(
         find.byKey(const Key('active-delivery-golden')),
-        matchesGoldenFile('goldens/active_delivery_${scenario.name}.png'),
+        goldenPath: 'goldens/active_delivery_${scenario.name}.png',
+        failureStem: 'active_delivery_${scenario.name}',
       );
     });
   }
@@ -134,3 +138,36 @@ TransitionBuilder _a11yBuilder(double textScale) {
 }
 
 void _noop() {}
+
+Future<void> _expectGoldenWithLinuxDiagnostic(
+  Finder finder, {
+  required String goldenPath,
+  required String failureStem,
+}) async {
+  try {
+    await expectLater(finder, matchesGoldenFile(goldenPath));
+  } catch (_) {
+    if (Platform.isLinux) {
+      await _emitPng(
+        failureStem,
+        File(
+          'test/features/active_delivery_jeeber/failures/'
+          '${failureStem}_testImage.png',
+        ),
+      );
+    }
+    rethrow;
+  }
+}
+
+Future<void> _emitPng(String stem, File file) async {
+  if (!file.existsSync()) return;
+  final encoded = base64Encode(await file.readAsBytes());
+  const chunkSize = 4000;
+  for (var offset = 0; offset < encoded.length; offset += chunkSize) {
+    final end = (offset + chunkSize).clamp(0, encoded.length);
+    debugPrintSynchronously(
+      'GOLDEN_BASE64_CHUNK:$stem:${encoded.substring(offset, end)}',
+    );
+  }
+}

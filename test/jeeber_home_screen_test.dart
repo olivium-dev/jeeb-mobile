@@ -37,8 +37,9 @@ Widget _host(AvailabilityCubit cubit) {
 }
 
 void main() {
-  testWidgets('cold-start renders the offline availability card and the status block',
-      (tester) async {
+  testWidgets('cold-start renders the offline availability card and switch', (
+    tester,
+  ) async {
     final ticker = StreamController<DateTime>.broadcast();
     addTearDown(ticker.close);
     final cubit = AvailabilityCubit(
@@ -51,16 +52,22 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(AvailabilityCard.toggleKey), findsOneWidget);
-    expect(find.byKey(AvailabilityStatusBlock.rootKey), findsOneWidget);
-    // Active-delivery line only renders when online.
-    expect(find.byKey(AvailabilityStatusBlock.activeDeliveriesKey),
-        findsNothing);
+    expect(find.bySemanticsIdentifier('availability_card'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('availability_switch'), findsOneWidget);
+    expect(find.text("You're offline"), findsOneWidget);
+    // The simplified dashboard deliberately removed the legacy supporting
+    // block from settled states; it now appears only while a toggle is pending.
+    expect(find.byKey(AvailabilityStatusBlock.rootKey), findsNothing);
+    expect(
+      find.byKey(AvailabilityStatusBlock.activeDeliveriesKey),
+      findsNothing,
+    );
   });
 
-  testWidgets('tap on the toggle goes online and surfaces the deliveries line',
-      (tester) async {
-    final gateway = InMemoryAvailabilityGateway()
-      ..setActiveDeliveryCount(2);
+  testWidgets('tap on the toggle goes online and renders the compact switch', (
+    tester,
+  ) async {
+    final gateway = InMemoryAvailabilityGateway()..setActiveDeliveryCount(2);
     final ticker = StreamController<DateTime>.broadcast();
     addTearDown(ticker.close);
     final cubit = AvailabilityCubit(
@@ -76,9 +83,17 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(cubit.state.status.isOnline, isTrue);
-    expect(find.byKey(AvailabilityStatusBlock.activeDeliveriesKey),
-        findsOneWidget);
-    expect(find.text('2 active deliveries'), findsOneWidget);
+    expect(cubit.state.status.activeDeliveryCount, 2);
+    expect(find.bySemanticsIdentifier('availability_switch'), findsOneWidget);
+    expect(find.text("You're online — receiving requests"), findsOneWidget);
+    // WP-B intentionally collapsed the settled online card to a two-line
+    // maximum. Active work is disclosed by the separate active-deliveries
+    // banner, so restoring this legacy line would duplicate that information.
+    expect(
+      find.byKey(AvailabilityStatusBlock.activeDeliveriesKey),
+      findsNothing,
+    );
+    expect(find.text('2 active deliveries'), findsNothing);
   });
 
   testWidgets('toggle error surfaces a snackbar', (tester) async {
@@ -127,8 +142,9 @@ void main() {
     expect(find.byKey(JeeberHomeScreen.loadErrorRetryKey), findsOneWidget);
   });
 
-  testWidgets('inactivity ticker raises the warning banner and CTA clears it',
-      (tester) async {
+  testWidgets('inactivity ticker raises the warning banner and CTA clears it', (
+    tester,
+  ) async {
     final ticker = StreamController<DateTime>.broadcast();
     addTearDown(ticker.close);
     // Zero-threshold policy: the first tick after going online raises the
@@ -170,24 +186,27 @@ void main() {
   // `ProviderNotFound<AvailabilityCubit>` before the first frame painted, so
   // the upsell never rendered. (Verified: throws pre-fix → renders post-fix.)
   testWidgets(
-      'unregistered path mounts without an AvailabilityCubit and renders the '
-      'upsell root (screen 19)', (tester) async {
-    await tester.pumpWidget(_unregisteredHost());
-    await tester.pump();
+    'unregistered path mounts without an AvailabilityCubit and renders the '
+    'upsell root (screen 19)',
+    (tester) async {
+      await tester.pumpWidget(_unregisteredHost());
+      await tester.pump();
 
-    // No exception was thrown bringing the screen up.
-    expect(tester.takeException(), isNull);
-    // The unregistered upsell root actually rendered.
-    expect(find.byKey(JeeberUnregisteredView.rootKey), findsOneWidget);
-    expect(
-      find.bySemanticsIdentifier('jeeber_unregistered_root'),
-      findsOneWidget,
-      reason: 'The unregistered upsell screen must mount and surface its '
-          'root identifier without an AvailabilityCubit provider.',
-    );
-    // Sanity: the registered-only retry view is absent.
-    expect(find.byKey(JeeberHomeScreen.loadErrorRetryKey), findsNothing);
-  });
+      // No exception was thrown bringing the screen up.
+      expect(tester.takeException(), isNull);
+      // The unregistered upsell root actually rendered.
+      expect(find.byKey(JeeberUnregisteredView.rootKey), findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('jeeber_unregistered_root'),
+        findsOneWidget,
+        reason:
+            'The unregistered upsell screen must mount and surface its '
+            'root identifier without an AvailabilityCubit provider.',
+      );
+      // Sanity: the registered-only retry view is absent.
+      expect(find.byKey(JeeberHomeScreen.loadErrorRetryKey), findsNothing);
+    },
+  );
 
   // JM-036: the DELIVERY-tab gate passes `registerCtaIdentifier:
   // 'delivery_register_now_cta'` so the register-prompt CTA is addressable by
@@ -196,36 +215,40 @@ void main() {
   // distinct nodes and that the coined id forwards the tap to `onRegister`
   // (which the gate host wires to the onboarding wizard, AC1b).
   testWidgets(
-      'register prompt exposes delivery_register_now_cta alongside the W0 id '
-      'and forwards the tap (JM-036)', (tester) async {
-    var tapped = false;
-    await tester.pumpWidget(
-      _unregisteredHost(
-        registerCtaIdentifier: 'delivery_register_now_cta',
-        onRegister: () => tapped = true,
-      ),
-    );
-    await tester.pump();
+    'register prompt exposes delivery_register_now_cta alongside the W0 id '
+    'and forwards the tap (JM-036)',
+    (tester) async {
+      var tapped = false;
+      await tester.pumpWidget(
+        _unregisteredHost(
+          registerCtaIdentifier: 'delivery_register_now_cta',
+          onRegister: () => tapped = true,
+        ),
+      );
+      await tester.pump();
 
-    expect(tester.takeException(), isNull);
-    // W0 widget id preserved (screen-19 flow).
-    expect(
-      find.bySemanticsIdentifier('jeeber_unregistered_register_button'),
-      findsOneWidget,
-      reason: 'The W0 register-button id must remain queryable for screen-19.',
-    );
-    // JM-036 coined CTA id surfaces as its own node.
-    expect(
-      find.bySemanticsIdentifier('delivery_register_now_cta'),
-      findsOneWidget,
-      reason: 'The JM-036 coined register-now CTA id must surface for the '
-          'delivery-tab-gate flow.',
-    );
-    // Tapping the coined CTA forwards to onRegister (→ onboarding wizard).
-    await tester.tap(find.byKey(JeeberUnregisteredView.registerButtonKey));
-    await tester.pump();
-    expect(tapped, isTrue);
-  });
+      expect(tester.takeException(), isNull);
+      // W0 widget id preserved (screen-19 flow).
+      expect(
+        find.bySemanticsIdentifier('jeeber_unregistered_register_button'),
+        findsOneWidget,
+        reason:
+            'The W0 register-button id must remain queryable for screen-19.',
+      );
+      // JM-036 coined CTA id surfaces as its own node.
+      expect(
+        find.bySemanticsIdentifier('delivery_register_now_cta'),
+        findsOneWidget,
+        reason:
+            'The JM-036 coined register-now CTA id must surface for the '
+            'delivery-tab-gate flow.',
+      );
+      // Tapping the coined CTA forwards to onRegister (→ onboarding wizard).
+      await tester.tap(find.byKey(JeeberUnregisteredView.registerButtonKey));
+      await tester.pump();
+      expect(tapped, isTrue);
+    },
+  );
 }
 
 /// Hosts `JeeberHomeScreen` on the UNREGISTERED path with NO availability
