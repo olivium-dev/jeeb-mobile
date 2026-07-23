@@ -13,16 +13,26 @@ enum OfferSortMode { byPrice, byRating }
 enum OffersScreenStatus {
   /// Cold load — no offers in state yet.
   initial,
+
   /// First snapshot is on the wire.
   loading,
+
   /// At least one snapshot has rendered. New polls keep us here.
   loaded,
+
   /// Cold load failed and we have nothing to show.
   failed,
 }
 
 /// Status of the inline accept action so the card can swap to a spinner.
 enum AcceptStatus { idle, inFlight, succeeded }
+
+/// Operation that produced [ClientOffersState.error].
+///
+/// Load/refetch errors are cleared by the next successful foreground fetch.
+/// Accept errors remain visible until explicitly acknowledged or superseded by
+/// another accept attempt.
+enum OffersErrorSource { load, accept }
 
 class ClientOffersState extends Equatable {
   const ClientOffersState({
@@ -37,6 +47,7 @@ class ClientOffersState extends Equatable {
     this.acceptedOfferId,
     this.acceptStatus = AcceptStatus.idle,
     this.error,
+    this.errorSource,
   });
 
   final OffersScreenStatus status;
@@ -74,6 +85,10 @@ class ClientOffersState extends Equatable {
   /// One-shot error surface from the last operation (refresh or accept).
   final OffersFailure? error;
 
+  /// Provenance for [error], used to avoid clearing a genuine accept failure
+  /// when a later offers refetch succeeds.
+  final OffersErrorSource? errorSource;
+
   /// Time remaining on the offer window — clamped to non-negative.
   Duration get windowRemaining {
     final deadline = windowExpiresAt;
@@ -100,6 +115,7 @@ class ClientOffersState extends Equatable {
     bool clearAcceptedOfferId = false,
     AcceptStatus? acceptStatus,
     OffersFailure? error,
+    OffersErrorSource? errorSource,
     bool clearError = false,
   }) {
     return ClientOffersState(
@@ -112,27 +128,31 @@ class ClientOffersState extends Equatable {
       now: now ?? this.now,
       requestIsOpen: requestIsOpen ?? this.requestIsOpen,
       requestIsExpired: requestIsExpired ?? this.requestIsExpired,
-      acceptingOfferId:
-          clearAcceptingOfferId ? null : (acceptingOfferId ?? this.acceptingOfferId),
-      acceptedOfferId:
-          clearAcceptedOfferId ? null : (acceptedOfferId ?? this.acceptedOfferId),
+      acceptingOfferId: clearAcceptingOfferId
+          ? null
+          : (acceptingOfferId ?? this.acceptingOfferId),
+      acceptedOfferId: clearAcceptedOfferId
+          ? null
+          : (acceptedOfferId ?? this.acceptedOfferId),
       acceptStatus: acceptStatus ?? this.acceptStatus,
       error: clearError ? null : (error ?? this.error),
+      errorSource: clearError ? null : (errorSource ?? this.errorSource),
     );
   }
 
   @override
   List<Object?> get props => [
-        status,
-        offers,
-        sortMode,
-        windowExpiresAt,
-        now,
-        requestIsOpen,
-        requestIsExpired,
-        acceptingOfferId,
-        acceptedOfferId,
-        acceptStatus,
-        error,
-      ];
+    status,
+    offers,
+    sortMode,
+    windowExpiresAt,
+    now,
+    requestIsOpen,
+    requestIsExpired,
+    acceptingOfferId,
+    acceptedOfferId,
+    acceptStatus,
+    error,
+    errorSource,
+  ];
 }

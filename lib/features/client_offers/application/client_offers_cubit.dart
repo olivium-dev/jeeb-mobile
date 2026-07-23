@@ -64,10 +64,13 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
   bool _pollInFlight = false;
 
   /// Cold-load entry-point. Pulls the first snapshot, then wires the poll and
-  /// the countdown tick. Subsequent calls are no-ops so the host route can
-  /// safely re-invoke on remount.
+  /// the countdown tick. A failed load may enter this same full path again via
+  /// the Retry CTA; calls from any other status are no-ops.
   Future<void> load() async {
-    if (state.status != OffersScreenStatus.initial) return;
+    if (state.status != OffersScreenStatus.initial &&
+        state.status != OffersScreenStatus.failed) {
+      return;
+    }
     emit(
       state.copyWith(
         status: OffersScreenStatus.loading,
@@ -86,7 +89,11 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
     try {
       final snapshot = await _repository.fetchOffers(_requestId);
       if (isClosed) return;
-      _emitSnapshot(snapshot, statusOverride: OffersScreenStatus.loaded);
+      _emitSnapshot(
+        snapshot,
+        statusOverride: OffersScreenStatus.loaded,
+        clearLoadError: true,
+      );
       if (snapshot.requestIsOpen) _attachStreams();
     } on OffersRepositoryException catch (e) {
       if (isClosed) return;
@@ -94,13 +101,20 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
         _scheduleColdRetry(e.retryAfter);
         return;
       }
-      emit(state.copyWith(status: OffersScreenStatus.failed, error: e.failure));
+      emit(
+        state.copyWith(
+          status: OffersScreenStatus.failed,
+          error: e.failure,
+          errorSource: OffersErrorSource.load,
+        ),
+      );
     } catch (_) {
       if (isClosed) return;
       emit(
         state.copyWith(
           status: OffersScreenStatus.failed,
           error: OffersFailure.unknown,
+          errorSource: OffersErrorSource.load,
         ),
       );
     }
@@ -126,16 +140,23 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
     try {
       final snapshot = await _repository.fetchOffers(_requestId);
       if (isClosed) return;
-      _emitSnapshot(snapshot);
+      _emitSnapshot(snapshot, clearLoadError: true);
       if (!snapshot.requestIsOpen) await _stopStreams();
     } on OffersRepositoryException catch (e) {
       // A rate-limit during a manual refresh is transient back-pressure: the
       // RateLimitInterceptor has already paused the reads and the next poll
       // resumes once Retry-After clears. Don't flash an error banner for it.
       if (e.failure == OffersFailure.rateLimited) return;
-      emit(state.copyWith(error: e.failure));
+      emit(
+        state.copyWith(error: e.failure, errorSource: OffersErrorSource.load),
+      );
     } catch (_) {
-      emit(state.copyWith(error: OffersFailure.unknown));
+      emit(
+        state.copyWith(
+          error: OffersFailure.unknown,
+          errorSource: OffersErrorSource.load,
+        ),
+      );
     }
   }
 
@@ -215,6 +236,7 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
           acceptStatus: AcceptStatus.idle,
           clearAcceptingOfferId: true,
           error: e.failure,
+          errorSource: OffersErrorSource.accept,
         ),
       );
     } catch (_) {
@@ -223,6 +245,7 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
           acceptStatus: AcceptStatus.idle,
           clearAcceptingOfferId: true,
           error: OffersFailure.unknown,
+          errorSource: OffersErrorSource.accept,
         ),
       );
     }
@@ -282,8 +305,11 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
   void _emitSnapshot(
     OffersSnapshot snapshot, {
     OffersScreenStatus? statusOverride,
+    bool clearLoadError = false,
   }) {
     final sorted = _sortOffers(snapshot.offers, state.sortMode);
+    final shouldClearError =
+        clearLoadError && state.errorSource == OffersErrorSource.load;
     emit(
       state.copyWith(
         status: statusOverride ?? OffersScreenStatus.loaded,
@@ -293,6 +319,7 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
         now: _now(),
         requestIsOpen: snapshot.requestIsOpen,
         requestIsExpired: snapshot.requestIsExpired,
+        clearError: shouldClearError,
       ),
     );
   }

@@ -135,7 +135,7 @@ class _ClientOffersView extends StatelessWidget {
                     phase: OffersErrorPhase.load,
                   ),
                   retryLabel: l10n.offersRetryAction,
-                  onRetry: () => context.read<ClientOffersCubit>().refresh(),
+                  onRetry: () => context.read<ClientOffersCubit>().load(),
                 );
               case OffersScreenStatus.loaded:
                 return _LoadedBody(
@@ -153,7 +153,6 @@ class _ClientOffersView extends StatelessWidget {
       ),
     );
   }
-
 }
 
 class _LoadedBody extends StatelessWidget {
@@ -213,7 +212,9 @@ class _LoadedBody extends StatelessWidget {
               message: offersFailureCopy(
                 l10n,
                 state.error!,
-                phase: OffersErrorPhase.accept,
+                phase: state.errorSource == OffersErrorSource.load
+                    ? OffersErrorPhase.load
+                    : OffersErrorPhase.accept,
               ),
               onDismiss: () =>
                   context.read<ClientOffersCubit>().acknowledgeError(),
@@ -348,7 +349,6 @@ class _LoadedBody extends StatelessWidget {
       repository: cancelRepositoryOverride,
     );
   }
-
 }
 
 /// Which phase of the offer-review flow raised the failure — the classified
