@@ -5,18 +5,11 @@ import '../domain/voice_clip.dart';
 
 /// Discrete phases of the voice-request flow. Drives which controls the
 /// screen renders (mic vs. playback row, send button enable, error banner).
-enum VoiceRecordingPhase {
-  idle,
-  recording,
-  recorded,
-  playing,
-  sending,
-  sent,
-}
+enum VoiceRecordingPhase { idle, recording, recorded, playing, sending, sent }
 
-/// Reasons surfaced to the user when something goes wrong. One-shot — the
-/// view clears it via [VoiceRecordingCubit.acknowledgeError] so the same copy
-/// doesn't re-render on every rebuild.
+/// Reasons surfaced to the user when something goes wrong. Recording errors
+/// are transient; upload errors persist until the user retries or discards the
+/// retained clip so the submission failure always has an on-screen recovery.
 enum VoiceRecordingError {
   permissionDenied,
   recorderUnavailable,
@@ -58,6 +51,10 @@ class VoiceRecordingState extends Equatable {
   bool get isRecording => phase == VoiceRecordingPhase.recording;
   bool get isPlaying => phase == VoiceRecordingPhase.playing;
   bool get isSending => phase == VoiceRecordingPhase.sending;
+  bool get hasUploadFailure =>
+      error == VoiceRecordingError.uploadNetwork ||
+      error == VoiceRecordingError.uploadServer ||
+      error == VoiceRecordingError.uploadUnknown;
   bool get hasClip =>
       clip != null &&
       (phase == VoiceRecordingPhase.recorded ||
@@ -90,11 +87,11 @@ class VoiceRecordingState extends Equatable {
 
   @override
   List<Object?> get props => [
-        phase,
-        elapsed,
-        playbackPosition,
-        clip,
-        error,
-        result,
-      ];
+    phase,
+    elapsed,
+    playbackPosition,
+    clip,
+    error,
+    result,
+  ];
 }

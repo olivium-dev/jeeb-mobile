@@ -16,9 +16,11 @@ abstract class VoicePlayer {
     VoiceClip clip, {
     required void Function(Duration) onPosition,
     required void Function() onCompleted,
+    Duration startAt = Duration.zero,
   });
 
   Future<void> pause();
+  Future<void> seek(Duration position);
   Future<void> stop();
 }
 
@@ -28,8 +30,11 @@ abstract class VoicePlayer {
 class FakeVoicePlayer implements VoicePlayer {
   int playCalls = 0;
   int pauseCalls = 0;
+  int seekCalls = 0;
   int stopCalls = 0;
   VoiceClip? lastClip;
+  Duration lastStartPosition = Duration.zero;
+  Duration lastSeekPosition = Duration.zero;
   void Function(Duration)? _onPosition;
   void Function()? _onCompleted;
 
@@ -38,9 +43,11 @@ class FakeVoicePlayer implements VoicePlayer {
     VoiceClip clip, {
     required void Function(Duration) onPosition,
     required void Function() onCompleted,
+    Duration startAt = Duration.zero,
   }) async {
     playCalls++;
     lastClip = clip;
+    lastStartPosition = startAt;
     _onPosition = onPosition;
     _onCompleted = onCompleted;
   }
@@ -48,6 +55,12 @@ class FakeVoicePlayer implements VoicePlayer {
   @override
   Future<void> pause() async {
     pauseCalls++;
+  }
+
+  @override
+  Future<void> seek(Duration position) async {
+    seekCalls++;
+    lastSeekPosition = position;
   }
 
   @override
