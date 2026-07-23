@@ -17,17 +17,16 @@ class AppLocalizations {
   final Locale locale;
   final Map<String, String> _strings;
 
-  static const supportedLocales = <Locale>[
-    Locale('en'),
-    Locale('ar'),
-  ];
+  static const supportedLocales = <Locale>[Locale('en'), Locale('ar')];
 
   static const LocalizationsDelegate<AppLocalizations> delegate =
       _AppLocalizationsDelegate();
 
   static AppLocalizations of(BuildContext context) {
-    final localizations =
-        Localizations.of<AppLocalizations>(context, AppLocalizations);
+    final localizations = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     assert(
       localizations != null,
       'AppLocalizations not found in context — did you forget to add '
@@ -38,7 +37,10 @@ class AppLocalizations {
 
   String _get(String key) {
     final value = _strings[key];
-    assert(value != null, 'Missing ARB key: $key for ${locale.toLanguageTag()}');
+    assert(
+      value != null,
+      'Missing ARB key: $key for ${locale.toLanguageTag()}',
+    );
     assert(
       value != key,
       'ARB value equals key for "$key" in ${locale.toLanguageTag()} — '
@@ -89,17 +91,17 @@ class AppLocalizations {
   String get chatOfferAccepting => _get('chatOfferAccepting');
   String get chatOfferDecline => _get('chatOfferDecline');
   String get chatOfferDeclineConfirm => _get('chatOfferDeclineConfirm');
-  String get chatOfferAcceptedBannerTitle => _get('chatOfferAcceptedBannerTitle');
+  String get chatOfferAcceptedBannerTitle =>
+      _get('chatOfferAcceptedBannerTitle');
   String get chatOfferAcceptedBannerBody => _get('chatOfferAcceptedBannerBody');
   String get chatStartActiveDeliveryButton =>
       _get('chatStartActiveDeliveryButton');
   String get chatJeeberRemovedMessage => _get('chatJeeberRemovedMessage');
   String chatBroadcastTtlLabel(int seconds) =>
       _get('chatBroadcastTtlLabel').replaceFirst('{seconds}', '$seconds');
-  String chatVoiceNoteA11y(String author, int duration) =>
-      _get('chatVoiceNoteA11y')
-          .replaceFirst('{author}', author)
-          .replaceFirst('{duration}', '$duration');
+  String chatVoiceNoteA11y(String author, int duration) => _get(
+    'chatVoiceNoteA11y',
+  ).replaceFirst('{author}', author).replaceFirst('{duration}', '$duration');
   String chatVoiceNoteTranscription(String text) =>
       _get('chatVoiceNoteTranscription').replaceFirst('{text}', text);
   String get chatVoiceNoteTranscriptionUnavailable =>
@@ -172,13 +174,20 @@ class AppLocalizations {
     if (count == 2) return _get('earningsSummaryCompletedTwo');
     final mod = count % 100;
     if (mod >= 3 && mod <= 10) {
-      return _get('earningsSummaryCompletedFew').replaceFirst('{count}', '$count');
+      return _get(
+        'earningsSummaryCompletedFew',
+      ).replaceFirst('{count}', '$count');
     }
     if (mod >= 11 && mod <= 99) {
-      return _get('earningsSummaryCompletedMany').replaceFirst('{count}', '$count');
+      return _get(
+        'earningsSummaryCompletedMany',
+      ).replaceFirst('{count}', '$count');
     }
-    return _get('earningsSummaryCompletedOther').replaceFirst('{count}', '$count');
+    return _get(
+      'earningsSummaryCompletedOther',
+    ).replaceFirst('{count}', '$count');
   }
+
   String earningsSummaryTips(String amount) =>
       _get('earningsSummaryTips').replaceFirst('{amount}', amount);
   String earningsSummaryAverage(String amount) =>
@@ -197,8 +206,7 @@ class AppLocalizations {
   String get availabilityStatusOffline => _get('availabilityStatusOffline');
   String get availabilityStatusAutoOffline =>
       _get('availabilityStatusAutoOffline');
-  String get availabilityAutoOfflineHint =>
-      _get('availabilityAutoOfflineHint');
+  String get availabilityAutoOfflineHint => _get('availabilityAutoOfflineHint');
   String get availabilityTransitioning => _get('availabilityTransitioning');
   String get availabilityIndicatorSemanticOnline =>
       _get('availabilityIndicatorSemanticOnline');
@@ -465,8 +473,7 @@ class AppLocalizations {
   String get locationServiceDisabled => _get('locationServiceDisabled');
   String get locationUnknownError => _get('locationUnknownError');
   String get locationFallbackHint => _get('locationFallbackHint');
-  String get locationMapPinSemanticLabel =>
-      _get('locationMapPinSemanticLabel');
+  String get locationMapPinSemanticLabel => _get('locationMapPinSemanticLabel');
   String locationRemoveSavedAddress(String label) =>
       _get('locationRemoveSavedAddress').replaceAll('{label}', label);
 
@@ -507,12 +514,13 @@ class AppLocalizations {
   String get transcriptionSaveEdit => _get('transcriptionSaveEdit');
   String get transcriptionReRecord => _get('transcriptionReRecord');
 
-  String photoAttachmentTitle(int count, int max) => _get('photoAttachmentTitle')
-      .replaceFirst('{count}', '$count')
-      .replaceFirst('{max}', '$max');
+  String photoAttachmentTitle(int count, int max) => _get(
+    'photoAttachmentTitle',
+  ).replaceFirst('{count}', '$count').replaceFirst('{max}', '$max');
   String get photoAttachmentAddLabel => _get('photoAttachmentAddLabel');
-  String photoAttachmentRemoveLabel(int position) =>
-      _get('photoAttachmentRemoveLabel').replaceFirst('{position}', '$position');
+  String photoAttachmentRemoveLabel(int position) => _get(
+    'photoAttachmentRemoveLabel',
+  ).replaceFirst('{position}', '$position');
   String photoAttachmentMaxReached(int max) =>
       _get('photoAttachmentMaxReached').replaceFirst('{max}', '$max');
   String get photoAttachmentPermissionDenied =>
@@ -551,14 +559,13 @@ class AppLocalizations {
   String get registrationOtpResend => _get('registrationOtpResend');
   String registrationOtpResendIn(int seconds) =>
       _get('registrationOtpResendIn').replaceFirst('{seconds}', '$seconds');
-  String registrationOtpAttemptsRemaining(int remaining) =>
-      _get('registrationOtpAttemptsRemaining')
-          .replaceFirst('{remaining}', '$remaining');
+  String registrationOtpAttemptsRemaining(int remaining) => _get(
+    'registrationOtpAttemptsRemaining',
+  ).replaceFirst('{remaining}', '$remaining');
   String get registrationLockoutTitle => _get('registrationLockoutTitle');
-  String registrationLockoutBody(String minutes, String seconds) =>
-      _get('registrationLockoutBody')
-          .replaceFirst('{minutes}', minutes)
-          .replaceFirst('{seconds}', seconds);
+  String registrationLockoutBody(String minutes, String seconds) => _get(
+    'registrationLockoutBody',
+  ).replaceFirst('{minutes}', minutes).replaceFirst('{seconds}', seconds);
   String get registrationChangePhone => _get('registrationChangePhone');
 
   // FR-LOGIN: branded register hero + welcome heading.
@@ -590,17 +597,15 @@ class AppLocalizations {
   String get tierSelectionTitle => _get('tierSelectionTitle');
   String get tierSelectionSubtitle => _get('tierSelectionSubtitle');
   String get tierSelectionConfirm => _get('tierSelectionConfirm');
-  String get tierSelectionWhatDifference =>
-      _get('tierSelectionWhatDifference');
+  String get tierSelectionWhatDifference => _get('tierSelectionWhatDifference');
   String get tierSelectionRecommendedBadge =>
       _get('tierSelectionRecommendedBadge');
   String get tierSelectionLocked => _get('tierSelectionLocked');
   String get tierSelectionCachedBanner => _get('tierSelectionCachedBanner');
   String get tierSelectionPriceLabel => _get('tierSelectionPriceLabel');
-  String tierSelectionPriceRange(String low, String high) =>
-      _get('tierSelectionPriceRange')
-          .replaceFirst('{low}', low)
-          .replaceFirst('{high}', high);
+  String tierSelectionPriceRange(String low, String high) => _get(
+    'tierSelectionPriceRange',
+  ).replaceFirst('{low}', low).replaceFirst('{high}', high);
   String tierSelectionSlaMinutes(int minutes) =>
       _get('tierSelectionSlaMinutes').replaceFirst('{minutes}', '$minutes');
   String tierSelectionSlaHours(int hours) =>
@@ -623,22 +628,19 @@ class AppLocalizations {
   String get tierSelectionVehicleAny => _get('tierSelectionVehicleAny');
   String get tierSelectionFooterFlash => _get('tierSelectionFooterFlash');
   String get tierSelectionFooterExpress => _get('tierSelectionFooterExpress');
-  String get tierSelectionFooterStandard =>
-      _get('tierSelectionFooterStandard');
-  String get tierSelectionFooterOnTheWay =>
-      _get('tierSelectionFooterOnTheWay');
+  String get tierSelectionFooterStandard => _get('tierSelectionFooterStandard');
+  String get tierSelectionFooterOnTheWay => _get('tierSelectionFooterOnTheWay');
   String get tierSelectionFooterEco => _get('tierSelectionFooterEco');
   String tierSelectionCardSemanticLabel({
     required String name,
     required String sla,
     required String radius,
     required String price,
-  }) =>
-      _get('tierSelectionCardSemanticLabel')
-          .replaceFirst('{name}', name)
-          .replaceFirst('{sla}', sla)
-          .replaceFirst('{radius}', radius)
-          .replaceFirst('{price}', price);
+  }) => _get('tierSelectionCardSemanticLabel')
+      .replaceFirst('{name}', name)
+      .replaceFirst('{sla}', sla)
+      .replaceFirst('{radius}', radius)
+      .replaceFirst('{price}', price);
   String get tierSelectionCardSelectedHint =>
       _get('tierSelectionCardSelectedHint');
   String get tierSelectionOnTheWayMvpNote =>
@@ -670,19 +672,16 @@ class AppLocalizations {
     required String title,
     required String speed,
     required String value,
-  }) =>
-      _get('requestTypeTierSemanticLabel')
-          .replaceFirst('{title}', title)
-          .replaceFirst('{speed}', speed)
-          .replaceFirst('{value}', value);
-  String get requestTypeTierSelectedHint =>
-      _get('requestTypeTierSelectedHint');
+  }) => _get('requestTypeTierSemanticLabel')
+      .replaceFirst('{title}', title)
+      .replaceFirst('{speed}', speed)
+      .replaceFirst('{value}', value);
+  String get requestTypeTierSelectedHint => _get('requestTypeTierSelectedHint');
 
   // Client Location screen (Figma 56539:1444)
   String get clientLocationTitle => _get('clientLocationTitle');
   String get clientLocationHeading => _get('clientLocationHeading');
-  String get clientLocationCurrentOption =>
-      _get('clientLocationCurrentOption');
+  String get clientLocationCurrentOption => _get('clientLocationCurrentOption');
   String get clientLocationNewOption => _get('clientLocationNewOption');
   String get clientLocationAddSemantic => _get('clientLocationAddSemantic');
 
@@ -729,8 +728,7 @@ class AppLocalizations {
   // Capture Location screen (Figma 56546:2303)
   String get captureLocationTitle => _get('captureLocationTitle');
   String get captureLocationPinCta => _get('captureLocationPinCta');
-  String get captureLocationMapSemantic =>
-      _get('captureLocationMapSemantic');
+  String get captureLocationMapSemantic => _get('captureLocationMapSemantic');
   String get captureLocationPinSemantic => _get('captureLocationPinSemantic');
   String get captureLocationMapPreview => _get('captureLocationMapPreview');
   // T-MOB-012: "centre map on current GPS" button (maps wiring).
@@ -761,9 +759,9 @@ class AppLocalizations {
   // KYC wizard
   String get kycWizardTitle => _get('kycWizardTitle');
   String kycWizardProgressLabel({required int current, required int total}) =>
-      _get('kycWizardProgressLabel')
-          .replaceFirst('{current}', '$current')
-          .replaceFirst('{total}', '$total');
+      _get(
+        'kycWizardProgressLabel',
+      ).replaceFirst('{current}', '$current').replaceFirst('{total}', '$total');
   String get kycWizardStepIdLabel => _get('kycWizardStepIdLabel');
   String get kycWizardStepSelfieLabel => _get('kycWizardStepSelfieLabel');
   String get kycWizardBack => _get('kycWizardBack');
@@ -811,7 +809,8 @@ class AppLocalizations {
   String get kycStatusRejectedBody => _get('kycStatusRejectedBody');
   String get kycStatusResubmitTitle => _get('kycStatusResubmitTitle');
   String get kycStatusResubmitBody => _get('kycStatusResubmitBody');
-  String get kycStatusResubmitRequestedCta => _get('kycStatusResubmitRequestedCta');
+  String get kycStatusResubmitRequestedCta =>
+      _get('kycStatusResubmitRequestedCta');
   String get kycResubmitStepIdFront => _get('kycResubmitStepIdFront');
   String get kycResubmitStepIdBack => _get('kycResubmitStepIdBack');
   String get kycResubmitStepSelfie => _get('kycResubmitStepSelfie');
@@ -823,8 +822,7 @@ class AppLocalizations {
       _get('kycRejectionReasonIdUnreadable');
   String get kycRejectionReasonSelfieMismatch =>
       _get('kycRejectionReasonSelfieMismatch');
-  String get kycRejectionReasonExpired =>
-      _get('kycRejectionReasonExpired');
+  String get kycRejectionReasonExpired => _get('kycRejectionReasonExpired');
   String get kycRejectionReasonOther => _get('kycRejectionReasonOther');
 
   // T-MOB-013: schema-driven KYC — ToS step + new error strings.
@@ -876,12 +874,18 @@ class AppLocalizations {
     if (count == 2) return _get('dashboardTodayEarningsCompletedTwo');
     final mod = count % 100;
     if (mod >= 3 && mod <= 10) {
-      return _get('dashboardTodayEarningsCompletedFew').replaceFirst('{count}', '$count');
+      return _get(
+        'dashboardTodayEarningsCompletedFew',
+      ).replaceFirst('{count}', '$count');
     }
     if (mod >= 11 && mod <= 99) {
-      return _get('dashboardTodayEarningsCompletedMany').replaceFirst('{count}', '$count');
+      return _get(
+        'dashboardTodayEarningsCompletedMany',
+      ).replaceFirst('{count}', '$count');
     }
-    return _get('dashboardTodayEarningsCompletedOther').replaceFirst('{count}', '$count');
+    return _get(
+      'dashboardTodayEarningsCompletedOther',
+    ).replaceFirst('{count}', '$count');
   }
 
   String get dashboardActiveDeliveryTitle =>
@@ -896,8 +900,7 @@ class AppLocalizations {
       _get('dashboardActiveDeliveryStageAtDropoff');
   String dashboardActiveDeliveryEta(int minutes) =>
       _get('dashboardActiveDeliveryEta').replaceFirst('{minutes}', '$minutes');
-  String get dashboardActiveDeliveryOpen =>
-      _get('dashboardActiveDeliveryOpen');
+  String get dashboardActiveDeliveryOpen => _get('dashboardActiveDeliveryOpen');
   String get dashboardActiveDeliveryMessage =>
       _get('dashboardActiveDeliveryMessage');
 
@@ -912,12 +915,18 @@ class AppLocalizations {
     if (count == 2) return _get('dashboardNearbyRequestsTwo');
     final mod = count % 100;
     if (mod >= 3 && mod <= 10) {
-      return _get('dashboardNearbyRequestsFew').replaceFirst('{count}', '$count');
+      return _get(
+        'dashboardNearbyRequestsFew',
+      ).replaceFirst('{count}', '$count');
     }
     if (mod >= 11 && mod <= 99) {
-      return _get('dashboardNearbyRequestsMany').replaceFirst('{count}', '$count');
+      return _get(
+        'dashboardNearbyRequestsMany',
+      ).replaceFirst('{count}', '$count');
     }
-    return _get('dashboardNearbyRequestsOther').replaceFirst('{count}', '$count');
+    return _get(
+      'dashboardNearbyRequestsOther',
+    ).replaceFirst('{count}', '$count');
   }
 
   String get dashboardNearbyRequestsOfflineHint =>
@@ -944,8 +953,7 @@ class AppLocalizations {
   String get jeeberFeedStatusExpired => _get('jeeberFeedStatusExpired');
   String get jeeberFeedActionHeadingToDropOff =>
       _get('jeeberFeedActionHeadingToDropOff');
-  String get jeeberFeedAcceptOrdersLabel =>
-      _get('jeeberFeedAcceptOrdersLabel');
+  String get jeeberFeedAcceptOrdersLabel => _get('jeeberFeedAcceptOrdersLabel');
   String get jeeberFeedEmptyTitle => _get('jeeberFeedEmptyTitle');
   String get jeeberFeedEmptySubtitle => _get('jeeberFeedEmptySubtitle');
   String jeeberFeedRatingSemantic(String rating) =>
@@ -954,15 +962,15 @@ class AppLocalizations {
   String get jeeberIncomingMatchTitle => _get('jeeberIncomingMatchTitle');
   String get jeeberIncomingMatchAccept => _get('jeeberIncomingMatchAccept');
   String get jeeberIncomingMatchDecline => _get('jeeberIncomingMatchDecline');
-  String jeeberIncomingMatchCountdown(int seconds) =>
-      _get('jeeberIncomingMatchCountdown').replaceFirst('{seconds}', '$seconds');
+  String jeeberIncomingMatchCountdown(int seconds) => _get(
+    'jeeberIncomingMatchCountdown',
+  ).replaceFirst('{seconds}', '$seconds');
 
   // Request summary (T-mobile-012)
   String get requestSummaryTitle => _get('requestSummaryTitle');
   String get requestSummarySectionDescription =>
       _get('requestSummarySectionDescription');
-  String get requestSummarySectionPhotos =>
-      _get('requestSummarySectionPhotos');
+  String get requestSummarySectionPhotos => _get('requestSummarySectionPhotos');
   String get requestSummarySectionTier => _get('requestSummarySectionTier');
   String get requestSummarySectionPickup => _get('requestSummarySectionPickup');
   String get requestSummarySectionDropoff =>
@@ -1005,18 +1013,24 @@ class AppLocalizations {
     if (count == 2) return _get('requestSummaryFindingNotifiedTwo');
     final mod = count % 100;
     if (mod >= 3 && mod <= 10) {
-      return _get('requestSummaryFindingNotifiedFew').replaceFirst('{count}', '$count');
+      return _get(
+        'requestSummaryFindingNotifiedFew',
+      ).replaceFirst('{count}', '$count');
     }
     if (mod >= 11 && mod <= 99) {
-      return _get('requestSummaryFindingNotifiedMany').replaceFirst('{count}', '$count');
+      return _get(
+        'requestSummaryFindingNotifiedMany',
+      ).replaceFirst('{count}', '$count');
     }
-    return _get('requestSummaryFindingNotifiedOther').replaceFirst('{count}', '$count');
+    return _get(
+      'requestSummaryFindingNotifiedOther',
+    ).replaceFirst('{count}', '$count');
   }
+
   String get requestSummaryFindingHint => _get('requestSummaryFindingHint');
 
   // No-offer timeout / expired-request banners (T-mobile-035)
-  String get requestSummaryNoOffersTitle =>
-      _get('requestSummaryNoOffersTitle');
+  String get requestSummaryNoOffersTitle => _get('requestSummaryNoOffersTitle');
   String get requestSummaryNoOffersBody => _get('requestSummaryNoOffersBody');
   String requestSummaryExpandToTier(String tier) =>
       _get('requestSummaryExpandToTier').replaceFirst('{tier}', tier);
@@ -1046,8 +1060,7 @@ class AppLocalizations {
   String get jeeberRequestDetailReference =>
       _get('jeeberRequestDetailReference');
   String jeeberRequestDetailDistance(String distance) =>
-      _get('jeeberRequestDetailDistance')
-          .replaceFirst('{distance}', distance);
+      _get('jeeberRequestDetailDistance').replaceFirst('{distance}', distance);
   String get jeeberRequestDetailReportButton =>
       _get('jeeberRequestDetailReportButton');
   String get jeeberRequestDetailReportHint =>
@@ -1081,12 +1094,11 @@ class AppLocalizations {
   String get offersPanelStillSearching => _get('offersPanelStillSearching');
   String offersCardEtaMinutes(int minutes) =>
       _get('offersCardEtaMinutes').replaceFirst('{minutes}', '$minutes');
-  String offersCardFee(String amount, String currency) => _get('offersCardFee')
-      .replaceFirst('{amount}', amount)
-      .replaceFirst('{currency}', currency);
+  String offersCardFee(String amount, String currency) => _get(
+    'offersCardFee',
+  ).replaceFirst('{amount}', amount).replaceFirst('{currency}', currency);
   String get offersCardVehicleCar => _get('offersCardVehicleCar');
-  String get offersCardVehicleMotorcycle =>
-      _get('offersCardVehicleMotorcycle');
+  String get offersCardVehicleMotorcycle => _get('offersCardVehicleMotorcycle');
   String get offersCardVehicleBicycle => _get('offersCardVehicleBicycle');
   String get offersCardVehicleScooter => _get('offersCardVehicleScooter');
   String get offersCardVehicleWalker => _get('offersCardVehicleWalker');
@@ -1100,14 +1112,13 @@ class AppLocalizations {
     required String fee,
     required String currency,
     required int minutes,
-  }) =>
-      _get('offersCardSemanticLabel')
-          .replaceFirst('{name}', name)
-          .replaceFirst('{rating}', rating)
-          .replaceFirst('{vehicle}', vehicle)
-          .replaceFirst('{fee}', fee)
-          .replaceFirst('{currency}', currency)
-          .replaceFirst('{minutes}', '$minutes');
+  }) => _get('offersCardSemanticLabel')
+      .replaceFirst('{name}', name)
+      .replaceFirst('{rating}', rating)
+      .replaceFirst('{vehicle}', vehicle)
+      .replaceFirst('{fee}', fee)
+      .replaceFirst('{currency}', currency)
+      .replaceFirst('{minutes}', '$minutes');
   // W6/SW-08 offer identity: honest name + rating fallbacks (never a UUID name
   // or a fabricated "4.5 (0)").
   String get offersCardJeeberFallback => _get('offersCardJeeberFallback');
@@ -1118,18 +1129,16 @@ class AppLocalizations {
     required String fee,
     required String currency,
     required int minutes,
-  }) =>
-      _get('offersCardSemanticLabelUnrated')
-          .replaceFirst('{name}', name)
-          .replaceFirst('{vehicle}', vehicle)
-          .replaceFirst('{fee}', fee)
-          .replaceFirst('{currency}', currency)
-          .replaceFirst('{minutes}', '$minutes');
+  }) => _get('offersCardSemanticLabelUnrated')
+      .replaceFirst('{name}', name)
+      .replaceFirst('{vehicle}', vehicle)
+      .replaceFirst('{fee}', fee)
+      .replaceFirst('{currency}', currency)
+      .replaceFirst('{minutes}', '$minutes');
   String get offersHighFeeDialogTitle => _get('offersHighFeeDialogTitle');
-  String offersHighFeeDialogBody(String amount, String currency) =>
-      _get('offersHighFeeDialogBody')
-          .replaceFirst('{amount}', amount)
-          .replaceFirst('{currency}', currency);
+  String offersHighFeeDialogBody(String amount, String currency) => _get(
+    'offersHighFeeDialogBody',
+  ).replaceFirst('{amount}', amount).replaceFirst('{currency}', currency);
   String get offersHighFeeDialogConfirm => _get('offersHighFeeDialogConfirm');
   String get offersHighFeeDialogCancel => _get('offersHighFeeDialogCancel');
   String get offersErrorNetwork => _get('offersErrorNetwork');
@@ -1141,10 +1150,9 @@ class AppLocalizations {
   String get offersAcceptedBannerTitle => _get('offersAcceptedBannerTitle');
   String get offersAcceptedBannerBody => _get('offersAcceptedBannerBody');
   // JM-028 offer-review additions.
-  String offerCardCashOnDelivery(String amount, String currency) =>
-      _get('offerCardCashOnDelivery')
-          .replaceFirst('{amount}', amount)
-          .replaceFirst('{currency}', currency);
+  String offerCardCashOnDelivery(String amount, String currency) => _get(
+    'offerCardCashOnDelivery',
+  ).replaceFirst('{amount}', amount).replaceFirst('{currency}', currency);
   String get offerReviewCancelCta => _get('offerReviewCancelCta');
   // JM-030 cancel-request-confirm sheet body (D69). Getter added by JM-028 to
   // unblock the shared cancel sheet it invokes; the JM-030 engineer owns it.
@@ -1158,43 +1166,36 @@ class AppLocalizations {
   String get offerSubmissionIntro => _get('offerSubmissionIntro');
   String get offerSubmissionFeeLabel => _get('offerSubmissionFeeLabel');
   String get offerSubmissionFeeHint => _get('offerSubmissionFeeHint');
-  String offerSubmissionFeeHelper(String minimum, String currency) =>
-      _get('offerSubmissionFeeHelper')
-          .replaceFirst('{minimum}', minimum)
-          .replaceFirst('{currency}', currency);
+  String offerSubmissionFeeHelper(String minimum, String currency) => _get(
+    'offerSubmissionFeeHelper',
+  ).replaceFirst('{minimum}', minimum).replaceFirst('{currency}', currency);
   String get offerSubmissionFeeErrorRequired =>
       _get('offerSubmissionFeeErrorRequired');
-  String offerSubmissionFeeErrorBelowMinimum(
-          String minimum, String currency) =>
-      _get('offerSubmissionFeeErrorBelowMinimum')
-          .replaceFirst('{minimum}', minimum)
-          .replaceFirst('{currency}', currency);
-  String offerSubmissionFeeErrorAboveMaximum(
-          String maximum, String currency) =>
-      _get('offerSubmissionFeeErrorAboveMaximum')
-          .replaceFirst('{maximum}', maximum)
-          .replaceFirst('{currency}', currency);
+  String offerSubmissionFeeErrorBelowMinimum(String minimum, String currency) =>
+      _get(
+        'offerSubmissionFeeErrorBelowMinimum',
+      ).replaceFirst('{minimum}', minimum).replaceFirst('{currency}', currency);
+  String offerSubmissionFeeErrorAboveMaximum(String maximum, String currency) =>
+      _get(
+        'offerSubmissionFeeErrorAboveMaximum',
+      ).replaceFirst('{maximum}', maximum).replaceFirst('{currency}', currency);
   String get offerSubmissionEtaLabel => _get('offerSubmissionEtaLabel');
   String get offerSubmissionEtaHint => _get('offerSubmissionEtaHint');
   String get offerSubmissionEtaSuffix => _get('offerSubmissionEtaSuffix');
-  String offerSubmissionEtaHelper(int min, int max) =>
-      _get('offerSubmissionEtaHelper')
-          .replaceFirst('{min}', '$min')
-          .replaceFirst('{max}', '$max');
+  String offerSubmissionEtaHelper(int min, int max) => _get(
+    'offerSubmissionEtaHelper',
+  ).replaceFirst('{min}', '$min').replaceFirst('{max}', '$max');
   String get offerSubmissionEtaErrorRequired =>
       _get('offerSubmissionEtaErrorRequired');
   String offerSubmissionEtaErrorBelowMinimum(int min) =>
-      _get('offerSubmissionEtaErrorBelowMinimum')
-          .replaceFirst('{min}', '$min');
+      _get('offerSubmissionEtaErrorBelowMinimum').replaceFirst('{min}', '$min');
   String offerSubmissionEtaErrorAboveMaximum(int max) =>
-      _get('offerSubmissionEtaErrorAboveMaximum')
-          .replaceFirst('{max}', '$max');
+      _get('offerSubmissionEtaErrorAboveMaximum').replaceFirst('{max}', '$max');
   String get offerSubmissionNoteLabel => _get('offerSubmissionNoteLabel');
   String get offerSubmissionNoteHint => _get('offerSubmissionNoteHint');
   String offerSubmissionNoteErrorTooLong(int max) =>
       _get('offerSubmissionNoteErrorTooLong').replaceFirst('{max}', '$max');
-  String get offerSubmissionSubmitButton =>
-      _get('offerSubmissionSubmitButton');
+  String get offerSubmissionSubmitButton => _get('offerSubmissionSubmitButton');
   String get offerSubmissionSubmittingButton =>
       _get('offerSubmissionSubmittingButton');
   String get offerSubmissionRetryButton => _get('offerSubmissionRetryButton');
@@ -1202,10 +1203,9 @@ class AppLocalizations {
       _get('offerSubmissionConfirmedTitle');
   String get offerSubmissionConfirmedBody =>
       _get('offerSubmissionConfirmedBody');
-  String offerSubmissionConfirmedFee(String amount, String currency) =>
-      _get('offerSubmissionConfirmedFee')
-          .replaceFirst('{amount}', amount)
-          .replaceFirst('{currency}', currency);
+  String offerSubmissionConfirmedFee(String amount, String currency) => _get(
+    'offerSubmissionConfirmedFee',
+  ).replaceFirst('{amount}', amount).replaceFirst('{currency}', currency);
   String offerSubmissionConfirmedEta(int minutes) =>
       _get('offerSubmissionConfirmedEta').replaceFirst('{minutes}', '$minutes');
   String get offerSubmissionWithdrawButton =>
@@ -1216,14 +1216,12 @@ class AppLocalizations {
       _get('offerSubmissionWithdrawnTitle');
   String get offerSubmissionWithdrawnBody =>
       _get('offerSubmissionWithdrawnBody');
-  String get offerSubmissionErrorNetwork =>
-      _get('offerSubmissionErrorNetwork');
+  String get offerSubmissionErrorNetwork => _get('offerSubmissionErrorNetwork');
   String get offerSubmissionErrorRequestNotOpen =>
       _get('offerSubmissionErrorRequestNotOpen');
   String get offerSubmissionErrorDuplicate =>
       _get('offerSubmissionErrorDuplicate');
-  String get offerSubmissionErrorGeneric =>
-      _get('offerSubmissionErrorGeneric');
+  String get offerSubmissionErrorGeneric => _get('offerSubmissionErrorGeneric');
   String get offerSubmissionWithdrawErrorNetwork =>
       _get('offerSubmissionWithdrawErrorNetwork');
   String get offerSubmissionWithdrawErrorGeneric =>
@@ -1337,8 +1335,9 @@ class _AppLocalizationsDelegate
   const _AppLocalizationsDelegate();
 
   @override
-  bool isSupported(Locale locale) =>
-      AppLocalizations.supportedLocales.any((l) => l.languageCode == locale.languageCode);
+  bool isSupported(Locale locale) => AppLocalizations.supportedLocales.any(
+    (l) => l.languageCode == locale.languageCode,
+  );
 
   @override
   Future<AppLocalizations> load(Locale locale) async {
@@ -1361,10 +1360,7 @@ class _AppLocalizationsDelegate
 /// rootBundle round-trip when the app boots. Returns the same shape produced
 /// by [_AppLocalizationsDelegate.load].
 @visibleForTesting
-AppLocalizations debugLoadAppLocalizationsSync(
-  Locale locale,
-  String arbJson,
-) {
+AppLocalizations debugLoadAppLocalizationsSync(Locale locale, String arbJson) {
   final json = jsonDecode(arbJson) as Map<String, dynamic>;
   final strings = <String, String>{
     for (final entry in json.entries)
@@ -1386,18 +1382,29 @@ extension AppLocalizationsRestored on AppLocalizations {
     if (count == 2) return _get('availabilityActiveDeliveriesTwo');
     final mod = count % 100;
     if (mod >= 3 && mod <= 10) {
-      return _get('availabilityActiveDeliveriesFew').replaceFirst('{count}', '$count');
+      return _get(
+        'availabilityActiveDeliveriesFew',
+      ).replaceFirst('{count}', '$count');
     }
     if (mod >= 11 && mod <= 99) {
-      return _get('availabilityActiveDeliveriesMany').replaceFirst('{count}', '$count');
+      return _get(
+        'availabilityActiveDeliveriesMany',
+      ).replaceFirst('{count}', '$count');
     }
-    return _get('availabilityActiveDeliveriesOther').replaceFirst('{count}', '$count');
+    return _get(
+      'availabilityActiveDeliveriesOther',
+    ).replaceFirst('{count}', '$count');
   }
-  String get availabilityActiveDeliveriesLabel => _get('availabilityActiveDeliveries');
+
+  String get availabilityActiveDeliveriesLabel =>
+      _get('availabilityActiveDeliveries');
   String get availabilityHomeTitle => _get('availabilityHomeTitle');
-  String get availabilityInactivityWarningBody => _get('availabilityInactivityWarningBody');
-  String get availabilityInactivityWarningCta => _get('availabilityInactivityWarningCta');
-  String get availabilityInactivityWarningTitle => _get('availabilityInactivityWarningTitle');
+  String get availabilityInactivityWarningBody =>
+      _get('availabilityInactivityWarningBody');
+  String get availabilityInactivityWarningCta =>
+      _get('availabilityInactivityWarningCta');
+  String get availabilityInactivityWarningTitle =>
+      _get('availabilityInactivityWarningTitle');
   String get availabilityLoadError => _get('availabilityLoadError');
   String get availabilityLoadRetry => _get('availabilityLoadRetry');
   String get availabilityToggleErrorBody => _get('availabilityToggleErrorBody');
@@ -1445,33 +1452,47 @@ extension AppLocalizationsRestored on AppLocalizations {
     }
     return _get('chatPendingMessagesOther').replaceFirst('{count}', '$count');
   }
+
   String get chatPendingMessagesLabel => _get('chatPendingMessages');
   String get chatNoConversationTitle => _get('chatNoConversationTitle');
   String get chatNoConversationSubtitle => _get('chatNoConversationSubtitle');
-  String get chatPlaceholderCounterpartName => _get('chatPlaceholderCounterpartName');
+  String get chatPlaceholderCounterpartName =>
+      _get('chatPlaceholderCounterpartName');
   String get chatSendTooltip => _get('chatSendTooltip');
   String get chatStatusConnected => _get('chatStatusConnected');
   String get chatStatusConnecting => _get('chatStatusConnecting');
   String get chatStatusOffline => _get('chatStatusOffline');
   String get chatStatusReconnecting => _get('chatStatusReconnecting');
   String get homeGreetingFallback => _get('homeGreetingFallback');
-  String homeGreetingNamed(String name) => _get('homeGreetingNamed').replaceFirst('{name}', name);
-  String homeAvatarA11yLabel(String name) => _get('homeAvatarA11yLabel').replaceFirst('{name}', name);
+  String homeGreetingNamed(String name) =>
+      _get('homeGreetingNamed').replaceFirst('{name}', name);
+  String homeAvatarA11yLabel(String name) =>
+      _get('homeAvatarA11yLabel').replaceFirst('{name}', name);
   String get homeLoadFailedBody => _get('homeLoadFailedBody');
   String get homeLoadFailedRetry => _get('homeLoadFailedRetry');
   String get homeLoadFailedTitle => _get('homeLoadFailedTitle');
-  String homeRequestCardSemanticLabel({required String title, required String status}) => _get('homeRequestCardSemanticLabel').replaceFirst('{title}', title).replaceFirst('{status}', status);
+  String homeRequestCardSemanticLabel({
+    required String title,
+    required String status,
+  }) => _get(
+    'homeRequestCardSemanticLabel',
+  ).replaceFirst('{title}', title).replaceFirst('{status}', status);
   String get homeRequestEtaUnknown => _get('homeRequestEtaUnknown');
-  String homeRequestJeeberAssigned(String name) => _get('homeRequestJeeberAssigned').replaceFirst('{name}', name);
+  String homeRequestJeeberAssigned(String name) =>
+      _get('homeRequestJeeberAssigned').replaceFirst('{name}', name);
   String get locationConfirmAndSave => _get('locationConfirmAndSave');
   String get locationConfirmedTitle => _get('locationConfirmedTitle');
   String get locationContinueToDropoff => _get('locationContinueToDropoff');
-  String locationCoordinatesFallback(String lat, String lng) => _get('locationCoordinatesFallback').replaceFirst('{lat}', lat).replaceFirst('{lng}', lng);
+  String locationCoordinatesFallback(String lat, String lng) => _get(
+    'locationCoordinatesFallback',
+  ).replaceFirst('{lat}', lat).replaceFirst('{lng}', lng);
   String get locationDetectingGps => _get('locationDetectingGps');
   String get locationDropoffTitle => _get('locationDropoffTitle');
-  String get locationErrorGeocodingFailed => _get('locationErrorGeocodingFailed');
+  String get locationErrorGeocodingFailed =>
+      _get('locationErrorGeocodingFailed');
   String get locationErrorGpsUnavailable => _get('locationErrorGpsUnavailable');
-  String get locationErrorPermissionDenied => _get('locationErrorPermissionDenied');
+  String get locationErrorPermissionDenied =>
+      _get('locationErrorPermissionDenied');
   String get locationErrorSaveFailed => _get('locationErrorSaveFailed');
   String get locationErrorSearchFailed => _get('locationErrorSearchFailed');
   String get locationNoSelectionYet => _get('locationNoSelectionYet');
@@ -1480,7 +1501,8 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get locationResolvingAddress => _get('locationResolvingAddress');
   String get locationSavingCta => _get('locationSavingCta');
   String get locationSearchEmpty => _get('locationSearchEmpty');
-  String get locationSelectedPreviewLabel => _get('locationSelectedPreviewLabel');
+  String get locationSelectedPreviewLabel =>
+      _get('locationSelectedPreviewLabel');
   String get locationStepDone => _get('locationStepDone');
   String get locationStepDropoff => _get('locationStepDropoff');
   String get locationStepPickup => _get('locationStepPickup');
@@ -1495,10 +1517,13 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get offersSortByRating => _get('offersSortByRating');
   String get offersSortLabel => _get('offersSortLabel');
   String get offersWindowExpired => _get('offersWindowExpired');
-  String offersWindowRemaining(String time) => _get('offersWindowRemaining').replaceFirst('{time}', time);
+  String offersWindowRemaining(String time) =>
+      _get('offersWindowRemaining').replaceFirst('{time}', time);
   String get orderHistoryAddressMissing => _get('orderHistoryAddressMissing');
-  String get orderHistoryAmountUnavailable => _get('orderHistoryAmountUnavailable');
-  String orderHistoryCardSemanticLabel(String id) => _get('orderHistoryCardSemanticLabel').replaceFirst('{id}', id);
+  String get orderHistoryAmountUnavailable =>
+      _get('orderHistoryAmountUnavailable');
+  String orderHistoryCardSemanticLabel(String id) =>
+      _get('orderHistoryCardSemanticLabel').replaceFirst('{id}', id);
   String get orderHistoryEmptyActive => _get('orderHistoryEmptyActive');
   String get orderHistoryEmptyCancelled => _get('orderHistoryEmptyCancelled');
   String get orderHistoryEmptyCompleted => _get('orderHistoryEmptyCompleted');
@@ -1528,31 +1553,46 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get orderHistoryTabActive => _get('orderHistoryTabActive');
   String get orderHistoryTabCancelled => _get('orderHistoryTabCancelled');
   String get orderHistoryTabCompleted => _get('orderHistoryTabCompleted');
-  String get registrationSocialCollisionTitle => _get('registrationSocialCollisionTitle');
-  String get registrationSocialCollisionBody => _get('registrationSocialCollisionBody');
-  String get registrationSocialCollisionDismiss => _get('registrationSocialCollisionDismiss');
-  String get registrationSocialErrorAccountDisabled => _get('registrationSocialErrorAccountDisabled');
-  String get registrationSocialErrorGeneric => _get('registrationSocialErrorGeneric');
-  String get registrationSocialErrorInvalidToken => _get('registrationSocialErrorInvalidToken');
-  String get registrationSocialErrorNetwork => _get('registrationSocialErrorNetwork');
+  String get registrationSocialCollisionTitle =>
+      _get('registrationSocialCollisionTitle');
+  String get registrationSocialCollisionBody =>
+      _get('registrationSocialCollisionBody');
+  String get registrationSocialCollisionDismiss =>
+      _get('registrationSocialCollisionDismiss');
+  String get registrationSocialErrorAccountDisabled =>
+      _get('registrationSocialErrorAccountDisabled');
+  String get registrationSocialErrorGeneric =>
+      _get('registrationSocialErrorGeneric');
+  String get registrationSocialErrorInvalidToken =>
+      _get('registrationSocialErrorInvalidToken');
+  String get registrationSocialErrorNetwork =>
+      _get('registrationSocialErrorNetwork');
   String get requestFeedAccept => _get('requestFeedAccept');
   String get requestFeedAccepting => _get('requestFeedAccepting');
-  String get requestFeedActionAcceptedSnack => _get('requestFeedActionAcceptedSnack');
-  String get requestFeedActionDeclinedSnack => _get('requestFeedActionDeclinedSnack');
-  String get requestFeedActionExpiredSnack => _get('requestFeedActionExpiredSnack');
-  String get requestFeedActionNetworkSnack => _get('requestFeedActionNetworkSnack');
+  String get requestFeedActionAcceptedSnack =>
+      _get('requestFeedActionAcceptedSnack');
+  String get requestFeedActionDeclinedSnack =>
+      _get('requestFeedActionDeclinedSnack');
+  String get requestFeedActionExpiredSnack =>
+      _get('requestFeedActionExpiredSnack');
+  String get requestFeedActionNetworkSnack =>
+      _get('requestFeedActionNetworkSnack');
   String get requestFeedActionTakenSnack => _get('requestFeedActionTakenSnack');
   String get requestFeedDecline => _get('requestFeedDecline');
   String get requestFeedDeclining => _get('requestFeedDeclining');
-  String requestFeedDistance(String distance) => _get('requestFeedDistance').replaceFirst('{distance}', distance);
+  String requestFeedDistance(String distance) =>
+      _get('requestFeedDistance').replaceFirst('{distance}', distance);
   String get requestFeedDropoffLabel => _get('requestFeedDropoffLabel');
-  String requestFeedEarnings(String amount, String currency) => _get('requestFeedEarnings').replaceFirst('{amount}', amount).replaceFirst('{currency}', currency);
+  String requestFeedEarnings(String amount, String currency) => _get(
+    'requestFeedEarnings',
+  ).replaceFirst('{amount}', amount).replaceFirst('{currency}', currency);
   String get requestFeedEmptySubtitle => _get('requestFeedEmptySubtitle');
   String get requestFeedEmptyTitle => _get('requestFeedEmptyTitle');
   String get requestFeedErrorLoad => _get('requestFeedErrorLoad');
   String get requestFeedErrorRetry => _get('requestFeedErrorRetry');
   String get requestFeedErrorTitle => _get('requestFeedErrorTitle');
-  String requestFeedExpiresIn(int seconds) => _get('requestFeedExpiresIn').replaceFirst('{seconds}', '$seconds');
+  String requestFeedExpiresIn(int seconds) =>
+      _get('requestFeedExpiresIn').replaceFirst('{seconds}', '$seconds');
   String get requestFeedPickupLabel => _get('requestFeedPickupLabel');
   String get requestFeedReconnecting => _get('requestFeedReconnecting');
   String get requestFeedTierBulk => _get('requestFeedTierBulk');
@@ -1565,31 +1605,49 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get signOutDialogTitle => _get('signOutDialogTitle');
   String get voiceRecordingCancel => _get('voiceRecordingCancel');
   String get voiceRecordingDiscard => _get('voiceRecordingDiscard');
-  String get voiceRecordingErrorMaxReached => _get('voiceRecordingErrorMaxReached');
-  String get voiceRecordingErrorPermission => _get('voiceRecordingErrorPermission');
-  String get voiceRecordingErrorRecorderFailed => _get('voiceRecordingErrorRecorderFailed');
+  String get voiceRecordingErrorMaxReached =>
+      _get('voiceRecordingErrorMaxReached');
+  String get voiceRecordingErrorPermission =>
+      _get('voiceRecordingErrorPermission');
+  String get voiceRecordingErrorRecorderFailed =>
+      _get('voiceRecordingErrorRecorderFailed');
   String get voiceRecordingErrorTooShort => _get('voiceRecordingErrorTooShort');
-  String get voiceRecordingErrorUnavailable => _get('voiceRecordingErrorUnavailable');
-  String get voiceRecordingErrorUploadGeneric => _get('voiceRecordingErrorUploadGeneric');
-  String get voiceRecordingErrorUploadNetwork => _get('voiceRecordingErrorUploadNetwork');
-  String get voiceRecordingErrorUploadServer => _get('voiceRecordingErrorUploadServer');
+  String get voiceRecordingErrorUnavailable =>
+      _get('voiceRecordingErrorUnavailable');
+  String get voiceRecordingErrorUploadGeneric =>
+      _get('voiceRecordingErrorUploadGeneric');
+  String get voiceRecordingErrorUploadNetwork =>
+      _get('voiceRecordingErrorUploadNetwork');
+  String get voiceRecordingErrorUploadServer =>
+      _get('voiceRecordingErrorUploadServer');
   String get voiceRecordingHoldToRecord => _get('voiceRecordingHoldToRecord');
   String get voiceRecordingMicSemantic => _get('voiceRecordingMicSemantic');
   String get voiceRecordingPause => _get('voiceRecordingPause');
   String get voiceRecordingPlay => _get('voiceRecordingPlay');
-  String get voiceRecordingPermissionTitle => _get('voiceRecordingPermissionTitle');
-  String get voiceRecordingPermissionBody => _get('voiceRecordingPermissionBody');
-  String get voiceRecordingUnavailableTitle => _get('voiceRecordingUnavailableTitle');
+  String get voiceRecordingRecordAgain => _get('voiceRecordingRecordAgain');
+  String get voiceRecordingPermissionTitle =>
+      _get('voiceRecordingPermissionTitle');
+  String get voiceRecordingPermissionBody =>
+      _get('voiceRecordingPermissionBody');
+  String get voiceRecordingUnavailableTitle =>
+      _get('voiceRecordingUnavailableTitle');
   String get voiceRecordingRetry => _get('voiceRecordingRetry');
   String get voiceRecordingRecordAnother => _get('voiceRecordingRecordAnother');
   String get voiceRecordingReleaseToStop => _get('voiceRecordingReleaseToStop');
+  String get voiceRecordingRetryUploadSubmit =>
+      _get('voiceRecordingRetryUploadSubmit');
+  String get voiceRecordingReviewTitle => _get('voiceRecordingReviewTitle');
   String get voiceRecordingSend => _get('voiceRecordingSend');
   String get voiceRecordingSending => _get('voiceRecordingSending');
   String get voiceRecordingSentBody => _get('voiceRecordingSentBody');
   String get voiceRecordingSentTitle => _get('voiceRecordingSentTitle');
+  String get voiceRecordingSubmit => _get('voiceRecordingSubmit');
   String get voiceRecordingSubtitle => _get('voiceRecordingSubtitle');
-  String voiceRecordingTimerLabel(String duration) => _get('voiceRecordingTimerLabel').replaceFirst('{duration}', duration);
+  String voiceRecordingTimerLabel(String duration) =>
+      _get('voiceRecordingTimerLabel').replaceFirst('{duration}', duration);
   String get voiceRecordingTitle => _get('voiceRecordingTitle');
+  String get voiceRecordingUploadErrorTitle =>
+      _get('voiceRecordingUploadErrorTitle');
 
   // T-MOB-011: Broadcasting sub-line shown post-send (AC3)
   String get voiceRecordingBroadcastingHint =>
@@ -1604,12 +1662,10 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('customerProfileSectionAccount');
   String get customerProfileRegisterAsDelivery =>
       _get('customerProfileRegisterAsDelivery');
-  String get customerProfileRegisterCta =>
-      _get('customerProfileRegisterCta');
+  String get customerProfileRegisterCta => _get('customerProfileRegisterCta');
   String get customerProfilePasswordSecurity =>
       _get('customerProfilePasswordSecurity');
-  String get customerProfileNotification =>
-      _get('customerProfileNotification');
+  String get customerProfileNotification => _get('customerProfileNotification');
   String get customerProfileResetLocation =>
       _get('customerProfileResetLocation');
   String get customerProfileSectionSupport =>
@@ -1629,30 +1685,27 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('deliveryManProfileCloseLabel');
   String get deliveryManProfileVerifiedBadgeLabel =>
       _get('deliveryManProfileVerifiedBadgeLabel');
-  String get deliveryManProfileAvailable =>
-      _get('deliveryManProfileAvailable');
+  String get deliveryManProfileAvailable => _get('deliveryManProfileAvailable');
   String get deliveryManProfileUnavailable =>
       _get('deliveryManProfileUnavailable');
-  String deliveryManProfileRatingSummary(String rating, int count) =>
-      _get('deliveryManProfileRatingSummary')
-          .replaceFirst('{rating}', rating)
-          .replaceFirst('{count}', '$count');
+  String deliveryManProfileRatingSummary(String rating, int count) => _get(
+    'deliveryManProfileRatingSummary',
+  ).replaceFirst('{rating}', rating).replaceFirst('{count}', '$count');
   String deliveryManProfileLocationAvailability(
     String location,
     String availability,
-  ) =>
-      _get('deliveryManProfileLocationAvailability')
-          .replaceFirst('{location}', location)
-          .replaceFirst('{availability}', availability);
+  ) => _get('deliveryManProfileLocationAvailability')
+      .replaceFirst('{location}', location)
+      .replaceFirst('{availability}', availability);
   String get deliveryManProfileReviewsTitle =>
       _get('deliveryManProfileReviewsTitle');
   String deliveryManProfileReviewsCount(int count) =>
       _get('deliveryManProfileReviewsCount').replaceFirst('{count}', '$count');
   String get deliveryManProfileViewAllReviews =>
       _get('deliveryManProfileViewAllReviews');
-  String deliveryManProfileRatingStarsLabel(String rating) =>
-      _get('deliveryManProfileRatingStarsLabel')
-          .replaceFirst('{rating}', rating);
+  String deliveryManProfileRatingStarsLabel(String rating) => _get(
+    'deliveryManProfileRatingStarsLabel',
+  ).replaceFirst('{rating}', rating);
   String get deliveryManProfileEmptyReviewsTitle =>
       _get('deliveryManProfileEmptyReviewsTitle');
   String get deliveryManProfileEmptyReviewsSubtitle =>
@@ -1671,14 +1724,12 @@ extension AppLocalizationsRestored on AppLocalizations {
   // Screens 20-22 — Delivery-man onboarding wizard.
   String get dmOnboardingPhotoStepTitle => _get('dmOnboardingPhotoStepTitle');
   String get dmOnboardingSubmitFailed => _get('dmOnboardingSubmitFailed');
-  String get dmOnboardingPhotoPickFailed =>
-      _get('dmOnboardingPhotoPickFailed');
+  String get dmOnboardingPhotoPickFailed => _get('dmOnboardingPhotoPickFailed');
   String get dmOnboardingPhotoUploadTitle =>
       _get('dmOnboardingPhotoUploadTitle');
   String get dmOnboardingPhotoUploadSubtitle =>
       _get('dmOnboardingPhotoUploadSubtitle');
-  String get dmOnboardingPhotoUploadHint =>
-      _get('dmOnboardingPhotoUploadHint');
+  String get dmOnboardingPhotoUploadHint => _get('dmOnboardingPhotoUploadHint');
   String get dmOnboardingPhotoUploadCameraLabel =>
       _get('dmOnboardingPhotoUploadCameraLabel');
   String get dmOnboardingPhotoUploadGalleryLabel =>
@@ -1719,10 +1770,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   String dmOnboardingStepProgressLabel({
     required int current,
     required int total,
-  }) =>
-      _get('dmOnboardingStepProgressLabel')
-          .replaceFirst('{current}', '$current')
-          .replaceFirst('{total}', '$total');
+  }) => _get(
+    'dmOnboardingStepProgressLabel',
+  ).replaceFirst('{current}', '$current').replaceFirst('{total}', '$total');
 
   // T-MOB-027: Become a Jeeber card
   String get becomeJeeberCardTitle => _get('becomeJeeberCardTitle');
@@ -1755,38 +1805,42 @@ extension AppLocalizationsRestored on AppLocalizations {
     required String tier,
     required String distance,
     required String payout,
-  }) =>
-      _get('jeeberFeedRowSemantic')
-          .replaceFirst('{tier}', tier)
-          .replaceFirst('{distance}', distance)
-          .replaceFirst('{payout}', payout);
+  }) => _get('jeeberFeedRowSemantic')
+      .replaceFirst('{tier}', tier)
+      .replaceFirst('{distance}', distance)
+      .replaceFirst('{payout}', payout);
 
   // T-MOB-006/007/008: Home tab isolated tab widgets
   String get pendingTabSearchingLabel => _get('pendingTabSearchingLabel');
-  String pendingTabTtlLabel(String minutes, String seconds) =>
-      _get('pendingTabTtlLabel')
-          .replaceFirst('{minutes}', minutes)
-          .replaceFirst('{seconds}', seconds);
+  String pendingTabTtlLabel(String minutes, String seconds) => _get(
+    'pendingTabTtlLabel',
+  ).replaceFirst('{minutes}', minutes).replaceFirst('{seconds}', seconds);
   String get pendingTabExpiredLabel => _get('pendingTabExpiredLabel');
   String get pendingTabRetryCta => _get('pendingTabRetryCta');
   String get pendingTabReconnecting => _get('pendingTabReconnecting');
-  String pendingCardA11yLabel(String title, String ttl) =>
-      _get('pendingCardA11yLabel')
-          .replaceFirst('{title}', title)
-          .replaceFirst('{ttl}', ttl);
+  String pendingCardA11yLabel(String title, String ttl) => _get(
+    'pendingCardA11yLabel',
+  ).replaceFirst('{title}', title).replaceFirst('{ttl}', ttl);
   String pendingCardOffersBadge(int count) {
     if (count == 0) return _get('pendingCardOffersBadgeZero');
     if (count == 1) return _get('pendingCardOffersBadgeOne');
     if (count == 2) return _get('pendingCardOffersBadgeTwo');
     final mod = count % 100;
     if (mod >= 3 && mod <= 10) {
-      return _get('pendingCardOffersBadgeFew').replaceFirst('{count}', '$count');
+      return _get(
+        'pendingCardOffersBadgeFew',
+      ).replaceFirst('{count}', '$count');
     }
     if (mod >= 11 && mod <= 99) {
-      return _get('pendingCardOffersBadgeMany').replaceFirst('{count}', '$count');
+      return _get(
+        'pendingCardOffersBadgeMany',
+      ).replaceFirst('{count}', '$count');
     }
-    return _get('pendingCardOffersBadgeOther').replaceFirst('{count}', '$count');
+    return _get(
+      'pendingCardOffersBadgeOther',
+    ).replaceFirst('{count}', '$count');
   }
+
   String get pendingCardCreatedJustNow => _get('pendingCardCreatedJustNow');
   String pendingCardCreatedMinutes(int count) {
     if (count == 0) return _get('pendingCardCreatedMinutesZero');
@@ -1794,39 +1848,60 @@ extension AppLocalizationsRestored on AppLocalizations {
     if (count == 2) return _get('pendingCardCreatedMinutesTwo');
     final mod = count % 100;
     if (mod >= 3 && mod <= 10) {
-      return _get('pendingCardCreatedMinutesFew').replaceFirst('{count}', '$count');
+      return _get(
+        'pendingCardCreatedMinutesFew',
+      ).replaceFirst('{count}', '$count');
     }
     if (mod >= 11 && mod <= 99) {
-      return _get('pendingCardCreatedMinutesMany').replaceFirst('{count}', '$count');
+      return _get(
+        'pendingCardCreatedMinutesMany',
+      ).replaceFirst('{count}', '$count');
     }
-    return _get('pendingCardCreatedMinutesOther').replaceFirst('{count}', '$count');
+    return _get(
+      'pendingCardCreatedMinutesOther',
+    ).replaceFirst('{count}', '$count');
   }
+
   String pendingCardCreatedHours(int count) {
     if (count == 0) return _get('pendingCardCreatedHoursZero');
     if (count == 1) return _get('pendingCardCreatedHoursOne');
     if (count == 2) return _get('pendingCardCreatedHoursTwo');
     final mod = count % 100;
     if (mod >= 3 && mod <= 10) {
-      return _get('pendingCardCreatedHoursFew').replaceFirst('{count}', '$count');
+      return _get(
+        'pendingCardCreatedHoursFew',
+      ).replaceFirst('{count}', '$count');
     }
     if (mod >= 11 && mod <= 99) {
-      return _get('pendingCardCreatedHoursMany').replaceFirst('{count}', '$count');
+      return _get(
+        'pendingCardCreatedHoursMany',
+      ).replaceFirst('{count}', '$count');
     }
-    return _get('pendingCardCreatedHoursOther').replaceFirst('{count}', '$count');
+    return _get(
+      'pendingCardCreatedHoursOther',
+    ).replaceFirst('{count}', '$count');
   }
+
   String pendingCardCreatedDays(int count) {
     if (count == 0) return _get('pendingCardCreatedDaysZero');
     if (count == 1) return _get('pendingCardCreatedDaysOne');
     if (count == 2) return _get('pendingCardCreatedDaysTwo');
     final mod = count % 100;
     if (mod >= 3 && mod <= 10) {
-      return _get('pendingCardCreatedDaysFew').replaceFirst('{count}', '$count');
+      return _get(
+        'pendingCardCreatedDaysFew',
+      ).replaceFirst('{count}', '$count');
     }
     if (mod >= 11 && mod <= 99) {
-      return _get('pendingCardCreatedDaysMany').replaceFirst('{count}', '$count');
+      return _get(
+        'pendingCardCreatedDaysMany',
+      ).replaceFirst('{count}', '$count');
     }
-    return _get('pendingCardCreatedDaysOther').replaceFirst('{count}', '$count');
+    return _get(
+      'pendingCardCreatedDaysOther',
+    ).replaceFirst('{count}', '$count');
   }
+
   String inProgressTabA11yLabel(String title, String status, String eta) =>
       _get('inProgressTabA11yLabel')
           .replaceFirst('{title}', title)
@@ -1894,10 +1969,9 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('earningsDeliveryItemTitle').replaceFirst('{id}', id);
   String earningsDeliveryItemTier(String tier) =>
       _get('earningsDeliveryItemTier').replaceFirst('{tier}', tier);
-  String earningsDeliveryItemFare(String amount, String currency) =>
-      _get('earningsDeliveryItemFare')
-          .replaceFirst('{amount}', amount)
-          .replaceFirst('{currency}', currency);
+  String earningsDeliveryItemFare(String amount, String currency) => _get(
+    'earningsDeliveryItemFare',
+  ).replaceFirst('{amount}', amount).replaceFirst('{currency}', currency);
 
   // T-MOB-020: Mutual blind rating
   String get mutualRatingTitle => _get('mutualRatingTitle');
@@ -1936,9 +2010,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get escalateReasonAbuse => _get('escalateReasonAbuse');
   String get escalateReasonOther => _get('escalateReasonOther');
   String get escalatePhotoLabel => _get('escalatePhotoLabel');
-  String escalatePhotoCountRemaining(int remaining) =>
-      _get('escalatePhotoCountRemaining')
-          .replaceFirst('{remaining}', remaining.toString());
+  String escalatePhotoCountRemaining(int remaining) => _get(
+    'escalatePhotoCountRemaining',
+  ).replaceFirst('{remaining}', remaining.toString());
   String escalatePhotoAttached(int count) =>
       _get('escalatePhotoAttached').replaceFirst('{count}', count.toString());
   String get escalateCommentLabel => _get('escalateCommentLabel');
@@ -1949,9 +2023,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get escalateErrorAlreadyOpen => _get('escalateErrorAlreadyOpen');
   String get escalateConfirmationTitle => _get('escalateConfirmationTitle');
   String get escalateConfirmationBody => _get('escalateConfirmationBody');
-  String escalateConfirmationCaseNumber(String caseNumber) =>
-      _get('escalateConfirmationCaseNumber')
-          .replaceFirst('{caseNumber}', caseNumber);
+  String escalateConfirmationCaseNumber(String caseNumber) => _get(
+    'escalateConfirmationCaseNumber',
+  ).replaceFirst('{caseNumber}', caseNumber);
   String get escalateConfirmationDone => _get('escalateConfirmationDone');
 
   // Generic action labels
@@ -2008,18 +2082,14 @@ extension AppLocalizationsRestored on AppLocalizations {
 
   // T-MOB-031: Active delivery (Jeeber)
   String get activeDeliveryTitle => _get('activeDeliveryTitle');
-  String get activeDeliveryProgressTitle =>
-      _get('activeDeliveryProgressTitle');
+  String get activeDeliveryProgressTitle => _get('activeDeliveryProgressTitle');
   String get activeDeliveryCancelledTitle =>
       _get('activeDeliveryCancelledTitle');
-  String get activeDeliveryCancelledBody =>
-      _get('activeDeliveryCancelledBody');
+  String get activeDeliveryCancelledBody => _get('activeDeliveryCancelledBody');
   String get activeDeliveryExpiredTitle => _get('activeDeliveryExpiredTitle');
   String get activeDeliveryExpiredBody => _get('activeDeliveryExpiredBody');
-  String get activeDeliveryDisputedTitle =>
-      _get('activeDeliveryDisputedTitle');
-  String get activeDeliveryDisputedBody =>
-      _get('activeDeliveryDisputedBody');
+  String get activeDeliveryDisputedTitle => _get('activeDeliveryDisputedTitle');
+  String get activeDeliveryDisputedBody => _get('activeDeliveryDisputedBody');
   String get activeDeliveryDropOffLabel => _get('activeDeliveryDropOffLabel');
   String get activeDeliveryStatusOrdered => _get('activeDeliveryStatusOrdered');
   String get activeDeliveryStatusPicked => _get('activeDeliveryStatusPicked');
@@ -2034,9 +2104,12 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get activeDeliveryStageUpcomingState =>
       _get('activeDeliveryStageUpcomingState');
   String get jeeberActiveDeliveriesTitle => _get('jeeberActiveDeliveriesTitle');
-  String get jeeberActiveDeliveriesFallbackTitle => _get('jeeberActiveDeliveriesFallbackTitle');
-  String get jeeberActiveDeliveriesOpenChat => _get('jeeberActiveDeliveriesOpenChat');
-  String get jeeberActiveDeliveriesManage => _get('jeeberActiveDeliveriesManage');
+  String get jeeberActiveDeliveriesFallbackTitle =>
+      _get('jeeberActiveDeliveriesFallbackTitle');
+  String get jeeberActiveDeliveriesOpenChat =>
+      _get('jeeberActiveDeliveriesOpenChat');
+  String get jeeberActiveDeliveriesManage =>
+      _get('jeeberActiveDeliveriesManage');
   String jeeberActiveDeliveriesViewAll(int count) =>
       _get('jeeberActiveDeliveriesViewAll').replaceFirst('{count}', '$count');
   String get jeeberActiveDeliveriesShowLess =>
@@ -2049,18 +2122,20 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get activeDeliveryOtpInstruction =>
       _get('activeDeliveryOtpInstruction');
   String get activeDeliveryOtpSubmit => _get('activeDeliveryOtpSubmit');
-  String get activeDeliveryOpenMapsButton => _get('activeDeliveryOpenMapsButton');
-  String get activeDeliveryOpenChatButton => _get('activeDeliveryOpenChatButton');
+  String get activeDeliveryOpenMapsButton =>
+      _get('activeDeliveryOpenMapsButton');
+  String get activeDeliveryOpenChatButton =>
+      _get('activeDeliveryOpenChatButton');
   String get activeDeliveryEnterGoodsCostButton =>
       _get('activeDeliveryEnterGoodsCostButton');
   String get activeDeliveryUnavailable => _get('activeDeliveryUnavailable');
   String get activeDeliveryLoadError => _get('activeDeliveryLoadError');
-  String activeDeliveryStepperA11y(String current, String next) =>
-      _get('activeDeliveryStepperA11y')
-          .replaceFirst('{current}', current)
-          .replaceFirst('{next}', next);
-  String activeDeliveryStepperCurrentDone(String current) =>
-      _get('activeDeliveryStepperCurrentDone').replaceFirst('{current}', current);
+  String activeDeliveryStepperA11y(String current, String next) => _get(
+    'activeDeliveryStepperA11y',
+  ).replaceFirst('{current}', current).replaceFirst('{next}', next);
+  String activeDeliveryStepperCurrentDone(String current) => _get(
+    'activeDeliveryStepperCurrentDone',
+  ).replaceFirst('{current}', current);
 
   // T-MOB-032: Settlement statements
   String get settlementTitle => _get('settlementTitle');
@@ -2070,10 +2145,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get settlementStatusPaid => _get('settlementStatusPaid');
   String get settlementStatusPending => _get('settlementStatusPending');
   String get settlementDownloadTooltip => _get('settlementDownloadTooltip');
-  String settlementRowSemantics(String amount, String status) =>
-      _get('settlementRowSemantics')
-          .replaceFirst('{amount}', amount)
-          .replaceFirst('{status}', status);
+  String settlementRowSemantics(String amount, String status) => _get(
+    'settlementRowSemantics',
+  ).replaceFirst('{amount}', amount).replaceFirst('{status}', status);
   String get settlementBreakdownTitle => _get('settlementBreakdownTitle');
   String get settlementTotalPayout => _get('settlementTotalPayout');
   String settlementCommissionLabel(String amount) =>
@@ -2201,10 +2275,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   // JM-033 — Confirm Receipt (Customer), delivered-receipt-confirm (D11, D3)
   String get receiptTitle => _get('receiptTitle');
   String get receiptPromptHeading => _get('receiptPromptHeading');
-  String receiptCashToJeeber(String amount, String jeeber) =>
-      _get('receiptCashToJeeber')
-          .replaceFirst('{amount}', amount)
-          .replaceFirst('{jeeber}', jeeber);
+  String receiptCashToJeeber(String amount, String jeeber) => _get(
+    'receiptCashToJeeber',
+  ).replaceFirst('{amount}', amount).replaceFirst('{jeeber}', jeeber);
   String get receiptJeeberFallback => _get('receiptJeeberFallback');
   String receiptCashToJeeberNoAmount(String jeeber) =>
       _get('receiptCashToJeeberNoAmount').replaceFirst('{jeeber}', jeeber);
@@ -2219,8 +2292,7 @@ extension AppLocalizationsRestored on AppLocalizations {
 
   // JM-053 — Wallet Hub (wallet-hub)
   String get walletHubTitle => _get('walletHubTitle');
-  String get walletAvailableBalanceLabel =>
-      _get('walletAvailableBalanceLabel');
+  String get walletAvailableBalanceLabel => _get('walletAvailableBalanceLabel');
   String get walletTopUpCta => _get('walletTopUpCta');
   String get walletHubLoadError => _get('walletHubLoadError');
   String get walletHubRetry => _get('walletHubRetry');

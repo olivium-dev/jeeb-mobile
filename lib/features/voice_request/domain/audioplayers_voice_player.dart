@@ -15,7 +15,7 @@ import 'voice_player.dart';
 /// emitting position ticks into a closed cubit.
 class AudioPlayersVoicePlayer implements VoicePlayer {
   AudioPlayersVoicePlayer({AudioPlayer? player})
-      : _player = player ?? AudioPlayer();
+    : _player = player ?? AudioPlayer();
 
   final AudioPlayer _player;
 
@@ -27,17 +27,26 @@ class AudioPlayersVoicePlayer implements VoicePlayer {
     VoiceClip clip, {
     required void Function(Duration) onPosition,
     required void Function() onCompleted,
+    Duration startAt = Duration.zero,
   }) async {
     await _cancelSubscriptions();
     _positionSub = _player.onPositionChanged.listen(onPosition);
     _completeSub = _player.onPlayerComplete.listen((_) => onCompleted());
-    await _player.play(_sourceFor(clip));
+    final source = _sourceFor(clip);
+    if (startAt == Duration.zero) {
+      await _player.play(source);
+    } else {
+      await _player.play(source, position: startAt);
+    }
   }
 
   @override
   Future<void> pause() async {
     await _player.pause();
   }
+
+  @override
+  Future<void> seek(Duration position) => _player.seek(position);
 
   @override
   Future<void> stop() async {

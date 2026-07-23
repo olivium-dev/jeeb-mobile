@@ -36,12 +36,12 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     required VoiceRecordingRepository repository,
     VoiceRecordingTickerFactory tickerFactory = _defaultTickerFactory,
     Duration tickInterval = const Duration(milliseconds: 100),
-  })  : _recorder = recorder,
-        _player = player,
-        _repository = repository,
-        _tickerFactory = tickerFactory,
-        _tickInterval = tickInterval,
-        super(const VoiceRecordingState());
+  }) : _recorder = recorder,
+       _player = player,
+       _repository = repository,
+       _tickerFactory = tickerFactory,
+       _tickInterval = tickInterval,
+       super(const VoiceRecordingState());
 
   final VoiceRecorder _recorder;
   final VoicePlayer _player;
@@ -62,25 +62,31 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     try {
       await _recorder.start();
     } on VoiceRecorderException catch (e) {
-      emit(state.copyWith(
-        phase: VoiceRecordingPhase.idle,
-        error: _mapRecorderFailure(e.failure),
-      ));
+      emit(
+        state.copyWith(
+          phase: VoiceRecordingPhase.idle,
+          error: _mapRecorderFailure(e.failure),
+        ),
+      );
       return;
     } catch (_) {
-      emit(state.copyWith(
-        phase: VoiceRecordingPhase.idle,
-        error: VoiceRecordingError.recorderFailed,
-      ));
+      emit(
+        state.copyWith(
+          phase: VoiceRecordingPhase.idle,
+          error: VoiceRecordingError.recorderFailed,
+        ),
+      );
       return;
     }
-    emit(state.copyWith(
-      phase: VoiceRecordingPhase.recording,
-      elapsed: Duration.zero,
-      clearClip: true,
-      clearError: true,
-      clearResult: true,
-    ));
+    emit(
+      state.copyWith(
+        phase: VoiceRecordingPhase.recording,
+        elapsed: Duration.zero,
+        clearClip: true,
+        clearError: true,
+        clearResult: true,
+      ),
+    );
     _recordTickSub = _tickerFactory(_tickInterval).listen(_onRecordTick);
   }
 
@@ -95,12 +101,14 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
       } catch (_) {
         // Best-effort cleanup — don't mask the underlying too-short signal.
       }
-      emit(state.copyWith(
-        phase: VoiceRecordingPhase.idle,
-        elapsed: Duration.zero,
-        clearClip: true,
-        error: VoiceRecordingError.tooShort,
-      ));
+      emit(
+        state.copyWith(
+          phase: VoiceRecordingPhase.idle,
+          elapsed: Duration.zero,
+          clearClip: true,
+          error: VoiceRecordingError.tooShort,
+        ),
+      );
       return;
     }
     await _finalizeRecording(elapsed);
@@ -117,12 +125,14 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     } catch (_) {
       // Ignore — we're tearing down anyway.
     }
-    emit(state.copyWith(
-      phase: VoiceRecordingPhase.idle,
-      elapsed: Duration.zero,
-      clearClip: true,
-      clearError: true,
-    ));
+    emit(
+      state.copyWith(
+        phase: VoiceRecordingPhase.idle,
+        elapsed: Duration.zero,
+        clearClip: true,
+        clearError: true,
+      ),
+    );
   }
 
   /// Drops the captured clip and returns to idle so the user can re-record.
@@ -144,18 +154,41 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     if (state.phase != VoiceRecordingPhase.recorded) return;
     final clip = state.clip;
     if (clip == null) return;
-    emit(state.copyWith(
-      phase: VoiceRecordingPhase.playing,
-      // If playback reached the end last time, restart from zero.
-      playbackPosition: state.playbackPosition >= clip.duration
-          ? Duration.zero
-          : state.playbackPosition,
-    ));
+    emit(
+      state.copyWith(
+        phase: VoiceRecordingPhase.playing,
+        // If playback reached the end last time, restart from zero.
+        playbackPosition: state.playbackPosition >= clip.duration
+            ? Duration.zero
+            : state.playbackPosition,
+      ),
+    );
     await _player.play(
       clip,
       onPosition: _onPlaybackPosition,
       onCompleted: _onPlaybackCompleted,
+      startAt: state.playbackPosition,
     );
+  }
+
+  /// Moves the review playhead. While audio is playing the platform player is
+  /// updated immediately; while paused the retained position is used as the
+  /// starting point on the next [togglePlayback].
+  Future<void> seekPlayback(Duration position) async {
+    if (state.phase != VoiceRecordingPhase.recorded &&
+        state.phase != VoiceRecordingPhase.playing) {
+      return;
+    }
+    final clip = state.clip;
+    if (clip == null) return;
+    final clamped = position < Duration.zero
+        ? Duration.zero
+        : (position > clip.duration ? clip.duration : position);
+    final wasPlaying = state.phase == VoiceRecordingPhase.playing;
+    emit(state.copyWith(playbackPosition: clamped));
+    if (wasPlaying) {
+      await _player.seek(clamped);
+    }
   }
 
   /// Submits the captured clip to the gateway. No-op if there is no clip or
@@ -166,26 +199,24 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
       await _player.stop();
     }
     final clip = state.clip!;
-    emit(state.copyWith(
-      phase: VoiceRecordingPhase.sending,
-      clearError: true,
-    ));
+    emit(state.copyWith(phase: VoiceRecordingPhase.sending, clearError: true));
     try {
       final result = await _repository.upload(clip);
-      emit(state.copyWith(
-        phase: VoiceRecordingPhase.sent,
-        result: result,
-      ));
+      emit(state.copyWith(phase: VoiceRecordingPhase.sent, result: result));
     } on VoiceUploadException catch (e) {
-      emit(state.copyWith(
-        phase: VoiceRecordingPhase.recorded,
-        error: _mapUploadFailure(e.failure),
-      ));
+      emit(
+        state.copyWith(
+          phase: VoiceRecordingPhase.recorded,
+          error: _mapUploadFailure(e.failure),
+        ),
+      );
     } catch (_) {
-      emit(state.copyWith(
-        phase: VoiceRecordingPhase.recorded,
-        error: VoiceRecordingError.uploadUnknown,
-      ));
+      emit(
+        state.copyWith(
+          phase: VoiceRecordingPhase.recorded,
+          error: VoiceRecordingError.uploadUnknown,
+        ),
+      );
     }
   }
 
@@ -226,28 +257,34 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
       final VoiceClip clip = await _recorder.stop(
         recordedDuration: cappedElapsed,
       );
-      emit(state.copyWith(
-        phase: VoiceRecordingPhase.recorded,
-        elapsed: cappedElapsed,
-        clip: clip,
-        playbackPosition: Duration.zero,
-        error: hitCap ? VoiceRecordingError.maxDurationReached : null,
-        clearError: !hitCap,
-      ));
+      emit(
+        state.copyWith(
+          phase: VoiceRecordingPhase.recorded,
+          elapsed: cappedElapsed,
+          clip: clip,
+          playbackPosition: Duration.zero,
+          error: hitCap ? VoiceRecordingError.maxDurationReached : null,
+          clearError: !hitCap,
+        ),
+      );
     } on VoiceRecorderException catch (e) {
-      emit(state.copyWith(
-        phase: VoiceRecordingPhase.idle,
-        elapsed: Duration.zero,
-        clearClip: true,
-        error: _mapRecorderFailure(e.failure),
-      ));
+      emit(
+        state.copyWith(
+          phase: VoiceRecordingPhase.idle,
+          elapsed: Duration.zero,
+          clearClip: true,
+          error: _mapRecorderFailure(e.failure),
+        ),
+      );
     } catch (_) {
-      emit(state.copyWith(
-        phase: VoiceRecordingPhase.idle,
-        elapsed: Duration.zero,
-        clearClip: true,
-        error: VoiceRecordingError.recorderFailed,
-      ));
+      emit(
+        state.copyWith(
+          phase: VoiceRecordingPhase.idle,
+          elapsed: Duration.zero,
+          clearClip: true,
+          error: VoiceRecordingError.recorderFailed,
+        ),
+      );
     }
   }
 
@@ -284,10 +321,12 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
   void _onPlaybackCompleted() {
     if (state.phase != VoiceRecordingPhase.playing) return;
     final clip = state.clip;
-    emit(state.copyWith(
-      phase: VoiceRecordingPhase.recorded,
-      playbackPosition: clip?.duration ?? Duration.zero,
-    ));
+    emit(
+      state.copyWith(
+        phase: VoiceRecordingPhase.recorded,
+        playbackPosition: clip?.duration ?? Duration.zero,
+      ),
+    );
   }
 
   VoiceRecordingError _mapRecorderFailure(VoiceRecorderFailure failure) {

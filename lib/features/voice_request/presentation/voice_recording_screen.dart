@@ -28,8 +28,11 @@ class VoiceRecordingKeys {
   static const Key playbackProgress = Key('voice_request_playback_progress');
   static const Key discardButton = Key('voice_request_discard_button');
   static const Key sendButton = Key('voice_request_send_button');
-  static const Key recordAnotherButton =
-      Key('voice_request_record_another_button');
+  static const Key uploadErrorState = Key('voice_request_upload_error_state');
+  static const Key retryUploadButton = Key('voice_request_retry_upload_button');
+  static const Key recordAnotherButton = Key(
+    'voice_request_record_another_button',
+  );
 }
 
 /// Signature of the sent handoff. Carries the gateway upload id, the optional
@@ -37,12 +40,13 @@ class VoiceRecordingKeys {
 /// clip duration — the upload id is a gateway `audioId`, NOT a locally
 /// playable path, so without [localAudioPath] the transcription review's
 /// replay control had nothing real to play.
-typedef VoiceSentCallback = void Function(
-  String id,
-  String? transcript, {
-  String? localAudioPath,
-  Duration duration,
-});
+typedef VoiceSentCallback =
+    void Function(
+      String id,
+      String? transcript, {
+      String? localAudioPath,
+      Duration duration,
+    });
 
 /// Screen that lets the user record a voice request, preview it, and send it
 /// to the gateway (JEEB-60 / T-mobile-007).
@@ -54,11 +58,7 @@ typedef VoiceSentCallback = void Function(
 /// via the [cubit] parameter so they can drive state transitions without the
 /// real platform recorder.
 class VoiceRecordingScreen extends StatelessWidget {
-  const VoiceRecordingScreen({
-    super.key,
-    this.cubit,
-    this.onSent,
-  });
+  const VoiceRecordingScreen({super.key, this.cubit, this.onSent});
 
   /// Optional injected cubit. Tests pass a pre-wired one; production builds a
   /// default with the in-memory recorder/player and HTTP repository.
@@ -102,8 +102,8 @@ class VoiceRecordingScreen extends StatelessWidget {
         : AudioPlayersVoicePlayer();
     final VoiceRecordingRepository repository =
         di.isRegistered<VoiceRecordingRepository>()
-            ? di<VoiceRecordingRepository>()
-            : HttpVoiceRecordingRepository(dio: resolveGatewayDio());
+        ? di<VoiceRecordingRepository>()
+        : HttpVoiceRecordingRepository(dio: resolveGatewayDio());
     return VoiceRecordingCubit(
       recorder: recorder,
       player: player,
@@ -121,10 +121,7 @@ class _VoiceRecordingView extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: OMDSAppBar(
-        title: l10n.voiceRecordingTitle,
-        centerTitle: false,
-      ),
+      appBar: OMDSAppBar(title: l10n.voiceRecordingTitle, centerTitle: false),
       body: SafeArea(
         child: BlocConsumer<VoiceRecordingCubit, VoiceRecordingState>(
           listenWhen: (prev, curr) =>
@@ -147,26 +144,12 @@ class _VoiceRecordingView extends StatelessWidget {
               );
             }
             final error = state.error;
-            if (error != null && !_isBlockingError(error)) {
-              // Transient errors (too-short, max-duration, upload failures) get
-              // a one-shot snackbar, then are acknowledged so the same copy
-              // doesn't re-render. The blocking pre-conditions (mic permission
-              // denied, recorder unavailable) are deliberately NOT snackbar'd:
-              // a transient toast is a dead-end the user can't act on. They
-              // persist in state so the idle surface can render a recoverable
-              // OmdsErrorState with a "Try again" action (see [_MicSurface]).
-              //
-              // EXEMPT: OMDS does not export a standalone snackbar/toast
-              // widget; ScaffoldMessenger.showSnackBar is the approved
-              // fleet pattern for transient error feedback (T-MOB-011).
-              ScaffoldMessenger.of(context)
-                ..clearSnackBars()
-                ..showSnackBar(
-                  SnackBar(
-                    content: Text(_errorCopy(l10n, error)),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
+            if (error != null && _isTransientError(error)) {
+              // Recording errors remain one-shot feedback. Upload errors are
+              // deliberately excluded: the retained clip renders a persistent
+              // OMDS error state with retry-submit and record-again actions.
+              ScaffoldMessenger.of(context).clearSnackBars();
+              showOmdsErrorSnackbar(context, message: _errorCopy(l10n, error));
               context.read<VoiceRecordingCubit>().acknowledgeError();
             }
           },
@@ -176,12 +159,16 @@ class _VoiceRecordingView extends StatelessWidget {
               child: Column(
                 children: [
                   const SizedBox(height: Spacing.large),
-                  Text(
-                    l10n.voiceRecordingSubtitle,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: Spacing.large),
+                  if (state.phase != VoiceRecordingPhase.sent) ...[
+                    Text(
+                      _isReviewPhase(state.phase)
+                          ? l10n.voiceRecordingReviewTitle
+                          : l10n.voiceRecordingSubtitle,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: Spacing.large),
+                  ],
                   _TimerLabel(state: state),
                   const Spacer(),
                   _PrimarySurface(state: state),
@@ -196,27 +183,6 @@ class _VoiceRecordingView extends StatelessWidget {
       ),
     );
   }
-
-  String _errorCopy(AppLocalizations l10n, VoiceRecordingError error) {
-    switch (error) {
-      case VoiceRecordingError.permissionDenied:
-        return l10n.voiceRecordingErrorPermission;
-      case VoiceRecordingError.recorderUnavailable:
-        return l10n.voiceRecordingErrorUnavailable;
-      case VoiceRecordingError.recorderFailed:
-        return l10n.voiceRecordingErrorRecorderFailed;
-      case VoiceRecordingError.tooShort:
-        return l10n.voiceRecordingErrorTooShort;
-      case VoiceRecordingError.maxDurationReached:
-        return l10n.voiceRecordingErrorMaxReached;
-      case VoiceRecordingError.uploadNetwork:
-        return l10n.voiceRecordingErrorUploadNetwork;
-      case VoiceRecordingError.uploadServer:
-        return l10n.voiceRecordingErrorUploadServer;
-      case VoiceRecordingError.uploadUnknown:
-        return l10n.voiceRecordingErrorUploadGeneric;
-    }
-  }
 }
 
 class _TimerLabel extends StatelessWidget {
@@ -230,9 +196,13 @@ class _TimerLabel extends StatelessWidget {
     final duration = state.isRecording
         ? state.elapsed
         : (state.clip?.duration ?? Duration.zero);
-    final shouldShow = state.isRecording ||
+    final shouldShow =
+        state.isRecording ||
         state.hasClip ||
         state.phase == VoiceRecordingPhase.sending;
+    if (state.phase == VoiceRecordingPhase.sent) {
+      return const SizedBox.shrink();
+    }
     if (!shouldShow) {
       return Text(
         '00:00',
@@ -267,6 +237,9 @@ class _PrimarySurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (state.hasUploadFailure) {
+      return _UploadFailureSurface(error: state.error!);
+    }
     switch (state.phase) {
       case VoiceRecordingPhase.idle:
       case VoiceRecordingPhase.recording:
@@ -409,73 +382,61 @@ class _PlaybackPreview extends StatelessWidget {
     final progress = total.inMilliseconds == 0
         ? 0.0
         : (position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0);
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.medium,
-        vertical: Spacing.medium,
-      ),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHigh,
-        borderRadius: OmdsBorderRadius.medium,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Semantics(
-                identifier: 'voice_request_playback_toggle',
-                button: true,
-                label: state.isPlaying
-                    ? l10n.voiceRecordingPause
-                    : l10n.voiceRecordingPlay,
-                child: IconButton.filled(
-                  key: VoiceRecordingKeys.playbackToggle,
-                  iconSize: 40,
-                  onPressed:
-                      state.isSending ? null : () => cubit.togglePlayback(),
-                  icon: Icon(
-                    state.isPlaying
-                        ? Icons.pause_circle_filled
-                        : Icons.play_circle_filled,
-                  ),
-                ),
-              ),
-              const SizedBox(width: Spacing.medium),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Semantics(
-                      identifier: 'voice_request_playback_progress',
-                      container: true,
-                      value: '${(progress * 100).round()}%',
-                      child: ClipRRect(
-                        borderRadius: OmdsBorderRadius.twoXSmall,
-                        child: LinearProgressIndicator(
-                          key: VoiceRecordingKeys.playbackProgress,
-                          value: progress,
-                          minHeight: 6,
-                          backgroundColor:
-                              colorScheme.outline.withValues(alpha: 0.2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: Spacing.xSmall),
-                    Text(
-                      '${_formatDuration(position)} / '
-                      '${_formatDuration(total)}',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            fontFeatures: const [FontFeature.tabularFigures()],
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        OmdsPrimaryButton(
+          key: VoiceRecordingKeys.playbackToggle,
+          identifier: 'voice_request_playback_toggle',
+          text: state.isPlaying
+              ? l10n.voiceRecordingPause
+              : l10n.voiceRecordingPlay,
+          icon: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
+          variant: OmdsButtonVariant.secondary,
+          onTap: state.isSending ? () {} : () => cubit.togglePlayback(),
+          isEnabled: !state.isSending,
+        ),
+        const SizedBox(height: Spacing.small),
+        Semantics(
+          identifier: 'voice_request_playback_progress',
+          container: true,
+          value: '${(progress * 100).round()}%',
+          child: IgnorePointer(
+            ignoring: state.isSending,
+            child: OmdsSeekBar(
+              key: VoiceRecordingKeys.playbackProgress,
+              duration: total,
+              position: position,
+              bufferedPosition: Duration.zero,
+              onChangeEnd: cubit.seekPlayback,
+              activeColor: colorScheme.primary,
+              bufferedColor: colorScheme.primary,
+              inactiveColor: colorScheme.onSurfaceVariant,
+              thumbColor: colorScheme.primary,
+              thumbRadius: 8,
+              trackHeight: 4,
+            ),
           ),
-        ],
-      ),
+        ),
+      ],
+    );
+  }
+}
+
+class _UploadFailureSurface extends StatelessWidget {
+  const _UploadFailureSurface({required this.error});
+
+  final VoiceRecordingError error;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return OmdsErrorState(
+      key: VoiceRecordingKeys.uploadErrorState,
+      icon: Icons.cloud_upload_outlined,
+      title: l10n.voiceRecordingUploadErrorTitle,
+      message: _errorCopy(l10n, error),
+      padding: const EdgeInsets.all(Spacing.medium),
     );
   }
 }
@@ -526,10 +487,7 @@ class _SentConfirmation extends StatelessWidget {
 /// Sub-line shown below the sent confirmation, indicating the request is being
 /// broadcast to nearby Jeebers (SM-1 Broadcasting phase, T-MOB-011 AC3).
 class _BroadcastingBanner extends StatelessWidget {
-  const _BroadcastingBanner({
-    required this.l10n,
-    required this.colorScheme,
-  });
+  const _BroadcastingBanner({required this.l10n, required this.colorScheme});
 
   final AppLocalizations l10n;
   final ColorScheme colorScheme;
@@ -557,8 +515,8 @@ class _BroadcastingBanner extends StatelessWidget {
           Text(
             l10n.voiceRecordingBroadcastingHint,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: colorScheme.onSecondaryContainer,
-                ),
+              color: colorScheme.onSecondaryContainer,
+            ),
           ),
         ],
       ),
@@ -574,6 +532,9 @@ class _ActionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cubit = context.read<VoiceRecordingCubit>();
+    if (state.hasUploadFailure) {
+      return _UploadFailureActions(cubit: cubit, l10n: l10n);
+    }
     switch (state.phase) {
       case VoiceRecordingPhase.idle:
         return const SizedBox.shrink();
@@ -600,7 +561,7 @@ class _ActionRow extends StatelessWidget {
                 container: true,
                 child: OMDSOutlinedButton(
                   key: VoiceRecordingKeys.discardButton,
-                  text: l10n.voiceRecordingDiscard,
+                  text: l10n.voiceRecordingRecordAgain,
                   onTap: () => cubit.discardClip(),
                 ),
               ),
@@ -612,7 +573,7 @@ class _ActionRow extends StatelessWidget {
                 container: true,
                 child: OmdsPrimaryButton(
                   key: VoiceRecordingKeys.sendButton,
-                  text: l10n.voiceRecordingSend,
+                  text: l10n.voiceRecordingSubmit,
                   onTap: () => cubit.send(),
                   isEnabled: state.canSend,
                 ),
@@ -646,6 +607,37 @@ class _ActionRow extends StatelessWidget {
   }
 }
 
+class _UploadFailureActions extends StatelessWidget {
+  const _UploadFailureActions({required this.cubit, required this.l10n});
+
+  final VoiceRecordingCubit cubit;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: OMDSOutlinedButton(
+            key: VoiceRecordingKeys.discardButton,
+            text: l10n.voiceRecordingRecordAgain,
+            onTap: () => cubit.discardClip(),
+          ),
+        ),
+        const SizedBox(width: Spacing.medium),
+        Expanded(
+          child: OmdsPrimaryButton(
+            key: VoiceRecordingKeys.retryUploadButton,
+            identifier: 'voice_request_retry_upload_button',
+            text: l10n.voiceRecordingRetryUploadSubmit,
+            onTap: () => cubit.send(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Errors that block recording until the user acts (grants mic permission, or
 /// frees the recorder). These persist on screen as a recoverable
 /// [OmdsErrorState] instead of a transient snackbar so the user is never left
@@ -653,6 +645,40 @@ class _ActionRow extends StatelessWidget {
 bool _isBlockingError(VoiceRecordingError error) =>
     error == VoiceRecordingError.permissionDenied ||
     error == VoiceRecordingError.recorderUnavailable;
+
+bool _isUploadError(VoiceRecordingError error) =>
+    error == VoiceRecordingError.uploadNetwork ||
+    error == VoiceRecordingError.uploadServer ||
+    error == VoiceRecordingError.uploadUnknown;
+
+bool _isTransientError(VoiceRecordingError error) =>
+    !_isBlockingError(error) && !_isUploadError(error);
+
+bool _isReviewPhase(VoiceRecordingPhase phase) =>
+    phase == VoiceRecordingPhase.recorded ||
+    phase == VoiceRecordingPhase.playing ||
+    phase == VoiceRecordingPhase.sending;
+
+String _errorCopy(AppLocalizations l10n, VoiceRecordingError error) {
+  switch (error) {
+    case VoiceRecordingError.permissionDenied:
+      return l10n.voiceRecordingErrorPermission;
+    case VoiceRecordingError.recorderUnavailable:
+      return l10n.voiceRecordingErrorUnavailable;
+    case VoiceRecordingError.recorderFailed:
+      return l10n.voiceRecordingErrorRecorderFailed;
+    case VoiceRecordingError.tooShort:
+      return l10n.voiceRecordingErrorTooShort;
+    case VoiceRecordingError.maxDurationReached:
+      return l10n.voiceRecordingErrorMaxReached;
+    case VoiceRecordingError.uploadNetwork:
+      return l10n.voiceRecordingErrorUploadNetwork;
+    case VoiceRecordingError.uploadServer:
+      return l10n.voiceRecordingErrorUploadServer;
+    case VoiceRecordingError.uploadUnknown:
+      return l10n.voiceRecordingErrorUploadGeneric;
+  }
+}
 
 String _formatDuration(Duration duration) {
   final clamped = duration.isNegative ? Duration.zero : duration;
