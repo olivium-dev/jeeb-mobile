@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -69,11 +72,48 @@ void main() {
             ? TextDirection.rtl
             : TextDirection.ltr,
       );
-      await expectLater(
+      await _expectGoldenWithLinuxDiagnostic(
+        tester,
         find.byKey(const Key('filter-sheet-golden')),
-        matchesGoldenFile('goldens/order_history_filter_${scenario.name}.png'),
+        goldenPath: 'goldens/order_history_filter_${scenario.name}.png',
+        failureStem: 'order_history_filter_${scenario.name}',
       );
     });
+  }
+}
+
+Future<void> _expectGoldenWithLinuxDiagnostic(
+  WidgetTester tester,
+  Finder finder, {
+  required String goldenPath,
+  required String failureStem,
+}) async {
+  try {
+    await expectLater(finder, matchesGoldenFile(goldenPath));
+  } catch (_) {
+    if (Platform.isLinux) {
+      await _emitPng(
+        tester,
+        failureStem,
+        File(
+          'test/features/order_history/failures/'
+          '${failureStem}_testImage.png',
+        ),
+      );
+    }
+    rethrow;
+  }
+}
+
+Future<void> _emitPng(WidgetTester tester, String stem, File file) async {
+  if (!file.existsSync()) return;
+  final encoded = base64Encode(await file.readAsBytes());
+  const chunkSize = 4000;
+  for (var offset = 0; offset < encoded.length; offset += chunkSize) {
+    final end = (offset + chunkSize).clamp(0, encoded.length);
+    tester.printToConsole(
+      'GOLDEN_BASE64_CHUNK:$stem:${encoded.substring(offset, end)}',
+    );
   }
 }
 
