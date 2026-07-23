@@ -71,12 +71,15 @@ class _GatedSubmissionService implements RequestSubmissionService {
   }
 }
 
-Future<({
-  GoRouter router,
-  RoleCubit role,
-  RoleEligibilityCubit roleEligibility,
-  LocaleCubit locale,
-})> _buildRouter() async {
+Future<
+  ({
+    GoRouter router,
+    RoleCubit role,
+    RoleEligibilityCubit roleEligibility,
+    LocaleCubit locale,
+  })
+>
+_buildRouter() async {
   SharedPreferences.setMockInitialValues(<String, Object>{
     'app.onboarding.completed': true,
   });
@@ -178,6 +181,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tier → Continue → location-select.
+      await tester.tap(find.bySemanticsIdentifier('request_type_flash_radio'));
+      await tester.pump();
       await tester.tap(find.bySemanticsIdentifier('request_type_continue_cta'));
       await tester.pumpAndSettle();
 
@@ -210,20 +215,28 @@ void main() {
         final lock = find.ancestor(
           of: addRow,
           matching: find.byWidgetPredicate(
-              (w) => w is IgnorePointer && w.ignoring == true),
+            (w) => w is IgnorePointer && w.ignoring == true,
+          ),
         );
-        expect(lock, findsOneWidget,
-            reason: 'the add-location row must be locked while in flight');
+        expect(
+          lock,
+          findsOneWidget,
+          reason: 'the add-location row must be locked while in flight',
+        );
 
         // Tapping the add-location row while in flight must NOT push
         // capture-location — the lock swallows the tap.
         await tester.tap(addRow, warnIfMissed: false);
         await tester.pump();
-        expect(find.bySemanticsIdentifier('capture_location_pin_cta'),
-            findsNothing);
+        expect(
+          find.bySemanticsIdentifier('capture_location_pin_cta'),
+          findsNothing,
+        );
         // Still on the location-select step (its Confirm CTA is present).
-        expect(find.bySemanticsIdentifier('location_select_confirm_cta'),
-            findsOneWidget);
+        expect(
+          find.bySemanticsIdentifier('location_select_confirm_cta'),
+          findsOneWidget,
+        );
 
         // Cleanly finish the in-flight create so no pending timer/future leaks.
         submission.release();
@@ -246,8 +259,10 @@ void main() {
         // the waiting surface from underneath the pushed route.
         router.pushNamed('capture-location');
         await tester.pumpAndSettle();
-        expect(find.bySemanticsIdentifier('capture_location_pin_cta'),
-            findsOneWidget);
+        expect(
+          find.bySemanticsIdentifier('capture_location_pin_cta'),
+          findsOneWidget,
+        );
 
         // Complete the create. The success nav is suppressed: we stay on the
         // pushed capture route (its Pin CTA is still shown). A rogue `goNamed`
@@ -258,14 +273,16 @@ void main() {
         await tester.pump();
 
         expect(submission.submitCount, 1);
-        expect(find.bySemanticsIdentifier('capture_location_pin_cta'),
-            findsOneWidget,
-            reason: 'the completed create must NOT goNamed the waiting surface '
-                'from underneath the pushed capture-location route');
+        expect(
+          find.bySemanticsIdentifier('capture_location_pin_cta'),
+          findsOneWidget,
+          reason:
+              'the completed create must NOT goNamed the waiting surface '
+              'from underneath the pushed capture-location route',
+        );
         expect(tester.takeException(), isNull);
       },
     );
-
   });
 
   // Direct, harness-free proof that the route-currentness RULE is load-bearing.
@@ -278,20 +295,32 @@ void main() {
   // mutation-catch the reviewer asked for, at the rule level.
   group('B-02b — shouldRouteAfterCreate (route-currentness predicate)', () {
     test('navigates only when mounted AND the route is current', () {
-      expect(shouldRouteAfterCreate(mounted: true, isRouteCurrent: true), isTrue);
+      expect(
+        shouldRouteAfterCreate(mounted: true, isRouteCurrent: true),
+        isTrue,
+      );
     });
 
-    test('does NOT navigate when mounted but the route is NOT current '
-        '(overlay/dialog on top) — the isRouteCurrent term is load-bearing', () {
-      expect(
-          shouldRouteAfterCreate(mounted: true, isRouteCurrent: false), isFalse);
-    });
+    test(
+      'does NOT navigate when mounted but the route is NOT current '
+      '(overlay/dialog on top) — the isRouteCurrent term is load-bearing',
+      () {
+        expect(
+          shouldRouteAfterCreate(mounted: true, isRouteCurrent: false),
+          isFalse,
+        );
+      },
+    );
 
     test('does NOT navigate when unmounted (backed out / page disposed)', () {
       expect(
-          shouldRouteAfterCreate(mounted: false, isRouteCurrent: true), isFalse);
-      expect(shouldRouteAfterCreate(mounted: false, isRouteCurrent: false),
-          isFalse);
+        shouldRouteAfterCreate(mounted: false, isRouteCurrent: true),
+        isFalse,
+      );
+      expect(
+        shouldRouteAfterCreate(mounted: false, isRouteCurrent: false),
+        isFalse,
+      );
     });
   });
 }

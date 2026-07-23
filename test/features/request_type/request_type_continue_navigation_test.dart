@@ -43,12 +43,15 @@ import '../../support/fake_current_location_resolver.dart';
 import '../../support/fake_request_submission_service.dart';
 import '../../support/sync_app_localizations.dart';
 
-Future<({
-  GoRouter router,
-  RoleCubit role,
-  RoleEligibilityCubit roleEligibility,
-  LocaleCubit locale,
-})> _buildRouter() async {
+Future<
+  ({
+    GoRouter router,
+    RoleCubit role,
+    RoleEligibilityCubit roleEligibility,
+    LocaleCubit locale,
+  })
+>
+_buildRouter() async {
   SharedPreferences.setMockInitialValues(<String, Object>{
     'app.onboarding.completed': true,
   });
@@ -104,8 +107,8 @@ void main() {
   group('JM-024 — /request-type Continue CTA advances to location-select', () {
     setUp(() async {
       await sl.reset();
-      // `/request-type` resolves TierRepository via sl (pre-selects Flash so the
-      // Continue CTA is enabled on first paint).
+      // `/request-type` resolves TierRepository via sl. The customer must tap a
+      // tier before Continue enables.
       sl.registerLazySingleton<CurrentLocationResolver>(
         FakeCurrentLocationResolver.new,
       );
@@ -133,42 +136,45 @@ void main() {
       await sl.reset();
     });
 
-    testWidgets(
-      'tapping Continue (default-selected Flash tier) lands on the '
-      'location-select screen (NOT the request-summary card)',
-      (tester) async {
-        final built = await _buildRouter();
-        built.router.go('/request-type');
-        await tester.pumpWidget(
-          _harness(built.router, built.role, built.roleEligibility,
-              built.locale),
-        );
-        await tester.pumpAndSettle();
+    testWidgets('selecting Flash then tapping Continue lands on the '
+        'location-select screen (NOT the request-summary card)', (
+      tester,
+    ) async {
+      final built = await _buildRouter();
+      built.router.go('/request-type');
+      await tester.pumpWidget(
+        _harness(built.router, built.role, built.roleEligibility, built.locale),
+      );
+      await tester.pumpAndSettle();
 
-        // The request-type screen is up; Continue is enabled (Flash pre-selected).
-        expect(find.byType(RequestTypeScreen), findsOneWidget);
-        final continueCta =
-            find.bySemanticsIdentifier('request_type_continue_cta');
-        expect(continueCta, findsOneWidget);
-        await tester.ensureVisible(continueCta);
+      // The request-type screen is up; explicitly choose Flash to enable the
+      // Continue action.
+      expect(find.byType(RequestTypeScreen), findsOneWidget);
+      await tester.tap(find.bySemanticsIdentifier('request_type_flash_radio'));
+      await tester.pump();
+      final continueCta = find.bySemanticsIdentifier(
+        'request_type_continue_cta',
+      );
+      expect(continueCta, findsOneWidget);
+      await tester.ensureVisible(continueCta);
 
-        await tester.tap(continueCta);
-        await tester.pumpAndSettle();
+      await tester.tap(continueCta);
+      await tester.pumpAndSettle();
 
-        // JM-024 AC1: Continue → location-select.
-        expect(
-          find.byType(ClientLocationScreen),
-          findsOneWidget,
-          reason: 'Continue must advance to location-select (the blueprint '
-              'create flow), not the legacy /request-summary card.',
-        );
-        expect(
-          find.bySemanticsIdentifier('location_select_confirm_cta'),
-          findsOneWidget,
-          reason: 'The location-select Confirm CTA must be on screen.',
-        );
-        expect(tester.takeException(), isNull);
-      },
-    );
+      // JM-024 AC1: Continue → location-select.
+      expect(
+        find.byType(ClientLocationScreen),
+        findsOneWidget,
+        reason:
+            'Continue must advance to location-select (the blueprint '
+            'create flow), not the legacy /request-summary card.',
+      );
+      expect(
+        find.bySemanticsIdentifier('location_select_confirm_cta'),
+        findsOneWidget,
+        reason: 'The location-select Confirm CTA must be on screen.',
+      );
+      expect(tester.takeException(), isNull);
+    });
   });
 }

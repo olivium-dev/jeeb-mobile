@@ -25,8 +25,7 @@ class _SyncDelegate extends LocalizationsDelegate<AppLocalizations> {
   final Map<String, String> _arbByTag;
 
   @override
-  bool isSupported(Locale locale) =>
-      _arbByTag.containsKey(locale.languageCode);
+  bool isSupported(Locale locale) => _arbByTag.containsKey(locale.languageCode);
 
   @override
   Future<AppLocalizations> load(Locale locale) async =>
@@ -126,7 +125,7 @@ void main() {
       // `request_type_<tier>_radio` id (was `request_type_tier_<enum>`).
       final ecoCard = find.bySemanticsIdentifier('request_type_eco_radio');
       expect(ecoCard, findsOneWidget);
-      // Eco starts unchecked (Flash is the recommended default).
+      // Every tier starts unchecked until the customer makes a choice.
       expect(
         tester.getSemantics(ecoCard).flagsCollection.isChecked,
         CheckedState.isFalse,
@@ -177,9 +176,11 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        _harness(const ClientLocationScreen(
-          repository: FakeLocationSelectRepository(),
-        )),
+        _harness(
+          const ClientLocationScreen(
+            repository: FakeLocationSelectRepository(),
+          ),
+        ),
       );
       await tester.pumpAndSettle();
       expect(find.text('Choose your location'), findsOneWidget);
@@ -206,10 +207,12 @@ void main() {
     testWidgets('add-location callback fires', (tester) async {
       var added = false;
       await tester.pumpWidget(
-        _harness(ClientLocationScreen(
-          repository: const FakeLocationSelectRepository(),
-          onAddLocation: () => added = true,
-        )),
+        _harness(
+          ClientLocationScreen(
+            repository: const FakeLocationSelectRepository(),
+            onAddLocation: () => added = true,
+          ),
+        ),
       );
       await tester.pumpAndSettle();
       await tester.tap(
@@ -247,9 +250,7 @@ void main() {
         _harness(CaptureLocationScreen(onPinned: () => pinned = true)),
       );
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.bySemanticsIdentifier('capture_location_pin_cta'),
-      );
+      await tester.tap(find.bySemanticsIdentifier('capture_location_pin_cta'));
       expect(pinned, isTrue);
     });
   });

@@ -63,12 +63,15 @@ class _GatedSubmissionService implements RequestSubmissionService {
   }
 }
 
-Future<({
-  GoRouter router,
-  RoleCubit role,
-  RoleEligibilityCubit roleEligibility,
-  LocaleCubit locale,
-})> _buildRouter() async {
+Future<
+  ({
+    GoRouter router,
+    RoleCubit role,
+    RoleEligibilityCubit roleEligibility,
+    LocaleCubit locale,
+  })
+>
+_buildRouter() async {
   SharedPreferences.setMockInitialValues(<String, Object>{
     'app.onboarding.completed': true,
   });
@@ -156,12 +159,22 @@ void main() {
         built.router.go('/request-type');
         await tester.pumpWidget(
           _harness(
-              built.router, built.role, built.roleEligibility, built.locale),
+            built.router,
+            built.role,
+            built.roleEligibility,
+            built.locale,
+          ),
         );
         await tester.pumpAndSettle();
 
         // Tier → Continue → location-select.
-        await tester.tap(find.bySemanticsIdentifier('request_type_continue_cta'));
+        await tester.tap(
+          find.bySemanticsIdentifier('request_type_flash_radio'),
+        );
+        await tester.pump();
+        await tester.tap(
+          find.bySemanticsIdentifier('request_type_continue_cta'),
+        );
         await tester.pumpAndSettle();
 
         // G1: the request content is required before Confirm enables.
@@ -171,30 +184,42 @@ void main() {
         );
         await tester.pump();
 
-        final confirm =
-            find.bySemanticsIdentifier('location_select_confirm_cta');
+        final confirm = find.bySemanticsIdentifier(
+          'location_select_confirm_cta',
+        );
         expect(confirm, findsOneWidget);
         await tester.ensureVisible(confirm);
 
         // First tap: fires the create; it now blocks on the gate (in flight).
         await tester.tap(confirm);
         await tester.pump();
-        expect(submission.submitCount, 1,
-            reason: 'first tap must fire POST /requests exactly once');
+        expect(
+          submission.submitCount,
+          1,
+          reason: 'first tap must fire POST /requests exactly once',
+        );
 
         // The CTA reports its loading state (disabled + spinner) while in
         // flight — the visible half of the double-submit guard.
-        final button =
-            tester.widget<OmdsLoadingButton>(find.byType(OmdsLoadingButton));
-        expect(button.isLoading, isTrue,
-            reason: 'the Confirm CTA must show its loading state in flight');
+        final button = tester.widget<OmdsLoadingButton>(
+          find.byType(OmdsLoadingButton),
+        );
+        expect(
+          button.isLoading,
+          isTrue,
+          reason: 'the Confirm CTA must show its loading state in flight',
+        );
 
         // Second tap while in flight must be a no-op (the guard).
         await tester.tap(confirm, warnIfMissed: false);
         await tester.pump();
-        expect(submission.submitCount, 1,
-            reason: 'the in-flight guard must swallow the second tap — a double '
-                'tap must never create the request twice');
+        expect(
+          submission.submitCount,
+          1,
+          reason:
+              'the in-flight guard must swallow the second tap — a double '
+              'tap must never create the request twice',
+        );
 
         // Release the gate so the create completes and nav proceeds. Use
         // explicit pumps (NOT pumpAndSettle): the in-flight spinner is an

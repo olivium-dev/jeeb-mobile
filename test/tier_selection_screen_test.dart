@@ -12,9 +12,7 @@ void main() {
     testWidgets('renders 3 tier cards when API succeeds', (tester) async {
       await tester.pumpWidget(
         wrapForTest(
-          const TierSelectionScreen(
-            repository: FakeTierRepository(),
-          ),
+          const TierSelectionScreen(repository: FakeTierRepository()),
         ),
       );
       await tester.pump();
@@ -34,13 +32,13 @@ void main() {
       );
     });
 
-    testWidgets('surfaces an error state when network fails (JEBV4-300)',
-        (tester) async {
+    testWidgets('surfaces an error state when network fails (JEBV4-300)', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         wrapForTest(
           const TierSelectionScreen(
-            repository:
-                FakeTierRepository(failWith: TierLoadFailure.network),
+            repository: FakeTierRepository(failWith: TierLoadFailure.network),
           ),
         ),
       );
@@ -61,27 +59,27 @@ void main() {
       expect(find.byType(OmdsErrorState), findsOneWidget);
     });
 
-    testWidgets('confirm button is disabled until a tier is selected',
-        (tester) async {
+    testWidgets('confirm button is disabled until a tier is selected', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         wrapForTest(
-          const TierSelectionScreen(
-            repository: _NoRecommendedRepository(),
-          ),
+          const TierSelectionScreen(repository: _NoRecommendedRepository()),
         ),
       );
       await tester.pump();
       await tester.pump();
 
-      // No recommended tier → nothing pre-selected → button disabled.
+      // No customer tap → nothing selected → button disabled.
       final btn = tester.widget<OmdsPrimaryButton>(
         find.byKey(TierSelectionScreen.confirmButtonKey),
       );
       expect(btn.isEnabled, isFalse);
     });
 
-    testWidgets('tapping a card selects it and enables confirm (AC2)',
-        (tester) async {
+    testWidgets('tapping a card selects it and enables confirm (AC2)', (
+      tester,
+    ) async {
       Tier? confirmed;
       await tester.pumpWidget(
         wrapForTest(
@@ -107,26 +105,27 @@ void main() {
       expect(confirmed?.id, TierId.express);
     });
 
-    testWidgets('pre-selects recommended tier on first load', (tester) async {
+    testWidgets('does not pre-select the recommended tier on first load', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         wrapForTest(
-          const TierSelectionScreen(
-            repository: FakeTierRepository(),
-          ),
+          const TierSelectionScreen(repository: FakeTierRepository()),
         ),
       );
       await tester.pump();
       await tester.pump();
 
-      // Flash is recommended in FakeTierRepository → confirm button enabled.
+      // A recommendation is display metadata, not a customer choice.
       final btn = tester.widget<OmdsPrimaryButton>(
         find.byKey(TierSelectionScreen.confirmButtonKey),
       );
-      expect(btn.isEnabled, isTrue);
+      expect(btn.isEnabled, isFalse);
     });
 
-    testWidgets('retry button re-fetches and recovers to loaded (JEBV4-300)',
-        (tester) async {
+    testWidgets('retry button re-fetches and recovers to loaded (JEBV4-300)', (
+      tester,
+    ) async {
       var callCount = 0;
       await tester.pumpWidget(
         wrapForTest(
@@ -177,16 +176,16 @@ class _NoRecommendedRepository implements TierRepository {
 
   @override
   Future<List<Tier>> fetchTiers() async => const [
-        Tier(
-          id: TierId.express,
-          priceLow: 80000,
-          priceHigh: 120000,
-          currency: 'LBP',
-          vehicleClass: TierVehicleClass.scooterOrCar,
-          slaMinutes: 120,
-          recommended: false,
-        ),
-      ];
+    Tier(
+      id: TierId.express,
+      priceLow: 80000,
+      priceHigh: 120000,
+      currency: 'LBP',
+      vehicleClass: TierVehicleClass.scooterOrCar,
+      slaMinutes: 120,
+      recommended: false,
+    ),
+  ];
 }
 
 class _CountingFakeRepository implements TierRepository {
