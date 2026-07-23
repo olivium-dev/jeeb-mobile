@@ -179,10 +179,9 @@ class _ToggleRepository implements TierRepository {
 }
 
 class _SingleTierRepository implements TierRepository {
-  const _SingleTierRepository(this.id, {this.recommended = false});
+  const _SingleTierRepository(this.id);
 
   final TierId id;
-  final bool recommended;
 
   @override
   Future<List<Tier>> fetchTiers() async => [
@@ -193,7 +192,7 @@ class _SingleTierRepository implements TierRepository {
       currency: 'LBP',
       vehicleClass: TierVehicleClass.any,
       slaMinutes: 60,
-      recommended: recommended,
+      recommended: false,
     ),
   ];
 }

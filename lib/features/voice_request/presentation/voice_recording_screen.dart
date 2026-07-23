@@ -385,16 +385,18 @@ class _PlaybackPreview extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        OmdsPrimaryButton(
-          key: VoiceRecordingKeys.playbackToggle,
+        Semantics(
           identifier: 'voice_request_playback_toggle',
-          text: state.isPlaying
-              ? l10n.voiceRecordingPause
-              : l10n.voiceRecordingPlay,
-          icon: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
-          variant: OmdsButtonVariant.secondary,
-          onTap: state.isSending ? () {} : () => cubit.togglePlayback(),
-          isEnabled: !state.isSending,
+          child: OmdsPrimaryButton(
+            key: VoiceRecordingKeys.playbackToggle,
+            text: state.isPlaying
+                ? l10n.voiceRecordingPause
+                : l10n.voiceRecordingPlay,
+            icon: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
+            variant: OmdsButtonVariant.secondary,
+            onTap: state.isSending ? () {} : () => cubit.togglePlayback(),
+            isEnabled: !state.isSending,
+          ),
         ),
         const SizedBox(height: Spacing.small),
         Semantics(
@@ -626,11 +628,13 @@ class _UploadFailureActions extends StatelessWidget {
         ),
         const SizedBox(width: Spacing.medium),
         Expanded(
-          child: OmdsPrimaryButton(
-            key: VoiceRecordingKeys.retryUploadButton,
+          child: Semantics(
             identifier: 'voice_request_retry_upload_button',
-            text: l10n.voiceRecordingRetryUploadSubmit,
-            onTap: () => cubit.send(),
+            child: OmdsPrimaryButton(
+              key: VoiceRecordingKeys.retryUploadButton,
+              text: l10n.voiceRecordingRetryUploadSubmit,
+              onTap: () => cubit.send(),
+            ),
           ),
         ),
       ],

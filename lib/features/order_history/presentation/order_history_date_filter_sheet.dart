@@ -183,18 +183,20 @@ class _DateField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
-          child: OmdsDatePicker(
-            key: ValueKey<DateTime?>(value),
+          child: Semantics(
             identifier: '${fieldId}_cta',
-            labelText: label,
-            hintText: placeholder,
-            dateFormat: dateFormat,
-            initialDate: value,
-            firstDate: firstDate,
-            lastDate: lastDate,
-            onDateSelected: (picked) {
-              if (picked != null) onDateSelected(picked);
-            },
+            child: OmdsDatePicker(
+              key: ValueKey<DateTime?>(value),
+              labelText: label,
+              hintText: placeholder,
+              dateFormat: dateFormat,
+              initialDate: value,
+              firstDate: firstDate,
+              lastDate: lastDate,
+              onDateSelected: (picked) {
+                if (picked != null) onDateSelected(picked);
+              },
+            ),
           ),
         ),
         Semantics(
