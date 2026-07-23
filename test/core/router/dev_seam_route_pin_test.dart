@@ -45,6 +45,7 @@ import 'package:jeeb_mobile/core/router/app_router.dart';
 import 'package:jeeb_mobile/features/biometric_auth/application/biometric_lock_cubit.dart';
 import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_repository.dart';
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
+import 'package:jeeb_mobile/features/chat/presentation/dev_chat_preview_screen.dart';
 import 'package:jeeb_mobile/features/deep_link_targets/chat_detail_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/capture_location_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/client_location_screen.dart';
@@ -204,6 +205,35 @@ void main() {
           findsOneWidget,
           reason: 'A chat-detail push from the pinned root must mount and stay.',
         );
+      },
+    );
+
+    testWidgets(
+      '(b3) a chat-state capture pin releases after landing, so a later '
+      'user push is not swallowed (JEBV4-321)',
+      (tester) async {
+        DevSeam.debugOverride(const DevSeamConfig(chatSelector: 'dm'));
+        final built = await _buildRouter();
+        await tester.pumpWidget(_harness(built));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(DevChatPreviewScreen), findsOneWidget);
+
+        // The chat fixture is another initial capture pin. Before JEBV4-321 its
+        // top-level redirect remained active forever, so go_router accepted
+        // this push (and DiagNavObserver logged it) but redirected the match
+        // straight back to /dev-chat before the destination could paint.
+        built.router.push('/capture-location');
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byType(CaptureLocationScreen),
+          findsOneWidget,
+          reason:
+              'A capture-only guard must release after its first landing; '
+              'otherwise accepted user pushes become visually dead CTAs.',
+        );
+        expect(find.byType(DevChatPreviewScreen), findsNothing);
       },
     );
 
