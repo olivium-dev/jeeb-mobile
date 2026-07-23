@@ -38,6 +38,7 @@ import '../../../features/wallet/presentation/wallet_activity_list_screen.dart';
 import '../../../features/wallet/presentation/wallet_charge_info_screen.dart';
 import '../../../features/wallet/presentation/wallet_hub_screen.dart';
 import '../catalog_models.dart';
+import '../tier_catalog_fixture.dart';
 
 /// Batch 11 — DT-04 catalog entries for: shell, support, tier_selection,
 /// transcription, voice_request, wallet.
@@ -411,13 +412,13 @@ final CatalogEntry _tierSelectionEntry = CatalogEntry(
       (_) => const TierSelectionScreen(repository: _PendingTierRepository()),
     ),
     CatalogState(
-      'Loaded — full catalog, no selection',
-      (_) => const TierSelectionScreen(repository: FakeTierRepository()),
+      'Loaded — delivery-service catalog, no selection',
+      (_) => const TierSelectionScreen(repository: DevtoolTierRepository()),
     ),
     CatalogState(
-      'Cached fallback — network unreachable, bundled defaults shown',
+      'Error — network unreachable',
       (_) => const TierSelectionScreen(
-        repository: FakeTierRepository(failWith: TierLoadFailure.network),
+        repository: DevtoolTierRepository(failWith: TierLoadFailure.network),
       ),
     ),
   ],

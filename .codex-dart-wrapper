@@ -1,0 +1,5 @@
+#!/bin/sh
+if [ "$1" = "compile" ]; then
+  exec /Users/oudaykhaled/development/flutter/bin/cache/dart-sdk/bin/dart --suppress-analytics "$@"
+fi
+exec /Users/oudaykhaled/development/flutter/bin/cache/dart-sdk/bin/dart "$@"

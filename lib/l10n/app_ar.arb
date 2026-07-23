@@ -1049,6 +1049,7 @@
   "deliveryManProfileEmptyReviewsTitle": "لا توجد تقييمات بعد",
   "deliveryManProfileEmptyReviewsSubtitle": "ستظهر تقييمات العملاء هنا.",
   "reviewerVerifiedBadge": "عميل موثّق",
+  "reviewRatingStarsLabel": "{rating} من 5 نجوم",
   "reviewHelpfulAction": "مفيد",
   "reviewReplyAction": "رد",
   "reviewRelativeDaysAgo": "قبل {count} يوم",
