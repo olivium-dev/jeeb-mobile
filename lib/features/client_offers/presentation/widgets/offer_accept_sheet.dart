@@ -373,10 +373,11 @@ class _OfferAcceptView extends StatelessWidget {
                       label: l10n.actionCancel,
                       onTap: state.isSubmitting ? null : onCancelled,
                       child: ExcludeSemantics(
-                        child: OMDSOutlinedButton(
+                        child: OmdsPrimaryButton(
                           key: const Key('offer-accept-cancel-cta'),
                           text: l10n.actionCancel,
-                          enabled: !state.isSubmitting,
+                          variant: OmdsButtonVariant.outlined,
+                          isEnabled: !state.isSubmitting,
                           onTap: () => onCancelled?.call(),
                         ),
                       ),
