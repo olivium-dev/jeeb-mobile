@@ -4,7 +4,8 @@ import 'package:equatable/equatable.dart';
 ///
 /// Order is the recommended display order on the request-type screen
 /// (Figma 56535:2392): Flash → Express → Standard → On-the-way → Eco, with
-/// the back-office flagging one tier `recommended` for the default selection.
+/// the back-office optionally flagging one tier as recommended copy. That flag
+/// never selects a tier on the customer's behalf.
 enum TierId { flash, express, standard, onTheWay, eco }
 
 /// Vehicle category icon a tier card renders alongside its label. The set is
@@ -58,13 +59,13 @@ class Tier extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        serverId,
-        priceLow,
-        priceHigh,
-        currency,
-        vehicleClass,
-        slaMinutes,
-        recommended,
-      ];
+    id,
+    serverId,
+    priceLow,
+    priceHigh,
+    currency,
+    vehicleClass,
+    slaMinutes,
+    recommended,
+  ];
 }

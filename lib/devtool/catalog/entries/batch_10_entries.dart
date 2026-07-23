@@ -70,15 +70,15 @@ class _FakeRequestSubmissionService implements RequestSubmissionService {
 }
 
 RequestDraft _sampleRequestDraft() => const RequestDraft(
-      description: 'Pick up my prescription from Pharmacie Beshara.',
-      transcription: 'Please pick up my prescription and bring it home.',
-      photoUrls: ['https://example.com/photo1.jpg'],
-      tierId: 'express',
-      tierName: 'Express',
-      pickupAddress: 'Pharmacie Beshara, Hamra, Beirut',
-      dropoffAddress: 'Achrafieh, Beirut',
-      recipientPhone: '+96170123456',
-    );
+  description: 'Pick up my prescription from Pharmacie Beshara.',
+  transcription: 'Please pick up my prescription and bring it home.',
+  photoUrls: ['https://example.com/photo1.jpg'],
+  tierId: 'express',
+  tierName: 'Express',
+  pickupAddress: 'Pharmacie Beshara, Hamra, Beirut',
+  dropoffAddress: 'Achrafieh, Beirut',
+  recipientPhone: '+96170123456',
+);
 
 Widget _requestSummaryScreen(
   RequestSubmissionService service, {
@@ -236,10 +236,8 @@ class _FakeAccountService implements AccountService {
   Future<AccountActionOutcome> signOut() async => AccountActionOutcome.success;
 }
 
-UserProfile _sampleProfile() => const UserProfile(
-      phoneE164: '+96170123456',
-      name: 'Maya Haddad',
-    );
+UserProfile _sampleProfile() =>
+    const UserProfile(phoneE164: '+96170123456', name: 'Maya Haddad');
 
 /// Builds + hydrates a [SettingsCubit] from the fakes above. `load()` is
 /// fire-and-forget here (mirrors `_orderHistoryScreen`, batch 08): the
@@ -247,7 +245,10 @@ UserProfile _sampleProfile() => const UserProfile(
 /// its loaded content immediately after first paint. When [driveDeletion] is
 /// set, `requestAccountDeletion()` is chained onto the SAME load future so the
 /// deletion-pending row is reachable without a live gesture.
-SettingsCubit _settingsCubit({UserProfile? profile, bool driveDeletion = false}) {
+SettingsCubit _settingsCubit({
+  UserProfile? profile,
+  bool driveDeletion = false,
+}) {
   final cubit = SettingsCubit(
     profileRepository: _FakeProfileRepository(profile ?? _sampleProfile()),
     accountService: const _FakeAccountService(),
@@ -338,8 +339,9 @@ class _ProfileEditPreviewState extends State<_ProfileEditPreview> {
 
   Future<void> _load() async {
     final cubit = SettingsCubit(
-      profileRepository:
-          _FakeProfileRepository(widget.profile ?? _sampleProfile()),
+      profileRepository: _FakeProfileRepository(
+        widget.profile ?? _sampleProfile(),
+      ),
       accountService: const _FakeAccountService(),
     );
     await cubit.load();
@@ -386,7 +388,8 @@ class _FakeNotificationPrefsRepository implements NotificationPrefsRepository {
 }
 
 /// Never resolves — keeps the screen on its centered loading state.
-class _PendingNotificationPrefsRepository implements NotificationPrefsRepository {
+class _PendingNotificationPrefsRepository
+    implements NotificationPrefsRepository {
   const _PendingNotificationPrefsRepository();
 
   @override
@@ -461,306 +464,297 @@ class _PendingSettlementRepository implements SettlementRepository {
 }
 
 List<SettlementStatement> _sampleStatements() => const [
-      SettlementStatement(
-        id: 'stmt-1',
-        weekLabel: 'Jun 22 – Jun 28',
-        totalPayout: 184.50,
+  SettlementStatement(
+    id: 'stmt-1',
+    weekLabel: 'Jun 22 – Jun 28',
+    totalPayout: 184.50,
+    currency: 'USD',
+    status: SettlementStatus.paid,
+    deliveries: [
+      SettlementDeliveryLine(
+        deliveryId: 'REQ-1042',
+        date: '2026-06-24',
+        tier: 'Express',
+        fare: 20.0,
+        commission: 4.0,
+        net: 16.0,
         currency: 'USD',
-        status: SettlementStatus.paid,
-        deliveries: [
-          SettlementDeliveryLine(
-            deliveryId: 'REQ-1042',
-            date: '2026-06-24',
-            tier: 'Express',
-            fare: 20.0,
-            commission: 4.0,
-            net: 16.0,
-            currency: 'USD',
-          ),
-          SettlementDeliveryLine(
-            deliveryId: 'REQ-1038',
-            date: '2026-06-25',
-            tier: 'Flash',
-            fare: 15.0,
-            commission: 3.0,
-            net: 12.0,
-            currency: 'USD',
-          ),
-        ],
       ),
-      SettlementStatement(
-        id: 'stmt-2',
-        weekLabel: 'Jun 29 – Jul 5',
-        totalPayout: 96.00,
+      SettlementDeliveryLine(
+        deliveryId: 'REQ-1038',
+        date: '2026-06-25',
+        tier: 'Flash',
+        fare: 15.0,
+        commission: 3.0,
+        net: 12.0,
         currency: 'USD',
-        status: SettlementStatus.pending,
-        deliveries: [
-          SettlementDeliveryLine(
-            deliveryId: 'REQ-1055',
-            date: '2026-07-01',
-            tier: 'Standard',
-            fare: 12.0,
-            commission: 2.4,
-            net: 9.6,
-            currency: 'USD',
-          ),
-        ],
       ),
-    ];
+    ],
+  ),
+  SettlementStatement(
+    id: 'stmt-2',
+    weekLabel: 'Jun 29 – Jul 5',
+    totalPayout: 96.00,
+    currency: 'USD',
+    status: SettlementStatus.pending,
+    deliveries: [
+      SettlementDeliveryLine(
+        deliveryId: 'REQ-1055',
+        date: '2026-07-01',
+        tier: 'Standard',
+        fare: 12.0,
+        commission: 2.4,
+        net: 9.6,
+        currency: 'USD',
+      ),
+    ],
+  ),
+];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Catalog entries
 // ─────────────────────────────────────────────────────────────────────────────
 
 List<CatalogEntry> get batch10Entries => <CatalogEntry>[
-      CatalogEntry(
-        feature: 'request_summary',
-        screen: 'RequestSummaryScreen',
-        states: [
-          CatalogState(
-            'Loaded',
-            (_) => _requestSummaryScreen(const _FakeRequestSubmissionService()),
-          ),
-          CatalogState(
-            'Submitting',
-            (_) => _requestSummaryScreen(
-              const _FakeRequestSubmissionService(pending: true),
-              drive: true,
-            ),
-          ),
-          CatalogState(
-            'Error — Network',
-            (_) => _requestSummaryScreen(
-              const _FakeRequestSubmissionService(
-                failure: RequestSubmissionFailure.network,
-              ),
-              drive: true,
-            ),
-          ),
-        ],
+  CatalogEntry(
+    feature: 'request_summary',
+    screen: 'RequestSummaryScreen',
+    states: [
+      CatalogState(
+        'Loaded',
+        (_) => _requestSummaryScreen(const _FakeRequestSubmissionService()),
       ),
-      CatalogEntry(
-        feature: 'request_summary',
-        screen: 'RequestSummaryUnavailableScreen',
-        states: [
-          CatalogState(
-            'Unavailable',
-            (_) => const RequestSummaryUnavailableScreen(),
-          ),
-        ],
+      CatalogState(
+        'Submitting',
+        (_) => _requestSummaryScreen(
+          const _FakeRequestSubmissionService(pending: true),
+          drive: true,
+        ),
       ),
-      CatalogEntry(
-        feature: 'request_type',
-        screen: 'RequestTypeScreen',
-        states: [
-          CatalogState(
-            'Loading',
-            (_) => const RequestTypeScreen(
-              repository: _PendingTierRepository(),
-            ),
+      CatalogState(
+        'Error — Network',
+        (_) => _requestSummaryScreen(
+          const _FakeRequestSubmissionService(
+            failure: RequestSubmissionFailure.network,
           ),
-          CatalogState(
-            'Loaded — Flash preselected',
-            (_) => const RequestTypeScreen(
-              repository: FakeTierRepository(),
-            ),
-          ),
-          CatalogState(
-            'Selected — Eco',
-            (_) => RequestTypeScreen(cubit: _selectedTierCubit(TierId.eco)),
-          ),
-        ],
+          drive: true,
+        ),
       ),
-      CatalogEntry(
-        feature: 'reviews',
-        screen: 'ReviewsListScreen',
-        states: [
-          CatalogState(
-            'Loading',
-            (_) => const ReviewsListScreen(
-              jeeberId: _reviewsJeeberId,
-              repository: _PendingReviewsRepository(),
-            ),
-          ),
-          CatalogState(
-            'Populated',
-            (_) => const ReviewsListScreen(
-              jeeberId: _reviewsJeeberId,
-              repository: StubReviewsRepository(),
-            ),
-          ),
-          CatalogState(
-            'Cold-start — New Jeeber',
-            (_) => const ReviewsListScreen(
-              jeeberId: _reviewsJeeberId,
-              repository: _ColdStartReviewsRepository(),
-            ),
-          ),
-          CatalogState(
-            'Empty',
-            (_) => const ReviewsListScreen(
-              jeeberId: _reviewsJeeberId,
-              repository: EmptyReviewsRepository(),
-            ),
-          ),
-          CatalogState(
-            'Error — Network',
-            (_) => const ReviewsListScreen(
-              jeeberId: _reviewsJeeberId,
-              repository: _FailingReviewsRepository(ReviewsFailure.network),
-            ),
-          ),
-        ],
+    ],
+  ),
+  CatalogEntry(
+    feature: 'request_summary',
+    screen: 'RequestSummaryUnavailableScreen',
+    states: [
+      CatalogState(
+        'Unavailable',
+        (_) => const RequestSummaryUnavailableScreen(),
       ),
-      CatalogEntry(
-        feature: 'settings',
-        screen: 'SettingsScreen',
-        states: [
-          CatalogState(
-            'Loaded — Profile',
-            (_) => _SettingsPreview(cubit: _settingsCubit()),
-          ),
-          CatalogState(
-            'Loaded — Deletion Pending',
-            (_) => _SettingsPreview(cubit: _settingsCubit(driveDeletion: true)),
-          ),
-        ],
+    ],
+  ),
+  CatalogEntry(
+    feature: 'request_type',
+    screen: 'RequestTypeScreen',
+    states: [
+      CatalogState(
+        'Loading',
+        (_) => const RequestTypeScreen(repository: _PendingTierRepository()),
       ),
-      CatalogEntry(
-        feature: 'settings',
-        screen: 'ProfileEditScreen',
-        states: [
-          CatalogState('Loaded', (_) => const _ProfileEditPreview()),
-          CatalogState(
-            'Empty — No Name Yet',
-            (_) => const _ProfileEditPreview(
-              profile: UserProfile(phoneE164: '+96170123456'),
-            ),
-          ),
-        ],
+      CatalogState(
+        'Loaded — no selection',
+        (_) => const RequestTypeScreen(repository: FakeTierRepository()),
       ),
-      CatalogEntry(
-        feature: 'settings',
-        screen: 'NotificationPreferencesScreen',
-        states: [
-          CatalogState(
-            'Loading',
-            (_) => const NotificationPreferencesScreen(
-              repository: _PendingNotificationPrefsRepository(),
-            ),
-          ),
-          CatalogState(
-            'Loaded',
-            (_) => const NotificationPreferencesScreen(
-              repository: _FakeNotificationPrefsRepository(),
-            ),
-          ),
-          CatalogState(
-            'Error',
-            (_) => const NotificationPreferencesScreen(
-              repository: _FakeNotificationPrefsRepository(
-                fetchFailure: NotificationPrefsFailure.network,
-              ),
-            ),
-          ),
-        ],
+      CatalogState(
+        'Selected — Eco',
+        (_) => RequestTypeScreen(cubit: _selectedTierCubit(TierId.eco)),
       ),
-      CatalogEntry(
-        feature: 'settings',
-        screen: 'SavedAddressesScreen',
-        states: [
-          CatalogState('Placeholder', (_) => const SavedAddressesScreen()),
-        ],
+    ],
+  ),
+  CatalogEntry(
+    feature: 'reviews',
+    screen: 'ReviewsListScreen',
+    states: [
+      CatalogState(
+        'Loading',
+        (_) => const ReviewsListScreen(
+          jeeberId: _reviewsJeeberId,
+          repository: _PendingReviewsRepository(),
+        ),
       ),
-      CatalogEntry(
-        feature: 'settings',
-        screen: 'LogoutDeleteConfirmSheet',
-        states: [
-          CatalogState(
-            'Sign Out',
-            (_) => _logoutDeleteSheetHost(
-              const LogoutDeleteConfirmSheet(
-                mode: LogoutDeleteMode.logout,
-                terminator: _FakeAccountSessionTerminator(),
-              ),
-            ),
-          ),
-          CatalogState(
-            'Delete Account',
-            (_) => _logoutDeleteSheetHost(
-              const LogoutDeleteConfirmSheet(
-                mode: LogoutDeleteMode.delete,
-                terminator: _FakeAccountSessionTerminator(),
-              ),
-            ),
-          ),
-          CatalogState(
-            'Both',
-            (_) => _logoutDeleteSheetHost(
-              const LogoutDeleteConfirmSheet(
-                mode: LogoutDeleteMode.both,
-                terminator: _FakeAccountSessionTerminator(),
-              ),
-            ),
-          ),
-        ],
+      CatalogState(
+        'Populated',
+        (_) => const ReviewsListScreen(
+          jeeberId: _reviewsJeeberId,
+          repository: StubReviewsRepository(),
+        ),
       ),
-      CatalogEntry(
-        feature: 'settlement',
-        screen: 'SettlementScreen',
-        states: [
-          CatalogState(
-            'Loading',
-            (_) => const SettlementScreen(
-              repository: _PendingSettlementRepository(),
-            ),
-          ),
-          CatalogState(
-            'Ready — Mixed',
-            (_) => SettlementScreen(
-              repository: _FakeSettlementRepository(
-                statements: _sampleStatements(),
-              ),
-            ),
-          ),
-          CatalogState(
-            'Empty',
-            (_) => const SettlementScreen(
-              repository: _FakeSettlementRepository(),
-            ),
-          ),
-          CatalogState(
-            'Error',
-            (_) => const SettlementScreen(
-              repository: _FakeSettlementRepository(
-                fetchFailure: SettlementFailure.network,
-              ),
-            ),
-          ),
-        ],
+      CatalogState(
+        'Cold-start — New Jeeber',
+        (_) => const ReviewsListScreen(
+          jeeberId: _reviewsJeeberId,
+          repository: _ColdStartReviewsRepository(),
+        ),
       ),
-      CatalogEntry(
-        feature: 'settlement',
-        screen: 'SettlementDetailScreen',
-        states: [
-          CatalogState(
-            'Paid',
-            (_) => SettlementDetailScreen(statement: _sampleStatements()[0]),
-          ),
-          CatalogState(
-            'Pending',
-            (_) => SettlementDetailScreen(statement: _sampleStatements()[1]),
-          ),
-        ],
+      CatalogState(
+        'Empty',
+        (_) => const ReviewsListScreen(
+          jeeberId: _reviewsJeeberId,
+          repository: EmptyReviewsRepository(),
+        ),
       ),
+      CatalogState(
+        'Error — Network',
+        (_) => const ReviewsListScreen(
+          jeeberId: _reviewsJeeberId,
+          repository: _FailingReviewsRepository(ReviewsFailure.network),
+        ),
+      ),
+    ],
+  ),
+  CatalogEntry(
+    feature: 'settings',
+    screen: 'SettingsScreen',
+    states: [
+      CatalogState(
+        'Loaded — Profile',
+        (_) => _SettingsPreview(cubit: _settingsCubit()),
+      ),
+      CatalogState(
+        'Loaded — Deletion Pending',
+        (_) => _SettingsPreview(cubit: _settingsCubit(driveDeletion: true)),
+      ),
+    ],
+  ),
+  CatalogEntry(
+    feature: 'settings',
+    screen: 'ProfileEditScreen',
+    states: [
+      CatalogState('Loaded', (_) => const _ProfileEditPreview()),
+      CatalogState(
+        'Empty — No Name Yet',
+        (_) => const _ProfileEditPreview(
+          profile: UserProfile(phoneE164: '+96170123456'),
+        ),
+      ),
+    ],
+  ),
+  CatalogEntry(
+    feature: 'settings',
+    screen: 'NotificationPreferencesScreen',
+    states: [
+      CatalogState(
+        'Loading',
+        (_) => const NotificationPreferencesScreen(
+          repository: _PendingNotificationPrefsRepository(),
+        ),
+      ),
+      CatalogState(
+        'Loaded',
+        (_) => const NotificationPreferencesScreen(
+          repository: _FakeNotificationPrefsRepository(),
+        ),
+      ),
+      CatalogState(
+        'Error',
+        (_) => const NotificationPreferencesScreen(
+          repository: _FakeNotificationPrefsRepository(
+            fetchFailure: NotificationPrefsFailure.network,
+          ),
+        ),
+      ),
+    ],
+  ),
+  CatalogEntry(
+    feature: 'settings',
+    screen: 'SavedAddressesScreen',
+    states: [CatalogState('Placeholder', (_) => const SavedAddressesScreen())],
+  ),
+  CatalogEntry(
+    feature: 'settings',
+    screen: 'LogoutDeleteConfirmSheet',
+    states: [
+      CatalogState(
+        'Sign Out',
+        (_) => _logoutDeleteSheetHost(
+          const LogoutDeleteConfirmSheet(
+            mode: LogoutDeleteMode.logout,
+            terminator: _FakeAccountSessionTerminator(),
+          ),
+        ),
+      ),
+      CatalogState(
+        'Delete Account',
+        (_) => _logoutDeleteSheetHost(
+          const LogoutDeleteConfirmSheet(
+            mode: LogoutDeleteMode.delete,
+            terminator: _FakeAccountSessionTerminator(),
+          ),
+        ),
+      ),
+      CatalogState(
+        'Both',
+        (_) => _logoutDeleteSheetHost(
+          const LogoutDeleteConfirmSheet(
+            mode: LogoutDeleteMode.both,
+            terminator: _FakeAccountSessionTerminator(),
+          ),
+        ),
+      ),
+    ],
+  ),
+  CatalogEntry(
+    feature: 'settlement',
+    screen: 'SettlementScreen',
+    states: [
+      CatalogState(
+        'Loading',
+        (_) =>
+            const SettlementScreen(repository: _PendingSettlementRepository()),
+      ),
+      CatalogState(
+        'Ready — Mixed',
+        (_) => SettlementScreen(
+          repository: _FakeSettlementRepository(
+            statements: _sampleStatements(),
+          ),
+        ),
+      ),
+      CatalogState(
+        'Empty',
+        (_) => const SettlementScreen(repository: _FakeSettlementRepository()),
+      ),
+      CatalogState(
+        'Error',
+        (_) => const SettlementScreen(
+          repository: _FakeSettlementRepository(
+            fetchFailure: SettlementFailure.network,
+          ),
+        ),
+      ),
+    ],
+  ),
+  CatalogEntry(
+    feature: 'settlement',
+    screen: 'SettlementDetailScreen',
+    states: [
+      CatalogState(
+        'Paid',
+        (_) => SettlementDetailScreen(statement: _sampleStatements()[0]),
+      ),
+      CatalogState(
+        'Pending',
+        (_) => SettlementDetailScreen(statement: _sampleStatements()[1]),
+      ),
+    ],
+  ),
 
-      // live_settings_screen.dart — SKIPPED. `LiveSettingsScreen` resolves
-      // `sl<Dio>().get('/v1/users/me')` inside a `late Future` FIELD
-      // INITIALIZER (before `build`, before any constructor seam could
-      // intervene) and has no constructor param of its own — the generic,
-      // seamed `SettingsScreen` it wraps is already cataloged above. Adding a
-      // seam here would mean threading a fake `Dio`/response through a
-      // field-initializer future, which is a bigger surgery than "minimal
-      // additive" for a live-gateway host with no unique designed state beyond
-      // what `SettingsScreen` already renders.
-    ];
+  // live_settings_screen.dart — SKIPPED. `LiveSettingsScreen` resolves
+  // `sl<Dio>().get('/v1/users/me')` inside a `late Future` FIELD
+  // INITIALIZER (before `build`, before any constructor seam could
+  // intervene) and has no constructor param of its own — the generic,
+  // seamed `SettingsScreen` it wraps is already cataloged above. Adding a
+  // seam here would mean threading a fake `Dio`/response through a
+  // field-initializer future, which is a bigger surgery than "minimal
+  // additive" for a live-gateway host with no unique designed state beyond
+  // what `SettingsScreen` already renders.
+];

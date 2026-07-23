@@ -17,22 +17,25 @@ import 'tier_selection_state.dart';
 ///   - [confirm] commits the choice; the host listens for
 ///     [TierSelectionState.confirmedTierId] to drive navigation.
 ///
-/// The cubit pre-selects the recommended tier from the catalog (if any) so the
-/// confirm button is reachable on first paint — users can still tap to change.
+/// Loading a catalog never chooses a tier for the customer. An existing,
+/// deliberate selection is retained when the catalog is refreshed as long as
+/// that tier is still available.
 class TierSelectionCubit extends Cubit<TierSelectionState> {
   TierSelectionCubit({required TierRepository repository})
-      : _repository = repository,
-        super(const TierSelectionState());
+    : _repository = repository,
+      super(const TierSelectionState());
 
   final TierRepository _repository;
 
   Future<void> load() async {
     if (state.status == TierSelectionStatus.loading) return;
-    emit(state.copyWith(
-      status: TierSelectionStatus.loading,
-      clearFailure: true,
-      usingCachedFallback: false,
-    ));
+    emit(
+      state.copyWith(
+        status: TierSelectionStatus.loading,
+        clearFailure: true,
+        usingCachedFallback: false,
+      ),
+    );
     try {
       final tiers = await _repository.fetchTiers();
       _emitLoaded(tiers);
@@ -44,15 +47,18 @@ class TierSelectionCubit extends Cubit<TierSelectionState> {
   }
 
   void _emitLoaded(List<Tier> tiers) {
-    final preselected = _recommendedId(tiers) ?? state.selectedTierId;
-    emit(state.copyWith(
-      status: TierSelectionStatus.loaded,
-      tiers: tiers,
-      selectedTierId: preselected,
-      clearSelectedTier: preselected == null && state.selectedTierId != null,
-      clearFailure: true,
-      usingCachedFallback: false,
-    ));
+    final selectedTierId = _retainedSelection(tiers);
+    emit(
+      state.copyWith(
+        status: TierSelectionStatus.loaded,
+        tiers: tiers,
+        selectedTierId: selectedTierId,
+        clearSelectedTier:
+            selectedTierId == null && state.selectedTierId != null,
+        clearFailure: true,
+        usingCachedFallback: false,
+      ),
+    );
   }
 
   /// JEBV4-300: surface the fetch failure instead of silently serving the
@@ -60,13 +66,15 @@ class TierSelectionCubit extends Cubit<TierSelectionState> {
   /// Continue CTA hidden, so no fallback tier (serverId == null) can ever reach
   /// `POST /requests`. Retry re-runs [load] → `GET /tiers`.
   void _emitFailure(TierLoadFailure failure) {
-    emit(state.copyWith(
-      status: TierSelectionStatus.error,
-      failure: failure,
-      clearSelectedTier: true,
-      clearConfirmedTier: true,
-      usingCachedFallback: false,
-    ));
+    emit(
+      state.copyWith(
+        status: TierSelectionStatus.error,
+        failure: failure,
+        clearSelectedTier: true,
+        clearConfirmedTier: true,
+        usingCachedFallback: false,
+      ),
+    );
   }
 
   void selectTier(TierId id) {
@@ -83,10 +91,8 @@ class TierSelectionCubit extends Cubit<TierSelectionState> {
     emit(state.copyWith(confirmedTierId: id));
   }
 
-  TierId? _recommendedId(List<Tier> tiers) {
-    for (final tier in tiers) {
-      if (tier.recommended) return tier.id;
-    }
-    return null;
-  }
+  TierId? _retainedSelection(List<Tier> tiers) =>
+      tiers.any((tier) => tier.id == state.selectedTierId)
+      ? state.selectedTierId
+      : null;
 }

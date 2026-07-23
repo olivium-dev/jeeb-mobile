@@ -53,12 +53,15 @@ import '../../support/fake_current_location_resolver.dart';
 import '../../support/fake_request_submission_service.dart';
 import '../../support/sync_app_localizations.dart';
 
-Future<({
-  GoRouter router,
-  RoleCubit role,
-  RoleEligibilityCubit roleEligibility,
-  LocaleCubit locale,
-})> _buildRouter() async {
+Future<
+  ({
+    GoRouter router,
+    RoleCubit role,
+    RoleEligibilityCubit roleEligibility,
+    LocaleCubit locale,
+  })
+>
+_buildRouter() async {
   SharedPreferences.setMockInitialValues(<String, Object>{
     'app.onboarding.completed': true,
   });
@@ -157,12 +160,22 @@ void main() {
         built.router.go('/request-type');
         await tester.pumpWidget(
           _harness(
-              built.router, built.role, built.roleEligibility, built.locale),
+            built.router,
+            built.role,
+            built.roleEligibility,
+            built.locale,
+          ),
         );
         await tester.pumpAndSettle();
 
         // Tier → Continue → location-select.
-        await tester.tap(find.bySemanticsIdentifier('request_type_continue_cta'));
+        await tester.tap(
+          find.bySemanticsIdentifier('request_type_flash_radio'),
+        );
+        await tester.pump();
+        await tester.tap(
+          find.bySemanticsIdentifier('request_type_continue_cta'),
+        );
         await tester.pumpAndSettle();
 
         // Open the map picker via the screen's OWN handler (the router no longer
@@ -171,12 +184,16 @@ void main() {
           find.bySemanticsIdentifier('location_select_new_location_cta'),
         );
         await tester.pumpAndSettle();
-        expect(find.bySemanticsIdentifier('capture_location_pin_cta'),
-            findsOneWidget);
+        expect(
+          find.bySemanticsIdentifier('capture_location_pin_cta'),
+          findsOneWidget,
+        );
 
         // Confirm the pin — the production builder pops WITHOUT a coordinate
         // (JEBV4-176: no fabricated Beirut default).
-        await tester.tap(find.bySemanticsIdentifier('capture_location_pin_cta'));
+        await tester.tap(
+          find.bySemanticsIdentifier('capture_location_pin_cta'),
+        );
         await tester.pumpAndSettle();
 
         // Back on location-select: supply the G1 description, then attempt to

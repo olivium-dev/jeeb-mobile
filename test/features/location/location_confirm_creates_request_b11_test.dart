@@ -42,12 +42,15 @@ import '../../support/fake_current_location_resolver.dart';
 import '../../support/fake_request_submission_service.dart';
 import '../../support/sync_app_localizations.dart';
 
-Future<({
-  GoRouter router,
-  RoleCubit role,
-  RoleEligibilityCubit roleEligibility,
-  LocaleCubit locale,
-})> _buildRouter() async {
+Future<
+  ({
+    GoRouter router,
+    RoleCubit role,
+    RoleEligibilityCubit roleEligibility,
+    LocaleCubit locale,
+  })
+>
+_buildRouter() async {
   SharedPreferences.setMockInitialValues(<String, Object>{
     'app.onboarding.completed': true,
   });
@@ -103,8 +106,9 @@ void main() {
 
     setUp(() async {
       await sl.reset();
-      submission =
-          FakeRequestSubmissionService(requestId: 'real-server-id-9999');
+      submission = FakeRequestSubmissionService(
+        requestId: 'real-server-id-9999',
+      );
       sl.registerLazySingleton<RequestSubmissionService>(() => submission);
       sl.registerLazySingleton<ComposeRequestController>(
         () => ComposeRequestController(sl<RequestSubmissionService>()),
@@ -112,8 +116,8 @@ void main() {
       sl.registerLazySingleton<LocationSelectRepository>(
         FakeLocationSelectRepository.new,
       );
-      // The request-type step resolves TierRepository via sl and pre-selects
-      // Flash, so the Continue CTA is enabled on first paint.
+      // The request-type step resolves TierRepository via sl; the customer's
+      // tier tap enables Continue.
       // JEBV4-176: current-location resolves a REAL device fix (non-Beirut).
       sl.registerLazySingleton<CurrentLocationResolver>(
         FakeCurrentLocationResolver.new,
@@ -146,14 +150,23 @@ void main() {
         // Drive the REAL on-device path: request-type → Continue → location.
         built.router.go('/request-type');
         await tester.pumpWidget(
-          _harness(built.router, built.role, built.roleEligibility,
-              built.locale),
+          _harness(
+            built.router,
+            built.role,
+            built.roleEligibility,
+            built.locale,
+          ),
         );
         await tester.pumpAndSettle();
 
-        // Step 1: pick a tier (Flash pre-selected) + Continue → location-select.
-        final continueCta =
-            find.bySemanticsIdentifier('request_type_continue_cta');
+        // Step 1: deliberately pick Flash + Continue → location-select.
+        await tester.tap(
+          find.bySemanticsIdentifier('request_type_flash_radio'),
+        );
+        await tester.pump();
+        final continueCta = find.bySemanticsIdentifier(
+          'request_type_continue_cta',
+        );
         expect(continueCta, findsOneWidget);
         await tester.ensureVisible(continueCta);
         await tester.tap(continueCta);
@@ -169,8 +182,9 @@ void main() {
         await tester.pump();
 
         // Step 3: confirm the location → must CREATE the request (B11 fix).
-        final confirm =
-            find.bySemanticsIdentifier('location_select_confirm_cta');
+        final confirm = find.bySemanticsIdentifier(
+          'location_select_confirm_cta',
+        );
         expect(confirm, findsOneWidget);
         await tester.ensureVisible(confirm);
         await tester.tap(confirm);
@@ -180,15 +194,19 @@ void main() {
         expect(
           submission.submitCount,
           1,
-          reason: 'Confirm must call POST /requests (the B11 fix); the old '
+          reason:
+              'Confirm must call POST /requests (the B11 fix); the old '
               'flow never called it and broadcast requestId="new".',
         );
         expect(submission.lastDraft, isNotNull);
 
         // (2) The draft submitted carried the create payload (so a real
         //     `POST /requests` body was assembled — not a `'new'` broadcast).
-        expect(submission.lastDraft!.tierName, isNotNull,
-            reason: 'the submitted draft must carry the chosen tier');
+        expect(
+          submission.lastDraft!.tierName,
+          isNotNull,
+          reason: 'the submitted draft must carry the chosen tier',
+        );
 
         // (2b) G1 payload lock: the POST body description IS the user's text —
         // verbatim — and the old hardcoded '"{Tier} delivery request"'
@@ -196,13 +214,15 @@ void main() {
         expect(
           submission.lastDraft!.description,
           '2 shawarma + cola from Barbar',
-          reason: 'the request description must be the customer\'s own words '
+          reason:
+              'the request description must be the customer\'s own words '
               '(G1 — "order whatever I want").',
         );
         expect(
           submission.lastDraft!.description.toLowerCase(),
           isNot(contains('delivery request')),
-          reason: 'the tier-derived placeholder description must never be '
+          reason:
+              'the tier-derived placeholder description must never be '
               'sent when the customer typed content.',
         );
 
@@ -210,18 +230,21 @@ void main() {
         //     "Finding a Jeeber" WAITING screen (NoOfferTimeoutScreen) for the
         //     freshly-created request — NOT the order-chat compose screen. It is
         //     bound to the REAL server-minted id, NEVER the literal "new".
-        final waitingScreen = tester
-            .widget<NoOfferTimeoutScreen>(find.byType(NoOfferTimeoutScreen));
+        final waitingScreen = tester.widget<NoOfferTimeoutScreen>(
+          find.byType(NoOfferTimeoutScreen),
+        );
         expect(
           waitingScreen.requestId,
           'real-server-id-9999',
-          reason: 'after create, the waiting screen must be routed with the '
+          reason:
+              'after create, the waiting screen must be routed with the '
               'server-minted request id (run-8 Step-2 gap fix).',
         );
         expect(
           waitingScreen.requestId,
           isNot('new'),
-          reason: 'the placeholder "new" hand-off (B11 root cause) must be '
+          reason:
+              'the placeholder "new" hand-off (B11 root cause) must be '
               'gone.',
         );
         expect(tester.takeException(), isNull);

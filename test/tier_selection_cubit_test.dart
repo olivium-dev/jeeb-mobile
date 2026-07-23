@@ -9,7 +9,7 @@ import 'package:jeeb_mobile/features/tier_selection/domain/tier.dart';
 void main() {
   group('TierSelectionCubit — load', () {
     blocTest<TierSelectionCubit, TierSelectionState>(
-      'hydrates the catalog and preselects the recommended tier',
+      'hydrates the catalog without preselecting the recommended tier',
       build: () => TierSelectionCubit(repository: const FakeTierRepository()),
       act: (cubit) => cubit.load(),
       expect: () => [
@@ -24,9 +24,10 @@ void main() {
           (s) =>
               s.status == TierSelectionStatus.loaded &&
               s.tiers.length == FakeTierRepository.defaultCatalog.length &&
-              s.selectedTierId == TierId.flash &&
+              s.selectedTierId == null &&
+              s.canConfirm == false &&
               s.failure == null,
-          'lands on loaded with Flash (recommended) pre-selected',
+          'lands on loaded with no customer selection',
         ),
       ],
     );
@@ -68,29 +69,31 @@ void main() {
       expect(cubit.state.tiers, FakeTierRepository.defaultCatalog);
     });
 
-    test('retry after a surfaced failure restores the live loaded state',
-        () async {
-      var shouldFail = true;
-      final cubit = TierSelectionCubit(
-        repository: _ToggleRepository(() => shouldFail),
-      );
-      addTearDown(cubit.close);
-      await cubit.load();
-      // JEBV4-300: the first load fails the network and surfaces the error
-      // rather than serving the bundled catalog — Continue stays blocked.
-      expect(cubit.state.status, TierSelectionStatus.error);
-      expect(cubit.state.failure, TierLoadFailure.network);
-      expect(cubit.state.usingCachedFallback, isFalse);
-      expect(cubit.state.canConfirm, isFalse);
+    test(
+      'retry after a surfaced failure restores the live loaded state',
+      () async {
+        var shouldFail = true;
+        final cubit = TierSelectionCubit(
+          repository: _ToggleRepository(() => shouldFail),
+        );
+        addTearDown(cubit.close);
+        await cubit.load();
+        // JEBV4-300: the first load fails the network and surfaces the error
+        // rather than serving the bundled catalog — Continue stays blocked.
+        expect(cubit.state.status, TierSelectionStatus.error);
+        expect(cubit.state.failure, TierLoadFailure.network);
+        expect(cubit.state.usingCachedFallback, isFalse);
+        expect(cubit.state.canConfirm, isFalse);
 
-      shouldFail = false;
-      await cubit.load();
-      // Retry succeeds against the live repository: now loaded with real tiers
-      // (each carrying its gateway serverId) and the failure cleared.
-      expect(cubit.state.status, TierSelectionStatus.loaded);
-      expect(cubit.state.usingCachedFallback, isFalse);
-      expect(cubit.state.failure, isNull);
-    });
+        shouldFail = false;
+        await cubit.load();
+        // Retry succeeds against the live repository: now loaded with real tiers
+        // (each carrying its gateway serverId) and the failure cleared.
+        expect(cubit.state.status, TierSelectionStatus.loaded);
+        expect(cubit.state.usingCachedFallback, isFalse);
+        expect(cubit.state.failure, isNull);
+      },
+    );
   });
 
   group('TierSelectionCubit — selection + confirm', () {
@@ -135,14 +138,7 @@ void main() {
     });
 
     test('confirm is a no-op when nothing is selected', () async {
-      // FakeTierRepository's default Express recommendation gets preselected;
-      // a catalog without a recommended tier forces the no-selection state.
-      final cubit = TierSelectionCubit(
-        repository: const _SingleTierRepository(
-          TierId.standard,
-          recommended: false,
-        ),
-      );
+      final cubit = TierSelectionCubit(repository: const FakeTierRepository());
       addTearDown(cubit.close);
       await cubit.load();
       expect(cubit.state.selectedTierId, isNull);
@@ -154,12 +150,16 @@ void main() {
       final cubit = TierSelectionCubit(repository: const FakeTierRepository());
       addTearDown(cubit.close);
       await cubit.load();
+      cubit.selectTier(TierId.flash);
       cubit.confirm();
       expect(cubit.state.confirmedTierId, TierId.flash);
 
       cubit.selectTier(TierId.standard);
-      expect(cubit.state.confirmedTierId, isNull,
-          reason: 'changing selection should require a fresh confirm tap');
+      expect(
+        cubit.state.confirmedTierId,
+        isNull,
+        reason: 'changing selection should require a fresh confirm tap',
+      );
     });
   });
 }
@@ -186,14 +186,14 @@ class _SingleTierRepository implements TierRepository {
 
   @override
   Future<List<Tier>> fetchTiers() async => [
-        Tier(
-          id: id,
-          priceLow: 10000,
-          priceHigh: 20000,
-          currency: 'LBP',
-          vehicleClass: TierVehicleClass.any,
-          slaMinutes: 60,
-          recommended: recommended,
-        ),
-      ];
+    Tier(
+      id: id,
+      priceLow: 10000,
+      priceHigh: 20000,
+      currency: 'LBP',
+      vehicleClass: TierVehicleClass.any,
+      slaMinutes: 60,
+      recommended: recommended,
+    ),
+  ];
 }

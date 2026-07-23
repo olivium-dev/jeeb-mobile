@@ -52,21 +52,21 @@ import '../catalog_models.dart';
 ///     override seam; the only network-free path is the internal dev-seam
 ///     scaffold, which is out of scope for a minimal additive change.
 List<CatalogEntry> get batch11Entries => <CatalogEntry>[
-      _jeeberTabEmptyStateEntry,
-      _shellHeaderActionsEntry,
-      _homeTabEntry,
-      _ordersTabEntry,
-      _earningsTabEntry,
-      _shellScreenEntry,
-      _supportTicketEntry,
-      _tierSelectionEntry,
-      _transcriptionEntry,
-      _voiceRecordingEntry,
-      _walletHubEntry,
-      _transactionDetailEntry,
-      _walletActivityListEntry,
-      _walletChargeInfoEntry,
-    ];
+  _jeeberTabEmptyStateEntry,
+  _shellHeaderActionsEntry,
+  _homeTabEntry,
+  _ordersTabEntry,
+  _earningsTabEntry,
+  _shellScreenEntry,
+  _supportTicketEntry,
+  _tierSelectionEntry,
+  _transcriptionEntry,
+  _voiceRecordingEntry,
+  _walletHubEntry,
+  _transactionDetailEntry,
+  _walletActivityListEntry,
+  _walletChargeInfoEntry,
+];
 
 /// Wraps a bare tab body (no Scaffold of its own — it is normally hosted
 /// inside the shell's Scaffold) in a minimal Scaffold so it has a Material
@@ -105,9 +105,7 @@ final CatalogEntry _shellHeaderActionsEntry = CatalogEntry(
       (_) => _tabPreview(
         const Align(
           alignment: AlignmentDirectional.topEnd,
-          child: SafeArea(
-            child: ShellHeaderActions(idPrefix: 'orders_home'),
-          ),
+          child: SafeArea(child: ShellHeaderActions(idPrefix: 'orders_home')),
         ),
       ),
     ),
@@ -165,52 +163,51 @@ final CatalogEntry _ordersTabEntry = CatalogEntry(
     ),
     CatalogState(
       'Error — load failed',
-      (_) => _tabPreview(
-        const OrdersTab(repository: _FailingOrderRepository()),
-      ),
+      (_) =>
+          _tabPreview(const OrdersTab(repository: _FailingOrderRepository())),
     ),
   ],
 );
 
 Map<OrderHistoryTab, OrderPage> _sampleOrderPages() => {
-      OrderHistoryTab.active: OrderPage(
-        items: [
-          OrderSummary(
-            id: 'req-9001',
-            createdAt: DateTime.utc(2026, 7, 1, 9, 30),
-            pickupAddress: 'Hamra, Beirut',
-            dropoffAddress: 'Achrafieh, Beirut',
-            status: OrderRequestStatus.enRoute,
-            tier: OrderTier.flash,
-            amountMinor: 1500,
-            currency: 'USD',
-          ),
-        ],
-        page: 1,
-        hasMore: false,
+  OrderHistoryTab.active: OrderPage(
+    items: [
+      OrderSummary(
+        id: 'req-9001',
+        createdAt: DateTime.utc(2026, 7, 1, 9, 30),
+        pickupAddress: 'Hamra, Beirut',
+        dropoffAddress: 'Achrafieh, Beirut',
+        status: OrderRequestStatus.enRoute,
+        tier: OrderTier.flash,
+        amountMinor: 1500,
+        currency: 'USD',
       ),
-      OrderHistoryTab.completed: OrderPage(
-        items: [
-          OrderSummary(
-            id: 'req-8890',
-            createdAt: DateTime.utc(2026, 6, 20, 14, 0),
-            pickupAddress: 'Verdun, Beirut',
-            dropoffAddress: 'Mar Mikhael, Beirut',
-            status: OrderRequestStatus.delivered,
-            tier: OrderTier.standard,
-            amountMinor: 900,
-            currency: 'USD',
-          ),
-        ],
-        page: 1,
-        hasMore: false,
+    ],
+    page: 1,
+    hasMore: false,
+  ),
+  OrderHistoryTab.completed: OrderPage(
+    items: [
+      OrderSummary(
+        id: 'req-8890',
+        createdAt: DateTime.utc(2026, 6, 20, 14, 0),
+        pickupAddress: 'Verdun, Beirut',
+        dropoffAddress: 'Mar Mikhael, Beirut',
+        status: OrderRequestStatus.delivered,
+        tier: OrderTier.standard,
+        amountMinor: 900,
+        currency: 'USD',
       ),
-      OrderHistoryTab.cancelled: const OrderPage(
-        items: [],
-        page: 1,
-        hasMore: false,
-      ),
-    };
+    ],
+    page: 1,
+    hasMore: false,
+  ),
+  OrderHistoryTab.cancelled: const OrderPage(
+    items: [],
+    page: 1,
+    hasMore: false,
+  ),
+};
 
 class _StaticOrderRepository implements OrderRepository {
   const _StaticOrderRepository(this._pages);
@@ -237,8 +234,7 @@ class _EmptyOrderRepository implements OrderRepository {
     required int page,
     required int pageSize,
     OrderDateRange range = const OrderDateRange(),
-  }) async =>
-      const OrderPage(items: [], page: 1, hasMore: false);
+  }) async => const OrderPage(items: [], page: 1, hasMore: false);
 }
 
 class _FailingOrderRepository implements OrderRepository {
@@ -338,38 +334,28 @@ final CatalogEntry _supportTicketEntry = CatalogEntry(
           ..setBody('My delivery never arrived and the Jeeber is unreachable.'),
       ),
     ),
-    CatalogState(
-      'Submitting',
-      (_) {
-        final cubit = SupportCubit(const _PendingSupportRepository())
-          ..setCategory(SupportCategory.delivery)
-          ..setBody('My delivery never arrived.');
-        unawaited(cubit.submit());
-        return SupportTicketScreen(cubit: cubit);
-      },
-    ),
-    CatalogState(
-      'Success — confirmation',
-      (_) {
-        final cubit = SupportCubit(const _ImmediateSupportRepository())
-          ..setCategory(SupportCategory.account)
-          ..setBody('Please update my phone number on file.');
-        unawaited(cubit.submit());
-        return SupportTicketScreen(cubit: cubit);
-      },
-    ),
-    CatalogState(
-      'Error — network failure',
-      (_) {
-        final cubit = SupportCubit(
-          const _FailingSupportRepository(SupportFailure.network),
-        )
-          ..setCategory(SupportCategory.payment)
-          ..setBody('I was charged twice for the same delivery.');
-        unawaited(cubit.submit());
-        return SupportTicketScreen(cubit: cubit);
-      },
-    ),
+    CatalogState('Submitting', (_) {
+      final cubit = SupportCubit(const _PendingSupportRepository())
+        ..setCategory(SupportCategory.delivery)
+        ..setBody('My delivery never arrived.');
+      unawaited(cubit.submit());
+      return SupportTicketScreen(cubit: cubit);
+    }),
+    CatalogState('Success — confirmation', (_) {
+      final cubit = SupportCubit(const _ImmediateSupportRepository())
+        ..setCategory(SupportCategory.account)
+        ..setBody('Please update my phone number on file.');
+      unawaited(cubit.submit());
+      return SupportTicketScreen(cubit: cubit);
+    }),
+    CatalogState('Error — network failure', (_) {
+      final cubit =
+          SupportCubit(const _FailingSupportRepository(SupportFailure.network))
+            ..setCategory(SupportCategory.payment)
+            ..setBody('I was charged twice for the same delivery.');
+      unawaited(cubit.submit());
+      return SupportTicketScreen(cubit: cubit);
+    }),
   ],
 );
 
@@ -425,7 +411,7 @@ final CatalogEntry _tierSelectionEntry = CatalogEntry(
       (_) => const TierSelectionScreen(repository: _PendingTierRepository()),
     ),
     CatalogState(
-      'Loaded — full catalog, Flash recommended + selected',
+      'Loaded — full catalog, no selection',
       (_) => const TierSelectionScreen(repository: FakeTierRepository()),
     ),
     CatalogState(
@@ -475,30 +461,26 @@ final CatalogEntry _transcriptionEntry = CatalogEntry(
         audioPlayer: NoopTranscriptAudioPlayer(),
       ),
     ),
-    CatalogState(
-      'Failed — transcription call errored',
-      (_) {
-        const clip = VoiceClip(audioPath: 'audio-failed-1', durationMs: 20000);
-        final cubit = TranscriptionCubit(player: const NoopTranscriptAudioPlayer())
-          ..seedFromClip(clip)
-          ..markFailed(TranscriptionFailure.network);
-        return TranscriptionScreen(clip: clip, cubit: cubit);
-      },
-    ),
-    CatalogState(
-      'Editing — text field open',
-      (_) {
-        const clip = VoiceClip(
-          audioPath: 'audio-edit-1',
-          durationMs: 30000,
-          transcript: 'Two bags of rice',
-        );
-        final cubit = TranscriptionCubit(player: const NoopTranscriptAudioPlayer())
-          ..seedFromClip(clip)
-          ..startEditing();
-        return TranscriptionScreen(clip: clip, cubit: cubit);
-      },
-    ),
+    CatalogState('Failed — transcription call errored', (_) {
+      const clip = VoiceClip(audioPath: 'audio-failed-1', durationMs: 20000);
+      final cubit =
+          TranscriptionCubit(player: const NoopTranscriptAudioPlayer())
+            ..seedFromClip(clip)
+            ..markFailed(TranscriptionFailure.network);
+      return TranscriptionScreen(clip: clip, cubit: cubit);
+    }),
+    CatalogState('Editing — text field open', (_) {
+      const clip = VoiceClip(
+        audioPath: 'audio-edit-1',
+        durationMs: 30000,
+        transcript: 'Two bags of rice',
+      );
+      final cubit =
+          TranscriptionCubit(player: const NoopTranscriptAudioPlayer())
+            ..seedFromClip(clip)
+            ..startEditing();
+      return TranscriptionScreen(clip: clip, cubit: cubit);
+    }),
   ],
 );
 
@@ -523,40 +505,28 @@ final CatalogEntry _voiceRecordingEntry = CatalogEntry(
       'Idle — ready to record',
       (_) => VoiceRecordingScreen(cubit: _voiceCubit()),
     ),
-    CatalogState(
-      'Recording — press-and-hold in progress',
-      (_) {
-        final cubit = _voiceCubit();
-        unawaited(cubit.startRecording());
-        return VoiceRecordingScreen(cubit: cubit);
-      },
-    ),
-    CatalogState(
-      'Recorded — playback preview, ready to send',
-      (_) {
-        final (:cubit, :ticker) = _voiceCubitWithTicker();
-        unawaited(_seedRecorded(cubit, ticker));
-        return VoiceRecordingScreen(cubit: cubit);
-      },
-    ),
-    CatalogState(
-      'Sent — broadcasting confirmation',
-      (_) {
-        final (:cubit, :ticker) = _voiceCubitWithTicker();
-        unawaited(_seedSent(cubit, ticker));
-        return VoiceRecordingScreen(cubit: cubit);
-      },
-    ),
-    CatalogState(
-      'Blocked — microphone permission denied',
-      (_) {
-        final cubit = _voiceCubit(
-          startFailure: VoiceRecorderFailure.permissionDenied,
-        );
-        unawaited(cubit.startRecording());
-        return VoiceRecordingScreen(cubit: cubit);
-      },
-    ),
+    CatalogState('Recording — press-and-hold in progress', (_) {
+      final cubit = _voiceCubit();
+      unawaited(cubit.startRecording());
+      return VoiceRecordingScreen(cubit: cubit);
+    }),
+    CatalogState('Recorded — playback preview, ready to send', (_) {
+      final (:cubit, :ticker) = _voiceCubitWithTicker();
+      unawaited(_seedRecorded(cubit, ticker));
+      return VoiceRecordingScreen(cubit: cubit);
+    }),
+    CatalogState('Sent — broadcasting confirmation', (_) {
+      final (:cubit, :ticker) = _voiceCubitWithTicker();
+      unawaited(_seedSent(cubit, ticker));
+      return VoiceRecordingScreen(cubit: cubit);
+    }),
+    CatalogState('Blocked — microphone permission denied', (_) {
+      final cubit = _voiceCubit(
+        startFailure: VoiceRecorderFailure.permissionDenied,
+      );
+      unawaited(cubit.startRecording());
+      return VoiceRecordingScreen(cubit: cubit);
+    }),
   ],
 );
 
@@ -569,7 +539,7 @@ VoiceRecordingCubit _voiceCubit({VoiceRecorderFailure? startFailure}) {
 }
 
 ({VoiceRecordingCubit cubit, StreamController<Duration> ticker})
-    _voiceCubitWithTicker() {
+_voiceCubitWithTicker() {
   // A catalog preview's cubit/controller pair lives for the duration of that
   // preview screen only (same as every other seeded cubit in this file);
   // there is no owner to hand a dispose hook to.
@@ -768,7 +738,8 @@ final CatalogEntry _transactionDetailEntry = CatalogEntry(
   ],
 );
 
-class _PendingWalletTransactionRepository implements WalletTransactionRepository {
+class _PendingWalletTransactionRepository
+    implements WalletTransactionRepository {
   const _PendingWalletTransactionRepository();
 
   @override
@@ -776,7 +747,8 @@ class _PendingWalletTransactionRepository implements WalletTransactionRepository
       Completer<WalletTransaction>().future;
 }
 
-class _FailingWalletTransactionRepository implements WalletTransactionRepository {
+class _FailingWalletTransactionRepository
+    implements WalletTransactionRepository {
   const _FailingWalletTransactionRepository(this.failure);
 
   final WalletTransactionFailure failure;
@@ -856,7 +828,10 @@ class _StaticWalletLedgerRepository implements WalletLedgerRepository {
   final List<WalletLedgerEntry> _entries;
 
   @override
-  Future<WalletLedgerPage> fetchLedger({int page = 1, int pageSize = 20}) async {
+  Future<WalletLedgerPage> fetchLedger({
+    int page = 1,
+    int pageSize = 20,
+  }) async {
     return WalletLedgerPage(entries: _entries, page: 1, totalPages: 1);
   }
 }
@@ -873,7 +848,10 @@ class _FailingWalletLedgerRepository implements WalletLedgerRepository {
   const _FailingWalletLedgerRepository();
 
   @override
-  Future<WalletLedgerPage> fetchLedger({int page = 1, int pageSize = 20}) async {
+  Future<WalletLedgerPage> fetchLedger({
+    int page = 1,
+    int pageSize = 20,
+  }) async {
     throw const WalletLedgerRepositoryException(WalletLedgerFailure.network);
   }
 }

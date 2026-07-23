@@ -49,12 +49,15 @@ import '../../support/fake_current_location_resolver.dart';
 import '../../support/fake_request_submission_service.dart';
 import '../../support/sync_app_localizations.dart';
 
-Future<({
-  GoRouter router,
-  RoleCubit role,
-  RoleEligibilityCubit roleEligibility,
-  LocaleCubit locale,
-})> _buildRouter() async {
+Future<
+  ({
+    GoRouter router,
+    RoleCubit role,
+    RoleEligibilityCubit roleEligibility,
+    LocaleCubit locale,
+  })
+>
+_buildRouter() async {
   SharedPreferences.setMockInitialValues(<String, Object>{
     'app.onboarding.completed': true,
   });
@@ -109,8 +112,11 @@ Widget _harness(
 /// the create POST is in flight); it still exposes `isEnabled`.
 OmdsLoadingButton _confirmButton(WidgetTester tester) {
   final cta = find.bySemanticsIdentifier('location_select_confirm_cta');
-  expect(cta, findsOneWidget,
-      reason: 'the Confirm CTA must be rendered (footer not hidden)');
+  expect(
+    cta,
+    findsOneWidget,
+    reason: 'the Confirm CTA must be rendered (footer not hidden)',
+  );
   return tester.widget<OmdsLoadingButton>(
     find.descendant(of: cta, matching: find.byType(OmdsLoadingButton)),
   );
@@ -126,6 +132,8 @@ Future<void> _driveToLocationSelect(WidgetTester tester) async {
   );
   await tester.pumpAndSettle();
 
+  await tester.tap(find.bySemanticsIdentifier('request_type_flash_radio'));
+  await tester.pump();
   final continueCta = find.bySemanticsIdentifier('request_type_continue_cta');
   expect(continueCta, findsOneWidget);
   await tester.ensureVisible(continueCta);
@@ -145,8 +153,7 @@ Future<void> _describeRequest(WidgetTester tester) async {
 }
 
 void main() {
-  group(
-      'sprint-8f — Confirm CTA enabled + submit fires when saved-locations is '
+  group('sprint-8f — Confirm CTA enabled + submit fires when saved-locations is '
       'unavailable', () {
     late FakeRequestSubmissionService submission;
 
@@ -189,9 +196,11 @@ void main() {
       'it fires POST /requests',
       (tester) async {
         // Saved-locations fetch fails — exactly the live 404 condition.
-        registerCommon(const FakeLocationSelectRepository(
-          failWith: LocationSelectFailure.network,
-        ));
+        registerCommon(
+          const FakeLocationSelectRepository(
+            failWith: LocationSelectFailure.network,
+          ),
+        );
 
         await _driveToLocationSelect(tester);
 
@@ -212,7 +221,8 @@ void main() {
         expect(
           _confirmButton(tester).isEnabled,
           isTrue,
-          reason: 'Confirm must enable on the picked pickup+dropoff (Current '
+          reason:
+              'Confirm must enable on the picked pickup+dropoff (Current '
               'Location default), NOT on the saved-locations load succeeding',
         );
 
@@ -223,16 +233,21 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(submission.submitCount, 1,
-            reason: 'Confirm must call POST /requests even when saved-locations '
-                '404d');
+        expect(
+          submission.submitCount,
+          1,
+          reason:
+              'Confirm must call POST /requests even when saved-locations '
+              '404d',
+        );
         expect(submission.lastDraft, isNotNull);
         // Single confirmed point seeds both pickup + dropoff coordinates.
         expect(submission.lastDraft!.pickupLat, isNotNull);
         expect(submission.lastDraft!.dropoffLat, isNotNull);
 
-        final waiting = tester
-            .widget<NoOfferTimeoutScreen>(find.byType(NoOfferTimeoutScreen));
+        final waiting = tester.widget<NoOfferTimeoutScreen>(
+          find.byType(NoOfferTimeoutScreen),
+        );
         expect(waiting.requestId, 'real-server-id-8f');
         expect(waiting.requestId, isNot('new'));
         expect(tester.takeException(), isNull);
@@ -276,8 +291,9 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(submission.submitCount, 1);
-        final waiting = tester
-            .widget<NoOfferTimeoutScreen>(find.byType(NoOfferTimeoutScreen));
+        final waiting = tester.widget<NoOfferTimeoutScreen>(
+          find.byType(NoOfferTimeoutScreen),
+        );
         expect(waiting.requestId, 'real-server-id-8f');
         expect(tester.takeException(), isNull);
       },
