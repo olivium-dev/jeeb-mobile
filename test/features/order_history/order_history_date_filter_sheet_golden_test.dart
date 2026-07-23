@@ -74,6 +74,7 @@ void main() {
             : TextDirection.ltr,
       );
       await _expectGoldenWithLinuxDiagnostic(
+        tester,
         find.byKey(const Key('filter-sheet-golden')),
         goldenPath: 'goldens/order_history_filter_${scenario.name}.png',
         failureStem: 'order_history_filter_${scenario.name}',
@@ -83,6 +84,7 @@ void main() {
 }
 
 Future<void> _expectGoldenWithLinuxDiagnostic(
+  WidgetTester tester,
   Finder finder, {
   required String goldenPath,
   required String failureStem,
@@ -92,6 +94,7 @@ Future<void> _expectGoldenWithLinuxDiagnostic(
   } catch (_) {
     if (Platform.isLinux) {
       await _emitPng(
+        tester,
         failureStem,
         File(
           'test/features/order_history/failures/'
@@ -103,13 +106,13 @@ Future<void> _expectGoldenWithLinuxDiagnostic(
   }
 }
 
-Future<void> _emitPng(String stem, File file) async {
+Future<void> _emitPng(WidgetTester tester, String stem, File file) async {
   if (!file.existsSync()) return;
   final encoded = base64Encode(await file.readAsBytes());
   const chunkSize = 4000;
   for (var offset = 0; offset < encoded.length; offset += chunkSize) {
     final end = (offset + chunkSize).clamp(0, encoded.length);
-    debugPrintSynchronously(
+    tester.printToConsole(
       'GOLDEN_BASE64_CHUNK:$stem:${encoded.substring(offset, end)}',
     );
   }
