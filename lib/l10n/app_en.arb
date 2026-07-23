@@ -2124,9 +2124,9 @@
   "@offersHighFeeDialogCancel": {
     "description": "Cancel CTA on the high-fee dialog"
   },
-  "offersErrorNetwork": "Couldn't reach Jeeb. Check your connection and try again.",
+  "offersErrorNetwork": "Check your connection, then retry.",
   "@offersErrorNetwork": {
-    "description": "Inline error banner copy when the accept call fails on the network"
+    "description": "Concise network guidance shared by the offer-review load error and inline accept error"
   },
   "offersErrorRequestNotOpen": "This request is no longer open.",
   "@offersErrorRequestNotOpen": {
@@ -2144,7 +2144,7 @@
   "@offersErrorGeneric": {
     "description": "Inline error banner copy for unclassified acceptance failures (accept phase only)"
   },
-  "offersLoadErrorGeneric": "Couldn't load offers. Please try again.",
+  "offersLoadErrorGeneric": "Couldn't load offers. Retry.",
   "@offersLoadErrorGeneric": {
     "description": "Full-screen error copy when the offers list itself fails to load (load phase; never mentions 'accepting')"
   },

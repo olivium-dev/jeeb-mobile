@@ -92,10 +92,9 @@ class CancelRequestSheet extends StatelessWidget {
     CancelRequestRepository? repository,
   }) {
     final rootContext = context;
-    final scrim = Theme.of(context)
-        .colorScheme
-        .onSecondaryContainer
-        .withValues(alpha: UIConstants.opacityHigh);
+    final scrim = Theme.of(context).colorScheme.onSecondaryContainer.withValues(
+      alpha: UIConstants.opacityHigh,
+    );
     return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -127,10 +126,7 @@ class CancelRequestSheet extends StatelessWidget {
         requestId: requestId,
         initialState: initialState,
       ),
-      child: _CancelRequestView(
-        onCancelled: onCancelled,
-        onKept: onKept,
-      ),
+      child: _CancelRequestView(onCancelled: onCancelled, onKept: onKept),
     );
   }
 }
@@ -266,7 +262,9 @@ class _CancelRequestView extends StatelessWidget {
                     label: l10n.actionCancel,
                     onTap: inFlight
                         ? null
-                        : () => context.read<CancelRequestCubit>().confirmCancel(),
+                        : () => context
+                              .read<CancelRequestCubit>()
+                              .confirmCancel(),
                     child: ExcludeSemantics(
                       child: OmdsLoadingButton(
                         key: const Key('cancel-request-confirm-cta'),
@@ -295,10 +293,11 @@ class _CancelRequestView extends StatelessWidget {
                     label: l10n.deliveryCancelDialogDismiss,
                     onTap: inFlight ? null : onKept,
                     child: ExcludeSemantics(
-                      child: OMDSOutlinedButton(
+                      child: OmdsPrimaryButton(
                         key: const Key('cancel-request-keep-cta'),
                         text: l10n.deliveryCancelDialogDismiss,
-                        enabled: !inFlight,
+                        variant: OmdsButtonVariant.outlined,
+                        isEnabled: !inFlight,
                         onTap: () => onKept?.call(),
                       ),
                     ),

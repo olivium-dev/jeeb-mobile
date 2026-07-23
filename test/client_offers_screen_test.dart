@@ -64,6 +64,8 @@ OffersSnapshot _snapshot(
   requestIsOpen: requestIsOpen,
 );
 
+const double _kAndroidNavigationBarInset = 48;
+
 void main() {
   testWidgets(
     'ClientOffersScreen — first paint renders sorted offers and timer',
@@ -222,8 +224,7 @@ void main() {
   );
 
   testWidgets(
-    'ClientOffersScreen — cancel request CTA is present while open (JM-030 '
-    'edge; sheet open is exercised by the Maestro flow once JM-030 keys land)',
+    'ClientOffersScreen — cancel request CTA is at least 48dp while open',
     (tester) async {
       final repo = ScriptedOffersRepository(
         snapshots: [
@@ -242,7 +243,80 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.byKey(const Key('offer-review-cancel-cta')), findsOneWidget);
+      final cancelCta = find.byKey(const Key('offer-review-cancel-cta'));
+      expect(cancelCta, findsOneWidget);
+      expect(
+        tester.getSize(cancelCta).height,
+        greaterThanOrEqualTo(UIConstants.buttonHeight),
+      );
+    },
+  );
+
+  testWidgets(
+    'ClientOffersScreen — list bottom padding keeps Cancel request above '
+    'the Android navigation bar at max scroll',
+    (tester) async {
+      final dpr = tester.view.devicePixelRatio;
+      tester.view.viewPadding = FakeViewPadding(
+        bottom: _kAndroidNavigationBarInset * dpr,
+      );
+      tester.view.padding = FakeViewPadding(
+        bottom: _kAndroidNavigationBarInset * dpr,
+      );
+      addTearDown(tester.view.reset);
+      await tester.binding.setSurfaceSize(const Size(800, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final repo = ScriptedOffersRepository(
+        snapshots: [
+          _snapshot([
+            buildOffer(id: 'one'),
+            buildOffer(id: 'two'),
+            buildOffer(id: 'three'),
+          ]),
+        ],
+      );
+      await tester.pumpWidget(
+        wrapForTest(
+          ClientOffersScreen(
+            requestId: 'req-inset',
+            repository: repo,
+            cubitFactory: _testCubitFactory,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final listFinder = find.byKey(const Key('offer-list'));
+      final listView = tester.widget<ListView>(listFinder);
+      final resolvedPadding = listView.padding!.resolve(TextDirection.ltr);
+      expect(
+        resolvedPadding.bottom,
+        Spacing.xLarge + _kAndroidNavigationBarInset,
+        reason:
+            'the fixed OMDS gutter and system bottom inset must both be '
+            'part of the scroll extent',
+      );
+
+      final scrollable = find.descendant(
+        of: listFinder,
+        matching: find.byType(Scrollable),
+      );
+      final cancelCta = find.byKey(const Key('offer-review-cancel-cta'));
+      await tester.scrollUntilVisible(cancelCta, 500, scrollable: scrollable);
+      await tester.fling(scrollable, const Offset(0, -1000), 10000);
+      await tester.pumpAndSettle();
+
+      final screenBottom = tester.getRect(find.byType(Scaffold)).bottom;
+      final gapBelowCta = screenBottom - tester.getRect(cancelCta).bottom;
+      expect(
+        gapBelowCta,
+        greaterThanOrEqualTo(Spacing.xLarge + _kAndroidNavigationBarInset),
+        reason:
+            'the full 48dp Cancel request target must clear the Android '
+            'navigation bar at max scroll; gap was $gapBelowCta',
+      );
     },
   );
 
@@ -284,7 +358,30 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.byKey(const Key('offer-load-error')), findsOneWidget);
+    final error = find.byKey(const Key('offer-load-error'));
+    expect(error, findsOneWidget);
+    expect(find.text('Check your connection, then retry.'), findsOneWidget);
+    expect(
+      tester.getSize(error).width,
+      lessThanOrEqualTo(Sizes.threeHundredLarge),
+      reason: 'error copy stays compact enough for balanced wrapping',
+    );
+
+    final body = find.bySemanticsIdentifier('offer_review_list_root');
+    expect(
+      tester.getCenter(error).dy,
+      closeTo(tester.getCenter(body).dy, 1),
+      reason: 'the error state must be centered in the remaining scaffold body',
+    );
+
+    final retry = find.ancestor(
+      of: find.text('Retry'),
+      matching: find.byWidgetPredicate((widget) => widget is FilledButton),
+    );
+    expect(
+      tester.getSize(retry).height,
+      greaterThanOrEqualTo(UIConstants.buttonHeight),
+    );
   });
 
   testWidgets(

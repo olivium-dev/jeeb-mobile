@@ -32,6 +32,7 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'package:jeeb_mobile/features/cancel_request/data/fake_cancel_request_repository.dart';
 import 'package:jeeb_mobile/features/cancel_request/domain/cancel_request_repository.dart';
 import 'package:jeeb_mobile/features/cancel_request/presentation/cancel_request_sheet.dart';
+import 'package:omds/omds.dart';
 
 class _SyncDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _SyncDelegate(this._arbByTag);
@@ -121,6 +122,30 @@ void main() {
           find.bySemanticsIdentifier(id),
           findsOneWidget,
           reason: '$id must surface as its own SemanticsNode.',
+        );
+      }
+    });
+
+    testWidgets('AC1b — confirm and Keep delivery targets are at least 48dp',
+        (tester) async {
+      await tester.pumpWidget(
+        _harness(
+          CancelRequestSheet(
+            requestId: 'req-client-001-pending',
+            repository: FakeCancelRequestRepository(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      for (final key in const [
+        Key('cancel-request-confirm-cta'),
+        Key('cancel-request-keep-cta'),
+      ]) {
+        expect(
+          tester.getSize(find.byKey(key)).height,
+          greaterThanOrEqualTo(UIConstants.buttonHeight),
+          reason: '$key must meet the Android 48dp touch-target minimum',
         );
       }
     });

@@ -5,6 +5,7 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/formatting/friendly_reference.dart';
+import '../../../core/layout/bottom_inset.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../cancel_request/domain/cancel_request_repository.dart';
 import '../../cancel_request/presentation/cancel_request_sheet.dart';
@@ -127,15 +128,22 @@ class _ClientOffersView extends StatelessWidget {
               case OffersScreenStatus.loading:
                 return const OmdsLoadingState();
               case OffersScreenStatus.failed:
-                return OmdsErrorState(
-                  key: const Key('offer-load-error'),
-                  message: offersFailureCopy(
-                    l10n,
-                    state.error,
-                    phase: OffersErrorPhase.load,
+                return Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: Sizes.threeHundredLarge,
+                    ),
+                    child: OmdsErrorState(
+                      key: const Key('offer-load-error'),
+                      message: offersFailureCopy(
+                        l10n,
+                        state.error,
+                        phase: OffersErrorPhase.load,
+                      ),
+                      retryLabel: l10n.offersRetryAction,
+                      onRetry: () => context.read<ClientOffersCubit>().load(),
+                    ),
                   ),
-                  retryLabel: l10n.offersRetryAction,
-                  onRetry: () => context.read<ClientOffersCubit>().load(),
                 );
               case OffersScreenStatus.loaded:
                 return _LoadedBody(
@@ -185,11 +193,11 @@ class _LoadedBody extends StatelessWidget {
       onRefresh: onRefresh,
       child: ListView(
         key: const Key('offer-list'),
-        padding: const EdgeInsetsDirectional.fromSTEB(
+        padding: EdgeInsetsDirectional.fromSTEB(
           Spacing.medium,
           Spacing.medium,
           Spacing.medium,
-          Spacing.xLarge,
+          Spacing.xLarge + context.scrollBodyBottomInset,
         ),
         physics: const AlwaysScrollableScrollPhysics(),
         children: [

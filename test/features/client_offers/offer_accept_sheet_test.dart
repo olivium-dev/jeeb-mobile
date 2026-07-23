@@ -30,6 +30,7 @@ import 'package:jeeb_mobile/features/client_offers/domain/jeeber_vehicle.dart';
 import 'package:jeeb_mobile/features/client_offers/domain/offer.dart';
 import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart';
 import 'package:jeeb_mobile/features/client_offers/presentation/widgets/offer_accept_sheet.dart';
+import 'package:omds/omds.dart';
 
 import '../../support/scripted_offers_repository.dart';
 
@@ -138,6 +139,31 @@ void main() {
           find.bySemanticsIdentifier(id),
           findsOneWidget,
           reason: '$id must surface as its own SemanticsNode.',
+        );
+      }
+    });
+
+    testWidgets('AC1b — confirm and cancel targets are at least 48dp',
+        (tester) async {
+      await tester.pumpWidget(
+        _harness(
+          OfferAcceptSheet(
+            offer: _offer(),
+            requestId: 'req-client-001-offers',
+            repository: _repo(conversationId: 'conv-journey-accepted'),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      for (final key in const [
+        Key('offer-accept-confirm-cta'),
+        Key('offer-accept-cancel-cta'),
+      ]) {
+        expect(
+          tester.getSize(find.byKey(key)).height,
+          greaterThanOrEqualTo(UIConstants.buttonHeight),
+          reason: '$key must meet the Android 48dp touch-target minimum',
         );
       }
     });
