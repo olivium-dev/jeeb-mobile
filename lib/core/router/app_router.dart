@@ -268,37 +268,40 @@ class AppRouter {
   static bool get _devSkipOnboarding =>
       kDebugMode && DevSeam.current.skipOnboarding;
 
-  /// Sentinel returned by [_devRoutePinRedirect] meaning "the pin is not
-  /// forcing a redirect right now" — distinct from `null`, which go_router
-  /// treats as "stay here". Using a sentinel lets the caller tell "no opinion"
-  /// apart from "explicitly allow".
-  static const String _noPin = ' __no_pin__';
-
-  /// The DevSeam route-pin's initial-landing-only redirect, extracted so it can
-  /// be applied either before (skipOnboarding) or after (deep-capture of an
-  /// already-onboarded device) the first-run gate. Returns [_noPin] when it has
-  /// no opinion, a path to force a redirect, or `null` to explicitly allow the
-  /// current location.
-  static String? _devRoutePinRedirect(
+  /// Resolves a DevSeam capture pin only until its initial route has landed.
+  ///
+  /// Both capture modes use this helper:
+  ///   * `jeeb.route` pins an arbitrary product route.
+  ///   * `jeeb.state` pins the fixtures-backed `/dev-chat` route.
+  ///
+  /// The latter previously had a separate unconditional redirect. go_router
+  /// therefore accepted later user pushes (and notified NavigatorObservers) but
+  /// immediately resolved them back to `/dev-chat` before the destination could
+  /// paint — the JEBV4-321 "diag push, unchanged UI" failure.
+  ///
+  /// [hasOpinion] distinguishes "do not participate in this redirect pass" from
+  /// an explicit `null` redirect that allows the current location.
+  static ({bool hasOpinion, String? location}) _initialLandingPinRedirect(
     GoRouterState state,
+    String pinLocation,
     bool Function() landed,
     void Function(bool) setLanded,
   ) {
     // Compare on the PATH only so a seam route carrying query params (e.g.
     // `/orders/d-1/feedback?name=Sami`) lands once instead of looping.
-    final devPath = Uri.parse(_devRoute).path;
-    if (state.matchedLocation == devPath) {
+    final pinPath = Uri.parse(pinLocation).path;
+    if (state.matchedLocation == pinPath) {
       // Reached the pinned route: latch landed and let it render.
       setLanded(true);
-      return null;
+      return (hasOpinion: true, location: null);
     }
     // Before landing, only force the redirect while still on the default root.
     // This drives the initial capture. After landing, never force again — so
-    // user-pushed routes stick (screens 10 & 13, regression-tested).
+    // user-pushed routes stick.
     if (!landed() && state.matchedLocation == '/') {
-      return _devRoute;
+      return (hasOpinion: true, location: pinLocation);
     }
-    return _noPin;
+    return (hasOpinion: false, location: null);
   }
 
   /// First-run gate: onboarding (FR-P0-1) then session/JWT (FR-P0-3), then the
@@ -525,15 +528,10 @@ class AppRouter {
     // `refreshListenable` below so a status change re-runs the redirect.
     AccountStatusGate accountStatus = const AlwaysActiveAccountStatusGate(),
   }) {
-    // One-shot latch (per router instance) for the dev-seam route pin. The seam
-    // must drive the INITIAL landing onto the pinned dev route, but must NOT
-    // keep bouncing every later user-initiated push back to it — otherwise
-    // screen 10's "New Location" → `/capture-location` and screen 13's pending
-    // item → `/chat/:id` get redirected away the instant they're pushed and the
-    // target never mounts. Once the seam has landed on its dev route (or the
-    // app has otherwise moved off the default root), we stop forcing and let
-    // any pushed location pass. Instance-scoped (not static) so parallel tests
-    // and hot restarts each get a fresh latch.
+    // One-shot latch (per router instance) for both DevSeam capture pins. A pin
+    // drives only the INITIAL landing; later user-initiated pushes must pass.
+    // Instance-scoped (not static) so parallel tests and hot restarts each get
+    // a fresh latch.
     var devSeamLanded = false;
     // FR-P0-3: re-run redirects when the session changes (login/logout). Only
     // the real `SessionCubit` is a `Cubit`; the inert default gate has no stream
@@ -584,10 +582,21 @@ class AppRouter {
           return chatDeepLink;
         }
 
-        // Debug capture aid: drop straight onto the fixtures-backed chat
-        // (chat selector wins over a generic route override).
+        // Debug capture aid: initially drop onto the fixtures-backed chat (chat
+        // selector wins over a generic route override), then release the pin so
+        // CTAs inside the preview can push real routes. JEBV4-321: keeping this
+        // redirect unconditional logged the attempted push but replaced its
+        // match with `/dev-chat` before the target painted.
         if (_devChat.isNotEmpty) {
-          return state.matchedLocation == '/dev-chat' ? null : '/dev-chat';
+          final pin = _initialLandingPinRedirect(
+            state,
+            '/dev-chat',
+            () => devSeamLanded,
+            (v) => devSeamLanded = v,
+          );
+          // Chat capture keeps its historical full gate bypass. Once the helper
+          // has no opinion, allow the pushed route by returning null.
+          return pin.hasOpinion ? pin.location : null;
         }
 
         // FR-P0-1: The DevSeam route pin may only BYPASS the first-run
@@ -603,13 +612,14 @@ class AppRouter {
         // from a single APK without seeding prefs or a token. This branch
         // returns early in every sub-case, exactly like the pre-FR-P0-1 code.
         if (_devRoute.isNotEmpty && _devSkipOnboarding) {
-          final pinRedirect = _devRoutePinRedirect(
+          final pin = _initialLandingPinRedirect(
             state,
+            _devRoute,
             () => devSeamLanded,
             (v) => devSeamLanded = v,
           );
-          // _noPin → not forcing → allow (null). Otherwise force the pin path.
-          return pinRedirect == _noPin ? null : pinRedirect;
+          // No opinion → not forcing → allow (null). Otherwise apply the pin.
+          return pin.hasOpinion ? pin.location : null;
         }
 
         // First-run gate (FR-P0-1 onboarding + FR-P0-3 session). Runs for every
@@ -628,12 +638,13 @@ class AppRouter {
         // deep-capture of authenticated screens still works on a device whose
         // onboarding is already complete.
         if (_devRoute.isNotEmpty && !_devSkipOnboarding) {
-          final pinRedirect = _devRoutePinRedirect(
+          final pin = _initialLandingPinRedirect(
             state,
+            _devRoute,
             () => devSeamLanded,
             (v) => devSeamLanded = v,
           );
-          if (pinRedirect != _noPin) return pinRedirect;
+          if (pin.hasOpinion) return pin.location;
         }
 
         // Biometric gate (T-mobile-005). Once onboarding has completed, hold

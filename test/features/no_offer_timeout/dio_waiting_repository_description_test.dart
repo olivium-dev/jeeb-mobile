@@ -95,7 +95,7 @@ void main() {
           final body = <String, dynamic>{
             'id': 'req-1',
             'status': 'pending',
-            if (expiry != null) 'broadcastExpiresAt': expiry,
+            'broadcastExpiresAt': ?expiry,
           };
           final repo = DioWaitingRepository(_FakeDio(requestBody: body));
 

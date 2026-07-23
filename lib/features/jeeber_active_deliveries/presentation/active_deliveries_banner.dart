@@ -158,14 +158,16 @@ class _ActiveDeliveriesSummaryRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: Spacing.small),
-        OmdsPrimaryButton(
+        Semantics(
           identifier: 'jeeber_active_deliveries_view_all',
-          variant: OmdsButtonVariant.text,
-          text: expanded
-              ? l10n.jeeberActiveDeliveriesShowLess
-              : l10n.jeeberActiveDeliveriesViewAll(totalCount),
-          icon: Icon(expanded ? Icons.expand_less : Icons.expand_more),
-          onTap: onToggle,
+          child: OmdsPrimaryButton(
+            variant: OmdsButtonVariant.text,
+            text: expanded
+                ? l10n.jeeberActiveDeliveriesShowLess
+                : l10n.jeeberActiveDeliveriesViewAll(totalCount),
+            icon: Icon(expanded ? Icons.expand_less : Icons.expand_more),
+            onTap: onToggle,
+          ),
         ),
       ],
     );

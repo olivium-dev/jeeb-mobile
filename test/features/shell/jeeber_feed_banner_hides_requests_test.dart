@@ -113,13 +113,11 @@ class _FeedHarness {
     required this.availability,
     required this.deliveries,
     required this.feed,
-    required this.availabilityTicker,
   });
 
   final AvailabilityCubit availability;
   final ActiveDeliveriesCubit deliveries;
   final RequestFeedCubit feed;
-  final StreamController<DateTime> availabilityTicker;
 
   Future<void> dispose(WidgetTester tester) async {
     // BlocProvider.value does not own these cubits. Unmount their listeners
@@ -129,7 +127,6 @@ class _FeedHarness {
     await deliveries.close();
     await feed.close();
     await availability.close();
-    await availabilityTicker.close();
   }
 }
 
@@ -139,6 +136,7 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     final ticker = StreamController<DateTime>.broadcast();
+    addTearDown(ticker.close);
     final availability = AvailabilityCubit(
       gateway: InMemoryAvailabilityGateway(
         initial: AvailabilityStatus.initial.copyWith(
@@ -172,7 +170,6 @@ void main() {
       availability: availability,
       deliveries: deliveries,
       feed: feed,
-      availabilityTicker: ticker,
     );
   }
 

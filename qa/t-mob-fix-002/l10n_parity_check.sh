@@ -59,6 +59,7 @@ done
 # --- dependency checks ---------------------------------------------------------
 command -v jq >/dev/null 2>&1 || { echo "ERROR: jq is required (brew install jq)" >&2; exit 2; }
 command -v grep >/dev/null 2>&1 || { echo "ERROR: grep is required" >&2; exit 2; }
+command -v perl >/dev/null 2>&1 || { echo "ERROR: perl is required" >&2; exit 2; }
 
 EN_ARB="lib/l10n/app_en.arb"
 AR_ARB="lib/l10n/app_ar.arb"
@@ -91,10 +92,14 @@ grep -rhE '\bl10n\.[a-zA-Z_]' lib/ \
 
 # --- compute S2: getter names in app_localizations.dart -----------------------
 # Source of truth is _get('key') invocations, NOT `String get foo => ...` names,
-# because the latter can drift from the ARB key (theoretically).
+# because the latter can drift from the ARB key (theoretically). Read the file
+# as one record so dart-formatted multiline calls and trailing commas count.
 S2="${OUT_DIR}/s2_getters.txt"
-grep -oE "_get\('[^']+'\)" "${LOC_DART}" \
-  | sed -E "s/_get\('([^']+)'\)/\1/" \
+perl -0777 -ne '
+  while (/_get\(\s*\x27([^\x27]+)\x27\s*,?\s*\)/g) {
+    print "$1\n";
+  }
+' "${LOC_DART}" \
   | sort -u > "${S2}"
 
 # --- compute S3, S4: ARB key sets (excluding @-metadata) ----------------------
