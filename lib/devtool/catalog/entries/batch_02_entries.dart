@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../features/cancel_request/application/cancel_request_state.dart';
@@ -10,6 +12,7 @@ import '../../../features/cancellation/presentation/cancellation_screen.dart';
 import '../../../features/cancellation/presentation/cubit/cancellation_state.dart';
 import '../../../features/cancellation/presentation/widgets/cancellation_success_sheet.dart';
 import '../../../features/chat/presentation/dev_chat_preview_screen.dart';
+import '../../../features/client_offers/application/client_offers_cubit.dart';
 import '../../../features/client_offers/application/offer_accept_state.dart';
 import '../../../features/client_offers/data/fake_offers_repository.dart';
 import '../../../features/client_offers/domain/jeeber_vehicle.dart';
@@ -32,15 +35,15 @@ import '../catalog_models.dart';
 /// Tool shares the app's real GetIt graph (`Bootstrap.minimal`, see
 /// `devtool_shell.dart`) and would otherwise hit the live gateway.
 List<CatalogEntry> get batch02Entries => <CatalogEntry>[
-      _cancelRequestSheetEntry,
-      _cancellationScreenEntry,
-      _cancellationSuccessSheetEntry,
-      _chatScreenEntry,
-      _clientOffersScreenEntry,
-      _offerAcceptSheetEntry,
-      _clientUnreachableScreenEntry,
-      _customerProfileScreenEntry,
-    ];
+  _cancelRequestSheetEntry,
+  _cancellationScreenEntry,
+  _cancellationSuccessSheetEntry,
+  _chatScreenEntry,
+  _clientOffersScreenEntry,
+  _offerAcceptSheetEntry,
+  _clientUnreachableScreenEntry,
+  _customerProfileScreenEntry,
+];
 
 /// Bottom-sheet previews (`CancelRequestSheet` / `OfferAcceptSheet` /
 /// `CancellationSuccessSheet`) are not routes — they render a bare column, not
@@ -78,8 +81,9 @@ final CatalogEntry _cancelRequestSheetEntry = CatalogEntry(
         CancelRequestSheet(
           requestId: 'req-demo-1',
           repository: FakeCancelRequestRepository(),
-          initialState:
-              const CancelRequestState(status: CancelRequestStatus.inFlight),
+          initialState: const CancelRequestState(
+            status: CancelRequestStatus.inFlight,
+          ),
         ),
       ),
     ),
@@ -114,10 +118,7 @@ class _CatalogCancellationRepository implements CancellationRepository {
     required String reason,
     String? otherDetails,
   }) async {
-    return CancellationResult(
-      deliveryId: deliveryId,
-      weeklyCount: 1,
-    );
+    return CancellationResult(deliveryId: deliveryId, weeklyCount: 1);
   }
 }
 
@@ -234,6 +235,18 @@ class _FailingOffersRepository implements OffersRepository {
   }
 }
 
+ClientOffersCubit _catalogOffersCubit(
+  OffersRepository repository,
+  String requestId,
+) {
+  return ClientOffersCubit(
+    repository: repository,
+    requestId: requestId,
+    pollTicks: const Stream<void>.empty(),
+    clockTicks: const Stream<void>.empty(),
+  );
+}
+
 final CatalogEntry _clientOffersScreenEntry = CatalogEntry(
   feature: 'client_offers',
   screen: 'client_offers_screen',
@@ -243,6 +256,8 @@ final CatalogEntry _clientOffersScreenEntry = CatalogEntry(
       (_) => ClientOffersScreen(
         requestId: 'req-demo-1',
         repository: FakeOffersRepository(),
+        cancelRepositoryOverride: FakeCancelRequestRepository(),
+        cubitFactory: _catalogOffersCubit,
       ),
     ),
     CatalogState(
@@ -250,6 +265,8 @@ final CatalogEntry _clientOffersScreenEntry = CatalogEntry(
       (_) => ClientOffersScreen(
         requestId: 'req-demo-1',
         repository: FakeOffersRepository(seed: const []),
+        cancelRepositoryOverride: FakeCancelRequestRepository(),
+        cubitFactory: _catalogOffersCubit,
       ),
     ),
     CatalogState(
@@ -259,6 +276,8 @@ final CatalogEntry _clientOffersScreenEntry = CatalogEntry(
         repository: FakeOffersRepository(
           windowExpiresAt: DateTime.now().subtract(const Duration(minutes: 1)),
         ),
+        cancelRepositoryOverride: FakeCancelRequestRepository(),
+        cubitFactory: _catalogOffersCubit,
       ),
     ),
     CatalogState(
@@ -266,13 +285,17 @@ final CatalogEntry _clientOffersScreenEntry = CatalogEntry(
       (_) => ClientOffersScreen(
         requestId: 'req-demo-1',
         repository: FakeOffersRepository()..closeRequest(),
+        cancelRepositoryOverride: FakeCancelRequestRepository(),
+        cubitFactory: _catalogOffersCubit,
       ),
     ),
     CatalogState(
       'Error — network',
-      (_) => const ClientOffersScreen(
+      (_) => ClientOffersScreen(
         requestId: 'req-demo-1',
-        repository: _FailingOffersRepository(),
+        repository: const _FailingOffersRepository(),
+        cancelRepositoryOverride: FakeCancelRequestRepository(),
+        cubitFactory: _catalogOffersCubit,
       ),
     ),
   ],
@@ -312,8 +335,9 @@ final CatalogEntry _offerAcceptSheetEntry = CatalogEntry(
           offer: _sampleOffer,
           requestId: 'req-demo-1',
           repository: FakeOffersRepository(),
-          initialState:
-              const OfferAcceptState(status: OfferAcceptStatus.submitting),
+          initialState: const OfferAcceptState(
+            status: OfferAcceptStatus.submitting,
+          ),
         ),
       ),
     ),
