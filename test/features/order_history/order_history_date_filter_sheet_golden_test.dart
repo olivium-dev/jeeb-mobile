@@ -31,7 +31,6 @@ void main() {
         RepaintBoundary(
           key: const Key('filter-sheet-golden'),
           child: MaterialApp(
-            debugShowCheckedModeBanner: false,
             theme: withGoldenTestFonts(AppTheme.light()),
             locale: scenario.locale,
             supportedLocales: AppLocalizations.supportedLocales,

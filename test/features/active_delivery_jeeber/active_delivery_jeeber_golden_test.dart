@@ -85,7 +85,6 @@ void main() {
         RepaintBoundary(
           key: const Key('active-delivery-golden'),
           child: MaterialApp(
-            debugShowCheckedModeBanner: false,
             theme: withGoldenTestFonts(AppTheme.light()),
             locale: scenario.locale,
             supportedLocales: AppLocalizations.supportedLocales,
