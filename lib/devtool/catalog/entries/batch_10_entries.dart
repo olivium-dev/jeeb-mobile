@@ -35,6 +35,7 @@ import '../../../features/tier_selection/cubit/tier_selection_cubit.dart';
 import '../../../features/tier_selection/data/tier_repository.dart';
 import '../../../features/tier_selection/domain/tier.dart';
 import '../catalog_models.dart';
+import '../tier_catalog_fixture.dart';
 
 // Batch 10 — request_summary, request_type, reviews, search, settings,
 // settlement. `live_settings_screen.dart` is SKIPPED (see bottom of file): it
@@ -98,9 +99,8 @@ Widget _requestSummaryScreen(
 // ─────────────────────────────────────────────────────────────────────────────
 // request_type — tier selection (RequestTypeScreen). Both `repository` and
 // `cubit` are existing constructor test seams (§5.4) — no seam addition
-// needed. `TierSelectionStatus.error` is unreachable from the real cubit
-// (`load()` swallows every [TierLoadException] into the offline fallback), so
-// only Loading / Loaded / Selected are meaningfully designed states.
+// needed. The loaded previews use the delivery-service's current three-tier
+// contract rather than the wider legacy fake catalog.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Never resolves — keeps the screen on its centered spinner for a stable
@@ -116,7 +116,7 @@ class _PendingTierRepository implements TierRepository {
 /// "load, then act once it resolves" trick as the `otp_handover` escalate
 /// preview (batch 08) — `selectTier` is a no-op until `load()` has landed.
 TierSelectionCubit _selectedTierCubit(TierId select) {
-  final cubit = TierSelectionCubit(repository: const FakeTierRepository());
+  final cubit = TierSelectionCubit(repository: const DevtoolTierRepository());
   unawaited(cubit.load().then((_) => cubit.selectTier(select)));
   return cubit;
 }
@@ -562,11 +562,11 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
       ),
       CatalogState(
         'Loaded — no selection',
-        (_) => const RequestTypeScreen(repository: FakeTierRepository()),
+        (_) => const RequestTypeScreen(repository: DevtoolTierRepository()),
       ),
       CatalogState(
-        'Selected — Eco',
-        (_) => RequestTypeScreen(cubit: _selectedTierCubit(TierId.eco)),
+        'Selected — Standard',
+        (_) => RequestTypeScreen(cubit: _selectedTierCubit(TierId.standard)),
       ),
     ],
   ),

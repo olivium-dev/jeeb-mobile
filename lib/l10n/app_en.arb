@@ -3072,6 +3072,13 @@
   "@reviewerVerifiedBadge": {
     "description": "Subtitle under a reviewer name marking them as a verified client (domain-corrected from the Figma 'Verified Technician' per spec flag)."
   },
+  "reviewRatingStarsLabel": "{rating} of 5 stars",
+  "@reviewRatingStarsLabel": {
+    "description": "Screen-reader label for the otherwise visual-only star score on an individual review.",
+    "placeholders": {
+      "rating": { "type": "String" }
+    }
+  },
   "reviewHelpfulAction": "Helpful",
   "@reviewHelpfulAction": {
     "description": "Label of the 'helpful' vote action on a review card; count appended by the card."
