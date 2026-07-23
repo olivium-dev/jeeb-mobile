@@ -67,8 +67,10 @@ class OfferCard extends StatelessWidget {
     // Lane item 3 (currency unification): one formatter across receipt,
     // offers, tiers — "$12.00" for USD, "LBP 15,000.00" otherwise. No more
     // mixed "17.50 / USD" pill vs "$12.00" receipt.
-    final feeFormatted =
-        MoneyFormat.format(offer.fee, currency: offer.currency);
+    final feeFormatted = MoneyFormat.format(
+      offer.fee,
+      currency: offer.currency,
+    );
     final vehicleLabel = _vehicleLabel(l10n, offer.vehicle);
 
     // Optional Jeeber note (offer.note). Trim so a whitespace-only note from the
@@ -109,7 +111,9 @@ class OfferCard extends StatelessWidget {
     // Append the note to the screen-reader label so it is announced with the
     // rest of the card facts (the visible node is also independently addressable
     // by `offer_card_<index>_note`).
-    final semanticLabel = hasNote ? '$baseSemanticLabel. $note' : baseSemanticLabel;
+    final semanticLabel = hasNote
+        ? '$baseSemanticLabel. $note'
+        : baseSemanticLabel;
 
     // The card is addressable both by index (the asserted Maestro id) and by
     // Jeeber id (the full `offer_card_<id>` AC pattern). The merged root node
@@ -131,56 +135,24 @@ class OfferCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  OmdsProfileAvatar(
-                    // Initial derives from the RESOLVED display name (SW-08),
-                    // so an unnamed Jeeber shows "N" (New Jeeber), never the
-                    // first character of a UUID.
-                    initial: _initial(displayName),
-                    profilePicUrl: offer.avatarUrl,
-                    size: Sizes.fourXLarge,
-                  ),
-                  const SizedBox(width: Spacing.small),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Jeeber name — tap target → jeeber-profile-reviews.
-                        // Uses the resolved [displayName] (SW-08), so a
-                        // suppressed handle/UUID reads as "New Jeeber".
-                        _NameTapTarget(
-                          indexId: 'offer_card_${index}_name',
-                          patternId: 'offer_card_${offer.jeeberId}_name',
-                          name: displayName,
-                          onTap: onTapName,
-                        ),
-                        const SizedBox(height: Spacing.twoXSmall),
-                        // Honest rating (SW-08): stars + count only when rated;
-                        // otherwise an explicit "No ratings yet" line — never
-                        // "4.5 (0)".
-                        if (hasRatings)
-                          OmdsStarRatingDisplay(
-                            averageRating: offer.rating,
-                            totalReviews: offer.ratingCount,
-                            starSize: Sizes.medium,
-                            reviewsLabelBuilder: (count) => '$count',
-                          )
-                        else
-                          _NoRatingsYet(label: l10n.offersCardNoRatingsYet),
-                      ],
-                    ),
-                  ),
-                  // Price pill.
-                  _IdWrap(
-                    indexId: 'offer_card_${index}_price',
-                    patternId: 'offer_card_${offer.jeeberId}_price',
-                    child: _FeePill(amount: feeFormatted),
-                  ),
-                ],
+              _OfferCardHeader(
+                displayName: displayName,
+                avatarUrl: offer.avatarUrl,
+                averageRating: offer.rating,
+                ratingCount: offer.ratingCount,
+                hasRatings: hasRatings,
+                noRatingsLabel: l10n.offersCardNoRatingsYet,
+                feeFormatted: feeFormatted,
+                nameIndexId: 'offer_card_${index}_name',
+                namePatternId: 'offer_card_${offer.jeeberId}_name',
+                priceIndexId: 'offer_card_${index}_price',
+                pricePatternId: 'offer_card_${offer.jeeberId}_price',
+                onTapName: onTapName,
               ),
               const SizedBox(height: Spacing.small),
-              Row(
+              Wrap(
+                spacing: Spacing.xSmall,
+                runSpacing: Spacing.xSmall,
                 children: [
                   // ETA chip.
                   _IdWrap(
@@ -191,7 +163,6 @@ class OfferCard extends StatelessWidget {
                       label: l10n.offersCardEtaMinutes(offer.etaMinutes),
                     ),
                   ),
-                  const SizedBox(width: Spacing.xSmall),
                   _MetaChip(
                     icon: _vehicleIcon(offer.vehicle),
                     label: vehicleLabel,
@@ -298,6 +269,126 @@ class OfferCard extends StatelessWidget {
   }
 }
 
+/// Responsive identity/rating/price header.
+///
+/// The avatar and name have their own row so the identity never competes with
+/// localized money or rating text. The rating and fee then wrap independently:
+/// they stay together at normal scale and split across runs when either needs
+/// more room at large text sizes.
+class _OfferCardHeader extends StatelessWidget {
+  const _OfferCardHeader({
+    required this.displayName,
+    required this.avatarUrl,
+    required this.averageRating,
+    required this.ratingCount,
+    required this.hasRatings,
+    required this.noRatingsLabel,
+    required this.feeFormatted,
+    required this.nameIndexId,
+    required this.namePatternId,
+    required this.priceIndexId,
+    required this.pricePatternId,
+    required this.onTapName,
+  });
+
+  final String displayName;
+  final String? avatarUrl;
+  final double averageRating;
+  final int ratingCount;
+  final bool hasRatings;
+  final String noRatingsLabel;
+  final String feeFormatted;
+  final String nameIndexId;
+  final String namePatternId;
+  final String priceIndexId;
+  final String pricePatternId;
+  final VoidCallback onTapName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            OmdsProfileAvatar(
+              initial: OfferCard._initial(displayName),
+              profilePicUrl: avatarUrl,
+              size: Sizes.fourXLarge,
+            ),
+            const SizedBox(width: Spacing.small),
+            Expanded(
+              child: _NameTapTarget(
+                indexId: nameIndexId,
+                patternId: namePatternId,
+                name: displayName,
+                onTap: onTapName,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: Spacing.twoXSmall),
+        Wrap(
+          spacing: Spacing.small,
+          runSpacing: Spacing.twoXSmall,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (hasRatings)
+              _RatingSummary(
+                averageRating: averageRating,
+                ratingCount: ratingCount,
+              )
+            else
+              _NoRatingsYet(label: noRatingsLabel),
+            _IdWrap(
+              indexId: priceIndexId,
+              patternId: pricePatternId,
+              child: _FeePill(amount: feeFormatted),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _RatingSummary extends StatelessWidget {
+  const _RatingSummary({
+    required this.averageRating,
+    required this.ratingCount,
+  });
+
+  final double averageRating;
+  final int ratingCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        OmdsStarRatingDisplay(
+          averageRating: averageRating,
+          starSize: Sizes.medium,
+          showReviewCount: false,
+        ),
+        const SizedBox(width: Spacing.twoXSmall),
+        Flexible(
+          child: Text(
+            '($ratingCount)',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Max visible lines for the optional Jeeber note before it ellipsizes.
 const int _kOfferNoteMaxLines = 3;
 
@@ -353,6 +444,7 @@ class _NoRatingsYet extends StatelessWidget {
     final colors = theme.colorScheme;
     return Semantics(
       identifier: 'offer_card_no_ratings',
+      container: true,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -362,10 +454,14 @@ class _NoRatingsYet extends StatelessWidget {
             color: colors.onSurfaceVariant,
           ),
           const SizedBox(width: Spacing.twoXSmall),
-          Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colors.onSurfaceVariant,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
             ),
           ),
         ],
@@ -391,10 +487,7 @@ class _IdWrap extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       identifier: indexId,
-      child: Semantics(
-        identifier: patternId,
-        child: child,
-      ),
+      child: Semantics(identifier: patternId, child: child),
     );
   }
 }
@@ -469,6 +562,8 @@ class _NameTapTarget extends StatelessWidget {
                 widthFactor: 1.0,
                 child: Text(
                   name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                     decoration: TextDecoration.underline,
@@ -554,6 +649,8 @@ class _FeePill extends StatelessWidget {
       ),
       child: Text(
         amount,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: theme.textTheme.titleMedium?.copyWith(
           fontWeight: FontWeight.bold,
           color: colors.onPrimaryContainer,
@@ -587,10 +684,14 @@ class _MetaChip extends StatelessWidget {
         children: [
           Icon(icon, size: Sizes.medium, color: colors.onSurfaceVariant),
           const SizedBox(width: Spacing.xSmall),
-          Text(
-            label,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: colors.onSurface,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: colors.onSurface,
+              ),
             ),
           ),
         ],
