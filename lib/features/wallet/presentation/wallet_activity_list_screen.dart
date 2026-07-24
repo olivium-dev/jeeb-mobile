@@ -78,7 +78,17 @@ class _WalletActivityView extends StatelessWidget {
       identifier: 'wallet_activity_root',
       container: true,
       child: Scaffold(
-        appBar: OMDSAppBar(title: copy.title, showBackButton: true),
+        appBar: OMDSAppBar(
+          title: copy.title,
+          showBackButton: true,
+          // Normally pushed from wallet-hub's `wallet_see_all_activity` or
+          // earnings' `earnings_activity_link`, but also reachable via deep
+          // link with an empty Navigator stack. Pop when we can (pushed
+          // entry), else return to the shell — never pop the last page
+          // (which would leave an empty Navigator → black surface).
+          onBackPressed: () =>
+              context.canPop() ? context.pop() : context.go('/'),
+        ),
         body: BlocBuilder<WalletLedgerCubit, WalletLedgerState>(
           builder: (context, state) {
             switch (state.status) {

@@ -89,7 +89,17 @@ class _TransactionDetailView extends StatelessWidget {
       identifier: 'txn_detail_root',
       container: true,
       child: Scaffold(
-        appBar: OMDSAppBar(title: copy.title, showBackButton: true),
+        appBar: OMDSAppBar(
+          title: copy.title,
+          showBackButton: true,
+          // Normally pushed from wallet-activity-list's
+          // `wallet_activity_row_<id>` tap, but also reachable via deep link
+          // with an empty Navigator stack. Pop when we can (pushed entry),
+          // else return to the shell — never pop the last page (which would
+          // leave an empty Navigator → black surface).
+          onBackPressed: () =>
+              context.canPop() ? context.pop() : context.go('/'),
+        ),
         body: BlocBuilder<TransactionDetailCubit, TransactionDetailState>(
           builder: (context, state) {
             switch (state.status) {

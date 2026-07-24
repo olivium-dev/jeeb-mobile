@@ -69,7 +69,16 @@ class _OnboardingFundingScreenState extends State<OnboardingFundingScreen> {
     final theme = Theme.of(context);
     final balance = _balance;
     return Scaffold(
-      appBar: OMDSAppBar(title: l10n.fundingTitle, showBackButton: true),
+      appBar: OMDSAppBar(
+        title: l10n.fundingTitle,
+        showBackButton: true,
+        // Normally pushed after KYC submission, but also reachable via deep
+        // link with an empty Navigator stack. Pop when we can (pushed
+        // entry), else return to the shell — never pop the last page
+        // (which would leave an empty Navigator → black surface).
+        onBackPressed: () =>
+            context.canPop() ? context.pop() : context.go('/'),
+      ),
       // `funding_explainer` is the screen ROOT (65_W2_TEST_PLAN §2 JM-041) and is
       // ALWAYS present regardless of the wallet load state — the explainer is the
       // AC, not the live numbers.
