@@ -48,6 +48,15 @@ class MainActivity : FlutterFragmentActivity() {
         "jeeb.seam.recovery_code",
         "jeeb.seam.recovery_countdown_expired",
         "jeeb.seam.set_password_mode",
+        // super-login+ seam (QA-only, kDebugMode-gated on the Dart side): the real
+        // minted gateway JWT + its user/role, injected at launch. Without these in
+        // the allowlist readSeamExtras() dropped them, so the documented
+        // `am start -e jeeb.seam.super_login_token <JWT>` path silently landed on
+        // /login (only the /data/local/tmp/jeeb-dev-seam.json file source worked).
+        "jeeb.seam.super_login_token",
+        "jeeb.seam.super_login_refresh",
+        "jeeb.seam.super_login_user_id",
+        "jeeb.seam.super_login_role",
     )
 
     // `adb push jeeb-dev-seam.json /data/local/tmp/jeeb-dev-seam.json`.
