@@ -61,6 +61,9 @@ class LiveTrackingScreen extends StatelessWidget {
     return Semantics(
       identifier: 'tracking_root',
       container: true,
+      // Keep terminal-state and CTA identifiers as addressable descendants
+      // instead of folding them into the screen-signature node.
+      explicitChildNodes: true,
       child: Scaffold(
         appBar: OMDSAppBar(
           title: l10n.trackingTitle,
@@ -296,8 +299,9 @@ class _TrackingActionBar extends StatelessWidget {
     final l10n = LiveTrackingL10n.of(context);
     // The no-show recovery routes are request-scoped; the delivery row carries
     // requestId (mock convention: deliveryId == accepted-request-id when null).
-    final requestId =
-        (info.requestId?.isNotEmpty ?? false) ? info.requestId! : deliveryId;
+    final requestId = (info.requestId?.isNotEmpty ?? false)
+        ? info.requestId!
+        : deliveryId;
     return Padding(
       padding: const EdgeInsetsDirectional.fromSTEB(
         Spacing.medium,
@@ -503,9 +507,7 @@ class _TrackingErrorBody extends StatelessWidget {
         message: message ?? l10n.trackingGpsLostBody,
         // A 404 is a "nothing to track yet" state — use a neutral box icon
         // rather than the GPS-lost crosshair so it doesn't read as a fault.
-        icon: isNotFound
-            ? Icons.inbox_outlined
-            : Icons.location_off_outlined,
+        icon: isNotFound ? Icons.inbox_outlined : Icons.location_off_outlined,
         onRetry: onRetry,
         retryLabel: l10n.trackingGpsLostRetry,
       ),

@@ -46,9 +46,9 @@ void main() {
     expect(
       find.byWidgetPredicate(
         (widget) =>
-            widget is OmdsReviewCard &&
-            widget.userName == 'J' &&
-            widget.userImageUrl == null,
+            widget is OmdsProfileAvatar &&
+            widget.initial == 'J' &&
+            widget.profilePicUrl == null,
       ),
       findsOneWidget,
     );
