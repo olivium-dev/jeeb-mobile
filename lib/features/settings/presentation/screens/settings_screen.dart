@@ -111,6 +111,14 @@ class _SettingsView extends StatelessWidget {
           appBar: OMDSAppBar(
             title: l10n.settingsTitle,
             showBackButton: true,
+            // The `/settings` route has no current forward-nav entry point
+            // (ORPHAN, JEBV4-227) — it is only reached directly (e.g. deep
+            // link), which can leave an empty Navigator stack. Pop when we
+            // can (pushed entry), else return to the shell — never pop the
+            // last page (which would leave an empty Navigator → black
+            // surface).
+            onBackPressed: () =>
+                context.canPop() ? context.pop() : context.go('/'),
           ),
           body: ListView(
             key: const Key('settings-screen-list'),
