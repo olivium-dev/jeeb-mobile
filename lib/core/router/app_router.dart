@@ -1,16 +1,20 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:open_file/open_file.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../dev_seam/dev_seam.dart';
+import '../network/auth_token_store.dart';
 import '../session/account_status_gate.dart';
 import '../session/session_gate.dart';
 import '../session/session_state.dart';
+import '../session/profile_refresh_signals.dart';
 import 'profile_unavailable_screen.dart';
 import 'root_aware_back_scope.dart';
 import '../../features/account_status/presentation/account_status_screen.dart';
@@ -94,6 +98,10 @@ import '../../features/request_summary/domain/request_draft.dart';
 import '../../features/request_summary/domain/request_submission_service.dart';
 import '../../features/request_summary/presentation/request_summary_screen.dart';
 import '../../features/request_summary/presentation/request_summary_unavailable_screen.dart';
+import '../../features/profile_name/data/dio_display_name_repository.dart';
+import '../../features/settings/application/settings_cubit.dart';
+import '../../features/settings/data/dio_account_service.dart';
+import '../../features/settings/data/shared_prefs_profile_repository.dart';
 import '../../features/settings/presentation/screens/notification_preferences_screen.dart';
 import '../../features/settings/presentation/screens/profile_edit_screen.dart';
 import '../../features/cancellation/presentation/cancellation_screen.dart';
@@ -931,7 +939,45 @@ class AppRouter {
             GoRoute(
               path: 'profile',
               name: 'settings-profile',
-              builder: (context, state) => const ProfileEditScreen(),
+              // Crash fix (2026-07-24, emu-restore-01 idx 20/28):
+              // ProfileEditScreen reads a screen-wide SettingsCubit via
+              // `context.read`/`context.watch`, on the assumption (its own
+              // doc comment) that it shares the cubit hosted by the parent
+              // settings list. But go_router's nested `routes: [...]` only
+              // nests the URL PATH — `settings-profile` is still an
+              // independent Page pushed onto the Navigator, so it does NOT
+              // inherit the `BlocProvider<SettingsCubit>` that
+              // LiveSettingsScreen/SettingsScreen host around their OWN
+              // subtree (settings_screen.dart / live_settings_screen.dart).
+              // Both a direct deep-land on this route AND the real in-app
+              // tap on the Profile row (`context.pushNamed('settings-profile')`
+              // in settings_screen.dart's `_ProfileSection`) therefore hit a
+              // provider-free context and threw
+              // `ProviderNotFoundException<SettingsCubit>` before the screen
+              // ever painted.
+              //
+              // Fix: provide a real, DI-backed SettingsCubit locally, scoped
+              // to this route only — same production collaborators
+              // LiveSettingsScreen uses for its own cubit (DioAccountService +
+              // DioDisplayNameRepository over the shared gateway Dio; the
+              // locally-persisted profile cache as the repository so the
+              // route has no extra network dependency of its own). No
+              // settings-module restructuring: SettingsScreen/LiveSettingsScreen
+              // and the other settings sub-routes are untouched.
+              builder: (context, state) => BlocProvider<SettingsCubit>(
+                create: (_) => SettingsCubit(
+                  profileRepository: SharedPrefsProfileRepository(
+                    prefs: sl<SharedPreferences>(),
+                  ),
+                  accountService:
+                      DioAccountService(sl<Dio>(), AuthTokenStore()),
+                  displayNameRepository: DioDisplayNameRepository(sl<Dio>()),
+                  refreshSignals: sl.isRegistered<ProfileRefreshSignals>()
+                      ? sl<ProfileRefreshSignals>()
+                      : null,
+                )..load(),
+                child: const ProfileEditScreen(),
+              ),
             ),
             GoRoute(
               path: 'addresses',
