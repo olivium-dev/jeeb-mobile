@@ -2294,6 +2294,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get waitingTitle => _get('waitingTitle');
   String waitingCountdownLabel(String time) =>
       _get('waitingCountdownLabel').replaceFirst('{time}', time);
+  String get waitingCountdownPending => _get('waitingCountdownPending');
   String get waitingNoCoverageTitle => _get('waitingNoCoverageTitle');
   String get waitingNoCoverageBody => _get('waitingNoCoverageBody');
   String get waitingReachingOutLabel => _get('waitingReachingOutLabel');
@@ -2301,6 +2302,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get waitingRetargetCta => _get('waitingRetargetCta');
   String get waitingCancelCta => _get('waitingCancelCta');
   String get waitingErrorBody => _get('waitingErrorBody');
+  String get waitingErrorContractBody => _get('waitingErrorContractBody');
 
   // JM-033 — Confirm Receipt (Customer), delivered-receipt-confirm (D11, D3)
   String get receiptTitle => _get('receiptTitle');
