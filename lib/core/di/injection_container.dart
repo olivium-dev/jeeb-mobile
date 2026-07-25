@@ -1,6 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
+// P5: the Android platform implementation, imported ONLY to flip
+// `useAndroidPhotoPicker` (ACTION_PICK_IMAGES). Guarded by an `is` check, so
+// nothing Android-specific runs on other platforms or in tests.
+import 'package:image_picker_android/image_picker_android.dart';
+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/auth/data/dio_auth_repository.dart';
@@ -411,6 +416,17 @@ void configureDependencies({
   sl.registerLazySingleton<PhotoPickerService>(
     () => ImagePickerPhotoPickerService(),
   );
+
+  // P5 (b01-20260725): route Android 13+ gallery picks at the SYSTEM Photo
+  // Picker (ACTION_PICK_IMAGES) instead of the legacy Documents UI, which
+  // raises ActivityNotFoundException → PhotoPickFailure.unavailable on
+  // GMS-less / OEM images. Still NO READ_MEDIA_IMAGES / READ_EXTERNAL_STORAGE
+  // in the manifest — ACTION_PICK_IMAGES needs none. Guarded on the platform
+  // implementation so iOS / tests / desktop are untouched.
+  final imagePickerPlatform = ImagePickerPlatform.instance;
+  if (imagePickerPlatform is ImagePickerAndroid) {
+    imagePickerPlatform.useAndroidPhotoPicker = true;
+  }
 
   // Rating — post-delivery star rating via score-taking-service.
   sl.registerLazySingleton<RatingRepository>(
