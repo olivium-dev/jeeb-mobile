@@ -13,6 +13,11 @@ enum ChatError {
   pickUnavailable,
   sendFailed,
   voiceUploadFailed,
+
+  /// P4/P5: the picked/captured image failed to reach the CDN (upload error or
+  /// an oversize payload). The bubble is marked failed; NOTHING was posted to
+  /// the thread — no phantom success.
+  attachmentUploadFailed,
 }
 
 class ChatState extends Equatable {
