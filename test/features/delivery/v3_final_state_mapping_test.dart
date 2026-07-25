@@ -66,9 +66,14 @@ void main() {
       );
     });
 
-    test('non-terminal stages report a valid next stage', () {
+    test('non-terminal stages report a valid next stage — except AtDoor, whose '
+        'only exit is the handover OTP (P6/B2)', () {
       expect(JeeberDeliveryStatus.ordered.isTerminal, isFalse);
-      expect(JeeberDeliveryStatus.atDoor.next, JeeberDeliveryStatus.done);
+      expect(JeeberDeliveryStatus.inTransit.next, JeeberDeliveryStatus.atDoor);
+      // P6/B2: `AtDoor → Done` is NOT a client-patchable edge — the frozen SM
+      // (DeliverySm.cs:53-62) opens that door only for `otp_verified`, so the
+      // forward ladder deliberately dead-ends here.
+      expect(JeeberDeliveryStatus.atDoor.next, isNull);
       expect(JeeberDeliveryStatus.done.apiValue, 'Done');
     });
 
