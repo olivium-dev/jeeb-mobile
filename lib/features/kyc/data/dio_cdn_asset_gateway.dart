@@ -38,6 +38,11 @@ class DioCdnAssetGateway implements CdnAssetGateway {
 
   static const String _brokerPath = '/api/cdn/assets';
 
+  /// P4/P5: the AUTHENTICATED gateway read proxy for a brokered asset
+  /// (`GET /api/cdn/assets/content/{**objectPath}`). The only working read
+  /// path — see [CdnAssetGateway.fetchAsset].
+  static const String _contentPath = '/api/cdn/assets/content';
+
   /// Bounded timeouts for the signed-PUT so a STALLED CDN upload fails fast
   /// instead of hanging the KYC "submitting" spinner forever (JEBV4-259 latent
   /// bug): the raw [Dio] previously carried NO timeouts, so a half-open socket
@@ -156,6 +161,41 @@ class DioCdnAssetGateway implements CdnAssetGateway {
         return 'selfie_with_liveness';
       case CdnUploadSlot.proofOfDelivery:
         return 'proof_of_delivery';
+      case CdnUploadSlot.chatAttachment:
+        return 'chat_attachment';
+    }
+  }
+
+  @override
+  Future<Uint8List> fetchAsset(String objectRef) async {
+    if (objectRef.trim().isEmpty) {
+      throw const CdnFetchException('Empty object_ref');
+    }
+    try {
+      // The SHARED authenticated Dio: this read legitimately needs the Bearer
+      // (the gateway read proxy is capability-gated — it is deliberately NOT a
+      // [PublicEndpoint], unlike the HMAC-signed PUT). `ResponseType.bytes`
+      // bypasses the JSON response transformer; the binary body is never
+      // logged (see the `List<int>` guard in `RedactingLogInterceptor`).
+      //
+      // `objectRef` is a cdn-minted slug (`chat_attachment/<32-hex>.jpg`); its
+      // `/` must stay a PATH SEPARATOR so the gateway's `content/{**objectPath}`
+      // catch-all binds it. Do NOT percent-encode it here — the gateway does
+      // the single-segment encoding cdn-service's fetch route requires.
+      final res = await _brokerDio.get<List<int>>(
+        '$_contentPath/$objectRef',
+        options: Options(
+          responseType: ResponseType.bytes,
+          receiveTimeout: _receiveTimeout,
+        ),
+      );
+      final data = res.data;
+      if (data == null || data.isEmpty) {
+        throw const CdnFetchException('Empty asset body');
+      }
+      return Uint8List.fromList(data);
+    } on DioException catch (e) {
+      throw CdnFetchException('CDN fetch failed for $objectRef: ${e.message}');
     }
   }
 }
