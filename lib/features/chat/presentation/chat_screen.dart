@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/di/injection_container.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../photo_attachment/data/stub_photo_picker_service.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
@@ -204,7 +205,7 @@ class ChatScreen extends StatelessWidget {
       create: (_) => ChatCubit(
         deliveryId: deliveryId,
         gateway: gateway ?? InMemoryChatGateway(),
-        pickerService: pickerService ?? StubPhotoPickerService(),
+        pickerService: pickerService ?? _resolvePicker(),
         initialDeliveryId: initialTrackingDeliveryId,
       )..load(),
       child: _ChatScaffold(
@@ -224,6 +225,17 @@ class ChatScreen extends StatelessWidget {
         onFirstMessageBroadcast: onFirstMessageBroadcast,
       ),
     );
+  }
+
+  /// P4/P5 — DI-FIRST picker. The bare `StubPhotoPickerService()` default was
+  /// the second half of the camera/gallery bug: a host that omitted
+  /// [pickerService] silently got SYNTHETIC bytes instead of the real camera /
+  /// gallery, so tapping "+ → Camera" never opened the OS camera. The stub
+  /// remains the fallback for widget tests and the dev catalog, where `sl` is
+  /// not populated. Same shape as `KycWizardScreen._resolvePicker`.
+  PhotoPickerService _resolvePicker() {
+    if (sl.isRegistered<PhotoPickerService>()) return sl<PhotoPickerService>();
+    return StubPhotoPickerService();
   }
 }
 
@@ -498,6 +510,8 @@ class _ChatScaffoldState extends State<_ChatScaffold>
         return l10n.chatErrorSendFailed;
       case ChatError.voiceUploadFailed:
         return l10n.chatVoiceUploadFailed;
+      case ChatError.attachmentUploadFailed:
+        return l10n.chatErrorAttachmentUploadFailed;
     }
   }
 }

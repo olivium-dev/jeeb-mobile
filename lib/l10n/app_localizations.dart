@@ -1414,6 +1414,10 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get chatAttachmentCamera => _get('chatAttachmentCamera');
   String get chatAttachmentCancel => _get('chatAttachmentCancel');
   String get chatAttachmentGallery => _get('chatAttachmentGallery');
+  /// P5: sheet subtitle — OMDS's static `show()` helper drops it, so the
+  /// composer mounts `OmdsMediaPickerSheet` directly to pass it through.
+  String get chatAttachmentSheetSubtitle =>
+      _get('chatAttachmentSheetSubtitle');
   String get chatAttachmentSheetTitle => _get('chatAttachmentSheetTitle');
   String get chatComposerHint => _get('chatComposerHint');
   String get chatComposerHintPriceTime => _get('chatComposerHintPriceTime');
@@ -1436,6 +1440,9 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('confirmDeliveryActionIllustrationA11y');
   String get chatEmptyThreadSubtitle => _get('chatEmptyThreadSubtitle');
   String get chatEmptyThreadTitle => _get('chatEmptyThreadTitle');
+  /// P4/P5: the in-chat image attachment failed to reach the CDN.
+  String get chatErrorAttachmentUploadFailed =>
+      _get('chatErrorAttachmentUploadFailed');
   String get chatErrorPermissionDenied => _get('chatErrorPermissionDenied');
   String get chatErrorPickUnavailable => _get('chatErrorPickUnavailable');
   String get chatErrorSendFailed => _get('chatErrorSendFailed');

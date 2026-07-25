@@ -49,6 +49,68 @@ class _TestChatGateway extends ChatGateway {
   Future<void> dispose() => _controller.close();
 }
 
+/// P4/P5: a [ChatGateway] that DOES have a CDN wired — it overrides
+/// `uploadImage` / `fetchImageBytes` the way [DioChatGateway] does when a
+/// [CdnAssetGateway] is registered. The plain [_TestChatGateway] deliberately
+/// does NOT, which is what keeps the legacy `photo` path (and its four
+/// baseline tests) alive.
+class _CdnChatGateway extends _TestChatGateway {
+  _CdnChatGateway({
+    this.objectRef = '',
+    this.uploadThrows = false,
+    this.fetchBytes,
+    super.history = const <DeliveryChatMessage>[],
+  });
+
+  String objectRef;
+  final bool uploadThrows;
+  final Uint8List? fetchBytes;
+
+  final List<Uint8List> uploadedBytes = [];
+  final List<String> fetchedRefs = [];
+
+  @override
+  Future<String> uploadImage({
+    required Uint8List bytes,
+    String contentType = 'image/jpeg',
+  }) async {
+    if (uploadThrows) throw StateError('cdn upload failed');
+    uploadedBytes.add(bytes);
+    return objectRef;
+  }
+
+  @override
+  Future<Uint8List> fetchImageBytes(String objectRef) async {
+    fetchedRefs.add(objectRef);
+    return fetchBytes ?? Uint8List(0);
+  }
+}
+
+/// Counts which pick method the cubit actually invoked (double-tap + gallery
+/// branch assertions).
+class _CountingPicker implements PhotoPickerService {
+  int cameraCalls = 0;
+  int galleryCalls = 0;
+
+  @override
+  Future<RawPhoto> pickFromCamera() async {
+    cameraCalls++;
+    return RawPhoto(
+      bytes: Uint8List.fromList(const <int>[1, 2, 3, 4]),
+      source: PhotoSource.camera,
+    );
+  }
+
+  @override
+  Future<RawPhoto> pickFromGallery() async {
+    galleryCalls++;
+    return RawPhoto(
+      bytes: Uint8List.fromList(const <int>[5, 6, 7, 8]),
+      source: PhotoSource.gallery,
+    );
+  }
+}
+
 /// Compressor that just returns the input bytes — keeps photo tests fast and
 /// deterministic.
 class _NoopCompressor implements PhotoCompressor {
@@ -503,6 +565,242 @@ void main() {
 
       expect(cubit.state.error, ChatError.pickCancelled);
       expect(cubit.state.messages, isEmpty);
+    });
+  });
+
+  // ===========================================================================
+  // P4 + P5 (b01-20260725) — chat camera + gallery attachment through the CDN.
+  // TC-C3..TC-C11 in docs/batches/b01-20260725/testcases/P45.md §C.
+  // ===========================================================================
+  group('ChatCubit — P4/P5 CDN image attachments', () {
+    ChatCubit buildWithCdn({
+      required _CdnChatGateway gateway,
+      PhotoPickerService? picker,
+    }) {
+      final cubit = ChatCubit(
+        deliveryId: 'd1',
+        gateway: gateway,
+        pickerService: picker ??
+            StubPhotoPickerService(
+              cameraPayload: Uint8List.fromList(List<int>.filled(16, 0x42)),
+              galleryPayload: Uint8List.fromList(List<int>.filled(32, 0xAB)),
+            ),
+        compressor: const _NoopCompressor(),
+        clock: () => DateTime(2026, 5, 17, 10, 30),
+      );
+      addTearDown(cubit.close);
+      return cubit;
+    }
+
+    // TC-C3
+    test('camera send uploads to the CDN then posts an `image`', () async {
+      final gateway = _CdnChatGateway(objectRef: 'chat_attachment/aa.jpg');
+      final cubit = buildWithCdn(gateway: gateway);
+      await cubit.load();
+
+      await cubit.sendPhotoFromCamera();
+
+      expect(gateway.uploadedBytes, hasLength(1));
+      expect(gateway.uploadedBytes.single, Uint8List.fromList(List<int>.filled(16, 0x42)));
+      final m = cubit.state.messages.single;
+      expect(m.kind, MessageKind.image, reason: 'the wire kind must be `image`');
+      expect(m.imageUrl, 'chat_attachment/aa.jpg');
+      expect(
+        m.photoBytes,
+        isNotNull,
+        reason: 'the sender keeps the local preview so the bubble never blinks',
+      );
+      expect(m.status, MessageStatus.sent);
+      expect(cubit.state.isAttaching, isFalse);
+      // The posted message — not just the state entry — is the `image`.
+      expect(gateway.sentMessages.single.kind, MessageKind.image);
+      expect(gateway.sentMessages.single.imageUrl, 'chat_attachment/aa.jpg');
+    });
+
+    // TC-C4
+    test('gallery send does the same through the gallery branch', () async {
+      final gateway = _CdnChatGateway(objectRef: 'chat_attachment/bb.jpg');
+      final picker = _CountingPicker();
+      final cubit = buildWithCdn(gateway: gateway, picker: picker);
+      await cubit.load();
+
+      await cubit.sendPhotoFromGallery();
+
+      expect(picker.galleryCalls, 1);
+      expect(picker.cameraCalls, 0);
+      expect(gateway.uploadedBytes, hasLength(1));
+      final m = cubit.state.messages.single;
+      expect(m.kind, MessageKind.image);
+      expect(m.imageUrl, 'chat_attachment/bb.jpg');
+    });
+
+    // TC-C5
+    test('an upload failure is honest — failed bubble, error, NOTHING posted',
+        () async {
+      final gateway = _CdnChatGateway(uploadThrows: true);
+      final cubit = buildWithCdn(gateway: gateway);
+      await cubit.load();
+
+      await cubit.sendPhotoFromCamera();
+
+      expect(cubit.state.messages.single.status, MessageStatus.failed);
+      expect(cubit.state.error, ChatError.attachmentUploadFailed);
+      expect(
+        gateway.sentMessages,
+        isEmpty,
+        reason: 'a failed upload must never post a phantom message',
+      );
+    });
+
+    // TC-C6
+    test('no CDN wired ⇒ unchanged legacy `photo` behaviour', () async {
+      final gateway = _TestChatGateway();
+      final cubit = _build(
+        gateway: gateway,
+        picker: StubPhotoPickerService(
+          cameraPayload: Uint8List.fromList(List<int>.filled(16, 0x42)),
+        ),
+      );
+      await cubit.load();
+
+      await cubit.sendPhotoFromCamera();
+
+      final m = cubit.state.messages.single;
+      expect(m.kind, MessageKind.photo);
+      expect(m.photoBytes, isNotNull);
+      expect(gateway.sentMessages.single.kind, MessageKind.photo);
+    });
+
+    // TC-C7
+    test('an oversize pick is rejected before any upload', () async {
+      final gateway = _CdnChatGateway(objectRef: 'chat_attachment/cc.jpg');
+      final cubit = buildWithCdn(
+        gateway: gateway,
+        picker: StubPhotoPickerService(
+          cameraPayload: Uint8List(12 * 1024 * 1024),
+        ),
+      );
+      await cubit.load();
+
+      await cubit.sendPhotoFromCamera();
+
+      expect(cubit.state.messages, isEmpty, reason: 'no bubble is appended');
+      expect(cubit.state.error, ChatError.attachmentUploadFailed);
+      expect(gateway.uploadedBytes, isEmpty);
+      expect(cubit.state.isAttaching, isFalse);
+    });
+
+    // TC-C8 (regression guard on the pre-existing cancel/permission paths)
+    test('cancel and permission-denied behave exactly as before', () async {
+      final cancelled = buildWithCdn(
+        gateway: _CdnChatGateway(objectRef: 'x'),
+        picker: StubPhotoPickerService(
+          cameraFailure: PhotoPickFailure.cancelled,
+        ),
+      );
+      await cancelled.load();
+      await cancelled.sendPhotoFromCamera();
+      expect(cancelled.state.error, ChatError.pickCancelled);
+      expect(cancelled.state.messages, isEmpty);
+      expect(cancelled.state.isAttaching, isFalse);
+
+      final denied = buildWithCdn(
+        gateway: _CdnChatGateway(objectRef: 'x'),
+        picker: StubPhotoPickerService(
+          cameraFailure: PhotoPickFailure.permissionDenied,
+        ),
+      );
+      await denied.load();
+      await denied.sendPhotoFromCamera();
+      expect(denied.state.error, ChatError.permissionDenied);
+      expect(denied.state.messages, isEmpty);
+    });
+
+    // TC-C9
+    test('a double tap picks and uploads exactly once', () async {
+      final gateway = _CdnChatGateway(objectRef: 'chat_attachment/dd.jpg');
+      final picker = _CountingPicker();
+      final cubit = buildWithCdn(gateway: gateway, picker: picker);
+      await cubit.load();
+
+      await Future.wait([
+        cubit.sendPhotoFromCamera(),
+        cubit.sendPhotoFromCamera(),
+      ]);
+
+      expect(picker.cameraCalls, 1);
+      expect(gateway.uploadedBytes, hasLength(1));
+      expect(cubit.state.messages, hasLength(1));
+    });
+
+    // TC-C10
+    test('inbound image bytes are resolved once and then deduped', () async {
+      final inbound = DeliveryChatMessage.image(
+        id: 'srv-1',
+        author: ChatAuthor.them,
+        sentAt: DateTime(2026, 5, 17, 10, 0),
+        status: MessageStatus.delivered,
+        url: 'chat_attachment/bb.jpg',
+      );
+      final known = Uint8List.fromList(const <int>[9, 8, 7, 6, 5, 4, 3, 2]);
+      final gateway = _CdnChatGateway(
+        objectRef: 'unused',
+        history: [inbound],
+        fetchBytes: known,
+      );
+      final cubit = buildWithCdn(gateway: gateway);
+
+      await cubit.load();
+      // The fetch is fire-and-forget; drain the microtask queue.
+      await Future<void>.delayed(Duration.zero);
+
+      expect(cubit.state.messages.single.photoBytes, known);
+      expect(gateway.fetchedRefs, ['chat_attachment/bb.jpg']);
+
+      // A later poll tick returning the SAME message must not re-download it.
+      await cubit.refresh();
+      await Future<void>.delayed(Duration.zero);
+      expect(gateway.fetchedRefs, hasLength(1));
+    });
+
+    // TC-C11
+    test('two captionless images with distinct refs do NOT collapse', () async {
+      final gateway = _CdnChatGateway(objectRef: 'chat_attachment/e1.jpg');
+      final cubit = buildWithCdn(gateway: gateway);
+      await cubit.load();
+
+      await cubit.sendPhotoFromCamera();
+      gateway.objectRef = 'chat_attachment/e2.jpg';
+      await cubit.sendPhotoFromCamera();
+      expect(cubit.state.messages, hasLength(2));
+
+      // The server fans BOTH back out with server ids and distinct urls.
+      gateway.push(IncomingMessage(DeliveryChatMessage.image(
+        id: 'srv-e1',
+        author: ChatAuthor.me,
+        sentAt: DateTime(2026, 5, 17, 10, 30),
+        status: MessageStatus.delivered,
+        url: 'chat_attachment/e1.jpg',
+      )));
+      gateway.push(IncomingMessage(DeliveryChatMessage.image(
+        id: 'srv-e2',
+        author: ChatAuthor.me,
+        sentAt: DateTime(2026, 5, 17, 10, 31),
+        status: MessageStatus.delivered,
+        url: 'chat_attachment/e2.jpg',
+      )));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        cubit.state.messages,
+        hasLength(2),
+        reason: 'keying the echo on the CDN ref keeps two different images '
+            'with empty captions from collapsing onto one bubble',
+      );
+      expect(
+        cubit.state.messages.map((m) => m.imageUrl).toSet(),
+        {'chat_attachment/e1.jpg', 'chat_attachment/e2.jpg'},
+      );
     });
   });
 

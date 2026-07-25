@@ -342,6 +342,10 @@ class _RecordingCdnAssetGateway implements CdnAssetGateway {
     lastContentType = contentType;
     return returnedRef;
   }
+
+  /// P4/P5: the active-delivery origin routes never READ a CDN asset.
+  @override
+  Future<Uint8List> fetchAsset(String objectRef) async => Uint8List(0);
 }
 
 class _RecordingAdapter implements HttpClientAdapter {

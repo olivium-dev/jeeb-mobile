@@ -60,7 +60,16 @@ void main() {
         CdnUploadSlot.idDocumentBack: 'id_document_back',
         CdnUploadSlot.vehicleRegistration: 'vehicle_registration',
         CdnUploadSlot.selfieWithLiveness: 'selfie_with_liveness',
+        CdnUploadSlot.proofOfDelivery: 'proof_of_delivery',
+        // P4/P5 (b01-20260725): the in-chat camera/gallery attachment slot.
+        CdnUploadSlot.chatAttachment: 'chat_attachment',
       };
+      // TC-C16: a future slot cannot be added without a mapping assertion here.
+      expect(
+        expected.length,
+        CdnUploadSlot.values.length,
+        reason: 'every CdnUploadSlot must have a pinned wire value',
+      );
       for (final entry in expected.entries) {
         final broker = _BrokerRecorder();
         final upload = _UploadRecorder();
@@ -254,6 +263,148 @@ void main() {
       );
     });
   });
+
+  // ===========================================================================
+  // P4 + P5 (b01-20260725) — TC-C17: the AUTHENTICATED read proxy.
+  //
+  // cdn-service exposes NO signed-DOWNLOAD endpoint (the gateway's
+  // `GET /api/cdn/assets/{id}/signed-url` dials `api/v1/assets/{id}/signed-url`,
+  // which does not exist upstream). `GET /api/cdn/assets/content/{**objectPath}`
+  // on the gateway is the only working read path, and it is capability-gated —
+  // so the read MUST ride the SHARED authenticated Dio, not the bare upload one.
+  // ===========================================================================
+  group('DioCdnAssetGateway.fetchAsset — authenticated read proxy', () {
+    test('GETs /api/cdn/assets/content/<ref> on the SHARED Dio as raw bytes',
+        () async {
+      final payload = Uint8List.fromList(const <int>[1, 2, 3, 4, 5]);
+      final broker = _ContentRecorder(body: payload);
+      final upload = _UploadRecorder();
+      final gateway = DioCdnAssetGateway(broker.dio, uploadDio: upload.dio);
+
+      final out = await gateway.fetchAsset('chat_attachment/abc123.jpg');
+
+      expect(out, payload, reason: 'bytes are returned verbatim');
+      final req = broker.requests.single;
+      expect(req.method, 'GET');
+      expect(req.path, '/api/cdn/assets/content/chat_attachment/abc123.jpg');
+      expect(
+        req.responseType,
+        ResponseType.bytes,
+        reason: 'the JSON response transformer must be bypassed',
+      );
+      expect(
+        upload.captured,
+        isNull,
+        reason: 'the read is capability-gated — it needs the Bearer the shared '
+            'Dio carries, so the bare upload Dio must never be used',
+      );
+      expect(
+        req.path,
+        contains('chat_attachment/abc123.jpg'),
+        reason: 'the object_ref `/` stays a PATH SEPARATOR so the gateway '
+            'catch-all binds it; the gateway does cdn\'s single-segment encode',
+      );
+    });
+
+    test('an empty object_ref throws WITHOUT touching the network', () async {
+      final broker = _ContentRecorder(body: Uint8List.fromList(const <int>[1]));
+      final gateway = DioCdnAssetGateway(broker.dio, uploadDio: _UploadRecorder().dio);
+
+      await expectLater(
+        () => gateway.fetchAsset('   '),
+        throwsA(isA<CdnFetchException>()),
+      );
+      expect(broker.requests, isEmpty);
+    });
+
+    test('an empty 200 body throws CdnFetchException', () async {
+      final broker = _ContentRecorder(body: Uint8List(0));
+      final gateway = DioCdnAssetGateway(broker.dio, uploadDio: _UploadRecorder().dio);
+
+      await expectLater(
+        () => gateway.fetchAsset('chat_attachment/abc.jpg'),
+        throwsA(isA<CdnFetchException>()),
+      );
+    });
+
+    test('a 404 / 500 / network error all surface as CdnFetchException',
+        () async {
+      for (final status in <int>[404, 500]) {
+        final broker = _ContentRecorder(body: Uint8List(0), status: status);
+        final gateway =
+            DioCdnAssetGateway(broker.dio, uploadDio: _UploadRecorder().dio);
+        await expectLater(
+          () => gateway.fetchAsset('chat_attachment/abc.jpg'),
+          throwsA(isA<CdnFetchException>()),
+          reason: 'status $status',
+        );
+      }
+
+      final broken = _ContentRecorder(body: Uint8List(0), networkError: true);
+      final gateway =
+          DioCdnAssetGateway(broken.dio, uploadDio: _UploadRecorder().dio);
+      await expectLater(
+        () => gateway.fetchAsset('chat_attachment/abc.jpg'),
+        throwsA(isA<CdnFetchException>()),
+      );
+    });
+  });
+}
+
+/// P4/P5: records `GET /api/cdn/assets/content/…` on the SHARED authenticated
+/// Dio and resolves (or rejects) it with a canned binary body.
+class _ContentRecorder {
+  _ContentRecorder({
+    required this.body,
+    this.status = 200,
+    this.networkError = false,
+  }) {
+    dio = Dio(BaseOptions(baseUrl: 'https://gateway.test'));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          requests.add(options);
+          if (networkError) {
+            handler.reject(
+              DioException(
+                requestOptions: options,
+                type: DioExceptionType.connectionError,
+                message: 'socket down',
+              ),
+            );
+            return;
+          }
+          if (status < 200 || status >= 300) {
+            handler.reject(
+              DioException(
+                requestOptions: options,
+                response: Response<dynamic>(
+                  statusCode: status,
+                  requestOptions: options,
+                ),
+                type: DioExceptionType.badResponse,
+                message: 'HTTP $status',
+              ),
+            );
+            return;
+          }
+          handler.resolve(
+            Response<dynamic>(
+              statusCode: 200,
+              requestOptions: options,
+              data: body,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  final Uint8List body;
+  final int status;
+  final bool networkError;
+  late final Dio dio;
+  final List<RequestOptions> requests = <RequestOptions>[];
 }
 
 String? _header(RequestOptions options, String name) {

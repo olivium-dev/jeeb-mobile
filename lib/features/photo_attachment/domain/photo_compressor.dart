@@ -39,3 +39,22 @@ class HalvingPhotoCompressor implements PhotoCompressor {
     return current;
   }
 }
+
+/// Chat's compressor (P4/P5, b01-20260725).
+///
+/// `image_picker` already down-scales at the source (maxWidth 1920, quality 85
+/// — see `image_picker_photo_picker_service.dart`), so a real capture is
+/// already small. Returning the bytes UNCHANGED is the point:
+/// [HalvingPhotoCompressor] does not re-encode, it STRIDE-COPIES every second
+/// byte, which turns a >2 MB JPEG into an undecodable blob. Chat ships REAL
+/// bytes to the CDN and must never do that. Oversize inputs are rejected
+/// upstream by the cubit's size guard, not silently mangled.
+///
+/// Replacing [HalvingPhotoCompressor] globally with a real re-encoder (which
+/// would fix KYC/POD too) needs a native codec dependency and is a follow-up.
+class PassthroughPhotoCompressor implements PhotoCompressor {
+  const PassthroughPhotoCompressor();
+
+  @override
+  Future<Uint8List> compress(Uint8List bytes) async => bytes;
+}

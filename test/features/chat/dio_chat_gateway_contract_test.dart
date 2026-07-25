@@ -350,4 +350,94 @@ void main() {
       expect(phase, ConversationPhase.accepted);
     });
   });
+
+  // ===========================================================================
+  // P4 + P5 (b01-20260725) — the in-chat image attachment wire contract.
+  // TC-C12 / TC-C13 in docs/batches/b01-20260725/testcases/P45.md §C.
+  // ===========================================================================
+  group('DioChatGateway — P4/P5 image attachment wire contract', () {
+    DeliveryChatMessage imageDraft(String ref) => DeliveryChatMessage.image(
+          id: 'm-img-1',
+          author: ChatAuthor.me,
+          sentAt: DateTime.utc(2026, 1, 1),
+          status: MessageStatus.sending,
+          url: ref,
+          caption: 'here it is',
+        );
+
+    // TC-C12
+    test('send of an image posts {"kind":"image","payload":{url,caption}} with '
+        'the participant-scoped Idempotency-Key', () async {
+      final rec = _RecordingDio(body: <String, dynamic>{'id': 'srv-img'});
+      final gateway = DioChatGateway(dio: rec.dio, currentUserId: 'u-1');
+
+      await gateway.send(realId, imageDraft('chat_attachment/aa.jpg'));
+
+      expect(rec.count, 1);
+      expect(rec.single.path, '/v1/conversations/$realId/messages');
+      final data = rec.single.data as Map<String, Object?>;
+      expect(data['kind'], 'image');
+      expect(data['payload'], <String, Object?>{
+        'url': 'chat_attachment/aa.jpg',
+        'caption': 'here it is',
+      });
+      // No raw bytes ever ride inline on the message.
+      expect(data.containsKey('bytes'), isFalse);
+      expect(
+        rec.single.headers['Idempotency-Key'],
+        'm-img-1-u-u-1',
+        reason: 'the key stays scoped to the authenticated sender',
+      );
+    });
+
+    // TC-C12 (negative fence)
+    test('the chat surface never emits kind:"photo" once a CDN ref exists',
+        () async {
+      final rec = _RecordingDio(body: <String, dynamic>{'id': 'srv-img'});
+      final gateway = DioChatGateway(dio: rec.dio, currentUserId: 'u-1');
+
+      await gateway.send(realId, imageDraft('chat_attachment/bb.jpg'));
+
+      final data = rec.single.data as Map<String, Object?>;
+      expect(
+        data['kind'],
+        isNot('photo'),
+        reason: 'the pre-fix build posted a bytes-less `photo`, which persisted '
+            'an invisible empty bubble on the peer',
+      );
+    });
+
+    // TC-C13
+    test('a legacy wire `photo` decodes to an `image` placeholder, NOT an '
+        'invisible empty text bubble', () async {
+      final rec = _RecordingDio(
+        body: <String, dynamic>{
+          'items': <dynamic>[
+            <String, dynamic>{
+              'message_id': 'srv-legacy',
+              'author_id': 'u-peer',
+              'kind': 'photo',
+              'payload': <String, dynamic>{'caption': ''},
+              'created_at': '2026-06-30T10:31:00Z',
+            },
+          ],
+        },
+      );
+      final gateway = DioChatGateway(dio: rec.dio, currentUserId: 'u-1');
+
+      final history = await gateway.loadHistory(realId);
+
+      expect(history, hasLength(1));
+      final m = history.single;
+      expect(
+        m.kind,
+        MessageKind.image,
+        reason: 'rows the broken build already persisted must stay VISIBLE as '
+            'an unavailable-image placeholder, not decode to an empty text '
+            'bubble that renders as nothing',
+      );
+      expect(m.imageUrl, '');
+      expect(m.text, '');
+    });
+  });
 }

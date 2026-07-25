@@ -33,6 +33,10 @@ class _UnusedCdnAssetGateway implements CdnAssetGateway {
     String contentType = 'image/jpeg',
   }) =>
       throw UnimplementedError();
+
+  /// P4/P5: the OTP-handover paths never READ a CDN asset either.
+  @override
+  Future<Uint8List> fetchAsset(String objectRef) async => Uint8List(0);
 }
 
 class _RecordingDio extends Fake implements Dio {
