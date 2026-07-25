@@ -24,8 +24,10 @@ import '../chat/domain/delivery_chat_message.dart';
 import '../chat/domain/order_broadcast_service.dart';
 import '../chat/domain/order_chat_summary.dart';
 import '../chat/presentation/chat_screen.dart';
+import '../kyc/domain/cdn_asset_gateway.dart';
 import '../otp_handover/domain/handover_code_store.dart';
 import '../photo_attachment/data/stub_photo_picker_service.dart';
+import '../photo_attachment/domain/photo_picker_service.dart';
 import '../request_summary/data/dio_request_submission_service.dart';
 import '../request_summary/domain/recipient_phone_resolver.dart';
 import 'dev_chat_detail_fixtures.dart';
@@ -441,6 +443,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       handoverCodeStore: getItForGateway.isRegistered<HandoverCodeStore>()
           ? getItForGateway<HandoverCodeStore>()
           : null,
+      // P4/P5: the CDN broker for in-chat image attachments. Registered as a
+      // lazy singleton in `injection_container.dart`; null in widget tests,
+      // where chat degrades to the legacy local-bytes `photo` bubble.
+      assetGateway: getItForGateway.isRegistered<CdnAssetGateway>()
+          ? getItForGateway<CdnAssetGateway>()
+          : null,
     );
     if (!mounted) return;
     _finalize(
@@ -775,6 +783,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   OrderBroadcastService _resolveBroadcastService(Dio dio) =>
       DioOrderBroadcastService(dio);
 
+  /// P4/P5 — THE root-cause fix. This production `/chat/:id` surface handed
+  /// `ChatScreen` a bare `StubPhotoPickerService()`, whose SYNTHETIC bytes made
+  /// "+ → Camera" and "+ → Gallery" silently succeed WITHOUT ever opening the
+  /// OS camera or picker. The real `ImagePickerPhotoPickerService` has been
+  /// registered in DI all along (`injection_container.dart`); this surface just
+  /// never asked for it. The stub stays as the fallback for widget tests and
+  /// the dev catalog, where `GetIt` is not populated.
+  PhotoPickerService _resolvePicker() {
+    final getIt = GetIt.instance;
+    if (getIt.isRegistered<PhotoPickerService>()) {
+      return getIt<PhotoPickerService>();
+    }
+    return StubPhotoPickerService();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -812,7 +835,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       deliveryId: _resolvedConversationId,
       counterpartName: _headerTitle(AppLocalizations.of(context), isJeeber),
       gateway: _gateway!,
-      pickerService: StubPhotoPickerService(),
+      pickerService: _resolvePicker(),
       // JM-025: this is the customer order-chat surface → expose the
       // `order_chat_composer_*` ids the W1 flow drives.
       isOrderChat: !isJeeber,
