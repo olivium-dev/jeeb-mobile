@@ -46,14 +46,16 @@ class WaitingState extends Equatable {
   /// True when the server says this request has left the waiting flow.
   bool get isTerminal => request?.phase.isTerminal ?? false;
 
-  /// Remaining time until the broadcast deadline, clamped at zero. Returns
-  /// [Duration.zero] when there is no snapshot/deadline yet so the countdown
-  /// label can render a stable "0:00".
-  Duration get remaining {
-    if (isTerminal) return Duration.zero;
-    final deadline = request?.broadcastExpiresAt;
+  /// Remaining time until the offer-wait deadline, clamped at zero.
+  /// NULL means NO COUNTDOWN APPLIES — never render a fabricated 0:00 for it.
+  /// (A missing server field is a contract violation that throws in the
+  /// repository and lands in [WaitingScreenStatus.failed]; it never arrives
+  /// here.)
+  Duration? get remaining {
+    if (isTerminal) return null;
+    final deadline = request?.deadline;
     final clock = now;
-    if (deadline == null || clock == null) return Duration.zero;
+    if (deadline == null || clock == null) return null;
     final delta = deadline.difference(clock);
     return delta.isNegative ? Duration.zero : delta;
   }

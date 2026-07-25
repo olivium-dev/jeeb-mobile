@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/diagnostics/diag.dart';
 import '../domain/waiting_repository.dart';
 import '../domain/waiting_request.dart';
 import 'waiting_state.dart';
@@ -9,10 +10,11 @@ import 'waiting_state.dart';
 /// Drives the JM-026 waiting / no-coverage screen.
 ///
 /// Responsibilities (mirrors `ClientOffersCubit`, T-mobile-015 pattern):
-///  - Cold-load the pre-accept request snapshot (notified count, deadline)
+///  - Cold-load the pre-accept request snapshot (notified count, anchor pair)
 ///  - Poll so freshly-arrived offers flip the screen to the review CTA live
 ///    (AC2) without a manual refresh
-///  - Drive the broadcast countdown via an injected clock
+///  - Drive the countdown via an injected clock against the snapshot's
+///    server-anchored deadline — the cubit NEVER invents a window (P7)
 ///
 /// The cubit injects its own clock (`now`) and the poll/clock tick streams so
 /// widget tests can fast-forward time deterministically (no real wall-clock
@@ -46,17 +48,12 @@ class WaitingCubit extends Cubit<WaitingState> {
   StreamSubscription<void>? _pollSubscription;
   StreamSubscription<void>? _clockSubscription;
 
-  /// Presentation-only fallback used when the request row omits an expiry.
-  /// It is anchored once and never decides the request's lifecycle; only the
-  /// server-owned phase can stop or advance the waiting flow.
-  static const Duration _fallbackWindow = Duration(minutes: 5);
-  DateTime? _anchoredDeadline;
   bool _pollInFlight = false;
 
   /// Cold-load entry-point. Two-phase so the broadcast-state signature ids paint
   /// as early as possible (JM-026 AC1):
   ///
-  ///  1. Read the request row ONLY (status + notifiedCount + deadline) and emit
+  ///  1. Read the request row ONLY (status + notifiedCount + anchor pair) and emit
   ///     `loaded` immediately — `waiting_notified_count` / `waiting_countdown`
   ///     (or the no-coverage variant) render the instant the row resolves,
   ///     WITHOUT waiting on the offers GET.
@@ -77,10 +74,9 @@ class WaitingCubit extends Cubit<WaitingState> {
       ),
     );
     try {
-      final fetched = await _repository.fetchRequest(_requestId);
+      final request = await _repository.fetchRequest(_requestId);
       if (isClosed) return;
       final observedAt = _now();
-      final request = _withAnchoredDeadline(fetched, observedAt);
       emit(
         state.copyWith(
           status: WaitingScreenStatus.loaded,
@@ -95,6 +91,10 @@ class WaitingCubit extends Cubit<WaitingState> {
       unawaited(_enrichWithOffers());
     } on WaitingException catch (e) {
       if (isClosed) return;
+      if (e.failure == WaitingFailure.contractViolation) {
+        await _failContract(e);
+        return;
+      }
       emit(
         state.copyWith(status: WaitingScreenStatus.failed, error: e.failure),
       );
@@ -125,17 +125,13 @@ class WaitingCubit extends Cubit<WaitingState> {
       final latest = state.request;
       if (latest == null || latest.phase.isTerminal) return;
       if (offerCount <= latest.offerCount) return;
+      // `copyWith` cannot re-stamp receivedAt/remainingAtReceipt, so the
+      // countdown physically cannot reset to full when an offer lands (T6).
       emit(
         state.copyWith(
-          request: WaitingRequest(
-            requestId: latest.requestId,
+          request: latest.copyWith(
             phase: WaitingRequestPhase.offersArrived,
-            notifiedCount: latest.notifiedCount,
             offerCount: offerCount,
-            broadcastExpiresAt: latest.broadcastExpiresAt,
-            displayId: latest.displayId,
-            tier: latest.tier,
-            title: latest.title,
           ),
           now: _now(),
         ),
@@ -155,7 +151,6 @@ class WaitingCubit extends Cubit<WaitingState> {
     await _clockSubscription?.cancel();
     _pollSubscription = null;
     _clockSubscription = null;
-    _anchoredDeadline = null;
     emit(const WaitingState());
     await load();
   }
@@ -182,10 +177,9 @@ class WaitingCubit extends Cubit<WaitingState> {
     if (state.isTerminal || _pollInFlight) return;
     _pollInFlight = true;
     try {
-      final fetched = await _repository.fetchWaiting(_requestId);
+      final request = await _repository.fetchWaiting(_requestId);
       if (isClosed) return;
       final observedAt = _now();
-      final request = _withAnchoredDeadline(fetched, observedAt);
       emit(state.copyWith(request: request, now: observedAt));
       if (request.phase.isTerminal) {
         await _stopStreams();
@@ -197,8 +191,15 @@ class WaitingCubit extends Cubit<WaitingState> {
         await _pollSubscription?.cancel();
         _pollSubscription = null;
       }
-    } on WaitingException catch (_) {
-      // Swallow transient poll failures — the foreground load/retry path
+    } on WaitingException catch (e) {
+      // A contract violation is NOT transient: retrying re-reads the same
+      // broken payload. Fail loudly and stop, rather than quietly polling a
+      // gateway that cannot answer the offer-wait contract.
+      if (e.failure == WaitingFailure.contractViolation) {
+        await _failContract(e);
+        return;
+      }
+      // Network blip / 5xx — stay quiet; the foreground load/retry path
       // surfaces errors; we don't flash a banner every poll on a flaky network.
     } catch (_) {
       /* same — swallow */
@@ -207,26 +208,21 @@ class WaitingCubit extends Cubit<WaitingState> {
     }
   }
 
-  WaitingRequest _withAnchoredDeadline(
-    WaitingRequest request,
-    DateTime observedAt,
-  ) {
-    if (request.phase.isTerminal) return request;
-    final serverDeadline = request.broadcastExpiresAt;
-    if (serverDeadline != null) {
-      _anchoredDeadline = serverDeadline;
-    } else {
-      _anchoredDeadline ??= observedAt.add(_fallbackWindow);
-    }
-    return WaitingRequest(
-      requestId: request.requestId,
-      phase: request.phase,
-      notifiedCount: request.notifiedCount,
-      offerCount: request.offerCount,
-      broadcastExpiresAt: _anchoredDeadline,
-      displayId: request.displayId,
-      tier: request.tier,
-      title: request.title,
+  /// Terminal backend-contract failure. Emitted from BOTH the cold load and the
+  /// poll so the two paths behave identically: diag breadcrumb, tear the poll
+  /// AND clock streams down, then surface the distinct contract-break state.
+  Future<void> _failContract(WaitingException e) async {
+    Diag.event('waiting_contract_violation', <String, Object?>{
+      'requestId': _requestId,
+      'detail': e.message,
+    });
+    await _stopStreams();
+    if (isClosed) return;
+    emit(
+      state.copyWith(
+        status: WaitingScreenStatus.failed,
+        error: WaitingFailure.contractViolation,
+      ),
     );
   }
 
