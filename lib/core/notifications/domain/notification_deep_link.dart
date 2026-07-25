@@ -1,3 +1,4 @@
+import '../../role/user_role.dart';
 import 'notification_message.dart';
 
 /// Maps a [NotificationMessage] to a go_router path.
@@ -7,18 +8,38 @@ import 'notification_message.dart';
 /// than throwing, so a malformed payload from jeeb-gateway can't crash
 /// the app.
 ///
+/// [role] is the RECIPIENT's active role. When supplied, jeeber-scoped
+/// destinations are refused for a client (returns `'/'`, the shell) — see the
+/// FIX-REQUESTS 403 (`docs/qa-e2e-crawl/FIX-REQUESTS.md:35`): a client tapping a
+/// `new_request` row was routed to `/jeeber/requests/:id`, whose recovery path
+/// calls `GET /v1/jeebers/me/feed`, a jeeber-only capability
+/// (`JeebFeedController.cs:82-88`) → 403. `null` (the default) keeps the legacy
+/// role-blind behaviour for callers with no role context.
+///
 /// The route shapes here mirror `AppRouter.create` — keep in sync.
-String? deepLinkForMessage(NotificationMessage message) {
+String? deepLinkForMessage(NotificationMessage message, {UserRole? role}) {
+  // F5 role-safety: a jeeber-scoped destination handed to a CLIENT token is a
+  // guaranteed 403 dead end (FIX-REQUESTS.md:35). The gateway stamps no
+  // audience, so the client is the only place this can be enforced. Refuse to
+  // the shell — never fabricate a client-side equivalent.
+  if (role == UserRole.client &&
+      (message.category == NotificationCategory.newRequest ||
+          message.category == NotificationCategory.offerAccepted ||
+          message.category == NotificationCategory.offerLost)) {
+    return '/';
+  }
   switch (message.category) {
     case NotificationCategory.delivery:
-      // `delivery`-category pushes cover the gateway `type=delivery|offer|accept`
+      // `delivery`-category pushes cover the gateway `type=delivery|accept`
       // events (see [NotificationCategory.fromKey]). The order/delivery surface
-      // keys off the delivery id, but the live `EventPushNotifier` offer/accept
-      // payloads carry ONLY `requestId` (no `delivery_id`/`order_id`). In this
+      // keys off the delivery id, but some live `EventPushNotifier` payloads
+      // carry ONLY `requestId` (no `delivery_id`/`order_id`). In this
       // system the delivery id == the request id (run evidence:
       // `GET /v1/deliveries/{requestId}` resolves 200), so fall back to
-      // `requestId`/`request_id` — otherwise an offer/accept tap is a silent
+      // `requestId`/`request_id` — otherwise such a tap is a silent
       // no-op. Precedence keeps the explicit delivery/order id first.
+      // P2: `type=offer` NO LONGER lands here — an auction-phase bid has no
+      // delivery. See [NotificationCategory.newOffer].
       final id =
           message.data['delivery_id'] ??
           message.data['order_id'] ??
@@ -54,6 +75,19 @@ String? deepLinkForMessage(NotificationMessage message) {
       return '/orders/$id/rate';
     case NotificationCategory.settings:
       return '/settings/notifications';
+    case NotificationCategory.newOffer:
+      // P2: a new BID on the customer's open request → the offer-review list,
+      // where the Accept CTA lives. The push body literally says "Tap to
+      // review." The gateway payload carries `requestId` + `request_id` only
+      // (`OfferPushNotifier.cs:112-123`) — no delivery id, because no delivery
+      // exists yet.
+      final id = message.data['requestId'] ?? message.data['request_id'];
+      // Id-less fallback: the shell (the customer's Replies tab is the
+      // never-empty surface), mirroring the [offerLost] reasoning below.
+      // NEVER `/orders/:id` — that laundered a request id into a delivery id
+      // and is the defect this change removes.
+      if (id == null || id.isEmpty) return '/';
+      return '/requests/$id/offers';
     case NotificationCategory.newRequest:
       // sprint-009: `type=new_request` fan-out to the jeeb_jeebers topic carries
       // a flat `requestId`/`request_id`. Route the jeeber to that request's
@@ -62,6 +96,12 @@ String? deepLinkForMessage(NotificationMessage message) {
       final id = message.data['requestId'] ?? message.data['request_id'];
       if (id == null || id.isEmpty) return null;
       return '/jeeber/requests/$id';
+    case NotificationCategory.requestExpired:
+      // P2/F3: no-coverage / tier-expansion nudge → the waiting screen, the
+      // same destination the inbox row already uses.
+      final id = message.data['requestId'] ?? message.data['request_id'];
+      if (id == null || id.isEmpty) return '/';
+      return '/requests/$id/waiting';
     case NotificationCategory.offerAccepted:
       // run-23 CHECK B (P1): an ACCEPTED offer means this jeeber now owns an
       // active delivery — land on the jeeber active-delivery screen, the SAME

@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/notifications/domain/notification_deep_link.dart';
 import 'package:jeeb_mobile/core/notifications/domain/notification_message.dart';
+import 'package:jeeb_mobile/core/role/user_role.dart';
 
 NotificationMessage _msg({
   required NotificationCategory category,
@@ -46,11 +47,13 @@ void main() {
       expect(path, isNull);
     });
 
-    test('offer (delivery category) with ONLY requestId routes to '
+    test('delivery (not offer) with ONLY requestId still routes to '
         '/orders/<requestId> (delivery id == request id)', () {
-      // The live gateway `type=offer`/`type=accept` push maps to the delivery
-      // category but carries ONLY `requestId` — no delivery_id/order_id. Before
-      // the fix this produced NO route (tap = silent no-op).
+      // A real `type=delivery` push can carry ONLY `requestId` — no
+      // delivery_id/order_id. Before that fallback existed this produced NO
+      // route (tap = silent no-op). P2 note: `type=offer` no longer reaches
+      // this branch (it is [NotificationCategory.newOffer] now) — this case is
+      // purely the delivery fence.
       final path = deepLinkForMessage(
         _msg(
           category: NotificationCategory.delivery,
@@ -278,6 +281,209 @@ void main() {
         '/',
       );
     });
+
+    // ---- P2 (b01-20260725) ------------------------------------------------
+
+    // A4: the reported bug. A jeeber's BID on a customer's still-open request
+    // is auction-phase — it must land on the offer-review list where the
+    // Accept CTA lives, NEVER on the phantom `/orders/:requestId` hub.
+    test('newOffer routes to /requests/<requestId>/offers (P2: the '
+        'offer-review list, not the phantom order hub)', () {
+      final path = deepLinkForMessage(
+        _msg(
+          category: NotificationCategory.newOffer,
+          data: const {'requestId': 'req-1'},
+        ),
+      );
+      expect(path, '/requests/req-1/offers');
+    });
+
+    // A5
+    test('newOffer uses snake_case request_id when it is the only id', () {
+      final path = deepLinkForMessage(
+        _msg(
+          category: NotificationCategory.newOffer,
+          data: const {'request_id': 'req-2'},
+        ),
+      );
+      expect(path, '/requests/req-2/offers');
+    });
+
+    // A6
+    test('newOffer with NO id falls back to the shell — never null, never an '
+        '/orders/ path', () {
+      final path = deepLinkForMessage(
+        _msg(category: NotificationCategory.newOffer),
+      );
+      expect(path, '/');
+      expect(path, isNotNull);
+      expect(path!.startsWith('/orders/'), isFalse);
+    });
+
+    // A10
+    test('requestExpired with NO id falls back to the shell', () {
+      expect(
+        deepLinkForMessage(_msg(category: NotificationCategory.requestExpired)),
+        '/',
+      );
+    });
+
+    test('requestExpired routes to /requests/<requestId>/waiting', () {
+      expect(
+        deepLinkForMessage(
+          _msg(
+            category: NotificationCategory.requestExpired,
+            data: const {'requestId': 'req-w'},
+          ),
+        ),
+        '/requests/req-w/waiting',
+      );
+      expect(
+        deepLinkForMessage(
+          _msg(
+            category: NotificationCategory.requestExpired,
+            data: const {'request_id': 'req-w2'},
+          ),
+        ),
+        '/requests/req-w2/waiting',
+      );
+    });
+  });
+
+  // F5 role guard (FIX-REQUESTS.md:35): a jeeber-scoped destination handed to a
+  // CLIENT token is a guaranteed 403 dead end — `/jeeber/requests/:id`'s
+  // recovery path calls the jeeber-only `GET /v1/jeebers/me/feed`. The gateway
+  // stamps no audience, so the client is the only place this can be enforced.
+  group('deepLinkForMessage role guard (F5)', () {
+    // A11
+    test('a CLIENT tapping a new_request is refused to the shell (never '
+        '/jeeber/requests/:id → 403)', () {
+      expect(
+        deepLinkForMessage(
+          _msg(
+            category: NotificationCategory.newRequest,
+            data: const {'requestId': 'R'},
+          ),
+          role: UserRole.client,
+        ),
+        '/',
+      );
+    });
+
+    // A12
+    test('a CLIENT is refused every jeeber-scoped destination', () {
+      expect(
+        deepLinkForMessage(
+          _msg(
+            category: NotificationCategory.offerAccepted,
+            data: const {'requestId': 'R'},
+          ),
+          role: UserRole.client,
+        ),
+        '/',
+      );
+      expect(
+        deepLinkForMessage(
+          _msg(
+            category: NotificationCategory.offerLost,
+            data: const {'requestId': 'R'},
+          ),
+          role: UserRole.client,
+        ),
+        '/',
+      );
+      expect(
+        deepLinkForMessage(
+          _msg(category: NotificationCategory.offerAccepted),
+          role: UserRole.client,
+        ),
+        '/',
+      );
+    });
+
+    // A13a — must NOT over-refuse (plan risk R7).
+    test('a JEEBER still reaches /jeeber/requests/:id', () {
+      expect(
+        deepLinkForMessage(
+          _msg(
+            category: NotificationCategory.newRequest,
+            data: const {'requestId': 'R'},
+          ),
+          role: UserRole.jeeber,
+        ),
+        '/jeeber/requests/R',
+      );
+    });
+
+    // A13b — legacy role-blind behaviour for callers with no role context
+    // (background isolate, unit callers).
+    test('role: null (the default) keeps the legacy role-blind behaviour', () {
+      expect(
+        deepLinkForMessage(
+          _msg(
+            category: NotificationCategory.newRequest,
+            data: const {'requestId': 'R'},
+          ),
+        ),
+        '/jeeber/requests/R',
+      );
+    });
+
+    // A13c
+    test('a JEEBER still reaches /jeeber/deliveries/:id/active', () {
+      expect(
+        deepLinkForMessage(
+          _msg(
+            category: NotificationCategory.offerAccepted,
+            data: const {'requestId': 'R'},
+          ),
+          role: UserRole.jeeber,
+        ),
+        '/jeeber/deliveries/R/active',
+      );
+    });
+
+    // A13d — a client-directed target is NEVER refused.
+    test('a CLIENT tapping a newOffer still reaches the offer-review list', () {
+      expect(
+        deepLinkForMessage(
+          _msg(
+            category: NotificationCategory.newOffer,
+            data: const {'requestId': 'R'},
+          ),
+          role: UserRole.client,
+        ),
+        '/requests/R/offers',
+      );
+    });
+
+    // A13e
+    test('a CLIENT tapping a chat still reaches /chat/:requestId', () {
+      expect(
+        deepLinkForMessage(
+          _msg(
+            category: NotificationCategory.chat,
+            data: const {'requestId': 'R'},
+          ),
+          role: UserRole.client,
+        ),
+        '/chat/R',
+      );
+    });
+
+    test('a CLIENT tapping a requestExpired still reaches the waiting screen',
+        () {
+      expect(
+        deepLinkForMessage(
+          _msg(
+            category: NotificationCategory.requestExpired,
+            data: const {'requestId': 'R'},
+          ),
+          role: UserRole.client,
+        ),
+        '/requests/R/waiting',
+      );
+    });
   });
 
   group('NotificationCategory.fromKey', () {
@@ -334,6 +540,39 @@ void main() {
         NotificationCategory.other,
       );
     });
+
+    // A1 (P2): `offer` is the auction-phase new-bid event, NOT a delivery.
+    test('offer maps to newOffer (P2 — no longer bucketed as delivery)', () {
+      expect(
+        NotificationCategory.fromKey('offer'),
+        NotificationCategory.newOffer,
+      );
+    });
+
+    // A2 fence: `accept` did NOT move — both still resolve to the order surface.
+    test('delivery and accept both still map to delivery (fence)', () {
+      expect(
+        NotificationCategory.fromKey('delivery'),
+        NotificationCategory.delivery,
+      );
+      expect(
+        NotificationCategory.fromKey('accept'),
+        NotificationCategory.delivery,
+      );
+    });
+
+    // A3 (P2/F3): both expiry events carry a legacy `category: "delivery"`;
+    // without an explicit case they would re-bucket as delivery via fromData.
+    test('request_expired and try_expand_tier map to requestExpired', () {
+      expect(
+        NotificationCategory.fromKey('request_expired'),
+        NotificationCategory.requestExpired,
+      );
+      expect(
+        NotificationCategory.fromKey('try_expand_tier'),
+        NotificationCategory.requestExpired,
+      );
+    });
   });
 
   group('NotificationCategory.fromData (type-wins-over-legacy-category)', () {
@@ -377,8 +616,8 @@ void main() {
     });
 
     test(
-      'type=offer + category=delivery → delivery route (offer/accept still '
-      'land on the order surface — a known type that agrees with category)',
+      'type=offer + legacy category=delivery → newOffer (the KNOWN type wins; '
+      'auction phase ≠ delivery)',
       () {
         const data = <String, String>{
           'type': 'offer',
@@ -386,10 +625,10 @@ void main() {
           'requestId': 'req-offer',
         };
         final category = NotificationCategory.fromData(data);
-        expect(category, NotificationCategory.delivery);
+        expect(category, NotificationCategory.newOffer);
         expect(
           deepLinkForMessage(_msg(category: category, data: data)),
-          '/orders/req-offer',
+          '/requests/req-offer/offers',
         );
       },
     );
@@ -461,6 +700,69 @@ void main() {
       expect(category, NotificationCategory.offerLost);
       expect(deepLinkForMessage(_msg(category: category, data: data)), '/');
     });
+
+    // A7 — the EXACT live gateway byte-shape of the new-offer push
+    // (`OfferPushNotifier.cs:112-123`, sent ONLY to `request.ClientId`).
+    test('EXACT gateway new-offer payload (type=offer + legacy '
+        'category=delivery + requestId/request_id/offerId) → newOffer, lands '
+        'on the offer-review list', () {
+      const data = <String, String>{
+        'title': 'New offer on your request',
+        'body': r'You received a new offer for $9. Tap to review.',
+        'type': 'offer',
+        'category': 'delivery',
+        'requestId': 'R',
+        'request_id': 'R',
+        'offerId': 'O',
+      };
+      final category = NotificationCategory.fromData(data);
+      expect(category, NotificationCategory.newOffer);
+      expect(
+        deepLinkForMessage(_msg(category: category, data: data)),
+        '/requests/R/offers',
+      );
+    });
+
+    // A8 — the EXACT expiry byte-shape
+    // (`DispatchingRequestExpiryNotifier.cs:94-103`, legacy category=delivery).
+    test('EXACT gateway request_expired payload → requestExpired, lands on '
+        'the waiting screen (never the phantom order hub)', () {
+      const data = <String, String>{
+        'type': 'request_expired',
+        'category': 'delivery',
+        'requestId': 'R',
+        'request_id': 'R',
+        'language': 'en',
+        'title': 'No jeeber yet',
+        'body': 'We are still looking',
+      };
+      final category = NotificationCategory.fromData(data);
+      expect(category, NotificationCategory.requestExpired);
+      expect(
+        deepLinkForMessage(_msg(category: category, data: data)),
+        '/requests/R/waiting',
+      );
+    });
+
+    // A9 — same shape, the tier-expansion nudge.
+    test('EXACT gateway try_expand_tier payload → requestExpired, lands on '
+        'the waiting screen', () {
+      const data = <String, String>{
+        'type': 'try_expand_tier',
+        'category': 'delivery',
+        'requestId': 'R',
+        'request_id': 'R',
+        'language': 'en',
+        'title': 'Expand your search?',
+        'body': 'No jeeber in this tier',
+      };
+      final category = NotificationCategory.fromData(data);
+      expect(category, NotificationCategory.requestExpired);
+      expect(
+        deepLinkForMessage(_msg(category: category, data: data)),
+        '/requests/R/waiting',
+      );
+    });
   });
 
   group('push-type → route mapping table (regression pins, all 5 wire types '
@@ -488,14 +790,15 @@ void main() {
       },
     );
 
-    test('offer → /orders/:id (customer new-offer surface — unchanged)', () {
+    test('offer → /requests/:id/offers (P2: the offer-review list, not the '
+        'phantom order hub)', () {
       expect(
         routeFor(const {
           'type': 'offer',
           'category': 'delivery',
           'requestId': 'req-1',
         }),
-        '/orders/req-1',
+        '/requests/req-1/offers',
       );
     });
 
@@ -538,5 +841,58 @@ void main() {
         'no crash)', () {
       expect(routeFor(const {'type': 'promo_v9'}), isNull);
     });
+  });
+
+  // A15 (P2) — the assertion that would have caught the original bug, and the
+  // one that kills the legacy-`category` fallback path F3 closes. Every wire
+  // `type` the gateway emits, each stamped with the legacy `category:
+  // 'delivery'` + a bare `requestId` and NO `delivery_id`/`order_id`: the ONLY
+  // types allowed to resolve onto the order surface are `delivery`/`accept`.
+  // A request id laundered into `/orders/:id` is the whole defect class.
+  group('negative fence: no non-delivery type may resolve onto /orders/', () {
+    const orderSurfaceTypes = <String>{'delivery', 'accept'};
+    const wireTypes = <String>[
+      'offer',
+      'offer_accepted',
+      'offer_lost',
+      'new_request',
+      'chat',
+      'try_expand_tier',
+      'request_expired',
+      'delivery',
+      'accept',
+      'promo_v9',
+    ];
+
+    for (final type in wireTypes) {
+      test('type=$type + legacy category=delivery + requestId only', () {
+        final data = <String, String>{
+          'type': type,
+          'category': 'delivery',
+          'requestId': 'R',
+        };
+        final path = deepLinkForMessage(
+          _msg(category: NotificationCategory.fromData(data), data: data),
+        );
+        if (orderSurfaceTypes.contains(type)) {
+          expect(path, '/orders/R', reason: '$type IS an order-surface event');
+        } else if (type == 'promo_v9') {
+          // An UNKNOWN type is not a gateway event — `fromData` deliberately
+          // falls back to the legacy `category` so a pre-sprint-009 payload
+          // shape keeps working (plan §4 fence: the type-beats-category
+          // precedence is unchanged). The defect class this group fences is a
+          // KNOWN gateway type laundering a request id, so the unknown-type
+          // fallback is asserted explicitly rather than swept in.
+          expect(path, '/orders/R');
+        } else {
+          expect(
+            path?.startsWith('/orders/') ?? false,
+            isFalse,
+            reason: '$type must never launder a request id into /orders/ '
+                '(resolved: $path)',
+          );
+        }
+      });
+    }
   });
 }

@@ -233,7 +233,8 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     bus.signal(OfferLifecycleEvent(offerId: offerId, accepted: accepted));
   }
 
-  /// A foreground `delivery`-category push (gateway `type=delivery|offer|accept`)
+  /// A foreground order-ish push (gateway `type=delivery|accept|offer|
+  /// request_expired|try_expand_tier`)
   /// carrying an order/delivery/request id is an order status change. Signal the
   /// refresh bus so the customer's In Progress list and any live tracking
   /// surface re-pull promptly — instead of waiting up to the 10s home poll.
@@ -253,7 +254,18 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
       _refreshSignals.signalStatusChange();
       return;
     }
-    if (message.category != NotificationCategory.delivery) return;
+    // P2: `offer` and the expiry events used to arrive here inside the
+    // `delivery` bucket, so splitting them out MUST preserve the refresh
+    // signal — otherwise the customer's Home/Replies surface stops re-pulling
+    // on a foreground new-offer push and falls back to the slow wall-clock
+    // poll (`home_tab.dart:54-56` → ClientHomeCubit). Behaviour for every
+    // payload is byte-identical to pre-P2.
+    const orderish = <NotificationCategory>{
+      NotificationCategory.delivery,
+      NotificationCategory.newOffer,
+      NotificationCategory.requestExpired,
+    };
+    if (!orderish.contains(message.category)) return;
     final data = message.data;
     final id = data['delivery_id'] ??
         data['order_id'] ??

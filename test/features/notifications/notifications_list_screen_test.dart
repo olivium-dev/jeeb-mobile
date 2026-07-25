@@ -11,12 +11,16 @@
 // backs the dispatch assertions, since context.goNamed needs a router.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:jeeb_mobile/core/role/role_cubit.dart';
+import 'package:jeeb_mobile/core/role/user_role.dart';
 import 'package:jeeb_mobile/features/notifications/domain/notifications_repository.dart';
 import 'package:jeeb_mobile/features/notifications/presentation/notifications_list_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/sync_app_localizations.dart';
 
@@ -61,7 +65,7 @@ Widget _stub(String id) => Semantics(
       child: const Scaffold(body: SizedBox.expand()),
     );
 
-Widget _harness(NotificationsRepository repo) {
+Widget _harness(NotificationsRepository repo, RoleCubit role) {
   final router = GoRouter(
     initialLocation: '/notifications',
     routes: [
@@ -106,24 +110,46 @@ Widget _harness(NotificationsRepository repo) {
         builder: (_, s) =>
             _stub('jeeber_request_root_${s.pathParameters['id']}'),
       ),
+      // P2/F4: the `offer` row now lands on the offer-review list, via the
+      // SAME resolver the push tap uses (`/requests/:id/offers`).
+      GoRoute(
+        path: '/requests/:id/offers',
+        name: 'offer-review',
+        builder: (_, s) =>
+            _stub('offer_review_list_root_${s.pathParameters['id']}'),
+      ),
     ],
   );
-  return MaterialApp.router(
-    routerConfig: router,
-    locale: const Locale('en'),
-    supportedLocales: AppLocalizations.supportedLocales,
-    localizationsDelegates: const [
-      SyncAppLocalizationsDelegate(),
-      GlobalMaterialLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
-    ],
+  // P2/F5: the screen reads the LIVE role (`context.read<RoleCubit>()`) to
+  // refuse a jeeber-scoped destination for a client, so the harness must
+  // provide the cubit exactly as `app.dart` does.
+  return BlocProvider<RoleCubit>.value(
+    value: role,
+    child: MaterialApp.router(
+      routerConfig: router,
+      locale: const Locale('en'),
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: const [
+        SyncAppLocalizationsDelegate(),
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+    ),
   );
 }
 
 void main() {
-  Future<void> pump(WidgetTester tester, NotificationsRepository repo) async {
-    await tester.pumpWidget(_harness(repo));
+  Future<void> pump(
+    WidgetTester tester,
+    NotificationsRepository repo, {
+    UserRole role = UserRole.jeeber,
+  }) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final prefs = await SharedPreferences.getInstance();
+    final roleCubit = RoleCubit(prefs: prefs, initialRole: role);
+    addTearDown(roleCubit.close);
+    await tester.pumpWidget(_harness(repo, roleCubit));
     await tester.pumpAndSettle();
   }
 
@@ -211,15 +237,54 @@ void main() {
       NotificationKind kind, {
       String? ref,
       required String expectRootId,
+      UserRole role = UserRole.jeeber,
     }) async {
-      await pump(tester, _ScriptedRepository([_item('n', kind, ref: ref)]));
+      await pump(
+        tester,
+        _ScriptedRepository([_item('n', kind, ref: ref)]),
+        role: role,
+      );
       await tester.tap(find.bySemanticsIdentifier('notif_row_n'));
       await tester.pumpAndSettle();
       expect(find.bySemanticsIdentifier(expectRootId), findsOneWidget);
     }
 
-    testWidgets('offer → shell (my-orders tab)', (tester) async {
+    // C10a (P2/F4): before P2 the inbox row went to `shell` while the push tap
+    // went to `/orders/:id` — two different wrong answers for one event. Both
+    // now consume the SAME resolver and land on the offer-review list.
+    testWidgets('offer (ref) → offer-review list (P2/F4)', (tester) async {
+      await tapKind(tester, NotificationKind.offer,
+          ref: 'req-1', expectRootId: 'offer_review_list_root_req-1');
+    });
+
+    // C10b: no `ref` → the shell, as before (never a fabricated destination).
+    testWidgets('offer with NO ref → shell (no fabricated destination)',
+        (tester) async {
       await tapKind(tester, NotificationKind.offer, expectRootId: 'shell_root');
+    });
+
+    // C10c (P2/F5): the FIX-REQUESTS 403 fix on the inbox surface — a CLIENT
+    // tapping a `new_request` row must not reach `/jeeber/requests/:id`, whose
+    // recovery path calls the jeeber-only `GET /v1/jeebers/me/feed`.
+    testWidgets('new_request (ref) as a CLIENT → shell, never the jeeber '
+        'request screen (F5)', (tester) async {
+      await tapKind(tester, NotificationKind.newRequest,
+          ref: 'req-1',
+          role: UserRole.client,
+          expectRootId: 'shell_root');
+      expect(
+        find.bySemanticsIdentifier('jeeber_request_root_req-1'),
+        findsNothing,
+      );
+    });
+
+    // C10d: fence — the guard must not over-refuse a real jeeber.
+    testWidgets('new_request (ref) as a JEEBER → jeeber request screen (fence)',
+        (tester) async {
+      await tapKind(tester, NotificationKind.newRequest,
+          ref: 'req-1',
+          role: UserRole.jeeber,
+          expectRootId: 'jeeber_request_root_req-1');
     });
 
     testWidgets('low_balance → wallet-hub', (tester) async {
