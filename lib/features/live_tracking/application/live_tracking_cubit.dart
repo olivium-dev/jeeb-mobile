@@ -63,10 +63,12 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
           clearError: true,
           pendingEvent: _detectEvent(info),
         ));
-        // sprint-009 scenario matrix #9: a cancelled/expired delivery is
-        // terminal — stop polling a dead row (the screen renders the graceful
-        // terminal state instead of a live stepper).
-        if (info.isCancelled) {
+        // sprint-009 scenario matrix #9 + P6/A1: a cancelled or expired
+        // delivery is terminal — stop polling a dead row (the screen renders
+        // the graceful terminal state instead of a live stepper). A `failed`
+        // (FailedNeedsEscalation) row KEEPS polling: an admin can still resolve
+        // it to Done or cancel it, so it is not poll-terminal.
+        if (info.isPollTerminal) {
           _pollTimer?.cancel();
           _pollTimer = null;
         }
@@ -101,8 +103,8 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     final repo = _repository;
     if (repo is! LivePositionSource) return;
     final source = repo as LivePositionSource;
-    // No moving jeeber to plot on a terminal row.
-    if (info.isCancelled || info.isDelivered) return;
+    // No moving jeeber to plot on a terminal or admin-parked row (P6/A1).
+    if (info.isPollTerminal || info.isUnderReview || info.isDelivered) return;
     final DeliveryLivePosition? overlay =
         await source.fetchLivePosition(deliveryId: deliveryId);
     if (isClosed || overlay == null || overlay.isEmpty) return;
@@ -138,9 +140,10 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
 
   void _schedulePoll() {
     _pollTimer?.cancel();
-    // Never (re)arm the poll for a terminal cancelled delivery — the first
-    // fetch may already have read the terminal row (scenario matrix #9).
-    if (state.trackingInfo?.isCancelled ?? false) return;
+    // Never (re)arm the poll for a cancelled or expired delivery — the first
+    // fetch may already have read the terminal row (scenario matrix #9). An
+    // escalated `failed` row is NOT poll-terminal and keeps its timer (P6/A1).
+    if (state.trackingInfo?.isPollTerminal ?? false) return;
     _pollTimer = Timer.periodic(_pollInterval, (_) => _fetch());
   }
 
@@ -154,10 +157,12 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   /// (Dart timers are suspended there) surfaces on return instead of waiting up
   /// to one poll interval — or forever, if the OS dropped the timer. Silent (no
   /// loading flash): [_fetch] keeps the last good `trackingInfo` on a failure,
-  /// and a terminal cancelled row is left untouched (nothing more to poll).
+  /// and a cancelled/expired row is left untouched (nothing more to poll). An
+  /// escalated `failed` row still refreshes — admin resolution must land
+  /// (P6/A1).
   Future<void> refreshNow() async {
     if (isClosed) return;
-    if (state.trackingInfo?.isCancelled ?? false) return;
+    if (state.trackingInfo?.isPollTerminal ?? false) return;
     await _fetch();
     if (!isClosed) _schedulePoll();
   }

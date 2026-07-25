@@ -12,10 +12,23 @@ import '../live_tracking_l10n.dart';
 /// bar drives the visual fill; the per-step nodes carry the labels + a
 /// done/active/pending state for QA + a11y.
 class OrderTrackingStepper extends StatelessWidget {
-  const OrderTrackingStepper({super.key, required this.currentStep});
+  const OrderTrackingStepper({
+    super.key,
+    required this.currentStep,
+    this.atDoor = false,
+  });
 
   /// 0-based index of the CURRENT step (0=Ordered … 3=Delivered).
   final int currentStep;
+
+  /// **Recorded product decision (P6/A5).** Keep the customer's 4-step
+  /// blueprint stepper (Ordered → Picked → In Transit → Delivered, D70).
+  /// At-Door does NOT get a fifth step. Instead, when the row is at the door
+  /// the third step's *label* reads "At Door" — so the state is legible —
+  /// while the semantics identifiers stay `tracking_step_in_transit` (no
+  /// Maestro/E2E churn). This is an explicit decision, not a side effect of
+  /// `trackingStepIndex4`'s collapse.
+  final bool atDoor;
 
   static const _stepIds = <String>[
     'tracking_step_ordered',
@@ -30,7 +43,8 @@ class OrderTrackingStepper extends StatelessWidget {
     final labels = <String>[
       l10n.stepOrdered,
       l10n.stepPicked,
-      l10n.stepInTransit,
+      // P6/A5: the third step reads "At Door" while the jeeber is at the door.
+      atDoor ? l10n.stepAtDoor : l10n.stepInTransit,
       l10n.stepDelivered,
     ];
     final theme = Theme.of(context);
