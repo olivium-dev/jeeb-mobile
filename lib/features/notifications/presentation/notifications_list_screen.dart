@@ -6,6 +6,7 @@ import 'package:omds/omds.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/notifications/domain/notification_deep_link.dart';
 import '../../../core/notifications/domain/notification_message.dart';
+import '../../../core/role/role_cubit.dart';
 import '../application/notifications_list_cubit.dart';
 import '../application/notifications_list_state.dart';
 import '../data/empty_notifications_repository.dart';
@@ -23,7 +24,9 @@ import 'widgets/notification_row.dart';
 /// optimistically and (b) dispatches the D84 deep-link for its kind.
 ///
 /// D84 per-row dispatch (30_BACKLOG JM-057 AC; 21_NAV_PLAN §C):
-///   offer                      → my-orders          (Replies sub-tab → `shell`)
+///   offer (P2)                 → offer-review list  (`/requests/:id/offers`,
+///                                via the SAME resolver the push tap uses;
+///                                no `ref` → `shell`)
 ///   offer_accepted / status    → order-chat         (`chat-detail`, ref=conv/req)
 ///   low_balance / fee_won /
 ///     refund_penalty / topup   → wallet-hub         (`wallet`)
@@ -215,9 +218,25 @@ class _LoadedList extends StatelessWidget {
         }
         break;
 
-      // A fresh offer → my-orders (Replies sub-tab) — a shell tab, not a route.
+      // A fresh offer → the offer-review list, via the SAME resolver the push
+      // tap uses (the file's own rule at the `newRequest` branch below). Before
+      // P2 this went to `shell` while the push went to `/orders/:id` — two
+      // different wrong answers for one event. `push` (not `go`) so back
+      // returns to the inbox. No `ref` → the shell, as before.
       case NotificationKind.offer:
-        context.goNamed('shell');
+        if (ref == null) {
+          context.goNamed('shell');
+          break;
+        }
+        final offerTarget = deepLinkForMessage(NotificationMessage(
+          id: item.id,
+          category: NotificationCategory.newOffer,
+          title: item.title,
+          body: item.body,
+          receivedAt: DateTime.now(),
+          data: {'requestId': ref},
+        ));
+        if (offerTarget != null) context.push(offerTarget);
         break;
 
       // KYC approved → jeeber-requests-home (Dashboard tab) — a shell tab.
@@ -258,14 +277,21 @@ class _LoadedList extends StatelessWidget {
       // to the inbox.
       case NotificationKind.newRequest:
         if (ref == null) break;
-        final target = deepLinkForMessage(NotificationMessage(
-          id: item.id,
-          category: NotificationCategory.newRequest,
-          title: item.title,
-          body: item.body,
-          receivedAt: DateTime.now(),
-          data: {'requestId': ref},
-        ));
+        final target = deepLinkForMessage(
+          NotificationMessage(
+            id: item.id,
+            category: NotificationCategory.newRequest,
+            title: item.title,
+            body: item.body,
+            receivedAt: DateTime.now(),
+            data: {'requestId': ref},
+          ),
+          // F5: a CLIENT tapping a `new_request` row must not be sent to
+          // `/jeeber/requests/:id` — its recovery path calls the jeeber-only
+          // `GET /v1/jeebers/me/feed` → 403 (FIX-REQUESTS.md:35). The resolver
+          // returns `/` for a client instead.
+          role: context.read<RoleCubit>().state,
+        );
         if (target != null) context.push(target);
         break;
 
