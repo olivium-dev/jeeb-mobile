@@ -177,6 +177,8 @@ const _summary = OrderChatSummary(
   etaMinutes: 20,
   tierId: 'express',
   orderRef: 'ORD-503003',
+  // P3 (b01-20260725): the INITIAL REQUIREMENT carried into the strip.
+  description: '2 kilos apples from Spinneys',
 );
 
 void main() {
@@ -260,6 +262,37 @@ void main() {
       expect(find.bySemanticsIdentifier('order_summary_tier'), findsOneWidget);
       expect(find.bySemanticsIdentifier('order_summary_cash_label'),
           findsOneWidget);
+      // P3/M18: the new initial-requirement row joins the JM-031 field-id set
+      // under its sibling id — the existing ids are unchanged.
+      expect(find.bySemanticsIdentifier('order_summary_item'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('order_chat_request_description'),
+          findsOneWidget);
+    });
+
+    testWidgets(
+        'P3/M16: the JEEBER shape — the strip renders with NO link even when '
+        'the conversation phase is not literally accepted', (t) async {
+      final gw = _ActiveDeliveryGateway();
+      addTearDown(gw.dispose);
+      await t.pumpWidget(_host(ChatScreen(
+        deliveryId: 'del-client-001-active',
+        counterpartName: 'Alice Client',
+        cubit: _cubit(gw, id: 'del-client-001-active')..load(),
+        // The Jeeber leg: no order-chat composer ids, no owner-scoped link.
+        isOrderChat: false,
+        pinnedSummary: _summary,
+        onViewSummary: null,
+        viewerIsJeeber: true,
+      )));
+      await t.pumpAndSettle();
+
+      expect(find.bySemanticsIdentifier('order_chat_pinned_summary'),
+          findsOneWidget);
+      expect(find.bySemanticsIdentifier('order_chat_view_summary_link'),
+          findsNothing);
+      expect(find.bySemanticsIdentifier('order_chat_request_description'),
+          findsOneWidget);
+      expect(find.text('2 kilos apples from Spinneys'), findsOneWidget);
     });
 
     testWidgets(

@@ -48,8 +48,8 @@ void _loadArb() {
   _delegate = _SyncLocDelegate({'en': en, 'ar': ar});
 }
 
-Widget _host(Widget child) => MaterialApp(
-      locale: const Locale('en'),
+Widget _host(Widget child, {Locale locale = const Locale('en')}) => MaterialApp(
+      locale: locale,
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: [
         _delegate,
@@ -196,5 +196,208 @@ void main() {
     await tester.pump();
 
     expect(find.text('Delivered'), findsOneWidget);
+  });
+
+  // -------------------------------------------------------------------
+  // P3 (b01-20260725) — the INITIAL REQUIREMENT row.
+  // -------------------------------------------------------------------
+
+  /// The description's own `Text` node (the one AutoDirectionText renders).
+  Text descriptionText(WidgetTester tester, String data) =>
+      tester.widget<Text>(find.descendant(
+        of: find.bySemanticsIdentifier('order_chat_request_description'),
+        matching: find.text(data),
+      ));
+
+  testWidgets('P3/M8: the initial-requirement row renders with both ids',
+      (tester) async {
+    const summary = OrderChatSummary(
+      deliveryId: uuid,
+      orderRef: 'ORD-1',
+      description: '2 kilos apples from Spinneys',
+    );
+    await tester.pumpWidget(_host(OrderChatPinnedSummary(
+      summary: summary,
+      counterpartName: 'Kamal Hajj',
+      onViewSummary: () {},
+    )));
+    await tester.pump();
+
+    expect(
+      find.bySemanticsIdentifier('order_chat_request_description'),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsIdentifier('order_summary_item'), findsOneWidget);
+    expect(find.text('2 kilos apples from Spinneys'), findsOneWidget);
+  });
+
+  testWidgets('P3/M9: an EMPTY description hides the row entirely — no box, '
+      'no "Pending" filler', (tester) async {
+    const summary = OrderChatSummary(
+      deliveryId: uuid,
+      orderRef: 'ORD-1',
+      description: '',
+    );
+    await tester.pumpWidget(_host(OrderChatPinnedSummary(
+      summary: summary,
+      counterpartName: 'Kamal Hajj',
+      onViewSummary: () {},
+    )));
+    await tester.pump();
+
+    expect(
+      find.bySemanticsIdentifier('order_chat_request_description'),
+      findsNothing,
+    );
+    expect(find.bySemanticsIdentifier('order_summary_item'), findsNothing);
+    // The row adds ZERO "Pending" placeholders — the 3 chips are unchanged.
+    expect(find.text('Pending'), findsNWidgets(3));
+  });
+
+  testWidgets('P3/M10: RTL — an Arabic description inside an English UI reads '
+      'right-to-left', (tester) async {
+    const arabic = '٢ كيلو تفاح من سبينيس';
+    const summary = OrderChatSummary(
+      deliveryId: uuid,
+      orderRef: 'ORD-1',
+      description: arabic,
+    );
+    await tester.pumpWidget(_host(OrderChatPinnedSummary(
+      summary: summary,
+      counterpartName: 'Kamal Hajj',
+      onViewSummary: () {},
+    )));
+    await tester.pump();
+
+    expect(descriptionText(tester, arabic).textDirection, TextDirection.rtl);
+  });
+
+  testWidgets('P3/M11: LTR — an English description inside an Arabic UI reads '
+      'left-to-right, while the strip itself stays RTL', (tester) async {
+    const english = 'Apples from Spinneys';
+    const summary = OrderChatSummary(
+      deliveryId: uuid,
+      orderRef: 'ORD-1',
+      description: english,
+    );
+    await tester.pumpWidget(_host(
+      OrderChatPinnedSummary(
+        summary: summary,
+        counterpartName: 'Kamal Hajj',
+        onViewSummary: () {},
+      ),
+      locale: const Locale('ar'),
+    ));
+    await tester.pump();
+
+    expect(descriptionText(tester, english).textDirection, TextDirection.ltr);
+    // The ambient strip direction is still RTL (the app is RTL-first).
+    expect(
+      Directionality.of(
+        tester.element(find.byType(OrderChatPinnedSummary)),
+      ),
+      TextDirection.rtl,
+    );
+  });
+
+  testWidgets('P3/M12: a 400-char description clamps to 2 lines + ellipsis and '
+      'does not overflow a narrow strip', (tester) async {
+    final long = 'apples ' * 60; // > 400 chars
+    final summary = OrderChatSummary(
+      deliveryId: uuid,
+      orderRef: 'ORD-1',
+      description: long,
+    );
+    await tester.pumpWidget(_host(SizedBox(
+      // A realistic narrow-phone viewport. NOTE: the strip's own intrinsic
+      // height is ~163 px even with NO description, so a 200 px host would
+      // overflow on the empty strip too — that host would test the harness,
+      // not the clamp.
+      width: 360,
+      height: 640,
+      child: Column(children: [
+        OrderChatPinnedSummary(
+          summary: summary,
+          counterpartName: 'Kamal Hajj',
+          onViewSummary: () {},
+        ),
+      ]),
+    )));
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    final text = descriptionText(tester, long);
+    expect(text.maxLines, 2);
+    expect(text.overflow, TextOverflow.ellipsis);
+    // R2 guard: the clamp BOUNDS the strip's growth. Measured baselines at this
+    // width — no description 163.5 px, 2-line description 207.5 px. Unclamped,
+    // 420 chars wrap to ~10 lines (~+160 px) and would push the message list
+    // off screen (the run-22 "BOTTOM OVERFLOWED" class).
+    expect(
+      tester.getSize(find.byType(OrderChatPinnedSummary)).height,
+      lessThan(240),
+    );
+  });
+
+  testWidgets('P3/M13: tapping the row expands it to the full text',
+      (tester) async {
+    final long = 'apples ' * 60;
+    final summary = OrderChatSummary(
+      deliveryId: uuid,
+      orderRef: 'ORD-1',
+      description: long,
+    );
+    await tester.pumpWidget(_host(SizedBox(
+      width: 360,
+      height: 640,
+      child: Column(children: [
+        OrderChatPinnedSummary(
+          summary: summary,
+          counterpartName: 'Kamal Hajj',
+          onViewSummary: () {},
+        ),
+      ]),
+    )));
+    await tester.pump();
+
+    expect(descriptionText(tester, long).maxLines, 2);
+
+    await tester.tap(
+      find.bySemanticsIdentifier('order_chat_request_description'),
+      warnIfMissed: false,
+    );
+    await tester.pump();
+
+    expect(descriptionText(tester, long).maxLines, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('P3/M14: the view-summary LINK is hidden when onViewSummary is '
+      'null (the Jeeber strip) — the strip itself still renders', (tester) async {
+    const summary = OrderChatSummary(
+      deliveryId: uuid,
+      orderRef: 'ORD-1',
+      description: '2 kilos apples from Spinneys',
+    );
+    await tester.pumpWidget(_host(const OrderChatPinnedSummary(
+      summary: summary,
+      counterpartName: syntheticHandle,
+      onViewSummary: null,
+      viewerIsJeeber: true,
+    )));
+    await tester.pump();
+
+    expect(
+      find.bySemanticsIdentifier('order_chat_pinned_summary'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsIdentifier('order_chat_view_summary_link'),
+      findsNothing,
+    );
+    expect(find.text('View summary'), findsNothing);
+    // Party line falls back to the localized customer generic.
+    expect(find.text('Customer'), findsOneWidget);
+    expect(find.text('2 kilos apples from Spinneys'), findsOneWidget);
   });
 }

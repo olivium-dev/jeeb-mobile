@@ -90,11 +90,13 @@ Widget _host(RoleCubit role) => MaterialApp(
   ),
 );
 
-Future<RoleCubit> _clientRole() async {
+Future<RoleCubit> _role(UserRole role) async {
   SharedPreferences.setMockInitialValues(<String, Object>{});
   final prefs = await SharedPreferences.getInstance();
-  return RoleCubit(prefs: prefs, initialRole: UserRole.client);
+  return RoleCubit(prefs: prefs, initialRole: role);
 }
+
+Future<RoleCubit> _clientRole() => _role(UserRole.client);
 
 void main() {
   late _AdvancingDeliveryDio rec;
@@ -131,6 +133,32 @@ void main() {
 
       // Dispose the screen so the periodic poll timer is cancelled (no pending
       // timer at teardown).
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'P3/M27: the JEEBER arms NO summary poll — P3 adds ZERO background load on '
+    'the Jeeber device',
+    (tester) async {
+      await tester.pumpWidget(_host(await _role(UserRole.jeeber)));
+      await tester.pumpAndSettle();
+      // P3 DOES give the Jeeber the one-shot participant-scoped delivery read.
+      expect(rec.deliveryReads, 1, reason: 'one read at mount');
+
+      // Two full poll intervals later the count must be UNCHANGED: the poll is
+      // customer-only (the Jeeber's fields never change post-accept and the
+      // delivered-status side effect must fire on the client leg only).
+      await tester.pump(const Duration(milliseconds: 1100));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1100));
+      await tester.pump();
+      expect(
+        rec.deliveryReads,
+        1,
+        reason: 'no poll timer is armed for the Jeeber',
+      );
+
       await tester.pumpWidget(const SizedBox());
     },
   );
