@@ -184,11 +184,17 @@ class _BannerCard extends StatelessWidget {
         return Icons.settings_outlined;
       case NotificationCategory.newRequest:
         return Icons.assignment_outlined;
+      case NotificationCategory.newOffer:
       case NotificationCategory.offerAccepted:
       case NotificationCategory.offerLost:
         // sprint-009 offer-lifecycle: accept/lost banners carry the offer icon;
         // the tap routes to the pending-offers surface (see NotificationDeepLink).
+        // P2: a customer's inbound new bid (`newOffer`) shares the offer icon.
         return Icons.local_offer_outlined;
+      case NotificationCategory.requestExpired:
+        // P2/F3: no-coverage / expiry nudge — the tap lands on the waiting
+        // screen (see NotificationDeepLink).
+        return Icons.timer_off_outlined;
       case NotificationCategory.other:
         return Icons.notifications_outlined;
     }

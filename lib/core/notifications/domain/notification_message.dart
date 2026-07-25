@@ -11,6 +11,24 @@ enum NotificationCategory {
   settings,
   newRequest,
 
+  /// P2 (b01-20260725): a jeeber submitted a BID on this customer's still-open
+  /// request — gateway `type=offer`, `OfferPushNotifier.NotifyNewOfferAsync`,
+  /// sent ONLY to `request.ClientId` (`RequestOffersController.cs:326-327`).
+  /// The request is in the AUCTION phase: no delivery exists. Routes to the
+  /// offer-review list (`/requests/:id/offers`) — the same surface the in-app
+  /// Replies CTA opens (`replies_tab.dart:86`). It previously bucketed as
+  /// [delivery], which resolved to `/orders/:requestId`: a delivery-detail hub
+  /// for a delivery that does not exist.
+  newOffer,
+
+  /// P2 (b01-20260725): the customer's request is timing out / found no
+  /// coverage — gateway `type=request_expired` / `type=try_expand_tier`
+  /// (`DispatchingRequestExpiryNotifier.cs:37,50`, stamped with a legacy
+  /// `category: "delivery"` at `:94-103`). Routes to the waiting/no-coverage
+  /// screen (`/requests/:id/waiting`), the SAME target the notifications inbox
+  /// already uses for this event (`notifications_list_screen.dart:234-238`).
+  requestExpired,
+
   /// sprint-009 offer-lifecycle: the customer ACCEPTED this jeeber's offer
   /// (`type=offer_accepted`). Routes the jeeber to its pending-offers surface
   /// where the row flips to "Accepted".
@@ -28,18 +46,24 @@ enum NotificationCategory {
   /// jeeb-gateway's `EventPushNotifier` actually emits on its `type`
   /// routing key (verified against the iter6 gateway source — chat-send
   /// fan-out emits `type=chat`; new-offer `type=offer`; offer-accept
-  /// `type=accept`; delivery status `type=delivery`). `offer`/`accept`
-  /// both land on the order surface (the request/delivery), so they map
-  /// to [delivery]. Unknown values fall back to [other] — that path
+  /// `type=accept`; delivery status `type=delivery`). `offer` is the
+  /// auction-phase new-bid event and lands on the offer-review list
+  /// (see [newOffer]); only `delivery`/`accept` land on the order surface.
+  /// Unknown values fall back to [other] — that path
   /// renders the banner but no-ops on tap rather than crashing.
   static NotificationCategory fromKey(String? key) {
     switch (key) {
       case 'delivery':
-      // jeeb-gateway EventPushNotifier `type` values that resolve to the
-      // order/delivery surface (`/orders/:id`).
-      case 'offer':
+      // The order/delivery surface (`/orders/:id`). `accept` is DEAD on the
+      // wire today (an exhaustive scan of jeeb-gateway `src/**/*.cs` for
+      // `["type"] =` finds only offer / offer_accepted / offer_lost /
+      // new_request / chat / try_expand_tier / request_expired) but its target
+      // would be correct, so it stays.
       case 'accept':
         return NotificationCategory.delivery;
+      // P2: auction-phase bid — NOT a delivery. See [NotificationCategory.newOffer].
+      case 'offer':
+        return NotificationCategory.newOffer;
       case 'chat':
         return NotificationCategory.chat;
       case 'kyc':
@@ -53,6 +77,13 @@ enum NotificationCategory {
       // lands on that request's screen.
       case 'new_request':
         return NotificationCategory.newRequest;
+      // P2/F3: both expiry events carry a legacy `category: "delivery"`. Without
+      // an explicit case here they resolve to `other`, and [fromData]'s legacy
+      // fallback then re-buckets them as `delivery` → the same phantom
+      // `/orders/:requestId`. Route them to the waiting surface instead.
+      case 'request_expired':
+      case 'try_expand_tier':
+        return NotificationCategory.requestExpired;
       // sprint-009 offer-lifecycle discriminators (feat/offer-lifecycle
       // gateway contract): a jeeber's submitted offer was accepted or lost.
       // Both land on the jeeber's pending-offers surface (see
