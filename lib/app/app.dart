@@ -446,6 +446,17 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       localInbox: sl.isRegistered<LocalPushInbox>()
           ? sl<LocalPushInbox>()
           : null,
+      // P1 defence-in-depth: drop a push whose audience_role is not a role
+      // this session holds. Prefer the server-published available_roles
+      // (RoleSync ← getMe); fall back to the active role only while that
+      // list is still empty. An empty set means "roles unknown" and the
+      // matcher fails OPEN, so a pre-getMe push is never suppressed.
+      localRoles: () {
+        final available = _roleAvailability.state.roles.toSet();
+        return available.isNotEmpty
+            ? available
+            : <String>{_role.state.storageKey};
+      },
     );
     if (injectedRegistrar == null && transport is FirebaseMessagingTransport) {
       final registrar = DeviceTokenRegistrar(
