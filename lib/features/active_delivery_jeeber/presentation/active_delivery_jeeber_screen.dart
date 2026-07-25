@@ -24,9 +24,11 @@ const double _kInlineQuickActionsMinWidth = 448;
 /// Shows the drop-off address, the status stepper (Ordered→…→AtDoor), and — at
 /// `AtDoor` — the mark-delivered panel: a proof-of-delivery photo capture (D3),
 /// an optional note, the "customer confirms receipt + pays cash" copy (D11),
-/// and the "Mark as delivered" CTA. When the delivery reaches `Done` the screen
-/// routes to `feedback-rate-delivery` (the mandatory mutual rating, JM-034 /
-/// D56) — **NOT** the OTP handover.
+/// and the "Complete Delivery" CTA. P6/B1: that CTA walks the ladder only as
+/// far as `AtDoor` and then raises the door-OTP entry — `AtDoor → Done` is not
+/// a client-patchable edge. Once the verified handover lands the row on `Done`
+/// the screen routes to `feedback-rate-delivery` (the mandatory mutual rating,
+/// JM-034 / D56).
 class ActiveDeliveryJeeberScreen extends StatelessWidget {
   const ActiveDeliveryJeeberScreen({
     super.key,
@@ -166,10 +168,18 @@ class _Body extends StatelessWidget {
   }
 
   void _onStateChange(BuildContext context, ActiveDeliveryState state) {
-    if (state.transitionError != null) {
+    final raw = state.transitionError;
+    if (raw != null) {
       // EXEMPT: OMDS exports no standalone toast/snackbar widget; ScaffoldMessenger
       // + showOmdsSnackbar is the approved fleet pattern for transient feedback.
-      showOmdsSnackbar(context, message: state.transitionError!);
+      // P6/B4: prefer the kind-specific LOCALIZED copy; the cubit's English
+      // literal is only the fallback for an unclassified failure.
+      final l10n = AppLocalizations.of(context);
+      showOmdsSnackbar(
+        context,
+        message: _localizedTransitionError(l10n, state.transitionErrorKind) ??
+            raw,
+      );
       context.read<ActiveDeliveryCubit>().acknowledgeTransitionError();
     }
     // JM-051 AC2: done → mandatory rating (NOT OTP). One-shot signal.
@@ -178,6 +188,23 @@ class _Body extends StatelessWidget {
       onMarkedDelivered?.call();
     }
   }
+
+  /// P6/B4: maps the typed failure onto its own localized string. Returns null
+  /// for kinds that never surface here (they render the cubit fallback).
+  String? _localizedTransitionError(
+    AppLocalizations l10n,
+    ActiveDeliveryFailure? kind,
+  ) =>
+      switch (kind) {
+        ActiveDeliveryFailure.invalidTransition =>
+          l10n.activeDeliveryErrorInvalidTransition,
+        ActiveDeliveryFailure.badRequest => l10n.activeDeliveryErrorBadRequest,
+        ActiveDeliveryFailure.network => l10n.activeDeliveryErrorNetwork,
+        ActiveDeliveryFailure.otpRequired =>
+          l10n.activeDeliveryErrorOtpNeeded,
+        ActiveDeliveryFailure.server => l10n.activeDeliveryErrorGeneric,
+        _ => null,
+      };
 
   Widget _buildScaffold(BuildContext context, ActiveDeliveryState state) {
     final l10n = AppLocalizations.of(context);
@@ -277,9 +304,10 @@ class _ReadyContent extends StatelessWidget {
     }
     // JM-051: the mark-delivered panel is surfaced during the delivering phase
     // (InTransit or AtDoor) — the seam seeds `jeeber_active_delivery` at
-    // InTransit, and the flow asserts the panel on first frame. `markDelivered`
-    // walks the remaining SM-1 forward steps (InTransit → AtDoor → Done),
-    // stamping the proof evidenceUrl on the final transition.
+    // InTransit, and the flow asserts the panel on first frame. P6/B1:
+    // `markDelivered` walks the SM-1 forward steps only up to AtDoor (stamping
+    // the proof evidenceUrl on that last patched step) and then hands over to
+    // the door OTP, which is what completes the row to Done.
     final showMarkDelivered =
         delivery.status == JeeberDeliveryStatus.inTransit ||
         delivery.status == JeeberDeliveryStatus.atDoor;

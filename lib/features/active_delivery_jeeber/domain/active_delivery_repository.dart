@@ -91,6 +91,12 @@ enum ActiveDeliveryFailure {
 
   /// 423 from the door-OTP verify — attempts exhausted / locked.
   otpLocked,
+
+  /// HTTP 400 from the gateway's own body resolver — a CLIENT-BUG signature
+  /// (unresolvable/absent canonical target), NOT a state-machine verdict.
+  /// Kept distinct from [invalidTransition] so the two never render the same
+  /// string (P6/B4).
+  badRequest,
   server,
   notFound,
 }

@@ -53,8 +53,18 @@ extension JeeberDeliveryStatusX on JeeberDeliveryStatus {
     }
   }
 
-  /// The next valid forward status, or null if this is terminal.
+  /// The next valid forward status the CLIENT may request on the plain
+  /// status-patch path, or null when no such edge exists.
+  ///
+  /// P6/B2: `atDoor` returns null deliberately. `AtDoor → Done` is NOT an edge
+  /// on this path — the frozen SM (`DeliverySm.cs:53-62` / `status.go`) gives
+  /// AtDoor exactly three exits (`otp_verified → Done`,
+  /// `otp_fail_or_jeeber_escalate → FailedNeedsEscalation`,
+  /// `escalate_either → FailedNeedsEscalation`) and all three are
+  /// OTP/escalation triggers, not a jeeber tap. Completion runs through
+  /// `verifyDoorOtp`, never `transition`.
   JeeberDeliveryStatus? get next {
+    if (this == JeeberDeliveryStatus.atDoor) return null;
     final idx = jeeberDeliveryProgressStages.indexOf(this);
     if (idx < 0 || this == JeeberDeliveryStatus.done) return null;
     return jeeberDeliveryProgressStages[idx + 1];
@@ -71,6 +81,17 @@ extension JeeberDeliveryStatusX on JeeberDeliveryStatus {
 
   /// True once the delivery can no longer advance.
   bool get isTerminal => isSuccessfulTerminal || isUnsuccessfulTerminal;
+
+  /// True once the row can no longer move WITHOUT an admin — i.e. nothing more
+  /// is worth polling for. `disputed` (`FailedNeedsEscalation`) is deliberately
+  /// EXCLUDED — SM edges 12/13 (`admin_resolve → Done`,
+  /// `admin_cancel → Cancelled`) keep it live, so the jeeber must keep watching
+  /// it (P6/A2). Distinct from [isTerminal], which the presentation layer uses
+  /// to render the terminal panels.
+  bool get isPollTerminal =>
+      isSuccessfulTerminal ||
+      this == JeeberDeliveryStatus.cancelled ||
+      this == JeeberDeliveryStatus.expired;
 
   /// Parse a gateway status. Tolerates both the real-mock CapitalCase form
   /// (`InTransit`, `AtDoor`, `Done`) and the legacy lowercase/underscore form
