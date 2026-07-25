@@ -33,6 +33,11 @@ typedef WaitingCubitFactory =
 ///    while the matching service fans the request out (AC1). `waiting_notified_count`
 ///    shows neutral reassurance copy when the gateway never populated the
 ///    counter (notifiedCount <= 0) rather than a false "No Jeebers nearby".
+///    `waiting_countdown` is driven by the snapshot's ANCHOR PAIR
+///    (`receivedAt` + `remainingAtReceipt`, P7): a server-relative remaining
+///    value pinned to the device instant it arrived, so handset clock skew
+///    cannot shift it. When the server says no countdown applies the label says
+///    so — the client never fabricates a window.
 ///  - **No-offers-yet variant:** ONLY once the broadcast window has elapsed with
 ///    zero offers in, the `waiting_no_coverage_state` container shows instead
 ///    (clock-driven, never gated on notifiedCount — BUG-4 / JM-026).
@@ -137,7 +142,10 @@ class _WaitingView extends StatelessWidget {
   Widget _body(BuildContext context, WaitingState state) {
     if (state.isLoading) return const _WaitingLoading();
     if (state.status == WaitingScreenStatus.failed) {
-      return _WaitingError(onRetry: () => context.read<WaitingCubit>().retry());
+      return _WaitingError(
+        failure: state.error,
+        onRetry: () => context.read<WaitingCubit>().retry(),
+      );
     }
     if (state.isTerminal) {
       return _WaitingTerminal(
@@ -164,19 +172,26 @@ class _WaitingLoading extends StatelessWidget {
 }
 
 class _WaitingError extends StatelessWidget {
-  const _WaitingError({required this.onRetry});
+  const _WaitingError({required this.onRetry, this.failure});
 
   final VoidCallback onRetry;
+
+  /// Why the load failed. A backend-contract break gets its OWN copy so a QA
+  /// run reports "backend contract break", not "network problem" (P7 T5.5).
+  final WaitingFailure? failure;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final message = failure == WaitingFailure.contractViolation
+        ? l10n.waitingErrorContractBody
+        : l10n.waitingErrorBody;
     return Padding(
       padding: const EdgeInsets.all(Spacing.large),
       child: Semantics(
         identifier: 'waiting_error_state',
         container: true,
-        child: OmdsErrorState(message: l10n.waitingErrorBody, onRetry: onRetry),
+        child: OmdsErrorState(message: message, onRetry: onRetry),
       ),
     );
   }
@@ -361,7 +376,11 @@ class _BroadcastHeader extends StatelessWidget {
   });
 
   final int notifiedCount;
-  final Duration remaining;
+
+  /// Time left on the server-anchored offer-wait window. NULL means the server
+  /// says no countdown applies to this row — the label then says so honestly
+  /// instead of rendering a fabricated `0:00`.
+  final Duration? remaining;
 
   @override
   Widget build(BuildContext context) {
@@ -398,11 +417,15 @@ class _BroadcastHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(height: Spacing.small),
-        // waiting_countdown — broadcast countdown timer (AC1).
+        // waiting_countdown — broadcast countdown timer (AC1). The node is
+        // ALWAYS present (Maestro flows resolve it) but its text is honest: no
+        // anchor pair means no number, never a fabricated one.
         Semantics(
           identifier: 'waiting_countdown',
           child: Text(
-            l10n.waitingCountdownLabel(_format(remaining)),
+            remaining == null
+                ? l10n.waitingCountdownPending
+                : l10n.waitingCountdownLabel(_format(remaining!)),
             style: theme.textTheme.bodyLarge?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),

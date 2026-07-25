@@ -1482,6 +1482,7 @@
 
   "waitingTitle": "نبحث عن جيبر",
   "waitingCountdownLabel": "{time} متبقٍّ للعثور على جيبر",
+  "waitingCountdownPending": "جارٍ البحث عن جيبر لك",
   "waitingNoCoverageTitle": "لا توجد عروض بعد",
   "waitingNoCoverageBody": "الجيبرز القريبون منك ما زالوا يراجعون طلبك. واصل الانتظار، أو أعد توجيه طلبك، أو ألغِه — الإلغاء مجاني ولن يُحتسب أي رسوم.",
   "waitingReachingOutLabel": "نتواصل مع الجيبرز القريبين منك...",
@@ -1489,6 +1490,7 @@
   "waitingRetargetCta": "إعادة توجيه الطلب",
   "waitingCancelCta": "إلغاء الطلب",
   "waitingErrorBody": "تعذّر تحميل حالة طلبك. يرجى المحاولة مرة أخرى.",
+  "waitingErrorContractBody": "عادت حالة طلبك بتنسيق غير متوقع. هذه مشكلة في الخادم وليست في اتصالك.",
 
   "cancelRequestFreeNote": "الإلغاء مجاني قبل قبول أي عرض — لن يُحتسب أي مبلغ.",
   "cancelRequestErrorConflict": "لم يعد بالإمكان إلغاء هذا الطلب.",

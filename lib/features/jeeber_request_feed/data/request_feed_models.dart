@@ -98,11 +98,14 @@ class DeliveryRequest extends Equatable {
   /// ISO 4217 currency code (e.g. `USD`, `LBP`). Display formatting concern.
   final String currency;
 
-  /// Server-supplied deadline — the ONLY lifetime authority for the card
-  /// (G3). When present and passed, the cubit flips the card to a visible
-  /// "Expired" state and collapses it shortly after. `null` means the gateway
-  /// supplied no deadline, so the card remains live until a later snapshot no
-  /// longer lists it.
+  /// DERIVED device-clock deadline — the ONLY lifetime authority for the card
+  /// (G3). It is anchored at PARSE TIME from the feed item's server-relative
+  /// `offerDeadlineInSeconds` (`receiveInstant + remaining`, P7), never parsed
+  /// from a server absolute, so handset clock skew cannot shift it. The field
+  /// keeps its wire-agnostic Dart name. When present and passed, the cubit
+  /// flips the card to a visible "Expired" state and collapses it shortly
+  /// after. `null` means the gateway said no countdown applies to this row, so
+  /// the card remains live until a later snapshot no longer lists it.
   final DateTime? expiresAt;
 
   /// Optional sender display name. Surfaces in screen readers and on the

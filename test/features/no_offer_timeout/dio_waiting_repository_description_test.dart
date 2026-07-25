@@ -46,6 +46,7 @@ void main() {
             requestBody: const {
               'id': 'req-1',
               'status': 'pending',
+              'offerDeadlineInSeconds': 1800,
               'description': '2 shawarma + cola from Barbar',
             },
           ),
@@ -67,6 +68,7 @@ void main() {
           requestBody: const {
             'id': 'req-1',
             'status': 'pending',
+            'offerDeadlineInSeconds': 1800,
             'title': 'Barbar order',
             'description': '2 shawarma + cola from Barbar',
           },
@@ -80,7 +82,13 @@ void main() {
 
     test('title stays null when the row carries neither field', () async {
       final repo = DioWaitingRepository(
-        _FakeDio(requestBody: const {'id': 'req-1', 'status': 'pending'}),
+        _FakeDio(
+          requestBody: const {
+            'id': 'req-1',
+            'status': 'pending',
+            'offerDeadlineInSeconds': 1800,
+          },
+        ),
       );
 
       final waiting = await repo.fetchWaiting('req-1');
@@ -88,43 +96,49 @@ void main() {
       expect(waiting.title, isNull);
     });
 
+    // P7: a row the server says has NO countdown (terminal) legitimately omits
+    // `offerDeadlineInSeconds` — that stays null across repeated reads and is
+    // never back-filled with an invented window. (A LIVE row that omits it is a
+    // contract violation and throws — see
+    // dio_waiting_repository_contract_test.dart T4.1.)
     test(
-      'missing or malformed expiry stays unknown across repeated reads',
+      'an omitted deadline on a terminal row stays unknown across repeated '
+      'reads',
       () async {
-        for (final expiry in <Object?>[null, 'not-a-timestamp']) {
-          final body = <String, dynamic>{
-            'id': 'req-1',
-            'status': 'pending',
-            'broadcastExpiresAt': ?expiry,
-          };
+        for (final status in const <String>['expired', 'cancelled']) {
+          final body = <String, dynamic>{'id': 'req-1', 'status': status};
           final repo = DioWaitingRepository(_FakeDio(requestBody: body));
 
           final first = await repo.fetchRequest('req-1');
           final second = await repo.fetchRequest('req-1');
 
-          expect(first.broadcastExpiresAt, isNull);
-          expect(second.broadcastExpiresAt, isNull);
+          expect(first.remainingAtReceipt, isNull, reason: status);
+          expect(second.remainingAtReceipt, isNull, reason: status);
+          expect(first.deadline, isNull, reason: status);
         }
       },
     );
 
-    test('preserves a server-supplied expiry exactly', () async {
+    test('anchors the server-supplied remaining seconds exactly', () async {
+      final anchor = DateTime.utc(2026, 7, 22, 8, 31, 17);
       final repo = DioWaitingRepository(
         _FakeDio(
           requestBody: const {
             'id': 'req-1',
             'status': 'pending',
-            'broadcastExpiresAt': '2026-07-22T08:31:17.456Z',
+            'offerDeadlineInSeconds': 1740,
           },
         ),
+        now: () => anchor,
       );
 
       final waiting = await repo.fetchRequest('req-1');
 
-      expect(
-        waiting.broadcastExpiresAt,
-        DateTime.utc(2026, 7, 22, 8, 31, 17, 456),
-      );
+      expect(waiting.remainingAtReceipt, const Duration(seconds: 1740));
+      expect(waiting.receivedAt, anchor);
+      // The deadline is DERIVED in the device clock domain, never parsed from a
+      // server absolute.
+      expect(waiting.deadline, anchor.add(const Duration(seconds: 1740)));
     });
 
     test('terminal server status wins over stale offers', () async {
