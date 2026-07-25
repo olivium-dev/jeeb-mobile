@@ -24,9 +24,12 @@ class FakeWaitingRepository implements WaitingRepository {
         phase: WaitingRequestPhase.broadcasting,
         notifiedCount: 4,
         offerCount: 0,
-        // Match the live gateway's deadline-optional contract. WaitingCubit
-        // anchors one stable presentation deadline for this request.
-        broadcastExpiresAt: null,
+        // The live contract is NOT deadline-optional for a live row: the
+        // gateway always ships `offerDeadlineInSeconds` while the offer-wait
+        // window is open, so the fake seeds a real anchor pair rather than
+        // leaving the cubit to invent one (it no longer can).
+        receivedAt: DateTime.now(),
+        remainingAtReceipt: const Duration(minutes: 5),
         displayId: 'ORD-FAKE',
         tier: 'express',
         title: 'Waiting for Jeebers',

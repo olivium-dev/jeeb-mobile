@@ -9,7 +9,8 @@ import '../domain/waiting_request.dart';
 /// Endpoints (30_BACKLOG JM-026 · 42_GUARDRAILS_MOCK §1.2; the
 /// [MockGatewayClient] interceptor rewrites the `:4010` service prefix):
 ///   GET /v1/requests/:requestId      → `/delivery-service/v1/requests/:id`
-///                                      (status, notifiedCount, broadcastExpiresAt)
+///                                      (status, notifiedCount,
+///                                       offerDeadlineInSeconds, serverNow)
 ///   GET /v1/offers?requestId=:id     → `/offer-service/v1/offers?requestId=:id`
 ///                                      (offer count — the offers-arrived signal)
 ///
@@ -23,15 +24,23 @@ import '../domain/waiting_request.dart';
 /// BEFORE the user lands here — the seam seeds an already-broadcasting request.
 /// This screen only READS the resulting state, so it does not re-broadcast.
 class DioWaitingRepository implements WaitingRepository {
-  DioWaitingRepository(Dio dio, {SingleFlightGet? coalescer})
-    : _dio = dio,
-      // FIX-A: share the single-flight coalescer so this screen's
-      // `GET /v1/offers?requestId` offer-count probe collapses onto the same
-      // wire call the offers-review and home pollers issue for the same id.
-      _coalescer = coalescer ?? SingleFlightGet(dio);
+  DioWaitingRepository(
+    Dio dio, {
+    SingleFlightGet? coalescer,
+    DateTime Function()? now,
+  }) : _dio = dio,
+       // FIX-A: share the single-flight coalescer so this screen's
+       // `GET /v1/offers?requestId` offer-count probe collapses onto the same
+       // wire call the offers-review and home pollers issue for the same id.
+       _coalescer = coalescer ?? SingleFlightGet(dio),
+       _now = now ?? DateTime.now;
 
   final Dio _dio;
   final SingleFlightGet _coalescer;
+
+  /// Device clock, injected so the anchor instant is testable. It stamps
+  /// [WaitingRequest.receivedAt] — the ONLY device-side input to the countdown.
+  final DateTime Function() _now;
 
   static const _requestsPath = '/v1/requests';
   static const _offersPath = '/v1/offers';
@@ -113,13 +122,14 @@ class DioWaitingRepository implements WaitingRepository {
   ) {
     final status = json['status'] as String?;
     final notified = (json['notifiedCount'] as num?)?.toInt() ?? 0;
-    final deadline = _parseDeadline(json['broadcastExpiresAt'] as String?);
+    final phase = _phaseFor(status, offerCount);
     return WaitingRequest(
       requestId: requestId,
-      phase: _phaseFor(status, offerCount),
+      phase: phase,
       notifiedCount: notified,
       offerCount: offerCount,
-      broadcastExpiresAt: deadline,
+      receivedAt: _now(),
+      remainingAtReceipt: _parseRemaining(json, phase, requestId),
       displayId: json['displayId'] as String?,
       tier: json['tier'] as String?,
       // G1: the request row's `description` IS the customer's own "What do
@@ -164,8 +174,50 @@ class DioWaitingRepository implements WaitingRepository {
     return WaitingRequestPhase.closed;
   }
 
-  DateTime? _parseDeadline(String? raw) =>
-      raw == null ? null : DateTime.tryParse(raw);
+  /// Reads the ONLY countdown field on the wire: `offerDeadlineInSeconds`, a
+  /// server-relative remaining value.
+  ///
+  /// There is deliberately no fallback and no legacy alias. A live
+  /// broadcasting/offers-arrived row that omits it is a BACKEND CONTRACT BREAK
+  /// and throws — the client never manufactures a countdown out of the device
+  /// clock. `serverNow` is intentionally NOT read: pairing the relative value
+  /// with the device receive instant is what makes clock skew structurally
+  /// impossible.
+  ///
+  /// Note: mobile maps server status `matched` to a terminal phase while the
+  /// gateway still ships a deadline for it (it is pre-acceptance server-side).
+  /// A non-null value on a terminal phase is accepted and simply unused; only
+  /// ABSENCE on a live phase throws. That asymmetry is intended.
+  Duration? _parseRemaining(
+    Map<String, dynamic> json,
+    WaitingRequestPhase phase,
+    String requestId,
+  ) {
+    final raw = json['offerDeadlineInSeconds'];
+    if (raw is num) {
+      final seconds = raw.toInt();
+      // Clock jitter is not a contract break.
+      return Duration(seconds: seconds < 0 ? 0 : seconds);
+    }
+    if (raw != null) {
+      throw WaitingException(
+        WaitingFailure.contractViolation,
+        'offerDeadlineInSeconds must be a number, '
+        'got ${raw.runtimeType} ($requestId)',
+      );
+    }
+    if (_countdownApplies(phase)) {
+      throw WaitingException(
+        WaitingFailure.contractViolation,
+        'offerDeadlineInSeconds absent on a live $phase row ($requestId)',
+      );
+    }
+    return null; // legitimate — accepted / scheduled / terminal
+  }
+
+  static bool _countdownApplies(WaitingRequestPhase p) =>
+      p == WaitingRequestPhase.broadcasting ||
+      p == WaitingRequestPhase.offersArrived;
 
   Never _rethrowRequest(DioException e) {
     final status = e.response?.statusCode;
