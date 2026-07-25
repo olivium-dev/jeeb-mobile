@@ -23,6 +23,7 @@ class OrderChatSummary extends Equatable {
     this.tierId = '',
     this.orderRef = '',
     this.statusId = '',
+    this.description = '',
   });
 
   /// The accepted delivery this summary belongs to. Used as the
@@ -62,11 +63,19 @@ class OrderChatSummary extends Equatable {
   /// stage, since it only renders on an accepted order).
   final String statusId;
 
+  /// P3 (b01-20260725): the INITIAL REQUIREMENT — the free text the customer
+  /// typed at compose (`DeliveryRequestDto.description`, mirrored from the
+  /// request row). Rendered verbatim in the pinned strip for BOTH parties.
+  /// Empty when the source row carried none — the strip then hides the row
+  /// entirely (never an empty box or a "Pending" filler).
+  final String description;
+
   bool get hasPrice => priceLabel.isNotEmpty;
   bool get hasEta => etaMinutes != null;
   bool get hasTier => tierId.isNotEmpty;
   bool get hasRef => orderRef.isNotEmpty;
   bool get hasStatus => statusId.isNotEmpty;
+  bool get hasDescription => description.trim().isNotEmpty;
 
   @override
   List<Object?> get props => [
@@ -79,6 +88,7 @@ class OrderChatSummary extends Equatable {
         tierId,
         orderRef,
         statusId,
+        description,
       ];
 }
 
