@@ -380,12 +380,16 @@ class _ChatScaffoldState extends State<_ChatScaffold>
 
   Widget _buildBody(ChatState state, AppLocalizations l10n) {
     final winnerName = _extractWinnerName(state);
-    // JM-025 AC2: render the pinned summary only on the accepted/active order
-    // (D71/D11), and only when the host resolved one. The broadcasting/compose
-    // and Jeeber variants pass null.
-    final showPinnedSummary = widget.pinnedSummary != null &&
-        widget.onViewSummary != null &&
-        state.phase == ConversationPhase.accepted;
+    // JM-025 AC2 / P3: render the pinned summary whenever the HOST resolved one.
+    // The host is the authority on WHEN a summary exists (chat_detail_screen only
+    // resolves it for an accepted/won order), so the two extra conditions here
+    // were wrong for the Jeeber leg and are removed:
+    //   * `onViewSummary != null` — the order-summary route is owner-scoped, so
+    //     the Jeeber legitimately has no link; that must not suppress the strip.
+    //   * `state.phase == accepted` — the live conversation row can still read
+    //     `broadcasting` post-accept, and DioChatGateway.loadPhase hard-returns
+    //     `broadcasting` when the correlation key equals the conversation id.
+    final showPinnedSummary = widget.pinnedSummary != null;
     return _ChatBody(
       state: state,
       l10n: l10n,
@@ -406,7 +410,9 @@ class _ChatScaffoldState extends State<_ChatScaffold>
       broadcastExpiresAt: state.broadcastExpiresAt,
       pinnedSummary: showPinnedSummary ? widget.pinnedSummary : null,
       counterpartName: widget.counterpartName,
-      onViewSummary: showPinnedSummary ? widget.onViewSummary : null,
+      // P3: the link gate is now INDEPENDENT of the strip gate — the host
+      // decides who gets the (owner-scoped) link.
+      onViewSummary: widget.onViewSummary,
       isOrderChat: widget.isOrderChat,
       viewerIsJeeber: widget.viewerIsJeeber,
     );
@@ -550,11 +556,11 @@ class _ChatBody extends StatelessWidget {
         // JM-025 AC2: pinned locked-price summary on the accepted order, above
         // the thread (D71/D11). Carries `order_chat_pinned_summary` +
         // `order_chat_view_summary_link` → order-summary-pinned (JM-031).
-        if (summary != null && onViewSummary != null)
+        if (summary != null)
           OrderChatPinnedSummary(
             summary: summary,
             counterpartName: counterpartName,
-            onViewSummary: onViewSummary!,
+            onViewSummary: onViewSummary,
             viewerIsJeeber: viewerIsJeeber,
           ),
         if (showAcceptedBanner && winnerName != null)

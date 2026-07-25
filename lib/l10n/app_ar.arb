@@ -1457,6 +1457,7 @@
   "orderSummaryTrack": "تتبّع الطلب",
   "orderChatViewSummaryLink": "عرض الملخص",
   "orderChatPayCashOnDelivery": "ادفع نقدًا عند التسليم",
+  "orderChatRequestLabel": "الطلب",
   "orderSummaryValuePending": "قيد التحديد",
   "chatPartyJeeberFallback": "الجيبر الخاص بك",
   "chatPartyCustomerFallback": "العميل",

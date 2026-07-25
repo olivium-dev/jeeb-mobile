@@ -10,9 +10,16 @@ import '../domain/order_chat_summary.dart';
 /// the gateway-contract paths (the `MockGatewayClient` interceptor rewrites the
 /// `/v1/...` prefix to the `:4010` service prefix — never hardcode a prefix):
 ///
-///   GET /v1/deliveries/:deliveryId  → price (amount), tier, jeeberName, requestId
-///   GET /v1/requests/:requestId     → orderRef (displayId), tier fallback, amount fallback
+///   GET /v1/deliveries/:deliveryId  → price (amount), tier, jeeberName, requestId,
+///                                     description (P3 — the INITIAL REQUIREMENT)
+///   GET /v1/requests/:requestId     → orderRef (displayId), tier fallback, amount fallback,
+///                                     description fallback
 ///   GET /v1/offers?requestId=…       → accepted offer's etaMinutes
+///
+/// P3 (b01-20260725): with `ownerScopedReads: false` (the Jeeber leg) legs 2 and
+/// 3 are SKIPPED entirely — both are owner-scoped and 403 for a non-owner. Only
+/// the participant-scoped delivery read runs, and it is the one that now carries
+/// `description`.
 ///
 /// BUG-8 (sprint-008 run-7): the pinned summary is the FIRST read on both the
 /// customer chat AND tracking surfaces, and it read the SINGULAR
@@ -38,8 +45,19 @@ class DioOrderChatSummaryRepository implements OrderChatSummaryRepository {
   /// `false` it speaks the legacy `:4010` mock alias `GET /v1/delivery/{id}`.
   /// The default mirrors the base selection (`!MockGatewayClient.useMockPrefixes`)
   /// so the wire shape always tracks the base the same Dio is pointed at.
-  const DioOrderChatSummaryRepository(this._dio, {bool? originGateway})
-      : originGateway = originGateway ?? !MockGatewayClient.useMockPrefixes;
+  ///
+  /// P3: when [ownerScopedReads] is `false` the caller is NOT the request owner
+  /// (the Jeeber leg), so the two OWNER-SCOPED reads are skipped entirely:
+  ///   GET /v1/requests/{id}        → 403 for a non-owner (JeebRequestsController.Get)
+  ///   GET /v1/offers?requestId=…   → 403 for a non-owner (ListOffersFlat)
+  /// The delivery read is participant-scoped (client OR assigned jeeber) and
+  /// always runs. Skipping — rather than tolerating the 403 — is what keeps the
+  /// Jeeber leg free of the chat READ-404/403 storm.
+  const DioOrderChatSummaryRepository(
+    this._dio, {
+    bool? originGateway,
+    this.ownerScopedReads = true,
+  }) : originGateway = originGateway ?? !MockGatewayClient.useMockPrefixes;
 
   final Dio _dio;
 
@@ -47,6 +65,10 @@ class DioOrderChatSummaryRepository implements OrderChatSummaryRepository {
   /// (`GET /v1/deliveries/{id}`) instead of the legacy `:4010` mock singular
   /// alias (`GET /v1/delivery/{id}`). See the constructor doc.
   final bool originGateway;
+
+  /// P3: whether the caller owns the request (the customer leg). False on the
+  /// Jeeber leg — see the constructor doc.
+  final bool ownerScopedReads;
 
   @override
   Future<OrderChatSummary> fetchSummary(String deliveryId) async {
@@ -63,12 +85,15 @@ class DioOrderChatSummaryRepository implements OrderChatSummaryRepository {
       // The request row carries the human order ref (`displayId`) + tier; the
       // delivery row carries the locked price + winner name. Fetch the request
       // for the ref/tier; tolerate its absence.
-      final request = requestId.isEmpty ? null : await _getMap('/v1/requests/$requestId');
+      final request = (!ownerScopedReads || requestId.isEmpty)
+          ? null
+          : await _getMap('/v1/requests/$requestId');
 
       // ETA is the *winning* (accepted) offer's eta — read from the offers
       // list for this request. Tolerate an empty/absent list.
-      final etaMinutes =
-          requestId.isEmpty ? null : await _acceptedOfferEta(requestId);
+      final etaMinutes = (!ownerScopedReads || requestId.isEmpty)
+          ? null
+          : await _acceptedOfferEta(requestId);
 
       final priceLabel = _formatAmount(
         delivery?['amount'] ?? request?['amount'],
@@ -89,6 +114,15 @@ class DioOrderChatSummaryRepository implements OrderChatSummaryRepository {
       final statusId =
           _str(delivery?['status']) ?? _str(request?['status']) ?? '';
 
+      // P3: the INITIAL REQUIREMENT. Delivery-FIRST because the Jeeber leg never
+      // reads /v1/requests/{id} (owner-scoped) — the gateway now carries
+      // `description` on GET /v1/deliveries/{id} for both participants. `title`
+      // is kept last as the legacy `:4010` mock alias.
+      final description = _str(delivery?['description']) ??
+          _str(request?['description']) ??
+          _str(delivery?['title']) ??
+          '';
+
       if (delivery == null && request == null) {
         throw const OrderChatSummaryException(OrderChatSummaryFailure.notFound);
       }
@@ -103,6 +137,7 @@ class DioOrderChatSummaryRepository implements OrderChatSummaryRepository {
         tierId: tierId,
         orderRef: orderRef,
         statusId: statusId,
+        description: description,
       );
     } on OrderChatSummaryException {
       rethrow;
