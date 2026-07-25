@@ -2674,6 +2674,22 @@
   "@trackingCancelledHomeCta": {
     "description": "CTA on the cancelled-delivery tracking terminal state; routes to the role-aware home."
   },
+  "trackingExpiredTitle": "Delivery expired",
+  "@trackingExpiredTitle": {
+    "description": "P6/A3: title of the terminal state on the order-tracking screen when the request expired before it could be completed."
+  },
+  "trackingExpiredBody": "This delivery expired before it could be completed. You can create a new request any time.",
+  "@trackingExpiredBody": {
+    "description": "P6/A3: body of the expired terminal state on the order-tracking screen — distinct from cancelled (different fee/strike semantics)."
+  },
+  "trackingUnderReviewTitle": "Delivery under review",
+  "@trackingUnderReviewTitle": {
+    "description": "P6/A1: title shown on the order-tracking screen while an escalated (FailedNeedsEscalation) delivery is parked with support."
+  },
+  "trackingUnderReviewBody": "Support is looking into this delivery. This screen updates automatically as soon as it’s resolved.",
+  "@trackingUnderReviewBody": {
+    "description": "P6/A1: body of the under-review state on the order-tracking screen; the screen keeps polling because an admin can still resolve or cancel the row."
+  },
   "appBarSignOut": "Sign out",
   "availabilityHomeTitle": "Jeeber Home",
   "availabilityInactivityWarningBody": "You'll be taken offline in about 30 minutes if you stay idle. Tap below to keep receiving requests.",
@@ -3990,6 +4006,26 @@
   "activeDeliveryLoadError": "Unable to load delivery details.",
   "@activeDeliveryLoadError": {
     "description": "T-MOB-031: Error message shown when loading fails."
+  },
+  "activeDeliveryErrorInvalidTransition": "That step isn’t available yet. Pull to refresh and try again.",
+  "@activeDeliveryErrorInvalidTransition": {
+    "description": "P6/B4: snackbar shown when the gateway rejects a status transition as not allowed by the state machine."
+  },
+  "activeDeliveryErrorBadRequest": "We couldn’t apply that update. Try again, or contact support if it keeps happening.",
+  "@activeDeliveryErrorBadRequest": {
+    "description": "P6/B4: snackbar shown when the gateway answers a status update with HTTP 400 — a client-bug signature, not a state-machine verdict."
+  },
+  "activeDeliveryErrorNetwork": "No internet connection",
+  "@activeDeliveryErrorNetwork": {
+    "description": "P6/B4: snackbar shown when a status update fails because the device is offline."
+  },
+  "activeDeliveryErrorOtpNeeded": "Enter the delivery code from the recipient to complete",
+  "@activeDeliveryErrorOtpNeeded": {
+    "description": "P6/B4: snackbar shown when a status update is refused because the handover OTP must be verified first."
+  },
+  "activeDeliveryErrorGeneric": "Unable to update status",
+  "@activeDeliveryErrorGeneric": {
+    "description": "P6/B4: fallback snackbar for an unclassified status-update failure."
   },
   "activeDeliveryStepperA11y": "Current status: {current}. Next: {next}",
   "@activeDeliveryStepperA11y": {

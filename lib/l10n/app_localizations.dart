@@ -1328,6 +1328,14 @@ class AppLocalizations {
   String get deliveryCancelledBanner => _get('deliveryCancelledBanner');
   String get trackingCancelledBody => _get('trackingCancelledBody');
   String get trackingCancelledHomeCta => _get('trackingCancelledHomeCta');
+
+  // P6/A3 + P6/A1: `expired` and `FailedNeedsEscalation` no longer collapse
+  // into the cancelled body — cancel/expire carry different fee + strike
+  // semantics, and an escalated row is still LIVE (admin can resolve it).
+  String get trackingExpiredTitle => _get('trackingExpiredTitle');
+  String get trackingExpiredBody => _get('trackingExpiredBody');
+  String get trackingUnderReviewTitle => _get('trackingUnderReviewTitle');
+  String get trackingUnderReviewBody => _get('trackingUnderReviewBody');
 }
 
 class _AppLocalizationsDelegate
@@ -2140,6 +2148,17 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('activeDeliveryEnterGoodsCostButton');
   String get activeDeliveryUnavailable => _get('activeDeliveryUnavailable');
   String get activeDeliveryLoadError => _get('activeDeliveryLoadError');
+
+  // P6/B4: kind-specific transition-failure copy. One message for three
+  // different failures was ranked cause #3 of the 2026-07-25 incident.
+  String get activeDeliveryErrorInvalidTransition =>
+      _get('activeDeliveryErrorInvalidTransition');
+  String get activeDeliveryErrorBadRequest =>
+      _get('activeDeliveryErrorBadRequest');
+  String get activeDeliveryErrorNetwork => _get('activeDeliveryErrorNetwork');
+  String get activeDeliveryErrorOtpNeeded =>
+      _get('activeDeliveryErrorOtpNeeded');
+  String get activeDeliveryErrorGeneric => _get('activeDeliveryErrorGeneric');
   String activeDeliveryStepperA11y(String current, String next) => _get(
     'activeDeliveryStepperA11y',
   ).replaceFirst('{current}', current).replaceFirst('{next}', next);

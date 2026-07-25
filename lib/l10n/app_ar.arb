@@ -812,6 +812,10 @@
   "deliveryCancelledBanner": "تم إلغاء التوصيلة",
   "trackingCancelledBody": "تم إلغاء هذه التوصيلة ولم تعد نشطة. يمكنك إنشاء طلب جديد في أي وقت.",
   "trackingCancelledHomeCta": "العودة إلى الرئيسية",
+  "trackingExpiredTitle": "انتهت صلاحية الطلب",
+  "trackingExpiredBody": "انتهت صلاحية هذا الطلب قبل إتمامه. يمكنك إنشاء طلب جديد في أي وقت.",
+  "trackingUnderReviewTitle": "الطلب قيد المراجعة",
+  "trackingUnderReviewBody": "فريق الدعم يراجع هذا الطلب. ستتحدّث هذه الشاشة تلقائياً فور حلّ المشكلة.",
   "appBarSignOut": "تسجيل الخروج",
   "availabilityHomeTitle": "شاشة الجِيبر الرئيسية",
   "availabilityInactivityWarningBody": "سيتم تحويلك إلى وضع غير متصل خلال 30 دقيقة إذا بقيت غير نشط. اضغط أدناه للاستمرار في استقبال الطلبات.",
@@ -1336,6 +1340,11 @@
   "activeDeliveryEnterGoodsCostButton": "إدخال تكلفة البضائع",
   "activeDeliveryUnavailable": "تفاصيل التوصيل غير متاحة.",
   "activeDeliveryLoadError": "تعذّر تحميل تفاصيل التوصيل.",
+  "activeDeliveryErrorInvalidTransition": "هذه الخطوة غير متاحة بعد. حدّث الصفحة وحاول مرة أخرى.",
+  "activeDeliveryErrorBadRequest": "تعذّر تنفيذ هذا التحديث. حاول مرة أخرى، وتواصل مع الدعم إذا تكرر الأمر.",
+  "activeDeliveryErrorNetwork": "لا يوجد اتصال بالإنترنت",
+  "activeDeliveryErrorOtpNeeded": "أدخل رمز التسليم من المستلم لإتمام التوصيل",
+  "activeDeliveryErrorGeneric": "تعذّر تحديث الحالة",
   "activeDeliveryStepperA11y": "الحالة الحالية: {current}. التالية: {next}",
   "@activeDeliveryStepperA11y": {
     "placeholders": {
