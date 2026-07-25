@@ -9,6 +9,7 @@ import '../../observability/session_trace/session_trace.dart';
 import '../data/push_transport.dart';
 import '../domain/local_push_inbox.dart';
 import '../domain/notification_message.dart';
+import '../domain/push_audience.dart';
 import 'badge_count_cubit.dart';
 import 'offer_lifecycle_signals.dart';
 import 'push_refresh_signals.dart';
@@ -73,6 +74,7 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     PushRefreshSignals? refreshSignals,
     OfferLifecycleSignals? offerLifecycleSignals,
     LocalPushInbox? localInbox,
+    Set<String> Function()? localRoles,
   })  : _transport = transport,
         _badgeCount = badgeCount,
         _historyLimit = historyLimit,
@@ -80,6 +82,7 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
         _refreshSignals = refreshSignals,
         _offerLifecycleSignals = offerLifecycleSignals,
         _localInbox = localInbox,
+        _localRoles = localRoles,
         super(const PushNotificationState()) {
     _foregroundSub = transport.onForegroundMessage.listen(_onForeground);
     _openedSub = transport.onMessageOpenedApp.listen(_opensCtl.add);
@@ -98,6 +101,13 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
   final PushRefreshSignals? _refreshSignals;
   final OfferLifecycleSignals? _offerLifecycleSignals;
   final LocalPushInbox? _localInbox;
+
+  /// P1 (b01-20260725) defence-in-depth: returns the role(s) this session
+  /// currently holds, so a foreground push whose `audience_role` doesn't
+  /// match can be suppressed before it touches banner/badge/inbox state.
+  /// `null` (not wired) or an empty result means "unknown" and the matcher
+  /// fails OPEN — see `domain/push_audience.dart`.
+  final Set<String> Function()? _localRoles;
   final _opensCtl = StreamController<NotificationMessage>.broadcast();
   final _seenIds = Queue<String>();
   // Bound the dedup set so a noisy server can't grow this without limit.
@@ -177,6 +187,23 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     // production build.
     if (kObsCompiledIn) {
       ObsNotificationRecorder.recordReceived(message, mode: 'foreground');
+    }
+    // P1 (b01-20260725) defence-in-depth: drop a push whose audience_role
+    // this session's roles don't match, BEFORE any dedup/badge/inbox/banner
+    // state is touched. Display-level only — the gateway fan-out is the
+    // authoritative fix; this never suppresses a background-isolate OS tray
+    // banner (FCM renders that before Dart runs) and never drops a
+    // non-newRequest category (the matcher fails open on payloads with no
+    // audience hint, which is every other push type today).
+    final roles = _localRoles?.call() ?? const <String>{};
+    if (!isPushAudienceMatch(message.data, roles)) {
+      Diag.event('push_suppressed', <String, Object?>{
+        'id': message.id,
+        'category': message.category.name,
+        'audience_role': message.data['audience_role'],
+        'reason': 'audience_mismatch',
+      });
+      return;
     }
     if (_seenIds.contains(message.id)) return;
     _seenIds.addLast(message.id);
