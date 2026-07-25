@@ -4259,6 +4259,8 @@
   "@orderChatViewSummaryLink": { "description": "Order-chat pinned strip link (order_chat_view_summary_link) → order-summary-pinned (JM-031). Cycle-2 L1: replaces the reused orderSummaryTitle that duplicated 'Order summary' on the strip." },
   "orderChatPayCashOnDelivery": "Pay cash on delivery",
   "@orderChatPayCashOnDelivery": { "description": "D11 cash-only reminder on the order-chat pinned strip (order_summary_cash_label). Cycle-2 L1: replaces the reused orderSummaryTrack ('Track order') that mislabeled the cash reminder." },
+  "orderChatRequestLabel": "Request",
+  "@orderChatRequestLabel": { "description": "P3 (b01-20260725): accessibility label for the initial-requirement row on the order-chat pinned strip (order_chat_request_description / order_summary_item) — the free text the customer typed at compose. Role-NEUTRAL on purpose: both the customer and the Jeeber see this row, so jeeberRequestDetailSectionDescription ('What the client says') would read wrong for the customer viewing their own chat." },
   "orderSummaryValuePending": "Pending",
   "@orderSummaryValuePending": { "description": "Placeholder for a locked summary figure (price/ETA/tier) that has not resolved yet — keeps the JM-031 order_summary_* chips assertable without repeating the screen title as filler." },
   "chatPartyJeeberFallback": "Your Jeeber",

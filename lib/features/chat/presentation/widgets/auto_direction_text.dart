@@ -11,17 +11,36 @@ import 'package:flutter/material.dart';
 /// character. Mirrors the Unicode Bidi Algorithm (UAX #9) "first strong"
 /// rule.
 class AutoDirectionText extends StatelessWidget {
-  const AutoDirectionText(this.data, {super.key, this.style});
+  const AutoDirectionText(
+    this.data, {
+    super.key,
+    this.style,
+    this.maxLines,
+    this.overflow,
+  });
 
   final String data;
   final TextStyle? style;
+
+  /// P3: optional line clamp for the pinned-strip description row. Null (the
+  /// default, and every pre-existing call site) = unclamped, unchanged.
+  final int? maxLines;
+
+  /// P3: optional overflow behaviour, paired with [maxLines]. Null = unchanged.
+  final TextOverflow? overflow;
 
   @override
   Widget build(BuildContext context) {
     final direction = _detectDirection(data) ?? Directionality.of(context);
     return Directionality(
       textDirection: direction,
-      child: Text(data, style: style, textDirection: direction),
+      child: Text(
+        data,
+        style: style,
+        textDirection: direction,
+        maxLines: maxLines,
+        overflow: overflow,
+      ),
     );
   }
 

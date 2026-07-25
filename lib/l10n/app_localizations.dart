@@ -2255,6 +2255,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get orderSummaryTrack => _get('orderSummaryTrack');
   String get orderChatViewSummaryLink => _get('orderChatViewSummaryLink');
   String get orderChatPayCashOnDelivery => _get('orderChatPayCashOnDelivery');
+  String get orderChatRequestLabel => _get('orderChatRequestLabel');
   String get orderSummaryValuePending => _get('orderSummaryValuePending');
   String get chatPartyJeeberFallback => _get('chatPartyJeeberFallback');
   String get chatPartyCustomerFallback => _get('chatPartyCustomerFallback');
