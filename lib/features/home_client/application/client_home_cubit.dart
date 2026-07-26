@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/lifecycle/lifecycle_poller.dart';
 import '../domain/client_home_repository.dart';
 import 'client_home_state.dart';
 
@@ -43,7 +44,11 @@ class ClientHomeCubit extends Cubit<ClientHomeState> {
   /// picked / delivered / cancelled) surfaces on the customer's In Progress
   /// list within seconds without a manual pull-to-refresh.
   final Duration _pollInterval;
-  Timer? _pollTimer;
+  late final LifecyclePoller _poller = LifecyclePoller(
+    interval: _pollInterval,
+    onTick: refresh,
+    debugLabel: 'ClientHomeCubit',
+  );
 
   /// F3 (offers-polling storm): while a 429 `Retry-After` window is open, poll
   /// refreshes are skipped so the client stops hammering the throttled gateway.
@@ -82,17 +87,11 @@ class ClientHomeCubit extends Cubit<ClientHomeState> {
   /// tab becomes visible. Idempotent — a second call is a no-op so re-entering
   /// the tab never double-schedules. The poll uses [refresh] (silent), so it
   /// never flashes the loading spinner over already-rendered data.
-  void startPolling() {
-    if (_pollTimer != null) return;
-    _pollTimer = Timer.periodic(_pollInterval, (_) => unawaited(refresh()));
-  }
+  void startPolling() => _poller.start();
 
   /// Stop the poll. Called when the In Progress tab is hidden or the screen is
   /// disposed. Idempotent.
-  void stopPolling() {
-    _pollTimer?.cancel();
-    _pollTimer = null;
-  }
+  void stopPolling() => _poller.stop();
 
   Future<void> _fetch() async {
     try {
@@ -141,8 +140,7 @@ class ClientHomeCubit extends Cubit<ClientHomeState> {
 
   @override
   Future<void> close() {
-    _pollTimer?.cancel();
-    _pollTimer = null;
+    _poller.dispose();
     unawaited(_refreshSignalSub?.cancel());
     return super.close();
   }
