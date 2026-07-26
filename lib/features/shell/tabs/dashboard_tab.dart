@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/dev_seam/dev_seam.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/lifecycle/polling_visibility_gate.dart';
-import '../../../core/notifications/application/push_refresh_signals.dart';
 import '../../../core/session/greeting_profile_cubit.dart';
 import '../../../core/session/jeeber_kyc_status_gate.dart';
 import '../../../core/session/profile_refresh_signals.dart';
@@ -187,16 +186,6 @@ class _JeeberHomeHost extends StatelessWidget {
     return sl<ProfileRefreshSignals>().stream;
   }
 
-  /// Push-driven refetch bus off GetIt when registered; `null` under a bare
-  /// harness so the active-deliveries card falls back to its safety-net poll.
-  /// The push handler publishes reachable `offer_accepted` notifications on
-  /// this bus. Delivery-status notifications do not reach it; see
-  /// `JEBV4-NEW-P1-delivery-status-push-inert.md`.
-  Stream<void>? _pushRefreshStream() {
-    if (!sl.isRegistered<PushRefreshSignals>()) return null;
-    return sl<PushRefreshSignals>().stream;
-  }
-
   @override
   Widget build(BuildContext context) {
     return MultiBlocProvider(
@@ -208,6 +197,13 @@ class _JeeberHomeHost extends StatelessWidget {
           create: (_) => RequestFeedCubit(
             repository: sl<RequestFeedRepository>(),
             repositoryOwnership: RequestFeedRepositoryOwnership.borrowed,
+            // JEBV4-342 (b02): this is THE live jeeber feed cubit — the one
+            // JeeberFeedTabView renders. The gateway's new-request fan-out
+            // already reaches this device; before this wire it drove nothing,
+            // so a fresh auction appeared only on the next poll tick. Same
+            // resolver the active-deliveries card above uses: one bus, one
+            // lookup. Null under a bare harness keeps the poll as sole input.
+            refreshSignals: resolvePushRefreshStream(),
           )..start(),
         ),
         // iter6 real-flow blocker fix: poll the jeeber's ACCEPTED/active
@@ -221,7 +217,7 @@ class _JeeberHomeHost extends StatelessWidget {
             // Delivery-status notifications do not reach this bus; see
             // `JEBV4-NEW-P1-delivery-status-push-inert.md`. Null under a bare
             // harness leaves the 60s safety-net poll in place.
-            refreshSignals: _pushRefreshStream(),
+            refreshSignals: resolvePushRefreshStream(),
           )..start(),
         ),
         // P0-X06: source the jeeber-home greeting (name + avatar) from the live
@@ -452,6 +448,11 @@ class _DevFeedBody extends StatelessWidget {
         BlocProvider<RequestFeedCubit>(
           create: (_) => RequestFeedCubit(
             repository: SeededRequestFeedRepository(_snapshotFor(view)),
+            // JEBV4-342 (b02): wired for parity with the live host so the
+            // dev-seam feed exercises the same code path. The seeded repository
+            // replays a fixture snapshot, so a push here re-pulls the fixture —
+            // harmless, and it keeps the two constructions from diverging.
+            refreshSignals: resolvePushRefreshStream(),
           )..start(),
         ),
       ],

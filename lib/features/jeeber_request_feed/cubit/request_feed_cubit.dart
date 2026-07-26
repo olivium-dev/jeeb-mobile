@@ -29,11 +29,13 @@ enum RequestFeedRepositoryOwnership {
 
 /// Drives the Jeeber request feed (JEEB-66 / T-mobile-013).
 ///
-/// Two live subscriptions:
+/// Three live subscriptions:
 ///   1. [RequestFeedRepository.requests] — new requests fan into the feed
 ///      (deduped by id) and trigger [SoundNotifier].
 ///   2. [RequestFeedRepository.transport] — flips the WebSocket vs polling
 ///      badge in the screen layer.
+///   3. `refreshSignals` (JEBV4-342, b02) — a foreground `new_request` push
+///      re-pulls the snapshot at once. Optional; absent under a bare harness.
 ///
 /// Requests LEAVE the feed via (a) the snapshot-authoritative [refresh]
 /// reconcile — a request the gateway no longer lists is dropped; (b) the
@@ -59,7 +61,9 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     Duration sweepInterval = const Duration(seconds: 1),
     SoundNotifier? onNewRequestSound,
     DateTime Function()? clock,
+    Stream<void>? refreshSignals,
   })  : _repository = repository,
+        _refreshSignals = refreshSignals,
         _source =
             repository is PollingSource ? repository as PollingSource : null,
         _repositoryOwnership = repositoryOwnership,
@@ -82,8 +86,17 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
   final SoundNotifier? _onNewRequestSound;
   final DateTime Function() _clock;
 
+  /// JEBV4-342 (b02): push-driven refetch bus. Every event on it means "the
+  /// server's open-request set changed — re-pull it", so the handler is simply
+  /// [refresh]; the stream is payload-less because this cubit already knows it
+  /// renders the whole snapshot. `null` (bare widget test, or a host with no
+  /// `PushRefreshSignals` in the DI container) leaves the existing wall-clock
+  /// poll as the only input, exactly as before.
+  final Stream<void>? _refreshSignals;
+
   StreamSubscription<DeliveryRequest>? _requestsSub;
   StreamSubscription<FeedTransportUpdate>? _transportSub;
+  StreamSubscription<void>? _refreshSignalsSub;
   late final LifecyclePoller _sweepPoller = LifecyclePoller(
     interval: _sweepInterval,
     onTick: _sweepExpired,
@@ -105,6 +118,13 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
   Future<void> start() async {
     _requestsSub ??= _repository.requests.listen(_onIncoming);
     _transportSub ??= _repository.transport.listen(_onTransport);
+    // JEBV4-342 (b02): a foreground `new_request` push re-pulls the snapshot
+    // immediately instead of waiting for the next poll tick. Subscribed here
+    // rather than in the constructor so a cubit that is built but never started
+    // holds no live subscription — the same rule the two subscriptions above
+    // already follow. `??=` keeps a second `start()` from double-subscribing
+    // (which would fire two refetches per push).
+    _refreshSignalsSub ??= _refreshSignals?.listen((_) => refresh());
     _sweepPoller.start();
     _applyPollInterest();
     await refresh();
@@ -381,6 +401,8 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     _sweepPoller.dispose();
     await _requestsSub?.cancel();
     await _transportSub?.cancel();
+    await _refreshSignalsSub?.cancel();
+    _refreshSignalsSub = null;
     if (_repositoryOwnership == RequestFeedRepositoryOwnership.owned) {
       await _repository.dispose();
     }

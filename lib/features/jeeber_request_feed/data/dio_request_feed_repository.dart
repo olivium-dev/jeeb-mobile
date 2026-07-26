@@ -12,7 +12,30 @@ import '../../../core/requests/server_request_status.dart';
 import 'request_feed_models.dart';
 import 'request_feed_repository.dart';
 
-const Duration kFeedSafetyNetPollInterval = Duration(seconds: 60);
+/// Build-time override for the feed's safety-net poll cadence, in seconds.
+/// Defaults to 60 — the shipped value — so an ordinary build is byte-identical
+/// to before this knob existed.
+///
+/// It exists to make the JEBV4-342 NEGATIVE test runnable against the SAME
+/// source the PR ships. That test has to answer "is the push driving the
+/// refetch, or is the 60s poll?", and the only honest way to answer it is to
+/// push the poll beyond the observation window and see whether the feed still
+/// refreshes. Without this, the negative test needs a throwaway source edit,
+/// which means the APK that produced the evidence is not the APK under review —
+/// exactly the gap that let a push arrive and drive nothing for a whole batch
+/// while every screenshot looked correct.
+///
+///   flutter build apk --dart-define JEEB_FEED_POLL_SECONDS=86400
+///
+/// A non-positive value is ignored rather than honoured: `0` would make
+/// [LifecyclePoller] tick in a hot loop, and a typo in a `--dart-define` must
+/// not be able to turn a safety net into a denial-of-service on the gateway.
+const int _kFeedPollSecondsOverride =
+    int.fromEnvironment('JEEB_FEED_POLL_SECONDS', defaultValue: 60);
+
+const Duration kFeedSafetyNetPollInterval = Duration(
+  seconds: _kFeedPollSecondsOverride > 0 ? _kFeedPollSecondsOverride : 60,
+);
 
 /// Dio-backed [RequestFeedRepository].
 ///

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/di/injection_container.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
 import '../cubit/request_feed_cubit.dart';
@@ -39,6 +40,11 @@ class RequestFeedScreen extends StatelessWidget {
     return BlocProvider<RequestFeedCubit>(
       create: (_) => RequestFeedCubit(
         repository: FakeRequestFeedRepository(),
+        // JEBV4-342 (b02): wired through the SAME shared resolver the live
+        // dashboard host uses, so if this screen is ever un-orphaned it is
+        // already push-driven rather than quietly poll-only. Returns `null`
+        // when DI has not run, which is this screen's normal (test) case.
+        refreshSignals: resolvePushRefreshStream(),
       )..start(),
       child: view,
     );
