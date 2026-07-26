@@ -8,6 +8,8 @@ import '../../../../l10n/app_localizations.dart';
 import '../../application/kyc_wizard_cubit.dart';
 import '../../application/kyc_wizard_state.dart';
 
+enum _ProbeSource { scheduled, resume }
+
 /// Loading state rendered while [KycWizardCubit.submit] is in flight.
 ///
 /// The bare [CircularProgressIndicator] previously used here gave no signal
@@ -24,8 +26,10 @@ import '../../application/kyc_wizard_state.dart';
 /// poller start re-reading `GET /v1/kyc/status`; the moment the server shows
 /// the submission recorded it advances the wizard off this spinner (see
 /// [KycWizardCubit.refreshWhileSubmitting]) so an approved jeeber comes online
-/// with NO force-stop+relaunch. Mirrors [KycStatusView]'s poller: a timer +
-/// app-resume probe, both cancelled in [dispose] so nothing runs unbounded.
+/// with NO force-stop+relaunch. Five scheduled probes and three app-resume
+/// probes bound the mounted view to eight automatic requests. After both
+/// budgets, recovery remains with the submit future, the CDN-upload timeout,
+/// and [KycWizardCubit.onJeeberRoleGranted], not additional polling.
 class KycSubmittingView extends StatefulWidget {
   const KycSubmittingView({super.key});
 
@@ -52,23 +56,41 @@ class _KycSubmittingViewState extends State<KycSubmittingView>
   static const Duration _graceBeforePoll = Duration(seconds: 2);
   static const Duration _pollInterval = Duration(seconds: 2);
   static const int _maxProbes = 5;
+  static const int _maxResumeProbes = 3;
   Timer? _timer;
-  int _probes = 0;
+  int _scheduledProbes = 0;
+  int _resumeProbes = 0;
+  bool _inFlight = false;
+  bool _foreground = true;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _timer = Timer(_graceBeforePoll, _beginPolling);
+    _timer = Timer(
+      _graceBeforePoll,
+      () => unawaited(_probe(_ProbeSource.scheduled)),
+    );
   }
 
-  void _beginPolling() {
-    if (!mounted) return;
-    _probe();
-    _timer = Timer.periodic(_pollInterval, (_) => _probe());
+  void _armScheduledProbe() {
+    _timer?.cancel();
+    _timer = null;
+    if (!_canArmScheduledProbe()) return;
+    _timer = Timer(
+      _pollInterval,
+      () => unawaited(_probe(_ProbeSource.scheduled)),
+    );
   }
 
-  /// Stop the bounded retry once it has exhausted [_maxProbes].
+  bool _canArmScheduledProbe() {
+    if (!mounted || !_foreground || _inFlight) return false;
+    if (_scheduledProbes >= _maxProbes) return false;
+    final cubit = context.read<KycWizardCubit?>();
+    return cubit?.state.step == KycWizardStep.submitting;
+  }
+
+  /// Cancel the pending scheduled probe without spending either request budget.
   void _stopPolling() {
     _timer?.cancel();
     _timer = null;
@@ -77,25 +99,74 @@ class _KycSubmittingViewState extends State<KycSubmittingView>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    // Returning from background (the OS may have paused a stalled upload) — the
-    // submission could already be Verified server-side, so probe immediately.
-    if (state == AppLifecycleState.resumed) _probe();
+    if (state == AppLifecycleState.resumed) {
+      _onForeground();
+    } else if (state != AppLifecycleState.inactive) {
+      _onBackground();
+    }
+  }
+
+  // ── FM-3 ADOPTION SEAM ────────────────────────────────────────────────────
+  // The ONLY lifecycle entry points. When FM-3's pause/resume contract lands,
+  // delete the WidgetsBindingObserver wiring and point its callbacks here.
+  void _onForeground() {
+    if (_foreground) return;
+    _foreground = true;
+    unawaited(_probe(_ProbeSource.resume));
+    _armScheduledProbe();
+  }
+
+  void _onBackground() {
+    _foreground = false;
+    _stopPolling();
   }
 
   /// Ask the cubit to reconcile against the server while we are still stuck on
-  /// the spinner; stop polling the instant we leave the submitting step.
-  void _probe() {
-    if (!mounted) return;
+  /// the spinner. Concurrency deliberately lives here: guarding the shared
+  /// cubit would drop a user refresh racing a poll, while this flag covers every
+  /// scheduled and resume request owned by the view.
+  Future<void> _probe(_ProbeSource source) async {
+    if (!_canIssueProbe(source)) return;
     final cubit = context.read<KycWizardCubit?>();
     if (cubit == null) return;
     if (cubit.state.step != KycWizardStep.submitting) {
       _stopPolling();
       return;
     }
-    unawaited(cubit.refreshWhileSubmitting());
-    // Bounded: stop after a short burst so a submit that never reaches the
-    // server (nothing to reconcile to) doesn't poll unbounded.
-    if (++_probes >= _maxProbes) _stopPolling();
+    _inFlight = true;
+    _recordIssuedProbe(source);
+    try {
+      await cubit.refreshWhileSubmitting();
+    } finally {
+      _finishProbe(cubit);
+    }
+  }
+
+  bool _canIssueProbe(_ProbeSource source) {
+    if (!mounted || !_foreground || _inFlight) return false;
+    return switch (source) {
+      _ProbeSource.scheduled => _scheduledProbes < _maxProbes,
+      _ProbeSource.resume => _resumeProbes < _maxResumeProbes,
+    };
+  }
+
+  void _recordIssuedProbe(_ProbeSource source) {
+    switch (source) {
+      case _ProbeSource.scheduled:
+        _scheduledProbes++;
+      case _ProbeSource.resume:
+        _resumeProbes++;
+    }
+  }
+
+  void _finishProbe(KycWizardCubit cubit) {
+    _inFlight = false;
+    if (!mounted) return;
+    if (cubit.state.step != KycWizardStep.submitting) {
+      _stopPolling();
+      return;
+    }
+    _armScheduledProbe();
   }
 
   @override

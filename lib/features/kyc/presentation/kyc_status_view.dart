@@ -13,6 +13,8 @@ import '../../../core/role/role_sync.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../settings/domain/role_switch_repository.dart';
+import '../application/kyc_poll_schedule.dart';
+import '../application/kyc_status_poll_controller.dart';
 import '../application/kyc_wizard_cubit.dart';
 import '../application/kyc_wizard_state.dart';
 import '../domain/kyc_submission.dart';
@@ -41,19 +43,26 @@ import '../domain/kyc_submission.dart';
 /// `kyc-status-resubmit` path was removed for JM-042/043; the rejected branch
 /// now hands off to the dedicated `kyc-rejected` screen (appeal-via-support).
 class KycStatusView extends StatefulWidget {
-  const KycStatusView({super.key, this.onClose});
+  const KycStatusView({
+    super.key,
+    this.onClose,
+    this.pollSchedule = KycPollSchedule.standard,
+  });
 
   static const Key pendingTitleKey = Key('kyc-status-pending-title');
   static const Key approvedTitleKey = Key('kyc-status-approved-title');
   static const Key rejectedTitleKey = Key('kyc-status-rejected-title');
   static const Key resubmitTitleKey = Key('kyc-status-resubmit-title');
   static const Key backCtaKey = Key('kyc-status-back');
+  static const Key checkAgainCtaKey = Key('kyc-status-check-again');
   static const Key rejectionReasonKey = Key('kyc-status-rejection-reason');
 
   /// Optional close callback wired by the host (router) — defaults to a
   /// `Navigator.maybePop` so the view works standalone in tests. Used as the
   /// secondary "back to profile" exit on the pending/rejected variants.
   final VoidCallback? onClose;
+
+  final KycPollSchedule pollSchedule;
 
   @override
   State<KycStatusView> createState() => _KycStatusViewState();
@@ -71,45 +80,81 @@ class _KycStatusViewState extends State<KycStatusView>
   /// the status is still pending we re-read it on a timer AND on app-resume; the
   /// moment it flips to `approved` the cubit emits it, [_ApprovedBody] renders,
   /// and the jeeber goes online via `POST /v1/users/me/role/switch` — with NO
-  /// re-login and NO dependence on an FCM push (bug JEBV4-281). Polling stops as
-  /// soon as the status is terminal or the view is disposed, so it never runs
-  /// unbounded.
-  static const Duration _pollInterval = Duration(seconds: 3);
-  Timer? _poll;
+  /// re-login and NO dependence on an FCM push (bug JEBV4-281). Automatic checks
+  /// use a bounded foreground schedule and stop earlier on a terminal status or
+  /// disposal. The bound is per mounted view, so remounting starts a fresh
+  /// bounded campaign.
+  KycStatusPollController? _pollController;
+  bool _started = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _poll = Timer.periodic(_pollInterval, (_) => _refreshWhilePending());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    final cubit = context.read<KycWizardCubit?>();
+    if (cubit == null) return;
+    _started = true;
+    _pollController = _createPollController();
+    if (_isPending(cubit.state.submission.status)) {
+      _pollController!.start();
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed) _refreshWhilePending();
+    if (state == AppLifecycleState.resumed) {
+      _onForeground();
+    } else if (state != AppLifecycleState.inactive) {
+      _onBackground();
+    }
   }
 
-  /// Re-read status only while it is still non-terminal; cancel the timer once a
-  /// terminal decision is showing so a settled submission is never re-polled.
-  void _refreshWhilePending() {
-    if (!mounted) return;
+  KycStatusPollController _createPollController() {
+    return KycStatusPollController(
+      intervalAt: widget.pollSchedule.intervalAt,
+      maxResumeProbes: widget.pollSchedule.maxResumeProbes,
+      probe: _probeStatus,
+      onChanged: _onPollChanged,
+    );
+  }
+
+  Future<bool> _probeStatus() async {
     final cubit = context.read<KycWizardCubit?>();
-    if (cubit == null) return;
-    final status = cubit.state.submission.status;
-    final isPending =
-        status == KycStatus.pending || status == KycStatus.notSubmitted;
-    if (!isPending) {
-      _poll?.cancel();
-      _poll = null;
-      return;
-    }
-    unawaited(cubit.refreshStatus());
+    if (!mounted || cubit == null) return false;
+    await cubit.refreshStatus();
+    if (!mounted) return false;
+    return _isPending(cubit.state.submission.status);
+  }
+
+  bool _isPending(KycStatus status) {
+    return status == KycStatus.pending || status == KycStatus.notSubmitted;
+  }
+
+  void _onPollChanged() {
+    if (mounted) setState(() {});
+  }
+
+  // ── FM-3 ADOPTION SEAM ────────────────────────────────────────────────────
+  // The ONLY lifecycle entry points. When FM-3's pause/resume contract lands,
+  // delete the WidgetsBindingObserver wiring and point its callbacks here.
+  void _onForeground() {
+    _pollController?.resume();
+  }
+
+  void _onBackground() {
+    _pollController?.pause();
   }
 
   @override
   void dispose() {
-    _poll?.cancel();
+    _pollController?.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -139,25 +184,23 @@ class _KycStatusViewState extends State<KycStatusView>
     KycWizardState state,
     AppLocalizations l10n,
   ) {
-    switch (state.submission.status) {
-      case KycStatus.notSubmitted:
-      case KycStatus.pending:
-        return _PendingBody(onBackToProfile: () => _close(context));
-      case KycStatus.approved:
-        return const _ApprovedBody();
-      case KycStatus.resubmitRequested:
-        return _ResubmitBody(
-          reason: state.submission.rejectionReason,
-          steps: state.submission.resubmitSteps,
-          onResubmit: () => context.read<KycWizardCubit>().resubmit(),
-          onBackToProfile: () => _close(context),
-        );
-      case KycStatus.rejected:
-        return _RejectedBody(
-          reason: state.submission.rejectionReason,
-          onBackToProfile: () => _close(context),
-        );
-    }
+    return switch (state.submission.status) {
+      KycStatus.notSubmitted || KycStatus.pending => _PendingBody(
+        pollController: _pollController,
+        onBackToProfile: () => _close(context),
+      ),
+      KycStatus.approved => const _ApprovedBody(),
+      KycStatus.resubmitRequested => _ResubmitBody(
+        reason: state.submission.rejectionReason,
+        steps: state.submission.resubmitSteps,
+        onResubmit: () => context.read<KycWizardCubit>().resubmit(),
+        onBackToProfile: () => _close(context),
+      ),
+      KycStatus.rejected => _RejectedBody(
+        reason: state.submission.rejectionReason,
+        onBackToProfile: () => _close(context),
+      ),
+    };
   }
 
   void _close(BuildContext context) {
@@ -218,10 +261,7 @@ class _StatusScaffold extends StatelessWidget {
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium,
           ),
-          if (extra != null) ...[
-            const SizedBox(height: Spacing.large),
-            extra!,
-          ],
+          if (extra != null) ...[const SizedBox(height: Spacing.large), extra!],
           const Spacer(),
           for (var i = 0; i < actions.length; i++) ...[
             if (i > 0) const SizedBox(height: Spacing.small),
@@ -236,50 +276,268 @@ class _StatusScaffold extends StatelessWidget {
 /// Pending / submitted: documents under review. Top-up is allowed pre-approval
 /// (D38/D39) so the top-up CTA + the "allowed while pending" note both show.
 class _PendingBody extends StatelessWidget {
-  const _PendingBody({required this.onBackToProfile});
+  const _PendingBody({
+    required this.pollController,
+    required this.onBackToProfile,
+  });
 
+  final KycStatusPollController? pollController;
+  final VoidCallback onBackToProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = pollController;
+    final isExpired = controller?.isExpired ?? false;
+    return Semantics(
+      identifier: isExpired ? 'kyc_status_poll_expired' : null,
+      container: true,
+      child: _PendingContent(
+        isExpired: isExpired,
+        isChecking: controller?.isInFlight ?? false,
+        onCheckAgain: _checkAgain,
+        onBackToProfile: onBackToProfile,
+      ),
+    );
+  }
+
+  void _checkAgain() {
+    final controller = pollController;
+    if (controller != null) unawaited(controller.checkNow());
+  }
+}
+
+class _PendingContent extends StatelessWidget {
+  const _PendingContent({
+    required this.isExpired,
+    required this.isChecking,
+    required this.onCheckAgain,
+    required this.onBackToProfile,
+  });
+
+  final bool isExpired;
+  final bool isChecking;
+  final VoidCallback onCheckAgain;
   final VoidCallback onBackToProfile;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
     return _StatusScaffold(
       titleKey: KycStatusView.pendingTitleKey,
       icon: Icons.hourglass_top_rounded,
-      iconColor: theme.colorScheme.primary,
+      iconColor: colorScheme.primary,
       title: l10n.kycStatusPendingTitle,
       body: l10n.kycStatusPendingBody,
-      // "Top-up allowed while pending" note (D38/D39). Reuses the gate's
-      // top-up-in-review copy (L10N-REQ: kycStatusTopupAllowedNote — see
-      // 50_ROUTE_REQUESTS JM-042).
-      extra: _TopupAllowedNote(text: l10n.gateTopupNote),
+      extra: _PendingNotes(isExpired: isExpired),
       actions: [
-        // → wallet-charge-info (D92/D93 — no in-app payment). Top-up is the
-        // primary action a pending jeeber can take.
-        Semantics(
-          identifier: 'kyc_status_topup_cta',
-          button: true,
-          container: true,
-          child: OmdsPrimaryButton(
-            // L10N-REQ: kycStatusTopupCta — reusing walletTopUpCta ("Top up").
-            text: l10n.walletTopUpCta,
-            variant: OmdsButtonVariant.secondary,
-            onTap: () => context.goNamed('wallet-charge-info'),
-          ),
-        ),
-        Semantics(
-          identifier: 'kyc_status_back',
-          button: true,
-          container: true,
-          child: OmdsPrimaryButton(
-            key: KycStatusView.backCtaKey,
-            text: l10n.kycStatusBackToProfileCta,
-            variant: OmdsButtonVariant.text,
-            onTap: onBackToProfile,
-          ),
+        _PendingActions(
+          isExpired: isExpired,
+          isChecking: isChecking,
+          onCheckAgain: onCheckAgain,
+          onBackToProfile: onBackToProfile,
         ),
       ],
+    );
+  }
+}
+
+class _PendingNotes extends StatelessWidget {
+  const _PendingNotes({required this.isExpired});
+
+  final bool isExpired;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final topupNote = _TopupAllowedNote(text: l10n.gateTopupNote);
+    if (!isExpired) return topupNote;
+    return Column(
+      children: [
+        _AutoCheckStoppedNote(text: l10n.kycStatusAutoCheckStoppedNote),
+        const SizedBox(height: Spacing.small),
+        topupNote,
+      ],
+    );
+  }
+}
+
+class _AutoCheckStoppedNote extends StatelessWidget {
+  const _AutoCheckStoppedNote({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Text(
+      text,
+      textAlign: TextAlign.center,
+      style: theme.textTheme.bodySmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+    );
+  }
+}
+
+class _PendingActions extends StatelessWidget {
+  const _PendingActions({
+    required this.isExpired,
+    required this.isChecking,
+    required this.onCheckAgain,
+    required this.onBackToProfile,
+  });
+
+  final bool isExpired;
+  final bool isChecking;
+  final VoidCallback onCheckAgain;
+  final VoidCallback onBackToProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isExpired) {
+      return _ExpiredPendingActions(
+        isChecking: isChecking,
+        onCheckAgain: onCheckAgain,
+        onBackToProfile: onBackToProfile,
+      );
+    }
+    return _ActivePendingActions(
+      isChecking: isChecking,
+      onCheckAgain: onCheckAgain,
+      onBackToProfile: onBackToProfile,
+    );
+  }
+}
+
+class _ExpiredPendingActions extends StatelessWidget {
+  const _ExpiredPendingActions({
+    required this.isChecking,
+    required this.onCheckAgain,
+    required this.onBackToProfile,
+  });
+
+  final bool isChecking;
+  final VoidCallback onCheckAgain;
+  final VoidCallback onBackToProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _CheckAgainCta(
+          isChecking: isChecking,
+          isPromoted: true,
+          onTap: onCheckAgain,
+        ),
+        const SizedBox(height: Spacing.small),
+        const _PendingTopupCta(),
+        const SizedBox(height: Spacing.small),
+        _PendingBackCta(onTap: onBackToProfile),
+      ],
+    );
+  }
+}
+
+class _ActivePendingActions extends StatelessWidget {
+  const _ActivePendingActions({
+    required this.isChecking,
+    required this.onCheckAgain,
+    required this.onBackToProfile,
+  });
+
+  final bool isChecking;
+  final VoidCallback onCheckAgain;
+  final VoidCallback onBackToProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _PendingTopupCta(),
+        const SizedBox(height: Spacing.small),
+        _CheckAgainCta(
+          isChecking: isChecking,
+          isPromoted: false,
+          onTap: onCheckAgain,
+        ),
+        const SizedBox(height: Spacing.small),
+        _PendingBackCta(onTap: onBackToProfile),
+      ],
+    );
+  }
+}
+
+class _CheckAgainCta extends StatelessWidget {
+  const _CheckAgainCta({
+    required this.isChecking,
+    required this.isPromoted,
+    required this.onTap,
+  });
+
+  final bool isChecking;
+  final bool isPromoted;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    return OmdsLoadingButton(
+      key: KycStatusView.checkAgainCtaKey,
+      identifier: 'kyc_status_check_again_cta',
+      text: l10n.kycStatusCheckAgainCta,
+      isLoading: isChecking,
+      backgroundColor: isPromoted
+          ? colorScheme.primary
+          : colorScheme.surfaceContainerHighest,
+      textColor: isPromoted
+          ? colorScheme.onPrimary
+          : colorScheme.onSurfaceVariant,
+      onTap: onTap,
+    );
+  }
+}
+
+class _PendingTopupCta extends StatelessWidget {
+  const _PendingTopupCta();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      identifier: 'kyc_status_topup_cta',
+      button: true,
+      container: true,
+      child: OmdsPrimaryButton(
+        text: l10n.walletTopUpCta,
+        variant: OmdsButtonVariant.secondary,
+        onTap: () => context.goNamed('wallet-charge-info'),
+      ),
+    );
+  }
+}
+
+class _PendingBackCta extends StatelessWidget {
+  const _PendingBackCta({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      identifier: 'kyc_status_back',
+      button: true,
+      container: true,
+      child: OmdsPrimaryButton(
+        key: KycStatusView.backCtaKey,
+        text: l10n.kycStatusBackToProfileCta,
+        variant: OmdsButtonVariant.text,
+        onTap: onTap,
+      ),
     );
   }
 }
@@ -331,8 +589,9 @@ class _ApprovedBodyState extends State<_ApprovedBody> {
     // renders, so the token is re-minted and the shell lights up the Jeeber
     // surface even before a CTA is tapped — with a bounded auto-retry so a
     // transient failure/projection-lag still resolves without a tap or re-login.
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => unawaited(_autoActivate()));
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => unawaited(_autoActivate()),
+    );
   }
 
   /// Fire the switch on first render and, on a transient failure or a
@@ -488,10 +747,7 @@ class _ApprovedBodyState extends State<_ApprovedBody> {
 /// Rejected: FINAL decision (D52/D87). No resubmit. The reason notice plus a
 /// hand-off to the dedicated `kyc-rejected` screen (appeal via support).
 class _RejectedBody extends StatelessWidget {
-  const _RejectedBody({
-    required this.reason,
-    required this.onBackToProfile,
-  });
+  const _RejectedBody({required this.reason, required this.onBackToProfile});
 
   final KycRejectionReason? reason;
   final VoidCallback onBackToProfile;

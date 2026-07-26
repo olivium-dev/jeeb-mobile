@@ -803,6 +803,9 @@ class AppLocalizations {
 
   String get kycStatusPendingTitle => _get('kycStatusPendingTitle');
   String get kycStatusPendingBody => _get('kycStatusPendingBody');
+  String get kycStatusCheckAgainCta => _get('kycStatusCheckAgainCta');
+  String get kycStatusAutoCheckStoppedNote =>
+      _get('kycStatusAutoCheckStoppedNote');
   String get kycStatusApprovedTitle => _get('kycStatusApprovedTitle');
   String get kycStatusApprovedBody => _get('kycStatusApprovedBody');
   String get kycStatusRejectedTitle => _get('kycStatusRejectedTitle');
