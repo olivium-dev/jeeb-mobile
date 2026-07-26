@@ -24,9 +24,11 @@ class _FakeLocalInbox implements LocalPushInbox {
 
   @override
   Future<bool> markRead(String id) async {
-    final has = _records.any((r) => r.id == id);
-    if (has) readMarked.add(id);
-    return has;
+    final index = _records.indexWhere((record) => record.id == id);
+    if (index < 0) return false;
+    _records[index] = _records[index].copyWith(read: true);
+    readMarked.add(id);
+    return true;
   }
 
   @override
@@ -36,7 +38,8 @@ class _FakeLocalInbox implements LocalPushInbox {
 }
 
 class _StubRemote implements NotificationsRepository {
-  _StubRemote({this.items = const [], this.error});
+  _StubRemote({List<NotificationItem> items = const [], this.error})
+    : items = List<NotificationItem>.of(items);
   final List<NotificationItem> items;
   final NotificationsFailure? error;
   final List<String> readMarked = <String>[];
@@ -49,8 +52,22 @@ class _StubRemote implements NotificationsRepository {
   }
 
   @override
-  Future<void> markRead(String id) async => readMarked.add(id);
+  Future<void> markRead(String id) async {
+    readMarked.add(id);
+    final index = items.indexWhere((item) => item.id == id);
+    if (index >= 0) items[index] = _withRead(items[index]);
+  }
 }
+
+NotificationItem _withRead(NotificationItem item) => NotificationItem(
+  id: item.id,
+  kind: item.kind,
+  title: item.title,
+  body: item.body,
+  timestamp: item.timestamp,
+  read: true,
+  ref: item.ref,
+);
 
 LocalPushRecord _local(String id, {String ref = 'req-x'}) => LocalPushRecord(
   id: id,
@@ -186,7 +203,7 @@ void main() {
   });
 
   test(
-    'AC-12a/AC-12b/AC-13a reconciliation keeps server NCIDs without ref collapse',
+    'AC-12a/AC-12b/AC-13a/AC-14a/AC-14b reconciles and survives cold restart',
     () async {
       final distinctKindsRemote = _StubRemote(
         items: [
@@ -244,6 +261,19 @@ void main() {
         ['shared-ncid'],
         reason: 'a server-backed NCID must be marked in both stores',
       );
+
+      // Cold restart: discard the repository and both adapters. Rehydrate fresh
+      // instances only from the two stores' persisted snapshots.
+      final restartedRepository = LocalMergingNotificationsRepository(
+        remote: _StubRemote(items: serverBackedRemote.items),
+        localInbox: _FakeLocalInbox(
+          List<LocalPushRecord>.of(serverBackedLocal._records),
+        ),
+      );
+      final afterRestart = await restartedRepository.fetchNotifications();
+      expect(afterRestart, hasLength(1));
+      expect(afterRestart.single.id, 'shared-ncid');
+      expect(afterRestart.single.read, isTrue);
     },
   );
 }
