@@ -24,9 +24,11 @@ class _FakeLocalInbox implements LocalPushInbox {
 
   @override
   Future<bool> markRead(String id) async {
-    final has = _records.any((r) => r.id == id);
-    if (has) readMarked.add(id);
-    return has;
+    final index = _records.indexWhere((record) => record.id == id);
+    if (index < 0) return false;
+    _records[index] = _records[index].copyWith(read: true);
+    readMarked.add(id);
+    return true;
   }
 
   @override
@@ -36,7 +38,8 @@ class _FakeLocalInbox implements LocalPushInbox {
 }
 
 class _StubRemote implements NotificationsRepository {
-  _StubRemote({this.items = const [], this.error});
+  _StubRemote({List<NotificationItem> items = const [], this.error})
+    : items = List<NotificationItem>.of(items);
   final List<NotificationItem> items;
   final NotificationsFailure? error;
   final List<String> readMarked = <String>[];
@@ -49,8 +52,22 @@ class _StubRemote implements NotificationsRepository {
   }
 
   @override
-  Future<void> markRead(String id) async => readMarked.add(id);
+  Future<void> markRead(String id) async {
+    readMarked.add(id);
+    final index = items.indexWhere((item) => item.id == id);
+    if (index >= 0) items[index] = _withRead(items[index]);
+  }
 }
+
+NotificationItem _withRead(NotificationItem item) => NotificationItem(
+  id: item.id,
+  kind: item.kind,
+  title: item.title,
+  body: item.body,
+  timestamp: item.timestamp,
+  read: true,
+  ref: item.ref,
+);
 
 LocalPushRecord _local(String id, {String ref = 'req-x'}) => LocalPushRecord(
   id: id,
@@ -76,17 +93,30 @@ NotificationItem _server(
 );
 
 void main() {
-  test('merges local new_request rows with server rows', () async {
-    final repo = LocalMergingNotificationsRepository(
-      remote: _StubRemote(items: [_server('s-1')]),
-      localInbox: _FakeLocalInbox([_local('bg-1')]),
-    );
-    final items = await repo.fetchNotifications();
-    expect(items.map((i) => i.id).toSet(), {'bg-1', 's-1'});
-    final local = items.firstWhere((i) => i.id == 'bg-1');
-    expect(local.kind, NotificationKind.newRequest);
-    expect(local.ref, 'req-x');
-  });
+  test(
+    'AC-11a/AC-11b missed server push renders once from server in timestamp order',
+    () async {
+      final repo = LocalMergingNotificationsRepository(
+        remote: _StubRemote(items: [_server('s-1')]),
+        localInbox: _FakeLocalInbox([_local('bg-1')]),
+      );
+      final items = await repo.fetchNotifications();
+      expect(items.map((i) => i.id), ['bg-1', 's-1']);
+      final local = items.firstWhere((i) => i.id == 'bg-1');
+      final server = items.where((i) => i.id == 's-1');
+      expect(server, hasLength(1));
+      expect(server.single.title, 'srv');
+      expect(server.single.kind, NotificationKind.offer);
+      expect(
+        DateTime.parse(
+          items.first.timestamp,
+        ).isAfter(DateTime.parse(items.last.timestamp)),
+        isTrue,
+      );
+      expect(local.kind, NotificationKind.newRequest);
+      expect(local.ref, 'req-x');
+    },
+  );
 
   test('a dismissed new_request shows even when the server inbox is EMPTY '
       '(the exact device gap)', () async {
@@ -119,7 +149,7 @@ void main() {
   );
 
   test(
-    'server error with local rows present → returns local (resilient)',
+    'AC-15 server error with local rows present → returns local (resilient)',
     () async {
       final repo = LocalMergingNotificationsRepository(
         remote: _StubRemote(error: NotificationsFailure.network),
@@ -131,7 +161,7 @@ void main() {
   );
 
   test(
-    'server error with NO local rows → rethrows (preserves error state)',
+    'AC-15 server error with NO local rows → rethrows (preserves error state)',
     () async {
       final repo = LocalMergingNotificationsRepository(
         remote: _StubRemote(error: NotificationsFailure.network),
@@ -173,11 +203,12 @@ void main() {
   });
 
   test(
-    'FM1 reconciliation scopes ref dedup and marks a shared NCID in both stores',
+    'AC-12a/AC-12b/AC-13a/AC-14a/AC-14b reconciles and survives cold restart',
     () async {
       final distinctKindsRemote = _StubRemote(
         items: [
-          _server('offer-ncid', kind: NotificationKind.offer, ref: 'req-42'),
+          _server('offer-ncid-a', kind: NotificationKind.offer, ref: 'req-42'),
+          _server('offer-ncid-b', kind: NotificationKind.offer, ref: 'req-42'),
         ],
       );
       final distinctKindsLocal = _FakeLocalInbox([
@@ -191,9 +222,17 @@ void main() {
       final distinctKinds = await distinctKindsRepository.fetchNotifications();
       expect(
         distinctKinds.map((item) => item.id).toSet(),
-        {'new-request-fcm-id', 'offer-ncid'},
+        {'new-request-fcm-id', 'offer-ncid-a', 'offer-ncid-b'},
         reason: 'a ref may dedup only when both rows are new_request',
       );
+      final offers = distinctKinds
+          .where((item) => item.kind == NotificationKind.offer)
+          .toList(growable: false);
+      expect(offers.map((item) => item.id).toSet(), {
+        'offer-ncid-a',
+        'offer-ncid-b',
+      });
+      expect(offers.map((item) => item.ref), everyElement('req-42'));
 
       final serverBackedRemote = _StubRemote(
         items: [
@@ -210,6 +249,10 @@ void main() {
 
       final serverBacked = await serverBackedRepository.fetchNotifications();
       expect(serverBacked.map((item) => item.id), ['shared-ncid']);
+      expect(serverBacked.single.title, 'srv');
+      expect(serverBacked.single.kind, NotificationKind.offer);
+      expect(serverBacked.single.ref, 'req-9');
+      expect(serverBacked.single.timestamp, '2026-07-03T09:00:00Z');
 
       await serverBackedRepository.markRead('shared-ncid');
       expect(serverBackedLocal.readMarked, ['shared-ncid']);
@@ -218,6 +261,19 @@ void main() {
         ['shared-ncid'],
         reason: 'a server-backed NCID must be marked in both stores',
       );
+
+      // Cold restart: discard the repository and both adapters. Rehydrate fresh
+      // instances only from the two stores' persisted snapshots.
+      final restartedRepository = LocalMergingNotificationsRepository(
+        remote: _StubRemote(items: serverBackedRemote.items),
+        localInbox: _FakeLocalInbox(
+          List<LocalPushRecord>.of(serverBackedLocal._records),
+        ),
+      );
+      final afterRestart = await restartedRepository.fetchNotifications();
+      expect(afterRestart, hasLength(1));
+      expect(afterRestart.single.id, 'shared-ncid');
+      expect(afterRestart.single.read, isTrue);
     },
   );
 }

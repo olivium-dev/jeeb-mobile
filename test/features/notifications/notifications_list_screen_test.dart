@@ -157,7 +157,7 @@ void main() {
   });
 
   testWidgets(
-    'FM1 Arabic RTL row mirrors icon and unread dot without overflow',
+    'AC-16 FM1 Arabic RTL row mirrors icon and unread dot without overflow',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(360, 640));
       addTearDown(() => tester.binding.setSurfaceSize(null));
