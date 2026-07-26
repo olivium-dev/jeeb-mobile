@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/dev_seam/dev_seam.dart';
 import '../../../core/di/injection_container.dart';
+import '../../../core/lifecycle/polling_visibility_gate.dart';
 import '../../../core/notifications/application/push_refresh_signals.dart';
 import '../../../core/session/greeting_profile_cubit.dart';
 import '../../../core/session/jeeber_kyc_status_gate.dart';
@@ -29,6 +30,7 @@ import '../../jeeber_active_deliveries/data/dio_active_deliveries_repository.dar
 import '../../jeeber_active_deliveries/domain/active_deliveries_repository.dart';
 import '../../jeeber_active_deliveries/domain/active_delivery_summary.dart';
 import '../../jeeber_active_deliveries/presentation/active_deliveries_banner.dart';
+import '../tab_visibility.dart';
 
 /// Selector for the deliveryman feed variant the dev seam should render
 /// (Figma screens 23-26). Debug capture aid only — never reached in release.
@@ -202,9 +204,10 @@ class _JeeberHomeHost extends StatelessWidget {
           create: (_) => AvailabilityCubit(gateway: sl<AvailabilityGateway>()),
         ),
         BlocProvider<RequestFeedCubit>(
-          create: (_) =>
-              RequestFeedCubit(repository: sl<RequestFeedRepository>())
-                ..start(),
+          create: (_) => RequestFeedCubit(
+            repository: sl<RequestFeedRepository>(),
+            repositoryOwnership: RequestFeedRepositoryOwnership.borrowed,
+          )..start(),
         ),
         // iter6 real-flow blocker fix: poll the jeeber's ACCEPTED/active
         // deliveries (`GET /v1/deliveries?role=jeeber`) so a freshly-accepted
@@ -301,8 +304,13 @@ class _MaybeResumeRefetch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final shellVisible = TabVisibility.maybeOf(context)?.isVisible ?? true;
     if (!enabled) return child;
-    return FeedResumeRefetcher(child: child);
+    return PollingVisibilityGate(
+      target: context.read<RequestFeedCubit>(),
+      isVisible: shellVisible,
+      child: FeedResumeRefetcher(child: child),
+    );
   }
 }
 

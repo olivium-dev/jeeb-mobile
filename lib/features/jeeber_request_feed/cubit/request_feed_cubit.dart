@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/lifecycle/lifecycle_poller.dart';
 import '../../../core/lifecycle/polling_source.dart';
 import '../../../core/lifecycle/polling_visibility.dart';
 import '../data/request_feed_models.dart';
@@ -83,7 +84,12 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
 
   StreamSubscription<DeliveryRequest>? _requestsSub;
   StreamSubscription<FeedTransportUpdate>? _transportSub;
-  Timer? _sweep;
+  late final LifecyclePoller _sweepPoller = LifecyclePoller(
+    interval: _sweepInterval,
+    onTick: _sweepExpired,
+    tickOnResume: true,
+    debugLabel: 'RequestFeedCubit expiry sweep',
+  );
 
   /// Per-request expiry deadline — the request's own server `expiresAt`,
   /// verbatim. Used by [_sweepExpired] to flip cards into the expired state.
@@ -99,13 +105,17 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
   Future<void> start() async {
     _requestsSub ??= _repository.requests.listen(_onIncoming);
     _transportSub ??= _repository.transport.listen(_onTransport);
-    _sweep ??= Timer.periodic(_sweepInterval, (_) => _sweepExpired());
+    _sweepPoller.start();
     _applyPollInterest();
     await refresh();
   }
 
   @override
   void setPollingVisible(bool visible) {
+    // The sweep defaults visible so cubits mounted outside the shell retain
+    // their existing expiry behaviour. Always forward the first hidden value:
+    // [_pollingVisible] also defaults false, but the poller's default is true.
+    _sweepPoller.setPollingVisible(visible);
     if (_pollingVisible == visible) return;
     _pollingVisible = visible;
     _applyPollInterest();
@@ -368,8 +378,7 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
   @override
   Future<void> close() async {
     _source?.removePollInterest(this);
-    _sweep?.cancel();
-    _sweep = null;
+    _sweepPoller.dispose();
     await _requestsSub?.cancel();
     await _transportSub?.cancel();
     if (_repositoryOwnership == RequestFeedRepositoryOwnership.owned) {
