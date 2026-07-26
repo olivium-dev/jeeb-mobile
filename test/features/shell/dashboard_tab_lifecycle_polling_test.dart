@@ -287,6 +287,11 @@ void main() {
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
+      expect(
+        repository.debugIsDisposed,
+        isFalse,
+        reason: 'the Dashboard cubit borrows the app-lifetime DI singleton',
+      );
       expect(tester.takeException(), isNull);
     },
   );

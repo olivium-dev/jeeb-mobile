@@ -58,9 +58,15 @@ void main() {
 
         expect(repository.debugIsPolling, isFalse);
 
-        gate.setForeground(true);
         final resumeBaseline = dio.getCount;
-        expect(dio.getCount, resumeBaseline);
+        gate.setForeground(true);
+        expect(
+          dio.getCount,
+          resumeBaseline,
+          reason:
+              'resume itself must fetch nothing '
+              '(tickOnResume defaults false)',
+        );
         async.elapse(_testWindow);
         expect(dio.getCount - resumeBaseline, 6);
 
