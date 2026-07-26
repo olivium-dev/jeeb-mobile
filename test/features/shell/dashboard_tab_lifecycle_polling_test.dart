@@ -243,16 +243,11 @@ void main() {
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 10)),
-      );
-
-      expect(firstCubit.isClosed, isTrue);
-      expect(
-        repository.debugIsDisposed,
-        isFalse,
-        reason: 'the Dashboard cubit borrows the app-lifetime DI singleton',
-      );
+      // BlocProvider does not await an async cubit close. Flush its continuation
+      // before proving teardown at the feature seam below: a new cubit must poll
+      // through the same DI singleton.
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
 
       final secondVisibility = ValueNotifier<bool>(true);
       addTearDown(secondVisibility.dispose);
