@@ -275,9 +275,36 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
   /// leaned solely on its slow 10s wall-clock poll. No id is required here — the
   /// card just re-pulls its own snapshot (`GET /v1/deliveries?role=jeeber`); the
   /// tap-time deep-link keeps its own id handling in [deepLinkForMessage].
+  ///
+  /// JEBV4-342 (b02): a `new_request` push ALSO fires this bus. Until now the
+  /// gateway's `NewRequestPushNotifier` fan-out arrived on the jeeber's device
+  /// and drove nothing — `RequestFeedCubit` took no push input at all and leaned
+  /// entirely on its wall-clock poll, so the "finding jeebers" auction opened on
+  /// screen only when the next poll tick happened to land. A publisher with no
+  /// subscriber is indistinguishable from a working system in review, because
+  /// the poll eventually paints the same pixels.
   void _maybeSignalStatusChange(NotificationMessage message) {
     if (_refreshSignals == null) return;
-    if (message.category == NotificationCategory.offerAccepted) {
+    // JEBV4-342 (b02): `newRequest` joins `offerAccepted` on the NO-ID-REQUIRED
+    // branch, deliberately, and not the id-guarded `orderish` set below.
+    //
+    // The signal is payload-less by design (`PushRefreshSignals.signalStatusChange`
+    // carries no id — each subscriber re-pulls its own snapshot), and the jeeber
+    // feed subscriber calls `RequestFeedCubit.refresh()`, which re-pulls the whole
+    // `GET /v1/requests` snapshot. So an id is not merely unnecessary here, using
+    // one would make a whole-list refetch hostage to a field it never reads.
+    //
+    // The live payload does carry it either way — verified at the emit site,
+    // `jeeb-gateway/src/JeebGateway/Notifications/NewRequestPushNotifier.cs:469-470`,
+    // which stamps BOTH `requestId` and `request_id` — so this branch choice is
+    // robustness, not a workaround for a missing field. Routing it past the guard
+    // means a future payload trim cannot silently re-inert this path (the exact
+    // failure mode that let the push arrive and drive nothing all through b01).
+    const idless = <NotificationCategory>{
+      NotificationCategory.offerAccepted,
+      NotificationCategory.newRequest,
+    };
+    if (idless.contains(message.category)) {
       _refreshSignals.signalStatusChange();
       return;
     }

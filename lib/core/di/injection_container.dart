@@ -142,6 +142,24 @@ Dio resolveGatewayDio() {
   return MockGatewayClient.createDio();
 }
 
+/// The ONE resolver for the push-driven refetch bus, in the same spirit as
+/// [resolveGatewayDio]: hand a call site the DI-registered singleton, or `null`
+/// when DI has not run (a bare widget test), so the subscriber degrades to its
+/// safety-net poll instead of throwing "PushRefreshSignals not registered".
+///
+/// Subscribers re-pull their own snapshot on each event; the stream is
+/// payload-less. Publishers today: `offer_accepted`, and — since JEBV4-342
+/// (b02) — `new_request`. See [PushRefreshSignals].
+///
+/// It lives here, and NOT as a private helper beside each call site, because it
+/// is now read from three constructions across two files. Copies of a GetIt
+/// `isRegistered` check are how one call site silently keeps polling while its
+/// twin goes push-driven, which is invisible in review: both render the data.
+Stream<void>? resolvePushRefreshStream() {
+  if (!sl.isRegistered<PushRefreshSignals>()) return null;
+  return sl<PushRefreshSignals>().stream;
+}
+
 void configureDependencies({
   required SharedPreferences sharedPreferences,
   required CrashReporter crashReporter,
