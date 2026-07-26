@@ -1,7 +1,7 @@
-import 'dart:async';
-
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/lifecycle/lifecycle_poller.dart';
 import '../../otp_handover/domain/handover_code_store.dart';
 import '../domain/delivery_tracking_info.dart';
 import '../domain/live_tracking_repository.dart';
@@ -30,10 +30,27 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   /// NEVER calls `GET /otp` (that endpoint is an SMS trigger on the live
   /// gateway — polling it would spam the recipient with texts).
   final HandoverCodeStore? _handoverCodeStore;
-  Timer? _pollTimer;
+  late final LifecyclePoller _poller = LifecyclePoller(
+    interval: _pollInterval,
+    onTick: _poll,
+    tickOnResume: false,
+    debugLabel: 'LiveTrackingCubit',
+  );
+
+  @visibleForTesting
+  LifecyclePoller get debugPoller => _poller;
+
+  bool get _isTerminal =>
+      (state.trackingInfo?.isCancelled ?? false) ||
+      (state.trackingInfo?.isDelivered ?? false);
 
   Future<void> _fetchAndSchedule() async {
     await Future.wait([_hydrateHandoverCode(), _fetch()]);
+    _armPoll();
+  }
+
+  Future<void> _poll() async {
+    await _fetch();
     _schedulePoll();
   }
 
@@ -63,13 +80,9 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
           clearError: true,
           pendingEvent: _detectEvent(info),
         ));
-        // sprint-009 scenario matrix #9: a cancelled/expired delivery is
-        // terminal — stop polling a dead row (the screen renders the graceful
-        // terminal state instead of a live stepper).
-        if (info.isCancelled) {
-          _pollTimer?.cancel();
-          _pollTimer = null;
-        }
+        // A delivered, cancelled, or expired delivery is terminal — stop
+        // polling a dead row (the screen renders its terminal destination).
+        if (_isTerminal) _poller.stop();
       }
       // JEBV4-269: overlay the jeeber's live GPS position + route onto the
       // stage/summary snapshot so the map marker moves. Best-effort + AFTER the
@@ -136,12 +149,20 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     return LiveTrackingEvent.none;
   }
 
+  void _armPoll() {
+    if (_isTerminal) {
+      _poller.stop();
+      return;
+    }
+    _poller.start();
+  }
+
   void _schedulePoll() {
-    _pollTimer?.cancel();
-    // Never (re)arm the poll for a terminal cancelled delivery — the first
-    // fetch may already have read the terminal row (scenario matrix #9).
-    if (state.trackingInfo?.isCancelled ?? false) return;
-    _pollTimer = Timer.periodic(_pollInterval, (_) => _fetch());
+    if (_isTerminal) {
+      _poller.stop();
+      return;
+    }
+    _poller.restart();
   }
 
   void retry() {
@@ -154,12 +175,12 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   /// (Dart timers are suspended there) surfaces on return instead of waiting up
   /// to one poll interval — or forever, if the OS dropped the timer. Silent (no
   /// loading flash): [_fetch] keeps the last good `trackingInfo` on a failure,
-  /// and a terminal cancelled row is left untouched (nothing more to poll).
+  /// and a terminal delivered/cancelled row is left untouched.
   Future<void> refreshNow() async {
     if (isClosed) return;
-    if (state.trackingInfo?.isCancelled ?? false) return;
+    if (_isTerminal) return;
     await _fetch();
-    if (!isClosed) _schedulePoll();
+    if (!isClosed) _armPoll();
   }
 
   String _mapError(LiveTrackingErrorKind kind) {
@@ -194,7 +215,7 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
 
   @override
   Future<void> close() {
-    _pollTimer?.cancel();
+    _poller.dispose();
     return super.close();
   }
 }
