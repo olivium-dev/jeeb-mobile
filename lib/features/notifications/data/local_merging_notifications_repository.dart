@@ -1,4 +1,5 @@
 import '../../../core/notifications/domain/local_push_inbox.dart';
+import '../domain/notification_kind_mapping.dart';
 import '../domain/notifications_repository.dart';
 
 /// [NotificationsRepository] decorator that UNIONS the on-device
@@ -18,19 +19,22 @@ import '../domain/notifications_repository.dart';
 /// only a server failure with NO local rows rethrows so the screen can show its
 /// error state (preserving the pre-decorator behavior for the empty case).
 class LocalMergingNotificationsRepository implements NotificationsRepository {
-  const LocalMergingNotificationsRepository({
+  LocalMergingNotificationsRepository({
     required NotificationsRepository remote,
     required LocalPushInbox localInbox,
-  })  : _remote = remote,
-        _localInbox = localInbox;
+  }) : _remote = remote,
+       _localInbox = localInbox;
 
   final NotificationsRepository _remote;
   final LocalPushInbox _localInbox;
+  Set<String> _provenLegacyLocalOnlyIds = const <String>{};
 
   @override
   Future<List<NotificationItem>> fetchNotifications() async {
-    final localItems =
-        (await _localInbox.readAll()).map(_toItem).toList(growable: false);
+    final localItems = (await _localInbox.readAll())
+        .map(_toItem)
+        .toList(growable: false);
+    _provenLegacyLocalOnlyIds = const <String>{};
 
     List<NotificationItem> serverItems;
     try {
@@ -43,54 +47,53 @@ class LocalMergingNotificationsRepository implements NotificationsRepository {
       return List<NotificationItem>.unmodifiable(localItems);
     }
 
-    // Dedup: if the server ever DOES return the same request (matched by `ref`),
-    // the server row is authoritative — drop the local duplicate. The cubit owns
-    // the final newest-first sort, so order here is not load-bearing.
-    final serverRefs = serverItems
-        .where((i) => i.ref != null && i.ref!.isNotEmpty)
+    // The NCID is authoritative for every kind. A request-ref fallback is safe
+    // only for two new_request rows; multiple offers legitimately share a ref.
+    final serverNewRequestRefs = serverItems
+        .where(
+          (item) =>
+              item.kind == NotificationKind.newRequest &&
+              item.ref != null &&
+              item.ref!.isNotEmpty,
+        )
         .map((i) => i.ref)
         .toSet();
     final serverIds = serverItems.map((i) => i.id).toSet();
-    final merged = <NotificationItem>[
-      ...localItems.where(
-        (i) => !serverIds.contains(i.id) &&
-            !(i.ref != null && serverRefs.contains(i.ref)),
-      ),
-      ...serverItems,
-    ];
+    final retainedLocalItems = localItems
+        .where(
+          (item) =>
+              !serverIds.contains(item.id) &&
+              !(item.kind == NotificationKind.newRequest &&
+                  item.ref != null &&
+                  serverNewRequestRefs.contains(item.ref)),
+        )
+        .toList(growable: false);
+    _provenLegacyLocalOnlyIds = retainedLocalItems
+        .where((item) => item.kind == NotificationKind.newRequest)
+        .map((item) => item.id)
+        .toSet();
+    final merged = <NotificationItem>[...retainedLocalItems, ...serverItems];
     return List<NotificationItem>.unmodifiable(merged);
   }
 
   @override
   Future<void> markRead(String id) async {
-    // A local-only row has no server PATCH target (its id is an FCM messageId,
-    // not a notification-service id) — marking it read locally is authoritative.
+    // A proven legacy local-only new_request has no server PATCH target. A row
+    // reconciled by NCID must update both stores so read state survives restart.
     final wasLocal = await _localInbox.markRead(id);
-    if (wasLocal) return;
+    if (wasLocal && _provenLegacyLocalOnlyIds.contains(id)) return;
     await _remote.markRead(id);
   }
 
   NotificationItem _toItem(LocalPushRecord record) {
     return NotificationItem(
       id: record.id,
-      kind: _kind(record.type),
+      kind: notificationKindFromWireType(record.type),
       title: record.title,
       body: record.body,
       timestamp: record.ts,
       read: record.read,
       ref: record.ref,
     );
-  }
-
-  /// Local records are only ever new_request today (the sole G3 gap the server
-  /// inbox lacks); map defensively and fall back to unknown for anything else.
-  NotificationKind _kind(String type) {
-    switch (type) {
-      case kNewRequestPushType:
-      case 'newRequest':
-        return NotificationKind.newRequest;
-      default:
-        return NotificationKind.unknown;
-    }
   }
 }

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/network/auth_token_store.dart';
+import '../domain/notification_kind_mapping.dart';
 import '../domain/notifications_repository.dart';
 
 /// Dio-backed [NotificationsRepository] (JM-057) — the notification-service
@@ -62,7 +63,7 @@ class DioNotificationsRepository implements NotificationsRepository {
   NotificationItem _item(Map<String, dynamic> json) {
     return NotificationItem(
       id: _str(json['id']) ?? '',
-      kind: _kind(json['type'] ?? json['kind']),
+      kind: notificationKindFromWireType(_str(json['type'] ?? json['kind'])),
       title: _str(json['title']) ?? '',
       body: _str(json['body'] ?? json['message']) ?? '',
       timestamp:
@@ -76,55 +77,12 @@ class DioNotificationsRepository implements NotificationsRepository {
         json['ref'] ??
             json['targetId'] ??
             json['requestId'] ??
-            json['deliveryId'],
+            json['deliveryId'] ??
+            json['offerId'] ??
+            json['offer_id'] ??
+            json['orderId'],
       ),
     );
-  }
-
-  NotificationKind _kind(Object? v) {
-    switch (v) {
-      case 'offer':
-        return NotificationKind.offer;
-      case 'offer_accepted':
-      case 'offerAccepted':
-        return NotificationKind.offerAccepted;
-      case 'status':
-      case 'order_status':
-        return NotificationKind.status;
-      case 'low_balance':
-      case 'lowBalance':
-        return NotificationKind.lowBalance;
-      case 'fee_won':
-      case 'feeWon':
-        return NotificationKind.feeWon;
-      case 'refund_penalty':
-      case 'refundPenalty':
-        return NotificationKind.refundPenalty;
-      case 'topup':
-        return NotificationKind.topup;
-      case 'kyc_approved':
-      case 'kycApproved':
-        return NotificationKind.kycApproved;
-      case 'kyc_rejected':
-      case 'kycRejected':
-        return NotificationKind.kycRejected;
-      case 'request_expired':
-      case 'requestExpired':
-        return NotificationKind.requestExpired;
-      // G3: the jeeber-side new-request broadcast (`type=new_request`, same
-      // wire value the push layer's NotificationCategory.fromKey accepts).
-      // Previously fell through to `unknown` → an un-routable inbox row.
-      case 'new_request':
-      case 'newRequest':
-        return NotificationKind.newRequest;
-      case 'confirm_receipt':
-      case 'confirmReceipt':
-        return NotificationKind.confirmReceipt;
-      case 'marketing':
-        return NotificationKind.marketing;
-      default:
-        return NotificationKind.unknown;
-    }
   }
 
   String? _str(Object? v) {
