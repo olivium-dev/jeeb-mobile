@@ -313,24 +313,33 @@ void main() {
           ref: 'req-1', expectRootId: 'offer_review_list_root_req-1');
     });
 
-    // C10b: no `ref` → the shell, as before (never a fabricated destination).
-    testWidgets('offer with NO ref → shell (no fabricated destination)',
-        (tester) async {
+    // No `ref` → the shell, never a fabricated destination. This is also b01's
+    // C10b ('offer with NO ref → shell (no fabricated destination)'): same
+    // body, and main's AC-17 name is kept because it carries the AC-ledger
+    // binding plus the stronger no-exception assertion.
+    testWidgets('AC-17b/AC-17c offer with null ref → shell without exception', (
+      tester,
+    ) async {
       await tapKind(tester, NotificationKind.offer, expectRootId: 'shell_root');
+      expect(tester.takeException(), isNull);
     });
 
-    // FM-1's own binding of the same behaviour on its `req-88` fixture. Kept
-    // (rather than folded into C10a) so the FM-1 acceptance-criteria name is
-    // not silently dropped; retargeted to the real `offer_review_list_root`
-    // stub id, since `offer_review_root` has 0 hits in `lib/`.
-    testWidgets('FM1 offer with ref → offer-review', (tester) async {
-      await tapKind(
-        tester,
-        NotificationKind.offer,
-        ref: 'req-88',
-        expectRootId: 'offer_review_list_root_req-88',
-      );
-    });
+    // AC-17a, formerly FM-1's 'FM1 offer with ref → offer-review'. Kept
+    // separate from C10a so the AC-ledger binding is not silently dropped.
+    // `expectRootId` retargeted to the real `offer_review_list_root`
+    // (client_offers_screen.dart:122): `offer_review_root` has 0 hits in `lib/`
+    // and only ONE stub route may be registered on /requests/:id/offers.
+    testWidgets(
+      'AC-17a resolved offer ref → offer-review at /requests/{requestId}/offers',
+      (tester) async {
+        await tapKind(
+          tester,
+          NotificationKind.offer,
+          ref: 'req-88',
+          expectRootId: 'offer_review_list_root_req-88',
+        );
+      },
+    );
 
     // C10c (P2/F5): the FIX-REQUESTS 403 fix on the inbox surface — a CLIENT
     // tapping a `new_request` row must not reach `/jeeber/requests/:id`, whose
