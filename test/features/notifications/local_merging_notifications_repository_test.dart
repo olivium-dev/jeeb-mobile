@@ -186,7 +186,7 @@ void main() {
   });
 
   test(
-    'FM1 reconciliation scopes ref dedup and marks a shared NCID in both stores',
+    'AC-12a/AC-12b reconciliation keeps one shared NCID with server content',
     () async {
       final distinctKindsRemote = _StubRemote(
         items: [
@@ -223,6 +223,10 @@ void main() {
 
       final serverBacked = await serverBackedRepository.fetchNotifications();
       expect(serverBacked.map((item) => item.id), ['shared-ncid']);
+      expect(serverBacked.single.title, 'srv');
+      expect(serverBacked.single.kind, NotificationKind.offer);
+      expect(serverBacked.single.ref, 'req-9');
+      expect(serverBacked.single.timestamp, '2026-07-03T09:00:00Z');
 
       await serverBackedRepository.markRead('shared-ncid');
       expect(serverBackedLocal.readMarked, ['shared-ncid']);
