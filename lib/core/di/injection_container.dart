@@ -400,7 +400,9 @@ void configureDependencies({
     ),
   );
 
-  // Jeeber request feed — polling-backed until WS support is wired.
+  // Jeeber request feed — PUSH-driven, plus one-shot fetches on screen open
+  // and on foreground/tab resume. It owns NO periodic timer any more (b02,
+  // POLLING-ELIMINATION-PLAN A.1); see the class doc for what replaced it.
   sl.registerLazySingleton<RequestFeedRepository>(
     () => DioRequestFeedRepository(dio: sl<Dio>()),
   );

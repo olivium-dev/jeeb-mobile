@@ -1,3 +1,17 @@
+// Jeeber feed — PERIODIC POLL ELIMINATED (b02, POLLING-ELIMINATION-PLAN A.1).
+//
+// This file used to assert the SHAPE of a 60 s safety-net poll: that it ticked
+// 6× per virtual minute at a 10 s cadence, stopped while backgrounded, and
+// re-armed on resume. That poll is deleted, so those assertions are inverted
+// here rather than removed — an assertion that a cadence is ABSENT is the only
+// one that can catch its accidental return, and deleting the file would leave
+// nothing watching the seam.
+//
+// The owner's rule (POLLING-ELIMINATION-PLAN §0): *if the user does nothing and
+// no push arrives, a second network call is banned.* Virtual time is the honest
+// instrument for that — `FakeAsync` cannot be fooled by a slow test host, and a
+// re-added `Timer.periodic` fires under it exactly as it would on a device.
+
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -7,8 +21,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/lifecycle/app_lifecycle_gate.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/data/dio_request_feed_repository.dart';
 
-const _pollInterval = Duration(seconds: 10);
-const _testWindow = Duration(seconds: 60);
+/// Far longer than any cadence this repository ever shipped (60 s), and longer
+/// than the 5-minute device observation window the DoD mandates.
+const _idleWindow = Duration(hours: 1);
 
 class _CountingDio extends Fake implements Dio {
   int getCount = 0;
@@ -34,40 +49,28 @@ class _CountingDio extends Fake implements Dio {
 
 void main() {
   test(
-    'AC2a: backgrounded for 60s of virtual time issues ZERO network calls and cancels the timer',
+    'FOREGROUND + INTERESTED + one hour of virtual time ⇒ ZERO network calls',
     () {
       FakeAsync().run((async) {
         final dio = _CountingDio();
         final gate = ManualAppLifecycleGate();
-        final repository = DioRequestFeedRepository(
-          dio: dio,
-          pollInterval: _pollInterval,
-          lifecycleGate: gate,
-        );
+        gate.setForeground(true);
+        final repository = DioRequestFeedRepository(dio: dio);
         final owner = Object();
 
+        // The worst case for the mandate: the surface is open, the app is
+        // foreground, and a consumer has declared interest. Under the old
+        // build this state ticked every 60 s forever.
         repository.addPollInterest(owner);
-        async.elapse(_testWindow);
-        expect(dio.getCount, 6);
+        async.elapse(_idleWindow);
 
-        final backgroundBaseline = dio.getCount;
-        gate.setForeground(false);
-        async.elapse(_testWindow);
-        expect(dio.getCount - backgroundBaseline, 0);
-
-        expect(repository.debugIsPolling, isFalse);
-
-        final resumeBaseline = dio.getCount;
-        gate.setForeground(true);
         expect(
           dio.getCount,
-          resumeBaseline,
+          0,
           reason:
-              'resume itself must fetch nothing '
-              '(tickOnResume defaults false)',
+              'declaring interest must arm NOTHING. A non-zero count here is '
+              'the 60s safety-net poll back from the dead (JEBV4-342).',
         );
-        async.elapse(_testWindow);
-        expect(dio.getCount - resumeBaseline, 6);
 
         unawaited(repository.dispose());
         async.flushMicrotasks();
@@ -76,33 +79,60 @@ void main() {
   );
 
   test(
-    'E2c: refresh() while paused issues exactly one GET and does not arm the poll',
+    'POSITIVE CONTROL: refresh() still issues exactly one GET, and only one',
     () {
+      // Zero calls plus a dead repository is not success, it is a removed
+      // feature. This proves the counting Dio is wired and the one-shot path
+      // — the path `start()`, `FeedResumeRefetcher` and the `new_request`
+      // push all funnel into — still reaches the network.
       FakeAsync().run((async) {
         final dio = _CountingDio();
-        final gate = ManualAppLifecycleGate();
-        final repository = DioRequestFeedRepository(
-          dio: dio,
-          pollInterval: _pollInterval,
-          lifecycleGate: gate,
-        );
+        final repository = DioRequestFeedRepository(dio: dio);
         final owner = Object();
 
         repository.addPollInterest(owner);
-        gate.setForeground(false);
-        final pausedBaseline = dio.getCount;
+        expect(dio.getCount, 0);
 
         unawaited(repository.refresh());
         async.flushMicrotasks();
-        expect(dio.getCount - pausedBaseline, 1);
-        expect(repository.debugIsPolling, isFalse);
+        expect(dio.getCount, 1, reason: 'the one-shot fetch must still fire');
 
-        async.elapse(_testWindow);
-        expect(dio.getCount - pausedBaseline, 1);
+        async.elapse(_idleWindow);
+        expect(
+          dio.getCount,
+          1,
+          reason: 'a one-shot fetch must not leave a cadence behind it',
+        );
 
         unawaited(repository.dispose());
         async.flushMicrotasks();
       });
     },
   );
+
+  test('backgrounding and resuming issue no calls of their own', () {
+    FakeAsync().run((async) {
+      final dio = _CountingDio();
+      final gate = ManualAppLifecycleGate();
+      final repository = DioRequestFeedRepository(dio: dio);
+      final owner = Object();
+
+      repository.addPollInterest(owner);
+      gate.setForeground(false);
+      async.elapse(_idleWindow);
+      gate.setForeground(true);
+      async.elapse(_idleWindow);
+
+      expect(
+        dio.getCount,
+        0,
+        reason:
+            'the repository no longer observes the lifecycle at all — the '
+            'resume refetch is one-shot and owned by FeedResumeRefetcher',
+      );
+
+      unawaited(repository.dispose());
+      async.flushMicrotasks();
+    });
+  });
 }

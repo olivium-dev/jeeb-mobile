@@ -119,25 +119,30 @@ void main() {
     },
   );
 
-  test('AC2c: production feed safety-net first polls at 60s, not 10s', () {
+  // AC2c USED TO READ "production feed safety-net first polls at 60s, not
+  // 10s". The safety net is gone (b02, POLLING-ELIMINATION-PLAN A.1), so the
+  // AC is inverted: the production repository must arm no cadence at ALL.
+  test('AC2c: production feed arms no cadence — 60s, 10s or otherwise', () {
     FakeAsync().run((async) {
       final dio = _CountingDio();
-      final repository = DioRequestFeedRepository(
-        dio: dio,
-        lifecycleGate: ManualAppLifecycleGate(),
-      );
+      final repository = DioRequestFeedRepository(dio: dio);
 
-      expect(kFeedSafetyNetPollInterval, const Duration(seconds: 60));
       repository.addPollInterest(Object());
 
-      async.elapse(const Duration(seconds: 10));
-      expect(dio.getCount, 0);
-
-      async.elapse(const Duration(seconds: 49));
-      expect(dio.getCount, 0);
-
-      async.elapse(const Duration(seconds: 1));
-      expect(dio.getCount, 1);
+      // Walk past every cadence this feed has ever shipped, and then some.
+      for (final t in const <Duration>[
+        Duration(seconds: 10),
+        Duration(seconds: 60),
+        Duration(minutes: 5),
+        Duration(hours: 1),
+      ]) {
+        async.elapse(t);
+        expect(
+          dio.getCount,
+          0,
+          reason: 'a GET appeared after $t of idle time — a poll is back',
+        );
+      }
 
       unawaited(repository.dispose());
       async.flushMicrotasks();
@@ -145,17 +150,15 @@ void main() {
   });
 
   testWidgets(
-    'AC3: resume with FeedResumeRefetcher and poller issues exactly one GET',
+    'AC3: resume issues exactly one GET — FeedResumeRefetcher owns it, and '
+    'nothing follows it',
     (tester) async {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
 
       final dio = _CountingDio();
       final lifecycleGate = WidgetsBindingAppLifecycleGate();
-      final repository = DioRequestFeedRepository(
-        dio: dio,
-        lifecycleGate: lifecycleGate,
-      );
+      final repository = DioRequestFeedRepository(dio: dio);
       final cubit = RequestFeedCubit(
         repository: repository,
         repositoryOwnership: RequestFeedRepositoryOwnership.borrowed,
@@ -176,7 +179,6 @@ void main() {
           ),
         );
         await tester.pump();
-        expect(repository.debugIsPolling, isTrue);
 
         final foregroundBaseline = dio.getCount;
         for (final state in <AppLifecycleState>[
@@ -187,7 +189,6 @@ void main() {
           await tester.pump();
         }
         expect(dio.getCount, foregroundBaseline);
-        expect(repository.debugIsPolling, isFalse);
 
         final resumeBaseline = dio.getCount;
         tester.binding.handleAppLifecycleStateChanged(
@@ -199,14 +200,24 @@ void main() {
         expect(
           dio.getCount - resumeBaseline,
           1,
-          reason:
-              'FeedResumeRefetcher must own the only immediate resume GET; '
-              'the poller must only re-arm its fresh 60s interval',
+          reason: 'FeedResumeRefetcher must own the only resume GET',
         );
         expect(dio.getPaths.sublist(resumeBaseline), const <String>[
           '/v1/jeebers/me/feed?status=pending',
         ]);
-        expect(repository.debugIsPolling, isTrue);
+
+        // …and it must be the LAST one. Under the old build a fresh 60s
+        // interval re-armed here; a `pump` past it now must add nothing.
+        final settledBaseline = dio.getCount;
+        await tester.pump(const Duration(minutes: 5));
+        await tester.pump();
+        expect(
+          dio.getCount,
+          settledBaseline,
+          reason:
+              'five minutes foreground, no push, no user action ⇒ ZERO '
+              'repeat calls (POLLING-ELIMINATION-PLAN §0)',
+        );
         expect(tester.takeException(), isNull);
       } finally {
         await tester.pumpWidget(const SizedBox.shrink());
