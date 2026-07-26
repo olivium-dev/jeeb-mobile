@@ -121,7 +121,16 @@ void main() {
           reason: 'an omitted server expiry must not become a client deadline');
     });
 
-    test('preserves a real server expiry exactly', () async {
+    // ── P7 TX — the feed card deadline is SERVER-ANCHORED, never a parsed
+    // absolute. `offerDeadlineInSeconds` (relative) + the device receive
+    // instant = a deadline a skewed handset cannot corrupt. The old dual-read
+    // of two server absolutes (see the TX.2 payload) is gone; the first of the
+    // two keys it tried was never on the wire in the first place.
+    test('TX.1 — offerDeadlineInSeconds anchors against the injected clock',
+        () async {
+      final t0 = DateTime.utc(2026, 6, 30, 9, 41);
+      final anchored = DioRequestFeedRepository(dio: dio, now: () => t0);
+      addTearDown(anchored.dispose);
       dio.nextResponse = _resp({
         'items': [
           {
@@ -129,6 +138,28 @@ void main() {
             'status': 'pending',
             'description': 'Flowers',
             'createdAt': '2026-06-30T09:41:00Z',
+            'offerDeadlineInSeconds': 900,
+            'myOffer': null,
+          },
+        ],
+        'totalCount': 1,
+      });
+
+      final result = await anchored.refresh();
+
+      expect(result.single.expiresAt, t0.add(const Duration(minutes: 15)));
+    });
+
+    test('TX.2 — a legacy absolute is NOT honoured (the dual-read is gone)',
+        () async {
+      dio.nextResponse = _resp({
+        'items': [
+          {
+            'requestId': 'req-legacy',
+            'status': 'pending',
+            'description': 'Flowers',
+            'createdAt': '2026-06-30T09:41:00Z',
+            'broadcastExpiresAt': '2026-06-30T10:11:00Z',
             'expiresAt': '2026-06-30T10:11:00Z',
             'myOffer': null,
           },
@@ -138,7 +169,36 @@ void main() {
 
       final result = await repo.refresh();
 
-      expect(result.single.expiresAt, DateTime.utc(2026, 6, 30, 10, 11));
+      expect(
+        result.single.expiresAt,
+        isNull,
+        reason: 'no server absolute may become a client deadline',
+      );
+    });
+
+    test('TX.3 — no deadline field at all: null deadline, card stays live',
+        () async {
+      dio.nextResponse = _resp({
+        'items': [
+          {
+            'requestId': 'req-no-deadline',
+            'status': 'pending',
+            'description': 'Flowers',
+            'createdAt': '2026-06-30T09:41:00Z',
+            'myOffer': null,
+          },
+        ],
+        'totalCount': 1,
+      });
+
+      // The feed deliberately does NOT throw — only the customer waiting
+      // surface carries the throw contract. Snapshot membership stays the
+      // lifetime authority here.
+      final result = await repo.refresh();
+
+      expect(result, hasLength(1));
+      expect(result.single.expiresAt, isNull);
+      expect(result.single.requestIsOpen, isTrue);
     });
 
     test('terminal request status is preserved as non-actionable authority',

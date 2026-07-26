@@ -63,6 +63,12 @@ class RedactingLogInterceptor extends Interceptor {
   /// (scalars/lists carry no keyed secret — a bare token value is never sent as
   /// a top-level primitive body in this app).
   static Object? _redactBody(Object? data) {
+    // P4/P5 (b01-20260725): binary bodies (CDN image fetch →
+    // `ResponseType.bytes`, and the raw signed-PUT upload body) must never be
+    // stringified. A 1–2 MB `List<int>` printed per image floods logcat and
+    // visibly stalls the DEBUG build used for on-device E2E. `Uint8List` is a
+    // `List<int>`, so this single check covers both.
+    if (data is List<int>) return '<binary ${data.length} bytes>';
     if (data is Map<String, Object?>) return DiagRedaction.scrubMap(data);
     if (data is Map) {
       return DiagRedaction.scrubMap(

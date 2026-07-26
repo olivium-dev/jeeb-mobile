@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -27,7 +28,12 @@ class ChatCubit extends Cubit<ChatState> {
     required String deliveryId,
     required ChatGateway gateway,
     required PhotoPickerService pickerService,
-    PhotoCompressor compressor = const HalvingPhotoCompressor(),
+    // P4/P5: chat ships REAL bytes to the CDN. [HalvingPhotoCompressor] does
+    // not re-encode, it stride-copies every second byte — it would turn a
+    // >2 MB JPEG into an undecodable blob. `image_picker` already down-scales
+    // at the source, and oversize payloads are rejected by
+    // [_maxAttachmentBytes] rather than silently mangled.
+    PhotoCompressor compressor = const PassthroughPhotoCompressor(),
     DateTime Function() clock = _defaultClock,
     String? initialDeliveryId,
     Duration pollInterval = const Duration(seconds: 5),
@@ -107,6 +113,9 @@ class ChatCubit extends Cubit<ChatState> {
           isLoadingHistory: false,
         ),
       );
+      // P4/P5: pull the bytes for any inbound `image` that arrived as a bare
+      // CDN ref, so the peer's photo renders rather than a placeholder.
+      _resolveImageBytes();
       _subscription ??= _gateway.subscribe(_deliveryId).listen(_handleEvent);
     } catch (_) {
       emit(state.copyWith(
@@ -164,6 +173,7 @@ class ChatCubit extends Cubit<ChatState> {
         messages: _ordered([...state.messages, ...additions]),
       ),
     );
+    _resolveImageBytes();
   }
 
   /// Re-fetch history + phase for an ALREADY-loaded thread (the chat-detail
@@ -190,6 +200,7 @@ class ChatCubit extends Cubit<ChatState> {
           phase: phase,
         ),
       );
+      _resolveImageBytes();
     } catch (_) {
       // Keep the current thread on a transient refresh failure.
     }
@@ -365,12 +376,23 @@ class ChatCubit extends Cubit<ChatState> {
   Future<void> _pickAndSend(_PickSource source) async {
     if (state.isAttaching) return;
     emit(state.copyWith(isAttaching: true, clearError: true));
+    final DeliveryChatMessage draft;
+    final Uint8List compressed;
     try {
       final raw = source == _PickSource.camera
           ? await _pickerService.pickFromCamera()
           : await _pickerService.pickFromGallery();
-      final compressed = await _compressor.compress(raw.bytes);
-      final draft = DeliveryChatMessage.photo(
+      compressed = await _compressor.compress(raw.bytes);
+      if (compressed.length > _maxAttachmentBytes) {
+        emit(state.copyWith(
+          isAttaching: false,
+          error: ChatError.attachmentUploadFailed,
+        ));
+        return;
+      }
+      // Optimistic LOCAL-BYTES bubble: the sender sees their own photo
+      // instantly, with no CDN round trip.
+      draft = DeliveryChatMessage.photo(
         id: _nextId(),
         author: ChatAuthor.me,
         sentAt: _clock(),
@@ -384,17 +406,122 @@ class ChatCubit extends Cubit<ChatState> {
           isAttaching: false,
         ),
       );
-      await _dispatch(draft);
     } on PhotoPickException catch (e) {
       emit(
         state.copyWith(isAttaching: false, error: _mapPickFailure(e.failure)),
       );
+      return;
     } catch (_) {
       emit(
         state.copyWith(isAttaching: false, error: ChatError.pickUnavailable),
       );
+      return;
+    }
+    await _uploadAndDispatchImage(draft: draft, bytes: compressed);
+  }
+
+  /// P4/P5 upload-then-send, mirroring [_dispatchVoiceNote] line for line:
+  /// upload FIRST, swap the optimistic bubble for the ref-bearing `image` one,
+  /// THEN post. A failed upload never posts anything (no phantom success).
+  ///
+  /// When the gateway has no CDN wired ([ChatGateway.uploadImage] default `''`)
+  /// we keep the legacy local-bytes `photo` bubble and dispatch it unchanged —
+  /// the in-memory / fixture / devtool hosts behave exactly as before.
+  Future<void> _uploadAndDispatchImage({
+    required DeliveryChatMessage draft,
+    required Uint8List bytes,
+  }) async {
+    final String objectRef;
+    try {
+      objectRef = await _gateway.uploadImage(bytes: bytes);
+    } catch (_) {
+      _updateMessage(draft.id, MessageStatus.failed);
+      emit(state.copyWith(error: ChatError.attachmentUploadFailed));
+      Diag.event('chat_image_upload', <String, Object?>{
+        'deliveryId': _deliveryId,
+        'result': 'failed',
+      });
+      return;
+    }
+    if (objectRef.isEmpty) {
+      await _dispatch(draft);
+      return;
+    }
+    Diag.event('chat_image_upload', <String, Object?>{
+      'deliveryId': _deliveryId,
+      'result': 'uploaded',
+    });
+    // Keep the local bytes on the message so the sender's own bubble never
+    // blinks through a placeholder while the peer resolves the ref.
+    final uploaded = DeliveryChatMessage.image(
+      id: draft.id,
+      author: ChatAuthor.me,
+      sentAt: draft.sentAt,
+      status: MessageStatus.sending,
+      url: objectRef,
+      caption: draft.text,
+      bytes: bytes,
+    );
+    _replaceMessage(draft.id, uploaded);
+    await _dispatch(uploaded);
+  }
+
+  /// Object refs already fetched (or in flight) so a poll tick never
+  /// re-downloads the same image. The bytes live on the message itself.
+  final Set<String> _resolvingImageRefs = <String>{};
+
+  /// Fire-and-forget: pull the bytes for any `image` message that has a ref but
+  /// no bytes yet, NEWEST FIRST, and swap them onto the bubble.
+  void _resolveImageBytes() {
+    final pending = state.messages
+        .where((m) =>
+            m.kind == MessageKind.image &&
+            m.photoBytes == null &&
+            (m.imageUrl ?? '').isNotEmpty &&
+            !_resolvingImageRefs.contains(m.imageUrl))
+        .toList(growable: false)
+        .reversed
+        .take(_maxResolvedImages)
+        .toList(growable: false);
+    for (final message in pending) {
+      final ref = message.imageUrl!;
+      _resolvingImageRefs.add(ref);
+      unawaited(_fetchImageInto(message.id, ref));
     }
   }
+
+  Future<void> _fetchImageInto(String messageId, String objectRef) async {
+    try {
+      final bytes = await _gateway.fetchImageBytes(objectRef);
+      if (isClosed || bytes.isEmpty) return;
+      final current = state.messages.firstWhere(
+        (m) => m.id == messageId,
+        orElse: () => _missing,
+      );
+      if (current.id != messageId) return;
+      _replaceMessage(
+        messageId,
+        DeliveryChatMessage.image(
+          id: current.id,
+          author: current.author,
+          sentAt: current.sentAt,
+          status: current.status,
+          url: objectRef,
+          caption: current.text,
+          bytes: bytes,
+        ),
+      );
+    } catch (_) {
+      // Leave the placeholder; a later poll tick retries after eviction.
+      _resolvingImageRefs.remove(objectRef);
+    }
+  }
+
+  static final DeliveryChatMessage _missing = DeliveryChatMessage.system(
+    id: '__missing__',
+    sentAt: DateTime.fromMillisecondsSinceEpoch(0),
+    text: '',
+  );
 
   Future<void> _dispatch(DeliveryChatMessage draft) async {
     try {
@@ -444,6 +571,7 @@ class ChatCubit extends Cubit<ChatState> {
           // merged list by server time so live and reloaded order agree.
           state.copyWith(messages: _ordered([...state.messages, m])),
         );
+        _resolveImageBytes();
       case DeliveryReceipt(messageId: final id):
         _promoteAtLeast(id, MessageStatus.delivered);
       case ReadReceipt(throughMessageId: final id):
@@ -489,6 +617,12 @@ class ChatCubit extends Cubit<ChatState> {
         return optimistic.voiceDurationMs == echo.voiceDurationMs;
       case MessageKind.photo:
       case MessageKind.image:
+        // P4/P5: key on the CDN ref when BOTH sides have one — two different
+        // images with empty captions used to compare equal and collapse onto
+        // a single bubble.
+        final mine = optimistic.imageUrl ?? '';
+        final theirs = echo.imageUrl ?? '';
+        if (mine.isNotEmpty && theirs.isNotEmpty) return mine == theirs;
         return optimistic.text == echo.text;
       case MessageKind.location:
         return optimistic.latitude == echo.latitude &&
@@ -603,6 +737,15 @@ class ChatCubit extends Cubit<ChatState> {
         return ChatError.pickUnavailable;
     }
   }
+
+  /// P4/P5 hard ceiling for an in-chat attachment. The gateway's streaming
+  /// upload proxy rejects >15 MB (`CdnUploadProxyController.MaxUploadBytes`);
+  /// fail with an honest error a comfortable margin below that rather than
+  /// burning a slow upload for a 413.
+  static const int _maxAttachmentBytes = 10 * 1024 * 1024;
+
+  /// Newest-first cap on how many peer images we hold in memory at once.
+  static const int _maxResolvedImages = 20;
 
   static const Map<MessageStatus, int> _statusOrder = {
     MessageStatus.failed: -1,

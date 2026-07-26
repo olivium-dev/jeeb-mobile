@@ -13,14 +13,16 @@ import '../../domain/jeeber_delivery.dart';
 ///   - `mark_delivered_proof_photo` — proof-of-delivery photo capture (D3).
 ///   - optional Jeeber note.
 ///   - `mark_delivered_cash_note` — "customer confirms receipt + pays cash" (D11).
-///   - `mark_delivered_cta` — "Mark as delivered"; drives `AtDoor → Done` and
-///     the chain to `feedback-rate-delivery` (NOT OTP, D56).
+///   - `mark_delivered_cta` — "Complete Delivery"; P6/B1: it walks the forward
+///     ladder only as far as `AtDoor` and then raises the door OTP. It does
+///     NOT drive `AtDoor → Done` — the frozen SM opens that edge for
+///     `otp_verified` alone.
 ///
-/// iter6 close-tail: a phone-bearing delivery answers `AtDoor → Done` with
-/// **422 `otp_required`**. When [otpRequired] the panel swaps its "Complete
-/// Delivery" CTA for a door-OTP entry (`mark_delivered_otp_input`) +
-/// `mark_delivered_otp_submit` — the recipient gives the jeeber the code, the
-/// jeeber enters it, and the delivery completes to Done via the verify path.
+/// When [otpRequired] the panel swaps its "Complete Delivery" CTA for a
+/// door-OTP entry (`mark_delivered_otp_input`) + `mark_delivered_otp_submit` —
+/// the recipient gives the jeeber the code, the jeeber enters it, and the
+/// delivery completes to Done via the verify path, which then chains to
+/// `feedback-rate-delivery` (D56).
 ///
 /// Dumb widget: data in via constructor, events out via callbacks
 /// (40_GUARDRAILS_ARCH §1 — no `sl`/`context.go` here).

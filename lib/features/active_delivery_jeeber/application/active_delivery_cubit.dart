@@ -27,6 +27,7 @@ class ActiveDeliveryState extends Equatable {
     this.mode = ActiveDeliveryMode.loading,
     this.delivery,
     this.transitionError,
+    this.transitionErrorKind,
     this.errorMessage,
     this.proofPhotoStatus = ProofPhotoStatus.none,
     this.proofPhotoBytes,
@@ -42,6 +43,11 @@ class ActiveDeliveryState extends Equatable {
 
   /// One-shot snack error after a failed transition (reverted).
   final String? transitionError;
+
+  /// P6/B4: the TYPED failure behind [transitionError], so the screen can
+  /// render kind-specific localized copy instead of the cubit's English
+  /// literal. Cleared together with [transitionError] by `clearTransitionError`.
+  final ActiveDeliveryFailure? transitionErrorKind;
 
   /// Full-screen error message on load failure.
   final String? errorMessage;
@@ -86,6 +92,7 @@ class ActiveDeliveryState extends Equatable {
     ActiveDeliveryMode? mode,
     JeeberDelivery? delivery,
     String? transitionError,
+    ActiveDeliveryFailure? transitionErrorKind,
     bool clearTransitionError = false,
     String? errorMessage,
     bool clearError = false,
@@ -105,6 +112,9 @@ class ActiveDeliveryState extends Equatable {
       transitionError: clearTransitionError
           ? null
           : (transitionError ?? this.transitionError),
+      transitionErrorKind: clearTransitionError
+          ? null
+          : (transitionErrorKind ?? this.transitionErrorKind),
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       proofPhotoStatus: proofPhotoStatus ?? this.proofPhotoStatus,
       proofPhotoBytes: proofPhotoBytes ?? this.proofPhotoBytes,
@@ -121,6 +131,7 @@ class ActiveDeliveryState extends Equatable {
         mode,
         delivery,
         transitionError,
+        transitionErrorKind,
         errorMessage,
         proofPhotoStatus,
         proofPhotoBytes,
@@ -135,11 +146,13 @@ class ActiveDeliveryState extends Equatable {
 /// Drives the Jeeber active-delivery screen (T-MOB-031, extended by JM-051).
 ///
 /// Loads the delivery snapshot from [ActiveDeliveryRepository] and lets the
-/// Jeeber advance the early stages ([advanceStatus]) and finally mark the
-/// delivery as delivered ([markDelivered]) — which captures a proof photo (D3),
-/// transitions `AtDoor → Done` carrying the evidence URL, and emits
-/// `delivered: true` so the screen chains to the mandatory rating (JM-034/D56),
-/// never the OTP handover.
+/// Jeeber advance the early stages ([advanceStatus]) and finally complete the
+/// delivery ([markDelivered]) — which captures a proof photo (D3), walks the
+/// forward ladder up to **`AtDoor`** carrying the evidence URL, and then raises
+/// the door-OTP entry. P6/B1: the CTA does **not** drive `AtDoor → Done`; the
+/// frozen SM opens that door only for `otp_verified`, so [submitDoorOtp]
+/// completes the delivery and emits `delivered: true` so the screen chains to
+/// the mandatory rating (JM-034/D56).
 class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
   ActiveDeliveryCubit({
     required ActiveDeliveryRepository repository,
@@ -222,12 +235,18 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     }
   }
 
-  /// JEBV4-282: (re)arm the background poll. No-op once the delivery is terminal
-  /// (`Done`) — a completed row never changes again, so we stop hitting the
-  /// gateway (mirrors [LiveTrackingCubit]'s terminal-stop).
+  /// JEBV4-282: (re)arm the background poll. No-op once the delivery is
+  /// `Done`/`Cancelled`/`Expired` — such a row never changes again, so we stop
+  /// hitting the gateway. A `disputed` (`FailedNeedsEscalation`) row KEEPS
+  /// polling — an admin can still resolve it to Done (SM edge 12) or cancel it
+  /// (edge 13), and pre-fix the jeeber's screen stopped watching (P6/A2).
+  ///
+  /// The stop predicate is [JeeberDeliveryStatus.isPollTerminal], NOT
+  /// `isTerminal`: `isTerminal` includes `disputed`, so using it here would
+  /// re-break P6/A2. It also matches [_canPoll], which gates the same rows.
   void _armPoll() {
     final delivery = state.delivery;
-    if (delivery == null || delivery.status.isTerminal) {
+    if (delivery == null || delivery.status.isPollTerminal) {
       _poller.stop();
       return;
     }
@@ -236,7 +255,7 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
 
   void _schedulePoll() {
     final delivery = state.delivery;
-    if (delivery == null || delivery.status.isTerminal) {
+    if (delivery == null || delivery.status.isPollTerminal) {
       _poller.stop();
       return;
     }
@@ -250,17 +269,31 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
   Future<void> _poll() async {
     if (isClosed) return;
     if (!_canPoll(state)) return;
+    // P6/A4: while the door-OTP surface is up the poll is allowed to RUN but
+    // may only deliver a TERMINAL server verdict — anything else would clobber
+    // the OTP entry the jeeber is typing into.
+    final otpWindow = state.otpRequired || state.isVerifyingOtp;
     try {
       final fresh = await _repository.fetchDelivery(deliveryId);
       if (isClosed || !_canPoll(state)) return;
+      if (otpWindow && !fresh.status.isTerminal) return;
       // Preserve a proof photo captured locally this session that the backend
       // snapshot may not carry yet.
       final localProof = state.delivery?.proofPhotoUrl;
       final merged = (fresh.proofPhotoUrl == null && localProof != null)
           ? fresh.withProofPhoto(localProof)
           : fresh;
-      emit(state.copyWith(mode: ActiveDeliveryMode.ready, delivery: merged));
-      if (merged.status.isTerminal) {
+      emit(state.copyWith(
+        mode: ActiveDeliveryMode.ready,
+        delivery: merged,
+        // A terminal verdict read during the OTP window closes the OTP surface…
+        otpRequired: otpWindow && merged.status.isTerminal ? false : null,
+        isVerifyingOtp: otpWindow && merged.status.isTerminal ? false : null,
+        // …and a Done read chains to the mandatory rating exactly like the
+        // in-app verify would (JM-034/D56).
+        delivered: merged.status.isSuccessfulTerminal ? true : null,
+      ));
+      if (merged.status.isPollTerminal) {
         _poller.stop();
       }
       // JEBV4-269: a backend-driven status flip (customer/system advancing the
@@ -292,17 +325,19 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     }
   }
 
-  /// True when a silent poll may safely overwrite [delivery] with the backend
-  /// snapshot — i.e. we have a live, non-terminal row and no user-driven flow
-  /// (transition / proof upload / door OTP) is mid-flight.
+  /// True when a silent poll may RUN — i.e. we have a live (non-poll-terminal)
+  /// row and no user-driven write (transition / proof upload) is mid-flight.
+  ///
+  /// P6/A4: the door-OTP conditions moved out of here — they now govern which
+  /// poll RESULTS are ACCEPTED (see [_poll]), not whether the poll is
+  /// scheduled, so a delivery completed out-of-band while the jeeber stares at
+  /// the OTP entry still surfaces.
   bool _canPoll(ActiveDeliveryState s) {
     final delivery = s.delivery;
     return delivery != null &&
-        !delivery.status.isTerminal &&
+        !delivery.status.isPollTerminal &&
         !s.isTransitioning &&
-        !s.isUploadingProof &&
-        !s.otpRequired &&
-        !s.isVerifyingOtp;
+        !s.isUploadingProof;
   }
 
   /// JEBV4-282: force an immediate silent re-fetch + re-arm the poll. The screen
@@ -358,6 +393,7 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
         mode: ActiveDeliveryMode.ready,
         delivery: current,
         transitionError: _mapTransitionError(e),
+        transitionErrorKind: e.failure,
       ));
     }
   }
@@ -409,6 +445,7 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
       emit(state.copyWith(
         proofPhotoStatus: ProofPhotoStatus.failed,
         transitionError: _mapTransitionError(e),
+        transitionErrorKind: e.failure,
       ));
     }
   }
@@ -421,76 +458,102 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
         : state.copyWith(note: trimmed));
   }
 
-  /// Mark the delivery as delivered (JM-051 AC2).
+  /// Complete the delivery (JM-051 AC2, P6/B1).
   ///
-  /// Walks the remaining SM-1 forward steps from the current status to `Done`
-  /// (`InTransit → AtDoor → Done`, or just `AtDoor → Done`), stamping the proof
-  /// [evidenceUrl] on the terminal `AtDoor → Done` step (D3). On success emits
-  /// `delivered: true` so the screen routes to the mandatory rating — NOT the
-  /// OTP handover (D56). On any step failure the whole walk reverts.
+  /// Walks the remaining SM-1 forward steps up to — and only up to — `AtDoor`
+  /// (`Ordered → … → InTransit → AtDoor`), stamping the proof `evidenceUrl` on
+  /// the last walked step (D3). The final `AtDoor → Done` leg is NOT patched:
+  /// the frozen SM (`DeliverySm.cs:53-62`) opens that door only for
+  /// `otp_verified`, so the cubit raises the door-OTP entry and [submitDoorOtp]
+  /// completes the delivery — which is what emits `delivered: true` and chains
+  /// to the mandatory rating (D56).
   Future<void> markDelivered() async {
     final original = state.delivery;
     if (original == null) return;
     if (state.isTransitioning) return;
     if (original.status.isTerminal) return;
 
+    // Already at the door: nothing to patch. Straight to the OTP handover.
+    if (original.status == JeeberDeliveryStatus.atDoor) {
+      emit(state.copyWith(
+        mode: ActiveDeliveryMode.ready,
+        otpRequired: true,
+        clearTransitionError: true,
+        clearOtpError: true,
+      ));
+      _syncGpsUpload();
+      return;
+    }
+
     emit(state.copyWith(
       mode: ActiveDeliveryMode.transitioning,
-      delivery: _withStatus(original, JeeberDeliveryStatus.done),
+      delivery: _withStatus(original, JeeberDeliveryStatus.atDoor),
       clearTransitionError: true,
     ));
 
     var from = original.status;
+    // P6/B5: the display must never fall BELOW what the server already
+    // committed, so a failed step reverts to the last CONFIRMED status.
+    var lastConfirmed = original.status;
     try {
-      while (from != JeeberDeliveryStatus.done) {
+      while (from != JeeberDeliveryStatus.atDoor) {
         final to = from.next;
         if (to == null) break;
-        final isFinal = to == JeeberDeliveryStatus.done;
+        final isLastWalkedStep = to == JeeberDeliveryStatus.atDoor;
         final confirmed = await _repository.transition(
           deliveryId: deliveryId,
           from: from,
           to: to,
-          // Carry the proof evidence on the terminal step only.
-          evidenceUrl: isFinal ? original.proofPhotoUrl : null,
+          // The proof evidence rides the last step we actually patch.
+          evidenceUrl: isLastWalkedStep ? original.proofPhotoUrl : null,
         );
         _logTransition(from, confirmed);
+        lastConfirmed = confirmed;
         from = confirmed;
         // Guard against a server that refuses to advance (avoid an infinite
         // loop if `confirmed` echoes `from`).
         if (confirmed != to) break;
       }
+      final atDoor = from == JeeberDeliveryStatus.atDoor;
       emit(state.copyWith(
         mode: ActiveDeliveryMode.ready,
         delivery: _withStatus(original, from),
+        // Reached the door → hand over to the recipient OTP.
+        otpRequired: atDoor,
+        // Defensive: a server that already completed the row out-of-band.
         delivered: from == JeeberDeliveryStatus.done,
+        clearOtpError: true,
       ));
+      // FM-4: re-arm the poll from a full fresh interval after a user-driven
+      // write, so the optimistic emit above is never immediately overwritten.
       _schedulePoll();
-      // JEBV4-269: mark-delivered walks the row past InTransit (→ AtDoor → Done),
-      // so this stops the GPS upload — the jeeber has arrived and the customer
-      // no longer needs a live position.
+      // JEBV4-269: mark-delivered walks the row past InTransit (→ AtDoor), so
+      // this stops the GPS upload — the jeeber has arrived and the customer no
+      // longer needs a live position.
       _syncGpsUpload();
     } on ActiveDeliveryException catch (e) {
-      // iter6 close-tail: a phone-bearing delivery answers the terminal
-      // `AtDoor → Done` with 422 `otp_required`. Don't show "transition not
-      // allowed" — surface the door-OTP entry instead. The delivery is held at
-      // `AtDoor` (the last confirmed stage) so the recipient OTP can complete it.
+      // A phone-bearing delivery can answer an early step with `otp_required`
+      // too. Don't show "transition not allowed" — surface the door-OTP entry
+      // instead, held at the last stage the server confirmed.
       if (e.failure == ActiveDeliveryFailure.otpRequired) {
         emit(state.copyWith(
           mode: ActiveDeliveryMode.ready,
-          delivery: _withStatus(original, from),
+          delivery: _withStatus(original, lastConfirmed),
           otpRequired: true,
           clearTransitionError: true,
           clearOtpError: true,
         ));
-        // JEBV4-269: held at AtDoor awaiting the recipient OTP — past the
-        // en-route window, so the uploader stops here too.
+        // JEBV4-269: held awaiting the recipient OTP — past the en-route
+        // window, so the uploader stops here too.
         _syncGpsUpload();
         return;
       }
       emit(state.copyWith(
         mode: ActiveDeliveryMode.ready,
-        delivery: original,
+        // P6/B5: last CONFIRMED status, not `original`.
+        delivery: _withStatus(original, lastConfirmed),
         transitionError: _mapTransitionError(e),
+        transitionErrorKind: e.failure,
       ));
     }
   }
@@ -602,6 +665,11 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     if (e.failure == ActiveDeliveryFailure.invalidTransition) {
       return 'That transition is not allowed';
     }
+    // P6/B4: a 400 is the gateway's own body resolver refusing the request —
+    // a client-bug signature, never an SM verdict, so it must not read as one.
+    if (e.failure == ActiveDeliveryFailure.badRequest) {
+      return 'We couldn’t apply that update';
+    }
     if (e.failure == ActiveDeliveryFailure.network) {
       return 'No internet connection';
     }
@@ -620,6 +688,7 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
         return 'Delivery not found';
       case ActiveDeliveryFailure.otpRequired:
       case ActiveDeliveryFailure.invalidTransition:
+      case ActiveDeliveryFailure.badRequest:
       case ActiveDeliveryFailure.server:
         return 'Unable to verify the code';
     }

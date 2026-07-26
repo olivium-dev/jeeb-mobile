@@ -106,6 +106,17 @@ dependencies:
   # stay platform-free.
   image_picker: ^1.1.2
 
+  # P4/P5 (b01-20260725): Android 13+ SYSTEM Photo Picker opt-in
+  # (ACTION_PICK_IMAGES) — see the `useAndroidPhotoPicker` toggle in
+  # `injection_container.dart`. Without it the plugin falls back to the legacy
+  # Documents UI, which raises ActivityNotFoundException →
+  # PhotoPickFailure.unavailable on GMS-less / OEM images. This PINS a package
+  # that is ALREADY resolved transitively (image_picker_android) — it pulls in
+  # no new native module, and adds no manifest permission (ACTION_PICK_IMAGES
+  # needs none).
+  image_picker_android: ^0.8.13
+  image_picker_platform_interface: ^2.10.0
+
   # Internationalisation
   intl: ^0.20.2
 

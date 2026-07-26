@@ -15,6 +15,12 @@ enum WaitingFailure {
 
   /// Anything else (5xx, malformed body).
   unknown,
+
+  /// The gateway answered 200 but the payload violates the offer-wait contract
+  /// (e.g. a live pending row with no `offerDeadlineInSeconds`). Retrying cannot
+  /// help — the client stops polling and surfaces a backend-contract error, it
+  /// NEVER manufactures a countdown.
+  contractViolation,
 }
 
 /// Read contract for the pre-accept waiting screen.
@@ -25,8 +31,9 @@ abstract class WaitingRepository {
   /// Fetches the current pre-accept snapshot for [requestId].
   ///
   /// Sources (30_BACKLOG JM-026 · 42_GUARDRAILS_MOCK §1.2):
-  ///   GET /v1/requests/:requestId        → status + notifiedCount + deadline
-  ///   GET /v1/offers?requestId=:id       → offerCount (offers-arrived signal)
+  ///   GET /v1/requests/:requestId  → status + notifiedCount +
+  ///                                  offerDeadlineInSeconds
+  ///   GET /v1/offers?requestId=:id → offerCount (offers-arrived signal)
   ///
   /// Throws [WaitingException] on a hard failure so the cubit maps cleanly
   /// without peeking at the transport.
@@ -37,7 +44,8 @@ abstract class WaitingRepository {
   /// request row resolves, WITHOUT waiting on the offers read (JM-026 AC1).
   Future<WaitingRequest> fetchWaiting(String requestId);
 
-  /// Reads ONLY the request row (status + notifiedCount + deadline). The
+  /// Reads ONLY the request row (status + notifiedCount +
+  /// `offerDeadlineInSeconds`). The
   /// returned [WaitingRequest] carries `offerCount = 0` / `phase` derived from
   /// the row's own status alone — the offers signal is layered on separately
   /// via [fetchOfferCount]. This is the first leg of the cold load so the

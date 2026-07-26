@@ -201,6 +201,55 @@ void main() {
       expect(await countSignalsFor(acceptedNoId), 1);
     });
 
+    // ---- P2 (b01-20260725), plan change C4 -------------------------------
+    // `offer` and the expiry events used to arrive here inside the `delivery`
+    // bucket. Splitting them into their own categories MUST preserve the
+    // refresh signal, or the customer's Home/Replies surface stops re-pulling
+    // on a foreground new-offer push and falls back to the slow wall-clock
+    // poll. `dart analyze` is BLIND to this regression (the guard is an
+    // `if`, not an exhaustive switch) — these two tests are the only fence.
+
+    // B1
+    test('a foreground newOffer push carrying a requestId still signals a '
+        'status change (C4: the category split must not kill the re-pull)',
+        () async {
+      final newOffer = NotificationMessage(
+        id: 'p2-1',
+        category: NotificationCategory.newOffer,
+        title: 'New offer on your request',
+        body: 'Tap to review',
+        receivedAt: DateTime.utc(2026, 7, 25),
+        data: const {'requestId': 'req-9', 'offerId': 'off-1'},
+      );
+      expect(await countSignalsFor(newOffer), 1);
+    });
+
+    // B2
+    test('a foreground requestExpired push carrying a requestId signals a '
+        'status change', () async {
+      final expired = NotificationMessage(
+        id: 'p2-2',
+        category: NotificationCategory.requestExpired,
+        title: 'Still looking',
+        body: 'b',
+        receivedAt: DateTime.utc(2026, 7, 25),
+        data: const {'requestId': 'req-9'},
+      );
+      expect(await countSignalsFor(expired), 1);
+    });
+
+    // B3 — matches the existing id-less `delivery` rule (no id → no signal).
+    test('a newOffer push with NO id does NOT signal', () async {
+      final noId = NotificationMessage(
+        id: 'p2-3',
+        category: NotificationCategory.newOffer,
+        title: 'T',
+        body: 'B',
+        receivedAt: DateTime.utc(2026, 7, 25),
+      );
+      expect(await countSignalsFor(noId), 0);
+    });
+
     test('an unknown (other) push is a no-op: no signal, no crash', () async {
       final unknown = NotificationMessage(
         id: 's6',
@@ -287,5 +336,35 @@ void main() {
       );
       expect(events, isEmpty);
     });
+
+    // B6 (P2): the offer-LIFECYCLE bus is jeeber-side only (offer_accepted /
+    // offer_lost — a decision on a jeeber's OWN submitted offer). A customer's
+    // inbound new bid carries an `offerId` too, but it must never flip a
+    // jeeber's pending-offers row.
+    test('a newOffer push with an offerId does NOT signal the (jeeber-side) '
+        'offer-lifecycle bus', () async {
+      final events = await eventsFor(
+        offerMsg('o5', category: NotificationCategory.newOffer),
+      );
+      expect(events, isEmpty);
+    });
+  });
+
+  // B7 (P2): a new-offer push is customer-side inbox noise — it bumps the
+  // inbox total but must NOT touch the jeeber Dashboard-tab new-request badge.
+  test('a newOffer push increments the inbox total but not the new-request '
+      'badge', () async {
+    transport.emitForeground(NotificationMessage(
+      id: 'badge-1',
+      category: NotificationCategory.newOffer,
+      title: 'New offer on your request',
+      body: 'Tap to review',
+      receivedAt: DateTime.utc(2026, 7, 25),
+      data: const {'requestId': 'req-9', 'offerId': 'off-1'},
+    ));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(badge.state.unread, 1);
+    expect(badge.state.newRequests, 0);
   });
 }

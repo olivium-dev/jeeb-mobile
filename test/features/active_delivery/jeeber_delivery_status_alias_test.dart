@@ -100,6 +100,34 @@ void main() {
     });
   });
 
+  group('P6 — the AtDoor gate + the poll-terminal axis', () {
+    test('P6/B2: AtDoor has NO forward `next` — Done is OTP-only (SM edge 10)',
+        () {
+      expect(JeeberDeliveryStatus.atDoor.next, isNull);
+      // The rest of the ladder is unchanged.
+      expect(JeeberDeliveryStatus.ordered.next, JeeberDeliveryStatus.picked);
+      expect(JeeberDeliveryStatus.picked.next, JeeberDeliveryStatus.inTransit);
+      expect(JeeberDeliveryStatus.inTransit.next, JeeberDeliveryStatus.atDoor);
+      expect(JeeberDeliveryStatus.done.next, isNull);
+    });
+
+    test('P6/A2: disputed is NOT poll-terminal — admin can still resolve it',
+        () {
+      expect(JeeberDeliveryStatus.disputed.isTerminal, isTrue); // UI terminal
+      expect(
+        JeeberDeliveryStatus.disputed.isPollTerminal,
+        isFalse,
+      ); // but keep watching
+      for (final s in [
+        JeeberDeliveryStatus.done,
+        JeeberDeliveryStatus.cancelled,
+        JeeberDeliveryStatus.expired,
+      ]) {
+        expect(s.isPollTerminal, isTrue, reason: '$s must stop the poll');
+      }
+    });
+  });
+
   test('unknown tokens degrade to ordered (defensive parse)', () {
     expect(
       JeeberDeliveryStatusX.fromApi('garbage'),
