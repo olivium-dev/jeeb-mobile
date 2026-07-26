@@ -6,10 +6,24 @@ import 'package:dio/dio.dart';
 import '../../../core/network/mock_gateway_client.dart';
 import '../../client_offers/domain/offers_repository.dart' show OfferAcceptResult;
 import '../../otp_handover/domain/handover_code_store.dart';
+import '../domain/chat_delta_reader.dart';
 import '../domain/chat_gateway.dart';
 import '../domain/chat_socket.dart';
 import '../domain/delivery_chat_message.dart';
 import 'web_socket_chat_socket.dart';
+
+const _supportedMessageKinds = <String>{
+  'text',
+  'photo',
+  'voice',
+  'image',
+  'location',
+  'system',
+  'offer',
+  'offer_card',
+  'offer_accepted',
+  'offer_rejected',
+};
 
 /// Dio + Phoenix-channel backed [ChatGateway].
 ///
@@ -42,7 +56,7 @@ import 'web_socket_chat_socket.dart';
 /// The gateway is conversation-scoped: each instance owns one socket and
 /// expects every `loadHistory`/`send`/`subscribe` call to use the same
 /// conversation id. The cubit creates a fresh instance per chat thread.
-class DioChatGateway implements ChatGateway {
+class DioChatGateway implements ChatGateway, ChatDeltaReader {
   DioChatGateway({
     required Dio dio,
     required this.currentUserId,
@@ -109,24 +123,96 @@ class DioChatGateway implements ChatGateway {
     final response = await _dio.get<dynamic>(
       '/v1/conversations/$conversationId/messages',
     );
-    final data = response.data;
-    // Tolerate every envelope the gateway/mock can emit: a bare array, or a
-    // `{ items | messages | data: [...] }` wrapper.
+    return _decodeHistory(response.data).messages;
+  }
+
+  @override
+  Future<ChatHistoryBatch> loadHistorySince(
+    String conversationId,
+    String cursor,
+  ) async {
+    if (_isUnresolvedConversation(conversationId)) {
+      return ChatHistoryBatch.empty;
+    }
+    if (cursor.trim().isEmpty) {
+      throw ArgumentError.value(cursor, 'cursor', 'must not be blank');
+    }
+    final response = await _dio.get<dynamic>(
+      '/v1/conversations/$conversationId/messages/since/'
+      '${Uri.encodeComponent(cursor)}',
+    );
+    return _decodeHistory(response.data);
+  }
+
+  ChatHistoryBatch _decodeHistory(dynamic data) {
     final List<dynamic> items;
     if (data is List) {
       items = data;
     } else if (data is Map) {
-      items = (data['items'] as List?) ??
-          (data['messages'] as List?) ??
-          (data['data'] as List?) ??
-          const <dynamic>[];
+      final candidate = data['items'] ?? data['messages'] ?? data['data'];
+      if (candidate is! List) {
+        return const ChatHistoryBatch(
+          messages: <DeliveryChatMessage>[],
+          nextCursor: null,
+          malformedCount: 1,
+        );
+      }
+      items = candidate;
     } else {
-      items = const <dynamic>[];
+      return const ChatHistoryBatch(
+        messages: <DeliveryChatMessage>[],
+        nextCursor: null,
+        malformedCount: 1,
+      );
     }
-    return items
-        .whereType<Map<String, dynamic>>()
-        .map(_parseMessage)
-        .toList(growable: false);
+
+    final messages = <DeliveryChatMessage>[];
+    var malformedCount = 0;
+    String? finalRowCursor;
+    for (var index = 0; index < items.length; index++) {
+      final rawRow = items[index];
+      final isPhysicalFinalRow = index == items.length - 1;
+      if (rawRow is! Map<String, dynamic> || !_isValidHistoryRow(rawRow)) {
+        malformedCount++;
+        continue;
+      }
+      try {
+        final message = _parseMessage(rawRow);
+        messages.add(message);
+        if (isPhysicalFinalRow) finalRowCursor = message.id;
+      } catch (_) {
+        malformedCount++;
+      }
+    }
+    return ChatHistoryBatch(
+      messages: List<DeliveryChatMessage>.unmodifiable(messages),
+      nextCursor: finalRowCursor,
+      malformedCount: malformedCount,
+    );
+  }
+
+  bool _isValidHistoryRow(Map<String, dynamic> row) {
+    final id = row['message_id'] ?? row['id'];
+    if (id is! String || id.trim().isEmpty) return false;
+
+    final senderId = row['author_id'] ?? row['senderId'];
+    if (senderId is! String || senderId.trim().isEmpty) return false;
+
+    final rawTimestamp =
+        row['createdAt'] ??
+        row['created_at'] ??
+        row['sentAt'] ??
+        row['sent_at'];
+    if (rawTimestamp is! String) return false;
+    final timestamp = DateTime.tryParse(rawTimestamp);
+    if (timestamp == null || timestamp.year <= 1) return false;
+
+    final kind = row['kind'];
+    if (kind is! String || !_supportedMessageKinds.contains(kind)) return false;
+
+    final rawBody = row['body'] ?? row['payload'];
+    if (rawBody is! Map && rawBody is! String) return false;
+    return true;
   }
 
   @override
