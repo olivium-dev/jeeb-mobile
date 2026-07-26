@@ -188,9 +188,10 @@ class _JeeberHomeHost extends StatelessWidget {
   }
 
   /// Push-driven refetch bus off GetIt when registered; `null` under a bare
-  /// harness so the active-deliveries card falls back to its poll. The push
-  /// handler publishes on this bus on an `offer_accepted` / delivery-status
-  /// push (see PushNotificationHandler).
+  /// harness so the active-deliveries card falls back to its safety-net poll.
+  /// The push handler publishes reachable `offer_accepted` notifications on
+  /// this bus. Delivery-status notifications do not reach it; see
+  /// `JEBV4-NEW-P1-delivery-status-push-inert.md`.
   Stream<void>? _pushRefreshStream() {
     if (!sl.isRegistered<PushRefreshSignals>()) return null;
     return sl<PushRefreshSignals>().stream;
@@ -216,11 +217,10 @@ class _JeeberHomeHost extends StatelessWidget {
         BlocProvider<ActiveDeliveriesCubit>(
           create: (_) => ActiveDeliveriesCubit(
             repository: _resolveActiveDeliveriesRepository(),
-            // PUSH-UI-REACTION: re-pull the instant an `offer_accepted` /
-            // delivery-status push lands (the handler publishes on this bus) so
-            // the "Your active deliveries" card reacts to the push instead of
-            // waiting for the 10s poll. Null under a bare harness (no DI) → the
-            // cubit falls back to the poll, unchanged.
+            // Re-pull when a reachable `offer_accepted` notification lands.
+            // Delivery-status notifications do not reach this bus; see
+            // `JEBV4-NEW-P1-delivery-status-push-inert.md`. Null under a bare
+            // harness leaves the 60s safety-net poll in place.
             refreshSignals: _pushRefreshStream(),
           )..start(),
         ),
@@ -305,11 +305,16 @@ class _MaybeResumeRefetch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shellVisible = TabVisibility.maybeOf(context)?.isVisible ?? true;
-    if (!enabled) return child;
+    final activeDeliveriesGate = PollingVisibilityGate(
+      target: context.read<ActiveDeliveriesCubit>(),
+      isVisible: shellVisible,
+      child: child,
+    );
+    if (!enabled) return activeDeliveriesGate;
     return PollingVisibilityGate(
       target: context.read<RequestFeedCubit>(),
       isVisible: shellVisible,
-      child: FeedResumeRefetcher(child: child),
+      child: FeedResumeRefetcher(child: activeDeliveriesGate),
     );
   }
 }
