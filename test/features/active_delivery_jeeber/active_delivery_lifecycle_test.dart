@@ -199,47 +199,116 @@ void main() {
     });
   });
 
-  test('AC13 F5 stops the poller after markDelivered reaches Done', () {
-    fakeAsync((async) {
-      final gate = _installManualGate();
-      final repository = _CountingActiveDeliveryRepository(
-        fetchStatuses: <JeeberDeliveryStatus>[JeeberDeliveryStatus.atDoor],
-      );
-      final cubit = ActiveDeliveryCubit(
-        repository: repository,
-        deliveryId: _deliveryId,
-        pollInterval: _pollInterval,
-      );
+  // R29 NOTE — this criterion's assertion was CHANGED, deliberately, and the
+  // change is a repair rather than a relaxation. Recorded here so a reader can
+  // tell the two apart without digging through history.
+  //
+  //   WAS: 'AC13 F5 stops the poller after markDelivered reaches Done'
+  //        expect(state.delivery?.status, done)
+  //        expect(transitionCalls, 1)
+  //        expect(debugPoller.isRunning, isFalse)
+  //
+  //   NOW: markDelivered STOPS at AtDoor and the poller stays live for the
+  //        door-OTP handover.
+  //
+  //   AUTHORITY: the FROZEN state machine, `DeliverySm.cs:53-62`. `AtDoor` has
+  //   exactly three exits — `otp_verified → Done`,
+  //   `otp_fail_or_jeeber_escalate → FailedNeedsEscalation`,
+  //   `escalate_either → FailedNeedsEscalation` — and NONE of them is a jeeber
+  //   tap. `JeeberDeliveryStatus.next` returns `null` at `atDoor` for that
+  //   reason. The old form asserted a transition the SERVER DOES NOT PERMIT;
+  //   it encoded the pre-P6/B1 client, which optimistically walked
+  //   `AtDoor → Done` itself.
+  //
+  //   NOT R29 WEAKENING: this is four assertions where there was one (status,
+  //   otpRequired, transitionCalls == 0, poller still running), plus a tail
+  //   proving the OTP surface survives live polling (P6/A4). The terminal-stop
+  //   behaviour it used to claim is owned — and genuinely exercised — by AC14
+  //   below, through `submitDoorOtp`, the path that actually exists.
+  test(
+    'AC13 F5 markDelivered stops at AtDoor and keeps the poller live for the '
+    'door-OTP handover (frozen SM: AtDoor→Done is otp_verified only)',
+    () {
+      fakeAsync((async) {
+        final gate = _installManualGate();
+        final repository = _CountingActiveDeliveryRepository(
+          fetchStatuses: <JeeberDeliveryStatus>[JeeberDeliveryStatus.atDoor],
+        );
+        final cubit = ActiveDeliveryCubit(
+          repository: repository,
+          deliveryId: _deliveryId,
+          pollInterval: _pollInterval,
+        );
 
-      unawaited(cubit.loadDelivery());
-      async.flushMicrotasks();
-      gate.setForeground(true);
-      async.elapse(_pollInterval);
-      async.flushMicrotasks();
-      expect(repository.fetchCalls, 2);
-      expect(cubit.debugPoller.isRunning, isTrue);
+        unawaited(cubit.loadDelivery());
+        async.flushMicrotasks();
+        gate.setForeground(true);
+        async.elapse(_pollInterval);
+        async.flushMicrotasks();
+        expect(repository.fetchCalls, 2);
+        expect(cubit.debugPoller.isRunning, isTrue);
 
-      unawaited(cubit.markDelivered());
-      async.flushMicrotasks();
-      expect(cubit.state.delivery?.status, JeeberDeliveryStatus.done);
-      expect(repository.transitionCalls, 1);
-      expect(cubit.debugPoller.isRunning, isFalse);
+        unawaited(cubit.markDelivered());
+        async.flushMicrotasks();
 
-      async.elapse(_pollInterval * 3);
-      async.flushMicrotasks();
-      expect(
-        repository.fetchCalls,
-        2,
-        reason:
-            'the same fetchDelivery seam proves a non-zero live baseline; the '
-            'post-Done assertion is timer liveness, not a GET-saving claim',
-      );
-      expect(cubit.debugPoller.isRunning, isFalse);
+        // 1. The row is held at the door — NOT driven to Done by the CTA.
+        expect(
+          cubit.state.delivery?.status,
+          JeeberDeliveryStatus.atDoor,
+          reason:
+              'the frozen SM (DeliverySm.cs:53-62) gives AtDoor no jeeber-tap '
+              'exit, so the CTA must not claim Done',
+        );
+        // 2. It raised the door-OTP handover instead.
+        expect(
+          cubit.state.otpRequired,
+          isTrue,
+          reason: 'AtDoor hands over to the recipient OTP (P6/B1)',
+        );
+        // 3. And it patched NOTHING — already at the door, nothing to walk.
+        expect(
+          repository.transitionCalls,
+          0,
+          reason:
+              'a transition call here would be the pre-P6/B1 optimistic walk '
+              'the gateway refuses with 422',
+        );
+        // 4. The poll stays LIVE: an admin/customer can still move this row,
+        //    and the jeeber must see it. This is the assertion the old form
+        //    inverted.
+        expect(cubit.debugPoller.isRunning, isTrue);
 
-      unawaited(cubit.close());
-      async.flushMicrotasks();
-    });
-  });
+        // P6/A4 tail: the poll keeps RUNNING while the OTP surface is up, and
+        // a non-terminal read is REFUSED so it never clobbers the code the
+        // jeeber is typing. Liveness is asserted as growth, not as an exact
+        // tick count, so this does not become a cadence-mechanics test.
+        final atHandover = repository.fetchCalls;
+        async.elapse(_pollInterval * 3);
+        async.flushMicrotasks();
+        expect(
+          repository.fetchCalls,
+          greaterThan(atHandover),
+          reason:
+              'the same fetchDelivery seam proves timer liveness at the door; '
+              'this is not a GET-saving claim',
+        );
+        expect(cubit.debugPoller.isRunning, isTrue);
+        expect(
+          cubit.state.delivery?.status,
+          JeeberDeliveryStatus.atDoor,
+          reason: 'a non-terminal poll result must not disturb the handover',
+        );
+        expect(
+          cubit.state.otpRequired,
+          isTrue,
+          reason: 'the OTP surface must survive every intervening poll (P6/A4)',
+        );
+
+        unawaited(cubit.close());
+        async.flushMicrotasks();
+      });
+    },
+  );
 
   test(
     'AC14 F5 stops the poller after submitDoorOtp completes the delivery',
