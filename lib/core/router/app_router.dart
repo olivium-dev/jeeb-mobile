@@ -15,6 +15,7 @@ import '../session/account_status_gate.dart';
 import '../session/session_gate.dart';
 import '../session/session_state.dart';
 import '../session/profile_refresh_signals.dart';
+import 'app_route_observer.dart';
 import 'profile_unavailable_screen.dart';
 import 'root_aware_back_scope.dart';
 import '../../features/account_status/presentation/account_status_screen.dart';
@@ -567,8 +568,16 @@ class AppRouter {
       // `kObsCompiledIn` (a `const false` in a production build tree-shakes
       // `ObsNavObserver` out entirely) and, at runtime, every override is a
       // total no-op unless `Observability.instance.recording` is true.
+      //
+      // appRouteObserver (b02 fg-suppression): a PRODUCTION RouteObserver, not
+      // a diagnostic one. `ChatDetailScreen` subscribes to it so the push
+      // transport can tell "this chat thread is on screen right now" from
+      // "this chat screen happens to still be mounted under another route".
+      // Unlike `DiagNavObserver` it is NOT gated on `Diag.enabled`, because the
+      // suppression it feeds has to work in a release build.
       observers: [
         DiagNavObserver(),
+        newAppRouteObserver(),
         if (kObsCompiledIn) ObsNavObserver(),
       ],
       refreshListenable: _MergedRefreshListenable([

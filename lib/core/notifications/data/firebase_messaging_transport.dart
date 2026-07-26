@@ -8,6 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../diagnostics/diag.dart';
 import '../../observability/session_trace/session_trace.dart';
+import '../domain/active_chat_thread.dart';
+import '../domain/foreground_push_display.dart';
 import '../domain/local_push_inbox.dart';
 import '../domain/notification_message.dart';
 import 'shared_prefs_local_push_inbox.dart';
@@ -101,12 +103,20 @@ class FirebaseMessagingTransport implements PushTransport {
   FirebaseMessagingTransport({
     FirebaseMessaging? messaging,
     FlutterLocalNotificationsPlugin? localNotifications,
+    Set<String> Function()? openChatThreadIds,
   })  : _messaging = messaging ?? FirebaseMessaging.instance,
         _localNotifications =
-            localNotifications ?? FlutterLocalNotificationsPlugin();
+            localNotifications ?? FlutterLocalNotificationsPlugin(),
+        _openChatThreadIds =
+            openChatThreadIds ?? (() => ActiveChatThread.instance.openIds);
 
   final FirebaseMessaging _messaging;
   final FlutterLocalNotificationsPlugin _localNotifications;
+
+  /// The chat thread currently ON SCREEN, read at push time (never cached — the
+  /// user can walk in and out of a conversation between two pushes). Injectable
+  /// so a unit test can drive the suppression without a navigator.
+  final Set<String> Function() _openChatThreadIds;
 
   final _foreground = StreamController<NotificationMessage>.broadcast();
   final _opened = StreamController<NotificationMessage>.broadcast();
@@ -164,9 +174,31 @@ class FirebaseMessagingTransport implements PushTransport {
     if (message != null) _opened.add(message);
   }
 
+  /// Test seam for the `onMessage` listener registered in [initialize].
+  ///
+  /// [initialize] cannot run on the test VM (it touches three platform
+  /// channels), which is exactly how this listener stayed unexamined while it
+  /// called `show()` unconditionally. Exposing the handler lets the suppression
+  /// be proven on the VM; the Android `show()` branch itself is still
+  /// `Platform.isAndroid`-gated and therefore device-only.
+  @visibleForTesting
+  void debugHandleForeground(RemoteMessage message) =>
+      _handleForeground(message);
+
+  /// Test seam: ids of the messages that reached the render path (a suppressed
+  /// push never lands here, so an empty set is positive evidence of the early
+  /// return — and a non-empty one is the negative control).
+  @visibleForTesting
+  Set<String> get debugForegroundShownIds => _foregroundShown.keys.toSet();
+
   void _handleForeground(RemoteMessage message) {
     final domain = _toDomain(message);
+    // ALWAYS published, including for a suppressed push: this stream is what
+    // drives `PushNotificationHandler._maybeSignalStatusChange`, i.e. the
+    // refresh that is the entire point of a silent push. Dropping it here
+    // would turn the polling→push cutover into a cutover to nothing.
     _foreground.add(domain);
+    if (!_shouldShow(domain)) return;
     _foregroundShown[domain.id] = domain;
     // On Android the OS won't render foreground messages — surface a
     // local notification ourselves so the user still sees a heads-up.
@@ -195,6 +227,46 @@ class FirebaseMessagingTransport implements PushTransport {
         ObsNotificationRecorder.recordShown(domain);
       }
     }
+  }
+
+  /// Whether this foreground push may interrupt the user with a heads-up.
+  ///
+  /// The decision itself is a pure function ([shouldShowForegroundPush]); this
+  /// wrapper only supplies the on-screen-thread set and emits the diagnostic
+  /// line, so a device run can distinguish "the push never arrived" from "the
+  /// push arrived and was deliberately silenced" — two indistinguishable
+  /// symptoms that have burned this batch repeatedly.
+  ///
+  /// ## Divergence from the `fg ≡ bg` contract, stated explicitly
+  ///
+  /// `push_render_mapping.dart:7-13` declares foreground ≡ background. That
+  /// contract is about WHAT is rendered (title/body/dedup tag/deep link) and is
+  /// untouched — `PushRenderFields` is not modified and the two paths still map
+  /// identically. What now differs is WHETHER anything renders at all, and only
+  /// in the foreground:
+  ///
+  /// * silent: the service sends `notification=None`, so the background path
+  ///   already renders nothing. Suppressing here makes fg MATCH bg rather than
+  ///   diverge from it — today's unconditional `show()` is the divergence.
+  /// * open chat thread: fg suppresses, bg does not. This cannot be reconciled
+  ///   and is not a defect: "the thread is on screen" is only ever true in the
+  ///   foreground, and the background isolate could not honour it anyway (FCM
+  ///   renders the tray entry before Dart runs — same constraint recorded in
+  ///   `push_audience.dart:11-13`).
+  bool _shouldShow(NotificationMessage domain) {
+    final show = shouldShowForegroundPush(
+      category: domain.category,
+      data: domain.data,
+      openChatThreadIds: _openChatThreadIds(),
+    );
+    if (!show) {
+      Diag.event('push_headsup_suppressed', <String, Object?>{
+        'id': domain.id,
+        'category': domain.category.name,
+        'reason': isSilentPush(domain.data) ? 'silent' : 'chat_thread_open',
+      });
+    }
+    return show;
   }
 
   @override
@@ -288,6 +360,13 @@ const List<String> kNestedRoutingKeys = <String>[
   'request_id',
   'delivery_id',
   'order_id',
+  // Not a routing field — the transport-level silent switch
+  // ([kSilentPushKey]). It rides this list because it faces the exact same
+  // hazard: the gateway may bury it in the stringified `data` blob, and an
+  // unhoisted `silent` reads as "not silent" and buzzes the shade for a
+  // refresh-only push. Hoisting is gap-filling only, so a flat `silent` (the
+  // shape the push service actually emits today) is unaffected.
+  kSilentPushKey,
 ];
 
 /// Extracts [kNestedRoutingKeys] from a nested `data` field (single- OR

@@ -7,6 +7,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../diagnostics/diag.dart';
 import '../../observability/session_trace/session_trace.dart';
 import '../data/push_transport.dart';
+import '../domain/active_chat_thread.dart';
+import '../domain/foreground_push_display.dart';
 import '../domain/local_push_inbox.dart';
 import '../domain/notification_message.dart';
 import '../domain/push_audience.dart';
@@ -75,7 +77,10 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     OfferLifecycleSignals? offerLifecycleSignals,
     LocalPushInbox? localInbox,
     Set<String> Function()? localRoles,
-  })  : _transport = transport,
+    Set<String> Function()? openChatThreadIds,
+  })  : _openChatThreadIds =
+            openChatThreadIds ?? (() => ActiveChatThread.instance.openIds),
+        _transport = transport,
         _badgeCount = badgeCount,
         _historyLimit = historyLimit,
         _onToken = onToken,
@@ -108,6 +113,12 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
   /// `null` (not wired) or an empty result means "unknown" and the matcher
   /// fails OPEN — see `domain/push_audience.dart`.
   final Set<String> Function()? _localRoles;
+
+  /// b02 fg-suppression: the chat thread currently ON SCREEN. Used for exactly
+  /// one thing — deciding whether this push may raise the in-app banner. The
+  /// OS-shade half of the same decision lives in the transport; both call the
+  /// same pure [shouldShowForegroundPush] so they cannot drift.
+  final Set<String> Function() _openChatThreadIds;
   final _opensCtl = StreamController<NotificationMessage>.broadcast();
   final _seenIds = Queue<String>();
   // Bound the dedup set so a noisy server can't grow this without limit.
@@ -223,7 +234,24 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     // so the durable inbox row + badge survive an app kill BEFORE the jeeber
     // acts (the server inbox has no new_request source to re-pull it from).
     if (isNewRequest) _persistNewRequest(message);
-    emit(state.copyWith(banner: message, history: history));
+    // b02 fg-suppression: the OS shade is not the only way a foreground push
+    // interrupts the user — `PushBannerHost` (wired at `app/app.dart:606`)
+    // renders `state.banner` as an in-app overlay. Suppressing the shade entry
+    // while this still popped would satisfy the letter of "silent" and none of
+    // its intent, so the SAME pure predicate gates both.
+    //
+    // Deliberately narrow: only the banner is gated. `history`, the badge, the
+    // durable `new_request` inbox row and the refresh signals below all run
+    // exactly as before — a silent push exists to drive those, and the badge /
+    // G3 inbox semantics are owned by other lanes.
+    final showBanner = shouldShowForegroundPush(
+      category: message.category,
+      data: message.data,
+      openChatThreadIds: _openChatThreadIds(),
+    );
+    emit(showBanner
+        ? state.copyWith(banner: message, history: history)
+        : state.copyWith(history: history));
     _maybeSignalStatusChange(message);
     _maybeSignalOfferLifecycle(message);
   }
