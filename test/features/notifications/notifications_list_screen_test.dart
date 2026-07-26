@@ -275,18 +275,24 @@ void main() {
       expect(find.bySemanticsIdentifier(expectRootId), findsOneWidget);
     }
 
-    testWidgets('offer → shell (my-orders tab)', (tester) async {
+    testWidgets('AC-17b/AC-17c offer with null ref → shell without exception', (
+      tester,
+    ) async {
       await tapKind(tester, NotificationKind.offer, expectRootId: 'shell_root');
+      expect(tester.takeException(), isNull);
     });
 
-    testWidgets('FM1 offer with ref → offer-review', (tester) async {
-      await tapKind(
-        tester,
-        NotificationKind.offer,
-        ref: 'req-88',
-        expectRootId: 'offer_review_root_req-88',
-      );
-    });
+    testWidgets(
+      'AC-17a resolved offer ref → offer-review at /requests/{requestId}/offers',
+      (tester) async {
+        await tapKind(
+          tester,
+          NotificationKind.offer,
+          ref: 'req-88',
+          expectRootId: 'offer_review_root_req-88',
+        );
+      },
+    );
 
     testWidgets('low_balance → wallet-hub', (tester) async {
       await tapKind(
