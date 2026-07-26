@@ -1,19 +1,16 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/notifications/data/dio_notifications_repository.dart';
 import 'package:jeeb_mobile/features/notifications/domain/notifications_repository.dart';
 
-/// Gateway projection of the real notification-service row captured from MSI
-/// receiver `FM1-PROBE-b02-20260726` on 2026-07-26.
-///
-/// Source notification id, copy, and timestamp match the raw captured fixture in
-/// `JeebNotificationsProjectionTests.cs`. The wire stays a JSON string until
-/// [jsonDecode], so every case crosses the same serialization boundary as Dio.
-const _capturedProjectedWire = '''
-{"items":[{"id":"00468148-d722-445a-97a1-4e39b87dafb3","type":"jeeb.offer_received","title":"probe3","body":"FM-1 probe3 - safe to delete","ts":"2026-07-26T00:00:00.0000000","read":false}],"page":1,"pageSize":20,"totalCount":3,"totalPages":1}
-''';
+/// These gateway-projection wires are explicitly constructed literal fixtures:
+/// FM-1 cannot deploy its gateway branch to capture that boundary. The source
+/// notification-service response is separately committed as a captured fixture.
+String _fixture(String name) =>
+    File('test/features/notifications/fixtures/fm1/$name').readAsStringSync();
 
 Dio _dioRespondingWithWire(String wire) {
   final dio = Dio(BaseOptions(baseUrl: 'http://127.0.0.1'));
@@ -42,55 +39,51 @@ Future<NotificationItem> _parseSingle(String wire) async {
   return items.single;
 }
 
-String _withField(String fieldJson) => _capturedProjectedWire.replaceFirst(
-  '"read":false',
-  '"read":false,$fieldJson',
-);
-
 void main() {
   test(
-    'FM1 R19 captured wire rejects degenerate ref and type shapes',
+    'FM1 R19 constructed gateway wire rejects degenerate ref and type shapes',
     () async {
-      final missingRef = await _parseSingle(_capturedProjectedWire);
+      final missingRef = await _parseSingle(
+        _fixture('constructed-projected-offer-no-ref.json'),
+      );
       expect(missingRef.ref, isNull);
       expect(missingRef.kind, NotificationKind.offer);
 
-      final emptyRef = await _parseSingle(_withField('"ref":""'));
+      final emptyRef = await _parseSingle(
+        _fixture('constructed-projected-offer-empty-ref.json'),
+      );
       expect(emptyRef.ref, isNull);
 
-      final huskedRef = await _parseSingle(_withField('"ref":{"valueKind":1}'));
+      final huskedRef = await _parseSingle(
+        _fixture('constructed-projected-offer-husk-ref.json'),
+      );
       expect(huskedRef.ref, isNull);
 
       final unknownType = await _parseSingle(
-        _capturedProjectedWire.replaceFirst(
-          '"type":"jeeb.offer_received",',
-          '"type":"future_notification",',
-        ),
+        _fixture('constructed-projected-unknown-type.json'),
       );
       expect(unknownType.kind, NotificationKind.unknown);
 
       final absentType = await _parseSingle(
-        _capturedProjectedWire.replaceFirst(
-          '"type":"jeeb.offer_received",',
-          '',
-        ),
+        _fixture('constructed-projected-absent-type.json'),
       );
       expect(absentType.kind, NotificationKind.unknown);
     },
   );
 
-  test('FM1 captured wire accepts offer and order ref aliases', () async {
-    const aliases = <String, String>{
-      'offerId': 'offer-camel',
-      'offer_id': 'offer-snake',
-      'orderId': 'order-camel',
-    };
+  test(
+    'FM1 constructed gateway wire accepts offer and order ref aliases',
+    () async {
+      const aliases = <String, String>{
+        'constructed-projected-offer-id-camel.json': 'offer-camel',
+        'constructed-projected-offer-id-snake.json': 'offer-snake',
+        'constructed-projected-order-id-camel.json': 'order-camel',
+      };
 
-    for (final entry in aliases.entries) {
-      final item = await _parseSingle(
-        _withField('"${entry.key}":"${entry.value}"'),
-      );
-      expect(item.ref, entry.value);
-    }
-  });
+      for (final entry in aliases.entries) {
+        final item = await _parseSingle(_fixture(entry.key));
+        expect(item.ref, entry.value);
+      }
+    },
+  );
 }
