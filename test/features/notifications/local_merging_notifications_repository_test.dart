@@ -119,7 +119,7 @@ void main() {
   );
 
   test(
-    'server error with local rows present → returns local (resilient)',
+    'AC-15 server error with local rows present → returns local (resilient)',
     () async {
       final repo = LocalMergingNotificationsRepository(
         remote: _StubRemote(error: NotificationsFailure.network),
@@ -131,7 +131,7 @@ void main() {
   );
 
   test(
-    'server error with NO local rows → rethrows (preserves error state)',
+    'AC-15 server error with NO local rows → rethrows (preserves error state)',
     () async {
       final repo = LocalMergingNotificationsRepository(
         remote: _StubRemote(error: NotificationsFailure.network),
