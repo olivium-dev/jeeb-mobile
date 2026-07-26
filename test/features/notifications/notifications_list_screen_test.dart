@@ -189,7 +189,7 @@ void main() {
 
       await pump(
         tester,
-        _ScriptedRepository([
+        _ScriptedRepository(const [
           NotificationItem(
             id: 'rtl-offer',
             kind: NotificationKind.offer,

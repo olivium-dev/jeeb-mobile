@@ -317,6 +317,11 @@ void main() {
         final gate = _installManualGate();
         final repository = _CountingActiveDeliveryRepository(
           fetchStatuses: <JeeberDeliveryStatus>[JeeberDeliveryStatus.atDoor],
+          // Stated explicitly: `otp_verified → Done` is the ONLY edge the
+          // frozen SM (DeliverySm.cs:53-62) opens out of AtDoor, and this test
+          // owns that terminal-stop assertion now that AC13 correctly stops at
+          // the door.
+          verifyOtpResult: JeeberDeliveryStatus.done,
         );
         final cubit = ActiveDeliveryCubit(
           repository: repository,
