@@ -11,6 +11,8 @@ import '../domain/chat_gateway.dart';
 import '../domain/delivery_chat_message.dart';
 import 'chat_state.dart';
 
+const kChatHistorySafetyNetPollInterval = Duration(seconds: 60);
+
 /// Drives the 1:1 chat between the local user and the delivery counterpart.
 ///
 /// Optimistic UI: every outgoing message lands in the list immediately as
@@ -30,7 +32,7 @@ class ChatCubit extends Cubit<ChatState> {
     PhotoCompressor compressor = const HalvingPhotoCompressor(),
     DateTime Function() clock = _defaultClock,
     String? initialDeliveryId,
-    Duration pollInterval = const Duration(seconds: 5),
+    Duration pollInterval = kChatHistorySafetyNetPollInterval,
   }) : _deliveryId = deliveryId,
        _gateway = gateway,
        _pickerService = pickerService,
