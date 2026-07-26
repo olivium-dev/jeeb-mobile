@@ -107,6 +107,22 @@ void main() {
     },
   );
 
+  test('P0 regression: the real 7-field gateway shape carries NO timestamp and '
+      'its message RENDERS', () async {
+    final batch = await _read(r'''
+          {"messages":[{"message_id":"srv-1","kind":"text","subtype":null,
+                        "author_id":"peer-user","audience":"all","payload":null,
+                        "body":"C4_customer_hello"}]}
+        ''', currentUserId: 'customer-user');
+
+    expect(batch.messages.length, 1);
+    expect(batch.messages.single.text, 'C4_customer_hello');
+    expect(batch.malformedCount, isZero);
+    expect(batch.messages.single.id, 'srv-1');
+    expect(batch.messages.single.isMine, isFalse);
+    expect(batch.nextCursor, 'srv-1');
+  });
+
   test('D-a absent or blank message_id is rejected and counted', () async {
     for (final raw in <String>[
       r'''
@@ -144,8 +160,8 @@ void main() {
     _expectOneMalformed(batch);
   });
 
-  test('D-c absent author_id with empty currentUserId is rejected before every '
-      'row can become isMine', () async {
+  test('D-c absent author_id is tolerated, retained, and not isMine for a '
+      'non-empty currentUserId', () async {
     final batch = await _read(r'''
           [{
             "message_id": "srv-1",
@@ -153,12 +169,17 @@ void main() {
             "kind": "text",
             "body": "missing author"
           }]
-        ''', currentUserId: '');
-    _expectOneMalformed(batch);
+        ''', currentUserId: 'user-me');
+
+    expect(batch.messages, hasLength(1));
+    expect(batch.messages.single.text, 'missing author');
+    expect(batch.messages.single.isMine, isFalse);
+    expect(batch.malformedCount, isZero);
   });
 
   test(
-    'D-d absence of all four timestamp aliases is rejected and counted',
+    'D-d absence of all four timestamp aliases is retained and uses the clock '
+    'fallback',
     () async {
       final batch = await _read(r'''
           [{
@@ -168,11 +189,15 @@ void main() {
             "body": "missing timestamp"
           }]
         ''');
-      _expectOneMalformed(batch);
+
+      expect(batch.messages, hasLength(1));
+      expect(batch.messages.single.text, 'missing timestamp');
+      expect(batch.messages.single.sentAt, isNotNull);
+      expect(batch.malformedCount, isZero);
     },
   );
 
-  test('D-e the 0001-01-01 timestamp husk is rejected and counted', () async {
+  test('D-e the 0001-01-01 timestamp husk is retained and renders', () async {
     final batch = await _read(r'''
         [{
           "message_id": "srv-1",
@@ -182,10 +207,13 @@ void main() {
           "body": "ancient timestamp"
         }]
       ''');
-    _expectOneMalformed(batch);
+
+    expect(batch.messages, hasLength(1));
+    expect(batch.messages.single.text, 'ancient timestamp');
+    expect(batch.malformedCount, isZero);
   });
 
-  test('D-f an unknown message kind is rejected and counted', () async {
+  test('D-f an unknown message kind is retained and renders as text', () async {
     final batch = await _read(r'''
         [{
           "message_id": "srv-1",
@@ -195,10 +223,14 @@ void main() {
           "body": "unknown kind"
         }]
       ''');
-    _expectOneMalformed(batch);
+
+    expect(batch.messages, hasLength(1));
+    expect(batch.messages.single.isText, isTrue);
+    expect(batch.messages.single.text, 'unknown kind');
+    expect(batch.malformedCount, isZero);
   });
 
-  test('D-g body arrays and numbers are rejected and counted', () async {
+  test('D-g body arrays and numbers are retained with an empty body', () async {
     for (final raw in <String>[
       r'''
         [{
@@ -219,7 +251,12 @@ void main() {
         }]
       ''',
     ]) {
-      _expectOneMalformed(await _read(raw));
+      final batch = await _read(raw);
+
+      expect(batch.messages, hasLength(1));
+      expect(batch.messages.single.isText, isTrue);
+      expect(batch.messages.single.text, isEmpty);
+      expect(batch.malformedCount, isZero);
     }
   });
 

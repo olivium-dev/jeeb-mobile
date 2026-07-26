@@ -12,18 +12,6 @@ import '../domain/chat_socket.dart';
 import '../domain/delivery_chat_message.dart';
 import 'web_socket_chat_socket.dart';
 
-const _supportedMessageKinds = <String>{
-  'text',
-  'photo',
-  'voice',
-  'image',
-  'location',
-  'system',
-  'offer',
-  'offer_card',
-  'offer_accepted',
-  'offer_rejected',
-};
 
 /// Dio + Phoenix-channel backed [ChatGateway].
 ///
@@ -172,14 +160,18 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
     for (var index = 0; index < items.length; index++) {
       final rawRow = items[index];
       final isPhysicalFinalRow = index == items.length - 1;
-      if (rawRow is! Map<String, dynamic> || !_isValidHistoryRow(rawRow)) {
+      if (rawRow is! Map<String, dynamic> || !_isParsableHistoryRow(rawRow)) {
         malformedCount++;
         continue;
       }
       try {
         final message = _parseMessage(rawRow);
         messages.add(message);
-        if (isPhysicalFinalRow) finalRowCursor = message.id;
+        // Only a NON-EMPTY id may become the cursor: a blank one is rejected by
+        // `loadHistorySince` and would strand the delta on a full re-read.
+        if (isPhysicalFinalRow && message.id.trim().isNotEmpty) {
+          finalRowCursor = message.id;
+        }
       } catch (_) {
         malformedCount++;
       }
@@ -191,27 +183,51 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
     );
   }
 
-  bool _isValidHistoryRow(Map<String, dynamic> row) {
+  /// Whether [row] can be parsed at all.
+  ///
+  /// P0 REGRESSION FIX. This gate previously required a non-empty `author_id`,
+  /// a parsable timestamp, and a known `kind`, and [_decodeHistory] DROPPED any
+  /// row that failed. That silently discarded **every** message the gateway
+  /// returns, in both directions, because the gateway's wire shape carries no
+  /// timestamp at all: `JeebMessageResponse`
+  /// (`JeebConversationContracts.cs:181-223`) declares exactly seven fields —
+  /// `message_id`, `kind`, `subtype`, `author_id`, `audience`, `payload`,
+  /// `body`. So `rawTimestamp` was always `null`, always `is! String`, and
+  /// every row was counted malformed and dropped while the thread rendered
+  /// "Start the conversation…".
+  ///
+  /// The pre-existing path (`93c8194`) had **no** gate — it mapped every
+  /// `Map<String, dynamic>` row through [_parseMessage], which tolerates all
+  /// three of those absences by design (`sentAt` falls back to
+  /// [DateTime.now], `senderId` to `''`, `kind` via [MessageKind.fromWire]).
+  /// A hardening gate is a behaviour change: "reject malformed input" is only
+  /// safe when you know what well-formed input actually looks like on the wire.
+  ///
+  /// So this now rejects ONLY what [_parseMessage] genuinely cannot survive —
+  /// a present-but-wrong-typed field, whose `as String?` cast throws. Absence
+  /// is tolerated and the message still renders. Rows that ARE dropped are
+  /// still counted in [ChatHistoryBatch.malformedCount].
+  bool _isParsableHistoryRow(Map<String, dynamic> row) {
+    // A row must carry SOME usable identity: the id is what inbound dedup
+    // (`chat_cubit._mergeInbound`) and cursor derivation key on.
     final id = row['message_id'] ?? row['id'];
     if (id is! String || id.trim().isEmpty) return false;
 
+    // Every remaining field may be ABSENT (null) — that is the normal gateway
+    // shape. It may not be present with a type whose cast would throw.
     final senderId = row['author_id'] ?? row['senderId'];
-    if (senderId is! String || senderId.trim().isEmpty) return false;
+    if (senderId != null && senderId is! String) return false;
 
     final rawTimestamp =
         row['createdAt'] ??
         row['created_at'] ??
         row['sentAt'] ??
         row['sent_at'];
-    if (rawTimestamp is! String) return false;
-    final timestamp = DateTime.tryParse(rawTimestamp);
-    if (timestamp == null || timestamp.year <= 1) return false;
+    if (rawTimestamp != null && rawTimestamp is! String) return false;
 
     final kind = row['kind'];
-    if (kind is! String || !_supportedMessageKinds.contains(kind)) return false;
+    if (kind != null && kind is! String) return false;
 
-    final rawBody = row['body'] ?? row['payload'];
-    if (rawBody is! Map && rawBody is! String) return false;
     return true;
   }
 
