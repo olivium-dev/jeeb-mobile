@@ -289,6 +289,12 @@ class DeliveryChatMessage extends Equatable {
     required MessageStatus status,
     required String url,
     String caption = '',
+
+    /// P4/P5: locally-held bytes for this image, when available — the sender's
+    /// own just-captured frame (renders instantly, no round trip) or a peer
+    /// image already resolved through the CDN read proxy. Null → the bubble
+    /// falls back to [url].
+    Uint8List? bytes,
   }) => DeliveryChatMessage._(
         id: id,
         author: author,
@@ -297,6 +303,7 @@ class DeliveryChatMessage extends Equatable {
         kind: MessageKind.image,
         text: caption,
         imageUrl: url,
+        photoBytes: bytes,
       );
 
   factory DeliveryChatMessage.voice({

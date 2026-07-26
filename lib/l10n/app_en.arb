@@ -2676,6 +2676,22 @@
   "@trackingCancelledHomeCta": {
     "description": "CTA on the cancelled-delivery tracking terminal state; routes to the role-aware home."
   },
+  "trackingExpiredTitle": "Delivery expired",
+  "@trackingExpiredTitle": {
+    "description": "P6/A3: title of the terminal state on the order-tracking screen when the request expired before it could be completed."
+  },
+  "trackingExpiredBody": "This delivery expired before it could be completed. You can create a new request any time.",
+  "@trackingExpiredBody": {
+    "description": "P6/A3: body of the expired terminal state on the order-tracking screen — distinct from cancelled (different fee/strike semantics)."
+  },
+  "trackingUnderReviewTitle": "Delivery under review",
+  "@trackingUnderReviewTitle": {
+    "description": "P6/A1: title shown on the order-tracking screen while an escalated (FailedNeedsEscalation) delivery is parked with support."
+  },
+  "trackingUnderReviewBody": "Support is looking into this delivery. This screen updates automatically as soon as it’s resolved.",
+  "@trackingUnderReviewBody": {
+    "description": "P6/A1: body of the under-review state on the order-tracking screen; the screen keeps polling because an admin can still resolve or cancel the row."
+  },
   "appBarSignOut": "Sign out",
   "availabilityHomeTitle": "Jeeber Home",
   "availabilityInactivityWarningBody": "You'll be taken offline in about 30 minutes if you stay idle. Tap below to keep receiving requests.",
@@ -2690,6 +2706,7 @@
   "chatAttachmentCamera": "Camera",
   "chatAttachmentCancel": "Cancel",
   "chatAttachmentGallery": "Gallery",
+  "chatAttachmentSheetSubtitle": "Take a new photo or pick one from your gallery.",
   "chatAttachmentSheetTitle": "Add a photo",
   "chatComposerHint": "Type a message",
   "chatComposerHintPriceTime": "Price / time",
@@ -2754,6 +2771,7 @@
   },
   "chatEmptyThreadSubtitle": "Start the conversation by sending a message or photo.",
   "chatEmptyThreadTitle": "Say hello",
+  "chatErrorAttachmentUploadFailed": "Couldn't upload that photo. Check your connection and try again.",
   "chatErrorPermissionDenied": "We need camera or gallery permission to attach a photo. Enable it from system settings.",
   "chatErrorPickUnavailable": "We couldn't open the camera or gallery. Try again.",
   "chatErrorSendFailed": "Message didn't send. Tap the bubble to retry.",
@@ -3991,6 +4009,26 @@
   "@activeDeliveryLoadError": {
     "description": "T-MOB-031: Error message shown when loading fails."
   },
+  "activeDeliveryErrorInvalidTransition": "That step isn’t available yet. Pull to refresh and try again.",
+  "@activeDeliveryErrorInvalidTransition": {
+    "description": "P6/B4: snackbar shown when the gateway rejects a status transition as not allowed by the state machine."
+  },
+  "activeDeliveryErrorBadRequest": "We couldn’t apply that update. Try again, or contact support if it keeps happening.",
+  "@activeDeliveryErrorBadRequest": {
+    "description": "P6/B4: snackbar shown when the gateway answers a status update with HTTP 400 — a client-bug signature, not a state-machine verdict."
+  },
+  "activeDeliveryErrorNetwork": "No internet connection",
+  "@activeDeliveryErrorNetwork": {
+    "description": "P6/B4: snackbar shown when a status update fails because the device is offline."
+  },
+  "activeDeliveryErrorOtpNeeded": "Enter the delivery code from the recipient to complete",
+  "@activeDeliveryErrorOtpNeeded": {
+    "description": "P6/B4: snackbar shown when a status update is refused because the handover OTP must be verified first."
+  },
+  "activeDeliveryErrorGeneric": "Unable to update status",
+  "@activeDeliveryErrorGeneric": {
+    "description": "P6/B4: fallback snackbar for an unclassified status-update failure."
+  },
   "activeDeliveryStepperA11y": "Current status: {current}. Next: {next}",
   "@activeDeliveryStepperA11y": {
     "description": "T-MOB-031 AC5: Stepper accessibility label.",
@@ -4261,6 +4299,8 @@
   "@orderChatViewSummaryLink": { "description": "Order-chat pinned strip link (order_chat_view_summary_link) → order-summary-pinned (JM-031). Cycle-2 L1: replaces the reused orderSummaryTitle that duplicated 'Order summary' on the strip." },
   "orderChatPayCashOnDelivery": "Pay cash on delivery",
   "@orderChatPayCashOnDelivery": { "description": "D11 cash-only reminder on the order-chat pinned strip (order_summary_cash_label). Cycle-2 L1: replaces the reused orderSummaryTrack ('Track order') that mislabeled the cash reminder." },
+  "orderChatRequestLabel": "Request",
+  "@orderChatRequestLabel": { "description": "P3 (b01-20260725): accessibility label for the initial-requirement row on the order-chat pinned strip (order_chat_request_description / order_summary_item) — the free text the customer typed at compose. Role-NEUTRAL on purpose: both the customer and the Jeeber see this row, so jeeberRequestDetailSectionDescription ('What the client says') would read wrong for the customer viewing their own chat." },
   "orderSummaryValuePending": "Pending",
   "@orderSummaryValuePending": { "description": "Placeholder for a locked summary figure (price/ETA/tier) that has not resolved yet — keeps the JM-031 order_summary_* chips assertable without repeating the screen title as filler." },
   "chatPartyJeeberFallback": "Your Jeeber",
@@ -4284,6 +4324,8 @@
   "@waitingTitle": { "description": "JM-026 waiting / no-coverage screen title (app bar)." },
   "waitingCountdownLabel": "{time} left to find a Jeeber",
   "@waitingCountdownLabel": { "description": "JM-026 broadcast countdown (waiting_countdown) — time is preformatted m:ss.", "placeholders": { "time": {} } },
+  "waitingCountdownPending": "Finding a Jeeber for you",
+  "@waitingCountdownPending": { "description": "P7 — waiting_countdown copy when the server says NO countdown applies to this row (no offerDeadlineInSeconds). Replaces rendering a fabricated 0:00." },
   "waitingNoCoverageTitle": "No offers yet",
   "@waitingNoCoverageTitle": { "description": "JM-026 softened no-offers-yet title (waiting_no_coverage_state) shown only once the broadcast window has elapsed with zero offers in. NOT gated on notifiedCount (BUG-4 / JM-026 false-no-coverage)." },
   "waitingNoCoverageBody": "Jeebers near you are still reviewing your request. Keep waiting, re-target, or cancel — it's free, nothing is charged.",
@@ -4298,6 +4340,8 @@
   "@waitingCancelCta": { "description": "JM-026 cancel CTA (waiting_cancel_cta) → cancel-request-confirm sheet (free pre-accept, D69)." },
   "waitingErrorBody": "We couldn't load your request status. Please try again.",
   "@waitingErrorBody": { "description": "JM-026 error-state body shown when the request snapshot fails to load." },
+  "waitingErrorContractBody": "Your request status came back in an unexpected format. This is a server problem, not your connection.",
+  "@waitingErrorContractBody": { "description": "P7 — waiting error-state body for WaitingFailure.contractViolation (the gateway answered 200 but omitted offerDeadlineInSeconds on a live row). Distinct from the network copy so a QA run reports a backend contract break, not a connection problem." },
 
   "cancelRequestFreeNote": "Cancelling is free before you accept an offer — nothing is charged.",
   "@cancelRequestFreeNote": { "description": "JM-030 cancel-request-confirm sheet body (cancel_request_free_note) — D69: pre-accept cancel is free. Added by JM-028 to unblock the shared cancel sheet it invokes; this key is the JM-030 engineer's to own." },

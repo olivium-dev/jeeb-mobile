@@ -1331,6 +1331,14 @@ class AppLocalizations {
   String get deliveryCancelledBanner => _get('deliveryCancelledBanner');
   String get trackingCancelledBody => _get('trackingCancelledBody');
   String get trackingCancelledHomeCta => _get('trackingCancelledHomeCta');
+
+  // P6/A3 + P6/A1: `expired` and `FailedNeedsEscalation` no longer collapse
+  // into the cancelled body — cancel/expire carry different fee + strike
+  // semantics, and an escalated row is still LIVE (admin can resolve it).
+  String get trackingExpiredTitle => _get('trackingExpiredTitle');
+  String get trackingExpiredBody => _get('trackingExpiredBody');
+  String get trackingUnderReviewTitle => _get('trackingUnderReviewTitle');
+  String get trackingUnderReviewBody => _get('trackingUnderReviewBody');
 }
 
 class _AppLocalizationsDelegate
@@ -1417,6 +1425,10 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get chatAttachmentCamera => _get('chatAttachmentCamera');
   String get chatAttachmentCancel => _get('chatAttachmentCancel');
   String get chatAttachmentGallery => _get('chatAttachmentGallery');
+  /// P5: sheet subtitle — OMDS's static `show()` helper drops it, so the
+  /// composer mounts `OmdsMediaPickerSheet` directly to pass it through.
+  String get chatAttachmentSheetSubtitle =>
+      _get('chatAttachmentSheetSubtitle');
   String get chatAttachmentSheetTitle => _get('chatAttachmentSheetTitle');
   String get chatComposerHint => _get('chatComposerHint');
   String get chatComposerHintPriceTime => _get('chatComposerHintPriceTime');
@@ -1439,6 +1451,9 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('confirmDeliveryActionIllustrationA11y');
   String get chatEmptyThreadSubtitle => _get('chatEmptyThreadSubtitle');
   String get chatEmptyThreadTitle => _get('chatEmptyThreadTitle');
+  /// P4/P5: the in-chat image attachment failed to reach the CDN.
+  String get chatErrorAttachmentUploadFailed =>
+      _get('chatErrorAttachmentUploadFailed');
   String get chatErrorPermissionDenied => _get('chatErrorPermissionDenied');
   String get chatErrorPickUnavailable => _get('chatErrorPickUnavailable');
   String get chatErrorSendFailed => _get('chatErrorSendFailed');
@@ -2136,6 +2151,17 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('activeDeliveryEnterGoodsCostButton');
   String get activeDeliveryUnavailable => _get('activeDeliveryUnavailable');
   String get activeDeliveryLoadError => _get('activeDeliveryLoadError');
+
+  // P6/B4: kind-specific transition-failure copy. One message for three
+  // different failures was ranked cause #3 of the 2026-07-25 incident.
+  String get activeDeliveryErrorInvalidTransition =>
+      _get('activeDeliveryErrorInvalidTransition');
+  String get activeDeliveryErrorBadRequest =>
+      _get('activeDeliveryErrorBadRequest');
+  String get activeDeliveryErrorNetwork => _get('activeDeliveryErrorNetwork');
+  String get activeDeliveryErrorOtpNeeded =>
+      _get('activeDeliveryErrorOtpNeeded');
+  String get activeDeliveryErrorGeneric => _get('activeDeliveryErrorGeneric');
   String activeDeliveryStepperA11y(String current, String next) => _get(
     'activeDeliveryStepperA11y',
   ).replaceFirst('{current}', current).replaceFirst('{next}', next);
@@ -2258,6 +2284,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get orderSummaryTrack => _get('orderSummaryTrack');
   String get orderChatViewSummaryLink => _get('orderChatViewSummaryLink');
   String get orderChatPayCashOnDelivery => _get('orderChatPayCashOnDelivery');
+  String get orderChatRequestLabel => _get('orderChatRequestLabel');
   String get orderSummaryValuePending => _get('orderSummaryValuePending');
   String get chatPartyJeeberFallback => _get('chatPartyJeeberFallback');
   String get chatPartyCustomerFallback => _get('chatPartyCustomerFallback');
@@ -2270,6 +2297,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get waitingTitle => _get('waitingTitle');
   String waitingCountdownLabel(String time) =>
       _get('waitingCountdownLabel').replaceFirst('{time}', time);
+  String get waitingCountdownPending => _get('waitingCountdownPending');
   String get waitingNoCoverageTitle => _get('waitingNoCoverageTitle');
   String get waitingNoCoverageBody => _get('waitingNoCoverageBody');
   String get waitingReachingOutLabel => _get('waitingReachingOutLabel');
@@ -2277,6 +2305,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get waitingRetargetCta => _get('waitingRetargetCta');
   String get waitingCancelCta => _get('waitingCancelCta');
   String get waitingErrorBody => _get('waitingErrorBody');
+  String get waitingErrorContractBody => _get('waitingErrorContractBody');
 
   // JM-033 — Confirm Receipt (Customer), delivered-receipt-confirm (D11, D3)
   String get receiptTitle => _get('receiptTitle');

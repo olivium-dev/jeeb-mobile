@@ -81,12 +81,30 @@ class _ChatComposerState extends State<ChatComposer> {
 
   Future<void> _openAttachmentSheet() async {
     final l10n = AppLocalizations.of(context);
-    final choice = await OmdsMediaPickerSheet.show(
-      context,
-      title: l10n.chatAttachmentSheetTitle,
-      photoLabel: l10n.chatAttachmentCamera,
-      videoLabel: l10n.chatAttachmentGallery,
-      cancelLabel: l10n.chatAttachmentCancel,
+    // P5 (b01-20260725): OMDS's static `OmdsMediaPickerSheet.show()` DROPS
+    // `photoIcon` / `videoIcon` / `subtitle` (they exist on the widget's
+    // constructor but the helper never forwards them), so the GALLERY row
+    // rendered a CAMCORDER glyph (`Icons.videocam`) above an untranslated
+    // English subtitle. Mount the SAME OMDS component directly to pass them —
+    // still an OMDS component, no OMDS release needed. `'video'` is OMDS's slot
+    // name for the SECOND option; here that slot IS the gallery row, not a
+    // video recorder.
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => OmdsMediaPickerSheet(
+        title: l10n.chatAttachmentSheetTitle,
+        subtitle: l10n.chatAttachmentSheetSubtitle,
+        photoLabel: l10n.chatAttachmentCamera,
+        videoLabel: l10n.chatAttachmentGallery,
+        cancelLabel: l10n.chatAttachmentCancel,
+        photoIcon: Icons.photo_camera,
+        videoIcon: Icons.photo_library,
+        onPhotoSelected: () => Navigator.of(sheetContext).pop('photo'),
+        onVideoSelected: () => Navigator.of(sheetContext).pop('video'),
+        onCancel: () => Navigator.of(sheetContext).pop(),
+      ),
     );
     if (!mounted || choice == null) return;
     final cubit = context.read<ChatCubit>();

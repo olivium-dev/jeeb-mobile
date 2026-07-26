@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../diagnostics/diag.dart';
 import '../../observability/session_trace/session_trace.dart';
+import '../../role/user_role.dart';
 import '../data/push_transport.dart';
 import '../domain/notification_deep_link.dart';
 import '../domain/notification_message.dart';
@@ -20,8 +21,10 @@ class NotificationDispatcher {
     required PushNotificationHandler handler,
     required GoRouter router,
     Future<NotificationMessage?>? initialMessage,
+    UserRole Function()? roleResolver,
   })  : _handler = handler,
-        _router = router {
+        _router = router,
+        _roleResolver = roleResolver {
     _sub = handler.opens.listen(_route);
     // Cold-start: if the user tapped a notification while the app was
     // terminated, the transport buffers it as the initial message.
@@ -36,6 +39,12 @@ class NotificationDispatcher {
 
   final PushNotificationHandler _handler;
   final GoRouter _router;
+
+  /// F5: resolves the RECIPIENT's LIVE role at tap time. A **function**, not a
+  /// value: the role can flip at runtime (`RoleCubit.toggle()`) while the
+  /// dispatcher is constructed once at boot. `null` (unit callers, tests with
+  /// no role context) keeps the legacy role-blind resolution.
+  final UserRole Function()? _roleResolver;
   StreamSubscription<NotificationMessage>? _sub;
   Future<void>? _initialFuture;
 
@@ -47,12 +56,15 @@ class NotificationDispatcher {
   }
 
   void _route(NotificationMessage message) {
-    final path = deepLinkForMessage(message);
+    final role = _roleResolver?.call();
+    final path = deepLinkForMessage(message, role: role);
     Diag.event('push_tapped', <String, Object?>{
       'id': message.id,
       'category': message.category.name,
       'deepLink': path,
       'resolved': path != null,
+      // F5: proves on-device which role the guard actually saw.
+      'role': role?.name,
     });
     // Session-trace observability tool (devtool-only, Module 3): richer,
     // redacted OPENED event alongside the `[jeeb-diag]` line above. Emitted

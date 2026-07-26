@@ -524,7 +524,8 @@ final CatalogEntry _noOfferTimeoutEntry = CatalogEntry(
           phase: WaitingRequestPhase.broadcasting,
           notifiedCount: 6,
           offerCount: 0,
-          broadcastExpiresAt: DateTime.now().add(const Duration(minutes: 4)),
+          receivedAt: DateTime.now(),
+          remainingAtReceipt: const Duration(minutes: 4),
           displayId: 'ORD-5001',
           tier: 'express',
           title: '2 grocery bags from Spinneys',
@@ -539,7 +540,8 @@ final CatalogEntry _noOfferTimeoutEntry = CatalogEntry(
           phase: WaitingRequestPhase.offersArrived,
           notifiedCount: 6,
           offerCount: 3,
-          broadcastExpiresAt: DateTime.now().add(const Duration(minutes: 2)),
+          receivedAt: DateTime.now(),
+          remainingAtReceipt: const Duration(minutes: 2),
           displayId: 'ORD-5001',
           tier: 'express',
           title: '2 grocery bags from Spinneys',
@@ -554,8 +556,8 @@ final CatalogEntry _noOfferTimeoutEntry = CatalogEntry(
           phase: WaitingRequestPhase.broadcasting,
           notifiedCount: 0,
           offerCount: 0,
-          broadcastExpiresAt:
-              DateTime.now().subtract(const Duration(seconds: 5)),
+          receivedAt: DateTime.now(),
+          remainingAtReceipt: Duration.zero,
           displayId: 'ORD-5002',
           tier: 'standard',
         ),
@@ -566,6 +568,20 @@ final CatalogEntry _noOfferTimeoutEntry = CatalogEntry(
       (_) => _waitingPreview(
         FakeWaitingRepository(
           failure: const WaitingException(WaitingFailure.network),
+        ),
+      ),
+    ),
+    // P7 — the clean-break failure mode: the gateway answered 200 but omitted
+    // `offerDeadlineInSeconds` on a live row. Seeded here so the distinct
+    // contract-break copy is visually inspectable without a backend.
+    CatalogState(
+      'Contract violation',
+      (_) => _waitingPreview(
+        FakeWaitingRepository(
+          failure: const WaitingException(
+            WaitingFailure.contractViolation,
+            'offerDeadlineInSeconds absent on a live broadcasting row',
+          ),
         ),
       ),
     ),

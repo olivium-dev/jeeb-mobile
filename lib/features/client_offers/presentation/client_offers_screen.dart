@@ -116,7 +116,14 @@ class _ClientOffersView extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: OMDSAppBar(title: l10n.offersScreenTitle, showBackButton: true),
+      appBar: OMDSAppBar(
+        title: l10n.offersScreenTitle,
+        showBackButton: true,
+        // P2: this screen is now a push-tap stack ROOT (`go`, not `push`), so
+        // the default `maybePop()` is a dead arrow on an empty stack. Pop when
+        // we can (in-app Replies CTA entry), else return to the shell.
+        onBackPressed: () => context.canPop() ? context.pop() : context.go('/'),
+      ),
       // offer_review_list_root — signature id for the offer-review-list route.
       body: Semantics(
         identifier: 'offer_review_list_root',

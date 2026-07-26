@@ -118,4 +118,59 @@ void main() {
     expect(all, contains('tok:'));
     expect(all, contains('userId'));
   });
+
+  // ===========================================================================
+  // P4 + P5 (b01-20260725) — TC-C18. The CDN image read uses
+  // `ResponseType.bytes`, so `response.data` is a raw `Uint8List`. The logger
+  // used to pass any non-Map body straight through to string interpolation: a
+  // 1–2 MB image printed as a comma-separated integer list per attachment,
+  // which floods logcat and visibly stalls the DEBUG APK used for on-device
+  // E2E. Binary bodies must degrade to a one-line size summary.
+  // ===========================================================================
+  group('P4/P5 — binary bodies are never stringified', () {
+    test('a Uint8List response body logs as `<binary N bytes>`', () {
+      final options = RequestOptions(
+        path: '/api/cdn/assets/content/chat_attachment/abc.jpg',
+        method: 'GET',
+        responseType: ResponseType.bytes,
+      );
+      // A recognisable, non-zero payload so a leaked dump is unmistakable.
+      final payload = Uint8List(1024);
+      for (var i = 0; i < payload.length; i++) {
+        payload[i] = 0x5A;
+      }
+      final response = Response<dynamic>(
+        requestOptions: options,
+        statusCode: 200,
+        data: payload,
+      );
+
+      interceptor.onResponse(response, ResponseInterceptorHandler());
+
+      final all = printed.join('\n');
+      expect(all, contains('<binary 1024 bytes>'));
+      expect(
+        all,
+        isNot(contains('90, 90, 90')),
+        reason: 'the raw byte values must never reach logcat',
+      );
+      // A sanity bound: the whole line stays tiny regardless of payload size.
+      expect(all.length, lessThan(300));
+    });
+
+    test('a plain List<int> request body is summarized too (the signed PUT)',
+        () {
+      final options = RequestOptions(
+        path: '/api/cdn/upload/put-signed/chat_attachment',
+        method: 'PUT',
+        data: List<int>.filled(2048, 0x41),
+      );
+
+      interceptor.onRequest(options, RequestInterceptorHandler());
+
+      final all = printed.join('\n');
+      expect(all, contains('<binary 2048 bytes>'));
+      expect(all, isNot(contains('65, 65, 65')));
+    });
+  });
 }

@@ -138,14 +138,16 @@ class _TrackingStateView extends StatelessWidget {
           onRetry: () => context.read<LiveTrackingCubit>().retry(),
         );
       case LiveTrackingViewMode.ready:
-        // sprint-009 scenario matrix #9: a cancelled/expired delivery is
-        // terminal — render the graceful terminal state instead of a live
-        // "Ordered" stepper that polls a dead row forever.
-        if (state.trackingInfo!.isCancelled) {
-          return const _TrackingCancelledBody();
-        }
+        // sprint-009 scenario matrix #9 + P6/A1+A3: cancelled, expired and
+        // under-review each get their OWN body instead of a live "Ordered"
+        // stepper that polls a dead row forever (or, worse, one that rewinds an
+        // escalated delivery to step 1).
+        final info = state.trackingInfo!;
+        if (info.isCancelled) return const _TrackingCancelledBody();
+        if (info.isExpired) return const _TrackingExpiredBody();
+        if (info.isUnderReview) return const _TrackingUnderReviewBody();
         return _TrackingBody(
-          info: state.trackingInfo!,
+          info: info,
           isAtDoor: state.isAtDoor,
           deliveryId: deliveryId,
           useLiveMap: useLiveMap,
@@ -155,9 +157,10 @@ class _TrackingStateView extends StatelessWidget {
   }
 }
 
-/// Terminal state for a cancelled/expired delivery (scenario matrix #9).
-/// Neutral copy + a single "back home" affordance; no retry (there is nothing
-/// to retry — the row is terminal) and no stepper/map (nothing is moving).
+/// Terminal state for a CANCELLED delivery (scenario matrix #9). Neutral copy
+/// + a single "back home" affordance; no retry (there is nothing to retry — the
+/// row is terminal) and no stepper/map (nothing is moving). P6/A3: `expired`
+/// no longer lands here — it has [_TrackingExpiredBody].
 class _TrackingCancelledBody extends StatelessWidget {
   const _TrackingCancelledBody();
 
@@ -193,6 +196,89 @@ class _TrackingCancelledBody extends StatelessWidget {
                   // same terminal destination the cancel-request sheet uses.
                   onTap: () => context.go('/'),
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// P6/A3: terminal state for an EXPIRED request. Structurally identical to
+/// [_TrackingCancelledBody] but with its own ids + copy — cancel and expire
+/// carry different fee/strike semantics and must never share a message.
+class _TrackingExpiredBody extends StatelessWidget {
+  const _TrackingExpiredBody();
+
+  static const Key expiredStateKey = Key('live-tracking-expired-state');
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      identifier: 'tracking_expired_state',
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(Spacing.large),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              OmdsEmptyState(
+                key: expiredStateKey,
+                icon: Icons.timer_off_outlined,
+                title: l10n.trackingExpiredTitle,
+                subtitle: l10n.trackingExpiredBody,
+              ),
+              const SizedBox(height: Spacing.large),
+              Semantics(
+                identifier: 'tracking_expired_home_cta',
+                container: true,
+                button: true,
+                child: OmdsPrimaryButton(
+                  key: const Key('tracking-expired-home-cta'),
+                  text: l10n.trackingCancelledHomeCta,
+                  onTap: () => context.go('/'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// P6/A1: `FailedNeedsEscalation` used to parse into a lifecycle value NO
+/// widget read, so the customer saw the normal active layout with the stepper
+/// rewound to step 1 and a 5 s poll that never stopped. Render an explicit
+/// "under review" body — and KEEP polling, because an admin can still resolve
+/// the row to Done (SM edge 12) or cancel it (edge 13). Deliberately NO home
+/// CTA: the delivery is still live, so this is not an exit.
+class _TrackingUnderReviewBody extends StatelessWidget {
+  const _TrackingUnderReviewBody();
+
+  static const Key underReviewStateKey =
+      Key('live-tracking-under-review-state');
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      identifier: 'tracking_under_review_state',
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(Spacing.large),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              OmdsEmptyState(
+                key: underReviewStateKey,
+                icon: Icons.report_problem_outlined,
+                title: l10n.trackingUnderReviewTitle,
+                subtitle: l10n.trackingUnderReviewBody,
               ),
             ],
           ),
@@ -258,7 +344,13 @@ class _TrackingBody extends StatelessWidget {
               Spacing.medium,
               Spacing.xSmall,
             ),
-            child: OrderTrackingStepper(currentStep: info.trackingStepIndex4),
+            // P6/A5: at the door the third step RELABELS to "At Door" (its
+            // identifier stays `tracking_step_in_transit`) — the 4-step
+            // blueprint is unchanged, no fifth step.
+            child: OrderTrackingStepper(
+              currentStep: info.trackingStepIndex4,
+              atDoor: info.currentStage == TrackingStage.atDoor,
+            ),
           ),
           // T-MOB-017: live map (half-collapsed at_door). Fed the latest
           // courier GPS fix + route polyline straight from the tracking feed.

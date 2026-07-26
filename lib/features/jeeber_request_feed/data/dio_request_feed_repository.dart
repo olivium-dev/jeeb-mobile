@@ -42,13 +42,20 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
     required Dio dio,
     Duration pollInterval = kFeedSafetyNetPollInterval,
     AppLifecycleGate? lifecycleGate,
+    DateTime Function()? now,
   }) : _dio = dio,
        _pollInterval = pollInterval,
-       _lifecycleGate = lifecycleGate;
+       _lifecycleGate = lifecycleGate,
+       _now = now ?? DateTime.now;
 
   final Dio _dio;
   final Duration _pollInterval;
   final AppLifecycleGate? _lifecycleGate;
+
+  /// Device clock, injected for tests. It anchors the DERIVED card deadline
+  /// (see the `offerDeadlineInSeconds` parse below) — the feed never parses a
+  /// server absolute.
+  final DateTime Function() _now;
 
   /// The jeeb-gateway request-centric discovery feed (Contract B). Online-gated
   /// pending requests the jeeber may bid on. Was `/requests?status=pending`
@@ -210,9 +217,21 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
     // `distanceMeters` (feed) = jeeber→pickup distance → the "away from you"
     // line; `estimatedDistanceKm` is the legacy end-to-end value.
     final distanceMeters = (json['distanceMeters'] as num?)?.toDouble();
-    final expiresRaw =
-        json['broadcastExpiresAt'] as String? ?? json['expiresAt'] as String?;
-    final expires = expiresRaw == null ? null : _parseServerTime(expiresRaw);
+    // P7 — derive the deadline in the DEVICE clock domain from the server's
+    // relative seconds. Never parse a server absolute here: the feed card diffs
+    // this against the device clock (request_feed_screen.dart), so a skewed
+    // handset would corrupt an absolute but cannot corrupt an anchored
+    // relative. The legacy dual-read of two server absolutes is gone — the
+    // first of the two keys it tried was never on the wire at all.
+    final rawRemaining = json['offerDeadlineInSeconds'];
+    final DateTime? expires;
+    if (rawRemaining is num) {
+      expires = _now().add(
+        Duration(seconds: rawRemaining.toInt().clamp(0, 1 << 31)),
+      );
+    } else {
+      expires = null; // no countdown applies to this row
+    }
     final createdRaw = json['createdAt'] as String?;
     final requestStatus = ServerRequestStatus.normalize(json['status']);
     return DeliveryRequest(

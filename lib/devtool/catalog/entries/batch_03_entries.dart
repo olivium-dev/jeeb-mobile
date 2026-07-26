@@ -102,6 +102,8 @@ final List<CatalogEntry> _chatDetailEntries = <CatalogEntry>[
             tierId: 'standard',
             orderRef: 'ORD-4821',
             statusId: 'matched',
+            // P3 (b01-20260725): exercise the initial-requirement row.
+            description: '2 kilos apples from Spinneys',
           ),
         ),
       ),

@@ -44,6 +44,11 @@ class LiveTrackingL10n {
   String get stepPicked => _l10n.trackingStepPicked;
   String get stepInTransit => _l10n.trackingStepInTransit;
 
+  /// P6/A5: the third step's at-the-door label. Reuses the existing
+  /// `activeDeliveryStatusAtDoor` key ("At Door" / "عند الباب") — no new ARB
+  /// key, and the step's semantics identifier is unchanged.
+  String get stepAtDoor => _l10n.activeDeliveryStatusAtDoor;
+
   /// 4th step — reuses the existing "Delivered" getter (`trackingStepCompleted`
   /// renders "Delivered" in both ARBs).
   String get stepDelivered => _l10n.trackingStepCompleted;

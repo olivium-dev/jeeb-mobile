@@ -3,10 +3,15 @@
 // JM-026 — Waiting / No-Coverage state [D48, D69].
 //
 // Domain snapshot of a broadcast (pre-accept) request as the waiting screen
-// needs it: how many Jeebers were notified, the broadcast deadline that drives
-// the countdown, and whether offers have started arriving (the live transition
-// to the review-offers CTA). The screen branches on this model alone; it never
+// needs it: how many Jeebers were notified, the ANCHOR PAIR that drives the
+// countdown, and whether offers have started arriving (the live transition to
+// the review-offers CTA). The screen branches on this model alone; it never
 // touches the transport layer.
+//
+// P7 clean break: the countdown is derived from a SERVER-RELATIVE remaining
+// value paired with the DEVICE instant it was received — never from a server
+// absolute. Device clock skew therefore cannot shift the countdown, and there
+// is no client-side fallback window to fabricate one.
 
 import 'package:equatable/equatable.dart';
 
@@ -43,7 +48,8 @@ class WaitingRequest extends Equatable {
     required this.phase,
     required this.notifiedCount,
     required this.offerCount,
-    this.broadcastExpiresAt,
+    required this.receivedAt,
+    this.remainingAtReceipt,
     this.displayId,
     this.tier,
     this.title,
@@ -67,10 +73,17 @@ class WaitingRequest extends Equatable {
   /// review-offers CTA (AC2).
   final int offerCount;
 
-  /// Server-provided broadcast deadline. `null` means the gateway omitted it;
-  /// the cubit may then anchor one presentation-only fallback for this request.
-  /// That fallback never decides whether the server-owned request is terminal.
-  final DateTime? broadcastExpiresAt;
+  /// Device-clock instant at which this snapshot was parsed. Together with
+  /// [remainingAtReceipt] this is the ONLY input the countdown derives from.
+  final DateTime receivedAt;
+
+  /// Server-authoritative time left when the payload was received.
+  ///
+  /// NULL means the server says NO COUNTDOWN APPLIES to this row (accepted,
+  /// scheduled, terminal). It NEVER means "the field was missing": a live row
+  /// without it is a contract violation that throws in the repository and never
+  /// reaches this constructor. There is no fallback window.
+  final Duration? remainingAtReceipt;
 
   /// Human-facing reference (e.g. `ORD-501001`) for the header.
   final String? displayId;
@@ -86,13 +99,45 @@ class WaitingRequest extends Equatable {
   bool get hasOffers =>
       offerCount > 0 || phase == WaitingRequestPhase.offersArrived;
 
+  /// Countdown deadline IN THE DEVICE CLOCK DOMAIN. Deliberately derived from a
+  /// RELATIVE server value, never parsed from a server absolute, so device clock
+  /// skew cannot corrupt it. Do not compare to a server timestamp.
+  DateTime? get deadline {
+    final remaining = remainingAtReceipt;
+    return remaining == null ? null : receivedAt.add(remaining);
+  }
+
+  /// Copies the snapshot forward. It deliberately exposes NO way to change
+  /// [receivedAt] / [remainingAtReceipt]: the anchor pair is carried verbatim,
+  /// which is the structural guard against the countdown resetting to full when
+  /// an offer lands (P7 T6).
+  WaitingRequest copyWith({
+    WaitingRequestPhase? phase,
+    int? notifiedCount,
+    int? offerCount,
+    String? displayId,
+    String? tier,
+    String? title,
+  }) => WaitingRequest(
+    requestId: requestId,
+    phase: phase ?? this.phase,
+    notifiedCount: notifiedCount ?? this.notifiedCount,
+    offerCount: offerCount ?? this.offerCount,
+    receivedAt: receivedAt, // anchor NEVER re-stamped here
+    remainingAtReceipt: remainingAtReceipt, // carried as a PAIR
+    displayId: displayId ?? this.displayId,
+    tier: tier ?? this.tier,
+    title: title ?? this.title,
+  );
+
   @override
   List<Object?> get props => [
     requestId,
     phase,
     notifiedCount,
     offerCount,
-    broadcastExpiresAt,
+    receivedAt,
+    remainingAtReceipt,
     displayId,
     tier,
     title,

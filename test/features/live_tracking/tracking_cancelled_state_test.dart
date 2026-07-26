@@ -52,23 +52,32 @@ Widget _harness(LiveTrackingCubit cubit) => MaterialApp(
 
 void main() {
   group('DeliveryTrackingInfo lifecycle axis (scenario matrix #9)', () {
-    test('canonical Cancelled + legacy cancelled/canceled/expired are '
-        'terminal cancelled', () {
-      for (final status in ['Cancelled', 'cancelled', 'canceled', 'expired']) {
-        final info = _fromStatus(status);
-        expect(info.lifecycle, TrackingLifecycle.cancelled,
-            reason: '$status must parse as terminal cancelled');
-        expect(info.isCancelled, isTrue);
+    test('P6/A3: Cancelled / cancelled / canceled are cancelled; expired is '
+        'EXPIRED', () {
+      for (final s in ['Cancelled', 'cancelled', 'canceled']) {
+        final i = _fromStatus(s);
+        expect(i.lifecycle, TrackingLifecycle.cancelled,
+            reason: '$s must parse as terminal cancelled');
+        expect(i.isCancelled, isTrue);
+        expect(i.isExpired, isFalse);
+        expect(i.isPollTerminal, isTrue);
       }
+      final e = _fromStatus('expired');
+      expect(e.lifecycle, TrackingLifecycle.expired);
+      expect(e.isExpired, isTrue);
+      expect(e.isCancelled, isFalse);
+      expect(e.isPollTerminal, isTrue);
     });
 
-    test('FailedNeedsEscalation + legacy disputed are the failed side state',
-        () {
-      for (final status in ['FailedNeedsEscalation', 'disputed']) {
-        final info = _fromStatus(status);
-        expect(info.lifecycle, TrackingLifecycle.failed,
-            reason: '$status must parse as the admin-parked side state');
-        expect(info.isCancelled, isFalse);
+    test('P6/A1: FailedNeedsEscalation / disputed park under review and KEEP '
+        'polling', () {
+      for (final s in ['FailedNeedsEscalation', 'disputed']) {
+        final i = _fromStatus(s);
+        expect(i.lifecycle, TrackingLifecycle.failed,
+            reason: '$s must parse as the admin-parked side state');
+        expect(i.isUnderReview, isTrue);
+        expect(i.isPollTerminal, isFalse); // <- the A1 fix
+        expect(i.isCancelled, isFalse);
       }
     });
 
@@ -125,6 +134,46 @@ void main() {
       verify(() =>
               repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
           .called(1);
+      await cubit.close();
+    });
+
+    test('P6/A3: stops polling once the row is expired', () async {
+      final repo = _MockRepo();
+      when(() =>
+              repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
+          .thenAnswer((_) async => _fromStatus('expired'));
+
+      final cubit = LiveTrackingCubit(
+        repository: repo,
+        deliveryId: 'DLV-770001',
+        pollInterval: const Duration(milliseconds: 20),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(cubit.state.trackingInfo?.isExpired, isTrue);
+
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      verify(() =>
+              repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
+          .called(1);
+      await cubit.close();
+    });
+
+    test('P6/A1: LiveTrackingCubit does NOT stop on FailedNeedsEscalation',
+        () async {
+      final repo = _MockRepo();
+      when(() =>
+              repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
+          .thenAnswer((_) async => _fromStatus('FailedNeedsEscalation'));
+      final cubit = LiveTrackingCubit(
+        repository: repo,
+        deliveryId: 'DLV-770001',
+        pollInterval: const Duration(milliseconds: 20),
+      );
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      verify(() =>
+              repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
+          .called(greaterThan(1));
       await cubit.close();
     });
 

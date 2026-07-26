@@ -17,6 +17,14 @@ enum CdnUploadSlot {
   /// Wire value `proof_of_delivery`; gateway `CdnController.AllowedUploadSlots`
   /// must include it (companion one-line gateway change).
   proofOfDelivery,
+
+  /// P4/P5 (b01-20260725): an image attached inside the 1:1 chat (camera or
+  /// gallery). Wire value `chat_attachment`; gateway
+  /// `CdnController.AllowedUploadSlots` must include it (companion one-line
+  /// gateway change). cdn-service does NOT validate slots — it sanitizes the
+  /// value and uses it as a storage directory — so no upstream change is
+  /// needed.
+  chatAttachment,
 }
 
 /// Client for the CDN signed-upload broker described in
@@ -35,6 +43,16 @@ abstract class CdnAssetGateway {
     required Uint8List bytes,
     String contentType = 'image/jpeg',
   });
+
+  /// Fetches the raw bytes of a previously-uploaded asset by its durable
+  /// `object_ref`, through the AUTHENTICATED gateway read proxy
+  /// (`GET /api/cdn/assets/content/{objectRef}`).
+  ///
+  /// Why not a signed URL: cdn-service exposes NO signed-download endpoint —
+  /// the gateway's `GET /api/cdn/assets/{id}/signed-url` dials a route
+  /// (`api/v1/assets/{id}/signed-url`) that does not exist upstream. The read
+  /// proxy is the only working path (verified live on MSI 2026-07-25).
+  Future<Uint8List> fetchAsset(String objectRef);
 }
 
 /// Thrown when the broker's upload-ticket response is missing a field the
@@ -46,4 +64,15 @@ class CdnUploadException implements Exception {
 
   @override
   String toString() => 'CdnUploadException: $message';
+}
+
+/// Thrown when an asset READ through the gateway proxy fails — network error,
+/// a 4xx/5xx from the proxy, or a 200 with an empty body.
+class CdnFetchException implements Exception {
+  const CdnFetchException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => 'CdnFetchException: $message';
 }

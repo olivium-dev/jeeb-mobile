@@ -56,6 +56,88 @@ void main() {
     expect(adapter.getPaths, contains('/v1/delivery/$_deliveryId'));
     expect(adapter.getPaths, isNot(contains('/v1/deliveries/$_deliveryId')));
   });
+
+  // ---------------------------------------------------------------------
+  // P3 (b01-20260725) — the INITIAL REQUIREMENT (`description`) + the
+  // Jeeber-safe read mode (`ownerScopedReads:false`).
+  // ---------------------------------------------------------------------
+
+  test('P3/M1: reads the description from the DELIVERY row', () async {
+    adapter.bodies['/v1/deliveries/$_deliveryId'] = const {
+      'description': '2 kilos apples',
+      'status': 'Ordered',
+    };
+
+    final summary = await originRepo().fetchSummary(_deliveryId);
+
+    expect(summary.description, '2 kilos apples');
+    expect(summary.hasDescription, isTrue);
+  });
+
+  test('P3/M2: falls back to the REQUEST row when the delivery carries none',
+      () async {
+    adapter.bodies['/v1/deliveries/$_deliveryId'] = const <String, Object?>{};
+    adapter.bodies['/v1/requests/$_deliveryId'] = const {
+      'description': '2 kilos apples',
+    };
+
+    final summary = await originRepo().fetchSummary(_deliveryId);
+
+    expect(summary.description, '2 kilos apples');
+  });
+
+  test('P3/M3: the legacy :4010 `title` alias still resolves', () async {
+    adapter.bodies['/v1/delivery/$_deliveryId'] = const {'title': 'apples'};
+    adapter.bodies['/v1/requests/$_deliveryId'] = const <String, Object?>{};
+
+    final summary = await mockRepo().fetchSummary(_deliveryId);
+
+    expect(summary.description, 'apples');
+  });
+
+  test('P3/M4: Jeeber mode fires ONLY the participant-scoped delivery leg — '
+      'never the owner-scoped /v1/requests or /v1/offers reads', () async {
+    adapter.bodies['/v1/deliveries/$_deliveryId'] = const {
+      'description': 'apples',
+    };
+
+    final summary = await DioOrderChatSummaryRepository(
+      dio,
+      originGateway: true,
+      ownerScopedReads: false,
+    ).fetchSummary(_deliveryId);
+
+    expect(adapter.getPaths, contains('/v1/deliveries/$_deliveryId'));
+    expect(
+      adapter.getPaths.any((p) => p.startsWith('/v1/requests/')),
+      isFalse,
+      reason: '/v1/requests/{id} is owner-scoped → 403 for the Jeeber',
+    );
+    expect(
+      adapter.getPaths.any((p) => p.startsWith('/v1/offers')),
+      isFalse,
+      reason: '/v1/offers?requestId= is owner-scoped → 403 for the Jeeber',
+    );
+    expect(summary.description, 'apples');
+  });
+
+  test('P3/M5: customer mode (default) still fires all three legs', () async {
+    await originRepo().fetchSummary(_deliveryId);
+
+    expect(adapter.getPaths, contains('/v1/deliveries/$_deliveryId'));
+    expect(adapter.getPaths, contains('/v1/requests/$_deliveryId'));
+    expect(adapter.getPaths, contains('/v1/offers'));
+  });
+
+  test('P3/M6: no description anywhere ⇒ empty, no throw', () async {
+    adapter.bodies['/v1/deliveries/$_deliveryId'] = const <String, Object?>{};
+    adapter.bodies['/v1/requests/$_deliveryId'] = const <String, Object?>{};
+
+    final summary = await originRepo().fetchSummary(_deliveryId);
+
+    expect(summary.description, '');
+    expect(summary.hasDescription, isFalse);
+  });
 }
 
 ResponseBody _json(Map<String, Object?> body, {int status = 200}) =>
@@ -70,6 +152,10 @@ ResponseBody _json(Map<String, Object?> body, {int status = 200}) =>
 class _RecordingAdapter implements HttpClientAdapter {
   final List<String> getPaths = <String>[];
 
+  /// P3: per-path body overrides. A path with no entry falls back to the
+  /// generic 2xx map the BUG-8 route tests rely on.
+  final Map<String, Map<String, Object?>> bodies = <String, Map<String, Object?>>{};
+
   @override
   void close({bool force = false}) {}
 
@@ -80,6 +166,8 @@ class _RecordingAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     if (options.method == 'GET') getPaths.add(options.path);
+    final override = bodies[options.path];
+    if (override != null) return _json(override);
     // Any 2xx map lets fetchSummary complete through its request/offer reads.
     if (options.path.contains('/offers')) {
       return _json(const {'items': <Object?>[]});

@@ -4,6 +4,12 @@ import 'package:omds/omds.dart';
 import '../../../../core/formatting/friendly_reference.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/order_chat_summary.dart';
+import 'auto_direction_text.dart';
+
+/// P3: collapsed line budget for the initial-requirement row. Two lines keeps
+/// the pinned strip short enough that the message list is never pushed off
+/// screen (the run-22 "BOTTOM OVERFLOWED" class); a tap expands to full text.
+const int _kRequestDescriptionCollapsedLines = 2;
 
 /// Pinned authoritative-price summary strip on the accepted order-chat
 /// (JM-025 AC2, D71/D11). Sits between the app bar and the message list and
@@ -48,7 +54,9 @@ class OrderChatPinnedSummary extends StatelessWidget {
   final String counterpartName;
 
   /// Tap handler for the view-summary link → `order-summary-pinned` (JM-031).
-  final VoidCallback onViewSummary;
+  /// P3: NULLABLE — the `order-summary` route is owner-scoped, so the Jeeber
+  /// variant of this strip renders WITHOUT the link.
+  final VoidCallback? onViewSummary;
 
   /// Role of the VIEWER (run-22 chat-cluster fix): the party line names the
   /// person on the OTHER side of the conversation. A customer sees the winning
@@ -192,28 +200,32 @@ class OrderChatPinnedSummary extends StatelessWidget {
                     ),
                   ),
                 ),
-                Semantics(
-                  identifier: 'order_chat_view_summary_link',
-                  button: true,
-                  child: InkWell(
-                    onTap: onViewSummary,
-                    borderRadius: OmdsBorderRadius.small,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: Spacing.xSmall,
-                        vertical: Spacing.twoXSmall,
-                      ),
-                      child: Text(
-                        l10n.orderChatViewSummaryLink,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: colors.primary,
-                          fontWeight: FontWeight.w600,
-                          decoration: TextDecoration.underline,
+                // P3: the link is owner-scoped — the Jeeber strip renders with
+                // no link at all (a null handler removes the whole node rather
+                // than leaving a dead affordance).
+                if (onViewSummary != null)
+                  Semantics(
+                    identifier: 'order_chat_view_summary_link',
+                    button: true,
+                    child: InkWell(
+                      onTap: onViewSummary,
+                      borderRadius: OmdsBorderRadius.small,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: Spacing.xSmall,
+                          vertical: Spacing.twoXSmall,
+                        ),
+                        child: Text(
+                          l10n.orderChatViewSummaryLink,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: colors.primary,
+                            fontWeight: FontWeight.w600,
+                            decoration: TextDecoration.underline,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
             const SizedBox(height: Spacing.xSmall),
@@ -231,6 +243,27 @@ class OrderChatPinnedSummary extends StatelessWidget {
                 ),
               ),
             ),
+            // P3 (b01-20260725): the INITIAL REQUIREMENT — the free text the
+            // customer typed at compose. Rendered for BOTH parties (the Jeeber
+            // has no other order-context surface inside chat), directly under
+            // the party line and above the chips, so it is the first thing read
+            // after "who". Hidden when empty — never an empty box, never a
+            // "Pending" filler (the run-22 regression class).
+            // Carries the JM-031 sibling id `order_summary_item` via the
+            // nested-container idiom used by the cash label below, so one
+            // assertion vocabulary covers all three renderings.
+            if (summary.hasDescription) ...[
+              const SizedBox(height: Spacing.twoXSmall),
+              Semantics(
+                identifier: 'order_chat_request_description',
+                container: true,
+                child: Semantics(
+                  identifier: 'order_summary_item',
+                  container: true,
+                  child: _RequestDescription(text: summary.description),
+                ),
+              ),
+            ],
             const SizedBox(height: Spacing.twoXSmall),
             Wrap(
               spacing: Spacing.xSmall,
@@ -372,5 +405,66 @@ class _SummaryChip extends StatelessWidget {
     final id = identifier;
     if (id == null) return chip;
     return Semantics(identifier: id, child: chip);
+  }
+}
+
+/// P3: the initial-requirement row. Collapsed to
+/// [_kRequestDescriptionCollapsedLines] with an ellipsis so a long description
+/// can never push the message list off screen; tapping toggles full text.
+/// [AutoDirectionText] applies the UAX#9 first-strong rule per string, so an
+/// Arabic description reads RTL inside an English UI and vice-versa.
+///
+/// Stateful so the expand toggle survives the 5 s summary-poll rebuild of the
+/// parent, while [OrderChatPinnedSummary] itself stays a StatelessWidget.
+class _RequestDescription extends StatefulWidget {
+  const _RequestDescription({required this.text});
+
+  final String text;
+
+  @override
+  State<_RequestDescription> createState() => _RequestDescriptionState();
+}
+
+class _RequestDescriptionState extends State<_RequestDescription> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
+    return InkWell(
+      onTap: () => setState(() => _expanded = !_expanded),
+      borderRadius: OmdsBorderRadius.small,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // The visible text is the description ALONE; the localized "Request"
+          // label rides on the icon's semantics so screen readers announce
+          // "Request, 2 kilos apples…" without spending strip width on a
+          // prefix that would also break RTL mirroring.
+          Semantics(
+            label: l10n.orderChatRequestLabel,
+            child: Icon(
+              Icons.inventory_2_outlined,
+              size: Sizes.small,
+              color: colors.onPrimaryContainer
+                  .withValues(alpha: UIConstants.opacityHigh),
+            ),
+          ),
+          const SizedBox(width: Spacing.twoXSmall),
+          Expanded(
+            child: AutoDirectionText(
+              widget.text,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.onPrimaryContainer,
+              ),
+              maxLines: _expanded ? null : _kRequestDescriptionCollapsedLines,
+              overflow: _expanded ? TextOverflow.clip : TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

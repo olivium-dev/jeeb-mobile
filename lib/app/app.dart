@@ -446,6 +446,17 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       localInbox: sl.isRegistered<LocalPushInbox>()
           ? sl<LocalPushInbox>()
           : null,
+      // P1 defence-in-depth: drop a push whose audience_role is not a role
+      // this session holds. Prefer the server-published available_roles
+      // (RoleSync ← getMe); fall back to the active role only while that
+      // list is still empty. An empty set means "roles unknown" and the
+      // matcher fails OPEN, so a pre-getMe push is never suppressed.
+      localRoles: () {
+        final available = _roleAvailability.state.roles.toSet();
+        return available.isNotEmpty
+            ? available
+            : <String>{_role.state.storageKey};
+      },
     );
     if (injectedRegistrar == null && transport is FirebaseMessagingTransport) {
       final registrar = DeviceTokenRegistrar(
@@ -463,6 +474,10 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       // Cold-start: route the tap that launched the app from a terminated
       // state (the jeeber's chat-push entry point) once the router is built.
       initialMessage: transport.initialMessage(),
+      // F5: the dispatcher asks for the LIVE role on every tap (the user can
+      // flip roles at runtime), so a jeeber-scoped destination is never handed
+      // to a client (403 dead end — FIX-REQUESTS.md:35).
+      roleResolver: () => _role.state,
     );
     setState(() {
       _pushHandler = handler;
@@ -591,7 +606,10 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
                     : PushBannerHost(
                         handler: handler,
                         onBannerTap: (message) {
-                          final path = deepLinkForMessage(message);
+                          // F5: same role guard as the dispatcher — a client
+                          // must never be handed a jeeber-scoped destination.
+                          final path =
+                              deepLinkForMessage(message, role: _role.state);
                           if (path != null) _router.go(path);
                         },
                         child: content,

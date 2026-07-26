@@ -143,7 +143,7 @@ class DioActiveDeliveryRepository implements ActiveDeliveryRepository {
       if (raw == null) return to;
       return JeeberDeliveryStatusX.fromApi(raw);
     } on DioException catch (e) {
-      throw _mapTransitionError(e);
+      throw _mapTransitionError(e, from: from, to: to);
     }
   }
 
@@ -227,43 +227,68 @@ class DioActiveDeliveryRepository implements ActiveDeliveryRepository {
     );
   }
 
-  ActiveDeliveryException _mapTransitionError(DioException e) {
+  /// The gateway's typed 422 body is RFC 7807 problem+json carrying
+  /// `reason` / `from` / `to` / `trigger` extensions plus a human `detail`
+  /// (`DeliveriesController.MapTransitionException`). Match the `reason` TOKEN
+  /// exactly — the old five-key substring scan could not tell `otp_required`
+  /// from `transition_not_allowed` and could false-positive on any prose
+  /// containing "otp" (P6/B3).
+  ActiveDeliveryException _mapTransitionError(
+    DioException e, {
+    required JeeberDeliveryStatus from,
+    required JeeberDeliveryStatus to,
+  }) {
     final status = e.response?.statusCode;
-    if (status == 422 || status == 400) {
-      // A phone-bearing delivery answers `AtDoor → Done` with 422 `otp_required`
-      // — the recipient OTP must be verified first. Distinguish it from a true
-      // bad transition so the screen prompts for the code (iter6 close-tail).
-      if (_isOtpRequired(e.response?.data)) {
-        return const ActiveDeliveryException(
-          ActiveDeliveryFailure.otpRequired,
-        );
-      }
-      return const ActiveDeliveryException(
-        ActiveDeliveryFailure.invalidTransition,
+
+    // P6/B4: a 400 on this route is the gateway's OWN body resolver refusing an
+    // unresolvable canonical target — a client-bug signature, not an SM verdict.
+    if (status == 400) {
+      return ActiveDeliveryException(
+        ActiveDeliveryFailure.badRequest,
+        _reasonToken(e.response?.data),
       );
     }
+
+    if (status == 422) {
+      final reason = _reasonToken(e.response?.data);
+      if (reason == 'otp_required') {
+        return const ActiveDeliveryException(ActiveDeliveryFailure.otpRequired);
+      }
+      // Belt-and-braces: `AtDoor → Done` has exactly ONE exit and it is
+      // `otp_verified`. Any 422 on that edge means "OTP needed", whatever the
+      // upstream wording (this is the exact shape of the 2026-07-25 incident:
+      // five 422 `transition_not_allowed` on AtDoor→Done).
+      if (from == JeeberDeliveryStatus.atDoor &&
+          to == JeeberDeliveryStatus.done) {
+        return const ActiveDeliveryException(ActiveDeliveryFailure.otpRequired);
+      }
+      return ActiveDeliveryException(
+        ActiveDeliveryFailure.invalidTransition,
+        reason,
+      );
+    }
+
     return _mapError(e);
   }
 
-  /// True when a 4xx transition body signals the recipient-OTP gate. The
-  /// gateway returns a code/error/message of `otp_required` (it may nest under
-  /// `error`/`detail`); match any `otp` token defensively so a small wording
-  /// drift still routes to the OTP prompt rather than the misleading
-  /// "transition not allowed".
-  bool _isOtpRequired(Object? body) {
-    if (body is! Map) return false;
-    for (final key in const ['code', 'error', 'reason', 'message', 'detail']) {
+  /// Extracts the structured rejection token from a 4xx body, normalized to
+  /// lower-snake. Reads the canonical `reason` extension first, then the legacy
+  /// `code`, then the RFC 7807 `detail` (the gateway mirrors the reason there),
+  /// then `error`/`message`, plus one level of nesting. Returns null when the
+  /// body carries no token.
+  String? _reasonToken(Object? body) {
+    if (body is! Map) return null;
+    for (final key in const ['reason', 'code', 'detail', 'error', 'message']) {
       final v = body[key];
-      if (v is String && v.toLowerCase().contains('otp')) return true;
-      // `error`/`detail` may itself be a nested object carrying the code.
+      if (v is String && v.trim().isNotEmpty) return v.trim().toLowerCase();
       if (v is Map) {
-        final nested = (v['code'] ?? v['message'] ?? v['reason']);
-        if (nested is String && nested.toLowerCase().contains('otp')) {
-          return true;
+        final nested = v['reason'] ?? v['code'] ?? v['message'];
+        if (nested is String && nested.trim().isNotEmpty) {
+          return nested.trim().toLowerCase();
         }
       }
     }
-    return false;
+    return null;
   }
 
   ActiveDeliveryException _mapOtpError(DioException e) {

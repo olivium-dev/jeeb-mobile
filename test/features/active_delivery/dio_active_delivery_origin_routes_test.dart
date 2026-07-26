@@ -134,8 +134,12 @@ void main() {
       expect(result, JeeberDeliveryStatus.picked);
     });
 
-    test('evidenceUrl is carried on the body when present (final-step proof)',
-        () async {
+    // P6/B1: the app no longer DRIVES the atDoor→Done edge (markDelivered stops
+    // at AtDoor and hands over to the OTP verify). The repository method still
+    // supports the edge — the devtool and any future admin path may need it —
+    // so the wire shape stays pinned here; only the "final-step proof" framing
+    // is obsolete: the proof evidenceUrl now rides InTransit→AtDoor.
+    test('evidenceUrl is carried on the body when present', () async {
       adapter.onPatch = (path, data) => _json({'status': 'Done'});
 
       await originRepo().transition(
@@ -279,6 +283,114 @@ void main() {
     });
   });
 
+  // P6/B3 + P6/B4 — the transition-error mapper reads the STRUCTURED `reason`
+  // token, and 400 (the gateway's own body resolver) is no longer laundered
+  // into the state-machine verdict `invalidTransition`.
+  group('P6 — structured reason match, 400 ≠ 422', () {
+    Future<ActiveDeliveryFailure> failureFor({
+      required int status,
+      required Map<String, Object?> body,
+      required JeeberDeliveryStatus from,
+      required JeeberDeliveryStatus to,
+    }) async {
+      adapter.patchStatus = status;
+      adapter.onPatch = (path, data) => _json(body, status: status);
+      try {
+        await originRepo().transition(
+          deliveryId: _deliveryId,
+          from: from,
+          to: to,
+        );
+      } on ActiveDeliveryException catch (e) {
+        return e.failure;
+      }
+      fail('expected the PATCH to throw an ActiveDeliveryException');
+    }
+
+    test('a: 422 reason=otp_required on AtDoor→Done ⇒ otpRequired', () async {
+      expect(
+        await failureFor(
+          status: 422,
+          body: const {
+            'reason': 'otp_required',
+            'from': 'AtDoor',
+            'to': 'Done',
+            'trigger': 'otp_verified',
+          },
+          from: JeeberDeliveryStatus.atDoor,
+          to: JeeberDeliveryStatus.done,
+        ),
+        ActiveDeliveryFailure.otpRequired,
+      );
+    });
+
+    test('b: 422 reason=transition_not_allowed on AtDoor→Done ⇒ otpRequired '
+        '(belt-and-braces — the LIVE 2026-07-25 incident body)', () async {
+      expect(
+        await failureFor(
+          status: 422,
+          body: const {
+            'reason': 'transition_not_allowed',
+            'from': 'AtDoor',
+            'to': 'Done',
+          },
+          from: JeeberDeliveryStatus.atDoor,
+          to: JeeberDeliveryStatus.done,
+        ),
+        ActiveDeliveryFailure.otpRequired,
+      );
+    });
+
+    test('c: 422 transition_not_allowed on any OTHER edge ⇒ invalidTransition',
+        () async {
+      expect(
+        await failureFor(
+          status: 422,
+          body: const {
+            'reason': 'transition_not_allowed',
+            'from': 'Ordered',
+            'to': 'InTransit',
+          },
+          from: JeeberDeliveryStatus.ordered,
+          to: JeeberDeliveryStatus.inTransit,
+        ),
+        ActiveDeliveryFailure.invalidTransition,
+      );
+    });
+
+    test('d: 400 from the gateway body resolver ⇒ badRequest, NOT '
+        'invalidTransition', () async {
+      expect(
+        await failureFor(
+          status: 400,
+          body: const {
+            'title': 'A canonical target is required '
+                '(provide one of: to, trigger, status).',
+          },
+          from: JeeberDeliveryStatus.ordered,
+          to: JeeberDeliveryStatus.picked,
+        ),
+        ActiveDeliveryFailure.badRequest,
+      );
+    });
+
+    test('e: prose containing "otp" must NOT raise the OTP prompt — the old '
+        'substring scan got this wrong', () async {
+      expect(
+        await failureFor(
+          status: 422,
+          body: const {
+            'reason': 'transition_not_allowed',
+            'detail': 'the otp handover has not started',
+          },
+          from: JeeberDeliveryStatus.ordered,
+          to: JeeberDeliveryStatus.picked,
+        ),
+        ActiveDeliveryFailure.invalidTransition,
+      );
+    });
+  });
+
   group('Legacy :4010 mock routes — PRESERVED (no regression)', () {
     test('fetchDelivery reads the singular GET /v1/delivery/{id}', () async {
       adapter.onGet = (path) => _json({
@@ -342,6 +454,10 @@ class _RecordingCdnAssetGateway implements CdnAssetGateway {
     lastContentType = contentType;
     return returnedRef;
   }
+
+  /// P4/P5: the active-delivery origin routes never READ a CDN asset.
+  @override
+  Future<Uint8List> fetchAsset(String objectRef) async => Uint8List(0);
 }
 
 class _RecordingAdapter implements HttpClientAdapter {

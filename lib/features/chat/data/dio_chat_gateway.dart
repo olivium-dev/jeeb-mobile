@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
 import '../../../core/network/mock_gateway_client.dart';
 import '../../client_offers/domain/offers_repository.dart' show OfferAcceptResult;
+import '../../kyc/domain/cdn_asset_gateway.dart';
 import '../../otp_handover/domain/handover_code_store.dart';
 import '../domain/chat_delta_reader.dart';
 import '../domain/chat_gateway.dart';
@@ -64,14 +66,22 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
     ChatSocket Function(String conversationId)? socketFactory,
     Uri? socketBaseUri,
     HandoverCodeStore? handoverCodeStore,
+    CdnAssetGateway? assetGateway,
   })  : _dio = dio,
         _correlationKey = conversationCorrelationKey,
         _socketBaseUri = socketBaseUri ??
             Uri.parse(MockGatewayClient.webSocketUrl),
         _socketFactory = socketFactory,
-        _handoverCodeStore = handoverCodeStore;
+        _handoverCodeStore = handoverCodeStore,
+        _assetGateway = assetGateway;
 
   final Dio _dio;
+
+  /// P4/P5: CDN broker for in-chat image attachments. Null in tests and in
+  /// hosts with no DI — [uploadImage] / [fetchImageBytes] then fall back to
+  /// the [ChatGateway] interface defaults and chat degrades to the legacy
+  /// local-bytes `photo` bubble (unchanged pre-fix behaviour).
+  final CdnAssetGateway? _assetGateway;
 
   /// G4: sink for the accept response's `handoverCode` (see
   /// [HandoverCodeStore]). The chat "Accept" CTA is the second accept path
@@ -503,6 +513,32 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
     );
   }
 
+  /// P4/P5: broker + PUT the attachment through the ALREADY-SHIPPED CDN
+  /// signed-upload path under the `chat_attachment` slot, and return the
+  /// durable `object_ref`. Bytes never ride inline on a chat message.
+  @override
+  Future<String> uploadImage({
+    required Uint8List bytes,
+    String contentType = 'image/jpeg',
+  }) async {
+    final cdn = _assetGateway;
+    if (cdn == null) return '';
+    return cdn.uploadAsset(
+      slot: CdnUploadSlot.chatAttachment,
+      bytes: bytes,
+      contentType: contentType,
+    );
+  }
+
+  /// P4/P5: read the bytes for an inbound `image` message through the
+  /// AUTHENTICATED gateway read proxy.
+  @override
+  Future<Uint8List> fetchImageBytes(String objectRef) async {
+    final cdn = _assetGateway;
+    if (cdn == null || objectRef.isEmpty) return Uint8List(0);
+    return cdn.fetchAsset(objectRef);
+  }
+
   Future<void> dispose() async {
     await _socket?.close();
     if (!_events.isClosed) await _events.close();
@@ -578,9 +614,10 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
           if (message.text.isNotEmpty) 'label': message.text,
         };
       case MessageKind.photo:
-        // Photo bytes never leave the device in the new flow — the cubit
-        // uploads them out of band and replaces the message with an `image`.
-        // We post a placeholder body so the round trip still works in tests.
+        // Legacy local-bytes bubble. Reached ONLY when no [CdnAssetGateway] is
+        // wired (tests / DI-less hosts); the production path uploads FIRST and
+        // dispatches an `image` carrying the CDN object_ref. Bytes are never
+        // posted inline, in either path.
         return <String, Object?>{'caption': message.text};
       case MessageKind.system:
       case MessageKind.offerCard:
@@ -710,15 +747,19 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
           payload: SystemOfferPayload.fromWire(body),
         );
       case MessageKind.photo:
-        // We never decode `photo` from the wire — the new flow uses `image`.
-        // Fall through to a text bubble carrying the caption so the message
-        // is still visible if a legacy server emits it.
-        return DeliveryChatMessage.text(
+        // A `photo` row on the wire can only come from the PRE-FIX build,
+        // which posted `{caption:''}` with no bytes and no url. Decoding it as
+        // a text bubble made it an INVISIBLE empty bubble. Surface it as an
+        // `image` with an empty url so the bubble renders the "unavailable"
+        // placeholder instead — the messages the broken build persisted stay
+        // visible as something.
+        return DeliveryChatMessage.image(
           id: id,
           author: author,
           sentAt: sentAt,
           status: status,
-          text: body['caption'] as String? ?? '',
+          url: '',
+          caption: body['caption'] as String? ?? '',
         );
     }
   }

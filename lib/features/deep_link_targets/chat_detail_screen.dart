@@ -23,8 +23,10 @@ import '../chat/domain/delivery_chat_message.dart';
 import '../chat/domain/order_broadcast_service.dart';
 import '../chat/domain/order_chat_summary.dart';
 import '../chat/presentation/chat_screen.dart';
+import '../kyc/domain/cdn_asset_gateway.dart';
 import '../otp_handover/domain/handover_code_store.dart';
 import '../photo_attachment/data/stub_photo_picker_service.dart';
+import '../photo_attachment/domain/photo_picker_service.dart';
 import '../request_summary/data/dio_request_submission_service.dart';
 import '../request_summary/domain/recipient_phone_resolver.dart';
 import 'dev_chat_detail_fixtures.dart';
@@ -128,6 +130,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   /// or when the fetch could not resolve one (the strip then hides).
   OrderChatSummary? _summary;
 
+  /// P3: role captured at resolution time so the async summary paths (fetch +
+  /// poll) pick the right read mode without a post-await BuildContext read.
+  bool _resolvedIsJeeber = false;
+
   /// JEBV4-282: periodic re-fetch of [_summary] so the pinned delivery-status
   /// chip advances live (Ordered→Picked→InTransit→AtDoor→Done) without
   /// leaving/reopening the chat. Started only for a client-accepted resolution,
@@ -228,6 +234,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // client-only pinned-summary fetch without a post-await BuildContext read
     // (use_build_context_synchronously). Defaults to client off-tree.
     final isJeeber = _readRole(context) == UserRole.jeeber;
+    _resolvedIsJeeber = isJeeber;
 
     final dio = getIt<Dio>();
     // Real session user id — drives ChatAuthor.me vs `them` folding and marks
@@ -398,13 +405,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // request. Mirrors `DioChatGateway._hasActiveWinner`.
     final hasWinner = winnerId.isNotEmpty || _hasSeatedWinner(conversationData);
 
-    // JM-025 AC2: resolve the locked pinned summary for an accepted order. The
-    // fetch is best-effort — a failure leaves `_summary` null and the strip
-    // simply doesn't render (it never blocks the chat thread). It is a
-    // CLIENT-only surface (the Jeeber variant never renders it — see
-    // `isClientAccepted`), so we skip the fetch for the Jeeber entirely: its
-    // `/v1/requests/{id}` read is owner-scoped and 404s for a non-owner Jeeber
-    // (physical-run8 [Med] chat READ 404 #3) — reads it would never display.
+    // JM-025 AC2 / P3: resolve the locked pinned summary for an accepted order.
+    // Best-effort — a failure leaves `_summary` null and the strip simply
+    // doesn't render (it never blocks the chat thread).
+    // P3: this is now a BOTH-PARTIES surface — the Jeeber previously had zero
+    // order context in chat. The Jeeber leg runs with `ownerScopedReads: false`
+    // so it reads ONLY the participant-scoped GET /v1/deliveries/{id} and never
+    // the owner-scoped /v1/requests/{id} + /v1/offers (403 for a non-owner —
+    // physical-run8 [Med] chat READ 404 #3).
     OrderChatSummary? summary;
     // Only fetch the pinned summary when we hold a REAL request/correlation key
     // (correlationKey resolution). In the probe-only case (a conversationId
@@ -414,11 +422,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // triple-404 (BUG-17). The summary strip degrades gracefully when null, so
     // skip the fetch entirely rather than storming the backend.
     final shouldTrackSummary =
-        !isJeeber &&
         resolvedByCorrelationKey &&
         (phase == ConversationPhase.accepted || hasWinner);
     if (shouldTrackSummary) {
-      summary = await _resolveSummary(dio, requestId, conversationId);
+      summary = await _resolveSummary(
+        dio,
+        requestId,
+        conversationId,
+        ownerScopedReads: !isJeeber,
+      );
     }
 
     // Pre-accept there is NO conversation to read. Hand the gateway the
@@ -444,6 +456,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       handoverCodeStore: getItForGateway.isRegistered<HandoverCodeStore>()
           ? getItForGateway<HandoverCodeStore>()
           : null,
+      // P4/P5: the CDN broker for in-chat image attachments. Registered as a
+      // lazy singleton in `injection_container.dart`; null in widget tests,
+      // where chat degrades to the legacy local-bytes `photo` bubble.
+      assetGateway: getItForGateway.isRegistered<CdnAssetGateway>()
+          ? getItForGateway<CdnAssetGateway>()
+          : null,
     );
     if (!mounted) return;
     _finalize(
@@ -462,7 +480,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // owner-readable, so poll exactly the case that fetched it above. Skip when
     // the delivery is already terminal (nothing left to advance) or when polling
     // is disabled (widget tests pass a null interval).
-    if (shouldTrackSummary && !_isTerminalStatus(summary?.statusId)) {
+    // P3: CUSTOMER-ONLY by design. P3 gave the Jeeber the strip, but none of the
+    // Jeeber's fields (description / ref / price) change after accept, its live
+    // status lives on the Jeeber's own active-delivery screen, and the poll's
+    // delivered-status side effect (_navigateToRatingOnce) must keep firing on
+    // the client leg only. So P3 adds ZERO background load on the Jeeber device.
+    if (shouldTrackSummary &&
+        !isJeeber &&
+        !_isTerminalStatus(summary?.statusId)) {
       _startSummaryPoll();
     }
   }
@@ -473,19 +498,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   ) async {
     if (conversationData == null) return '';
 
-    // Try the request title.
-    final requestId = conversationData['requestId'] as String?;
-    if (requestId != null && requestId.isNotEmpty) {
-      try {
-        final resp = await dio.get<Map<String, dynamic>>(
-          '/v1/requests/$requestId',
-        );
-        final title = resp.data?['title'] as String?;
-        if (title != null && title.isNotEmpty) return title;
-      } on DioException {
-        // Fall through.
-      }
-    }
+    // P3: the request-title branch was removed. `title` is not a field of
+    // DeliveryRequestDto (the field is `description`), and the key it read
+    // (`requestId`, camelCase) never exists on the live snake_case conversation
+    // row — so it could not resolve on any wire shape. The order context now
+    // lives in the pinned strip (order_chat_request_description); the header
+    // keeps the run-22 role-aware fallbacks ("Your Jeeber" / "Customer").
 
     // Fall back to the winner jeeber name.
     final winnerId = conversationData['winnerJeeberId'] as String?;
@@ -508,12 +526,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   Future<OrderChatSummary?> _resolveSummary(
     Dio dio,
     String requestId,
-    String conversationId,
-  ) async {
+    String conversationId, {
+    required bool ownerScopedReads,
+  }) async {
     final summaryId = requestId.isNotEmpty ? requestId : conversationId;
     if (summaryId.isEmpty) return null;
     try {
-      return await DioOrderChatSummaryRepository(dio).fetchSummary(summaryId);
+      return await DioOrderChatSummaryRepository(
+        dio,
+        ownerScopedReads: ownerScopedReads,
+      ).fetchSummary(summaryId);
     } on OrderChatSummaryException {
       return null;
     } catch (_) {
@@ -547,6 +569,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       getIt<Dio>(),
       _resolvedRequestId,
       _resolvedConversationId,
+      // Belt-and-braces — the poll is never armed for the Jeeber.
+      ownerScopedReads: !_resolvedIsJeeber,
     );
     if (!mounted || next == null) return;
     if (next != _summary) {
@@ -769,6 +793,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   OrderBroadcastService _resolveBroadcastService(Dio dio) =>
       DioOrderBroadcastService(dio);
 
+  /// P4/P5 — THE root-cause fix. This production `/chat/:id` surface handed
+  /// `ChatScreen` a bare `StubPhotoPickerService()`, whose SYNTHETIC bytes made
+  /// "+ → Camera" and "+ → Gallery" silently succeed WITHOUT ever opening the
+  /// OS camera or picker. The real `ImagePickerPhotoPickerService` has been
+  /// registered in DI all along (`injection_container.dart`); this surface just
+  /// never asked for it. The stub stays as the fallback for widget tests and
+  /// the dev catalog, where `GetIt` is not populated.
+  PhotoPickerService _resolvePicker() {
+    final getIt = GetIt.instance;
+    if (getIt.isRegistered<PhotoPickerService>()) {
+      return getIt<PhotoPickerService>();
+    }
+    return StubPhotoPickerService();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -806,7 +845,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       deliveryId: _resolvedConversationId,
       counterpartName: _headerTitle(AppLocalizations.of(context), isJeeber),
       gateway: _gateway!,
-      pickerService: StubPhotoPickerService(),
+      pickerService: _resolvePicker(),
       // JM-025: this is the customer order-chat surface → expose the
       // `order_chat_composer_*` ids the W1 flow drives.
       isOrderChat: !isJeeber,
@@ -829,8 +868,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ? (requestId, firstMessage) =>
                 _createBroadcastAndGoWaiting(requestId, firstMessage)
           : null,
-      // JM-025 AC2: pinned locked-price summary + view-summary link.
-      pinnedSummary: isClientAccepted ? _summary : null,
+      // JM-025 AC2 / P3: the pinned summary is a BOTH-PARTIES surface. The
+      // view-summary LINK stays customer-only (the `order-summary` route is
+      // owner-scoped); OrderChatPinnedSummary hides the link when it is null.
+      pinnedSummary: _summary,
       onViewSummary: isClientAccepted
           // EDGE: order_chat_view_summary_link → order-summary-pinned (JM-031,
           // route `order-summary`). 21_NAV_PLAN §C.

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import '../../client_offers/domain/offers_repository.dart' show OfferAcceptResult;
 import 'delivery_chat_message.dart';
@@ -107,6 +108,24 @@ abstract class ChatGateway {
     required String mimeType,
     required int durationMs,
   }) async => const VoiceUploadResult(url: '', transcription: null);
+
+  /// P4/P5: upload a chat image attachment and return the durable CDN
+  /// `object_ref` to carry as the `image` message's `url`.
+  ///
+  /// The default `''` is load-bearing (NOT `abstract`): in-memory / fixture /
+  /// dev-catalog gateways have no CDN, and the cubit then keeps the legacy
+  /// local-bytes `photo` bubble — unchanged MVP behaviour, so every existing
+  /// test double keeps compiling and every existing photo test stays green.
+  /// Mirrors how [uploadVoice] / [acceptOffer] / [loadPhase] are defined.
+  Future<String> uploadImage({
+    required Uint8List bytes,
+    String contentType = 'image/jpeg',
+  }) async => '';
+
+  /// P4/P5: resolve the bytes behind an `image` message's [objectRef] so the
+  /// bubble can render it. Default empty — a gateway with no CDN renders the
+  /// "unavailable" placeholder instead.
+  Future<Uint8List> fetchImageBytes(String objectRef) async => Uint8List(0);
 }
 
 /// Result returned by [ChatGateway.uploadVoice].

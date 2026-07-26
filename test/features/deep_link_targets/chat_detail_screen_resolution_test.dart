@@ -140,6 +140,14 @@ class _LiveSnakeCaseDio {
             body = const <String, dynamic>{'messages': <dynamic>[]};
           } else if (path == '/v1/requests/$requestId') {
             body = <String, dynamic>{'title': 'Deliver a parcel'};
+          } else if (path == '/v1/deliveries/$requestId') {
+            // P3: the participant-scoped delivery read — the ONLY summary leg
+            // the Jeeber fires. It now carries the INITIAL REQUIREMENT, so the
+            // Jeeber-leg assertions below are meaningful, not accidental.
+            body = <String, dynamic>{
+              'description': 'ROUTE-PROOF apples',
+              'status': 'Ordered',
+            };
           }
           handler.resolve(
             Response(data: body, statusCode: 200, requestOptions: options),
@@ -557,8 +565,9 @@ void main() {
     );
 
     testWidgets(
-      'the JEEBER variant does NOT fetch the client-only pinned summary — so it '
-      'never fires the owner-scoped GET /v1/requests/{id} that 404s (READ #3)',
+      'P3/M21: the JEEBER variant fetches ONLY the participant-scoped delivery '
+      'leg of the pinned summary — never the owner-scoped request/offer reads '
+      '(READ #3)',
       (tester) async {
         final role = await _roleCubit(UserRole.jeeber);
         addTearDown(role.close);
@@ -566,14 +575,42 @@ void main() {
         await tester.pumpWidget(_host(role, _LiveSnakeCaseDio.requestId));
         await tester.pumpAndSettle();
 
-        // The pinned summary (delivery + request + offer reads) is a client-only
-        // surface; the jeeber must not fetch it. The owner-scoped request read
-        // is the one that 404d for the non-owner jeeber in run-8.
+        // P3: the Jeeber now GETS the summary, but only via the
+        // participant-scoped delivery route.
+        expect(
+          live.paths.any((p) => p.startsWith('/v1/deliveries/')),
+          isTrue,
+          reason: 'P3: the Jeeber reads the participant-scoped delivery leg',
+        );
+        // The owner-scoped request read is the one that 404d for the non-owner
+        // jeeber in run-8 — it must stay unfired.
         expect(
           live.paths.any((p) => p.startsWith('/v1/requests/')),
           isFalse,
-          reason: 'jeeber never renders the summary → skip the owner-only read',
+          reason: 'owner-scoped → 403/404 for the jeeber; must stay skipped',
         );
+        expect(
+          live.paths.any((p) => p.startsWith('/v1/offers')),
+          isFalse,
+          reason: 'owner-scoped → 403 for the jeeber; must stay skipped',
+        );
+      },
+    );
+
+    testWidgets(
+      'P3/M22: the JEEBER gets the pinned strip carrying the INITIAL '
+      'REQUIREMENT, with NO owner-scoped view-summary link',
+      (tester) async {
+        final role = await _roleCubit(UserRole.jeeber);
+        addTearDown(role.close);
+
+        await tester.pumpWidget(_host(role, _LiveSnakeCaseDio.requestId));
+        await tester.pumpAndSettle();
+
+        final chatScreen = tester.widget<ChatScreen>(find.byType(ChatScreen));
+        expect(chatScreen.pinnedSummary, isNotNull);
+        expect(chatScreen.pinnedSummary!.description, 'ROUTE-PROOF apples');
+        expect(chatScreen.onViewSummary, isNull);
       },
     );
   });

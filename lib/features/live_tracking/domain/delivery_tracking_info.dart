@@ -15,12 +15,20 @@ enum TrackingLifecycle {
   /// The delivery is progressing through the forward stages.
   active,
 
-  /// Terminal: `Cancelled` / `cancelled` / `expired`. The tracking screen
+  /// Terminal: `Cancelled` / `cancelled` / `canceled`. The tracking screen
   /// renders a graceful terminal state and stops polling.
   cancelled,
 
-  /// `FailedNeedsEscalation` / `disputed`: admin-resolvable side state. The
-  /// screen keeps the active layout (the dispute CTA is the affordance).
+  /// Terminal: `Expired` is a reserved *request*-lifecycle token that only
+  /// reaches this screen through the gateway's legacy-mirror fallback. Cancel
+  /// and expire carry different fee/strike semantics, so they must not share
+  /// copy (P6/A3).
+  expired,
+
+  /// `FailedNeedsEscalation` / `disputed`: admin-resolvable side state. NOT
+  /// terminal — SM edges 12/13 can still resolve the row to Done or cancel it,
+  /// so the screen renders an explicit "under review" body and KEEPS polling
+  /// (P6/A1).
   failed,
 }
 
@@ -303,9 +311,21 @@ class DeliveryTrackingInfo extends Equatable {
   /// the tracking screen; `failed` keeps the active layout (dispute CTA).
   final TrackingLifecycle lifecycle;
 
-  /// True when the delivery is cancelled/expired — the tracking screen stops
-  /// polling and renders the terminal state instead of a live stepper.
+  /// True only for a CANCELLED row (no longer collapses `expired` — P6/A3).
   bool get isCancelled => lifecycle == TrackingLifecycle.cancelled;
+
+  /// True for a request that EXPIRED before it could complete. Distinct copy
+  /// from cancelled: the two carry different fee/strike semantics (P6/A3).
+  bool get isExpired => lifecycle == TrackingLifecycle.expired;
+
+  /// `FailedNeedsEscalation` / `disputed`: parked with admin, NON-terminal —
+  /// SM edges 12/13 can still resolve it to Done or cancel it, so the screen
+  /// must keep polling (P6/A1).
+  bool get isUnderReview => lifecycle == TrackingLifecycle.failed;
+
+  /// Terminal for POLLING purposes: nothing can move this row again.
+  /// Deliberately EXCLUDES [isUnderReview].
+  bool get isPollTerminal => isCancelled || isExpired;
 
   /// Pre-formatted distance string from the gateway. Null until GPS fix.
   final String? distanceLabel;
@@ -401,17 +421,19 @@ class DeliveryTrackingInfo extends Equatable {
   }
 
   /// Parses the terminal/side lifecycle axis from the same raw token as
-  /// [_parseStage]. Canonical `Cancelled` + legacy `cancelled`/`canceled` and
-  /// the request-lifecycle `Expired` are terminal; `FailedNeedsEscalation` +
-  /// legacy `disputed` are the admin-parked side state. Everything else —
-  /// including unknown tokens — is an active forward stage (defensive parse,
-  /// 40_GUARDRAILS_ARCH §4).
+  /// [_parseStage]. Canonical `Cancelled` + legacy `cancelled`/`canceled` are
+  /// terminal cancelled; the request-lifecycle `Expired` is its OWN terminal
+  /// arm (P6/A3 — cancel and expire carry different fee/strike semantics);
+  /// `FailedNeedsEscalation` + legacy `disputed` are the admin-parked side
+  /// state. Everything else — including unknown tokens — is an active forward
+  /// stage (defensive parse, 40_GUARDRAILS_ARCH §4).
   static TrackingLifecycle _parseLifecycle(String status) {
     switch (status.toLowerCase().replaceAll('_', '')) {
       case 'cancelled':
       case 'canceled':
-      case 'expired':
         return TrackingLifecycle.cancelled;
+      case 'expired':
+        return TrackingLifecycle.expired;
       case 'failedneedsescalation':
       case 'disputed':
         return TrackingLifecycle.failed;
@@ -440,6 +462,12 @@ class DeliveryTrackingInfo extends Equatable {
   /// (Ordered → Picked → In Transit → Delivered, D70). `atDoor` lands on the
   /// In-Transit step (the courier is en route to the door); `delivered` lands on
   /// the final step. Returned as the index of the CURRENT step (0-based).
+  ///
+  /// **Recorded product decision (P6/A5).** At-Door does NOT get a fifth step —
+  /// the customer keeps the 4-step blueprint. Instead, when the row is at the
+  /// door `OrderTrackingStepper` relabels the third step "At Door" while its
+  /// Semantics identifier stays `tracking_step_in_transit` (no Maestro/E2E
+  /// churn). The collapse below is therefore deliberate, not an oversight.
   int get trackingStepIndex4 {
     switch (currentStage) {
       case TrackingStage.ordered:

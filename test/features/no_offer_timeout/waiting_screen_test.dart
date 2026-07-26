@@ -46,14 +46,22 @@ NoOfferTimeoutScreen _screen(WaitingRequest seed, {DateTime? now}) {
   );
 }
 
-WaitingRequest _broadcast({int notified = 4, int offers = 0}) => WaitingRequest(
+/// P7: seeds carry the ANCHOR PAIR (device receive instant + server-relative
+/// remaining), not a server absolute. The default pair reproduces the previous
+/// 09:04:30 deadline against the fixed 09:00:00 clock.
+WaitingRequest _broadcast({
+  int notified = 4,
+  int offers = 0,
+  Duration? remaining = const Duration(minutes: 4, seconds: 30),
+}) => WaitingRequest(
   requestId: 'req-client-001-pending',
   phase: offers > 0
       ? WaitingRequestPhase.offersArrived
       : WaitingRequestPhase.broadcasting,
   notifiedCount: notified,
   offerCount: offers,
-  broadcastExpiresAt: DateTime.utc(2026, 6, 18, 9, 4, 30),
+  receivedAt: DateTime.utc(2026, 6, 18, 9),
+  remainingAtReceipt: remaining,
   displayId: 'ORD-501001',
   tier: 'express',
   title: 'Pharmacy run',
@@ -126,7 +134,8 @@ void main() {
           phase: WaitingRequestPhase.broadcasting,
           notifiedCount: 2,
           offerCount: 0,
-          broadcastExpiresAt: DateTime.utc(2026, 6, 18, 9, 4, 30),
+          receivedAt: DateTime.utc(2026, 6, 18, 9),
+          remainingAtReceipt: const Duration(minutes: 4, seconds: 30),
         );
         await tester.pumpWidget(wrapForTest(_screen(seed)));
         await tester.pump();
@@ -175,18 +184,19 @@ void main() {
       },
     );
 
-    // The ONLY place a no-coverage-style state appears: the broadcast window
-    // has fully elapsed (injected now >= broadcastExpiresAt) and zero offers
+    // The ONLY place a no-coverage-style state appears: the offer-wait window
+    // has fully elapsed (the SERVER said zero seconds remain) and zero offers
     // are in. Clock-driven via WaitingState.remaining == zero.
     testWidgets(
       'AC1c — broadcast window elapsed + 0 offers shows the no-offers-yet '
       'state',
       (tester) async {
-        // broadcastExpiresAt is 09:04:30; advance now to exactly the deadline so
-        // remaining clamps to zero.
-        final elapsed = DateTime.utc(2026, 6, 18, 9, 4, 30);
+        // P7: the server itself reports zero remaining — the client no longer
+        // needs to outrun an absolute it parsed off the wire.
         await tester.pumpWidget(
-          wrapForTest(_screen(_broadcast(notified: 0), now: elapsed)),
+          wrapForTest(
+            _screen(_broadcast(notified: 0, remaining: Duration.zero)),
+          ),
         );
         await tester.pump();
         await tester.pump();
@@ -222,10 +232,11 @@ void main() {
       (tester) async {
         // Past the deadline AND offers in: hasOffers must keep the no-offers-yet
         // state suppressed (isNoOffersYet requires !hasOffers).
-        final elapsed = DateTime.utc(2026, 6, 18, 9, 4, 30);
         await tester.pumpWidget(
           wrapForTest(
-            _screen(_broadcast(notified: 0, offers: 2), now: elapsed),
+            _screen(
+              _broadcast(notified: 0, offers: 2, remaining: Duration.zero),
+            ),
           ),
         );
         await tester.pump();
@@ -265,8 +276,9 @@ void main() {
           phase: WaitingRequestPhase.expired,
           notifiedCount: 4,
           offerCount: 0,
-          // Even a future/stale deadline cannot resurrect a server-terminal row.
-          broadcastExpiresAt: DateTime.utc(2026, 6, 18, 10),
+          // Even a still-running anchor cannot resurrect a server-terminal row.
+          receivedAt: DateTime.utc(2026, 6, 18, 9),
+          remainingAtReceipt: const Duration(hours: 1),
           title: 'Dead request',
         );
 
@@ -308,7 +320,8 @@ void main() {
           phase: WaitingRequestPhase.cancelled,
           notifiedCount: 4,
           offerCount: 0,
-          broadcastExpiresAt: DateTime.utc(2026, 6, 18, 10),
+          receivedAt: DateTime.utc(2026, 6, 18, 9),
+          remainingAtReceipt: const Duration(hours: 1),
         ),
       );
       await tester.pumpWidget(
@@ -383,8 +396,81 @@ void main() {
         findsNothing,
       );
     });
+
+    // P7 T5.5 — a backend-contract break gets its OWN copy, so a QA run reports
+    // "backend contract break" rather than "network problem". Critically there
+    // is NO countdown on screen: no fabricated 0:00, no fabricated 5:00.
+    testWidgets('T5.5 — a contract violation renders the contract-break copy', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        wrapForTest(
+          _errorScreen(
+            const WaitingException(
+              WaitingFailure.contractViolation,
+              'offerDeadlineInSeconds absent on a live broadcasting row',
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.bySemanticsIdentifier('waiting_error_state'),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Your request status came back in an unexpected format. '
+          'This is a server problem, not your connection.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          "We couldn't load your request status. Please try again.",
+        ),
+        findsNothing,
+      );
+      expect(find.bySemanticsIdentifier('waiting_countdown'), findsNothing);
+    });
+
+    testWidgets('T5.5 — a network failure keeps the generic connection copy', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        wrapForTest(
+          _errorScreen(const WaitingException(WaitingFailure.network)),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.text(
+          "We couldn't load your request status. Please try again.",
+        ),
+        findsOneWidget,
+      );
+    });
   });
 }
+
+/// Builds the screen over a repository that always fails with [failure], so the
+/// error branch's copy selection can be asserted.
+NoOfferTimeoutScreen _errorScreen(WaitingException failure) =>
+    NoOfferTimeoutScreen(
+      requestId: 'req-client-001-pending',
+      repository: FakeWaitingRepository(failure: failure),
+      cubitFactory: (repo, requestId) => WaitingCubit(
+        repository: repo,
+        requestId: requestId,
+        now: () => DateTime.utc(2026, 6, 18, 9),
+        pollTicks: const Stream.empty(),
+        clockTicks: const Stream.empty(),
+      ),
+    );
 
 /// Resolves the request read normally but NEVER completes the offers read, so a
 /// test can prove the broadcast state paints without waiting on offers.

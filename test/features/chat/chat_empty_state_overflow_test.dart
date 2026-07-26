@@ -17,6 +17,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/chat/domain/chat_gateway.dart';
 import 'package:jeeb_mobile/features/chat/domain/delivery_chat_message.dart';
+import 'package:jeeb_mobile/features/chat/domain/order_chat_summary.dart';
 import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
@@ -80,8 +81,9 @@ class _EmptyGateway extends ChatGateway {
 Future<void> _pumpAtHeight(
   WidgetTester tester,
   Size size,
-  ConversationPhase phase,
-) async {
+  ConversationPhase phase, {
+  OrderChatSummary? pinnedSummary,
+}) async {
   await tester.binding.setSurfaceSize(size);
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
@@ -94,6 +96,9 @@ Future<void> _pumpAtHeight(
     deliveryId: 'conv-empty-1',
     counterpartName: 'Kamal Hajj',
     gateway: gateway,
+    isOrderChat: pinnedSummary != null,
+    pinnedSummary: pinnedSummary,
+    onViewSummary: pinnedSummary == null ? null : () {},
   )));
   // Let the cubit's load() resolve and the empty state mount.
   await tester.pump();
@@ -138,6 +143,28 @@ void main() {
       ConversationPhase.broadcasting,
     );
     expect(find.byKey(ChatScreen.emptyStateKey), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'P3/M20: empty thread + the pinned strip carrying a 300-char initial '
+      'requirement still lays out at a short phone height (R2 guard)',
+      (tester) async {
+    await _pumpAtHeight(
+      tester,
+      const Size(320, 480),
+      ConversationPhase.accepted,
+      pinnedSummary: OrderChatSummary(
+        deliveryId: 'del-empty-1',
+        orderRef: 'ORD-1',
+        description: 'apples ' * 45, // 315 chars
+      ),
+    );
+    expect(find.byKey(ChatScreen.emptyStateKey), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('order_chat_request_description'),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 }

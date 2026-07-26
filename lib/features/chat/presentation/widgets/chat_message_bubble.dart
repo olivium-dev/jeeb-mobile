@@ -227,11 +227,17 @@ class _PhotoBubble extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: OmdsBorderRadius.xSmall,
-            child: Image.memory(
-              message.photoBytes!,
-              fit: BoxFit.cover,
-              gaplessPlayback: true,
-            ),
+            // P4/P5: `photoBytes!` crashed on a bytes-less `photo` row, and
+            // `Image.memory` had no `errorBuilder`, so undecodable bytes threw
+            // an `ErrorWidget` into the thread. Both degrade to the placeholder.
+            child: (message.photoBytes?.isNotEmpty ?? false)
+                ? Image.memory(
+                    message.photoBytes!,
+                    fit: BoxFit.cover,
+                    gaplessPlayback: true,
+                    errorBuilder: (_, _, _) => _ImagePlaceholder(color: onBubble),
+                  )
+                : _ImagePlaceholder(color: onBubble),
           ),
           if (message.text.isNotEmpty)
             Padding(
@@ -275,7 +281,6 @@ class _ImageBubble extends StatelessWidget {
         ? colorScheme.primary
         : colorScheme.surfaceContainerHigh;
     final onBubble = isSender ? colorScheme.onPrimary : colorScheme.onSurface;
-    final url = message.imageUrl ?? '';
     final authorLabel = isSender ? 'You' : 'Jeeber';
     final l10n = AppLocalizations.of(context);
     final bubble = _DirectionalBubble(
@@ -290,13 +295,7 @@ class _ImageBubble extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: OmdsBorderRadius.xSmall,
-            child: url.isEmpty
-                ? _ImagePlaceholder(color: onBubble)
-                : OmdsCachedImage(
-                    url: url,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, _, _) => _ImagePlaceholder(color: onBubble),
-                  ),
+            child: _imageContent(message, onBubble),
           ),
           if (message.text.isNotEmpty)
             Padding(
@@ -323,6 +322,35 @@ class _ImageBubble extends StatelessWidget {
       ),
     );
     return Semantics(label: l10n.chatImageA11y(authorLabel), child: bubble);
+  }
+
+  /// P4/P5 source precedence. Local bytes WIN — the sender's own just-captured
+  /// frame, or a peer image already resolved through the authenticated CDN read
+  /// proxy — so the photo renders with no round trip and no blink.
+  ///
+  /// A bare [DeliveryChatMessage.imageUrl] is a CDN `object_ref`
+  /// (`chat_attachment/<guid>.jpg`), NOT a fetchable URL: handing it to
+  /// [OmdsCachedImage] would issue a doomed unauthenticated GET. Only an
+  /// ABSOLUTE http(s) value (a legacy/external image) is passed through.
+  Widget _imageContent(DeliveryChatMessage message, Color onBubble) {
+    final bytes = message.photoBytes;
+    if (bytes != null && bytes.isNotEmpty) {
+      return Image.memory(
+        bytes,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (_, _, _) => _ImagePlaceholder(color: onBubble),
+      );
+    }
+    final url = message.imageUrl ?? '';
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return OmdsCachedImage(
+        url: url,
+        fit: BoxFit.cover,
+        errorWidget: (_, _, _) => _ImagePlaceholder(color: onBubble),
+      );
+    }
+    return _ImagePlaceholder(color: onBubble);
   }
 }
 

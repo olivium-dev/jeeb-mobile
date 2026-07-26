@@ -55,6 +55,12 @@ class _FakeRepo implements ActiveDeliveryRepository {
   /// Records the last code handed to [verifyDoorOtp] (iter6 close-tail check).
   String? lastOtpCode;
 
+  /// P6/B1: every (from, to) pair the cubit actually PATCHed. The regression
+  /// guard for the 2026-07-25 incident asserts this never contains
+  /// `(atDoor, done)`.
+  final List<(JeeberDeliveryStatus, JeeberDeliveryStatus)> transitionCalls =
+      <(JeeberDeliveryStatus, JeeberDeliveryStatus)>[];
+
   @override
   Future<JeeberDelivery> fetchDelivery(String deliveryId) async {
     if (fetchThrows != null) throw fetchThrows!;
@@ -69,6 +75,7 @@ class _FakeRepo implements ActiveDeliveryRepository {
     String? evidenceUrl,
   }) async {
     lastEvidenceUrl = evidenceUrl;
+    transitionCalls.add((from, to));
     if (transitionThrows != null) throw transitionThrows!;
     return transitionResult ?? to;
   }
@@ -92,6 +99,78 @@ class _FakeRepo implements ActiveDeliveryRepository {
     lastUploadedBytes = bytes;
     return uploadResult ?? 'https://cdn.jeeb.app/proof/$deliveryId.jpg';
   }
+}
+
+/// P6/B5: the first step is committed by the server, the second is refused.
+/// Proves the cubit reverts to the LAST CONFIRMED status, not to `original`.
+class _FailAfterFirstStepRepo implements ActiveDeliveryRepository {
+  int calls = 0;
+
+  @override
+  Future<JeeberDelivery> fetchDelivery(String deliveryId) async =>
+      _delivery(JeeberDeliveryStatus.ordered);
+
+  @override
+  Future<JeeberDeliveryStatus> transition({
+    required String deliveryId,
+    required JeeberDeliveryStatus from,
+    required JeeberDeliveryStatus to,
+    String? evidenceUrl,
+  }) async {
+    calls++;
+    if (calls == 1) return to;
+    throw const ActiveDeliveryException(
+      ActiveDeliveryFailure.invalidTransition,
+    );
+  }
+
+  @override
+  Future<JeeberDeliveryStatus> verifyDoorOtp({
+    required String deliveryId,
+    required String code,
+  }) async => JeeberDeliveryStatus.done;
+
+  @override
+  Future<String> uploadProofPhoto({
+    required String deliveryId,
+    required Uint8List bytes,
+    String contentType = 'image/jpeg',
+  }) async => 'https://cdn.jeeb.app/proof/$deliveryId.jpg';
+}
+
+/// P6/A2: counts every delivery read so a test can prove the poll stays armed.
+class _CountingRepo implements ActiveDeliveryRepository {
+  _CountingRepo(this.onFetch, this.result);
+
+  final void Function() onFetch;
+  final JeeberDelivery result;
+
+  @override
+  Future<JeeberDelivery> fetchDelivery(String deliveryId) async {
+    onFetch();
+    return result;
+  }
+
+  @override
+  Future<JeeberDeliveryStatus> transition({
+    required String deliveryId,
+    required JeeberDeliveryStatus from,
+    required JeeberDeliveryStatus to,
+    String? evidenceUrl,
+  }) async => to;
+
+  @override
+  Future<JeeberDeliveryStatus> verifyDoorOtp({
+    required String deliveryId,
+    required String code,
+  }) async => JeeberDeliveryStatus.done;
+
+  @override
+  Future<String> uploadProofPhoto({
+    required String deliveryId,
+    required Uint8List bytes,
+    String contentType = 'image/jpeg',
+  }) async => 'https://cdn.jeeb.app/proof/$deliveryId.jpg';
 }
 
 void main() {
@@ -300,82 +379,96 @@ void main() {
       expect: () => <ActiveDeliveryState>[],
     );
 
-    blocTest<ActiveDeliveryCubit, ActiveDeliveryState>(
-      'markDelivered transitions AtDoor → Done and emits delivered (AC2)',
-      build: () => ActiveDeliveryCubit(
-        repository: _FakeRepo(transitionResult: JeeberDeliveryStatus.done),
-        deliveryId: 'DLV-770001',
-      ),
-      seed: () => ActiveDeliveryState(
-        mode: ActiveDeliveryMode.ready,
-        delivery: _delivery(JeeberDeliveryStatus.atDoor),
-      ),
-      act: (c) => c.markDelivered(),
-      expect: () => [
-        predicate<ActiveDeliveryState>(
-          (s) =>
-              s.isTransitioning &&
-              s.delivery?.status == JeeberDeliveryStatus.done,
-          'optimistic done',
-        ),
-        predicate<ActiveDeliveryState>(
-          (s) =>
-              s.mode == ActiveDeliveryMode.ready &&
-              s.delivery?.status == JeeberDeliveryStatus.done &&
-              s.delivered == true,
-          'confirmed done + delivered signal',
-        ),
-      ],
-    );
-
-    blocTest<ActiveDeliveryCubit, ActiveDeliveryState>(
-      'markDelivered walks InTransit → AtDoor → Done (seam seeds InTransit)',
-      // _FakeRepo echoes the requested `to` (transitionResult null) so the walk
-      // advances step-by-step like the real mock SM-1.
-      build: () => ActiveDeliveryCubit(
-        repository: _FakeRepo(),
-        deliveryId: 'DLV-770001',
-      ),
-      seed: () => ActiveDeliveryState(
-        mode: ActiveDeliveryMode.ready,
-        delivery: _delivery(JeeberDeliveryStatus.inTransit),
-      ),
-      act: (c) => c.markDelivered(),
-      expect: () => [
-        predicate<ActiveDeliveryState>(
-          (s) =>
-              s.isTransitioning &&
-              s.delivery?.status == JeeberDeliveryStatus.done,
-          'optimistic done',
-        ),
-        predicate<ActiveDeliveryState>(
-          (s) =>
-              s.mode == ActiveDeliveryMode.ready &&
-              s.delivery?.status == JeeberDeliveryStatus.done &&
-              s.delivered == true,
-          'confirmed done + delivered after walking both steps',
-        ),
-      ],
-    );
-
-    test('markDelivered carries the proof evidenceUrl on the Done transition',
-        () async {
-      final repo = _FakeRepo(transitionResult: JeeberDeliveryStatus.done);
+    test('P6/B1: markDelivered at AtDoor patches NOTHING and raises the door '
+        'OTP', () async {
+      final repo = _FakeRepo();
       final cubit = ActiveDeliveryCubit(
         repository: repo,
         deliveryId: 'DLV-770001',
+      )..emit(ActiveDeliveryState(
+          mode: ActiveDeliveryMode.ready,
+          delivery: _delivery(JeeberDeliveryStatus.atDoor),
+        ));
+
+      await cubit.markDelivered();
+
+      // THE regression guard for the 2026-07-25 incident: no AtDoor→Done PATCH.
+      expect(repo.transitionCalls, isEmpty);
+      expect(cubit.state.otpRequired, isTrue);
+      expect(cubit.state.delivered, isFalse);
+      expect(cubit.state.delivery!.status, JeeberDeliveryStatus.atDoor);
+      expect(cubit.state.transitionError, isNull);
+      await cubit.close();
+    });
+
+    test('P6/B1: markDelivered from InTransit walks to AtDoor ONLY, then OTP',
+        () async {
+      final repo = _FakeRepo(); // echoes the requested `to`
+      final cubit = ActiveDeliveryCubit(
+        repository: repo,
+        deliveryId: 'DLV-770001',
+      )..emit(ActiveDeliveryState(
+          mode: ActiveDeliveryMode.ready,
+          delivery: _delivery(JeeberDeliveryStatus.inTransit),
+        ));
+
+      await cubit.markDelivered();
+
+      expect(
+        repo.transitionCalls,
+        [(JeeberDeliveryStatus.inTransit, JeeberDeliveryStatus.atDoor)],
       );
-      cubit.emit(const ActiveDeliveryState(
-        mode: ActiveDeliveryMode.ready,
-        delivery: JeeberDelivery(
-          id: 'DLV-770001',
-          status: JeeberDeliveryStatus.atDoor,
-          dropOff: _dropOff,
-          proofPhotoUrl: 'https://cdn.jeeb.app/proof/x.jpg',
-        ),
-      ));
+      expect(cubit.state.delivery!.status, JeeberDeliveryStatus.atDoor);
+      expect(cubit.state.otpRequired, isTrue);
+      expect(cubit.state.delivered, isFalse);
+      await cubit.close();
+    });
+
+    test('P6/B1: the proof evidenceUrl is carried on InTransit→AtDoor',
+        () async {
+      final repo = _FakeRepo();
+      final cubit = ActiveDeliveryCubit(
+        repository: repo,
+        deliveryId: 'DLV-770001',
+      )..emit(const ActiveDeliveryState(
+          mode: ActiveDeliveryMode.ready,
+          delivery: JeeberDelivery(
+            id: 'DLV-770001',
+            status: JeeberDeliveryStatus.inTransit,
+            dropOff: _dropOff,
+            proofPhotoUrl: 'https://cdn.jeeb.app/proof/x.jpg',
+          ),
+        ));
       await cubit.markDelivered();
       expect(repo.lastEvidenceUrl, 'https://cdn.jeeb.app/proof/x.jpg');
+      expect(
+        repo.transitionCalls,
+        [(JeeberDeliveryStatus.inTransit, JeeberDeliveryStatus.atDoor)],
+      );
+      await cubit.close();
+    });
+
+    test('P6/B5: a failed step keeps the status the server already committed',
+        () async {
+      // Ordered → Picked succeeds, Picked → InTransit fails.
+      final repo = _FailAfterFirstStepRepo();
+      final cubit = ActiveDeliveryCubit(
+        repository: repo,
+        deliveryId: 'DLV-770001',
+      )..emit(ActiveDeliveryState(
+          mode: ActiveDeliveryMode.ready,
+          delivery: _delivery(JeeberDeliveryStatus.ordered),
+        ));
+
+      await cubit.markDelivered();
+
+      // Pre-fix this rewound to `ordered` and made the error look sticky.
+      expect(cubit.state.delivery!.status, JeeberDeliveryStatus.picked);
+      expect(cubit.state.transitionError, isNotNull);
+      expect(
+        cubit.state.transitionErrorKind,
+        ActiveDeliveryFailure.invalidTransition,
+      );
       await cubit.close();
     });
 
@@ -401,6 +494,10 @@ void main() {
   });
 
   group('ActiveDeliveryCubit — door OTP (iter6 close-tail)', () {
+    // P6/B1: from AtDoor the cubit never PATCHes at all (see the B1 cases
+    // above). This pins the OTHER door into the OTP surface — an EARLY step
+    // answering `otp_required` — which must still hold the row at its last
+    // confirmed stage and prompt for the code, never "transition not allowed".
     blocTest<ActiveDeliveryCubit, ActiveDeliveryState>(
       'markDelivered on 422 otp_required surfaces the OTP entry '
       '(NOT "transition not allowed")',
@@ -414,7 +511,7 @@ void main() {
       ),
       seed: () => ActiveDeliveryState(
         mode: ActiveDeliveryMode.ready,
-        delivery: _delivery(JeeberDeliveryStatus.atDoor),
+        delivery: _delivery(JeeberDeliveryStatus.inTransit),
       ),
       act: (c) => c.markDelivered(),
       expect: () => [
@@ -426,8 +523,9 @@ void main() {
           (s) =>
               s.otpRequired &&
               s.transitionError == null &&
-              s.delivery?.status == JeeberDeliveryStatus.atDoor,
-          'otpRequired surfaced, held at AtDoor, no misleading snackbar',
+              s.delivery?.status == JeeberDeliveryStatus.inTransit,
+          'otpRequired surfaced, held at the last confirmed stage, '
+          'no misleading snackbar',
         ),
       ],
     );
@@ -509,5 +607,68 @@ void main() {
         expect((c.state.delivery)?.status, JeeberDeliveryStatus.done);
       },
     );
+  });
+
+  group('ActiveDeliveryCubit — P6 polling (A2 + A4)', () {
+    test('P6/A4: during the OTP window the poll discards non-terminal '
+        'snapshots', () async {
+      final repo = _FakeRepo(
+        fetchResult: _delivery(JeeberDeliveryStatus.atDoor),
+      );
+      final cubit = ActiveDeliveryCubit(
+        repository: repo,
+        deliveryId: 'DLV-770001',
+        pollInterval: const Duration(milliseconds: 20),
+      )..emit(ActiveDeliveryState(
+          mode: ActiveDeliveryMode.ready,
+          delivery: _delivery(JeeberDeliveryStatus.atDoor),
+          otpRequired: true,
+        ));
+      await cubit.refresh();
+      expect(
+        cubit.state.otpRequired,
+        isTrue,
+        reason: 'OTP entry must survive the poll',
+      );
+      await cubit.close();
+    });
+
+    test('P6/A4: a Done read during the OTP window closes it and chains to '
+        'rating', () async {
+      final repo = _FakeRepo(fetchResult: _delivery(JeeberDeliveryStatus.done));
+      final cubit = ActiveDeliveryCubit(
+        repository: repo,
+        deliveryId: 'DLV-770001',
+      )..emit(ActiveDeliveryState(
+          mode: ActiveDeliveryMode.ready,
+          delivery: _delivery(JeeberDeliveryStatus.atDoor),
+          otpRequired: true,
+        ));
+      await cubit.refresh();
+      expect(cubit.state.otpRequired, isFalse);
+      expect(cubit.state.delivered, isTrue);
+      await cubit.close();
+    });
+
+    test('P6/A2: the jeeber poll stays armed on disputed', () async {
+      var calls = 0;
+      final repo = _CountingRepo(
+        () => calls++,
+        _delivery(JeeberDeliveryStatus.disputed),
+      );
+      final cubit = ActiveDeliveryCubit(
+        repository: repo,
+        deliveryId: 'DLV-770001',
+        pollInterval: const Duration(milliseconds: 20),
+      );
+      await cubit.loadDelivery();
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(
+        calls,
+        greaterThan(1),
+        reason: 'admin can still resolve a disputed row',
+      );
+      await cubit.close();
+    });
   });
 }
