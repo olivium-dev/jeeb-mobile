@@ -48,32 +48,38 @@ String _withField(String fieldJson) => _capturedProjectedWire.replaceFirst(
 );
 
 void main() {
-  test('R19 captured wire rejects degenerate ref and type shapes', () async {
-    final missingRef = await _parseSingle(_capturedProjectedWire);
-    expect(missingRef.ref, isNull);
-    expect(missingRef.kind, NotificationKind.offer);
+  test(
+    'FM1 R19 captured wire rejects degenerate ref and type shapes',
+    () async {
+      final missingRef = await _parseSingle(_capturedProjectedWire);
+      expect(missingRef.ref, isNull);
+      expect(missingRef.kind, NotificationKind.offer);
 
-    final emptyRef = await _parseSingle(_withField('"ref":""'));
-    expect(emptyRef.ref, isNull);
+      final emptyRef = await _parseSingle(_withField('"ref":""'));
+      expect(emptyRef.ref, isNull);
 
-    final huskedRef = await _parseSingle(_withField('"ref":{"valueKind":1}'));
-    expect(huskedRef.ref, isNull);
+      final huskedRef = await _parseSingle(_withField('"ref":{"valueKind":1}'));
+      expect(huskedRef.ref, isNull);
 
-    final unknownType = await _parseSingle(
-      _capturedProjectedWire.replaceFirst(
-        '"type":"jeeb.offer_received",',
-        '"type":"future_notification",',
-      ),
-    );
-    expect(unknownType.kind, NotificationKind.unknown);
+      final unknownType = await _parseSingle(
+        _capturedProjectedWire.replaceFirst(
+          '"type":"jeeb.offer_received",',
+          '"type":"future_notification",',
+        ),
+      );
+      expect(unknownType.kind, NotificationKind.unknown);
 
-    final absentType = await _parseSingle(
-      _capturedProjectedWire.replaceFirst('"type":"jeeb.offer_received",', ''),
-    );
-    expect(absentType.kind, NotificationKind.unknown);
-  });
+      final absentType = await _parseSingle(
+        _capturedProjectedWire.replaceFirst(
+          '"type":"jeeb.offer_received",',
+          '',
+        ),
+      );
+      expect(absentType.kind, NotificationKind.unknown);
+    },
+  );
 
-  test('captured wire accepts offer and order ref aliases', () async {
+  test('FM1 captured wire accepts offer and order ref aliases', () async {
     const aliases = <String, String>{
       'offerId': 'offer-camel',
       'offer_id': 'offer-snake',

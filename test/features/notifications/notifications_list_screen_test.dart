@@ -156,42 +156,43 @@ void main() {
     expect(find.byType(OmdsPullToRefresh), findsOneWidget);
   });
 
-  testWidgets('Arabic RTL row mirrors icon and unread dot without overflow', (
-    tester,
-  ) async {
-    await tester.binding.setSurfaceSize(const Size(360, 640));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+  testWidgets(
+    'FM1 Arabic RTL row mirrors icon and unread dot without overflow',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 640));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    await pump(
-      tester,
-      _ScriptedRepository([
-        NotificationItem(
-          id: 'rtl-offer',
-          kind: NotificationKind.offer,
-          title: 'New offer on your request',
-          body: 'Tap to review.',
-          timestamp: '2999-01-01T00:00:00Z',
-          read: false,
-          ref: 'req-rtl',
-        ),
-      ]),
-      locale: const Locale('ar'),
-    );
+      await pump(
+        tester,
+        _ScriptedRepository([
+          NotificationItem(
+            id: 'rtl-offer',
+            kind: NotificationKind.offer,
+            title: 'New offer on your request',
+            body: 'Tap to review.',
+            timestamp: '2999-01-01T00:00:00Z',
+            read: false,
+            ref: 'req-rtl',
+          ),
+        ]),
+        locale: const Locale('ar'),
+      );
 
-    final row = find.bySemanticsIdentifier('notif_row_rtl-offer');
-    final icon = find.byIcon(Icons.local_offer_outlined);
-    final unread = find.bySemanticsIdentifier(
-      'notif_row_rtl-offer_unread_badge',
-    );
-    final rowRect = tester.getRect(row);
+      final row = find.bySemanticsIdentifier('notif_row_rtl-offer');
+      final icon = find.byIcon(Icons.local_offer_outlined);
+      final unread = find.bySemanticsIdentifier(
+        'notif_row_rtl-offer_unread_badge',
+      );
+      final rowRect = tester.getRect(row);
 
-    expect(Directionality.of(tester.element(row)), TextDirection.rtl);
-    expect(find.text('عرض جديد'), findsOneWidget);
-    expect(find.text('الآن'), findsOneWidget);
-    expect(tester.getRect(icon).center.dx, greaterThan(rowRect.center.dx));
-    expect(tester.getRect(unread).center.dx, lessThan(rowRect.center.dx));
-    expect(tester.takeException(), isNull);
-  });
+      expect(Directionality.of(tester.element(row)), TextDirection.rtl);
+      expect(find.text('عرض جديد'), findsOneWidget);
+      expect(find.text('الآن'), findsOneWidget);
+      expect(tester.getRect(icon).center.dx, greaterThan(rowRect.center.dx));
+      expect(tester.getRect(unread).center.dx, lessThan(rowRect.center.dx));
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   // P0-X08 regression: each row's eyebrow (category, derived from `kind`) must
   // be DISTINCT from its title (the payload headline) — never the same string
@@ -278,7 +279,7 @@ void main() {
       await tapKind(tester, NotificationKind.offer, expectRootId: 'shell_root');
     });
 
-    testWidgets('offer with ref → offer-review', (tester) async {
+    testWidgets('FM1 offer with ref → offer-review', (tester) async {
       await tapKind(
         tester,
         NotificationKind.offer,
