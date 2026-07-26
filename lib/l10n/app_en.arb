@@ -1527,6 +1527,8 @@
   "kycSelfieCaptureCta": "Capture selfie",
   "kycStatusPendingTitle": "Submission received",
   "kycStatusPendingBody": "Our team is reviewing your documents. This usually takes up to 24 hours — we'll notify you here when there's an update.",
+  "kycStatusCheckAgainCta": "Check again",
+  "kycStatusAutoCheckStoppedNote": "We've stopped checking automatically. Tap Check again to look for a decision.",
   "kycStatusApprovedTitle": "You're approved",
   "kycStatusApprovedBody": "Welcome aboard! You can now switch to the Jeeber role from your profile and start delivering.",
   "kycStatusRejectedTitle": "We need a second look",

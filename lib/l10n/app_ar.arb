@@ -530,6 +530,8 @@
   "kycSelfieCaptureCta": "التقاط الصورة الشخصية",
   "kycStatusPendingTitle": "تم استلام الطلب",
   "kycStatusPendingBody": "يقوم فريقنا بمراجعة مستنداتك، وعادةً ما تستغرق المراجعة حتى 24 ساعة — سنخبرك هنا بمجرد توفر تحديث.",
+  "kycStatusCheckAgainCta": "تحقق مرة أخرى",
+  "kycStatusAutoCheckStoppedNote": "توقفنا عن التحقق تلقائيًا. اضغط \"تحقق مرة أخرى\" للبحث عن قرار.",
   "kycStatusApprovedTitle": "تمت الموافقة",
   "kycStatusApprovedBody": "مرحبًا بك! يمكنك الآن التحول إلى دور جِيبر من حسابك والبدء بالتوصيل.",
   "kycStatusRejectedTitle": "نحتاج إلى نظرة أخرى",
