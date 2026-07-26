@@ -29,6 +29,8 @@ import '../request_summary/data/dio_request_submission_service.dart';
 import '../request_summary/domain/recipient_phone_resolver.dart';
 import 'dev_chat_detail_fixtures.dart';
 
+const kChatSummarySafetyNetPollInterval = Duration(seconds: 60);
+
 /// Canonical post-delivery blind mutual-rating route (T-MOB-020). Mirrors the
 /// builder the OTP-handover completion uses (`otp_handover_screen.dart`): the
 /// client leg carries no `mode`, the jeeber leg appends `?mode=jeeber`, and the
@@ -66,7 +68,7 @@ class ChatDetailScreen extends StatefulWidget {
     this.debugHasWinner = false,
     this.debugSummary,
     this.debugCounterpartName = '',
-    this.summaryPollInterval = const Duration(seconds: 5),
+    this.summaryPollInterval = kChatSummarySafetyNetPollInterval,
   });
 
   final String chatId;
@@ -74,8 +76,8 @@ class ChatDetailScreen extends StatefulWidget {
   /// JEBV4-282: cadence at which the accepted-order pinned summary (the delivery
   /// status chip) is re-fetched so it advances live. `null` disables polling —
   /// widget tests that mount the live resolution path but don't exercise the
-  /// poll pass `null` to stay pumpAndSettle-safe. Production leaves the 5s
-  /// default, mirroring [LiveTrackingCubit].
+  /// poll pass `null` to stay pumpAndSettle-safe. Production leaves the 60s
+  /// safety-net default; push-driven refresh supplies the low-latency path.
   final Duration? summaryPollInterval;
 
   /// DEVTOOL-ONLY seam (DT-04 screen catalog): when non-null, [initState]
@@ -131,7 +133,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   /// leaving/reopening the chat. Started only for a client-accepted resolution,
   /// disposed with the state, and stopped once the delivery is terminal.
   late final LifecyclePoller _summaryPoller = LifecyclePoller(
-    interval: widget.summaryPollInterval ?? const Duration(seconds: 5),
+    interval: widget.summaryPollInterval ?? kChatSummarySafetyNetPollInterval,
     onTick: _pollSummary,
     tickOnResume: false,
     debugLabel: 'ChatDetailScreen.summary',
@@ -520,7 +522,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   /// JEBV4-282: (re)arm the periodic summary poll so the pinned delivery-status
-  /// chip tracks the live delivery. Mirrors [LiveTrackingCubit]'s 5s poll.
+  /// chip tracks the live delivery at the demoted safety-net cadence.
   /// No-op when polling is disabled (`summaryPollInterval` null — the
   /// widget-test seam).
   void _startSummaryPoll() {
