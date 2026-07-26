@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/diagnostics/diag.dart';
+import '../../../core/lifecycle/lifecycle_poller.dart';
 import '../../photo_attachment/domain/photo_compressor.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
 import '../domain/chat_gateway.dart';
@@ -63,8 +65,20 @@ class ChatCubit extends Cubit<ChatState> {
 
   StreamSubscription<ChatEvent>? _subscription;
 
-  /// Periodic HTTP-history poll timer (the WS-independent inbound fallback).
-  Timer? _pollTimer;
+  /// Periodic HTTP-history poll (the WS-independent inbound fallback).
+  late final LifecyclePoller _historyPoller = LifecyclePoller(
+    interval: _pollInterval,
+    onTick: _pollHistory,
+    tickOnResume: false,
+    debugLabel: 'ChatCubit.history',
+  );
+
+  @visibleForTesting
+  bool get debugHistoryPollerRunning => _historyPoller.isRunning;
+
+  @visibleForTesting
+  // ignore: invalid_use_of_visible_for_testing_member
+  int get debugHistoryTickCount => _historyPoller.debugTickCount;
 
   /// Monotonic counter feeding outgoing message ids. Combined with the
   /// delivery id to stay unique across two cubits running in the same
@@ -115,7 +129,7 @@ class ChatCubit extends Cubit<ChatState> {
   /// trip the `FakeAsync` pending-timer assertion in widget tests).
   void _startPolling() {
     if (!_gateway.supportsPolling) return;
-    _pollTimer ??= Timer.periodic(_pollInterval, (_) => _pollHistory());
+    _historyPoller.start();
   }
 
   /// Re-pull history and merge any inbound messages not already shown. Inbound
@@ -343,8 +357,7 @@ class ChatCubit extends Cubit<ChatState> {
 
   @override
   Future<void> close() async {
-    _pollTimer?.cancel();
-    _pollTimer = null;
+    _historyPoller.dispose();
     await _subscription?.cancel();
     return super.close();
   }
