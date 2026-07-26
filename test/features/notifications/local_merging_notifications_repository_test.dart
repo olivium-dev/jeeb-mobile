@@ -76,17 +76,30 @@ NotificationItem _server(
 );
 
 void main() {
-  test('merges local new_request rows with server rows', () async {
-    final repo = LocalMergingNotificationsRepository(
-      remote: _StubRemote(items: [_server('s-1')]),
-      localInbox: _FakeLocalInbox([_local('bg-1')]),
-    );
-    final items = await repo.fetchNotifications();
-    expect(items.map((i) => i.id).toSet(), {'bg-1', 's-1'});
-    final local = items.firstWhere((i) => i.id == 'bg-1');
-    expect(local.kind, NotificationKind.newRequest);
-    expect(local.ref, 'req-x');
-  });
+  test(
+    'AC-11a/AC-11b missed server push renders once from server in timestamp order',
+    () async {
+      final repo = LocalMergingNotificationsRepository(
+        remote: _StubRemote(items: [_server('s-1')]),
+        localInbox: _FakeLocalInbox([_local('bg-1')]),
+      );
+      final items = await repo.fetchNotifications();
+      expect(items.map((i) => i.id), ['bg-1', 's-1']);
+      final local = items.firstWhere((i) => i.id == 'bg-1');
+      final server = items.where((i) => i.id == 's-1');
+      expect(server, hasLength(1));
+      expect(server.single.title, 'srv');
+      expect(server.single.kind, NotificationKind.offer);
+      expect(
+        DateTime.parse(
+          items.first.timestamp,
+        ).isAfter(DateTime.parse(items.last.timestamp)),
+        isTrue,
+      );
+      expect(local.kind, NotificationKind.newRequest);
+      expect(local.ref, 'req-x');
+    },
+  );
 
   test('a dismissed new_request shows even when the server inbox is EMPTY '
       '(the exact device gap)', () async {
