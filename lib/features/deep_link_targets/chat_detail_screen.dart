@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -9,6 +7,7 @@ import 'package:omds/omds.dart';
 
 import '../../core/delivery/delivery_status_vocab.dart';
 import '../../core/formatting/friendly_reference.dart';
+import '../../core/lifecycle/lifecycle_poller.dart';
 import '../../core/network/auth_token_store.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/role/user_role.dart';
@@ -129,9 +128,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   /// JEBV4-282: periodic re-fetch of [_summary] so the pinned delivery-status
   /// chip advances live (Ordered→Picked→InTransit→AtDoor→Done) without
-  /// leaving/reopening the chat. Null until the client-accepted resolution
-  /// starts it; cancelled in [dispose] and once the delivery is terminal.
-  Timer? _summaryPollTimer;
+  /// leaving/reopening the chat. Started only for a client-accepted resolution,
+  /// disposed with the state, and stopped once the delivery is terminal.
+  late final LifecyclePoller _summaryPoller = LifecyclePoller(
+    interval: widget.summaryPollInterval ?? const Duration(seconds: 5),
+    onTick: _pollSummary,
+    tickOnResume: false,
+    debugLabel: 'ChatDetailScreen.summary',
+  );
+
+  @visibleForTesting
+  bool get debugSummaryPollerRunning => _summaryPoller.isRunning;
+
+  @visibleForTesting
+  // ignore: invalid_use_of_visible_for_testing_member
+  int get debugSummaryTickCount => _summaryPoller.debugTickCount;
 
   /// One-shot guard for the delivery-complete → mutual-rating auto-navigation.
   /// Set the first time the polled delivery status reaches a delivered-class
@@ -167,7 +178,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   @override
   void dispose() {
-    _summaryPollTimer?.cancel();
+    _summaryPoller.dispose();
     final gateway = _gateway;
     if (gateway is DioChatGateway) {
       gateway.dispose();
@@ -509,14 +520,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   /// JEBV4-282: (re)arm the periodic summary poll so the pinned delivery-status
-  /// chip tracks the live delivery. Mirrors [LiveTrackingCubit]'s 5s
-  /// `Timer.periodic`. No-op when polling is disabled (`summaryPollInterval`
-  /// null — the widget-test seam).
+  /// chip tracks the live delivery. Mirrors [LiveTrackingCubit]'s 5s poll.
+  /// No-op when polling is disabled (`summaryPollInterval` null — the
+  /// widget-test seam).
   void _startSummaryPoll() {
     final interval = widget.summaryPollInterval;
     if (interval == null) return;
-    _summaryPollTimer?.cancel();
-    _summaryPollTimer = Timer.periodic(interval, (_) => _pollSummary());
+    _summaryPoller.start();
   }
 
   /// One poll tick: re-resolve the accepted-order summary and repaint the chip
@@ -526,8 +536,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   /// terminal — there is nothing left to advance.
   Future<void> _pollSummary() async {
     if (!mounted) {
-      _summaryPollTimer?.cancel();
-      _summaryPollTimer = null;
+      _summaryPoller.stop();
       return;
     }
     final getIt = GetIt.instance;
@@ -542,8 +551,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       setState(() => _summary = next);
     }
     if (_isTerminalStatus(next.statusId)) {
-      _summaryPollTimer?.cancel();
-      _summaryPollTimer = null;
+      _summaryPoller.stop();
     }
     // Delivery just completed while the client is sitting on the order-chat.
     // Advance to the MANDATORY blind mutual-rating (the SAME canonical
