@@ -186,11 +186,12 @@ void main() {
   });
 
   test(
-    'AC-12a/AC-12b reconciliation keeps one shared NCID with server content',
+    'AC-12a/AC-12b/AC-13a reconciliation keeps server NCIDs without ref collapse',
     () async {
       final distinctKindsRemote = _StubRemote(
         items: [
-          _server('offer-ncid', kind: NotificationKind.offer, ref: 'req-42'),
+          _server('offer-ncid-a', kind: NotificationKind.offer, ref: 'req-42'),
+          _server('offer-ncid-b', kind: NotificationKind.offer, ref: 'req-42'),
         ],
       );
       final distinctKindsLocal = _FakeLocalInbox([
@@ -204,9 +205,17 @@ void main() {
       final distinctKinds = await distinctKindsRepository.fetchNotifications();
       expect(
         distinctKinds.map((item) => item.id).toSet(),
-        {'new-request-fcm-id', 'offer-ncid'},
+        {'new-request-fcm-id', 'offer-ncid-a', 'offer-ncid-b'},
         reason: 'a ref may dedup only when both rows are new_request',
       );
+      final offers = distinctKinds
+          .where((item) => item.kind == NotificationKind.offer)
+          .toList(growable: false);
+      expect(offers.map((item) => item.id).toSet(), {
+        'offer-ncid-a',
+        'offer-ncid-b',
+      });
+      expect(offers.map((item) => item.ref), everyElement('req-42'));
 
       final serverBackedRemote = _StubRemote(
         items: [
