@@ -312,6 +312,34 @@ void main() {
       await cubit.close();
     });
 
+    test('expiry sweep pauses while hidden and reconciles immediately on '
+        'visibility resume', () async {
+      var now = DateTime(2026, 5, 17, 12);
+      when(() => repo.refresh()).thenAnswer(
+        (_) async =>
+            [_req(id: 'r1', ttl: const Duration(seconds: 5), now: now)],
+      );
+      final cubit = build(clock: () => now);
+      await cubit.start();
+      cubit.setPollingVisible(false);
+
+      now = now.add(const Duration(seconds: 6));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      expect(
+        cubit.state.isExpired('r1'),
+        isFalse,
+        reason: 'the 1-second sweep must not run for a hidden Dashboard',
+      );
+
+      cubit.setPollingVisible(true);
+      expect(
+        cubit.state.isExpired('r1'),
+        isTrue,
+        reason: 'tickOnResume must reconcile expiry without waiting a period',
+      );
+      await cubit.close();
+    });
+
     // THE G3 regression test. Pre-fix the cubit truncated every card at
     // min(expiresAt, addTime + 60s), so this card (server window 300s)
     // vanished at 60s — FOUR minutes before the request actually died.

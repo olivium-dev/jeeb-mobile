@@ -1,11 +1,18 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import '../../../core/formatting/server_time.dart';
+import '../../../core/lifecycle/app_lifecycle_gate.dart';
+import '../../../core/lifecycle/lifecycle_poller.dart';
+import '../../../core/lifecycle/polling_source.dart';
 import '../../../core/requests/server_request_status.dart';
 import 'request_feed_models.dart';
 import 'request_feed_repository.dart';
+
+const Duration kFeedSafetyNetPollInterval = Duration(seconds: 60);
 
 /// Dio-backed [RequestFeedRepository].
 ///
@@ -30,15 +37,18 @@ import 'request_feed_repository.dart';
 /// NOTE: this previously polled `GET /requests?status=pending`, which returns
 /// the CALLER'S OWN client requests and ignores status → a jeeber always saw 0
 /// rows. Pointed at the correct request-centric feed per the S02 freeze.
-class DioRequestFeedRepository implements RequestFeedRepository {
+class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
   DioRequestFeedRepository({
     required Dio dio,
-    Duration pollInterval = const Duration(seconds: 10),
+    Duration pollInterval = kFeedSafetyNetPollInterval,
+    AppLifecycleGate? lifecycleGate,
   }) : _dio = dio,
-       _pollInterval = pollInterval;
+       _pollInterval = pollInterval,
+       _lifecycleGate = lifecycleGate;
 
   final Dio _dio;
   final Duration _pollInterval;
+  final AppLifecycleGate? _lifecycleGate;
 
   /// The jeeb-gateway request-centric discovery feed (Contract B). Online-gated
   /// pending requests the jeeber may bid on. Was `/requests?status=pending`
@@ -50,7 +60,13 @@ class DioRequestFeedRepository implements RequestFeedRepository {
   final StreamController<FeedTransportUpdate> _transportCtrl =
       StreamController<FeedTransportUpdate>.broadcast(onListen: () {});
 
-  Timer? _pollTimer;
+  final Set<Object> _interest = HashSet<Object>.identity();
+  late final LifecyclePoller _poller = LifecyclePoller(
+    interval: _pollInterval,
+    onTick: _poll,
+    gate: _lifecycleGate,
+    debugLabel: 'jeeber-feed',
+  );
   bool _disposed = false;
 
   @override
@@ -61,7 +77,7 @@ class DioRequestFeedRepository implements RequestFeedRepository {
 
   @override
   Future<List<DeliveryRequest>> refresh() async {
-    _ensurePolling();
+    if (_disposed) return const <DeliveryRequest>[];
     try {
       final response = await _dio.get<dynamic>(_feedPath);
       return _parseRequests(response.data ?? {});
@@ -94,18 +110,34 @@ class DioRequestFeedRepository implements RequestFeedRepository {
   }
 
   @override
+  void addPollInterest(Object owner) {
+    if (_disposed || !_interest.add(owner)) return;
+    if (_interest.length != 1) return;
+    _transportCtrl.add(const FeedTransportUpdate(FeedTransport.polling));
+    _poller.start();
+  }
+
+  @override
+  void removePollInterest(Object owner) {
+    if (!_interest.remove(owner) || _interest.isNotEmpty) return;
+    _poller.stop();
+  }
+
+  @override
   Future<void> dispose() async {
+    if (_disposed) return;
     _disposed = true;
-    _pollTimer?.cancel();
+    _interest.clear();
+    _poller.dispose();
     await _requestsCtrl.close();
     await _transportCtrl.close();
   }
 
-  void _ensurePolling() {
-    if (_pollTimer != null || _disposed) return;
-    _transportCtrl.add(const FeedTransportUpdate(FeedTransport.polling));
-    _pollTimer = Timer.periodic(_pollInterval, (_) => _poll());
-  }
+  @visibleForTesting
+  bool get debugIsPolling => _poller.isRunning;
+
+  @visibleForTesting
+  bool get debugIsDisposed => _disposed;
 
   Future<void> _poll() async {
     if (_disposed) return;

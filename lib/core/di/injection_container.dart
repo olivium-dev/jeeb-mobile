@@ -114,6 +114,7 @@ import '../../features/offers/domain/offer_submission_service.dart';
 import '../../features/settlement/data/dio_settlement_repository.dart';
 import '../../features/settlement/domain/settlement_repository.dart';
 import '../config/dev_base_url.dart';
+import '../lifecycle/app_lifecycle_gate.dart';
 import '../network/auth_token_store.dart';
 import '../network/mock_gateway_client.dart';
 import '../network/single_flight_get.dart';
@@ -140,6 +141,11 @@ void configureDependencies({
   required SharedPreferences sharedPreferences,
   required CrashReporter crashReporter,
 }) {
+  // FM-3: install the process-wide app-lifecycle gate before anything that
+  // owns a poll is resolvable. Ambient and idempotent; with no install the
+  // gate is inert always-foreground, so every bare test is unaffected.
+  AppLifecycleGate.install(WidgetsBindingAppLifecycleGate());
+
   sl.registerSingleton<SharedPreferences>(sharedPreferences);
   sl.registerSingleton<CrashReporter>(crashReporter);
 
