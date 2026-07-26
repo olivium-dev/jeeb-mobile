@@ -23,8 +23,9 @@ import 'widgets/notification_row.dart';
 /// optimistically and (b) dispatches the D84 deep-link for its kind.
 ///
 /// D84 per-row dispatch (30_BACKLOG JM-057 AC; 21_NAV_PLAN §C):
-///   offer                      → my-orders          (Replies sub-tab → `shell`)
-///   offer_accepted / status    → order-chat         (`chat-detail`, ref=conv/req)
+///   offer                      → offer-review when addressed, else `shell`
+///   offer_accepted             → order-chat when addressed, else `shell`
+///   status                     → order-chat         (`chat-detail`, ref=conv/req)
 ///   low_balance / fee_won /
 ///     refund_penalty / topup   → wallet-hub         (`wallet`)
 ///   kyc_approved               → jeeber-requests-home (Dashboard tab → `shell`)
@@ -36,8 +37,8 @@ import 'widgets/notification_row.dart';
 ///                                the push tap uses (`deepLinkForMessage` →
 ///                                `/jeeber/requests/:id`) so a dismissed push
 ///                                keeps a persistent, tappable inbox trail
-///   unknown / missing-ref      → no nav (mark-read only; AP-9 honesty — never
-///                                fabricate a target the row can't address)
+///   unknown / other missing-ref → no nav (mark-read only; AP-9 honesty — never
+///                                 fabricate a target the row can't address)
 ///
 /// Tabs are NOT routes (21_NAV_PLAN §A): the tab-landing kinds route to `shell`
 /// and rely on the shell's role/sub-tab default. Reads the LIVE
@@ -113,7 +114,7 @@ class _NotificationsListView extends StatelessWidget {
                       context.read<NotificationsListCubit>().refresh(),
                 );
               case NotificationsListStatus.loaded:
-                return RefreshIndicator(
+                return OmdsPullToRefresh(
                   onRefresh: () =>
                       context.read<NotificationsListCubit>().refresh(),
                   child: !state.hasItems
@@ -206,18 +207,29 @@ class _LoadedList extends StatelessWidget {
         context.goNamed('wallet');
         break;
 
-      // Offer-accepted + order-status + (dispute) → the conversation thread.
-      // `ref` carries the conversationId / requestId to address the chat.
+      // Offer-accepted → the conversation when addressed, otherwise the shell.
       case NotificationKind.offerAccepted:
+        if (ref != null) {
+          context.goNamed('chat-detail', pathParameters: {'id': ref});
+        } else {
+          context.goNamed('shell');
+        }
+        break;
+
+      // Order status → the addressed conversation thread.
       case NotificationKind.status:
         if (ref != null) {
           context.goNamed('chat-detail', pathParameters: {'id': ref});
         }
         break;
 
-      // A fresh offer → my-orders (Replies sub-tab) — a shell tab, not a route.
+      // A fresh offer → the request's review page, or the honest shell fallback.
       case NotificationKind.offer:
-        context.goNamed('shell');
+        if (ref != null) {
+          context.goNamed('offer-review', pathParameters: {'id': ref});
+        } else {
+          context.goNamed('shell');
+        }
         break;
 
       // KYC approved → jeeber-requests-home (Dashboard tab) — a shell tab.
@@ -258,14 +270,16 @@ class _LoadedList extends StatelessWidget {
       // to the inbox.
       case NotificationKind.newRequest:
         if (ref == null) break;
-        final target = deepLinkForMessage(NotificationMessage(
-          id: item.id,
-          category: NotificationCategory.newRequest,
-          title: item.title,
-          body: item.body,
-          receivedAt: DateTime.now(),
-          data: {'requestId': ref},
-        ));
+        final target = deepLinkForMessage(
+          NotificationMessage(
+            id: item.id,
+            category: NotificationCategory.newRequest,
+            title: item.title,
+            body: item.body,
+            receivedAt: DateTime.now(),
+            data: {'requestId': ref},
+          ),
+        );
         if (target != null) context.push(target);
         break;
 
