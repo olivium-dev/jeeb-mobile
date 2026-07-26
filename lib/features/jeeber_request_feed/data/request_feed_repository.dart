@@ -53,8 +53,9 @@ abstract class RequestFeedRepository {
   /// don't multiply on screen.
   Stream<DeliveryRequest> get requests;
 
-  /// Current transport (and changes thereto). Always emits the current
-  /// value on subscribe so the cubit doesn't need a separate initial fetch.
+  /// Transport changes. Implementations may emit an initial value on
+  /// subscribe, but consumers must not rely on replay and must subscribe
+  /// before triggering any operation that emits an update.
   Stream<FeedTransportUpdate> get transport;
 
   /// Pull a fresh snapshot of pending requests. Triggered by pull-to-refresh
@@ -71,7 +72,8 @@ abstract class RequestFeedRepository {
   /// disappears either way; the outcome only matters for telemetry.
   Future<RequestActionOutcome> decline(String id);
 
-  /// Tear down any open sockets / timers. The cubit calls this on close.
+  /// Tear down any open sockets / timers. A cubit calls this on close only
+  /// when it owns the repository; borrowed repositories outlive the cubit.
   Future<void> dispose();
 }
 

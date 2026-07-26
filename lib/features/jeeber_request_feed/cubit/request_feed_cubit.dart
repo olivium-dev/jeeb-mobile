@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/lifecycle/polling_source.dart';
+import '../../../core/lifecycle/polling_visibility.dart';
 import '../data/request_feed_models.dart';
 import '../data/request_feed_repository.dart';
 import 'request_feed_state.dart';
@@ -14,6 +16,15 @@ import 'request_feed_state.dart';
 /// The cubit invokes [SoundNotifier] exactly once per new request id; it's
 /// not called for snapshot rehydration or actions.
 typedef SoundNotifier = void Function();
+
+enum RequestFeedRepositoryOwnership {
+  /// The cubit disposes the repository when it closes. This is the default
+  /// because the non-DI construction sites create a repository per widget.
+  owned,
+
+  /// Another lifetime owner owns disposal; the cubit only releases interest.
+  borrowed,
+}
 
 /// Drives the Jeeber request feed (JEEB-66 / T-mobile-013).
 ///
@@ -37,14 +48,20 @@ typedef SoundNotifier = void Function();
 /// saw "No requests" for a request that was still live. When the gateway omits
 /// `expiresAt`, no deadline is tracked: snapshot membership remains the only
 /// lifetime signal for that request.
-class RequestFeedCubit extends Cubit<RequestFeedState> {
+class RequestFeedCubit extends Cubit<RequestFeedState>
+    implements PollingVisibility {
   RequestFeedCubit({
     required RequestFeedRepository repository,
+    RequestFeedRepositoryOwnership repositoryOwnership =
+        RequestFeedRepositoryOwnership.owned,
     Duration expiredLinger = const Duration(seconds: 30),
     Duration sweepInterval = const Duration(seconds: 1),
     SoundNotifier? onNewRequestSound,
     DateTime Function()? clock,
   })  : _repository = repository,
+        _source =
+            repository is PollingSource ? repository as PollingSource : null,
+        _repositoryOwnership = repositoryOwnership,
         _expiredLinger = expiredLinger,
         _sweepInterval = sweepInterval,
         _onNewRequestSound = onNewRequestSound,
@@ -52,6 +69,9 @@ class RequestFeedCubit extends Cubit<RequestFeedState> {
         super(const RequestFeedState());
 
   final RequestFeedRepository _repository;
+  final PollingSource? _source;
+  final RequestFeedRepositoryOwnership _repositoryOwnership;
+  bool _pollingVisible = false;
 
   /// How long an expired card stays on screen (visibly marked "Expired",
   /// actions disabled) before the sweep collapses it out of the list — the
@@ -80,7 +100,27 @@ class RequestFeedCubit extends Cubit<RequestFeedState> {
     _requestsSub ??= _repository.requests.listen(_onIncoming);
     _transportSub ??= _repository.transport.listen(_onTransport);
     _sweep ??= Timer.periodic(_sweepInterval, (_) => _sweepExpired());
+    _applyPollInterest();
     await refresh();
+  }
+
+  @override
+  void setPollingVisible(bool visible) {
+    if (_pollingVisible == visible) return;
+    _pollingVisible = visible;
+    _applyPollInterest();
+  }
+
+  /// Interest is deferred until the transport subscription exists so the
+  /// source's first-interest polling update cannot be dropped.
+  void _applyPollInterest() {
+    final source = _source;
+    if (source == null || _transportSub == null) return;
+    if (_pollingVisible) {
+      source.addPollInterest(this);
+    } else {
+      source.removePollInterest(this);
+    }
   }
 
   /// Manual refresh — pulls the latest snapshot from the gateway and merges
@@ -327,11 +367,14 @@ class RequestFeedCubit extends Cubit<RequestFeedState> {
 
   @override
   Future<void> close() async {
+    _source?.removePollInterest(this);
     _sweep?.cancel();
     _sweep = null;
     await _requestsSub?.cancel();
     await _transportSub?.cancel();
-    await _repository.dispose();
+    if (_repositoryOwnership == RequestFeedRepositoryOwnership.owned) {
+      await _repository.dispose();
+    }
     return super.close();
   }
 }
