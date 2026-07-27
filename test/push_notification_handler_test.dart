@@ -150,13 +150,36 @@ void main() {
       expect(await countSignalsFor(_message('s1')), 1);
     });
 
-    test('a non-delivery (chat) push does NOT signal a status change', () async {
+    // b02 polling→push (chat push drives the open thread). This assertion USED
+    // to read `does NOT signal` — and that was the whole bug. `ChatCubit` took
+    // no push input, so on the deployed build a chat push landed and drove
+    // nothing while `GET /v1/conversations/{id}/messages` ticked on a fixed 60s
+    // phase. Now `chat` sits on the id-less branch alongside `offer_accepted` /
+    // `new_request`, and `ChatCubit._refreshFromPush` re-pulls the ONE
+    // conversation it renders (see
+    // `test/features/chat/chat_push_drives_thread_test.dart`).
+    test('a foreground chat push signals a refetch (drives the open thread)',
+        () async {
       expect(
         await countSignalsFor(
           _message('s2', category: NotificationCategory.chat),
         ),
-        0,
+        1,
       );
+    });
+
+    // …and it does so with NO id in the payload, deliberately: the bus is
+    // payload-less and the chat notifier's keys are `conversationId` /
+    // `requestId`, none of which the id guard below reads first.
+    test('a chat push with no ids at all still signals', () async {
+      final bare = NotificationMessage(
+        id: 's2b',
+        category: NotificationCategory.chat,
+        title: 'T',
+        body: 'B',
+        receivedAt: DateTime.utc(2026, 7, 26),
+      );
+      expect(await countSignalsFor(bare), 1);
     });
 
     test('a delivery push with no order/delivery/request id does NOT signal',

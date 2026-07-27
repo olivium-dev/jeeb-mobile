@@ -39,6 +39,7 @@ class ChatCubit extends Cubit<ChatState> {
     DateTime Function() clock = _defaultClock,
     String? initialDeliveryId,
     Duration pollInterval = kChatHistorySafetyNetPollInterval,
+    Stream<void>? refreshSignals,
   }) : _deliveryId = deliveryId,
        _gateway = gateway,
        _pickerService = pickerService,
@@ -56,7 +57,26 @@ class ChatCubit extends Cubit<ChatState> {
                  initialDeliveryId.isNotEmpty)
              ? initialDeliveryId
              : null,
-       ));
+       )) {
+    // b02 polling→push: a chat push must DRIVE the open thread.
+    //
+    // Until this line the chat screen was the only live surface that took no
+    // push input at all: `PushRefreshSignals` was wired into `home_tab`,
+    // `client_home_cubit` and `request_feed_cubit`, and never into chat. On the
+    // deployed build a chat push landed at 18:44:29Z and triggered NO fetch,
+    // while `/v1/conversations/{id}/messages` kept ticking at exactly 60.0s on
+    // a fixed phase — the safety-net poll below was the ONLY inbound path.
+    //
+    // Same shape as `GreetingProfileCubit` (`core/session/greeting_profile_cubit.dart:53,60`)
+    // and the `dashboard_tab` / `request_feed_screen` subscribers: a
+    // payload-less `Stream<void>`, resolved by the ONE existing resolver
+    // (`resolvePushRefreshStream`, `core/di/injection_container.dart:158`).
+    // No second bus — a per-conversation payload would be redundant here
+    // because this cubit re-pulls the ONLY conversation it renders, and a
+    // parallel bus is how one subscriber silently keeps polling while its twin
+    // goes push-driven.
+    _refreshSubscription = refreshSignals?.listen((_) => _refreshFromPush());
+  }
 
   final String _deliveryId;
   final ChatGateway _gateway;
@@ -72,6 +92,23 @@ class ChatCubit extends Cubit<ChatState> {
   final Duration _pollInterval;
 
   StreamSubscription<ChatEvent>? _subscription;
+
+  /// Push→refetch subscription (b02). Cancelled in [close].
+  StreamSubscription<void>? _refreshSubscription;
+
+  /// Single-flight latch for [_refreshFromPush]. Two pushes landing inside one
+  /// round-trip must produce ONE re-pull, not two overlapping ones whose emits
+  /// race (the later request can complete first and paint the OLDER snapshot).
+  bool _pushRefreshInFlight = false;
+
+  @visibleForTesting
+  bool get debugPushRefreshWired => _refreshSubscription != null;
+
+  /// Number of push-driven re-pulls this cubit has performed. Lets a test
+  /// assert "one push → exactly one fetch" without reaching into the gateway.
+  @visibleForTesting
+  int get debugPushRefreshCount => _pushRefreshCount;
+  int _pushRefreshCount = 0;
 
   /// Periodic HTTP-history poll (the WS-independent inbound fallback).
   late final LifecyclePoller _historyPoller = LifecyclePoller(
@@ -157,6 +194,49 @@ class ChatCubit extends Cubit<ChatState> {
     } catch (_) {
       // Transient fetch failure — the next tick retries. Never surface an error
       // for a background poll.
+    }
+  }
+
+  /// A push says this user has chat traffic — re-pull THIS conversation once.
+  ///
+  /// The bus (`PushRefreshSignals`) is payload-less by design; that is not a
+  /// gap here, because this cubit renders exactly one conversation and so the
+  /// only conversation it could re-pull is its own. The result is a TARGETED
+  /// read (`GET /v1/conversations/{_deliveryId}/messages`), not a fan-out.
+  ///
+  /// Reconciliation is [refresh]'s, deliberately — NOT a fresh merge rule.
+  /// The receipt path folds server echoes into the optimistic bubble that is
+  /// already on screen (that is what advances the double-tick from
+  /// sending→sent→delivered→read). A push-driven refetch that replaced the
+  /// list instead would stall read receipts and drop own bubbles the server
+  /// has not echoed yet. Routing through [refresh] means there is ONE fold on
+  /// the resume path, the (now deleted) poll path and this push path.
+  ///
+  /// Single-flight: a burst of pushes (counterpart sends three lines quickly)
+  /// collapses onto one in-flight read rather than stacking overlapping reads
+  /// whose completions can land out of order.
+  Future<void> _refreshFromPush() async {
+    if (isClosed) return;
+    if (_pushRefreshInFlight) {
+      Diag.event('chat_push_refetch', <String, Object?>{
+        'conversation_id': _deliveryId,
+        'skipped': 'in_flight',
+      });
+      return;
+    }
+    _pushRefreshInFlight = true;
+    _pushRefreshCount++;
+    // Device-run attribution seam. `push_received` (the handler) and this line
+    // are what let a capture say "this fetch was driven by THIS push" instead
+    // of inferring it from a wall-clock coincidence with a poll tick.
+    Diag.event('chat_push_refetch', <String, Object?>{
+      'conversation_id': _deliveryId,
+      'n': _pushRefreshCount,
+    });
+    try {
+      await refresh();
+    } finally {
+      _pushRefreshInFlight = false;
     }
   }
 
@@ -492,6 +572,8 @@ class ChatCubit extends Cubit<ChatState> {
   @override
   Future<void> close() async {
     _historyPoller.dispose();
+    await _refreshSubscription?.cancel();
+    _refreshSubscription = null;
     await _subscription?.cancel();
     return super.close();
   }
