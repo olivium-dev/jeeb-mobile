@@ -14,11 +14,21 @@ class ChatBubbleTimestamp extends StatelessWidget {
   const ChatBubbleTimestamp({
     super.key,
     required this.sentAt,
+    this.hasServerTimestamp = true,
     this.color,
   });
 
-  /// When the message was sent.
+  /// When the message was sent — meaningless unless [hasServerTimestamp].
   final DateTime sentAt;
+
+  /// [DeliveryChatMessage.hasServerTimestamp] of the message being rendered.
+  /// False → [sentAt] is an ordering anchor and no clock is drawn.
+  ///
+  /// This used to be re-derived here from the VALUE of [sentAt] (an anchor was
+  /// "any instant inside 1970"). The message now carries the fact explicitly, so
+  /// an anchor that happens to look like a plausible instant can never be
+  /// mistaken for a send time.
+  final bool hasServerTimestamp;
 
   /// Optional override colour; defaults to a muted on-surface variant.
   final Color? color;
@@ -26,11 +36,8 @@ class ChatBubbleTimestamp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // A message the server returned with no timestamp carries an ordering
-    // anchor, not a send time (see [DeliveryChatMessage.hasServerTimestamp]).
-    // Render nothing rather than a fabricated "00:00".
-    if (!DeliveryChatMessage.isServerSentAt(sentAt)) {
-      return const SizedBox.shrink();
-    }
+    // anchor, not a send time. Render nothing rather than a fabricated clock.
+    if (!hasServerTimestamp) return const SizedBox.shrink();
     final theme = Theme.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
     return Align(

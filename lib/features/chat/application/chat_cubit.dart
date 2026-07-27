@@ -143,39 +143,20 @@ class ChatCubit extends Cubit<ChatState> {
     _historyPoller.start();
   }
 
-  /// Re-pull history and merge any inbound messages not already shown. Inbound
-  /// only: messages authored by the local user are owned optimistically by the
-  /// send path (they carry client ids the server never echoes back), so we skip
-  /// them to avoid duplicate own-bubbles; counterpart/system messages are
-  /// matched by server id, so a message already delivered over the WS is not
-  /// re-appended.
+  /// Re-pull history and fold it in. Runs through the SAME non-destructive
+  /// reconcile as [refresh] / [acceptOffer], so the polled order, the resumed
+  /// order and the accepted order are the server's order on all three paths —
+  /// there is one merge rule in this cubit, not three.
   Future<void> _pollHistory() async {
     try {
       final latest = await _gateway.loadHistory(_deliveryId);
-      _mergeInbound(latest);
+      if (isClosed) return;
+      emit(state.copyWith(messages: _reconciledWithHistory(latest)));
+      _resolveImageBytes();
     } catch (_) {
       // Transient fetch failure — the next tick retries. Never surface an error
       // for a background poll.
     }
-  }
-
-  void _mergeInbound(List<DeliveryChatMessage> latest) {
-    if (isClosed) return;
-    final existingIds = state.messages.map((m) => m.id).toSet();
-    final additions = latest
-        .where((m) => !m.isMine && !existingIds.contains(m.id))
-        .toList(growable: false);
-    if (additions.isEmpty) return;
-    emit(
-      state.copyWith(
-        // Ordering (S0-CHAT-04): a poll can surface a counterpart message whose
-        // server `created_at` predates a bubble already shown (late delivery,
-        // clock skew between parties). Re-sort the merged list by server time so
-        // the timeline stays chronological instead of appending out of order.
-        messages: _ordered([...state.messages, ...additions]),
-      ),
-    );
-    _resolveImageBytes();
   }
 
   /// Re-fetch history + phase for an ALREADY-loaded thread (the chat-detail
@@ -223,17 +204,37 @@ class ChatCubit extends Cubit<ChatState> {
   ///      `refresh()`'s own contract says "stale-but-present beats blank"; a
   ///      successful-but-empty read has to honour that as much as a thrown one.
   ///
-  /// Server rows win wherever they overlap: same id → the server row replaces
-  /// what was shown, and an own optimistic bubble the server has echoed under a
-  /// different (server-minted) id is absorbed by content match, one-for-one, so
-  /// no bubble is duplicated. Anything left over is retained.
+  /// Server rows win wherever they overlap, and they keep the SERVER'S OWN
+  /// POSITION: the reconciled list is `[...history, ...leftovers]`, so for rows
+  /// the server did not date — whose only ordering information IS their place in
+  /// that array — the rendered order is the server's array order rather than
+  /// whatever order this client happened to learn about them in.
+  ///
+  /// Overlaps: same id → the server row wins, but it inherits whatever the shown
+  /// copy had learned that a re-decode of the wire cannot know (a further-along
+  /// receipt status, resolved attachment bytes — see [_adoptEcho]). Without that
+  /// inheritance a 60-second poll would demote a `read` bubble back to
+  /// `delivered` and blank every image the device had already fetched.
+  ///
+  /// An own optimistic bubble the server has echoed under a different
+  /// (server-minted) id is absorbed by content match, ONE-FOR-ONE, so two
+  /// identical own texts never collapse onto a single row. Anything the read did
+  /// not return at all is retained — a decode that yields nothing must never be
+  /// able to blank a rendered thread.
   List<DeliveryChatMessage> _reconciledWithHistory(
     List<DeliveryChatMessage> history,
   ) {
+    final shownById = <String, DeliveryChatMessage>{
+      for (final m in state.messages) m.id: m,
+    };
     final serverIds = history.map((m) => m.id).toSet();
     // Own server rows still free to absorb an optimistic bubble. Consumed as
     // they match so two identical own texts never collapse onto one row.
     final unclaimedOwnEchoes = history.where((m) => m.isMine).toList();
+    /// Echo id → the shown bubble it absorbed. The absorbed bubble takes the
+    /// echo's PLACE IN THE SERVER ARRAY rather than staying where the local send
+    /// path put it; that position is the whole point of absorbing it.
+    final absorbed = <String, DeliveryChatMessage>{};
     final retained = <DeliveryChatMessage>[];
     for (final shown in state.messages) {
       if (serverIds.contains(shown.id)) continue;
@@ -241,13 +242,21 @@ class ChatCubit extends Cubit<ChatState> {
         final echoIndex = unclaimedOwnEchoes
             .indexWhere((echo) => _isEchoOfOwnMessage(shown, echo));
         if (echoIndex != -1) {
-          unclaimedOwnEchoes.removeAt(echoIndex);
+          final echo = unclaimedOwnEchoes.removeAt(echoIndex);
+          absorbed[echo.id] = _adoptEcho(shown, echo);
           continue;
         }
       }
       retained.add(shown);
     }
-    return _ordered([...history, ...retained]);
+    final rows = <DeliveryChatMessage>[
+      for (final row in history)
+        absorbed[row.id] ??
+            (shownById[row.id] == null
+                ? row
+                : _adoptEcho(shownById[row.id]!, row)),
+    ];
+    return _ordered([...rows, ...retained]);
   }
 
   /// Accept the Jeeber whose offer card is identified by [offerId].
@@ -274,7 +283,16 @@ class ChatCubit extends Cubit<ChatState> {
           // the system `offerAccepted` row appended out of band) would
           // otherwise paint the timeline out of order on the very screen the
           // accepted 1:1 chat lands on.
-          messages: _ordered(history),
+          //
+          // ...and through the same NON-DESTRUCTIVE reconcile as [refresh]. This
+          // was `messages: _ordered(history)` — a full replace, on the customer's
+          // core accept-an-offer path, the exact amplifier that blanked threads
+          // on resume: a post-accept read that decoded to nothing swapped a
+          // rendered thread (plus every optimistic own bubble the server had not
+          // echoed yet) for the empty state, on the very screen the accepted 1:1
+          // chat lands on. `load()`'s `messages: const []` on a cold-load failure
+          // stays as it is — there is nothing on screen to lose there.
+          messages: _reconciledWithHistory(history),
           phase: phase,
           // Null when the gateway did not surface a delivery id — copyWith
           // keeps any id already captured (e.g. from a PhaseChanged event).
@@ -282,6 +300,9 @@ class ChatCubit extends Cubit<ChatState> {
           clearAcceptingOfferId: true,
         ),
       );
+      // The post-accept read can surface peer images (the winning Jeeber's
+      // photos) that the broadcasting thread never resolved.
+      _resolveImageBytes();
     } catch (_) {
       // On 409 or any error: revert optimistic state, surface error.
       emit(
@@ -323,7 +344,7 @@ class ChatCubit extends Cubit<ChatState> {
     // the gateway resolves.
     emit(
       state.copyWith(
-        messages: List.unmodifiable([...state.messages, draft]),
+        messages: _appended(draft),
         composerText: '',
         clearError: true,
       ),
@@ -349,7 +370,7 @@ class ChatCubit extends Cubit<ChatState> {
       durationMs: durationMs,
     );
     emit(state.copyWith(
-      messages: List.unmodifiable([...state.messages, draft]),
+      messages: _appended(draft),
       clearError: true,
     ));
     await _dispatchVoiceNote(
@@ -446,7 +467,7 @@ class ChatCubit extends Cubit<ChatState> {
       );
       emit(
         state.copyWith(
-          messages: List.unmodifiable([...state.messages, draft]),
+          messages: _appended(draft),
           isAttaching: false,
         ),
       );
@@ -561,10 +582,14 @@ class ChatCubit extends Cubit<ChatState> {
     }
   }
 
+  /// "Not found" sentinel for a `firstWhere` lookup — never rendered, never
+  /// merged. Flagged undated so that even if it leaked into a list it could not
+  /// contribute a date divider or a clock.
   static final DeliveryChatMessage _missing = DeliveryChatMessage.system(
     id: '__missing__',
     sentAt: DateTime.fromMillisecondsSinceEpoch(0),
     text: '',
+    hasServerTimestamp: false,
   );
 
   Future<void> _dispatch(DeliveryChatMessage draft) async {
@@ -685,14 +710,8 @@ class ChatCubit extends Cubit<ChatState> {
   /// further along the lifecycle so an already-`sent`/`delivered` optimistic
   /// bubble is never demoted by the echo.
   void _reconcileOwnEcho(int index, DeliveryChatMessage echo) {
-    final optimistic = state.messages[index];
-    final keepStatus =
-        _statusOrder[optimistic.status]! >= _statusOrder[echo.status]!
-            ? optimistic.status
-            : echo.status;
-    final reconciled = echo.copyWith(status: keepStatus);
     final updated = List<DeliveryChatMessage>.from(state.messages);
-    updated[index] = reconciled;
+    updated[index] = _adoptEcho(state.messages[index], echo);
     emit(state.copyWith(messages: List.unmodifiable(updated)));
   }
 
@@ -756,8 +775,9 @@ class ChatCubit extends Cubit<ChatState> {
   /// is "oldest first, sorted by the server clock" — applied on every inbound
   /// merge so live (WS), polled (HTTP), and reloaded order all agree.
   static List<DeliveryChatMessage> _ordered(List<DeliveryChatMessage> input) {
+    final rebased = _withRebasedAnchors(input);
     final indexed = <MapEntry<int, DeliveryChatMessage>>[
-      for (var i = 0; i < input.length; i++) MapEntry(i, input[i]),
+      for (var i = 0; i < rebased.length; i++) MapEntry(i, rebased[i]),
     ];
     indexed.sort((a, b) {
       final byTime = a.value.sentAt.compareTo(b.value.sentAt);
@@ -768,6 +788,105 @@ class ChatCubit extends Cubit<ChatState> {
     });
     return List.unmodifiable(indexed.map((e) => e.value));
   }
+
+  /// Finest step a `DateTime` comparison resolves. Used to lay the undated band
+  /// out below the earliest dated message without colliding with it.
+  static const Duration _anchorStep = Duration(microseconds: 1);
+
+  /// Re-base the ordering anchor of every row the server did not date.
+  ///
+  /// An undated row carries no evidence about WHEN it was sent — only WHERE it
+  /// sits in the server's array. So the timeline puts all such rows in one
+  /// contiguous band immediately BELOW (earlier than) the earliest message that
+  /// does carry a real timestamp, in the order they appear in [input] — which is
+  /// the server's array order on every path that produces them (cold load,
+  /// history reconcile, poll merge, inbound frame appended last). Two things
+  /// follow:
+  ///
+  ///   * the band never outranks a message with a real clock, so an undated
+  ///     server row can no longer float above the user's own bubbles — the
+  ///     "all of theirs, then all of mine" thread;
+  ///   * the band is not a DATE. Anchors used to be pinned inside 1970-01-01,
+  ///     which any consumer that skipped [DeliveryChatMessage.hasServerTimestamp]
+  ///     rendered as a 1970 divider, a 00:00 clock, or a long-expired TTL.
+  ///
+  /// When NOTHING in the thread is dated there is no reference point to rebase
+  /// against, so the provisional anchors the decoder assigned are kept and only
+  /// their relative order means anything (nothing may read them — the flag is
+  /// false on every one of them).
+  static List<DeliveryChatMessage> _withRebasedAnchors(
+    List<DeliveryChatMessage> input,
+  ) {
+    var undated = 0;
+    DateTime? earliestDated;
+    for (final m in input) {
+      if (!m.hasServerTimestamp) {
+        undated++;
+        continue;
+      }
+      if (earliestDated == null || m.sentAt.isBefore(earliestDated)) {
+        earliestDated = m.sentAt;
+      }
+    }
+    if (undated == 0) return input;
+    // No dated message yet → no reference point, so the band hangs off a fixed
+    // low ceiling instead. It STILL has to be re-derived rather than left alone:
+    // a merge mixes rows a previous pass already re-based (a 2026 anchor) with
+    // rows just decoded (a provisional one), and comparing anchors minted
+    // against two different bases is how a thread would shuffle itself. One
+    // base per pass, always.
+    final ceiling = earliestDated ?? _undatedBandCeiling;
+    final out = <DeliveryChatMessage>[];
+    var placed = 0;
+    for (final m in input) {
+      if (m.hasServerTimestamp) {
+        out.add(m);
+        continue;
+      }
+      out.add(m.copyWith(
+        sentAt: ceiling.subtract(_anchorStep * (undated - placed)),
+      ));
+      placed++;
+    }
+    return out;
+  }
+
+  /// Ceiling for the undated band when NOTHING in the thread carries a real
+  /// timestamp. Low enough that a dated message appearing later still sorts
+  /// above the band; never rendered (every message in the band is flagged
+  /// `hasServerTimestamp: false`).
+  static final DateTime _undatedBandCeiling = DateTime.utc(1971);
+
+  /// Append an optimistic [draft] to the timeline.
+  ///
+  /// Deliberately NOT the full [_ordered] sort. A draft the user just composed
+  /// belongs at the bottom, and sorting it by the LOCAL clock would let a device
+  /// whose clock runs slow paint a brand-new message above the reply that
+  /// prompted it. The anchors of undated rows are still re-based, because this
+  /// draft may be the first dated message the thread has ever had.
+  List<DeliveryChatMessage> _appended(DeliveryChatMessage draft) =>
+      List.unmodifiable(_withRebasedAnchors([...state.messages, draft]));
+
+  /// Reconcile the shown optimistic bubble [shown] onto its server [echo].
+  ///
+  /// The echo carries the canonical server id (so later delivery/read receipts,
+  /// keyed by it, land) and the server's own ordering position. Two things must
+  /// survive the swap: whichever status is further along the lifecycle, so an
+  /// already-`delivered` bubble is never demoted; and any locally-held
+  /// attachment bytes, because the echo is a re-decode of the wire row and
+  /// carries the CDN ref but not the bytes — without this the sender's own
+  /// just-sent photo blinks back to a placeholder and never recovers
+  /// ([_resolvingImageRefs] does not re-fetch a ref it already served).
+  static DeliveryChatMessage _adoptEcho(
+    DeliveryChatMessage shown,
+    DeliveryChatMessage echo,
+  ) =>
+      echo.copyWith(
+        status: _statusOrder[shown.status]! >= _statusOrder[echo.status]!
+            ? shown.status
+            : echo.status,
+        photoBytes: echo.photoBytes ?? shown.photoBytes,
+      );
 
   String _nextId() => 'msg-$_deliveryId-${_outboxCounter++}';
 

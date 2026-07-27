@@ -233,6 +233,7 @@ class DeliveryChatMessage extends Equatable {
     required this.sentAt,
     required this.status,
     required this.kind,
+    this.hasServerTimestamp = true,
     this.text = '',
     this.photoBytes,
     this.photoSource,
@@ -252,11 +253,13 @@ class DeliveryChatMessage extends Equatable {
     required DateTime sentAt,
     required MessageStatus status,
     required String text,
+    bool hasServerTimestamp = true,
   }) => DeliveryChatMessage._(
         id: id,
         author: author,
         sentAt: sentAt,
         status: status,
+        hasServerTimestamp: hasServerTimestamp,
         kind: MessageKind.text,
         text: text,
       );
@@ -295,11 +298,13 @@ class DeliveryChatMessage extends Equatable {
     /// image already resolved through the CDN read proxy. Null → the bubble
     /// falls back to [url].
     Uint8List? bytes,
+    bool hasServerTimestamp = true,
   }) => DeliveryChatMessage._(
         id: id,
         author: author,
         sentAt: sentAt,
         status: status,
+        hasServerTimestamp: hasServerTimestamp,
         kind: MessageKind.image,
         text: caption,
         imageUrl: url,
@@ -314,11 +319,13 @@ class DeliveryChatMessage extends Equatable {
     required String url,
     int durationMs = 0,
     String? transcription,
+    bool hasServerTimestamp = true,
   }) => DeliveryChatMessage._(
         id: id,
         author: author,
         sentAt: sentAt,
         status: status,
+        hasServerTimestamp: hasServerTimestamp,
         kind: MessageKind.voice,
         voiceUrl: url,
         voiceDurationMs: durationMs,
@@ -333,11 +340,13 @@ class DeliveryChatMessage extends Equatable {
     required double lat,
     required double lng,
     String label = '',
+    bool hasServerTimestamp = true,
   }) => DeliveryChatMessage._(
         id: id,
         author: author,
         sentAt: sentAt,
         status: status,
+        hasServerTimestamp: hasServerTimestamp,
         kind: MessageKind.location,
         text: label,
         latitude: lat,
@@ -348,6 +357,7 @@ class DeliveryChatMessage extends Equatable {
     required String id,
     required DateTime sentAt,
     required String text,
+    bool hasServerTimestamp = true,
   }) => DeliveryChatMessage._(
         id: id,
         // System messages are render-only — author is forced to `them` so the
@@ -355,6 +365,7 @@ class DeliveryChatMessage extends Equatable {
         author: ChatAuthor.them,
         sentAt: sentAt,
         status: MessageStatus.delivered,
+        hasServerTimestamp: hasServerTimestamp,
         kind: MessageKind.system,
         text: text,
       );
@@ -365,11 +376,13 @@ class DeliveryChatMessage extends Equatable {
     required DateTime sentAt,
     required MessageStatus status,
     required OfferCardPayload payload,
+    bool hasServerTimestamp = true,
   }) => DeliveryChatMessage._(
         id: id,
         author: author,
         sentAt: sentAt,
         status: status,
+        hasServerTimestamp: hasServerTimestamp,
         kind: MessageKind.offerCard,
         offerPayload: payload,
       );
@@ -378,11 +391,13 @@ class DeliveryChatMessage extends Equatable {
     required String id,
     required DateTime sentAt,
     required SystemOfferPayload payload,
+    bool hasServerTimestamp = true,
   }) => DeliveryChatMessage._(
         id: id,
         author: ChatAuthor.them,
         sentAt: sentAt,
         status: MessageStatus.delivered,
+        hasServerTimestamp: hasServerTimestamp,
         kind: MessageKind.offerAccepted,
         systemOfferPayload: payload,
       );
@@ -391,20 +406,60 @@ class DeliveryChatMessage extends Equatable {
     required String id,
     required DateTime sentAt,
     required SystemOfferPayload payload,
+    bool hasServerTimestamp = true,
   }) => DeliveryChatMessage._(
         id: id,
         author: ChatAuthor.them,
         sentAt: sentAt,
         status: MessageStatus.delivered,
+        hasServerTimestamp: hasServerTimestamp,
         kind: MessageKind.offerRejected,
         systemOfferPayload: payload,
       );
 
   final String id;
   final ChatAuthor author;
+
+  /// When the message was sent — OR, when [hasServerTimestamp] is false, an
+  /// ordering anchor with no absolute meaning. Always read the flag first.
   final DateTime sentAt;
   final MessageStatus status;
   final MessageKind kind;
+
+  // ---------------------------------------------------------------------------
+  // Rows the server did not date
+  // ---------------------------------------------------------------------------
+  //
+  // A history row is a REAL message even when the wire carries no usable
+  // timestamp. The decoder used to reject such a row outright, which turned a
+  // full thread into a rendered empty state (the bilateral empty-thread
+  // defect). It now decodes the row and puts an ORDERING ANCHOR in [sentAt].
+  //
+  // An anchor has to satisfy two things at once:
+  //   * ORDER — the timeline is sorted by [sentAt] (`ChatCubit._ordered`), so
+  //     the anchor has to encode the row's position in the server's array,
+  //     which is the only sequence information an undated row carries.
+  //   * HONESTY — an anchor is not a send time, so nothing may render it as one.
+  //
+  // Honesty used to be derived from the VALUE: an anchor was "any [sentAt]
+  // inside 1970-01-01", which forced every anchor to the epoch and cost twice.
+  // Ordering: an undated counterpart row sorted below EVERY locally composed
+  // bubble (which keeps the real clock), so a live thread read "all of theirs,
+  // then all of mine" for the whole session. Honesty: any consumer that forgot
+  // the window check rendered a 1970 date divider, a 00:00 clock, or a TTL that
+  // expired 56 years ago — a whole class of bug one missed call away.
+  //
+  // The flag is now carried explicitly, which frees the anchor to be whatever
+  // the timeline finds useful. `ChatCubit` re-bases undated rows into a band
+  // immediately BELOW the earliest dated message in the thread, preserving the
+  // server's array order — so nothing lands in 1970 and nothing outranks a
+  // message that carries a real clock.
+
+  /// True when [sentAt] is a real send time (server `created_at`, or the local
+  /// clock for a message this device composed / a live frame stamped at
+  /// arrival). False when it is an ordering anchor: the message still renders,
+  /// but no surface may present [sentAt] as a clock, a date, or a TTL base.
+  final bool hasServerTimestamp;
 
   /// Text body for text messages; photo/image caption for photo/image
   /// messages; system-notice copy for `system` kind.
@@ -443,68 +498,32 @@ class DeliveryChatMessage extends Equatable {
   bool get isSystemNotice => kind.isSystemNotice;
   bool get isOfferCard => kind == MessageKind.offerCard;
 
-  // ---------------------------------------------------------------------------
-  // Missing-server-timestamp anchor
-  // ---------------------------------------------------------------------------
-  //
-  // A history row is a REAL message even when the wire carries no usable
-  // timestamp. The decoder used to reject such a row outright, which turned a
-  // full thread into a rendered empty state (bilateral empty-thread). It now
-  // decodes the row and anchors [sentAt] here instead.
-  //
-  // The anchor has to satisfy two things at once:
-  //   * ORDER — the timeline is sorted by [sentAt] (`ChatCubit._ordered`), so an
-  //     anchor derived from the row's position in the server array is the only
-  //     way to keep the server's own sequence. Deriving it from the local clock
-  //     would scramble the thread: every row would land at ~the same instant and
-  //     the tie-break would fall through to the (random UUID) message id, and a
-  //     history block stamped "now" would sort AFTER a bubble the user composed
-  //     a minute ago.
-  //   * HONESTY — an anchor is not a send time, so nothing may render it as one.
-  //     [hasServerTimestamp] is the discriminator every consumer checks before
-  //     showing a clock or a date divider.
-  //
-  // Anchors live inside 1970-01-01 UTC, decades below any real chat timestamp,
-  // so they always sort ahead of dated rows and of optimistic local bubbles.
-
-  /// Exclusive upper bound of the synthetic-anchor window.
-  static final DateTime _syntheticSentAtCeiling = DateTime.utc(1971);
-
-  /// Last millisecond offset that still lands inside 1970-01-01 UTC.
-  static const int _maxSyntheticWireIndex = Duration.millisecondsPerDay - 1;
-
-  /// Ordering-only [sentAt] for the [wireIndex]-th row of a server history
-  /// response that carried no usable timestamp. Strictly increasing in
-  /// [wireIndex], so decoding preserves the server's array order, and stable
-  /// across re-reads of the same (append-only) thread.
-  static DateTime syntheticSentAt(int wireIndex) =>
-      DateTime.fromMillisecondsSinceEpoch(
-        wireIndex.clamp(0, _maxSyntheticWireIndex),
-        isUtc: true,
-      );
-
-  /// True when [candidate] is a real server/client send time rather than a
-  /// [syntheticSentAt] ordering anchor.
-  static bool isServerSentAt(DateTime candidate) =>
-      !candidate.isBefore(_syntheticSentAtCeiling);
-
-  /// True when this message's [sentAt] is a real send time. False for a row the
-  /// server returned with no usable timestamp — such a message still renders,
-  /// but no surface may present its [sentAt] as a clock, a date, or a TTL base.
-  bool get hasServerTimestamp => isServerSentAt(sentAt);
-
   DeliveryChatMessage copyWith({
     MessageStatus? status,
     String? voiceTranscription,
+
+    /// Re-base this message's ORDERING ANCHOR. Only meaningful when
+    /// [hasServerTimestamp] is false: `ChatCubit` lays the undated rows of a
+    /// thread out relative to its dated ones, so the anchor a decoder handed
+    /// out is provisional. Passing this on a DATED message would forge a send
+    /// time — the timeline never does.
+    DateTime? sentAt,
+
+    /// Locally-held attachment bytes. A re-decode of the same wire row carries
+    /// the CDN ref but not the bytes the device already holds, so reconciling a
+    /// row onto an existing one carries them across rather than blinking the
+    /// image back to its placeholder.
+    Uint8List? photoBytes,
   }) {
     return DeliveryChatMessage._(
       id: id,
       author: author,
-      sentAt: sentAt,
+      sentAt: sentAt ?? this.sentAt,
       status: status ?? this.status,
+      hasServerTimestamp: hasServerTimestamp,
       kind: kind,
       text: text,
-      photoBytes: photoBytes,
+      photoBytes: photoBytes ?? this.photoBytes,
       photoSource: photoSource,
       imageUrl: imageUrl,
       voiceUrl: voiceUrl,
@@ -523,6 +542,7 @@ class DeliveryChatMessage extends Equatable {
         author,
         sentAt,
         status,
+        hasServerTimestamp,
         kind,
         text,
         photoBytes?.length,

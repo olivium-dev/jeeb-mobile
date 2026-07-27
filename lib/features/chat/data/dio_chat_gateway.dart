@@ -212,12 +212,15 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
         continue;
       }
       try {
-        // A row the server did not date is anchored by its POSITION in the
-        // server array (see [DeliveryChatMessage.syntheticSentAt]) — never by the
-        // local clock, which would scramble the rendered order.
+        // A row the server did not date is anchored by its POSITION in this
+        // response — never by the local clock, which would scramble the rendered
+        // order. The anchor is PROVISIONAL and carries no absolute meaning: the
+        // decoded message is flagged `hasServerTimestamp: false` and
+        // `ChatCubit._withRebasedAnchors` lays the whole undated band out
+        // relative to the thread's dated messages, keeping this relative order.
         final message = _parseMessage(
           rawRow,
-          fallbackSentAt: DeliveryChatMessage.syntheticSentAt(index),
+          fallbackSentAt: _provisionalAnchor(index),
         );
         messages.add(message);
         if (isPhysicalFinalRow) finalRowCursor = message.id;
@@ -231,6 +234,28 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
       malformedCount: malformedCount,
     );
   }
+
+  /// Provisional ordering anchor for the [wireIndex]-th row of a response that
+  /// did not date it. Strictly increasing in [wireIndex], so the decode
+  /// preserves this response's array order — and NOTHING else. The value is not
+  /// a date and is never rendered (`hasServerTimestamp: false`); the thread-wide
+  /// position is (re)established by `ChatCubit._withRebasedAnchors` from the
+  /// order rows appear in the merge input.
+  ///
+  /// SCOPED CLAIM about stability: a FULL history read returns the whole
+  /// append-only thread, so wire index == thread index and successive reads
+  /// agree. A DELTA read (`loadHistorySince`) numbers from 0 within the page, so
+  /// its provisional anchors are page-relative — the previous implementation's
+  /// doc claimed thread-wide stability it did not have. That path has no
+  /// production caller today (searched `lib/` for `loadHistorySince` and
+  /// `ChatDeltaReader`: only this class and the interface declaration; it could
+  /// still be reached by a future caller, which is why this says so out loud).
+  static DateTime _provisionalAnchor(int wireIndex) =>
+      _provisionalAnchorOrigin.add(Duration(microseconds: wireIndex));
+
+  /// Arithmetic origin for [_provisionalAnchor]. Not a date, not rendered, and
+  /// not what the timeline ends up sorting on — see `_withRebasedAnchors`.
+  static final DateTime _provisionalAnchorOrigin = DateTime.utc(1970);
 
   bool _isValidHistoryRow(Map<String, dynamic> row) {
     final id = row['message_id'] ?? row['id'];
@@ -686,7 +711,13 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
     final senderId =
         (json['author_id'] as String?) ?? (json['senderId'] as String?) ?? '';
     final author = senderId == currentUserId ? ChatAuthor.me : ChatAuthor.them;
-    final sentAt = _sentAtOf(json) ?? fallbackSentAt ?? DateTime.now();
+    final wireSentAt = _sentAtOf(json);
+    final sentAt = wireSentAt ?? fallbackSentAt ?? DateTime.now();
+    // Falling back to [fallbackSentAt] means using an ORDERING ANCHOR, so the
+    // message must not render a clock. Falling back to the local clock (the
+    // live-socket path, which passes no anchor) stays honest: a frame that just
+    // crossed the wire was sent at ~now, to within the transport latency.
+    final hasServerTimestamp = wireSentAt != null || fallbackSentAt == null;
     final kind = MessageKind.fromWire(json['kind'] as String?);
     // `body` is a plain string for text (frozen contract); structured payloads
     // arrive under `payload` (or a legacy map `body`). Normalize to the map the
@@ -704,6 +735,7 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
       id: id,
       author: author,
       sentAt: sentAt,
+      hasServerTimestamp: hasServerTimestamp,
       kind: kind,
       body: body,
     );
@@ -728,6 +760,7 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
     required String id,
     required ChatAuthor author,
     required DateTime sentAt,
+    required bool hasServerTimestamp,
     required MessageKind kind,
     required Map<String, Object?> body,
   }) {
@@ -740,6 +773,7 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
           id: id,
           author: author,
           sentAt: sentAt,
+          hasServerTimestamp: hasServerTimestamp,
           status: status,
           text: body['text'] as String? ?? '',
         );
@@ -748,6 +782,7 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
           id: id,
           author: author,
           sentAt: sentAt,
+          hasServerTimestamp: hasServerTimestamp,
           status: status,
           url: body['url'] as String? ?? '',
           caption: body['caption'] as String? ?? '',
@@ -757,6 +792,7 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
           id: id,
           author: author,
           sentAt: sentAt,
+          hasServerTimestamp: hasServerTimestamp,
           status: status,
           url: body['url'] as String? ?? '',
           durationMs: body['durationMs'] as int? ?? 0,
@@ -768,6 +804,7 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
           id: id,
           author: author,
           sentAt: sentAt,
+          hasServerTimestamp: hasServerTimestamp,
           status: status,
           lat: lat is num ? lat.toDouble() : 0,
           lng: lng is num ? lng.toDouble() : 0,
@@ -777,6 +814,7 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
         return DeliveryChatMessage.system(
           id: id,
           sentAt: sentAt,
+          hasServerTimestamp: hasServerTimestamp,
           text: body['text'] as String? ?? '',
         );
       case MessageKind.offerCard:
@@ -784,6 +822,7 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
           id: id,
           author: author,
           sentAt: sentAt,
+          hasServerTimestamp: hasServerTimestamp,
           status: status,
           payload: OfferCardPayload.fromWire(body),
         );
@@ -791,12 +830,14 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
         return DeliveryChatMessage.offerAccepted(
           id: id,
           sentAt: sentAt,
+          hasServerTimestamp: hasServerTimestamp,
           payload: SystemOfferPayload.fromWire(body),
         );
       case MessageKind.offerRejected:
         return DeliveryChatMessage.offerRejected(
           id: id,
           sentAt: sentAt,
+          hasServerTimestamp: hasServerTimestamp,
           payload: SystemOfferPayload.fromWire(body),
         );
       case MessageKind.photo:
@@ -810,6 +851,7 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
           id: id,
           author: author,
           sentAt: sentAt,
+          hasServerTimestamp: hasServerTimestamp,
           status: status,
           url: '',
           caption: body['caption'] as String? ?? '',
