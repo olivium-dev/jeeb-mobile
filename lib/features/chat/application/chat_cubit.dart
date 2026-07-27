@@ -105,6 +105,7 @@ class ChatCubit extends Cubit<ChatState> {
       ]);
       final history = results[0] as List<DeliveryChatMessage>;
       final phase = results[1] as ConversationPhase;
+      _noteServerClock(history);
       emit(
         state.copyWith(
           // Ordering (S0-CHAT-04): present history sorted by server time so a
@@ -249,6 +250,9 @@ class ChatCubit extends Cubit<ChatState> {
   List<DeliveryChatMessage> _reconciledWithHistory(
     List<DeliveryChatMessage> history,
   ) {
+    // Every history read is also an observation of the server's clock, and the
+    // compose anchor is expressed in server time (see [_anchorAfter]).
+    _noteServerClock(history);
     final shownById = <String, DeliveryChatMessage>{
       for (final m in state.messages) m.id: m,
     };
@@ -934,26 +938,65 @@ class ChatCubit extends Cubit<ChatState> {
   /// makes its position a property of the MESSAGE rather than of whichever code
   /// path last rebuilt the list. One ordering rule for every path, and the local
   /// clock is not part of it.
-  List<DeliveryChatMessage> _appended(DeliveryChatMessage draft) => _ordered(
-        [...state.messages, draft.anchoredAt(_anchorAfter(state.messages, draft))],
-      );
+  List<DeliveryChatMessage> _appended(DeliveryChatMessage draft) => _ordered([
+        ...state.messages,
+        draft.anchoredAt(
+          _anchorAfter(state.messages, draft, _projectedServerNow(draft)),
+        ),
+      ]);
 
-  /// The ordering anchor for a message composed right now, given what is already
-  /// on screen: one [_anchorStep] past the newest row that HAS an ordering
-  /// position — every server-dated row, plus any earlier drafts' anchors, so
-  /// successive sends step monotonically even when the clock does not move
-  /// between them.
+  /// The ordering anchor for a message composed right now: WHERE THE SERVER'S
+  /// CLOCK WAS WHEN THE USER PRESSED SEND ([_projectedServerNow]), raised to a
+  /// FLOOR of one [_anchorStep] past the newest row already holding an ordering
+  /// position — every server-dated row, plus any earlier drafts' anchors.
+  ///
+  /// Each half answers one failure, and only taking the later of the two answers
+  /// both:
+  ///
+  ///   * THE FLOOR keeps a draft below nothing it has already rendered. It is
+  ///     what stops a device whose clock is behind from painting a brand-new
+  ///     message above the reply that prompted it, and it is what makes
+  ///     successive sends step monotonically when the clock does not move
+  ///     between them.
+  ///
+  ///   * THE PROJECTED SERVER TIME keeps a draft from being pinned to a STALE
+  ///     VIEW. This used to return the floor outright — the newest row THIS
+  ///     DEVICE HAD SEEN — which is not when the message was composed, and the
+  ///     two diverge by a whole poll interval.
+  ///     `kChatHistorySafetyNetPollInterval` is 60 SECONDS, so any row the
+  ///     server dated between the last fetch and compose time was unseen at
+  ///     compose time and sorted BELOW the draft once it finally arrived: the
+  ///     counterpart's message rendered as a reply to a message they had not yet
+  ///     received. That fires on a CORRECT clock, on the ordinary "they typed
+  ///     while I was typing" path — strictly more often than the skew case it
+  ///     was trading against.
+  ///
+  /// WHY NOT JUST THE LOCAL CLOCK for the second half: because the skew suite
+  /// demands both directions at once, and they are the same comparison. In
+  /// `chat_clock_skew_order_regression_test.dart`'s FAST-CLOCK case the device
+  /// reads 12:20, the newest row it has seen is 12:00 and the reply that lands
+  /// afterwards is server-dated 12:01 — it must render BELOW the draft. In
+  /// `chat_late_counterpart_row_order_test.dart`'s case the device reads 10:31,
+  /// the newest row it has seen is 10:30 and the row that lands afterwards is
+  /// server-dated 10:30:30 — it must render ABOVE the draft. Both are "a row
+  /// dated between what I last saw and what my clock reads"; no function of the
+  /// LOCAL clock can separate them. What separates them is that the first device
+  /// is twenty minutes fast and the second is correct, so the anchor is
+  /// expressed in SERVER time, where that difference is visible.
   ///
   /// Rows the server did not date are skipped: they hold no position of their
   /// own, they are laid out relative to the dated ones by [_withRebasedAnchors],
   /// so anchoring off one would chase a value that pass is about to rewrite.
   /// When there is nothing to anchor against at all (an empty thread, or one
-  /// where nothing is dated) the draft's own local clock is used — with no
-  /// server timestamp anywhere in the thread there is nothing for it to be
-  /// wrong RELATIVE TO, and it keeps the undated band out of 1971.
+  /// where nothing is dated) there is no floor and the draft's own clock reading
+  /// is used — with no server timestamp anywhere in the thread there is nothing
+  /// for it to be wrong RELATIVE TO, and it keeps the undated band out of 1971.
+  ///
+  /// Pinned by `test/features/chat/chat_late_counterpart_row_order_test.dart`.
   static DateTime _anchorAfter(
     List<DeliveryChatMessage> shown,
     DeliveryChatMessage draft,
+    DateTime composedAtServerTime,
   ) {
     DateTime? newest;
     for (final m in shown) {
@@ -961,7 +1004,50 @@ class ChatCubit extends Cubit<ChatState> {
       final at = m.sortAt;
       if (newest == null || at.isAfter(newest)) newest = at;
     }
-    return newest == null ? draft.sentAt : newest.add(_anchorStep);
+    if (newest == null) return draft.sentAt;
+    final floor = newest.add(_anchorStep);
+    return composedAtServerTime.isAfter(floor) ? composedAtServerTime : floor;
+  }
+
+  /// Lower bound on how far the SERVER's clock runs ahead of this device's.
+  ///
+  /// Learnt from history reads and nothing else: a read taken while this device
+  /// read `t`, whose newest dated row is `s`, proves the server's clock had
+  /// already reached `s` — so `s - t` is a lower bound on the offset. Null until
+  /// a read returns at least one dated row; the legacy timestamp-less wire never
+  /// populates it and the anchor falls back to the raw local reading.
+  ///
+  /// Kept as the LARGEST bound ever observed, because a later read that returns
+  /// nothing newer teaches strictly less than an earlier one already proved and
+  /// must not be allowed to walk the estimate back. It cannot run away: it is
+  /// bounded above by the true offset plus one network round trip, and every
+  /// fresh message pulls it towards that.
+  Duration? _serverClockOffset;
+
+  /// Fold what a freshly read [rows] batch says about the server's clock into
+  /// [_serverClockOffset]. Called on every history read — cold load, resume
+  /// refresh, safety-net poll and post-accept re-read.
+  void _noteServerClock(List<DeliveryChatMessage> rows) {
+    DateTime? newest;
+    for (final m in rows) {
+      // `sentAt`, not `sortAt`: this is measuring the SERVER'S CLOCK, so only a
+      // real server timestamp may contribute. A compose-time anchor is a client
+      // value and would make the estimate a function of itself.
+      if (!m.hasServerTimestamp) continue;
+      if (newest == null || m.sentAt.isAfter(newest)) newest = m.sentAt;
+    }
+    if (newest == null) return;
+    final observed = newest.difference(_clock());
+    final known = _serverClockOffset;
+    if (known == null || observed > known) _serverClockOffset = observed;
+  }
+
+  /// This device's best estimate of what the SERVER's clock read at the instant
+  /// [draft] was composed. Falls back to the raw local reading while the offset
+  /// is still unknown (no dated row has been seen on this thread yet).
+  DateTime _projectedServerNow(DeliveryChatMessage draft) {
+    final offset = _serverClockOffset;
+    return offset == null ? draft.sentAt : draft.sentAt.add(offset);
   }
 
   /// Reconcile the shown optimistic bubble [shown] onto its server [echo].
