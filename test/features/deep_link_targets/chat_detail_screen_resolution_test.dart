@@ -371,7 +371,7 @@ Widget _host(RoleCubit role, String chatId) => MaterialApp(
     // JEBV4-282: this suite exercises live-contract RESOLUTION, not the
     // pinned-summary poll. Disable the poll so its periodic timer never
     // outlives pumpAndSettle (the poll itself is covered separately).
-    child: ChatDetailScreen(chatId: chatId, summaryPollInterval: null),
+    child: ChatDetailScreen(chatId: chatId),
   ),
 );
 

@@ -141,7 +141,6 @@ void main() {
         debugGateway: gateway,
         debugPhase: ConversationPhase.accepted,
         debugHasWinner: true,
-        summaryPollInterval: null,
       )));
       await tester.pumpAndSettle();
 
@@ -169,7 +168,6 @@ void main() {
         debugGateway: gateway,
         debugPhase: ConversationPhase.accepted,
         debugHasWinner: true,
-        summaryPollInterval: null,
       )));
       await tester.pumpAndSettle();
 

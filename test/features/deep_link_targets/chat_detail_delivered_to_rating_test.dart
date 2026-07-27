@@ -11,6 +11,8 @@
 //   * delivered (Done)       → navigate to `/orders/:id/mutual-rate` (client leg,
 //                              no `?mode=jeeber`, since RoleCubit is client).
 
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -85,7 +87,7 @@ class _CompletingDeliveryDio {
 
 const _ratingText = 'RATING_SCREEN';
 
-Widget _host(RoleCubit role) {
+Widget _host(RoleCubit role, Stream<void> refreshSignals) {
   final router = GoRouter(
     initialLocation: '/chat/${_CompletingDeliveryDio.requestId}',
     routes: <RouteBase>[
@@ -93,7 +95,7 @@ Widget _host(RoleCubit role) {
         path: '/chat/:id',
         builder: (context, state) => ChatDetailScreen(
           chatId: state.pathParameters['id']!,
-          summaryPollInterval: const Duration(seconds: 1),
+          refreshSignals: refreshSignals,
         ),
       ),
       // Stub stand-in for the real MutualRatingScreen so the test asserts the
@@ -137,15 +139,18 @@ Future<RoleCubit> _clientRole() async {
 
 void main() {
   late _CompletingDeliveryDio rec;
+  late StreamController<void> refresh;
 
   setUp(() {
     rec = _CompletingDeliveryDio();
+    refresh = StreamController<void>.broadcast();
     final sl = GetIt.instance;
     if (sl.isRegistered<Dio>()) sl.unregister<Dio>();
     sl.registerSingleton<Dio>(rec.dio);
   });
 
-  tearDown(() {
+  tearDown(() async {
+    await refresh.close();
     final sl = GetIt.instance;
     if (sl.isRegistered<Dio>()) sl.unregister<Dio>();
   });
@@ -153,7 +158,7 @@ void main() {
   testWidgets(
     'client order-chat auto-navigates to mutual-rate when delivery reaches Done',
     (tester) async {
-      await tester.pumpWidget(_host(await _clientRole()));
+      await tester.pumpWidget(_host(await _clientRole(), refresh.stream));
 
       // Mount resolution: status is Ordered — the client stays on the chat, no
       // rating navigation yet.
@@ -161,21 +166,28 @@ void main() {
       expect(rec.deliveryReads, 1, reason: 'one delivery read at mount');
       expect(find.textContaining(_ratingText), findsNothing);
 
-      // Poll tick #1: status advances to InTransit. Still in flight — the chat
-      // MUST NOT navigate to rating.
-      await tester.pump(const Duration(milliseconds: 1100));
-      await tester.pump();
-      expect(rec.deliveryReads, greaterThanOrEqualTo(2));
+      // ⚠️ THE POINT OF THIS TEST AFTER b02 WAVE B.2. The rating hand-off used to
+      // hang off the 60s summary POLL; deleting that poll without re-hosting the
+      // hand-off would have stranded the customer on a finished chat with no
+      // forward path, and no instrument we have would have shown it — the chip
+      // simply never advances and nothing throws. So the hand-off is now driven
+      // by the `delivery` push, and this suite is what holds that.
+      //
+      // `delivery` push #1: status advances to InTransit. Still in flight — the
+      // chat MUST NOT navigate to rating.
+      refresh.add(null);
+      await tester.pumpAndSettle();
+      expect(rec.deliveryReads, 2);
       expect(
         find.textContaining(_ratingText),
         findsNothing,
         reason: 'no rating navigation while the delivery is still in transit',
       );
 
-      // Poll tick #2: status reaches Done — the delivery completed while the
-      // client is on the chat, so the screen navigates to the mutual-rating
+      // `delivery` push #2: status reaches Done — the delivery completed while
+      // the client is on the chat, so the screen navigates to the mutual-rating
       // route, client leg (no ?mode=jeeber).
-      await tester.pump(const Duration(milliseconds: 1100));
+      refresh.add(null);
       await tester.pumpAndSettle();
       expect(
         find.text('$_ratingText ${_CompletingDeliveryDio.requestId} mode=client'),

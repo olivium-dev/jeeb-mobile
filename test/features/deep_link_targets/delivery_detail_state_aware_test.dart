@@ -63,8 +63,10 @@ Future<Widget> _host(_FakeSummaryRepository repo) async {
         builder: (context, state) => DeliveryDetailScreen(
           deliveryId: state.pathParameters['id']!,
           summaryRepository: repo,
-          // Disable the periodic re-read so the test has no pending timers.
-          statusPollInterval: null,
+          // No seam needed to keep the test timer-free any more: the periodic
+          // re-read is GONE. The screen reads once on mount and then only when a
+          // `delivery` push arrives, and with no DI the refresh stream resolves
+          // null, so nothing is pending.
         ),
       ),
     ],

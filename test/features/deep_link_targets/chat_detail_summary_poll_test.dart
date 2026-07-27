@@ -1,11 +1,23 @@
-// JEBV4-282 regression lock: the customer chat pinned status chip must be LIVE,
-// not a one-shot snapshot taken once in initState.
+// JEBV4-282 regression lock, re-pointed for b02 wave B.2.
 //
-// ChatDetailScreen resolves the accepted-order summary once at mount. This test
-// proves the screen now RE-POLLS the delivery (`GET /v1/deliveries/{id}`) on the
-// configured cadence so the chip advances (Ordered → InTransit → …) without the
-// user leaving and reopening the chat. The poll is gated to the client-accepted
-// surface (the only place the strip renders) and stops at a terminal status.
+// The customer chat's pinned status chip must still be LIVE — not a one-shot
+// snapshot frozen at `initState`. What CHANGED is what makes it live: it used to
+// be a 60s `LifecyclePoller`, and it is now the `delivery` push.
+//
+// So this suite now locks BOTH halves, because either one alone is a false pass:
+//   * ABSENCE — a mounted, client-accepted chat with NO push and NO user action
+//     issues exactly ONE delivery read, and still exactly one after five minutes
+//     of virtual time. This is the owner's rule: "if the user does nothing and no
+//     push arrives, does a network call happen a second time?"
+//   * PRESENCE — one refresh event re-reads the delivery and the chip advances
+//     (Ordered → InTransit). Without this half, "zero calls" would also be
+//     satisfied by a screen that simply stopped working.
+//
+// The old test asserted only that a SECOND read eventually happened. That
+// assertion passes for a poll and for a push alike, which is exactly why the
+// mandate survived a whole batch unmet — so it is replaced, not extended.
+
+import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -73,7 +85,7 @@ class _AdvancingDeliveryDio {
   int deliveryReads = 0;
 }
 
-Widget _host(RoleCubit role) => MaterialApp(
+Widget _host(RoleCubit role, Stream<void> refreshSignals) => MaterialApp(
   localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
     SyncAppLocalizationsDelegate(),
     GlobalMaterialLocalizations.delegate,
@@ -83,9 +95,9 @@ Widget _host(RoleCubit role) => MaterialApp(
   supportedLocales: AppLocalizations.supportedLocales,
   home: BlocProvider<RoleCubit>.value(
     value: role,
-    child: const ChatDetailScreen(
+    child: ChatDetailScreen(
       chatId: _AdvancingDeliveryDio.requestId,
-      summaryPollInterval: Duration(seconds: 1),
+      refreshSignals: refreshSignals,
     ),
   ),
 );
@@ -100,63 +112,102 @@ Future<RoleCubit> _clientRole() => _role(UserRole.client);
 
 void main() {
   late _AdvancingDeliveryDio rec;
+  late StreamController<void> refresh;
 
   setUp(() {
     rec = _AdvancingDeliveryDio();
+    refresh = StreamController<void>.broadcast();
     final sl = GetIt.instance;
     if (sl.isRegistered<Dio>()) sl.unregister<Dio>();
     sl.registerSingleton<Dio>(rec.dio);
   });
 
-  tearDown(() {
+  tearDown(() async {
+    await refresh.close();
     final sl = GetIt.instance;
     if (sl.isRegistered<Dio>()) sl.unregister<Dio>();
   });
 
   testWidgets(
-    'client accepted-order summary re-polls the delivery so the chip is live',
+    'ABSENCE: a mounted client accepted-order chat issues ZERO repeat delivery '
+    'reads over five minutes with no push and no user action',
     (tester) async {
-      await tester.pumpWidget(_host(await _clientRole()));
-      // Initial mount resolution reads the delivery exactly once (the snapshot).
+      await tester.pumpWidget(_host(await _clientRole(), refresh.stream));
       await tester.pumpAndSettle();
       expect(rec.deliveryReads, 1, reason: 'one read at mount');
 
-      // Advance past the poll interval: the screen must re-fetch the delivery
-      // (the JEBV4-282 fix) rather than sit on the mount-time snapshot.
-      await tester.pump(const Duration(milliseconds: 1100));
-      await tester.pump();
-      expect(
-        rec.deliveryReads,
-        greaterThanOrEqualTo(2),
-        reason: 'the pinned status chip re-polled the delivery',
-      );
+      // Walk well past every cadence this screen has ever had (1s, 5s, 10s, 60s)
+      // and then far beyond it. A single extra read at ANY of these steps is a
+      // surviving poll.
+      for (final step in const <Duration>[
+        Duration(seconds: 1),
+        Duration(seconds: 5),
+        Duration(seconds: 10),
+        Duration(seconds: 60),
+        Duration(minutes: 5),
+      ]) {
+        await tester.pump(step);
+        await tester.pump();
+        expect(
+          rec.deliveryReads,
+          1,
+          reason:
+              'a repeat delivery read appeared after $step — a poll survives',
+        );
+      }
 
-      // Dispose the screen so the periodic poll timer is cancelled (no pending
-      // timer at teardown).
       await tester.pumpWidget(const SizedBox());
     },
   );
 
   testWidgets(
-    'P3/M27: the JEEBER arms NO summary poll — P3 adds ZERO background load on '
-    'the Jeeber device',
+    'PRESENCE: one refresh event re-reads the delivery and the chip advances — '
+    'the positive control that ABSENCE is not just a dead screen',
     (tester) async {
-      await tester.pumpWidget(_host(await _role(UserRole.jeeber)));
+      await tester.pumpWidget(_host(await _clientRole(), refresh.stream));
+      await tester.pumpAndSettle();
+      expect(rec.deliveryReads, 1, reason: 'one read at mount');
+
+      refresh.add(null);
+      await tester.pumpAndSettle();
+      expect(
+        rec.deliveryReads,
+        2,
+        reason: 'the delivery push must drive exactly ONE re-read',
+      );
+
+      // And nothing follows it — a push must not arm a cadence.
+      await tester.pump(const Duration(minutes: 5));
+      await tester.pump();
+      expect(rec.deliveryReads, 2, reason: 'the push left a cadence behind');
+
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'P3/M27: the JEEBER arms NO summary refresh — P3 adds ZERO background load '
+    'on the Jeeber device',
+    (tester) async {
+      await tester.pumpWidget(
+        _host(await _role(UserRole.jeeber), refresh.stream),
+      );
       await tester.pumpAndSettle();
       // P3 DOES give the Jeeber the one-shot participant-scoped delivery read.
       expect(rec.deliveryReads, 1, reason: 'one read at mount');
 
-      // Two full poll intervals later the count must be UNCHANGED: the poll is
-      // customer-only (the Jeeber's fields never change post-accept and the
-      // delivered-status side effect must fire on the client leg only).
-      await tester.pump(const Duration(milliseconds: 1100));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 1100));
+      // A refresh event must change nothing: the strip is customer-only (the
+      // Jeeber's fields never change post-accept and the delivered-status side
+      // effect must fire on the client leg only), so the subscription is never
+      // armed on this leg.
+      refresh.add(null);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(minutes: 5));
       await tester.pump();
       expect(
         rec.deliveryReads,
         1,
-        reason: 'no poll timer is armed for the Jeeber',
+        reason: 'no summary refresh is armed for the Jeeber',
       );
 
       await tester.pumpWidget(const SizedBox());
