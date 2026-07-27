@@ -1,3 +1,4 @@
+import 'dart:async';
 // S9 live-tracking defect fix (T-S9-APP-TRACK).
 //
 // PROVES a genuine 404 ("Delivery not found") renders a distinct OMDS
@@ -45,7 +46,7 @@ void main() {
     final cubit = LiveTrackingCubit(
       repository: repo,
       deliveryId: 'req-123',
-      pollInterval: const Duration(days: 1),
+      refreshSignals: const Stream<void>.empty(),
     );
 
     await tester.pumpWidget(_harness(cubit));

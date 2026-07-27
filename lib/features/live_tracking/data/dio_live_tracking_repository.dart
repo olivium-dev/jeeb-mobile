@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../../../core/network/mock_gateway_client.dart';
 import '../domain/delivery_tracking_info.dart';
 import '../domain/live_tracking_repository.dart';
+import 'sse_live_position_stream.dart';
 
 /// JM-032: order-tracking repository over the delivery-service.
 ///
@@ -30,7 +31,10 @@ import '../domain/live_tracking_repository.dart';
 /// every 5s (LiveTrackingCubit); when the status reaches the terminal delivered
 /// state the screen auto-advances to the receipt prompt (JM-033).
 class DioLiveTrackingRepository
-    implements LiveTrackingRepository, LivePositionSource {
+    implements
+        LiveTrackingRepository,
+        LivePositionSource,
+        LivePositionStreamSource {
   /// [originGateway] selects the wire shape. When `true` (the device/real
   /// default) the read speaks the FROZEN plural `:10090` route
   /// `GET /v1/deliveries/{id}` (the materialized aggregate — BUG-8 fix); when
@@ -43,6 +47,24 @@ class DioLiveTrackingRepository
       : originGateway = originGateway ?? !MockGatewayClient.useMockPrefixes;
 
   final Dio _dio;
+
+  /// b02 wave C / N7: the server-sent-events position feed, replacing the 5s
+  /// `GET /deliveries/{id}/tracking` cadence. Lazily built over the SAME Dio so
+  /// it inherits the bearer-auth interceptor.
+  late final SseLivePositionStream _positionStream =
+      SseLivePositionStream(_dio);
+
+  /// b02 wave C / N7. Streams the jeeber's position from the gateway's SSE route.
+  ///
+  /// Origin-only, for the same reason [fetchLivePosition] is: the `:4010` Express
+  /// mock has no tracking route at all, so in mock mode this yields an empty
+  /// stream and the screen simply shows no marker — the pre-existing degradation,
+  /// unchanged.
+  @override
+  Stream<DeliveryLivePosition> watchLivePosition({required String deliveryId}) {
+    if (!originGateway) return const Stream<DeliveryLivePosition>.empty();
+    return _positionStream.watchLivePosition(deliveryId: deliveryId);
+  }
 
   /// Whether to read the frozen origin-only `:10090` plural delivery route
   /// (`GET /v1/deliveries/{id}`) instead of the legacy `:4010` mock singular

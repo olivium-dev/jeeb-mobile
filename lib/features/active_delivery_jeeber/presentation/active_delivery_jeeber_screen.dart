@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/di/injection_container.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../background_gps/application/background_gps_cubit.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
@@ -107,6 +108,10 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
         repository: repo,
         deliveryId: deliveryId,
         photoPicker: photoPicker,
+        // b02 wave C / N6: the 5s LifecyclePoller is gone. A `type=delivery`
+        // push re-reads the row, through the ONE existing resolver. The
+        // `_ResumeRefresh` observer below stays as the dropped-push backstop.
+        refreshSignals: resolvePushRefreshStream(),
         // JEBV4-269: stream the jeeber's GPS to the gateway while InTransit.
         gpsUploader: gpsUploader,
       )..loadDelivery(),

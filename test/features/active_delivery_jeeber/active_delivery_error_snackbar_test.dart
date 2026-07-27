@@ -74,7 +74,7 @@ ActiveDeliveryCubit _seededCubit() => ActiveDeliveryCubit(
       repository: _InertRepo(),
       deliveryId: 'DLV-770001',
       // Long enough that the background poll never fires mid-test.
-      pollInterval: const Duration(days: 1),
+      refreshSignals: const Stream<void>.empty(),
     )..emit(const ActiveDeliveryState(
         mode: ActiveDeliveryMode.ready,
         delivery: JeeberDelivery(

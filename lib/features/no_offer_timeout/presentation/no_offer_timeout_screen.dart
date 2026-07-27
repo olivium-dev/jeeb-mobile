@@ -18,8 +18,8 @@ import '../domain/waiting_request.dart';
 
 /// Signature for the optional cubit factory the screen exposes for tests.
 /// Production wiring leaves it `null` so the default ticker-driven cubit is
-/// used; tests pass a factory that injects empty `pollTicks` / `clockTicks` so
-/// the test binding doesn't complain about pending timers.
+/// used; tests pass a factory that injects an empty `refreshSignals` /
+/// `clockTicks` so the test binding doesn't complain about pending timers.
 typedef WaitingCubitFactory =
     WaitingCubit Function(WaitingRepository repository, String requestId);
 
@@ -110,7 +110,14 @@ class NoOfferTimeoutScreen extends StatelessWidget {
       create: (_) {
         final cubit =
             cubitFactory?.call(repo, requestId) ??
-            WaitingCubit(repository: repo, requestId: requestId);
+            WaitingCubit(
+              repository: repo,
+              requestId: requestId,
+              // b02 wave C / N9: the ungated 5s poll is gone. A `type=offer`
+              // (bid arrived) or `type=request_expired` / `try_expand_tier`
+              // push re-reads it, through the ONE existing resolver.
+              refreshSignals: resolvePushRefreshStream(),
+            );
         cubit.load();
         return cubit;
       },

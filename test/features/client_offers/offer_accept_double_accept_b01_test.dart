@@ -136,7 +136,7 @@ ClientOffersCubit _testCubitFactory(OffersRepository repo, String requestId) =>
     ClientOffersCubit(
       repository: repo,
       requestId: requestId,
-      pollTicks: const Stream.empty(),
+      refreshSignals: const Stream.empty(),
       clockTicks: const Stream.empty(),
     );
 

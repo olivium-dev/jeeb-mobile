@@ -21,7 +21,7 @@ OffersSnapshot _snapshot(
 
 ClientOffersCubit _buildCubit({
   required ScriptedOffersRepository repository,
-  Stream<void>? pollTicks,
+  Stream<void>? refreshSignals,
   Stream<void>? clockTicks,
   DateTime Function()? now,
 }) {
@@ -29,7 +29,7 @@ ClientOffersCubit _buildCubit({
     repository: repository,
     requestId: 'req-1',
     now: now ?? () => kBaseTime,
-    pollTicks: pollTicks ?? const Stream.empty(),
+    refreshSignals: refreshSignals ?? const Stream.empty(),
     clockTicks: clockTicks ?? const Stream.empty(),
   );
   addTearDown(cubit.close);
@@ -212,7 +212,7 @@ void main() {
         repository: repo,
         requestId: 'req-1',
         now: () => kBaseTime,
-        pollTicks: const Stream.empty(),
+        refreshSignals: const Stream.empty(),
         clockTicks: const Stream.empty(),
       );
       addTearDown(cubit.close);
@@ -244,7 +244,7 @@ void main() {
       final pollTrigger = StreamController<void>();
       final cubit = _buildCubit(
         repository: repo,
-        pollTicks: pollTrigger.stream,
+        refreshSignals: pollTrigger.stream,
       );
       addTearDown(pollTrigger.close);
       await cubit.load();
@@ -267,7 +267,7 @@ void main() {
       final pollTrigger = StreamController<void>();
       final cubit = _buildCubit(
         repository: repo,
-        pollTicks: pollTrigger.stream,
+        refreshSignals: pollTrigger.stream,
       );
       addTearDown(pollTrigger.close);
       await cubit.load();
@@ -291,7 +291,7 @@ void main() {
       final pollTrigger = StreamController<void>();
       final cubit = _buildCubit(
         repository: repo,
-        pollTicks: pollTrigger.stream,
+        refreshSignals: pollTrigger.stream,
       );
       addTearDown(pollTrigger.close);
       await cubit.load();
@@ -325,7 +325,7 @@ void main() {
         final pollTrigger = StreamController<void>();
         final cubit = _buildCubit(
           repository: repo,
-          pollTicks: pollTrigger.stream,
+          refreshSignals: pollTrigger.stream,
         );
         addTearDown(pollTrigger.close);
         await cubit.load();
@@ -362,7 +362,7 @@ void main() {
           repository: repo,
           requestId: 'req-1',
           now: () => fakeNow,
-          pollTicks: const Stream.empty(),
+          refreshSignals: const Stream.empty(),
           clockTicks: const Stream.empty(),
         );
         addTearDown(cubit.close);

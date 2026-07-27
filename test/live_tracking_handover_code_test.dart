@@ -1,3 +1,4 @@
+import 'dart:async';
 // G4 (sprint-009 P0) — the customer SEES their handover code.
 //
 // PROVES, over the customer tracking surface:
@@ -80,7 +81,7 @@ LiveTrackingCubit _cubit(
     LiveTrackingCubit(
       repository: repo,
       deliveryId: 'DLV-770001',
-      pollInterval: const Duration(days: 1),
+      refreshSignals: const Stream<void>.empty(),
       handoverCodeStore: store,
     );
 

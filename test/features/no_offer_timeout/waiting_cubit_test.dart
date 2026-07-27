@@ -105,7 +105,7 @@ void main() {
         repository: repo,
         requestId: 'req-1',
         now: () => now,
-        pollTicks: pollTicks.stream,
+        refreshSignals: pollTicks.stream,
         clockTicks: const Stream.empty(),
       );
       addTearDown(cubit.close);
@@ -147,7 +147,7 @@ void main() {
         repository: repo,
         requestId: 'req-1',
         now: () => now,
-        pollTicks: pollTicks.stream,
+        refreshSignals: pollTicks.stream,
         clockTicks: const Stream.empty(),
       );
       addTearDown(cubit.close);
@@ -188,7 +188,7 @@ void main() {
         repository: repo,
         requestId: 'req-1',
         now: () => now,
-        pollTicks: pollTicks.stream,
+        refreshSignals: pollTicks.stream,
         clockTicks: const Stream.empty(),
       );
       addTearDown(cubit.close);
@@ -226,7 +226,7 @@ void main() {
         repository: repo,
         requestId: 'req-1',
         now: () => now,
-        pollTicks: pollTicks.stream,
+        refreshSignals: pollTicks.stream,
         clockTicks: clockTicks.stream,
       );
       addTearDown(cubit.close);
@@ -265,7 +265,7 @@ void main() {
         repository: repo,
         requestId: 'req-1',
         now: () => _t0,
-        pollTicks: pollTicks.stream,
+        refreshSignals: pollTicks.stream,
         clockTicks: const Stream.empty(),
       );
       addTearDown(cubit.close);
@@ -310,7 +310,7 @@ void main() {
         repository: repo,
         requestId: 'req-1',
         now: () => _t0,
-        pollTicks: pollTicks.stream,
+        refreshSignals: pollTicks.stream,
         clockTicks: clockTicks.stream,
       );
       addTearDown(cubit.close);
@@ -342,7 +342,7 @@ void main() {
         repository: repo,
         requestId: 'req-1',
         now: () => _t0,
-        pollTicks: pollTicks.stream,
+        refreshSignals: pollTicks.stream,
         clockTicks: clockTicks.stream,
       );
       addTearDown(cubit.close);
@@ -373,7 +373,7 @@ void main() {
         repository: repo,
         requestId: 'req-1',
         now: () => _t0,
-        pollTicks: pollTicks.stream,
+        refreshSignals: pollTicks.stream,
         clockTicks: clockTicks.stream,
       );
       addTearDown(cubit.close);
@@ -405,7 +405,7 @@ void main() {
         repository: repo,
         requestId: 'req-1',
         now: () => _t0,
-        pollTicks: pollTicks.stream,
+        refreshSignals: pollTicks.stream,
         clockTicks: clockTicks.stream,
       );
       addTearDown(cubit.close);
@@ -446,7 +446,7 @@ void main() {
         repository: repo,
         requestId: 'req-1',
         now: () => _t0,
-        pollTicks: const Stream.empty(),
+        refreshSignals: const Stream.empty(),
         clockTicks: const Stream.empty(),
       );
       addTearDown(cubit.close);
@@ -480,7 +480,7 @@ void main() {
         repository: repo,
         requestId: 'req-1',
         now: () => now,
-        pollTicks: const Stream.empty(),
+        refreshSignals: const Stream.empty(),
         clockTicks: const Stream.empty(),
       );
       addTearDown(cubit.close);

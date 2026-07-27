@@ -5,7 +5,6 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../core/lifecycle/lifecycle_poller.dart';
 import '../../background_gps/application/background_gps_cubit.dart';
 import '../../background_gps/application/background_gps_state.dart';
 import '../../photo_attachment/data/stub_photo_picker_service.dart';
@@ -159,12 +158,12 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     required this.deliveryId,
     PhotoPickerService? photoPicker,
     PhotoCompressor compressor = const HalvingPhotoCompressor(),
-    Duration pollInterval = const Duration(seconds: 5),
+    Stream<void>? refreshSignals,
     BackgroundGpsCubit? gpsUploader,
   })  : _repository = repository,
         _photoPicker = photoPicker ?? StubPhotoPickerService(),
         _compressor = compressor,
-        _pollInterval = pollInterval,
+        _refreshSignals = refreshSignals,
         _gpsUploader = gpsUploader,
         super(const ActiveDeliveryState());
 
@@ -191,23 +190,44 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
   /// the CDN broker — reused from the KYC/attachment capture path.
   final PhotoCompressor _compressor;
 
-  /// JEBV4-282: while the active-delivery screen is open the cubit re-polls the
-  /// delivery so a backend-side transition (the customer/system advancing or
-  /// cancelling the row) surfaces WITHOUT the jeeber having to leave and
-  /// re-enter. Pre-fix the stepper only ever moved on the jeeber's own
-  /// optimistic taps and otherwise stayed frozen at step 1. Injectable so
-  /// timing-sensitive tests can pin a long interval; the poll never fights an
-  /// in-flight transition / OTP entry (see [_poll]).
-  final Duration _pollInterval;
-  late final LifecyclePoller _poller = LifecyclePoller(
-    interval: _pollInterval,
-    onTick: _poll,
-    tickOnResume: false,
-    debugLabel: 'ActiveDeliveryCubit',
-  );
+  /// b02 wave C — N6. Payload-less push→refetch bus. Every event is ONE re-read
+  /// of `GET /v1/deliveries/{id}`; there is no cadence behind it.
+  ///
+  /// This REPLACED a 5s `LifecyclePoller` (JEBV4-282) whose own rationale said
+  /// it existed so that a backend-side transition — the customer or the system
+  /// advancing or cancelling the row — would surface WITHOUT the jeeber leaving
+  /// and re-entering the screen. That is a description of a push, written before
+  /// the push existed: the delivery-status push used to be composed against the
+  /// in-gateway stack, which binds `InMemoryPushTransport`, delivers nothing and
+  /// then logs `Delivered` (see `IDeliveryStatusPushNotifier`). So the poll was
+  /// load-bearing at the time it was written.
+  ///
+  /// It is not any more. `NotifyOtherPartyAsync`
+  /// (`Controllers/DeliveriesController.cs:1296-1300`) puts BOTH `req.ClientId`
+  /// AND `req.JeeberId` on the recipient list — this jeeber is a recipient of
+  /// every status flip, not only the customer — and
+  /// `Notifications/DeliveryStatusPushNotifier.cs:211` now goes out over the
+  /// push microservice with `type=delivery` + a snake_case `delivery_id`, which
+  /// is exactly the discriminator/id pair
+  /// `PushNotificationHandler._maybeSignalStatusChange` needs to clear its
+  /// `orderish` id guard.
+  ///
+  /// The resume backstop is UNCHANGED and still matters: the screen's
+  /// `_ResumeRefresh` observer calls [refresh] on every foreground resume
+  /// (`active_delivery_jeeber_screen.dart:695-701`), which catches a push the OS
+  /// dropped or coalesced while the process was backgrounded. That read is
+  /// caused by the user returning to the app, not by a clock.
+  ///
+  /// `null` in a bare test/devtool with no DI — the cubit then only reads on
+  /// load, resume and the jeeber's own actions.
+  final Stream<void>? _refreshSignals;
 
+  StreamSubscription<void>? _refreshSubscription;
+
+  /// True once the push subscription is armed. Lets a test assert the wiring
+  /// without reaching into the stream.
   @visibleForTesting
-  LifecyclePoller get debugPoller => _poller;
+  bool get debugPushRefreshWired => _refreshSubscription != null;
 
   Future<void> loadDelivery() async {
     emit(state.copyWith(mode: ActiveDeliveryMode.loading, clearError: true));
@@ -244,28 +264,73 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
   /// The stop predicate is [JeeberDeliveryStatus.isPollTerminal], NOT
   /// `isTerminal`: `isTerminal` includes `disputed`, so using it here would
   /// re-break P6/A2. It also matches [_canPoll], which gates the same rows.
+  /// Arm the push subscription for a live row, retire it for a dead one.
+  ///
+  /// Retiring on a poll-terminal row is not merely an optimisation: it is what
+  /// stops a LATER unrelated push (the bus is app-wide and payload-less) from
+  /// re-reading a `Done`/`Cancelled`/`Expired` delivery forever.
+  ///
+  /// Idempotent — safe to call from load, from every user-driven write, and
+  /// from the push handler itself.
   void _armPoll() {
     final delivery = state.delivery;
     if (delivery == null || delivery.status.isPollTerminal) {
-      _poller.stop();
+      _retireRefreshSubscription();
       return;
     }
-    _poller.start();
+    _refreshSubscription ??= _refreshSignals?.listen((_) => _refreshFromPush());
   }
 
-  void _schedulePoll() {
-    final delivery = state.delivery;
-    if (delivery == null || delivery.status.isPollTerminal) {
-      _poller.stop();
-      return;
+  /// Stop listening to the push bus. Deliberately SYNCHRONOUS, and the
+  /// `cancel()` future is deliberately NOT awaited.
+  ///
+  /// Two independent reasons:
+  ///  1. Correctness does not need the await. Once `cancel()` RETURNS, the
+  ///     subscription delivers no further events; the future it hands back only
+  ///     reports downstream cleanup. Nulling the field is what makes this
+  ///     observable (`debugPushRefreshWired`) and is done first.
+  ///  2. Awaiting it DEADLOCKS `close()` under `testWidgets`. Awaiting
+  ///     `cancel()` as the first statement of [close] hangs the fake-async test
+  ///     zone indefinitely — the test never completes and the shell is
+  ///     SIGTERM'd, which reads as an infrastructure flake rather than as
+  ///     something this file did. Recorded here so nobody "tidies" it back.
+  void _retireRefreshSubscription() {
+    unawaited(_refreshSubscription?.cancel());
+    _refreshSubscription = null;
+  }
+
+  /// Kept as a distinct name at the user-driven-write call sites: those used to
+  /// RESTART the poll interval so the optimistic emit was not immediately
+  /// overwritten by an in-flight tick. With no cadence there is nothing to
+  /// restart, but the terminality check still has to run — a write that lands
+  /// the row on `Done` must retire the subscription.
+  void _schedulePoll() => _armPoll();
+
+  /// One push → one re-read. Single-flighted so two pushes landing inside one
+  /// round trip produce ONE re-pull, not two whose emits race (the later request
+  /// can complete first and paint the OLDER snapshot).
+  Future<void> _refreshFromPush() async {
+    if (isClosed || _pushRefreshInFlight) return;
+    _pushRefreshInFlight = true;
+    try {
+      await _poll();
+    } finally {
+      _pushRefreshInFlight = false;
     }
-    _poller.restart();
   }
 
-  /// Silent background re-fetch (no loading flash). Skips while a user-driven
-  /// transition / proof upload / door-OTP entry is in flight so the poll never
-  /// clobbers optimistic state or the OTP surface; a fetch failure is swallowed
-  /// (the last good snapshot stays on screen and the next tick retries).
+  bool _pushRefreshInFlight = false;
+
+  /// Silent re-fetch (no loading flash). Skips while a user-driven transition /
+  /// proof upload is in flight so it never clobbers optimistic state; a fetch
+  /// failure is swallowed (the last good snapshot stays on screen and the next
+  /// push / resume retries).
+  ///
+  /// Every gate below is preserved verbatim from the poll era — only the TRIGGER
+  /// changed from a 5s timer to a `type=delivery` push (plus the unchanged
+  /// resume backstop). In particular the door-OTP window still only accepts a
+  /// TERMINAL server verdict (P6/A4), because a push arriving mid-OTP-entry can
+  /// clobber the field exactly as a poll tick could.
   Future<void> _poll() async {
     if (isClosed) return;
     if (!_canPoll(state)) return;
@@ -294,7 +359,7 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
         delivered: merged.status.isSuccessfulTerminal ? true : null,
       ));
       if (merged.status.isPollTerminal) {
-        _poller.stop();
+        _retireRefreshSubscription();
       }
       // JEBV4-269: a backend-driven status flip (customer/system advancing the
       // row to InTransit, or completing/cancelling it) starts or stops the GPS
@@ -340,11 +405,30 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
         !s.isUploadingProof;
   }
 
-  /// JEBV4-282: force an immediate silent re-fetch + re-arm the poll. The screen
-  /// wires this to app-resume so a delivery advanced while the app was
-  /// backgrounded (Dart timers are suspended there) surfaces on return.
+  /// JEBV4-282: force an immediate silent re-fetch + re-evaluate the push
+  /// subscription. The screen wires this to app-resume
+  /// (`active_delivery_jeeber_screen.dart:695-701`) so a delivery advanced while
+  /// the app was backgrounded surfaces on return — a push the OS dropped or
+  /// coalesced while the process was down is exactly what this catches. This is
+  /// the ONLY remaining non-push read trigger besides the cold load and the
+  /// jeeber's own writes, and it is caused by the user returning to the app, not
+  /// by a clock.
+  /// Single-flighted with the push path via [_pushRefreshInFlight]. Not
+  /// belt-and-braces: `didChangeAppLifecycleState(resumed)` can fire MORE THAN
+  /// ONCE for a single background→foreground trip (the platform normalizes
+  /// `paused → hidden → inactive → resumed` and notifies along the way) and the
+  /// screen's hook posts a frame callback on each. Without the latch that is two
+  /// full `GET /v1/deliveries/{id}` round trips on every app switch — the exact
+  /// traffic this change exists to remove, invisible in the poll era because the
+  /// poll's own ticks buried it.
   Future<void> refresh() async {
-    await _poll();
+    if (isClosed || _pushRefreshInFlight) return;
+    _pushRefreshInFlight = true;
+    try {
+      await _poll();
+    } finally {
+      _pushRefreshInFlight = false;
+    }
     _armPoll();
   }
 
@@ -620,7 +704,7 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
 
   @override
   Future<void> close() async {
-    _poller.dispose();
+    _retireRefreshSubscription();
     // JEBV4-269: the uploader is owned for this cubit's lifetime — tear its GPS
     // stream down and close it so no fixes leak past the screen (battery + no
     // stray uploads for a delivery the jeeber has navigated away from).

@@ -49,7 +49,7 @@ ClientOffersCubit _testCubitFactory(
   return ClientOffersCubit(
     repository: repository,
     requestId: requestId,
-    pollTicks: const Stream.empty(),
+    refreshSignals: const Stream.empty(),
     clockTicks: const Stream.empty(),
   );
 }
@@ -417,7 +417,7 @@ void main() {
                 repository: repository,
                 requestId: requestId,
                 now: () => fakeNow,
-                pollTicks: pollTicks.stream,
+                refreshSignals: pollTicks.stream,
                 clockTicks: clockTicks.stream,
               );
               return cubit;
