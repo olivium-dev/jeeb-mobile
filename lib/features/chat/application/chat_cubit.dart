@@ -204,11 +204,36 @@ class ChatCubit extends Cubit<ChatState> {
   ///      `refresh()`'s own contract says "stale-but-present beats blank"; a
   ///      successful-but-empty read has to honour that as much as a thrown one.
   ///
-  /// Server rows win wherever they overlap, and they keep the SERVER'S OWN
-  /// POSITION: the reconciled list is `[...history, ...leftovers]`, so for rows
-  /// the server did not date — whose only ordering information IS their place in
-  /// that array — the rendered order is the server's array order rather than
-  /// whatever order this client happened to learn about them in.
+  /// Server rows win wherever they overlap, and this method hands them on in the
+  /// SERVER'S OWN ARRAY ORDER: the reconciled list is `[...history, ...leftovers]`,
+  /// so for rows the server did not date — whose only ordering information IS
+  /// their place in that array — that position survives instead of whatever order
+  /// this client happened to learn about them in.
+  ///
+  /// WHAT THIS DOES **NOT** PROMISE — read this before relying on it. The list
+  /// built here is the INPUT to [_ordered], not the rendered order. [_ordered]
+  /// sorts by [DeliveryChatMessage.sortAt], and [_withRebasedAnchors] first
+  /// collects every undated row into ONE CONTIGUOUS BAND immediately below the
+  /// earliest DATED row. So array position is preserved only WITHIN that band:
+  ///
+  ///   * a server array of `[dated 12:00, undated, dated 12:02]` renders as
+  ///     `[undated, dated 12:00, dated 12:02]` — the undated row does not stay
+  ///     between the two dated ones;
+  ///   * `[them dated 12:00, me undated, them undated]` renders as
+  ///     `[me undated, them undated, them dated 12:00]` — their first message
+  ///     sinks to the bottom.
+  ///
+  /// An earlier version of this comment claimed the rendered order simply IS the
+  /// server's array order. It is not, and never was; the claim is corrected here
+  /// rather than in the code because honouring it literally means dropping the
+  /// chronological sort (S0-CHAT-04), which exists because the backend may return
+  /// rows unsorted, may page them newest-first, and may append a system row out of
+  /// band. The guarantee that actually holds is pinned, case by case, in
+  /// `test/features/chat/chat_undated_band_contract_test.dart`.
+  ///
+  /// A thread in which EVERY row is dated (the live wire since jeeb-gateway #326)
+  /// has no band at all, so the distinction is invisible there; it bites on the
+  /// legacy timestamp-less wire.
   ///
   /// Overlaps: same id → the server row wins, but it inherits whatever the shown
   /// copy had learned that a re-decode of the wire cannot know (a further-along
