@@ -9,7 +9,9 @@ import '../../core/delivery/delivery_status_vocab.dart';
 import '../../core/formatting/friendly_reference.dart';
 import '../../core/lifecycle/lifecycle_poller.dart';
 import '../../core/network/auth_token_store.dart';
+import '../../core/notifications/domain/active_chat_thread.dart';
 import '../../core/role/role_cubit.dart';
+import '../../core/router/app_route_observer.dart';
 import '../../core/role/user_role.dart';
 import '../../l10n/app_localizations.dart';
 import '../chat/application/order_compose_coordinator.dart';
@@ -106,7 +108,7 @@ class ChatDetailScreen extends StatefulWidget {
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
 }
 
-class _ChatDetailScreenState extends State<ChatDetailScreen> {
+class _ChatDetailScreenState extends State<ChatDetailScreen> with RouteAware {
   String _resolvedConversationId = '';
   String _counterpartName = '';
 
@@ -184,8 +186,128 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _resolveAndBuild();
   }
 
+  // ---------------------------------------------------------------------
+  // b02 fg-suppression — "is THIS chat thread on screen right now?"
+  //
+  // Owner requirement: a chat push for a thread the user is NOT viewing must
+  // reach the shade even in the foreground; a push for the thread they ARE
+  // viewing must not. `initState`/`dispose` cannot answer that — pushing the
+  // order summary or the dispute-evidence route on top of this screen leaves
+  // this State mounted while the conversation is no longer visible. RouteAware
+  // on [appRouteObserver] is the signal that distinguishes the two.
+  //
+  // Registration is a SET of ids because `/chat/:id`'s param may be a
+  // conversation id or a delivery/request id, and the live chat push carries
+  // both (`notification_deep_link.dart:56-67`).
+  // ---------------------------------------------------------------------
+
+  /// True while this screen is the route on top of the navigator.
+  bool _onScreen = false;
+
+  /// Every id that identifies the thread THIS screen is showing, read live.
+  ///
+  /// Registered with [ActiveChatThread] as a reader, not copied into it, so the
+  /// conversation id the async `?correlationKey=` lookup produces is visible to
+  /// the push path the instant [_finalize] assigns it — with no republish and
+  /// therefore no publish moment to miss.
+  ///
+  /// A hardware run reported this registry holding only the route param, with
+  /// the resolved conversation id absent. That exact failure was NOT reproduced
+  /// (see the PR: a snapshot-plus-republish build passes every harness here,
+  /// including a real-`GoRouter` one), so the reader is not offered as a fix
+  /// for a diagnosed bug — it removes the CLASS the report belongs to, by
+  /// leaving nothing that has to be remembered at the right moment.
+  Set<String> get _openThreadIds => <String>{
+        widget.chatId,
+        _resolvedConversationId,
+        _resolvedRequestId,
+      };
+
+  void _publishOpenThread() {
+    if (!_onScreen) return;
+    ActiveChatThread.instance.enter(this, () => _openThreadIds);
+  }
+
+  /// The observer instance this screen subscribed to. Captured because
+  /// `appRouteObserver` is re-minted per router ([newAppRouteObserver]) and
+  /// unsubscribing from a DIFFERENT instance would leak the subscription.
+  RouteObserver<ModalRoute<void>>? _subscribedObserver;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    // `void` is a top type, so `ModalRoute<T> is ModalRoute<void>` holds for
+    // every T — this narrows the nullable, it does not filter by page type.
+    if (route is ModalRoute<void> && _subscribedObserver == null) {
+      // `subscribe` invokes `didPush()` synchronously on a NEW subscription, so
+      // the initial registration falls out of this and needs no separate call.
+      _subscribedObserver = appRouteObserver..subscribe(this, route);
+    }
+  }
+
+  /// The route param changed UNDER A LIVE `State`.
+  ///
+  /// `go_router` keys its pages on the ROUTE OBJECT, not the location
+  /// (`go_router-13.2.5/lib/src/match.dart:178`,
+  /// `pageKey: ValueKey<String>(route.hashCode.toString())`), so
+  /// `context.go('/chat/B')` while `/chat/A` is on screen matches the SAME
+  /// `/chat/:id` `GoRoute`, produces the same page key, and reuses this
+  /// `Element` and this `State`. No `didPush`/`didPop` fires. Without this hook
+  /// the registry would keep chat A's ids and suppress a push for a thread the
+  /// user is no longer on — the notification-tap path itself
+  /// (`app/app.dart:613`), plus `dispute_status_screen.dart:122`.
+  ///
+  /// `AppRouter` now hands this screen a `ValueKey(id)`
+  /// (`core/router/app_router.dart`, the `/chat/:id` builder), which forces a
+  /// FRESH `State` per thread and makes this branch unreachable in the app —
+  /// the key is the real fix, because a reused `State` also keeps the previous
+  /// thread's gateway and messages on screen, which this hook cannot repair.
+  /// This hook exists for any other host that mounts the screen unkeyed, and it
+  /// takes the only honest action available to it: DEREGISTER. The resolved
+  /// conversation/request ids still describe the previous thread while the
+  /// route param already describes the next one, so no registration would be
+  /// truthful, and the safe direction is to suppress nothing.
+  @override
+  void didUpdateWidget(covariant ChatDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.chatId == widget.chatId) return;
+    ActiveChatThread.instance.leave(this);
+  }
+
+  @override
+  void didPush() {
+    _onScreen = true;
+    _publishOpenThread();
+  }
+
+  /// Returned to the top of the stack (the route pushed above us popped).
+  @override
+  void didPopNext() {
+    _onScreen = true;
+    _publishOpenThread();
+  }
+
+  /// Another route was pushed ON TOP — the conversation is no longer visible,
+  /// so its pushes must reach the shade again.
+  @override
+  void didPushNext() {
+    _onScreen = false;
+    ActiveChatThread.instance.leave(this);
+  }
+
+  @override
+  void didPop() {
+    _onScreen = false;
+    ActiveChatThread.instance.leave(this);
+  }
+
   @override
   void dispose() {
+    _subscribedObserver?.unsubscribe(this);
+    // Owner-guarded: a no-op if a LATER chat screen already claimed the slot
+    // (chat A → chat B disposes A after B registers).
+    ActiveChatThread.instance.leave(this);
     _summaryPoller.dispose();
     final gateway = _gateway;
     if (gateway is DioChatGateway) {
@@ -684,6 +806,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       _summary = summary;
       _loading = false;
     });
+    // b02 fg-suppression: deliberately NO republish here. `ActiveChatThread`
+    // holds a READER over `_openThreadIds`, so the conversation/request ids
+    // just assigned above are visible to the push path from this line onward
+    // with no further call. A republish here was the previous design and it is
+    // exactly what a hardware run caught missing its moment; the regression
+    // test `resolution lands AFTER registration` fails if a reader is ever
+    // swapped back for a snapshot.
   }
 
   /// Reads the active [UserRole] from the app-global [RoleCubit]. Returns

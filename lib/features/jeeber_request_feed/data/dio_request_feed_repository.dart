@@ -5,42 +5,53 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import '../../../core/formatting/server_time.dart';
-import '../../../core/lifecycle/app_lifecycle_gate.dart';
-import '../../../core/lifecycle/lifecycle_poller.dart';
 import '../../../core/lifecycle/polling_source.dart';
 import '../../../core/requests/server_request_status.dart';
 import 'request_feed_models.dart';
 import 'request_feed_repository.dart';
 
-/// Build-time override for the feed's safety-net poll cadence, in seconds.
-/// Defaults to 60 — the shipped value — so an ordinary build is byte-identical
-/// to before this knob existed.
-///
-/// It exists to make the JEBV4-342 NEGATIVE test runnable against the SAME
-/// source the PR ships. That test has to answer "is the push driving the
-/// refetch, or is the 60s poll?", and the only honest way to answer it is to
-/// push the poll beyond the observation window and see whether the feed still
-/// refreshes. Without this, the negative test needs a throwaway source edit,
-/// which means the APK that produced the evidence is not the APK under review —
-/// exactly the gap that let a push arrive and drive nothing for a whole batch
-/// while every screenshot looked correct.
-///
-///   flutter build apk --dart-define JEEB_FEED_POLL_SECONDS=86400
-///
-/// A non-positive value is ignored rather than honoured: `0` would make
-/// [LifecyclePoller] tick in a hot loop, and a typo in a `--dart-define` must
-/// not be able to turn a safety net into a denial-of-service on the gateway.
-const int _kFeedPollSecondsOverride =
-    int.fromEnvironment('JEEB_FEED_POLL_SECONDS', defaultValue: 60);
-
-const Duration kFeedSafetyNetPollInterval = Duration(
-  seconds: _kFeedPollSecondsOverride > 0 ? _kFeedPollSecondsOverride : 60,
-);
-
 /// Dio-backed [RequestFeedRepository].
 ///
-/// Uses REST polling (no WebSocket in this implementation) against the W2
-/// delivery-service contract. Emits [FeedTransport.polling].
+/// ## NO PERIODIC POLL LIVES HERE ANY MORE (b02, POLLING-ELIMINATION-PLAN A.1)
+///
+/// This class used to own a 60 s `LifecyclePoller` ("safety net") that re-GET
+/// the feed on a wall clock. It is **deleted**, not shortened, not gated: under
+/// the owner's rule a repeated call at *any* interval is banned, and a
+/// "bounded safety net" is still a repeated call.
+///
+/// What drives the feed now — all three are one-shot, none is periodic:
+///   1. **screen open** — `RequestFeedCubit.start()` awaits one [refresh].
+///   2. **foreground resume / shell-tab refocus** — `FeedResumeRefetcher`
+///      (`presentation/feed_resume_refetcher.dart`) calls
+///      `RequestFeedCubit.refresh()` once per transition.
+///   3. **`new_request` push** — `PushRefreshSignals` → `RequestFeedCubit`'s
+///      `refreshSignals` subscription → one [refresh] (JEBV4-342, merged as
+///      jeeb-mobile #178; arrival witnessed on physical hardware).
+///
+/// Deleting the interval was deliberately sequenced AFTER (3) was proven to
+/// drive the UI on a device. Do not delete a poll before its push is proven:
+/// the failure mode is stale data with no error anywhere — silent on the
+/// device, silent in the gateway journal, invisible to a screenshot.
+///
+/// The `--dart-define JEEB_FEED_POLL_SECONDS` knob added alongside #178 (to
+/// push the poll past the observation window during that PR's negative test)
+/// is gone with the poll it parameterised. There is no cadence left to move.
+///
+/// Consequence worth stating plainly: the poll tick was the ONLY producer on
+/// [requests] for this implementation, so that stream is now silent here and
+/// every row reaches the cubit through the snapshot-authoritative [refresh]
+/// reconcile instead. That reconcile is a strict superset of what the stream
+/// fan-in did (it also RETIRES rows the gateway has dropped, which the stream
+/// never could), so no feed row is lost. `RequestFeedCubit`'s optional
+/// `onNewRequestSound` hook fired off the stream — it has zero production
+/// construction sites (only `test/request_feed_cubit_test.dart:75`), so no
+/// shipped behaviour depends on it. Other `RequestFeedRepository`
+/// implementations (the fakes, the seeded catalog doubles) still emit.
+///
+/// ⚠️ If you are about to re-add a timer here, you are re-opening JEBV4-342.
+///
+/// Uses REST (no WebSocket in this implementation) against the W2
+/// delivery-service contract.
 ///
 /// Live jeeb-gateway endpoint (Contract B — `jeeb-gateway/jeeber-feed`
 /// v1.0.0, FROZEN, request-centric):
@@ -61,19 +72,11 @@ const Duration kFeedSafetyNetPollInterval = Duration(
 /// the CALLER'S OWN client requests and ignores status → a jeeber always saw 0
 /// rows. Pointed at the correct request-centric feed per the S02 freeze.
 class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
-  DioRequestFeedRepository({
-    required Dio dio,
-    Duration pollInterval = kFeedSafetyNetPollInterval,
-    AppLifecycleGate? lifecycleGate,
-    DateTime Function()? now,
-  }) : _dio = dio,
-       _pollInterval = pollInterval,
-       _lifecycleGate = lifecycleGate,
-       _now = now ?? DateTime.now;
+  DioRequestFeedRepository({required Dio dio, DateTime Function()? now})
+    : _dio = dio,
+      _now = now ?? DateTime.now;
 
   final Dio _dio;
-  final Duration _pollInterval;
-  final AppLifecycleGate? _lifecycleGate;
 
   /// Device clock, injected for tests. It anchors the DERIVED card deadline
   /// (see the `offerDeadlineInSeconds` parse below) — the feed never parses a
@@ -90,13 +93,13 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
   final StreamController<FeedTransportUpdate> _transportCtrl =
       StreamController<FeedTransportUpdate>.broadcast(onListen: () {});
 
+  /// Interest lease held by the visible consumers ([PollingSource]). It no
+  /// longer arms anything — see the class doc: there is no timer left. It is
+  /// retained for exactly one reason: it is the edge on which the one-shot
+  /// [FeedTransport] announcement fires (first interest only), and the shell's
+  /// visibility plumbing already speaks it. It must never be used to (re)arm a
+  /// cadence.
   final Set<Object> _interest = HashSet<Object>.identity();
-  late final LifecyclePoller _poller = LifecyclePoller(
-    interval: _pollInterval,
-    onTick: _poll,
-    gate: _lifecycleGate,
-    debugLabel: 'jeeber-feed',
-  );
   bool _disposed = false;
 
   @override
@@ -139,18 +142,19 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
     }
   }
 
+  /// Declares interest. **Arms nothing.** The first interest announces the
+  /// transport once so the screen layer knows this feed has no WebSocket; every
+  /// subsequent call, and every removal, is pure bookkeeping.
   @override
   void addPollInterest(Object owner) {
     if (_disposed || !_interest.add(owner)) return;
     if (_interest.length != 1) return;
     _transportCtrl.add(const FeedTransportUpdate(FeedTransport.polling));
-    _poller.start();
   }
 
   @override
   void removePollInterest(Object owner) {
-    if (!_interest.remove(owner) || _interest.isNotEmpty) return;
-    _poller.stop();
+    _interest.remove(owner);
   }
 
   @override
@@ -158,29 +162,12 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
     if (_disposed) return;
     _disposed = true;
     _interest.clear();
-    _poller.dispose();
     await _requestsCtrl.close();
     await _transportCtrl.close();
   }
 
   @visibleForTesting
-  bool get debugIsPolling => _poller.isRunning;
-
-  @visibleForTesting
   bool get debugIsDisposed => _disposed;
-
-  Future<void> _poll() async {
-    if (_disposed) return;
-    try {
-      final response = await _dio.get<dynamic>(_feedPath);
-      final requests = _parseRequests(response.data ?? {});
-      for (final r in requests) {
-        _requestsCtrl.add(r);
-      }
-    } on DioException {
-      // Swallow poll errors — UI shows stale feed rather than error banner.
-    }
-  }
 
   List<DeliveryRequest> _parseRequests(Object? data) {
     final items = data is List

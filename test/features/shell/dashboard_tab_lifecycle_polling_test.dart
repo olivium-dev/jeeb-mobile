@@ -22,8 +22,6 @@ import 'package:jeeb_mobile/features/shell/tab_visibility.dart';
 import 'package:jeeb_mobile/features/shell/tabs/dashboard_tab.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
-const _testPollInterval = Duration(seconds: 10);
-
 class _CountingDio extends Fake implements Dio {
   int getCount = 0;
   Object responseBody = const <String, Object>{
@@ -157,10 +155,7 @@ void main() {
     await sl.reset();
     AppLifecycleGate.debugReset();
     dio = _CountingDio();
-    repository = DioRequestFeedRepository(
-      dio: dio,
-      pollInterval: _testPollInterval,
-    );
+    repository = DioRequestFeedRepository(dio: dio);
     sl.registerSingleton<JeeberKycStatusGate>(const _ApprovedKycGate());
     sl.registerLazySingleton<AvailabilityGateway>(
       _OnlineAvailabilityGateway.new,
@@ -174,8 +169,15 @@ void main() {
     await sl.reset();
   });
 
+  // AC2b USED TO READ "hidden Dashboard cancels feed polling and visible
+  // resumes it" — an assertion about a cadence that no longer exists (b02,
+  // POLLING-ELIMINATION-PLAN A.1). Restated as the mandate's own criterion:
+  // the VISIBLE, foregrounded Dashboard is the worst case, and it must issue
+  // zero repeat calls. The old "hidden ⇒ zero" case is now the weaker one and
+  // is kept only as a regression guard.
   testWidgets(
-    'AC2b: hidden Dashboard cancels feed polling and visible resumes it',
+    'AC2b: a VISIBLE, foregrounded Dashboard issues ZERO repeat feed GETs '
+    'over five minutes of idle time',
     (tester) async {
       final visibility = ValueNotifier<bool>(true);
       addTearDown(visibility.dispose);
@@ -183,46 +185,58 @@ void main() {
       await tester.pumpWidget(_app(delegate, visibility));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      expect(repository.debugIsPolling, isTrue);
 
-      final foregroundBaseline = dio.getCount;
-      await tester.pump(_testPollInterval);
+      // POSITIVE CONTROL — the mount must have fetched at least once, which
+      // is what proves the counting Dio is actually wired to this feed. A
+      // "zero repeat calls" assertion against an unwired Dio passes vacuously.
+      expect(
+        dio.getCount,
+        greaterThan(0),
+        reason: 'the open one-shot must fetch; otherwise the Dio is not wired',
+      );
+
+      final visibleBaseline = dio.getCount;
+      await tester.pump(const Duration(minutes: 5));
       await tester.pump();
       expect(
         dio.getCount,
-        greaterThan(foregroundBaseline),
-        reason: 'the foreground control proves the counting Dio is wired',
+        visibleBaseline,
+        reason:
+            'foreground + visible + no push + no user action for 5 min must '
+            'issue ZERO repeat GETs (POLLING-ELIMINATION-PLAN §0)',
       );
 
       visibility.value = false;
       await tester.pump();
-      expect(repository.debugIsPolling, isFalse);
       final hiddenBaseline = dio.getCount;
 
-      await tester.pump(const Duration(seconds: 60));
+      await tester.pump(const Duration(minutes: 5));
       await tester.pump();
-
       expect(
         dio.getCount,
         hiddenBaseline,
-        reason:
-            'a foreground but hidden Dashboard must issue zero periodic GETs',
+        reason: 'a foreground but hidden Dashboard must also issue zero GETs',
       );
-      expect(repository.debugIsPolling, isFalse);
 
+      // Regaining the tab is a USER ACTION, and a one-shot catch-up on it is
+      // explicitly allowed. Assert it is EXACTLY one, and that nothing
+      // periodic follows it.
       visibility.value = true;
       await tester.pump();
       await tester.pump();
-      expect(repository.debugIsPolling, isTrue);
-      final resumedBaseline = dio.getCount;
+      final refocusBaseline = dio.getCount;
+      expect(
+        refocusBaseline,
+        hiddenBaseline + 1,
+        reason: 'tab refocus must issue exactly one catch-up GET',
+      );
 
-      await tester.pump(_testPollInterval);
+      await tester.pump(const Duration(minutes: 5));
       await tester.pump();
-
       expect(
         dio.getCount,
-        resumedBaseline + 1,
-        reason: 'visibility restore must re-arm one fresh poll interval',
+        refocusBaseline,
+        reason: 'the catch-up must not leave a cadence behind it',
       );
 
       await tester.pumpWidget(const SizedBox.shrink());
@@ -232,7 +246,8 @@ void main() {
   );
 
   testWidgets(
-    'AC4: DI feed singleton survives cubit teardown and serves a remount poll',
+    'AC4: DI feed singleton survives cubit teardown and serves the remount '
+    'one-shot fetch',
     (tester) async {
       final firstVisibility = ValueNotifier<bool>(true);
       addTearDown(firstVisibility.dispose);
@@ -244,19 +259,16 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
       // BlocProvider does not await an async cubit close. Flush its continuation
-      // before proving teardown at the feature seam below: a new cubit must poll
-      // through the same DI singleton.
+      // before proving teardown at the feature seam below: a new cubit must
+      // fetch through the same DI singleton.
       await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pump();
 
-      final secondVisibility = ValueNotifier<bool>(true);
-      addTearDown(secondVisibility.dispose);
-      await tester.pumpWidget(_app(delegate, secondVisibility));
-      await tester.pumpAndSettle();
-      final secondCubit = _feedCubit(tester);
-      expect(secondCubit, isNot(same(firstCubit)));
-
-      final postRemountBaseline = dio.getCount;
+      // Change the payload BEFORE the remount: the remount's own one-shot
+      // `start()` fetch is now the only thing that will pull it. Under the old
+      // build a periodic tick would have picked it up eventually — which is
+      // exactly the difference this test now discriminates.
+      final preRemountBaseline = dio.getCount;
       dio.responseBody = const <String, Object>{
         'items': <Object>[
           <String, Object?>{
@@ -270,18 +282,31 @@ void main() {
         'totalCount': 1,
       };
 
-      await tester.pump(_testPollInterval);
-      await tester.pump();
+      final secondVisibility = ValueNotifier<bool>(true);
+      addTearDown(secondVisibility.dispose);
+      await tester.pumpWidget(_app(delegate, secondVisibility));
+      await tester.pumpAndSettle();
+      final secondCubit = _feedCubit(tester);
+      expect(secondCubit, isNot(same(firstCubit)));
 
       expect(
         dio.getCount,
-        postRemountBaseline + 1,
-        reason: 'a periodic GET must occur after the remount baseline',
+        greaterThan(preRemountBaseline),
+        reason: 'the remount one-shot must reach the surviving DI singleton',
       );
       expect(
         secondCubit.state.requests.map((request) => request.id),
         contains('post-remount-request'),
-        reason: 'the post-remount poll must reach the second cubit stream',
+        reason: 'the remount fetch must reach the second cubit state',
+      );
+
+      final postRemountBaseline = dio.getCount;
+      await tester.pump(const Duration(minutes: 5));
+      await tester.pump();
+      expect(
+        dio.getCount,
+        postRemountBaseline,
+        reason: 'the remount must not arm a cadence either',
       );
       expect(repository.debugIsDisposed, isFalse);
 
