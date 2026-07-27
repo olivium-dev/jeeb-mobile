@@ -103,6 +103,10 @@ class ChatState extends Equatable {
       orElse: () => messages.isEmpty ? _never : messages.first,
     );
     if (!firstOffer.isOfferCard) return null;
+    // No server timestamp → no derivable window. The offer card still renders;
+    // the TTL indicator hides (it already handles null) rather than counting down
+    // from an ordering anchor and claiming the broadcast expired in 1970.
+    if (!firstOffer.hasServerTimestamp) return null;
     return firstOffer.sentAt.add(const Duration(minutes: 5));
   }
 

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:omds/omds.dart';
 
+import '../../domain/delivery_chat_message.dart';
+
 /// Locale-aware "HH:mm" timestamp rendered inside a chat bubble's meta row.
 ///
 /// Shared by the offer card (state 02) and the message-bubble footer (state
@@ -23,6 +25,12 @@ class ChatBubbleTimestamp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // A message the server returned with no timestamp carries an ordering
+    // anchor, not a send time (see [DeliveryChatMessage.hasServerTimestamp]).
+    // Render nothing rather than a fabricated "00:00".
+    if (!DeliveryChatMessage.isServerSentAt(sentAt)) {
+      return const SizedBox.shrink();
+    }
     final theme = Theme.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
     return Align(
