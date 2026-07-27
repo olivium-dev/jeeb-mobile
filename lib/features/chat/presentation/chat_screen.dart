@@ -207,6 +207,12 @@ class ChatScreen extends StatelessWidget {
         gateway: gateway ?? InMemoryChatGateway(),
         pickerService: pickerService ?? _resolvePicker(),
         initialDeliveryId: initialTrackingDeliveryId,
+        // b02 polling→push: a chat push re-pulls THIS conversation. Resolved
+        // through the ONE existing helper (`resolvePushRefreshStream`), which
+        // returns null under a bare widget test so the cubit simply never
+        // re-pulls — the same degradation `dashboard_tab` and
+        // `request_feed_screen` already rely on.
+        refreshSignals: resolvePushRefreshStream(),
       )..load(),
       child: _ChatScaffold(
         deliveryId: deliveryId,

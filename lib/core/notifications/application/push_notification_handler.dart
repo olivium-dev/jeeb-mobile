@@ -311,6 +311,21 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
   /// screen only when the next poll tick happened to land. A publisher with no
   /// subscriber is indistinguishable from a working system in review, because
   /// the poll eventually paints the same pixels.
+  ///
+  /// b02 chat-push-drives-chat: a `chat` push ALSO fires this bus, and it is the
+  /// last publisher this bus was missing. `ChatCubit` took NO push input, so on
+  /// the deployed build a chat push landed and drove nothing at all while
+  /// `GET /v1/conversations/{id}/messages` kept ticking on a fixed 60s phase —
+  /// the same "publisher with no subscriber" shape JEBV4-342 describes above,
+  /// one surface over. The subscriber is `ChatCubit._refreshFromPush`, which
+  /// re-pulls the ONE conversation it renders.
+  ///
+  /// NOTE this fires even when the push is for a DIFFERENT conversation than
+  /// the one on screen (the bus is payload-less). That costs one extra targeted
+  /// read of the open thread and is the deliberate trade for not standing up a
+  /// second, chat-shaped bus: a parallel bus is how one subscriber silently
+  /// keeps polling while its twin goes push-driven. It never costs a MISSED
+  /// message, which is the failure that matters once the poll is gone.
   void _maybeSignalStatusChange(NotificationMessage message) {
     if (_refreshSignals == null) return;
     // JEBV4-342 (b02): `newRequest` joins `offerAccepted` on the NO-ID-REQUIRED
@@ -328,9 +343,17 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     // robustness, not a workaround for a missing field. Routing it past the guard
     // means a future payload trim cannot silently re-inert this path (the exact
     // failure mode that let the push arrive and drive nothing all through b01).
+    //
+    // `chat` joins them for the same reason and one more: the chat payload's
+    // id keys are `conversationId` / `requestId` / `request_id`
+    // (`jeeb-gateway/src/JeebGateway/Notifications/ChatMessagePushNotifier.cs:182-189`),
+    // and the guard below reads `delivery_id`/`order_id` FIRST — routing chat
+    // through it would make the open thread's only inbound path depend on
+    // whichever id alias the notifier happens to stamp next.
     const idless = <NotificationCategory>{
       NotificationCategory.offerAccepted,
       NotificationCategory.newRequest,
+      NotificationCategory.chat,
     };
     if (idless.contains(message.category)) {
       _refreshSignals.signalStatusChange();
