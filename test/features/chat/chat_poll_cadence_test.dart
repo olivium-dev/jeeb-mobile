@@ -116,7 +116,8 @@ ChatCubit _buildCubit(_CountingPollingGateway gateway) => ChatCubit(
   pickerService: StubPhotoPickerService(),
 );
 
-Widget _summaryHost(RoleCubit role) => MaterialApp(
+Widget _summaryHost(RoleCubit role, {Stream<void>? refreshSignals}) =>
+    MaterialApp(
   localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
     SyncAppLocalizationsDelegate(),
     GlobalMaterialLocalizations.delegate,
@@ -126,7 +127,10 @@ Widget _summaryHost(RoleCubit role) => MaterialApp(
   supportedLocales: AppLocalizations.supportedLocales,
   home: BlocProvider<RoleCubit>.value(
     value: role,
-    child: const ChatDetailScreen(chatId: _SummaryRecordingDio.requestId),
+    child: ChatDetailScreen(
+      chatId: _SummaryRecordingDio.requestId,
+      refreshSignals: refreshSignals,
+    ),
   ),
 );
 
@@ -150,9 +154,15 @@ void _driveToBackground(WidgetTester tester) {
   }
 }
 
+/// Walks the wall clock past the 60s cadence the chat SUMMARY used to run at,
+/// [count] times over. The constant is inlined rather than imported because
+/// `kChatSummarySafetyNetPollInterval` no longer exists — the whole point of the
+/// assertions below is that nothing happens at this interval any more. Keeping
+/// the duration is what makes the absence assertion meaningful: a reintroduced
+/// 60s summary poll fires [count] times inside this window.
 Future<void> _pumpSummaryIntervals(WidgetTester tester, int count) async {
   for (var index = 0; index < count; index++) {
-    await tester.pump(kChatSummarySafetyNetPollInterval);
+    await tester.pump(const Duration(seconds: 60));
     await tester.pump();
   }
 }
@@ -222,9 +232,15 @@ void main() {
     });
   });
 
+  // b02 wave B.2 — INVERTED, not deleted. This used to be a PRESENCE control
+  // asserting the summary poll armed at the 60s constant and ticked 5 times over
+  // 300s. The mandate makes that shape the defect, so the assertion is flipped:
+  // an assertion that a cadence is ABSENT is the only thing that can catch its
+  // accidental return. The 300s window and the tick arithmetic are kept, only the
+  // expected values invert — 5 ticks becomes 0 reads.
   testWidgets(
-    'AC2 G23 V2 presence control: a non-null production summary interval '
-    'arms at the 60s constant over a 300s window',
+    'AC2 G23 V2 ABSENCE: the chat summary arms NO cadence — zero repeat reads '
+    'over a 300s window, foregrounded, with no push and no user action',
     (tester) async {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       bindingGate = WidgetsBindingAppLifecycleGate();
@@ -233,46 +249,56 @@ void main() {
       GetIt.instance.registerSingleton<Dio>(recorder.dio);
       final role = await _clientRole();
       addTearDown(role.close);
+      final refresh = StreamController<void>.broadcast();
+      addTearDown(refresh.close);
 
-      await tester.pumpWidget(_summaryHost(role));
+      await tester.pumpWidget(
+        _summaryHost(role, refreshSignals: refresh.stream),
+      );
       await tester.pumpAndSettle();
       final state = _summaryState(tester);
       final mountSummaryReads = recorder.summaryReads;
 
-      expect(
-        const ChatDetailScreen(chatId: 'shape-check').summaryPollInterval,
-        kChatSummarySafetyNetPollInterval,
-      );
-      expect(state.debugSummaryTickCount, isZero);
-      expect(state.debugSummaryPollerRunning, isTrue);
+      // The refresh IS armed — this is not a dead screen, it is a screen with no
+      // clock. The positive control below proves it can still fetch.
+      expect(state.debugSummaryRefreshArmed, isTrue);
+      expect(state.debugSummaryRefetchCount, isZero);
 
+      // Past the old 60s boundary, then four more windows: 300s total.
       await tester.pump(const Duration(seconds: 59));
       await tester.pump();
-      expect(state.debugSummaryTickCount, isZero);
       expect(recorder.summaryReads, mountSummaryReads);
-      expect(state.debugSummaryPollerRunning, isTrue);
 
       await tester.pump(const Duration(seconds: 1));
       await tester.pump();
-      expect(state.debugSummaryTickCount, 1);
-      expect(recorder.summaryReads, greaterThan(mountSummaryReads));
-      expect(state.debugSummaryPollerRunning, isTrue);
+      expect(
+        recorder.summaryReads,
+        mountSummaryReads,
+        reason: 'a 60s summary poll fired — the deleted cadence is back',
+      );
 
       await _pumpSummaryIntervals(tester, 4);
-      // A 5s summary-cadence mutation fires before the 59s zero-tick boundary.
-      // Single-flight may coalesce that long pump to one tick, which still has
-      // real headroom of 1 over the exact zero threshold.
-      expect(state.debugSummaryTickCount, 5);
-      expect(recorder.summaryReads, isNonZero);
-      expect(state.debugSummaryPollerRunning, isTrue);
+      expect(
+        state.debugSummaryRefetchCount,
+        isZero,
+        reason: 'a repeat summary read happened with no push and no user action',
+      );
+      expect(recorder.summaryReads, mountSummaryReads);
+
+      // POSITIVE CONTROL, in the same test so a zero can never come from a
+      // broken recorder or an unmounted screen: one push event fetches.
+      refresh.add(null);
+      await tester.pumpAndSettle();
+      expect(state.debugSummaryRefetchCount, 1);
+      expect(recorder.summaryReads, greaterThan(mountSummaryReads));
 
       await tester.pumpWidget(const SizedBox());
     },
   );
 
   testWidgets(
-    'G23 V3 presence control: registered Dio lets a summary tick reach a '
-    'non-zero network count',
+    'G23 V3 presence control: registered Dio lets a PUSH-driven summary refetch '
+    'reach a non-zero network count',
     (tester) async {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       bindingGate = WidgetsBindingAppLifecycleGate();
@@ -281,17 +307,22 @@ void main() {
       GetIt.instance.registerSingleton<Dio>(recorder.dio);
       final role = await _clientRole();
       addTearDown(role.close);
+      final refresh = StreamController<void>.broadcast();
+      addTearDown(refresh.close);
 
-      await tester.pumpWidget(_summaryHost(role));
+      await tester.pumpWidget(
+        _summaryHost(role, refreshSignals: refresh.stream),
+      );
       await tester.pumpAndSettle();
       final state = _summaryState(tester);
-      final readsBeforeTick = recorder.summaryReads;
+      final readsBeforeEvent = recorder.summaryReads;
 
       expect(GetIt.instance.isRegistered<Dio>(), isTrue);
-      expect(state.debugSummaryPollerRunning, isTrue);
-      await _pumpSummaryIntervals(tester, 1);
-      expect(state.debugSummaryTickCount, 1);
-      expect(recorder.summaryReads - readsBeforeTick, greaterThan(0));
+      expect(state.debugSummaryRefreshArmed, isTrue);
+      refresh.add(null);
+      await tester.pumpAndSettle();
+      expect(state.debugSummaryRefetchCount, 1);
+      expect(recorder.summaryReads - readsBeforeEvent, greaterThan(0));
 
       await tester.pumpWidget(const SizedBox());
     },
@@ -309,8 +340,8 @@ void main() {
   });
 
   testWidgets(
-    'AC3 a backgrounded arm fires zero ticks and leaves no armed history or '
-    'summary timer over a 300s window',
+    'AC3 a backgrounded arm fires zero ticks and leaves no armed history timer '
+    'over a 300s window — and the summary has no timer to leave',
     (tester) async {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       bindingGate = WidgetsBindingAppLifecycleGate();
@@ -329,18 +360,29 @@ void main() {
       GetIt.instance.registerSingleton<Dio>(recorder.dio);
       final role = await _clientRole();
       addTearDown(role.close);
-      await tester.pumpWidget(_summaryHost(role));
+      final refresh = StreamController<void>.broadcast();
+      addTearDown(refresh.close);
+      await tester.pumpWidget(
+        _summaryHost(role, refreshSignals: refresh.stream),
+      );
       await tester.pumpAndSettle();
       final state = _summaryState(tester);
-      final summaryReadsAtArm = recorder.summaryReads;
 
       expect(GetIt.instance.isRegistered<Dio>(), isTrue);
-      expect(state.debugSummaryTickCount, isZero);
-      expect(state.debugSummaryPollerRunning, isTrue);
+      expect(state.debugSummaryRefetchCount, isZero);
+      expect(state.debugSummaryRefreshArmed, isTrue);
 
+      // NOTE `_driveToBackground` walks resumed -> inactive -> hidden -> paused,
+      // and that leading `resumed` legitimately fires the chat's foreground-resume
+      // one-shot (a single catch-up read, explicitly allowed by the mandate — it
+      // is caused by the app coming forward, not by a clock). So the baseline for
+      // the absence assertion is taken AFTER the lifecycle walk settles; snapshot
+      // it before and the one-shot reads as a poll.
       _driveToBackground(tester);
-      expect(state.debugSummaryPollerRunning, isFalse);
+      await tester.pumpAndSettle();
       expect(cubit.debugHistoryPollerRunning, isFalse);
+      final summaryReadsAtArm = recorder.summaryReads;
+      final refetchesAtArm = state.debugSummaryRefetchCount;
 
       await _pumpSummaryIntervals(tester, 5);
       // Foreground-latch mutations produce 5 ticks in this five-interval
@@ -349,8 +391,11 @@ void main() {
       // An inert-tick mutation leaves the read count green; only this explicit
       // timer-state assertion detects that the battery-costing timer survived.
       expect(cubit.debugHistoryPollerRunning, isFalse);
+      // The summary needed a lifecycle gate only because it had a clock. With the
+      // clock gone there is nothing to gate: a backgrounded chat issues zero
+      // summary reads for the same reason a foregrounded one does.
       expect(recorder.summaryReads, summaryReadsAtArm);
-      expect(state.debugSummaryPollerRunning, isFalse);
+      expect(state.debugSummaryRefetchCount, refetchesAtArm);
 
       await tester.pumpWidget(const SizedBox());
     },

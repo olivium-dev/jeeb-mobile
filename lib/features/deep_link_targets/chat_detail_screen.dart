@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -6,8 +8,8 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../core/delivery/delivery_status_vocab.dart';
+import '../../core/di/injection_container.dart';
 import '../../core/formatting/friendly_reference.dart';
-import '../../core/lifecycle/lifecycle_poller.dart';
 import '../../core/network/auth_token_store.dart';
 import '../../core/notifications/domain/active_chat_thread.dart';
 import '../../core/role/role_cubit.dart';
@@ -33,7 +35,14 @@ import '../request_summary/data/dio_request_submission_service.dart';
 import '../request_summary/domain/recipient_phone_resolver.dart';
 import 'dev_chat_detail_fixtures.dart';
 
-const kChatSummarySafetyNetPollInterval = Duration(seconds: 60);
+// The 60s `kChatSummarySafetyNetPollInterval` that used to live here is GONE.
+// A "bounded, lifecycle-gated safety net" is still a repeated call: if the user
+// does nothing and no push arrives, a second network call happened, which the
+// owner's rule bans at ANY interval. Worse, each tick fanned out into THREE
+// gateway reads (`fetchSummary` → deliveries/{id} + requests/{id} + offers), so
+// it was three repeated calls, not one. The pinned status chip is now driven by
+// the `delivery` push (proven arriving on physical hardware) plus one-shot reads
+// on open, on returning to this route, and on foreground resume.
 
 /// Canonical post-delivery blind mutual-rating route (T-MOB-020). Mirrors the
 /// builder the OTP-handover completion uses (`otp_handover_screen.dart`): the
@@ -72,17 +81,19 @@ class ChatDetailScreen extends StatefulWidget {
     this.debugHasWinner = false,
     this.debugSummary,
     this.debugCounterpartName = '',
-    this.summaryPollInterval = kChatSummarySafetyNetPollInterval,
+    this.refreshSignals,
   });
 
   final String chatId;
 
-  /// JEBV4-282: cadence at which the accepted-order pinned summary (the delivery
-  /// status chip) is re-fetched so it advances live. `null` disables polling —
-  /// widget tests that mount the live resolution path but don't exercise the
-  /// poll pass `null` to stay pumpAndSettle-safe. Production leaves the 60s
-  /// safety-net default; push-driven refresh supplies the low-latency path.
-  final Duration? summaryPollInterval;
+  /// JEBV4-282 / b02 wave B.2: the push→refetch bus that advances the pinned
+  /// delivery-status chip (Ordered→Picked→InTransit→AtDoor→Done) without leaving
+  /// and reopening the chat. Each event triggers exactly ONE re-read; there is no
+  /// cadence behind it. Defaults to the DI-registered `PushRefreshSignals` stream
+  /// at runtime; `null` in a bare widget test with no DI, which then simply never
+  /// receives an event — which is also why no test seam is needed any more to
+  /// keep a mounted chat screen free of pending timers.
+  final Stream<void>? refreshSignals;
 
   /// DEVTOOL-ONLY seam (DT-04 screen catalog): when non-null, [initState]
   /// skips the entire async GetIt/Dio resolution below and mounts the screen
@@ -108,7 +119,8 @@ class ChatDetailScreen extends StatefulWidget {
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
 }
 
-class _ChatDetailScreenState extends State<ChatDetailScreen> with RouteAware {
+class _ChatDetailScreenState extends State<ChatDetailScreen>
+    with RouteAware, WidgetsBindingObserver {
   String _resolvedConversationId = '';
   String _counterpartName = '';
 
@@ -132,31 +144,38 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with RouteAware {
   /// or when the fetch could not resolve one (the strip then hides).
   OrderChatSummary? _summary;
 
-  /// P3: role captured at resolution time so the async summary paths (fetch +
-  /// poll) pick the right read mode without a post-await BuildContext read.
+  /// P3: role captured at resolution time so the async summary paths (initial
+  /// fetch + refresh) pick the right read mode without a post-await
+  /// BuildContext read.
   bool _resolvedIsJeeber = false;
 
-  /// JEBV4-282: periodic re-fetch of [_summary] so the pinned delivery-status
-  /// chip advances live (Ordered→Picked→InTransit→AtDoor→Done) without
-  /// leaving/reopening the chat. Started only for a client-accepted resolution,
-  /// disposed with the state, and stopped once the delivery is terminal.
-  late final LifecyclePoller _summaryPoller = LifecyclePoller(
-    interval: widget.summaryPollInterval ?? kChatSummarySafetyNetPollInterval,
-    onTick: _pollSummary,
-    tickOnResume: false,
-    debugLabel: 'ChatDetailScreen.summary',
-  );
+  /// JEBV4-282 / b02 wave B.2: push-driven re-fetch of [_summary] so the pinned
+  /// delivery-status chip advances (Ordered→Picked→InTransit→AtDoor→Done) without
+  /// leaving and reopening the chat. Armed only for a client-accepted resolution
+  /// (the only surface that renders the strip) and cancelled with the state.
+  ///
+  /// This replaced a 60s `LifecyclePoller`. Do NOT reintroduce one: each tick fanned
+  /// out into THREE gateway reads and the mandate bans a repeated call at any
+  /// interval, "safety net" included.
+  StreamSubscription<void>? _summaryRefreshSub;
 
+  /// True once [_armSummaryRefresh] has subscribed. Test-visible in place of the
+  /// old `debugSummaryPollerRunning`: an assertion that the ARM decision is
+  /// unchanged is what catches a regression where the client-accepted surface
+  /// silently stops tracking the delivery at all.
   @visibleForTesting
-  bool get debugSummaryPollerRunning => _summaryPoller.isRunning;
+  bool get debugSummaryRefreshArmed => _summaryRefreshSub != null;
 
+  /// Count of one-shot summary re-reads triggered since mount. Replaces the old
+  /// `debugSummaryTickCount`; a poll's tick count and a push's refetch count are
+  /// the same number only when nothing is polling.
   @visibleForTesting
-  // ignore: invalid_use_of_visible_for_testing_member
-  int get debugSummaryTickCount => _summaryPoller.debugTickCount;
+  int get debugSummaryRefetchCount => _summaryRefetchCount;
+  int _summaryRefetchCount = 0;
 
   /// One-shot guard for the delivery-complete → mutual-rating auto-navigation.
   /// Set the first time the polled delivery status reaches a delivered-class
-  /// terminal (Done/delivered/completed) so a re-emit / late poll tick can't
+  /// terminal (Done/delivered/completed) so a re-emit / late refetch can't
   /// push the rating route twice, and so a completion that already routed the
   /// user (e.g. via the OTP-handover leg) is never double-pushed from here.
   bool _ratingNavFired = false;
@@ -167,6 +186,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with RouteAware {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final debugGateway = widget.debugGateway;
     if (debugGateway != null) {
       // DEVTOOL-ONLY seam — see [ChatDetailScreen.debugGateway]. Bypasses the
@@ -184,6 +204,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with RouteAware {
       return;
     }
     _resolveAndBuild();
+  }
+
+  /// One catch-up summary read on return to the foreground. A `delivery` push
+  /// that landed while the process was backgrounded may have been dropped or
+  /// coalesced by the OS, and the rating hand-off hangs off this read path — so a
+  /// single read on resume is the backstop. Explicitly allowed by the mandate: it
+  /// is caused by the user returning to the app, not by a clock. No-op until the
+  /// client-accepted resolution armed the refresh.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    if (_summaryRefreshSub != null) unawaited(_refreshSummary());
   }
 
   // ---------------------------------------------------------------------
@@ -286,6 +318,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with RouteAware {
   void didPopNext() {
     _onScreen = true;
     _publishOpenThread();
+    // One catch-up read on returning to the thread (e.g. back from the order
+    // summary or the dispute route). One-shot, user-caused — not a cadence.
+    if (_summaryRefreshSub != null) unawaited(_refreshSummary());
   }
 
   /// Another route was pushed ON TOP — the conversation is no longer visible,
@@ -308,7 +343,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with RouteAware {
     // Owner-guarded: a no-op if a LATER chat screen already claimed the slot
     // (chat A → chat B disposes A after B registers).
     ActiveChatThread.instance.leave(this);
-    _summaryPoller.dispose();
+    unawaited(_summaryRefreshSub?.cancel());
+    _summaryRefreshSub = null;
+    WidgetsBinding.instance.removeObserver(this);
     final gateway = _gateway;
     if (gateway is DioChatGateway) {
       gateway.dispose();
@@ -610,7 +647,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with RouteAware {
     if (shouldTrackSummary &&
         !isJeeber &&
         !_isTerminalStatus(summary?.statusId)) {
-      _startSummaryPoll();
+      _armSummaryRefresh();
     }
   }
 
@@ -665,42 +702,46 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with RouteAware {
     }
   }
 
-  /// JEBV4-282: (re)arm the periodic summary poll so the pinned delivery-status
-  /// chip tracks the live delivery at the demoted safety-net cadence.
-  /// No-op when polling is disabled (`summaryPollInterval` null — the
-  /// widget-test seam).
-  void _startSummaryPoll() {
-    final interval = widget.summaryPollInterval;
-    if (interval == null) return;
-    _summaryPoller.start();
+  /// JEBV4-282 / b02 wave B.2: subscribe the pinned delivery-status chip to the
+  /// `delivery` push so it tracks the live delivery with NO cadence behind it.
+  /// Idempotent — a second call while already armed is a no-op, so a re-resolve
+  /// cannot double-subscribe and turn one push into two reads.
+  void _armSummaryRefresh() {
+    if (_summaryRefreshSub != null) return;
+    _summaryRefreshSub = (widget.refreshSignals ?? resolvePushRefreshStream())
+        ?.listen((_) => unawaited(_refreshSummary()));
   }
 
-  /// One poll tick: re-resolve the accepted-order summary and repaint the chip
-  /// only when the delivery actually advanced ([OrderChatSummary] is Equatable,
-  /// so an unchanged tick is a no-op). A failed/empty fetch keeps the last good
-  /// summary (the chip never blanks). Stops polling once the delivery is
-  /// terminal — there is nothing left to advance.
-  Future<void> _pollSummary() async {
-    if (!mounted) {
-      _summaryPoller.stop();
-      return;
-    }
+  /// ONE summary re-read: re-resolve the accepted-order summary and repaint the
+  /// chip only when the delivery actually advanced ([OrderChatSummary] is
+  /// Equatable, so an unchanged read is a no-op). A failed/empty fetch keeps the
+  /// last good summary (the chip never blanks).
+  ///
+  /// Triggered by a `delivery` push, by returning to this route, and by a
+  /// foreground resume. Never by a timer.
+  Future<void> _refreshSummary() async {
+    if (!mounted) return;
+    _summaryRefetchCount++;
     final getIt = GetIt.instance;
     if (!getIt.isRegistered<Dio>()) return;
     final next = await _resolveSummary(
       getIt<Dio>(),
       _resolvedRequestId,
       _resolvedConversationId,
-      // Belt-and-braces — the poll is never armed for the Jeeber.
+      // Belt-and-braces — the refresh is never armed for the Jeeber.
       ownerScopedReads: !_resolvedIsJeeber,
     );
     if (!mounted || next == null) return;
     if (next != _summary) {
       setState(() => _summary = next);
     }
-    if (_isTerminalStatus(next.statusId)) {
-      _summaryPoller.stop();
-    }
+    // ⚠️ LOAD-BEARING BEYOND THE CHIP — do not "simplify" this away. A
+    // delivered-class terminal is what fires the rating hand-off below. When this
+    // was a poll, the poll was the only thing that could notice the completion
+    // while the client sat on the thread; now the `delivery` push is. If the push
+    // for the terminal transition were ever lost, the resume/route-return
+    // one-shots are the backstop that still reaches this branch.
+    //
     // Delivery just completed while the client is sitting on the order-chat.
     // Advance to the MANDATORY blind mutual-rating (the SAME canonical
     // post-delivery route the OTP-handover and jeeber active-delivery
@@ -714,15 +755,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with RouteAware {
 
   /// Navigate to the blind mutual-rating screen exactly once when the delivery
   /// this chat is bound to reaches a delivered-class terminal status while the
-  /// client is on the thread. Guarded so a re-emit / late poll tick can't push
+  /// client is on the thread. Guarded so a re-emit / late refetch can't push
   /// twice, and short-circuited when the screen was already popped.
   void _navigateToRatingOnce() {
     if (_ratingNavFired || !mounted) return;
     _ratingNavFired = true;
     // Pick the leg from the app-global role (client → no `mode`, jeeber →
-    // `?mode=jeeber`); the summary poll only runs for the client-accepted
+    // `?mode=jeeber`); the summary refresh is only armed for the client-accepted
     // surface, so this resolves the client leg in practice, but reading the
     // role keeps the leg correct if the observation ever widens.
+    // (The summary refresh is only armed for the client-accepted surface.)
     final isJeeber = _readRole(context) == UserRole.jeeber;
     context.go(_mutualRateRoute(_deliveryId, isClient: !isJeeber));
   }

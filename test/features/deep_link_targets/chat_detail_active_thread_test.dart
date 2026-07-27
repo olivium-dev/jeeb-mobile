@@ -105,7 +105,7 @@ Widget _chatProd(String id) => buildChatDetailRouteChild(id);
 /// CONTROL — the same screen with the key deliberately removed. Exists only to
 /// demonstrate what go_router does without it; never claims to be production.
 Widget _chatUnkeyed(String id) =>
-    ChatDetailScreen(chatId: id, summaryPollInterval: null);
+    ChatDetailScreen(chatId: id);
 
 GoRouter _router({bool keyed = true, String initialLocation = '/'}) => GoRouter(
       initialLocation: initialLocation,

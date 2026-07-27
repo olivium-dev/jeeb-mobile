@@ -57,8 +57,8 @@ enum _StatusBucket {
 /// Status-gating (JEBV4-309): the hub is now STATE-AWARE. On mount it reads the
 /// delivery's lifecycle `statusId` from `GET /v1/deliveries/{id}` (via
 /// [DioOrderChatSummaryRepository.fetchSummary] — the SAME source
-/// `ChatDetailScreen` polls, JEBV4-282) and, while the delivery is still
-/// non-terminal, re-reads it on a light 5s poll. The wire status is classified
+/// `ChatDetailScreen` reads, JEBV4-282) and re-reads it when a `delivery` push
+/// says the status moved. The wire status is classified
 /// through the shared [DeliveryStatusVocab] and the visible action rows are
 /// gated per bucket ([_StatusBucket]):
 ///   - ACTIVE   — Live tracking, Contact, Verify OTP, Report; Cancel only while
@@ -81,7 +81,7 @@ class DeliveryDetailScreen extends StatefulWidget {
     required this.deliveryId,
     this.ratingRepository,
     this.summaryRepository,
-    this.statusPollInterval = const Duration(seconds: 5),
+    this.refreshSignals,
   });
 
   final String deliveryId;
@@ -96,37 +96,64 @@ class DeliveryDetailScreen extends StatefulWidget {
   /// widget tests so the state buckets can be exercised without a live gateway.
   final OrderChatSummaryRepository? summaryRepository;
 
-  /// How often to re-read the delivery status while it is still non-terminal.
-  /// `null` disables polling entirely (the widget-test seam — an active-bucket
-  /// test would otherwise leave a pending periodic timer).
-  final Duration? statusPollInterval;
+  /// The push→refetch bus. A `delivery` push re-reads the status ONCE; there is
+  /// no cadence behind it. Defaults to the DI-registered `PushRefreshSignals`
+  /// stream at runtime (via [resolvePushRefreshStream]); `null` in a bare widget
+  /// test with no DI, which then simply never receives an event.
+  ///
+  /// This REPLACED a 5s `Timer.periodic`. That timer was the single most
+  /// expensive poll in the app: it was completely UNGATED (no lifecycle, no
+  /// visibility gate), so it kept firing while the app was backgrounded and,
+  /// because this route sits UNDER the order chat in the navigator stack, it kept
+  /// firing while the user was in the chat. And [OrderChatSummaryRepository.fetchSummary]
+  /// fans ONE tick out into THREE gateway reads — `GET /v1/deliveries/{id}`,
+  /// `GET /v1/requests/{id}` and `GET /v1/offers` — so a single 5s timer produced
+  /// the three-endpoint 5s storm measured on the customer chat screen.
+  final Stream<void>? refreshSignals;
 
   @override
   State<DeliveryDetailScreen> createState() => _DeliveryDetailScreenState();
 }
 
-class _DeliveryDetailScreenState extends State<DeliveryDetailScreen> {
+class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
+    with WidgetsBindingObserver {
   /// Last-known wire `statusId`. Null/empty ⇒ status not yet resolved or
   /// unavailable ⇒ the hub fails open.
   String? _statusId;
-  Timer? _statusPollTimer;
+  StreamSubscription<void>? _refreshSub;
   OrderChatSummaryRepository? _summaryRepo;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _summaryRepo = _resolveSummaryRepository();
-    // Kick off the first read; arm the light poll only while non-terminal and
-    // only when polling is enabled (disabled in widget tests).
+    // Every read on this screen is now ONE-SHOT. There are exactly three
+    // triggers, none of them a cadence:
+    //   1. screen open        — this call
+    //   2. a `delivery` push  — the subscription below
+    //   3. foreground resume  — didChangeAppLifecycleState
+    // If the user does nothing and no push arrives, no second call happens.
     unawaited(_loadStatus());
-    _startPoll();
+    _refreshSub = (widget.refreshSignals ?? resolvePushRefreshStream())
+        ?.listen((_) => unawaited(_loadStatus()));
   }
 
   @override
   void dispose() {
-    _statusPollTimer?.cancel();
-    _statusPollTimer = null;
+    unawaited(_refreshSub?.cancel());
+    _refreshSub = null;
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  /// One catch-up read on return to the foreground. A push that landed while the
+  /// process was backgrounded may have been dropped or coalesced by the OS, so a
+  /// single read on resume is the backstop. Explicitly allowed by the mandate —
+  /// it is caused by the user returning to the app, not by a clock.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_loadStatus());
   }
 
   /// Resolves the status source from the test seam, falling back to a
@@ -141,9 +168,9 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen> {
     return null;
   }
 
-  /// One status read. On success repaints with the fresh `statusId` and stops
-  /// the poll once terminal. On any failure the last-known status is kept (the
-  /// hub never regresses a known status to fail-open) and the poll keeps trying.
+  /// One status read. On success repaints with the fresh `statusId`. On any
+  /// failure the last-known status is kept (the hub never regresses a known
+  /// status to fail-open) and the next trigger tries again.
   Future<void> _loadStatus() async {
     final repo = _summaryRepo;
     if (repo == null) return;
@@ -153,22 +180,11 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen> {
       if (summary.statusId != _statusId) {
         setState(() => _statusId = summary.statusId);
       }
-      if (DeliveryStatusVocab.isTerminal(_statusId)) {
-        _statusPollTimer?.cancel();
-        _statusPollTimer = null;
-      }
     } on OrderChatSummaryException {
       // Unavailable — keep last-known status (fail-open while still null).
     } catch (_) {
       // Defensive: never let a status read crash the hub.
     }
-  }
-
-  void _startPoll() {
-    final interval = widget.statusPollInterval;
-    if (interval == null || _summaryRepo == null) return;
-    _statusPollTimer?.cancel();
-    _statusPollTimer = Timer.periodic(interval, (_) => _loadStatus());
   }
 
   _StatusBucket get _bucket {
