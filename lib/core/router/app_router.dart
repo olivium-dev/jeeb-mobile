@@ -15,6 +15,7 @@ import '../session/account_status_gate.dart';
 import '../session/session_gate.dart';
 import '../session/session_state.dart';
 import '../session/profile_refresh_signals.dart';
+import 'app_route_observer.dart';
 import 'profile_unavailable_screen.dart';
 import 'root_aware_back_scope.dart';
 import '../../features/account_status/presentation/account_status_screen.dart';
@@ -231,6 +232,35 @@ String? normalizeJeebSchemeDeepLink(Uri uri) {
   final path = '/${uri.host}${uri.path}';
   return uri.hasQuery ? '$path?${uri.query}' : path;
 }
+
+/// The child [AppRouter.create]'s `/chat/:id` route builds for thread [id].
+///
+/// A named factory rather than an inline closure so a test can mount the SAME
+/// widget the router mounts. A test that re-declares its own `/chat/:id` route
+/// proves only that a copy behaves; this one is falsifiable against production
+/// (`chat_detail_active_thread_test.dart` fails if the key below is removed).
+///
+/// ## `key: ValueKey(id)` is load-bearing, not cosmetic
+///
+/// `go_router` keys its pages on the ROUTE OBJECT, never the location
+/// (`go_router-13.2.5/lib/src/match.dart:178` —
+/// `pageKey: ValueKey<String>(route.hashCode.toString())`). So
+/// `context.go('/chat/B')` while `/chat/A` is on screen matches the SAME
+/// `/chat/:id` `GoRoute`, produces the same page key, and — unkeyed — REUSES
+/// the mounted `ChatDetailScreen` `State`: no `didPush`/`didPop` fires, no
+/// re-resolution runs, and the previous thread's gateway and messages stay on
+/// screen under the new route param.
+///
+/// That path is the notification tap itself (`app/app.dart:613`,
+/// `_router.go(deepLinkForMessage(...))`) and `dispute_status_screen.dart:122`.
+/// A widget key on the route param makes Flutter build a fresh
+/// `Element`/`State` per thread, which is both the correct chat behaviour and
+/// the precondition for the b02 open-thread push suppression to describe the
+/// thread the user is actually looking at — a stale registration would suppress
+/// a chat notification for a conversation the user cannot see, which is exactly
+/// the owner requirement it exists to serve.
+Widget buildChatDetailRouteChild(String id) =>
+    ChatDetailScreen(key: ValueKey<String>(id), chatId: id);
 
 class AppRouter {
   AppRouter._();
@@ -567,8 +597,16 @@ class AppRouter {
       // `kObsCompiledIn` (a `const false` in a production build tree-shakes
       // `ObsNavObserver` out entirely) and, at runtime, every override is a
       // total no-op unless `Observability.instance.recording` is true.
+      //
+      // appRouteObserver (b02 fg-suppression): a PRODUCTION RouteObserver, not
+      // a diagnostic one. `ChatDetailScreen` subscribes to it so the push
+      // transport can tell "this chat thread is on screen right now" from
+      // "this chat screen happens to still be mounted under another route".
+      // Unlike `DiagNavObserver` it is NOT gated on `Diag.enabled`, because the
+      // suppression it feeds has to work in a release build.
       observers: [
         DiagNavObserver(),
+        newAppRouteObserver(),
         if (kObsCompiledIn) ObsNavObserver(),
       ],
       refreshListenable: _MergedRefreshListenable([
@@ -848,7 +886,7 @@ class AppRouter {
           path: '/chat/:id',
           name: 'chat-detail',
           builder: (context, state) =>
-              ChatDetailScreen(chatId: state.pathParameters['id'] ?? ''),
+              buildChatDetailRouteChild(state.pathParameters['id'] ?? ''),
         ),
         // Debug-only chat-capture seam; gated by [_devChat] in the redirect
         // above so it is unreachable in release builds.
