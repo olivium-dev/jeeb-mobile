@@ -234,6 +234,7 @@ class DeliveryChatMessage extends Equatable {
     required this.status,
     required this.kind,
     this.hasServerTimestamp = true,
+    this.orderAnchor,
     this.text = '',
     this.photoBytes,
     this.photoSource,
@@ -461,6 +462,41 @@ class DeliveryChatMessage extends Equatable {
   /// but no surface may present [sentAt] as a clock, a date, or a TTL base.
   final bool hasServerTimestamp;
 
+  /// ORDERING key that overrides [sentAt] for TIMELINE PLACEMENT and for
+  /// nothing else. Null on every row whose [sentAt] the timeline may sort by.
+  ///
+  /// Set on a message THIS DEVICE composed while the server has not echoed it
+  /// yet. Such a row has a real send time — the user really did send it at
+  /// [sentAt], and the bubble renders that clock — but that time comes from the
+  /// DEVICE clock, and a device clock is not comparable with a server
+  /// `created_at`: phones routinely run minutes off, in either direction. Sorting
+  /// an un-echoed own bubble against server timestamps therefore decides the
+  /// thread's order by how wrong the handset's clock is:
+  ///
+  ///   * SLOW device — a reply composed after their 12:00:00Z message carries
+  ///     11:50 and sorts ABOVE the message it answers;
+  ///   * FAST device — a message composed at 12:20 sinks BELOW a reply the
+  ///     server later stamps 12:01, so the reply renders above the message that
+  ///     prompted it.
+  ///
+  /// So the composing path mints an anchor instead: the row is placed
+  /// immediately after the newest SERVER-ordered row that was on screen when the
+  /// user composed it (`ChatCubit._anchorAfter`). That is the one ordering fact
+  /// a local send actually establishes — it happened after everything the user
+  /// could see — and unlike a clock reading it cannot be wrong.
+  ///
+  /// The anchor is minted ONCE, at compose time, and never recomputed: a later
+  /// server row must be able to land AFTER it. It disappears the moment the
+  /// server echoes the message ([ChatCubit._adoptEcho] rebuilds the row from the
+  /// echo, which carries none), because from then on the server's own timestamp
+  /// is the authority and is free to re-order the thread.
+  final DateTime? orderAnchor;
+
+  /// The key the timeline sorts by: the compose-time [orderAnchor] when this row
+  /// has one, else [sentAt]. Never rendered — [sentAt] is what a clock, a date
+  /// divider or a TTL reads (after checking [hasServerTimestamp]).
+  DateTime get sortAt => orderAnchor ?? sentAt;
+
   /// Text body for text messages; photo/image caption for photo/image
   /// messages; system-notice copy for `system` kind.
   final String text;
@@ -521,6 +557,12 @@ class DeliveryChatMessage extends Equatable {
       sentAt: sentAt ?? this.sentAt,
       status: status ?? this.status,
       hasServerTimestamp: hasServerTimestamp,
+      // Carried, never taken as a parameter. An anchor is minted exactly once,
+      // by [anchoredAt] on the compose path, and dropped exactly once, by
+      // rebuilding the row from its server echo. Letting a general-purpose
+      // copyWith set or clear it is how a status promotion or a byte swap would
+      // silently move a bubble.
+      orderAnchor: orderAnchor,
       kind: kind,
       text: text,
       photoBytes: photoBytes ?? this.photoBytes,
@@ -536,6 +578,34 @@ class DeliveryChatMessage extends Equatable {
     );
   }
 
+  /// This message with [anchor] as its [orderAnchor] — the ONLY way to set one.
+  ///
+  /// Used on the compose path (a draft the server has not ordered yet) and when
+  /// a locally composed row is REPLACED rather than copied — the voice-note and
+  /// image upload paths swap the optimistic bubble for a freshly constructed
+  /// message, and without carrying the anchor across, that row would fall back
+  /// to local-clock ordering the next time the thread is sorted.
+  DeliveryChatMessage anchoredAt(DateTime anchor) => DeliveryChatMessage._(
+        id: id,
+        author: author,
+        sentAt: sentAt,
+        status: status,
+        hasServerTimestamp: hasServerTimestamp,
+        orderAnchor: anchor,
+        kind: kind,
+        text: text,
+        photoBytes: photoBytes,
+        photoSource: photoSource,
+        imageUrl: imageUrl,
+        voiceUrl: voiceUrl,
+        voiceDurationMs: voiceDurationMs,
+        voiceTranscription: voiceTranscription,
+        latitude: latitude,
+        longitude: longitude,
+        offerPayload: offerPayload,
+        systemOfferPayload: systemOfferPayload,
+      );
+
   @override
   List<Object?> get props => [
         id,
@@ -543,6 +613,7 @@ class DeliveryChatMessage extends Equatable {
         sentAt,
         status,
         hasServerTimestamp,
+        orderAnchor,
         kind,
         text,
         photoBytes?.length,

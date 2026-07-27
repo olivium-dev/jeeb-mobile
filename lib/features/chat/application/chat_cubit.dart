@@ -413,9 +413,21 @@ class ChatCubit extends Cubit<ChatState> {
     }
   }
 
+  /// Swap the message [id] for [replacement], IN PLACE.
+  ///
+  /// The voice-note and image upload paths hand in a freshly CONSTRUCTED message
+  /// rather than a `copyWith` of the draft, so anything the draft carried that a
+  /// factory does not take is lost across the swap. The compose-time ordering
+  /// anchor is one of those things, and losing it silently reverts the row to
+  /// local-clock ordering the next time anything sorts the thread — the same
+  /// defect, reappearing on the two paths that do not use `copyWith`. Carry it.
   void _replaceMessage(String id, DeliveryChatMessage replacement) {
     final updated = state.messages
-        .map((m) => m.id == id ? replacement : m)
+        .map((m) {
+          if (m.id != id) return m;
+          final anchor = m.orderAnchor;
+          return anchor == null ? replacement : replacement.anchoredAt(anchor);
+        })
         .toList(growable: false);
     emit(state.copyWith(messages: List.unmodifiable(updated)));
   }
@@ -762,8 +774,12 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   /// Stable, deterministic chronological ordering (S0-CHAT-04). Returns an
-  /// unmodifiable copy of [input] sorted by the server `created_at` (`sentAt`)
-  /// ascending. Equal-`sentAt` ties break on the SERVER-STABLE message [id]
+  /// unmodifiable copy of [input] sorted by [DeliveryChatMessage.sortAt]
+  /// ascending — the server `created_at` for every row the server has ordered,
+  /// and the compose-time anchor for an own bubble it has not echoed yet (see
+  /// [DeliveryChatMessage.orderAnchor]; the LOCAL CLOCK never orders anything
+  /// against a server timestamp). Equal-`sortAt` ties break on the SERVER-STABLE
+  /// message [id]
   /// (the server sequence) — NOT on the client clock and NOT on arrival
   /// position. This is the load-bearing fix: a tie-break by arrival index made
   /// the rendered order depend on WHICH path a same-instant pair arrived by (WS
@@ -780,7 +796,7 @@ class ChatCubit extends Cubit<ChatState> {
       for (var i = 0; i < rebased.length; i++) MapEntry(i, rebased[i]),
     ];
     indexed.sort((a, b) {
-      final byTime = a.value.sentAt.compareTo(b.value.sentAt);
+      final byTime = a.value.sortAt.compareTo(b.value.sortAt);
       if (byTime != 0) return byTime;
       final byId = a.value.id.compareTo(b.value.id);
       if (byId != 0) return byId;
@@ -824,8 +840,12 @@ class ChatCubit extends Cubit<ChatState> {
         undated++;
         continue;
       }
-      if (earliestDated == null || m.sentAt.isBefore(earliestDated)) {
-        earliestDated = m.sentAt;
+      // `sortAt`, not `sentAt`: an un-echoed own bubble's ordering position is
+      // its compose-time anchor, and the band has to be laid out relative to
+      // where rows actually SIT, not to a device clock reading that orders
+      // nothing.
+      if (earliestDated == null || m.sortAt.isBefore(earliestDated)) {
+        earliestDated = m.sortAt;
       }
     }
     if (undated == 0) return input;
@@ -857,15 +877,50 @@ class ChatCubit extends Cubit<ChatState> {
   /// `hasServerTimestamp: false`).
   static final DateTime _undatedBandCeiling = DateTime.utc(1971);
 
-  /// Append an optimistic [draft] to the timeline.
+  /// Append an optimistic [draft] to the timeline, ANCHORED to the position the
+  /// user composed it in.
   ///
-  /// Deliberately NOT the full [_ordered] sort. A draft the user just composed
-  /// belongs at the bottom, and sorting it by the LOCAL clock would let a device
-  /// whose clock runs slow paint a brand-new message above the reply that
-  /// prompted it. The anchors of undated rows are still re-based, because this
-  /// draft may be the first dated message the thread has ever had.
-  List<DeliveryChatMessage> _appended(DeliveryChatMessage draft) =>
-      List.unmodifiable(_withRebasedAnchors([...state.messages, draft]));
+  /// This used to skip [_ordered] entirely, because sorting a draft by the LOCAL
+  /// clock lets a device whose clock runs slow paint a brand-new message above
+  /// the reply that prompted it. Skipping the sort only hid that: the very next
+  /// re-sort — a poll tick, a resume, an accept — sorted the same draft by the
+  /// same local clock and flipped the thread anyway (and a send that FAILS is
+  /// never echoed, so it never self-heals).
+  ///
+  /// The draft now carries a compose-time [DeliveryChatMessage.orderAnchor]
+  /// instead — one step past the newest server-ordered row on screen — which
+  /// makes its position a property of the MESSAGE rather than of whichever code
+  /// path last rebuilt the list. One ordering rule for every path, and the local
+  /// clock is not part of it.
+  List<DeliveryChatMessage> _appended(DeliveryChatMessage draft) => _ordered(
+        [...state.messages, draft.anchoredAt(_anchorAfter(state.messages, draft))],
+      );
+
+  /// The ordering anchor for a message composed right now, given what is already
+  /// on screen: one [_anchorStep] past the newest row that HAS an ordering
+  /// position — every server-dated row, plus any earlier drafts' anchors, so
+  /// successive sends step monotonically even when the clock does not move
+  /// between them.
+  ///
+  /// Rows the server did not date are skipped: they hold no position of their
+  /// own, they are laid out relative to the dated ones by [_withRebasedAnchors],
+  /// so anchoring off one would chase a value that pass is about to rewrite.
+  /// When there is nothing to anchor against at all (an empty thread, or one
+  /// where nothing is dated) the draft's own local clock is used — with no
+  /// server timestamp anywhere in the thread there is nothing for it to be
+  /// wrong RELATIVE TO, and it keeps the undated band out of 1971.
+  static DateTime _anchorAfter(
+    List<DeliveryChatMessage> shown,
+    DeliveryChatMessage draft,
+  ) {
+    DateTime? newest;
+    for (final m in shown) {
+      if (!m.hasServerTimestamp) continue;
+      final at = m.sortAt;
+      if (newest == null || at.isAfter(newest)) newest = at;
+    }
+    return newest == null ? draft.sentAt : newest.add(_anchorStep);
+  }
 
   /// Reconcile the shown optimistic bubble [shown] onto its server [echo].
   ///
