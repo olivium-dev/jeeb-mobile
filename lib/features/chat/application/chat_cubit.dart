@@ -255,7 +255,24 @@ class ChatCubit extends Cubit<ChatState> {
     final serverIds = history.map((m) => m.id).toSet();
     // Own server rows still free to absorb an optimistic bubble. Consumed as
     // they match so two identical own texts never collapse onto one row.
-    final unclaimedOwnEchoes = history.where((m) => m.isMine).toList();
+    //
+    // `!shownById.containsKey(m.id)` is load-bearing, and its absence was a
+    // MESSAGE-LOSS defect. An echo whose id is ALREADY ON SCREEN has already
+    // been claimed, by id, by the bubble it belongs to — the loop below skips
+    // that bubble via `serverIds.contains(shown.id)` and therefore never
+    // consumes the echo. Left in the pool, that same echo was free to be
+    // claimed a SECOND time, by CONTENT, by a different optimistic bubble:
+    // send "ok", let it echo, send "ok" again, and one fold later the second
+    // "ok" was gone. Worse when the second send FAILED — `_isEchoOfOwnMessage`
+    // keys on kind + text, not status, so a FAILED bubble folded into the
+    // earlier DELIVERED echo and left the user looking at a message they never
+    // successfully sent. A failed send is never echoed, so that one never
+    // self-healed on any later poll, resume, or reload.
+    //
+    // Pinned by `test/features/chat/chat_echo_double_claim_regression_test.dart`.
+    final unclaimedOwnEchoes = history
+        .where((m) => m.isMine && !shownById.containsKey(m.id))
+        .toList();
     /// Echo id → the shown bubble it absorbed. The absorbed bubble takes the
     /// echo's PLACE IN THE SERVER ARRAY rather than staying where the local send
     /// path put it; that position is the whole point of absorbing it.
