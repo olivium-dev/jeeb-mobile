@@ -213,7 +213,10 @@ class _OfferCardBody extends StatelessWidget {
           const SizedBox(height: Spacing.small),
           _OfferNote(payload: payload),
           const SizedBox(height: Spacing.twoXSmall),
-          ChatBubbleTimestamp(sentAt: message.sentAt),
+          ChatBubbleTimestamp(
+            sentAt: message.sentAt,
+            hasServerTimestamp: message.hasServerTimestamp,
+          ),
           const SizedBox(height: Spacing.small),
           Align(alignment: AlignmentDirectional.centerEnd, child: child),
         ],

@@ -570,6 +570,7 @@ class _BubbleFooter extends StatelessWidget {
           children: [
             ChatBubbleTimestamp(
               sentAt: message.sentAt,
+              hasServerTimestamp: message.hasServerTimestamp,
               color: color.withValues(alpha: UIConstants.opacityHigh),
             ),
             const SizedBox(width: Spacing.twoXSmall),
