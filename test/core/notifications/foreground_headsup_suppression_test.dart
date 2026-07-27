@@ -142,7 +142,7 @@ void main() {
         reason: 'no chat open ⇒ shows',
       );
 
-      ActiveChatThread.instance.enter(screen, const <String>['conv-1']);
+      ActiveChatThread.instance.enter(screen, () => <String>{'conv-1'});
       transport.debugHandleForeground(
         _msg('m-b', const <String, String>{
           'type': 'chat',
@@ -172,15 +172,30 @@ void main() {
     },
   );
 
-  test('the silent flag survives the nested `data` blob hoist', () async {
-    // The live gateway chat push nests routing fields in a stringified,
-    // single-quote pseudo-JSON `data` entry. An unhoisted `silent` reads as
-    // "not silent" and buzzes the shade for a refresh-only push.
-    final data = <String, String>{
-      'data': "{'requestId':'req-1','type':'new_request','silent':'True'}",
-    };
-    hoistNestedRoutingFields(data);
-    expect(data['silent'], 'True');
-    expect(data['requestId'], 'req-1');
-  });
+  test(
+    '`silent` is NOT hoisted out of the nested `data` blob — and an unhoisted '
+    'silent therefore SHOWS (fail-loud, the recoverable direction)',
+    () async {
+      // Scope note: an earlier revision added `silent` to kNestedRoutingKeys.
+      // No captured payload nests it (the push service emits it flat), so the
+      // key was dropped. This test pins the resulting behaviour so the choice
+      // is explicit rather than accidental: a nested-only `silent` reads as
+      // "not silent" and the push renders.
+      final data = <String, String>{
+        'data': "{'requestId':'req-1','type':'new_request','silent':'True'}",
+      };
+      hoistNestedRoutingFields(data);
+      expect(data['silent'], isNull);
+      expect(data['requestId'], 'req-1', reason: 'routing keys still hoist');
+
+      final transport = FirebaseMessagingTransport(
+        messaging: _MockMessaging(),
+        localNotifications: _MockLocalNotifications(),
+        openChatThreadIds: () => const <String>{},
+      );
+      transport.debugHandleForeground(_msg('m-nested', data));
+      expect(transport.debugForegroundShownIds, <String>{'m-nested'});
+      await transport.dispose();
+    },
+  );
 }

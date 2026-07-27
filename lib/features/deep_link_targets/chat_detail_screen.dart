@@ -204,15 +204,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with RouteAware {
   /// True while this screen is the route on top of the navigator.
   bool _onScreen = false;
 
-  Iterable<String> get _openThreadIds => <String>[
+  /// Every id that identifies the thread THIS screen is showing, read live.
+  ///
+  /// Registered with [ActiveChatThread] as a reader, not copied into it, so the
+  /// conversation id the async `?correlationKey=` lookup produces is visible to
+  /// the push path the instant [_finalize] assigns it — with no republish and
+  /// therefore no publish moment to miss.
+  ///
+  /// A hardware run reported this registry holding only the route param, with
+  /// the resolved conversation id absent. That exact failure was NOT reproduced
+  /// (see the PR: a snapshot-plus-republish build passes every harness here,
+  /// including a real-`GoRouter` one), so the reader is not offered as a fix
+  /// for a diagnosed bug — it removes the CLASS the report belongs to, by
+  /// leaving nothing that has to be remembered at the right moment.
+  Set<String> get _openThreadIds => <String>{
         widget.chatId,
         _resolvedConversationId,
         _resolvedRequestId,
-      ];
+      };
 
   void _publishOpenThread() {
     if (!_onScreen) return;
-    ActiveChatThread.instance.enter(this, _openThreadIds);
+    ActiveChatThread.instance.enter(this, () => _openThreadIds);
   }
 
   /// The observer instance this screen subscribed to. Captured because
@@ -231,6 +244,35 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with RouteAware {
       // the initial registration falls out of this and needs no separate call.
       _subscribedObserver = appRouteObserver..subscribe(this, route);
     }
+  }
+
+  /// The route param changed UNDER A LIVE `State`.
+  ///
+  /// `go_router` keys its pages on the ROUTE OBJECT, not the location
+  /// (`go_router-13.2.5/lib/src/match.dart:178`,
+  /// `pageKey: ValueKey<String>(route.hashCode.toString())`), so
+  /// `context.go('/chat/B')` while `/chat/A` is on screen matches the SAME
+  /// `/chat/:id` `GoRoute`, produces the same page key, and reuses this
+  /// `Element` and this `State`. No `didPush`/`didPop` fires. Without this hook
+  /// the registry would keep chat A's ids and suppress a push for a thread the
+  /// user is no longer on — the notification-tap path itself
+  /// (`app/app.dart:613`), plus `dispute_status_screen.dart:122`.
+  ///
+  /// `AppRouter` now hands this screen a `ValueKey(id)`
+  /// (`core/router/app_router.dart`, the `/chat/:id` builder), which forces a
+  /// FRESH `State` per thread and makes this branch unreachable in the app —
+  /// the key is the real fix, because a reused `State` also keeps the previous
+  /// thread's gateway and messages on screen, which this hook cannot repair.
+  /// This hook exists for any other host that mounts the screen unkeyed, and it
+  /// takes the only honest action available to it: DEREGISTER. The resolved
+  /// conversation/request ids still describe the previous thread while the
+  /// route param already describes the next one, so no registration would be
+  /// truthful, and the safe direction is to suppress nothing.
+  @override
+  void didUpdateWidget(covariant ChatDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.chatId == widget.chatId) return;
+    ActiveChatThread.instance.leave(this);
   }
 
   @override
@@ -764,10 +806,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> with RouteAware {
       _summary = summary;
       _loading = false;
     });
-    // b02 fg-suppression: resolution just produced the conversation id and (in
-    // the correlationKey case) the request id. Republish so a chat push stamped
-    // with EITHER flavour of id is recognised as "the thread on screen".
-    _publishOpenThread();
+    // b02 fg-suppression: deliberately NO republish here. `ActiveChatThread`
+    // holds a READER over `_openThreadIds`, so the conversation/request ids
+    // just assigned above are visible to the push path from this line onward
+    // with no further call. A republish here was the previous design and it is
+    // exactly what a hardware run caught missing its moment; the regression
+    // test `resolution lands AFTER registration` fails if a reader is ever
+    // swapped back for a snapshot.
   }
 
   /// Reads the active [UserRole] from the app-global [RoleCubit]. Returns

@@ -237,6 +237,26 @@ class FirebaseMessagingTransport implements PushTransport {
   /// push arrived and was deliberately silenced" — two indistinguishable
   /// symptoms that have burned this batch repeatedly.
   ///
+  /// ## PLATFORM SCOPE — the open-thread half is ANDROID-ONLY
+  ///
+  /// Only the Android branch below renders a foreground heads-up from Dart, and
+  /// only what Dart renders can be gated here. On iOS, [initialize] calls
+  /// `setForegroundNotificationPresentationOptions(alert: true, …)` (:154),
+  /// which hands foreground presentation to the OS: the banner is drawn from
+  /// the APNs `notification` block before any Dart runs, so this guard has no
+  /// interception point and CANNOT suppress it.
+  ///
+  /// * SILENT works on iOS anyway, by construction rather than by this code:
+  ///   the service omits the `notification` block entirely for a silent push,
+  ///   so there is nothing for iOS to present.
+  /// * OPEN CHAT THREAD does NOT work on iOS. A chat push for the conversation
+  ///   already on screen will still alert there. Making it work means routing
+  ///   iOS foreground display through `flutter_local_notifications` too, which
+  ///   would put every iOS visible push at risk for a case this fleet has no
+  ///   iOS hardware to test. Deliberately not done; recorded so nobody reads
+  ///   the unit tests (which run on the VM, where `Platform.isAndroid` is
+  ///   false) as cross-platform proof.
+  ///
   /// ## Divergence from the `fg ≡ bg` contract, stated explicitly
   ///
   /// `push_render_mapping.dart:7-13` declares foreground ≡ background. That
@@ -360,13 +380,18 @@ const List<String> kNestedRoutingKeys = <String>[
   'request_id',
   'delivery_id',
   'order_id',
-  // Not a routing field — the transport-level silent switch
-  // ([kSilentPushKey]). It rides this list because it faces the exact same
-  // hazard: the gateway may bury it in the stringified `data` blob, and an
-  // unhoisted `silent` reads as "not silent" and buzzes the shade for a
-  // refresh-only push. Hoisting is gap-filling only, so a flat `silent` (the
-  // shape the push service actually emits today) is unaffected.
-  kSilentPushKey,
+  // DELIBERATELY NOT [kSilentPushKey]. An earlier revision of this branch added
+  // it "in case the gateway nests it". Nothing has been observed nesting
+  // `silent`: the push microservice emits it flat
+  // (`push-notification/app/endpoints/sent_payload.py` ships
+  // `data = {k: str(v) for k, v in payload.items()}`), and the gateway does not
+  // send it at all yet. Every other key on this list was added against a
+  // captured payload that really did bury it. Speculating a wire shape here
+  // costs a regex match per push against a blob that may legitimately contain
+  // the substring, and the failure it would prevent is the recoverable
+  // direction anyway (an unhoisted `silent` reads as "not silent" ⇒ the push
+  // SHOWS). Whichever lane makes the gateway stamp `silent` should add the key
+  // here with a captured payload as evidence.
 ];
 
 /// Extracts [kNestedRoutingKeys] from a nested `data` field (single- OR
