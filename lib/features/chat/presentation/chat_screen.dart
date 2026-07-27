@@ -700,8 +700,13 @@ class _ChatMessageList extends StatelessWidget {
   }
 
   List<_ChatRowData> _rows() {
+    final first = state.messages.first;
     final rows = <_ChatRowData>[
-      _ChatRowData.date(state.messages.first.sentAt),
+      // Lead with a date separator ONLY when the server actually dated the
+      // first message. A row that arrived with no timestamp carries an ordering
+      // anchor inside 1970 — a "1 Jan 1970" divider over a live thread would be
+      // a fabrication.
+      if (first.hasServerTimestamp) _ChatRowData.date(first.sentAt),
       for (final m in state.messages) _ChatRowData.message(m),
     ];
     if (state.phase == ConversationPhase.broadcasting &&

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
+import '../../../core/diagnostics/diag.dart';
 import '../../../core/network/mock_gateway_client.dart';
 import '../../client_offers/domain/offers_repository.dart' show OfferAcceptResult;
 import '../../kyc/domain/cdn_asset_gateway.dart';
@@ -133,7 +134,14 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
     final response = await _dio.get<dynamic>(
       '/v1/conversations/$conversationId/messages',
     );
-    return _decodeHistory(response.data).messages;
+    final batch = _decodeHistory(response.data);
+    // A 200 whose rows all fail to decode used to be indistinguishable from an
+    // empty conversation: `loadHistory` returns `.messages` only, so
+    // `malformedCount` was thrown away and nothing logged it. That silence is
+    // what let the bilateral empty-thread bug survive a device run — the UI said
+    // "start the conversation" over a full thread. Report it.
+    _reportDecode('loadHistory', conversationId, batch);
+    return batch.messages;
   }
 
   @override
@@ -151,7 +159,24 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
       '/v1/conversations/$conversationId/messages/since/'
       '${Uri.encodeComponent(cursor)}',
     );
-    return _decodeHistory(response.data);
+    final batch = _decodeHistory(response.data);
+    _reportDecode('loadHistorySince', conversationId, batch);
+    return batch;
+  }
+
+  /// Surface a lossy history decode on the diagnostic stream. Emitted ONLY when
+  /// rows were actually dropped, so a healthy read stays silent. `decoded == 0`
+  /// with `malformed > 0` is the signature of a wire-shape regression (a field
+  /// the decoder requires disappearing from the projection), not of an empty
+  /// thread.
+  void _reportDecode(String op, String conversationId, ChatHistoryBatch batch) {
+    if (batch.malformedCount == 0) return;
+    Diag.event('chat_history_decode', <String, Object?>{
+      'op': op,
+      'conversationId': conversationId,
+      'decoded': batch.messages.length,
+      'malformed': batch.malformedCount,
+    });
   }
 
   ChatHistoryBatch _decodeHistory(dynamic data) {
@@ -187,7 +212,13 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
         continue;
       }
       try {
-        final message = _parseMessage(rawRow);
+        // A row the server did not date is anchored by its POSITION in the
+        // server array (see [DeliveryChatMessage.syntheticSentAt]) — never by the
+        // local clock, which would scramble the rendered order.
+        final message = _parseMessage(
+          rawRow,
+          fallbackSentAt: DeliveryChatMessage.syntheticSentAt(index),
+        );
         messages.add(message);
         if (isPhysicalFinalRow) finalRowCursor = message.id;
       } catch (_) {
@@ -208,14 +239,22 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
     final senderId = row['author_id'] ?? row['senderId'];
     if (senderId is! String || senderId.trim().isEmpty) return false;
 
-    final rawTimestamp =
-        row['createdAt'] ??
-        row['created_at'] ??
-        row['sentAt'] ??
-        row['sent_at'];
-    if (rawTimestamp is! String) return false;
-    final timestamp = DateTime.tryParse(rawTimestamp);
-    if (timestamp == null || timestamp.year <= 1) return false;
+    // THE BILATERAL EMPTY-THREAD DEFECT (fixed here): this used to reject any
+    // row whose timestamp was absent or unparseable —
+    //   `if (rawTimestamp is! String) return false;`
+    // The gateway's message projection carries no timestamp at all, so the check
+    // rejected 100% of rows on every read, for both participants. `GET
+    // /v1/conversations/{id}/messages` answered 200 with the whole thread and
+    // the client decoded ZERO messages from it; the customer's thread also
+    // collapsed on the next app resume, because the destructive refresh replaced
+    // the optimistic bubbles with that empty decode.
+    //
+    // A timestamp is NOT identity: a message with an unknown send time is still
+    // a message and must render. Rows are no longer rejected on timestamp
+    // grounds at all — [_sentAtOf] returns null for a missing/garbage/husk
+    // (`0001-01-01`) value and the decoder anchors ordering on the row's server
+    // position instead. Identity fields (id, author, kind, content) are still
+    // required, so a genuinely unrenderable row is still counted as malformed.
 
     final kind = row['kind'];
     if (kind is! String || !_supportedMessageKinds.contains(kind)) return false;
@@ -629,7 +668,15 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
     }
   }
 
-  DeliveryChatMessage _parseMessage(Map<String, dynamic> json) {
+  /// Decode one wire row. [fallbackSentAt] is used when the row carries no
+  /// usable timestamp — history passes the position-derived anchor so server
+  /// order survives; the live socket path passes nothing and a frame with no
+  /// timestamp is stamped at arrival, which for a live frame IS its send time to
+  /// within the transport latency.
+  DeliveryChatMessage _parseMessage(
+    Map<String, dynamic> json, {
+    DateTime? fallbackSentAt,
+  }) {
     // FROZEN `JeebMessageResponse` uses snake_case (`message_id`, `author_id`)
     // and a string `body` for text — DISTINCT from the camelCase the client
     // originally assumed. Tolerate BOTH wire shapes so messages render whether
@@ -639,16 +686,7 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
     final senderId =
         (json['author_id'] as String?) ?? (json['senderId'] as String?) ?? '';
     final author = senderId == currentUserId ? ChatAuthor.me : ChatAuthor.them;
-    final sentAt = DateTime.tryParse(
-              (json['createdAt'] ??
-                      json['created_at'] ??
-                      json['sentAt'] ??
-                      json['sent_at'] ??
-                      '')
-                  as String? ??
-                  '',
-            )?.toLocal() ??
-            DateTime.now();
+    final sentAt = _sentAtOf(json) ?? fallbackSentAt ?? DateTime.now();
     final kind = MessageKind.fromWire(json['kind'] as String?);
     // `body` is a plain string for text (frozen contract); structured payloads
     // arrive under `payload` (or a legacy map `body`). Normalize to the map the
@@ -669,6 +707,21 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
       kind: kind,
       body: body,
     );
+  }
+
+  /// Real send time carried by a wire row, or null when the row has none the
+  /// client can use. Tolerates all four historical aliases. `0001-01-01` (the
+  /// .NET `default(DateTime)` husk) is treated as ABSENT, not as a date — it is
+  /// a serializer artefact, never a send time.
+  static DateTime? _sentAtOf(Map<String, dynamic> json) {
+    final raw = json['createdAt'] ??
+        json['created_at'] ??
+        json['sentAt'] ??
+        json['sent_at'];
+    if (raw is! String) return null;
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null || parsed.year <= 1) return null;
+    return parsed.toLocal();
   }
 
   DeliveryChatMessage _buildMessage({

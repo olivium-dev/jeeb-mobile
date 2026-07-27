@@ -157,8 +157,16 @@ void main() {
     _expectOneMalformed(batch);
   });
 
+  // D-d / D-e — INVERTED (bilateral empty-thread fix).
+  //
+  // These two tests used to assert `_expectOneMalformed`, i.e. that a row with
+  // no usable timestamp is DROPPED. That assertion encoded the bug: the live
+  // gateway's message projection carries no timestamp at all, so the rule
+  // rejected 100% of rows and a full thread rendered as the empty state for both
+  // participants. A timestamp is not identity — the row must decode.
   test(
-    'D-d absence of all four timestamp aliases is rejected and counted',
+    'D-d absence of all four timestamp aliases still DECODES the message, '
+    'anchored on its server position rather than dropped',
     () async {
       final batch = await _read(r'''
           [{
@@ -168,12 +176,20 @@ void main() {
             "body": "missing timestamp"
           }]
         ''');
-      _expectOneMalformed(batch);
+      expect(batch.malformedCount, isZero);
+      expect(batch.messages.single.id, 'srv-1');
+      expect(batch.messages.single.text, 'missing timestamp');
+      expect(batch.messages.single.hasServerTimestamp, isFalse);
+      // The physical final row decoded cleanly, so the delta cursor advances.
+      expect(batch.nextCursor, 'srv-1');
     },
   );
 
-  test('D-e the 0001-01-01 timestamp husk is rejected and counted', () async {
-    final batch = await _read(r'''
+  test(
+    'D-e the 0001-01-01 timestamp husk decodes as timestamp-ABSENT, never as a '
+    'year-1 send time',
+    () async {
+      final batch = await _read(r'''
         [{
           "message_id": "srv-1",
           "author_id": "user-them",
@@ -182,8 +198,11 @@ void main() {
           "body": "ancient timestamp"
         }]
       ''');
-    _expectOneMalformed(batch);
-  });
+      expect(batch.malformedCount, isZero);
+      expect(batch.messages.single.hasServerTimestamp, isFalse);
+      expect(batch.messages.single.sentAt.year, isNot(1));
+    },
+  );
 
   test('D-f an unknown message kind is rejected and counted', () async {
     final batch = await _read(r'''

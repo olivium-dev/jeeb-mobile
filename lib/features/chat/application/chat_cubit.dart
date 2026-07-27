@@ -198,7 +198,7 @@ class ChatCubit extends Cubit<ChatState> {
       final phase = results[1] as ConversationPhase;
       emit(
         state.copyWith(
-          messages: List.unmodifiable(history),
+          messages: _reconciledWithHistory(history),
           phase: phase,
         ),
       );
@@ -206,6 +206,66 @@ class ChatCubit extends Cubit<ChatState> {
     } catch (_) {
       // Keep the current thread on a transient refresh failure.
     }
+  }
+
+  /// Fold a re-fetched [history] into what is already on screen, WITHOUT
+  /// dropping anything the read did not return.
+  ///
+  /// This body used to be `messages: List.unmodifiable(history)` — a full
+  /// replace. Two ways that blanked a live thread:
+  ///
+  ///   1. Every optimistic own message the server had not echoed yet was
+  ///      dropped on the first resume after sending. `refresh()` is bound to
+  ///      `AppLifecycleState.resumed`, so any HOME-and-back, task switch, or
+  ///      dismissed permission dialog wiped the user's own just-sent bubbles.
+  ///   2. A history read that decoded to NOTHING replaced a rendered thread with
+  ///      the empty state, unrecoverably (the bilateral empty-thread collapse).
+  ///      `refresh()`'s own contract says "stale-but-present beats blank"; a
+  ///      successful-but-empty read has to honour that as much as a thrown one.
+  ///
+  /// Server rows win wherever they overlap: same id → the server row replaces
+  /// what was shown, and an own optimistic bubble the server has echoed under a
+  /// different (server-minted) id is absorbed by content match, one-for-one, so
+  /// no bubble is duplicated. Anything left over is retained.
+  List<DeliveryChatMessage> _reconciledWithHistory(
+    List<DeliveryChatMessage> history,
+  ) {
+    final shownIds = <String>{for (final m in state.messages) m.id};
+    final serverIds = history.map((m) => m.id).toSet();
+    // Own server rows still free to absorb an optimistic bubble. Consumed as
+    // they match so two identical own texts never collapse onto one row.
+    //
+    // `!shownIds.contains(m.id)` is load-bearing, and its absence was a
+    // MESSAGE-LOSS defect. An echo whose id is ALREADY ON SCREEN has already
+    // been claimed, by id, by the bubble it belongs to — the loop below skips
+    // that bubble via `serverIds.contains(shown.id)` and therefore never
+    // consumes the echo. Left in the pool, that same echo was free to be
+    // claimed a SECOND time, by CONTENT, by a different optimistic bubble:
+    // send "ok", let it echo, send "ok" again, and one fold later the second
+    // "ok" was gone. Worse when the second send FAILED — `_isEchoOfOwnMessage`
+    // keys on kind + text, not status, so a FAILED bubble folded into the
+    // earlier DELIVERED echo and left the user looking at a message they never
+    // successfully sent. A failed send is never echoed, so that one never
+    // self-healed on any later poll, resume, or reload.
+    //
+    // Pinned by `test/features/chat/chat_echo_double_claim_regression_test.dart`.
+    final unclaimedOwnEchoes = history
+        .where((m) => m.isMine && !shownIds.contains(m.id))
+        .toList();
+    final retained = <DeliveryChatMessage>[];
+    for (final shown in state.messages) {
+      if (serverIds.contains(shown.id)) continue;
+      if (shown.isMine) {
+        final echoIndex = unclaimedOwnEchoes
+            .indexWhere((echo) => _isEchoOfOwnMessage(shown, echo));
+        if (echoIndex != -1) {
+          unclaimedOwnEchoes.removeAt(echoIndex);
+          continue;
+        }
+      }
+      retained.add(shown);
+    }
+    return _ordered([...history, ...retained]);
   }
 
   /// Accept the Jeeber whose offer card is identified by [offerId].
