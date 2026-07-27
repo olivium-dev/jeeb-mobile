@@ -18,7 +18,6 @@ import '../../support/sync_app_localizations.dart';
 
 const _deliveryId = 'DLV-FM4-F5';
 const _dropOff = DropOffAddress(label: 'Verdun', lat: 33.88, lng: 35.49);
-const _pollInterval = Duration(seconds: 1);
 const _resumePollInterval = Duration(minutes: 1);
 
 JeeberDelivery _delivery(JeeberDeliveryStatus status) =>
@@ -128,125 +127,138 @@ Future<void> _driveToForeground(WidgetTester tester) async {
 void main() {
   tearDown(AppLifecycleGate.debugReset);
 
-  test(
-    'AC16 F5 poller is running and ticks with no root gate install and no MaterialApp',
-    () {
-      fakeAsync((async) {
-        final repository = _CountingActiveDeliveryRepository(
-          fetchStatuses: <JeeberDeliveryStatus>[JeeberDeliveryStatus.picked],
-        );
-        final cubit = ActiveDeliveryCubit(
-          repository: repository,
-          deliveryId: _deliveryId,
-          pollInterval: _pollInterval,
-        );
+  // b02 wave C — N6. Every test below used to assert the 5s `LifecyclePoller`'s
+  // CADENCE MECHANICS (isRunning / debugTickCount / one fetch per elapsed
+  // interval). That poller is deleted: a `type=delivery` push now drives the
+  // re-read (`Notifications/DeliveryStatusPushNotifier.cs:211`, fanned to BOTH
+  // parties by `Controllers/DeliveriesController.cs:1296-1300`).
+  //
+  // The cadence assertions are therefore gone BY DESIGN — they described a
+  // mechanism that no longer exists. Every BEHAVIOURAL claim they were
+  // protecting is re-asserted here in push form, and the two that mattered most
+  // are strengthened rather than relaxed:
+  //   * AC13's P6/A4 claim (a non-terminal read must not clobber the door-OTP
+  //     entry) now fires a real push at the OTP surface instead of waiting for
+  //     a tick — a push can land mid-typing exactly as a tick could.
+  //   * AC14's terminal-stop claim is now "the subscription is RETIRED", which
+  //     is stronger than "the timer is stopped": the bus is app-wide, so an
+  //     unretired subscription would keep re-reading a Done row on every
+  //     unrelated push, forever.
+  // The pure cadence tests (old AC12/AC16) are replaced by the inverse claim:
+  // elapsed wall-clock with no push produces ZERO reads.
 
-        unawaited(cubit.loadDelivery());
-        async.flushMicrotasks();
-        expect(repository.fetchCalls, 1);
-        expect(cubit.debugPoller.isRunning, isTrue);
-
-        for (var index = 0; index < 3; index++) {
-          async.elapse(_pollInterval);
-          async.flushMicrotasks();
-        }
-
-        expect(repository.fetchCalls, 4);
-        expect(cubit.debugPoller.debugTickCount, 3);
-
-        unawaited(cubit.close());
-        async.flushMicrotasks();
-        expect(cubit.debugPoller.isRunning, isFalse);
-        expect(async.periodicTimerCount, isZero);
-      });
-    },
-  );
-
-  test('AC12 F5 polls once per interval while canPoll is true', () {
+  test('N6 (was AC16) no root gate install, no MaterialApp: a push drives the '
+      'read and elapsed time does NOT', () {
     fakeAsync((async) {
-      final gate = _installManualGate();
       final repository = _CountingActiveDeliveryRepository(
         fetchStatuses: <JeeberDeliveryStatus>[JeeberDeliveryStatus.picked],
       );
+      final bus = StreamController<void>.broadcast();
       final cubit = ActiveDeliveryCubit(
         repository: repository,
         deliveryId: _deliveryId,
-        pollInterval: _pollInterval,
+        refreshSignals: bus.stream,
       );
 
       unawaited(cubit.loadDelivery());
       async.flushMicrotasks();
       expect(repository.fetchCalls, 1);
-      expect(cubit.debugPoller.isRunning, isFalse);
+      expect(cubit.debugPushRefreshWired, isTrue);
 
-      gate.setForeground(true);
-      expect(cubit.debugPoller.isRunning, isTrue);
-      async.elapse(_pollInterval - const Duration(milliseconds: 1));
-      async.flushMicrotasks();
-      expect(repository.fetchCalls, 1);
+      for (var index = 0; index < 3; index++) {
+        bus.add(null);
+        async.flushMicrotasks();
+      }
+      expect(repository.fetchCalls, 4, reason: 'three pushes → three re-reads');
 
-      async.elapse(const Duration(milliseconds: 1));
+      // The inverse of the old cadence claim: TIME alone now buys nothing.
+      async.elapse(const Duration(minutes: 5));
       async.flushMicrotasks();
-      expect(repository.fetchCalls, 2);
-
-      async.elapse(_pollInterval);
-      async.flushMicrotasks();
-      expect(repository.fetchCalls, 3);
-      expect(cubit.debugPoller.isRunning, isTrue);
+      expect(repository.fetchCalls, 4,
+          reason: 'five minutes with no push is zero reads');
+      expect(async.periodicTimerCount, isZero);
 
       unawaited(cubit.close());
       async.flushMicrotasks();
+      expect(cubit.debugPushRefreshWired, isFalse);
+      bus.close();
     });
   });
 
-  // R29 NOTE — this criterion's assertion was CHANGED, deliberately, and the
-  // change is a repair rather than a relaxation. Recorded here so a reader can
-  // tell the two apart without digging through history.
-  //
-  //   WAS: 'AC13 F5 stops the poller after markDelivered reaches Done'
-  //        expect(state.delivery?.status, done)
-  //        expect(transitionCalls, 1)
-  //        expect(debugPoller.isRunning, isFalse)
-  //
-  //   NOW: markDelivered STOPS at AtDoor and the poller stays live for the
-  //        door-OTP handover.
+  test('N6 (was AC12) a push while backgrounded still re-reads — the bus is the '
+      'gate, and there is no cadence left to gate', () {
+    fakeAsync((async) {
+      final gate = _installManualGate();
+      final repository = _CountingActiveDeliveryRepository(
+        fetchStatuses: <JeeberDeliveryStatus>[JeeberDeliveryStatus.picked],
+      );
+      final bus = StreamController<void>.broadcast();
+      final cubit = ActiveDeliveryCubit(
+        repository: repository,
+        deliveryId: _deliveryId,
+        refreshSignals: bus.stream,
+      );
+
+      unawaited(cubit.loadDelivery());
+      async.flushMicrotasks();
+      expect(repository.fetchCalls, 1);
+
+      // The old form asserted the poller was PARKED here (gate not foreground)
+      // and resumed on setForeground(true). A push carries no such gate — and
+      // must not: a foreground push arriving for a live delivery is precisely
+      // the event the jeeber needs, and only ONE read answers it.
+      async.elapse(const Duration(minutes: 5));
+      async.flushMicrotasks();
+      expect(repository.fetchCalls, 1, reason: 'no cadence to fire');
+
+      gate.setForeground(true);
+      async.flushMicrotasks();
+      expect(repository.fetchCalls, 1,
+          reason: 'a gate flip is not a read trigger; only load, push, resume '
+              'and the jeeber own writes read');
+
+      bus.add(null);
+      async.flushMicrotasks();
+      expect(repository.fetchCalls, 2);
+
+      unawaited(cubit.close());
+      async.flushMicrotasks();
+      bus.close();
+    });
+  });
+
+  // R29 NOTE — preserved from the poll era, and still exact. The assertion set
+  // is unchanged except that "the poller stays running" became "the push
+  // subscription stays armed", and the liveness tail fires a real push.
   //
   //   AUTHORITY: the FROZEN state machine, `DeliverySm.cs:53-62`. `AtDoor` has
-  //   exactly three exits — `otp_verified → Done`,
-  //   `otp_fail_or_jeeber_escalate → FailedNeedsEscalation`,
-  //   `escalate_either → FailedNeedsEscalation` — and NONE of them is a jeeber
+  //   exactly three exits — `otp_verified -> Done`,
+  //   `otp_fail_or_jeeber_escalate -> FailedNeedsEscalation`,
+  //   `escalate_either -> FailedNeedsEscalation` — and NONE of them is a jeeber
   //   tap. `JeeberDeliveryStatus.next` returns `null` at `atDoor` for that
-  //   reason. The old form asserted a transition the SERVER DOES NOT PERMIT;
-  //   it encoded the pre-P6/B1 client, which optimistically walked
-  //   `AtDoor → Done` itself.
-  //
-  //   NOT R29 WEAKENING: this is four assertions where there was one (status,
-  //   otpRequired, transitionCalls == 0, poller still running), plus a tail
-  //   proving the OTP surface survives live polling (P6/A4). The terminal-stop
-  //   behaviour it used to claim is owned — and genuinely exercised — by AC14
-  //   below, through `submitDoorOtp`, the path that actually exists.
+  //   reason.
   test(
-    'AC13 F5 markDelivered stops at AtDoor and keeps the poller live for the '
-    'door-OTP handover (frozen SM: AtDoor→Done is otp_verified only)',
+    'AC13 markDelivered stops at AtDoor and keeps the push subscription armed '
+    'for the door-OTP handover (frozen SM: AtDoor->Done is otp_verified only)',
     () {
       fakeAsync((async) {
-        final gate = _installManualGate();
+        _installManualGate().setForeground(true);
         final repository = _CountingActiveDeliveryRepository(
           fetchStatuses: <JeeberDeliveryStatus>[JeeberDeliveryStatus.atDoor],
         );
+        final bus = StreamController<void>.broadcast();
         final cubit = ActiveDeliveryCubit(
           repository: repository,
           deliveryId: _deliveryId,
-          pollInterval: _pollInterval,
+          refreshSignals: bus.stream,
         );
 
         unawaited(cubit.loadDelivery());
         async.flushMicrotasks();
-        gate.setForeground(true);
-        async.elapse(_pollInterval);
+        bus.add(null);
         async.flushMicrotasks();
         expect(repository.fetchCalls, 2);
-        expect(cubit.debugPoller.isRunning, isTrue);
+        expect(cubit.debugPushRefreshWired, isTrue);
 
         unawaited(cubit.markDelivered());
         async.flushMicrotasks();
@@ -273,118 +285,124 @@ void main() {
               'a transition call here would be the pre-P6/B1 optimistic walk '
               'the gateway refuses with 422',
         );
-        // 4. The poll stays LIVE: an admin/customer can still move this row,
-        //    and the jeeber must see it. This is the assertion the old form
-        //    inverted.
-        expect(cubit.debugPoller.isRunning, isTrue);
+        // 4. The subscription stays ARMED: an admin/customer can still move
+        //    this row, and the jeeber must see it.
+        expect(cubit.debugPushRefreshWired, isTrue);
 
-        // P6/A4 tail: the poll keeps RUNNING while the OTP surface is up, and
-        // a non-terminal read is REFUSED so it never clobbers the code the
-        // jeeber is typing. Liveness is asserted as growth, not as an exact
-        // tick count, so this does not become a cadence-mechanics test.
+        // P6/A4 tail, now stronger: a real push lands WHILE the OTP surface is
+        // up. The read happens, and the non-terminal result is REFUSED so it
+        // never clobbers the code the jeeber is typing.
         final atHandover = repository.fetchCalls;
-        async.elapse(_pollInterval * 3);
+        bus.add(null);
         async.flushMicrotasks();
         expect(
           repository.fetchCalls,
           greaterThan(atHandover),
-          reason:
-              'the same fetchDelivery seam proves timer liveness at the door; '
-              'this is not a GET-saving claim',
+          reason: 'the push path is live at the door — this is not a '
+              'GET-saving claim',
         );
-        expect(cubit.debugPoller.isRunning, isTrue);
+        expect(cubit.debugPushRefreshWired, isTrue);
         expect(
           cubit.state.delivery?.status,
           JeeberDeliveryStatus.atDoor,
-          reason: 'a non-terminal poll result must not disturb the handover',
+          reason: 'a non-terminal push result must not disturb the handover',
         );
         expect(
           cubit.state.otpRequired,
           isTrue,
-          reason: 'the OTP surface must survive every intervening poll (P6/A4)',
+          reason: 'the OTP surface must survive every intervening push (P6/A4)',
         );
 
         unawaited(cubit.close());
         async.flushMicrotasks();
+        bus.close();
       });
     },
   );
 
   test(
-    'AC14 F5 stops the poller after submitDoorOtp completes the delivery',
+    'AC14 retires the push subscription after submitDoorOtp completes the '
+    'delivery',
     () {
       fakeAsync((async) {
-        final gate = _installManualGate();
+        _installManualGate().setForeground(true);
         final repository = _CountingActiveDeliveryRepository(
           fetchStatuses: <JeeberDeliveryStatus>[JeeberDeliveryStatus.atDoor],
-          // Stated explicitly: `otp_verified → Done` is the ONLY edge the
+          // Stated explicitly: `otp_verified -> Done` is the ONLY edge the
           // frozen SM (DeliverySm.cs:53-62) opens out of AtDoor, and this test
           // owns that terminal-stop assertion now that AC13 correctly stops at
           // the door.
           verifyOtpResult: JeeberDeliveryStatus.done,
         );
+        final bus = StreamController<void>.broadcast();
         final cubit = ActiveDeliveryCubit(
           repository: repository,
           deliveryId: _deliveryId,
-          pollInterval: _pollInterval,
+          refreshSignals: bus.stream,
         );
 
         unawaited(cubit.loadDelivery());
         async.flushMicrotasks();
-        gate.setForeground(true);
-        async.elapse(_pollInterval);
+        bus.add(null);
         async.flushMicrotasks();
         expect(repository.fetchCalls, 2);
-        expect(cubit.debugPoller.isRunning, isTrue);
+        expect(cubit.debugPushRefreshWired, isTrue);
 
         unawaited(cubit.submitDoorOtp('1234'));
         async.flushMicrotasks();
         expect(cubit.state.delivery?.status, JeeberDeliveryStatus.done);
         expect(repository.verifyOtpCalls, 1);
-        expect(cubit.debugPoller.isRunning, isFalse);
+        expect(cubit.debugPushRefreshWired, isFalse);
 
-        async.elapse(_pollInterval * 3);
+        // STRONGER than the old timer claim: the bus is app-wide, so an
+        // unretired subscription would keep re-reading this Done row on every
+        // unrelated push for the rest of the session.
+        for (var i = 0; i < 3; i++) {
+          bus.add(null);
+          async.flushMicrotasks();
+        }
+        async.elapse(const Duration(minutes: 5));
         async.flushMicrotasks();
         expect(
           repository.fetchCalls,
           2,
           reason:
               'the same fetchDelivery seam proves a non-zero live baseline; '
-              'OTP completion must cancel timer liveness with zero GET delta',
+              'OTP completion must produce zero GET delta for both pushes AND '
+              'elapsed time',
         );
-        expect(cubit.debugPoller.isRunning, isFalse);
 
         unawaited(cubit.close());
         async.flushMicrotasks();
+        bus.close();
       });
     },
   );
 
-  testWidgets('AC15 F5 fetches exactly once on foreground return', (
-    tester,
-  ) async {
+  testWidgets('AC15 fetches exactly once on foreground return', (tester) async {
     _installBindingGate(tester);
     final repository = _CountingActiveDeliveryRepository(
       fetchStatuses: <JeeberDeliveryStatus>[JeeberDeliveryStatus.picked],
     );
+    final bus = StreamController<void>.broadcast();
+    addTearDown(bus.close);
     final cubit = ActiveDeliveryCubit(
       repository: repository,
       deliveryId: _deliveryId,
-      pollInterval: _resumePollInterval,
+      refreshSignals: bus.stream,
     );
 
     await cubit.loadDelivery();
     await tester.pumpWidget(_activeDeliveryHarness(cubit));
     await tester.pump();
     expect(repository.fetchCalls, 1);
-    expect(cubit.debugPoller.isRunning, isTrue);
 
+    // No cadence: sitting on the screen buys nothing.
     await tester.pump(_resumePollInterval);
     await tester.pump();
-    expect(repository.fetchCalls, 2);
+    expect(repository.fetchCalls, 1);
 
     await _driveToBackground(tester);
-    expect(cubit.debugPoller.isRunning, isFalse);
     final backgroundBaseline = repository.fetchCalls;
     await tester.pump(_resumePollInterval * 3);
     expect(repository.fetchCalls, backgroundBaseline);
@@ -392,15 +410,16 @@ void main() {
     await _driveToForeground(tester);
     await tester.pump();
 
+    // The resume backstop is UNCHANGED and still load-bearing: it catches a
+    // push the OS dropped or coalesced while the process was backgrounded.
+    // EXACTLY one read — never a double-fetch.
     expect(repository.fetchCalls, backgroundBaseline + 1);
-    expect(cubit.debugPoller.isRunning, isTrue);
-    await tester.pump(_resumePollInterval - const Duration(milliseconds: 1));
+    await tester.pump(_resumePollInterval);
     expect(
       repository.fetchCalls,
       backgroundBaseline + 1,
-      reason:
-          'tickOnResume is false, so only the existing screen resume hook may '
-          'fetch before a fresh full interval elapses',
+      reason: 'the screen resume hook is the only resume-time reader, and it '
+          'fires once',
     );
 
     await tester.pumpWidget(const SizedBox.shrink());

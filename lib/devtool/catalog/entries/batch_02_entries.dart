@@ -242,7 +242,7 @@ ClientOffersCubit _catalogOffersCubit(
   return ClientOffersCubit(
     repository: repository,
     requestId: requestId,
-    pollTicks: const Stream<void>.empty(),
+    refreshSignals: const Stream<void>.empty(),
     clockTicks: const Stream<void>.empty(),
   );
 }

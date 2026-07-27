@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -25,7 +26,7 @@ void main() {
   LiveTrackingCubit cubit0() => LiveTrackingCubit(
         repository: repo,
         deliveryId: 'DLV-770001',
-        pollInterval: const Duration(days: 1), // disable auto-poll in tests
+        refreshSignals: const Stream<void>.empty(),
       );
 
   test('emits loading → ready on successful fetch', () async {
@@ -127,11 +128,19 @@ void main() {
     await cubit.close();
   });
 
-  // JEBV4-218 / Q-061 (pilot fidelity): the tracking view polls the delivery
-  // status at a 5-SECOND cadence by DEFAULT (no explicit interval). Drives the
-  // real Timer.periodic under fake time and asserts a re-fetch fires at each
-  // 5s tick — never sooner. Locks the ratified pilot polling interval.
-  test('JEBV4-218: polls at a 5-second cadence by default', () {
+  // JEBV4-218 / Q-061 (pilot fidelity) — INVERTED by b02 wave C / N7.
+  //
+  // This test used to LOCK a 5-second default polling cadence ("a re-fetch fires
+  // at each 5s tick — never sooner"). The owner mandate retires long polling, so
+  // the ratified interval it protected is gone and the guard is inverted: with NO
+  // refresh stream wired at all, the DEFAULT cubit must read exactly ONCE, on
+  // construction, and never again from the passage of time.
+  //
+  // Keeping the old form would have been the most expensive kind of green test —
+  // it would have failed for the right reason and been "fixed" by restoring the
+  // poll.
+  test('JEBV4-218 inverted: no default cadence — construction reads once and '
+      'time alone never reads again', () {
     fakeAsync((async) {
       var calls = 0;
       when(() => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
@@ -140,7 +149,7 @@ void main() {
         return _info(TrackingStage.inTransit);
       });
 
-      // DEFAULT interval — the constructor's `Duration(seconds: 5)`.
+      // NO refreshSignals argument at all — the production default.
       final cubit =
           LiveTrackingCubit(repository: repo, deliveryId: 'DLV-770001');
 
@@ -148,19 +157,14 @@ void main() {
       async.flushMicrotasks();
       expect(calls, 1);
 
-      // No extra poll before the 5s interval elapses.
-      async.elapse(const Duration(seconds: 4));
-      expect(calls, 1);
-
-      // The first periodic poll fires exactly at 5s.
-      async.elapse(const Duration(seconds: 1));
+      async.elapse(const Duration(minutes: 10));
       async.flushMicrotasks();
-      expect(calls, 2);
-
-      // ...and again one interval later (10s).
-      async.elapse(const Duration(seconds: 5));
-      async.flushMicrotasks();
-      expect(calls, 3);
+      expect(calls, 1,
+          reason: 'ten minutes on an ACTIVE (inTransit) delivery must produce '
+              'zero additional reads — an active row is exactly the case the '
+              'old 5s cadence covered, so this is the real control');
+      expect(async.periodicTimerCount, isZero,
+          reason: 'no periodic timer may survive anywhere in this cubit');
 
       cubit.close();
       async.flushMicrotasks();

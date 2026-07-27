@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/diagnostics/diag.dart';
@@ -11,12 +12,13 @@ import 'waiting_state.dart';
 ///
 /// Responsibilities (mirrors `ClientOffersCubit`, T-mobile-015 pattern):
 ///  - Cold-load the pre-accept request snapshot (notified count, anchor pair)
-///  - Poll so freshly-arrived offers flip the screen to the review CTA live
-///    (AC2) without a manual refresh
+///  - Re-read on a PUSH so freshly-arrived offers flip the screen to the review
+///    CTA live (AC2) and an expiry/tier-expansion surfaces, without a manual
+///    refresh (b02 wave C / N9 — see [refreshSignals])
 ///  - Drive the countdown via an injected clock against the snapshot's
 ///    server-anchored deadline — the cubit NEVER invents a window (P7)
 ///
-/// The cubit injects its own clock (`now`) and the poll/clock tick streams so
+/// The cubit injects its own clock (`now`) and the countdown tick stream so
 /// widget tests can fast-forward time deterministically (no real wall-clock
 /// timers leak into the test binding).
 class WaitingCubit extends Cubit<WaitingState> {
@@ -24,29 +26,58 @@ class WaitingCubit extends Cubit<WaitingState> {
     required WaitingRepository repository,
     required String requestId,
     DateTime Function()? now,
-    Duration pollInterval = const Duration(seconds: 5),
     Duration tickInterval = const Duration(seconds: 1),
-    Stream<void>? pollTicks,
     Stream<void>? clockTicks,
+    Stream<void>? refreshSignals,
   }) : _repository = repository,
        _requestId = requestId,
        _now = now ?? DateTime.now,
-       _pollInterval = pollInterval,
        _tickInterval = tickInterval,
-       _externalPollTicks = pollTicks,
        _externalClockTicks = clockTicks,
+       _refreshSignals = refreshSignals,
        super(const WaitingState());
 
   final WaitingRepository _repository;
   final String _requestId;
   final DateTime Function() _now;
-  final Duration _pollInterval;
   final Duration _tickInterval;
-  final Stream<void>? _externalPollTicks;
   final Stream<void>? _externalClockTicks;
 
-  StreamSubscription<void>? _pollSubscription;
+  /// b02 wave C — N9. Payload-less push→refetch bus; every event is ONE re-read
+  /// and there is no cadence behind it.
+  ///
+  /// This REPLACED an UNGATED 5s `Stream.periodic`, and
+  /// [WaitingRepository.fetchWaiting] fans ONE call into TWO gateway reads
+  /// (`dio_waiting_repository.dart:49` → `:70` `GET /v1/requests/{id}` and →
+  /// `:87` `GET /v1/offers?requestId`), so a single tick was two wire calls.
+  ///
+  /// TWO already-emitted gateway pushes cover everything that poll watched for,
+  /// and both land on this one bus:
+  ///  * `type=offer` — a bid arrived; flip to the review-offers CTA (AC2).
+  ///    `Notifications/OfferPushNotifier.cs:227`, sent to `request.ClientId`.
+  ///  * `type=request_expired` / `type=try_expand_tier` — the request timed out
+  ///    or is expanding tier. `Requests/DispatchingRequestExpiryNotifier.cs:112`.
+  ///    Both stamp `requestId` + `request_id`, which is what carries them past
+  ///    the id guard in `PushNotificationHandler._maybeSignalStatusChange`
+  ///    (category `requestExpired`, in its `orderish` set).
+  ///
+  /// The bus being payload-less is why no discriminator is needed here: this
+  /// cubit re-pulls the ONE request it renders, and the snapshot itself decides
+  /// which phase to show.
+  ///
+  /// NOTE the 1s COUNTDOWN tick ([_externalClockTicks]) is a different thing
+  /// entirely and is deliberately untouched: it advances `now` so the countdown
+  /// widget rebuilds and issues ZERO gateway reads. Deleting it would break the
+  /// UI and save no traffic.
+  final Stream<void>? _refreshSignals;
+
+  StreamSubscription<void>? _refreshSubscription;
   StreamSubscription<void>? _clockSubscription;
+
+  /// True once the push subscription is armed — lets a test assert the wiring
+  /// without reaching into the stream.
+  @visibleForTesting
+  bool get debugPushRefreshWired => _refreshSubscription != null;
 
   bool _pollInFlight = false;
 
@@ -136,9 +167,9 @@ class WaitingCubit extends Cubit<WaitingState> {
           now: _now(),
         ),
       );
-      // Offers are in — stop polling for them.
-      await _pollSubscription?.cancel();
-      _pollSubscription = null;
+      // Offers are in — stop watching for them.
+      await _refreshSubscription?.cancel();
+      _refreshSubscription = null;
     } catch (_) {
       /* swallow — broadcast state stays up */
     }
@@ -147,9 +178,9 @@ class WaitingCubit extends Cubit<WaitingState> {
   /// Manual retry from the error state. Resets to initial so [load] re-runs.
   Future<void> retry() async {
     if (isClosed) return;
-    await _pollSubscription?.cancel();
+    await _refreshSubscription?.cancel();
     await _clockSubscription?.cancel();
-    _pollSubscription = null;
+    _refreshSubscription = null;
     _clockSubscription = null;
     emit(const WaitingState());
     await load();
@@ -163,18 +194,19 @@ class WaitingCubit extends Cubit<WaitingState> {
   }
 
   void _attachStreams() {
-    _pollSubscription =
-        (_externalPollTicks ?? Stream.periodic(_pollInterval, (_) {})).listen(
-          (_) => _poll(),
-        );
+    // b02 wave C / N9: the ONLY inbound refetch trigger is the push bus. The
+    // countdown tick below is NOT a poll — zero gateway reads.
+    _refreshSubscription = _refreshSignals?.listen((_) => _refreshFromPush());
     _clockSubscription =
         (_externalClockTicks ?? Stream.periodic(_tickInterval, (_) {})).listen(
           (_) => tick(),
         );
   }
 
-  Future<void> _poll() async {
-    if (state.isTerminal || _pollInFlight) return;
+  /// One push → one re-read. Single-flighted so two pushes landing inside one
+  /// round trip produce ONE re-pull, not two whose emits race.
+  Future<void> _refreshFromPush() async {
+    if (isClosed || state.isTerminal || _pollInFlight) return;
     _pollInFlight = true;
     try {
       final request = await _repository.fetchWaiting(_requestId);
@@ -185,11 +217,11 @@ class WaitingCubit extends Cubit<WaitingState> {
         await _stopStreams();
         return;
       }
-      // Once offers have arrived there's nothing left to poll for — the screen
+      // Once offers have arrived there's nothing left to watch for — the screen
       // now shows the review CTA and the user moves on.
       if (request.hasOffers) {
-        await _pollSubscription?.cancel();
-        _pollSubscription = null;
+        await _refreshSubscription?.cancel();
+        _refreshSubscription = null;
       }
     } on WaitingException catch (e) {
       // A contract violation is NOT transient: retrying re-reads the same
@@ -209,7 +241,7 @@ class WaitingCubit extends Cubit<WaitingState> {
   }
 
   /// Terminal backend-contract failure. Emitted from BOTH the cold load and the
-  /// poll so the two paths behave identically: diag breadcrumb, tear the poll
+  /// push path so the two behave identically: diag breadcrumb, tear the refresh
   /// AND clock streams down, then surface the distinct contract-break state.
   Future<void> _failContract(WaitingException e) async {
     Diag.event('waiting_contract_violation', <String, Object?>{
@@ -227,9 +259,9 @@ class WaitingCubit extends Cubit<WaitingState> {
   }
 
   Future<void> _stopStreams() async {
-    await _pollSubscription?.cancel();
+    await _refreshSubscription?.cancel();
     await _clockSubscription?.cancel();
-    _pollSubscription = null;
+    _refreshSubscription = null;
     _clockSubscription = null;
   }
 

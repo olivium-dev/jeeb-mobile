@@ -1,3 +1,5 @@
+import 'dart:async';
+
 // Tests for ActiveDeliveryCubit (T-MOB-031).
 //
 // Verifies:
@@ -618,7 +620,6 @@ void main() {
       final cubit = ActiveDeliveryCubit(
         repository: repo,
         deliveryId: 'DLV-770001',
-        pollInterval: const Duration(milliseconds: 20),
       )..emit(ActiveDeliveryState(
           mode: ActiveDeliveryMode.ready,
           delivery: _delivery(JeeberDeliveryStatus.atDoor),
@@ -650,23 +651,34 @@ void main() {
       await cubit.close();
     });
 
-    test('P6/A2: the jeeber poll stays armed on disputed', () async {
+    // b02 wave C / N6: the 5s poll became a `type=delivery` push subscription,
+    // so "stays armed" is now asserted against the BUS rather than a timer —
+    // and it is the stronger claim: an unarmed subscription means an admin
+    // resolution (SM edge 12/13) never reaches the jeeber's screen at all,
+    // where before it merely arrived one tick late.
+    test('P6/A2: the jeeber push subscription stays armed on disputed',
+        () async {
       var calls = 0;
       final repo = _CountingRepo(
         () => calls++,
         _delivery(JeeberDeliveryStatus.disputed),
       );
+      final bus = StreamController<void>.broadcast();
+      addTearDown(bus.close);
       final cubit = ActiveDeliveryCubit(
         repository: repo,
         deliveryId: 'DLV-770001',
-        pollInterval: const Duration(milliseconds: 20),
+        refreshSignals: bus.stream,
       );
       await cubit.loadDelivery();
-      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(cubit.debugPushRefreshWired, isTrue,
+          reason: 'admin can still resolve a disputed row');
+      bus.add(null);
+      await Future<void>.delayed(Duration.zero);
       expect(
         calls,
         greaterThan(1),
-        reason: 'admin can still resolve a disputed row',
+        reason: 'a push on a disputed row must still re-read it',
       );
       await cubit.close();
     });

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -55,7 +56,7 @@ Future<void> _pumpScreen(WidgetTester tester, DeliveryTrackingInfo info) async {
         create: (_) => LiveTrackingCubit(
           repository: _FakeRepo(info),
           deliveryId: info.deliveryId,
-          pollInterval: const Duration(days: 1), // no auto-poll in tests
+          refreshSignals: const Stream<void>.empty(),
         ),
         child: LiveTrackingScreen(deliveryId: info.deliveryId),
       ),

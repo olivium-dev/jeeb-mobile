@@ -1,3 +1,4 @@
+import 'dart:async';
 // P6 (UT-12) — the customer tracking screen's lifecycle bodies.
 //
 // PROVES:
@@ -61,7 +62,7 @@ Future<LiveTrackingCubit> _pumpStatus(WidgetTester tester, String status) async 
     repository: repo,
     deliveryId: 'DLV-770001',
     // Long enough that no background tick fires mid-test.
-    pollInterval: const Duration(days: 1),
+    refreshSignals: const Stream<void>.empty(),
   );
   await tester.pumpWidget(_harness(cubit));
   await tester.pump();

@@ -1356,6 +1356,11 @@ class AppRouter {
               create: (_) => LiveTrackingCubit(
                 repository: _trackingRepository(),
                 deliveryId: deliveryId,
+                // b02 wave C / N7: the 5s LifecyclePoller is gone. The STATUS
+                // axis is driven by a `type=delivery` push through the ONE
+                // existing resolver; the POSITION axis is the gateway's SSE
+                // stream, feature-detected on the repository.
+                refreshSignals: resolvePushRefreshStream(),
                 // G4: re-hydrate the accept-time handover code from local
                 // persistence so the customer tracking surface can render it
                 // (compact row pre-at-door, prominent at-door card).

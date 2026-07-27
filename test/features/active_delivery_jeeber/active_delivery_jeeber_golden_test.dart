@@ -78,7 +78,7 @@ void main() {
           ),
         ),
         deliveryId: 'delivery-golden',
-        pollInterval: const Duration(days: 1),
+        refreshSignals: const Stream<void>.empty(),
       );
       await cubit.loadDelivery();
       await cubit.close();

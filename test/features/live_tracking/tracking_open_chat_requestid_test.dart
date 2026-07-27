@@ -1,3 +1,4 @@
+import 'dart:async';
 // BUG-17 fix (a2) — the tracking screen's pinned-summary "Open chat" routes by
 // the REQUEST id (== correlationKey), NEVER a conversationId.
 //
@@ -93,7 +94,7 @@ void main() {
       final cubit = LiveTrackingCubit(
         repository: repo,
         deliveryId: 'delivery-777',
-        pollInterval: const Duration(days: 1),
+        refreshSignals: const Stream<void>.empty(),
       );
 
       await tester.pumpWidget(_app(_router(cubit)));

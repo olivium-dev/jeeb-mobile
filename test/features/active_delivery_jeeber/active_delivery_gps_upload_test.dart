@@ -101,7 +101,7 @@ void main() {
           repository: _FakeRepo(status),
           deliveryId: _deliveryId,
           gpsUploader: buildGps(),
-          pollInterval: const Duration(hours: 1),
+          refreshSignals: const Stream<void>.empty(),
         );
 
     test('starts the uploader on an InTransit delivery and POSTs a fix '

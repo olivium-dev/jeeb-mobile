@@ -197,7 +197,7 @@ void main() {
         requestId: 'r1',
         now: () => DateTime.utc(2026, 1, 1),
         // Empty tick streams so no real poll/clock timers leak into the binding.
-        pollTicks: const Stream<void>.empty(),
+        refreshSignals: const Stream<void>.empty(),
         clockTicks: const Stream<void>.empty(),
         // Deterministic instant retry so the back-off fires without a real wait.
         retryDelay: (_) => Future<void>.value(),

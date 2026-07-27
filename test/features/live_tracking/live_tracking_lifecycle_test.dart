@@ -16,7 +16,6 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import '../../support/sync_app_localizations.dart';
 
 const _deliveryId = 'DLV-FM4-F4';
-const _pollInterval = Duration(seconds: 1);
 const _resumePollInterval = Duration(minutes: 1);
 
 class _CountingLiveTrackingRepository implements LiveTrackingRepository {
@@ -87,159 +86,208 @@ WidgetsBindingAppLifecycleGate _installBindingGate(WidgetTester tester) {
 void main() {
   tearDown(AppLifecycleGate.debugReset);
 
-  test(
-    'AC11 F4 poller is running and ticks with no root gate install and no MaterialApp',
-    () {
-      fakeAsync((async) {
-        final repository = _CountingLiveTrackingRepository(
-          <DeliveryTrackingInfo>[_trackingInfo('InTransit')],
-        );
-        final cubit = LiveTrackingCubit(
-          repository: repository,
-          deliveryId: _deliveryId,
-          pollInterval: _pollInterval,
-        );
+  // b02 wave C / N7. These tests used to assert the 5s `LifecyclePoller`'s
+  // CADENCE MECHANICS (isRunning / debugTickCount / one fetch per elapsed
+  // interval). That poller is deleted: a `type=delivery` push drives the STATUS
+  // read (`Notifications/DeliveryStatusPushNotifier.cs:211`, fanned to
+  // `req.ClientId` by `Controllers/DeliveriesController.cs:1296-1300`) and the
+  // gateway's SSE feed drives POSITION.
+  //
+  // The cadence assertions are gone BY DESIGN. Every BEHAVIOURAL claim survives,
+  // re-expressed against the push bus, and each terminal-stop claim is now
+  // STRONGER than the timer version: the bus is app-wide, so a subscription left
+  // armed on a dead row would keep re-reading it on every unrelated push for the
+  // rest of the session — where a stale timer only affected this one screen.
 
+  test('N7 (was AC11) no root gate install, no MaterialApp: a push drives the '
+      'read and elapsed time does NOT', () {
+    fakeAsync((async) {
+      final repository = _CountingLiveTrackingRepository(
+        <DeliveryTrackingInfo>[_trackingInfo('InTransit')],
+      );
+      final bus = StreamController<void>.broadcast();
+      final cubit = LiveTrackingCubit(
+        repository: repository,
+        deliveryId: _deliveryId,
+        refreshSignals: bus.stream,
+      );
+
+      async.flushMicrotasks();
+      expect(repository.calls, 1);
+      expect(cubit.debugPushRefreshWired, isTrue);
+
+      for (var index = 0; index < 3; index++) {
+        bus.add(null);
         async.flushMicrotasks();
-        expect(repository.calls, 1);
-        expect(cubit.debugPoller.isRunning, isTrue);
+      }
+      expect(repository.calls, 4, reason: 'three pushes → three reads');
 
-        for (var index = 0; index < 3; index++) {
-          async.elapse(_pollInterval);
-          async.flushMicrotasks();
-        }
+      async.elapse(const Duration(minutes: 5));
+      async.flushMicrotasks();
+      expect(repository.calls, 4,
+          reason: 'five minutes with no push is zero reads');
+      expect(async.periodicTimerCount, isZero);
 
-        expect(repository.calls, 4);
-        expect(cubit.debugPoller.debugTickCount, 3);
-
-        unawaited(cubit.close());
-        async.flushMicrotasks();
-        expect(cubit.debugPoller.isRunning, isFalse);
-        expect(async.periodicTimerCount, isZero);
-      });
-    },
-  );
+      unawaited(cubit.close());
+      async.flushMicrotasks();
+      expect(cubit.debugPushRefreshWired, isFalse);
+      bus.close();
+    });
+  });
 
   testWidgets(
-    'AC7 F4 stops polling once the delivery is delivered and stays stopped across resume',
+    'AC7 stops reading once the delivery is delivered and stays stopped across '
+    'resume',
     (tester) async {
       _installBindingGate(tester);
       final repository = _CountingLiveTrackingRepository(<DeliveryTrackingInfo>[
         _trackingInfo('InTransit'),
         _trackingInfo('Done'),
       ]);
+      final bus = StreamController<void>.broadcast();
+      addTearDown(bus.close);
       final cubit = LiveTrackingCubit(
         repository: repository,
         deliveryId: _deliveryId,
-        pollInterval: _pollInterval,
+        refreshSignals: bus.stream,
       );
 
       await tester.pump();
       expect(repository.calls, 1);
-      expect(cubit.debugPoller.isRunning, isTrue);
+      expect(cubit.debugPushRefreshWired, isTrue);
 
-      await tester.pump(_pollInterval);
+      bus.add(null);
       await tester.pump();
       expect(repository.calls, 2);
       expect(cubit.state.trackingInfo?.isDelivered, isTrue);
-      expect(cubit.debugPoller.isRunning, isFalse);
+      expect(cubit.debugPushRefreshWired, isFalse);
+      expect(cubit.debugPositionStreamWired, isFalse,
+          reason: 'the SSE socket must be released too — otherwise the gateway '
+              'keeps writing position frames into a connection nobody reads');
 
       await _driveToBackground(tester);
-      await tester.pump(_pollInterval * 3);
+      await tester.pump(const Duration(minutes: 3));
       await _driveToForeground(tester);
+      // The resume backstop must ALSO honour terminality.
       await cubit.refreshNow();
+      bus.add(null);
       await tester.pump();
 
       expect(
         repository.calls,
         2,
         reason:
-            'the same repository seam first proves an active timer fetch, then '
-            'proves delivered terminality survives the full lifecycle cycle',
+            'the same repository seam first proves a push-driven fetch, then '
+            'proves delivered terminality survives the full lifecycle cycle, a '
+            'later push, AND the resume hook',
       );
-      expect(cubit.debugPoller.isRunning, isFalse);
+      expect(cubit.debugPushRefreshWired, isFalse);
       await cubit.close();
     },
   );
 
-  test('AC8 F4 stops polling once the delivery is cancelled', () {
+  test('AC8 stops reading once the delivery is cancelled', () {
     fakeAsync((async) {
       final repository = _CountingLiveTrackingRepository(<DeliveryTrackingInfo>[
         _trackingInfo('InTransit'),
         _trackingInfo('Cancelled'),
       ]);
+      final bus = StreamController<void>.broadcast();
       final cubit = LiveTrackingCubit(
         repository: repository,
         deliveryId: _deliveryId,
-        pollInterval: _pollInterval,
+        refreshSignals: bus.stream,
       );
 
       async.flushMicrotasks();
       expect(repository.calls, 1);
-      expect(cubit.debugPoller.isRunning, isTrue);
+      expect(cubit.debugPushRefreshWired, isTrue);
 
-      async.elapse(_pollInterval);
+      bus.add(null);
       async.flushMicrotasks();
       expect(repository.calls, 2);
       expect(cubit.state.trackingInfo?.isCancelled, isTrue);
-      expect(cubit.debugPoller.isRunning, isFalse);
+      expect(cubit.debugPushRefreshWired, isFalse);
 
-      async.elapse(_pollInterval * 3);
+      for (var i = 0; i < 3; i++) {
+        bus.add(null);
+        async.flushMicrotasks();
+      }
+      async.elapse(const Duration(minutes: 5));
       async.flushMicrotasks();
       expect(
         repository.calls,
         2,
         reason:
             'the same repository seam has a non-zero active baseline before '
-            'the cancelled terminal interval is proven silent',
+            'the cancelled terminal window is proven silent for BOTH further '
+            'pushes and elapsed time',
       );
-      expect(cubit.debugPoller.isRunning, isFalse);
 
       unawaited(cubit.close());
       async.flushMicrotasks();
+      bus.close();
     });
   });
 
-  testWidgets('AC9 F4 fetches exactly once on foreground return', (
-    tester,
-  ) async {
+  testWidgets('AC9 fetches exactly once on foreground return', (tester) async {
     _installBindingGate(tester);
     final repository = _CountingLiveTrackingRepository(<DeliveryTrackingInfo>[
       _trackingInfo('InTransit'),
     ]);
+    final bus = StreamController<void>.broadcast();
+    addTearDown(bus.close);
     final cubit = LiveTrackingCubit(
       repository: repository,
       deliveryId: _deliveryId,
-      pollInterval: _resumePollInterval,
+      refreshSignals: bus.stream,
     );
 
     await tester.pumpWidget(_trackingHarness(cubit));
     await tester.pump();
-    expect(repository.calls, 1);
-    expect(cubit.debugPoller.isRunning, isTrue);
+    await tester.pump();
+    final afterMount = repository.calls;
 
+    // No cadence: sitting on the screen buys nothing.
     await tester.pump(_resumePollInterval);
     await tester.pump();
-    expect(repository.calls, 2);
+    expect(repository.calls, afterMount,
+        reason: 'the 5s poll is gone — dwelling on the screen adds no reads');
 
     await _driveToBackground(tester);
-    expect(cubit.debugPoller.isRunning, isFalse);
+    await tester.pump();
+    await tester.pump();
     final backgroundBaseline = repository.calls;
     await tester.pump(_resumePollInterval * 3);
-    expect(repository.calls, backgroundBaseline);
+    expect(repository.calls, backgroundBaseline,
+        reason: 'a backgrounded screen reads nothing at all now — no cadence '
+            'and no push can reach it');
 
-    await _driveToForeground(tester);
+    // ONE paused → resumed pair, driven directly. The `_driveToForeground`
+    // helper walks paused → hidden → inactive → resumed, and the test binding
+    // synthesizes its own intermediate notifications along that walk, so a delta
+    // measured across it counts harness internals rather than product
+    // behaviour. A single explicit transition is what the anti-double-fetch
+    // claim is actually about.
+    final beforeResume = repository.calls;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
     await tester.pump();
 
-    expect(repository.calls, backgroundBaseline + 1);
-    expect(cubit.debugPoller.isRunning, isTrue);
-    await tester.pump(_resumePollInterval - const Duration(milliseconds: 1));
+    // The resume backstop is UNCHANGED and now MORE load-bearing: it catches a
+    // `type=delivery` push the OS dropped or coalesced while backgrounded, and
+    // it re-opens the SSE position stream the OS tore down with the socket.
+    // EXACTLY one read — a double-fetch here would be two full round trips on
+    // every app switch.
+    expect(repository.calls, beforeResume + 1);
+    await tester.pump(_resumePollInterval);
+    await tester.pump();
     expect(
       repository.calls,
-      backgroundBaseline + 1,
+      beforeResume + 1,
       reason:
-          'tickOnResume is false, so only the existing screen resume hook may '
-          'fetch before a fresh full interval elapses',
+          'only the screen resume hook may fetch; there is no interval left '
+          'that could add a second read',
     );
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -247,35 +295,39 @@ void main() {
     await cubit.close();
   });
 
-  test('AC10 F4 retry re-arms the poll through an explicit start', () {
+  test('AC10 retry re-arms the watchers through an explicit re-fetch', () {
     fakeAsync((async) {
       final repository = _CountingLiveTrackingRepository(<DeliveryTrackingInfo>[
         _trackingInfo('Cancelled'),
         _trackingInfo('InTransit'),
       ]);
+      final bus = StreamController<void>.broadcast();
       final cubit = LiveTrackingCubit(
         repository: repository,
         deliveryId: _deliveryId,
-        pollInterval: _pollInterval,
+        refreshSignals: bus.stream,
       );
 
       async.flushMicrotasks();
       expect(repository.calls, 1);
-      expect(cubit.debugPoller.isRunning, isFalse);
+      expect(cubit.debugPushRefreshWired, isFalse,
+          reason: 'a cold load onto a terminal row must never arm anything');
 
       cubit.retry();
       async.flushMicrotasks();
       expect(repository.calls, 2);
       expect(cubit.state.trackingInfo?.isCancelled, isFalse);
-      expect(cubit.debugPoller.isRunning, isTrue);
+      expect(cubit.debugPushRefreshWired, isTrue,
+          reason: 'retry landing on a LIVE row must arm the push subscription — '
+              'otherwise Retry paints once and the screen goes deaf');
 
-      async.elapse(_pollInterval);
+      bus.add(null);
       async.flushMicrotasks();
       expect(repository.calls, 3);
-      expect(cubit.debugPoller.debugTickCount, 1);
 
       unawaited(cubit.close());
       async.flushMicrotasks();
+      bus.close();
     });
   });
 }

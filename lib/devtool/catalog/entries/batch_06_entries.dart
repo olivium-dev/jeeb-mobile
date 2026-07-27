@@ -151,13 +151,13 @@ DeliveryTrackingInfo _cancelledInfo() => const DeliveryTrackingInfo(
       requestId: 'REQ-9002',
     );
 
-/// Builds the screen with polling disabled (a ~1-year interval never fires
-/// during a catalog preview) so no runaway timers leak.
+/// Builds the screen with NO refresh source wired (b02 wave C / N7 removed the
+/// poll entirely), so a catalog preview reads once and leaks no timers.
 Widget _liveTrackingPreview(LiveTrackingRepository repository) {
   final cubit = LiveTrackingCubit(
     repository: repository,
     deliveryId: _trackingDeliveryId,
-    pollInterval: const Duration(days: 365),
+    refreshSignals: const Stream<void>.empty(),
   );
   return BlocProvider<LiveTrackingCubit>.value(
     value: cubit,
@@ -502,7 +502,7 @@ const String _waitingPreviewRequestId = 'REQ-WAIT-001';
 WaitingCubit _staticWaitingCubit(WaitingRepository repository) => WaitingCubit(
       repository: repository,
       requestId: _waitingPreviewRequestId,
-      pollTicks: const Stream<void>.empty(),
+      refreshSignals: const Stream<void>.empty(),
       clockTicks: const Stream<void>.empty(),
     );
 

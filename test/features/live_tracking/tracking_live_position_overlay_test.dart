@@ -1,16 +1,23 @@
 // JEBV4-269: customer live-position overlay.
 //
-// The customer tracking screen polls the delivery row (stage + pinned summary)
-// AND, when the repository can supply it, overlays the jeeber's live GPS
-// position + route read back from the gateway tracking snapshot — the data the
-// jeeber's uploader now feeds. Proves:
+// b02 wave C / N7 — the OVERLAY is unchanged; only its SOURCE moved. It used to
+// be a one-shot `GET /deliveries/{id}/tracking` read issued from inside every 5s
+// poll tick; it is now the gateway's SSE position stream
+// (`LivePositionStreamSource` / `SseLivePositionStream`), so the marker moves
+// with no client cadence at all. The overlay assertions below are re-expressed
+// against the STREAM and are otherwise identical. Proves:
 //
-//   * a LivePositionSource repo → the jeeber marker position lands on the
-//     emitted DeliveryTrackingInfo (the map now has data);
-//   * a plain repo (no LivePositionSource) degrades silently — no crash, no
+//   * a LivePositionStreamSource repo → each pushed frame's position lands on
+//     the emitted DeliveryTrackingInfo (the map now has data, and it MOVES);
+//   * a plain repo (no stream capability) degrades silently — no crash, no
 //     position (backwards-compatible with the demo/seam repos);
-//   * DioLiveTrackingRepository.fetchLivePosition parses the frozen
-//     TrackingPolylineDto and is null on the legacy mock base.
+//   * an empty frame leaves the marker absent rather than crashing;
+//   * DioLiveTrackingRepository.fetchLivePosition still parses the frozen
+//     TrackingPolylineDto and is null on the legacy mock base — the one-shot
+//     reader is RETAINED (it is the polyline-replay/route-screen view) even
+//     though the tracking screen no longer calls it on a cadence.
+
+import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -27,10 +34,13 @@ DeliveryTrackingInfo _inTransitRow() => DeliveryTrackingInfo.fromDeliveryJson(
       <String, dynamic>{'id': _id, 'status': 'InTransit'},
     );
 
-/// Repo that serves the stage row AND a live position (the production shape).
-class _PositionRepo implements LiveTrackingRepository, LivePositionSource {
-  const _PositionRepo(this._position);
+/// Repo that serves the stage row AND a live position STREAM (production shape).
+class _PositionRepo
+    implements LiveTrackingRepository, LivePositionStreamSource {
+  _PositionRepo(this._position);
   final GpsPoint? _position;
+
+  final List<StreamController<DeliveryLivePosition>> streams = [];
 
   @override
   Future<DeliveryTrackingInfo> fetchDeliveryStatus({
@@ -39,15 +49,25 @@ class _PositionRepo implements LiveTrackingRepository, LivePositionSource {
       _inTransitRow();
 
   @override
-  Future<DeliveryLivePosition?> fetchLivePosition({
+  Stream<DeliveryLivePosition> watchLivePosition({
     required String deliveryId,
-  }) async =>
-      _position == null
-          ? null
-          : DeliveryLivePosition(
-              jeeberPosition: _position,
-              polyline: [_position, const GpsPoint(lat: 33.8, lng: 35.4)],
-            );
+  }) {
+    final c = StreamController<DeliveryLivePosition>();
+    streams.add(c);
+    return c.stream;
+  }
+
+  /// Push one frame, mirroring what `SseLivePositionStream` emits. An absent
+  /// position is modelled as NO frame at all, because the SSE layer drops empty
+  /// overlays upstream (so the cubit can never be handed one).
+  void emit() {
+    final p = _position;
+    if (p == null) return;
+    streams.single.add(DeliveryLivePosition(
+      jeeberPosition: p,
+      polyline: [p, const GpsPoint(lat: 33.8, lng: 35.4)],
+    ));
+  }
 }
 
 /// Repo with NO position capability (demo/seam parity).
@@ -82,11 +102,14 @@ void main() {
   group('JEBV4-269 customer live-position overlay', () {
     test('overlays the jeeber position onto the stage snapshot', () async {
       const pos = GpsPoint(lat: 33.9, lng: 35.51);
+      final repo = _PositionRepo(pos);
       final cubit = LiveTrackingCubit(
-        repository: const _PositionRepo(pos),
+        repository: repo,
         deliveryId: _id,
-        pollInterval: const Duration(hours: 1),
+        refreshSignals: const Stream<void>.empty(),
       );
+      await pumpEventQueue();
+      repo.emit();
       await pumpEventQueue();
 
       expect(cubit.state.trackingInfo?.jeeberPosition, pos);
@@ -100,7 +123,7 @@ void main() {
       final cubit = LiveTrackingCubit(
         repository: const _StageOnlyRepo(),
         deliveryId: _id,
-        pollInterval: const Duration(hours: 1),
+        refreshSignals: const Stream<void>.empty(),
       );
       await pumpEventQueue();
 
@@ -109,13 +132,16 @@ void main() {
       await cubit.close();
     });
 
-    test('a null live position leaves the map marker absent (no crash)',
+    test('no position frame leaves the map marker absent (no crash)',
         () async {
+      final repo = _PositionRepo(null);
       final cubit = LiveTrackingCubit(
-        repository: const _PositionRepo(null),
+        repository: repo,
         deliveryId: _id,
-        pollInterval: const Duration(hours: 1),
+        refreshSignals: const Stream<void>.empty(),
       );
+      await pumpEventQueue();
+      repo.emit();
       await pumpEventQueue();
 
       expect(cubit.state.trackingInfo?.jeeberPosition, isNull);

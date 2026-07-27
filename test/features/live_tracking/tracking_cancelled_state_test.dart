@@ -1,3 +1,4 @@
+import 'dart:async';
 // sprint-009 scenario matrix #9/#10 (feat/request-scenarios).
 //
 // PROVES:
@@ -113,23 +114,36 @@ void main() {
     });
   });
 
+  // b02 wave C / N7: the 5s poll became a `type=delivery` push subscription, so
+  // "stops polling" is now "retires the subscription and takes no read on a
+  // later push". That is the STRONGER claim: the bus is app-wide, so an
+  // unretired subscription would keep re-reading a cancelled row on every
+  // unrelated push for the rest of the session — where before it merely kept a
+  // timer alive on one screen.
   group('LiveTrackingCubit terminal cancelled (scenario matrix #9)', () {
-    test('stops polling once the row is cancelled', () async {
+    test('stops reading once the row is cancelled', () async {
       final repo = _MockRepo();
       when(() =>
               repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
           .thenAnswer((_) async => _fromStatus('Cancelled'));
 
+      final bus = StreamController<void>.broadcast();
+      addTearDown(bus.close);
       final cubit = LiveTrackingCubit(
         repository: repo,
         deliveryId: 'DLV-770001',
-        pollInterval: const Duration(milliseconds: 20),
+        refreshSignals: bus.stream,
       );
       // Initial fetch resolves the terminal row.
       await Future<void>.delayed(Duration.zero);
       expect(cubit.state.trackingInfo?.isCancelled, isTrue);
+      expect(cubit.debugPushRefreshWired, isFalse);
 
-      // Long enough for several 20ms poll ticks — none may fire.
+      // Several pushes AND elapsed time — neither may produce a read.
+      for (var i = 0; i < 3; i++) {
+        bus.add(null);
+        await Future<void>.delayed(Duration.zero);
+      }
       await Future<void>.delayed(const Duration(milliseconds: 120));
       verify(() =>
               repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
@@ -137,20 +151,24 @@ void main() {
       await cubit.close();
     });
 
-    test('P6/A3: stops polling once the row is expired', () async {
+    test('P6/A3: stops reading once the row is expired', () async {
       final repo = _MockRepo();
       when(() =>
               repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
           .thenAnswer((_) async => _fromStatus('expired'));
 
+      final bus = StreamController<void>.broadcast();
+      addTearDown(bus.close);
       final cubit = LiveTrackingCubit(
         repository: repo,
         deliveryId: 'DLV-770001',
-        pollInterval: const Duration(milliseconds: 20),
+        refreshSignals: bus.stream,
       );
       await Future<void>.delayed(Duration.zero);
       expect(cubit.state.trackingInfo?.isExpired, isTrue);
+      expect(cubit.debugPushRefreshWired, isFalse);
 
+      bus.add(null);
       await Future<void>.delayed(const Duration(milliseconds: 120));
       verify(() =>
               repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
@@ -164,31 +182,42 @@ void main() {
       when(() =>
               repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
           .thenAnswer((_) async => _fromStatus('FailedNeedsEscalation'));
+      final bus = StreamController<void>.broadcast();
+      addTearDown(bus.close);
       final cubit = LiveTrackingCubit(
         repository: repo,
         deliveryId: 'DLV-770001',
-        pollInterval: const Duration(milliseconds: 20),
+        refreshSignals: bus.stream,
       );
       await Future<void>.delayed(Duration.zero);
-      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(cubit.debugPushRefreshWired, isTrue,
+          reason: 'SM edges 12/13 can still resolve an escalated row — the '
+              'customer must keep receiving its transitions');
+      bus.add(null);
+      await Future<void>.delayed(Duration.zero);
       verify(() =>
               repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
           .called(greaterThan(1));
       await cubit.close();
     });
 
-    test('an active row keeps polling (control)', () async {
+    test('an active row keeps listening (control)', () async {
       final repo = _MockRepo();
       when(() =>
               repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
           .thenAnswer((_) async => _fromStatus('InTransit'));
 
+      final bus = StreamController<void>.broadcast();
+      addTearDown(bus.close);
       final cubit = LiveTrackingCubit(
         repository: repo,
         deliveryId: 'DLV-770001',
-        pollInterval: const Duration(milliseconds: 20),
+        refreshSignals: bus.stream,
       );
-      await Future<void>.delayed(const Duration(milliseconds: 120));
+      await Future<void>.delayed(Duration.zero);
+      expect(cubit.debugPushRefreshWired, isTrue);
+      bus.add(null);
+      await Future<void>.delayed(Duration.zero);
       verify(() =>
               repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
           .called(greaterThan(1));
@@ -208,7 +237,7 @@ void main() {
       final cubit = LiveTrackingCubit(
         repository: repo,
         deliveryId: 'DLV-770001',
-        pollInterval: const Duration(days: 1),
+        refreshSignals: const Stream<void>.empty(),
       );
 
       await tester.pumpWidget(_harness(cubit));
@@ -244,7 +273,7 @@ void main() {
       final cubit = LiveTrackingCubit(
         repository: repo,
         deliveryId: 'DLV-770001',
-        pollInterval: const Duration(days: 1),
+        refreshSignals: const Stream<void>.empty(),
       );
 
       await tester.pumpWidget(_harness(cubit));

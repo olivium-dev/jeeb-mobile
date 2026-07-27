@@ -22,8 +22,8 @@ import 'widgets/offer_window_timer.dart';
 
 /// Signature for the optional cubit factory the screen exposes for tests.
 /// Production wiring leaves it `null` so the default ticker-driven cubit is
-/// used; tests pass a factory that injects empty `pollTicks` / `clockTicks`
-/// so the test binding doesn't complain about pending timers.
+/// used; tests pass a factory that injects an empty `refreshSignals` /
+/// `clockTicks` so the test binding doesn't complain about pending timers.
 typedef ClientOffersCubitFactory =
     ClientOffersCubit Function(OffersRepository repository, String requestId);
 
@@ -88,7 +88,14 @@ class ClientOffersScreen extends StatelessWidget {
       create: (_) {
         final cubit =
             cubitFactory?.call(repo, requestId) ??
-            ClientOffersCubit(repository: repo, requestId: requestId);
+            ClientOffersCubit(
+              repository: repo,
+              requestId: requestId,
+              // b02 wave C / N8: the 5s `Stream.periodic` that used to drive
+              // this list is gone. A `type=offer` push now re-reads it, through
+              // the ONE existing resolver — no second bus.
+              refreshSignals: resolvePushRefreshStream(),
+            );
         cubit.load();
         return cubit;
       },

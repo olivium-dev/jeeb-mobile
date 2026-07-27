@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../domain/offer.dart';
@@ -10,32 +11,29 @@ import 'client_offers_state.dart';
 ///
 /// Responsibilities (T-mobile-015):
 ///  - Fetch the open offer list for a request id
-///  - Poll for new offers so freshly-arrived bids appear without a manual
-///    refresh (SSE/WebSocket lands later; polling is the gateway-friendly
-///    primitive everything else can replace)
+///  - Re-read on a `type=offer` PUSH so freshly-arrived bids appear without a
+///    manual refresh (b02 wave C / N8 — see [refreshSignals])
 ///  - Sort by price (default) or rating
 ///  - Drive the offer-window countdown
 ///  - Accept a single offer via the gateway
 ///
-/// The cubit injects its own clock (`now`) and a poll-tick subscription so
-/// tests can fast-forward time deterministically.
+/// The cubit injects its own clock (`now`) and the countdown tick subscription
+/// so tests can fast-forward time deterministically.
 class ClientOffersCubit extends Cubit<ClientOffersState> {
   ClientOffersCubit({
     required OffersRepository repository,
     required String requestId,
     DateTime Function()? now,
-    Duration pollInterval = const Duration(seconds: 5),
     Duration tickInterval = const Duration(seconds: 1),
-    Stream<void>? pollTicks,
     Stream<void>? clockTicks,
+    Stream<void>? refreshSignals,
     Future<void> Function(Duration)? retryDelay,
   }) : _repository = repository,
        _requestId = requestId,
        _now = now ?? DateTime.now,
-       _pollInterval = pollInterval,
        _tickInterval = tickInterval,
-       _externalPollTicks = pollTicks,
        _externalClockTicks = clockTicks,
+       _refreshSignals = refreshSignals,
        _retryDelay = retryDelay ?? _wallClockDelay,
        super(const ClientOffersState());
 
@@ -44,23 +42,50 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
   final OffersRepository _repository;
   final String _requestId;
   final DateTime Function() _now;
-  final Duration _pollInterval;
   final Duration _tickInterval;
-  final Stream<void>? _externalPollTicks;
   final Stream<void>? _externalClockTicks;
+
+  /// b02 wave C — N8. Payload-less push→refetch bus. Every event is ONE
+  /// re-read; there is no cadence behind it.
+  ///
+  /// This REPLACED a raw 5s `Stream.periodic` that had ZERO gate tokens — no
+  /// lifecycle gate, no visibility gate — so it kept re-reading the gateway
+  /// while the app was BACKGROUNDED, which is the worst shape of the six wave-C
+  /// surfaces. And [OffersRepository.fetchOffers] fans ONE call out into TWO
+  /// gateway reads (`dio_offers_repository.dart:75` → `GET /v1/offers?requestId`
+  /// and `:79` → `GET /v1/requests/{id}`), so a single tick was two wire calls.
+  ///
+  /// The push that replaces it already exists and is already emitted: the
+  /// gateway sends `type=offer` to `request.ClientId` from
+  /// `Controllers/RequestOffersController.cs:326` →
+  /// `Notifications/OfferPushNotifier.cs:227` (payload stamps BOTH `requestId`
+  /// and `request_id`, which is what carries it past the id guard in
+  /// `PushNotificationHandler._maybeSignalStatusChange`). The only missing
+  /// piece was this subscriber — the bus already reached ClientHome and
+  /// ActiveDeliveries but never this cubit, so the push landed and drove
+  /// nothing while the 5s poll painted the same pixels a moment later.
+  ///
+  /// `null` in a bare test with no DI: the cubit then simply never re-reads on
+  /// its own, and the screen's pull-to-refresh remains the manual path.
+  final Stream<void>? _refreshSignals;
 
   /// Injected back-off timer for the rate-limited cold-load auto-retry. Real
   /// wall-clock in production; tests pass a deterministic/controllable delay so
   /// the retry fires without a real wait (and no timer leaks into the binding).
   final Future<void> Function(Duration) _retryDelay;
 
-  StreamSubscription<void>? _pollSubscription;
+  StreamSubscription<void>? _refreshSubscription;
   StreamSubscription<void>? _clockSubscription;
 
-  /// True while a `GET /v1/offers` poll is on the wire — a second poll tick that
-  /// overlaps a slow response is dropped so overlapping ticks never fire
-  /// duplicate concurrent reads (FIX-A: the shared coalescer would collapse
-  /// them anyway, but this stops the wasted work at the source).
+  /// True once the push subscription is armed. Lets a test assert the wiring
+  /// without reaching into the stream.
+  @visibleForTesting
+  bool get debugPushRefreshWired => _refreshSubscription != null;
+
+  /// True while a push-driven `GET /v1/offers` re-read is on the wire — a second
+  /// push that lands inside the first round trip is dropped, so two pushes
+  /// arriving together never fire duplicate concurrent reads whose emits race
+  /// (the later request can complete first and paint the OLDER snapshot).
   bool _pollInFlight = false;
 
   /// Cold-load entry-point. Pulls the first snapshot, then wires the poll and
@@ -268,22 +293,22 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
   }
 
   void _attachStreams() {
-    _pollSubscription =
-        (_externalPollTicks ?? Stream.periodic(_pollInterval, (_) {})).listen(
-          (_) => _poll(),
-        );
+    // b02 wave C / N8: the ONLY inbound refetch trigger is the push bus. The
+    // countdown tick below is NOT a poll — it moves `now` so the local timer
+    // widget rebuilds and issues zero gateway reads.
+    _refreshSubscription = _refreshSignals?.listen((_) => _refreshFromPush());
     _clockSubscription =
         (_externalClockTicks ?? Stream.periodic(_tickInterval, (_) {})).listen(
           (_) => tick(),
         );
   }
 
-  Future<void> _poll() async {
-    if (!state.requestIsOpen) return;
-    // In-flight guard (FIX-A): behind a slow proxy a `GET /v1/offers` can take
-    // longer than the poll cadence; without this a new tick would fire a second
-    // concurrent read over the first. Drop the overlapping tick — the next one
-    // picks up once the current read settles.
+  /// One push → one re-read of the offer list. Errors are swallowed for the same
+  /// reason the poll swallowed them: the cold-load / pull-to-refresh / accept
+  /// paths are what surface errors, and a flaky network or a 429 back-off must
+  /// not flash a banner on every inbound bid.
+  Future<void> _refreshFromPush() async {
+    if (isClosed || !state.requestIsOpen) return;
     if (_pollInFlight) return;
     _pollInFlight = true;
     try {
@@ -292,9 +317,7 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
       _emitSnapshot(snapshot);
       if (!snapshot.requestIsOpen) await _stopStreams();
     } on OffersRepositoryException catch (_) {
-      // Swallow transient poll failures (including rate-limits) — the foreground
-      // refresh and accept paths surface errors. We don't want a flaky network
-      // or a 429 back-off to flash an error banner every 5 seconds.
+      // Swallow — see doc above.
     } catch (_) {
       /* same — swallow */
     } finally {
@@ -325,9 +348,9 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
   }
 
   Future<void> _stopStreams() async {
-    await _pollSubscription?.cancel();
+    await _refreshSubscription?.cancel();
     await _clockSubscription?.cancel();
-    _pollSubscription = null;
+    _refreshSubscription = null;
     _clockSubscription = null;
   }
 
