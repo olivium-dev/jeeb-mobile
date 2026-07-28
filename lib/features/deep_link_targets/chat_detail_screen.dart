@@ -1,6 +1,9 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -25,7 +28,12 @@ import '../chat/data/dev_chat_fixture_gateway.dart';
 import '../chat/data/dio_chat_gateway.dart';
 import '../chat/data/dio_order_broadcast_service.dart';
 import '../chat/data/dio_order_chat_summary_repository.dart';
+import '../chat/data/firebase_custom_token_identity.dart';
+import '../chat/data/firestore_chat_message_mapper.dart';
+import '../chat/data/firestore_chat_realtime_source.dart';
+import '../chat/data/gateway_chat_firebase_token_minter.dart';
 import '../chat/data/in_memory_chat_gateway.dart';
+import '../chat/data/realtime_chat_gateway.dart';
 import '../chat/domain/chat_gateway.dart';
 import '../chat/domain/conversation_lookup.dart';
 import '../chat/domain/delivery_chat_message.dart';
@@ -237,6 +245,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   bool _ratingNavFired = false;
 
   ChatGateway? _gateway;
+
+  /// The inner HTTP gateway, retained SEPARATELY and ONLY when [_gateway] is a
+  /// [RealtimeChatGateway] that hides it. Null in every unwrapped case, where
+  /// [_gateway] is itself the handle.
+  ///
+  /// `RealtimeChatGateway.dispose()` forwards to its realtime source and NOT to
+  /// its inner gateway (`realtime_chat_gateway.dart:106`), so once the wrap is
+  /// in place `_gateway` alone is no longer a handle on the thing that owns the
+  /// `DioChatGateway` event controller. Without this field the wrap would leak
+  /// that controller on every chat close — a decorator quietly changing what
+  /// `dispose` reaches is exactly the kind of leak that never shows up on one
+  /// screen and shows up after twenty.
+  DioChatGateway? _httpGateway;
+
   bool _loading = true;
 
   /// The conversation lookup COULD NOT FIND OUT whether a conversation exists
@@ -481,10 +503,33 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     unawaited(_summaryRefreshGate?.dispose());
     _summaryRefreshGate = null;
     _cancelResolutionRetry();
+    // TWO handles, deliberately. `_gateway` may now be a [RealtimeChatGateway],
+    // whose `dispose()` tears down the Firestore listener but NOT the inner
+    // `DioChatGateway` — so disposing only `_gateway` would cancel the stream
+    // and leak the HTTP gateway's event controller, and disposing only
+    // `_httpGateway` would leak the listener. Both, every time.
+    //
+    // This is the SECOND teardown path for the Firestore listener, not the
+    // only one: `ChatCubit.close()` cancels its subscription
+    // (`chat_cubit.dart:782`), which fires the source's
+    // `onCancel: () => unawaited(dispose())`
+    // (`firestore_chat_realtime_source.dart:91`). Both are wired on purpose —
+    // the cubit's path covers a cubit closed without this screen disposing, and
+    // `FirestoreChatRealtimeSource.dispose()` is idempotent (it nulls
+    // `_snapshots`/`_events` and checks `isClosed`), so running both is safe.
+    // Rahmah leaks its listener on exactly this seam; we are not copying that.
+    //
+    // The two branches are EXCLUSIVE, and `_httpGateway` is non-null only in
+    // the wrapped one — so the unwrapped case cannot dispose the same
+    // `DioChatGateway` twice.
     final gateway = _gateway;
-    if (gateway is DioChatGateway) {
-      gateway.dispose();
+    if (gateway is RealtimeChatGateway) {
+      unawaited(gateway.dispose());
+      unawaited(_httpGateway?.dispose());
+    } else if (gateway is DioChatGateway) {
+      unawaited(gateway.dispose());
     }
+    _httpGateway = null;
     super.dispose();
   }
 
@@ -783,7 +828,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         ? conversationId
         : kComposeConversationSentinel;
     final getItForGateway = GetIt.instance;
-    final gateway = DioChatGateway(
+    final httpGateway = DioChatGateway(
       dio: dio,
       currentUserId: currentUserId,
       // The phase read queries the conversation aggregate by its correlation
@@ -806,7 +851,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     if (!mounted) return;
     _finalize(
       gatewayConversationId,
-      gateway,
+      _wrapRealtime(
+        httpGateway,
+        dio,
+        currentUserId,
+        conversationId: gatewayConversationId,
+        conversationResolved: conversationResolved,
+      ),
       title,
       requestId: requestId,
       phase: phase,
@@ -830,6 +881,89 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         !_isTerminalStatus(summary?.statusId)) {
       _armSummaryRefresh();
     }
+  }
+
+  /// Wraps the HTTP gateway in the Firestore realtime decorator, or returns it
+  /// untouched when this screen must not open a channel.
+  ///
+  /// # What the wrap buys
+  ///
+  /// Inbound messages arrive down ONE `.snapshots()` listener instead of being
+  /// re-downloaded by HTTP on every push. On the first snapshot the source emits
+  /// `RealtimeTransportChanged(live: true)`, `ChatCubit` sets `_realtimeLive`,
+  /// and `_refreshFromPush` returns early (`chat_cubit.dart:397`) instead of
+  /// calling `refresh()` — which today costs a WHOLE-THREAD
+  /// `GET /v1/conversations/{id}/messages` plus a conversation-aggregate read
+  /// per inbound message. Nothing on the SEND side changes: writes stay HTTP so
+  /// the gateway keeps stamping `author_id` from the bearer.
+  ///
+  /// # The three refusals, each load-bearing
+  ///
+  ///  1. **Unresolved conversation.** Pre-accept the client holds the compose
+  ///     sentinel and no `Conversations/{id}` document exists. Subscribing would
+  ///     open a listener on a non-existent doc, and the membership rule — which
+  ///     authorises via a `get()` on that parent — would deny it. Correct
+  ///     behaviour here is not to subscribe at all.
+  ///  2. **Firebase not initialised.** `Firebase.initializeApp()` runs in the
+  ///     DEFERRED post-first-frame phase behind a 5 s timeout and falls back to
+  ///     a Noop reporter on failure (`bootstrap.dart:208`), so this screen can
+  ///     legitimately open before — or entirely without — a Firebase app.
+  ///     `FirebaseAuth.instance` / `FirebaseFirestore.instance` THROW in that
+  ///     state, and they would throw here, in `_resolveAndBuild`, taking the
+  ///     whole chat screen with them.
+  ///
+  ///     MEASURED, not assumed: with this branch disabled,
+  ///     `chat_detail_screen_resolution_test.dart` goes to **11 failures** with
+  ///     `[core/no-app] No Firebase App '[DEFAULT]' has been created`, and back
+  ///     to 0 with it enabled. So the guard is reached on a live-uid resolution
+  ///     and is load-bearing — it is not defensive padding, and deleting it
+  ///     breaks the suite immediately.
+  ///  3. **No session user id.** `currentUserId` is empty when the token store
+  ///     has no subject. A Firestore read would then be authorised for a uid
+  ///     this app cannot match against `Participants[].UserId`, and the mapper
+  ///     could not fold own-vs-other messages either.
+  ///
+  /// Every refusal degrades to precisely today's build: HTTP history, HTTP
+  /// send, push-driven HTTP refetch. So does a wrap whose identity fails to
+  /// sign in — that path is inside [FirestoreChatRealtimeSource], which never
+  /// touches Firestore without an identity.
+  ChatGateway _wrapRealtime(
+    DioChatGateway inner,
+    Dio dio,
+    String currentUserId, {
+    required String conversationId,
+    required bool conversationResolved,
+  }) {
+    if (!conversationResolved ||
+        conversationId.isEmpty ||
+        conversationId == kComposeConversationSentinel) {
+      return inner;
+    }
+    if (currentUserId.isEmpty) return inner;
+    // Cheap, synchronous, and throws nothing — unlike the two `.instance`
+    // accessors below, which is the entire reason this check exists.
+    if (Firebase.apps.isEmpty) {
+      Diag.event('chat_realtime_unavailable', <String, Object?>{
+        'conversation_id': conversationId,
+        'reason': 'no_firebase_app',
+      });
+      return inner;
+    }
+    _httpGateway = inner;
+    return RealtimeChatGateway(
+      inner: inner,
+      realtime: FirestoreChatRealtimeSource(
+        // Lazy BY CONTRACT: the source resolves this only after the identity
+        // check passes, so "no identity" means Firestore is never reached
+        // rather than "reached and refused".
+        firestore: () => FirebaseFirestore.instance,
+        identity: FirebaseCustomTokenIdentity(
+          auth: FirebaseAuth.instance,
+          minter: GatewayChatFirebaseTokenMinter(dio: dio),
+        ),
+        mapper: FirestoreChatMessageMapper(currentUserId: currentUserId),
+      ),
+    );
   }
 
   Future<String> _resolveTitle(

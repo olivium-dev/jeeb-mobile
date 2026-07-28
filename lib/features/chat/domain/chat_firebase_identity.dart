@@ -1,6 +1,6 @@
 /// The Firebase identity a Firestore chat read runs as.
 ///
-/// # Why this port exists at all, and why it has no live production wiring yet
+/// # Why this port exists, and what it is guarding
 ///
 /// Reading `Conversations/{id}/Messages` straight from the device moves the
 /// message-visibility decision OUT of the chat-service and INTO Firestore
@@ -41,20 +41,32 @@
 ///      internet to every Jeeb conversation. This client never calls it.
 ///   2. Security rules on `jeeb-5a293` that replicate the matrix above.
 ///
-/// Neither exists yet, and neither can be built from jeeb-mobile:
+/// # Status (b03): both halves now exist, and (1) is fully satisfied
 ///
-///   * **No mint endpoint.** Scanned `jeeb-gateway/src` (568 `.cs`/`.json` files)
-///     for `CreateCustomToken` / `FirebaseAdmin` / `FirebaseAuth` — zero hits.
-///   * **No rules in source.** Scanned `jeeb-mobile`, `jeeb-gateway` and
-///     `chat-service` for `*.rules` / `firebase.json` / `firestore.indexes.json`
-///     — zero. They live in the Firebase console and cannot be read, reviewed, or
-///     changed from any repo.
+///   * **Mint endpoint: live.** `POST /v1/chat/firebase-token` on jeeb-gateway
+///     returns a custom token whose `uid` is derived from the validated bearer's
+///     own claims — never from a client-supplied header.
+///     `GatewayChatFirebaseTokenMinter` is the production implementation of
+///     [ChatFirebaseTokenMinter], and `ChatDetailScreen._wrapRealtime` is the
+///     one place that builds it.
+///   * **Rules: released on `jeeb-5a293`.** They authorise a read of
+///     `Conversations/{cid}/Messages` on MEMBERSHIP — the caller's uid appears
+///     in the parent conversation's `Participants[].UserId` with `RemovedAt`
+///     null — plus `sign_in_provider == 'custom'`, with `allow write: if false`
+///     and a default-deny `match /{document=**}`.
 ///
-/// So this port is deliberately left with **no production implementation
-/// registered**. [ChatFirebaseIdentity.absent] is what the app resolves today,
-/// the realtime source refuses to open a channel without an identity, and the
-/// existing HTTP path keeps running unchanged. When the mint endpoint lands,
-/// `FirebaseCustomTokenIdentity` below is the only thing that needs wiring.
+/// **Where the released rule is WEAKER than the REST path, and it matters.**
+/// Membership is the whole predicate: the rule does NOT reproduce the
+/// author/audience half of `MessageVisibilityResolver` described above, and
+/// `FirestoreChatMessageMapper` does not read `Audience` either. For the shape
+/// this client actually subscribes to that gap is closed by construction —
+/// `_wrapRealtime` subscribes ONLY to a RESOLVED conversation, i.e. post-accept,
+/// where the participants are the client and the winning jeeber and there are no
+/// competing bidders to leak between. It is NOT closed for a multi-participant
+/// `broadcasting` conversation, which is why nothing here subscribes to one.
+/// Widening the subscription to the pre-accept phase therefore requires the
+/// rules to grow the audience/author predicate FIRST; doing it in this client
+/// alone would be the competing-bid leak this doc-comment exists to prevent.
 abstract class ChatFirebaseIdentity {
   /// Signs the app in to Firebase so a Firestore read carries an identity the
   /// rules can key on, and reports whether it succeeded.
@@ -82,8 +94,8 @@ class _AbsentChatFirebaseIdentity implements ChatFirebaseIdentity {
 /// The ONLY acceptable shape: the backend validates the Jeeb JWT it already
 /// issued and returns a Firebase custom token whose `uid` is the SAME subject,
 /// so `request.auth.uid` in a security rule means exactly what `AuthorId` means
-/// in a chat-service document. No endpoint implements this yet — see
-/// [ChatFirebaseIdentity].
+/// in a chat-service document. `GatewayChatFirebaseTokenMinter` implements this
+/// against `POST /v1/chat/firebase-token` — see [ChatFirebaseIdentity].
 abstract class ChatFirebaseTokenMinter {
   /// A Firebase custom token for the current user, or null when the backend has
   /// no such endpoint (or the user is not signed in to Jeeb).

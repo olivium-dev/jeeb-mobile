@@ -19,14 +19,24 @@ import '../domain/chat_firebase_identity.dart';
 /// `MessageVisibilityResolver` exists to keep private. See
 /// [ChatFirebaseIdentity] for the full predicate this would bypass.
 ///
-/// # Status: not wired to a live minter
+/// # Status (b03): wired to the live minter
 ///
-/// [ChatFirebaseTokenMinter] has no production implementation because the
-/// endpoint it would call does not exist (`jeeb-gateway/src` scanned, 568 files,
-/// zero hits for `CreateCustomToken` / `FirebaseAdmin` / `FirebaseAuth`). Until
-/// it does, the app resolves [ChatFirebaseIdentity.absent], no channel opens,
-/// and the existing HTTP path carries chat unchanged. This class is complete and
-/// tested so that wiring the minter is the only remaining step.
+/// The production [ChatFirebaseTokenMinter] is `GatewayChatFirebaseTokenMinter`
+/// (`POST /v1/chat/firebase-token`), built in
+/// `ChatDetailScreen._wrapRealtime`. When the mint returns null — expired
+/// session, an older gateway, or the server-side kill switch
+/// (`Firebase:Chat:ServiceAccountKeyPath` unset ⇒ 503) — this reports false, no
+/// channel opens, and the existing HTTP path carries chat unchanged.
+///
+/// # Session lifetime is NOT bounded by the minted token
+///
+/// The gateway's `TokenLifetimeSeconds` bounds only the CUSTOM token, which is
+/// spent once here. What `signInWithCustomToken` returns is a Firebase session
+/// that the SDK then refreshes on its own, indefinitely, without ever calling
+/// the gateway again — so a short custom-token lifetime is not a revocation
+/// control and must not be sold as one. Revocation is the membership rule
+/// alone: STAMPING `RemovedAt` on that participant in the conversation document
+/// is what actually ends their read access.
 class FirebaseCustomTokenIdentity implements ChatFirebaseIdentity {
   FirebaseCustomTokenIdentity({
     required FirebaseAuth auth,

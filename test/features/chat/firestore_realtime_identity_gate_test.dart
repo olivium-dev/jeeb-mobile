@@ -88,10 +88,11 @@ void main() {
     });
 
     test('the absent identity is never signed in', () async {
-      // `ChatFirebaseIdentity.absent` is what the app resolves today, because
-      // the custom-token mint endpoint does not exist (scanned jeeb-gateway/src,
-      // 568 files, zero hits for CreateCustomToken / FirebaseAdmin /
-      // FirebaseAuth). It must be impossible for it to report otherwise.
+      // `ChatFirebaseIdentity.absent` is the fail-closed identity: it is what a
+      // host resolves when it must NOT open a channel (no Firebase app, no
+      // session user id, an unresolved pre-accept conversation). It must be
+      // impossible for it to report otherwise, because the realtime source
+      // treats "signed in" as its sole licence to touch Firestore.
       expect(await ChatFirebaseIdentity.absent.ensureSignedIn(), isFalse);
     });
 
