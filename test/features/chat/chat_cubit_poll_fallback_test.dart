@@ -1,17 +1,25 @@
-// Sprint-7 chat step: the HTTP-history POLL fallback in [ChatCubit].
+// Sprint-7 chat step, re-based on N4 (b02 polling→push): the WS-INDEPENDENT
+// history re-pull in [ChatCubit].
 //
 // The live transport is the WS subscription, but against the mock backend (and
-// any flaky / unauthorized socket) the stream may never emit. The poll fallback
-// re-pulls history on an interval and merges inbound (counterpart/system)
-// messages the socket missed — so "live receive" still works with zero frames.
+// any flaky / unauthorized socket) the stream may never emit. There used to be
+// a 60 s poll behind it; a PUSH on `PushRefreshSignals` is now what re-pulls
+// history and merges inbound (counterpart/system) messages the socket missed —
+// so "live receive" still works with zero frames, and it works FASTER than the
+// clock it replaced.
+//
+// EVERY MERGE ASSERTION BELOW IS UNCHANGED. That is the point: the trigger
+// moved, the fold did not. `_reconciledWithHistory` is still the single merge
+// rule shared by the mount path, the resume path, the accept path and this one,
+// so these nine cases keep their full value — only `_drivePull` replaced "wait
+// for the next tick".
 //
 // These tests use a fake gateway whose `subscribe` stream NEVER emits (a dead
-// WS) and a tiny poll interval, then assert the cubit surfaces a new
-// counterpart message via the poll, RECONCILES the server echo of an own
-// message onto its optimistic bubble (it used to drop own rows outright, which
-// is what left own bubbles pinned to the local clock above the counterpart's
-// traffic), and dedupes against a message already delivered over the
-// (test-pushed) stream.
+// WS), then assert the cubit surfaces a new counterpart message on a push,
+// RECONCILES the server echo of an own message onto its optimistic bubble (it
+// used to drop own rows outright, which is what left own bubbles pinned to the
+// local clock above the counterpart's traffic), and dedupes against a message
+// already delivered over the (test-pushed) stream.
 
 import 'dart:async';
 import 'dart:typed_data';
@@ -79,19 +87,37 @@ DeliveryChatMessage _me(String id, String text) => DeliveryChatMessage.text(
       text: text,
     );
 
+/// The push bus the cubit under test is subscribed to. One per case, closed by
+/// `addTearDown`.
+late StreamController<void> _bus;
+
 ChatCubit _build(_PollGateway gateway) {
+  _bus = StreamController<void>.broadcast();
+  addTearDown(_bus.close);
   final cubit = ChatCubit(
     deliveryId: 'conv-1',
     gateway: gateway,
     pickerService: StubPhotoPickerService(),
-    pollInterval: const Duration(milliseconds: 20),
+    refreshSignals: _bus.stream,
   );
   addTearDown(cubit.close);
   return cubit;
 }
 
+/// Fire ONE push and let the re-pull it drives complete and merge.
+///
+/// Replaces the old "sleep past the poll interval" idiom. Deliberately not a
+/// direct `cubit.refresh()` call: routing through the real bus keeps these
+/// cases exercising the subscription + single-flight latch that now carry the
+/// surface, so a regression that silently unsubscribes reds them.
+Future<void> _drivePull() async {
+  _bus.add(null);
+  await Future<void>.delayed(const Duration(milliseconds: 20));
+  await Future<void>.delayed(const Duration(milliseconds: 20));
+}
+
 void main() {
-  group('ChatCubit — HTTP-history poll fallback (sprint-7)', () {
+  group('ChatCubit — push-driven history re-pull (sprint-7, N4)', () {
     test('a counterpart message that lands server-side appears via the poll '
         '(no WS frame)', () async {
       final gateway = _PollGateway(const <DeliveryChatMessage>[]);
@@ -102,12 +128,12 @@ void main() {
       // The other participant posts; the dead WS never delivers it.
       gateway.history = [_them('srv-1', 'hello from the other side')];
 
-      await Future<void>.delayed(const Duration(milliseconds: 80));
+      await _drivePull();
 
       expect(
         cubit.state.messages.map((m) => m.id),
         contains('srv-1'),
-        reason: 'poll fallback should surface the inbound message',
+        reason: 'the push-driven re-pull should surface the inbound message',
       );
     });
 
@@ -136,7 +162,7 @@ void main() {
         // The server now returns that message under a server-minted id that can
         // never match the optimistic client id.
         gateway.history = [_me('srv-echo', 'mine')];
-        await Future<void>.delayed(const Duration(milliseconds: 80));
+        await _drivePull();
 
         expect(
           cubit.state.messages, hasLength(1),
@@ -161,7 +187,7 @@ void main() {
         await cubit.load();
 
         gateway.history = [_me('srv-elsewhere', 'sent from my other device')];
-        await Future<void>.delayed(const Duration(milliseconds: 80));
+        await _drivePull();
 
         expect(
           cubit.state.messages.map((m) => m.id), contains('srv-elsewhere'),
@@ -181,9 +207,9 @@ void main() {
         cubit.composerChanged('mine');
         await cubit.sendText();
         gateway.history = [_me('srv-echo', 'mine')];
-        await Future<void>.delayed(const Duration(milliseconds: 80));
+        await _drivePull();
         // Several more ticks read the identical history.
-        await Future<void>.delayed(const Duration(milliseconds: 120));
+        await _drivePull();
 
         expect(cubit.state.messages, hasLength(1));
         expect(cubit.state.messages.single.id, 'srv-echo');
@@ -208,7 +234,7 @@ void main() {
           _me('srv-echo-1', 'same text'),
           _me('srv-echo-2', 'same text'),
         ];
-        await Future<void>.delayed(const Duration(milliseconds: 120));
+        await _drivePull();
 
         expect(
           cubit.state.messages, hasLength(2),
@@ -236,7 +262,7 @@ void main() {
         cubit.composerChanged('mine');
         await cubit.sendText();
         gateway.history = [_me('srv-echo', 'mine')];
-        await Future<void>.delayed(const Duration(milliseconds: 80));
+        await _drivePull();
         expect(cubit.state.messages.single.id, 'srv-echo');
 
         gateway.push(const ReadReceipt('srv-echo'));
@@ -244,7 +270,7 @@ void main() {
         expect(cubit.state.messages.single.status, MessageStatus.read);
 
         // Several more polls of the identical history.
-        await Future<void>.delayed(const Duration(milliseconds: 120));
+        await _drivePull();
 
         expect(
           cubit.state.messages.single.status, MessageStatus.read,
@@ -274,7 +300,7 @@ void main() {
         expect(cubit.state.messages.single.photoBytes, isNotNull);
 
         // Several more polls return the same row, bytes-less as always.
-        await Future<void>.delayed(const Duration(milliseconds: 120));
+        await _drivePull();
 
         expect(
           cubit.state.messages.single.photoBytes, isNotNull,
@@ -300,7 +326,7 @@ void main() {
       // ...and the same message is also present in the polled history.
       gateway.history = [_them('srv-2', 'live')];
 
-      await Future<void>.delayed(const Duration(milliseconds: 80));
+      await _drivePull();
 
       expect(
         cubit.state.messages.where((m) => m.id == 'srv-2').length,
@@ -316,7 +342,6 @@ void main() {
         deliveryId: 'conv-1',
         gateway: gateway,
         pickerService: StubPhotoPickerService(),
-        pollInterval: const Duration(milliseconds: 20),
       );
       await cubit.load();
       await cubit.close();

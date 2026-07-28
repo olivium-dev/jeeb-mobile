@@ -5,14 +5,29 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/diagnostics/diag.dart';
-import '../../../core/lifecycle/lifecycle_poller.dart';
 import '../../photo_attachment/domain/photo_compressor.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
 import '../domain/chat_gateway.dart';
 import '../domain/delivery_chat_message.dart';
 import 'chat_state.dart';
 
-const kChatHistorySafetyNetPollInterval = Duration(seconds: 60);
+/// Backoff for the COLD-LOAD-FAILURE retry. Not a poll: it is armed only while
+/// [ChatState.historyLoadFailed] is set and it TERMINATES on the first success.
+/// Same shape and same argument as the two backoffs already shipped —
+/// `kPositionRearmBackoff` (`live_tracking_cubit.dart`, #186) and
+/// `kChatResolutionRetryBackoff` (`chat_detail_screen.dart`).
+///
+/// It caps rather than exhausts, deliberately. An exhausting schedule leaves a
+/// thread permanently blank with no way back short of a restart, and this app
+/// has NO connectivity listener (zero hits for `connectivity_plus` /
+/// `onConnectivityChanged` in `lib/`), so there is no reconnect event to
+/// re-arm on. The retry IS the reachability probe.
+const List<Duration> kChatHistoryRetryBackoff = <Duration>[
+  Duration(seconds: 2),
+  Duration(seconds: 5),
+  Duration(seconds: 15),
+  Duration(seconds: 30),
+];
 
 /// Drives the 1:1 chat between the local user and the delivery counterpart.
 ///
@@ -25,6 +40,39 @@ const kChatHistorySafetyNetPollInterval = Duration(seconds: 60);
 /// A network failure flips the entry to [MessageStatus.failed]; the user can
 /// retry by sending a fresh message — we do not provide an inline retry in
 /// the MVP.
+///
+/// ## N4 — PUSH-DRIVEN. The 60 s history poll is DELETED.
+///
+/// This is the surface the owner named. There is no periodic network timer in
+/// this class any more; `kChatHistorySafetyNetPollInterval` is gone, not
+/// merely disarmed. Every history read is caused by one of exactly four
+/// things, and all four fold through the ONE non-destructive merge rule
+/// ([_reconciledWithHistory]):
+///
+///   1. **mount** — [load], from the `..load()` at the `BlocProvider` in
+///      `chat_screen.dart`;
+///   2. **resume** — [refresh], from `_ChatScaffoldState.onAppResumed`
+///      (`AppResumeSignals`, the app-wide coalesced genuine-resume bus);
+///   3. **push** — [_refreshFromPush] on a `{chat}` signal, single-flighted;
+///   4. **cold-load-failure retry** — [_syncHistoryRetry], armed ONLY while
+///      [ChatState.historyLoadFailed] is set.
+///
+/// ### Why (4) exists, and why it is not a poll
+///
+/// The deleted 60 s poll was doing two jobs. As a freshness mechanism it was
+/// redundant — the push bus is strictly faster and the WS subscription is
+/// faster still. As a RECOVERY mechanism it was the only bounded thing that
+/// would re-read a thread whose cold load had failed, and deleting it blind
+/// would have made the offline chat error state terminal until an app restart:
+/// the push bus cannot help, because a thread the user cannot see generates no
+/// inbound traffic to push about, and this app has no connectivity listener to
+/// wake on.
+///
+/// So (4) replaces only the second job, and it differs from a poll in every way
+/// that matters to the mandate: it is armed only in an ERROR state, it is
+/// silent (the error body with its retry CTA stays on screen), it terminates on
+/// the first success, and a healthy rendering thread has `debugHistoryRetryArmed
+/// == false` — which is the assertion that proves the clock is gone.
 class ChatCubit extends Cubit<ChatState> {
   ChatCubit({
     required String deliveryId,
@@ -38,14 +86,12 @@ class ChatCubit extends Cubit<ChatState> {
     PhotoCompressor compressor = const PassthroughPhotoCompressor(),
     DateTime Function() clock = _defaultClock,
     String? initialDeliveryId,
-    Duration pollInterval = kChatHistorySafetyNetPollInterval,
     Stream<void>? refreshSignals,
   }) : _deliveryId = deliveryId,
        _gateway = gateway,
        _pickerService = pickerService,
        _compressor = compressor,
        _clock = clock,
-       _pollInterval = pollInterval,
        // Seed the tracking delivery id when the host already knows it (e.g. the
        // client accepted the offer from the review-list sheet and landed here
        // with the server-created `deliveryId`). Without this, an order accepted
@@ -65,7 +111,8 @@ class ChatCubit extends Cubit<ChatState> {
     // `client_home_cubit` and `request_feed_cubit`, and never into chat. On the
     // deployed build a chat push landed at 18:44:29Z and triggered NO fetch,
     // while `/v1/conversations/{id}/messages` kept ticking at exactly 60.0s on
-    // a fixed phase — the safety-net poll below was the ONLY inbound path.
+    // a fixed phase — the safety-net poll was then the ONLY inbound path. That
+    // poll is deleted on this branch; this subscription is what replaces it.
     //
     // Same shape as `GreetingProfileCubit` (`core/session/greeting_profile_cubit.dart:53,60`)
     // and the `dashboard_tab` / `request_feed_screen` subscribers: a
@@ -83,13 +130,6 @@ class ChatCubit extends Cubit<ChatState> {
   final PhotoPickerService _pickerService;
   final PhotoCompressor _compressor;
   final DateTime Function() _clock;
-
-  /// Cadence of the HTTP-history POLL fallback. The live transport is the WS
-  /// subscription, but against the mock backend (and any flaky/unauthorized WS)
-  /// the socket may never establish — so we also re-pull history on this
-  /// interval and merge any inbound messages the socket missed. Keeps inbound
-  /// working even with zero live frames ("live == within one poll").
-  final Duration _pollInterval;
 
   StreamSubscription<ChatEvent>? _subscription;
 
@@ -109,21 +149,6 @@ class ChatCubit extends Cubit<ChatState> {
   @visibleForTesting
   int get debugPushRefreshCount => _pushRefreshCount;
   int _pushRefreshCount = 0;
-
-  /// Periodic HTTP-history poll (the WS-independent inbound fallback).
-  late final LifecyclePoller _historyPoller = LifecyclePoller(
-    interval: _pollInterval,
-    onTick: _pollHistory,
-    tickOnResume: false,
-    debugLabel: 'ChatCubit.history',
-  );
-
-  @visibleForTesting
-  bool get debugHistoryPollerRunning => _historyPoller.isRunning;
-
-  @visibleForTesting
-  // ignore: invalid_use_of_visible_for_testing_member
-  int get debugHistoryTickCount => _historyPoller.debugTickCount;
 
   /// Monotonic counter feeding outgoing message ids. Combined with the
   /// delivery id to stay unique across two cubits running in the same
@@ -210,11 +235,10 @@ class ChatCubit extends Cubit<ChatState> {
         error: ChatError.historyLoadFailed,
       ));
     }
-    // Start the HTTP-history poll fallback regardless of the initial load
-    // outcome — it is the inbound path that does NOT depend on a live socket,
-    // so it must run even if the first history fetch failed (recovery) or the
-    // WS never connects (mock / non-member / transport).
-    _startPolling();
+    // A cold load that FAILED is the one case with nothing left to re-read it:
+    // the push bus only fires on inbound traffic, and a thread the user cannot
+    // see generates none. Arm the bounded retry (and cancel it on success).
+    _syncHistoryRetry();
   }
 
   /// Re-run the cold load after a history-read failure. Wired to the retry CTA
@@ -224,38 +248,74 @@ class ChatCubit extends Cubit<ChatState> {
   /// with no rows AND no inbound subscription (the `subscribe` call sits after
   /// the awaited history read, so a throw skipped it). Only [load] re-establishes
   /// both. It is idempotent on the subscription — `_subscription ??=`.
-  Future<void> retryLoad() => load();
-
-  /// Arm the periodic HTTP-history poll. Idempotent — repeated [load] calls
-  /// reuse the single timer. Only the network gateway opts in (see
-  /// [ChatGateway.supportsPolling]); in-memory / fixture gateways drive their
-  /// own event streams and must not spawn a forever-periodic timer (it would
-  /// trip the `FakeAsync` pending-timer assertion in widget tests).
-  void _startPolling() {
-    if (!_gateway.supportsPolling) return;
-    _historyPoller.start();
+  Future<void> retryLoad() {
+    // A deliberate user retry restarts the backoff from the top: the user has
+    // new information (they can see the network is back) that a schedule
+    // walking towards 30 s does not.
+    _cancelHistoryRetry();
+    return load();
   }
 
-  /// Re-pull history and fold it in. Runs through the SAME non-destructive
-  /// reconcile as [refresh] / [acceptOffer], so the polled order, the resumed
-  /// order and the accepted order are the server's order on all three paths —
-  /// there is one merge rule in this cubit, not three.
-  Future<void> _pollHistory() async {
-    try {
-      final latest = await _gateway.loadHistory(_deliveryId);
-      if (isClosed) return;
-      // A read that came back is proof the thread is reachable again, so a
-      // previously-raised load failure must stop being rendered.
-      emit(state.copyWith(
-        messages: _reconciledWithHistory(latest),
-        historyLoadFailed: false,
-      ));
-      _resolveImageBytes();
-    } catch (_) {
-      // Transient fetch failure — the next tick retries. Never surface an error
-      // for a background poll.
+  /// Arm or disarm the cold-load-failure retry to match [ChatState.
+  /// historyLoadFailed]. Level-triggered and idempotent, so every emit can call
+  /// it: a thread that is rendering has no timer at all.
+  ///
+  /// Only the network gateway opts in (see [ChatGateway.supportsPolling]);
+  /// in-memory / fixture gateways drive their own event streams and must not
+  /// spawn a timer (it would trip the `FakeAsync` pending-timer assertion in
+  /// widget tests).
+  void _syncHistoryRetry() {
+    if (isClosed || !_gateway.supportsPolling) return;
+    if (!state.historyLoadFailed) {
+      _cancelHistoryRetry();
+      return;
     }
+    if (_historyRetryTimer != null) return;
+    final step = _historyRetryAttempt < kChatHistoryRetryBackoff.length
+        ? _historyRetryAttempt
+        : kChatHistoryRetryBackoff.length - 1;
+    _historyRetryAttempt++;
+    _historyRetryTimer = Timer(
+      kChatHistoryRetryBackoff[step],
+      _retryHistorySilently,
+    );
   }
+
+  void _cancelHistoryRetry() {
+    _historyRetryTimer?.cancel();
+    _historyRetryTimer = null;
+    _historyRetryAttempt = 0;
+  }
+
+  /// One silent re-attempt at a thread whose COLD load failed. Silent because
+  /// the error body with its retry CTA is already on screen — this must not
+  /// flicker it to a spinner behind the user's back.
+  ///
+  /// Runs through [refresh], not [load]: [refresh] is the non-destructive path
+  /// and clears `historyLoadFailed` on any success, which is what disarms this.
+  Future<void> _retryHistorySilently() async {
+    _historyRetryTimer = null;
+    if (isClosed || !state.historyLoadFailed) return;
+    _historyRetryCount++;
+    Diag.event('chat_history_retry', <String, Object?>{
+      'conversation_id': _deliveryId,
+      'n': _historyRetryCount,
+    });
+    await refresh();
+    _syncHistoryRetry();
+  }
+
+  Timer? _historyRetryTimer;
+  int _historyRetryAttempt = 0;
+  int _historyRetryCount = 0;
+
+  /// Whether a cold-load-failure retry is currently armed. A rendering thread
+  /// must read `false` — that is the assertion that says "no clock left".
+  @visibleForTesting
+  bool get debugHistoryRetryArmed => _historyRetryTimer != null;
+
+  @visibleForTesting
+  int get debugHistoryRetryCount => _historyRetryCount;
 
   /// A push says this user has chat traffic — re-pull THIS conversation once.
   ///
@@ -270,7 +330,8 @@ class ChatCubit extends Cubit<ChatState> {
   /// sending→sent→delivered→read). A push-driven refetch that replaced the
   /// list instead would stall read receipts and drop own bubbles the server
   /// has not echoed yet. Routing through [refresh] means there is ONE fold on
-  /// the resume path, the (now deleted) poll path and this push path.
+  /// the mount path, the resume path, the failure-retry path and this push
+  /// path.
   ///
   /// Single-flight: a burst of pushes (counterpart sends three lines quickly)
   /// collapses onto one in-flight read rather than stacking overlapping reads
@@ -333,6 +394,9 @@ class ChatCubit extends Cubit<ChatState> {
         ),
       );
       _resolveImageBytes();
+      // A read that came back is proof the thread is reachable again, so the
+      // cold-load-failure retry stands down.
+      _cancelHistoryRetry();
     } catch (_) {
       // Keep the current thread on a transient refresh failure. Note this does
       // NOT raise `historyLoadFailed`: there is (or may be) a rendered thread
@@ -647,7 +711,7 @@ class ChatCubit extends Cubit<ChatState> {
 
   @override
   Future<void> close() async {
-    _historyPoller.dispose();
+    _cancelHistoryRetry();
     await _refreshSubscription?.cancel();
     _refreshSubscription = null;
     await _subscription?.cancel();
@@ -1121,7 +1185,8 @@ class ChatCubit extends Cubit<ChatState> {
   ///     VIEW. This used to return the floor outright — the newest row THIS
   ///     DEVICE HAD SEEN — which is not when the message was composed, and the
   ///     two diverge by a whole poll interval.
-  ///     `kChatHistorySafetyNetPollInterval` is 60 SECONDS, so any row the
+  ///     The gap between two reads is now unbounded (there is no poll left —
+  ///     reads happen on mount, on resume and on a push), so any row the
   ///     server dated between the last fetch and compose time was unseen at
   ///     compose time and sorted BELOW the draft once it finally arrived: the
   ///     counterpart's message rendered as a reply to a message they had not yet

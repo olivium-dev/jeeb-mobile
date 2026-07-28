@@ -4,13 +4,13 @@ import 'dart:io';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:jeeb_mobile/core/di/injection_container.dart';
 import 'package:jeeb_mobile/core/lifecycle/app_lifecycle_gate.dart';
+import 'package:jeeb_mobile/core/lifecycle/app_resume_signals.dart';
 import 'package:jeeb_mobile/core/notifications/application/push_refresh_signals.dart';
 import 'package:jeeb_mobile/core/session/jeeber_kyc_status_gate.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
@@ -18,13 +18,11 @@ import 'package:jeeb_mobile/features/jeeber_active_deliveries/application/active
 import 'package:jeeb_mobile/features/jeeber_active_deliveries/domain/active_deliveries_repository.dart';
 import 'package:jeeb_mobile/features/jeeber_active_deliveries/domain/active_delivery_summary.dart';
 import 'package:jeeb_mobile/features/jeeber_home/domain/services/availability_gateway.dart';
-import 'package:jeeb_mobile/features/jeeber_home/presentation/jeeber_home_screen.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_repository.dart';
 import 'package:jeeb_mobile/features/shell/tab_visibility.dart';
 import 'package:jeeb_mobile/features/shell/tabs/dashboard_tab.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
-const _rootFreeInterval = Duration(seconds: 1);
 const _oneMinute = Duration(seconds: 60);
 const _almostOneMinute = Duration(seconds: 59);
 const _controlIntervals = 6;
@@ -151,10 +149,6 @@ GoRouter _router(ValueListenable<bool> visibility) {
   );
 }
 
-ActiveDeliveriesCubit _activeCubit(WidgetTester tester) {
-  final context = tester.element(find.byType(JeeberHomeScreen));
-  return context.read<ActiveDeliveriesCubit>();
-}
 
 Future<_DashboardFixture> _pumpDashboard(
   WidgetTester tester,
@@ -206,77 +200,103 @@ void main() {
     delegate = _loadSyncDelegate();
   });
 
-  tearDown(AppLifecycleGate.debugReset);
+  tearDown(() async {
+    AppLifecycleGate.debugReset();
+    // N2: the resume one-shot rides the process-wide `AppResumeSignals`
+    // singleton, whose coalescing window and `_sawBackground` latch would
+    // otherwise bleed between cases and make a resume refetch look dropped.
+    await AppResumeSignals.debugReset();
+  });
 
+  // N2 — INVERTED. This was "AC5 F10 poller is running and ticks with no root
+  // gate install and no MaterialApp": the root-free arm of the presence
+  // control. The root-free PROPERTY survives (the cubit must behave the same
+  // with and without a gate on the root, because bare `test()` bodies have
+  // none); what it must do in both cases is now arm NOTHING.
   test(
-    'AC5 F10 poller is running and ticks with no root gate install and no MaterialApp',
+    'AC5 F10 no periodic timer exists with no root gate install and no '
+    'MaterialApp — and a push still reads',
     () {
       FakeAsync().run((async) {
         final repository = _CountingActiveDeliveriesRepository();
+        final bus = StreamController<void>.broadcast();
         final cubit = ActiveDeliveriesCubit(
           repository: repository,
-          pollInterval: _rootFreeInterval,
+          refreshSignals: bus.stream,
         );
 
         cubit.start();
         async.flushMicrotasks();
-        final initialLoad = repository.calls;
+        expect(repository.calls, 1, reason: 'the mount one-shot');
+        expect(
+          async.periodicTimerCount,
+          isZero,
+          reason: 'leg 1: nothing periodic was constructed',
+        );
 
-        expect(initialLoad, 1);
-        expect(cubit.debugPoller.isRunning, isTrue);
+        async.elapse(const Duration(minutes: 5));
+        async.flushMicrotasks();
+        expect(
+          repository.calls,
+          1,
+          reason: 'five idle minutes: the pre-fix value here was 6',
+        );
 
-        for (var index = 0; index < 3; index++) {
-          async.elapse(_rootFreeInterval);
-          async.flushMicrotasks();
-        }
-
-        expect(repository.calls, initialLoad + 3);
-        expect(cubit.debugPoller.debugTickCount, 3);
+        // POSITIVE CONTROL.
+        bus.add(null);
+        async.flushMicrotasks();
+        expect(repository.calls, 2);
 
         unawaited(cubit.close());
+        bus.close();
         async.flushMicrotasks();
-        expect(cubit.debugPoller.isRunning, isFalse);
         expect(async.periodicTimerCount, isZero);
       });
     },
   );
 
+  // N2 — INVERTED. Was "polls once per 60s safety-net interval while visible
+  // and foreground". Every precondition the poll needed is still established
+  // here (foreground gate on, dashboard visible), and the same six-interval
+  // window is still pumped — only the expected value inverts, 6 becoming 0.
   testWidgets(
-    'AC1 F10 polls once per 60s safety-net interval while visible and foreground',
+    'AC1 F10 arms NO cadence while visible and foreground — six retired '
+    'intervals cost zero reads, and a push costs exactly one',
     (tester) async {
       final gate = ManualAppLifecycleGate(isForeground: false);
       AppLifecycleGate.install(gate);
       final fixture = await _pumpDashboard(tester, delegate);
-      final cubit = _activeCubit(tester);
 
-      expect(cubit.debugPoller.isRunning, isFalse);
       gate.setForeground(true);
       await tester.pump();
-      expect(cubit.debugPoller.isRunning, isTrue);
       final visibleBaseline = fixture.activeRepository.calls;
 
       await tester.pump(_almostOneMinute);
       await tester.pump();
+      expect(fixture.activeRepository.calls, visibleBaseline);
+
+      // The instant the retired cadence would have fired.
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
       expect(
         fixture.activeRepository.calls,
         visibleBaseline,
-        reason: 'the demoted safety net must not tick before 60 seconds',
+        reason: 'the 60s boundary is no longer an event',
       );
-
-      await tester.pump(const Duration(seconds: 1));
-      await tester.pump();
-      expect(fixture.activeRepository.calls, visibleBaseline + 1);
 
       await _pumpIntervals(tester, count: _controlIntervals - 1);
-
       expect(
         fixture.activeRepository.calls,
-        visibleBaseline + _controlIntervals,
-        reason:
-            'six full intervals provide 6:0 headroom over a dead or inverted '
-            'presence fixture',
+        visibleBaseline,
+        reason: 'six full retired intervals: the pre-fix value was 6',
       );
-      expect(cubit.debugPoller.isRunning, isTrue);
+
+      // POSITIVE CONTROL — the fixture is live and the surface is watchable, so
+      // the six zeros above are silence rather than a dead harness.
+      fixture.pushSignals.signalStatusChange();
+      await tester.pump();
+      await tester.pump();
+      expect(fixture.activeRepository.calls, visibleBaseline + 1);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
@@ -289,29 +309,30 @@ void main() {
       final gate = ManualAppLifecycleGate(isForeground: false);
       AppLifecycleGate.install(gate);
       final fixture = await _pumpDashboard(tester, delegate);
-      final cubit = _activeCubit(tester);
 
       gate.setForeground(true);
       await tester.pump();
       final visibleBaseline = fixture.activeRepository.calls;
-      await _pumpIntervals(tester);
+      // PRESENCE ARM, re-based on the push bus now that there is no timer to
+      // arm: the same fixture and the same `listActive` seam must produce a
+      // VISIBLE read before its hidden zero is trusted.
+      fixture.pushSignals.signalStatusChange();
+      await tester.pump();
+      await tester.pump();
       expect(
         fixture.activeRepository.calls,
-        visibleBaseline + _controlIntervals,
-        reason:
-            'the same unregistered-Dashboard fixture and listActive seam must '
-            'produce six visible timer GETs before its hidden zero is trusted',
+        visibleBaseline + 1,
+        reason: 'the visible control read — without it the zero below is unread'
+            'able',
       );
 
       fixture.visibility.value = false;
       await tester.pump();
-      expect(cubit.debugPoller.isRunning, isFalse);
       final hiddenBaseline = fixture.activeRepository.calls;
 
       await _pumpIntervals(tester);
 
       expect(fixture.activeRepository.calls, hiddenBaseline);
-      expect(cubit.debugPoller.isRunning, isFalse);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
@@ -333,13 +354,11 @@ void main() {
       final gate = ManualAppLifecycleGate(isForeground: false);
       AppLifecycleGate.install(gate);
       final fixture = await _pumpDashboard(tester, delegate);
-      final cubit = _activeCubit(tester);
 
       gate.setForeground(true);
       await tester.pump();
       fixture.visibility.value = false;
       await tester.pump();
-      expect(cubit.debugPoller.isRunning, isFalse);
       final hiddenBaseline = fixture.activeRepository.calls;
 
       // Three pushes while nobody can see the card.
@@ -353,7 +372,6 @@ void main() {
         hiddenBaseline,
         reason: 'an invisible card must not read; the debt is recorded instead',
       );
-      expect(cubit.debugPoller.isRunning, isFalse);
 
       // Refocus pays the debt ONCE — not three times, and not twice (the
       // deferred push read and the refocus read collapse through the cubit's
@@ -379,20 +397,21 @@ void main() {
     final gate = ManualAppLifecycleGate(isForeground: false);
     AppLifecycleGate.install(gate);
     final fixture = await _pumpDashboard(tester, delegate);
-    final cubit = _activeCubit(tester);
 
     gate.setForeground(true);
     await tester.pump();
     fixture.visibility.value = false;
     await tester.pump();
-    expect(cubit.debugPoller.isRunning, isFalse);
     final hiddenBaseline = fixture.activeRepository.calls;
 
+    // A push while hidden records the debt; refocus pays it once.
+    fixture.pushSignals.signalStatusChange();
+    await tester.pump();
     fixture.visibility.value = true;
+    await tester.pump();
     await tester.pump();
 
     expect(fixture.activeRepository.calls, hiddenBaseline + 1);
-    expect(cubit.debugPoller.isRunning, isTrue);
 
     await tester.pump(_almostOneMinute);
     await tester.pump();
@@ -400,8 +419,9 @@ void main() {
       fixture.activeRepository.calls,
       hiddenBaseline + 1,
       reason:
-          'the sub-interval window prevents the 60s safety net from masking '
-          'the one visibility-resume fetch',
+          'and nothing follows it — the sub-interval window used to exist to '
+          'stop the 60s safety net masking this one fetch; now it proves the '
+          'safety net is gone',
     );
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -417,30 +437,31 @@ void main() {
     addTearDown(bindingGate.dispose);
     await _driveToForeground(tester);
     final fixture = await _pumpDashboard(tester, delegate);
-    final cubit = _activeCubit(tester);
 
-    expect(cubit.debugPoller.isRunning, isTrue);
     final foregroundBaseline = fixture.activeRepository.calls;
-    await _pumpIntervals(tester);
+    // PRESENCE ARM on the bus (there is no timer left to arm).
+    fixture.pushSignals.signalStatusChange();
+    await tester.pump();
+    await tester.pump();
     expect(
       fixture.activeRepository.calls,
-      foregroundBaseline + _controlIntervals,
-      reason:
-          'six binding-driven foreground intervals provide the non-zero '
-          'presence arm before the background absence assertion',
+      foregroundBaseline + 1,
+      reason: 'the non-zero presence arm before the background absence claim',
     );
 
     await _driveToBackground(tester);
-    expect(cubit.debugPoller.isRunning, isFalse);
     final backgroundBaseline = fixture.activeRepository.calls;
     await _pumpIntervals(tester);
 
     expect(fixture.activeRepository.calls, backgroundBaseline);
-    expect(cubit.debugPoller.isRunning, isFalse);
 
+    // The RESUME one-shot — `_ActiveDeliveriesResumeRefetch` on
+    // `AppResumeSignals`, which replaced the poller's `tickOnResume: true`.
+    // This is the backstop for a dropped push and it must still fire exactly
+    // once.
     await _driveToForeground(tester);
+    await tester.pump();
     expect(fixture.activeRepository.calls, backgroundBaseline + 1);
-    expect(cubit.debugPoller.isRunning, isTrue);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();

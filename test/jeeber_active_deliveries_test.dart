@@ -123,7 +123,6 @@ void main() {
       ]);
       final cubit = ActiveDeliveriesCubit(
         repository: repo,
-        pollInterval: const Duration(hours: 1),
       );
       addTearDown(cubit.close);
 
@@ -140,7 +139,6 @@ void main() {
       final repo = _FakeRepo(const []);
       final cubit = ActiveDeliveriesCubit(
         repository: repo,
-        pollInterval: const Duration(hours: 1),
       );
       addTearDown(cubit.close);
 
@@ -155,7 +153,6 @@ void main() {
       final repo = _FakeRepo(const []);
       final cubit = ActiveDeliveriesCubit(
         repository: repo,
-        pollInterval: const Duration(hours: 1),
       );
       addTearDown(cubit.close);
 
@@ -183,7 +180,6 @@ void main() {
       final cubit = ActiveDeliveriesCubit(
         repository: repo,
         // Long poll so the ONLY refetch under test comes from the push signal.
-        pollInterval: const Duration(hours: 1),
         refreshSignals: signals.stream,
       );
       addTearDown(cubit.close);
@@ -206,7 +202,6 @@ void main() {
       final repo = _FakeRepo(const []);
       final cubit = ActiveDeliveriesCubit(
         repository: repo,
-        pollInterval: const Duration(hours: 1),
         // refreshSignals intentionally omitted (bare-harness / null path).
       );
       addTearDown(cubit.close);
@@ -317,7 +312,6 @@ void main() {
       addTearDown(signals.close);
       final cubit = ActiveDeliveriesCubit(
         repository: repository,
-        pollInterval: const Duration(hours: 1),
         refreshSignals: signals.stream,
       );
       addTearDown(cubit.close);

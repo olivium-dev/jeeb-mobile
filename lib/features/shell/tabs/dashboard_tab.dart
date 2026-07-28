@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/dev_seam/dev_seam.dart';
 import '../../../core/di/injection_container.dart';
+import '../../../core/lifecycle/app_resume_signals.dart';
 import '../../../core/lifecycle/polling_visibility_gate.dart';
 import '../../../core/lifecycle/route_visibility.dart';
 import '../../../core/session/greeting_profile_cubit.dart';
@@ -327,7 +328,13 @@ class _MaybeResumeRefetch extends StatelessWidget {
     final activeDeliveriesGate = PollingVisibilityGate(
       target: context.read<ActiveDeliveriesCubit>(),
       isVisible: shellVisible,
-      child: child,
+      // N2 (b02): the active-deliveries card's RESUME one-shot. It used to ride
+      // `tickOnResume: true` on the 60 s `LifecyclePoller`; that poller is
+      // deleted, so the backstop the owner's architecture ruling makes
+      // mandatory needs its own wire. `AppResumeSignals` is the app-wide,
+      // genuine-resume, coalesced bus — not a per-cubit lifecycle observer,
+      // which is the shape that produced the measured 60-read storm.
+      child: _ActiveDeliveriesResumeRefetch(child: child),
     );
     if (!enabled) return activeDeliveriesGate;
     return PollingVisibilityGate(
@@ -336,6 +343,36 @@ class _MaybeResumeRefetch extends StatelessWidget {
       child: FeedResumeRefetcher(child: activeDeliveriesGate),
     );
   }
+}
+
+/// N2's resume one-shot for [ActiveDeliveriesCubit].
+///
+/// Mirrors [FeedResumeRefetcher] exactly — same bus, same mixin, same "one
+/// surface, one subscription" shape — because the alternative (a second
+/// `didChangeAppLifecycleState` override) is the multiplier `AppResumeSignals`
+/// was built to remove.
+///
+/// The refetch goes through [ActiveDeliveriesCubit.refreshOnResume], NOT
+/// `refresh()`, so it lands in the same visibility gate the push bus uses: a
+/// resume while the dashboard sits under `/delivery/:id` is deferred and
+/// coalesced with any pending push debt into ONE read on the way back.
+class _ActiveDeliveriesResumeRefetch extends StatefulWidget {
+  const _ActiveDeliveriesResumeRefetch({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_ActiveDeliveriesResumeRefetch> createState() =>
+      _ActiveDeliveriesResumeRefetchState();
+}
+
+class _ActiveDeliveriesResumeRefetchState
+    extends State<_ActiveDeliveriesResumeRefetch> with ResumeRefetchMixin {
+  @override
+  void onAppResumed() => context.read<ActiveDeliveriesCubit>().refreshOnResume();
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// Places the JM-036 coined screen-level *root* Semantics id on the DELIVERY-tab

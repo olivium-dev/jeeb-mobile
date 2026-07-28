@@ -30,7 +30,7 @@
 // Covered, per the DoD, through the REAL `DioChatGateway` + REAL `ChatCubit` +
 // REAL `ChatScreen`:
 //   1. on open                       — `load()` renders every row, in server order
-//   2. after a poll tick             — no loss, no duplication
+//   2. after a push-driven re-pull   — no loss, no duplication
 //   3. after background → resume     — `refresh()` keeps the thread AND the
 //                                      sender's own messages
 //   4. after an inbound push/frame   — the new message is added, nothing is lost
@@ -174,16 +174,18 @@ DioChatGateway _gateway(_ChatWire wire, {required String viewerId}) {
   return gateway;
 }
 
-ChatCubit _cubit(
-  DioChatGateway gateway, {
-  Duration pollInterval = const Duration(milliseconds: 20),
-}) {
+/// The push bus the cubit under test subscribes to. One per case.
+late StreamController<void> _bus;
+
+ChatCubit _cubit(DioChatGateway gateway) {
+  _bus = StreamController<void>.broadcast();
+  addTearDown(_bus.close);
   final cubit = ChatCubit(
     deliveryId: _conversationId,
     gateway: gateway,
     pickerService: StubPhotoPickerService(),
-    pollInterval: pollInterval,
     clock: () => DateTime(2026, 7, 27, 12, 30),
+    refreshSignals: _bus.stream,
   );
   addTearDown(cubit.close);
   return cubit;
@@ -248,8 +250,11 @@ void main() {
       );
     });
 
-    test('STATE 2 (poll tick) — a safety-net poll neither loses nor duplicates',
-        () async {
+    // N4: was "STATE 2 (poll tick) — a safety-net poll neither loses nor
+    // duplicates". The poll is deleted; the merge it exercised is not, and the
+    // merge is what this case is about. Trigger swapped, assertions identical.
+    test('STATE 2 (push re-pull) — a push-driven re-pull neither loses nor '
+        'duplicates', () async {
       final wire = _ChatWire();
       final cubit = _cubit(_gateway(wire, viewerId: _jeeberId));
 
@@ -258,16 +263,17 @@ void main() {
 
       // The server gains one counterpart row while the thread is open.
       wire.rows = [..._thread(), _textRow('srv-13', _customerId, 'row-13')];
+      _bus.add(null);
       await Future<void>.delayed(const Duration(milliseconds: 60));
 
       expect(
         wire.historyReads, greaterThan(1),
-        reason: 'the poll must have ticked for this assertion to mean anything',
+        reason: 'the push must have driven a re-pull for this to mean anything',
       );
       expect(_ids(cubit), [...afterLoad, 'srv-13']);
       expect(
         _ids(cubit).toSet(), hasLength(13),
-        reason: 'the poll must not duplicate rows it has already merged',
+        reason: 'the re-pull must not duplicate rows it has already merged',
       );
     });
 
@@ -278,8 +284,6 @@ void main() {
         final wire = _ChatWire();
         final cubit = _cubit(
           _gateway(wire, viewerId: _customerId),
-          // Isolate the resume path: no poll tick may interleave.
-          pollInterval: const Duration(minutes: 10),
         );
 
         await cubit.load();
@@ -324,7 +328,6 @@ void main() {
         final wire = _ChatWire();
         final cubit = _cubit(
           _gateway(wire, viewerId: _customerId),
-          pollInterval: const Duration(minutes: 10),
         );
 
         await cubit.load();
@@ -365,7 +368,6 @@ void main() {
         final wire = _ChatWire();
         final cubit = _cubit(
           _gateway(wire, viewerId: _jeeberId),
-          pollInterval: const Duration(minutes: 10),
         );
 
         await cubit.load();

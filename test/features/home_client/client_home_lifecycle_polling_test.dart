@@ -1,7 +1,18 @@
-// F3 (offers polling storm): the 10s home poll must PAUSE while the app is
-// backgrounded and RESUME (with one immediate refresh) when it returns to the
-// foreground. A hidden app that keeps polling /requests + /deliveries +
-// /v1/offers is pure waste and a fast path to a 429.
+// N3 (b02 polling→push). F3's original claim was "the 10s home poll must PAUSE
+// while backgrounded and RESUME with one immediate refresh". Half of that
+// survives and half is obsolete:
+//
+//   * PAUSE is now trivially true and is asserted the strong way — the home
+//     summary issues zero reads across a five-minute FOREGROUND window too,
+//     not merely while hidden. A poll that only stopped when hidden would pass
+//     the old case and fail this one.
+//   * RESUME is the half that still matters, and it matters MORE now: with the
+//     clock gone, the resume one-shot is one of only three things that can
+//     refresh this surface, and it is the backstop for a dropped push. It is
+//     kept verbatim.
+//
+// `_CountingRepo` counts /requests + /deliveries + /v1/offers snapshots — the
+// seven-read fan-out F3 was written about.
 
 import 'dart:io';
 
@@ -69,7 +80,6 @@ Widget _harness({required _CountingRepo repo}) {
         create: (_) => ClientHomeCubit(
           repository: repo,
           greetingNameProvider: () => 'Sami',
-          pollInterval: const Duration(milliseconds: 40),
         ),
         // JEBV4-298: the 10s live-refresh poll is a property of the
         // In-Progress live-tracking surface, which was relocated off the
@@ -88,39 +98,39 @@ void main() {
   setUpAll(_loadArbs);
 
   testWidgets(
-      'the home poll pauses while backgrounded and resumes with an immediate '
-      'refresh on return to foreground', (tester) async {
+      'the home summary reads NOTHING on a clock — foreground or backgrounded '
+      '— and still refreshes exactly once on return to the foreground',
+      (tester) async {
     final repo = _CountingRepo();
     await tester.pumpWidget(_harness(repo: repo));
     await tester.pumpAndSettle();
 
-    // Initial load + polling active on the In-Progress tab.
+    // Mount one-shot.
     expect(repo.calls, greaterThanOrEqualTo(1));
-    await tester.pump(const Duration(milliseconds: 45));
-    await tester.pump(const Duration(milliseconds: 45));
-    final whileForeground = repo.calls;
-    expect(whileForeground, greaterThan(1),
-        reason: 'polling must tick while foreground + visible');
+    final afterMount = repo.calls;
 
-    // Background the app → polling must STOP: no further pulls across several
-    // poll intervals.
+    // FOREGROUND + VISIBLE + In-Progress selected: every condition the retired
+    // 10 s poll needed, held for thirty of its intervals. Pre-fix this adds ~30.
+    await tester.pump(const Duration(minutes: 5));
+    await tester.pump();
+    expect(repo.calls, afterMount,
+        reason: 'a foregrounded, visible In-Progress tab must not tick');
+
+    // Backgrounded: still nothing (the weaker half of the original claim).
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     await tester.pump();
     final atPause = repo.calls;
-    await tester.pump(const Duration(milliseconds: 45));
-    await tester.pump(const Duration(milliseconds: 45));
-    await tester.pump(const Duration(milliseconds: 45));
-    expect(repo.calls, atPause,
-        reason: 'a backgrounded app must not poll');
+    await tester.pump(const Duration(minutes: 5));
+    await tester.pump();
+    expect(repo.calls, atPause, reason: 'a backgrounded app must not read');
 
-    // Foreground again → exactly one immediate refresh, then polling resumes.
+    // Foreground again → EXACTLY ONE refresh. This is the backstop for a
+    // dropped push and is also this file's positive control: without it, the
+    // two zeros above would be indistinguishable from a screen that was never
+    // mounted or a repository nobody holds.
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle(const Duration(milliseconds: 10));
-    expect(repo.calls, greaterThan(atPause),
-        reason: 'resume must trigger an immediate refresh');
-
-    // Drain any pending poll timer so the test tears down clean.
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-    await tester.pump();
+    expect(repo.calls, atPause + 1,
+        reason: 'resume must trigger exactly one immediate refresh');
   });
 }

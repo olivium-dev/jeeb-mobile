@@ -219,9 +219,14 @@ class ChatScreen extends StatelessWidget {
         // re-pulls — the same degradation `dashboard_tab` and
         // `request_feed_screen` already rely on.
         //
-        // b02 wave D — `{chat}`, and this is now the cubit's ONLY inbound
-        // re-pull trigger: the 60s `kChatHistorySafetyNetPollInterval` history
-        // poll is deleted. Narrowing to `chat` matters in BOTH directions here.
+        // b02 wave D — `{chat}`. The 60s `kChatHistorySafetyNetPollInterval`
+        // history poll IS deleted now (N4); this claim was written by #187,
+        // whose own subject line said "polls RETAINED", and was false for two
+        // days (I-16). It is true as of this branch: the inbound re-pull
+        // triggers are this bus, the mount `..load()` below, the resume
+        // refetch in `_ChatScaffoldState.onAppResumed`, and the error-state
+        // retry inside the cubit. No clock.
+        // Narrowing to `chat` matters in BOTH directions here.
         // Outbound, it stops one inbound message from waking five other
         // surfaces. Inbound, it stops every unrelated `delivery` / `offer` /
         // `new_request` push on this device from firing a redundant

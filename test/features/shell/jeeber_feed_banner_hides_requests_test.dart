@@ -156,7 +156,6 @@ void main() {
 
     final deliveries = ActiveDeliveriesCubit(
       repository: _StaticRepo([_activeDelivery]),
-      pollInterval: const Duration(hours: 1),
     )..start();
 
     await tester.pumpWidget(

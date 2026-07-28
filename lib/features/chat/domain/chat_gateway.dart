@@ -71,14 +71,22 @@ abstract class ChatGateway {
   /// transitions.
   Stream<ChatEvent> subscribe(String conversationId);
 
-  /// Whether the cubit should run an HTTP-history POLL fallback alongside the
-  /// live [subscribe] stream. Only the real network gateway ([DioChatGateway])
-  /// needs it — its live transport is a WebSocket that may never establish
-  /// against the mock backend (or a non-member / flaky socket), so a periodic
-  /// re-pull of history is the inbound safety net. The in-memory / fixture
-  /// gateways drive their own deterministic event streams (and run inside
-  /// widget tests under `FakeAsync`, where a forever-periodic timer would trip
-  /// the pending-timer assertion), so they default to `false`.
+  /// Whether this gateway talks to a real network, and therefore whether the
+  /// cubit may arm a `dart:async` timer against it.
+  ///
+  /// ⚠️ THE NAME IS NOW WIDER THAN IT READS. It used to gate exactly one thing:
+  /// the 60 s HTTP-history POLL fallback. **That poll is deleted (N4).** What it
+  /// gates today is the cold-load-failure retry
+  /// (`ChatCubit.kChatHistoryRetryBackoff`) — armed only when a history read
+  /// FAILED, disarmed on the first success. The condition is unchanged
+  /// (`true` on [DioChatGateway], `false` everywhere else) and so is the reason:
+  /// the in-memory / fixture gateways drive their own deterministic event
+  /// streams and run inside widget tests under `FakeAsync`, where a pending
+  /// timer trips the pending-timer assertion.
+  ///
+  /// Kept under the old name deliberately rather than renamed in the same
+  /// change that deletes the poll: the rename would touch every gateway double
+  /// and bury the one-line behaviour change this branch is actually making.
   bool get supportsPolling => false;
 
   /// Accept a Jeeber's offer from inside the broadcasting chat. Drives the

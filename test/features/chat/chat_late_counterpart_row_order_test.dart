@@ -153,7 +153,6 @@ ChatCubit _cubit(DioChatGateway gateway, {required _TestClock clock}) {
     // Every fold is driven explicitly by `refresh()`. The REAL cadence is 60s,
     // which is the whole point: the window in which the device has not yet seen
     // a counterpart row is a minute wide, not a tick wide.
-    pollInterval: const Duration(minutes: 10),
     clock: clock.call,
   );
   addTearDown(cubit.close);
