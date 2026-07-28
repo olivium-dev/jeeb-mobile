@@ -139,23 +139,41 @@ class ChatCubit extends Cubit<ChatState> {
       clearError: true,
       historyLoadFailed: false,
     ));
+    // Both reads still leave together — one round-trip of latency, not two —
+    // but their FAILURES are no longer shared. `Future.wait` made a phase-read
+    // fault indistinguishable from a history-read fault, and they have opposite
+    // consequences: a failed history read is the reason the thread is empty, a
+    // failed phase read is not. The phase future absorbs its own error into
+    // `null` ("we could not find out") so it can never blank a thread that
+    // loaded fine.
+    final historyFuture = _gateway.loadHistory(_deliveryId);
+    final phaseFuture = _gateway
+        .loadPhase(_deliveryId)
+        .then<ConversationPhase?>((p) => p, onError: (Object _) => null);
     try {
-      final results = await Future.wait([
-        _gateway.loadHistory(_deliveryId),
-        _gateway.loadPhase(_deliveryId),
-      ]);
-      final history = results[0] as List<DeliveryChatMessage>;
-      final phase = results[1] as ConversationPhase;
+      final history = await historyFuture;
+      final phase = await phaseFuture;
       _noteServerClock(history);
+      // Nothing on screen AND no phase = we know nothing about this thread.
+      // Rendering the empty state here would assert "This delivery doesn't have
+      // a chat thread", which is a claim about SERVER DATA that a failed read is
+      // not evidence for — the same mistake #186 fixed for the history read
+      // alone. Raise the error body + retry instead.
+      final knowsNothing = phase == null && history.isEmpty;
       emit(
         state.copyWith(
           // Ordering (S0-CHAT-04): present history sorted by server time so a
           // backend that returns rows unsorted (or a paged read that interleaves
           // batches) still paints oldest→newest.
           messages: _ordered(history),
-          phase: phase,
+          // `unknown`, NOT `broadcasting`, when the phase read could not find
+          // out: `unknown` renders no TTL countdown, no accepted banner and no
+          // "Waiting for Jeebers…" copy. It asserts nothing, which is the
+          // truthful thing to assert.
+          phase: phase ?? ConversationPhase.unknown,
           isLoadingHistory: false,
-          historyLoadFailed: false,
+          historyLoadFailed: knowsNothing,
+          error: knowsNothing ? ChatError.historyLoadFailed : null,
         ),
       );
       // P4/P5: pull the bytes for any inbound `image` that arrived as a bare
@@ -292,17 +310,22 @@ class ChatCubit extends Cubit<ChatState> {
   /// re-creates the inbound subscription (already established by [load]).
   Future<void> refresh() async {
     if (isClosed) return;
+    final historyFuture = _gateway.loadHistory(_deliveryId);
+    final phaseFuture = _gateway
+        .loadPhase(_deliveryId)
+        .then<ConversationPhase?>((p) => p, onError: (Object _) => null);
     try {
-      final results = await Future.wait([
-        _gateway.loadHistory(_deliveryId),
-        _gateway.loadPhase(_deliveryId),
-      ]);
+      final history = await historyFuture;
+      final phase = await phaseFuture;
       if (isClosed) return;
-      final history = results[0] as List<DeliveryChatMessage>;
-      final phase = results[1] as ConversationPhase;
       emit(
         state.copyWith(
           messages: _reconciledWithHistory(history),
+          // A phase read that could not find out leaves the LAST KNOWN phase in
+          // place (`copyWith` keeps the current value for a null). Same rule as
+          // the messages above: stale beats invented. Overwriting with
+          // `broadcasting` here would silently UN-ACCEPT a live order on one
+          // flaky read, mid-delivery.
           phase: phase,
           // Self-heal: a resume / push-driven read that succeeds retires the
           // error body raised by an earlier cold-load failure.
@@ -443,12 +466,17 @@ class ChatCubit extends Cubit<ChatState> {
     emit(state.copyWith(acceptingOfferId: offerId, clearError: true));
     try {
       final acceptResult = await _gateway.acceptOffer(_deliveryId, offerId);
-      final results = await Future.wait([
-        _gateway.loadHistory(_deliveryId),
-        _gateway.loadPhase(_deliveryId),
-      ]);
-      final history = results[0] as List<DeliveryChatMessage>;
-      final phase = results[1] as ConversationPhase;
+      // The accept ALREADY SUCCEEDED at this point. A post-accept phase read
+      // that cannot reach the server must not roll the optimistic accept back
+      // (the `catch` below reverts and toasts `sendFailed`) — so it absorbs its
+      // own error into `null` and `copyWith` keeps whatever phase we hold,
+      // which the gateway's synthetic `PhaseChanged(accepted)` has already set.
+      final historyFuture = _gateway.loadHistory(_deliveryId);
+      final phaseFuture = _gateway
+          .loadPhase(_deliveryId)
+          .then<ConversationPhase?>((p) => p, onError: (Object _) => null);
+      final history = await historyFuture;
+      final phase = await phaseFuture;
       emit(
         state.copyWith(
           // Ordering (S0-CHAT-04): run the accept re-fetch through the SAME

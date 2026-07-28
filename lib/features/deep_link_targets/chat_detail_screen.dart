@@ -24,10 +24,12 @@ import '../chat/data/dio_order_broadcast_service.dart';
 import '../chat/data/dio_order_chat_summary_repository.dart';
 import '../chat/data/in_memory_chat_gateway.dart';
 import '../chat/domain/chat_gateway.dart';
+import '../chat/domain/conversation_lookup.dart';
 import '../chat/domain/delivery_chat_message.dart';
 import '../chat/domain/order_broadcast_service.dart';
 import '../chat/domain/order_chat_summary.dart';
 import '../chat/presentation/chat_screen.dart';
+import '../chat/presentation/widgets/chat_app_bar.dart';
 import '../kyc/domain/cdn_asset_gateway.dart';
 import '../otp_handover/domain/handover_code_store.dart';
 import '../photo_attachment/data/stub_photo_picker_service.dart';
@@ -197,6 +199,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
   ChatGateway? _gateway;
   bool _loading = true;
+
+  /// The conversation lookup COULD NOT FIND OUT whether a conversation exists
+  /// (network down, 5xx, timeout — see [ConversationLookup.unavailable]).
+  ///
+  /// This is the third state that used to be collapsed into "not resolved", and
+  /// collapsing it is what let a transport failure render as
+  /// "Waiting for Jeebers… / No offers yet — sit tight." over an IN-TRANSIT
+  /// delivery with an accepted offer. When set, the screen renders an error with
+  /// a retry and NEVER constructs a gateway — so no downstream read can turn the
+  /// failure into a claim about the conversation.
+  bool _resolutionUnavailable = false;
+
+  /// Test/E2E hook: true while the resolution-error body is the rendered state.
+  @visibleForTesting
+  bool get debugResolutionUnavailable => _resolutionUnavailable;
 
   @override
   void initState() {
@@ -455,7 +472,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     // the historical bug that wrongly stranded this screen in compose, where a
     // "send" would create a brand-new request instead of posting to the
     // existing conversation.
-    Future<bool> resolveByCorrelationKey() async {
+    Future<ConversationLookup> resolveByCorrelationKey() async {
       try {
         final resp = await dio.get<Map<String, dynamic>>(
           '/v1/conversations',
@@ -478,15 +495,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         if (data != null && resolvedId.isNotEmpty) {
           conversationData = data;
           conversationId = resolvedId;
-          return true;
+          return ConversationLookup.resolved;
         }
-      } on DioException {
-        // Not resolvable by correlation key — the fallback lookup runs next.
+        // A 200 whose body carries no conversation id is the server answering
+        // "nothing here" — an answer, so absence, not a transport failure.
+        return ConversationLookup.absent;
+      } on DioException catch (e) {
+        // THE FIX. A 404 means "no conversation for this key" (pre-accept —
+        // the fallback lookup runs next and compose is the truthful landing).
+        // A timeout / connection error / 5xx means we DO NOT KNOW, and must
+        // not be reported as either. See [classifyLookupFailure].
+        return classifyLookupFailure(e);
+      } catch (e) {
+        return classifyLookupFailure(e);
       }
-      return false;
     }
 
-    Future<bool> resolveByMessagesProbe() async {
+    Future<ConversationLookup> resolveByMessagesProbe() async {
       // A 200 from the canonical messages route proves a real, openable
       // conversation. An existing message thread is, by definition, past
       // compose → treat it as accepted so the composer shows and a send POSTs
@@ -497,13 +522,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
           'id': conversationId,
           'phase': 'accepted',
         };
-        return true;
-      } on DioException {
-        // Not an openable conversation id — fresh compose (no request/
+        return ConversationLookup.resolved;
+      } on DioException catch (e) {
+        // 404 → not an openable conversation id — fresh compose (no request/
         // conversation yet; the first message creates + broadcasts, JM-025 AC1)
         // or a request id resolved by the correlationKey lookup instead.
+        // Anything else → we could not find out.
+        return classifyLookupFailure(e);
+      } catch (e) {
+        return classifyLookupFailure(e);
       }
-      return false;
     }
 
     // Resolve correlationKey-FIRST for BOTH roles (BUG-17). The chat-service
@@ -525,16 +553,46 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     // never fires two doomed round-trips.
     final isComposeSentinel =
         widget.chatId.isEmpty || widget.chatId == kComposeConversationSentinel;
+    // The compose sentinel is a LOCAL fact, not a server answer: the route
+    // param itself says no request exists yet. That is genuine absence with no
+    // round-trip needed.
+    var lookup = ConversationLookup.absent;
     if (!isComposeSentinel) {
-      if (!await resolveByCorrelationKey()) {
-        await resolveByMessagesProbe();
+      lookup = await resolveByCorrelationKey();
+      if (lookup != ConversationLookup.resolved) {
+        final probe = await resolveByMessagesProbe();
+        // ABSENCE NEEDS BOTH LOOKUPS TO HAVE ANSWERED. If either one merely
+        // failed to reach the server, we did not learn that the conversation
+        // is missing — we learned nothing. A single 404 alongside a timeout is
+        // still "could not find out", because the 404-ing lookup is the one
+        // that is guaranteed to 404 for the OTHER role's id shape.
+        lookup = switch ((lookup, probe)) {
+          (_, ConversationLookup.resolved) => ConversationLookup.resolved,
+          (ConversationLookup.unavailable, _) ||
+          (_, ConversationLookup.unavailable) =>
+            ConversationLookup.unavailable,
+          _ => ConversationLookup.absent,
+        };
       }
+    }
+
+    if (!mounted) return;
+    if (lookup == ConversationLookup.unavailable) {
+      // WE COULD NOT FIND OUT. Do not build a gateway, do not hand anything the
+      // compose sentinel, do not let a downstream read invent a phase. Say so,
+      // and offer a retry.
+      setState(() {
+        _resolutionUnavailable = true;
+        _gateway = null;
+        _loading = false;
+      });
+      return;
     }
 
     // Whether the correlationKey lookup / messages probe found a REAL backend
     // conversation. Pre-accept the customer opens order-chat keyed on the
     // requestId BEFORE any Jeeber accepts — NEITHER path resolves because no
-    // conversation row exists yet.
+    // conversation row exists yet, and BOTH answered 404 to say so.
     final conversationResolved = conversationData != null;
 
     final title = await _resolveTitle(dio, conversationData);
@@ -905,6 +963,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       _hasWinner = hasWinner;
       _summary = summary;
       _loading = false;
+      // A resolution that produced a gateway retires the error body (the retry
+      // CTA re-enters here).
+      _resolutionUnavailable = false;
     });
     // b02 fg-suppression: deliberately NO republish here. `ActiveChatThread`
     // holds a READER over `_openThreadIds`, so the conversation/request ids
@@ -1037,11 +1098,47 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     return StubPhotoPickerService();
   }
 
+  /// Re-run the conversation lookup after a "could not find out" failure.
+  /// Wired to the retry CTA on [_buildResolutionError].
+  void _retryResolution() {
+    if (!mounted) return;
+    setState(() {
+      _resolutionUnavailable = false;
+      _loading = true;
+    });
+    unawaited(_resolveAndBuild());
+  }
+
+  /// THE THIRD STATE, rendered. We do not know whether this conversation
+  /// exists, so we assert nothing about it — no "Waiting for Jeebers", no empty
+  /// thread, no composer that would broadcast a duplicate request. OMDS only
+  /// ([OmdsErrorStatePage]); the copy is the same `chatHistoryError*` family the
+  /// #186 history-read error body uses, because it is the same statement to the
+  /// user ("couldn't load this chat — check your connection and try again").
+  Widget _buildResolutionError(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final isJeeber = _readRole(context) == UserRole.jeeber;
+    return Semantics(
+      identifier: 'chat_resolution_error',
+      child: OmdsErrorStatePage(
+        appBar: ChatAppBar(title: _headerTitle(l10n, isJeeber)),
+        title: l10n.chatHistoryErrorTitle,
+        message: l10n.chatHistoryErrorMessage,
+        retryLabel: l10n.chatHistoryErrorRetry,
+        onRetry: _retryResolution,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(body: Center(child: OmdsLoadingState()));
     }
+    // Checked BEFORE the gateway is dereferenced below: on this branch there is
+    // deliberately no gateway, because building one would give a downstream
+    // read something to be confidently wrong about.
+    if (_resolutionUnavailable) return _buildResolutionError(context);
     // Role-aware entry point: a jeeber whose offer was accepted lands here via
     // `/chat/:id` and must be able to start the delivery. RoleCubit is provided
     // app-wide (MultiBlocProvider in JeebApp, above MaterialApp.router), so it
