@@ -47,9 +47,8 @@ DeliveryTrackingInfo _row(String status) => DeliveryTrackingInfo.fromDeliveryJso
 /// transport error, a socket the OS tore down, or the server hanging up.
 class _FlappingRepo
     implements LiveTrackingRepository, LivePositionStreamSource {
-  _FlappingRepo({this.status = 'InTransit'});
-
-  String status;
+  /// Mutated by the test to complete the delivery mid-flight.
+  String status = 'InTransit';
   final List<StreamController<DeliveryLivePosition>> streams = [];
   int statusReads = 0;
 
