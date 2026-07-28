@@ -20,9 +20,10 @@ import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart
 /// `PushNotificationHandler._maybeSignalStatusChange` (`requestId`/`request_id`
 /// are both stamped on that payload).
 class _FakeOffersRepository implements OffersRepository {
-  _FakeOffersRepository({this.requestIsOpen = true});
-
-  bool requestIsOpen;
+  // `requestIsOpen` is a mutable FIELD, not a constructor parameter: no test
+  // seeds it (they flip it mid-run), and a never-supplied optional parameter
+  // is an `unused_element_parameter` warning, which CI treats as fatal.
+  bool requestIsOpen = true;
   int fetchCount = 0;
 
   @override

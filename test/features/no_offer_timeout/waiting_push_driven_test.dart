@@ -27,13 +27,14 @@ import 'package:jeeb_mobile/features/no_offer_timeout/domain/waiting_request.dar
 /// only advances `now` so the countdown widget rebuilds; it issues zero gateway
 /// reads, and removing it would break the UI while saving no traffic.
 class _FakeWaitingRepository implements WaitingRepository {
-  _FakeWaitingRepository({
-    this.phase = WaitingRequestPhase.broadcasting,
-    this.offerCount = 0,
-  });
+  _FakeWaitingRepository({this.phase = WaitingRequestPhase.broadcasting});
 
   WaitingRequestPhase phase;
-  int offerCount;
+
+  // Mutable FIELD, not a constructor parameter: the tests flip it mid-run and
+  // none seeds it, and a never-supplied optional parameter is an
+  // `unused_element_parameter` warning, which CI treats as fatal.
+  int offerCount = 0;
   int fetchWaitingCount = 0;
   int fetchRequestCount = 0;
   int fetchOfferCountCount = 0;
