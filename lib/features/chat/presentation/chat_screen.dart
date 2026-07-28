@@ -177,6 +177,11 @@ class ChatScreen extends StatelessWidget {
   static const Key messageListKey = Key('chat-screen-message-list');
   static const Key emptyStateKey = Key('chat-screen-empty');
 
+  /// b02: the history-load FAILURE body (error copy + retry). Distinct from
+  /// [emptyStateKey] on purpose — a test that cannot tell the two apart is the
+  /// reason a 500 shipped looking like an empty thread.
+  static const Key historyErrorKey = Key('chat-screen-history-error');
+
   @override
   Widget build(BuildContext context) {
     final provided = cubit;
@@ -518,6 +523,13 @@ class _ChatScaffoldState extends State<_ChatScaffold>
         return l10n.chatVoiceUploadFailed;
       case ChatError.attachmentUploadFailed:
         return l10n.chatErrorAttachmentUploadFailed;
+      case ChatError.historyLoadFailed:
+        // Rendered as a BODY state (error + retry), not a one-shot toast: the
+        // thread is empty BECAUSE of this failure, so the user has to be able
+        // to see it and act on it for as long as it lasts. A snackbar here
+        // would flash once and leave "No conversation yet" behind it — exactly
+        // the collapse this state exists to prevent.
+        return null;
     }
   }
 }
@@ -565,9 +577,19 @@ class _ChatBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state.isLoadingHistory) return const _ChatHistoryShimmer();
-    final body = state.messages.isEmpty
-        ? _ChatEmptyState(phase: state.phase, l10n: l10n)
-        : _ChatMessageList(state: state, controller: scrollController);
+    // b02: the FAILURE branch has to be tested BEFORE the emptiness branch.
+    // Ordering them the other way round is the whole defect: a 500 leaves
+    // `messages` empty, so an emptiness-first body renders "No conversation
+    // yet" over a thread that exists and a Jeeber who is already on the way.
+    // Only a read that came back may be interpreted as "there is nothing here".
+    final Widget body;
+    if (state.historyLoadFailed) {
+      body = _ChatHistoryErrorState(l10n: l10n);
+    } else if (state.messages.isEmpty) {
+      body = _ChatEmptyState(phase: state.phase, l10n: l10n);
+    } else {
+      body = _ChatMessageList(state: state, controller: scrollController);
+    }
     final notice = feeNotice;
     final summary = pinnedSummary;
     return Column(
@@ -631,6 +653,50 @@ class _FeeBannerSlot extends StatelessWidget {
       trailing: notice.trailing,
       onDismiss: notice.onDismiss,
       onOrderPicked: notice.onOrderPicked,
+    );
+  }
+}
+
+/// b02: the history read FAILED — say so, and offer a way out.
+///
+/// Rendered instead of [_ChatEmptyState] whenever
+/// [ChatState.historyLoadFailed] is set. The distinction is the entire point:
+/// the empty state asserts "this delivery doesn't have a chat thread", which is
+/// a claim about the SERVER'S DATA, and a 500 is not evidence for it. Rendering
+/// it anyway is how a Firestore outage reached users as an empty chat while
+/// their Jeeber was in transit, with nothing to tap.
+///
+/// OMDS only: [OmdsErrorState], which owns the icon/title/message/retry layout
+/// and its own theming.
+class _ChatHistoryErrorState extends StatelessWidget {
+  const _ChatHistoryErrorState({required this.l10n});
+
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    // Same constrain-to-viewport + scroll shell as the empty state (run-22
+    // "BOTTOM OVERFLOWED BY 6.6 PIXELS"): this column is TALLER than that one
+    // (it carries a retry button as well), so it needs the treatment at least
+    // as much once banners / the pinned summary / the keyboard stack up.
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(
+            child: Semantics(
+              identifier: 'chat_history_error',
+              child: OmdsErrorState(
+                key: ChatScreen.historyErrorKey,
+                title: l10n.chatHistoryErrorTitle,
+                message: l10n.chatHistoryErrorMessage,
+                retryLabel: l10n.chatHistoryErrorRetry,
+                onRetry: () => context.read<ChatCubit>().retryLoad(),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

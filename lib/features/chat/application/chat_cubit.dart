@@ -134,7 +134,11 @@ class ChatCubit extends Cubit<ChatState> {
   /// and starts listening for inbound events. Also fetches the conversation
   /// phase so the composer/offer-card UI renders correctly on first paint.
   Future<void> load() async {
-    emit(state.copyWith(isLoadingHistory: true, clearError: true));
+    emit(state.copyWith(
+      isLoadingHistory: true,
+      clearError: true,
+      historyLoadFailed: false,
+    ));
     try {
       final results = await Future.wait([
         _gateway.loadHistory(_deliveryId),
@@ -151,6 +155,7 @@ class ChatCubit extends Cubit<ChatState> {
           messages: _ordered(history),
           phase: phase,
           isLoadingHistory: false,
+          historyLoadFailed: false,
         ),
       );
       // P4/P5: pull the bytes for any inbound `image` that arrived as a bare
@@ -158,10 +163,33 @@ class ChatCubit extends Cubit<ChatState> {
       _resolveImageBytes();
       _subscription ??= _gateway.subscribe(_deliveryId).listen(_handleEvent);
     } catch (_) {
+      // b02 — A 500 IS NOT AN EMPTY THREAD.
+      //
+      // This used to be a bare collapse to `messages: const [], phase:
+      // ConversationPhase.unknown`, and `unknown` is precisely the branch
+      // `_ChatEmptyState` renders as "No conversation yet / This delivery
+      // doesn't have a chat thread. Check back once a Jeeber is assigned." So
+      // every history-load failure — a gateway 500, a transport drop, the chat
+      // store being down — reached the user as a confident statement that there
+      // was nothing to see, WHILE A JEEBER WAS ASSIGNED AND IN TRANSIT. There
+      // was no error state to render and no way to ask again short of killing
+      // the app. That is how the Firestore outage presented.
+      //
+      // The phase stays `unknown` (we genuinely do not know it) but the state
+      // now SAYS SO: `historyLoadFailed` is sticky and drives an error body with
+      // a retry, and the empty state is suppressed while it is set. A
+      // successful read on ANY later path — [retryLoad], [refresh], the
+      // safety-net poll — clears it.
+      //
+      // `messages: const []` is kept: this is the COLD path, there is nothing on
+      // screen to preserve. The non-destructive rule that protects a rendered
+      // thread lives in [refresh] / [_reconciledWithHistory].
       emit(state.copyWith(
         messages: const [],
         phase: ConversationPhase.unknown,
         isLoadingHistory: false,
+        historyLoadFailed: true,
+        error: ChatError.historyLoadFailed,
       ));
     }
     // Start the HTTP-history poll fallback regardless of the initial load
@@ -170,6 +198,15 @@ class ChatCubit extends Cubit<ChatState> {
     // WS never connects (mock / non-member / transport).
     _startPolling();
   }
+
+  /// Re-run the cold load after a history-read failure. Wired to the retry CTA
+  /// on the error body ([ChatState.historyLoadFailed]).
+  ///
+  /// Deliberately [load] and not [refresh]: the failure path left the thread
+  /// with no rows AND no inbound subscription (the `subscribe` call sits after
+  /// the awaited history read, so a throw skipped it). Only [load] re-establishes
+  /// both. It is idempotent on the subscription — `_subscription ??=`.
+  Future<void> retryLoad() => load();
 
   /// Arm the periodic HTTP-history poll. Idempotent — repeated [load] calls
   /// reuse the single timer. Only the network gateway opts in (see
@@ -189,7 +226,12 @@ class ChatCubit extends Cubit<ChatState> {
     try {
       final latest = await _gateway.loadHistory(_deliveryId);
       if (isClosed) return;
-      emit(state.copyWith(messages: _reconciledWithHistory(latest)));
+      // A read that came back is proof the thread is reachable again, so a
+      // previously-raised load failure must stop being rendered.
+      emit(state.copyWith(
+        messages: _reconciledWithHistory(latest),
+        historyLoadFailed: false,
+      ));
       _resolveImageBytes();
     } catch (_) {
       // Transient fetch failure — the next tick retries. Never surface an error
@@ -262,11 +304,17 @@ class ChatCubit extends Cubit<ChatState> {
         state.copyWith(
           messages: _reconciledWithHistory(history),
           phase: phase,
+          // Self-heal: a resume / push-driven read that succeeds retires the
+          // error body raised by an earlier cold-load failure.
+          historyLoadFailed: false,
         ),
       );
       _resolveImageBytes();
     } catch (_) {
-      // Keep the current thread on a transient refresh failure.
+      // Keep the current thread on a transient refresh failure. Note this does
+      // NOT raise `historyLoadFailed`: there is (or may be) a rendered thread
+      // here, and stale-but-present beats blank. The error body is for the COLD
+      // path, where the failure is the only reason the screen has no rows.
     }
   }
 
