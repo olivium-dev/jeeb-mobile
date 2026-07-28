@@ -175,6 +175,37 @@ class WaitingCubit extends Cubit<WaitingState> {
     }
   }
 
+  /// The RESUME one-shot (N9 backstop).
+  ///
+  /// Driven by `AppResumeSignals` at the widget layer
+  /// (`RouteResumeRefetch` in `no_offer_timeout_screen.dart`), NOT by a
+  /// lifecycle observer here — one app-wide, coalesced, genuine-resume bus
+  /// rather than a per-cubit `didChangeAppLifecycleState`, which is the storm
+  /// `AppResumeSignals` exists to cap.
+  ///
+  /// It exists because the deleted 5 s poll was this screen's implicit
+  /// self-heal: a `newOffer` / `request_expired` push that lands while the app
+  /// is BACKGROUNDED never reaches the refresh bus (only
+  /// `FirebaseMessaging.onMessage` publishes to it), so a user who returns
+  /// without tapping the notification would otherwise sit on a permanently
+  /// stale "Finding Jeebers" while [tick] keeps the countdown moving — frozen
+  /// data that looks live.
+  ///
+  /// Routed through the same single-flighted [_refreshFromPush] the bus uses,
+  /// so a resume landing inside an in-flight read is COALESCED onto it rather
+  /// than starting a second, and so the terminal/offers teardown rules apply
+  /// identically to both triggers.
+  ///
+  /// Gated on `loaded`: `initial`/`loading` means the cold [load] is still on
+  /// the wire (a second read would be a duplicate, and the screen is showing
+  /// its shimmer, not stale data), and `failed` is owned by the error state's
+  /// Retry CTA — [_refreshFromPush] would fetch without clearing `failed`, so
+  /// it would spend a read to repaint the same error.
+  void refreshOnResume() {
+    if (isClosed || state.status != WaitingScreenStatus.loaded) return;
+    unawaited(_refreshFromPush());
+  }
+
   /// Manual retry from the error state. Resets to initial so [load] re-runs.
   Future<void> retry() async {
     if (isClosed) return;
