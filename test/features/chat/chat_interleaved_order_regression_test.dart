@@ -157,17 +157,21 @@ class _TestClock {
   set now(DateTime value) => _now = value;
 }
 
+/// The push bus the cubit under test subscribes to. One per case.
+late StreamController<void> _bus;
+
 ChatCubit _cubit(
   DioChatGateway gateway, {
   required _TestClock clock,
-  Duration pollInterval = const Duration(milliseconds: 20),
 }) {
+  _bus = StreamController<void>.broadcast();
+  addTearDown(_bus.close);
   final cubit = ChatCubit(
     deliveryId: _conversationId,
     gateway: gateway,
     pickerService: StubPhotoPickerService(),
-    pollInterval: pollInterval,
     clock: clock.call,
+    refreshSignals: _bus.stream,
   );
   addTearDown(cubit.close);
   return cubit;
@@ -176,18 +180,20 @@ ChatCubit _cubit(
 List<String> _texts(ChatCubit cubit) =>
     cubit.state.messages.map((m) => m.text).toList(growable: false);
 
-/// Waits for at least one safety-net poll tick to have landed.
+/// Drives ONE history re-pull off the push bus and waits for it to land AND
+/// merge. N4: the trigger moved from a 60 s clock to a push; the interleave
+/// hazard is a property of the merge, so every assertion below is unchanged.
 Future<void> _awaitPollTick(_ChatWire wire) async {
   final before = wire.historyReads;
+  _bus.add(null);
   for (var i = 0; i < 50; i++) {
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+    await Future<void>.delayed(const Duration(milliseconds: 5));
     if (wire.historyReads > before) {
-      // One more beat so the merge that follows the read has run.
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await Future<void>.delayed(const Duration(milliseconds: 5));
       return;
     }
   }
-  fail('the safety-net poll never ticked; nothing below would prove anything');
+  fail('a push drove no history re-pull; nothing below would prove anything');
 }
 
 void main() {
@@ -364,7 +370,6 @@ void main() {
         final cubit = _cubit(
           _gateway(wire, viewerId: _customerId),
           clock: clock,
-          pollInterval: const Duration(minutes: 10),
         );
 
         await cubit.load();
@@ -420,7 +425,6 @@ void main() {
         final cubit = _cubit(
           _gateway(wire, viewerId: _customerId),
           clock: clock,
-          pollInterval: const Duration(minutes: 10),
         );
 
         await cubit.load();
@@ -467,7 +471,6 @@ void main() {
         final cubit = _cubit(
           _gateway(wire, viewerId: _customerId),
           clock: clock,
-          pollInterval: const Duration(minutes: 10),
         );
 
         await cubit.load();
@@ -500,7 +503,6 @@ void main() {
         final cubit = _cubit(
           _gateway(wire, viewerId: _customerId),
           clock: clock,
-          pollInterval: const Duration(minutes: 10),
         );
 
         await cubit.load();
@@ -529,7 +531,6 @@ void main() {
           _gateway(wire, viewerId: _customerId),
           clock: clock,
           // Isolate the accept path: no poll tick may interleave.
-          pollInterval: const Duration(minutes: 10),
         );
 
         await cubit.load();
@@ -567,7 +568,6 @@ void main() {
         final cubit = _cubit(
           _gateway(wire, viewerId: _customerId),
           clock: clock,
-          pollInterval: const Duration(minutes: 10),
         );
 
         await cubit.load();
@@ -600,7 +600,6 @@ void main() {
         final cubit = _cubit(
           _gateway(wire, viewerId: _customerId),
           clock: clock,
-          pollInterval: const Duration(minutes: 10),
         );
 
         await cubit.load();

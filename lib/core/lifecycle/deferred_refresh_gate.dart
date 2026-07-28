@@ -111,6 +111,21 @@ class DeferredRefreshGate implements PollingVisibility {
     _subscription = signals.listen((_) => _onSignal());
   }
 
+  /// Drive one refresh through this gate WITHOUT a bus event.
+  ///
+  /// The one non-push trigger the owner's architecture ruling makes mandatory:
+  /// a fetch at mount and a fetch on resume, so a DROPPED push costs freshness
+  /// until the next time the surface is looked at rather than leaving a
+  /// permanently wrong screen. Routing it through the gate rather than calling
+  /// `refresh()` directly is what keeps the read economics: a resume that
+  /// arrives while the surface is off screen marks the SAME boolean debt a
+  /// push would, so "resumed, then a push landed, then the user came back" is
+  /// ONE read, not three.
+  ///
+  /// Deliberately not a timer and not periodic — the only clock is the user's
+  /// own navigation, exactly as the class doc states.
+  void signal() => _onSignal();
+
   void _onSignal() {
     if (_disposed) return;
     _signalCount++;

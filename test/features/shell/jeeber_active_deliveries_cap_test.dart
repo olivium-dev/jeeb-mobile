@@ -100,7 +100,6 @@ void main() {
     // the single initial load with explicit pumps below.
     final cubit = ActiveDeliveriesCubit(
       repository: _StaticRepo(_deliveries(count)),
-      pollInterval: const Duration(hours: 1),
     )..start();
 
     await tester.pumpWidget(

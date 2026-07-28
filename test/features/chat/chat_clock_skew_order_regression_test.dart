@@ -167,17 +167,21 @@ class _TestClock {
   set now(DateTime value) => _now = value;
 }
 
+/// The push bus the cubit under test subscribes to. One per case.
+late StreamController<void> _bus;
+
 ChatCubit _cubit(
   DioChatGateway gateway, {
   required _TestClock clock,
-  Duration pollInterval = const Duration(milliseconds: 20),
 }) {
+  _bus = StreamController<void>.broadcast();
+  addTearDown(_bus.close);
   final cubit = ChatCubit(
     deliveryId: _conversationId,
     gateway: gateway,
     pickerService: StubPhotoPickerService(),
-    pollInterval: pollInterval,
     clock: clock.call,
+    refreshSignals: _bus.stream,
   );
   addTearDown(cubit.close);
   return cubit;
@@ -186,28 +190,42 @@ ChatCubit _cubit(
 List<String> _texts(ChatCubit cubit) =>
     cubit.state.messages.map((m) => m.text).toList(growable: false);
 
-/// Waits for [count] further safety-net poll ticks to have landed AND merged.
+/// Drives [count] further history re-pulls and waits for each to land AND
+/// merge.
+///
+/// N4: this used to wait for [count] safety-net POLL ticks. The poll is
+/// deleted; the trigger is a push. The re-order hazard these cases exist for is
+/// a property of the MERGE, not of what caused it, so every assertion below is
+/// unchanged — a re-pull is a re-pull. Fires ONE push per pull rather than a
+/// burst, because the cubit single-flights a burst down to one read and the
+/// cases here need [count] distinct folds.
 Future<void> _awaitPollTicks(_ChatWire wire, int count) async {
-  final target = wire.historyReads + count;
-  for (var i = 0; i < 200; i++) {
-    await Future<void>.delayed(const Duration(milliseconds: 20));
-    if (wire.historyReads >= target) {
-      // One more beat so the merge that follows the last read has run.
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      return;
+  for (var pull = 0; pull < count; pull++) {
+    final target = wire.historyReads + 1;
+    _bus.add(null);
+    var landed = false;
+    for (var i = 0; i < 50; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      if (wire.historyReads >= target) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        landed = true;
+        break;
+      }
+    }
+    if (!landed) {
+      fail(
+        'a push drove no history re-pull (reads stuck at ${wire.historyReads} '
+        'of $target); nothing below would prove anything',
+      );
     }
   }
-  fail(
-    'the safety-net poll only reached ${wire.historyReads} of $target reads; '
-    'nothing below would prove anything',
-  );
 }
 
 void main() {
-  group('T5 — a poll tick must not re-order a thread by the LOCAL clock', () {
+  group('T5 — a re-pull must not re-order a thread by the LOCAL clock', () {
     test(
       'SLOW CLOCK, DoD: a reply that arrived before my message stays above it '
-      'across the append path and 3 subsequent poll ticks, with nothing new on '
+      'across the append path and 3 subsequent push-driven re-pulls, with nothing new on '
       'the wire',
       () async {
         // Their message is server-dated 12:00:00Z. This device believes it is

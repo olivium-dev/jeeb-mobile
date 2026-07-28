@@ -118,10 +118,14 @@ class _SummaryRecordingDio {
   int get summaryReads => deliveryReads + requestReads + offerReads;
 }
 
-ChatCubit _buildCubit(_CountingPollingGateway gateway) => ChatCubit(
+ChatCubit _buildCubit(
+  _CountingPollingGateway gateway, {
+  Stream<void>? refreshSignals,
+}) => ChatCubit(
   deliveryId: _resolvedConversationId,
   gateway: gateway,
   pickerService: StubPhotoPickerService(),
+  refreshSignals: refreshSignals,
 );
 
 Widget _summaryHost(RoleCubit role, {Stream<void>? refreshSignals}) =>
@@ -192,13 +196,27 @@ void main() {
     if (sl.isRegistered<Dio>()) sl.unregister<Dio>();
   });
 
-  test('AC2 G23 V1 presence control: a supportsPolling gateway DOES arm the '
-      'history poller at the 60s constant over a 300s window', () {
+  // N4 — INVERTED, not deleted, exactly as V2 below was inverted in wave B.2.
+  //
+  // This used to be the PRESENCE control: "a supportsPolling gateway DOES arm
+  // the history poller at the 60s constant over a 300s window", asserting 5
+  // ticks and 6 reads. The mandate makes that shape the defect. The window, the
+  // arithmetic and the `supportsPolling: true` gateway are all kept — only the
+  // expected values invert, 5 ticks becoming 0 reads. Inverting rather than
+  // deleting is what keeps the case able to catch the poll's accidental return.
+  //
+  // The push CONTROL at the end is what stops this from being a test that
+  // passes against a cubit nobody wired: an absence assertion whose instrument
+  // is never shown alive is the exact failure shape TESTING-INSTRUMENTS.md
+  // catalogues.
+  test('AC2 G23 V1 ABSENCE: a supportsPolling gateway arms NO history cadence '
+      '— zero reads over a 300s window, and a push still reads', () {
     final gate = ManualAppLifecycleGate();
     AppLifecycleGate.install(gate);
     FakeAsync().run((async) {
       final gateway = _CountingPollingGateway();
-      final cubit = _buildCubit(gateway);
+      final bus = StreamController<void>.broadcast();
+      final cubit = _buildCubit(gateway, refreshSignals: bus.stream);
       var loaded = false;
       cubit.load().then((_) => loaded = true);
       async.flushMicrotasks();
@@ -206,35 +224,44 @@ void main() {
       expect(loaded, isTrue);
       expect(gateway.supportsPolling, isTrue);
       expect(gateway.lastConversationId, _resolvedConversationId);
-      expect(gateway.loadHistoryCalls, 1, reason: 'initial read only');
-      expect(cubit.debugHistoryTickCount, isZero);
-      expect(cubit.debugHistoryPollerRunning, isTrue);
+      expect(gateway.loadHistoryCalls, 1, reason: 'the mount one-shot only');
+      expect(
+        async.periodicTimerCount,
+        isZero,
+        reason: 'leg 1: no periodic timer on a rendering thread',
+      );
 
       async.elapse(const Duration(seconds: 59));
       async.flushMicrotasks();
-      expect(cubit.debugHistoryTickCount, isZero);
       expect(gateway.loadHistoryCalls, 1);
-      expect(cubit.debugHistoryPollerRunning, isTrue);
 
+      // The instant the retired cadence would have fired.
       async.elapse(const Duration(seconds: 1));
       async.flushMicrotasks();
-      expect(cubit.debugHistoryTickCount, 1);
-      expect(gateway.loadHistoryCalls, 2);
-      expect(cubit.debugHistoryPollerRunning, isTrue);
+      expect(
+        gateway.loadHistoryCalls,
+        1,
+        reason: 'the 60s boundary is no longer an event',
+      );
 
       for (var index = 0; index < 4; index++) {
-        async.elapse(kChatHistorySafetyNetPollInterval);
+        async.elapse(const Duration(seconds: 60));
         async.flushMicrotasks();
       }
-      // M7 headroom: reverting 60s to 5s produces 60 ticks here, while the
-      // exact threshold is 5 — a separation of 55 ticks.
-      expect(cubit.debugHistoryTickCount, 5);
-      expect(gateway.loadHistoryCalls, 6);
-      expect(gateway.loadHistoryCalls, isNonZero);
-      expect(cubit.debugHistoryPollerRunning, isTrue);
+      expect(
+        gateway.loadHistoryCalls,
+        1,
+        reason: '300s window: the pre-fix value here was 6',
+      );
+      expect(async.periodicTimerCount, isZero);
+
+      // POSITIVE CONTROL, same window, same instrument.
+      bus.add(null);
+      async.flushMicrotasks();
+      expect(gateway.loadHistoryCalls, 2, reason: 'push drives one re-pull');
 
       cubit.close();
-      expect(cubit.debugHistoryPollerRunning, isFalse);
+      bus.close();
       async.flushMicrotasks();
       expect(async.periodicTimerCount, isZero);
     });
@@ -361,8 +388,7 @@ void main() {
       await cubit.load();
       expect(historyGateway.supportsPolling, isTrue);
       expect(historyGateway.lastConversationId, _resolvedConversationId);
-      expect(cubit.debugHistoryTickCount, isZero);
-      expect(cubit.debugHistoryPollerRunning, isTrue);
+      expect(historyGateway.loadHistoryCalls, 1, reason: 'the mount one-shot');
 
       final recorder = _SummaryRecordingDio();
       GetIt.instance.registerSingleton<Dio>(recorder.dio);
@@ -388,17 +414,13 @@ void main() {
       // it before and the one-shot reads as a poll.
       _driveToBackground(tester);
       await tester.pumpAndSettle();
-      expect(cubit.debugHistoryPollerRunning, isFalse);
       final summaryReadsAtArm = recorder.summaryReads;
       final refetchesAtArm = state.debugSummaryRefetchCount;
 
       await _pumpSummaryIntervals(tester, 5);
       // Foreground-latch mutations produce 5 ticks in this five-interval
       // window, separated by 5 from the asserted zero threshold.
-      expect(historyGateway.loadHistoryCalls, 1, reason: 'initial read only');
-      // An inert-tick mutation leaves the read count green; only this explicit
-      // timer-state assertion detects that the battery-costing timer survived.
-      expect(cubit.debugHistoryPollerRunning, isFalse);
+      expect(historyGateway.loadHistoryCalls, 1, reason: 'mount read only');
       // The summary needed a lifecycle gate only because it had a clock. With the
       // clock gone there is nothing to gate: a backgrounded chat issues zero
       // summary reads for the same reason a foregrounded one does.

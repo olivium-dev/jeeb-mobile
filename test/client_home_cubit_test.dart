@@ -173,39 +173,35 @@ void main() {
     });
   });
 
-  group('live refresh — poll + push signal (Lane C)', () {
-    test('startPolling re-pulls the snapshot on each tick', () async {
+  group('live refresh — push signal (Lane C; N3 retired the poll)', () {
+    // The two cases that stood here — "startPolling re-pulls the snapshot on
+    // each tick" and "stopPolling halts further re-pulls" — tested a start/stop
+    // pair that no longer exists. Their replacement is the property that
+    // matters after N3: real wall-clock time passes and the cubit reads
+    // nothing. Deliberately a REAL delay rather than `FakeAsync`, mirroring
+    // what the deleted cases did, so a surviving `Timer.periodic` in any zone
+    // would still be caught.
+    test('no amount of wall-clock time re-pulls the snapshot', () async {
       when(() => repo.loadSnapshot())
           .thenAnswer((_) async => const ClientHomeSnapshot());
+      final bus = StreamController<void>.broadcast();
       final cubit = ClientHomeCubit(
         repository: repo,
         greetingNameProvider: () => null,
-        pollInterval: const Duration(milliseconds: 30),
+        refreshSignals: bus.stream,
       );
-      await cubit.load(); // 1
-      cubit.startPolling();
-      await Future<void>.delayed(const Duration(milliseconds: 110));
-      cubit.stopPolling();
-      verify(() => repo.loadSnapshot()).called(greaterThan(1));
-      await cubit.close();
-    });
+      await cubit.load(); // the mount one-shot
+      verify(() => repo.loadSnapshot()).called(1);
 
-    test('stopPolling halts further re-pulls', () async {
-      when(() => repo.loadSnapshot())
-          .thenAnswer((_) async => const ClientHomeSnapshot());
-      final cubit = ClientHomeCubit(
-        repository: repo,
-        greetingNameProvider: () => null,
-        pollInterval: const Duration(milliseconds: 20),
-      );
-      cubit.startPolling();
-      await Future<void>.delayed(const Duration(milliseconds: 60));
-      cubit.stopPolling();
-      // Drain + reset the recorded calls made while polling was active.
-      verify(() => repo.loadSnapshot()).called(greaterThan(0));
-      // After stop, no further re-pulls happen.
-      await Future<void>.delayed(const Duration(milliseconds: 60));
+      await Future<void>.delayed(const Duration(milliseconds: 250));
       verifyNever(() => repo.loadSnapshot());
+
+      // POSITIVE CONTROL: the wiring is live, so the silence above is silence.
+      bus.add(null);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      verify(() => repo.loadSnapshot()).called(1);
+
+      await bus.close();
       await cubit.close();
     });
 

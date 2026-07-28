@@ -306,13 +306,14 @@ class _CatalogActiveDeliveriesRepository implements ActiveDeliveriesRepository {
   Future<List<ActiveDeliverySummary>> listActive() async => _deliveries;
 }
 
-/// A million-day poll interval keeps the cubit's `Timer.periodic` from ever
-/// firing again during a preview session (the long-lived preview-cubit
-/// convention).
+/// The million-day `pollInterval` this used to pass — the long-lived
+/// preview-cubit convention for keeping a `Timer.periodic` from firing during a
+/// preview session — is gone with the poll itself (N2). `start()` is now a
+/// single mount read against the in-memory catalog repository and schedules
+/// nothing.
 Widget _activeDeliveriesBanner(List<ActiveDeliverySummary> deliveries) {
   final cubit = ActiveDeliveriesCubit(
     repository: _CatalogActiveDeliveriesRepository(deliveries),
-    pollInterval: const Duration(days: 365),
   )..start();
   return Scaffold(
     body: SafeArea(

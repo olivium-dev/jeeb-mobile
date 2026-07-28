@@ -153,7 +153,6 @@ void main() {
       // push signal — proving the card reacts to the push, not the poll.
       final deliveries = ActiveDeliveriesCubit(
         repository: repo,
-        pollInterval: const Duration(hours: 1),
         refreshSignals: signals.stream,
       )..start();
 

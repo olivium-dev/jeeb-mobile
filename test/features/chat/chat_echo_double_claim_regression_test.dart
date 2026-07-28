@@ -176,7 +176,6 @@ ChatCubit _cubit(
     // Long: every fold below is driven EXPLICITLY by `refresh()`, so the number
     // of folds is exactly what each case says it is. A background tick would
     // make "one fold" unfalsifiable.
-    pollInterval: const Duration(minutes: 10),
     clock: clock.call,
   );
   addTearDown(cubit.close);
