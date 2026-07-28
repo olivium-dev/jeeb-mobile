@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../../features/shell/tab_visibility.dart';
 import 'app_resume_signals.dart';
 import 'route_visibility.dart';
 
@@ -114,19 +115,39 @@ class _RouteResumeRefetchState extends State<RouteResumeRefetch>
   /// to, and the target re-reads the whole snapshot.
   bool _pending = false;
 
+  /// The enclosing shell tab's answer, or `true` when this subtree is not
+  /// hosted by a tab (a top-level route, a bare widget test).
+  ///
+  /// Without this term the widget is a landmine for its NEXT adopter. Today's
+  /// two adopters are top-level routes with no tab above them, so the shell
+  /// hosts nothing that could flip it — but the shell keeps every tab mounted
+  /// inside an [IndexedStack], so a tab body never re-runs its lifecycle on a
+  /// bottom-nav switch. Adopting this widget inside a tab without consulting
+  /// [TabVisibility] would therefore refetch on resume for BACKGROUND tabs too,
+  /// re-creating exactly the read amplification this programme removed
+  /// (measured: 10 wire reads per push, collapsing to 1 once visibility gating
+  /// landed). Its stated twin `_ActiveDeliveriesResumeRefetch` already ANDs
+  /// this term; this widget now matches it.
+  bool _tabVisible = true;
+
   /// Whether the host route is currently the one the user can see.
   ///
   /// Deliberately no `debugVisible` / `debugPending` seam: both are inferable
   /// from behaviour, and the discriminating test — pop back WITHOUT a resume
   /// first, and nothing must read — is the one a state-flag assertion could
   /// not have made (G23.1: a flag proves shape, only behaviour proves power).
-  bool get _isVisible => _scopeOnTop && (_route?.isCurrent ?? true);
+  bool get _isVisible =>
+      _tabVisible && _scopeOnTop && (_route?.isCurrent ?? true);
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _route = ModalRoute.of<Object?>(context);
     _scopeOnTop = RouteVisibilityScope.isOnTop(context);
+    // `maybeOf` establishes a dependency, so this re-runs when the tab flips —
+    // which is where a resume deferred by a background tab is paid. Null (no
+    // shell above us) means "not a tab", i.e. always visible.
+    _tabVisible = TabVisibility.maybeOf(context)?.isVisible ?? true;
     // `_ModalScopeStatus.updateShouldNotify` fires on an `isCurrent` flip, so
     // this runs again the moment the route above us pops — which is where a
     // deferred resume is paid.
