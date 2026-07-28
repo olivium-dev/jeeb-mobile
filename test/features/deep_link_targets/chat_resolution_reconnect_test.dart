@@ -1,3 +1,9 @@
+// `_ChatDetailScreenState` is private, so `tester.state(...)` can only be typed
+// as `dynamic` and every `debug*` read below is a dynamic call. Same convention
+// and same reason as `summary_refresh_single_flight_test.dart` and
+// `chat_poll_cadence_test.dart`.
+// ignore_for_file: avoid_dynamic_calls
+
 // THE RECONNECT MUST BE WHAT HEALS THE SCREEN — not a backoff tick that
 // happens to land nearby.
 //
