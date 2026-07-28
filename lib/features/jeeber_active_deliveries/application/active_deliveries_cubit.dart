@@ -48,9 +48,31 @@ class ActiveDeliveriesState extends Equatable {
 /// missed notification without keeping the former 10s foreground cadence.
 ///
 /// When [refreshSignals] is wired, a reachable `offer_accepted` notification
-/// re-pulls this surface immediately. Delivery-status notifications do not
-/// reach this bus: their gateway transport and mobile payload path are inert.
-/// See `JEBV4-NEW-P1-delivery-status-push-inert.md`.
+/// re-pulls this surface immediately.
+///
+/// ⚠️ STALE CLAIM CORRECTED (2026-07-28). This doc used to say delivery-status
+/// notifications "do not reach this bus: their gateway transport and mobile
+/// payload path are inert", citing
+/// `JEBV4-NEW-P1-delivery-status-push-inert.md`. **That is no longer true at
+/// the gateway boundary** and the stale text was about to be used as the reason
+/// this poll could not be retired — i.e. it was hiding the real gap.
+///
+/// Measured on the deployed stack (gateway `ab3edde`, "delivery-status push
+/// rides the push microservice, not the dead in-gateway queue", live on the
+/// dev host): all 12 `DeliveryStatusPushNotifier` emissions since that deploy
+/// have a matching `POST /api/v1/sent-payload/user/{id}` at the push
+/// microservice in the SAME second, every one `201 Created`. Both fleet users
+/// also hold fresh device registrations (`PUT /api/v1/register` → 201). So the
+/// gateway→push-service leg is live, not inert.
+///
+/// ⚠️ WHAT IS STILL UNPROVEN — and why the poll below STAYS. Receiver-side
+/// arrival has NOT been witnessed. A `201` from the push microservice says the
+/// send was ACCEPTED, not that FCM delivered it to a handset; that is exactly
+/// the class of counter the batch rules forbid gating on. Until a push is
+/// observed arriving on a device (minted nonce) AND driving this surface off
+/// the retired poll's phase grid, deleting this 60 s poll would be a silent
+/// staleness bug on the jeeber's active-delivery card. Leg 2 is the open item,
+/// NOT the transport.
 class ActiveDeliveriesCubit extends Cubit<ActiveDeliveriesState>
     implements PollingVisibility {
   ActiveDeliveriesCubit({
