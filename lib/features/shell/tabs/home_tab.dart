@@ -6,6 +6,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/dev_seam/dev_seam.dart';
+import '../../../core/di/injection_container.dart';
 import '../../../core/session/greeting_profile_cubit.dart';
 import '../../../core/session/profile_refresh_signals.dart';
 import '../../customer_profile/data/dev_customer_profile_fixtures.dart';
@@ -51,9 +52,19 @@ class HomeTab extends StatelessWidget {
             greetingNameProvider: greetingNameProvider ?? _resolveGreetingName,
             // Push-triggered refetch (sprint-009): re-pull on a status-change
             // push. Absent under bare tests / dev seams where DI isn't set up.
-            refreshSignals: GetIt.instance.isRegistered<PushRefreshSignals>()
-                ? GetIt.instance<PushRefreshSignals>().stream
-                : null,
+            //
+            // b02 wave D: through the ONE shared resolver now, with topics. The
+            // hand-rolled GetIt lookup here was the twelfth copy of that check
+            // and the only one the wave-D topic filter would have missed —
+            // which is exactly the "one call site silently keeps the old
+            // behaviour" failure `resolvePushRefreshStream` exists to prevent.
+            //
+            // `{order, offers}`: this cubit paints In-Progress (order state),
+            // Pending and Replies (the auction). It renders no chat row and no
+            // jeeber feed, so a `chat` or `new_request` push no longer wakes it.
+            refreshSignals: resolvePushRefreshStream(
+              topics: const {RefreshTopic.order, RefreshTopic.offers},
+            ),
           ),
         ),
         // P0-X06: the personalized greeting (name + avatar) is sourced from the

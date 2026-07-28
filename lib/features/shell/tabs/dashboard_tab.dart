@@ -203,7 +203,15 @@ class _JeeberHomeHost extends StatelessWidget {
             // so a fresh auction appeared only on the next poll tick. Same
             // resolver the active-deliveries card above uses: one bus, one
             // lookup. Null under a bare harness keeps the poll as sole input.
-            refreshSignals: resolvePushRefreshStream(),
+            //
+            // b02 wave D — `{feed, offers}`. `new_request` opens an auction
+            // (feed); `offer_accepted` / `offer_lost` / `request_expired`
+            // remove a row from it (offers). A `chat` message and a plain
+            // `delivery` status change cannot alter this snapshot, yet used to
+            // re-pull the whole `GET /v1/requests` list.
+            refreshSignals: resolvePushRefreshStream(
+              topics: const {RefreshTopic.feed, RefreshTopic.offers},
+            ),
           )..start(),
         ),
         // iter6 real-flow blocker fix: poll the jeeber's ACCEPTED/active
@@ -213,11 +221,19 @@ class _JeeberHomeHost extends StatelessWidget {
         BlocProvider<ActiveDeliveriesCubit>(
           create: (_) => ActiveDeliveriesCubit(
             repository: _resolveActiveDeliveriesRepository(),
-            // Re-pull when a reachable `offer_accepted` notification lands.
-            // Delivery-status notifications do not reach this bus; see
-            // `JEBV4-NEW-P1-delivery-status-push-inert.md`. Null under a bare
-            // harness leaves the 60s safety-net poll in place.
-            refreshSignals: resolvePushRefreshStream(),
+            // Re-pull when a reachable `offer_accepted` notification lands —
+            // and, since wave C proved the delivery-status transport live, on
+            // every `type=delivery` transition too.
+            //
+            // b02 wave D — `{order}`. This card paints `GET /v1/deliveries?
+            // role=jeeber`: whether this jeeber OWNS an active delivery and
+            // what state it is in. `offer_accepted` publishes `{order, offers}`
+            // so it still lands. `chat` and `new_request` no longer do — they
+            // cannot add, remove or advance a row here, and this was the
+            // 60s-poll surface a busy conversation would have out-paced.
+            refreshSignals: resolvePushRefreshStream(
+              topics: const {RefreshTopic.order},
+            ),
           )..start(),
         ),
         // P0-X06: source the jeeber-home greeting (name + avatar) from the live
@@ -452,7 +468,10 @@ class _DevFeedBody extends StatelessWidget {
             // dev-seam feed exercises the same code path. The seeded repository
             // replays a fixture snapshot, so a push here re-pulls the fixture —
             // harmless, and it keeps the two constructions from diverging.
-            refreshSignals: resolvePushRefreshStream(),
+            // Same topics as the live host, for the same reason.
+            refreshSignals: resolvePushRefreshStream(
+              topics: const {RefreshTopic.feed, RefreshTopic.offers},
+            ),
           )..start(),
         ),
       ],

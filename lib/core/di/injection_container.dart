@@ -29,6 +29,15 @@ import '../../features/home_client/data/dio_client_home_repository.dart';
 import '../../features/home_client/domain/client_home_repository.dart';
 import '../notifications/application/offer_lifecycle_signals.dart';
 import '../notifications/application/push_refresh_signals.dart';
+
+/// b02 wave D: [RefreshTopic] travels with [resolvePushRefreshStream], because
+/// naming a topic is only ever done at a subscription site and every one of
+/// those already imports this file for the resolver. Re-exporting keeps the
+/// pair inseparable — you cannot reach the resolver without reaching the topic
+/// vocabulary, so "subscribed but forgot to declare topics" stays a deliberate
+/// choice rather than a missing import.
+export '../notifications/application/push_refresh_signals.dart'
+    show RefreshTopic;
 import '../session/profile_refresh_signals.dart';
 import '../../features/jeeber_home/data/dio_availability_gateway.dart';
 import '../../features/jeeber_home/domain/services/availability_gateway.dart';
@@ -148,16 +157,24 @@ Dio resolveGatewayDio() {
 /// safety-net poll instead of throwing "PushRefreshSignals not registered".
 ///
 /// Subscribers re-pull their own snapshot on each event; the stream is
-/// payload-less. Publishers today: `offer_accepted`, and — since JEBV4-342
-/// (b02) — `new_request`. See [PushRefreshSignals].
+/// payload-less. Publishers today: `offer_accepted`, `new_request` (JEBV4-342),
+/// `chat`, `delivery`, `offer` and the expiry events. See [PushRefreshSignals].
 ///
 /// It lives here, and NOT as a private helper beside each call site, because it
-/// is now read from three constructions across two files. Copies of a GetIt
-/// `isRegistered` check are how one call site silently keeps polling while its
-/// twin goes push-driven, which is invisible in review: both render the data.
-Stream<void>? resolvePushRefreshStream() {
+/// is now read from twelve subscription sites across ten files. Copies of a
+/// GetIt `isRegistered` check are how one call site silently keeps polling
+/// while its twin goes push-driven, which is invisible in review: both render
+/// the data.
+///
+/// b02 wave D — [topics]. Declare what the subscribing surface RENDERS and it
+/// is woken only by pushes that can change that. Omitting [topics] keeps the
+/// pre-wave-D behaviour (woken by everything), which is the safe direction: an
+/// over-woken surface costs a redundant read that a capture can see, an
+/// under-woken one shows stale data with no error at all.
+Stream<void>? resolvePushRefreshStream({Set<RefreshTopic>? topics}) {
   if (!sl.isRegistered<PushRefreshSignals>()) return null;
-  return sl<PushRefreshSignals>().stream;
+  final bus = sl<PushRefreshSignals>();
+  return topics == null ? bus.stream : bus.streamFor(topics);
 }
 
 void configureDependencies({

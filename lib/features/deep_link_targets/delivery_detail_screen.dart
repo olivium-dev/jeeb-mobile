@@ -135,8 +135,15 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
     //   3. foreground resume  — didChangeAppLifecycleState
     // If the user does nothing and no push arrives, no second call happens.
     unawaited(_loadStatus());
-    _refreshSub = (widget.refreshSignals ?? resolvePushRefreshStream())
-        ?.listen((_) => unawaited(_loadStatus()));
+    // b02 wave D — `{order}`. This hub paints ONE delivery's status. It sits
+    // BELOW the chat route in the stack for the whole conversation, so before
+    // the topic filter every inbound chat message fired a `fetchSummary` here
+    // as well as on the chat screen above it — two of the four
+    // `GET /v1/deliveries/{id}` reads measured on a single resume.
+    _refreshSub =
+        (widget.refreshSignals ??
+                resolvePushRefreshStream(topics: const {RefreshTopic.order}))
+            ?.listen((_) => unawaited(_loadStatus()));
   }
 
   @override
@@ -174,6 +181,18 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
   Future<void> _loadStatus() async {
     final repo = _summaryRepo;
     if (repo == null) return;
+    // SINGLE FLIGHT (b02 wave D). Same defect as `ChatDetailScreen`: this
+    // screen's own doc comment above promises "exactly three triggers, none of
+    // them a cadence", and on a resume TWO of the three (the lifecycle
+    // observer, and the push the OS delivered on the way back to the
+    // foreground) fire inside one round trip. The reads then race, and the
+    // loser can repaint `_statusId` from the older snapshot — a hub that
+    // briefly shows a status the delivery has already left.
+    //
+    // Dropped, not queued: the in-flight read was issued after the event that
+    // prompted the second trigger, so it already sees at least as much.
+    if (_statusLoadInFlight) return;
+    _statusLoadInFlight = true;
     try {
       final summary = await repo.fetchSummary(widget.deliveryId);
       if (!mounted) return;
@@ -184,8 +203,13 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
       // Unavailable — keep last-known status (fail-open while still null).
     } catch (_) {
       // Defensive: never let a status read crash the hub.
+    } finally {
+      _statusLoadInFlight = false;
     }
   }
+
+  /// Single-flight latch for [_loadStatus]. See the note there.
+  bool _statusLoadInFlight = false;
 
   _StatusBucket get _bucket {
     final id = _statusId;

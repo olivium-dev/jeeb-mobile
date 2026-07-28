@@ -1,3 +1,11 @@
+// ignore_for_file: avoid_dynamic_calls
+//
+// `ChatDetailScreen`'s State class is PRIVATE (`_ChatDetailScreenState`), so
+// `tester.state(find.byType(ChatDetailScreen))` can only be typed as `dynamic`
+// from a test. The alternative — widening the State class or adding a public
+// accessor to production code purely so a test can name it — is worse than the
+// lint. Scoped to this file, and only for that one call.
+
 import 'dart:async';
 
 import 'package:dio/dio.dart';

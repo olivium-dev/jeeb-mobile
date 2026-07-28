@@ -111,7 +111,14 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
         // b02 wave C / N6: the 5s LifecyclePoller is gone. A `type=delivery`
         // push re-reads the row, through the ONE existing resolver. The
         // `_ResumeRefresh` observer below stays as the dropped-push backstop.
-        refreshSignals: resolvePushRefreshStream(),
+        //
+        // b02 wave D — `{order}`. This screen paints ONE delivery's lifecycle.
+        // The jeeber is chatting with the customer while on it, so before the
+        // topic filter every message the customer sent fired an extra
+        // `GET /v1/deliveries/{id}` here.
+        refreshSignals: resolvePushRefreshStream(
+          topics: const {RefreshTopic.order},
+        ),
         // JEBV4-269: stream the jeeber's GPS to the gateway while InTransit.
         gpsUploader: gpsUploader,
       )..loadDelivery(),

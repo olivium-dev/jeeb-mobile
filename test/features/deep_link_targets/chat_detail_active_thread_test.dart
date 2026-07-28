@@ -115,7 +115,7 @@ GoRouter _router({bool keyed = true, String initialLocation = '/'}) => GoRouter(
       routes: <RouteBase>[
         GoRoute(
           path: '/',
-          builder: (_, __) => const Scaffold(body: Text('home')),
+          builder: (_, _) => const Scaffold(body: Text('home')),
         ),
         GoRoute(
           path: '/chat/:id',
@@ -126,7 +126,7 @@ GoRouter _router({bool keyed = true, String initialLocation = '/'}) => GoRouter(
         ),
         GoRoute(
           path: '/on-top',
-          builder: (_, __) => const Scaffold(body: Text('on top')),
+          builder: (_, _) => const Scaffold(body: Text('on top')),
         ),
       ],
     );

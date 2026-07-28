@@ -326,6 +326,11 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
   /// second, chat-shaped bus: a parallel bus is how one subscriber silently
   /// keeps polling while its twin goes push-driven. It never costs a MISSED
   /// message, which is the failure that matters once the poll is gone.
+  ///
+  /// b02 wave D — THE SIGNAL IS NOW CLASSIFIED. It still carries no id; what it
+  /// gained is a [RefreshTopic] set saying what KIND of thing changed, and each
+  /// subscriber declares the kinds it renders. See [_topicsFor] for the mapping
+  /// and why an unclassified category still wakes everyone.
   void _maybeSignalStatusChange(NotificationMessage message) {
     if (_refreshSignals == null) return;
     // JEBV4-342 (b02): `newRequest` joins `offerAccepted` on the NO-ID-REQUIRED
@@ -356,7 +361,7 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
       NotificationCategory.chat,
     };
     if (idless.contains(message.category)) {
-      _refreshSignals.signalStatusChange();
+      _refreshSignals.signal(_topicsFor(message.category));
       return;
     }
     // P2: `offer` and the expiry events used to arrive here inside the
@@ -377,8 +382,63 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
         data['requestId'] ??
         data['request_id'];
     if (id == null || id.isEmpty) return;
-    _refreshSignals.signalStatusChange();
+    _refreshSignals.signal(_topicsFor(message.category));
   }
+
+  /// Push category → the [RefreshTopic]s that category can actually change.
+  ///
+  /// Read this as "what could a surface possibly need to re-pull because of
+  /// THIS event", never as "who currently subscribes" — the second reading rots
+  /// the instant a subscriber is added.
+  ///
+  ///   * `chat` → `{chat}` ONLY. A message changes no order status, no offer
+  ///     set and no feed row. This single line is what stops one inbound
+  ///     message from firing `ChatDetailScreen._refreshSummary` (3 gateway
+  ///     reads), `DeliveryDetailScreen._loadStatus`, `ClientHomeCubit.refresh`,
+  ///     `ActiveDeliveriesCubit.refresh` and `RequestFeedCubit.refresh` — the
+  ///     measured wave-C fan-out, now that the trigger rate is the MESSAGE rate
+  ///     rather than a clock.
+  ///   * `new_request` → `{feed}` ONLY. A broadcast auction opening is visible
+  ///     to jeebers on the feed; it is not any one device's order or offer.
+  ///   * `offer_accepted` → `{order, offers}`. The jeeber now OWNS a delivery
+  ///     (the active-deliveries card, `order`) and its submitted-offer row
+  ///     flips (`offers`).
+  ///   * `offer` (a new bid) and the expiry events → `{order, offers}`. The bid
+  ///     changes the auction (`offers`) and the customer home summary's
+  ///     Replies/pending counts, which are painted by an `order`-topic surface.
+  ///   * `delivery` → `{order}`.
+  ///
+  /// Every remaining category falls through to EVERY topic. Note what that
+  /// does and does not mean: those categories DO NOT REACH THIS METHOD today,
+  /// because [_maybeSignalStatusChange] returns before calling it for anything
+  /// outside its `idless` and `orderish` sets — that predates wave D and is
+  /// unchanged by it. The branch is the default for the case that WILL happen:
+  /// a category added to one of those sets and forgotten here. It fails toward
+  /// over-waking on purpose. Over-waking costs a redundant read, which shows up
+  /// in a capture; under-waking shows stale data with no error at all — silent
+  /// on the device, silent in the journal, invisible to a screenshot.
+  static Set<RefreshTopic> _topicsFor(NotificationCategory category) {
+    switch (category) {
+      case NotificationCategory.chat:
+        return const {RefreshTopic.chat};
+      case NotificationCategory.newRequest:
+        return const {RefreshTopic.feed};
+      case NotificationCategory.delivery:
+        return const {RefreshTopic.order};
+      case NotificationCategory.offerAccepted:
+      case NotificationCategory.newOffer:
+      case NotificationCategory.requestExpired:
+        return const {RefreshTopic.order, RefreshTopic.offers};
+      case NotificationCategory.offerLost:
+      case NotificationCategory.kyc:
+      case NotificationCategory.rating:
+      case NotificationCategory.settings:
+      case NotificationCategory.other:
+        return _everyTopic;
+    }
+  }
+
+  static final Set<RefreshTopic> _everyTopic = RefreshTopic.values.toSet();
 
   @override
   Future<void> close() async {

@@ -217,7 +217,17 @@ class ChatScreen extends StatelessWidget {
         // returns null under a bare widget test so the cubit simply never
         // re-pulls — the same degradation `dashboard_tab` and
         // `request_feed_screen` already rely on.
-        refreshSignals: resolvePushRefreshStream(),
+        //
+        // b02 wave D — `{chat}`, and this is now the cubit's ONLY inbound
+        // re-pull trigger: the 60s `kChatHistorySafetyNetPollInterval` history
+        // poll is deleted. Narrowing to `chat` matters in BOTH directions here.
+        // Outbound, it stops one inbound message from waking five other
+        // surfaces. Inbound, it stops every unrelated `delivery` / `offer` /
+        // `new_request` push on this device from firing a redundant
+        // `GET /v1/conversations/{id}/messages` on the open thread.
+        refreshSignals: resolvePushRefreshStream(
+          topics: const {RefreshTopic.chat},
+        ),
       )..load(),
       child: _ChatScaffold(
         deliveryId: deliveryId,

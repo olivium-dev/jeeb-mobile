@@ -73,14 +73,35 @@ class ClientHomeCubit extends Cubit<ClientHomeState> {
   /// new request is created or one finishes). Keeps the previously-rendered
   /// data visible while the network call is in flight to avoid a jarring
   /// empty flash.
+  /// SINGLE FLIGHT (b02 wave D). Two triggers landing inside one round trip
+  /// must produce ONE re-pull, not two overlapping ones whose emits race — the
+  /// later request can complete first and paint the OLDER snapshot.
+  ///
+  /// This guard did not exist while only a clock drove the surface, and it did
+  /// not need to: `LifecyclePoller` fires one tick at a time and skips a tick
+  /// while the previous one is outstanding. It became necessary when the push
+  /// bus joined the poll as a second, independently-timed trigger — and wave D
+  /// made the arrival rate on that bus a property of the gateway rather than of
+  /// a clock, so bursts (a bid plus the accept, two transitions in a row) are
+  /// ordinary. Note that `state.status == loading` was never this guard:
+  /// [refresh] is the SILENT path and deliberately never sets `loading`, so it
+  /// could not see itself.
+  bool _refreshInFlight = false;
+
   Future<void> refresh() async {
     if (state.status == ClientHomeStatus.loading) return;
+    if (_refreshInFlight) return;
     // Honor an open 429 Retry-After window — silently skip this poll/refresh
     // tick rather than pile another read onto the throttled gateway. The
     // already-rendered data stays on screen.
     final backoffUntil = _rateLimitedUntil;
     if (backoffUntil != null && DateTime.now().isBefore(backoffUntil)) return;
-    await _fetch();
+    _refreshInFlight = true;
+    try {
+      await _fetch();
+    } finally {
+      _refreshInFlight = false;
+    }
   }
 
   /// Start the 10s live-refresh poll. Called by the screen when the In Progress
