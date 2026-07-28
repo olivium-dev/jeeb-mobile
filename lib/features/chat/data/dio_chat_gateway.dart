@@ -14,20 +14,8 @@ import '../domain/chat_gateway.dart';
 import '../domain/chat_socket.dart';
 import '../domain/conversation_lookup.dart';
 import '../domain/delivery_chat_message.dart';
+import 'chat_message_codec.dart';
 import 'web_socket_chat_socket.dart';
-
-const _supportedMessageKinds = <String>{
-  'text',
-  'photo',
-  'voice',
-  'image',
-  'location',
-  'system',
-  'offer',
-  'offer_card',
-  'offer_accepted',
-  'offer_rejected',
-};
 
 /// Dio + Phoenix-channel backed [ChatGateway].
 ///
@@ -258,37 +246,12 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
   /// not what the timeline ends up sorting on — see `_withRebasedAnchors`.
   static final DateTime _provisionalAnchorOrigin = DateTime.utc(1970);
 
-  bool _isValidHistoryRow(Map<String, dynamic> row) {
-    final id = row['message_id'] ?? row['id'];
-    if (id is! String || id.trim().isEmpty) return false;
-
-    final senderId = row['author_id'] ?? row['senderId'];
-    if (senderId is! String || senderId.trim().isEmpty) return false;
-
-    // THE BILATERAL EMPTY-THREAD DEFECT (fixed here): this used to reject any
-    // row whose timestamp was absent or unparseable —
-    //   `if (rawTimestamp is! String) return false;`
-    // The gateway's message projection carries no timestamp at all, so the check
-    // rejected 100% of rows on every read, for both participants. `GET
-    // /v1/conversations/{id}/messages` answered 200 with the whole thread and
-    // the client decoded ZERO messages from it; the customer's thread also
-    // collapsed on the next app resume, because the destructive refresh replaced
-    // the optimistic bubbles with that empty decode.
-    //
-    // A timestamp is NOT identity: a message with an unknown send time is still
-    // a message and must render. Rows are no longer rejected on timestamp
-    // grounds at all — [_sentAtOf] returns null for a missing/garbage/husk
-    // (`0001-01-01`) value and the decoder anchors ordering on the row's server
-    // position instead. Identity fields (id, author, kind, content) are still
-    // required, so a genuinely unrenderable row is still counted as malformed.
-
-    final kind = row['kind'];
-    if (kind is! String || !_supportedMessageKinds.contains(kind)) return false;
-
-    final rawBody = row['body'] ?? row['payload'];
-    if (rawBody is! Map && rawBody is! String) return false;
-    return true;
-  }
+  /// Delegates to [ChatMessageCodec.isValidRow] — the same admission rule the
+  /// Firestore realtime transport applies. Moved out with the decoder for the
+  /// same reason: a second copy of the rule is a second place for a supported
+  /// kind to go missing.
+  bool _isValidHistoryRow(Map<String, dynamic> row) =>
+      ChatMessageCodec.isValidRow(row);
 
   @override
   Future<ConversationPhase> loadPhase(String conversationId) async {
@@ -721,166 +684,16 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
   /// order survives; the live socket path passes nothing and a frame with no
   /// timestamp is stamped at arrival, which for a live frame IS its send time to
   /// within the transport latency.
+  /// Delegates to [ChatMessageCodec] — THE one decoder, shared with the
+  /// Firestore realtime transport. The body used to live here; it moved so a
+  /// second transport could not grow a second, drifting copy of the same
+  /// nine-branch kind switch. Behaviour is unchanged.
   DeliveryChatMessage _parseMessage(
     Map<String, dynamic> json, {
     DateTime? fallbackSentAt,
-  }) {
-    // FROZEN `JeebMessageResponse` uses snake_case (`message_id`, `author_id`)
-    // and a string `body` for text — DISTINCT from the camelCase the client
-    // originally assumed. Tolerate BOTH wire shapes so messages render whether
-    // the gateway emits snake_case (live) or the legacy camelCase (mock/socket).
-    final id =
-        (json['message_id'] as String?) ?? (json['id'] as String?) ?? '';
-    final senderId =
-        (json['author_id'] as String?) ?? (json['senderId'] as String?) ?? '';
-    final author = senderId == currentUserId ? ChatAuthor.me : ChatAuthor.them;
-    final wireSentAt = _sentAtOf(json);
-    final sentAt = wireSentAt ?? fallbackSentAt ?? DateTime.now();
-    // Falling back to [fallbackSentAt] means using an ORDERING ANCHOR, so the
-    // message must not render a clock. Falling back to the local clock (the
-    // live-socket path, which passes no anchor) stays honest: a frame that just
-    // crossed the wire was sent at ~now, to within the transport latency.
-    final hasServerTimestamp = wireSentAt != null || fallbackSentAt == null;
-    final kind = MessageKind.fromWire(json['kind'] as String?);
-    // `body` is a plain string for text (frozen contract); structured payloads
-    // arrive under `payload` (or a legacy map `body`). Normalize to the map the
-    // builder consumes.
-    final rawBody = json['body'] ?? json['payload'];
-    final Map<String, Object?> body;
-    if (rawBody is Map) {
-      body = rawBody.cast<String, Object?>();
-    } else if (rawBody is String) {
-      body = <String, Object?>{'text': rawBody};
-    } else {
-      body = const <String, Object?>{};
-    }
-    return _buildMessage(
-      id: id,
-      author: author,
-      sentAt: sentAt,
-      hasServerTimestamp: hasServerTimestamp,
-      kind: kind,
-      body: body,
-    );
-  }
-
-  /// Real send time carried by a wire row, or null when the row has none the
-  /// client can use. Tolerates all four historical aliases. `0001-01-01` (the
-  /// .NET `default(DateTime)` husk) is treated as ABSENT, not as a date — it is
-  /// a serializer artefact, never a send time.
-  static DateTime? _sentAtOf(Map<String, dynamic> json) {
-    final raw = json['createdAt'] ??
-        json['created_at'] ??
-        json['sentAt'] ??
-        json['sent_at'];
-    if (raw is! String) return null;
-    final parsed = DateTime.tryParse(raw);
-    if (parsed == null || parsed.year <= 1) return null;
-    return parsed.toLocal();
-  }
-
-  DeliveryChatMessage _buildMessage({
-    required String id,
-    required ChatAuthor author,
-    required DateTime sentAt,
-    required bool hasServerTimestamp,
-    required MessageKind kind,
-    required Map<String, Object?> body,
-  }) {
-    final status = author == ChatAuthor.me
-        ? MessageStatus.delivered
-        : MessageStatus.delivered;
-    switch (kind) {
-      case MessageKind.text:
-        return DeliveryChatMessage.text(
-          id: id,
-          author: author,
-          sentAt: sentAt,
-          hasServerTimestamp: hasServerTimestamp,
-          status: status,
-          text: body['text'] as String? ?? '',
-        );
-      case MessageKind.image:
-        return DeliveryChatMessage.image(
-          id: id,
-          author: author,
-          sentAt: sentAt,
-          hasServerTimestamp: hasServerTimestamp,
-          status: status,
-          url: body['url'] as String? ?? '',
-          caption: body['caption'] as String? ?? '',
-        );
-      case MessageKind.voice:
-        return DeliveryChatMessage.voice(
-          id: id,
-          author: author,
-          sentAt: sentAt,
-          hasServerTimestamp: hasServerTimestamp,
-          status: status,
-          url: body['url'] as String? ?? '',
-          durationMs: body['durationMs'] as int? ?? 0,
-        );
-      case MessageKind.location:
-        final lat = body['lat'];
-        final lng = body['lng'];
-        return DeliveryChatMessage.location(
-          id: id,
-          author: author,
-          sentAt: sentAt,
-          hasServerTimestamp: hasServerTimestamp,
-          status: status,
-          lat: lat is num ? lat.toDouble() : 0,
-          lng: lng is num ? lng.toDouble() : 0,
-          label: body['label'] as String? ?? '',
-        );
-      case MessageKind.system:
-        return DeliveryChatMessage.system(
-          id: id,
-          sentAt: sentAt,
-          hasServerTimestamp: hasServerTimestamp,
-          text: body['text'] as String? ?? '',
-        );
-      case MessageKind.offerCard:
-        return DeliveryChatMessage.offerCard(
-          id: id,
-          author: author,
-          sentAt: sentAt,
-          hasServerTimestamp: hasServerTimestamp,
-          status: status,
-          payload: OfferCardPayload.fromWire(body),
-        );
-      case MessageKind.offerAccepted:
-        return DeliveryChatMessage.offerAccepted(
-          id: id,
-          sentAt: sentAt,
-          hasServerTimestamp: hasServerTimestamp,
-          payload: SystemOfferPayload.fromWire(body),
-        );
-      case MessageKind.offerRejected:
-        return DeliveryChatMessage.offerRejected(
-          id: id,
-          sentAt: sentAt,
-          hasServerTimestamp: hasServerTimestamp,
-          payload: SystemOfferPayload.fromWire(body),
-        );
-      case MessageKind.photo:
-        // A `photo` row on the wire can only come from the PRE-FIX build,
-        // which posted `{caption:''}` with no bytes and no url. Decoding it as
-        // a text bubble made it an INVISIBLE empty bubble. Surface it as an
-        // `image` with an empty url so the bubble renders the "unavailable"
-        // placeholder instead — the messages the broken build persisted stay
-        // visible as something.
-        return DeliveryChatMessage.image(
-          id: id,
-          author: author,
-          sentAt: sentAt,
-          hasServerTimestamp: hasServerTimestamp,
-          status: status,
-          url: '',
-          caption: body['caption'] as String? ?? '',
-        );
-    }
-  }
+  }) =>
+      ChatMessageCodec(currentUserId)
+          .parse(json, fallbackSentAt: fallbackSentAt);
 }
 
 /// Extension hook — `_serverIdProbe` is a no-op today because
