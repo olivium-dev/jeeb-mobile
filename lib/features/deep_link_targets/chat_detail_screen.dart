@@ -10,9 +10,11 @@ import 'package:omds/omds.dart';
 import '../../core/lifecycle/app_resume_signals.dart';
 import '../../core/delivery/delivery_status_vocab.dart';
 import '../../core/di/injection_container.dart';
+import '../../core/diagnostics/diag.dart';
 import '../../core/lifecycle/deferred_refresh_gate.dart';
 import '../../core/formatting/friendly_reference.dart';
 import '../../core/network/auth_token_store.dart';
+import '../../core/network/network_reachability_signals.dart';
 import '../../core/notifications/domain/active_chat_thread.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/router/app_route_observer.dart';
@@ -86,6 +88,22 @@ const List<Duration> kChatResolutionRetryBackoff = <Duration>[
   Duration(seconds: 15),
   Duration(seconds: 30),
 ];
+
+/// How many times a RECONNECT EVENT may pre-empt the pending backoff step
+/// within one failure episode — one per step of [kChatResolutionRetryBackoff]
+/// (a test pins the two numbers together, so widening the schedule cannot leave
+/// this behind).
+///
+/// The cap is what stops a flapping transport from becoming a hot retry loop.
+/// Each pre-emption also ADVANCES the backoff (the attempt's `whenComplete`
+/// re-schedules at the next step), so a device that hands out an offline→online
+/// edge every two seconds gets four immediate attempts and is then owned by the
+/// 30 s step. Read as a statement about evidence: the OS has now said "online"
+/// four times and the gateway was unreachable every time, so its signal has
+/// stopped being informative for this episode and the bounded backoff — which
+/// probes the thing that actually matters — takes over. A deliberate user
+/// retry, or any success, resets the episode.
+const int kChatResolutionReconnectPreemptLimit = 4;
 
 class ChatDetailScreen extends StatefulWidget {
   const ChatDetailScreen({
@@ -253,9 +271,35 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   @visibleForTesting
   int get debugResolutionRetryCount => _resolutionRetryCount;
 
+  /// Subscription to the app-wide reconnect bus. THE fix for the falsified
+  /// self-heal claim — see [_onNetworkReachable]. Cancelled in [dispose].
+  StreamSubscription<void>? _reachabilitySub;
+
+  /// Reconnect events that actually pre-empted a pending backoff step. The pair
+  /// ([debugResolutionRetryCount], [debugReconnectPreemptCount]) is what lets a
+  /// test say "this attempt was caused by the EVENT" instead of merely "an
+  /// attempt happened" — which a timer would satisfy too, and did.
+  @visibleForTesting
+  int get debugReconnectPreemptCount => _reconnectPreemptCount;
+  int _reconnectPreemptCount = 0;
+
+  /// Reconnect events dropped because an attempt was already on the wire. The
+  /// number that distinguishes "coalesced onto the in-flight attempt" from
+  /// "the event never arrived".
+  @visibleForTesting
+  int get debugReconnectCoalescedCount => _reconnectCoalescedCount;
+  int _reconnectCoalescedCount = 0;
+
   @override
   void initState() {
     super.initState();
+    // Subscribed BEFORE the devtool early-return below so [dispose] always has
+    // a consistent subscription to cancel. On a resolved screen every event is
+    // a no-op — `_onNetworkReachable`'s first guard is the CONTROL that keeps
+    // an app-wide bus from becoming an ambient read on the healthy path.
+    _reachabilitySub = NetworkReachabilitySignals.instance.stream.listen(
+      (_) => _onNetworkReachable(),
+    );
     final debugGateway = widget.debugGateway;
     if (debugGateway != null) {
       // DEVTOOL-ONLY seam — see [ChatDetailScreen.debugGateway]. Bypasses the
@@ -288,9 +332,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   @override
   void onAppResumed() {
     if (_summaryRefreshGate != null) unawaited(_refreshSummary());
-    // A resume is the cheapest possible connectivity signal, and it is the exact
-    // moment a user who fixed their WiFi comes back expecting the screen to work.
-    // Free: it fires only while the screen still does not know the answer.
+    // A resume is the exact moment a user who went to Settings to fix their
+    // WiFi comes back expecting the screen to work, and it costs nothing: it
+    // fires only while the screen still does not know the answer.
+    //
+    // It is a COMPLEMENT to `_onNetworkReachable`, not a substitute, and the
+    // distinction is the one the falsified claim got wrong. A resume is caused
+    // by the USER returning to the app; it says nothing about the network and
+    // never fires while the user sits on the dark screen waiting. Only
+    // [NetworkReachabilitySignals] reports the network itself.
     if (_resolutionUnavailable) _retryResolutionSilently();
   }
 
@@ -422,6 +472,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
   @override
   void dispose() {
+    _reachabilitySub?.cancel();
+    _reachabilitySub = null;
     _subscribedObserver?.unsubscribe(this);
     // Owner-guarded: a no-op if a LATER chat screen already claimed the slot
     // (chat A → chat B disposes A after B registers).
@@ -1194,12 +1246,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   /// #186 (`kPositionRearmBackoff`, `live_tracking_cubit.dart`), which replaced a
   /// dead stream that "neither resume nor a push could re-open".
   ///
-  /// The alternative — wait for a connectivity plugin event — is not available:
-  /// this app has no connectivity package, and adding one to learn something a
-  /// retry already tells us would be a dependency in place of a fact. The retry
-  /// IS the connectivity probe, and it is the one that matters (a phone can hold
-  /// a perfect WiFi association to a gateway it cannot reach; JEBV4-337's
-  /// half-open pooled connections looked exactly like that).
+  /// **RETRACTED CLAIM — read this before trusting the paragraph that used to
+  /// be here.** This comment previously argued that waiting for a connectivity
+  /// event "is not available: this app has no connectivity package, and adding
+  /// one to learn something a retry already tells us would be a dependency in
+  /// place of a fact. The retry IS the connectivity probe." The second half is
+  /// still true about the PROBE and was false about the TIMING, and the
+  /// difference is the whole defect: a retry probes only when its timer fires,
+  /// so a reconnect one second into a 30 s step stays invisible for 29 s. The
+  /// screen was merged as "SELF-HEALS on reconnect"; an independent tester
+  /// falsified that — the observed 0.46 s heal was this backoff's phase
+  /// happening to tick, and re-running with an independently-phased backoff
+  /// moved the heal latency with the TIMER, not with the reconnect instant.
+  ///
+  /// [NetworkReachabilitySignals] now supplies the missing event and
+  /// [_onNetworkReachable] consumes it. This backoff is UNCHANGED and remains
+  /// the fallback — it is what covers the case a connectivity event cannot
+  /// (the router is up and the gateway is down, so the OS never reports a
+  /// change), and its bound is what stops a hot retry loop.
   ///
   /// A retry is silent: the error body stays on screen while it runs, so the
   /// screen never flickers between an error and a spinner behind the user's back.
@@ -1239,6 +1303,62 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     _resolutionRetryTimer?.cancel();
     _resolutionRetryTimer = null;
     _resolutionRetryAttempt = 0;
+    // A new episode gets its pre-emption budget back. Reached from success
+    // (`_finalize`) and from a deliberate user retry, both of which end the
+    // episode this budget was spent on.
+    _reconnectPreemptCount = 0;
+  }
+
+  /// THE FIX for the falsified self-heal claim: the network came back, so try
+  /// NOW instead of waiting out a backoff step that knows nothing about it.
+  ///
+  /// Four properties, each of which is a separate assertion in
+  /// `chat_resolution_reconnect_test.dart`:
+  ///
+  ///   1. **Zero attempts on a resolved screen.** The bus is app-wide, so every
+  ///      mounted chat screen receives every reconnect. A screen that already
+  ///      knows its answer must not turn that into a read — otherwise the fix
+  ///      for a dark screen becomes an ambient network event on healthy ones,
+  ///      which is the poll the mandate bans wearing a different hat.
+  ///   2. **Coalesce, never stampede.** An attempt already on the wire will
+  ///      report its own outcome and re-arm the backoff in `whenComplete`.
+  ///      Starting a second resolution would race it to `_finalize` and could
+  ///      paint the older answer.
+  ///   3. **Bounded pre-emption.** See [kChatResolutionReconnectPreemptLimit].
+  ///   4. **The backoff is NOT reset.** A user's tap resets it, because the user
+  ///      can see their WiFi icon and has information we do not. A connectivity
+  ///      event does not: "the OS reports a transport" is not "the gateway
+  ///      answers", so an attempt that fails after a reconnect must resume
+  ///      widening from where it was, not restart at 2 s.
+  void _onNetworkReachable() {
+    if (!mounted || !_resolutionUnavailable) return;
+    if (_resolutionRetryInFlight) {
+      _reconnectCoalescedCount++;
+      Diag.event('chat_resolution_reconnect', <String, Object?>{
+        'action': 'coalesced',
+        'count': _reconnectCoalescedCount,
+      });
+      return;
+    }
+    if (_reconnectPreemptCount >= kChatResolutionReconnectPreemptLimit) {
+      Diag.event('chat_resolution_reconnect', <String, Object?>{
+        'action': 'budget_exhausted',
+        'count': _reconnectPreemptCount,
+      });
+      return;
+    }
+    _reconnectPreemptCount++;
+    Diag.event('chat_resolution_reconnect', <String, Object?>{
+      'action': 'preempt',
+      'count': _reconnectPreemptCount,
+    });
+    // Cancel the PENDING STEP only — deliberately not `_cancelResolutionRetry`,
+    // which would also zero `_resolutionRetryAttempt` and hand a flapping
+    // transport a permanent 2 s cadence. `_retryResolutionSilently` re-arms
+    // from the un-reset index in its `whenComplete`.
+    _resolutionRetryTimer?.cancel();
+    _resolutionRetryTimer = null;
+    _retryResolutionSilently();
   }
 
   /// THE THIRD STATE, rendered. We do not know whether this conversation

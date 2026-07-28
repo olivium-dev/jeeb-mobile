@@ -17,11 +17,24 @@ import 'chat_state.dart';
 /// `kPositionRearmBackoff` (`live_tracking_cubit.dart`, #186) and
 /// `kChatResolutionRetryBackoff` (`chat_detail_screen.dart`).
 ///
-/// It caps rather than exhausts, deliberately. An exhausting schedule leaves a
-/// thread permanently blank with no way back short of a restart, and this app
-/// has NO connectivity listener (zero hits for `connectivity_plus` /
-/// `onConnectivityChanged` in `lib/`), so there is no reconnect event to
-/// re-arm on. The retry IS the reachability probe.
+/// It caps rather than exhausts, deliberately: an exhausting schedule leaves a
+/// thread permanently blank with no way back short of a restart.
+///
+/// **Updated — the premise this paragraph used to rest on is gone.** It read
+/// "this app has NO connectivity listener (zero hits for `connectivity_plus` /
+/// `onConnectivityChanged` in `lib/`), so there is no reconnect event to re-arm
+/// on." That was accurate when written and is now false: the app has
+/// `NetworkReachabilitySignals` (`core/network/`), bound to the real OS stream
+/// at app start, after a tester falsified the sibling "self-heals on reconnect"
+/// claim on `chat_detail_screen.dart` — the heal there was the backoff's phase
+/// ticking, not a reconnect.
+///
+/// **This cubit is NOT yet wired to that bus.** Stated plainly rather than left
+/// to be inferred: the history retry below is still timer-only, so a reconnect
+/// while a thread sits on its cold-load error is still invisible until the next
+/// backoff step. Wiring it is the same three lines `chat_detail_screen.dart`
+/// now carries (`_onNetworkReachable`) and is deliberately out of that change's
+/// scope, not done and undocumented.
 const List<Duration> kChatHistoryRetryBackoff = <Duration>[
   Duration(seconds: 2),
   Duration(seconds: 5),
@@ -65,8 +78,10 @@ const List<Duration> kChatHistoryRetryBackoff = <Duration>[
 /// would re-read a thread whose cold load had failed, and deleting it blind
 /// would have made the offline chat error state terminal until an app restart:
 /// the push bus cannot help, because a thread the user cannot see generates no
-/// inbound traffic to push about, and this app has no connectivity listener to
-/// wake on.
+/// inbound traffic to push about, and — at the time this was written — the app
+/// had no connectivity listener to wake on. It has one now
+/// (`NetworkReachabilitySignals`); see the retraction on
+/// [kChatHistoryRetryBackoff] for why this cubit is not yet wired to it.
 ///
 /// So (4) replaces only the second job, and it differs from a poll in every way
 /// that matters to the mandate: it is armed only in an ERROR state, it is
