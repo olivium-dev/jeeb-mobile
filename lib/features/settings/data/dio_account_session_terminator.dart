@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/session/firebase_identity_teardown.dart';
 import '../domain/account_session_terminator.dart';
 
 /// Dio-backed [AccountSessionTerminator] for the logout / delete-account
@@ -22,10 +23,17 @@ class DioAccountSessionTerminator implements AccountSessionTerminator {
     this._dio,
     this._tokenStore, {
     Future<String?> Function()? deviceIdProvider,
-  }) : _deviceIdProvider = deviceIdProvider ?? _defaultDeviceIdProvider;
+    FirebaseIdentityTeardown? firebaseSignOut,
+  })  : _deviceIdProvider = deviceIdProvider ?? _defaultDeviceIdProvider,
+        _firebaseSignOut = firebaseSignOut ?? signOutFirebaseIdentity;
 
   final Dio _dio;
   final AuthTokenStore _tokenStore;
+
+  /// Ends the SECOND identity this app holds — see [signOutFirebaseIdentity].
+  /// This class is the LIVE logout/delete path (`logout_delete_confirm_sheet`
+  /// resolves it), so it is the one that actually has to run on a device.
+  final FirebaseIdentityTeardown _firebaseSignOut;
 
   /// Resolves the stable per-install device id to unregister on logout. Defaults
   /// to reading the `push.deviceId` key the [DeviceTokenRegistrar] persists to
@@ -114,6 +122,16 @@ class DioAccountSessionTerminator implements AccountSessionTerminator {
     }
   }
 
+  /// Drops BOTH local identities: the Jeeb keystore and the Firebase session.
+  ///
+  /// The Firebase half is not optional and not cosmetic. Jeeb's Firestore chat
+  /// read is authorised by `request.auth.uid` matching a non-removed
+  /// `Participants[].UserId`, and a custom-token session refreshes itself
+  /// indefinitely with no further gateway call — so a logout that clears only
+  /// the keystore leaves the departing user's uid live on this install, and
+  /// `FirebaseCustomTokenIdentity.ensureSignedIn` hands that inherited session
+  /// straight to whoever signs in next. Both clears are independently
+  /// fail-soft: neither may block the navigation to splash.
   Future<void> _clearLocalSession() async {
     try {
       await _tokenStore.clear();
@@ -121,6 +139,13 @@ class DioAccountSessionTerminator implements AccountSessionTerminator {
       // A keystore that refuses to clear cannot block the navigation; the
       // session gate fails CLOSED (an unreadable token → unauthenticated), so
       // splash still routes to login.
+    }
+    try {
+      await _firebaseSignOut();
+    } catch (_) {
+      // Same rule, second identity. The production default already swallows
+      // everything, but the seam is injectable and a plugin error must never be
+      // able to escape into the navigation that follows this call.
     }
   }
 }

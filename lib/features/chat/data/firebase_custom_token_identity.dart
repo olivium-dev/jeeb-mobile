@@ -37,22 +37,62 @@ import '../domain/chat_firebase_identity.dart';
 /// control and must not be sold as one. Revocation is the membership rule
 /// alone: STAMPING `RemovedAt` on that participant in the conversation document
 /// is what actually ends their read access.
+///
+/// # The session is per-INSTALL, not per-user, so it must be checked
+///
+/// `signInWithCustomToken` puts a Firebase session on the DEVICE, and the SDK
+/// keeps it alive across app restarts and across Jeeb logouts. So
+/// "`currentUser != null`" answers "does this install hold a Firebase session",
+/// NOT "is the current Jeeb user signed in to Firebase" — and after a logout /
+/// account switch those are different users. Taking the first for the second is
+/// how the next signed-in user inherits the previous one's uid and reads, under
+/// the membership rule, every conversation that user was a participant of.
+/// [jeebUserId] is what makes the two questions the same question: a session
+/// whose uid is not the CURRENT Jeeb subject is discarded and re-minted.
 class FirebaseCustomTokenIdentity implements ChatFirebaseIdentity {
   FirebaseCustomTokenIdentity({
     required FirebaseAuth auth,
     required ChatFirebaseTokenMinter minter,
+    required String jeebUserId,
   })  : _auth = auth,
-        _minter = minter;
+        _minter = minter,
+        _jeebUserId = jeebUserId;
 
   final FirebaseAuth _auth;
   final ChatFirebaseTokenMinter _minter;
 
+  /// The CURRENT Jeeb session subject (the JWT `sub`, as read from
+  /// `AuthTokenStore`). The gateway mints the custom token with this as its
+  /// `uid`, so it is exactly what `request.auth.uid` must equal for a rule that
+  /// compares against `Participants[].UserId` to mean anything.
+  final String _jeebUserId;
+
   @override
   Future<bool> ensureSignedIn() async {
-    // Already signed in — a custom-token session survives app restarts, so the
-    // common case costs no round trip at all.
-    if (_auth.currentUser != null) return true;
+    // Fail closed on an unknown subject. Without it there is nothing to compare
+    // an existing session against, and "reuse whatever session this install
+    // happens to hold" is the exact bug this parameter exists to close.
+    if (_jeebUserId.isEmpty) {
+      Diag.event('chat_firebase_identity', <String, Object?>{
+        'result': 'no_jeeb_user',
+      });
+      return false;
+    }
     try {
+      final existing = _auth.currentUser;
+      if (existing != null) {
+        // Already signed in AS THIS USER — a custom-token session survives app
+        // restarts, so the common case still costs no round trip at all.
+        if (existing.uid == _jeebUserId) return true;
+        // Someone else's session, inherited from before a logout or an account
+        // switch. Drop it FIRST: re-minting on top of a live foreign session
+        // would leave that uid in place if the mint then fails, which is the
+        // state we are trying to make unreachable.
+        Diag.event('chat_firebase_identity', <String, Object?>{
+          'result': 'uid_mismatch',
+        });
+        await _auth.signOut();
+      }
       final token = await _minter.mintCustomToken();
       // No token is the EXPECTED state today, not an error: it is what "the
       // backend has no mint endpoint" looks like from here.
@@ -63,11 +103,29 @@ class FirebaseCustomTokenIdentity implements ChatFirebaseIdentity {
         return false;
       }
       final credential = await _auth.signInWithCustomToken(token);
-      final ok = credential.user != null;
+      final user = credential.user;
+      if (user == null) {
+        Diag.event('chat_firebase_identity', <String, Object?>{
+          'result': 'no_user',
+        });
+        return false;
+      }
+      // The mint is server-side and derives the uid from the validated bearer's
+      // own claims, so this should always hold. Check it anyway: it is the ONE
+      // assertion that `request.auth.uid` will mean what every rule in the
+      // ruleset assumes it means, and a false here is a wrong-user read, not a
+      // missing feature. Fail closed and leave no session behind.
+      if (user.uid != _jeebUserId) {
+        Diag.event('chat_firebase_identity', <String, Object?>{
+          'result': 'minted_uid_mismatch',
+        });
+        await _auth.signOut();
+        return false;
+      }
       Diag.event('chat_firebase_identity', <String, Object?>{
-        'result': ok ? 'signed_in' : 'no_user',
+        'result': 'signed_in',
       });
-      return ok;
+      return true;
     } catch (error) {
       // Never rethrow: a failed sign-in must degrade to "no realtime", and a
       // raw plugin exception escaping here would take the chat screen with it.
