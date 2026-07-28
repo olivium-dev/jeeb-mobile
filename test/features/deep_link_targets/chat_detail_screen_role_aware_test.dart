@@ -38,6 +38,7 @@ import 'package:jeeb_mobile/core/role/user_role.dart';
 import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
 import 'package:jeeb_mobile/features/deep_link_targets/chat_detail_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
+import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_header_expansion_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/sync_app_localizations.dart';
@@ -67,6 +68,11 @@ Future<RoleCubit> _roleCubit(UserRole role) async {
 }
 
 void main() {
+  // b02: the pinned header's expand choice is SESSION state and widget
+  // tests share one process — reset it so a test that expands cannot make
+  // the next test's collapsed-by-default assertion pass (or fail) for the
+  // wrong reason.
+  setUp(ChatHeaderExpansionStore.instance.reset);
   assert(kDebugMode, 'dev-seam role-aware tests must run in debug');
 
   setUp(() {

@@ -114,7 +114,9 @@ class _UnregisteredIllustrationArt extends StatelessWidget {
       width: Sizes.twoHundredLarge,
       height: Sizes.twoHundredLarge,
       decoration: BoxDecoration(
-        color: colorScheme.primaryContainer.withValues(
+        // Accent PAINT + its own tint halo, not a container fill — same
+        // #D73B00 as before the palette fix.
+        color: colorScheme.tertiary.withValues(
           alpha: UIConstants.opacityPrimaryLight,
         ),
         shape: BoxShape.circle,
@@ -122,7 +124,7 @@ class _UnregisteredIllustrationArt extends StatelessWidget {
       child: Icon(
         Icons.delivery_dining,
         size: Sizes.elevenXLarge,
-        color: colorScheme.primaryContainer,
+        color: colorScheme.tertiary,
       ),
     );
   }

@@ -42,6 +42,13 @@ appId: ${APP_ID}
       id: "order_chat_pinned_summary"
     timeout: 30000
 
+# b02 chat-header redesign: the pinned strip is COLLAPSED by default (reference,
+# status and amount in one 48 dp row) so the message list survives an open
+# keyboard. The party name, ETA, tier, item and the cash reminder — and the
+# view-summary link — are disclosed by `order_chat_summary_expand`.
+- tapOn:
+    id: "order_chat_summary_expand"
+
 # AC1: Summary fields present
 - assertVisible:
     id: "order_summary_pinned"
@@ -100,6 +107,9 @@ appId: ${APP_ID}
     visible:
       id: "order_chat_pinned_summary"
     timeout: 30000
+
+- tapOn:
+    id: "order_chat_summary_expand"
 
 - tapOn:
     id: "order_chat_view_summary_link"

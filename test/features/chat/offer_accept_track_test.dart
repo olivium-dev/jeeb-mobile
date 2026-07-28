@@ -29,6 +29,7 @@ import 'package:jeeb_mobile/features/chat/presentation/widgets/offer_accepted_ba
 import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart';
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
+import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_header_expansion_store.dart';
 
 // ---------------------------------------------------------------------------
 // G3 — cubit deliveryId capture
@@ -178,6 +179,11 @@ class _ScreenGateway extends ChatGateway {
 }
 
 void main() {
+  // b02: the pinned header's expand choice is SESSION state and widget
+  // tests share one process — reset it so a test that expands cannot make
+  // the next test's collapsed-by-default assertion pass (or fail) for the
+  // wrong reason.
+  setUp(ChatHeaderExpansionStore.instance.reset);
   // -------------------------------------------------------------------------
   // G3 — ChatCubit captures the deliveryId
   // -------------------------------------------------------------------------

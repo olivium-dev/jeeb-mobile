@@ -20,6 +20,7 @@ import 'package:jeeb_mobile/features/chat/domain/delivery_chat_message.dart';
 import 'package:jeeb_mobile/features/chat/domain/order_chat_summary.dart';
 import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
+import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_header_expansion_store.dart';
 
 // ---------------------------------------------------------------------------
 // Localization host (sync ARB load), mirroring order_chat_jm025_test.dart.
@@ -106,6 +107,11 @@ Future<void> _pumpAtHeight(
 }
 
 void main() {
+  // b02: the pinned header's expand choice is SESSION state and widget
+  // tests share one process — reset it so a test that expands cannot make
+  // the next test's collapsed-by-default assertion pass (or fail) for the
+  // wrong reason.
+  setUp(ChatHeaderExpansionStore.instance.reset);
   setUpAll(_loadArb);
 
   testWidgets('empty thread lays out at a short phone height (no overflow)',
@@ -161,6 +167,11 @@ void main() {
       ),
     );
     expect(find.byKey(ChatScreen.emptyStateKey), findsOneWidget);
+    // b02: the strip is collapsed by default, so the initial-requirement row is
+    // behind the disclosure control. Opening it is the harder case for this
+    // guard, not the easier one.
+    await tester.tap(find.bySemanticsIdentifier('order_chat_summary_expand'));
+    await tester.pump();
     expect(
       find.bySemanticsIdentifier('order_chat_request_description'),
       findsOneWidget,

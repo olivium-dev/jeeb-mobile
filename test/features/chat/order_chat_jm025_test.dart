@@ -27,6 +27,7 @@ import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_composer.dar
 import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart';
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
+import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_header_expansion_store.dart';
 
 // ---------------------------------------------------------------------------
 // Localization host (sync ARB load), mirroring offer_accept_track_test.dart.
@@ -182,6 +183,11 @@ const _summary = OrderChatSummary(
 );
 
 void main() {
+  // b02: the pinned header's expand choice is SESSION state and widget
+  // tests share one process — reset it so a test that expands cannot make
+  // the next test's collapsed-by-default assertion pass (or fail) for the
+  // wrong reason.
+  setUp(ChatHeaderExpansionStore.instance.reset);
   setUpAll(_loadArb);
 
   group('JM-025 AC2/AC3 — accepted order-chat', () {
@@ -202,6 +208,10 @@ void main() {
 
       expect(find.bySemanticsIdentifier('order_chat_pinned_summary'),
           findsOneWidget);
+      // b02 chat-header redesign: the strip is collapsed by default; the
+      // disclosed field ids are behind `order_chat_summary_expand`.
+      await t.tap(find.bySemanticsIdentifier('order_chat_summary_expand'));
+      await t.pump();
       final link = find.bySemanticsIdentifier('order_chat_view_summary_link');
       expect(link, findsOneWidget);
 
@@ -250,6 +260,10 @@ void main() {
       )));
       await t.pumpAndSettle();
 
+      // b02 chat-header redesign: the strip is collapsed by default; the
+      // disclosed field ids are behind `order_chat_summary_expand`.
+      await t.tap(find.bySemanticsIdentifier('order_chat_summary_expand'));
+      await t.pump();
       // The chat-context rendering of order-summary-pinned (CTO-D3) carries the
       // JM-031 signature id + the asserted field ids so the same pinned summary
       // is visible in BOTH the chat and tracking surfaces (W1 EXIT checklist).
@@ -288,6 +302,10 @@ void main() {
 
       expect(find.bySemanticsIdentifier('order_chat_pinned_summary'),
           findsOneWidget);
+      // b02 chat-header redesign: the strip is collapsed by default; the
+      // disclosed field ids are behind `order_chat_summary_expand`.
+      await t.tap(find.bySemanticsIdentifier('order_chat_summary_expand'));
+      await t.pump();
       expect(find.bySemanticsIdentifier('order_chat_view_summary_link'),
           findsNothing);
       expect(find.bySemanticsIdentifier('order_chat_request_description'),

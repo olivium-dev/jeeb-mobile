@@ -318,7 +318,9 @@ class _ActiveOrderProgressBar extends StatelessWidget {
         value: _progressFor(progressStep),
         minHeight: Sizes.twoXSmall,
         backgroundColor: colorScheme.outlineVariant,
-        valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primaryContainer),
+        // Accent PAINT (progress bar), not a container fill — `tertiary` is
+        // the same #D73B00 this bar rendered before the palette fix.
+        valueColor: AlwaysStoppedAnimation<Color>(colorScheme.tertiary),
       ),
     );
   }

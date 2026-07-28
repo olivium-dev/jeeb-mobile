@@ -2288,6 +2288,22 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get orderChatViewSummaryLink => _get('orderChatViewSummaryLink');
   String get orderChatPayCashOnDelivery => _get('orderChatPayCashOnDelivery');
   String get orderChatRequestLabel => _get('orderChatRequestLabel');
+  // b02 chat-header redesign — disclosure control + per-field accessible names
+  String get orderChatSummaryExpand => _get('orderChatSummaryExpand');
+  String get orderChatSummaryCollapse => _get('orderChatSummaryCollapse');
+  String get orderChatRequestExpand => _get('orderChatRequestExpand');
+  String get orderChatRequestCollapse => _get('orderChatRequestCollapse');
+  String get orderChatFieldStatus => _get('orderChatFieldStatus');
+  String get orderChatFieldPrice => _get('orderChatFieldPrice');
+  String get orderChatFieldEta => _get('orderChatFieldEta');
+  String get orderChatFieldTier => _get('orderChatFieldTier');
+
+  /// Accessible name for a summary chip: `"<field>: <value>"`. Without the field
+  /// name an unresolved ETA and an unresolved tier both announce as "Pending".
+  String orderChatFieldValueA11y(String field, String value) =>
+      _get('orderChatFieldValueA11y')
+          .replaceFirst('{field}', field)
+          .replaceFirst('{value}', value);
   String get orderSummaryValuePending => _get('orderSummaryValuePending');
   String get chatPartyJeeberFallback => _get('chatPartyJeeberFallback');
   String get chatPartyCustomerFallback => _get('chatPartyCustomerFallback');
