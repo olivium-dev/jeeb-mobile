@@ -66,7 +66,7 @@ Map<String, Object?> _row(
       'audience': null,
       'payload': null,
       'body': body,
-      if (createdAtUtc != null) 'created_at': createdAtUtc,
+      'created_at': ?createdAtUtc,
     };
 
 /// Serves the chat routes off a mutable in-memory thread. Every read is a clean

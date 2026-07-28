@@ -187,8 +187,8 @@ class _GatedOffersRepository implements OffersRepository {
   Future<OffersSnapshot> fetchOffers(String requestId) async {
     fetchCount++;
     await _gate?.future;
-    return OffersSnapshot(
-      offers: const <Offer>[],
+    return const OffersSnapshot(
+      offers: <Offer>[],
       windowExpiresAt: null,
       requestIsOpen: true,
     );
