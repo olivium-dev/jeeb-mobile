@@ -34,6 +34,7 @@ import 'package:jeeb_mobile/features/chat/application/chat_cubit.dart';
 import 'package:jeeb_mobile/features/chat/application/chat_state.dart';
 import 'package:jeeb_mobile/features/chat/data/dio_chat_gateway.dart';
 import 'package:jeeb_mobile/features/chat/domain/chat_gateway.dart';
+import 'package:jeeb_mobile/features/chat/domain/conversation_lookup.dart';
 import 'package:jeeb_mobile/features/chat/domain/delivery_chat_message.dart';
 import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_composer.dart';
@@ -123,12 +124,42 @@ void main() {
           ConversationPhase.broadcasting);
     });
 
-    test('a flag-off 503 / transport failure degrades to broadcasting, '
-        'NEVER accepted', () async {
-      adapter.getStatus = 503;
+    test('a 404 — the server ANSWERING "no such conversation" — degrades to '
+        'broadcasting, NEVER accepted', () async {
+      adapter.getStatus = 404;
 
       expect(await gateway.loadPhase('req-XYZ'),
           ConversationPhase.broadcasting);
+    });
+
+    test('a flag-off 503 THROWS ChatReadUnavailableException instead of '
+        'claiming broadcasting (and still never claims accepted)', () async {
+      // UPDATED (chat-resolution tri-state). This used to assert
+      // `503 → broadcasting`. NEW-BUG-01's requirement is "NEVER a false
+      // accepted", and a throw satisfies it — but returning `broadcasting`
+      // ALSO manufactured a false POSITIVE in the other direction: a server
+      // fault was reported to the user as "this request is still broadcasting,
+      // no offers yet", over deliveries that were already accepted and in
+      // transit. "Could not find out" is now its own outcome.
+      adapter.getStatus = 503;
+
+      await expectLater(
+        gateway.loadPhase('req-XYZ'),
+        throwsA(isA<ChatReadUnavailableException>()),
+      );
+    });
+
+    test('a transport failure with NO response (network down) THROWS — it is '
+        'not evidence of any phase', () async {
+      // The adapter itself blows up with no HTTP response at all — Dio wraps
+      // this as a DioException with `response == null`, which is exactly what
+      // "the phone has no network" looks like on the wire.
+      adapter.onGet = (_) => throw const SocketException('Network unreachable');
+
+      await expectLater(
+        gateway.loadPhase('req-XYZ'),
+        throwsA(isA<ChatReadUnavailableException>()),
+      );
     });
   });
 

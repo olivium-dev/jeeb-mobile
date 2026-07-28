@@ -7,6 +7,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/dev_seam/dev_seam.dart';
 import '../../../core/di/injection_container.dart';
+import '../../../core/lifecycle/polling_visibility_gate.dart';
+import '../../../core/lifecycle/route_visibility.dart';
 import '../../../core/session/greeting_profile_cubit.dart';
 import '../../../core/session/profile_refresh_signals.dart';
 import '../../customer_profile/data/dev_customer_profile_fixtures.dart';
@@ -20,6 +22,7 @@ import '../../home_client/data/in_memory_client_home_repository.dart';
 import '../../home_client/domain/client_home_repository.dart';
 import '../../home_client/domain/client_home_request.dart';
 import '../../home_client/presentation/client_home_screen.dart';
+import '../tab_visibility.dart';
 
 /// Client-role home tab. Hosts the [ClientHomeCubit] scoped to this tab —
 /// rebuilt on role switches (the shell tears down + reinflates), which is
@@ -84,16 +87,38 @@ class HomeTab extends StatelessWidget {
           )..load(),
         ),
       ],
-      child: ClientHomeScreen(
-        key: const Key('home-tab-root'),
-        // JEBV4-298 (E24/Q-086): the Requests tab is on-hold only, so it
-        // opens on Pending Requests. The In-Progress live-tracking surface now
-        // lives on the Delivery tab. The dev seam may still pin any tab
-        // (including In-Progress) for a debug-only capture of that surface.
-        initialTab: devTab ?? ClientHomeTab.pendingRequests,
-        onCreateRequest: () => _openRequestType(context),
-        onOpenRequest: (request) => _openChat(context, request),
-        onTrack: (request) => _openTracking(context, request),
+      child: Builder(
+        builder: (innerContext) => PollingVisibilityGate(
+          // b02 READ ECONOMICS. `isVisible` must AND every condition that makes
+          // this surface watchable, and there are two:
+          //
+          //   * `TabVisibility` — this is the selected `IndexedStack` child;
+          //   * `RouteVisibilityScope` — nothing is pushed on top of the shell.
+          //
+          // The second is the new one, and it is the expensive one. With
+          // `/delivery/:id` on top of the shell this cubit was still answering
+          // every `order`/`offers` push with a SEVEN-read snapshot, and still
+          // ticking its 10 s poll, for a screen the user could not see. Both are
+          // now deferred; the debt is paid once, on the way back.
+          //
+          // Both sources default to visible when absent (bare test, fixture
+          // host), so this is inert outside the shell.
+          isVisible:
+              (TabVisibility.maybeOf(innerContext)?.isVisible ?? true) &&
+              RouteVisibilityScope.isOnTop(innerContext),
+          target: innerContext.read<ClientHomeCubit>(),
+          child: ClientHomeScreen(
+            key: const Key('home-tab-root'),
+            // JEBV4-298 (E24/Q-086): the Requests tab is on-hold only, so it
+            // opens on Pending Requests. The In-Progress live-tracking surface
+            // now lives on the Delivery tab. The dev seam may still pin any tab
+            // (including In-Progress) for a debug-only capture of that surface.
+            initialTab: devTab ?? ClientHomeTab.pendingRequests,
+            onCreateRequest: () => _openRequestType(context),
+            onOpenRequest: (request) => _openChat(context, request),
+            onTrack: (request) => _openTracking(context, request),
+          ),
+        ),
       ),
     );
   }

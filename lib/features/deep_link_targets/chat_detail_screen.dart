@@ -10,6 +10,7 @@ import 'package:omds/omds.dart';
 import '../../core/lifecycle/app_resume_signals.dart';
 import '../../core/delivery/delivery_status_vocab.dart';
 import '../../core/di/injection_container.dart';
+import '../../core/lifecycle/deferred_refresh_gate.dart';
 import '../../core/formatting/friendly_reference.dart';
 import '../../core/network/auth_token_store.dart';
 import '../../core/notifications/domain/active_chat_thread.dart';
@@ -24,10 +25,12 @@ import '../chat/data/dio_order_broadcast_service.dart';
 import '../chat/data/dio_order_chat_summary_repository.dart';
 import '../chat/data/in_memory_chat_gateway.dart';
 import '../chat/domain/chat_gateway.dart';
+import '../chat/domain/conversation_lookup.dart';
 import '../chat/domain/delivery_chat_message.dart';
 import '../chat/domain/order_broadcast_service.dart';
 import '../chat/domain/order_chat_summary.dart';
 import '../chat/presentation/chat_screen.dart';
+import '../chat/presentation/widgets/chat_app_bar.dart';
 import '../kyc/domain/cdn_asset_gateway.dart';
 import '../otp_handover/domain/handover_code_store.dart';
 import '../photo_attachment/data/stub_photo_picker_service.dart';
@@ -73,6 +76,17 @@ String _mutualRateRoute(String deliveryId, {required bool isClient}) =>
 ///     (`order_chat_pinned_summary`) shows + `order_chat_view_summary_link` →
 ///     `order-summary-pinned` (JM-031), and `order_chat_open_dispute` →
 ///     `dispute-open-evidence` (the `escalate` route, JM-060) — AC2/AC3.
+/// Backoff for re-attempting a conversation resolution that COULD NOT FIND OUT
+/// (network down, 5xx, timeout). Widening, and it terminates on the first
+/// success — see `_scheduleResolutionRetry`. Mirrors `kPositionRearmBackoff`
+/// (`live_tracking_cubit.dart`), the SSE re-arm shipped in #186.
+const List<Duration> kChatResolutionRetryBackoff = <Duration>[
+  Duration(seconds: 2),
+  Duration(seconds: 5),
+  Duration(seconds: 15),
+  Duration(seconds: 30),
+];
+
 class ChatDetailScreen extends StatefulWidget {
   const ChatDetailScreen({
     super.key,
@@ -158,14 +172,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   /// This replaced a 60s `LifecyclePoller`. Do NOT reintroduce one: each tick fanned
   /// out into THREE gateway reads and the mandate bans a repeated call at any
   /// interval, "safety net" included.
-  StreamSubscription<void>? _summaryRefreshSub;
+  /// b02 READ ECONOMICS — a [DeferredRefreshGate], not a bare subscription. This
+  /// State stays MOUNTED while the order summary, the dispute route or
+  /// `/delivery/:id` sits on top of it, and `_refreshSummary` is THREE gateway
+  /// reads on the owner-scoped (customer) leg. Every `order` push was paying
+  /// those three for a chip nobody could see — the second-largest term in the ten
+  /// reads one `delivery` push produced on the customer phone. `_onScreen` (the
+  /// [RouteAware] signal this screen already maintains for foreground push
+  /// suppression) drives the gate, so a push that lands while the thread is
+  /// buried is paid with ONE read on return, not three on arrival.
+  DeferredRefreshGate? _summaryRefreshGate;
 
   /// True once [_armSummaryRefresh] has subscribed. Test-visible in place of the
   /// old `debugSummaryPollerRunning`: an assertion that the ARM decision is
   /// unchanged is what catches a regression where the client-accepted surface
   /// silently stops tracking the delivery at all.
   @visibleForTesting
-  bool get debugSummaryRefreshArmed => _summaryRefreshSub != null;
+  bool get debugSummaryRefreshArmed => _summaryRefreshGate != null;
 
   /// Count of one-shot summary re-reads triggered since mount. Replaces the old
   /// `debugSummaryTickCount`; a poll's tick count and a push's refetch count are
@@ -197,6 +220,38 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
   ChatGateway? _gateway;
   bool _loading = true;
+
+  /// The conversation lookup COULD NOT FIND OUT whether a conversation exists
+  /// (network down, 5xx, timeout — see [ConversationLookup.unavailable]).
+  ///
+  /// This is the third state that used to be collapsed into "not resolved", and
+  /// collapsing it is what let a transport failure render as
+  /// "Waiting for Jeebers… / No offers yet — sit tight." over an IN-TRANSIT
+  /// delivery with an accepted offer. When set, the screen renders an error with
+  /// a retry and NEVER constructs a gateway — so no downstream read can turn the
+  /// failure into a claim about the conversation.
+  bool _resolutionUnavailable = false;
+
+  /// Test/E2E hook: true while the resolution-error body is the rendered state.
+  @visibleForTesting
+  bool get debugResolutionUnavailable => _resolutionUnavailable;
+
+  /// Pending self-heal re-attempt, `null` when the screen knows the answer.
+  Timer? _resolutionRetryTimer;
+
+  /// Index into [kChatResolutionRetryBackoff]. Reset by a success and by a
+  /// deliberate user retry.
+  int _resolutionRetryAttempt = 0;
+
+  /// A silent re-attempt is outstanding.
+  bool _resolutionRetryInFlight = false;
+
+  /// Silent self-heal attempts made since mount. Test hook: it is what
+  /// distinguishes "it healed" from "the user tapped".
+  int _resolutionRetryCount = 0;
+
+  @visibleForTesting
+  int get debugResolutionRetryCount => _resolutionRetryCount;
 
   @override
   void initState() {
@@ -232,7 +287,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   /// triple here; its own single-flight latch collapses overlap, not sequence.
   @override
   void onAppResumed() {
-    if (_summaryRefreshSub != null) unawaited(_refreshSummary());
+    if (_summaryRefreshGate != null) unawaited(_refreshSummary());
+    // A resume is the cheapest possible connectivity signal, and it is the exact
+    // moment a user who fixed their WiFi comes back expecting the screen to work.
+    // Free: it fires only while the screen still does not know the answer.
+    if (_resolutionUnavailable) _retryResolutionSilently();
   }
 
   // ---------------------------------------------------------------------
@@ -267,10 +326,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   /// for a diagnosed bug — it removes the CLASS the report belongs to, by
   /// leaving nothing that has to be remembered at the right moment.
   Set<String> get _openThreadIds => <String>{
-        widget.chatId,
-        _resolvedConversationId,
-        _resolvedRequestId,
-      };
+    widget.chatId,
+    _resolvedConversationId,
+    _resolvedRequestId,
+  };
 
   void _publishOpenThread() {
     if (!_onScreen) return;
@@ -328,6 +387,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   void didPush() {
     _onScreen = true;
     _publishOpenThread();
+    _summaryRefreshGate?.setPollingVisible(true);
   }
 
   /// Returned to the top of the stack (the route pushed above us popped).
@@ -335,9 +395,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   void didPopNext() {
     _onScreen = true;
     _publishOpenThread();
+    // Pays any push debt taken on while buried. If there is one it collapses
+    // with the explicit catch-up read below through `_refreshSummary`'s
+    // single-flight latch — one read, never two.
+    _summaryRefreshGate?.setPollingVisible(true);
     // One catch-up read on returning to the thread (e.g. back from the order
     // summary or the dispute route). One-shot, user-caused — not a cadence.
-    if (_summaryRefreshSub != null) unawaited(_refreshSummary());
+    if (_summaryRefreshGate != null) unawaited(_refreshSummary());
   }
 
   /// Another route was pushed ON TOP — the conversation is no longer visible,
@@ -346,12 +410,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   void didPushNext() {
     _onScreen = false;
     ActiveChatThread.instance.leave(this);
+    _summaryRefreshGate?.setPollingVisible(false);
   }
 
   @override
   void didPop() {
     _onScreen = false;
     ActiveChatThread.instance.leave(this);
+    _summaryRefreshGate?.setPollingVisible(false);
   }
 
   @override
@@ -360,8 +426,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     // Owner-guarded: a no-op if a LATER chat screen already claimed the slot
     // (chat A → chat B disposes A after B registers).
     ActiveChatThread.instance.leave(this);
-    unawaited(_summaryRefreshSub?.cancel());
-    _summaryRefreshSub = null;
+    unawaited(_summaryRefreshGate?.dispose());
+    _summaryRefreshGate = null;
+    _cancelResolutionRetry();
     final gateway = _gateway;
     if (gateway is DioChatGateway) {
       gateway.dispose();
@@ -455,7 +522,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     // the historical bug that wrongly stranded this screen in compose, where a
     // "send" would create a brand-new request instead of posting to the
     // existing conversation.
-    Future<bool> resolveByCorrelationKey() async {
+    Future<ConversationLookup> resolveByCorrelationKey() async {
       try {
         final resp = await dio.get<Map<String, dynamic>>(
           '/v1/conversations',
@@ -478,15 +545,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         if (data != null && resolvedId.isNotEmpty) {
           conversationData = data;
           conversationId = resolvedId;
-          return true;
+          return ConversationLookup.resolved;
         }
-      } on DioException {
-        // Not resolvable by correlation key — the fallback lookup runs next.
+        // A 200 whose body carries no conversation id is the server answering
+        // "nothing here" — an answer, so absence, not a transport failure.
+        return ConversationLookup.absent;
+      } on DioException catch (e) {
+        // THE FIX. A 404 means "no conversation for this key" (pre-accept —
+        // the fallback lookup runs next and compose is the truthful landing).
+        // A timeout / connection error / 5xx means we DO NOT KNOW, and must
+        // not be reported as either. See [classifyLookupFailure].
+        return classifyLookupFailure(e);
+      } catch (e) {
+        return classifyLookupFailure(e);
       }
-      return false;
     }
 
-    Future<bool> resolveByMessagesProbe() async {
+    Future<ConversationLookup> resolveByMessagesProbe() async {
       // A 200 from the canonical messages route proves a real, openable
       // conversation. An existing message thread is, by definition, past
       // compose → treat it as accepted so the composer shows and a send POSTs
@@ -497,13 +572,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
           'id': conversationId,
           'phase': 'accepted',
         };
-        return true;
-      } on DioException {
-        // Not an openable conversation id — fresh compose (no request/
+        return ConversationLookup.resolved;
+      } on DioException catch (e) {
+        // 404 → not an openable conversation id — fresh compose (no request/
         // conversation yet; the first message creates + broadcasts, JM-025 AC1)
         // or a request id resolved by the correlationKey lookup instead.
+        // Anything else → we could not find out.
+        return classifyLookupFailure(e);
+      } catch (e) {
+        return classifyLookupFailure(e);
       }
-      return false;
     }
 
     // Resolve correlationKey-FIRST for BOTH roles (BUG-17). The chat-service
@@ -525,16 +603,51 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     // never fires two doomed round-trips.
     final isComposeSentinel =
         widget.chatId.isEmpty || widget.chatId == kComposeConversationSentinel;
+    // The compose sentinel is a LOCAL fact, not a server answer: the route
+    // param itself says no request exists yet. That is genuine absence with no
+    // round-trip needed.
+    var lookup = ConversationLookup.absent;
     if (!isComposeSentinel) {
-      if (!await resolveByCorrelationKey()) {
-        await resolveByMessagesProbe();
+      lookup = await resolveByCorrelationKey();
+      if (lookup != ConversationLookup.resolved) {
+        final probe = await resolveByMessagesProbe();
+        // ABSENCE NEEDS BOTH LOOKUPS TO HAVE ANSWERED. If either one merely
+        // failed to reach the server, we did not learn that the conversation
+        // is missing — we learned nothing. A single 404 alongside a timeout is
+        // still "could not find out", because the 404-ing lookup is the one
+        // that is guaranteed to 404 for the OTHER role's id shape.
+        lookup = switch ((lookup, probe)) {
+          (_, ConversationLookup.resolved) => ConversationLookup.resolved,
+          (ConversationLookup.unavailable, _) ||
+          (_, ConversationLookup.unavailable) => ConversationLookup.unavailable,
+          _ => ConversationLookup.absent,
+        };
       }
+    }
+
+    if (!mounted) return;
+    if (lookup == ConversationLookup.unavailable) {
+      // WE COULD NOT FIND OUT. Do not build a gateway, do not hand anything the
+      // compose sentinel, do not let a downstream read invent a phase. Say so,
+      // and offer a retry.
+      setState(() {
+        _resolutionUnavailable = true;
+        _gateway = null;
+        _loading = false;
+      });
+      // …and then FIND OUT. Saying "I do not know" is only honest for as long as
+      // it takes to try again: the measured pre-fix screen was byte-identical
+      // 65 s after connectivity was fully restored, because the only thing that
+      // could clear the failure was a successful read and nothing ever issued
+      // one.
+      _scheduleResolutionRetry();
+      return;
     }
 
     // Whether the correlationKey lookup / messages probe found a REAL backend
     // conversation. Pre-accept the customer opens order-chat keyed on the
     // requestId BEFORE any Jeeber accepts — NEITHER path resolves because no
-    // conversation row exists yet.
+    // conversation row exists yet, and BOTH answered 404 to say so.
     final conversationResolved = conversationData != null;
 
     final title = await _resolveTitle(dio, conversationData);
@@ -723,7 +836,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   /// Idempotent — a second call while already armed is a no-op, so a re-resolve
   /// cannot double-subscribe and turn one push into two reads.
   void _armSummaryRefresh() {
-    if (_summaryRefreshSub != null) return;
+    if (_summaryRefreshGate != null) return;
     // b02 wave D — `{order}`. The chip paints a DELIVERY STATUS. A chat message
     // cannot change it, and this screen is BY DEFINITION on top while chat
     // messages are arriving: every inbound message used to fire one
@@ -732,10 +845,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     // `/v1/offers`. That was the single largest term in the measured chat
     // fan-out, and once the trigger became the MESSAGE rate rather than a
     // clock, nothing bounded it.
-    _summaryRefreshSub =
-        (widget.refreshSignals ??
-                resolvePushRefreshStream(topics: const {RefreshTopic.order}))
-            ?.listen((_) => unawaited(_refreshSummary()));
+    final signals =
+        widget.refreshSignals ??
+        resolvePushRefreshStream(topics: const {RefreshTopic.order});
+    // Armed-ness is still "is there a stream", exactly as when this was a bare
+    // subscription: with no bus (a bare widget test) nothing is armed and
+    // `onAppResumed` / `didPopNext` stay no-ops, unchanged.
+    if (signals == null) return;
+    _summaryRefreshGate = DeferredRefreshGate(
+      onRefresh: _refreshSummary,
+      signals: signals,
+      // The thread may already be buried when the async resolution completes.
+      visible: _onScreen,
+      debugLabel: 'ChatDetailScreen.summary',
+    );
   }
 
   /// ONE summary re-read: re-resolve the accepted-order summary and repaint the
@@ -905,7 +1028,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       _hasWinner = hasWinner;
       _summary = summary;
       _loading = false;
+      // A resolution that produced a gateway retires the error body (the retry
+      // CTA re-enters here).
+      _resolutionUnavailable = false;
     });
+    // Success is the retry's terminating condition. This is the single line that
+    // keeps the recovery from being a poll.
+    _cancelResolutionRetry();
     // b02 fg-suppression: deliberately NO republish here. `ActiveChatThread`
     // holds a READER over `_openThreadIds`, so the conversation/request ids
     // just assigned above are visible to the push path from this line onward
@@ -1037,11 +1166,111 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     return StubPhotoPickerService();
   }
 
+  /// Re-run the conversation lookup after a "could not find out" failure.
+  /// Wired to the retry CTA on [_buildResolutionError].
+  ///
+  /// A DELIBERATE user tap resets the backoff to its first step: the user has
+  /// information we do not (they can see the WiFi icon), so their tap is not
+  /// just another attempt, it is a reason to be optimistic again.
+  void _retryResolution() {
+    if (!mounted) return;
+    _cancelResolutionRetry();
+    setState(() {
+      _resolutionUnavailable = false;
+      _loading = true;
+    });
+    unawaited(_resolveAndBuild());
+  }
+
+  /// SELF-HEAL. Re-attempt the resolution on a bounded backoff for as long as —
+  /// and only as long as — the screen does not know the answer.
+  ///
+  /// **Why this is not the poll the mandate bans.** A poll is a repeated read of
+  /// a surface that is CURRENTLY CORRECT, at a fixed interval, forever. This is
+  /// the retry of a read that FAILED, it widens
+  /// ([kChatResolutionRetryBackoff]: 2 s → 5 s → 15 s → 30 s, then 30 s), and it
+  /// TERMINATES on the first success (`_finalize` → [_cancelResolutionRetry]).
+  /// The same shape and the same argument as the SSE re-arm backoff shipped in
+  /// #186 (`kPositionRearmBackoff`, `live_tracking_cubit.dart`), which replaced a
+  /// dead stream that "neither resume nor a push could re-open".
+  ///
+  /// The alternative — wait for a connectivity plugin event — is not available:
+  /// this app has no connectivity package, and adding one to learn something a
+  /// retry already tells us would be a dependency in place of a fact. The retry
+  /// IS the connectivity probe, and it is the one that matters (a phone can hold
+  /// a perfect WiFi association to a gateway it cannot reach; JEBV4-337's
+  /// half-open pooled connections looked exactly like that).
+  ///
+  /// A retry is silent: the error body stays on screen while it runs, so the
+  /// screen never flickers between an error and a spinner behind the user's back.
+  void _scheduleResolutionRetry() {
+    if (!mounted || !_resolutionUnavailable) return;
+    _resolutionRetryTimer?.cancel();
+    final step = _resolutionRetryAttempt < kChatResolutionRetryBackoff.length
+        ? _resolutionRetryAttempt
+        : kChatResolutionRetryBackoff.length - 1;
+    final delay = kChatResolutionRetryBackoff[step];
+    _resolutionRetryAttempt++;
+    _resolutionRetryTimer = Timer(delay, _retryResolutionSilently);
+  }
+
+  /// One silent re-attempt. Re-entrancy-guarded: a resolution can outlive its
+  /// own backoff step (a 15 s timeout inside a 5 s step), and two overlapping
+  /// resolutions would race to `_finalize` and could paint the older answer.
+  void _retryResolutionSilently() {
+    if (!mounted || !_resolutionUnavailable) return;
+    if (_resolutionRetryInFlight) {
+      _scheduleResolutionRetry();
+      return;
+    }
+    _resolutionRetryInFlight = true;
+    _resolutionRetryCount++;
+    unawaited(
+      _resolveAndBuild().whenComplete(() {
+        _resolutionRetryInFlight = false;
+        // Still unknown → widen and try again. Resolved → `_finalize` already
+        // cancelled, and `_scheduleResolutionRetry`'s own guard returns.
+        _scheduleResolutionRetry();
+      }),
+    );
+  }
+
+  void _cancelResolutionRetry() {
+    _resolutionRetryTimer?.cancel();
+    _resolutionRetryTimer = null;
+    _resolutionRetryAttempt = 0;
+  }
+
+  /// THE THIRD STATE, rendered. We do not know whether this conversation
+  /// exists, so we assert nothing about it — no "Waiting for Jeebers", no empty
+  /// thread, no composer that would broadcast a duplicate request. OMDS only
+  /// ([OmdsErrorStatePage]); the copy is the same `chatHistoryError*` family the
+  /// #186 history-read error body uses, because it is the same statement to the
+  /// user ("couldn't load this chat — check your connection and try again").
+  Widget _buildResolutionError(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final isJeeber = _readRole(context) == UserRole.jeeber;
+    return Semantics(
+      identifier: 'chat_resolution_error',
+      child: OmdsErrorStatePage(
+        appBar: ChatAppBar(title: _headerTitle(l10n, isJeeber)),
+        title: l10n.chatHistoryErrorTitle,
+        message: l10n.chatHistoryErrorMessage,
+        retryLabel: l10n.chatHistoryErrorRetry,
+        onRetry: _retryResolution,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(body: Center(child: OmdsLoadingState()));
     }
+    // Checked BEFORE the gateway is dereferenced below: on this branch there is
+    // deliberately no gateway, because building one would give a downstream
+    // read something to be confidently wrong about.
+    if (_resolutionUnavailable) return _buildResolutionError(context);
     // Role-aware entry point: a jeeber whose offer was accepted lands here via
     // `/chat/:id` and must be able to start the delivery. RoleCubit is provided
     // app-wide (MultiBlocProvider in JeebApp, above MaterialApp.router), so it

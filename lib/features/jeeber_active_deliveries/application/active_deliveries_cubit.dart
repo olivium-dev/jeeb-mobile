@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/lifecycle/deferred_refresh_gate.dart';
 import '../../../core/lifecycle/lifecycle_poller.dart';
 import '../../../core/lifecycle/polling_visibility.dart';
 import '../domain/active_deliveries_repository.dart';
@@ -82,18 +83,26 @@ class ActiveDeliveriesCubit extends Cubit<ActiveDeliveriesState>
   }) : _repository = repository,
        _pollInterval = pollInterval,
        super(const ActiveDeliveriesState()) {
-    // A reachable `offer_accepted` notification publishes on the shared
-    // refresh bus. Delivery-status notifications do not; see
-    // `JEBV4-NEW-P1-delivery-status-push-inert.md`. The subscription remains
-    // independent of polling visibility so a hidden dashboard still refreshes.
-    if (refreshSignals != null) {
-      _refreshSub = refreshSignals.listen((_) => unawaited(refresh()));
-    }
+    // A reachable `offer_accepted` notification publishes on the shared refresh
+    // bus.
+    //
+    // b02 READ ECONOMICS — through a [DeferredRefreshGate]. The comment that
+    // stood here read "the subscription remains independent of polling
+    // visibility so a hidden dashboard still refreshes", and that reasoning is
+    // what put a `GET /v1/deliveries?role=jeeber` on the wire for a card behind
+    // the active-delivery route. The gate keeps the guarantee the comment was
+    // protecting — a hidden dashboard is NEVER left stale — while paying for it
+    // once, when the dashboard is looked at again, instead of on every push.
+    _refreshGate = DeferredRefreshGate(
+      onRefresh: refresh,
+      signals: refreshSignals,
+      debugLabel: 'ActiveDeliveriesCubit',
+    );
   }
 
   final ActiveDeliveriesRepository _repository;
   final Duration _pollInterval;
-  StreamSubscription<void>? _refreshSub;
+  late final DeferredRefreshGate _refreshGate;
   late final LifecyclePoller _poller = LifecyclePoller(
     interval: _pollInterval,
     onTick: refresh,
@@ -112,8 +121,14 @@ class ActiveDeliveriesCubit extends Cubit<ActiveDeliveriesState>
     _poller.start();
   }
 
+  /// Drives BOTH the 60 s safety-net poller and the push-refresh gate, so a
+  /// dashboard that is off screen neither polls nor reads on push — and catches
+  /// up with exactly one read when it comes back.
   @override
-  void setPollingVisible(bool visible) => _poller.setPollingVisible(visible);
+  void setPollingVisible(bool visible) {
+    _poller.setPollingVisible(visible);
+    _refreshGate.setPollingVisible(visible);
+  }
 
   /// SINGLE FLIGHT (b02 wave D). This cubit has THREE independent triggers —
   /// the 60s poller, the push bus, and the visibility/resume tick — and only
@@ -145,7 +160,7 @@ class ActiveDeliveriesCubit extends Cubit<ActiveDeliveriesState>
   @override
   Future<void> close() {
     _poller.dispose();
-    _refreshSub?.cancel();
+    unawaited(_refreshGate.dispose());
     return super.close();
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../core/dev_seam/dev_seam.dart';
+import '../../core/lifecycle/route_visibility.dart';
 import '../../core/notifications/application/badge_count_cubit.dart';
 import '../../core/role/role_availability_cubit.dart';
 import '../../l10n/app_localizations.dart';
@@ -113,21 +114,32 @@ class _ShellScreenState extends State<ShellScreen> {
         // inset for every tab (VIS-P1-2) so a tab's last scrollable row — e.g.
         // Profile's Sign out / Rate the app — clears the bar instead of sitting
         // clipped under it. Injected once here, not per-screen.
-        child: _NavBarContentInset(
-          child: IndexedStack(
-            index: safeIndex,
-            // Wrap each child in a TabVisibility so a tab body can react to
-            // (re)becoming the selected page even though IndexedStack keeps
-            // every child mounted. Used by ClientHomeScreen to silently re-pull
-            // on refocus. updateShouldNotify only fires for the tab whose
-            // visibility actually flips.
-            children: [
-              for (var i = 0; i < tabs.length; i++)
-                TabVisibility(
-                  isVisible: i == safeIndex,
-                  child: tabs[i].page,
-                ),
-            ],
+        //
+        // b02 READ ECONOMICS — [RouteVisibilityScope]. `TabVisibility` answers
+        // "am I the selected tab", which is NOT the same as "can the user see
+        // me": pushing `/delivery/:id` or `/chat/:id` on top of the shell leaves
+        // every tab mounted and still selected, so their push-bus subscribers
+        // kept reading underneath the pushed route. That was seven of the ten
+        // wire reads one `delivery` push produced on the customer phone. ONE
+        // scope, mounted on the shell's own route, so every tab can AND
+        // route-visibility into its own gate.
+        child: RouteVisibilityScope(
+          child: _NavBarContentInset(
+            child: IndexedStack(
+              index: safeIndex,
+              // Wrap each child in a TabVisibility so a tab body can react to
+              // (re)becoming the selected page even though IndexedStack keeps
+              // every child mounted. Used by ClientHomeScreen to silently
+              // re-pull on refocus. updateShouldNotify only fires for the tab
+              // whose visibility actually flips.
+              children: [
+                for (var i = 0; i < tabs.length; i++)
+                  TabVisibility(
+                    isVisible: i == safeIndex,
+                    child: tabs[i].page,
+                  ),
+              ],
+            ),
           ),
         ),
       ),

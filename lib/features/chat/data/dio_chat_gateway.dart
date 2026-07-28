@@ -12,6 +12,7 @@ import '../../otp_handover/domain/handover_code_store.dart';
 import '../domain/chat_delta_reader.dart';
 import '../domain/chat_gateway.dart';
 import '../domain/chat_socket.dart';
+import '../domain/conversation_lookup.dart';
 import '../domain/delivery_chat_message.dart';
 import 'web_socket_chat_socket.dart';
 
@@ -294,6 +295,16 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
     // A fresh request (compose sentinel / empty id) has no conversation row to
     // read — it is, by definition, still broadcasting. Return that directly
     // instead of issuing a 404 GET.
+    //
+    // ⚠️ THIS BRANCH IS ONLY HONEST BECAUSE OF WHAT THE HOST GUARANTEES. It
+    // used to be reachable after a TRANSPORT FAILURE: `chat_detail_screen`
+    // swallowed a `DioException` into `conversationResolved = false` and handed
+    // this gateway the sentinel, so "we could not reach the chat service"
+    // arrived here and left as the positive assertion "still broadcasting".
+    // The host now classifies its lookups three ways
+    // ([ConversationLookup]) and renders an error instead of constructing a
+    // gateway when it could not find out — so the sentinel now means what this
+    // branch reads it as: no conversation exists YET.
     if (_isUnresolvedConversation(conversationId)) {
       return ConversationPhase.broadcasting;
     }
@@ -354,10 +365,22 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
       return phase == ConversationPhase.unknown
           ? ConversationPhase.broadcasting
           : phase;
-    } on DioException {
-      return ConversationPhase.broadcasting;
-    } catch (_) {
-      return ConversationPhase.broadcasting;
+    } on DioException catch (e) {
+      // The `catch → broadcasting` this replaces was the second half of the
+      // laundering: a 500, a dropped connection or a timeout on the phase read
+      // came back as the POSITIVE assertion "this request is still
+      // broadcasting", which #186 explicitly set out to stop doing for the
+      // history read. `broadcasting` survives only where the server actually
+      // ANSWERED that there is no conversation aggregate for this key (404) —
+      // nothing has been accepted, so nothing is past broadcasting.
+      if (classifyLookupFailure(e) == ConversationLookup.absent) {
+        return ConversationPhase.broadcasting;
+      }
+      throw ChatReadUnavailableException('loadPhase', e);
+    } catch (e) {
+      // A non-Dio throw here is a decode/shape fault: we hold a response we
+      // cannot read. That is not evidence of a phase either.
+      throw ChatReadUnavailableException('loadPhase', e);
     }
   }
 
