@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/lifecycle/deferred_refresh_gate.dart';
 import '../../../core/lifecycle/lifecycle_poller.dart';
+import '../../../core/lifecycle/polling_visibility.dart';
 import '../domain/client_home_repository.dart';
 import 'client_home_state.dart';
 
@@ -17,7 +19,8 @@ import 'client_home_state.dart';
 /// active-request stream — that's the tracking cubit's job (T-mobile-014).
 /// On a successful tracking-state push, the calling shell triggers
 /// [refresh] to re-pull the summary.
-class ClientHomeCubit extends Cubit<ClientHomeState> {
+class ClientHomeCubit extends Cubit<ClientHomeState>
+    implements PollingVisibility {
   ClientHomeCubit({
     required ClientHomeRepository repository,
     required String? Function() greetingNameProvider,
@@ -30,14 +33,32 @@ class ClientHomeCubit extends Cubit<ClientHomeState> {
     // Push-triggered refetch: a status-change push (PushRefreshSignals) re-pulls
     // the summary immediately, so a status change surfaces without waiting for
     // the 10s poll tick. Silent refresh — keeps the current data painted.
-    if (refreshSignals != null) {
-      _refreshSignalSub = refreshSignals.listen((_) => unawaited(refresh()));
-    }
+    //
+    // b02 READ ECONOMICS — through a [DeferredRefreshGate]. This cubit's snapshot
+    // is the app's most expensive single refetch: measured on the real repository
+    // over a recording adapter, ONE signal costs SEVEN wire reads (`/deliveries`
+    // + `/requests` x2 + one `GET /v1/offers?requestId=` per non-accepted
+    // request). It also lives in the shell's `IndexedStack`, so it stays mounted
+    // and subscribed while `/delivery/:id` or `/chat/:id` sits on top of the
+    // shell — and those seven reads repainted pixels nobody could see. They were
+    // the largest term in the TEN reads one `delivery` push produced on the
+    // customer phone (`tools/STATE-PROVEN.md:181`, the `/v1/offers` x4 +
+    // `/requests` x2 duplicate pattern).
+    //
+    // The gate DEFERS rather than drops: the debt is paid once on the way back to
+    // visible, so no user-visible state is ever stale. With no visibility driver
+    // (a bare widget test, a fixture host) the gate defaults to visible and this
+    // is byte-for-byte the previous behaviour.
+    _refreshGate = DeferredRefreshGate(
+      onRefresh: refresh,
+      signals: refreshSignals,
+      debugLabel: 'ClientHomeCubit',
+    );
   }
 
   final ClientHomeRepository _repository;
   final String? Function() _greetingNameProvider;
-  StreamSubscription<void>? _refreshSignalSub;
+  late final DeferredRefreshGate _refreshGate;
 
   /// Poll cadence while the In Progress tab is visible. Mirrors
   /// ActiveDeliveriesCubit's 10s cadence so a status change (jeeber accepted /
@@ -114,6 +135,29 @@ class ClientHomeCubit extends Cubit<ClientHomeState> {
   /// disposed. Idempotent.
   void stopPolling() => _poller.stop();
 
+  /// Surface visibility — shell-tab selection AND route-on-top, ANDed by the host
+  /// (`shell/tabs/home_tab.dart`).
+  ///
+  /// Drives BOTH latches, and both are load-bearing:
+  ///
+  ///   * the push-refresh gate — the seven-read snapshot is deferred while the
+  ///     surface is off screen, and paid once on return;
+  ///   * the 10 s poller's own `visible` latch — `_syncPolling` in
+  ///     `client_home_screen.dart` ANDs tab + sub-tab + foreground, but it has
+  ///     never known about ROUTES. With `/delivery/:id` pushed on top of the
+  ///     shell the In-Progress poll kept ticking at full cadence against an
+  ///     invisible screen. `LifecyclePoller` keeps `visible` independent of
+  ///     `started`, so this can neither resurrect a poller its owner stopped nor
+  ///     start one that was never started.
+  ///
+  /// Level-triggered and idempotent, so the many rebuilds
+  /// `didChangeDependencies` produces cost nothing.
+  @override
+  void setPollingVisible(bool visible) {
+    _poller.setPollingVisible(visible);
+    _refreshGate.setPollingVisible(visible);
+  }
+
   Future<void> _fetch() async {
     try {
       final snapshot = await _repository.loadSnapshot();
@@ -162,7 +206,7 @@ class ClientHomeCubit extends Cubit<ClientHomeState> {
   @override
   Future<void> close() {
     _poller.dispose();
-    unawaited(_refreshSignalSub?.cancel());
+    unawaited(_refreshGate.dispose());
     return super.close();
   }
 }

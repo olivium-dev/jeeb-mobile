@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/dev_seam/dev_seam.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/lifecycle/polling_visibility_gate.dart';
+import '../../../core/lifecycle/route_visibility.dart';
 import '../../../core/session/greeting_profile_cubit.dart';
 import '../../../core/session/jeeber_kyc_status_gate.dart';
 import '../../../core/session/profile_refresh_signals.dart';
@@ -316,7 +317,13 @@ class _MaybeResumeRefetch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shellVisible = TabVisibility.maybeOf(context)?.isVisible ?? true;
+    // b02 READ ECONOMICS: "visible" is tab-selected AND nothing pushed on top of
+    // the shell. Without the route half, the feed and the active-deliveries card
+    // kept polling and kept answering the push bus while the jeeber was on the
+    // request-detail or active-delivery route above them.
+    final shellVisible =
+        (TabVisibility.maybeOf(context)?.isVisible ?? true) &&
+        RouteVisibilityScope.isOnTop(context);
     final activeDeliveriesGate = PollingVisibilityGate(
       target: context.read<ActiveDeliveriesCubit>(),
       isVisible: shellVisible,

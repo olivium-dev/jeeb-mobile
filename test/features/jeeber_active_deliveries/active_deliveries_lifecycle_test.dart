@@ -319,8 +319,17 @@ void main() {
   );
 
   testWidgets(
-    'AC3 F10 still refreshes on a push signal while the Dashboard tab is hidden',
+    'AC3 F10 (b02 read economics) a push while the Dashboard tab is hidden '
+    'costs ZERO reads and is paid with exactly ONE on refocus',
     (tester) async {
+      // ⚠️ THIS ASSERTION WAS INVERTED ON PURPOSE. It previously read "still
+      // refreshes on a push signal while the Dashboard tab is hidden" and
+      // asserted `hiddenBaseline + 1` — a `GET /v1/deliveries?role=jeeber` for a
+      // card behind the active-delivery / request-detail route. The GUARANTEE
+      // that assertion existed to protect is "a hidden dashboard is never left
+      // stale", and it is intact and asserted below: the read is DEFERRED, not
+      // dropped, and lands the moment the surface is looked at. What changed is
+      // only WHEN it is paid — see `core/lifecycle/deferred_refresh_gate.dart`.
       final gate = ManualAppLifecycleGate(isForeground: false);
       AppLifecycleGate.install(gate);
       final fixture = await _pumpDashboard(tester, delegate);
@@ -333,11 +342,31 @@ void main() {
       expect(cubit.debugPoller.isRunning, isFalse);
       final hiddenBaseline = fixture.activeRepository.calls;
 
+      // Three pushes while nobody can see the card.
+      fixture.pushSignals.signalStatusChange();
+      fixture.pushSignals.signalStatusChange();
       fixture.pushSignals.signalStatusChange();
       await tester.pump();
 
-      expect(fixture.activeRepository.calls, hiddenBaseline + 1);
+      expect(
+        fixture.activeRepository.calls,
+        hiddenBaseline,
+        reason: 'an invisible card must not read; the debt is recorded instead',
+      );
       expect(cubit.debugPoller.isRunning, isFalse);
+
+      // Refocus pays the debt ONCE — not three times, and not twice (the
+      // deferred push read and the refocus read collapse through the cubit's
+      // single-flight latch).
+      fixture.visibility.value = true;
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        fixture.activeRepository.calls,
+        hiddenBaseline + 1,
+        reason: 'no staleness, and no fan-out: exactly one catch-up read',
+      );
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();

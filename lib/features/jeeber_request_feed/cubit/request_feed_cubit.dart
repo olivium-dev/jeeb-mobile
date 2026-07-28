@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/lifecycle/deferred_refresh_gate.dart';
 import '../../../core/lifecycle/lifecycle_poller.dart';
 import '../../../core/lifecycle/polling_source.dart';
 import '../../../core/lifecycle/polling_visibility.dart';
@@ -96,7 +97,10 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
 
   StreamSubscription<DeliveryRequest>? _requestsSub;
   StreamSubscription<FeedTransportUpdate>? _transportSub;
-  StreamSubscription<void>? _refreshSignalsSub;
+  late final DeferredRefreshGate _refreshGate = DeferredRefreshGate(
+    onRefresh: refresh,
+    debugLabel: 'RequestFeedCubit',
+  );
   late final LifecyclePoller _sweepPoller = LifecyclePoller(
     interval: _sweepInterval,
     onTick: _sweepExpired,
@@ -124,7 +128,13 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     // holds no live subscription — the same rule the two subscriptions above
     // already follow. `??=` keeps a second `start()` from double-subscribing
     // (which would fire two refetches per push).
-    _refreshSignalsSub ??= _refreshSignals?.listen((_) => refresh());
+    // b02 READ ECONOMICS — bound through a [DeferredRefreshGate], so a
+    // `new_request`/`offers` push that lands while the feed is behind another
+    // route (request-detail, active-delivery) costs ZERO reads and is paid with
+    // ONE `GET /v1/jeebers/me/feed` on return. `bind` is idempotent for the same
+    // reason `??=` was: a second `start()` must not double-subscribe and turn one
+    // push into two refetches.
+    _refreshGate.bind(_refreshSignals);
     _sweepPoller.start();
     _applyPollInterest();
     await refresh();
@@ -136,6 +146,9 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     // their existing expiry behaviour. Always forward the first hidden value:
     // [_pollingVisible] also defaults false, but the poller's default is true.
     _sweepPoller.setPollingVisible(visible);
+    // b02 READ ECONOMICS: the push bus is gated by the SAME signal as the poll,
+    // so "the feed is not on screen" now means one thing everywhere.
+    _refreshGate.setPollingVisible(visible);
     if (_pollingVisible == visible) return;
     _pollingVisible = visible;
     _applyPollInterest();
@@ -423,8 +436,7 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     _sweepPoller.dispose();
     await _requestsSub?.cancel();
     await _transportSub?.cancel();
-    await _refreshSignalsSub?.cancel();
-    _refreshSignalsSub = null;
+    await _refreshGate.dispose();
     if (_repositoryOwnership == RequestFeedRepositoryOwnership.owned) {
       await _repository.dispose();
     }
