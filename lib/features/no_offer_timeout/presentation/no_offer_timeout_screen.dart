@@ -116,7 +116,14 @@ class NoOfferTimeoutScreen extends StatelessWidget {
               // b02 wave C / N9: the ungated 5s poll is gone. A `type=offer`
               // (bid arrived) or `type=request_expired` / `try_expand_tier`
               // push re-reads it, through the ONE existing resolver.
-              refreshSignals: resolvePushRefreshStream(),
+              //
+              // b02 wave D — `{order, offers}`: both of this screen's real
+              // triggers publish `offers`, and `order` keeps the accept
+              // transition landing. `chat` and `new_request` cannot change a
+              // waiting customer's coverage state.
+              refreshSignals: resolvePushRefreshStream(
+                topics: const {RefreshTopic.order, RefreshTopic.offers},
+              ),
             );
         cubit.load();
         return cubit;

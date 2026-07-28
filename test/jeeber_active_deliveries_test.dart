@@ -296,4 +296,62 @@ void main() {
       expect(result, isEmpty);
     });
   });
+
+  // b02 wave D. This cubit has THREE independently-timed triggers — the 60s
+  // poller, the push bus and the visibility/resume tick — and only the poller
+  // ever coordinated with itself. A jeeber whose offer is accepted receives
+  // `offer_accepted` and, moments later, the first `type=delivery` transition:
+  // two bus events well inside one `GET /v1/deliveries?role=jeeber` round trip.
+  // Overlapping, the later-issued read can complete FIRST and repaint the card
+  // from the OLDER snapshot.
+  group('ActiveDeliveriesCubit — single flight', () {
+    test('two push signals inside one round trip produce ONE read, and the '
+        'latch releases afterwards', () async {
+      final gate = Completer<void>();
+      var calls = 0;
+      final repository = _GatedActiveDeliveriesRepository(
+        onCall: () => calls++,
+        gate: () => gate.future,
+      );
+      final signals = StreamController<void>.broadcast();
+      addTearDown(signals.close);
+      final cubit = ActiveDeliveriesCubit(
+        repository: repository,
+        pollInterval: const Duration(hours: 1),
+        refreshSignals: signals.stream,
+      );
+      addTearDown(cubit.close);
+
+      signals.add(null);
+      await Future<void>.delayed(Duration.zero);
+      signals.add(null);
+      await Future<void>.delayed(Duration.zero);
+      expect(calls, 1, reason: 'the second signal must collapse onto the first');
+
+      gate.complete();
+      await Future<void>.delayed(Duration.zero);
+
+      signals.add(null);
+      await Future<void>.delayed(Duration.zero);
+      expect(calls, 2, reason: 'a latch that never released would freeze the '
+          'card on its first snapshot forever');
+    });
+  });
+}
+
+/// Repository whose `listActive` can be held open, so a second trigger lands
+/// while the first read is genuinely in flight — the only state in which a
+/// single-flight latch means anything.
+class _GatedActiveDeliveriesRepository implements ActiveDeliveriesRepository {
+  _GatedActiveDeliveriesRepository({required this.onCall, required this.gate});
+
+  final void Function() onCall;
+  final Future<void> Function() gate;
+
+  @override
+  Future<List<ActiveDeliverySummary>> listActive() async {
+    onCall();
+    await gate();
+    return const <ActiveDeliverySummary>[];
+  }
 }

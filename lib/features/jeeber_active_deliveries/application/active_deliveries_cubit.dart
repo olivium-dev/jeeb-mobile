@@ -93,15 +93,31 @@ class ActiveDeliveriesCubit extends Cubit<ActiveDeliveriesState>
   @override
   void setPollingVisible(bool visible) => _poller.setPollingVisible(visible);
 
+  /// SINGLE FLIGHT (b02 wave D). This cubit has THREE independent triggers —
+  /// the 60s poller, the push bus, and the visibility/resume tick — and only
+  /// the poller ever coordinated with itself. A jeeber whose offer is accepted
+  /// receives `offer_accepted` and, moments later, the first `type=delivery`
+  /// transition: two bus events well inside one `GET /v1/deliveries?role=jeeber`
+  /// round trip. Overlapping, the later-issued read can complete FIRST and
+  /// paint the card from the older snapshot — the accepted delivery flickers,
+  /// or briefly disappears. A clock alone could never produce that.
+  bool _refreshInFlight = false;
+
   Future<void> refresh() async {
-    final deliveries = await _repository.listActive();
-    if (isClosed) return;
-    emit(
-      state.copyWith(
-        phase: ActiveDeliveriesPhase.loaded,
-        deliveries: deliveries,
-      ),
-    );
+    if (isClosed || _refreshInFlight) return;
+    _refreshInFlight = true;
+    try {
+      final deliveries = await _repository.listActive();
+      if (isClosed) return;
+      emit(
+        state.copyWith(
+          phase: ActiveDeliveriesPhase.loaded,
+          deliveries: deliveries,
+        ),
+      );
+    } finally {
+      _refreshInFlight = false;
+    }
   }
 
   @override

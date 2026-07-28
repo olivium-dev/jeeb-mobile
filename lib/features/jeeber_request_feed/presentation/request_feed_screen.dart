@@ -44,7 +44,11 @@ class RequestFeedScreen extends StatelessWidget {
         // dashboard host uses, so if this screen is ever un-orphaned it is
         // already push-driven rather than quietly poll-only. Returns `null`
         // when DI has not run, which is this screen's normal (test) case.
-        refreshSignals: resolvePushRefreshStream(),
+        // b02 wave D: same topics as the live dashboard host, so the orphaned
+        // construction cannot drift from the one that ships.
+        refreshSignals: resolvePushRefreshStream(
+          topics: const {RefreshTopic.feed, RefreshTopic.offers},
+        ),
       )..start(),
       child: view,
     );

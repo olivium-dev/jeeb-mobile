@@ -1360,7 +1360,14 @@ class AppRouter {
                 // axis is driven by a `type=delivery` push through the ONE
                 // existing resolver; the POSITION axis is the gateway's SSE
                 // stream, feature-detected on the repository.
-                refreshSignals: resolvePushRefreshStream(),
+                //
+                // b02 wave D — `{order}`. Status is the ONLY axis this bus
+                // feeds; position never came from here. The customer commonly
+                // chats with the jeeber from the tracking screen, so every
+                // message used to fire a redundant status read.
+                refreshSignals: resolvePushRefreshStream(
+                  topics: const {RefreshTopic.order},
+                ),
                 // G4: re-hydrate the accept-time handover code from local
                 // persistence so the customer tracking surface can render it
                 // (compact row pre-at-door, prominent at-door card).

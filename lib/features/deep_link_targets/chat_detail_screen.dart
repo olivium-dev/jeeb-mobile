@@ -173,6 +173,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   int get debugSummaryRefetchCount => _summaryRefetchCount;
   int _summaryRefetchCount = 0;
 
+  /// Count of summary re-reads that actually reached the WIRE — i.e. attempts
+  /// minus the ones the single-flight latch dropped. The pair
+  /// ([debugSummaryRefetchCount], [debugSummaryFetchCount]) is what lets a test
+  /// assert "three triggers, one read" instead of merely "one read", which a
+  /// broken subscription would also satisfy.
+  @visibleForTesting
+  int get debugSummaryFetchCount => _summaryFetchCount;
+  int _summaryFetchCount = 0;
+
+  /// Single-flight latch for [_refreshSummary]. See the long note there: three
+  /// independent triggers converge on one resume, and `fetchSummary` fans each
+  /// one out into up to three gateway reads.
+  bool _summaryRefreshInFlight = false;
+
   /// One-shot guard for the delivery-complete → mutual-rating auto-navigation.
   /// Set the first time the polled delivery status reaches a delivered-class
   /// terminal (Done/delivered/completed) so a re-emit / late refetch can't
@@ -708,8 +722,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   /// cannot double-subscribe and turn one push into two reads.
   void _armSummaryRefresh() {
     if (_summaryRefreshSub != null) return;
-    _summaryRefreshSub = (widget.refreshSignals ?? resolvePushRefreshStream())
-        ?.listen((_) => unawaited(_refreshSummary()));
+    // b02 wave D — `{order}`. The chip paints a DELIVERY STATUS. A chat message
+    // cannot change it, and this screen is BY DEFINITION on top while chat
+    // messages are arriving: every inbound message used to fire one
+    // `fetchSummary` here, which is THREE gateway reads on the owner-scoped
+    // (customer) leg — `GET /v1/deliveries/{id}` + `/v1/requests/{id}` +
+    // `/v1/offers`. That was the single largest term in the measured chat
+    // fan-out, and once the trigger became the MESSAGE rate rather than a
+    // clock, nothing bounded it.
+    _summaryRefreshSub =
+        (widget.refreshSignals ??
+                resolvePushRefreshStream(topics: const {RefreshTopic.order}))
+            ?.listen((_) => unawaited(_refreshSummary()));
   }
 
   /// ONE summary re-read: re-resolve the accepted-order summary and repaint the
@@ -721,16 +745,48 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   /// foreground resume. Never by a timer.
   Future<void> _refreshSummary() async {
     if (!mounted) return;
+    // SINGLE FLIGHT (b02 wave D). Measured on device: ONE resume produced 4x
+    // `GET /v1/deliveries/{id}` + 2x `/v1/offers`, against this method's own
+    // documented claim of "ONE summary re-read". Two of those deliveries reads
+    // came from `DeliveryDetailScreen` below this route; the other two, plus
+    // both offers reads, came from HERE — because three independent triggers
+    // reach this method and NONE of them knew about the others:
+    //
+    //   1. `didChangeAppLifecycleState(resumed)` — always fires on resume;
+    //   2. the push subscription — a `delivery` push the OS queued while
+    //      backgrounded is delivered moments after the resume;
+    //   3. `didPopNext()` — when the resume also returns to this route.
+    //
+    // Each is individually correct and none may be deleted (the rating
+    // hand-off below hangs off this read path). What was wrong is that they
+    // STACKED: three overlapping `fetchSummary` calls, up to nine gateway reads
+    // for one user action, with the completions free to land out of order and
+    // repaint the chip from the OLDER snapshot.
+    //
+    // A latch, not a debounce: the second trigger is DROPPED, not delayed. The
+    // in-flight read was issued after the event that prompted it, so it already
+    // observes the same state the dropped trigger would have — there is nothing
+    // for a trailing call to learn. `_summaryRefetchCount` deliberately counts
+    // ATTEMPTS (incremented above the latch) so a test can still see how many
+    // triggers fired and assert the collapse, rather than the latch hiding it.
     _summaryRefetchCount++;
+    if (_summaryRefreshInFlight) return;
     final getIt = GetIt.instance;
     if (!getIt.isRegistered<Dio>()) return;
-    final next = await _resolveSummary(
-      getIt<Dio>(),
-      _resolvedRequestId,
-      _resolvedConversationId,
-      // Belt-and-braces — the refresh is never armed for the Jeeber.
-      ownerScopedReads: !_resolvedIsJeeber,
-    );
+    _summaryRefreshInFlight = true;
+    _summaryFetchCount++;
+    final OrderChatSummary? next;
+    try {
+      next = await _resolveSummary(
+        getIt<Dio>(),
+        _resolvedRequestId,
+        _resolvedConversationId,
+        // Belt-and-braces — the refresh is never armed for the Jeeber.
+        ownerScopedReads: !_resolvedIsJeeber,
+      );
+    } finally {
+      _summaryRefreshInFlight = false;
+    }
     if (!mounted || next == null) return;
     if (next != _summary) {
       setState(() => _summary = next);

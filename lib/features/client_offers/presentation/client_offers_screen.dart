@@ -94,7 +94,15 @@ class ClientOffersScreen extends StatelessWidget {
               // b02 wave C / N8: the 5s `Stream.periodic` that used to drive
               // this list is gone. A `type=offer` push now re-reads it, through
               // the ONE existing resolver — no second bus.
-              refreshSignals: resolvePushRefreshStream(),
+              //
+              // b02 wave D — `{order, offers}`. `offers` is the bid set this
+              // screen renders; `order` keeps the accept/cancel transition
+              // (`type=delivery`) landing, since accepting closes this list.
+              // `fetchOffers` fans out into TWO gateway reads, so keeping a
+              // `chat` message out of here removes two wire calls per message.
+              refreshSignals: resolvePushRefreshStream(
+                topics: const {RefreshTopic.order, RefreshTopic.offers},
+              ),
             );
         cubit.load();
         return cubit;
