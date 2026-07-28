@@ -136,6 +136,26 @@ dependencies:
   firebase_messaging: ^15.1.3
   flutter_local_notifications: ^17.2.3
 
+  # Realtime chat transport (b02 — "the mobile subscribes, the backend only
+  # writes"). `cloud_firestore` opens ONE `.snapshots()` listener per open chat
+  # thread over `Conversations/{id}/Messages`, which the chat-service already
+  # writes (`FirestoreConversationStore.AddMessageAsync`). This is a STREAM, not
+  # a poll: no `Timer`, no interval, no repeated request — the server pushes each
+  # document down the open channel. It replaces the push→refetch path, whose cost
+  # was one full `GET /v1/conversations/{id}/messages` per inbound message.
+  #
+  # PROJECT: Jeeb's OWN Firebase project, `jeeb-5a293`. `Firebase.initializeApp()`
+  # takes it from `android/app/google-services.json` (and the `dev` flavor copy),
+  # both of which read `project_id: jeeb-5a293`. Jeeb must NEVER point at
+  # `alrahmah-d7a33` — chat history written there once caused a live outage.
+  #
+  # `firebase_auth` is here because a Firestore read needs an IDENTITY the
+  # security rules can key on. See `ChatFirebaseIdentity` — the app signs in with
+  # a CUSTOM TOKEN minted from the Jeeb JWT; it never signs in anonymously and
+  # never reads unauthenticated. Version floors match `firebase_core: ^3.6.0`.
+  cloud_firestore: ^5.6.5
+  firebase_auth: ^5.5.0
+
   # Hashing for the fallback PIN store (T-mobile-005). crypto already
   # ships transitively via flutter; pinning it explicitly so the import is
   # not load-bearing on someone else's dependency graph.

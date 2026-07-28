@@ -155,6 +155,35 @@ sealed class ChatEvent {
   const ChatEvent();
 }
 
+/// The realtime transport's own liveness changed.
+///
+/// Emitted by a gateway whose [ChatGateway.subscribe] stream is a genuine
+/// server-push channel (the Firestore `.snapshots()` listener), so the cubit can
+/// tell a LIVE stream from a dead one and stop paying for the HTTP fallback
+/// while the stream is carrying messages.
+///
+/// It exists because of I-13 (`debugPositionStreamWired` read `true` on a dead
+/// SSE stream, because the flag was set on arm and never cleared on the
+/// stream's own `onDone`). The rule that instrument taught: **liveness must be
+/// driven by the stream's own lifecycle, never by the act of arming it.** So
+/// `live: true` is emitted only when a snapshot has actually ARRIVED, and
+/// `live: false` on the stream's `onError`/`onDone` — the two events an armed
+/// but dead channel produces.
+///
+/// A gateway with no realtime transport never emits this, and the fallback
+/// stays on. That is the correct degradation, not a gap.
+class RealtimeTransportChanged extends ChatEvent {
+  const RealtimeTransportChanged({required this.live, this.reason});
+
+  /// True once a snapshot has arrived on the open channel; false when the
+  /// channel errored, closed, or was never established.
+  final bool live;
+
+  /// Optional short machine-readable cause (`first_snapshot`, `stream_error`,
+  /// `stream_closed`, `no_identity`). Diagnostic only — never rendered.
+  final String? reason;
+}
+
 /// A new message arrived from the counterpart.
 class IncomingMessage extends ChatEvent {
   const IncomingMessage(this.message);

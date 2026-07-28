@@ -165,6 +165,32 @@ class ChatCubit extends Cubit<ChatState> {
   int get debugPushRefreshCount => _pushRefreshCount;
   int _pushRefreshCount = 0;
 
+  /// Whether the gateway's inbound stream is a LIVE realtime channel.
+  ///
+  /// Set ONLY by a [RealtimeTransportChanged] event the transport emits from its
+  /// own lifecycle — `true` when a snapshot has arrived, `false` on the
+  /// stream's error/close. A gateway with no realtime transport never emits it
+  /// and this stays false forever, which is the correct reading: the HTTP
+  /// fallback is what carries that gateway.
+  ///
+  /// I-13 is the reason it is shaped this way. `debugPositionStreamWired` was
+  /// set when its stream was ARMED and never cleared on `onDone`, so it read
+  /// `true` on a dead SSE feed and the guard it protected never fired again.
+  /// Arming a listener is not evidence a listener works.
+  bool _realtimeLive = false;
+
+  /// True while the realtime channel is carrying messages. When it is, the
+  /// push-driven HTTP re-pull is SILENT — see [_refreshFromPush].
+  @visibleForTesting
+  bool get debugRealtimeLive => _realtimeLive;
+
+  /// Push signals that arrived while the realtime channel was live and were
+  /// therefore NOT turned into an HTTP read. This is the saving, counted: it is
+  /// how many `GET /v1/conversations/{id}/messages` round trips did not happen.
+  @visibleForTesting
+  int get debugPushRefreshSuppressedCount => _pushRefreshSuppressedCount;
+  int _pushRefreshSuppressedCount = 0;
+
   /// Monotonic counter feeding outgoing message ids. Combined with the
   /// delivery id to stay unique across two cubits running in the same
   /// process during tests.
@@ -353,6 +379,30 @@ class ChatCubit extends Cubit<ChatState> {
   /// whose completions can land out of order.
   Future<void> _refreshFromPush() async {
     if (isClosed) return;
+    // THE SAVING. While the Firestore channel is live the MESSAGE ITSELF has
+    // already arrived down it — the push is a duplicate notice about content
+    // this cubit is holding. Re-pulling here would cost one full
+    // `GET /v1/conversations/{id}/messages` per inbound message: at 10 msg/min
+    // that is 10 whole-thread reads a minute, where the 60 s poll this replaced
+    // cost 1. So the push drives NOTHING while the stream is carrying the thread
+    // — exactly Rahmah, where the FCM handler
+    // (`firebase_notification_handler.dart:436,:508,:894`) only ever navigates
+    // and no branch reloads the thread.
+    //
+    // It is suppressed, not deleted, and the distinction is deliberate: the flag
+    // is driven by the stream's OWN liveness (I-13), so a channel that errors,
+    // closes, or never opens (no Firebase identity — the state the app is in
+    // today, see `ChatFirebaseIdentity`) drops straight back to the push-driven
+    // read rather than leaving the thread with no inbound path at all.
+    if (_realtimeLive) {
+      _pushRefreshSuppressedCount++;
+      Diag.event('chat_push_refetch', <String, Object?>{
+        'conversation_id': _deliveryId,
+        'skipped': 'realtime_live',
+        'n': _pushRefreshSuppressedCount,
+      });
+      return;
+    }
     if (_pushRefreshInFlight) {
       Diag.event('chat_push_refetch', <String, Object?>{
         'conversation_id': _deliveryId,
@@ -907,6 +957,16 @@ class ChatCubit extends Cubit<ChatState> {
 
   void _handleEvent(ChatEvent event) {
     switch (event) {
+      case RealtimeTransportChanged(live: final live, reason: final reason):
+        // The transport reporting on itself. Nothing renders from this — it only
+        // decides whether the push-driven HTTP fallback is still needed.
+        if (_realtimeLive == live) return;
+        _realtimeLive = live;
+        Diag.event('chat_realtime_transport', <String, Object?>{
+          'conversation_id': _deliveryId,
+          'live': live,
+          'reason': reason,
+        });
       case IncomingMessage(message: final m):
         // Dedupe by id: the WS push and the poll fallback can both surface the
         // same server message; whichever arrives first wins, the other is a
