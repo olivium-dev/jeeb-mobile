@@ -10,6 +10,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:jeeb_mobile/core/lifecycle/app_resume_signals.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/cubit/request_feed_cubit.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_models.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_repository.dart';
@@ -19,6 +20,12 @@ import 'package:jeeb_mobile/features/shell/tab_visibility.dart';
 class _MockRepo extends Mock implements RequestFeedRepository {}
 
 void main() {
+  // b02 P0: the resume bus is a process-wide singleton with a 2 s coalescing
+  // floor. Without a per-test reset the floor bleeds across cases in this file
+  // (they run milliseconds apart) and a genuine resume in test N is silently
+  // folded into test N-1's window.
+  setUp(() async => AppResumeSignals.debugReset());
+
   late _MockRepo repo;
   late RequestFeedCubit cubit;
   late int refreshCalls;

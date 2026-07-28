@@ -157,7 +157,29 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
   /// it with the in-memory feed. Surfaces a one-shot loading state on the
   /// initial fetch so the screen can render a spinner, but stays silent on
   /// subsequent pulls (the OMDS pull-to-refresh chrome owns the affordance).
+  ///
+  /// Single-flighted (b02 P0). This was the `GET /v1/jeebers/me/feed` leg of the
+  /// measured 60-read storm — twenty reads in 2.08 s, the last of them a 429 —
+  /// and it had no guard at all: four independent triggers reach it (cold
+  /// `start()`, the push bus, `FeedResumeRefetcher`'s resume hook and its
+  /// tab-refocus hook) and none knew about the others. A call arriving while a
+  /// read is in flight is DROPPED, not queued: the running read was issued after
+  /// the event that prompted the dropped one, so it already observes the same
+  /// snapshot. The RATE floor is `AppResumeSignals`; this is the concurrency
+  /// half, and the two are not substitutes — the storm's reads never overlapped.
   Future<void> refresh() async {
+    if (_refreshInFlight) return;
+    _refreshInFlight = true;
+    try {
+      await _refresh();
+    } finally {
+      _refreshInFlight = false;
+    }
+  }
+
+  bool _refreshInFlight = false;
+
+  Future<void> _refresh() async {
     final isInitial = state.status == RequestFeedStatus.initial;
     if (isInitial) {
       emit(state.copyWith(

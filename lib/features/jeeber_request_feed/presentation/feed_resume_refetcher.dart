@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/lifecycle/app_resume_signals.dart';
 import '../../../core/notifications/application/badge_count_cubit.dart';
 import '../../shell/tab_visibility.dart';
 import '../cubit/request_feed_cubit.dart';
@@ -44,30 +45,20 @@ class FeedResumeRefetcher extends StatefulWidget {
 }
 
 class _FeedResumeRefetcherState extends State<FeedResumeRefetcher>
-    with WidgetsBindingObserver {
+    with ResumeRefetchMixin {
   /// Last-observed shell-tab visibility, used to detect the off-screen →
   /// on-screen transition. `null` until the first [didChangeDependencies]
   /// so the very first frame never double-fetches ([RequestFeedCubit.start]
   /// owns the initial snapshot).
   bool? _wasVisible;
 
+  /// b02 P0 — this used to be `didChangeAppLifecycleState(resumed)` with its own
+  /// binding observer. It was one of the three surfaces measured issuing 20
+  /// unthrottled reads in 2.08 s (`/v1/jeebers/me/feed`, seq 58..115, the last
+  /// one a 429). [ResumeRefetchMixin] applies the genuine-resume filter and the
+  /// coalescing floor; the refetch body below is unchanged.
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) return;
-    _refetch();
-  }
+  void onAppResumed() => _refetch();
 
   @override
   void didChangeDependencies() {

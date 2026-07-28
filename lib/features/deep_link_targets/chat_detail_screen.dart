@@ -7,6 +7,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../core/lifecycle/app_resume_signals.dart';
 import '../../core/delivery/delivery_status_vocab.dart';
 import '../../core/di/injection_container.dart';
 import '../../core/formatting/friendly_reference.dart';
@@ -120,7 +121,7 @@ class ChatDetailScreen extends StatefulWidget {
 }
 
 class _ChatDetailScreenState extends State<ChatDetailScreen>
-    with RouteAware, WidgetsBindingObserver {
+    with RouteAware, ResumeRefetchMixin {
   String _resolvedConversationId = '';
   String _counterpartName = '';
 
@@ -200,7 +201,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     final debugGateway = widget.debugGateway;
     if (debugGateway != null) {
       // DEVTOOL-ONLY seam — see [ChatDetailScreen.debugGateway]. Bypasses the
@@ -226,9 +226,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   /// single read on resume is the backstop. Explicitly allowed by the mandate: it
   /// is caused by the user returning to the app, not by a clock. No-op until the
   /// client-accepted resolution armed the refresh.
+  ///
+  /// b02 P0 — driven by [AppResumeSignals]. `_refreshSummary` is THREE gateway
+  /// reads on the owner-scoped leg, so an un-coalesced resume burst costs
+  /// triple here; its own single-flight latch collapses overlap, not sequence.
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) return;
+  void onAppResumed() {
     if (_summaryRefreshSub != null) unawaited(_refreshSummary());
   }
 
@@ -359,7 +362,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     ActiveChatThread.instance.leave(this);
     unawaited(_summaryRefreshSub?.cancel());
     _summaryRefreshSub = null;
-    WidgetsBinding.instance.removeObserver(this);
     final gateway = _gateway;
     if (gateway is DioChatGateway) {
       gateway.dispose();
@@ -752,7 +754,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     // both offers reads, came from HERE — because three independent triggers
     // reach this method and NONE of them knew about the others:
     //
-    //   1. `didChangeAppLifecycleState(resumed)` — always fires on resume;
+    //   1. `onAppResumed()` — the coalesced app-resume signal;
     //   2. the push subscription — a `delivery` push the OS queued while
     //      backgrounded is delivered moments after the resume;
     //   3. `didPopNext()` — when the resume also returns to this route.

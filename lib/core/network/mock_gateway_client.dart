@@ -221,7 +221,15 @@ class MockGatewayClient {
       ? '/users/$userId/saved-locations'
       : '/api/users/me/saved-locations';
 
-  static Dio createDio({String? baseUrl}) {
+  /// [onRateLimitWindowClosed] (b02 P0) is handed to [RateLimitInterceptor] and
+  /// fires once after a 429 back-off window elapses, so the surfaces whose reads
+  /// that window swallowed catch up instead of holding a pre-429 snapshot
+  /// forever. Optional: a bare test / preview passes nothing and gets exactly
+  /// the previous behaviour.
+  static Dio createDio({
+    String? baseUrl,
+    void Function()? onRateLimitWindowClosed,
+  }) {
     final effectiveBaseUrl = baseUrl ?? mockBaseUrl;
 
     final dio = Dio(
@@ -249,7 +257,9 @@ class MockGatewayClient {
     // rewrite / auth interceptors and never reaches the wire. A single shared
     // instance here means one 429 pauses ALL pollers in lock-step (with jitter),
     // honoring the gateway's Retry-After across the whole app — not per-screen.
-    dio.interceptors.add(RateLimitInterceptor());
+    dio.interceptors.add(
+      RateLimitInterceptor(onBackoffWindowClosed: onRateLimitWindowClosed),
+    );
 
     if (useMockPrefixes) {
       dio.interceptors.add(_PathRewriteInterceptor());

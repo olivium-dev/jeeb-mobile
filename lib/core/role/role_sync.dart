@@ -47,11 +47,27 @@ class RoleSync {
     return null;
   }
 
+  /// Single-flight latch. b02 P0: `sync()` was the `GET /v1/users/me` leg of
+  /// the measured 60-read storm (seq 57..114 on `RFCX306JSRT`) and was the only
+  /// one of the three storm legs with NO guard of any kind — `ActiveDeliveryCubit`
+  /// and `LiveTrackingCubit` at least had in-flight latches. The rate floor now
+  /// lives in `AppResumeSignals`; this latch is the concurrency half, and it
+  /// also covers the OTHER caller (`_wireSessionRoleSync`, which fires on every
+  /// transition into `authenticated`) overlapping a resume.
+  bool _inFlight = false;
+
   /// Fetch getMe and reconcile the local role state with the server. Safe to
   /// call repeatedly (startup + every resume); never throws.
+  ///
+  /// A call made while another is in flight is DROPPED, not queued: the running
+  /// read was issued after the event that prompted this one, so it already
+  /// observes the same server state and there is nothing for a trailing call to
+  /// learn.
   Future<void> sync() async {
+    if (_inFlight) return;
     final repo = _resolveRepository();
     if (repo == null) return;
+    _inFlight = true;
     try {
       final profile = await repo.fetchProfile();
       _availabilityCubit.setAvailableRoles(profile.availableRoles);
@@ -77,6 +93,12 @@ class RoleSync {
       // Unauthorized / network — keep the persisted role + availability.
     } catch (_) {
       // Any unexpected error: fail-closed to the existing local state.
+    } finally {
+      // `finally`, not a trailing assignment: the body returns early on three
+      // paths (null active_role, disallowed role, and both catch arms fall
+      // through). A latch that leaks on an early return is a latch that
+      // permanently silences the surface it was added to protect.
+      _inFlight = false;
     }
   }
 }
