@@ -342,7 +342,7 @@ void main() {
   group('the projector', () {
     test('skips removed documents and keeps the rest, in order', () {
       final projector = ChatRealtimeProjector(mapRow: _mapper().map);
-      final events = projector.project(<RealtimeDocChange>[
+      final events = projector.project(const <RealtimeDocChange>[
         RealtimeDocChange(
           id: 'a',
           data: <String, Object?>{
