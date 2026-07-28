@@ -60,6 +60,7 @@ import 'package:jeeb_mobile/features/live_tracking/presentation/widgets/order_su
 import 'package:jeeb_mobile/features/reviews/domain/reviews_repository.dart';
 import 'package:jeeb_mobile/features/reviews/presentation/reviews_l10n.dart';
 import 'package:jeeb_mobile/features/reviews/presentation/widgets/review_row.dart';
+import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_header_expansion_store.dart';
 
 class _SyncDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _SyncDelegate(this._arbByTag);
@@ -100,6 +101,11 @@ Widget _harness(Widget child) {
 }
 
 void main() {
+  // b02: the pinned header's expand choice is SESSION state and widget
+  // tests share one process — reset it so a test that expands cannot make
+  // the next test's collapsed-by-default assertion pass (or fail) for the
+  // wrong reason.
+  setUp(ChatHeaderExpansionStore.instance.reset);
   setUpAll(_loadArbs);
 
   // A tall, wide surface so nothing is laid out off-screen / culled.

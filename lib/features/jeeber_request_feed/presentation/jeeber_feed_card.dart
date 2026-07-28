@@ -333,7 +333,8 @@ class _RatingCluster extends StatelessWidget {
         spacing: Spacing.twoXSmall,
         showRatingValue: false,
         showReviewCount: false,
-        activeColor: colorScheme.primaryContainer,
+        // Accent PAINT (filled stars), not a container fill — same #D73B00.
+        activeColor: colorScheme.tertiary,
         inactiveColor: colorScheme.outlineVariant,
       ),
     );
@@ -377,10 +378,10 @@ class _TierChip extends StatelessWidget {
   };
 
   Color _color(JeebTierColors? tokens, ColorScheme scheme) => switch (tier) {
-    JeeberRequestTier.flash => tokens?.flash ?? scheme.primaryContainer,
+    JeeberRequestTier.flash => tokens?.flash ?? scheme.tertiary,
     JeeberRequestTier.light => tokens?.eco ?? scheme.tertiary,
     JeeberRequestTier.standard => tokens?.standard ?? scheme.secondaryContainer,
-    JeeberRequestTier.bulk => tokens?.express ?? scheme.primaryContainer,
+    JeeberRequestTier.bulk => tokens?.express ?? scheme.tertiary,
   };
 }
 

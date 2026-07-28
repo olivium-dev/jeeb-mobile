@@ -129,7 +129,8 @@ class _HomeBaseMapContent extends StatelessWidget {
         Icon(
           pinned ? Icons.location_on : Icons.map_outlined,
           size: Sizes.threeXLarge,
-          color: scheme.primaryContainer,
+          // Accent PAINT (map pin), not a container fill — same #D73B00.
+          color: scheme.tertiary,
         ),
         const SizedBox(height: Spacing.xSmall),
         _HomeBaseMapLabel(
@@ -230,7 +231,7 @@ class _SelectLocationRowBody extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Row(
       children: [
-        Icon(Icons.location_on, color: scheme.primaryContainer),
+        Icon(Icons.location_on, color: scheme.tertiary),
         const SizedBox(width: Spacing.twoXSmall),
         Text(
           l10n.dmOnboardingServiceAreaLocationFieldLabel,

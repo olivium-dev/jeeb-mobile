@@ -72,7 +72,8 @@ class _TrackingStepper extends StatelessWidget {
       child: OMDSLabeledStepperProgress(
         totalSteps: 3,
         completedSteps: stepIndex + 1,
-        progressColor: Theme.of(context).colorScheme.primaryContainer,
+        // Accent PAINT (progress), not a container fill — same #D73B00.
+        progressColor: Theme.of(context).colorScheme.tertiary,
         stepLabels: _stepLabels(l10n),
       ),
     );

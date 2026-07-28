@@ -10,7 +10,10 @@ import 'jeeb_tier_colors.dart';
 ///
 /// Brand palette extracted from Figma node 56535:1525:
 ///   - Primary / secondary-container: deep navy `#0B1351`
-///   - Primary-container / progress bars: vibrant orange `#D73B00`
+///   - Tertiary / accent fills / progress bars: vibrant orange `#D73B00`
+///     (this used to be mapped onto `primaryContainer`; see the tone-pair note
+///     on `_jeebOrangeContainer` for why it is not, and must not be, a
+///     `*Container` role)
 ///   - On-secondary-container (muted text): `#777FC0`
 ///   - Outline (chip borders): warm brown `#916F66`
 ///   - On-surface-variant (subtitle text): `#5C4038`
@@ -59,6 +62,45 @@ class AppTheme {
   static const Color _jeebSurfaceHigh = Color(0xFFEAE7EB);
   static const Color _jeebSurfaceHighest = Color(0xFFE5E1E5);
 
+  // ── The `*Container` tone pair for the brand orange ────────────────────────
+  //
+  // b02 chat-header audit. `primaryContainer` used to be `_jeebOrange` itself
+  // (#D73B00, luminance 0.176 — a tone-40 FILL) carrying WHITE ink. That is not
+  // what M3 means by a container role, and it measured badly on real screens:
+  //
+  //   white  on #D73B00 ............................. 4.65:1  (AA by 0.15)
+  //   white@`UIConstants.opacityHigh` on #D73B00 .... 3.85:1  FAIL (AA 4.5)
+  //
+  // The second line is the one that shipped: fading `onPrimaryContainer` to
+  // convey hierarchy (the pinned chat summary did this on its icons and on the
+  // "Pay cash on delivery" reminder) drops a role that was already only 0.15
+  // above the threshold straight through it. A container carrying an ~tone-10
+  // on-colour has ~13:1 of headroom, so the same fade would still pass — the
+  // palette, not the widget, was what made faded text illegal here.
+  //
+  // These are the M3-generated tone-90 / tone-10 pair for the SAME brand seed
+  // (`ColorScheme.fromSeed(seedColor: _jeebOrange)` → #FFDBD1 / #3A0B01), so the
+  // hue is unchanged and only the chroma/tone are corrected. Measured 13.28:1.
+  // The saturated brand fill has NOT been lost: it is `tertiary`, which is
+  // `_jeebOrange` and pairs with white `onTertiary`. Anything that wants to
+  // PAINT with brand orange (a progress bar, an accent icon) must use
+  // `tertiary`, never a `*Container` role.
+  static const Color _jeebOrangeContainer = Color(0xFFFFDBD1);
+  static const Color _jeebOnOrangeContainer = Color(0xFF3A0B01);
+
+  // ── The neutral tonal ramp ─────────────────────────────────────────────────
+  //
+  // Same audit: `ColorScheme.light()` derives `surfaceContainerLowest`,
+  // `surfaceContainerLow` and `surfaceContainer` from `surface`, and Jeeb's
+  // surface is pure white — so THREE of the five container tones resolved to
+  // #FFFFFF and "tonal elevation" did not exist below `surfaceContainerHigh`.
+  // A widget asking for `surfaceContainerLow` (e.g. the unselected tier card)
+  // got an invisible white-on-white card. These two steps complete the ramp
+  // between white and the Figma `_jeebSurfaceHigh`, so hierarchy can be
+  // expressed with elevation instead of with blocks of chroma.
+  static const Color _jeebSurfaceLow = Color(0xFFFAF8FA);
+  static const Color _jeebSurfaceContainer = Color(0xFFF5F3F6);
+
   /// On-surface ink for body text in the light Jeeb scheme. Deep blue tuned
   /// to read against the warm white surface; not the same as `_jeebNavy`.
   static const Color _jeebOnSurface = Color(0xFF0B0E53);
@@ -73,19 +115,29 @@ class AppTheme {
         ? const ColorScheme.light(
             primary: _jeebNavy,
             onPrimary: Colors.white,
-            primaryContainer: _jeebOrange,
-            onPrimaryContainer: Colors.white,
+            primaryContainer: _jeebOrangeContainer,
+            onPrimaryContainer: _jeebOnOrangeContainer,
             secondary: _jeebNavy,
             onSecondary: Colors.white,
             secondaryContainer: _jeebNavy,
             onSecondaryContainer: _jeebMutedPurple,
             tertiary: _jeebOrange,
             onTertiary: Colors.white,
+            // Same correction as the primary pair — `tertiaryContainer` was the
+            // saturated `_jeebOrange` under white ink. It keeps its historical
+            // relationship to `primaryContainer` (they were identical before and
+            // are identical now), so no tier/badge that distinguishes the two
+            // changes meaning.
+            tertiaryContainer: _jeebOrangeContainer,
+            onTertiaryContainer: _jeebOnOrangeContainer,
             surface: Colors.white,
             onSurface: _jeebOnSurface,
             onSurfaceVariant: _jeebSubtitle,
             outline: _jeebWarmBrown,
             outlineVariant: _jeebSurfaceHighest,
+            surfaceContainerLowest: Colors.white,
+            surfaceContainerLow: _jeebSurfaceLow,
+            surfaceContainer: _jeebSurfaceContainer,
             surfaceContainerHighest: _jeebSurfaceHighest,
             surfaceContainerHigh: _jeebSurfaceHigh,
           )

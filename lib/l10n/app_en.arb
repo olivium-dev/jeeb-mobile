@@ -4641,5 +4641,14 @@
   "customerWalletStubCodBody": "You will see the agreed price on each offer. Pay that amount in cash to your Jeeber when they hand over your delivery.",
   "@customerWalletStubCodBody": { "description": "F6/JEBV4-303 customer-wallet stub info-card body." },
   "customerWalletStubDoneCta": "Got it",
-  "@customerWalletStubDoneCta": { "description": "F6/JEBV4-303 customer-wallet stub dismiss CTA (customer_wallet_stub_done) — back to the shell." }
+  "@customerWalletStubDoneCta": { "description": "F6/JEBV4-303 customer-wallet stub dismiss CTA (customer_wallet_stub_done) — back to the shell." },
+  "orderChatSummaryExpand": "Show order details",
+  "orderChatSummaryCollapse": "Hide order details",
+  "orderChatRequestExpand": "Show the full request",
+  "orderChatRequestCollapse": "Shorten the request",
+  "orderChatFieldStatus": "Status",
+  "orderChatFieldPrice": "Price",
+  "orderChatFieldEta": "Estimated time",
+  "orderChatFieldTier": "Service tier",
+  "orderChatFieldValueA11y": "{field}: {value}"
 }

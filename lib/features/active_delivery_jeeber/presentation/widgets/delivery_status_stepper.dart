@@ -72,7 +72,10 @@ class _DeliveryProgress extends StatelessWidget {
               currentStep: currentIndex + 1,
               totalSteps: jeeberDeliveryProgressStages.length,
               completedColor: colors.primary,
-              activeColor: colors.primaryContainer,
+              // Accent PAINT, not a container fill — see the tone-pair note in
+                // `app_theme.dart`. `tertiary` is the same #D73B00 this line
+                // rendered before the palette fix.
+                activeColor: colors.tertiary,
               pendingColor: colors.surfaceContainerHighest,
               lineColor: colors.outlineVariant,
               stepSize: Sizes.threeXLarge,

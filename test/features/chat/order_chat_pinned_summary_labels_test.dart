@@ -22,6 +22,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/chat/domain/order_chat_summary.dart';
+import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_header_expansion_store.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/order_chat_pinned_summary.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
@@ -60,8 +61,21 @@ Widget _host(Widget child, {Locale locale = const Locale('en')}) => MaterialApp(
       home: Scaffold(body: child),
     );
 
+/// b02 chat-header redesign: the strip is COLLAPSED by default and discloses
+/// the party line, the requirement, the ETA/tier chips and the cash reminder
+/// behind `order_chat_summary_expand`. Every assertion below that targets one
+/// of those elements now opens the disclosure first — the vocabulary they lock
+/// is unchanged, only the number of taps to see it.
+Future<void> _expand(WidgetTester tester) async {
+  await tester.tap(find.bySemanticsIdentifier('order_chat_summary_expand'));
+  await tester.pump();
+}
+
 void main() {
   setUpAll(_loadArb);
+  // The choice is remembered for the SESSION, and widget tests share one
+  // process — without this a test that expands leaks that state into the next.
+  setUp(ChatHeaderExpansionStore.instance.reset);
 
   const uuid = '9acb579d-1c2e-4f3a-b8d1-77aa10cc42e6';
   const syntheticHandle = 'jeeb-e1a35ea8a520';
@@ -86,6 +100,7 @@ void main() {
       onViewSummary: () {},
     )));
     await tester.pump();
+    await _expand(tester);
 
     // Heading is the human order reference, passed through untouched.
     expect(find.text('ORD-23470'), findsOneWidget);
@@ -116,6 +131,7 @@ void main() {
       onViewSummary: () {},
     )));
     await tester.pump();
+    await _expand(tester);
 
     // Heading derives a short stable reference from the delivery id.
     expect(find.text('#CC42E6'), findsOneWidget);
@@ -140,6 +156,7 @@ void main() {
       onViewSummary: () {},
     )));
     await tester.pump();
+    await _expand(tester);
 
     expect(find.text('Your Jeeber'), findsOneWidget);
     expect(find.text(syntheticHandle), findsNothing);
@@ -160,6 +177,7 @@ void main() {
       viewerIsJeeber: true,
     )));
     await tester.pump();
+    await _expand(tester);
 
     expect(find.text('Alice Client'), findsOneWidget);
     expect(find.text('Kamal Hajj'), findsNothing);
@@ -176,6 +194,7 @@ void main() {
       viewerIsJeeber: true,
     )));
     await tester.pump();
+    await _expand(tester);
 
     expect(find.text('Customer'), findsOneWidget);
     expect(find.text(syntheticHandle), findsNothing);
@@ -194,6 +213,7 @@ void main() {
       onViewSummary: () {},
     )));
     await tester.pump();
+    await _expand(tester);
 
     expect(find.text('Delivered'), findsOneWidget);
   });
@@ -222,6 +242,7 @@ void main() {
       onViewSummary: () {},
     )));
     await tester.pump();
+    await _expand(tester);
 
     expect(
       find.bySemanticsIdentifier('order_chat_request_description'),
@@ -244,6 +265,7 @@ void main() {
       onViewSummary: () {},
     )));
     await tester.pump();
+    await _expand(tester);
 
     expect(
       find.bySemanticsIdentifier('order_chat_request_description'),
@@ -268,6 +290,7 @@ void main() {
       onViewSummary: () {},
     )));
     await tester.pump();
+    await _expand(tester);
 
     expect(descriptionText(tester, arabic).textDirection, TextDirection.rtl);
   });
@@ -289,6 +312,7 @@ void main() {
       locale: const Locale('ar'),
     ));
     await tester.pump();
+    await _expand(tester);
 
     expect(descriptionText(tester, english).textDirection, TextDirection.ltr);
     // The ambient strip direction is still RTL (the app is RTL-first).
@@ -324,18 +348,22 @@ void main() {
       ]),
     )));
     await tester.pump();
+    await _expand(tester);
 
     expect(tester.takeException(), isNull);
     final text = descriptionText(tester, long);
     expect(text.maxLines, 2);
     expect(text.overflow, TextOverflow.ellipsis);
     // R2 guard: the clamp BOUNDS the strip's growth. Measured baselines at this
-    // width — no description 163.5 px, 2-line description 207.5 px. Unclamped,
-    // 420 chars wrap to ~10 lines (~+160 px) and would push the message list
-    // off screen (the run-22 "BOTTOM OVERFLOWED" class).
+    // width — pre-b02, no description 163.5 px, 2-line description 207.5 px.
+    // Post-b02 the strip is COLLAPSED by default (one 48 dp row) and this
+    // assertion is on the EXPANDED state, which carries the party line and the
+    // ETA/tier/cash rows the old strip showed unconditionally: 248 px. The
+    // clamp is still what bounds it — unclamped, 420 chars wrap to ~17 lines in
+    // the square-glyph test font and the strip runs past 640 px.
     expect(
       tester.getSize(find.byType(OrderChatPinnedSummary)).height,
-      lessThan(240),
+      lessThan(260),
     );
   });
 
@@ -347,9 +375,16 @@ void main() {
       orderRef: 'ORD-1',
       description: long,
     );
+    // The harness, not the subject: with the header expanded AND the description
+    // expanded to its full 420 chars the strip is ~650 px in the widget-test
+    // font (square em glyphs, ~1.8x real Inter width), so the 600 px default
+    // test surface is too short to lay it out. The clamp itself is asserted in
+    // M12.
+    await tester.binding.setSurfaceSize(const Size(400, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(_host(SizedBox(
       width: 360,
-      height: 640,
+      height: 1200,
       child: Column(children: [
         OrderChatPinnedSummary(
           summary: summary,
@@ -359,6 +394,7 @@ void main() {
       ]),
     )));
     await tester.pump();
+    await _expand(tester);
 
     expect(descriptionText(tester, long).maxLines, 2);
 
@@ -386,6 +422,7 @@ void main() {
       viewerIsJeeber: true,
     )));
     await tester.pump();
+    await _expand(tester);
 
     expect(
       find.bySemanticsIdentifier('order_chat_pinned_summary'),

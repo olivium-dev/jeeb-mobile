@@ -1649,5 +1649,14 @@
   "customerWalletStubBody": "جيب يعتمد الدفع النقدي عند التوصيل. لا يوجد رصيد داخل التطبيق لشحنه — تدفع لمندوب التوصيل سعر التوصيل مباشرةً عند وصول طلبك.",
   "customerWalletStubCodTitle": "الدفع عند التوصيل",
   "customerWalletStubCodBody": "سترى السعر المتفق عليه في كل عرض. ادفع هذا المبلغ نقداً لمندوب التوصيل عند تسليمه طلبك.",
-  "customerWalletStubDoneCta": "حسناً"
+  "customerWalletStubDoneCta": "حسناً",
+  "orderChatSummaryExpand": "عرض تفاصيل الطلب",
+  "orderChatSummaryCollapse": "إخفاء تفاصيل الطلب",
+  "orderChatRequestExpand": "عرض الطلب كاملًا",
+  "orderChatRequestCollapse": "اختصار الطلب",
+  "orderChatFieldStatus": "الحالة",
+  "orderChatFieldPrice": "السعر",
+  "orderChatFieldEta": "الوقت المتوقع",
+  "orderChatFieldTier": "فئة الخدمة",
+  "orderChatFieldValueA11y": "{field}: {value}"
 }

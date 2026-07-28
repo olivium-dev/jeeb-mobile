@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
@@ -24,6 +26,65 @@ import 'widgets/jeeber_removed_banner.dart';
 import 'widgets/offer_accepted_banner.dart';
 import 'widgets/offer_card_bubble.dart';
 import 'widgets/order_chat_pinned_summary.dart';
+
+/// The share of the chat viewport the header chrome (fee banner + pinned
+/// summary + accepted/removed banners + TTL indicator) may occupy.
+///
+/// This is the structural guarantee behind the "BOTTOM OVERFLOWED BY 16 PIXELS"
+/// fix: whatever the chrome contains, the message list keeps at least
+/// `1 - kChatHeaderMaxViewportFraction` of the available height, so the
+/// surrounding `Column`'s `Expanded` child can never be allocated zero. 0.4 was
+/// chosen because the collapsed header (56 dp) + the compact accepted banner
+/// (64 dp) come to ~120 dp, which is ~29% of the ~410 dp that remains on a
+/// 411×914 dp phone once the app bar, the composer and an open keyboard are
+/// subtracted — i.e. the ordinary case sits comfortably inside the bound and
+/// never touches it.
+const double kChatHeaderMaxViewportFraction = 0.4;
+
+/// Vertical room reserved for the composer plus a minimum message list, taken
+/// off the header's budget before the fraction is applied — at a text scale of
+/// 1.0, and scaled with the user's text scale because the composer grows with
+/// it.
+///
+/// The composer is non-flexible too, so on a very short viewport (a 320x400 dp
+/// phone with a 200 dp keyboard — measured) 40% of the height for the header
+/// still left the Column 1.6 px over budget once the composer took its own
+/// intrinsic height, and 62 px over at a 2.0 text scale.
+///
+/// The header's allowance is therefore
+/// `clamp(min(height * fraction, height - reserve), 0, ...)`. On a 320x480 dp
+/// phone at a 2.0 text scale with the keyboard open the allowance reaches zero
+/// and the header yields its space entirely. That is the correct priority when
+/// there is genuinely no room — being able to read the thread and send a
+/// message outranks the order summary, and the header returns in full the
+/// moment the keyboard closes.
+const double kChatComposerReserve = 120;
+
+/// Minimum height the bounded header slot keeps while it holds the
+/// Start-delivery CTA — the Jeeber's primary action during a LIVE delivery.
+///
+/// Without a floor, [kChatComposerReserve] drives the slot's allowance to 0 dp
+/// on a 320x480 dp phone with the keyboard up at a 2.0 text scale. A
+/// ZERO-HEIGHT VIEWPORT CANNOT SCROLL, so the CTA became unreachable while
+/// remaining present in the widget tree — which is exactly why a
+/// `findsOneWidget` assertion missed it and the suite asserted a 0 dp header as
+/// correct. Expansion persists for the session, so one expand hid the CTA on
+/// every subsequent keyboard open.
+///
+/// Hoisting the CTA OUT of the slot is not the answer either: it then becomes
+/// non-flexible chrome and re-creates the original overflow (measured 54 px at
+/// 411x914 and 88 px at 320x480 + 2.0). At that smallest size the CTA and the
+/// composer genuinely cannot both fit — no placement makes them.
+///
+/// So the CTA stays inside the slot and the slot gets this floor, capped at a
+/// third of the viewport so the thread and composer keep priority. Degradation
+/// becomes a SCROLL, which is reachable, instead of a clip, which is not.
+const double kChatPinnedCtaReserve = 96;
+
+/// Key on the bounded header slot's scrollable, so a test can assert the
+/// ordinary case does NOT scroll (a bound that is always engaged would be
+/// hiding content rather than budgeting it).
+const Key chatHeaderSlotKey = Key('chat-screen-header-slot');
 
 /// Jeeber-only balance-deduction notice configuration for [ChatScreen].
 ///
@@ -603,31 +664,117 @@ class _ChatBody extends StatelessWidget {
     }
     final notice = feeNotice;
     final summary = pinnedSummary;
-    return Column(
-      children: [
-        if (notice != null) _FeeBannerSlot(notice: notice),
-        // JM-025 AC2: pinned locked-price summary on the accepted order, above
-        // the thread (D71/D11). Carries `order_chat_pinned_summary` +
-        // `order_chat_view_summary_link` → order-summary-pinned (JM-031).
-        if (summary != null)
-          OrderChatPinnedSummary(
-            summary: summary,
-            counterpartName: counterpartName,
-            onViewSummary: onViewSummary,
-            viewerIsJeeber: viewerIsJeeber,
-          ),
-        if (showAcceptedBanner && winnerName != null)
-          OfferAcceptedBanner(
-            jeeberName: winnerName!,
-            onDismiss: onBannerDismiss,
-            onStartActiveDelivery: onStartActiveDelivery,
-            onTrackOrder: onTrackOrder,
-          ),
-        if (showRemovedBanner) const JeeberRemovedBanner(),
-        if (state.phase == ConversationPhase.broadcasting)
-          BroadcastTtlIndicator(expiresAt: broadcastExpiresAt),
-        Expanded(child: body),
-        if (state.isComposerVisible)
+    final header = <Widget>[
+      if (notice != null) _FeeBannerSlot(notice: notice),
+      // JM-025 AC2: pinned locked-price summary on the accepted order, above
+      // the thread (D71/D11). Carries `order_chat_pinned_summary` +
+      // `order_chat_view_summary_link` → order-summary-pinned (JM-031).
+      if (summary != null)
+        OrderChatPinnedSummary(
+          summary: summary,
+          counterpartName: counterpartName,
+          onViewSummary: onViewSummary,
+          viewerIsJeeber: viewerIsJeeber,
+        ),
+      if (showAcceptedBanner && winnerName != null)
+        OfferAcceptedBanner(
+          jeeberName: winnerName!,
+          onDismiss: onBannerDismiss,
+          onStartActiveDelivery: onStartActiveDelivery,
+          onTrackOrder: onTrackOrder,
+        ),
+      if (showRemovedBanner) const JeeberRemovedBanner(),
+      if (state.phase == ConversationPhase.broadcasting)
+        BroadcastTtlIndicator(expiresAt: broadcastExpiresAt),
+    ];
+    // b02 — "BOTTOM OVERFLOWED BY 16 PIXELS", fixed at its cause.
+    //
+    // ROOT CAUSE (measured, not guessed — see
+    // `test/features/chat/chat_header_overflow_test.dart`): this Column mixes
+    // NON-FLEXIBLE chrome (fee banner, pinned summary, accepted banner, removed
+    // banner, TTL indicator, composer) with a single `Expanded` body. A Column
+    // gives its non-flexible children their full intrinsic height FIRST and
+    // divides only what is left among the flex children. When the keyboard
+    // shrinks the viewport, the chrome's intrinsic height can exceed the whole
+    // viewport: `Expanded` is then allocated ZERO, and the Column overflows by
+    // exactly the excess. It was 16 px because the chrome was 16 px taller than
+    // the shrunken body.
+    //
+    // It is NOT `resizeToAvoidBottomInset` (unset → true; the Scaffold shrinks
+    // correctly, which is precisely how the layout ends up over-constrained) and
+    // NOT a double-counted `SafeArea` (`SafeArea(bottom: false)`, and the
+    // AppBar has already consumed the top padding).
+    //
+    // THE FIX is the BOUND: the chrome is given a maximum of
+    // [kChatHeaderMaxViewportFraction] of the available height, so the message
+    // list can never be starved to zero and the Column can never be asked to
+    // lay out more than it has. The collapsed header + compact banner fit inside
+    // that bound with room to spare at normal text scales (asserted), so the
+    // bound is inert in the ordinary case; it exists so that a long request
+    // description, a fee banner and a 2.0 text scale arriving together degrade
+    // by scrolling a bounded region instead of overflowing an unbounded one.
+    // THE SLOT MUST NOT COLLAPSE TO ZERO WHILE IT HOLDS THE START-DELIVERY CTA.
+    //
+    // "Start delivery" is the Jeeber's primary action during a LIVE delivery.
+    // The bound below clamps to 0 dp on a small phone with the keyboard up at a
+    // 2.0 text scale, and a ZERO-HEIGHT VIEWPORT CANNOT SCROLL — so the CTA was
+    // unreachable while still being present in the widget tree, which is why a
+    // `findsOneWidget` assertion did not catch it and the suite asserted
+    // `_headerHeight == 0` as correct.
+    //
+    // Hoisting the CTA OUT of the slot does not work either: it becomes
+    // non-flexible chrome and re-creates the original overflow (measured: 54 px
+    // at 411x914, 88 px at 320x480+2.0). At that smallest size the CTA and the
+    // composer genuinely do not both fit — no placement makes them.
+    //
+    // So the slot keeps the CTA and is given a FLOOR instead of a zero clamp:
+    // enough height to scroll to the CTA, never more than the bound. Degradation
+    // stays a scroll, which is reachable, rather than a clip, which is not.
+    final hasStartDeliveryCta =
+        showAcceptedBanner && winnerName != null && onStartActiveDelivery != null;
+
+    return LayoutBuilder(
+      builder: (context, constraints) => Column(
+        children: [
+          if (header.isNotEmpty)
+            _ChatHeaderSlot(
+              maxHeight: math.max(
+                // The FLOOR — only when the slot holds the Start-delivery CTA,
+                // and never more than a third of the viewport so the thread and
+                // composer keep priority everywhere else. Without this the
+                // clamp is 0 and the CTA cannot be scrolled to.
+                hasStartDeliveryCta
+                    ? math.min(
+                        math.min(
+                          kChatPinnedCtaReserve,
+                          constraints.maxHeight / 3,
+                        ),
+                        // The floor must never itself overflow the Column: it
+                        // can only claim what the composer does not need. At
+                        // 320x480 + keyboard + 2.0 this is ~20 dp, so the CTA
+                        // is genuinely unreachable there and the pre-existing
+                        // priority order stands (read the thread, send a
+                        // message, then the order summary). At the real device
+                        // class it is the full 96 dp and the CTA is reachable.
+                        math.max(
+                          0,
+                          constraints.maxHeight -
+                              kChatComposerReserve *
+                                  MediaQuery.textScalerOf(context).scale(1),
+                        ),
+                      )
+                    : 0,
+                math.min(
+                  constraints.maxHeight * kChatHeaderMaxViewportFraction,
+                  constraints.maxHeight -
+                      kChatComposerReserve *
+                          MediaQuery.textScalerOf(context).scale(1),
+                ),
+              ),
+              children: header,
+            ),
+          Expanded(child: body),
+          if (state.isComposerVisible)
           ChatComposer(
             hintText: composerHint,
             // JM-025: the customer order-chat surface exposes the
@@ -646,7 +793,40 @@ class _ChatBody extends StatelessWidget {
                       durationMs: ms,
                     ),
           ),
-      ],
+        ],
+      ),
+    );
+  }
+}
+
+/// The bounded chrome slot above the message list.
+///
+/// Everything that is not the thread and not the composer lives here. The slot
+/// takes its children's intrinsic height up to [maxHeight] and no further, which
+/// is what stops the surrounding `Column` from ever asking for more height than
+/// the (keyboard-shrunk) viewport has — see the root-cause note in `_ChatBody`.
+///
+/// The scroll view is the DEGRADATION path, not the fix: at normal text scales
+/// the collapsed header + compact banner are well inside the bound and the
+/// scrollable has zero extent (asserted in
+/// `test/features/chat/chat_header_overflow_test.dart`). It only engages when a
+/// user has expanded the header AND is at a large text scale AND several banners
+/// are stacked — the case where something has to give, and scrolling a bounded
+/// header is the option that keeps every element reachable.
+class _ChatHeaderSlot extends StatelessWidget {
+  const _ChatHeaderSlot({required this.maxHeight, required this.children});
+
+  final double maxHeight;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: SingleChildScrollView(
+        key: chatHeaderSlotKey,
+        child: Column(mainAxisSize: MainAxisSize.min, children: children),
+      ),
     );
   }
 }
