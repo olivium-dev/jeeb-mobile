@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/lifecycle/app_resume_signals.dart';
 import 'package:jeeb_mobile/core/lifecycle/route_resume_refetch.dart';
+import 'package:jeeb_mobile/features/shell/tab_visibility.dart';
 
 /// `AppResumeSignals` coalesces at a 2 s floor and re-emits on the TRAILING
 /// edge, so a second resume inside one test body lands 2 s later rather than
@@ -56,6 +57,39 @@ class _Host extends StatelessWidget {
   }
 }
 
+/// Hosts the widget inside a shell tab, exactly as `ShellScreen` does — an
+/// `IndexedStack` child wrapped in a [TabVisibility]. Every tab stays MOUNTED
+/// across a bottom-nav switch, which is the whole reason the tab term is
+/// needed: a background tab's lifecycle never re-runs, so without consulting
+/// [TabVisibility] it would happily refetch on resume while off-screen.
+class _TabHost extends StatelessWidget {
+  const _TabHost({required this.onResume, required this.isVisible});
+
+  final VoidCallback onResume;
+  final bool isVisible;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        body: IndexedStack(
+          index: isVisible ? 0 : 1,
+          children: [
+            TabVisibility(
+              isVisible: isVisible,
+              child: RouteResumeRefetch(
+                onResume: (_) => onResume(),
+                child: const Text('tab body'),
+              ),
+            ),
+            const Text('other tab'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 Future<void> _pushOnTop(WidgetTester tester) async {
   final context = tester.element(find.byType(RouteResumeRefetch));
   // Deliberately not awaited: the pushed route outlives this call.
@@ -88,6 +122,41 @@ void main() {
     await tester.pumpWidget(_Host(onResume: () => fired++));
     await tester.pumpAndSettle();
     expect(fired, 0, reason: 'mounting is not a resume');
+
+    await _resume(tester);
+
+    expect(fired, 1);
+  });
+
+  testWidgets('a resume on a BACKGROUND shell tab fires nothing', (
+    tester,
+  ) async {
+    // The hazard this closes: the shell keeps every tab mounted in an
+    // IndexedStack, so an off-screen tab is alive and receives the resume.
+    // Without the TabVisibility term it would refetch for a tab the user
+    // cannot see — re-creating the read amplification the visibility gating
+    // removed (10 wire reads per push down to 1).
+    var fired = 0;
+    await tester.pumpWidget(
+      _TabHost(onResume: () => fired++, isVisible: false),
+    );
+    await tester.pumpAndSettle();
+
+    await _resume(tester);
+
+    expect(fired, 0, reason: 'a background tab must not read on resume');
+  });
+
+  testWidgets('a resume on the SELECTED shell tab still fires', (
+    tester,
+  ) async {
+    // The other half: gating must not silence the visible tab. Without this
+    // the previous test would also pass with the callback wired to nothing.
+    var fired = 0;
+    await tester.pumpWidget(
+      _TabHost(onResume: () => fired++, isVisible: true),
+    );
+    await tester.pumpAndSettle();
 
     await _resume(tester);
 
