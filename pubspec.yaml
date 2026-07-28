@@ -180,6 +180,27 @@ dependencies:
   device_info_plus: ^11.5.0
   in_app_review: ^2.0.12
 
+  # Reconnect self-heal. The chat `/chat/:id` resolution error state was merged
+  # claiming it "SELF-HEALS on reconnect"; an independent tester falsified that
+  # — the heal was the retry backoff's phase happening to tick, and a source
+  # scan found ZERO connectivity subscribers in lib/ (no `connectivity_plus`,
+  # `onConnectivityChanged`, `ConnectivityResult`, `checkConnectivity`,
+  # `InternetAddress.lookup`, `internet_connection_checker` or
+  # `network_info_plus`) and no such package here. Nothing was listening.
+  #
+  # This is the ONLY source of a genuine OS-level offline->online event in
+  # Flutter — the framework exposes no such stream — and it is confined to ONE
+  # adapter (`core/network/connectivity_reachability_source.dart`) behind the
+  # plain-`Stream<bool>` port `NetworkReachabilitySignals`, so no cubit, screen
+  # or test imports it (same discipline as geolocator/local_auth/record).
+  # Adds the NORMAL permission ACCESS_NETWORK_STATE (no runtime prompt) and no
+  # first-party native code. Runtime-defensive by construction: if the platform
+  # channel is unavailable the bus simply never emits, and every consumer keeps
+  # the bounded backoff it already had. 7.x declares sdk >=3.2.0 / flutter
+  # >=3.7.0, comfortably inside this app's floor (Dart 3.10.8 / Flutter 3.38.9),
+  # so it needs none of the SDK pinning `record`/`share_plus` above do.
+  connectivity_plus: ^7.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

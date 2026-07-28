@@ -14,6 +14,19 @@
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <!--
+        Reconnect self-heal: the `connectivity_plus` plugin observes
+        ConnectivityManager to report offline->online transitions, which
+        `NetworkReachabilitySignals` turns into the app-wide reconnect signal
+        (core/network/). ACCESS_NETWORK_STATE is merged in from the plugin's own
+        manifest; it is listed here for the same reason WAKE_LOCK and
+        RECEIVE_BOOT_COMPLETED are — so the merge gives the lint a stable
+        picture and the app's real permission set is readable in one file.
+        It is a NORMAL (non-dangerous) permission: granted at install, no
+        runtime prompt, and nothing to request from Dart.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+
+    <!--
         JEBV4-213 (E18): biometric unlock via the `local_auth` plugin.
         - USE_BIOMETRIC is the modern (API 28+) permission for BiometricPrompt;
           USE_FINGERPRINT is its pre-28 predecessor, kept for older devices.

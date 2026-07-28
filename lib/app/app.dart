@@ -38,6 +38,8 @@ import '../core/observability/crash_reporter.dart';
 import '../core/observability/session_trace/observability_config.dart';
 import '../core/observability/session_trace/presentation/obs_overlay.dart';
 import '../core/network/auth_token_store.dart';
+import '../core/network/connectivity_reachability_source.dart';
+import '../core/network/network_reachability_signals.dart';
 import '../core/onboarding/onboarding_cubit.dart';
 import '../core/role/role_availability_cubit.dart';
 import '../core/role/role_cubit.dart';
@@ -306,6 +308,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     // so the first background trip is classified correctly.
     AppResumeSignals.instance.install();
     _wireAppResumeRefetch();
+    _bindNetworkReachability();
     SchedulerBinding.instance.addPostFrameCallback((_) {
       // FIX-1: the push chain is async — it awaits the Firebase-init gate before
       // building the real transport. Fire-and-forget; failures degrade to the
@@ -320,6 +323,34 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       // shows a Dashboard-tab badge on cold start, not just an inbox row.
       unawaited(_badgeCount.hydrate());
     });
+  }
+
+  /// Bind the app-wide reconnect bus to the real OS connectivity stream.
+  ///
+  /// Bound HERE, at app start, rather than lazily from the first screen that
+  /// wants it: [NetworkReachabilitySignals] only emits an offline→online EDGE,
+  /// so it has to have observed the offline state to recognise the reconnect.
+  /// A screen that binds on mount would, in the exact scenario this exists for
+  /// (open a chat while the network is already down), take its baseline as
+  /// "offline" one moment too late — or worse, take a live `[none]` event as
+  /// its baseline and treat the reconnect as the first observation.
+  ///
+  /// Wrapped defensively: a host with no platform channel registered (a bare
+  /// widget test, an unsupported desktop target) must degrade to a bus that
+  /// never emits, which is exactly the pre-existing behaviour — every consumer
+  /// keeps its bounded backoff as the fallback.
+  void _bindNetworkReachability() {
+    const source = ConnectivityReachabilitySource();
+    try {
+      NetworkReachabilitySignals.instance.bindSource(
+        source.onlineStates(),
+        seed: source.currentlyOnline(),
+      );
+    } catch (error) {
+      Diag.event('network_reachability_bind_failed', <String, Object?>{
+        'error': '$error',
+      });
+    }
   }
 
   /// BUG-1: reconcile local capability state with the gateway. No-op while a
