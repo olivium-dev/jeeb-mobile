@@ -185,6 +185,38 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
     }
   }
 
+  /// The RESUME one-shot (N8 backstop).
+  ///
+  /// Driven by `AppResumeSignals` at the widget layer (`RouteResumeRefetch` in
+  /// `client_offers_screen.dart`), NOT by a lifecycle observer here — one
+  /// app-wide, coalesced, genuine-resume bus rather than a per-cubit
+  /// `didChangeAppLifecycleState`, which is the storm `AppResumeSignals` exists
+  /// to cap.
+  ///
+  /// It exists because the deleted 5 s `Stream.periodic` was this list's
+  /// implicit self-heal: a `type=offer` push that lands while the app is
+  /// BACKGROUNDED never reaches the refresh bus (only
+  /// `FirebaseMessaging.onMessage` publishes to it), so a customer who returns
+  /// without tapping the notification would otherwise see a bid list missing
+  /// the bid the notification was about. Less severe than the N9 twin only
+  /// because pull-to-refresh exists here, which is a self-rescue the user has
+  /// to know to perform.
+  ///
+  /// Routed through the single-flighted [_refreshFromPush], NOT through the
+  /// pull-to-refresh [refresh]: [refresh] has no in-flight latch (the pull
+  /// gesture is rate-limited by the human doing it) and surfaces errors, and a
+  /// resume must do neither — a resume landing inside an in-flight read has to
+  /// COALESCE onto it, and a network blip on resume must not flash a banner
+  /// over a list the user can still read.
+  ///
+  /// Gated on `loaded`: `initial` means nothing has been loaded, `loading`
+  /// means the cold load (or its 429 auto-retry) is still on the wire, and
+  /// `failed` is owned by the error state's Retry CTA.
+  void refreshOnResume() {
+    if (isClosed || state.status != OffersScreenStatus.loaded) return;
+    unawaited(_refreshFromPush());
+  }
+
   /// Toggles the sort mode and re-orders the in-memory list. Doesn't refetch.
   void setSortMode(OfferSortMode mode) {
     if (state.sortMode == mode) return;

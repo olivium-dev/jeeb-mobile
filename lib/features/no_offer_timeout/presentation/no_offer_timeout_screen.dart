@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/lifecycle/route_resume_refetch.dart';
 import '../../../core/network/single_flight_get.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
@@ -128,7 +129,23 @@ class NoOfferTimeoutScreen extends StatelessWidget {
         cubit.load();
         return cubit;
       },
-      child: _WaitingView(requestId: requestId),
+      // N9 RESUME BACKSTOP. `cubit.load()` above is the MOUNT one-shot; this is
+      // the other half of the owner's 2026-07-28 ruling ("pull it each time you
+      // open the screen" — mount AND resume).
+      //
+      // Without it this screen had NO non-push recovery at all: every widget in
+      // this file is stateless, the only retry is on the ERROR state, and a
+      // push delivered while the app is backgrounded never reaches the refresh
+      // bus. A customer who returned without tapping the notification sat on a
+      // frozen "Finding Jeebers" whose countdown kept ticking — the deleted 5 s
+      // poll was the self-heal that used to hide this.
+      //
+      // Event-driven, never timed: see `RouteResumeRefetch` for the visibility
+      // gate, the deferral rule and the two coalescing floors.
+      child: RouteResumeRefetch(
+        onResume: (context) => context.read<WaitingCubit>().refreshOnResume(),
+        child: _WaitingView(requestId: requestId),
+      ),
     );
   }
 }

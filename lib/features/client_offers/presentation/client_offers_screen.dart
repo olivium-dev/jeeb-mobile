@@ -6,6 +6,7 @@ import 'package:omds/omds.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/formatting/friendly_reference.dart';
 import '../../../core/layout/bottom_inset.dart';
+import '../../../core/lifecycle/route_resume_refetch.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../cancel_request/domain/cancel_request_repository.dart';
 import '../../cancel_request/presentation/cancel_request_sheet.dart';
@@ -107,10 +108,21 @@ class ClientOffersScreen extends StatelessWidget {
         cubit.load();
         return cubit;
       },
-      child: _ClientOffersView(
-        requestId: requestId,
-        repository: repo,
-        cancelRepositoryOverride: cancelRepositoryOverride,
+      // N8 RESUME BACKSTOP — the twin of N9's, same widget, same reason.
+      // `cubit.load()` above is the MOUNT one-shot; a push delivered while the
+      // app is backgrounded never reaches the refresh bus, so without this the
+      // bid list stayed stale after resume. Milder than N9 only because
+      // pull-to-refresh (`_LoadedBody`'s `OmdsPullToRefresh`) lets the customer
+      // self-rescue — which is not a fix, it is a workaround the user has to
+      // know to perform.
+      child: RouteResumeRefetch(
+        onResume: (context) =>
+            context.read<ClientOffersCubit>().refreshOnResume(),
+        child: _ClientOffersView(
+          requestId: requestId,
+          repository: repo,
+          cancelRepositoryOverride: cancelRepositoryOverride,
+        ),
       ),
     );
   }
