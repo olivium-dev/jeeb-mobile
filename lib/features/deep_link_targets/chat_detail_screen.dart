@@ -35,6 +35,7 @@ import '../chat/data/gateway_chat_firebase_token_minter.dart';
 import '../chat/data/in_memory_chat_gateway.dart';
 import '../chat/data/realtime_chat_gateway.dart';
 import '../chat/domain/chat_gateway.dart';
+import '../chat/domain/chat_realtime_admission.dart';
 import '../chat/domain/conversation_lookup.dart';
 import '../chat/domain/delivery_chat_message.dart';
 import '../chat/domain/order_broadcast_service.dart';
@@ -857,6 +858,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         currentUserId,
         conversationId: gatewayConversationId,
         conversationResolved: conversationResolved,
+        // The PHASE, not the lookup result. `conversationResolved` only says a
+        // row came back; a row that came back mid-auction is precisely the one
+        // that must not be subscribed to. See [realtimeChatAdmitted].
+        phase: phase,
+        hasWinner: hasWinner,
       ),
       title,
       requestId: requestId,
@@ -897,13 +903,29 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   /// per inbound message. Nothing on the SEND side changes: writes stay HTTP so
   /// the gateway keeps stamping `author_id` from the bearer.
   ///
-  /// # The three refusals, each load-bearing
+  /// # The four refusals, each load-bearing
   ///
   ///  1. **Unresolved conversation.** Pre-accept the client holds the compose
   ///     sentinel and no `Conversations/{id}` document exists. Subscribing would
   ///     open a listener on a non-existent doc, and the membership rule — which
   ///     authorises via a `get()` on that parent — would deny it. Correct
   ///     behaviour here is not to subscribe at all.
+  ///
+  ///     RESOLUTION IS NOT A PHASE, and this refusal must not be mistaken for
+  ///     the phase gate below. `conversationResolved` is a LOOKUP RESULT: it
+  ///     says a conversation row came back, nothing more, and a row can come
+  ///     back mid-auction. This refusal only keeps us off a doc that does not
+  ///     exist; refusal 4 is what keeps us out of the auction.
+  ///
+  ///     Measured, and worth stating precisely because the raw number misleads:
+  ///     an instrumented probe here reports 18 arrivals across the chat /
+  ///     deep-link / notification suites, 9 of them with
+  ///     `phase: ConversationPhase.broadcasting`. Only ONE of those nine is a
+  ///     real auction — the other eight carry a seated `jeeber_winner` and are
+  ///     post-accept rows the live gateway simply never re-labelled. So the
+  ///     phase STRING alone would refuse eight legitimate threads and disable
+  ///     the feature for the main live shape; [hasWinner] is not belt-and-braces
+  ///     here, it is what makes the gate correct in both directions.
   ///  2. **Firebase not initialised.** `Firebase.initializeApp()` runs in the
   ///     DEFERRED post-first-frame phase behind a 5 s timeout and falls back to
   ///     a Noop reporter on failure (`bootstrap.dart:208`), so this screen can
@@ -922,6 +944,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   ///     has no subject. A Firestore read would then be authorised for a uid
   ///     this app cannot match against `Participants[].UserId`, and the mapper
   ///     could not fold own-vs-other messages either.
+  ///  4. **The auction is still running.** [realtimeChatAdmitted] — the
+  ///     bidder-privacy gate. The released membership rule authorises every
+  ///     non-removed participant, and during `broadcasting` that is every
+  ///     BIDDER, so a listener opened then streams each rival's offer card to
+  ///     all the others. Read that predicate for the value-by-value argument;
+  ///     it is the same "the auction is over" test the pinned-summary fetch
+  ///     already uses, deliberately.
   ///
   /// Every refusal degrades to precisely today's build: HTTP history, HTTP
   /// send, push-driven HTTP refetch. So does a wrap whose identity fails to
@@ -933,6 +962,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     String currentUserId, {
     required String conversationId,
     required bool conversationResolved,
+    required ConversationPhase phase,
+    required bool hasWinner,
   }) {
     if (!conversationResolved ||
         conversationId.isEmpty ||
@@ -940,6 +971,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       return inner;
     }
     if (currentUserId.isEmpty) return inner;
+    // THE AUCTION GATE. Ordered BEFORE the Firebase probe on purpose: this is a
+    // refusal on the merits (we must not read this thread yet) rather than on
+    // capability (we cannot read anything), so it must be the answer whenever
+    // both apply — otherwise a device that happens to have no Firebase app
+    // would report `no_firebase_app` and hide the fact that the phase would
+    // have refused anyway. It is also local, synchronous and allocation-free.
+    if (!realtimeChatAdmitted(phase: phase, hasWinner: hasWinner)) {
+      Diag.event('chat_realtime_unavailable', <String, Object?>{
+        'conversation_id': conversationId,
+        'reason': kRealtimeRefusedAuctionPhase,
+        'phase': phase.name,
+      });
+      return inner;
+    }
     // Cheap, synchronous, and throws nothing — unlike the two `.instance`
     // accessors below, which is the entire reason this check exists.
     if (Firebase.apps.isEmpty) {
