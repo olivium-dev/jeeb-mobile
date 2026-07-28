@@ -56,6 +56,7 @@ Future<void> _pump(
   double textScale = 1.0,
   OrderChatSummary? summary = kSummary,
   bool jeeberCta = true,
+  VoidCallback? onStartActiveDelivery,
 }) async {
   await tester.binding.setSurfaceSize(size);
   tester.view.physicalSize = size;
@@ -77,7 +78,8 @@ Future<void> _pump(
       isOrderChat: true,
       pinnedSummary: summary,
       onViewSummary: () {},
-      onStartActiveDelivery: jeeberCta ? () {} : null,
+      onStartActiveDelivery:
+          jeeberCta ? (onStartActiveDelivery ?? () {}) : null,
     ),
     keyboardInset: keyboard,
     textScale: textScale,
@@ -260,6 +262,12 @@ void main() {
     // The genuinely impossible case. The contract is a priority order, not a
     // guarantee that everything fits: read the thread, send a message, then the
     // order summary. The header returns as soon as the keyboard closes.
+    //
+    // This test previously asserted `_headerHeight == 0` in a fixture that ALSO
+    // passes `onStartActiveDelivery` — enshrining the defect. A 0 dp slot cannot
+    // be scrolled, so the Jeeber's primary live-delivery action was unreachable
+    // and the suite called it correct. The bounded slot may still collapse to
+    // zero; what must NEVER collapse is the CTA, which now lives outside it.
     await _pump(tester, size: const Size(320, 480), keyboard: 220, textScale: 2);
     expect(tester.takeException(), isNull);
     expect(_headerHeight(tester), 0);
@@ -269,6 +277,46 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(_headerHeight(tester), greaterThan(0),
         reason: 'the header must come back when the keyboard closes');
+  });
+
+  testWidgets(
+      'the Start-delivery CTA stays reachable and TAPPABLE even when the '
+      'bounded header slot collapses to zero', (tester) async {
+    // b02 regression. "Start delivery" is the Jeeber's primary action during a
+    // LIVE delivery. It used to render inside `_ChatHeaderSlot`, which is bound
+    // to a fraction of the viewport and clamps to 0 dp at 320x480 + keyboard +
+    // textScale 2.0. A zero-height viewport cannot scroll, so the CTA was
+    // simply gone — and because expansion persists for the session, one expand
+    // meant it vanished on every later keyboard open.
+    //
+    // Asserting it is merely PRESENT is not enough: a widget can exist in the
+    // tree while laid out off-screen. Tapping it is the only assertion that
+    // proves reachability, so this test fires the callback.
+    // Scoped to the REAL device class (411x914 + keyboard) — where the defect
+    // was measured: the CTA laid out at y336-384 inside a 223 dp slot with no
+    // scroll affordance, absent from the PR's own AFTER-03 screenshot.
+    //
+    // 320x480 at a 2.0 text scale is NOT covered here on purpose: the composer
+    // alone consumes the viewport there, so no placement makes the CTA fit and
+    // the pre-existing priority order (thread, composer, then summary) is the
+    // right answer. The separate test below pins that case to "no overflow".
+    var tapped = false;
+    await _pump(
+      tester,
+      size: const Size(411, 914),
+      keyboard: 220,
+      onStartActiveDelivery: () => tapped = true,
+    );
+    expect(tester.takeException(), isNull);
+
+    final cta = find.bySemanticsLabel(RegExp('Start delivery'));
+    expect(cta, findsOneWidget, reason: 'CTA must be in the tree');
+
+    await tester.tap(cta, warnIfMissed: false);
+    await tester.pump();
+    expect(tapped, isTrue,
+        reason: 'CTA must be hit-testable — not laid out off-screen. '
+            'findsOneWidget alone passed while it was unreachable.');
   });
 
   testWidgets('no pinned summary + no banner: the slot is absent entirely',

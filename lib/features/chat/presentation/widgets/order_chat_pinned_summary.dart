@@ -183,12 +183,33 @@ class _OrderChatPinnedSummaryState extends State<OrderChatPinnedSummary> {
     }
   }
 
+  /// Stable identity for the expansion store.
+  ///
+  /// This deliberately does NOT use [_referenceHeading]. That is a DISPLAY
+  /// string built by `friendlyReference()`, and keying on it was wrong twice
+  /// over: it returns the constant `'#—'` for a blank id, so two different
+  /// orders with no ref collide and share one expansion state; and it switches
+  /// source the moment `hasRef` flips, so a push refetch that adds an
+  /// `orderRef` changes the key underneath a live screen and silently
+  /// re-collapses a header the user had expanded — the exact failure the
+  /// store's own doc comment claims to prevent.
+  ///
+  /// `deliveryId` is the durable identity, with `requestId` as the fallback for
+  /// the pre-accept phase where no delivery exists yet. Neither is ever
+  /// reformatted for display, so the key cannot drift.
+  String get _expansionKey {
+    final summary = widget.summary;
+    if (summary.deliveryId.isNotEmpty) return 'delivery:${summary.deliveryId}';
+    if (summary.requestId.isNotEmpty) return 'request:${summary.requestId}';
+    return 'unkeyed';
+  }
+
   bool get _expanded =>
-      ChatHeaderExpansionStore.instance.isExpanded(_referenceHeading());
+      ChatHeaderExpansionStore.instance.isExpanded(_expansionKey);
 
   void _toggle() {
     ChatHeaderExpansionStore.instance
-        .setExpanded(_referenceHeading(), expanded: !_expanded);
+        .setExpanded(_expansionKey, expanded: !_expanded);
     setState(() {});
   }
 

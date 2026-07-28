@@ -31,7 +31,16 @@ void main() {
   setUpAll(loadArb);
   setUp(ChatHeaderExpansionStore.instance.reset);
 
+  // A DIFFERENT order — not merely a thinner projection of [full]. The
+  // expansion store keys on delivery id, so "another order" must carry
+  // another id; two summaries sharing an id ARE the same order and are
+  // expected to share the expansion choice (see the push-refetch test).
   const sparse = OrderChatSummary(
+    deliveryId: 'c1f0e2b4-8d55-4a17-9e30-5b6c7d8e9f01',
+  );
+  // The same order as [full] before the server has filled the detail in —
+  // this is what a chat screen paints between opening and the first fetch.
+  const fullPending = OrderChatSummary(
     deliveryId: '9acb579d-1c2e-4f3a-b8d1-77aa10cc42e6',
   );
   const full = OrderChatSummary(
@@ -126,6 +135,21 @@ void main() {
       await pumpSummary(tester, summary: sparse);
       expect(find.bySemanticsIdentifier('order_summary_eta'), findsNothing,
           reason: 'a different order starts collapsed');
+    });
+
+    testWidgets('a push refetch of the SAME order does not re-collapse it',
+        (tester) async {
+      // Open on the pending projection (no orderRef yet), expand it, then let
+      // the push-triggered fetch land the full summary. Keying the store on
+      // anything derived from the CONTENT — e.g. the friendly reference, which
+      // is '#—' until orderRef arrives — silently re-collapses the header here.
+      await pumpSummary(tester, summary: fullPending);
+      await tester.tap(find.bySemanticsIdentifier('order_chat_summary_expand'));
+      await tester.pump();
+
+      await pumpSummary(tester, summary: full);
+      expect(find.bySemanticsIdentifier('order_summary_eta'), findsOneWidget,
+          reason: 'same delivery id — the expansion choice must survive');
     });
   });
 

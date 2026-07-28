@@ -60,6 +60,27 @@ const double kChatHeaderMaxViewportFraction = 0.4;
 /// moment the keyboard closes.
 const double kChatComposerReserve = 120;
 
+/// Minimum height the bounded header slot keeps while it holds the
+/// Start-delivery CTA — the Jeeber's primary action during a LIVE delivery.
+///
+/// Without a floor, [kChatComposerReserve] drives the slot's allowance to 0 dp
+/// on a 320x480 dp phone with the keyboard up at a 2.0 text scale. A
+/// ZERO-HEIGHT VIEWPORT CANNOT SCROLL, so the CTA became unreachable while
+/// remaining present in the widget tree — which is exactly why a
+/// `findsOneWidget` assertion missed it and the suite asserted a 0 dp header as
+/// correct. Expansion persists for the session, so one expand hid the CTA on
+/// every subsequent keyboard open.
+///
+/// Hoisting the CTA OUT of the slot is not the answer either: it then becomes
+/// non-flexible chrome and re-creates the original overflow (measured 54 px at
+/// 411x914 and 88 px at 320x480 + 2.0). At that smallest size the CTA and the
+/// composer genuinely cannot both fit — no placement makes them.
+///
+/// So the CTA stays inside the slot and the slot gets this floor, capped at a
+/// third of the viewport so the thread and composer keep priority. Degradation
+/// becomes a SCROLL, which is reachable, instead of a clip, which is not.
+const double kChatPinnedCtaReserve = 96;
+
 /// Key on the bounded header slot's scrollable, so a test can assert the
 /// ordinary case does NOT scroll (a bound that is always engaged would be
 /// hiding content rather than budgeting it).
@@ -687,13 +708,57 @@ class _ChatBody extends StatelessWidget {
     // bound is inert in the ordinary case; it exists so that a long request
     // description, a fee banner and a 2.0 text scale arriving together degrade
     // by scrolling a bounded region instead of overflowing an unbounded one.
+    // THE SLOT MUST NOT COLLAPSE TO ZERO WHILE IT HOLDS THE START-DELIVERY CTA.
+    //
+    // "Start delivery" is the Jeeber's primary action during a LIVE delivery.
+    // The bound below clamps to 0 dp on a small phone with the keyboard up at a
+    // 2.0 text scale, and a ZERO-HEIGHT VIEWPORT CANNOT SCROLL — so the CTA was
+    // unreachable while still being present in the widget tree, which is why a
+    // `findsOneWidget` assertion did not catch it and the suite asserted
+    // `_headerHeight == 0` as correct.
+    //
+    // Hoisting the CTA OUT of the slot does not work either: it becomes
+    // non-flexible chrome and re-creates the original overflow (measured: 54 px
+    // at 411x914, 88 px at 320x480+2.0). At that smallest size the CTA and the
+    // composer genuinely do not both fit — no placement makes them.
+    //
+    // So the slot keeps the CTA and is given a FLOOR instead of a zero clamp:
+    // enough height to scroll to the CTA, never more than the bound. Degradation
+    // stays a scroll, which is reachable, rather than a clip, which is not.
+    final hasStartDeliveryCta =
+        showAcceptedBanner && winnerName != null && onStartActiveDelivery != null;
+
     return LayoutBuilder(
       builder: (context, constraints) => Column(
         children: [
           if (header.isNotEmpty)
             _ChatHeaderSlot(
               maxHeight: math.max(
-                0,
+                // The FLOOR — only when the slot holds the Start-delivery CTA,
+                // and never more than a third of the viewport so the thread and
+                // composer keep priority everywhere else. Without this the
+                // clamp is 0 and the CTA cannot be scrolled to.
+                hasStartDeliveryCta
+                    ? math.min(
+                        math.min(
+                          kChatPinnedCtaReserve,
+                          constraints.maxHeight / 3,
+                        ),
+                        // The floor must never itself overflow the Column: it
+                        // can only claim what the composer does not need. At
+                        // 320x480 + keyboard + 2.0 this is ~20 dp, so the CTA
+                        // is genuinely unreachable there and the pre-existing
+                        // priority order stands (read the thread, send a
+                        // message, then the order summary). At the real device
+                        // class it is the full 96 dp and the CTA is reachable.
+                        math.max(
+                          0,
+                          constraints.maxHeight -
+                              kChatComposerReserve *
+                                  MediaQuery.textScalerOf(context).scale(1),
+                        ),
+                      )
+                    : 0,
                 math.min(
                   constraints.maxHeight * kChatHeaderMaxViewportFraction,
                   constraints.maxHeight -
