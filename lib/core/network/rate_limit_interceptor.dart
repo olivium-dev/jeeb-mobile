@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show HttpDate;
 import 'dart:math' as math;
 
@@ -26,8 +27,30 @@ import 'package:dio/dio.dart';
 ///
 /// The window is purely time-based and self-heals: once `Retry-After` elapses,
 /// reads flow again and the next poll tick resumes normally.
+/// b02 P0 addendum — WHY THE WINDOW NEEDED A TRAILING EDGE.
+///
+/// Everything above is correct and stays. What it did not account for is the
+/// world after the polling→push conversion. In the poll era a suppressed read
+/// cost nothing: the next tick re-issued it. With the polls DELETED there is no
+/// next tick, so a read rejected inside the window — or the 429'd read that
+/// opened it — is simply never made again, and the surface keeps painting the
+/// pre-429 snapshot with no error, no spinner and no way for the user to tell.
+///
+/// Measured, same session as the storm: after two 429s at 02:55:00.335Z the
+/// device issued ZERO gateway reads for 5 m 49 s, recovering only when an
+/// unrelated `delivery` push happened to arrive at 03:00:49Z. Had no push
+/// arrived, the screen would have stayed stale indefinitely. That is the
+/// concrete sense in which a 429 under push-only is worse than a 429 under
+/// polling.
+///
+/// [RateLimitInterceptor.onBackoffWindowClosed] closes that hole: one callback
+/// when the window elapses, wired in the DI container to a full refresh signal.
+/// It is capped ([_maxConsecutiveCatchUps]) so a gateway that is genuinely
+/// saturated cannot be turned into a slow oscillator by its own recovery path;
+/// any 2xx clears the cap.
 class RateLimitInterceptor extends Interceptor {
   RateLimitInterceptor({
+    this.onBackoffWindowClosed,
     DateTime Function()? clock,
     math.Random? random,
     Duration maxBackoff = const Duration(seconds: 120),
@@ -45,9 +68,34 @@ class RateLimitInterceptor extends Interceptor {
   final Duration _defaultBackoff;
   final Duration _maxJitter;
 
+  /// Fired ONCE, after the back-off window elapses, when at least one read was
+  /// lost to that window (the 429'd read itself always counts). The DI
+  /// container wires this to a full push-refresh signal so every live surface
+  /// re-pulls exactly once and the screen catches up, instead of holding the
+  /// pre-429 snapshot until some unrelated push happens along.
+  ///
+  /// `null` in bare tests / the mock client, in which case the interceptor
+  /// behaves exactly as it did before this parameter existed.
+  final void Function()? onBackoffWindowClosed;
+
   /// Instant until which idempotent reads are suppressed. `null` when no
   /// back-off window is open.
   DateTime? _suppressedUntil;
+
+  /// Pending trailing-edge catch-up for the currently open window.
+  Timer? _catchUpTimer;
+
+  /// Consecutive catch-ups fired without an intervening successful response.
+  /// Cleared by any 2xx. See [_maxConsecutiveCatchUps].
+  int _consecutiveCatchUps = 0;
+
+  /// Hard stop on the recovery path. Three catch-ups that each earn another
+  /// 429 means the gateway is saturated, not that this device is behind; a
+  /// fourth would be this client contributing to the saturation it is trying to
+  /// recover from. After the cap the surfaces stay stale until a push, a real
+  /// user action or a genuine app resume — all of which are user-visible
+  /// events, unlike a silent timer.
+  static const int _maxConsecutiveCatchUps = 3;
 
   /// Exposed for diagnostics/tests: is a back-off window currently open?
   bool get isSuppressed {
@@ -96,6 +144,11 @@ class RateLimitInterceptor extends Interceptor {
     // polls 429, never a single recovery). Letting the window stand for the full
     // Retry-After is exactly what the gateway asked for and is what actually
     // pauses the fleet of pollers long enough for the limiter to drain.
+    // b02 P0: a successful response is the evidence that the limiter has
+    // drained, so it clears the consecutive-catch-up cap. The suppression
+    // WINDOW is still deliberately left alone (see the paragraphs above) —
+    // only the recovery budget is refreshed.
+    _consecutiveCatchUps = 0;
     handler.next(response);
   }
 
@@ -107,10 +160,35 @@ class RateLimitInterceptor extends Interceptor {
       final jitterMs = _maxJitter.inMilliseconds == 0
           ? 0
           : _random.nextInt(_maxJitter.inMilliseconds + 1);
-      _suppressedUntil =
-          _now().add(capped + Duration(milliseconds: jitterMs));
+      final window = capped + Duration(milliseconds: jitterMs);
+      _suppressedUntil = _now().add(window);
+      _scheduleCatchUp(window);
     }
     handler.next(err);
+  }
+
+  /// (Re)arm the trailing-edge catch-up for the window that was just opened or
+  /// extended. A later 429 inside an open window replaces the pending timer
+  /// rather than adding a second one, so N 429s still produce ONE catch-up.
+  void _scheduleCatchUp(Duration window) {
+    final callback = onBackoffWindowClosed;
+    if (callback == null) return;
+    if (_consecutiveCatchUps >= _maxConsecutiveCatchUps) return;
+    _catchUpTimer?.cancel();
+    // A hair past the window so the refresh it triggers is not itself rejected
+    // by `onRequest`'s `isBefore(until)` check on a boundary tick.
+    _catchUpTimer = Timer(window + const Duration(milliseconds: 250), () {
+      _catchUpTimer = null;
+      _consecutiveCatchUps++;
+      callback();
+    });
+  }
+
+  /// Release the pending catch-up timer. Call from a client teardown so a
+  /// disposed Dio does not fire a refresh into a closed app.
+  void dispose() {
+    _catchUpTimer?.cancel();
+    _catchUpTimer = null;
   }
 
   /// Parse `Retry-After`: an integer delta-seconds OR an HTTP-date. Falls back

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/lifecycle/app_resume_signals.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../photo_attachment/data/stub_photo_picker_service.dart';
@@ -304,7 +305,7 @@ class _ChatScaffold extends StatefulWidget {
 }
 
 class _ChatScaffoldState extends State<_ChatScaffold>
-    with WidgetsBindingObserver {
+    with ResumeRefetchMixin {
   final ScrollController _scrollController = ScrollController();
   bool _bannerDismissed = false;
 
@@ -314,29 +315,24 @@ class _ChatScaffoldState extends State<_ChatScaffold>
   bool _broadcastFired = false;
 
   @override
-  void initState() {
-    super.initState();
-    // Observe app lifecycle so a thread left open while the app was
-    // backgrounded refetches on resume. The screen-scoped ChatCubit survives a
-    // background (the process is not killed), so its one-shot create-time
-    // load() never re-runs — without this the thread shows stale messages until
-    // an app restart (BUG-chat-cache-staleness).
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
     super.dispose();
   }
 
+  /// Refetch a thread left open while the app was backgrounded. The
+  /// screen-scoped ChatCubit survives a background (the process is not killed),
+  /// so its one-shot create-time `load()` never re-runs — without this the
+  /// thread shows stale messages until an app restart
+  /// (BUG-chat-cache-staleness).
+  ///
+  /// b02 P0 — driven by [AppResumeSignals] rather than the raw `resumed`
+  /// notification: `ChatCubit.refresh()` reconciles optimistic local rows
+  /// against the server list, so firing it twenty times in two seconds is not
+  /// merely twenty reads, it is twenty chances to reconcile against a partial
+  /// response.
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && mounted) {
-      context.read<ChatCubit>().refresh();
-    }
-  }
+  void onAppResumed() => context.read<ChatCubit>().refresh();
 
   void _scheduleScrollToBottom() {
     // Defer the scroll until after the next frame so the list has actually

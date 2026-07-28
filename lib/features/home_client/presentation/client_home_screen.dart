@@ -107,6 +107,20 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
   /// once instead of waiting up to a full poll interval. [_syncPolling] applies
   /// the tab/sub-tab gate on top of [_appResumed], so polling only actually
   /// runs when the Requests → In Progress surface is visible AND foreground.
+  ///
+  /// b02 P0 — deliberately NOT moved to [AppResumeSignals], unlike the other
+  /// seven resume-refetch surfaces. Two reasons, and both are load-bearing:
+  ///
+  ///   * `_appResumed` gates the 10 s poll, which must stop on the RAW `paused`
+  ///     notification. Feeding a coalesced signal into a poll gate would leave
+  ///     the poll running for up to the coalescing window after the app left.
+  ///   * the `if (resumed == _appResumed) return;` line below already makes
+  ///     this an EDGE trigger, and that is why this screen contributed ZERO
+  ///     reads to the measured 60-read storm while the three level-triggered
+  ///     observers contributed twenty each. It is the control that proves the
+  ///     platform re-delivered `resumed` with no intervening background state —
+  ///     had there been one, this guard would have re-armed and `/requests` +
+  ///     `/deliveries` would appear in the capture. They do not.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);

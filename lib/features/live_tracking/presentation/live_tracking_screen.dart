@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/lifecycle/app_resume_signals.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../delivery_status/domain/jeeber_summary.dart';
 import '../../delivery_status/presentation/widgets/delivery_jeeber_card.dart';
@@ -624,27 +625,18 @@ class _ResumeRefresh extends StatefulWidget {
 }
 
 class _ResumeRefreshState extends State<_ResumeRefresh>
-    with WidgetsBindingObserver {
+    with ResumeRefetchMixin {
+  /// b02 P0 — moved off the raw `resumed` notification onto the ONE coalesced
+  /// resume bus. `LiveTrackingCubit.refreshNow`'s own in-flight latch (whose
+  /// doc already noted that `resumed` "can fire MORE THAN ONCE for a single
+  /// background→foreground trip") only collapses OVERLAPPING calls; the rate
+  /// floor that collapses a burst lives in [AppResumeSignals].
+  ///
+  /// Direct call — see the note on the active-delivery twin: the old post-frame
+  /// deferral only bought a `mounted` guard the mixin already gives, and cost a
+  /// refetch that never lands on a screen with no other frame source.
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      context.read<LiveTrackingCubit>().refreshNow();
-    });
-  }
+  void onAppResumed() => context.read<LiveTrackingCubit>().refreshNow();
 
   @override
   Widget build(BuildContext context) => widget.child;

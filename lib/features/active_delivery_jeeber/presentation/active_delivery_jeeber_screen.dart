@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/lifecycle/app_resume_signals.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../background_gps/application/background_gps_cubit.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
@@ -690,29 +691,24 @@ class _ResumeRefresh extends StatefulWidget {
 }
 
 class _ResumeRefreshState extends State<_ResumeRefresh>
-    with WidgetsBindingObserver {
+    with ResumeRefetchMixin {
+  /// b02 P0 — this used to own a binding observer and fire on EVERY `resumed`
+  /// notification. It was one of the three surfaces in the measured 60-read
+  /// storm (`/v1/deliveries/{id}`, seq 59..116, the last one a 429), and
+  /// `ActiveDeliveryCubit.refresh`'s in-flight latch did not collapse a single
+  /// one of them: the reads were ~20 ms apart in duration but ~105 ms apart in
+  /// time, so they never overlapped. The rate floor lives in
+  /// [AppResumeSignals]; the latch stays as the concurrency guard it always was.
+  ///
+  /// Called directly, NOT via `addPostFrameCallback`. The old hook deferred to
+  /// the next frame for teardown safety, which [ResumeRefetchMixin]'s
+  /// `mounted` guard already provides — and the deferral was load-bearing in
+  /// the wrong direction: a post-frame callback registered while the scheduler
+  /// is idle does not itself schedule a frame, so the refetch waits for
+  /// whatever schedules the next one. On a quiescent screen (this one, once the
+  /// poll was deleted) that is nothing at all.
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) return;
-    // Post-frame + mounted-guard so a refresh scheduled during teardown never
-    // touches a defunct element.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      context.read<ActiveDeliveryCubit>().refresh();
-    });
-  }
+  void onAppResumed() => context.read<ActiveDeliveryCubit>().refresh();
 
   @override
   Widget build(BuildContext context) => widget.child;

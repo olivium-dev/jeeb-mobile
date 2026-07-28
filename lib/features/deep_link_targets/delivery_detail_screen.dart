@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../core/lifecycle/app_resume_signals.dart';
 import '../../core/delivery/delivery_status_vocab.dart';
 import '../../core/di/injection_container.dart';
 import '../../core/role/role_cubit.dart';
@@ -116,7 +117,7 @@ class DeliveryDetailScreen extends StatefulWidget {
 }
 
 class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
-    with WidgetsBindingObserver {
+    with ResumeRefetchMixin {
   /// Last-known wire `statusId`. Null/empty ⇒ status not yet resolved or
   /// unavailable ⇒ the hub fails open.
   String? _statusId;
@@ -126,13 +127,12 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _summaryRepo = _resolveSummaryRepository();
     // Every read on this screen is now ONE-SHOT. There are exactly three
     // triggers, none of them a cadence:
     //   1. screen open        — this call
     //   2. a `delivery` push  — the subscription below
-    //   3. foreground resume  — didChangeAppLifecycleState
+    //   3. foreground resume  — onAppResumed (coalesced)
     // If the user does nothing and no push arrives, no second call happens.
     unawaited(_loadStatus());
     // b02 wave D — `{order}`. This hub paints ONE delivery's status. It sits
@@ -150,7 +150,6 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
   void dispose() {
     unawaited(_refreshSub?.cancel());
     _refreshSub = null;
-    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -158,10 +157,12 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
   /// process was backgrounded may have been dropped or coalesced by the OS, so a
   /// single read on resume is the backstop. Explicitly allowed by the mandate —
   /// it is caused by the user returning to the app, not by a clock.
+  ///
+  /// b02 P0 — the trigger is now [AppResumeSignals], not the raw `resumed`
+  /// notification: "one catch-up read" was only ever one read per NOTIFICATION,
+  /// and the platform is free to deliver twenty of those in two seconds.
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(_loadStatus());
-  }
+  void onAppResumed() => unawaited(_loadStatus());
 
   /// Resolves the status source from the test seam, falling back to a
   /// [DioOrderChatSummaryRepository] over the DI `Dio`. Returns `null` when

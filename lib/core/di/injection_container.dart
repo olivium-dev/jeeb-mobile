@@ -197,6 +197,18 @@ void configureDependencies({
   sl.registerLazySingleton<Dio>(
     () => MockGatewayClient.createDio(
       baseUrl: DevBaseUrl.read(sl<SharedPreferences>()),
+      // b02 P0 — the 429 trailing edge. With the polls deleted, a read the
+      // back-off window swallowed is never re-issued by anything, so the
+      // screen holds the pre-429 snapshot until an unrelated push happens
+      // along (measured: 5 m 49 s of total silence after the storm's two
+      // 429s). When the window closes, publish ONE unclassified refresh
+      // signal: we do not know which reads were lost, so every live surface
+      // re-pulls exactly once. Resolved lazily inside the closure — the bus is
+      // registered a few lines below this one.
+      onRateLimitWindowClosed: () {
+        if (!sl.isRegistered<PushRefreshSignals>()) return;
+        sl<PushRefreshSignals>().signalStatusChange();
+      },
     ),
   );
 

@@ -17,6 +17,7 @@ import '../core/dev_seam/dev_seam.dart';
 import '../core/dev_seam/session_seam_bootstrap.dart';
 import '../core/diagnostics/diag.dart';
 import '../core/diagnostics/gesture_log.dart';
+import '../core/lifecycle/app_resume_signals.dart';
 import '../core/locale/language_preference_repository.dart';
 import '../core/locale/locale_cubit.dart';
 import '../core/notifications/application/badge_count_cubit.dart';
@@ -271,6 +272,11 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   /// stream); null otherwise. Closed in [dispose].
   StreamSubscription<SessionState>? _sessionSub;
 
+  /// b02 P0: subscription to the ONE coalesced app-resume signal
+  /// ([AppResumeSignals]). Replaces the app-level `resumed` branch of
+  /// [didChangeAppLifecycleState]. Closed in [dispose].
+  StreamSubscription<void>? _resumeSub;
+
   /// Re-entrancy guard for the empty-stack recovery below: a stack-REPLACING
   /// AppBar back that pops go_router's lone page empties the Navigator, so
   /// `MaterialApp.router` hands its `builder` a NULL child. Rather than render
@@ -294,6 +300,12 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     // transition and (re-)resolve capabilities so the shell lands a jeeber on
     // the Jeeber surface right after the first login, no background cycle.
     _wireSessionRoleSync();
+    // b02 P0: install the ONE app-wide resume bus and take the app-level
+    // subscription. Installing here (not lazily at the first screen) means the
+    // genuine-resume filter sees every lifecycle transition from cold start,
+    // so the first background trip is classified correctly.
+    AppResumeSignals.instance.install();
+    _wireAppResumeRefetch();
     SchedulerBinding.instance.addPostFrameCallback((_) {
       // FIX-1: the push chain is async — it awaits the Firebase-init gate before
       // building the real transport. Fire-and-forget; failures degrade to the
@@ -361,10 +373,25 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   /// to the on-device session file so a backgrounded (or subsequently killed)
   /// run loses nothing. Fire-and-forget + fail-soft — flushPersistent never
   /// throws and is a no-op when no sink is installed (release builds).
+  /// b02 P0 — the resume work moved to [AppResumeSignals] (see
+  /// [_wireAppResumeRefetch]). The `resumed` branch here fired
+  /// [RoleSync.sync] → `GET /v1/users/me` on EVERY `resumed` notification and
+  /// was the first leg of the measured 60-read storm (seq 57..114). The
+  /// pause/detach branch stays on the raw lifecycle: flushing the diag buffer
+  /// is exactly the thing that must happen on every trip out, un-coalesced,
+  /// because a coalesced flush is a lost journal.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      unawaited(Diag.flushPersistent());
+    }
+  }
+
+  /// Subscribe the app-level resume work to the ONE coalesced resume signal.
+  void _wireAppResumeRefetch() {
+    _resumeSub = AppResumeSignals.instance.stream.listen((_) {
       _syncRole();
       // G3: re-derive the badge from the durable push store so a `new_request`
       // that arrived (and was dismissed) while the app was backgrounded — seen
@@ -372,11 +399,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       // the moment the jeeber returns. FeedResumeRefetcher then clears it if the
       // feed is the visible tab.
       unawaited(_badgeCount.hydrate());
-    }
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
-      unawaited(Diag.flushPersistent());
-    }
+    });
   }
 
   /// FIX-1 — Firebase-vs-push init ordering.
@@ -525,6 +548,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     _role.close();
     _onboarding.close();
     _sessionSub?.cancel();
+    _resumeSub?.cancel();
     _ownedSession?.close();
     _locale.close();
     _router.dispose();

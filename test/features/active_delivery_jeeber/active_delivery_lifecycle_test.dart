@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/lifecycle/app_resume_signals.dart';
 import 'package:jeeb_mobile/core/lifecycle/app_lifecycle_gate.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/application/active_delivery_cubit.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/active_delivery_repository.dart';
@@ -125,6 +126,12 @@ Future<void> _driveToForeground(WidgetTester tester) async {
 }
 
 void main() {
+  // b02 P0: the resume bus is a process-wide singleton with a 2 s coalescing
+  // floor. Without a per-test reset the floor bleeds across cases in this file
+  // (they run milliseconds apart) and a genuine resume in test N is silently
+  // folded into test N-1's window.
+  setUp(() async => AppResumeSignals.debugReset());
+
   tearDown(AppLifecycleGate.debugReset);
 
   // b02 wave C — N6. Every test below used to assert the 5s `LifecyclePoller`'s

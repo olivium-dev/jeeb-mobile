@@ -18,6 +18,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/lifecycle/app_resume_signals.dart';
 import 'package:jeeb_mobile/features/chat/application/chat_cubit.dart';
 import 'package:jeeb_mobile/features/chat/domain/chat_gateway.dart';
 import 'package:jeeb_mobile/features/chat/domain/delivery_chat_message.dart';
@@ -89,6 +90,12 @@ ChatCubit _cubit(_MutableHistoryGateway gateway) {
 }
 
 void main() {
+  // b02 P0: the resume bus is a process-wide singleton with a 2 s coalescing
+  // floor. Without a per-test reset the floor bleeds across cases in this file
+  // (they run milliseconds apart) and a genuine resume in test N is silently
+  // folded into test N-1's window.
+  setUp(() async => AppResumeSignals.debugReset());
+
   group('ChatCubit.refresh', () {
     test('surfaces messages that arrived on the server since load', () async {
       final gateway = _MutableHistoryGateway([_msg('m1', 'first')]);
@@ -163,12 +170,21 @@ void main() {
       await tester.pumpAndSettle();
       expect(gateway.loadHistoryCalls, 1, reason: 'cold mount loads once');
 
-      // Simulate background → foreground.
-      tester.binding
-          .handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-      await tester.pump();
-      tester.binding
-          .handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      // Simulate background → foreground. `paused`, not `inactive`: b02 P0
+      // made `inactive → resumed` a FOCUS FLAP that must refetch nothing (a
+      // heads-up notification, the shade, a permission dialog), and this test
+      // means a real trip out of the app.
+      for (final s in const <AppLifecycleState>[
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(s);
+        await tester.pump();
+      }
       await tester.pumpAndSettle();
 
       expect(

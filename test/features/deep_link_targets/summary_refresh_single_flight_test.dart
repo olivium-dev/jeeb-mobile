@@ -48,6 +48,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
+import 'package:jeeb_mobile/core/lifecycle/app_resume_signals.dart';
 import 'package:jeeb_mobile/core/role/role_cubit.dart';
 import 'package:jeeb_mobile/core/role/user_role.dart';
 import 'package:jeeb_mobile/features/deep_link_targets/chat_detail_screen.dart';
@@ -176,6 +177,12 @@ dynamic _chatState(WidgetTester tester) =>
     tester.state(find.byType(ChatDetailScreen));
 
 void main() {
+  // b02 P0: the resume bus is a process-wide singleton with a 2 s coalescing
+  // floor. Without a per-test reset the floor bleeds across cases in this file
+  // (they run milliseconds apart) and a genuine resume in test N is silently
+  // folded into test N-1's window.
+  setUp(() async => AppResumeSignals.debugReset());
+
   late _GatedDio rec;
   late StreamController<void> refresh;
 
@@ -213,8 +220,18 @@ void main() {
       rec.hold = gate;
 
       // Trigger 1: the app returns to the foreground.
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      // b02 P0: `paused`, not `inactive` — a bare focus loss is no longer a
+      // resume, so this must model a real background trip to fire the hook.
+      for (final s in const <AppLifecycleState>[
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(s);
+      }
       await tester.pump();
 
       // Trigger 2: the `delivery` push the OS queued while backgrounded.
@@ -291,8 +308,18 @@ void main() {
       final gate = Completer<void>();
       rec.hold = gate;
 
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      // b02 P0: `paused`, not `inactive` — a bare focus loss is no longer a
+      // resume, so this must model a real background trip to fire the hook.
+      for (final s in const <AppLifecycleState>[
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(s);
+      }
       await tester.pump();
       refresh.add(null);
       await tester.pump();

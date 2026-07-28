@@ -43,6 +43,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/lifecycle/app_resume_signals.dart';
 import 'package:jeeb_mobile/features/chat/application/chat_cubit.dart';
 import 'package:jeeb_mobile/features/chat/data/dio_chat_gateway.dart';
 import 'package:jeeb_mobile/features/chat/domain/chat_socket.dart';
@@ -199,6 +200,11 @@ Future<void> _settle(WidgetTester tester) => tester.pumpAndSettle(
     );
 
 void main() {
+  // b02 P0: the resume bus is a process-wide singleton with a coalescing floor;
+  // reset it per test so one case's window does not swallow the next case's
+  // genuine resume.
+  setUp(() async => AppResumeSignals.debugReset());
+
   group('a timestamp-less 200 body renders as a thread, not as empty', () {
     test('STATE 1 (on open) — the jeeber decodes every row, in server order',
         () async {
@@ -413,11 +419,20 @@ void main() {
         expect(find.textContaining('1970'), findsNothing);
         expect(find.text('00:00'), findsNothing);
 
-        tester.binding
-            .handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-        await tester.pump();
-        tester.binding
-            .handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        // b02 P0: a bare `inactive → resumed` is now a FOCUS FLAP that
+        // deliberately refetches nothing. This test means a real background
+        // trip, so drive the full legal transition chain through `paused`.
+        for (final s in const <AppLifecycleState>[
+          AppLifecycleState.inactive,
+          AppLifecycleState.hidden,
+          AppLifecycleState.paused,
+          AppLifecycleState.hidden,
+          AppLifecycleState.inactive,
+          AppLifecycleState.resumed,
+        ]) {
+          tester.binding.handleAppLifecycleStateChanged(s);
+          await tester.pump();
+        }
         await _settle(tester);
         expect(
           wire.historyReads, greaterThan(1),
