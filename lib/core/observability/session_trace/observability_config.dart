@@ -7,8 +7,32 @@ import 'model/obs_event.dart';
 /// observer, interceptor, writer, and dev-UI screen out of the binary — with
 /// this const `false`, no code under `session_trace/` is even reachable, so
 /// the tree-shaker drops it entirely. NEVER branch on this at runtime in a
-/// way that could be `true` in prod; it mirrors [kDevToolEnabled] exactly.
-const bool kObsCompiledIn = kDevToolEnabled;
+/// way that could be `true` in prod.
+///
+/// OWNER RULING 2026-07-28 — "there is a dev red button, remove it".
+///
+/// This previously mirrored [kDevToolEnabled] exactly, which meant the floating
+/// overlay bubble appeared in EVERY dev build. That is not an edge case: every
+/// build our testers install carries `JEEB_DEVTOOL_ENABLED=true`, because the
+/// seeded test login (`/dev/seed/user`) needs it. So the bubble was permanently
+/// on screen for every device session, sitting on top of the routed content it
+/// was meant to observe — and it renders in `colorScheme.primaryContainer`,
+/// which this theme maps to a saturated orange-red, hence "the dev red button".
+///
+/// It is now OPT-IN behind its own define and OFF by default. The Dev Tool
+/// still works exactly as before; only the overlay is gone unless explicitly
+/// asked for:
+///
+///   flutter build apk --dart-define JEEB_DEVTOOL_ENABLED=true \
+///                     --dart-define JEEB_OBS_OVERLAY=true
+///
+/// The production guarantee is UNCHANGED and slightly stronger: this can only
+/// be true when the devtool flag is also true, so a production build still
+/// tree-shakes the entire `session_trace/` tree.
+const bool kObsCompiledIn = kDevToolEnabled && _kObsOverlayRequested;
+
+const bool _kObsOverlayRequested =
+    bool.fromEnvironment('JEEB_OBS_OVERLAY', defaultValue: false);
 
 /// Runtime configuration for the session-trace tool.
 ///
