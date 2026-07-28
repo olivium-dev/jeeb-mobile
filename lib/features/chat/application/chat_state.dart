@@ -18,6 +18,14 @@ enum ChatError {
   /// an oversize payload). The bubble is marked failed; NOTHING was posted to
   /// the thread — no phantom success.
   attachmentUploadFailed,
+
+  /// b02: the COLD history read failed (a gateway 500, a transport drop, the
+  /// chat store being down). Distinct from every other member here because it
+  /// is not a one-shot toast: it is the reason the thread has no rows, and
+  /// without it a failure is indistinguishable on screen from a conversation
+  /// that genuinely has no messages. Paired with [ChatState.historyLoadFailed],
+  /// which is the STICKY flag the body renders an error+retry from.
+  historyLoadFailed,
 }
 
 class ChatState extends Equatable {
@@ -31,6 +39,7 @@ class ChatState extends Equatable {
     this.acceptedDeliveryId,
     this.declinedOfferIds = const <String>{},
     this.error,
+    this.historyLoadFailed = false,
   });
 
   /// Oldest message first. The list view renders this with `reverse: true`
@@ -79,6 +88,15 @@ class ChatState extends Equatable {
   final Set<String> declinedOfferIds;
 
   final ChatError? error;
+
+  /// b02: the cold history read FAILED and the thread on screen is empty
+  /// because of that failure — not because the conversation is empty.
+  ///
+  /// Sticky, unlike [error] (which the view acknowledges after rendering one
+  /// toast): the body must keep rendering the error+retry until a history read
+  /// actually succeeds. Cleared by any successful [ChatCubit.load],
+  /// [ChatCubit.refresh] or safety-net poll.
+  final bool historyLoadFailed;
 
   bool get canSendText => composerText.trim().isNotEmpty;
 
@@ -138,6 +156,7 @@ class ChatState extends Equatable {
     Set<String>? declinedOfferIds,
     ChatError? error,
     bool clearError = false,
+    bool? historyLoadFailed,
   }) {
     return ChatState(
       messages: messages ?? this.messages,
@@ -153,6 +172,7 @@ class ChatState extends Equatable {
       acceptedDeliveryId: acceptedDeliveryId ?? this.acceptedDeliveryId,
       declinedOfferIds: declinedOfferIds ?? this.declinedOfferIds,
       error: clearError ? null : (error ?? this.error),
+      historyLoadFailed: historyLoadFailed ?? this.historyLoadFailed,
     );
   }
 
@@ -167,5 +187,6 @@ class ChatState extends Equatable {
     acceptedDeliveryId,
     declinedOfferIds,
     error,
+    historyLoadFailed,
   ];
 }

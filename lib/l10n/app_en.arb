@@ -2966,6 +2966,18 @@
   "chatPendingMessages": "Pending messages",
   "chatNoConversationTitle": "No conversation yet",
   "chatNoConversationSubtitle": "This delivery doesn't have a chat thread. Check back once a Jeeber is assigned.",
+  "chatHistoryErrorTitle": "Couldn't load this chat",
+  "@chatHistoryErrorTitle": {
+    "description": "b02: heading on the chat body when the HISTORY READ FAILED (500 / transport / store down). Deliberately not the empty-thread copy — a Jeeber may well be assigned and in transit."
+  },
+  "chatHistoryErrorMessage": "Something went wrong loading your messages. Your conversation is still there — check your connection and try again.",
+  "@chatHistoryErrorMessage": {
+    "description": "b02: body copy on the chat history-load error state."
+  },
+  "chatHistoryErrorRetry": "Try again",
+  "@chatHistoryErrorRetry": {
+    "description": "b02: retry CTA on the chat history-load error state (OmdsErrorState retry label)."
+  },
   "splashTagline": "Delivery App",
   "@splashTagline": {
     "description": "Tagline shown under the Jeeb logo on the splash screen (Figma node 56572:1822)."

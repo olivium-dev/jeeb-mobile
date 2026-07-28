@@ -1474,6 +1474,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get chatPendingMessagesLabel => _get('chatPendingMessages');
   String get chatNoConversationTitle => _get('chatNoConversationTitle');
   String get chatNoConversationSubtitle => _get('chatNoConversationSubtitle');
+  String get chatHistoryErrorTitle => _get('chatHistoryErrorTitle');
+  String get chatHistoryErrorMessage => _get('chatHistoryErrorMessage');
+  String get chatHistoryErrorRetry => _get('chatHistoryErrorRetry');
   String get chatPlaceholderCounterpartName =>
       _get('chatPlaceholderCounterpartName');
   String get chatSendTooltip => _get('chatSendTooltip');

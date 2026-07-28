@@ -36,15 +36,43 @@ import 'live_tracking_state.dart';
 /// live gateway that endpoint TRIGGERS AN SMS, so any cadence against it texts
 /// the recipient repeatedly. The hand-over code comes from [HandoverCodeStore]
 /// (local, accept-time) and from nowhere else.
+/// Delay before re-opening a position stream that closed by itself, indexed by
+/// how many CONSECUTIVE closes have happened without a frame in between. The
+/// last entry is the steady state — a permanently-rejected stream retries every
+/// 30s forever rather than giving up, because the 5s poll this replaced retried
+/// forever too and a screen that silently stops trying is the regression.
+///
+/// This is NOT a poll and does not reintroduce one:
+///  * nothing is requested on a cadence while the stream is HEALTHY — one open
+///    connection, server writes when it has a fix, zero client-side timers;
+///  * the schedule only runs while the feed is DEAD, and it is reset by the
+///    first frame off a working connection ([_positionRearmAttempt]);
+///  * it is the standard `EventSource` reconnect contract, which is what makes
+///    SSE a usable substitute for a self-healing poll in the first place.
+///
+/// Backoff (rather than an immediate retry) matters because
+/// `SseLivePositionStream` closes IMMEDIATELY on a 403 / 404 / transport
+/// refusal — an unspaced re-arm on that path would be a hot loop hammering the
+/// gateway, which is strictly worse than the poll.
+const List<Duration> kPositionRearmBackoff = <Duration>[
+  Duration(seconds: 2),
+  Duration(seconds: 5),
+  Duration(seconds: 15),
+  Duration(seconds: 30),
+];
+
 class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   LiveTrackingCubit({
     required LiveTrackingRepository repository,
     required this.deliveryId,
     Stream<void>? refreshSignals,
     HandoverCodeStore? handoverCodeStore,
+    List<Duration> positionRearmBackoff = kPositionRearmBackoff,
   })  : _repository = repository,
         _refreshSignals = refreshSignals,
         _handoverCodeStore = handoverCodeStore,
+        _positionRearmBackoff =
+            positionRearmBackoff.isEmpty ? kPositionRearmBackoff : positionRearmBackoff,
         super(const LiveTrackingState()) {
     _fetchAndSchedule();
   }
@@ -60,13 +88,49 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   StreamSubscription<void>? _refreshSubscription;
   StreamSubscription<DeliveryLivePosition>? _positionSubscription;
 
+  /// Delay schedule for re-opening a position stream that closed by itself.
+  /// Injected only so tests can collapse or stretch it; production uses
+  /// [kPositionRearmBackoff].
+  final List<Duration> _positionRearmBackoff;
+
+  /// Pending re-arm of a position stream that closed by itself. Cancelled by
+  /// [_retireWatchers], so a terminal row / `close()` cannot leave a timer that
+  /// re-opens a socket for a screen that is gone.
+  Timer? _positionRearmTimer;
+
+  /// Consecutive closes with NO frame in between — the index into
+  /// [_positionRearmBackoff]. Reset by the first frame off a working stream, so
+  /// a long-lived feed that flaps once waits 2s, not 30s.
+  int _positionRearmAttempt = 0;
+
+  /// Whether the CURRENT position subscription has been observed to still be
+  /// open. Flipped false the instant the stream reports `onDone`.
+  bool _positionStreamLive = false;
+
   /// True once the status push subscription is armed.
   @visibleForTesting
   bool get debugPushRefreshWired => _refreshSubscription != null;
 
-  /// True once the SSE position stream is subscribed.
+  /// True when a position stream is subscribed **and has not closed**.
+  ///
+  /// This used to be `_positionSubscription != null`, which was a LIE: the
+  /// field was nulled only in [_retireWatchers] (terminal row / `close()`) and
+  /// never on the stream's own `onDone`, so a feed killed by a network flap or
+  /// a 403 reported as wired for the rest of the screen's life. A debug
+  /// instrument that cannot distinguish a live stream from a dead one masks
+  /// exactly the regression it exists to catch.
+  ///
+  /// Deliberately conjunctive: [_positionStreamLive] is independent bookkeeping,
+  /// so if some future path forgets to null the subscription the instrument
+  /// still tells the truth.
   @visibleForTesting
-  bool get debugPositionStreamWired => _positionSubscription != null;
+  bool get debugPositionStreamWired =>
+      _positionSubscription != null && _positionStreamLive;
+
+  /// How many times a closed position stream has been re-opened.
+  @visibleForTesting
+  int get debugPositionRearmCount => _positionRearmCount;
+  int _positionRearmCount = 0;
 
   /// Single-flight latch for the push path: two pushes inside one round trip
   /// must produce ONE re-pull, not two whose emits race.
@@ -237,22 +301,72 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
       // The stream never emits an error by contract (see
       // `LivePositionStreamSource`); a dead feed arrives as onDone and is
       // recorded by the SSE layer's `tracking_sse` diag breadcrumb, so a frozen
-      // marker is never silent in the journal.
+      // marker is never silent in the journal. onDone is also what RE-OPENS it
+      // — see [_onPositionStreamClosed].
+      _positionStreamLive = true;
       _positionSubscription = source
           .watchLivePosition(deliveryId: deliveryId)
-          .listen(_applyLivePosition);
+          .listen(
+            (overlay) {
+              // A frame proves this connection works, so the next flap starts
+              // the backoff over at its shortest step.
+              _positionRearmAttempt = 0;
+              _applyLivePosition(overlay);
+            },
+            onDone: _onPositionStreamClosed,
+          );
     }
+  }
+
+  /// The position stream closed on its own — RE-OPEN IT.
+  ///
+  /// This is the robustness the 5s `GET /deliveries/{id}/tracking` poll had for
+  /// free and the SSE replacement shipped without. `SseLivePositionStream`
+  /// funnels EVERY non-happy outcome through `shutdown()` → `controller.close()`
+  /// → this callback: a network flap, a proxy idling the held connection out,
+  /// the OS tearing the socket down when the app backgrounds, a transient 403 on
+  /// the first arm, the gateway restarting. Before this existed, any one of them
+  /// froze the courier marker permanently, because `_positionSubscription` kept
+  /// its dead value and `_armWatchers`' `== null` guard therefore never fired
+  /// again — not on resume, not on a push, not on retry.
+  ///
+  /// A terminal row is the ONE close that must not re-arm: the gateway hangs up
+  /// deliberately on a delivered/cancelled/expired delivery
+  /// (`LocationController.cs:392-397`), and reconnecting to a finished trip
+  /// would reopen a socket nobody reads for the rest of the session.
+  void _onPositionStreamClosed() {
+    _positionStreamLive = false;
+    unawaited(_positionSubscription?.cancel());
+    _positionSubscription = null;
+    if (isClosed || _isTerminal) return;
+    _positionRearmTimer?.cancel();
+    final delay = _positionRearmBackoff[
+        _positionRearmAttempt.clamp(0, _positionRearmBackoff.length - 1)];
+    _positionRearmAttempt++;
+    _positionRearmTimer = Timer(delay, () {
+      _positionRearmTimer = null;
+      if (isClosed || _isTerminal || _positionSubscription != null) return;
+      _positionRearmCount++;
+      _armWatchers();
+    });
   }
 
   /// Stop both watchers. `cancel()`'s future is deliberately NOT awaited: once it
   /// RETURNS no further events are delivered, nulling the fields is what makes
   /// that observable, and awaiting a cancel from `close()` deadlocks the
   /// fake-async zone under `testWidgets`.
+  ///
+  /// The pending re-arm goes with them. A timer that outlives the screen would
+  /// open an SSE connection for a cubit that is closed, or for a delivery that
+  /// has already completed — the exact leak the terminal check exists to avoid.
   void _retireWatchers() {
     unawaited(_refreshSubscription?.cancel());
     _refreshSubscription = null;
+    _positionStreamLive = false;
     unawaited(_positionSubscription?.cancel());
     _positionSubscription = null;
+    _positionRearmTimer?.cancel();
+    _positionRearmTimer = null;
   }
 
   void retry() {
@@ -268,6 +382,18 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   /// backgrounded, AND it re-opens the SSE position stream, which the OS will
   /// have torn down along with the socket. Explicitly allowed by the mandate —
   /// the read is caused by the user returning to the app, not by a clock.
+  ///
+  /// That second claim was FALSE as written until the `onDone` re-arm landed.
+  /// The re-open runs through `_armWatchers()`, whose position branch is guarded
+  /// by `_positionSubscription == null`; the field was nulled only by
+  /// `_retireWatchers()` and never when the stream closed by itself, so on
+  /// resume it still held the dead subscription and the guard skipped. Resume
+  /// re-read the STATUS and left the marker frozen. Now that
+  /// [_onPositionStreamClosed] nulls it, this method really does re-open the
+  /// stream — and it does so IMMEDIATELY, ahead of whatever backoff step the
+  /// automatic re-arm is sitting on, which is the point of a user-initiated
+  /// backstop. Pinned by
+  /// `test/features/live_tracking/tracking_sse_rearm_regression_test.dart`.
   ///
   /// Silent (no loading flash): [_fetch] keeps the last good `trackingInfo` on a
   /// failure, and a delivered/cancelled/expired row is left untouched (nothing
