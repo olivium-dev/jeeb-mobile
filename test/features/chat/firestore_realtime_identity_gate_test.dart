@@ -42,11 +42,11 @@ class _ThrowIfTouched implements Error {
 /// Records whether it was asked, and what it answered.
 class _StubIdentity implements ChatFirebaseIdentity {
   _StubIdentity(this._result);
-  final bool _result;
+  final String? _result;
   int calls = 0;
 
   @override
-  Future<bool> ensureSignedIn() async {
+  Future<String?> ensureSignedIn() async {
     calls++;
     return _result;
   }
@@ -63,7 +63,7 @@ FirestoreChatRealtimeSource _source(ChatFirebaseIdentity identity) =>
 void main() {
   group('the identity gate', () {
     test('without an identity, Firestore is NEVER reached', () async {
-      final identity = _StubIdentity(false);
+      final identity = _StubIdentity(null);
       final source = _source(identity);
       addTearDown(source.dispose);
 
@@ -88,11 +88,35 @@ void main() {
     });
 
     test('the absent identity is never signed in', () async {
-      // `ChatFirebaseIdentity.absent` is what the app resolves today, because
-      // the custom-token mint endpoint does not exist (scanned jeeb-gateway/src,
-      // 568 files, zero hits for CreateCustomToken / FirebaseAdmin /
-      // FirebaseAuth). It must be impossible for it to report otherwise.
-      expect(await ChatFirebaseIdentity.absent.ensureSignedIn(), isFalse);
+      // `ChatFirebaseIdentity.absent` is the fail-closed identity: it is what a
+      // host resolves when it must NOT open a channel (no Firebase app, no
+      // session user id, an unresolved pre-accept conversation). It must be
+      // impossible for it to report otherwise, because the realtime source
+      // treats a non-empty signed-in uid as its sole licence to touch Firestore.
+      expect(await ChatFirebaseIdentity.absent.ensureSignedIn(), isNull);
+    });
+
+    test('an empty identity uid is treated as no identity', () async {
+      final identity = _StubIdentity('');
+      final source = _source(identity);
+      addTearDown(source.dispose);
+
+      final events = <ChatEvent>[];
+      final sub = source.subscribe('conv-1').listen(events.add);
+      addTearDown(sub.cancel);
+
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(identity.calls, 1);
+      expect(events, hasLength(1));
+      final event = events.single as RealtimeTransportChanged;
+      expect(event.live, isFalse);
+      expect(
+        event.reason,
+        'no_identity',
+        reason: 'arrayContains with an empty uid would silently query nothing',
+      );
     });
 
     // POSITIVE CONTROL. Without this the test above passes for a source that
@@ -100,27 +124,30 @@ void main() {
     // simply broken. Here the identity SUCCEEDS, and reaching the accessor is
     // now the CORRECT behaviour, so the throw is what proves the gate is the
     // only thing that was holding it back.
-    test('WITH an identity, it does reach Firestore', () async {
-      final identity = _StubIdentity(true);
-      final source = _source(identity);
-      addTearDown(source.dispose);
+    test(
+      'WITH the identity uid, it passes the gate and reaches Firestore',
+      () async {
+        final identity = _StubIdentity('firebase-user-1');
+        final source = _source(identity);
+        addTearDown(source.dispose);
 
-      Object? thrown;
-      await runZonedGuarded(() async {
-        final sub = source.subscribe('conv-1').listen((_) {});
-        addTearDown(sub.cancel);
-        await Future<void>.delayed(Duration.zero);
-        await Future<void>.delayed(Duration.zero);
-      }, (error, _) => thrown = error);
+        Object? thrown;
+        await runZonedGuarded(() async {
+          final sub = source.subscribe('conv-1').listen((_) {});
+          addTearDown(sub.cancel);
+          await Future<void>.delayed(Duration.zero);
+          await Future<void>.delayed(Duration.zero);
+        }, (error, _) => thrown = error);
 
-      expect(identity.calls, 1);
-      expect(
-        thrown,
-        isA<_ThrowIfTouched>(),
-        reason:
-            'a signed-in caller DOES open the channel — so the false case above '
-            'was withheld by the identity check and nothing else',
-      );
-    });
+        expect(identity.calls, 1);
+        expect(
+          thrown,
+          isA<_ThrowIfTouched>(),
+          reason:
+              'a signed-in caller DOES open the channel — so the false case above '
+              'was withheld by the identity check and nothing else',
+        );
+      },
+    );
   });
 }

@@ -1,6 +1,9 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -25,8 +28,14 @@ import '../chat/data/dev_chat_fixture_gateway.dart';
 import '../chat/data/dio_chat_gateway.dart';
 import '../chat/data/dio_order_broadcast_service.dart';
 import '../chat/data/dio_order_chat_summary_repository.dart';
+import '../chat/data/firebase_custom_token_identity.dart';
+import '../chat/data/firestore_chat_message_mapper.dart';
+import '../chat/data/firestore_chat_realtime_source.dart';
+import '../chat/data/gateway_chat_firebase_token_minter.dart';
 import '../chat/data/in_memory_chat_gateway.dart';
+import '../chat/data/realtime_chat_gateway.dart';
 import '../chat/domain/chat_gateway.dart';
+import '../chat/domain/chat_realtime_admission.dart';
 import '../chat/domain/conversation_lookup.dart';
 import '../chat/domain/delivery_chat_message.dart';
 import '../chat/domain/order_broadcast_service.dart';
@@ -237,6 +246,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   bool _ratingNavFired = false;
 
   ChatGateway? _gateway;
+
+  /// The inner HTTP gateway, retained SEPARATELY and ONLY when [_gateway] is a
+  /// [RealtimeChatGateway] that hides it. Null in every unwrapped case, where
+  /// [_gateway] is itself the handle.
+  ///
+  /// `RealtimeChatGateway.dispose()` forwards to its realtime source and NOT to
+  /// its inner gateway (`realtime_chat_gateway.dart:106`), so once the wrap is
+  /// in place `_gateway` alone is no longer a handle on the thing that owns the
+  /// `DioChatGateway` event controller. Without this field the wrap would leak
+  /// that controller on every chat close — a decorator quietly changing what
+  /// `dispose` reaches is exactly the kind of leak that never shows up on one
+  /// screen and shows up after twenty.
+  DioChatGateway? _httpGateway;
+
   bool _loading = true;
 
   /// The conversation lookup COULD NOT FIND OUT whether a conversation exists
@@ -481,10 +504,33 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     unawaited(_summaryRefreshGate?.dispose());
     _summaryRefreshGate = null;
     _cancelResolutionRetry();
+    // TWO handles, deliberately. `_gateway` may now be a [RealtimeChatGateway],
+    // whose `dispose()` tears down the Firestore listener but NOT the inner
+    // `DioChatGateway` — so disposing only `_gateway` would cancel the stream
+    // and leak the HTTP gateway's event controller, and disposing only
+    // `_httpGateway` would leak the listener. Both, every time.
+    //
+    // This is the SECOND teardown path for the Firestore listener, not the
+    // only one: `ChatCubit.close()` cancels its subscription
+    // (`chat_cubit.dart:782`), which fires the source's
+    // `onCancel: () => unawaited(dispose())`
+    // (`firestore_chat_realtime_source.dart:91`). Both are wired on purpose —
+    // the cubit's path covers a cubit closed without this screen disposing, and
+    // `FirestoreChatRealtimeSource.dispose()` is idempotent (it nulls
+    // `_snapshots`/`_events` and checks `isClosed`), so running both is safe.
+    // Rahmah leaks its listener on exactly this seam; we are not copying that.
+    //
+    // The two branches are EXCLUSIVE, and `_httpGateway` is non-null only in
+    // the wrapped one — so the unwrapped case cannot dispose the same
+    // `DioChatGateway` twice.
     final gateway = _gateway;
-    if (gateway is DioChatGateway) {
-      gateway.dispose();
+    if (gateway is RealtimeChatGateway) {
+      unawaited(gateway.dispose());
+      unawaited(_httpGateway?.dispose());
+    } else if (gateway is DioChatGateway) {
+      unawaited(gateway.dispose());
     }
+    _httpGateway = null;
     super.dispose();
   }
 
@@ -744,6 +790,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     // of compose — where the first message would wrongly broadcast a NEW
     // request. Mirrors `DioChatGateway._hasActiveWinner`.
     final hasWinner = winnerId.isNotEmpty || _hasSeatedWinner(conversationData);
+    // The PRIVACY fact, deliberately narrower than [hasWinner] above. See
+    // [_rosterVerdict] and [realtimeChatAdmitted]: a seated winner is evidence
+    // step 3 of the accept saga ran, but ONLY an emptied bidder bench is
+    // evidence step 4 did, and step 4 is the one that closes the leak.
+    final rosterVerdict = _rosterVerdict(conversationData);
 
     // JM-025 AC2 / P3: resolve the locked pinned summary for an accepted order.
     // Best-effort — a failure leaves `_summary` null and the strip simply
@@ -783,7 +834,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         ? conversationId
         : kComposeConversationSentinel;
     final getItForGateway = GetIt.instance;
-    final gateway = DioChatGateway(
+    final httpGateway = DioChatGateway(
       dio: dio,
       currentUserId: currentUserId,
       // The phase read queries the conversation aggregate by its correlation
@@ -806,7 +857,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     if (!mounted) return;
     _finalize(
       gatewayConversationId,
-      gateway,
+      _wrapRealtime(
+        httpGateway,
+        dio,
+        currentUserId,
+        conversationId: gatewayConversationId,
+        conversationResolved: conversationResolved,
+        // The PHASE, not the lookup result. `conversationResolved` only says a
+        // row came back; a row that came back mid-auction is precisely the one
+        // that must not be subscribed to. See [realtimeChatAdmitted].
+        phase: phase,
+        // The ROSTER, not `hasWinner`. `hasWinner` is the UI's looser "the
+        // auction produced a winner"; the gate needs "and the bidder bench is
+        // empty", which only the roster can say.
+        roster: rosterVerdict,
+      ),
       title,
       requestId: requestId,
       phase: phase,
@@ -830,6 +895,147 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         !_isTerminalStatus(summary?.statusId)) {
       _armSummaryRefresh();
     }
+  }
+
+  /// Wraps the HTTP gateway in the Firestore realtime decorator, or returns it
+  /// untouched when this screen must not open a channel.
+  ///
+  /// # What the wrap buys
+  ///
+  /// Inbound messages arrive down ONE `.snapshots()` listener instead of being
+  /// re-downloaded by HTTP on every push. On the first snapshot the source emits
+  /// `RealtimeTransportChanged(live: true)`, `ChatCubit` sets `_realtimeLive`,
+  /// and `_refreshFromPush` returns early (`chat_cubit.dart:397`) instead of
+  /// calling `refresh()` — which today costs a WHOLE-THREAD
+  /// `GET /v1/conversations/{id}/messages` plus a conversation-aggregate read
+  /// per inbound message. Nothing on the SEND side changes: writes stay HTTP so
+  /// the gateway keeps stamping `author_id` from the bearer.
+  ///
+  /// # The four refusals, each load-bearing
+  ///
+  ///  1. **Unresolved conversation.** Pre-accept the client holds the compose
+  ///     sentinel and no `Conversations/{id}` document exists. Subscribing would
+  ///     open a listener on a non-existent doc, and the membership rule — which
+  ///     authorises via a `get()` on that parent — would deny it. Correct
+  ///     behaviour here is not to subscribe at all.
+  ///
+  ///     RESOLUTION IS NOT A PHASE, and this refusal must not be mistaken for
+  ///     the phase gate below. `conversationResolved` is a LOOKUP RESULT: it
+  ///     says a conversation row came back, nothing more, and a row can come
+  ///     back mid-auction. This refusal only keeps us off a doc that does not
+  ///     exist; refusal 4 is what keeps us out of the auction.
+  ///
+  ///     Measured, and worth stating precisely because the raw number misleads:
+  ///     an instrumented probe here reports 18 arrivals across the chat /
+  ///     deep-link / notification suites, 9 of them with
+  ///     `phase: ConversationPhase.broadcasting`. Only ONE of those nine is a
+  ///     real auction — the other eight carry a seated `jeeber_winner` with an
+  ///     EMPTY bidder bench and are post-accept rows the live gateway simply
+  ///     never re-labelled. So the phase STRING alone would refuse eight
+  ///     legitimate threads and disable the feature for the main live shape;
+  ///     the roster arm is not belt-and-braces here, it is what makes the gate
+  ///     correct in both directions.
+  ///  2. **Firebase not initialised.** `Firebase.initializeApp()` runs in the
+  ///     DEFERRED post-first-frame phase behind a 5 s timeout and falls back to
+  ///     a Noop reporter on failure (`bootstrap.dart:208`), so this screen can
+  ///     legitimately open before — or entirely without — a Firebase app.
+  ///     `FirebaseAuth.instance` / `FirebaseFirestore.instance` THROW in that
+  ///     state, and they would throw here, in `_resolveAndBuild`, taking the
+  ///     whole chat screen with them.
+  ///
+  ///     MEASURED, not assumed: with this branch disabled,
+  ///     `chat_detail_screen_resolution_test.dart` goes to **11 failures** with
+  ///     `[core/no-app] No Firebase App '[DEFAULT]' has been created`, and back
+  ///     to 0 with it enabled. So the guard is reached on a live-uid resolution
+  ///     and is load-bearing — it is not defensive padding, and deleting it
+  ///     breaks the suite immediately.
+  ///  3. **No session user id.** `currentUserId` is empty when the token store
+  ///     has no subject. A Firestore read would then be authorised for a uid
+  ///     this app cannot match against `Participants[].UserId`, and the mapper
+  ///     could not fold own-vs-other messages either.
+  ///  4. **A bidder can still read this thread.** [realtimeChatAdmitted] — the
+  ///     bidder-privacy gate, over the PHASE and the ROSTER ([_rosterVerdict]).
+  ///     The released membership rule authorises every non-removed participant,
+  ///     and during `broadcasting` that is every BIDDER, so a listener opened
+  ///     then streams each rival's offer card to all the others. Read that
+  ///     predicate for the full 4 × 3 truth table.
+  ///
+  ///     It is NOT the same test as the pinned-summary fetch, and that
+  ///     difference is the point. `shouldTrackSummary` asks "did the auction
+  ///     produce a winner" (`hasWinner`); this asks "and has the bidder bench
+  ///     actually been cleared". They diverge on exactly one wire shape — winner
+  ///     seated, losers never removed — which is a designed, reachable outcome
+  ///     of the gateway's accept saga (step 3 succeeds, step 4 throws and is
+  ///     swallowed, accept still returns 200). One extra summary read there is
+  ///     harmless; one Firestore listener there is the competing-bid leak.
+  ///
+  /// Every refusal degrades to precisely today's build: HTTP history, HTTP
+  /// send, push-driven HTTP refetch. So does a wrap whose identity fails to
+  /// sign in — that path is inside [FirestoreChatRealtimeSource], which never
+  /// touches Firestore without an identity.
+  ChatGateway _wrapRealtime(
+    DioChatGateway inner,
+    Dio dio,
+    String currentUserId, {
+    required String conversationId,
+    required bool conversationResolved,
+    required ConversationPhase phase,
+    required ChatRosterVerdict roster,
+  }) {
+    if (!conversationResolved ||
+        conversationId.isEmpty ||
+        conversationId == kComposeConversationSentinel) {
+      return inner;
+    }
+    if (currentUserId.isEmpty) return inner;
+    // THE AUCTION GATE. Ordered BEFORE the Firebase probe on purpose: this is a
+    // refusal on the merits (we must not read this thread yet) rather than on
+    // capability (we cannot read anything), so it must be the answer whenever
+    // both apply — otherwise a device that happens to have no Firebase app
+    // would report `no_firebase_app` and hide the fact that the phase would
+    // have refused anyway. It is also local, synchronous and allocation-free.
+    if (!realtimeChatAdmitted(phase: phase, roster: roster)) {
+      Diag.event('chat_realtime_unavailable', <String, Object?>{
+        'conversation_id': conversationId,
+        'reason': kRealtimeRefusedAuctionPhase,
+        'phase': phase.name,
+        // WHICH arm refused. A device capture that only carries the phase
+        // cannot tell "still broadcasting" from "accepted but a loser is still
+        // seated", and those need opposite follow-ups (wait vs. reconcile the
+        // roster on the server).
+        'roster': roster.name,
+      });
+      return inner;
+    }
+    // Cheap, synchronous, and throws nothing — unlike the two `.instance`
+    // accessors below, which is the entire reason this check exists.
+    if (Firebase.apps.isEmpty) {
+      Diag.event('chat_realtime_unavailable', <String, Object?>{
+        'conversation_id': conversationId,
+        'reason': 'no_firebase_app',
+      });
+      return inner;
+    }
+    _httpGateway = inner;
+    return RealtimeChatGateway(
+      inner: inner,
+      realtime: FirestoreChatRealtimeSource(
+        // Lazy BY CONTRACT: the source resolves this only after the identity
+        // check passes, so "no identity" means Firestore is never reached
+        // rather than "reached and refused".
+        firestore: () => FirebaseFirestore.instance,
+        identity: FirebaseCustomTokenIdentity(
+          auth: FirebaseAuth.instance,
+          minter: GatewayChatFirebaseTokenMinter(dio: dio),
+          // The CURRENT Jeeb subject. A Firebase session outlives a Jeeb
+          // logout, so without this the identity would happily reuse the
+          // PREVIOUS user's uid on this install. Non-empty by construction:
+          // refusal 3 above already returned `inner` when it is empty.
+          jeebUserId: currentUserId,
+        ),
+        mapper: FirestoreChatMessageMapper(currentUserId: currentUserId),
+      ),
+    );
   }
 
   Future<String> _resolveTitle(
@@ -1051,6 +1257,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   /// for a route resolved by correlationKey. Mirrors the same gate in
   /// [DioChatGateway] (`_hasActiveWinner`). Defensive on shape: a
   /// missing/non-list roster or a removed winner counts as "no winner".
+  ///
+  /// **NOT the privacy gate — [_rosterVerdict] is.** This answers "did the
+  /// auction produce a winner", which is the fact the UI needs: it drives
+  /// [_isComposeState], [_headerTitle] and the pinned-summary fetch. It stays
+  /// deliberately LOOSE, because on a row where the winner is seated but the
+  /// losing bidders were never removed the client HAS accepted an offer, and a
+  /// false here would drop the composer back to compose state and turn their
+  /// next message into a brand-new broadcast request. Whether it is safe to
+  /// open a Firestore listener on that same row is a different question with a
+  /// different answer, and [_rosterVerdict] is the one that answers it.
   bool _hasSeatedWinner(Map<String, dynamic>? data) {
     final participants = data?['participants'];
     if (participants is! List) return false;
@@ -1059,6 +1275,59 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       final removedAt = p['removed_at'];
       return role == 'jeeber_winner' && removedAt == null;
     });
+  }
+
+  /// Reads the `participants` roster and answers the PRIVACY question: is this
+  /// conversation's live membership the post-accept 1:1, or is a losing bidder
+  /// still seated and therefore still authorised by the Firestore membership
+  /// rule to read every rival's offer card? See [ChatRosterVerdict] for why the
+  /// phase string cannot answer it (the accept saga seats the winner and removes
+  /// the losers in two separate calls, and the second one is allowed to fail
+  /// while the accept still returns 200).
+  ///
+  /// Role classification mirrors chat-service's own
+  /// `MessageVisibilityResolver.MapRole` (`:72-96`) token for token, so client
+  /// and server agree on who is a Restricted bidder:
+  ///
+  ///  * `client*` → the thread owner, never a bidder;
+  ///  * `admin` / `support` → privileged readers, not rivals;
+  ///  * contains `winner` → the accepted counterpart;
+  ///  * anything else, **including blank/unknown** → Restricted, i.e. a live
+  ///    bidder. Fail-closed: an unclassifiable seated member is treated as one.
+  ///
+  /// Soft-removed participants (`removed_at != null`) are skipped — a stamped
+  /// `RemovedAt` is exactly what the membership rule denies on, so they can no
+  /// longer read and cannot be leaked to.
+  ChatRosterVerdict _rosterVerdict(Map<String, dynamic>? data) {
+    final participants = data?['participants'];
+    if (participants is! List) return ChatRosterVerdict.unknown;
+    final rows = participants.whereType<Map>().toList(growable: false);
+    if (rows.isEmpty) return ChatRosterVerdict.unknown;
+
+    var seatedWinner = false;
+    var liveBidder = false;
+    for (final p in rows) {
+      // Soft-removed: the rule denies them, so they are neither a winner nor a
+      // leak target.
+      if (p['removed_at'] != null) continue;
+      final raw = p['role_in_convo'];
+      final role = raw is String ? raw.trim().toLowerCase() : '';
+      if (role.startsWith('client') || role == 'admin' || role == 'support') {
+        continue;
+      }
+      if (role.contains('winner')) {
+        seatedWinner = true;
+        continue;
+      }
+      liveBidder = true;
+    }
+
+    // A live bidder beats everything: there is a rival in the room.
+    if (liveBidder) return ChatRosterVerdict.contested;
+    // No bidders AND no winner is not evidence the auction ended — it is a
+    // roster that has not been populated yet (client alone). Say so, and let
+    // the phase decide.
+    return seatedWinner ? ChatRosterVerdict.settled : ChatRosterVerdict.unknown;
   }
 
   void _finalize(

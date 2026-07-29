@@ -391,9 +391,11 @@ class ChatCubit extends Cubit<ChatState> {
     //
     // It is suppressed, not deleted, and the distinction is deliberate: the flag
     // is driven by the stream's OWN liveness (I-13), so a channel that errors,
-    // closes, or never opens (no Firebase identity — the state the app is in
-    // today, see `ChatFirebaseIdentity`) drops straight back to the push-driven
-    // read rather than leaving the thread with no inbound path at all.
+    // closes, or never opens (no Firebase identity — an expired session, an
+    // older gateway, or the server-side kill switch; see `ChatFirebaseIdentity`)
+    // drops straight back to the push-driven read rather than leaving the thread
+    // with no inbound path at all. There is no state in which the thread has no
+    // inbound path.
     if (_realtimeLive) {
       _pushRefreshSuppressedCount++;
       Diag.event('chat_push_refetch', <String, Object?>{

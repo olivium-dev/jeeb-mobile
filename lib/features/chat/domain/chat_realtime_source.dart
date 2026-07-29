@@ -8,6 +8,27 @@ import 'chat_gateway.dart';
 /// `created_at`; the document does not.
 const String kChatMessageCreatedAtField = 'CreatedAt';
 
+/// Additive per-viewer array on each message document.
+///
+/// Chat-service writes `VisibleTo` at message-write time, computed with
+/// `MessageVisibilityResolver` — the same resolver used by the REST projection.
+/// It makes that per-viewer visibility matrix durable on the message instead of
+/// asking the client or the rule to recompute it.
+///
+/// The Firestore LIST must filter on this field because the security rule reads
+/// `resource.data`, and Firestore refuses a query it cannot prove is authorised.
+/// Legacy documents written before chat-service ships `VisibleTo` have no such
+/// field, so `arrayContains` excludes them. The listener is a live-tail while
+/// the cold thread still arrives over the existing HTTP history read; the
+/// exclusion therefore costs only history that was already fetched, never a
+/// missing live message.
+///
+/// This query requires a composite index with collection `Messages`, scope
+/// COLLECTION (not COLLECTION_GROUP), and fields `VisibleTo` with arrayConfig
+/// CONTAINS plus `CreatedAt` ordered DESCENDING. Without it the query fails with
+/// FAILED_PRECONDITION at runtime.
+const String kChatMessageVisibleToField = 'VisibleTo';
+
 /// Top-level collection the chat-service writes Jeeb conversations into
 /// (`FirestoreConversationStore.ConversationsCollection`).
 const String kConversationsCollection = 'Conversations';

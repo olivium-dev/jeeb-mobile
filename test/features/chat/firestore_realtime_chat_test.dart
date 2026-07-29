@@ -172,9 +172,12 @@ class _CountingHttpGateway extends ChatGateway {
   ) async =>
       message.copyWith(status: MessageStatus.sent);
 
-  /// Must never be reached through [RealtimeChatGateway] — the decorator
-  /// replaces exactly this method. `subscribeCalls` staying 0 is what proves the
-  /// realtime source, not the old socket, is carrying the thread.
+  /// Reached exactly ONCE through [RealtimeChatGateway], which MERGES this leg
+  /// rather than replacing it — the decorator swaps the message TRANSPORT, but
+  /// this stream is also the only carrier for the gateway's synthetic
+  /// `PhaseChanged(accepted)`. `subscribeCalls` is therefore an open-count, not
+  /// a "was HTTP used" signal; what proves the realtime source is carrying the
+  /// thread is [loadHistoryCalls] not moving while messages arrive.
   @override
   Stream<ChatEvent> subscribe(String conversationId) {
     subscribeCalls++;
@@ -234,10 +237,22 @@ void main() {
       // so it cannot be the source of the nonce.
       expect(h.http.loadHistoryCalls, 1, reason: 'cold mount');
       expect(find.text(nonce), findsNothing, reason: 'nothing has arrived yet');
+      // CHANGED, and deliberately — this assertion used to demand 0 and that was
+      // pinning a bug. `RealtimeChatGateway.subscribe` now MERGES both legs
+      // instead of replacing the inner one, because the inner stream is the only
+      // carrier for `DioChatGateway`'s synthetic
+      // `PhaseChanged(accepted, deliveryId:…)` (`dio_chat_gateway.dart:470-474`)
+      // and dropping it turns the customer's Accept tap into a no-op.
+      //
+      // What the old 0 was REALLY defending — "the realtime source, not HTTP, is
+      // carrying the thread" — is not measured by this counter at all: opening a
+      // stream costs nothing and delivers nothing. It is measured by
+      // `loadHistoryCalls` staying at its cold-mount baseline while the nonce
+      // arrives, which is asserted above and below and is untouched.
       expect(
         h.http.subscribeCalls,
-        0,
-        reason: 'the realtime source replaced the HTTP gateway subscription',
+        1,
+        reason: 'the inner leg is merged, opened exactly once, never twice',
       );
       expect(h.realtime.subscribeCalls, 1);
 

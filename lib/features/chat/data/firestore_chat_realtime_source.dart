@@ -35,7 +35,7 @@ import 'firestore_chat_message_mapper.dart';
 ///     .listen((snapshot) { ... }, onError: (error) { ... });
 /// ```
 ///
-/// Same query shape, three deliberate differences, each stated so a reviewer can
+/// Same query shape, four deliberate differences, each stated so a reviewer can
 /// disagree with it:
 ///
 ///  1. **Different collection, different project.** Rahmah reads
@@ -46,10 +46,14 @@ import 'firestore_chat_message_mapper.dart';
 ///     never meet. This class takes its [FirebaseFirestore] from the default app,
 ///     which `google-services.json` pins to `jeeb-5a293` (both the release and
 ///     the `dev` flavor copy read `project_id: jeeb-5a293`).
-///  2. **Bounded.** Rahmah has no `.limit()`, so opening a thread re-reads its
+///  2. **Filtered by durable visibility.** The message rule reads
+///     `resource.data.VisibleTo`, so the LIST carries the matching
+///     `arrayContains` filter for the exact uid established by
+///     [ChatFirebaseIdentity]. Firestore otherwise refuses the unprovable query.
+///  3. **Bounded.** Rahmah has no `.limit()`, so opening a thread re-reads its
 ///     entire history. This adds `.limit(kChatRealtimeWindow)` — see that
 ///     constant for the argument.
-///  3. **`docChanges`, not `docs`.** Rahmah reads the whole window each snapshot
+///  4. **`docChanges`, not `docs`.** Rahmah reads the whole window each snapshot
 ///     and re-derives the delta by hand (`_knownMessageIds` + `_areMapsEqual`).
 ///     `docChanges` is the SDK's own answer to the same question.
 ///
@@ -104,8 +108,8 @@ class FirestoreChatRealtimeSource implements ChatRealtimeSource {
     // reads a conversation collection unauthenticated". See
     // [ChatFirebaseIdentity] for why an unauthenticated read of this
     // subcollection is a competing-bid leak, not merely an unauthorised one.
-    final signedIn = await _identity.ensureSignedIn();
-    if (!signedIn) {
+    final uid = await _identity.ensureSignedIn();
+    if (uid == null || uid.isEmpty) {
       _emit(events, const RealtimeTransportChanged(
         live: false,
         reason: 'no_identity',
@@ -122,6 +126,7 @@ class FirestoreChatRealtimeSource implements ChatRealtimeSource {
         .collection(kConversationsCollection)
         .doc(conversationId)
         .collection(kMessagesSubcollection)
+        .where(kChatMessageVisibleToField, arrayContains: uid)
         // Newest first + a window: the same ordering Rahmah subscribes with, so
         // `.limit()` keeps the MOST RECENT messages rather than the oldest.
         // `ChatCubit._ordered` re-sorts for render, so descending here costs
