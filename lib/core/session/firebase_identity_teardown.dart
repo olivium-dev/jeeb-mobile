@@ -20,11 +20,24 @@ import '../diagnostics/diag.dart';
 /// `grep -rn "FirebaseAuth.instance.signOut" lib/` returned ZERO hits while
 /// `DioAccountService.signOut` / `DioAccountSessionTerminator.logout` cleared
 /// only the Jeeb tokens — meaning a signed-out (or switched) user left a live
-/// Firebase identity behind, still authorised by the membership rule for every
-/// conversation the PREVIOUS user was a participant of.
+/// Firebase identity behind, still authorised as the PREVIOUS user. Which reads
+/// that buys is whatever the live ruleset grants that uid: under the currently
+/// released membership rule it is every conversation that user was a participant
+/// of, and under the pending per-message `VisibleTo` rule it is every message
+/// whose array names them. The leak is the stale IDENTITY, so tightening the
+/// rule does not retire this seam.
 ///
 /// **The invariant: the Firebase identity must never outlive the Jeeb keystore
-/// clear.** Every call site that clears the keystore calls this.
+/// clear.** Every LIVE call site that clears the keystore calls this.
+/// `lib/core/network/auth_interceptor.dart:144` clears the keystore without
+/// calling this, but it is unreachable in production: `DioClient.createDio` has
+/// zero call sites, every live `createDio` call under `lib/` is
+/// `MockGatewayClient.createDio`, and the `TokenRefreshInterceptor` that owns
+/// that `_logout` is constructed under `lib/` only inside the uncalled factory
+/// (`dio_client.dart:71`). The other source-only clear is
+/// `lib/core/dev_seam/session_seam_bootstrap.dart:530`; its only call site is
+/// `seed()` at line 157, and `seed()` returns at line 140 when `!kDebugMode`, so
+/// that clear is debug-only.
 ///
 /// # Fail-soft by contract
 ///

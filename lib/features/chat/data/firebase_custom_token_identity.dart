@@ -25,8 +25,13 @@ import '../domain/chat_firebase_identity.dart';
 /// (`POST /v1/chat/firebase-token`), built in
 /// `ChatDetailScreen._wrapRealtime`. When the mint returns null — expired
 /// session, an older gateway, or the server-side kill switch
-/// (`Firebase:Chat:ServiceAccountKeyPath` unset ⇒ 503) — this reports false, no
+/// (`Firebase:Chat:ServiceAccountKeyPath` unset ⇒ 503) — this returns null, no
 /// channel opens, and the existing HTTP path carries chat unchanged.
+///
+/// On success [ensureSignedIn] returns `_jeebUserId`, rather than reading
+/// `user.uid` back out to its caller. That is safe precisely because both
+/// success paths already assert that the Firebase uid equals `_jeebUserId`; a
+/// mismatching existing or newly minted session is signed out instead.
 ///
 /// # Session lifetime is NOT bounded by the minted token
 ///
@@ -68,7 +73,7 @@ class FirebaseCustomTokenIdentity implements ChatFirebaseIdentity {
   final String _jeebUserId;
 
   @override
-  Future<bool> ensureSignedIn() async {
+  Future<String?> ensureSignedIn() async {
     // Fail closed on an unknown subject. Without it there is nothing to compare
     // an existing session against, and "reuse whatever session this install
     // happens to hold" is the exact bug this parameter exists to close.
@@ -76,14 +81,14 @@ class FirebaseCustomTokenIdentity implements ChatFirebaseIdentity {
       Diag.event('chat_firebase_identity', <String, Object?>{
         'result': 'no_jeeb_user',
       });
-      return false;
+      return null;
     }
     try {
       final existing = _auth.currentUser;
       if (existing != null) {
         // Already signed in AS THIS USER — a custom-token session survives app
         // restarts, so the common case still costs no round trip at all.
-        if (existing.uid == _jeebUserId) return true;
+        if (existing.uid == _jeebUserId) return _jeebUserId;
         // Someone else's session, inherited from before a logout or an account
         // switch. Drop it FIRST: re-minting on top of a live foreign session
         // would leave that uid in place if the mint then fails, which is the
@@ -100,7 +105,7 @@ class FirebaseCustomTokenIdentity implements ChatFirebaseIdentity {
         Diag.event('chat_firebase_identity', <String, Object?>{
           'result': 'no_token',
         });
-        return false;
+        return null;
       }
       final credential = await _auth.signInWithCustomToken(token);
       final user = credential.user;
@@ -108,7 +113,7 @@ class FirebaseCustomTokenIdentity implements ChatFirebaseIdentity {
         Diag.event('chat_firebase_identity', <String, Object?>{
           'result': 'no_user',
         });
-        return false;
+        return null;
       }
       // The mint is server-side and derives the uid from the validated bearer's
       // own claims, so this should always hold. Check it anyway: it is the ONE
@@ -120,12 +125,12 @@ class FirebaseCustomTokenIdentity implements ChatFirebaseIdentity {
           'result': 'minted_uid_mismatch',
         });
         await _auth.signOut();
-        return false;
+        return null;
       }
       Diag.event('chat_firebase_identity', <String, Object?>{
         'result': 'signed_in',
       });
-      return true;
+      return _jeebUserId;
     } catch (error) {
       // Never rethrow: a failed sign-in must degrade to "no realtime", and a
       // raw plugin exception escaping here would take the chat screen with it.
@@ -133,7 +138,7 @@ class FirebaseCustomTokenIdentity implements ChatFirebaseIdentity {
         'result': 'failed',
         'error': error.runtimeType.toString(),
       });
-      return false;
+      return null;
     }
   }
 }

@@ -102,7 +102,7 @@ void main() {
         jeebUserId: _userA,
       );
 
-      expect(await sut.ensureSignedIn(), isTrue);
+      expect(await sut.ensureSignedIn(), _userA);
       expect(minter.calls, 0, reason: 'no mint for a session already ours');
       expect(auth.signOutCalls, 0);
     });
@@ -119,7 +119,7 @@ void main() {
         jeebUserId: _userB,
       );
 
-      expect(await sut.ensureSignedIn(), isTrue);
+      expect(await sut.ensureSignedIn(), _userB);
       expect(
         auth.signOutCalls,
         1,
@@ -143,7 +143,7 @@ void main() {
         jeebUserId: _userB,
       );
 
-      expect(await sut.ensureSignedIn(), isFalse);
+      expect(await sut.ensureSignedIn(), isNull);
       expect(auth.signOutCalls, 1);
       expect(
         auth.currentUser,
@@ -165,7 +165,7 @@ void main() {
         jeebUserId: _userB,
       );
 
-      expect(await sut.ensureSignedIn(), isFalse);
+      expect(await sut.ensureSignedIn(), isNull);
       expect(auth.signOutCalls, 1);
       expect(auth.currentUser, isNull);
     });
@@ -181,7 +181,7 @@ void main() {
         jeebUserId: '',
       );
 
-      expect(await sut.ensureSignedIn(), isFalse);
+      expect(await sut.ensureSignedIn(), isNull);
       expect(minter.calls, 0, reason: 'nothing to mint for');
     });
 
@@ -197,7 +197,7 @@ void main() {
         jeebUserId: _userB,
       );
 
-      expect(await sut.ensureSignedIn(), isTrue);
+      expect(await sut.ensureSignedIn(), _userB);
       expect(auth.signOutCalls, 0, reason: 'nothing to discard');
       expect(minter.calls, 1);
       expect(auth.currentUser?.uid, _userB);
