@@ -21,9 +21,18 @@
 // still returns 200. "Winner seated, losers still active, phase still
 // broadcasting" is therefore a designed outcome, and it is the leak.
 //
-// The fixture below takes the two facts as INDEPENDENT axes, and
-// `a seated winner with a live bidder still on the bench is REFUSED` is the case
-// the welded version could not express.
+// RETIRED 2026-07-30 (batch b04). This file no longer pins a REFUSAL, because
+// the leak it guarded is now closed one layer down. The membership ruleset it
+// was written against was replaced by `d9639654-…`, which authorises on the
+// additive per-message `VisibleTo` array; a leftover bidder is not in it.
+// Measured on live jeeb-5a293 against a genuinely contested roster, every
+// identity via the production chain (no admin token): leftover loser 403 on the
+// winner thread, winner 200, client 200, non-participant 403, and the same loser
+// 200 on both a broadcast and their own message — so the denial is SPECIFIC, not
+// an allow-read-false. The predicate is kept and still evaluated because a
+// contested roster is a real server defect worth seeing in a device capture, but
+// it now only LOGS. What these tests pin is that a contested row FALLS THROUGH
+// to the capability probe instead of short-circuiting — see `_capabilityRefusals`.
 //
 // HOW THIS FILE IS NOT VACUOUS. `Firebase.apps` is empty in every widget test, so
 // the wrap is NEVER constructed here and "no listener was opened" is trivially
@@ -32,12 +41,14 @@
 //
 //   * the predicate tests call `realtimeChatAdmitted` DIRECTLY, over the whole
 //     4 x 3 product. No Firebase, no widget, no ambiguity about what ran.
-//   * the screen tests assert a POSITIVE artefact — the `auction_phase` refusal
-//     diagnostic and its `roster` discriminator — which only exists if the gate
-//     actually evaluated inside `_wrapRealtime` on a live resolution.
-//   * every refusal test is paired with a CONTROL that must NOT refuse, so a
-//     gate that simply says no to everything (feature permanently dead, the
-//     other failure mode this branch was caught in) fails here.
+//   * the screen tests assert a POSITIVE artefact — the `auction_phase`
+//     diagnostic and its `roster` discriminator — which only exists if the
+//     predicate actually evaluated inside `_wrapRealtime` on a live resolution,
+//     PLUS a second positive artefact (`no_firebase_app`) that can only appear
+//     if control continued past it.
+//   * every contested test is paired with a CONTROL that must NOT be classified
+//     contested, so a predicate that simply says contested to everything fails
+//     here.
 library;
 
 import 'dart:convert';
@@ -161,13 +172,31 @@ Future<RoleCubit> _roleCubit() async {
   return RoleCubit(prefs: prefs, initialRole: UserRole.client);
 }
 
-/// Every `chat_realtime_unavailable` record the screen emitted, decoded.
-List<Map<String, Object?>> _refusals(List<String> lines) => lines
+List<Map<String, Object?>> _events(List<String> lines, String name) => lines
     .map((line) => line.substring(Diag.prefix.length + 1))
     .map((json) => jsonDecode(json) as Map<String, dynamic>)
-    .where((record) => record['name'] == 'chat_realtime_unavailable')
+    .where((record) => record['name'] == name)
     .map((record) => (record['data'] as Map).cast<String, Object?>())
     .toList();
+
+/// Every `chat_realtime_contested_admitted` record — the RETIRED auction gate's
+/// telemetry. Its presence means the predicate said `contested`; it no longer
+/// means the wrap was refused.
+List<Map<String, Object?>> _refusals(List<String> lines) =>
+    _events(lines, 'chat_realtime_contested_admitted');
+
+/// Every `chat_realtime_unavailable` record — the refusals that REMAIN real.
+///
+/// This is the load-bearing witness for the b04 change. The retired gate used to
+/// `return inner` immediately, so control never reached the Firebase capability
+/// probe and `no_firebase_app` was NEVER emitted on a contested row. Now the
+/// gate only logs and falls through, so on a contested row this list MUST also
+/// be non-empty. Asserting both together is what proves the short-circuit is
+/// gone — the contested telemetry alone would look identical either way, because
+/// `Firebase.apps` is empty in every widget test here and the wrap is never
+/// actually constructed under test.
+List<Map<String, Object?>> _capabilityRefusals(List<String> lines) =>
+    _events(lines, 'chat_realtime_unavailable');
 
 void main() {
   group('realtimeChatAdmitted — the auction predicate', () {
@@ -333,8 +362,8 @@ void main() {
     }
 
     testWidgets(
-      'a RESOLVED but still-broadcasting conversation refuses with '
-      'auction_phase',
+      'a RESOLVED but still-broadcasting conversation is classified '
+      'contested, reported, and ADMITTED',
       (tester) async {
         final refusals = await pumpWith(
           tester,
@@ -353,11 +382,17 @@ void main() {
         expect(
           refusals.single['reason'],
           kRealtimeRefusedAuctionPhase,
-          reason: 'the AUCTION refused first — not the Firebase capability '
-              'probe, which would also have refused and would have hidden this',
+          reason: 'the predicate still classifies this row as contested and '
+              'still reports it — it just no longer refuses on it',
         );
         expect(refusals.single['phase'], ConversationPhase.broadcasting.name);
         expect(refusals.single['roster'], ChatRosterVerdict.contested.name);
+        expect(
+          _capabilityRefusals(lines),
+          isNotEmpty,
+          reason: 'control reached the Firebase capability probe, which it '
+              'could not do while the auction gate returned early',
+        );
         expect(refusals.single['conversation_id'], _conversationId);
       },
     );
@@ -369,7 +404,8 @@ void main() {
     // participant, i.e. still authorised by the membership rule to read the
     // winner's and the client's whole thread.
     testWidgets(
-      'a seated winner with a LIVE bidder still on the bench is REFUSED',
+      'a seated winner with a LIVE bidder still on the bench is ADMITTED, '
+      'and still reports itself',
       (tester) async {
         final refusals = await pumpWith(
           tester,
@@ -389,7 +425,23 @@ void main() {
           refusals.single['reason'],
           kRealtimeRefusedAuctionPhase,
           reason: 'a seated winner proves the saga STARTED, not that it '
-              'finished; the loser bench is what proves it finished',
+              'finished; the loser bench is what proves it finished — still '
+              'worth reporting, because that roster is a real server defect',
+        );
+        // THE b04 ASSERTION. Before the gate was retired it returned `inner`
+        // here, so control never reached the Firebase capability probe and this
+        // list was EMPTY. Its non-emptiness is the proof that a contested row
+        // now falls through to the wrap instead of being short-circuited.
+        // Confidentiality is enforced by the VisibleTo ruleset, measured on live
+        // jeeb-5a293: leftover loser 403 on the winner thread, with winner 200,
+        // client 200, non-participant 403, and the same loser 200 on both a
+        // broadcast and their own message.
+        expect(
+          _capabilityRefusals(lines),
+          isNotEmpty,
+          reason: 'contested must now FALL THROUGH to the capability probe; '
+              'if this is empty the auction gate is still short-circuiting',
+
         );
         expect(
           refusals.single['roster'],
@@ -413,17 +465,18 @@ void main() {
           _row(phase: 'broadcasting', seatedWinner: true, biddersRemoved: true),
         );
 
-        final reasons = refusals.map((r) => r['reason']).toList(growable: false);
         expect(
-          reasons,
-          isNot(contains(kRealtimeRefusedAuctionPhase)),
-          reason: 'refusing this would refuse the 8 post-accept rows the live '
-              'gateway never re-labelled — i.e. ship the feature dead',
+          refusals,
+          isEmpty,
+          reason: 'a CLEARED bench is settled, so the predicate does not even '
+              'classify it contested — no telemetry at all. Classifying this '
+              'row would mean the 8 post-accept rows the live gateway never '
+              're-labelled all report as defects',
         );
         expect(
-          reasons,
+          _capabilityRefusals(lines).map((r) => r['reason']),
           contains('no_firebase_app'),
-          reason: 'flow reached the NEXT refusal, so the gate let it through',
+          reason: 'flow reached the NEXT refusal, so nothing stopped it earlier',
         );
       },
     );
@@ -439,12 +492,11 @@ void main() {
           _row(phase: 'accepted', seatedWinner: true, biddersRemoved: true),
         );
 
-        final reasons = refusals.map((r) => r['reason']).toList(growable: false);
         expect(
-          reasons,
-          isNot(contains(kRealtimeRefusedAuctionPhase)),
+          refusals,
+          isEmpty,
           reason: 'an accepted conversation with an empty bench is past the '
-              'auction',
+              'auction — settled, not contested',
         );
         // It DOES refuse — on capability, one check later. That is the honest
         // state of a widget test: `Firebase.initializeApp` never ran, so
@@ -452,9 +504,9 @@ void main() {
         // it here is what stops this control from silently becoming a test that
         // merely observed nothing at all.
         expect(
-          reasons,
+          _capabilityRefusals(lines).map((r) => r['reason']),
           contains('no_firebase_app'),
-          reason: 'flow reached the NEXT refusal, so the gate let it through',
+          reason: 'flow reached the NEXT refusal, so nothing stopped it earlier',
         );
       },
     );
