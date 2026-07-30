@@ -988,24 +988,51 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       return inner;
     }
     if (currentUserId.isEmpty) return inner;
-    // THE AUCTION GATE. Ordered BEFORE the Firebase probe on purpose: this is a
-    // refusal on the merits (we must not read this thread yet) rather than on
-    // capability (we cannot read anything), so it must be the answer whenever
-    // both apply — otherwise a device that happens to have no Firebase app
-    // would report `no_firebase_app` and hide the fact that the phase would
-    // have refused anyway. It is also local, synchronous and allocation-free.
+    // THE AUCTION GATE — RETIRED 2026-07-30. Now telemetry, not a refusal.
+    //
+    // It existed because the ruleset it was written against
+    // (`be2ddaaf-31e3-4470-8eda-e043478205ce`) authorised a message read purely
+    // on conversation MEMBERSHIP, so a `contested` roster — winner seated, a
+    // losing bidder still `removed_at == null` — really did let one bidder read
+    // a rival's offer card. That is no longer the rule. Batch b03 replaced it
+    // with `d9639654-bdce-4948-abe8-3d7e961b05a3`, which authorises on the
+    // additive per-message `VisibleTo` array that chat-service computes from
+    // `MessageVisibilityResolver` at write time. A leftover bidder is simply not
+    // in that array.
+    //
+    // MEASURED, not reasoned (2026-07-30, live jeeb-5a293, a genuinely contested
+    // roster built via `phase` + `remove_others: false`, every identity obtained
+    // through the production chain `/auth/tokens` → `/v1/chat/firebase-token` →
+    // signInWithCustomToken → Firestore client REST, no admin token anywhere):
+    //
+    //   leftover loser  → winner-thread message   403   <== the gate's whole job
+    //   winner          → same message            200
+    //   client          → same message            200
+    //   NON-participant → same message            403
+    //   loser           → broadcast               200   ← denial is SPECIFIC,
+    //   loser           → own message             200   ← not allow-read-false
+    //   LIST as loser → 200, 2 docs · as winner → 200, 4 docs
+    //
+    // So the gate protected nothing the rule does not already protect; all it
+    // did was cost 2 HTTP requests per inbound message instead of 0 in the
+    // contested state. The predicate is KEPT and still evaluated, because
+    // `contested` remains a real server-side defect worth seeing in a device
+    // capture (`JeebOffersController.cs:673-702` can still leave that roster
+    // behind until the accept saga is made atomic) — but it no longer refuses.
     if (!realtimeChatAdmitted(phase: phase, roster: roster)) {
-      Diag.event('chat_realtime_unavailable', <String, Object?>{
+      Diag.event('chat_realtime_contested_admitted', <String, Object?>{
         'conversation_id': conversationId,
         'reason': kRealtimeRefusedAuctionPhase,
         'phase': phase.name,
-        // WHICH arm refused. A device capture that only carries the phase
-        // cannot tell "still broadcasting" from "accepted but a loser is still
-        // seated", and those need opposite follow-ups (wait vs. reconcile the
-        // roster on the server).
+        // WHICH arm would have refused. A device capture that only carries the
+        // phase cannot tell "still broadcasting" from "accepted but a loser is
+        // still seated", and those need opposite follow-ups (wait vs. reconcile
+        // the roster on the server).
         'roster': roster.name,
       });
-      return inner;
+      // NO `return inner` — deliberately. Confidentiality is enforced by the
+      // VisibleTo ruleset above, so this thread gets the Firestore wrap like any
+      // other and costs 0 requests per message.
     }
     // Cheap, synchronous, and throws nothing — unlike the two `.instance`
     // accessors below, which is the entire reason this check exists.
