@@ -1,11 +1,11 @@
 // JEBV4-269: customer live-position overlay.
 //
 // P0 2026-07-31 — the OVERLAY is unchanged; its SOURCE moved back. The SSE
-// variant this file used to exercise (`LivePositionStreamSource` /
-// `SseLivePositionStream` over `GET /v1/geo/jeeb/stream/{id}`) is DELETED,
-// because jeeb-gateway #333 (`b6fe888`) deleted the route: on the deployed MSI
-// binary a grep of `publish/gateway/JeebGateway.dll` finds
-// `deliveries/{deliveryId}/tracking` and finds `v1/geo/jeeb/stream` zero times.
+// variant this file used to exercise (a stream capability interface and its
+// client class, over a `geo` alias route) is DELETED, because jeeb-gateway #333
+// (`b6fe888`, guard `Sse_Alias_Route_Is_Gone`) deleted the route: on the
+// deployed MSI binary a grep of `publish/gateway/JeebGateway.dll` finds
+// `deliveries/{deliveryId}/tracking` and finds the alias zero times.
 // The customer read 404ed on a 30 s re-arm loop for four days while the
 // jeeber's `POST /location/update` was 200-ing — the courier-marker P0.
 //
@@ -215,8 +215,8 @@ void main() {
 
       final overlay = await repo.fetchLivePosition(deliveryId: _id);
 
-      // THE P0 ASSERTION: the surviving route, not the deleted
-      // `/v1/geo/jeeb/stream/{id}` alias that 404s on the live gateway.
+      // THE P0 ASSERTION: the surviving route, not the deleted SSE `geo` alias
+      // that 404s on the live gateway.
       expect(adapter.lastRequest?.path, '/deliveries/$_id/tracking');
       expect(overlay, isNotNull);
       expect(overlay!.jeeberPosition?.lat, closeTo(33.9, 1e-9));

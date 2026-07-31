@@ -89,8 +89,10 @@ String _mutualRateRoute(String deliveryId, {required bool isClient}) =>
 ///     `dispute-open-evidence` (the `escalate` route, JM-060) — AC2/AC3.
 /// Backoff for re-attempting a conversation resolution that COULD NOT FIND OUT
 /// (network down, 5xx, timeout). Widening, and it terminates on the first
-/// success — see `_scheduleResolutionRetry`. Mirrors `kPositionRearmBackoff`
-/// (`live_tracking_cubit.dart`), the SSE re-arm shipped in #186.
+/// success — see `_scheduleResolutionRetry`. It used to be described as
+/// mirroring the live-tracking SSE re-arm backoff of #186; that constant is
+/// deleted (MB1 / PR #204), and the comparison was misleading anyway — the SSE
+/// one never terminated.
 const List<Duration> kChatResolutionRetryBackoff = <Duration>[
   Duration(seconds: 2),
   Duration(seconds: 5),
@@ -1538,9 +1540,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   /// the retry of a read that FAILED, it widens
   /// ([kChatResolutionRetryBackoff]: 2 s → 5 s → 15 s → 30 s, then 30 s), and it
   /// TERMINATES on the first success (`_finalize` → [_cancelResolutionRetry]).
-  /// The same shape and the same argument as the SSE re-arm backoff shipped in
-  /// #186 (`kPositionRearmBackoff`, `live_tracking_cubit.dart`), which replaced a
-  /// dead stream that "neither resume nor a push could re-open".
+  /// The same SHAPE as the SSE re-arm backoff shipped in #186 — which replaced a
+  /// dead stream that "neither resume nor a push could re-open" — but not the
+  /// same argument, and that constant is now deleted (MB1 / PR #204). The SSE
+  /// one had no terminating condition a dead route could ever satisfy; this one
+  /// terminates on the first success.
   ///
   /// **RETRACTED CLAIM — read this before trusting the paragraph that used to
   /// be here.** This comment previously argued that waiting for a connectivity

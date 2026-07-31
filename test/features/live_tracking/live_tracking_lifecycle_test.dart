@@ -172,8 +172,8 @@ void main() {
           reason: 'a terminal row must never have read a courier position — '
               'there is no moving jeeber to plot on a completed trip. (This '
               'replaces `debugPositionStreamWired`, which reported on a stream '
-              'that no longer exists: jeeb-gateway #333 deleted '
-              'GET /v1/geo/jeeb/stream/{id}.)');
+              'that no longer exists: jeeb-gateway #333 deleted the SSE geo '
+              'alias — guard Sse_Alias_Route_Is_Gone.)');
 
       await _driveToBackground(tester);
       await tester.pump(const Duration(minutes: 3));

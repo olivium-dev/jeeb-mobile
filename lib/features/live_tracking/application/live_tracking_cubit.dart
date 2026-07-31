@@ -85,23 +85,31 @@ enum LivePositionReadCause {
 ///
 /// ## Why the position stream is gone (P0, 2026-07-31)
 ///
-/// The bullet above used to read "*Courier position is a STREAM*", served by
-/// `SseLivePositionStream` over `GET /v1/geo/jeeb/stream/{id}`. **That route no
-/// longer exists.** `jeeb-gateway` #333 (`b6fe888`) deleted it together with the
-/// 5 s server-side re-read loop it existed to open, and pinned the deletion:
+/// The bullet above used to read "*Courier position is a STREAM*", served by an
+/// SSE client class over a `geo` alias route. **That route no longer exists.**
+/// `jeeb-gateway` #333 (`b6fe888`) deleted it together with the 5 s server-side
+/// re-read loop it existed to open, and pinned the deletion:
 /// `NoBackendPollOrFirestoreListenerGuardTests.Sse_Alias_Route_Is_Gone` requires
 /// a **404** for a caller who WOULD have been authorized, and two structural
-/// assertions ban the literals `text/event-stream` and `v1/geo/jeeb/stream` from
-/// the shipped gateway assembly. Verified on the deployed MSI binary: a grep of
+/// assertions ban both the event-stream content type and the alias path from the
+/// shipped gateway assembly. Verified on the deployed MSI binary: a grep of
 /// `publish/gateway/JeebGateway.dll` finds `deliveries/{deliveryId}/tracking`
-/// (positive control) and finds `v1/geo/jeeb/stream` **zero** times.
+/// (positive control) and finds the alias **zero** times.
+///
+/// The alias path and the deleted Dart class are deliberately NOT spelled out
+/// anywhere in this repo any more — MB1's V-1 contract greps the whole tree for
+/// them and a doc comment is indistinguishable from a live call site to `grep`.
+/// `Sse_Alias_Route_Is_Gone` is the durable handle: it names the authoritative
+/// artifact instead of repeating a URL that 404s.
 ///
 /// The consequence was the courier-marker P0. The jeeber's
 /// `POST /location/update` was 200-ing and the gateway was storing the fix, but
-/// the customer asked a deleted URL, got 404, and `_onPositionStreamClosed`
-/// re-armed it forever — so the "ERROR-RECOVERY" backoff below had quietly
-/// become a permanent 30 s poll against a route that could never answer. Both
-/// the stream and that timer are deleted here.
+/// the customer asked a deleted URL, got 404, and the stream's close handler
+/// re-armed it forever — so the "ERROR-RECOVERY" backoff had quietly become a
+/// permanent 30 s poll against a route that could never answer. (Not a flat 30 s
+/// loop: the re-arm schedule fired at 2 / 5 / 15 / 30 s and then saturated,
+/// because its reset site sat inside a frame handler a dead route never reached.)
+/// Both the stream and that timer are deleted.
 ///
 /// ## The cadence question, stated rather than hidden
 ///
