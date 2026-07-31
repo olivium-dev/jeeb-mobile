@@ -6,7 +6,8 @@ import 'package:dio/dio.dart';
 
 import '../../../core/diagnostics/diag.dart';
 import '../../../core/network/mock_gateway_client.dart';
-import '../../client_offers/domain/offers_repository.dart' show OfferAcceptResult;
+import '../../client_offers/domain/offers_repository.dart'
+    show OfferAcceptResult, acceptResponseDeliveryId;
 import '../../kyc/domain/cdn_asset_gateway.dart';
 import '../../otp_handover/domain/handover_code_store.dart';
 import '../domain/chat_delta_reader.dart';
@@ -512,13 +513,15 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
   }
 
   /// Defensive read of the server-created delivery id from the accept body.
-  /// Accepts both `deliveryId` and snake_case `delivery_id`; anything else
-  /// (missing field, non-string, empty) maps to null so a legacy/golden-less
-  /// response never crashes the accept path.
+  /// Shares [acceptResponseDeliveryId] with `DioOffersRepository` — the second
+  /// accept path had the SAME P0 defect (it read only `deliveryId` /
+  /// `delivery_id`, which the live gateway's `DeliveryRequestDto` does not
+  /// carry), so the fix has to land on both or the chat-side Accept keeps
+  /// dropping the customer's door code. Anything unrecognised maps to null so
+  /// a legacy/golden-less response never crashes the accept path.
   String? _deliveryIdOf(Map<String, dynamic>? body) {
     if (body == null) return null;
-    final raw = body['deliveryId'] ?? body['delivery_id'];
-    return raw is String && raw.trim().isNotEmpty ? raw : null;
+    return acceptResponseDeliveryId(body);
   }
 
   /// Defensive read of the handover code from the accept body (G4). Accepts

@@ -194,7 +194,19 @@ void main() {
       await cubit.close();
     });
 
-    testWidgets('InTransit without a code → no code row', (tester) async {
+    // P0 (2026-07-31, ship-p0 run g5). This test used to assert
+    // `findsNothing` — it pinned the behaviour that dead-ended every delivery.
+    // On hardware BOTH gates to the code failed at once: the accept parser had
+    // dropped the code (so the row was hidden), and the status axis is
+    // push-only since #185/N7 while the AtDoor push did not land on the device
+    // (so OtpAtDoorCard, the only other route to `/orders/{id}/otp`, was never
+    // built). The jeeber asked for a code the customer had no surface to see.
+    // The row is unconditional now: no cached code means it becomes the CTA,
+    // and the OTP screen fetches the code.
+    testWidgets(
+        'InTransit WITHOUT a cached code → the row is STILL there, as the '
+        'Show OTP CTA (the only unconditional route to the code)',
+        (tester) async {
       when(() =>
               repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
           .thenAnswer((_) async => _fromStatus('InTransit'));
@@ -204,8 +216,9 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.byKey(const Key('tracking.codeRowValue')), findsNothing);
-      expect(find.text('Delivery code'), findsNothing);
+      expect(find.byKey(const Key('tracking.codeRowValue')), findsOneWidget);
+      expect(find.text('Delivery code'), findsOneWidget);
+      expect(find.text('Show OTP'), findsOneWidget);
       await cubit.close();
     });
 
