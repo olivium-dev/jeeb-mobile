@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../domain/gps_sample.dart';
+import '../domain/location_permission.dart';
 
 /// High-level phase the screen layer renders off.
 enum BackgroundGpsPhase {
@@ -38,6 +39,7 @@ enum GpsSampleSkipReason {
 class BackgroundGpsState extends Equatable {
   const BackgroundGpsState({
     this.phase = BackgroundGpsPhase.idle,
+    this.permission = LocationPermission.notDetermined,
     this.deliveryId,
     this.lastUploaded,
     this.lastUploadAt,
@@ -49,6 +51,16 @@ class BackgroundGpsState extends Equatable {
   });
 
   final BackgroundGpsPhase phase;
+
+  /// The LAST permission the OS reported, kept so
+  /// [BackgroundGpsPhase.permissionDenied] is not an opaque dead end. The UI
+  /// needs the distinction: [LocationPermission.whileInUse] means the jeeber
+  /// still has an in-app upgrade path ("Allow all the time"), while
+  /// [LocationPermission.deniedForever] means only the OS settings page can
+  /// help. Also stamped onto the `bg_gps_phase` `[jeeb-diag]` breadcrumb, so a
+  /// logcat grep says WHICH permission blocked the upload rather than just
+  /// "denied".
+  final LocationPermission permission;
 
   /// Active delivery being tracked. `null` outside [BackgroundGpsPhase.tracking].
   final String? deliveryId;
@@ -81,8 +93,24 @@ class BackgroundGpsState extends Equatable {
   /// audience as [uploadedCount].
   final int discardedCount;
 
+  /// True when the uploader is PARKED on a missing background-location grant —
+  /// the customer's live-tracking map is receiving nothing and only the jeeber
+  /// can fix it. This is the whole trigger for the Active Delivery banner: for
+  /// months this state existed with no UI and no log line, so a jeeber drove an
+  /// entire delivery while the map stayed empty and nothing anywhere said so.
+  bool get isBlockedOnPermission =>
+      phase == BackgroundGpsPhase.permissionDenied;
+
+  /// True when re-prompting in-app is pointless and the jeeber must be sent to
+  /// the OS settings page — either a permanent denial, or the Android 11+
+  /// "Allow all the time" upgrade, which the platform only exposes there.
+  bool get needsSystemSettings =>
+      permission == LocationPermission.deniedForever ||
+      permission == LocationPermission.whileInUse;
+
   BackgroundGpsState copyWith({
     BackgroundGpsPhase? phase,
+    LocationPermission? permission,
     Object? deliveryId = _sentinel,
     Object? lastUploaded = _sentinel,
     Object? lastUploadAt = _sentinel,
@@ -94,6 +122,7 @@ class BackgroundGpsState extends Equatable {
   }) {
     return BackgroundGpsState(
       phase: phase ?? this.phase,
+      permission: permission ?? this.permission,
       deliveryId: identical(deliveryId, _sentinel)
           ? this.deliveryId
           : deliveryId as String?,
@@ -116,6 +145,7 @@ class BackgroundGpsState extends Equatable {
   @override
   List<Object?> get props => [
         phase,
+        permission,
         deliveryId,
         lastUploaded,
         lastUploadAt,

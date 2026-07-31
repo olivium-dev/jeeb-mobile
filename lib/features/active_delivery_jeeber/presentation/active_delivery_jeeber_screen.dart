@@ -12,6 +12,7 @@ import '../domain/active_delivery_repository.dart';
 import '../domain/jeeber_delivery.dart';
 import '../domain/jeeber_delivery_status.dart';
 import 'widgets/delivery_status_stepper.dart';
+import 'widgets/gps_permission_banner.dart';
 import 'widgets/mark_delivered_panel.dart';
 
 /// Minimum width needed to keep the two quick actions on one row without
@@ -265,6 +266,12 @@ class _Body extends StatelessWidget {
               context.read<ActiveDeliveryCubit>().submitDoorOtp(code),
           onOpenChat: onOpenChat,
           onOpenMaps: () => _launchMaps(delivery),
+          // P0 (live tracking): the two recovery affordances behind the
+          // background-location banner.
+          onOpenGpsSettings: () =>
+              context.read<ActiveDeliveryCubit>().openGpsSettings(),
+          onRetryGpsPermission: () =>
+              context.read<ActiveDeliveryCubit>().retryGpsPermission(),
           onEnterGoodsCost: onEnterGoodsCost,
           l10n: l10n,
         );
@@ -294,6 +301,8 @@ class _ReadyContent extends StatelessWidget {
     required this.onSubmitOtp,
     required this.onOpenChat,
     required this.onOpenMaps,
+    required this.onOpenGpsSettings,
+    required this.onRetryGpsPermission,
     required this.l10n,
     this.onEnterGoodsCost,
   });
@@ -307,6 +316,13 @@ class _ReadyContent extends StatelessWidget {
   final ValueChanged<String> onSubmitOtp;
   final VoidCallback onOpenChat;
   final VoidCallback onOpenMaps;
+
+  /// [GpsPermissionBanner] CTA — opens the app's OS settings page.
+  final VoidCallback onOpenGpsSettings;
+
+  /// [GpsPermissionBanner] CTA — re-runs the in-app permission escalation.
+  final VoidCallback onRetryGpsPermission;
+
   final VoidCallback? onEnterGoodsCost;
   final AppLocalizations l10n;
 
@@ -336,6 +352,19 @@ class _ReadyContent extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(Spacing.medium),
       children: [
+        // P0 (live tracking): FIRST item, above everything, whenever the GPS
+        // uploader is parked on a missing background-location grant. While this
+        // is visible the customer's tracking map is empty and only the jeeber
+        // can fix it — the previous behaviour was to show nothing at all and
+        // let the delivery run blind. Not dismissible, by design.
+        if (state.isGpsBlocked) ...[
+          GpsPermissionBanner(
+            needsSystemSettings: state.gpsNeedsSystemSettings,
+            onOpenSettings: onOpenGpsSettings,
+            onRetry: onRetryGpsPermission,
+          ),
+          const SizedBox(height: Spacing.large),
+        ],
         if (isCompleted) ...[
           _CompletedPanel(l10n: l10n),
           const SizedBox(height: Spacing.large),
@@ -708,7 +737,17 @@ class _ResumeRefreshState extends State<_ResumeRefresh>
   /// whatever schedules the next one. On a quiescent screen (this one, once the
   /// poll was deleted) that is nothing at all.
   @override
-  void onAppResumed() => context.read<ActiveDeliveryCubit>().refresh();
+  void onAppResumed() {
+    final cubit = context.read<ActiveDeliveryCubit>();
+    cubit.refresh();
+    // P0 (live tracking): re-read the location permission on resume. The ONLY
+    // way to reach "Allow all the time" on Android 11+ is the OS settings page,
+    // which necessarily backgrounds the app — so without this the jeeber grants
+    // the permission, returns, and the banner is still there and the uploader
+    // is still parked, because nothing re-asked. Guarded on the parked phase so
+    // an ordinary resume never re-prompts a healthy delivery.
+    if (cubit.state.isGpsBlocked) cubit.retryGpsPermission();
+  }
 
   @override
   Widget build(BuildContext context) => widget.child;

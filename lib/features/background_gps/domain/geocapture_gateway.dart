@@ -18,10 +18,37 @@ abstract class GeocaptureGateway {
   /// and re-read after every prompt.
   Future<LocationPermission> currentPermission();
 
-  /// Triggers the system prompt. Returns whatever permission the user
-  /// granted (potentially still [LocationPermission.denied] if they
-  /// dismissed it).
+  /// STEP 1 of the Android 10+ (API 29+) incremental escalation: ask for the
+  /// FOREGROUND ("while in use") location permission only.
+  ///
+  /// This step exists because the platform forbids the shortcut. From Android
+  /// 11 (API 30) on, an app that requests a foreground location permission and
+  /// `ACCESS_BACKGROUND_LOCATION` in the SAME call has the whole request
+  /// ignored and is granted neither. So background access can only ever be
+  /// reached in two separate prompts, in this order.
+  ///
+  /// Returns whatever the user granted — [LocationPermission.denied] if they
+  /// dismissed it, [LocationPermission.deniedForever] if the OS will not prompt
+  /// again.
+  Future<LocationPermission> requestWhileInUsePermission();
+
+  /// STEP 2: escalate an existing [LocationPermission.whileInUse] grant to
+  /// background ("Allow all the time") access.
+  ///
+  /// MUST be called only after the foreground permission is held — see
+  /// [requestWhileInUsePermission]. On Android 11+ this does not raise a plain
+  /// dialog: the platform routes the user to the app's location settings page
+  /// where they choose "Allow all the time". The caller therefore MUST NOT
+  /// assume the returned value is [LocationPermission.always]; a
+  /// [LocationPermission.whileInUse] result means "the user has not upgraded
+  /// (yet)", not "an error occurred".
   Future<LocationPermission> requestAlwaysPermission();
+
+  /// Opens this app's OS settings page so the user can grant background
+  /// location after a permanent denial, or complete the Android 11+ "Allow all
+  /// the time" upgrade by hand. Returns `false` when the page could not be
+  /// opened. The caller re-reads [currentPermission] when the app resumes.
+  Future<bool> openAppSettings();
 
   /// Broadcast stream of fixes. The gateway is responsible for asking the
   /// plugin for the right desired accuracy + distance filter; the cubit

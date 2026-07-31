@@ -6,18 +6,29 @@ import '../domain/location_permission.dart';
 
 /// Test double for [GeocaptureGateway].
 ///
-/// `permissionScript` is consumed left-to-right per
-/// `currentPermission()` / `requestAlwaysPermission()` call — once
+/// `permissionScript` is consumed left-to-right per `currentPermission()` /
+/// `requestWhileInUsePermission()` / `requestAlwaysPermission()` call — once
 /// exhausted, the last value sticks. `emit` pushes a sample through the
 /// broadcast stream so the cubit's listener fires synchronously.
+///
+/// The two request methods are counted SEPARATELY ([whileInUseRequestCount],
+/// [alwaysRequestCount]) so a test can assert the Android 10+ incremental
+/// order — foreground first, background second — and not merely that "a
+/// prompt happened". [requestCount] is their sum, kept for the older
+/// assertions.
 class FakeGeocaptureGateway implements GeocaptureGateway {
   FakeGeocaptureGateway({
     List<LocationPermission>? permissionScript,
     LocationPermission initialPermission = LocationPermission.always,
+    this.settingsOpenResult = true,
   })  : _permissionScript = List<LocationPermission>.from(
           permissionScript ?? <LocationPermission>[],
         ),
         _lastPermission = initialPermission;
+
+  /// What [openAppSettings] reports back — `false` models a device where the
+  /// settings intent could not be resolved.
+  final bool settingsOpenResult;
 
   final List<LocationPermission> _permissionScript;
   LocationPermission _lastPermission;
@@ -25,20 +36,50 @@ class FakeGeocaptureGateway implements GeocaptureGateway {
       StreamController<GpsSample>.broadcast();
   bool stopped = false;
 
-  /// Number of times the cubit asked for the system permission prompt.
-  int requestCount = 0;
+  /// Ordered log of the permission calls the cubit made, by port method name
+  /// (`current`, `whileInUse`, `always`). Lets a test assert the SEQUENCE, not
+  /// just the counts — the sequence is the whole point of the incremental flow.
+  final List<String> permissionCalls = <String>[];
+
+  /// Number of times the cubit asked for the FOREGROUND prompt (step 1).
+  int whileInUseRequestCount = 0;
+
+  /// Number of times the cubit asked for the BACKGROUND escalation (step 2).
+  int alwaysRequestCount = 0;
+
+  /// Number of times [openAppSettings] was called.
+  int openAppSettingsCount = 0;
+
+  /// Total prompts raised, either kind.
+  int get requestCount => whileInUseRequestCount + alwaysRequestCount;
 
   @override
   Future<LocationPermission> currentPermission() async {
-    if (_permissionScript.isEmpty) return _lastPermission;
-    final next = _permissionScript.removeAt(0);
-    _lastPermission = next;
-    return next;
+    permissionCalls.add('current');
+    return _next();
+  }
+
+  @override
+  Future<LocationPermission> requestWhileInUsePermission() async {
+    permissionCalls.add('whileInUse');
+    whileInUseRequestCount += 1;
+    return _next();
   }
 
   @override
   Future<LocationPermission> requestAlwaysPermission() async {
-    requestCount += 1;
+    permissionCalls.add('always');
+    alwaysRequestCount += 1;
+    return _next();
+  }
+
+  @override
+  Future<bool> openAppSettings() async {
+    openAppSettingsCount += 1;
+    return settingsOpenResult;
+  }
+
+  LocationPermission _next() {
     if (_permissionScript.isEmpty) return _lastPermission;
     final next = _permissionScript.removeAt(0);
     _lastPermission = next;
