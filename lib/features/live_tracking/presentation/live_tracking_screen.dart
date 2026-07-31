@@ -366,8 +366,28 @@ class _TrackingBody extends StatelessWidget {
           else ...[
             // G4: as soon as the code is known (accept time) it is
             // discoverable — a quiet one-line row, not a hero banner.
-            if (handoverCode != null)
-              _HandoverCodeRow(code: handoverCode!, deliveryId: deliveryId),
+            //
+            // P0 (2026-07-31, ship-p0 g5): this row used to be gated on
+            // `handoverCode != null`, and [OtpAtDoorCard] — the ONLY other
+            // route from this screen to `/orders/{id}/otp` — is gated on
+            // `isAtDoor`. Both gates failed at once on real hardware, so the
+            // customer had NO path to the code and the delivery dead-ended:
+            //  * the code was null because the accept parser dropped it
+            //    (fixed in `acceptResponseDeliveryId`), and
+            //  * `isAtDoor` was false because the status axis is push-only
+            //    since #185/N7 and the AtDoor push did not land on that
+            //    device (gateway journal 21:48:52 CEST: "accepted by push
+            //    service for recipient d1000000-…0001 … fcmAccepted=3/24
+            //    deviceRows fcmRejected=21"). The a33 capture shows ZERO
+            //    `/v1/deliveries/{id}` reads between 19:46:55 and 19:49:58
+            //    across the 19:48:47 AtDoor transition.
+            // The row is therefore UNCONDITIONAL now. A best-effort push and
+            // a best-effort local cache must not, between them, be able to
+            // hide the one thing the hand-over cannot happen without: when
+            // the code is not cached the row still opens the OTP screen,
+            // which fetches it (that fallback is proven — dev-e2e
+            // `a33/G4-11-show-otp.png`, code 2144).
+            _HandoverCodeRow(code: handoverCode, deliveryId: deliveryId),
             _TrackingPanelSection(info: info),
           ],
           // JM-032 AC3/AC4: dispute + no-show CTAs.
@@ -454,16 +474,23 @@ class _TrackingActionBar extends StatelessWidget {
 /// the at-door moment (where [OtpAtDoorCard] takes over prominently). One
 /// quiet line — label + code + hint — tappable through to the full-screen
 /// display. OMDS tokens only.
+///
+/// P0 (2026-07-31): [code] is now NULLABLE and the row renders either way. It
+/// is this screen's only unconditional route to `/orders/{id}/otp`, and the
+/// hand-over cannot happen without it, so it must not be hidden by a cache
+/// miss. With no cached code the trailing slot becomes the "Show OTP" CTA and
+/// the OTP screen fetches the code from the gateway.
 class _HandoverCodeRow extends StatelessWidget {
   const _HandoverCodeRow({required this.code, required this.deliveryId});
 
-  final String code;
+  final String? code;
   final String deliveryId;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final knownCode = code;
     return Padding(
       padding: const EdgeInsetsDirectional.fromSTEB(
         Spacing.medium,
@@ -475,7 +502,9 @@ class _HandoverCodeRow extends StatelessWidget {
         identifier: 'tracking_handover_code_row',
         button: true,
         label: l10n.trackingCodeChipLabel,
-        value: code.split('').join(' '),
+        value: knownCode == null
+            ? l10n.trackingAtDoorCta
+            : knownCode.split('').join(' '),
         child: Material(
           color: theme.colorScheme.surfaceContainerHighest,
           borderRadius: OmdsBorderRadius.medium,
@@ -516,12 +545,17 @@ class _HandoverCodeRow extends StatelessWidget {
                   ),
                   const SizedBox(width: Spacing.small),
                   Text(
-                    code,
+                    knownCode ?? l10n.trackingAtDoorCta,
                     key: const Key('tracking.codeRowValue'),
-                    style: theme.textTheme.titleLarge?.copyWith(
+                    style: (knownCode == null
+                            ? theme.textTheme.titleSmall
+                            : theme.textTheme.titleLarge)
+                        ?.copyWith(
                       fontWeight: FontWeight.bold,
-                      letterSpacing: Spacing.xSmall,
-                      color: theme.colorScheme.onSurface,
+                      letterSpacing: knownCode == null ? null : Spacing.xSmall,
+                      color: knownCode == null
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurface,
                     ),
                   ),
                 ],

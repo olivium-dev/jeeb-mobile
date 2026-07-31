@@ -76,6 +76,40 @@ class OfferAcceptResult {
   static const OfferAcceptResult empty = OfferAcceptResult();
 }
 
+/// The delivery id carried by an offer-accept response body, or null.
+///
+/// P0 (2026-07-31, ship-p0 run g5): both accept parsers read ONLY `deliveryId`
+/// / `delivery_id`. The live gateway answers
+/// `POST /v1/offers/{offerId}/accept` with a `DeliveryRequestDto`, whose id
+/// field is plain **`id`** — `JeebOffersController.ToRequestDto` sets
+/// `Id = r.Id` and `RequestsDtos.cs` has no `deliveryId` member at all. So on
+/// every real device the parsed delivery id was null, `_persistHandoverCode`
+/// short-circuited, and the `handoverCode` the SAME body carried was thrown
+/// away. Recorder proof (a33 capture, `19:31:08.436Z`, delivery
+/// `0f0e20d8-…`): the response body ends `…,"handoverCode":"4995"}` and
+/// contains no `deliveryId` key. The customer then had no code to show at the
+/// door and the delivery could not be completed.
+///
+/// Order matters and is deliberate:
+///  1. `deliveryId` / `delivery_id` — the `:4010` mock's envelope
+///     (`{ offer, deliveryId, handoverCode, conversationId, … }`), kept FIRST
+///     so mock behaviour is byte-identical.
+///  2. `id` — the live gateway's `DeliveryRequestDto`. Read ONLY when the body
+///     is actually a delivery projection, which the presence of the always-
+///     serialized `clientId` / `client_id` member proves. Without that guard a
+///     future envelope whose top-level `id` is the OFFER id would be mistaken
+///     for a delivery id, which is worse than the bug being fixed.
+String? acceptResponseDeliveryId(Map<dynamic, dynamic> body) {
+  String? clean(Object? raw) =>
+      raw is String && raw.trim().isNotEmpty ? raw.trim() : null;
+
+  final explicit = clean(body['deliveryId']) ?? clean(body['delivery_id']);
+  if (explicit != null) return explicit;
+  final isDeliveryProjection =
+      body.containsKey('clientId') || body.containsKey('client_id');
+  return isDeliveryProjection ? clean(body['id']) : null;
+}
+
 /// Snapshot of the open offer set for a single request.
 ///
 /// [windowExpiresAt] is a server-stamped display deadline when the gateway

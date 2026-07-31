@@ -165,6 +165,105 @@ void main() {
     });
   });
 
+  // P0 (2026-07-31, ship-p0 run g5): every test above scripts a body carrying
+  // `deliveryId` / `delivery_id`. The LIVE gateway never sends either. It
+  // answers POST /v1/offers/{offerId}/accept with a DeliveryRequestDto whose
+  // id member is plain `id` (JeebOffersController.ToRequestDto → `Id = r.Id`;
+  // RequestsDtos.cs has no deliveryId member at all), so on every real device
+  // the parsed delivery id was null and the handoverCode in the SAME body was
+  // discarded. The suite passed throughout, because it only ever fed the shape
+  // the parser already handled. These bodies are copied from the recorder
+  // capture (a33.db, 2026-07-31T19:31:08.436Z, delivery 0f0e20d8-…).
+  group('accept — the LIVE gateway body shape (P0 regression)', () {
+    // Trimmed to the fields that matter; key set and casing are verbatim.
+    Map<String, dynamic> liveAcceptBody() => <String, dynamic>{
+          'id': '0f0e20d8-a949-4aa3-95ec-34e4e7f27069',
+          'clientId': 'd1000000-0000-4000-8000-000000000001',
+          'status': 'accepted',
+          'description': 'SHIP-P0-2118',
+          'jeeberId': 'd1000000-0000-4000-8000-000000000002',
+          'conversationId': '45f92f5d-abab-42da-b78b-8e00aa945e98',
+          'handoverCode': '4995',
+        };
+
+    test('offers accept: `id` IS the delivery id, and the code is persisted',
+        () async {
+      final store = _MemoryStore();
+      final dio = _RecordingDio()..nextPostData = liveAcceptBody();
+      final repo = DioOffersRepository(dio, handoverCodeStore: store);
+
+      final result =
+          await repo.acceptOffer(requestId: 'req-1', offerId: 'off-1');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(result.deliveryId, '0f0e20d8-a949-4aa3-95ec-34e4e7f27069',
+          reason: 'the gateway names it `id`, not `deliveryId`');
+      expect(result.handoverCode, '4995');
+      expect(store.rows['0f0e20d8-a949-4aa3-95ec-34e4e7f27069'], '4995',
+          reason: 'the pre-fix parser short-circuited on a null delivery id '
+              'and threw away the one code the customer is ever given');
+    });
+
+    test('chat accept: same body, same outcome', () async {
+      final store = _MemoryStore();
+      final dio = _RecordingDio()..nextPostData = liveAcceptBody();
+      final gateway = DioChatGateway(
+        dio: dio,
+        currentUserId: 'user-1',
+        handoverCodeStore: store,
+      );
+
+      final result = await gateway.acceptOffer('conv-1', 'off-9');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(result.deliveryId, '0f0e20d8-a949-4aa3-95ec-34e4e7f27069');
+      expect(store.rows['0f0e20d8-a949-4aa3-95ec-34e4e7f27069'], '4995');
+      await gateway.dispose();
+    });
+
+    test('an envelope WITHOUT clientId never yields `id` as the delivery id',
+        () async {
+      // The `:4010` mock returns `{ offer, handoverCode, conversationId, … }`.
+      // A top-level `id` on such an envelope would be the OFFER id; reading it
+      // as a delivery id would key the code to the wrong row — worse than the
+      // bug being fixed. The clientId guard is what forbids it.
+      final store = _MemoryStore();
+      final dio = _RecordingDio()
+        ..nextPostData = {
+          'id': 'off-1',
+          'conversationPhase': 'accepted',
+          'handoverCode': '1111',
+        };
+      final repo = DioOffersRepository(dio, handoverCodeStore: store);
+
+      final result =
+          await repo.acceptOffer(requestId: 'req-1', offerId: 'off-1');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(result.deliveryId, isNull);
+      expect(store.rows, isEmpty);
+    });
+
+    test('explicit deliveryId still WINS over id (mock unchanged)', () async {
+      final store = _MemoryStore();
+      final dio = _RecordingDio()
+        ..nextPostData = {
+          'id': 'off-1',
+          'clientId': 'client-1',
+          'deliveryId': 'DLV-77',
+          'handoverCode': '2222',
+        };
+      final repo = DioOffersRepository(dio, handoverCodeStore: store);
+
+      final result =
+          await repo.acceptOffer(requestId: 'req-1', offerId: 'off-1');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(result.deliveryId, 'DLV-77');
+      expect(store.rows['DLV-77'], '2222');
+    });
+  });
+
   group('diag redaction — the code never reaches a diag line (G4)', () {
     tearDown(Diag.resetForTest);
 

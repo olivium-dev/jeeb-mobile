@@ -112,7 +112,7 @@ class DioOffersRepository implements OffersRepository {
   /// delivery id is absent.
   OfferAcceptResult _parseAcceptResult(dynamic data) {
     if (data is! Map) return OfferAcceptResult.empty;
-    final deliveryId = _cleanString(data['deliveryId'] ?? data['delivery_id']);
+    final deliveryId = acceptResponseDeliveryId(data);
     final conversationId =
         _cleanString(data['conversationId'] ?? data['conversation_id']);
     // G4 (sprint-009 P0): RETAIN the handover code. The accept response is the
