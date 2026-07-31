@@ -1358,8 +1358,17 @@ class AppRouter {
                 deliveryId: deliveryId,
                 // b02 wave C / N7: the 5s LifecyclePoller is gone. The STATUS
                 // axis is driven by a `type=delivery` push through the ONE
-                // existing resolver; the POSITION axis is the gateway's SSE
-                // stream, feature-detected on the repository.
+                // existing resolver.
+                //
+                // MB1 W1.1 — corrected, historical claim retained: this used to
+                // read "the POSITION axis is the gateway's server-sent-events
+                // stream, feature-detected on the repository." That stream's
+                // route no longer exists on the gateway, and mobile's consumer
+                // went with it. The position axis is now a one-shot snapshot
+                // read taken on the SAME events as the status axis — screen
+                // open, this push bus, resume and retry. It is still
+                // feature-detected on the repository, and it still adds no
+                // cadence of its own.
                 //
                 // b02 wave D — `{order}`. Status is the ONLY axis this bus
                 // feeds; position never came from here. The customer commonly

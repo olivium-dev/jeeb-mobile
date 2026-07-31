@@ -72,9 +72,16 @@ class LiveTrackingScreen extends StatelessWidget {
           centerTitle: true,
         ),
         // JEBV4-282: force an immediate re-fetch when the app returns to the
-        // foreground (the 5s poll timer is suspended while backgrounded), so the
-        // customer's status stepper reflects a transition that happened off-screen
-        // instead of staying stale.
+        // foreground, so the customer's status stepper reflects a transition
+        // that happened off-screen instead of staying stale.
+        //
+        // MB1 W1.1 — corrected, historical claim retained: this used to justify
+        // itself with "(the 5s poll timer is suspended while backgrounded)".
+        // There is no poll timer on either axis any more, which makes this hook
+        // MORE load-bearing rather than less: resume is now one of only four
+        // things that can move the screen at all (open / push / resume /
+        // retry), and it is the backstop for a push the OS dropped or coalesced
+        // while backgrounded.
         body: _ResumeRefresh(
           child: BlocConsumer<LiveTrackingCubit, LiveTrackingState>(
             listenWhen: _hasNewEvent,
