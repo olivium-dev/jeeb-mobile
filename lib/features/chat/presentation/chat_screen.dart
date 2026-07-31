@@ -110,9 +110,18 @@ class ChatFeeNotice {
 /// delivery (T-mobile-016 / JEEB-69).
 ///
 /// The screen owns a [ChatCubit], wires it to a [ChatGateway] (the MVP
-/// in-memory implementation by default) and a [PhotoPickerService] (the
-/// stub picker until image_picker lands in a later mobile task), and
+/// in-memory implementation by default) and a [PhotoPickerService], and
 /// auto-scrolls to the latest message whenever the cubit emits.
+///
+/// MB1 W4.1 — the picker sentence used to read *"the stub picker until
+/// image_picker lands in a later mobile task"*. That has been false since
+/// JEBV4-111: the DI graph registers the REAL `ImagePickerPhotoPickerService`
+/// (`injection_container.dart:471-472`), [_resolvePicker] reads DI FIRST, and
+/// `ChatCubit.sendPhotoFromGallery` (`chat_cubit.dart:772`) drives it. The
+/// stub is the fallback for tests and unregistered graphs only. Left standing,
+/// the comment reads as an open TODO for work that is already shipped — which
+/// is how MB1 came to carry a 20-minute "gallery pick" item for a feature that
+/// needed no code at all.
 class ChatScreen extends StatelessWidget {
   const ChatScreen({
     super.key,
