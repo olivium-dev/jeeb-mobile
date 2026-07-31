@@ -3,10 +3,69 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/diagnostics/diag.dart';
 import '../../otp_handover/domain/handover_code_store.dart';
 import '../domain/delivery_tracking_info.dart';
 import '../domain/live_tracking_repository.dart';
 import 'live_tracking_state.dart';
+
+/// Diag event name emitted ONCE per tracking-screen entry (one cubit = one
+/// entry — the route builder constructs it in `create:`).
+///
+/// It exists so a device capture can state its own DENOMINATOR. "N positions in
+/// one dwell" is only a measurement if the number of dwells is known; three
+/// positions spread across three screen entries prove nothing about a marker
+/// that moves, they prove the screen reads on open, which is trivially true.
+///
+/// MB1 V-2 counts exactly one of these per `deliveryId` under test and reads
+/// every [kTrackingPositionEvent] against it.
+const String kTrackingScreenOpenEvent = 'tracking_screen_open';
+
+/// Diag event name emitted for EVERY attempted courier-position read — whether
+/// or not it produced a fix, and whether or not the fix landed.
+///
+/// Payload: `deliveryId`, `cause` ([LivePositionReadCause.wire]), `applied`
+/// (did the overlay actually merge onto the snapshot), `lat` / `lng` (null when
+/// the gateway holds no fix), `polyline` (point count), `stale`, and `error`
+/// (present ONLY when the read threw).
+///
+/// The empty and null reads are deliberately still recorded. A frozen marker
+/// with nothing in the journal is indistinguishable from a marker nobody looked
+/// at, and that exact ambiguity already cost this programme two device rounds:
+/// a capture in which every `GET …/tracking` answered `"position":null` was
+/// read as "the wire is broken" when it in fact measured the jeeber's GPS
+/// uploader and the gateway's 5-minute TTL.
+///
+/// None of these keys is in `kSensitiveDataKeys`, so `DiagRedaction.scrubMap`
+/// passes the coordinates through verbatim — checked, because a redacted `lat`
+/// would make MB1's MARKER leg unmeasurable.
+const String kTrackingPositionEvent = 'tracking_position';
+
+/// What caused a courier-position read.
+///
+/// This enum IS the exhaustive list of position triggers, and the point of it
+/// is that **none of them is a clock**. If a fifth arm ever appears here, the
+/// reviewer's first question should be whether it is a cadence in disguise.
+enum LivePositionReadCause {
+  /// The customer opened the tracking screen (cubit construction).
+  screenOpen('open'),
+
+  /// A `type=delivery` push arrived on [LiveTrackingCubit]'s refresh bus.
+  push('push'),
+
+  /// The app returned to the foreground — `refreshNow`, the resume backstop.
+  resume('resume'),
+
+  /// The customer tapped retry on the error state.
+  retry('retry');
+
+  const LivePositionReadCause(this.wire);
+
+  /// The literal written to the `cause` field of [kTrackingPositionEvent].
+  /// Short on purpose: it is read out of a logcat capture by eye as often as
+  /// by parser.
+  final String wire;
+}
 
 /// b02 wave C — N7. This cubit used to run ONE 5s poll serving TWO data needs.
 /// Splitting them is the whole change, because they are not the same shape and
@@ -75,7 +134,12 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
         _refreshSignals = refreshSignals,
         _handoverCodeStore = handoverCodeStore,
         super(const LiveTrackingState()) {
-    _fetchAndSchedule();
+    // MB1 W1.1b: the denominator, emitted BEFORE the first read so it can never
+    // be ordered after the position record it is supposed to bound.
+    Diag.event(kTrackingScreenOpenEvent, <String, Object?>{
+      'deliveryId': deliveryId,
+    });
+    _fetchAndSchedule(LivePositionReadCause.screenOpen);
   }
 
   final LiveTrackingRepository _repository;
@@ -128,8 +192,8 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
       (state.trackingInfo?.isPollTerminal ?? false) ||
       (state.trackingInfo?.isDelivered ?? false);
 
-  Future<void> _fetchAndSchedule() async {
-    await Future.wait([_hydrateHandoverCode(), _fetch()]);
+  Future<void> _fetchAndSchedule(LivePositionReadCause cause) async {
+    await Future.wait([_hydrateHandoverCode(), _fetch(cause)]);
     _armWatchers();
   }
 
@@ -139,7 +203,7 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     if (isClosed || _isTerminal || _statusReadInFlight) return;
     _statusReadInFlight = true;
     try {
-      await _fetch();
+      await _fetch(LivePositionReadCause.push);
     } finally {
       _statusReadInFlight = false;
     }
@@ -161,7 +225,7 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     }
   }
 
-  Future<void> _fetch() async {
+  Future<void> _fetch(LivePositionReadCause cause) async {
     try {
       final info =
           await _repository.fetchDeliveryStatus(deliveryId: deliveryId);
@@ -187,7 +251,7 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
       // the overlay lands on a stale snapshot (or, on first mount, on `null`
       // and is dropped entirely — which is exactly how the marker stayed
       // missing on the very first read).
-      if (!isClosed && !_isTerminal) await _readLivePosition();
+      if (!isClosed && !_isTerminal) await _readLivePosition(cause);
     } on LiveTrackingException catch (e) {
       if (!isClosed) {
         if (state.trackingInfo == null) {
@@ -212,17 +276,57 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   /// every transport failure into `null`, and this adds nothing that can throw.
   /// A dead position read must never fault a screen whose stepper and summary
   /// are fine.
-  Future<void> _readLivePosition() async {
+  ///
+  /// MB1 W1.1b — the instrument. Exactly one [kTrackingPositionEvent] is emitted
+  /// per ATTEMPT that reached the gateway client, including the attempts that
+  /// come back `null` or empty. Emitting only the successes would reproduce the
+  /// defect the old `debugPositionStreamWired` had: a silent feed and a healthy
+  /// feed look identical from the capture.
+  ///
+  /// The `is! LivePositionSource` early return emits nothing on purpose — no
+  /// read was attempted there, and a record claiming otherwise would put phantom
+  /// rows in the denominator for every devtool seam and demo repo.
+  Future<void> _readLivePosition(LivePositionReadCause cause) async {
     final repo = _repository;
     // Explicit cast, not promotion: `LivePositionSource` is not a subtype of
     // `LiveTrackingRepository` (that is the whole point of keeping it a separate
     // optional capability), so Dart cannot promote across the two.
     if (repo is! LivePositionSource) return;
     final source = repo as LivePositionSource;
-    final overlay = await source.fetchLivePosition(deliveryId: deliveryId);
-    if (overlay == null || isClosed) return;
-    _positionReadCount++;
-    _applyLivePosition(overlay);
+    DeliveryLivePosition? overlay;
+    String? failure;
+    try {
+      overlay = await source.fetchLivePosition(deliveryId: deliveryId);
+    } catch (e) {
+      // `fetchLivePosition` is DOCUMENTED total and the shipped implementation
+      // is. A different one — a devtool double, a seam fake, a future client —
+      // is not bound by that doc comment, and an error escaping here would ride
+      // out through the unawaited `_fetchAndSchedule` as an unhandled zone
+      // error, killing the breadcrumb on the way out. Record it and keep
+      // showing the last known marker: a swallowed error that is NAMED in the
+      // capture is strictly more observable than a crash that is not.
+      failure = e.runtimeType.toString();
+    }
+    if (isClosed) return;
+    // Unchanged semantics, deliberately: this counts ARRIVALS (a body came
+    // back), not merges and not attempts. `live_tracking_lifecycle_test.dart`
+    // and `tracking_live_position_overlay_test.dart` both pin it, and the diag
+    // record below is what carries the attempt/merge distinction now.
+    if (overlay != null) _positionReadCount++;
+    final applied = _applyLivePosition(overlay);
+    Diag.event(kTrackingPositionEvent, <String, Object?>{
+      'deliveryId': deliveryId,
+      'cause': cause.wire,
+      'applied': applied,
+      'lat': overlay?.jeeberPosition?.lat,
+      'lng': overlay?.jeeberPosition?.lng,
+      'polyline': overlay?.polyline.length ?? 0,
+      'stale': overlay?.stale,
+      // Null-aware ELEMENT: the key is absent entirely on the happy path, so a
+      // capture parser can treat the mere PRESENCE of `error` as the signal
+      // rather than having to distinguish null from absent.
+      'error': ?failure,
+    });
   }
 
   /// JEBV4-269: merge one position snapshot onto the current row so the map
@@ -240,10 +344,16 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   ///    the marker while the screen retains the age to explain itself. Dropping
   ///    it would leave the phantom on screen forever, which is the failure the
   ///    negative control exists to catch.
-  void _applyLivePosition(DeliveryLivePosition overlay) {
-    if (isClosed || overlay.isEmpty) return;
+  ///
+  /// Returns whether the overlay actually LANDED on the snapshot — the `applied`
+  /// field of [kTrackingPositionEvent]. MB1's MARKER leg counts distinct
+  /// `(lat,lng)` pairs among the `applied:true` records only, because a merge
+  /// that was dropped (empty overlay, or no row to merge onto yet) never reached
+  /// the map and must not be counted as a marker that moved.
+  bool _applyLivePosition(DeliveryLivePosition? overlay) {
+    if (overlay == null || isClosed || overlay.isEmpty) return false;
     final current = state.trackingInfo;
-    if (current == null) return;
+    if (current == null) return false;
     emit(state.copyWith(
       trackingInfo: current.withLivePosition(
         jeeberPosition: overlay.jeeberPosition,
@@ -252,6 +362,7 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
         secondsSinceUpdate: overlay.secondsSinceUpdate,
       ),
     ));
+    return true;
   }
 
   /// T-MOB-017 AC3/AC4 + JM-032 AC2: detect stage transitions and emit one-shot
@@ -307,7 +418,7 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
 
   void retry() {
     emit(state.copyWith(mode: LiveTrackingViewMode.loading, clearError: true));
-    _fetchAndSchedule();
+    _fetchAndSchedule(LivePositionReadCause.retry);
   }
 
   /// JEBV4-282: force an immediate re-fetch + re-arm the watchers. The screen
@@ -338,7 +449,7 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     if (_statusReadInFlight) return;
     _statusReadInFlight = true;
     try {
-      await _fetch();
+      await _fetch(LivePositionReadCause.resume);
     } finally {
       _statusReadInFlight = false;
     }
