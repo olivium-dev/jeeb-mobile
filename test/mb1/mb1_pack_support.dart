@@ -227,3 +227,29 @@ String readSource(String path) {
   }
   return f.readAsStringSync();
 }
+
+/// [readSource] with every `//` line comment and `/* … */` block removed.
+///
+/// **Why this exists, added by the MB1 two-model review.** The pack's
+/// anti-controls asserted `cubit.contains('fetchLivePosition')` to prove the
+/// replacement read is WIRED. It is not proof of anything: `fetchLivePosition`
+/// also appears twice in this very file's own doc comments, so deleting the
+/// single production call site at `live_tracking_cubit.dart` would leave the
+/// assertion green. That is the exact shape of self-fulfilling test this
+/// programme has already shipped once — a 473-test green that stayed green with
+/// the feature switched entirely off.
+///
+/// Naive by design: it does not understand strings containing `//`, and it does
+/// not need to. The assertions built on it match a CALL EXPRESSION
+/// (`.fetchLivePosition(`), which no comment in this repo contains, and each has
+/// a NEG control asserting the un-stripped source WOULD have passed.
+String stripDartComments(String source) {
+  final withoutBlocks = source.replaceAll(RegExp(r'/\*.*?\*/', dotAll: true), '');
+  return withoutBlocks
+      .split('\n')
+      .map((line) {
+        final idx = line.indexOf('//');
+        return idx < 0 ? line : line.substring(0, idx);
+      })
+      .join('\n');
+}

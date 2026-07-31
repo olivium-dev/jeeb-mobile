@@ -268,10 +268,19 @@ void main() {
       });
     });
 
-    test('two pushes inside one round trip produce ONE read, not two',
-        () async {
-      // Single-flight. Two coalesced pushes (or a duplicated resume
-      // notification) must not double the traffic the batch exists to remove.
+    test('two pushes inside one round trip COLLAPSE to one trailing read — '
+        'coalesced, never dropped, never concurrent', () async {
+      // Single-flight with a TRAILING EDGE. Two coalesced pushes (or a
+      // duplicated resume notification) must not double the traffic the batch
+      // exists to remove — but they must not vanish either, because there is no
+      // cadence behind them to repair a dropped edge.
+      //
+      // REWRITTEN by the MB1 two-model review, which found this test unable to
+      // fail. It used to `bus.add(null)` twice IMMEDIATELY after constructing
+      // the cubit — i.e. before `_armWatchers()` had run — and a broadcast
+      // stream drops events that have no listener. Both pushes went nowhere,
+      // the assertion was `lessThanOrEqualTo(2)` against an actual 1, and the
+      // whole push→position wire could have been deleted with this still green.
       final completer = Completer<void>();
       final repo = _SlowPositionRepo(gate: completer.future);
       final bus = StreamController<void>.broadcast();
@@ -283,17 +292,76 @@ void main() {
       );
       addTearDown(cubit.close);
 
+      // Let the screen-open path get as far as ARMING the subscription and
+      // BLOCKING on the gated position read. Without this the test measures
+      // nothing.
+      await pumpEventQueue();
+      expect(cubit.debugPushRefreshWired, isTrue,
+          reason: 'PRECONDITION: the push bus must be armed before the pushes '
+              'are sent, or a broadcast stream silently drops them and this '
+              'whole test reads a miss as a pass');
+      expect(repo.inFlight, 1,
+          reason: 'PRECONDITION: the screen-open read must still be in flight, '
+              'otherwise nothing is being coalesced');
+
       bus.add(null);
       bus.add(null);
       await pumpEventQueue();
+
+      expect(repo.positionReads, 1,
+          reason: 'the overlapping pushes must not start a second concurrent '
+              'read');
+
       completer.complete();
       await pumpEventQueue();
 
-      expect(repo.positionReads, lessThanOrEqualTo(2),
-          reason: 'screen-open + at most one push read; a per-push read with '
-              'no latch would be 3+');
+      expect(repo.positionReads, 2,
+          reason: 'exactly ONE trailing read for the whole burst: the two '
+              'pushes coalesce (not 3+, which is a per-push read with no '
+              'latch) and they are NOT dropped (not 1, which is the pre-review '
+              'behaviour — with no cadence, a dropped push edge leaves the '
+              'marker at the pre-push snapshot indefinitely)');
+      expect(cubit.debugLastPositionCause, LivePositionReadCause.push,
+          reason: 'the trailing read must be attributed to the push that '
+              'caused it — this is the `cause:"push"` row V-2 counts');
       expect(repo.concurrentPeak, 1,
           reason: 'never two tracking reads in flight at once');
+    });
+
+    test('the coalesced trailing read installs no cadence of its own',
+        () async {
+      // The trailing edge is the one place a re-arm could be smuggled back in.
+      // A completed read with an empty pending slot must schedule NOTHING.
+      fakeAsync((async) {
+        final repo = _CountingRepo(fixes: const [
+          GpsPoint(lat: 33.1, lng: 35.1),
+          GpsPoint(lat: 33.2, lng: 35.2),
+        ]);
+        final bus = StreamController<void>.broadcast();
+        final cubit = LiveTrackingCubit(
+          repository: repo,
+          deliveryId: _id,
+          refreshSignals: bus.stream,
+        );
+        async.flushMicrotasks();
+        bus.add(null);
+        async.flushMicrotasks();
+        final settled = repo.positionReads;
+        expect(settled, greaterThanOrEqualTo(2),
+            reason: 'POS CONTROL: the event really did produce a read');
+
+        async.elapse(const Duration(minutes: 30));
+        async.flushMicrotasks();
+        expect(repo.positionReads, settled,
+            reason: 'no timer, no re-arm, no trailing read that re-triggers '
+                'itself');
+        expect(async.periodicTimerCount, 0);
+        expect(async.pendingTimers, isEmpty);
+
+        cubit.close();
+        bus.close();
+        async.flushMicrotasks();
+      });
     });
   });
 
@@ -373,6 +441,155 @@ void main() {
       }
     });
   });
+
+  // ---------------------------------------------------------------------
+  // M1.e — added by the MB1 two-model review. `fetchLivePosition` documents
+  // itself as "deliberately total: ANY failure returns null", and the group
+  // above only ever tested HTTP STATUS failures, which arrive as
+  // `DioException`. The parser reaches the wire through unchecked casts, so a
+  // MALFORMED 200 BODY threw `TypeError` — neither a `DioException` nor a
+  // `FormatException`, therefore uncaught, therefore an unhandled zone error
+  // out of an unawaited call chain, with no breadcrumb emitted on the way.
+  // Every case below reds against the pre-review code.
+  // ---------------------------------------------------------------------
+  group('M1.e — a malformed 200 body is a null, not a throw', () {
+    Future<DeliveryLivePosition?> readBody(Object body) async {
+      final adapter = _BodyAdapter(jsonEncode(body));
+      final dio = Dio(BaseOptions(baseUrl: 'http://origin.test'))
+        ..httpClientAdapter = adapter;
+      final repo = DioLiveTrackingRepository(dio, originGateway: true);
+      final out = await repo.fetchLivePosition(deliveryId: _id);
+      expect(adapter.paths, hasLength(1),
+          reason: 'DENOMINATOR: the request was actually attempted — a null '
+              'from a request that never left is not a measurement');
+      return out;
+    }
+
+    test('a STRING latitude returns null instead of throwing TypeError',
+        () async {
+      expect(
+        await readBody(const {
+          'position': {'lat': '33.7', 'lng': 35.7},
+          'polyline': <dynamic>[],
+        }),
+        isNull,
+      );
+    });
+
+    test('a LIST-shaped position returns null instead of throwing TypeError',
+        () async {
+      expect(
+        await readBody(const {
+          'position': [33.7, 35.7],
+          'polyline': <dynamic>[],
+        }),
+        isNull,
+      );
+    });
+
+    test('a NUMERIC status returns null instead of throwing TypeError',
+        () async {
+      expect(
+        await readBody(const {
+          'status': 3,
+          'position': {'lat': 33.7, 'lng': 35.7},
+          'polyline': <dynamic>[],
+        }),
+        isNull,
+      );
+    });
+
+    test('POS CONTROL: the same adapter with a WELL-FORMED body still parses, '
+        'so the nulls above are the parser refusing, not the harness failing',
+        () async {
+      final pos = await readBody(const {
+        'position': {'lat': 33.7, 'lng': 35.7},
+        'polyline': <dynamic>[],
+      });
+      expect(pos?.jeeberPosition, const GpsPoint(lat: 33.7, lng: 35.7));
+    });
+
+    test('a source that THROWS still leaves the cubit alive, keeps the last '
+        'known marker, and is still counted as an attempt', () async {
+      final repo = _ThrowingPositionRepo();
+      final bus = StreamController<void>.broadcast();
+      addTearDown(bus.close);
+      final cubit = LiveTrackingCubit(
+        repository: repo,
+        deliveryId: _id,
+        refreshSignals: bus.stream,
+      );
+      addTearDown(cubit.close);
+      await pumpEventQueue();
+
+      expect(repo.positionReads, 1,
+          reason: 'DENOMINATOR: the throwing read was actually attempted');
+      expect(cubit.isClosed, isFalse,
+          reason: 'an implementation that violates the null contract must not '
+              'take the tracking screen down with it');
+      expect(cubit.state.mode, isNot(LiveTrackingViewMode.error),
+          reason: 'the STATUS axis succeeded; a position fault must not '
+              'present as a screen error');
+      expect(cubit.debugPositionReadCount, 1,
+          reason: 'a thrown read that is not counted is silence, and V-2 '
+              'counts these rows — silence and "no push arrived" would read '
+              'identically');
+      expect(cubit.debugLastPositionCause, LivePositionReadCause.screenOpen);
+    });
+  });
+}
+
+/// A `LivePositionSource` that violates the documented null contract by
+/// throwing. Not a straw man: the contract is a DOC COMMENT, and devtool
+/// doubles, seam fakes and future gateway clients are not bound by it.
+class _ThrowingPositionRepo
+    implements LiveTrackingRepository, LivePositionSource {
+  int positionReads = 0;
+
+  @override
+  Future<DeliveryTrackingInfo> fetchDeliveryStatus({
+    required String deliveryId,
+  }) async =>
+      DeliveryTrackingInfo(
+        deliveryId: deliveryId,
+        currentStage: TrackingStage.inTransit,
+        stageTimestamps: const {},
+      );
+
+  @override
+  Future<DeliveryLivePosition?> fetchLivePosition({
+    required String deliveryId,
+  }) async {
+    positionReads++;
+    throw StateError('a source that does not honour the null contract');
+  }
+}
+
+/// Serves one caller-supplied 200 body; opens no socket.
+class _BodyAdapter implements HttpClientAdapter {
+  _BodyAdapter(this.body);
+
+  final String body;
+  final List<String> paths = <String>[];
+
+  @override
+  void close({bool force = false}) {}
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    paths.add(options.path);
+    return ResponseBody.fromString(
+      body,
+      200,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
 }
 
 /// Serves a position only once its [gate] completes, and records the peak

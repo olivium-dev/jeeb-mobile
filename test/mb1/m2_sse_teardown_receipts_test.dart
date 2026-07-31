@@ -103,14 +103,34 @@ void main() {
     });
 
     test('the cubit still calls it, on named causes', () {
-      final cubit = readSource(
+      final raw = readSource(
         'lib/features/live_tracking/application/live_tracking_cubit.dart',
       );
-      expect(cubit.contains('fetchLivePosition'), isTrue,
+      final code = stripDartComments(raw);
+
+      // A CALL EXPRESSION, on comment-stripped source. `contains(
+      // 'fetchLivePosition')` on the raw file — which is what this assertion
+      // used to be — is satisfied by the method's own doc comments, so the
+      // production call site could be deleted with this test still green.
+      final calls = RegExp(r'\.fetchLivePosition\(').allMatches(code).length;
+      expect(calls, greaterThanOrEqualTo(1),
           reason: 'fetchLivePosition had ZERO non-test callers at the base. If '
               'this returns to zero the marker is frozen again.');
+
+      // NEG CONTROL for the stripper itself: prove the raw source WOULD have
+      // passed the weak form, so the strengthening above is load-bearing and
+      // not a no-op rewrite.
+      expect(raw.contains('fetchLivePosition'), isTrue);
+      final mentionsInComments =
+          RegExp('fetchLivePosition').allMatches(raw).length -
+              RegExp('fetchLivePosition').allMatches(code).length;
+      expect(mentionsInComments, greaterThan(0),
+          reason: 'the weak assertion was satisfiable by comments alone — that '
+              'is why it was replaced. If this ever reaches 0 the NEG control '
+              'has stopped discriminating and must be re-cut.');
+
       for (final cause in const ['screenOpen', 'push', 'resume', 'retry']) {
-        expect(cubit.contains('LivePositionReadCause.$cause'), isTrue,
+        expect(code.contains('LivePositionReadCause.$cause'), isTrue,
             reason: 'the read must still be caused by $cause');
       }
     });

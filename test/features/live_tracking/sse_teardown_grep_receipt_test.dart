@@ -159,9 +159,39 @@ void main() {
     final cubit = File(
       'lib/features/live_tracking/application/live_tracking_cubit.dart',
     ).readAsStringSync();
-    expect(cubit.contains('fetchLivePosition'), isTrue,
+
+    // Comment-stripped, and matched as a CALL EXPRESSION. This assertion used
+    // to be `cubit.contains('fetchLivePosition')` on the raw file, which the
+    // method's own doc comments satisfy — deleting the production call site
+    // would have left it green. Found by the MB1 two-model review.
+    final code = _stripComments(cubit);
+    final calls = RegExp(r'\.fetchLivePosition\(').allMatches(code).length;
+    expect(calls, greaterThanOrEqualTo(1),
         reason: 'fetchLivePosition had ZERO non-test callers at origin/main — '
             'the fix was already written and orphaned. If this ever goes back '
             'to zero the marker is frozen again.');
+
+    // NEG control for the stripper: the raw source must still contain the bare
+    // token in prose, or the strengthening above proves nothing.
+    final inComments = RegExp('fetchLivePosition').allMatches(cubit).length -
+        RegExp('fetchLivePosition').allMatches(code).length;
+    expect(inComments, greaterThan(0),
+        reason: 'the weak form was satisfiable by comments alone; if this hits '
+            '0 the control has stopped discriminating');
   });
+}
+
+/// Naive `//` + `/* … */` stripper. See `test/mb1/mb1_pack_support.dart` for
+/// why the naivety is safe here: the assertion above matches a call expression,
+/// which no comment in this repo contains.
+String _stripComments(String source) {
+  final withoutBlocks =
+      source.replaceAll(RegExp(r'/\*.*?\*/', dotAll: true), '');
+  return withoutBlocks
+      .split('\n')
+      .map((line) {
+        final idx = line.indexOf('//');
+        return idx < 0 ? line : line.substring(0, idx);
+      })
+      .join('\n');
 }
