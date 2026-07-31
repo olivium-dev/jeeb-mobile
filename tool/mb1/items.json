@@ -1,0 +1,111 @@
+{
+  "_readme": [
+    "MB1's member items, each mapped to the tests that can red it ALONE.",
+    "GATE.md §8: items are committed one per member item exactly so a bad one can be",
+    "reverted alone. That only helps if the pack can say WHICH item broke, so every",
+    "row here is run as its own `flutter test` invocation with its own verdict.",
+    "",
+    "`class` is the GATE.md §3 evidence class the row can produce. Rows whose real",
+    "claim needs a phone say `device`/`capture` and are BLOCKED here by construction —",
+    "they are NOT substituted with a suite test that passes with the feature off."
+  ],
+  "items": [
+    {
+      "id": "W1.1",
+      "title": "courier marker wire + SSE teardown",
+      "class": "static",
+      "tests": [
+        "test/features/live_tracking/sse_teardown_grep_receipt_test.dart"
+      ]
+    },
+    {
+      "id": "W1.1b",
+      "title": "the tracking_screen_open / tracking_position diag instrument",
+      "class": "suite",
+      "tests": [
+        "test/features/live_tracking/tracking_diag_instrument_test.dart"
+      ]
+    },
+    {
+      "id": "W1.1c",
+      "title": "rework of the two KEPT test files",
+      "class": "suite",
+      "tests": [
+        "test/mb1/mb1_w1_1c_kept_tests_test.dart",
+        "test/features/live_tracking/live_tracking_push_driven_test.dart",
+        "test/features/live_tracking/tracking_live_position_overlay_test.dart",
+        "test/features/live_tracking/live_tracking_lifecycle_test.dart"
+      ]
+    },
+    {
+      "id": "W1.2",
+      "title": "FCM re-registration on login / user-switch (proof-only rider)",
+      "class": "suite",
+      "tests": [
+        "test/mb1/mb1_w1_2_fcm_reregistration_test.dart",
+        "test/device_token_registrar_login_test.dart",
+        "test/session_login_reregister_wiring_test.dart"
+      ]
+    },
+    {
+      "id": "W4.1",
+      "title": "gallery pick (proof-only rider)",
+      "class": "suite",
+      "tests": [
+        "test/mb1/mb1_w4_1_gallery_pick_test.dart",
+        "test/features/chat/chat_picker_binding_test.dart"
+      ]
+    },
+    {
+      "id": "DOC",
+      "title": "the stale doc-comment cleanups, repo-wide over EVERY tracked file",
+      "class": "static",
+      "tests": [
+        "test/mb1/mb1_doc_residual_receipts_test.dart"
+      ]
+    },
+    {
+      "id": "OWN2",
+      "title": "owner ruling 2026-07-31 #2 — MSI as the first Dev Tool preset",
+      "class": "suite",
+      "tests": [
+        "test/devtool/dev_server_url_presets_test.dart"
+      ]
+    },
+    {
+      "id": "W1.4",
+      "title": "the corrected device build line",
+      "class": "build",
+      "tests": [
+        "test/mb1/mb1_w1_4_build_line_test.dart"
+      ],
+      "note": "The APK compile itself is a separate, expensive leg: run-pack.sh --with-apk."
+    },
+    {
+      "id": "W1.3",
+      "title": "two-model review + merge",
+      "class": "process",
+      "tests": [],
+      "verdict": "NOT-A-TEST",
+      "note": "No local predicate, and MB1.md forbids it acquiring a CI one (owner exclusion 2 makes 'CI is green' unsatisfiable as evidence). Reported, never scored."
+    },
+    {
+      "id": "R1",
+      "title": "the device round — THE WIRE and THE MARKER",
+      "class": "device",
+      "tests": [],
+      "verdict": "BLOCKED",
+      "instrument": "tool/mb1/r1-check.py",
+      "note": "Requires a recorder DB and an on-device diag JSONL from a real round. The instrument self-tests (--selftest) so V-2 gets a proven reader, but a self-test proves the READER, never the product. GATE.md §4: BLOCKED is not a pass."
+    },
+    {
+      "id": "PUSHCHK",
+      "title": "the pre-R1 MSI push-dispatch control",
+      "class": "service",
+      "tests": [],
+      "verdict": "BLOCKED",
+      "instrument": "../../docs/execution/tools/msi-push-dispatch-check.sh",
+      "note": "Needs a live bearer token minted through a device/seam login. Against MSI 192.168.2.39:10090 only. Proves the gateway ACCEPTED a dispatch; arrival is V-2's shade."
+    }
+  ]
+}
