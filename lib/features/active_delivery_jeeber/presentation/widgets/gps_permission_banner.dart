@@ -104,6 +104,7 @@ class GpsPermissionBanner extends StatelessWidget {
                   ? l10n.activeDeliveryGpsBannerOpenSettings
                   : l10n.activeDeliveryGpsBannerRetry,
               onTap: needsSystemSettings ? onOpenSettings : onRetry,
+              colorScheme: colorScheme,
             ),
           ],
         ),
@@ -144,10 +145,15 @@ class _Headline extends StatelessWidget {
 }
 
 class _Cta extends StatelessWidget {
-  const _Cta({required this.label, required this.onTap});
+  const _Cta({
+    required this.label,
+    required this.onTap,
+    required this.colorScheme,
+  });
 
   final String label;
   final VoidCallback onTap;
+  final ColorScheme colorScheme;
 
   @override
   Widget build(BuildContext context) {
@@ -157,6 +163,20 @@ class _Cta extends StatelessWidget {
         identifier: 'active_delivery_gps_permission_cta',
         text: label,
         onTap: onTap,
+        // The OMDS default pair is `secondaryContainer`/`onSecondaryContainer`,
+        // which on this `errorContainer` band renders navy-on-red with a
+        // periwinkle label — measured on a real S24 and clearly under the
+        // WCAG 4.5:1 bar. `onErrorContainer`/`errorContainer` is the SAME M3
+        // pair as the band's own text, inverted, so the contrast ratio is
+        // guaranteed by the scheme in both light and dark themes. A banner
+        // whose only recovery affordance is hard to read would re-introduce
+        // the defect it exists to end.
+        backgroundColor: colorScheme.onErrorContainer,
+        textColor: colorScheme.errorContainer,
+        padding: const EdgeInsets.symmetric(
+          horizontal: Spacing.large,
+          vertical: Spacing.small,
+        ),
       ),
     );
   }
