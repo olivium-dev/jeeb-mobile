@@ -82,6 +82,8 @@ class DeliveryTrackingInfo extends Equatable {
     this.jeeberName,
     this.tier,
     this.itemSummary,
+    this.positionStale = false,
+    this.positionAgeSeconds,
   });
 
   /// T-MOB-017: Parses the TrackingPolylineDto shape returned by
@@ -114,6 +116,14 @@ class DeliveryTrackingInfo extends Equatable {
       jeeberPosition: pos,
       polyline: polyline,
       jeeber: _parseJeeber(json),
+      // `stale` + `secondsSinceUpdate` moved onto this DTO when jeeb-gateway
+      // #333 deleted the SSE stream whose `last-seen` EVENT NAME used to carry
+      // the same verdict. Defaulting `stale` to false is deliberate: a gateway
+      // old enough to omit the field is also old enough to have no staleness
+      // opinion, and inventing one client-side would be a second source of
+      // truth for freshness.
+      positionStale: json['stale'] as bool? ?? false,
+      positionAgeSeconds: (json['secondsSinceUpdate'] as num?)?.toDouble(),
     );
   }
 
@@ -345,6 +355,27 @@ class DeliveryTrackingInfo extends Equatable {
   /// T-MOB-017: Route polyline coordinates for the map overlay.
   final List<GpsPoint> polyline;
 
+  /// The gateway's verdict that [jeeberPosition] is older than
+  /// `Tracking:StaleThreshold` (default 2 min) — the `stale` field on
+  /// `TrackingPolylineDto`
+  /// (`jeeb-gateway/src/JeebGateway/Controllers/LocationController.cs:316`).
+  ///
+  /// The NEGATIVE control of the courier-marker P0 rides on this: a marker
+  /// pinned where the jeeber was ten minutes ago is worse than no marker,
+  /// because it reads as live. [markerIsLive] is what the map asks.
+  final bool positionStale;
+
+  /// Age of [jeeberPosition] in seconds (`secondsSinceUpdate`,
+  /// `LocationController.cs:317`). Null when the gateway holds no fix at all —
+  /// which is a DIFFERENT state from "holds a stale one", and the screen is
+  /// allowed to say so.
+  final double? positionAgeSeconds;
+
+  /// Whether the map may draw a courier marker: there is a fix AND the gateway
+  /// says it is fresh. Everything that renders a marker must go through this,
+  /// so "no phantom marker" is one predicate rather than a convention.
+  bool get markerIsLive => jeeberPosition != null && !positionStale;
+
   /// The PUBLIC matched-Jeeber slice (display name, vehicle, avatar) surfaced
   /// once a jeeber is assigned. Null while the delivery is still matching — the
   /// tracking screen only mounts the Jeeber card when this is non-null, so the
@@ -492,6 +523,8 @@ class DeliveryTrackingInfo extends Equatable {
   DeliveryTrackingInfo withLivePosition({
     GpsPoint? jeeberPosition,
     List<GpsPoint> polyline = const [],
+    bool stale = false,
+    double? secondsSinceUpdate,
   }) {
     return DeliveryTrackingInfo(
       deliveryId: deliveryId,
@@ -511,6 +544,12 @@ class DeliveryTrackingInfo extends Equatable {
       jeeberName: jeeberName,
       tier: tier,
       itemSummary: itemSummary,
+      // Freshness comes from the overlay, NOT from `this`: the whole point of
+      // re-reading is that the previous verdict is out of date. A merge that
+      // kept the old `false` would let a marker that has since gone stale keep
+      // rendering as live — the exact phantom the negative control forbids.
+      positionStale: stale,
+      positionAgeSeconds: secondsSinceUpdate ?? positionAgeSeconds,
     );
   }
 
@@ -533,5 +572,7 @@ class DeliveryTrackingInfo extends Equatable {
         jeeberName,
         tier,
         itemSummary,
+        positionStale,
+        positionAgeSeconds,
       ];
 }

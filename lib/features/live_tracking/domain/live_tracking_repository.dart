@@ -15,6 +15,27 @@ abstract class LiveTrackingRepository {
 /// repo, devtool seams, and existing tests need no change — the cubit
 /// feature-detects it with `repo is LivePositionSource` and simply skips the
 /// position overlay when a repo doesn't provide one.
+///
+/// ## This is the ONLY courier-position surface the gateway still serves
+///
+/// There used to be a second one — `LivePositionStreamSource`, implemented by
+/// `SseLivePositionStream` over `GET /v1/geo/jeeb/stream/{id}`. Both are
+/// **deleted**, because the route they depended on is deleted:
+/// `jeeb-gateway` #333 (`b6fe888`) removed the alias along with the 5 s
+/// server-side re-read loop it existed to open, and pinned the removal with
+/// `tests/JeebGateway.IntegrationTests/Tracking/NoBackendPollOrFirestoreListenerGuardTests.cs:143`
+/// (`Sse_Alias_Route_Is_Gone` — a party to the delivery must get **404**).
+/// That PR's own consumer note says it plainly: *"a client that calls the alias
+/// path gets 404 and must move to /deliveries/{id}/tracking."* The mobile half
+/// of that migration never happened, which is why the customer's map showed no
+/// courier for four days while the jeeber's uploads were 200-ing.
+///
+/// The same guard bans the literals `text/event-stream` and `v1/geo/jeeb/stream`
+/// from the shipped gateway assembly, so the alias cannot be restored server-side
+/// without deliberately breaking a merged gate. `GET /deliveries/{id}/tracking`
+/// reads the SAME `ILocationStore` the ingest writes (`LocationController.cs:170`
+/// writes, `:297` reads) — the write and read paths were never disconnected;
+/// only the client's URL was wrong.
 abstract class LivePositionSource {
   /// Best-effort read of the latest Jeeber position + route polyline. Returns
   /// null when unavailable (no fix recorded yet, the caller is not a party, or
@@ -25,41 +46,32 @@ abstract class LivePositionSource {
   });
 }
 
-/// b02 wave C — N7. The STREAMING counterpart of [LivePositionSource].
-///
-/// [LivePositionSource] is a one-shot read, which is why the tracking screen had
-/// to call it on a 5s cadence to make a marker move. This is the same data as a
-/// server-pushed stream, so the cadence disappears: the client opens ONE
-/// connection and the gateway writes when it has a fix. Implemented over the
-/// gateway's existing SSE route by `SseLivePositionStream`.
-///
-/// Feature-detected exactly like [LivePositionSource] (`repo is
-/// LivePositionStreamSource`) so a repository that cannot stream — the `:4010`
-/// mock has no tracking route at all — simply contributes no marker, instead of
-/// forcing every implementation to grow a method it cannot honour.
-abstract class LivePositionStreamSource {
-  /// A live feed of the jeeber's position + route for [deliveryId].
-  ///
-  /// Contract for callers:
-  ///  * It NEVER emits an empty overlay — a frame with no fix and no route is
-  ///    dropped upstream, so an emission can always be applied without blanking
-  ///    a marker the screen already has.
-  ///  * It NEVER emits an error. Every failure (403 not-a-party, transport drop,
-  ///    terminal delivery closing the socket server-side) arrives as `onDone`,
-  ///    so a subscriber needs no error branch and the screen cannot be faulted
-  ///    by a dead position feed. The failure is still recorded — see the
-  ///    `tracking_sse` diag breadcrumb in the implementation.
-  ///  * Cancelling the subscription cancels the underlying request.
-  Stream<DeliveryLivePosition> watchLivePosition({required String deliveryId});
-}
-
 /// The live-tracking overlay: the Jeeber's latest position and the straight-line
 /// route to the dropoff. Both may be empty/null before the first GPS fix.
 class DeliveryLivePosition {
-  const DeliveryLivePosition({this.jeeberPosition, this.polyline = const []});
+  const DeliveryLivePosition({
+    this.jeeberPosition,
+    this.polyline = const [],
+    this.stale = false,
+    this.secondsSinceUpdate,
+  });
 
   final GpsPoint? jeeberPosition;
   final List<GpsPoint> polyline;
+
+  /// The gateway's own verdict that the newest fix it holds is older than
+  /// `Tracking:StaleThreshold` (default 2 min) — `stale` on `TrackingPolylineDto`
+  /// (`jeeb-gateway/src/JeebGateway/Controllers/LocationController.cs:316`).
+  ///
+  /// Load-bearing for the NEGATIVE control: the map must not draw a courier
+  /// marker at a position the courier left ten minutes ago. A stale overlay is
+  /// still carried (so the screen can say *when* the jeeber was last seen)
+  /// rather than dropped, but it must not be rendered as a live marker.
+  final bool stale;
+
+  /// Age of the newest fix in seconds — `secondsSinceUpdate` on the same DTO
+  /// (`LocationController.cs:317`). Null when the gateway holds no fix at all.
+  final double? secondsSinceUpdate;
 
   /// True when there is nothing new to overlay (no fix and no route yet).
   bool get isEmpty => jeeberPosition == null && polyline.isEmpty;
