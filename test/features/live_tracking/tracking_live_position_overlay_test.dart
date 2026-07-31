@@ -1,21 +1,27 @@
 // JEBV4-269: customer live-position overlay.
 //
-// b02 wave C / N7 — the OVERLAY is unchanged; only its SOURCE moved. It used to
-// be a one-shot `GET /deliveries/{id}/tracking` read issued from inside every 5s
-// poll tick; it is now the gateway's SSE position stream
-// (`LivePositionStreamSource` / `SseLivePositionStream`), so the marker moves
-// with no client cadence at all. The overlay assertions below are re-expressed
-// against the STREAM and are otherwise identical. Proves:
+// MB1 W1.1 — the OVERLAY is unchanged; its SOURCE moved BACK. b02 wave C / N7
+// had routed it through the gateway's server-sent-events feed, over an alias
+// under `/v1/geo/`. The gateway deleted that route
+// (`LocationController.cs:22-31`) 16 h after the consumer landed, so the stream
+// never opened, the marker never moved, and the client re-armed a dead GET every
+// 30 s for the life of the screen. The overlay now comes from the route the
+// gateway still serves — the one-shot `GET /deliveries/{id}/tracking` snapshot
+// (`LocationController.cs:227`) — read on screen-open / status-push / resume /
+// retry. Proves:
 //
-//   * a LivePositionStreamSource repo → each pushed frame's position lands on
-//     the emitted DeliveryTrackingInfo (the map now has data, and it MOVES);
-//   * a plain repo (no stream capability) degrades silently — no crash, no
+//   * a LivePositionSource repo → each read's position lands on the emitted
+//     DeliveryTrackingInfo (the map has data, and it MOVES);
+//   * a plain repo (no position capability) degrades silently — no crash, no
 //     position (backwards-compatible with the demo/seam repos);
-//   * an empty frame leaves the marker absent rather than crashing;
-//   * DioLiveTrackingRepository.fetchLivePosition still parses the frozen
-//     TrackingPolylineDto and is null on the legacy mock base — the one-shot
-//     reader is RETAINED (it is the polyline-replay/route-screen view) even
-//     though the tracking screen no longer calls it on a cadence.
+//   * an empty snapshot leaves the marker as-is rather than blanking it;
+//   * DioLiveTrackingRepository.fetchLivePosition parses the frozen
+//     TrackingPolylineDto off the LIVE path and is null on the legacy mock base.
+//
+// Explicit NON-CLAIM (GATE.md §7): nothing here exercises a Firestore path.
+// `Firebase.apps` is empty under `flutter test`, so a suite CANNOT speak to
+// realtime transport — and this feature has no Firestore path at all. These are
+// `suite`-class assertions about the cubit↔repository wire and nothing more.
 
 import 'dart:async';
 
@@ -34,13 +40,13 @@ DeliveryTrackingInfo _inTransitRow() => DeliveryTrackingInfo.fromDeliveryJson(
       <String, dynamic>{'id': _id, 'status': 'InTransit'},
     );
 
-/// Repo that serves the stage row AND a live position STREAM (production shape).
-class _PositionRepo
-    implements LiveTrackingRepository, LivePositionStreamSource {
+/// Repo that serves the stage row AND the live position snapshot (production
+/// shape — `DioLiveTrackingRepository` implements exactly these two).
+class _PositionRepo implements LiveTrackingRepository, LivePositionSource {
   _PositionRepo(this._position);
   final GpsPoint? _position;
 
-  final List<StreamController<DeliveryLivePosition>> streams = [];
+  int positionReads = 0;
 
   @override
   Future<DeliveryTrackingInfo> fetchDeliveryStatus({
@@ -49,24 +55,18 @@ class _PositionRepo
       _inTransitRow();
 
   @override
-  Stream<DeliveryLivePosition> watchLivePosition({
+  Future<DeliveryLivePosition?> fetchLivePosition({
     required String deliveryId,
-  }) {
-    final c = StreamController<DeliveryLivePosition>();
-    streams.add(c);
-    return c.stream;
-  }
-
-  /// Push one frame, mirroring what `SseLivePositionStream` emits. An absent
-  /// position is modelled as NO frame at all, because the SSE layer drops empty
-  /// overlays upstream (so the cubit can never be handed one).
-  void emit() {
+  }) async {
+    positionReads++;
     final p = _position;
-    if (p == null) return;
-    streams.single.add(DeliveryLivePosition(
+    // No fix yet is modelled as null, which is exactly what
+    // `DioLiveTrackingRepository.fetchLivePosition` returns on 403/404/parse.
+    if (p == null) return null;
+    return DeliveryLivePosition(
       jeeberPosition: p,
       polyline: [p, const GpsPoint(lat: 33.8, lng: 35.4)],
-    ));
+    );
   }
 }
 
@@ -109,9 +109,8 @@ void main() {
         refreshSignals: const Stream<void>.empty(),
       );
       await pumpEventQueue();
-      repo.emit();
-      await pumpEventQueue();
 
+      expect(repo.positionReads, 1);
       expect(cubit.state.trackingInfo?.jeeberPosition, pos);
       expect(cubit.state.trackingInfo?.polyline, isNotEmpty);
       // The stage from the delivery row is preserved through the merge.
@@ -129,11 +128,11 @@ void main() {
 
       expect(cubit.state.trackingInfo?.currentStage, TrackingStage.inTransit);
       expect(cubit.state.trackingInfo?.jeeberPosition, isNull);
+      expect(cubit.debugPositionReadCount, 0);
       await cubit.close();
     });
 
-    test('no position frame leaves the map marker absent (no crash)',
-        () async {
+    test('no position fix leaves the map marker absent (no crash)', () async {
       final repo = _PositionRepo(null);
       final cubit = LiveTrackingCubit(
         repository: repo,
@@ -141,9 +140,8 @@ void main() {
         refreshSignals: const Stream<void>.empty(),
       );
       await pumpEventQueue();
-      repo.emit();
-      await pumpEventQueue();
 
+      expect(repo.positionReads, 1, reason: 'the read WAS attempted');
       expect(cubit.state.trackingInfo?.jeeberPosition, isNull);
       await cubit.close();
     });

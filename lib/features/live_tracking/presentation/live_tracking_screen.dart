@@ -610,11 +610,17 @@ class _TrackingErrorBody extends StatelessWidget {
 
 /// JEBV4-282: re-fetches the tracked delivery when the app returns to the
 /// foreground. Mounted between the [LiveTrackingCubit] provider and the body so
-/// its [State] resolves the cubit via `context.read`. The cubit already polls
+/// its [State] resolves the cubit via `context.read`.
+///
+/// **Corrected (MB1 W1.1).** This comment used to say "the cubit already polls
 /// every 5s while on-screen; this closes the gap where the OS suspends Dart
-/// timers in the background, so the customer's status stepper is never left
-/// stale after a transition that landed while the app was away. A transparent
-/// pass-through outside a lifecycle event.
+/// timers in the background". Both halves are now false and the second was
+/// misleading even then: there is no poll and no timer to suspend. This hook is
+/// one of the FOUR events that cause a read at all (open / status push / resume
+/// / retry), and it is the only one that can un-freeze a courier marker after a
+/// spell in the background — a push the OS dropped or coalesced leaves the
+/// screen with nothing else to fire on. A transparent pass-through outside a
+/// lifecycle event.
 class _ResumeRefresh extends StatefulWidget {
   const _ResumeRefresh({required this.child});
 

@@ -168,9 +168,13 @@ void main() {
       expect(repository.calls, 2);
       expect(cubit.state.trackingInfo?.isDelivered, isTrue);
       expect(cubit.debugPushRefreshWired, isFalse);
-      expect(cubit.debugPositionStreamWired, isFalse,
-          reason: 'the SSE socket must be released too — otherwise the gateway '
-              'keeps writing position frames into a connection nobody reads');
+      // MB1 W1.1: this used to assert `debugPositionStreamWired == false` (the
+      // SSE socket being released). There is no socket any more — the position
+      // is a snapshot read on the same events — so the equivalent claim is that
+      // a terminal row takes NO further position read.
+      expect(cubit.debugPositionReadCount, 0,
+          reason: 'this repo is not a LivePositionSource, so no tracking read '
+              'is ever attempted — and a terminal row must not start one');
 
       await _driveToBackground(tester);
       await tester.pump(const Duration(minutes: 3));

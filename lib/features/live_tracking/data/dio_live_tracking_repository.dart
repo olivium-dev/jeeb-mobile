@@ -3,7 +3,6 @@ import 'package:dio/dio.dart';
 import '../../../core/network/mock_gateway_client.dart';
 import '../domain/delivery_tracking_info.dart';
 import '../domain/live_tracking_repository.dart';
-import 'sse_live_position_stream.dart';
 
 /// JM-032: order-tracking repository over the delivery-service.
 ///
@@ -27,14 +26,12 @@ import 'sse_live_position_stream.dart';
 /// The delivery row carries both the lifecycle `status`
 /// (`Ordered/Picked/InTransit/AtDoor/Done`) that drives the 4-step
 /// `tracking_stepper` AND the pinned-summary fields (price/tier/jeeber/item)
-/// the `order_summary_pinned` header renders (D11/D71). The screen polls this
-/// every 5s (LiveTrackingCubit); when the status reaches the terminal delivered
-/// state the screen auto-advances to the receipt prompt (JM-033).
+/// the `order_summary_pinned` header renders (D11/D71). `LiveTrackingCubit`
+/// reads it on screen-open, on a `type=delivery` push, on resume and on retry —
+/// there is no cadence; when the status reaches the terminal delivered state the
+/// screen auto-advances to the receipt prompt (JM-033).
 class DioLiveTrackingRepository
-    implements
-        LiveTrackingRepository,
-        LivePositionSource,
-        LivePositionStreamSource {
+    implements LiveTrackingRepository, LivePositionSource {
   /// [originGateway] selects the wire shape. When `true` (the device/real
   /// default) the read speaks the FROZEN plural `:10090` route
   /// `GET /v1/deliveries/{id}` (the materialized aggregate — BUG-8 fix); when
@@ -47,24 +44,6 @@ class DioLiveTrackingRepository
       : originGateway = originGateway ?? !MockGatewayClient.useMockPrefixes;
 
   final Dio _dio;
-
-  /// b02 wave C / N7: the server-sent-events position feed, replacing the 5s
-  /// `GET /deliveries/{id}/tracking` cadence. Lazily built over the SAME Dio so
-  /// it inherits the bearer-auth interceptor.
-  late final SseLivePositionStream _positionStream =
-      SseLivePositionStream(_dio);
-
-  /// b02 wave C / N7. Streams the jeeber's position from the gateway's SSE route.
-  ///
-  /// Origin-only, for the same reason [fetchLivePosition] is: the `:4010` Express
-  /// mock has no tracking route at all, so in mock mode this yields an empty
-  /// stream and the screen simply shows no marker — the pre-existing degradation,
-  /// unchanged.
-  @override
-  Stream<DeliveryLivePosition> watchLivePosition({required String deliveryId}) {
-    if (!originGateway) return const Stream<DeliveryLivePosition>.empty();
-    return _positionStream.watchLivePosition(deliveryId: deliveryId);
-  }
 
   /// Whether to read the frozen origin-only `:10090` plural delivery route
   /// (`GET /v1/deliveries/{id}`) instead of the legacy `:4010` mock singular
@@ -112,8 +91,13 @@ class DioLiveTrackingRepository
   /// JEBV4-269: best-effort read of the jeeber's live position + route from the
   /// shipped gateway tracking snapshot `GET /deliveries/{id}/tracking` (the same
   /// store the jeeber's uploader writes to; parsed via the frozen
-  /// `TrackingPolylineDto` shape). A plain `Accept: application/json` (Dio's
-  /// default) gets the one-shot polyline snapshot, NOT the held SSE stream.
+  /// `TrackingPolylineDto` shape).
+  ///
+  /// MB1 W1.1: this is the LIVE route and the only one. The gateway kept it
+  /// (`LocationController.cs:227`) and deleted the `Accept: text/event-stream`
+  /// arm together with the SSE alias that existed only to open it, because that
+  /// arm was a 5 s server-side re-read loop — a poll wearing a stream's clothes
+  /// (`LocationController.cs:22-31`). One read, one body, connection closed.
   ///
   /// Deliberately total: ANY failure — 404 (no fix yet / not-a-party 403,
   /// transport error, malformed body) — returns null so the tracking screen
