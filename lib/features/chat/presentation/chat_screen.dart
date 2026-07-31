@@ -110,9 +110,20 @@ class ChatFeeNotice {
 /// delivery (T-mobile-016 / JEEB-69).
 ///
 /// The screen owns a [ChatCubit], wires it to a [ChatGateway] (the MVP
-/// in-memory implementation by default) and a [PhotoPickerService] (the
-/// stub picker until image_picker lands in a later mobile task), and
+/// in-memory implementation by default) and a [PhotoPickerService], and
 /// auto-scrolls to the latest message whenever the cubit emits.
+///
+/// **Corrected (MB1 W4.1) — historical, retained not deleted.** The picker
+/// clause used to read "the stub picker until image_picker lands in a later
+/// mobile task". That has been false since JEBV4-111: `image_picker` is bound
+/// (`ImagePickerPhotoPickerService`), registered in DI
+/// (`core/di/injection_container.dart`), and [_resolvePicker] prefers the
+/// registration — the bare stub survives ONLY as the fallback for widget tests
+/// and the dev catalog, where `sl` is not populated. Pinned by
+/// `test/features/chat/chat_picker_binding_test.dart`, whose spy asserts the
+/// registered service (not the stub) is what a "+ → Gallery" tap reaches. The
+/// sentence is called out rather than quietly deleted because MB1 was still
+/// budgeting writer time to "wire the gallery pick" on the strength of it.
 class ChatScreen extends StatelessWidget {
   const ChatScreen({
     super.key,
