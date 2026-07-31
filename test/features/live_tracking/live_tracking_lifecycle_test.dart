@@ -168,9 +168,12 @@ void main() {
       expect(repository.calls, 2);
       expect(cubit.state.trackingInfo?.isDelivered, isTrue);
       expect(cubit.debugPushRefreshWired, isFalse);
-      expect(cubit.debugPositionStreamWired, isFalse,
-          reason: 'the SSE socket must be released too — otherwise the gateway '
-              'keeps writing position frames into a connection nobody reads');
+      expect(cubit.debugPositionReadCount, 0,
+          reason: 'a terminal row must never have read a courier position — '
+              'there is no moving jeeber to plot on a completed trip. (This '
+              'replaces `debugPositionStreamWired`, which reported on a stream '
+              'that no longer exists: jeeb-gateway #333 deleted '
+              'GET /v1/geo/jeeb/stream/{id}.)');
 
       await _driveToBackground(tester);
       await tester.pump(const Duration(minutes: 3));

@@ -16,16 +16,17 @@ import 'package:jeeb_mobile/features/live_tracking/domain/live_tracking_reposito
 ///    (`Controllers/DeliveriesController.cs:1296-1300` →
 ///    `Notifications/DeliveryStatusPushNotifier.cs:211`). That axis is now the
 ///    push bus below, and it retires `GET /v1/deliveries/{id}`.
-///  * The courier POSITION is a STREAM. No push carries it; the gateway serves
-///    it as SSE at `GET /v1/geo/jeeb/stream/{id}`. That axis is now
-///    `LivePositionStreamSource`, and it retires
-///    `GET /deliveries/{id}/tracking`.
+///  * The courier POSITION rides `GET /deliveries/{id}/tracking`, read on the
+///    SAME events. It used to ride an SSE stream at
+///    `GET /v1/geo/jeeb/stream/{id}`; jeeb-gateway #333 (`b6fe888`) deleted that
+///    route, the customer 404ed on it for four days, and the marker never
+///    rendered — the courier-marker P0. → `LivePositionSource`.
 ///
 /// Also preserved: this cubit deliberately NEVER reads `GET /otp` — on the live
 /// gateway that endpoint TRIGGERS AN SMS, so polling it would text the recipient
 /// every few seconds. The hand-over code comes from local persistence only.
 class _FakeTrackingRepository
-    implements LiveTrackingRepository, LivePositionStreamSource {
+    implements LiveTrackingRepository, LivePositionSource {
   _FakeTrackingRepository({
     required this.stages,
     this.lifecycle = TrackingLifecycle.active,
@@ -37,9 +38,12 @@ class _FakeTrackingRepository
   List<TrackingStage> stages;
   int statusReads = 0;
 
-  /// Every position stream this repo handed out, so a test can assert the
-  /// SSE connection was opened once and released on terminal.
-  final List<StreamController<DeliveryLivePosition>> positionStreams = [];
+  /// Every position read this repo served, so a test can assert the count is
+  /// driven by EVENTS and never by a clock.
+  int positionReads = 0;
+
+  /// Handed back on the next position read; set by a test to move the courier.
+  DeliveryLivePosition? nextPosition;
 
   @override
   Future<DeliveryTrackingInfo> fetchDeliveryStatus({
@@ -57,12 +61,11 @@ class _FakeTrackingRepository
   }
 
   @override
-  Stream<DeliveryLivePosition> watchLivePosition({
+  Future<DeliveryLivePosition?> fetchLivePosition({
     required String deliveryId,
-  }) {
-    final c = StreamController<DeliveryLivePosition>();
-    positionStreams.add(c);
-    return c.stream;
+  }) async {
+    positionReads++;
+    return nextPosition;
   }
 }
 
@@ -160,63 +163,90 @@ void main() {
     });
   });
 
-  group('N7 position axis — SSE stream, not poll', () {
-    test('opens exactly ONE position stream and applies each frame', () async {
-      final repo = _FakeTrackingRepository(stages: [TrackingStage.inTransit]);
+  group('position axis — event-driven snapshot, not poll', () {
+    test('reads the position on mount and again on each push', () async {
+      final repo = _FakeTrackingRepository(
+          stages: [TrackingStage.inTransit, TrackingStage.inTransit])
+        ..nextPosition = const DeliveryLivePosition(
+          jeeberPosition: GpsPoint(lat: 33.1, lng: 35.1),
+          polyline: [GpsPoint(lat: 33.1, lng: 35.1)],
+        );
+      final bus = StreamController<void>.broadcast();
+      addTearDown(bus.close);
       final cubit = LiveTrackingCubit(
         repository: repo,
         deliveryId: 'DLV-N7',
-        refreshSignals: const Stream<void>.empty(),
+        refreshSignals: bus.stream,
       );
       addTearDown(cubit.close);
-      await Future<void>.delayed(Duration.zero);
+      await pumpEventQueue();
 
-      expect(repo.positionStreams, hasLength(1),
-          reason: 'ONE held SSE connection for the trip — not one read per tick');
-
-      repo.positionStreams.single.add(const DeliveryLivePosition(
-        jeeberPosition: GpsPoint(lat: 33.1, lng: 35.1),
-        polyline: [GpsPoint(lat: 33.1, lng: 35.1)],
-      ));
-      await Future<void>.delayed(Duration.zero);
+      expect(repo.positionReads, 1, reason: 'the mount event reads once');
       expect(cubit.state.trackingInfo?.jeeberPosition?.lat, 33.1);
 
-      repo.positionStreams.single.add(const DeliveryLivePosition(
+      // The jeeber has moved; the next event picks it up.
+      repo.nextPosition = const DeliveryLivePosition(
         jeeberPosition: GpsPoint(lat: 33.2, lng: 35.2),
-      ));
-      await Future<void>.delayed(Duration.zero);
+      );
+      bus.add(null);
+      await pumpEventQueue();
+
+      expect(repo.positionReads, 2, reason: 'one push → one position read');
       expect(cubit.state.trackingInfo?.jeeberPosition?.lat, 33.2,
-          reason: 'the marker MOVES on a server-pushed frame, with no read');
-      expect(repo.statusReads, 1,
-          reason: 'a position frame must not trigger a status read');
+          reason: 'the marker MOVES when an event brings a newer fix');
     });
 
-    test('a position frame never re-fires the delivered/at-door navigation',
+    test('no event ⇒ no position read after 60 virtual seconds', () {
+      // The regression this file's status half already pins, now pinned for the
+      // POSITION half too. It is not hypothetical: before this change the dead
+      // SSE stream re-armed itself forever on `kPositionRearmBackoff`, so a
+      // screen sitting untouched issued a request every 30 s — an
+      // "ERROR-RECOVERY" timer that had silently become a permanent poll
+      // because the route it retried could never succeed.
+      fakeAsync((async) {
+        final repo = _FakeTrackingRepository(stages: [TrackingStage.inTransit])
+          ..nextPosition = const DeliveryLivePosition(
+            jeeberPosition: GpsPoint(lat: 33.1, lng: 35.1),
+          );
+        final cubit = LiveTrackingCubit(
+          repository: repo,
+          deliveryId: 'DLV-N7',
+          refreshSignals: const Stream<void>.empty(),
+        );
+        async.flushMicrotasks();
+        expect(repo.positionReads, 1);
+
+        async.elapse(const Duration(seconds: 60));
+        async.flushMicrotasks();
+        expect(repo.positionReads, 1,
+            reason: 'no clock may drive the position axis');
+        cubit.close();
+      });
+    });
+
+    test('a position merge never re-fires the delivered/at-door navigation',
         () async {
-      final repo = _FakeTrackingRepository(stages: [TrackingStage.atDoor]);
+      final repo = _FakeTrackingRepository(stages: [TrackingStage.atDoor])
+        ..nextPosition = const DeliveryLivePosition(
+          jeeberPosition: GpsPoint(lat: 33.3, lng: 35.3),
+        );
       final cubit = LiveTrackingCubit(
         repository: repo,
         deliveryId: 'DLV-N7',
         refreshSignals: const Stream<void>.empty(),
       );
       addTearDown(cubit.close);
-      await Future<void>.delayed(Duration.zero);
-      expect(cubit.state.pendingEvent, LiveTrackingEvent.jeeberAtDoor,
-          reason: 'the STATUS read is what raises the at-door card');
+      await pumpEventQueue();
 
-      repo.positionStreams.single.add(const DeliveryLivePosition(
-        jeeberPosition: GpsPoint(lat: 33.3, lng: 35.3),
-      ));
-      await Future<void>.delayed(Duration.zero);
       expect(cubit.state.trackingInfo?.jeeberPosition?.lat, 33.3);
       expect(cubit.state.pendingEvent, LiveTrackingEvent.none,
           reason: 'the position merge carries NO pendingEvent (copyWith resets '
               'it), so a moving marker can never re-fire the at-door or '
               'delivered navigation — the pre-existing _overlayLivePosition '
-              'invariant, preserved on the stream path');
+              'invariant, preserved on the snapshot path');
     });
 
-    test('a terminal row never opens a position stream', () async {
+    test('a terminal row never reads a position', () async {
       final repo = _FakeTrackingRepository(stages: [TrackingStage.delivered]);
       final cubit = LiveTrackingCubit(
         repository: repo,
@@ -224,12 +254,12 @@ void main() {
         refreshSignals: const Stream<void>.empty(),
       );
       addTearDown(cubit.close);
-      await Future<void>.delayed(Duration.zero);
-      expect(repo.positionStreams, isEmpty,
+      await pumpEventQueue();
+      expect(repo.positionReads, 0,
           reason: 'there is no moving jeeber to plot on a completed trip');
     });
 
-    test('reaching a terminal status releases the position stream', () async {
+    test('reaching a terminal status stops reading the position', () async {
       final repo = _FakeTrackingRepository(
           stages: [TrackingStage.inTransit, TrackingStage.delivered]);
       final bus = StreamController<void>.broadcast();
@@ -240,14 +270,13 @@ void main() {
         refreshSignals: bus.stream,
       );
       addTearDown(cubit.close);
-      await Future<void>.delayed(Duration.zero);
-      expect(repo.positionStreams.single.hasListener, isTrue);
+      await pumpEventQueue();
+      expect(repo.positionReads, 1);
 
       bus.add(null);
-      await Future<void>.delayed(Duration.zero);
-      expect(repo.positionStreams.single.hasListener, isFalse,
-          reason: 'leaving the SSE socket open after delivery keeps the gateway '
-              'writing into a connection nobody reads');
+      await pumpEventQueue();
+      expect(repo.positionReads, 1,
+          reason: 'the delivered read is terminal — no position goes with it');
     });
   });
 }

@@ -71,11 +71,21 @@ CameraPosition trackingCamera(DeliveryTrackingInfo info) {
   return CameraPosition(target: target, zoom: 14);
 }
 
-/// The Jeeber heading marker, rotated to its compass bearing. Empty when there
-/// is no GPS fix yet. Pure so the marker set is unit-testable.
+/// The Jeeber heading marker, rotated to its compass bearing. Pure so the marker
+/// set is unit-testable.
+///
+/// EMPTY in two distinct cases, and the second one is the negative control of
+/// the courier-marker P0:
+///  * there is no GPS fix at all yet, and
+///  * there IS a fix but the gateway flagged it `stale` — older than
+///    `Tracking:StaleThreshold` (2 min). A pin left where the jeeber was ten
+///    minutes ago reads as live and is worse than an honest blank: the customer
+///    walks to a corner the courier already left. `markerIsLive` folds both
+///    cases into one predicate so no future caller can render a marker while
+///    skipping the freshness half.
 Set<Marker> trackingMarkers(DeliveryTrackingInfo info) {
   final pos = info.jeeberPosition;
-  if (pos == null) return const <Marker>{};
+  if (pos == null || !info.markerIsLive) return const <Marker>{};
   return {
     Marker(
       markerId: const MarkerId(TrackingGoogleMap.jeeberMarkerId),

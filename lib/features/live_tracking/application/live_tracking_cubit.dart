@@ -20,59 +20,60 @@ import 'live_tracking_state.dart';
 ///    `type=delivery` + snake_case `delivery_id` pair the mobile handler's
 ///    `orderish` id guard requires. → [refreshSignals]. Retires
 ///    `GET /v1/deliveries/{id}`.
-///  * **Courier position is a STREAM.** Continuous while en route. No push
-///    carries it and none should: every gateway send endpoint attaches a
-///    notification block, so a position push would light the shade several times
-///    a minute. The gateway already serves it as server-sent events; SSE is
-///    server-push (one held connection, server writes when it has a fix) and so
-///    does not breach the no-polling rule. → [LivePositionStreamSource], via
-///    `SseLivePositionStream`. Retires `GET /deliveries/{id}/tracking`.
+///  * **Courier position** rides `GET /deliveries/{id}/tracking` — a one-shot
+///    JSON snapshot of the newest fix the jeeber's uploader wrote, read on the
+///    SAME events as the status. → [LivePositionSource].
 ///
-/// Deleting the poll without splitting these would have frozen the map marker:
-/// the position would only refresh when a STATUS changed, which during
-/// `InTransit` is almost never.
+/// ## Why the position stream is gone (P0, 2026-07-31)
+///
+/// The bullet above used to read "*Courier position is a STREAM*", served by
+/// `SseLivePositionStream` over `GET /v1/geo/jeeb/stream/{id}`. **That route no
+/// longer exists.** `jeeb-gateway` #333 (`b6fe888`) deleted it together with the
+/// 5 s server-side re-read loop it existed to open, and pinned the deletion:
+/// `NoBackendPollOrFirestoreListenerGuardTests.Sse_Alias_Route_Is_Gone` requires
+/// a **404** for a caller who WOULD have been authorized, and two structural
+/// assertions ban the literals `text/event-stream` and `v1/geo/jeeb/stream` from
+/// the shipped gateway assembly. Verified on the deployed MSI binary: a grep of
+/// `publish/gateway/JeebGateway.dll` finds `deliveries/{deliveryId}/tracking`
+/// (positive control) and finds `v1/geo/jeeb/stream` **zero** times.
+///
+/// The consequence was the courier-marker P0. The jeeber's
+/// `POST /location/update` was 200-ing and the gateway was storing the fix, but
+/// the customer asked a deleted URL, got 404, and `_onPositionStreamClosed`
+/// re-armed it forever — so the "ERROR-RECOVERY" backoff below had quietly
+/// become a permanent 30 s poll against a route that could never answer. Both
+/// the stream and that timer are deleted here.
+///
+/// ## The cadence question, stated rather than hidden
+///
+/// The position is now read on exactly the events this cubit already had — first
+/// mount, every `type=delivery` push, `retry()`, and app resume — and on NO
+/// clock. `armed-poll-inventory.py` therefore still reports
+/// `armedPollCount = 0`.
+///
+/// The honest cost: between two such events the marker does not move. Making it
+/// track the jeeber continuously needs a push/subscribe transport for the
+/// position axis, and **none currently exists** — the gateway may not hold an
+/// SSE connection (guard above), may not take a Firestore dependency
+/// (`Gateway_Assembly_References_No_Firestore_Client_Library`), the
+/// realtime-comunication-service is not deployed for Jeeb, and every push send
+/// endpoint attaches a notification block so a position push would light the
+/// shade. That is an owner/architecture decision, not something to paper over
+/// with a timer.
 ///
 /// **Unchanged restraint (G4).** This screen still NEVER reads `GET /otp`. On the
 /// live gateway that endpoint TRIGGERS AN SMS, so any cadence against it texts
 /// the recipient repeatedly. The hand-over code comes from [HandoverCodeStore]
 /// (local, accept-time) and from nowhere else.
-/// Delay before re-opening a position stream that closed by itself, indexed by
-/// how many CONSECUTIVE closes have happened without a frame in between. The
-/// last entry is the steady state — a permanently-rejected stream retries every
-/// 30s forever rather than giving up, because the 5s poll this replaced retried
-/// forever too and a screen that silently stops trying is the regression.
-///
-/// This is NOT a poll and does not reintroduce one:
-///  * nothing is requested on a cadence while the stream is HEALTHY — one open
-///    connection, server writes when it has a fix, zero client-side timers;
-///  * the schedule only runs while the feed is DEAD, and it is reset by the
-///    first frame off a working connection ([_positionRearmAttempt]);
-///  * it is the standard `EventSource` reconnect contract, which is what makes
-///    SSE a usable substitute for a self-healing poll in the first place.
-///
-/// Backoff (rather than an immediate retry) matters because
-/// `SseLivePositionStream` closes IMMEDIATELY on a 403 / 404 / transport
-/// refusal — an unspaced re-arm on that path would be a hot loop hammering the
-/// gateway, which is strictly worse than the poll.
-const List<Duration> kPositionRearmBackoff = <Duration>[
-  Duration(seconds: 2),
-  Duration(seconds: 5),
-  Duration(seconds: 15),
-  Duration(seconds: 30),
-];
-
 class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   LiveTrackingCubit({
     required LiveTrackingRepository repository,
     required this.deliveryId,
     Stream<void>? refreshSignals,
     HandoverCodeStore? handoverCodeStore,
-    List<Duration> positionRearmBackoff = kPositionRearmBackoff,
   })  : _repository = repository,
         _refreshSignals = refreshSignals,
         _handoverCodeStore = handoverCodeStore,
-        _positionRearmBackoff =
-            positionRearmBackoff.isEmpty ? kPositionRearmBackoff : positionRearmBackoff,
         super(const LiveTrackingState()) {
     _fetchAndSchedule();
   }
@@ -86,51 +87,22 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   final Stream<void>? _refreshSignals;
 
   StreamSubscription<void>? _refreshSubscription;
-  StreamSubscription<DeliveryLivePosition>? _positionSubscription;
-
-  /// Delay schedule for re-opening a position stream that closed by itself.
-  /// Injected only so tests can collapse or stretch it; production uses
-  /// [kPositionRearmBackoff].
-  final List<Duration> _positionRearmBackoff;
-
-  /// Pending re-arm of a position stream that closed by itself. Cancelled by
-  /// [_retireWatchers], so a terminal row / `close()` cannot leave a timer that
-  /// re-opens a socket for a screen that is gone.
-  Timer? _positionRearmTimer;
-
-  /// Consecutive closes with NO frame in between — the index into
-  /// [_positionRearmBackoff]. Reset by the first frame off a working stream, so
-  /// a long-lived feed that flaps once waits 2s, not 30s.
-  int _positionRearmAttempt = 0;
-
-  /// Whether the CURRENT position subscription has been observed to still be
-  /// open. Flipped false the instant the stream reports `onDone`.
-  bool _positionStreamLive = false;
 
   /// True once the status push subscription is armed.
   @visibleForTesting
   bool get debugPushRefreshWired => _refreshSubscription != null;
 
-  /// True when a position stream is subscribed **and has not closed**.
+  /// How many courier-position snapshots have actually been READ off the
+  /// gateway (not merely attempted).
   ///
-  /// This used to be `_positionSubscription != null`, which was a LIE: the
-  /// field was nulled only in [_retireWatchers] (terminal row / `close()`) and
-  /// never on the stream's own `onDone`, so a feed killed by a network flap or
-  /// a 403 reported as wired for the rest of the screen's life. A debug
-  /// instrument that cannot distinguish a live stream from a dead one masks
-  /// exactly the regression it exists to catch.
-  ///
-  /// Deliberately conjunctive: [_positionStreamLive] is independent bookkeeping,
-  /// so if some future path forgets to null the subscription the instrument
-  /// still tells the truth.
+  /// Deliberately counts ARRIVALS, not arming — the instrument it replaces
+  /// (`debugPositionStreamWired`) returned `true` for a stream that had been
+  /// opened once and had been dead for the rest of the screen's life, which is
+  /// how a 404-ing feed went unnoticed for four days. A counter that only moves
+  /// when a body came back cannot tell that lie.
   @visibleForTesting
-  bool get debugPositionStreamWired =>
-      _positionSubscription != null && _positionStreamLive;
-
-  /// How many times a closed position stream has been re-opened.
-  @visibleForTesting
-  int get debugPositionRearmCount => _positionRearmCount;
-  int _positionRearmCount = 0;
+  int get debugPositionReadCount => _positionReadCount;
+  int _positionReadCount = 0;
 
   /// Single-flight latch for the push path: two pushes inside one round trip
   /// must produce ONE re-pull, not two whose emits race.
@@ -206,14 +178,16 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
         // `failed` (FailedNeedsEscalation) row KEEPS watching: an admin can
         // still resolve it to Done or cancel it, so it is not terminal here.
         //
-        // Retiring the POSITION stream matters more than retiring a timer did:
-        // an SSE socket left open after delivery keeps the gateway writing into
-        // a connection nobody reads for the rest of the session. (The gateway
-        // also breaks its own loop on a terminal status at
-        // `Controllers/LocationController.cs:392-397`, so this is belt AND
-        // braces — but the client must not depend on the server to hang up.)
         if (_isTerminal) _retireWatchers();
       }
+      // The courier position rides the SAME event that just refreshed the
+      // status — one round trip per event, never a cadence. Sequenced AFTER the
+      // status emit rather than raced with it: `_applyLivePosition` merges onto
+      // `state.trackingInfo`, so it must see the row this fetch just wrote or
+      // the overlay lands on a stale snapshot (or, on first mount, on `null`
+      // and is dropped entirely — which is exactly how the marker stayed
+      // missing on the very first read).
+      if (!isClosed && !_isTerminal) await _readLivePosition();
     } on LiveTrackingException catch (e) {
       if (!isClosed) {
         if (state.trackingInfo == null) {
@@ -227,23 +201,45 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     }
   }
 
-  /// JEBV4-269 (b02 wave C / N7): merge one SERVER-PUSHED position frame onto the
-  /// current snapshot so the map marker moves.
+  /// Reads ONE courier-position snapshot and merges it onto the row.
   ///
-  /// This is the SAME merge the old `_overlayLivePosition` performed — the only
-  /// change is where the overlay comes from. It used to be a one-shot
-  /// `GET /deliveries/{id}/tracking` read issued from inside every `_fetch`, i.e.
-  /// on the 5s poll cadence; it now arrives from the gateway's SSE stream with no
-  /// client cadence at all.
+  /// Feature-detected (`repo is LivePositionSource`) exactly as the stream used
+  /// to be, so the debug demo repo, the devtool seams and the `:4010` mock —
+  /// none of which serve a tracking route — contribute no marker instead of
+  /// faulting.
   ///
-  /// Two invariants carried over verbatim, both load-bearing:
+  /// Total by construction: [LivePositionSource.fetchLivePosition] swallows
+  /// every transport failure into `null`, and this adds nothing that can throw.
+  /// A dead position read must never fault a screen whose stepper and summary
+  /// are fine.
+  Future<void> _readLivePosition() async {
+    final repo = _repository;
+    // Explicit cast, not promotion: `LivePositionSource` is not a subtype of
+    // `LiveTrackingRepository` (that is the whole point of keeping it a separate
+    // optional capability), so Dart cannot promote across the two.
+    if (repo is! LivePositionSource) return;
+    final source = repo as LivePositionSource;
+    final overlay = await source.fetchLivePosition(deliveryId: deliveryId);
+    if (overlay == null || isClosed) return;
+    _positionReadCount++;
+    _applyLivePosition(overlay);
+  }
+
+  /// JEBV4-269: merge one position snapshot onto the current row so the map
+  /// marker appears where the jeeber last reported.
+  ///
+  /// Three invariants, all load-bearing:
   ///  * The merge emit carries NO `pendingEvent` (`copyWith` resets it to
   ///    `none`), so a moving marker can never re-fire the at-door / delivered
-  ///    navigation. A frame arriving right after the delivered transition would
-  ///    otherwise re-push the receipt screen.
-  ///  * An empty overlay is DROPPED (upstream, in `SseLivePositionStream`) rather
-  ///    than merged, so the pre-first-fix case cannot blank a marker the screen
-  ///    already has.
+  ///    navigation. An overlay landing right after the delivered transition
+  ///    would otherwise re-push the receipt screen.
+  ///  * An EMPTY overlay is dropped rather than merged, so the pre-first-fix
+  ///    case cannot blank a marker the screen already has.
+  ///  * A STALE overlay is NOT dropped — it is merged, carrying
+  ///    `stale: true`, so `markerIsLive` goes false and the map stops drawing
+  ///    the marker while the screen retains the age to explain itself. Dropping
+  ///    it would leave the phantom on screen forever, which is the failure the
+  ///    negative control exists to catch.
   void _applyLivePosition(DeliveryLivePosition overlay) {
     if (isClosed || overlay.isEmpty) return;
     final current = state.trackingInfo;
@@ -252,6 +248,8 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
       trackingInfo: current.withLivePosition(
         jeeberPosition: overlay.jeeberPosition,
         polyline: overlay.polyline,
+        stale: overlay.stale,
+        secondsSinceUpdate: overlay.secondsSinceUpdate,
       ),
     ));
   }
@@ -276,15 +274,19 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     return LiveTrackingEvent.none;
   }
 
-  /// Arm both watchers for a live row; retire both for a dead one.
+  /// Arm the push watcher for a live row; retire it for a dead one.
   ///
   /// Never arms for a delivered, cancelled or expired delivery — the FIRST fetch
   /// may already have read the terminal row (scenario matrix #9), in which case
   /// nothing should ever be subscribed. An escalated `failed` row is NOT terminal
-  /// here and keeps both watchers (P6/A1): SM edges 12/13 can still resolve it.
+  /// here and keeps watching (P6/A1): SM edges 12/13 can still resolve it.
   ///
   /// Idempotent (`??=`), so it is safe to call from construction, retry, resume
   /// and the push path.
+  ///
+  /// There is no second watcher any more. The position axis is not subscribed to
+  /// — it is read inside [_fetch], on the same events — so there is nothing here
+  /// to arm, nothing to re-arm, and no timer to leak.
   void _armWatchers() {
     if (isClosed) return;
     if (_isTerminal) {
@@ -292,81 +294,15 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
       return;
     }
     _refreshSubscription ??= _refreshSignals?.listen((_) => _refreshFromPush());
-    // The POSITION axis is feature-detected, exactly as the old one-shot
-    // `LivePositionSource` was: the `:4010` mock has no tracking route at all,
-    // so a repo that cannot stream contributes no marker rather than faulting.
-    final repo = _repository;
-    if (repo is LivePositionStreamSource && _positionSubscription == null) {
-      final source = repo as LivePositionStreamSource;
-      // The stream never emits an error by contract (see
-      // `LivePositionStreamSource`); a dead feed arrives as onDone and is
-      // recorded by the SSE layer's `tracking_sse` diag breadcrumb, so a frozen
-      // marker is never silent in the journal. onDone is also what RE-OPENS it
-      // — see [_onPositionStreamClosed].
-      _positionStreamLive = true;
-      _positionSubscription = source
-          .watchLivePosition(deliveryId: deliveryId)
-          .listen(
-            (overlay) {
-              // A frame proves this connection works, so the next flap starts
-              // the backoff over at its shortest step.
-              _positionRearmAttempt = 0;
-              _applyLivePosition(overlay);
-            },
-            onDone: _onPositionStreamClosed,
-          );
-    }
   }
 
-  /// The position stream closed on its own — RE-OPEN IT.
-  ///
-  /// This is the robustness the 5s `GET /deliveries/{id}/tracking` poll had for
-  /// free and the SSE replacement shipped without. `SseLivePositionStream`
-  /// funnels EVERY non-happy outcome through `shutdown()` → `controller.close()`
-  /// → this callback: a network flap, a proxy idling the held connection out,
-  /// the OS tearing the socket down when the app backgrounds, a transient 403 on
-  /// the first arm, the gateway restarting. Before this existed, any one of them
-  /// froze the courier marker permanently, because `_positionSubscription` kept
-  /// its dead value and `_armWatchers`' `== null` guard therefore never fired
-  /// again — not on resume, not on a push, not on retry.
-  ///
-  /// A terminal row is the ONE close that must not re-arm: the gateway hangs up
-  /// deliberately on a delivered/cancelled/expired delivery
-  /// (`LocationController.cs:392-397`), and reconnecting to a finished trip
-  /// would reopen a socket nobody reads for the rest of the session.
-  void _onPositionStreamClosed() {
-    _positionStreamLive = false;
-    unawaited(_positionSubscription?.cancel());
-    _positionSubscription = null;
-    if (isClosed || _isTerminal) return;
-    _positionRearmTimer?.cancel();
-    final delay = _positionRearmBackoff[
-        _positionRearmAttempt.clamp(0, _positionRearmBackoff.length - 1)];
-    _positionRearmAttempt++;
-    _positionRearmTimer = Timer(delay, () {
-      _positionRearmTimer = null;
-      if (isClosed || _isTerminal || _positionSubscription != null) return;
-      _positionRearmCount++;
-      _armWatchers();
-    });
-  }
-
-  /// Stop both watchers. `cancel()`'s future is deliberately NOT awaited: once it
-  /// RETURNS no further events are delivered, nulling the fields is what makes
+  /// Stop watching. `cancel()`'s future is deliberately NOT awaited: once it
+  /// RETURNS no further events are delivered, nulling the field is what makes
   /// that observable, and awaiting a cancel from `close()` deadlocks the
   /// fake-async zone under `testWidgets`.
-  ///
-  /// The pending re-arm goes with them. A timer that outlives the screen would
-  /// open an SSE connection for a cubit that is closed, or for a delivery that
-  /// has already completed — the exact leak the terminal check exists to avoid.
   void _retireWatchers() {
     unawaited(_refreshSubscription?.cancel());
     _refreshSubscription = null;
-    _positionStreamLive = false;
-    unawaited(_positionSubscription?.cancel());
-    _positionSubscription = null;
-    _positionRearmTimer?.cancel();
-    _positionRearmTimer = null;
   }
 
   void retry() {
@@ -379,21 +315,10 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   ///
   /// This is now MORE load-bearing than it was, not less: it is the backstop for
   /// a `type=delivery` push the OS dropped or coalesced while the process was
-  /// backgrounded, AND it re-opens the SSE position stream, which the OS will
-  /// have torn down along with the socket. Explicitly allowed by the mandate —
-  /// the read is caused by the user returning to the app, not by a clock.
-  ///
-  /// That second claim was FALSE as written until the `onDone` re-arm landed.
-  /// The re-open runs through `_armWatchers()`, whose position branch is guarded
-  /// by `_positionSubscription == null`; the field was nulled only by
-  /// `_retireWatchers()` and never when the stream closed by itself, so on
-  /// resume it still held the dead subscription and the guard skipped. Resume
-  /// re-read the STATUS and left the marker frozen. Now that
-  /// [_onPositionStreamClosed] nulls it, this method really does re-open the
-  /// stream — and it does so IMMEDIATELY, ahead of whatever backoff step the
-  /// automatic re-arm is sitting on, which is the point of a user-initiated
-  /// backstop. Pinned by
-  /// `test/features/live_tracking/tracking_sse_rearm_regression_test.dart`.
+  /// backgrounded, AND — because [_fetch] now reads the position too — it is the
+  /// user's own way to move the courier marker forward. Explicitly allowed by
+  /// the mandate: the read is caused by the user returning to the app, not by a
+  /// clock.
   ///
   /// Silent (no loading flash): [_fetch] keeps the last good `trackingInfo` on a
   /// failure, and a delivered/cancelled/expired row is left untouched (nothing
