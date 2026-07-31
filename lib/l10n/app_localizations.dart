@@ -2155,6 +2155,18 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get activeDeliveryUnavailable => _get('activeDeliveryUnavailable');
   String get activeDeliveryLoadError => _get('activeDeliveryLoadError');
 
+  // P0 (live tracking): the background-location permission banner. Shown while
+  // the GPS uploader is parked, i.e. while the customer's map is empty.
+  String get activeDeliveryGpsBannerTitle =>
+      _get('activeDeliveryGpsBannerTitle');
+  String get activeDeliveryGpsBannerBody => _get('activeDeliveryGpsBannerBody');
+  String get activeDeliveryGpsBannerBodySettings =>
+      _get('activeDeliveryGpsBannerBodySettings');
+  String get activeDeliveryGpsBannerOpenSettings =>
+      _get('activeDeliveryGpsBannerOpenSettings');
+  String get activeDeliveryGpsBannerRetry =>
+      _get('activeDeliveryGpsBannerRetry');
+
   // P6/B4: kind-specific transition-failure copy. One message for three
   // different failures was ranked cause #3 of the 2026-07-25 incident.
   String get activeDeliveryErrorInvalidTransition =>

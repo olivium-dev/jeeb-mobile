@@ -72,6 +72,45 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 
+    <!--
+        P0 (MB1 / live tracking): the JEEBER's GPS uploader.
+        - ACCESS_BACKGROUND_LOCATION is what makes `always` REACHABLE at all on
+          Android 10+ (API 29). Without this line, geolocator's
+          `PermissionManager.checkPermissionStatus` short-circuits:
+            geolocator_android-5.0.3 PermissionManager.java:71-76
+              boolean wantsBackgroundLocation =
+                  PermissionUtils.hasPermissionInManifest(
+                      context, Manifest.permission.ACCESS_BACKGROUND_LOCATION);
+              if (!wantsBackgroundLocation) return LocationPermission.whileInUse;
+          and `requestPermission` never even ADDS the background permission to
+          the request array (:104-111). So `Geolocator.checkPermission()` and
+          `Geolocator.requestPermission()` could only ever return `whileInUse`,
+          `BackgroundGpsCubit.start()` (which demands `always`) parked in
+          `permissionDenied` on EVERY delivery, and the customer's live-tracking
+          map never received a single fix — `POST /location/update` was never
+          called even once. `adb shell pm grant … ACCESS_BACKGROUND_LOCATION`
+          exits 0 and does NOTHING while the app does not declare it, which is
+          why the failure survived months of manual testing.
+        - It is a RUNTIME (dangerous) permission and Android 10+ REFUSES to
+          grant it in the same prompt as the foreground permissions. The
+          escalation is driven from Dart, incrementally, by
+          `BackgroundGpsCubit.start()`: foreground first
+          (`requestWhileInUsePermission`), then a SEPARATE background request
+          (`requestAlwaysPermission`). On Android 11+ the user must pick
+          "Allow all the time" on the app's location settings page, so a
+          non-`always` result is NOT treated as fatal — it parks the uploader in
+          `BackgroundGpsPhase.permissionDenied`, emits a `bg_gps_phase`
+          `[jeeb-diag]` breadcrumb, and raises the OMDS permission banner on the
+          Active Delivery screen with an "Open settings" CTA
+          (`GpsPermissionBanner`).
+        - NOT added: FOREGROUND_SERVICE / FOREGROUND_SERVICE_LOCATION. The
+          uploader uses a plain `Geolocator.getPositionStream` with no
+          `AndroidSettings.foregroundNotificationConfig`, so no foreground
+          service is started and declaring those would be dead permissions.
+          Screen-off continuity is a separate change.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"

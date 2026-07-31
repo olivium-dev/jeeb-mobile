@@ -4021,6 +4021,26 @@
   "@activeDeliveryLoadError": {
     "description": "T-MOB-031: Error message shown when loading fails."
   },
+  "activeDeliveryGpsBannerTitle": "Live tracking is off",
+  "@activeDeliveryGpsBannerTitle": {
+    "description": "Title of the Active Delivery banner shown when the background-location permission is missing, so the jeeber's position is not reaching the customer's tracking map."
+  },
+  "activeDeliveryGpsBannerBody": "Your customer can’t see where you are. Allow location access so Jeeb can share your position while you’re on the way.",
+  "@activeDeliveryGpsBannerBody": {
+    "description": "Body of the GPS permission banner when an in-app re-prompt can still recover the grant."
+  },
+  "activeDeliveryGpsBannerBodySettings": "Your customer can’t see where you are. Open settings and set location access to “Allow all the time” so Jeeb can share your position while you’re on the way.",
+  "@activeDeliveryGpsBannerBodySettings": {
+    "description": "Body of the GPS permission banner when only the OS settings page can grant background location — a permanent denial, or the Android 11+ 'Allow all the time' upgrade the platform never grants from an in-app dialog."
+  },
+  "activeDeliveryGpsBannerOpenSettings": "Open settings",
+  "@activeDeliveryGpsBannerOpenSettings": {
+    "description": "CTA on the GPS permission banner that opens the app's OS settings page."
+  },
+  "activeDeliveryGpsBannerRetry": "Allow location",
+  "@activeDeliveryGpsBannerRetry": {
+    "description": "CTA on the GPS permission banner that re-runs the in-app permission request."
+  },
   "activeDeliveryErrorInvalidTransition": "That step isn’t available yet. Pull to refresh and try again.",
   "@activeDeliveryErrorInvalidTransition": {
     "description": "P6/B4: snackbar shown when the gateway rejects a status transition as not allowed by the state machine."

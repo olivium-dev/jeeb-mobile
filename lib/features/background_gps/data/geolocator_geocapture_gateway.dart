@@ -14,16 +14,45 @@ import '../domain/location_permission.dart' as domain;
 ///
 /// Permission mapping (`geolocator` → domain):
 ///   * denied             → [domain.LocationPermission.denied]
-///   * deniedForever      → [domain.LocationPermission.denied]
+///   * deniedForever      → [domain.LocationPermission.deniedForever]
 ///   * whileInUse         → [domain.LocationPermission.whileInUse]
 ///   * always             → [domain.LocationPermission.always]
 ///   * unableToDetermine  → [domain.LocationPermission.notDetermined]
 ///
-/// `geolocator` exposes no "background/always" prompt distinct from the OS
-/// flow, so [requestAlwaysPermission] calls `Geolocator.requestPermission()`
-/// (which raises the system dialog) and maps the granted result. The stream is
-/// wrapped as a broadcast so the cubit can `listen` more than once per
-/// lifecycle (the port contract requires idempotent listens).
+/// ## Why the two request methods are the SAME geolocator call
+///
+/// `geolocator` exposes exactly one entry point — `Geolocator.requestPermission()`
+/// — and decides INTERNALLY which Android permissions go into the request array
+/// by reading the CURRENT status first (`geolocator_android-5.0.3`
+/// `PermissionManager.java:104-111`):
+///
+/// ```java
+/// if (SDK_INT >= Q && hasPermissionInManifest(ACCESS_BACKGROUND_LOCATION)) {
+///   if (checkPermissionStatus(activity) == whileInUse) {
+///     permissionsToRequest.add(ACCESS_BACKGROUND_LOCATION);
+///   }
+/// }
+/// ```
+///
+/// So the SEQUENCE is what makes the flow incremental, not the arguments:
+///   * called while the status is `denied`/`notDetermined` → requests
+///     FINE + COARSE only (the foreground step), and
+///   * called again once the status is `whileInUse` → adds
+///     `ACCESS_BACKGROUND_LOCATION` (the escalation step).
+///
+/// [requestWhileInUsePermission] and [requestAlwaysPermission] are therefore
+/// two named positions in that sequence rather than two different plugin calls.
+/// Keeping them distinct on the port is deliberate: it is what stops a future
+/// caller from "simplifying" the cubit back into a single request, which is the
+/// exact shape Android 11+ ignores outright.
+///
+/// **`ACCESS_BACKGROUND_LOCATION` must stay declared in `AndroidManifest.xml`**
+/// — both branches above are gated on `hasPermissionInManifest`, so without it
+/// `checkPermission()` can never return `always` (`PermissionManager.java:71-76`)
+/// and the whole upload pipeline parks silently.
+///
+/// The stream is wrapped as a broadcast so the cubit can `listen` more than once
+/// per lifecycle (the port contract requires idempotent listens).
 class GeolocatorGeocaptureGateway implements GeocaptureGateway {
   GeolocatorGeocaptureGateway({
     geo.LocationSettings? locationSettings,
@@ -40,6 +69,12 @@ class GeolocatorGeocaptureGateway implements GeocaptureGateway {
   @override
   Future<domain.LocationPermission> currentPermission() async {
     final permission = await geo.Geolocator.checkPermission();
+    return _mapPermission(permission);
+  }
+
+  @override
+  Future<domain.LocationPermission> requestWhileInUsePermission() async {
+    final permission = await geo.Geolocator.requestPermission();
     return _mapPermission(permission);
   }
 
@@ -102,7 +137,10 @@ class GeolocatorGeocaptureGateway implements GeocaptureGateway {
 
   /// Opens this app's OS settings page so the user can grant the location
   /// permission after a permanent denial. Used by the GPS-recovery UI's
-  /// "open settings" CTA when the app permission is denied.
+  /// "open settings" CTA when the app permission is denied, and by the
+  /// Active Delivery screen's background-location banner (Android 11+ routes
+  /// the "Allow all the time" upgrade through this page).
+  @override
   Future<bool> openAppSettings() => geo.Geolocator.openAppSettings();
 
   GpsSample _toSample(geo.Position position) {
@@ -120,8 +158,12 @@ class GeolocatorGeocaptureGateway implements GeocaptureGateway {
   domain.LocationPermission _mapPermission(geo.LocationPermission permission) {
     switch (permission) {
       case geo.LocationPermission.denied:
-      case geo.LocationPermission.deniedForever:
         return domain.LocationPermission.denied;
+      // Kept DISTINCT from `denied` (it used to collapse into it): the OS will
+      // not prompt again from here, so re-requesting is a silent no-op and the
+      // only honest affordance is the settings page.
+      case geo.LocationPermission.deniedForever:
+        return domain.LocationPermission.deniedForever;
       case geo.LocationPermission.whileInUse:
         return domain.LocationPermission.whileInUse;
       case geo.LocationPermission.always:

@@ -35,10 +35,34 @@ class ActiveDeliveryState extends Equatable {
     this.otpRequired = false,
     this.isVerifyingOtp = false,
     this.otpError,
+    this.gpsPhase = BackgroundGpsPhase.idle,
+    this.gpsNeedsSystemSettings = false,
   });
 
   final ActiveDeliveryMode mode;
   final JeeberDelivery? delivery;
+
+  /// P0 (live tracking): the jeeber's GPS uploader phase, MIRRORED here from
+  /// [BackgroundGpsCubit] so the screen can render a permission banner off the
+  /// one state it already builds from.
+  ///
+  /// Mirrored rather than provided: the uploader is optional (null in tests and
+  /// devtool), and a `BlocBuilder` on a bloc that may not exist in the tree is
+  /// the kind of conditional plumbing that quietly renders nothing — which is
+  /// precisely the failure mode this banner exists to end. Defaults to
+  /// [BackgroundGpsPhase.idle], so a screen with no uploader shows no banner.
+  final BackgroundGpsPhase gpsPhase;
+
+  /// True when the jeeber can only recover the GPS grant from the OS settings
+  /// page (permanent denial, or the Android 11+ "Allow all the time" upgrade,
+  /// which no in-app dialog can perform). Drives WHICH CTA the banner shows —
+  /// an honest "Open settings" instead of a "Try again" that would silently
+  /// no-op.
+  final bool gpsNeedsSystemSettings;
+
+  /// True when the uploader is parked on a missing permission while the
+  /// delivery is en route — i.e. the customer's map is receiving nothing.
+  bool get isGpsBlocked => gpsPhase == BackgroundGpsPhase.permissionDenied;
 
   /// One-shot snack error after a failed transition (reverted).
   final String? transitionError;
@@ -104,6 +128,8 @@ class ActiveDeliveryState extends Equatable {
     bool? isVerifyingOtp,
     String? otpError,
     bool clearOtpError = false,
+    BackgroundGpsPhase? gpsPhase,
+    bool? gpsNeedsSystemSettings,
   }) {
     return ActiveDeliveryState(
       mode: mode ?? this.mode,
@@ -122,6 +148,9 @@ class ActiveDeliveryState extends Equatable {
       otpRequired: otpRequired ?? this.otpRequired,
       isVerifyingOtp: isVerifyingOtp ?? this.isVerifyingOtp,
       otpError: clearOtpError ? null : (otpError ?? this.otpError),
+      gpsPhase: gpsPhase ?? this.gpsPhase,
+      gpsNeedsSystemSettings:
+          gpsNeedsSystemSettings ?? this.gpsNeedsSystemSettings,
     );
   }
 
@@ -139,6 +168,8 @@ class ActiveDeliveryState extends Equatable {
         otpRequired,
         isVerifyingOtp,
         otpError,
+        gpsPhase,
+        gpsNeedsSystemSettings,
       ];
 }
 
@@ -165,7 +196,9 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
         _compressor = compressor,
         _refreshSignals = refreshSignals,
         _gpsUploader = gpsUploader,
-        super(const ActiveDeliveryState());
+        super(const ActiveDeliveryState()) {
+    _armGpsMirror();
+  }
 
   final ActiveDeliveryRepository _repository;
   final String deliveryId;
@@ -224,10 +257,53 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
 
   StreamSubscription<void>? _refreshSubscription;
 
+  /// Mirrors [BackgroundGpsCubit]'s phase into [ActiveDeliveryState] so the
+  /// screen renders the permission banner. Null when no uploader was injected.
+  StreamSubscription<BackgroundGpsState>? _gpsSubscription;
+
   /// True once the push subscription is armed. Lets a test assert the wiring
   /// without reaching into the stream.
   @visibleForTesting
   bool get debugPushRefreshWired => _refreshSubscription != null;
+
+  /// True once the GPS-phase mirror is armed. Same purpose as
+  /// [debugPushRefreshWired] — asserts the wiring, not the behaviour.
+  @visibleForTesting
+  bool get debugGpsMirrorWired => _gpsSubscription != null;
+
+  /// Subscribes to the uploader's state and mirrors the two fields the banner
+  /// needs. Idempotent; a no-op without an uploader.
+  ///
+  /// Called from the constructor body path rather than lazily, because the very
+  /// first thing that can go wrong (a permission park on `start`) happens before
+  /// any user interaction — if the mirror armed on first render we would miss it.
+  void _armGpsMirror() {
+    final gps = _gpsUploader;
+    if (gps == null || _gpsSubscription != null) return;
+    _mirrorGpsState(gps.state);
+    _gpsSubscription = gps.stream.listen(_mirrorGpsState);
+  }
+
+  void _mirrorGpsState(BackgroundGpsState gpsState) {
+    if (isClosed) return;
+    emit(state.copyWith(
+      gpsPhase: gpsState.phase,
+      gpsNeedsSystemSettings: gpsState.needsSystemSettings,
+    ));
+  }
+
+  /// Banner CTA — re-runs the permission escalation for the live delivery.
+  /// Also called on app resume so a grant made in system settings is picked up
+  /// without the jeeber leaving and re-entering the screen.
+  Future<void> retryGpsPermission() async {
+    await _gpsUploader?.retryPermission();
+  }
+
+  /// Banner CTA — opens the app's OS settings page, the only place Android 11+
+  /// exposes "Allow all the time".
+  Future<void> openGpsSettings() async {
+    await _gpsUploader?.openSystemSettings();
+  }
 
   Future<void> loadDelivery() async {
     emit(state.copyWith(mode: ActiveDeliveryMode.loading, clearError: true));
@@ -705,6 +781,10 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
   @override
   Future<void> close() async {
     _retireRefreshSubscription();
+    // Drop the phase mirror BEFORE stopping the uploader — `stop()` emits an
+    // idle state, and mirroring it would `emit` into an already-closing cubit.
+    await _gpsSubscription?.cancel();
+    _gpsSubscription = null;
     // JEBV4-269: the uploader is owned for this cubit's lifetime — tear its GPS
     // stream down and close it so no fixes leak past the screen (battery + no
     // stray uploads for a delivery the jeeber has navigated away from).
