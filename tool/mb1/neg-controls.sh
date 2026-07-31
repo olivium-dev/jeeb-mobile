@@ -55,9 +55,18 @@ REGISTRAR="lib/core/notifications/data/device_token_registrar.dart"
 REPO="lib/features/live_tracking/data/dio_live_tracking_repository.dart"
 SINK="lib/core/diagnostics/diag_file_sink.dart"
 
+KEPT_OVERLAY="test/features/live_tracking/tracking_live_position_overlay_test.dart"
+DEVPAGE="lib/devtool/dev_settings_page.dart"
+ROUTER="lib/core/router/app_router.dart"
+PACKRUNNER="tool/mb1/run-pack.sh"
+
 # Assembled so this file never carries the banned literal contiguously.
 TOK_SSE="SseLivePosition""Stream"
 TOK_FIRESTORE="cloud_""firestore"
+# Split across two variables so that even the CONCATENATION does not appear as
+# a contiguous run of bytes in this file. N12 joins them at runtime.
+TOK_ALIAS_A="/v1/geo/"
+TOK_ALIAS_B="jeeb/stream/"
 
 # mutate <file> <old> <new>   — exact-substring replace, exactly once.
 mutate() {
@@ -82,6 +91,17 @@ import io, os, sys
 path = sys.argv[1]
 s = io.open(path, encoding='utf-8').read()
 io.open(path, 'w', encoding='utf-8').write(os.environ['LINE'] + '\n' + s)
+PY
+}
+
+# append_line <file> <line>   — appended, never prepended: the target of N12 is
+# an executable script whose FIRST line must stay `#!/usr/bin/env bash`.
+append_line() {
+  LINE="$2" python3 - "$1" <<'PY'
+import io, os, sys
+path = sys.argv[1]
+s = io.open(path, encoding='utf-8').read()
+io.open(path, 'w', encoding='utf-8').write(s + os.environ['LINE'] + '\n')
 PY
 }
 
@@ -152,6 +172,82 @@ run_control() {
   return 0
 }
 
+# run_control_witness <ID> <ITEM> <FILE> <WITNESS-CMD> <desc> <mutation...>
+#
+# As run_control, plus: under the SAME mutation it runs a WITNESS command and
+# requires it to stay GREEN.
+#
+# This is what proves a NEW pack item is not redundant with an OLD one. "M11
+# went red" is worth little on its own — M11 might simply be re-running what M2
+# already covers. "M11 went red AND M2 stayed green under the identical
+# mutation" is the measurement: it names a defect class the pre-existing items
+# structurally cannot see. Same argument for M10 against the writer's own
+# preset test.
+run_control_witness() {
+  local id="$1" item="$2" file="$3" witness="$4" desc="$5"; shift 5
+  echo
+  echo "############################################################"
+  echo "$id  -> expects $item RED **and the witness GREEN**   ($desc)"
+  echo "     witness: $witness"
+  echo "############################################################"
+
+  local before_hash rc wrc
+  before_hash="$(shasum -a 256 "$file" | awk '{print $1}')"
+  cp "$file" "$BAK_DIR/restore.bak"
+  MUTATED="$file"
+
+  echo "--- baseline: $item must PASS before the mutation ---"
+  if ! tool/mb1/run-pack.sh "$item" >"$BAK_DIR/$id.before" 2>&1; then
+    echo "VOID: $item was NOT passing before the mutation."
+    tail -5 "$BAK_DIR/$id.before"; restore_all; return 1
+  fi
+  echo "--- baseline: the witness must PASS too ---"
+  if ! eval "$witness" >"$BAK_DIR/$id.wbefore" 2>&1; then
+    echo "VOID: the witness was already red before the mutation."
+    tail -5 "$BAK_DIR/$id.wbefore"; restore_all; return 1
+  fi
+
+  if ! "$@"; then
+    echo "VOID: the mutation itself failed to apply."; restore_all; return 1
+  fi
+  if [[ "$(shasum -a 256 "$file" | awk '{print $1}')" == "$before_hash" ]]; then
+    echo "VOID: the mutation changed nothing."; restore_all; return 1
+  fi
+
+  echo "--- mutated: $item must FAIL ---"
+  tool/mb1/run-pack.sh "$item" >"$BAK_DIR/$id.after" 2>&1; rc=$?
+  echo "    RED tests:"
+  grep -oE "\-\-plain-name '[^']*'" "$BAK_DIR/$id.after" \
+    | sed "s/--plain-name '/      * /; s/'$//" | sort -u | head -8
+  grep -E '^>>> ' "$BAK_DIR/$id.after" | head -2
+
+  echo "--- mutated: the WITNESS must still be GREEN (this is the finding) ---"
+  eval "$witness" >"$BAK_DIR/$id.wafter" 2>&1; wrc=$?
+  tail -1 "$BAK_DIR/$id.wafter"
+
+  restore_all
+  if [[ "$(shasum -a 256 "$file" | awk '{print $1}')" != "$before_hash" ]]; then
+    echo "RESTORE FAILED for $file — DO NOT COMMIT, the tree is dirty."; return 1
+  fi
+
+  if [[ $rc -eq 0 ]]; then
+    echo ">>> $id DID NOT BEHAVE: $item stayed GREEN with the code broken."
+    return 1
+  fi
+  if [[ $wrc -ne 0 ]]; then
+    echo ">>> $id DID NOT BEHAVE: the witness ALSO went red, so this mutation"
+    echo "    does not demonstrate a blind spot unique to $item."
+    return 1
+  fi
+
+  echo "--- restored: $item must PASS again ---"
+  if ! tool/mb1/run-pack.sh "$item" >"$BAK_DIR/$id.restored" 2>&1; then
+    echo ">>> $id DID NOT BEHAVE: $item is still red after restore."; return 1
+  fi
+  echo ">>> $id BEHAVED ($item red, witness green, file identical after restore)"
+  return 0
+}
+
 n1() { run_control N1 M1 "$CUBIT" \
   "re-orphan fetchLivePosition — the frozen-marker P0 itself" \
   mutate "$CUBIT" 'await _readLivePosition(cause);' '/* NEGCTL */;'; }
@@ -194,6 +290,59 @@ n9() { run_control N9 M6b "$SINK" \
   mutate "$SINK" "      if (buildSha.isNotEmpty) 'buildSha': buildSha,
 " ""; }
 
+# --- controls for the items added by the MB1 TEST AUTHOR (M9, M10, M11) -----
+
+# N10 -> M9. MB1 says "KEEP overlay :151 / :180 — they are the payload-adequacy
+# pack". Those two cases are the only ones in either kept file that assert the
+# SHAPE OF THE GATEWAY PAYLOAD rather than the cubit's behaviour. Drop one and
+# a gateway that renames a JSON field produces an empty marker behind a fully
+# green suite. Mutating the TITLE (rather than deleting the case) keeps the file
+# compiling, so this reds the ONE assertion that owns the claim instead of
+# reddening the file wholesale.
+n10() { run_control N10 M9 "$KEPT_OVERLAY" \
+  "drop overlay :180 from the payload-adequacy pack" \
+  mutate "$KEPT_OVERLAY" \
+    "test('fetchLivePosition is null on the legacy mock base (no tracking route)'," \
+    "test('NEGCTL renamed away'," ; }
+
+# N11 -> M10, WITH WITNESS. Revert the Server URL page to the pre-ruling inline
+# preset literal — i.e. leave `kDevServerUrlPresets` declared, MSI-first,
+# origin-only and three entries long, but stop the page from reading it. The
+# operator loses the MSI chip; the owner ruling is undone.
+#
+# The witness is the writer's OWN test file for this ruling. It asserts things
+# about the CONSTANT, so it stays green through this mutation — which is the
+# entire reason M10 was added as a separate instrument.
+n11() { run_control_witness N11 M10 "$DEVPAGE" \
+  "flutter test test/devtool/dev_server_url_presets_test.dart" \
+  "un-wire the preset list from the page (constant survives, chip does not)" \
+  mutate "$DEVPAGE" \
+    "for (final preset in kDevServerUrlPresets)" \
+    "for (final preset in const ['http://10.0.2.2:4010'])" ; }
+
+# N12 -> M11, WITH WITNESS. Re-introduce the deleted route alias in a file that
+# is NEITHER .dart NOR under lib/ or test/ — here, the pack's own runner script.
+# `dartSources(['lib','test'])` cannot see it, so M2's five receipts, M3's
+# repo-wide sweep and M7's scan all stay green. V-1 greps REPO-WIDE WITH NO
+# PATHSPEC and would fail the batch on it.
+#
+# The witness is M2 — the item whose entire job is "the deleted symbols are
+# gone". Its staying green under this mutation is the finding.
+n12() { run_control_witness N12 M11 "$PACKRUNNER" \
+  "tool/mb1/run-pack.sh M2" \
+  "dead alias survives OUTSIDE lib/ and test/ (V-1 greps repo-wide)" \
+  append_line "$PACKRUNNER" "# NEGCTL ${TOK_ALIAS_A}${TOK_ALIAS_B}" ; }
+
+# N13 -> M3. The two post-SSE PROSE retirements carry no banned token, so no
+# grep in this pack can see them. Erase the dated correction marker in the
+# router and the file goes back to telling the next reader that the position
+# axis is a server-sent-events stream — a claim that is false, unfindable by
+# grep, and the first thing an agent reads when asking where the marker comes
+# from. N3 covers M3.b (chat_cubit); this covers M3.d.
+n13() { run_control N13 M3 "$ROUTER" \
+  "erase the dated correction on the router's position-axis claim" \
+  mutate "$ROUTER" 'MB1 W1.1 — corrected' 'NEGCTL quietly rewritten'; }
+
 CONTROLS=(
   "N1|M1|re-orphan fetchLivePosition (the P0)"
   "N2|M2|re-introduce a deleted symbol"
@@ -204,6 +353,10 @@ CONTROLS=(
   "N7|M7|Firestore reference in the tracking feature"
   "N8|M0|analyzer red, compilation intact"
   "N9|M6b|buildSha dropped from the capture header"
+  "N10|M9|overlay :180 dropped from the payload-adequacy pack"
+  "N11|M10|preset list un-wired from the page (witness: writer's own test)"
+  "N12|M11|dead alias outside lib//test/ (witness: M2)"
+  "N13|M3|dated correction erased on the router prose site"
 )
 
 if [[ "${1:-}" == "--list" ]]; then

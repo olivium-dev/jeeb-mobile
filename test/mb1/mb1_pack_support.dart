@@ -210,6 +210,102 @@ int gitGrepCount(String token, {required String ref, List<String> paths = const 
   return total;
 }
 
+/// The literal result of a `git` invocation: its exit code and its stdout,
+/// unparsed.
+///
+/// **Why this exists, added by the MB1 TEST AUTHOR (item M11).** [gitGrepCount]
+/// answers a NUMBER; MB1's V-1 contract is written as a COMMAND SHAPE —
+/// *"`git grep -c <the dead route alias>` → no output, exit 1"* — and the batch
+/// says so explicitly because `git grep -c` never prints `0`. That distinction has
+/// already produced one recorded unsatisfiable contract in this programme
+/// (`OWNER-DECISIONS.md`, GW1 V-1: a verifier expecting the string `0`). A pack
+/// that only ever asserts a summed integer cannot tell a verifier whether the
+/// command they were handed behaves the way their contract says it does, so M11
+/// asserts the exit code and the emptiness of stdout directly.
+class GitResult {
+  const GitResult(this.exitCode, this.stdout);
+  final int exitCode;
+  final String stdout;
+
+  bool get emptyOutput => stdout.trim().isEmpty;
+  int get lines =>
+      stdout.trim().isEmpty ? 0 : stdout.trim().split('\n').length;
+
+  @override
+  String toString() => 'exit=$exitCode lines=$lines\n$stdout';
+}
+
+/// Runs `git <args>` at the package root and returns its raw result.
+///
+/// Returns `exitCode: -1` when git itself could not be invoked, which callers
+/// must treat as UNVERIFIABLE (rejected), never as a clean zero — `git` missing
+/// and a token being absent are the same silence otherwise (GATE.md §6.3 `L3`).
+GitResult git(List<String> args) {
+  if (!gitAvailable) return const GitResult(-1, '');
+  try {
+    final res = Process.runSync('git', args);
+    return GitResult(res.exitCode, res.stdout as String);
+  } on ProcessException {
+    return const GitResult(-1, '');
+  }
+}
+
+/// `git grep -c -F -- <token>` over the WHOLE tracked tree, repo-wide with no
+/// pathspec — the exact shape MB1's V-1 runs. Pass [ref] to ask the same
+/// question of a commit instead of the working tree.
+GitResult gitGrepRepoWide(String token, {String? ref}) =>
+    git(<String>['grep', '-c', '-F', '--', token, if (ref != null) ref]);
+
+/// `git grep -l -F -- <token>` → the FILE list, repo-wide. V-1 expresses four
+/// of its rows as `git grep -l <sym> | wc -l` → 0.
+GitResult gitGrepFiles(String token, {String? ref}) =>
+    git(<String>['grep', '-l', '-F', '--', token, if (ref != null) ref]);
+
+/// Counts occurrences of [needle] on NON-COMMENT lines reported by
+/// `git grep -n -F`, at [ref] (or the working tree when null), under [paths].
+///
+/// The same line-level filter is applied to BOTH sides of every comparison that
+/// uses it, which is the entire point: MB1's V-1 row is *"`fetchLivePosition` →
+/// ≥1 non-test caller, matched as a call expression on comment-stripped source.
+/// Baseline at `origin/main` is 0 production call sites."* Measuring "now" with
+/// one instrument and "before" with another would make the delta meaningless.
+///
+/// Deliberately line-level and naive: it drops `//`, `///`, `*` and `/*` lines.
+/// It does not understand a call expression buried inside a block comment whose
+/// continuation line is unmarked. `stripDartComments` (used by M2) is the
+/// second, independent instrument on the same claim — two matchers agreeing is
+/// stronger than one being clever.
+int nonCommentMatches(
+  String needle, {
+  String? ref,
+  List<String> paths = const <String>[],
+}) {
+  final res = git(<String>[
+    'grep',
+    '-n',
+    '-F',
+    '--',
+    needle,
+    if (ref != null) ref,
+    if (paths.isNotEmpty) '--',
+    ...paths,
+  ]);
+  if (res.exitCode == -1) return -1;
+  if (res.emptyOutput) return 0;
+  var n = 0;
+  for (final line in res.stdout.trim().split('\n')) {
+    // `[<ref>:]<path>:<lineno>:<text>` — the text is everything after the
+    // line number, and only the LAST such colon-pair is structural.
+    final m = RegExp(r'^(.*?):(\d+):(.*)$').firstMatch(line);
+    final text = (m?.group(3) ?? line).trimLeft();
+    if (text.startsWith('//') || text.startsWith('*') || text.startsWith('/*')) {
+      continue;
+    }
+    n++;
+  }
+  return n;
+}
+
 /// The file's content at [ref], or null when git cannot produce it.
 String? gitShow(String path, {required String ref}) {
   if (!gitAvailable) return null;
