@@ -223,11 +223,12 @@ void main() {
     // verbatim would have booked that as a surviving dead route — a FAIL
     // manufactured by the test pack, on a tree whose PRODUCTION code was
     // clean. Every other item in the pack stayed green throughout.
-    // Counted first-hand on 2026-07-31 (`git ls-files <dir> | wc -l`, plus the
-    // three files this item shipped with): test/mb1 = 11, tool/mb1 = 2. The
-    // floors below are deliberately the counts as they stand, so ADDING a pack
-    // file cannot silently shrink the denominator.
-    const minFiles = <String, int>{'test/mb1': 11, 'tool/mb1': 2};
+    // Counted first-hand on 2026-07-31: test/mb1 = 12 (8 pre-existing + m9,
+    // m10, m11, m12), tool/mb1 = 3 (run-pack.sh, neg-controls.sh,
+    // suite-delta.sh). The floors below are deliberately the counts as they
+    // stand, so REMOVING a pack file cannot silently shrink the denominator
+    // that makes "0 hits" a measurement.
+    const minFiles = <String, int>{'test/mb1': 12, 'tool/mb1': 3};
 
     minFiles.forEach((dir, floor) {
       test('$dir contributes 0 hits for either V-1 token', () {

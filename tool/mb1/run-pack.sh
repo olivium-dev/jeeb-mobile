@@ -43,6 +43,7 @@ ITEMS=(
   "M9|W1.1c THE TWO KEPT TEST FILES — reworked, not deleted|__kept__"
   "M10|OWNER RULING 2026-07-31 #2 — MSI Dev Tool preset, RENDERED|test/mb1/m10_devtool_msi_preset_test.dart"
   "M11|V-1's CONTRACT in its own command shape — repo-wide git grep|test/mb1/m11_v1_contract_shape_test.dart"
+  "M12|W1.4 BUILD LINE — every --dart-define has a reader; the omitted one has none|test/mb1/m12_build_line_defines_test.dart"
 )
 
 if [[ "${1:-}" == "--list" ]]; then

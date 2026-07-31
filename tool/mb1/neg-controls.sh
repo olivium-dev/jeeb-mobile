@@ -59,6 +59,7 @@ KEPT_OVERLAY="test/features/live_tracking/tracking_live_position_overlay_test.da
 DEVPAGE="lib/devtool/dev_settings_page.dart"
 ROUTER="lib/core/router/app_router.dart"
 PACKRUNNER="tool/mb1/run-pack.sh"
+APPCONFIG="lib/core/config/app_config.dart"
 
 # Assembled so this file never carries the banned literal contiguously.
 TOK_SSE="SseLivePosition""Stream"
@@ -343,6 +344,19 @@ n13() { run_control N13 M3 "$ROUTER" \
   "erase the dated correction on the router's position-axis claim" \
   mutate "$ROUTER" 'MB1 W1.1 — corrected' 'NEGCTL quietly rewritten'; }
 
+# N14 -> M12. THE TRIPWIRE, fired. MB1's W1.4 build line deliberately omits
+# `--dart-define=GATEWAY_BASE_URL`, and the writer justifies that with "it has
+# zero non-test consumers" — true at this commit, and one edit from false. Give
+# `AppConfig.gatewayBaseUrl` a reader under lib/ and the omission silently
+# points that reader at the compiled-in default `https://api.jeeb.app`: a public
+# URL, out of scope under owner exclusion 3, and NXDOMAIN besides. The mutation
+# compiles cleanly, which is the whole danger — nothing else in the pack, the
+# analyzer, or the build notices.
+n14() { run_control N14 M12 "$APPCONFIG" \
+  "give the un-passed GATEWAY_BASE_URL define a reader under lib/" \
+  append_line "$APPCONFIG" \
+    "const String negctlProbe = AppConfig.gatewayBaseUrl;"; }
+
 CONTROLS=(
   "N1|M1|re-orphan fetchLivePosition (the P0)"
   "N2|M2|re-introduce a deleted symbol"
@@ -357,6 +371,7 @@ CONTROLS=(
   "N11|M10|preset list un-wired from the page (witness: writer's own test)"
   "N12|M11|dead alias outside lib//test/ (witness: M2)"
   "N13|M3|dated correction erased on the router prose site"
+  "N14|M12|a reader appears for the un-passed GATEWAY_BASE_URL define"
 )
 
 if [[ "${1:-}" == "--list" ]]; then
