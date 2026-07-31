@@ -89,8 +89,15 @@ String _mutualRateRoute(String deliveryId, {required bool isClient}) =>
 ///     `dispute-open-evidence` (the `escalate` route, JM-060) — AC2/AC3.
 /// Backoff for re-attempting a conversation resolution that COULD NOT FIND OUT
 /// (network down, 5xx, timeout). Widening, and it terminates on the first
-/// success — see `_scheduleResolutionRetry`. Mirrors `kPositionRearmBackoff`
-/// (`live_tracking_cubit.dart`), the SSE re-arm shipped in #186.
+/// success — see `_scheduleResolutionRetry`.
+///
+/// **Corrected (MB1 W1.1) — historical, retained not deleted.** This used to
+/// say it "mirrors" the live-tracking SSE re-arm backoff shipped in #186. That
+/// constant no longer exists, and the resemblance was only ever skin-deep: the
+/// re-arm's reset lived inside the frame handler of a stream pointed at a route
+/// the gateway had deleted, so it never reset and never stopped. The property
+/// that makes THIS schedule safe is that it terminates on success, not that it
+/// widens.
 const List<Duration> kChatResolutionRetryBackoff = <Duration>[
   Duration(seconds: 2),
   Duration(seconds: 5),
@@ -1538,9 +1545,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   /// the retry of a read that FAILED, it widens
   /// ([kChatResolutionRetryBackoff]: 2 s → 5 s → 15 s → 30 s, then 30 s), and it
   /// TERMINATES on the first success (`_finalize` → [_cancelResolutionRetry]).
-  /// The same shape and the same argument as the SSE re-arm backoff shipped in
-  /// #186 (`kPositionRearmBackoff`, `live_tracking_cubit.dart`), which replaced a
-  /// dead stream that "neither resume nor a push could re-open".
+  ///
+  /// **Corrected (MB1 W1.1) — historical, retained not deleted.** This sentence
+  /// used to end "the same shape and the same argument as the SSE re-arm
+  /// backoff shipped in #186, which replaced a dead stream that neither resume
+  /// nor a push could re-open". It is exactly the wrong precedent, and citing it
+  /// here helped the defect look principled for two months: that re-arm was
+  /// pointed at a route the gateway had already deleted, its attempt counter
+  /// reset only inside a frame handler that could never run, and it therefore
+  /// re-issued a dead GET every 30 s for the life of the screen. It is deleted.
+  /// The load-bearing property of THIS retry is termination on success — never
+  /// the widening schedule on its own.
   ///
   /// **RETRACTED CLAIM — read this before trusting the paragraph that used to
   /// be here.** This comment previously argued that waiting for a connectivity

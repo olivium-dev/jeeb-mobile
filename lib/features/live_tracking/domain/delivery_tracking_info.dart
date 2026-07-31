@@ -85,7 +85,18 @@ class DeliveryTrackingInfo extends Equatable {
   });
 
   /// T-MOB-017: Parses the TrackingPolylineDto shape returned by
-  /// GET /deliveries/{id}/tracking and GET /v1/geo/jeeb/stream/{id}.
+  /// GET /deliveries/{id}/tracking.
+  ///
+  /// **Corrected (MB1 W1.1) — historical claim, retained not deleted.** This
+  /// line used to name a second producer as well: the gateway's server-sent-
+  /// events position alias under `/v1/geo/`, whose frames carried the identical
+  /// shape (which is why one parser served both). That route no longer exists —
+  /// the gateway deleted it (`LocationController.cs:22-31`) and mobile's
+  /// consumer went with it in W1.1 — so the snapshot read is the only producer
+  /// left. The dead route is deliberately not spelled out here: a doc comment
+  /// quoting it is indistinguishable from a live caller under `git grep`, which
+  /// is exactly how it survived a repo-wide sweep once already. See
+  /// `test/features/live_tracking/sse_teardown_grep_receipt_test.dart`.
   ///
   /// Verified contract (d6-tracking-geo, s09-live-tracking):
   ///   { deliveryId, jeeberId, polyline: [[lat,lng], …], position: {lat,lng},

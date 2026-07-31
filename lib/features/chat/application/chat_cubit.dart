@@ -13,9 +13,18 @@ import 'chat_state.dart';
 
 /// Backoff for the COLD-LOAD-FAILURE retry. Not a poll: it is armed only while
 /// [ChatState.historyLoadFailed] is set and it TERMINATES on the first success.
-/// Same shape and same argument as the two backoffs already shipped —
-/// `kPositionRearmBackoff` (`live_tracking_cubit.dart`, #186) and
-/// `kChatResolutionRetryBackoff` (`chat_detail_screen.dart`).
+/// Same shape and same argument as `kChatResolutionRetryBackoff`
+/// (`chat_detail_screen.dart`).
+///
+/// **Corrected (MB1 W1.1) — historical, retained not deleted.** This paragraph
+/// also cited the live-tracking SSE re-arm backoff (#186) as precedent. That
+/// constant is GONE and it is the worst possible precedent to cite: its reset
+/// lived inside the frame handler of a stream the gateway had deleted, so it
+/// could never fire, and the schedule sat at its 30 s steady state re-issuing a
+/// dead GET forever. This backoff is not that shape — it terminates on the
+/// first success, and its termination path is exercised by a test rather than
+/// assumed. Keep the distinction: "widening backoff" is not by itself a defence
+/// against a loop; TERMINATING is.
 ///
 /// It caps rather than exhausts, deliberately: an exhausting schedule leaves a
 /// thread permanently blank with no way back short of a restart.
