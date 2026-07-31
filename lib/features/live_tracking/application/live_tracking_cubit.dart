@@ -157,6 +157,27 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   /// exists to remove.
   bool _positionReadInFlight = false;
 
+  /// TRAILING EDGE of the single flight above. Set when a cause arrives while a
+  /// read is already in flight; consumed once that read completes.
+  ///
+  /// Dropping the overlapping cause outright — which is what this code did
+  /// until the MB1 two-model review — is wrong specifically BECAUSE there is no
+  /// cadence. With a poll, a dropped edge is repaired by the next tick; here
+  /// the marker simply stays at the pre-push snapshot until some later,
+  /// unrelated event happens to arrive. A push landing inside the screen-open
+  /// round trip is the common case (the open read is a full network round trip
+  /// and the push that woke the screen is right behind it), and it takes the
+  /// `cause:'push'` breadcrumb with it, so the capture then shows silence where
+  /// a refresh happened.
+  ///
+  /// This is COALESCING, not cadence, and it is bounded by construction: the
+  /// slot holds at most one cause, it is only ever filled by an EXTERNAL event
+  /// (open / push / resume / retry), and a completed read with an empty slot
+  /// schedules nothing. N events therefore produce at most N+1 reads and
+  /// **zero** timers — `async.periodicTimerCount == 0` and
+  /// `async.pendingTimers.isEmpty` are asserted against exactly this.
+  LivePositionReadCause? _pendingPositionCause;
+
   /// G4: local, restart-safe source of the delivery hand-over code (persisted
   /// at offer-accept time). Read-only here — the tracking surface renders it
   /// discoverably pre-at-door and prominently at the door. It deliberately
@@ -282,20 +303,41 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   /// contractually null on ANY failure (403 not-a-party, 404 no-fix-yet,
   /// transport, malformed body), so the map simply keeps its last-known marker.
   ///
-  /// Emits [kTrackingPositionEvent] on every attempt, including the null ones.
+  /// Emits [kTrackingPositionEvent] on every attempt — including the ones that
+  /// return null AND the ones that THROW. A breadcrumb that is emitted only on
+  /// the happy path turns a fault into silence, and the whole V-2 predicate is
+  /// a count over these rows: silence and "no push arrived" would be the same
+  /// reading.
   Future<void> _readLivePosition(LivePositionReadCause cause) async {
     if (isClosed || _isTerminal) return;
     final repo = _repository;
     if (repo is! LivePositionSource) return;
-    if (_positionReadInFlight) return;
+    if (_positionReadInFlight) {
+      // Coalesce onto the trailing edge instead of dropping the cause. See
+      // [_pendingPositionCause] — the LAST cause wins, because it is the most
+      // recent reason to believe the marker is stale.
+      _pendingPositionCause = cause;
+      return;
+    }
     // Explicit cast, not promotion: `LivePositionSource` is deliberately NOT a
     // subtype of `LiveTrackingRepository` (that is the whole point of the
     // optional capability), so the `is!` guard above cannot promote `repo`.
     final source = repo as LivePositionSource;
     _positionReadInFlight = true;
     DeliveryLivePosition? overlay;
+    String? failure;
     try {
       overlay = await source.fetchLivePosition(deliveryId: deliveryId);
+    } catch (e) {
+      // [LivePositionSource.fetchLivePosition] is DOCUMENTED total, and the
+      // shipped implementation now is. A different implementation — a devtool
+      // double, a seam fake, a future gateway client — is not bound by that
+      // doc comment, and an escaping error here would ride out through the
+      // unawaited `_fetchAndSchedule` as an unhandled zone error, killing the
+      // breadcrumb on the way. Record it and carry on showing the last known
+      // marker; a swallowed error that is NAMED in the capture is strictly
+      // more observable than a crash that is not.
+      failure = e.runtimeType.toString();
     } finally {
       _positionReadInFlight = false;
     }
@@ -310,7 +352,14 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
       'lat': overlay?.jeeberPosition?.lat,
       'lng': overlay?.jeeberPosition?.lng,
       'polyline': overlay?.polyline.length ?? 0,
+      // Null-aware ELEMENT: the key is absent entirely on the happy path, so a
+      // capture parser can treat the presence of `error` as the signal.
+      'error': ?failure,
     });
+    final pending = _pendingPositionCause;
+    if (pending == null) return;
+    _pendingPositionCause = null;
+    await _readLivePosition(pending);
   }
 
   /// JEBV4-269: merge one position snapshot onto the current row so the map
@@ -385,6 +434,11 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   }
 
   void retry() {
+    // `emit` after `close()` throws in bloc. Every other entry point on this
+    // cubit guards it; this one did not, and MB1's edit to its body would have
+    // made the resulting crash look like MB1's fault. Pre-existing at
+    // `origin/main:372-375`, fixed here because this method is in the diff.
+    if (isClosed) return;
     emit(state.copyWith(mode: LiveTrackingViewMode.loading, clearError: true));
     _fetchAndSchedule(LivePositionReadCause.retry);
   }
