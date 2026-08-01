@@ -180,6 +180,47 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   /// must produce ONE re-pull, not two whose emits race.
   bool _statusReadInFlight = false;
 
+  /// TRAILING EDGE of the push single-flight above. Set when a push lands while
+  /// a push-driven read is already in flight; consumed once that read completes.
+  ///
+  /// Dropping the overlapping push outright — which is what this code did on
+  /// `origin/main` — is wrong specifically BECAUSE there is no cadence. With a
+  /// poll, a dropped edge is repaired by the next tick; here the row and the
+  /// marker simply stay at the pre-push snapshot until some later, unrelated
+  /// event happens to arrive. A second push landing inside the first push's
+  /// round trip is the COMMON case whenever the jeeber is moving, and it takes
+  /// the `cause:'push'` breadcrumb with it, so the capture then shows silence
+  /// where a refresh actually happened.
+  ///
+  /// This is COALESCING, not cadence, and it is bounded by construction: the
+  /// flag holds at most one deferred edge, it is only ever set by an EXTERNAL
+  /// push event, and a completed read with the flag clear schedules nothing.
+  /// N pushes therefore produce at most N+1 reads and **zero** timers.
+  bool _pendingPushEdge = false;
+
+  /// Single-flight latch for the position read: two causes inside one round
+  /// trip must produce ONE read, not two whose emits race — an older snapshot
+  /// completing after a newer one would otherwise overwrite the fresh marker
+  /// with a stale one.
+  bool _positionReadInFlight = false;
+
+  /// TRAILING EDGE of the position single-flight above. Set when a cause arrives
+  /// while a read is already in flight; consumed once that read completes.
+  ///
+  /// Same reasoning as [_pendingPushEdge], one layer down: a push landing inside
+  /// the screen-open round trip is the common case (the open read is a full
+  /// network round trip and the push that woke the screen is right behind it).
+  /// Dropping it would leave the marker at the pre-push snapshot AND remove the
+  /// `cause:'push'` row that MB1's V-2 contract counts.
+  ///
+  /// One slot, LAST cause wins (it is the most recent reason to believe the
+  /// marker is stale), filled only by an external event, and a completed read
+  /// with an empty slot schedules nothing. N events produce at most N+1 reads
+  /// and **zero** timers — `async.periodicTimerCount == 0` and
+  /// `async.pendingTimers.isEmpty` are asserted against exactly this, so "no new
+  /// cadence" still holds.
+  LivePositionReadCause? _pendingPositionCause;
+
   /// G4: local, restart-safe source of the delivery hand-over code (persisted
   /// at offer-accept time). Read-only here — the tracking surface renders it
   /// discoverably pre-at-door and prominently at the door. It deliberately
@@ -205,10 +246,19 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     _armWatchers();
   }
 
-  /// One push → one status read. Single-flighted; the terminal check inside
-  /// [_fetch] retires both watchers when the row dies.
+  /// One push → one status read. Single-flighted, and COALESCED onto a trailing
+  /// edge rather than dropped; the terminal check inside [_fetch] retires the
+  /// watcher when the row dies.
+  ///
+  /// The `return` on [_statusReadInFlight] used to be an outright drop. See
+  /// [_pendingPushEdge] — under a push-only transport with no cadence, nothing
+  /// ever heals a dropped edge, so the screen froze at the pre-push snapshot.
   Future<void> _refreshFromPush() async {
-    if (isClosed || _isTerminal || _statusReadInFlight) return;
+    if (isClosed || _isTerminal) return;
+    if (_statusReadInFlight) {
+      _pendingPushEdge = true;
+      return;
+    }
     _statusReadInFlight = true;
     try {
       await _fetch(LivePositionReadCause.push);
@@ -216,6 +266,12 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
       _statusReadInFlight = false;
     }
     _armWatchers();
+    // Drain the coalesced edge, if any. Cleared BEFORE the recursive call so a
+    // push landing during the drain re-arms it instead of being swallowed, and
+    // so this can never loop without a new external event.
+    if (!_pendingPushEdge) return;
+    _pendingPushEdge = false;
+    await _refreshFromPush();
   }
 
   /// G4: re-hydrates the accept-time code from local persistence (cold-start
@@ -295,12 +351,21 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   /// read was attempted there, and a record claiming otherwise would put phantom
   /// rows in the denominator for every devtool seam and demo repo.
   Future<void> _readLivePosition(LivePositionReadCause cause) async {
+    if (isClosed || _isTerminal) return;
     final repo = _repository;
     // Explicit cast, not promotion: `LivePositionSource` is not a subtype of
     // `LiveTrackingRepository` (that is the whole point of keeping it a separate
     // optional capability), so Dart cannot promote across the two.
     if (repo is! LivePositionSource) return;
+    if (_positionReadInFlight) {
+      // Coalesce onto the trailing edge instead of dropping the cause. See
+      // [_pendingPositionCause] — the LAST cause wins, because it is the most
+      // recent reason to believe the marker is stale.
+      _pendingPositionCause = cause;
+      return;
+    }
     final source = repo as LivePositionSource;
+    _positionReadInFlight = true;
     DeliveryLivePosition? overlay;
     String? failure;
     try {
@@ -314,6 +379,8 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
       // showing the last known marker: a swallowed error that is NAMED in the
       // capture is strictly more observable than a crash that is not.
       failure = e.runtimeType.toString();
+    } finally {
+      _positionReadInFlight = false;
     }
     if (isClosed) return;
     // Unchanged semantics, deliberately: this counts ARRIVALS (a body came
@@ -335,6 +402,13 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
       // rather than having to distinguish null from absent.
       'error': ?failure,
     });
+    // Drain the coalesced cause, if any. Cleared BEFORE the recursive call so a
+    // cause arriving during the drain re-fills the slot instead of being
+    // swallowed, and so this can never loop without a new external event.
+    final pending = _pendingPositionCause;
+    if (pending == null) return;
+    _pendingPositionCause = null;
+    await _readLivePosition(pending);
   }
 
   /// JEBV4-269: merge one position snapshot onto the current row so the map
@@ -425,6 +499,10 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   }
 
   void retry() {
+    // `emit` after `close()` throws in bloc. Every other entry point on this
+    // cubit guards it; this one did not. Pre-existing on `origin/main`, fixed
+    // here because this method is in the diff.
+    if (isClosed) return;
     emit(state.copyWith(mode: LiveTrackingViewMode.loading, clearError: true));
     _fetchAndSchedule(LivePositionReadCause.retry);
   }
