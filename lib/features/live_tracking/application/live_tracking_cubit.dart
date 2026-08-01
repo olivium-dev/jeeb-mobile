@@ -479,6 +479,11 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
       'lng': overlay?.jeeberPosition?.lng,
       'polyline': overlay?.polyline.length ?? 0,
       'stale': overlay?.stale,
+      // ADDITIVE. `stale` alone cannot distinguish the capture of a courier who
+      // never started from one who was lost — the exact ambiguity #342 removed
+      // from the wire, which a capture that only records `stale` would put
+      // straight back into the evidence.
+      'positionStatus': overlay?.status?.wire,
       // Null-aware ELEMENT: the key is absent entirely on the happy path, so a
       // capture parser can treat the mere PRESENCE of `error` as the signal
       // rather than having to distinguish null from absent.
@@ -501,13 +506,25 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   ///    `none`), so a moving marker can never re-fire the at-door / delivered
   ///    navigation. An overlay landing right after the delivered transition
   ///    would otherwise re-push the receipt screen.
-  ///  * An EMPTY overlay is dropped rather than merged, so the pre-first-fix
-  ///    case cannot blank a marker the screen already has.
+  ///  * An overlay with NOTHING TO SAY is dropped rather than merged, so the
+  ///    pre-first-fix case cannot blank a marker the screen already has. That
+  ///    is `isNothingToSay`, not `isEmpty` — see the next bullet.
   ///  * A STALE overlay is NOT dropped — it is merged, carrying
   ///    `stale: true`, so `markerIsLive` goes false and the map stops drawing
   ///    the marker while the screen retains the age to explain itself. Dropping
   ///    it would leave the phantom on screen forever, which is the failure the
   ///    negative control exists to catch.
+  ///  * A LOST overlay is not dropped either, and this is the half that was
+  ///    missing. Past `Tracking:PositionTtl` the gateway publishes no
+  ///    coordinates (`position:null, polyline:[]`) precisely so no client can
+  ///    draw a pin from them — which made the snapshot EMPTY, which made this
+  ///    method discard it, which meant `withLivePosition` never ran and
+  ///    `positionStale` stayed `false` on a row still holding a marker merged
+  ///    minutes earlier. The server's clearest statement — "I had this courier
+  ///    and I have lost them", carried as an age with no coordinates — was the
+  ///    one the client was structurally unable to hear. The drop is now keyed
+  ///    on `isNothingToSay`, which is false for `lost` and still true for
+  ///    `awaitingFirstFix`.
   ///
   /// Returns whether the overlay actually LANDED on the snapshot — the `applied`
   /// field of [kTrackingPositionEvent]. MB1's MARKER leg counts distinct
@@ -515,15 +532,21 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   /// that was dropped (empty overlay, or no row to merge onto yet) never reached
   /// the map and must not be counted as a marker that moved.
   bool _applyLivePosition(DeliveryLivePosition? overlay) {
-    if (overlay == null || isClosed || overlay.isEmpty) return false;
+    if (overlay == null || isClosed || overlay.isNothingToSay) return false;
     final current = state.trackingInfo;
     if (current == null) return false;
     emit(state.copyWith(
       trackingInfo: current.withLivePosition(
+        // Null on a `lost` snapshot. `withLivePosition` coalesces onto the
+        // previous point (`jeeberPosition ?? this.jeeberPosition`), so the last
+        // known coordinate is RETAINED — deliberately. It is what the screen
+        // needs to say "last seen here, N minutes ago"; the marker itself stops
+        // being drawn because `markerIsLive` now reads the verdict.
         jeeberPosition: overlay.jeeberPosition,
         polyline: overlay.polyline,
         stale: overlay.stale,
         secondsSinceUpdate: overlay.secondsSinceUpdate,
+        status: overlay.status,
       ),
     ));
     return true;

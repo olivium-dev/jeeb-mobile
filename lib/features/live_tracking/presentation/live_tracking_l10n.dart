@@ -71,6 +71,39 @@ class LiveTrackingL10n {
       _pick('Send request again', 'إعادة إرسال الطلب');
   String get noShowKeepCta => _pick('Keep waiting', 'متابعة الانتظار');
 
+  // ── courier-position freshness (the phantom-pin affordance) ──────────────
+  //
+  // The map hides the marker as soon as the gateway stops vouching for the fix
+  // (`markerIsLive`). Hiding it SILENTLY is its own small dishonesty: from the
+  // customer's seat a pin that disappears and a pin that was never there look
+  // identical, and neither explains itself. These two lines are what turns
+  // "the pin is gone" into "here is what we know and when we last knew it".
+  //
+  // Two distinct copies for two distinct wire states, because the difference
+  // matters to the customer's next action:
+  //  * STALE — the gateway still has coordinates, just aging ones. The customer
+  //    should wait; the courier is probably stationary (the uploader only
+  //    reports every 10 m).
+  //  * LOST  — the gateway has no coordinates at all any more. The customer
+  //    should consider calling, or the no-show path.
+
+  /// Aging-but-present fix. [minutes] is the floor of the reported age.
+  String positionStaleNotice(int minutes) => _pick(
+        "Jeeber's location is $minutes min old",
+        'موقع الجيبر قديم منذ $minutes دقيقة',
+      );
+
+  /// No coordinates at all any more — we had this courier and lost them.
+  String positionLostNotice(int minutes) => _pick(
+        'No signal from the Jeeber — last seen $minutes min ago',
+        'لا إشارة من الجيبر — آخر ظهور قبل $minutes دقيقة',
+      );
+
+  /// Used when the gateway reports an age below one minute (or none at all),
+  /// so the numeric copy above would read "0 min".
+  String get positionLostNoticeNoAge =>
+      _pick('No signal from the Jeeber', 'لا إشارة من الجيبر');
+
   // ── pinned summary header (reuse existing getters where present) ─────────
   String get summaryPriceLabel => _pick('Price', 'السعر');
   String get summaryCashLabel =>
