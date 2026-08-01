@@ -6,6 +6,7 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/formatting/friendly_reference.dart';
+import '../../../core/jeeb_commission.dart';
 import '../../wallet/domain/wallet_repository.dart';
 import '../application/offer_submission_cubit.dart';
 import '../domain/offer_eta_band.dart';
@@ -183,8 +184,16 @@ class _OfferComposerState extends State<_OfferComposer> {
     super.dispose();
   }
 
-  /// Reserve held against this offer = exactly 10% of the offer price (D1/D37).
-  double? get _reserve => _price == null ? null : (_price! * 0.10);
+  /// Reserve held against this offer = exactly the platform commission on the
+  /// offer price (D1/D37) — flat 10%, per owner ruling Q-001.
+  ///
+  /// The rate is [kJeebCommissionRate], not a literal. This line used to spell
+  /// `0.10` itself, which made it a second copy of a number the gateway is the
+  /// authority on: `CommissionCalculator.FlatRate`. It is the copy that would
+  /// have hurt most, too — it is what a Jeeber reads BEFORE deciding what to
+  /// bid, so a stale rate here misprices the offer at the moment of commitment.
+  double? get _reserve =>
+      _price == null ? null : (_price! * kJeebCommissionRate);
 
   /// The currency the money lines render in — the wallet's, else USD (the O1
   /// default; 42_GUARDRAILS_MOCK W1m).

@@ -1,9 +1,17 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/jeeb_commission.dart';
+
 /// Legacy fallback fee rate for older mock payloads that omit explicit fees.
 /// Live gateway payloads carry `commission`/`totalCommission`, and those values
 /// are used instead of deriving a fee.
-const double kJeebFeeRate = 0.10;
+///
+/// No longer holds its own literal. It was one of three unrelated copies of the
+/// platform rate; it is now an alias of the single source,
+/// [kJeebCommissionRate]. Kept as a name because it reads correctly at the one
+/// call site that uses it (`_deriveFee`) and because deleting a public symbol
+/// is a separate change from de-duplicating a number.
+const double kJeebFeeRate = kJeebCommissionRate;
 
 /// A single delivery's contribution to earnings (fee-only framing).
 ///
