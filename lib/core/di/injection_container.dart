@@ -27,6 +27,7 @@ import '../../features/earnings/data/dio_earnings_repository.dart';
 import '../../features/earnings/domain/earnings_repository.dart';
 import '../../features/home_client/data/dio_client_home_repository.dart';
 import '../../features/home_client/domain/client_home_repository.dart';
+import '../config/app_config.dart';
 import '../notifications/application/offer_lifecycle_signals.dart';
 import '../notifications/application/push_refresh_signals.dart';
 
@@ -51,6 +52,8 @@ import '../../features/kyc/domain/kyc_gateway.dart';
 import '../../features/photo_attachment/data/image_picker_photo_picker_service.dart';
 import '../../features/photo_attachment/domain/photo_picker_service.dart';
 import '../../features/live_tracking/data/dio_live_tracking_repository.dart';
+import '../../features/live_tracking/data/realtime_courier_position_channel.dart';
+import '../../features/live_tracking/domain/courier_position_channel.dart';
 import '../../features/live_tracking/domain/live_tracking_repository.dart';
 import '../../features/language/data/dio_language_preference_repository.dart';
 import '../../features/notification_prefs/data/dio_notification_prefs_repository.dart';
@@ -175,6 +178,25 @@ Stream<void>? resolvePushRefreshStream({Set<RefreshTopic>? topics}) {
   if (!sl.isRegistered<PushRefreshSignals>()) return null;
   final bus = sl<PushRefreshSignals>();
   return topics == null ? bus.stream : bus.streamFor(topics);
+}
+
+/// THE flag gate for continuous courier position — one place, for the same
+/// reason [resolvePushRefreshStream] is one place.
+///
+/// Returns `null` when the feature is off (the default), when DI is not
+/// configured (every bare widget test), or when the channel was never
+/// registered. `null` means the tracking screen keeps exactly the four
+/// position triggers it has today: mount, `type=delivery` push, app resume,
+/// manual retry.
+///
+/// The `const` guard is checked FIRST on purpose: in a build without
+/// `--dart-define=JEEB_REALTIME_TRACKING=true` it is a compile-time `false`, so
+/// the resolution below is dead-code-eliminated and the realtime path cannot be
+/// reached even by accident.
+CourierPositionChannel? resolveCourierPositionChannel() {
+  if (!AppConfig.realtimeCourierPositionEnabled) return null;
+  if (!sl.isRegistered<CourierPositionChannel>()) return null;
+  return sl<CourierPositionChannel>();
 }
 
 void configureDependencies({
@@ -356,6 +378,16 @@ void configureDependencies({
 
   sl.registerLazySingleton<LiveTrackingRepository>(
     () => DioLiveTrackingRepository(sl<Dio>()),
+  );
+
+  // Continuous courier position — the SUBSCRIPTION half (jeeb-gateway #339).
+  // Registered unconditionally and lazily: constructing it opens nothing (the
+  // socket is built inside `open()`), and `resolveCourierPositionChannel()` is
+  // the single place the feature flag is consulted. Registering it behind the
+  // flag instead would put the same decision in two places, which is how one
+  // call site keeps the old behaviour while its twin moves on.
+  sl.registerLazySingleton<CourierPositionChannel>(
+    () => RealtimeCourierPositionChannel(sl<Dio>()),
   );
 
   sl.registerLazySingleton<NotificationPrefsStore>(

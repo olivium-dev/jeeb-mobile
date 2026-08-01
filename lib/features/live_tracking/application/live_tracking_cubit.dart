@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/diagnostics/diag.dart';
 import '../../otp_handover/domain/handover_code_store.dart';
+import '../domain/courier_position_channel.dart';
 import '../domain/delivery_tracking_info.dart';
 import '../domain/live_tracking_repository.dart';
 import 'live_tracking_state.dart';
@@ -40,6 +41,26 @@ const String kTrackingScreenOpenEvent = 'tracking_screen_open';
 /// passes the coordinates through verbatim — checked, because a redacted `lat`
 /// would make MB1's MARKER leg unmeasurable.
 const String kTrackingPositionEvent = 'tracking_position';
+
+/// Diag event name emitted for every courier position that ARRIVES on the
+/// realtime subscription (as opposed to one this screen went and read).
+///
+/// Payload: `deliveryId`, `lat`, `lng`, `applied` (did it land on the snapshot),
+/// and `n` (how many frames this screen entry has taken, so a capture can state
+/// its own rate without timestamps arithmetic).
+///
+/// **Deliberately NOT folded into [kTrackingPositionEvent].** That event's
+/// contract is "one record per attempted READ", and MB1's V-2 leg counts those
+/// records against a [kTrackingScreenOpenEvent] denominator to prove the screen
+/// is not reading on a clock. Pushing subscription arrivals into the same
+/// stream would inflate that count with events that are not reads at all, and
+/// the instrument that proves "no cadence" would start reporting a cadence —
+/// on the very change that removes the need for one.
+///
+/// A device capture reads the two together: `tracking_position` says how many
+/// times the screen ASKED, `tracking_stream_position` says how many times it
+/// was TOLD.
+const String kTrackingStreamPositionEvent = 'tracking_stream_position';
 
 /// What caused a courier-position read.
 ///
@@ -118,15 +139,33 @@ enum LivePositionReadCause {
 /// clock. `armed-poll-inventory.py` therefore still reports
 /// `armedPollCount = 0`.
 ///
-/// The honest cost: between two such events the marker does not move. Making it
-/// track the jeeber continuously needs a push/subscribe transport for the
-/// position axis, and **none currently exists** — the gateway may not hold an
-/// SSE connection (guard above), may not take a Firestore dependency
-/// (`Gateway_Assembly_References_No_Firestore_Client_Library`), the
-/// realtime-comunication-service is not deployed for Jeeb, and every push send
-/// endpoint attaches a notification block so a position push would light the
-/// shade. That is an owner/architecture decision, not something to paper over
-/// with a timer.
+/// The honest cost: between two such events the marker does not move — it JUMPS
+/// rather than glides.
+///
+/// ## The subscription that fixes that, and what it does NOT change
+///
+/// A push/subscribe transport for the position axis now exists.
+/// **jeeb-gateway #339** (`3c1015d`) publishes every accepted
+/// `POST /location/update` to `jeeb:delivery:{deliveryId}` / stream `location`
+/// on realtime-comunication-service, and serves
+/// `GET /v1/realtime/jeeb:delivery:{id}` — a fail-closed descriptor handing a
+/// party a subscribe-only credential scoped to that one topic. This cubit takes
+/// an optional [CourierPositionChannel] over it.
+///
+/// The paragraph above about a cadence still holds, unchanged, and that is the
+/// point:
+///
+///  * the four read triggers are **untouched** — mount, push, resume, retry;
+///  * the subscription **adds no timer to this cubit**. It arms once, and every
+///    marker move after that is caused by a frame the server sent unbidden;
+///  * with the flag off, a `null` `socketUrl`, a refused join, or a socket that
+///    dies mid-delivery, [_positionChannel] contributes exactly nothing and
+///    this screen is byte-for-byte the screen described above.
+///
+/// It is deliberately **not** an SSE stream and takes no Firestore dependency,
+/// so `NoBackendPollOrFirestoreListenerGuardTests` is untouched: the gateway
+/// does not proxy the socket, and the client talks to the realtime service
+/// directly with a credential the gateway minted.
 ///
 /// **Unchanged restraint (G4).** This screen still NEVER reads `GET /otp`. On the
 /// live gateway that endpoint TRIGGERS AN SMS, so any cadence against it texts
@@ -138,9 +177,11 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     required this.deliveryId,
     Stream<void>? refreshSignals,
     HandoverCodeStore? handoverCodeStore,
+    CourierPositionChannel? positionChannel,
   })  : _repository = repository,
         _refreshSignals = refreshSignals,
         _handoverCodeStore = handoverCodeStore,
+        _positionChannel = positionChannel,
         super(const LiveTrackingState()) {
     // MB1 W1.1b: the denominator, emitted BEFORE the first read so it can never
     // be ordered after the position record it is supposed to bound.
@@ -163,6 +204,47 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   /// True once the status push subscription is armed.
   @visibleForTesting
   bool get debugPushRefreshWired => _refreshSubscription != null;
+
+  /// OPTIONAL push transport for the courier position — `null` on every
+  /// deployment, build and test that has not opted in, which is the default.
+  /// See the class doc: with it null this cubit is exactly what it was.
+  final CourierPositionChannel? _positionChannel;
+
+  /// The live leg. Named to survive MB1's repo-wide grep receipts, which forbid
+  /// the identifier the deleted SSE client used
+  /// (`sse_teardown_grep_receipt_test.dart`).
+  StreamSubscription<CourierPositionFix>? _streamedPositionLeg;
+
+  /// ARM-ONCE latch.
+  ///
+  /// Set before the first `open()` and never cleared, so:
+  ///   * a channel that cannot open (flag off is handled upstream; here it is a
+  ///     403/404/503, a null socketUrl, or an unreachable host) costs exactly
+  ///     ONE descriptor GET per screen entry, not one per resume;
+  ///   * a socket that dies mid-delivery is NOT re-dialled. That is the
+  ///     specified degradation — the screen falls back to precisely the four
+  ///     triggers it had before — and it is also the only shape that cannot
+  ///     become a reconnect loop, i.e. a timer whose tick reads the gateway.
+  ///     Re-entering the tracking screen builds a new cubit and re-arms.
+  bool _positionStreamArmed = false;
+
+  /// How many courier positions have ARRIVED on the subscription during this
+  /// screen entry.
+  ///
+  /// The MARKER-MOVES instrument. Counts arrivals, never arming — the same
+  /// discipline as [debugPositionReadCount], and for the same reason: an
+  /// "is the socket wired" boolean returned `true` for a feed that had been
+  /// dead for four days.
+  @visibleForTesting
+  int get debugStreamedPositionCount => _streamedPositionCount;
+  int _streamedPositionCount = 0;
+
+  /// True once the subscription leg is live. Distinct from
+  /// [debugStreamedPositionCount] on purpose: this one CAN lie about health
+  /// (that is the failure mode it is named after), so tests assert the counter
+  /// for behaviour and this only for wiring.
+  @visibleForTesting
+  bool get debugPositionStreamLegArmed => _streamedPositionLeg != null;
 
   /// How many courier-position snapshots have actually been READ off the
   /// gateway (not merely attempted).
@@ -477,9 +559,10 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   /// Idempotent (`??=`), so it is safe to call from construction, retry, resume
   /// and the push path.
   ///
-  /// There is no second watcher any more. The position axis is not subscribed to
-  /// — it is read inside [_fetch], on the same events — so there is nothing here
-  /// to arm, nothing to re-arm, and no timer to leak.
+  /// The position axis is still READ inside [_fetch], on the same events — so
+  /// there is nothing here to re-arm and no timer to leak. The optional
+  /// subscription added alongside it is armed exactly once (see
+  /// [_positionStreamArmed]) and is not a watcher that re-arms.
   void _armWatchers() {
     if (isClosed) return;
     if (_isTerminal) {
@@ -487,6 +570,87 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
       return;
     }
     _refreshSubscription ??= _refreshSignals?.listen((_) => _refreshFromPush());
+    unawaited(_armPositionStream());
+  }
+
+  /// Open the courier-position subscription, at most once per screen entry.
+  ///
+  /// Total by construction. A channel that returns null, throws, or hands back
+  /// a stream that immediately dies must all produce the same outcome: this
+  /// screen keeps its four read triggers and nothing else changes. `open()` is
+  /// documented to return null rather than throw, but a devtool double or a
+  /// future implementation is not bound by that doc comment, and an error
+  /// escaping an `unawaited` call rides out as an unhandled zone error.
+  ///
+  /// Called from [_armWatchers], i.e. after the first [_fetch] has landed a row
+  /// — which matters: [_applyLivePosition] merges ONTO `state.trackingInfo` and
+  /// drops the overlay when there is nothing to merge onto. Arming before the
+  /// first status read would silently discard the earliest fixes.
+  Future<void> _armPositionStream() async {
+    final channel = _positionChannel;
+    if (channel == null) return;
+    if (_positionStreamArmed || isClosed || _isTerminal) return;
+    _positionStreamArmed = true;
+    Stream<CourierPositionFix>? positions;
+    try {
+      positions = await channel.open(deliveryId: deliveryId);
+    } catch (_) {
+      positions = null;
+    }
+    if (positions == null) return;
+    if (isClosed || _isTerminal) {
+      // Raced with teardown. Cancel immediately rather than leaving an open
+      // socket behind a closed screen — cancelling is what closes it.
+      unawaited(positions.listen(null).cancel());
+      return;
+    }
+    _streamedPositionLeg = positions.listen(
+      _onStreamedPosition,
+      // An error is a death, not a state the screen renders. The leg simply
+      // ends and the four triggers carry on.
+      onError: (Object _, StackTrace _) => _retirePositionStream(),
+      onDone: _retirePositionStream,
+      cancelOnError: false,
+    );
+  }
+
+  /// One arrived position → one marker move.
+  ///
+  /// Reuses [_applyLivePosition] rather than emitting directly, so the three
+  /// merge invariants documented there (no `pendingEvent` re-fire, empty
+  /// overlays dropped, nothing merged before there is a row) hold for the
+  /// subscription exactly as they do for the snapshot read — one merge path,
+  /// not two that can drift.
+  ///
+  /// `stale: false` and `secondsSinceUpdate: 0` are FACTS here, not optimism:
+  /// the gateway publishes this frame from the ingest of the courier's own
+  /// upload, so its age is the flight time of one WebSocket frame. That is the
+  /// whole difference between a pushed fix and the snapshot route's, where the
+  /// gateway's own `stale` verdict has to be carried because the fix may be
+  /// minutes old.
+  void _onStreamedPosition(CourierPositionFix fix) {
+    if (isClosed || _isTerminal) return;
+    _streamedPositionCount++;
+    final applied = _applyLivePosition(DeliveryLivePosition(
+      jeeberPosition: GpsPoint(lat: fix.lat, lng: fix.lng),
+      stale: false,
+      secondsSinceUpdate: 0,
+    ));
+    Diag.event(kTrackingStreamPositionEvent, <String, Object?>{
+      'deliveryId': deliveryId,
+      'lat': fix.lat,
+      'lng': fix.lng,
+      'applied': applied,
+      'n': _streamedPositionCount,
+    });
+  }
+
+  /// Drop the leg. Cancelling it is what closes the underlying socket
+  /// (`CourierPositionSocket` wires its controller's `onCancel` to `close()`),
+  /// so this is the release, not merely an unhook.
+  void _retirePositionStream() {
+    unawaited(_streamedPositionLeg?.cancel());
+    _streamedPositionLeg = null;
   }
 
   /// Stop watching. `cancel()`'s future is deliberately NOT awaited: once it
@@ -496,6 +660,7 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
   void _retireWatchers() {
     unawaited(_refreshSubscription?.cancel());
     _refreshSubscription = null;
+    _retirePositionStream();
   }
 
   void retry() {

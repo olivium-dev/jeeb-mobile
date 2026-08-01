@@ -231,21 +231,68 @@ void main() {
   });
 
   group('MB1 — the position axis has no clock', () {
-    test('no Timer / Future.delayed in the live_tracking feature', () {
+    // ## READ THIS BEFORE TRUSTING THE ALLOWANCE BELOW
+    //
+    // This receipt used to be a flat ban on `Timer.periodic` / `Timer(` /
+    // `Future.delayed` anywhere under `lib/features/live_tracking/`. It has ONE
+    // named exception now, and a narrowed gate that gains an exception in the
+    // same change that would otherwise red it is exactly the shape that should
+    // make a reviewer suspicious. So:
+    //
+    //  * **What it was built to ban, it still bans.** A timer whose tick READS
+    //    the gateway — the 2/5/15/30 s backoff that became a permanent poll of
+    //    a 404 for four days. That ban is now asserted MORE strictly than
+    //    before, not less: `live_tracking_cubit.dart`, the file that actually
+    //    held that timer, is pinned by name below, and every other file in the
+    //    tree is still banned outright.
+    //  * **What it now permits** is one `Timer.periodic` in
+    //    `courier_position_socket.dart`, and only because a subscription needs
+    //    a keepalive to exist at all: `LiveCommWeb.Channels.TopicChannel`
+    //    schedules its own 25 s `:heartbeat`, counts misses, and STOPS the
+    //    channel at 3 — so a subscriber that never speaks is disconnected after
+    //    ~75 s. The alternative to this timer is not "no timer", it is "no
+    //    subscription".
+    //  * **The permission is not taken on trust.** The two tests after it prove
+    //    STRUCTURALLY that the allowed tick cannot be a poll: the callback is
+    //    pinned to `_sendKeepAlive`, and `_sendKeepAlive`'s own body is checked
+    //    to contain no `await` and no HTTP client, so it cannot request or
+    //    receive data. A poll that returns nothing is not a poll.
+    //
+    // If a second exception is ever proposed here, the question to ask is the
+    // one this file already answers for the first: what does the tick RECEIVE?
+    const keepAliveFile =
+        'lib/features/live_tracking/data/courier_position_socket.dart';
+    const clockPatterns = ['Timer.periodic', 'Timer(', 'Future.delayed'];
+
+    /// The predicate, extracted so the POSITIVE CONTROL can run the very same
+    /// code over planted source. A ban asserted by an inlined loop is a ban
+    /// nobody has ever seen fire.
+    List<String> clockHits(String path, String code) => [
+      for (final pattern in clockPatterns)
+        if (code.contains(pattern)) '$path -> $pattern',
+    ];
+
+    test('the CUBIT holds no clock at all — the file the P0 actually lived in',
+        () {
+      // Pinned by NAME, and stricter than the sweep below: whatever else the
+      // feature tree grows, the thing that schedules position reads must never
+      // hold a timer.
+      final code = _stripComments(
+        File(
+          '${_repoRoot.path}/lib/features/live_tracking/application/'
+          'live_tracking_cubit.dart',
+        ).readAsStringSync(),
+      );
+      expect(clockHits('live_tracking_cubit.dart', code), isEmpty);
+    });
+
+    test('no Timer / Future.delayed anywhere in the feature except the ONE '
+        'named keepalive', () {
       final offenders = <String>[];
       for (final f in _dartFiles(['lib/features/live_tracking'])) {
-        final code = _stripComments(f.readAsStringSync());
-        for (final pattern in const [
-          'Timer.periodic',
-          'Timer(',
-          'Future.delayed',
-        ]) {
-          if (code.contains(pattern)) {
-            offenders.add(
-              '${f.path.replaceFirst('${_repoRoot.path}/', '')} -> $pattern',
-            );
-          }
-        }
+        final rel = f.path.replaceFirst('${_repoRoot.path}/', '');
+        if (rel == keepAliveFile) continue;
+        offenders.addAll(clockHits(rel, _stripComments(f.readAsStringSync())));
       }
       expect(
         offenders,
@@ -256,6 +303,71 @@ void main() {
             'original 2/5/15/30 s backoff became a permanent poll against a '
             '404 for four days.',
       );
+    });
+
+    test('the allowance is EXACTLY one Timer.periodic and nothing else', () {
+      final code = _stripComments(
+        File('${_repoRoot.path}/$keepAliveFile').readAsStringSync(),
+      );
+      expect(
+        RegExp('Timer.periodic').allMatches(code).length,
+        1,
+        reason: 'one keepalive, not a family of timers',
+      );
+      // The other two shapes stay banned even in the allowed file: a one-shot
+      // `Timer(` is how a self-rescheduling poll is spelled, and
+      // `Future.delayed` is how it is spelled when someone is avoiding the word
+      // Timer.
+      expect(code.contains('Timer('), isFalse);
+      expect(code.contains('Future.delayed'), isFalse);
+    });
+
+    test('the allowed tick CANNOT be a poll — it receives nothing', () {
+      final code = _stripComments(
+        File('${_repoRoot.path}/$keepAliveFile').readAsStringSync(),
+      );
+
+      // 1. The callback is pinned. A tick body free to be anything is not a
+      //    permission, it is a hole.
+      expect(
+        RegExp(r'Timer\.periodic\(\s*_keepAlive\s*,\s*\(_\)\s*=>\s*'
+                r'_sendKeepAlive\(\)\s*\)')
+            .hasMatch(code),
+        isTrue,
+        reason: 'the permitted timer must call _sendKeepAlive and nothing else',
+      );
+
+      // 2. And that method cannot obtain data. No `await` means nothing can be
+      //    received; no HTTP client means there is nothing to receive it from.
+      // The signature is matched LOOSELY on purpose. A tight `void … {` would
+      // make an `async` rewrite fail on "the method is findable" instead of on
+      // the `await` ban below — the right red, for the wrong reason, and a
+      // reader would learn nothing from it.
+      final body = RegExp(
+        r'(?:void|Future<void>) _sendKeepAlive\(\)\s*(?:async\s*)?\{(.*?)\n  \}',
+        dotAll: true,
+      ).firstMatch(code)?.group(1);
+      expect(body, isNotNull, reason: 'the pinned method must be findable');
+      expect(body, contains('_send('));
+      for (final banned in const ['await', 'Dio', 'HttpClient', 'http.', '.get(']) {
+        expect(body!.contains(banned), isFalse,
+            reason: 'a keepalive that can $banned is a poll');
+      }
+    });
+
+    test('POSITIVE CONTROL: the ban still fires on planted source', () {
+      // Without this, "offenders is empty" is equally satisfied by a predicate
+      // that stopped matching — which is precisely what narrowing a gate risks.
+      expect(
+        clockHits('planted.dart', 'void t() { Timer.periodic(d, (_) {}); }'),
+        isNotEmpty,
+      );
+      expect(clockHits('planted.dart', 'Timer(d, () {});'), isNotEmpty);
+      expect(
+        clockHits('planted.dart', 'await Future.delayed(d);'),
+        isNotEmpty,
+      );
+      expect(clockHits('planted.dart', 'final x = 1;'), isEmpty);
     });
   });
 }
