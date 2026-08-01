@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/formatting/countdown_format.dart';
 import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../l10n/app_localizations.dart';
 
@@ -57,7 +58,9 @@ class OfferWindowTimer extends StatelessWidget {
           Text(
             expired
                 ? l10n.offersWindowExpired
-                : l10n.offersWindowRemaining(_format(remaining)),
+                : l10n.offersWindowRemaining(
+                    CountdownFormat.format(remaining),
+                  ),
             style: theme.textTheme.labelMedium?.copyWith(
               color: foreground,
               fontFeatures: const [FontFeature.tabularFigures()],
@@ -68,12 +71,4 @@ class OfferWindowTimer extends StatelessWidget {
     );
   }
 
-  /// Formats `Duration` as `m:ss`. Above an hour the minutes overflow rather
-  /// than promoting to `h:mm:ss` — the window cap is always under 30 min so a
-  /// 3-digit minute count never appears in practice.
-  static String _format(Duration d) {
-    final minutes = d.inMinutes;
-    final seconds = d.inSeconds % 60;
-    return '$minutes:${seconds.toString().padLeft(2, '0')}';
-  }
 }

@@ -4355,7 +4355,7 @@
   "waitingTitle": "Finding a Jeeber",
   "@waitingTitle": { "description": "JM-026 waiting / no-coverage screen title (app bar)." },
   "waitingCountdownLabel": "{time} left to find a Jeeber",
-  "@waitingCountdownLabel": { "description": "JM-026 broadcast countdown (waiting_countdown) — time is preformatted m:ss.", "placeholders": { "time": {} } },
+  "@waitingCountdownLabel": { "description": "JM-026 broadcast countdown (waiting_countdown) — time is preformatted by CountdownFormat: m:ss under an hour, h:mm:ss at an hour or more.", "placeholders": { "time": {} } },
   "waitingCountdownPending": "Finding a Jeeber for you",
   "@waitingCountdownPending": { "description": "P7 — waiting_countdown copy when the server says NO countdown applies to this row (no offerDeadlineInSeconds). Replaces rendering a fabricated 0:00." },
   "waitingNoCoverageTitle": "No offers yet",
