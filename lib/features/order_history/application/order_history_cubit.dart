@@ -43,6 +43,27 @@ class OrderHistoryCubit extends Cubit<OrderHistoryState> {
   /// reloads page 1. Leaves the other tabs alone.
   Future<void> refresh() => _loadFirstPage(state.activeTab, isRefresh: true);
 
+  /// SILENT re-pull for an automatic trigger (shell-tab refocus, app resume,
+  /// an `order` push). Distinct from [refresh] in exactly two ways, and both
+  /// matter for a trigger the user did not ask for:
+  ///
+  ///  * it NO-OPS on a tab that has never loaded — [initialLoad] owns the first
+  ///    read, and letting an automatic trigger race it would fire two page-1
+  ///    requests for one screen open;
+  ///  * it is single-flighted (see [_firstPageInFlight]) — the three triggers
+  ///    can and do coincide (a resume that also re-selects this tab, with the
+  ///    push that woke the user still arriving), and without the latch that is
+  ///    three concurrent reads whose emits race, the oldest possibly landing
+  ///    last and re-installing the very snapshot the refresh was meant to
+  ///    replace.
+  ///
+  /// It goes through `isRefresh: true`, so the current list stays on screen and
+  /// a failure leaves the old rows visible instead of blanking the tab.
+  Future<void> refreshSilently() async {
+    if (state.currentTab.status == OrderTabStatus.initial) return;
+    await _loadFirstPage(state.activeTab, isRefresh: true);
+  }
+
   /// Infinite-scroll trigger. No-op when we're already loading or when the
   /// server has signalled there's nothing more.
   Future<void> loadMore() async {
@@ -108,9 +129,30 @@ class OrderHistoryCubit extends Cubit<OrderHistoryState> {
   /// Convenience for the filter sheet's "Clear" button.
   Future<void> clearDateRange() => applyDateRange(const OrderDateRange());
 
+  /// Single-flight latch over [_loadFirstPage]. The screen used to have exactly
+  /// ONE first-page trigger (`initState`), so overlap was impossible and no
+  /// latch was needed. It now has four (mount, tab refocus, app resume, `order`
+  /// push) and they genuinely coincide, so the latch is load-bearing: without
+  /// it two page-1 reads can be in flight at once and the SLOWER one wins the
+  /// emit, which is how a "refresh" reinstalls a stale list.
+  bool _firstPageInFlight = false;
+
   Future<void> _loadFirstPage(
     OrderHistoryTab tab, {
     bool isRefresh = false,
+  }) async {
+    if (_firstPageInFlight) return;
+    _firstPageInFlight = true;
+    try {
+      await _loadFirstPageInner(tab, isRefresh: isRefresh);
+    } finally {
+      _firstPageInFlight = false;
+    }
+  }
+
+  Future<void> _loadFirstPageInner(
+    OrderHistoryTab tab, {
+    required bool isRefresh,
   }) async {
     final current = state.tabs[tab]!;
     emit(state.withTabState(

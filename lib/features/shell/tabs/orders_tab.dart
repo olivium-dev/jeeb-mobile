@@ -9,6 +9,7 @@ import '../../order_history/application/order_history_cubit.dart';
 import '../../order_history/data/dio_order_repository.dart';
 import '../../order_history/domain/order_repository.dart';
 import '../../order_history/presentation/order_history_screen.dart';
+import '../../order_history/presentation/orders_resume_refetcher.dart';
 
 /// Container for the bottom-nav Delivery tab. Wires the cubit + Dio-backed
 /// repository so the screen itself can stay BlocProvider-free in tests.
@@ -46,7 +47,13 @@ class OrdersTab extends StatelessWidget {
       key: ValueKey('orders-tab-${actingAsJeeber ? 'jeeber' : 'client'}'),
       create: (_) =>
           OrderHistoryCubit(repository: _resolveRepository(actingAsJeeber)),
-      child: const OrderHistoryScreen(),
+      // The list used to be read exactly ONCE per process. The shell keeps this
+      // tab mounted inside its `IndexedStack`, so `OrderHistoryScreen.initState`
+      // never ran twice and nothing else re-read: the status chip held its
+      // first-seen value — "Pending" through Picked and InTransit on the live
+      // COD run. `OrdersResumeRefetcher` supplies the missing consumers for
+      // signals the shell and the push bus were already broadcasting.
+      child: const OrdersResumeRefetcher(child: OrderHistoryScreen()),
     );
   }
 
