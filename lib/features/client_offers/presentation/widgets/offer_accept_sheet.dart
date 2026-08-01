@@ -253,12 +253,26 @@ class _OfferAcceptView extends StatelessWidget {
                     const _SheetDragHandle(),
                     const SizedBox(height: Spacing.large),
                     // "Accept X's offer?" — the Jeeber name is the load-bearing
-                    // data; framing reuses chatSystemOfferAcceptedNamed (a
-                    // dedicated `offerAcceptTitle` is filed in 50_ROUTE_REQUESTS).
+                    // data, and the framing is a QUESTION.
+                    //
+                    // This line used to reuse `chatSystemOfferAcceptedNamed`
+                    // ("{name}'s offer was accepted"). That string is a CHAT
+                    // SYSTEM MESSAGE, written to narrate an accept that has
+                    // already happened, and borrowing it put the sheet in the
+                    // past tense: the title told the customer the offer WAS
+                    // accepted while the button directly below it was still
+                    // asking them to confirm. On the one screen whose entire
+                    // reason to exist is the D11/D71 comprehension gate, that
+                    // is the worst possible copy — it reads as a report of a
+                    // decision the customer has not made yet, and "Cancel"
+                    // then reads as undoing something. `offerAcceptTitle` was
+                    // already specified for exactly this slot in
+                    // `docs/build-out/50_ROUTE_REQUESTS.md`; it is now landed
+                    // in both ARBs and used here.
                     Semantics(
                       identifier: 'offer_accept_jeeber_name',
                       child: Text(
-                        l10n.chatSystemOfferAcceptedNamed(jeeberDisplayName),
+                        l10n.offerAcceptTitle(jeeberDisplayName),
                         textAlign: TextAlign.center,
                         style: theme.textTheme.titleMedium?.copyWith(
                           color: theme.colorScheme.onSurface,

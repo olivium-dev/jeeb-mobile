@@ -693,6 +693,7 @@
   "offersCardAccept": "قبول",
   "offersCardAccepting": "جاري القبول…",
   "offersCardSemanticLabel": "عرض من {name}، تقييم {rating} نجوم، {vehicle}، {fee} {currency}، وقت الوصول {minutes} دقيقة",
+  "offerAcceptTitle": "هل تريد قبول عرض {name}؟",
   "offersCardJeeberFallback": "جِيبر جديد",
   "offersCardNoRatingsYet": "لا تقييمات بعد",
   "offersCardSemanticLabelUnrated": "عرض من {name}، لا تقييمات بعد، {vehicle}، {fee} {currency}، وقت الوصول {minutes} دقيقة",

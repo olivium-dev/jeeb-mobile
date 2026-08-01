@@ -368,7 +368,7 @@ a behavioural gap. Requesting the following dedicated keys (EN + AR, with
 
 | intended key | proposed EN value | currently reused | element (Semantics id) |
 |---|---|---|---|
-| `offerAcceptTitle` | "Accept {name}'s offer?" | `chatSystemOfferAcceptedNamed` ("{name}'s offer was accepted") | `offer_accept_jeeber_name` |
+| ~~`offerAcceptTitle`~~ **LANDED** | "Accept {name}'s offer?" / "هل تريد قبول عرض {name}؟" | ~~`chatSystemOfferAcceptedNamed`~~ — the reuse was NOT cosmetic: it put the confirm sheet in the past tense ("…was accepted") above a button still asking the user to confirm | `offer_accept_jeeber_name` |
 | `offerAcceptPayCashOnDelivery` | "Pay {amount} {currency} cash on delivery" | `offersCardFee` ("{amount} {currency}") | `offer_accept_price_label` (D11) |
 | `offerAcceptOtherOffersClose` | "Accepting this closes all other offers." | `chatOfferAcceptOnlyOne` ("Accept only one offer") | `offer_accept_other_offers_note` (D71) |
 

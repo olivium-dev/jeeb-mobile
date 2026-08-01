@@ -2073,6 +2073,13 @@
       }
     }
   },
+  "offerAcceptTitle": "Accept {name}'s offer?",
+  "@offerAcceptTitle": {
+    "description": "JM-029 accept-confirm sheet title (offer_accept_jeeber_name). A QUESTION about an action the user has not taken yet — the sheet's whole purpose is the confirm step, so the title must not narrate the accept as done. It previously reused chatSystemOfferAcceptedNamed ('{name}'s offer was accepted'), a CHAT SYSTEM MESSAGE written for after the fact, which told the customer the offer was already accepted while the button below was still asking them to confirm. This key was already specified in docs/build-out/50_ROUTE_REQUESTS.md and is now landed.",
+    "placeholders": {
+      "name": {}
+    }
+  },
   "offersCardJeeberFallback": "New Jeeber",
   "@offersCardJeeberFallback": {
     "description": "Offer-card display-name fallback (W6/SW-08) shown when the Jeeber has no real name yet — the account is OTP-minted, or the offer-list row carried a synthetic handle (jeeb-<hash>) / raw UUID instead of a name. Never headline an identifier as a name at the accept-ONE moment. Real names populate once accounts set them (profile-name onboarding)."
