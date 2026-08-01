@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../../../core/realtime/phoenix_v2_frame.dart';
 import '../domain/chat_socket.dart';
 
 /// [ChatSocket] backed by the LIVE realtime-comunication-service
@@ -131,13 +131,7 @@ class LiveRealtimeChatSocket implements ChatSocket {
     );
     // Phoenix heartbeat so the server doesn't reap the connection.
     _heartbeat = Timer.periodic(const Duration(seconds: 30), (_) {
-      _sendRaw(<Object?>[
-        null,
-        '${++_ref}',
-        'phoenix',
-        'heartbeat',
-        <String, Object?>{}
-      ]);
+      _sendRaw(PhoenixV2Frame.encodeTransportHeartbeat('${++_ref}'));
     });
   }
 
@@ -146,43 +140,37 @@ class LiveRealtimeChatSocket implements ChatSocket {
   /// `[joinRef, ref, "<topic>", "phx_join", {"ticket": "<jwt>"}]`.
   void join() {
     final joinRef = '${++_ref}';
-    _sendRaw(<Object?>[
-      joinRef,
-      joinRef,
-      topic,
-      'phx_join',
-      <String, Object?>{if (ticket.isNotEmpty) 'ticket': ticket},
-    ]);
+    _sendRaw(PhoenixV2Frame.encode(
+      joinRef: joinRef,
+      ref: joinRef,
+      topic: topic,
+      event: 'phx_join',
+      payload: <String, Object?>{if (ticket.isNotEmpty) 'ticket': ticket},
+    ));
   }
 
   void _onFrame(dynamic frame) {
     if (_events.isClosed) return;
     try {
-      final raw = frame is String ? frame : utf8.decode(frame as List<int>);
-      final decoded = jsonDecode(raw);
-      // Phoenix v2 frames are arrays: [joinRef, ref, topic, event, payload].
-      if (decoded is! List || decoded.length < 5) return;
-      final frameTopic = decoded[2] as String?;
+      // Phoenix v2 framing lives in ONE place now — `PhoenixV2Frame` — shared
+      // with `CourierPositionSocket`. The two sockets differ in almost every
+      // other respect (different channel, join params, keepalive and payload
+      // projection) but they must not be able to disagree about what a frame
+      // IS.
+      final decoded = PhoenixV2Frame.decode(frame);
+      if (decoded == null) return;
       // Only frames on OUR per-conversation topic (defensive; this socket joins
       // exactly one topic).
-      if (frameTopic != null && frameTopic != topic) return;
-      final event = decoded[3] as String?;
+      if (decoded.topic != null && decoded.topic != topic) return;
       // Ignore lifecycle/control frames — phx_reply / presence_* / heartbeat.
-      if (event == null ||
-          event == 'phx_reply' ||
-          event == 'phx_close' ||
-          event == 'phx_error' ||
-          event.startsWith('presence')) {
-        return;
-      }
-      final payload = decoded[4];
-      if (payload is! Map) return;
+      if (decoded.isLifecycle) return;
+      final payload = decoded.payload;
+      if (payload == null) return;
       // The product message payload may be the frame payload itself, or nested
       // under `data` (the gateway fan-out envelope). Accept both.
       final nested = payload['data'];
-      final Map<String, Object?> data = nested is Map
-          ? nested.cast<String, Object?>()
-          : payload.cast<String, Object?>();
+      final Map<String, Object?> data =
+          nested is Map ? nested.cast<String, Object?>() : payload;
       final normalized = _normalize(data);
       if (normalized == null) return;
       _events.add(<String, Object?>{
@@ -243,10 +231,10 @@ class LiveRealtimeChatSocket implements ChatSocket {
     // No other client→server sends are needed for inbound push.
   }
 
-  void _sendRaw(List<Object?> frame) {
+  void _sendRaw(String frame) {
     final channel = _channel;
     if (channel == null || _closed) return;
-    channel.sink.add(jsonEncode(frame));
+    channel.sink.add(frame);
   }
 
   @override

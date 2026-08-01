@@ -1358,8 +1358,10 @@ class AppRouter {
                 deliveryId: deliveryId,
                 // b02 wave C / N7: the 5s LifecyclePoller is gone. The STATUS
                 // axis is driven by a `type=delivery` push through the ONE
-                // existing resolver; the POSITION axis is the gateway's SSE
-                // stream, feature-detected on the repository.
+                // existing resolver; the POSITION axis is read on those same
+                // events off `LivePositionSource`, and — when
+                // `positionChannel` below is non-null — also arrives
+                // continuously on a realtime subscription.
                 //
                 // b02 wave D — `{order}`. Status is the ONLY axis this bus
                 // feeds; position never came from here. The customer commonly
@@ -1374,6 +1376,12 @@ class AppRouter {
                 handoverCodeStore: sl.isRegistered<HandoverCodeStore>()
                     ? sl<HandoverCodeStore>()
                     : null,
+                // Continuous courier position. `null` unless
+                // `--dart-define=JEEB_REALTIME_TRACKING=true` — the resolver is
+                // the single flag gate, and with it null this cubit reads the
+                // position on the four events above and on nothing else, which
+                // is the behaviour every build ships today.
+                positionChannel: resolveCourierPositionChannel(),
               ),
               // Maps-ON: render the LIVE GoogleMap. The sprint-009 stop-the-bleed
               // placeholder is retired now that the manifest wires

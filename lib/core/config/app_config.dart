@@ -51,6 +51,33 @@ class AppConfig {
   );
 
   // ---------------------------------------------------------------------------
+  // Continuous courier position (realtime subscription)
+  // ---------------------------------------------------------------------------
+
+  /// Whether the customer's tracking map SUBSCRIBES to the courier's position
+  /// instead of re-reading it on the four events it already has.
+  ///
+  /// OFF by default, matching the gateway half it depends on: jeeb-gateway #339
+  /// (`3c1015d`) ships its publish path behind `Tracking:RealtimePublish:
+  /// Enabled` + `FeatureFlags:UseUpstream:Realtime` + an env-supplied
+  /// `Services:Realtime:GuardianSecret`, and its descriptor endpoint returns a
+  /// `null` `socketUrl` until `Services:Realtime:PublicSocketUrl` is set. A
+  /// mobile default of `true` would therefore mean "attempt a subscription that
+  /// cannot succeed on every deployment that has not opted in" — one wasted GET
+  /// per tracking-screen entry, for nothing.
+  ///
+  /// Flipping it on is safe by construction rather than by promise: with the
+  /// flag on but any part of the gateway side unconfigured, the descriptor read
+  /// answers 503 (or hands back a null socketUrl), `CourierPositionChannel.open`
+  /// returns null, and the screen behaves exactly as it does with the flag off.
+  ///
+  /// `--dart-define=JEEB_REALTIME_TRACKING=true`.
+  static const bool realtimeCourierPositionEnabled = bool.fromEnvironment(
+    'JEEB_REALTIME_TRACKING',
+    defaultValue: false,
+  );
+
+  // ---------------------------------------------------------------------------
   // SuperAdmin passcode (DEBUG-ONLY dev surface)
   // ---------------------------------------------------------------------------
 
