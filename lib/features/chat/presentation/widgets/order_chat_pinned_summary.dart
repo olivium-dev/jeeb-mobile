@@ -79,6 +79,7 @@ class OrderChatPinnedSummary extends StatefulWidget {
     required this.summary,
     required this.counterpartName,
     required this.onViewSummary,
+    this.onSummaryAttentionRefresh,
     this.viewerIsJeeber = false,
   });
 
@@ -92,6 +93,20 @@ class OrderChatPinnedSummary extends StatefulWidget {
   /// P3: NULLABLE — the `order-summary` route is owner-scoped, so the Jeeber
   /// variant of this strip renders WITHOUT the link.
   final VoidCallback? onViewSummary;
+
+  /// Fired when the customer EXPANDS this strip — see [_toggle].
+  ///
+  /// The host answers it with ONE catch-up read of the delivery row. It exists
+  /// because `order_summary_status` is on the push-only status axis: while the
+  /// customer stays on the thread, a `type=delivery` push is the ONLY thing
+  /// that can advance the chip, and on real hardware that push does not always
+  /// land. Expanding the strip is an explicit, user-caused request to look at
+  /// exactly this data, so it is the honest moment to re-read — the same
+  /// justification the screen's `didPopNext` catch-up already carries
+  /// ("one-shot, user-caused — not a cadence").
+  ///
+  /// Null (Jeeber leg, bare tests, fixture hosts) → expanding just expands.
+  final VoidCallback? onSummaryAttentionRefresh;
 
   /// Role of the VIEWER (run-22 chat-cluster fix): the party line names the
   /// person on the OTHER side of the conversation. A customer sees the winning
@@ -208,9 +223,21 @@ class _OrderChatPinnedSummaryState extends State<OrderChatPinnedSummary> {
       ChatHeaderExpansionStore.instance.isExpanded(_expansionKey);
 
   void _toggle() {
+    final willExpand = !_expanded;
     ChatHeaderExpansionStore.instance
-        .setExpanded(_expansionKey, expanded: !_expanded);
+        .setExpanded(_expansionKey, expanded: willExpand);
     setState(() {});
+    // EXPANDING is the catch-up moment; collapsing is not. The customer has
+    // just asked to see the locked fields and the live status, which is the one
+    // user-caused event on this screen that names this data — and on the COD
+    // run it is literally the interaction that was captured returning a stale
+    // chip (`g5/06-tracking-expanded.png`, "Matched" ~2.5 min after the jeeber
+    // marked Picked).
+    //
+    // One shot, no cadence: it fires on a discrete user action, and the host's
+    // `_refreshSummary` is single-flighted, so a rapid expand/collapse/expand
+    // collapses to one read rather than a burst.
+    if (willExpand) widget.onSummaryAttentionRefresh?.call();
   }
 
   @override

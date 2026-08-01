@@ -1750,6 +1750,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       // view-summary LINK stays customer-only (the `order-summary` route is
       // owner-scoped); OrderChatPinnedSummary hides the link when it is null.
       pinnedSummary: _summary,
+      // DEFECT (live COD run, 2026-07-31): `order_summary_status` read "Matched"
+      // at 21:44 and still at 21:46, while the jeeber had marked Picked at
+      // 21:43:43 and InTransit at 21:44:16. The chip is on the PUSH-ONLY status
+      // axis — the 60 s safety net was deleted (see the note at the top of this
+      // file), so while the customer stays on this thread the ONLY thing that
+      // can advance it is a `type=delivery` push, and on that hardware the push
+      // did not land (the same run's gateway journal: fcmAccepted=3/24,
+      // fcmRejected=21). `didPopNext` / `onAppResumed` / open are all
+      // attention-RETURN events; none of them fires for a customer who never
+      // leaves.
+      //
+      // Expanding the strip is the one user-caused event on this screen that
+      // names this data, and the captured frame is exactly that interaction
+      // returning a stale chip. It gets one catch-up read — the same shape and
+      // the same justification as the `didPopNext` catch-up, and through the
+      // same single-flight latch, so it adds no cadence and cannot storm.
+      //
+      // Customer-only, matching every other trigger here: the refresh is never
+      // armed for the Jeeber (`_armSummaryRefresh` is gated on `!isJeeber`), so
+      // handing the Jeeber's strip a refresh callback would create a read path
+      // the rest of this screen deliberately does not give it.
+      onSummaryAttentionRefresh: isJeeber ? null : _refreshSummary,
       onViewSummary: isClientAccepted
           // EDGE: order_chat_view_summary_link → order-summary-pinned (JM-031,
           // route `order-summary`). 21_NAV_PLAN §C.
