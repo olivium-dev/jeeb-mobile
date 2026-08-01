@@ -63,6 +63,116 @@ class GpsPoint extends Equatable {
   List<Object?> get props => [lat, lng];
 }
 
+/// How much the GATEWAY can vouch for the courier's last known position — the
+/// client mirror of `JeebGateway.Tracking.PositionFreshness`
+/// (`jeeb-gateway/src/JeebGateway/Tracking/PositionFreshness.cs`), read off the
+/// `positionStatus` string on `TrackingPolylineDto`
+/// (`.../Tracking/TrackingDtos.cs:143`, serialized camelCase by
+/// `JsonSerializerDefaults.Web` at `Controllers/LocationController.cs:47`).
+///
+/// ## Why a four-state enum and not the `stale` boolean
+///
+/// The boolean cannot separate the two states that matter most to a map:
+/// "this courier has not started reporting" and "we HAD this courier and lost
+/// them". Before gateway #342 (`d430706f`) both serialized byte-identically as
+/// `position:null, stale:false, secondsSinceUpdate:null`, so a screen holding a
+/// previously-rendered marker was told "everything is fine" about a courier it
+/// had lost, and left the pin up as though it were live. That is the phantom
+/// pin, and it is the whole reason this type exists.
+///
+/// The four states are ordered by decreasing confidence and are a pure function
+/// of one fix's age, so the ladder is monotonic: a position ages
+/// [live] → [stale] → [lost] and never moves back up without a fresh fix.
+enum PositionFreshness {
+  /// No fix has ever been recorded for this courier. There is nothing to show
+  /// and — crucially — nothing has been LOST. Wire: `"awaitingFirstFix"`.
+  awaitingFirstFix,
+
+  /// The last fix is younger than the gateway's `Tracking:StaleThreshold`
+  /// (default 2 min). The marker may be drawn normally. Wire: `"live"`.
+  live,
+
+  /// The last fix is older than `StaleThreshold` but still within
+  /// `Tracking:PositionTtl`. The gateway STILL publishes the coordinates — a
+  /// stationary courier legitimately uploads nothing for minutes, because the
+  /// uploader uses `distanceFilter: 10` — but the client must degrade the
+  /// marker rather than present it as live. Wire: `"stale"`.
+  stale,
+
+  /// The last fix is older than `PositionTtl`. The gateway had a courier and no
+  /// longer knows where they are, so it publishes NO coordinates — but it does
+  /// publish `secondsSinceUpdate`. That non-null age beside a null position is
+  /// the entire signal distinguishing this from [awaitingFirstFix].
+  /// Wire: `"lost"`.
+  lost,
+}
+
+extension PositionFreshnessWire on PositionFreshness {
+  /// The gateway's wire spelling (`TrackingFreshness.ToWireValue`).
+  String get wire {
+    switch (this) {
+      case PositionFreshness.awaitingFirstFix:
+        return 'awaitingFirstFix';
+      case PositionFreshness.live:
+        return 'live';
+      case PositionFreshness.stale:
+        return 'stale';
+      case PositionFreshness.lost:
+        return 'lost';
+    }
+  }
+
+  /// True when the gateway is explicitly telling us it cannot vouch for the
+  /// position — the two verdicts that must never render as a live marker.
+  bool get isUnvouched =>
+      this == PositionFreshness.stale || this == PositionFreshness.lost;
+
+  /// True for the ONE verdict that carries no coordinates yet still demands the
+  /// screen act: we had this courier and lost them. An overlay in this state is
+  /// EMPTY by coordinates but is emphatically not "nothing to say" — it is the
+  /// instruction to stop presenting a pin the screen is already holding.
+  bool get isLost => this == PositionFreshness.lost;
+}
+
+/// Parses `positionStatus` off the tracking snapshot, falling back to the
+/// pre-#342 triple when the field is absent.
+///
+/// The fallback is a DERIVATION, never an invention, and it is exact for any
+/// gateway at or after #342 that happens to omit the field. Against a gateway
+/// BEFORE #342 the `lost` state was destroyed server-side (the store deleted
+/// the fix on read, so the wire carried `stale:false, secondsSinceUpdate:null`)
+/// — no client-side rule can recover information that was never sent, so it
+/// derives [PositionFreshness.awaitingFirstFix] and the screen behaves exactly
+/// as it did before this change. That is the honest floor, not a regression.
+PositionFreshness parsePositionStatus(Map<String, dynamic> json) {
+  final raw = json['positionStatus'];
+  if (raw is String) {
+    switch (raw) {
+      case 'live':
+        return PositionFreshness.live;
+      case 'stale':
+        return PositionFreshness.stale;
+      case 'lost':
+        return PositionFreshness.lost;
+      case 'awaitingFirstFix':
+        return PositionFreshness.awaitingFirstFix;
+    }
+    // An UNKNOWN verdict falls through to the derivation below rather than
+    // defaulting to a confident state. A future gateway that adds a fifth rung
+    // must not be read as "live" by an app that has never heard of it.
+  }
+  final hasPosition = json['position'] is Map;
+  final stale = json['stale'] as bool? ?? false;
+  final age = (json['secondsSinceUpdate'] as num?)?.toDouble();
+  if (hasPosition) {
+    return stale ? PositionFreshness.stale : PositionFreshness.live;
+  }
+  // No coordinates. An AGE without coordinates is the gateway's own documented
+  // signature for `lost` (`TrackingDtos.cs:130-136`).
+  if (age != null) return PositionFreshness.lost;
+  return PositionFreshness.awaitingFirstFix;
+}
+
 class DeliveryTrackingInfo extends Equatable {
   const DeliveryTrackingInfo({
     required this.deliveryId,
@@ -84,6 +194,7 @@ class DeliveryTrackingInfo extends Equatable {
     this.itemSummary,
     this.positionStale = false,
     this.positionAgeSeconds,
+    this.positionStatus,
   });
 
   /// T-MOB-017: Parses the TrackingPolylineDto shape returned by
@@ -130,6 +241,10 @@ class DeliveryTrackingInfo extends Equatable {
       // truth for freshness.
       positionStale: json['stale'] as bool? ?? false,
       positionAgeSeconds: (json['secondsSinceUpdate'] as num?)?.toDouble(),
+      // The explicit verdict added by gateway #342 (`d430706f`). Reading it is
+      // what lets this client tell "hasn't started" apart from "we lost them"
+      // — the two states the `stale` boolean above collapses into one.
+      positionStatus: parsePositionStatus(json),
     );
   }
 
@@ -383,10 +498,36 @@ class DeliveryTrackingInfo extends Equatable {
   /// allowed to say so.
   final double? positionAgeSeconds;
 
+  /// The gateway's EXPLICIT freshness verdict (`positionStatus`), or null when
+  /// the response carried none.
+  ///
+  /// Null means "this gateway did not tell us", not "everything is fine": every
+  /// read that goes through [DeliveryTrackingInfo.fromTrackingJson] fills it in
+  /// (deriving it when the field is absent), so in practice only hand-built
+  /// snapshots — tests, the demo repo, devtool seams — leave it null, and those
+  /// keep the legacy [positionStale] behaviour unchanged.
+  final PositionFreshness? positionStatus;
+
   /// Whether the map may draw a courier marker: there is a fix AND the gateway
   /// says it is fresh. Everything that renders a marker must go through this,
   /// so "no phantom marker" is one predicate rather than a convention.
-  bool get markerIsLive => jeeberPosition != null && !positionStale;
+  ///
+  /// Two clauses, and the second is not redundant with the first. The gateway
+  /// sets `stale:true` for BOTH `stale` and `lost`, so today [positionStale]
+  /// alone would already answer correctly — but that is a property of one
+  /// server's current arithmetic, not a contract. Asking the verdict DIRECTLY
+  /// means a snapshot that ever arrives with `positionStatus:"lost"` and a
+  /// stray `stale:false` still cannot paint a live pin.
+  bool get markerIsLive =>
+      jeeberPosition != null &&
+      !positionStale &&
+      !(positionStatus?.isUnvouched ?? false);
+
+  /// True when the gateway has told us, in so many words, that it lost this
+  /// courier: an age with no coordinates. The screen owes the customer an
+  /// explanation in this state — it is the one case where the marker vanishes
+  /// for a reason the customer cannot infer from anything else on screen.
+  bool get positionLost => positionStatus?.isLost ?? false;
 
   /// The PUBLIC matched-Jeeber slice (display name, vehicle, avatar) surfaced
   /// once a jeeber is assigned. Null while the delivery is still matching — the
@@ -537,6 +678,7 @@ class DeliveryTrackingInfo extends Equatable {
     List<GpsPoint> polyline = const [],
     bool stale = false,
     double? secondsSinceUpdate,
+    PositionFreshness? status,
   }) {
     return DeliveryTrackingInfo(
       deliveryId: deliveryId,
@@ -562,6 +704,11 @@ class DeliveryTrackingInfo extends Equatable {
       // rendering as live — the exact phantom the negative control forbids.
       positionStale: stale,
       positionAgeSeconds: secondsSinceUpdate ?? positionAgeSeconds,
+      // Same rule as `stale` directly above, and for the same reason: the
+      // verdict belongs to the SNAPSHOT that just arrived, never to `this`.
+      // A merge that kept the previous `live` would be the phantom pin
+      // rebuilt one layer up.
+      positionStatus: status,
     );
   }
 
@@ -586,5 +733,6 @@ class DeliveryTrackingInfo extends Equatable {
         itemSummary,
         positionStale,
         positionAgeSeconds,
+        positionStatus,
       ];
 }

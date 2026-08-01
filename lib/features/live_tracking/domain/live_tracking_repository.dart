@@ -60,6 +60,7 @@ class DeliveryLivePosition {
     this.polyline = const [],
     this.stale = false,
     this.secondsSinceUpdate,
+    this.status,
   });
 
   final GpsPoint? jeeberPosition;
@@ -79,8 +80,37 @@ class DeliveryLivePosition {
   /// (`LocationController.cs:317`). Null when the gateway holds no fix at all.
   final double? secondsSinceUpdate;
 
+  /// The gateway's explicit freshness verdict — `positionStatus` on
+  /// `TrackingPolylineDto` (`jeeb-gateway` #342 `d430706f`,
+  /// `src/JeebGateway/Tracking/TrackingDtos.cs:143`). Null when the response
+  /// carried none; see [DeliveryTrackingInfo.positionStatus].
+  final PositionFreshness? status;
+
   /// True when there is nothing new to overlay (no fix and no route yet).
+  ///
+  /// DELIBERATELY unchanged, and deliberately NOT the drop predicate any more.
+  /// This asks a question about COORDINATES, and it answers it correctly: a
+  /// `lost` snapshot is empty by coordinates. What changed is that emptiness
+  /// alone stopped being sufficient reason to discard the snapshot — see
+  /// [isNothingToSay].
   bool get isEmpty => jeeberPosition == null && polyline.isEmpty;
+
+  /// True when this overlay carries neither coordinates NOR a verdict the
+  /// screen must act on — the only case in which discarding it loses nothing.
+  ///
+  /// ## The phantom pin lived in the gap between this and [isEmpty]
+  ///
+  /// `_applyLivePosition` used to drop on [isEmpty]. Post-#342 the gateway's
+  /// `lost` snapshot is `position:null, polyline:[], stale:true,
+  /// secondsSinceUpdate: an age` — empty by coordinates, so it was dropped, so
+  /// `withLivePosition` never ran, so `positionStale` stayed `false` on the row
+  /// and `markerIsLive` stayed `true` over a marker merged minutes earlier. The
+  /// server said "I lost them" and the client threw the sentence away unread.
+  ///
+  /// [PositionFreshness.awaitingFirstFix] is still dropped, and must be: it is
+  /// the pre-first-fix case, where blanking a marker the screen already holds
+  /// would be its own defect.
+  bool get isNothingToSay => isEmpty && !(status?.isLost ?? false);
 }
 
 class LiveTrackingException implements Exception {

@@ -124,6 +124,10 @@ class DioLiveTrackingRepository
         // it just handed us is fresh enough to draw (NEGATIVE control).
         stale: info.positionStale,
         secondsSinceUpdate: info.positionAgeSeconds,
+        // The explicit verdict (#342). Carrying it is what lets the cubit tell
+        // an `awaitingFirstFix` snapshot — which it must keep dropping — apart
+        // from a `lost` one, which it must not.
+        status: info.positionStatus,
       );
     } on DioException {
       return null;
