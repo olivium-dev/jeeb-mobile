@@ -98,7 +98,19 @@ class DioOrderChatSummaryRepository implements OrderChatSummaryRepository {
       final priceLabel = _formatAmount(
         delivery?['amount'] ?? request?['amount'],
       );
-      final tierId = _str(delivery?['tier']) ?? _str(request?['tier']) ?? '';
+      // WIRE KEY: `tierId` FIRST — see the note in
+      // `dio_order_summary_repository.dart`. The gateway's `DeliveryRequestDto`
+      // serializes `TierId` as `tierId` on BOTH `/v1/deliveries/{id}` and
+      // `/v1/requests/{id}`; neither route emits `tier`, so reading only `tier`
+      // pinned this to '' and the chat header's Tier chip permanently showed
+      // its "Pending" placeholder. `tier` stays as the trailing legacy alias.
+      final tierId = _str(delivery?['tierId']) ??
+          _str(delivery?['tier_id']) ??
+          _str(request?['tierId']) ??
+          _str(request?['tier_id']) ??
+          _str(delivery?['tier']) ??
+          _str(request?['tier']) ??
+          '';
       final orderRef = _str(request?['displayId']) ??
           _str(delivery?['displayId']) ??
           '';

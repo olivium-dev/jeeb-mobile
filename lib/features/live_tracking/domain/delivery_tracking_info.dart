@@ -191,7 +191,13 @@ class DeliveryTrackingInfo extends Equatable {
       price: _money(amount),
       currency: _currency(amount),
       jeeberName: _str(json['jeeberName'] ?? json['jeeber_name']),
-      tier: _str(json['tier']),
+      // WIRE KEY: `tierId` FIRST. `GET /v1/deliveries/{id}` answers with the
+      // gateway's `DeliveryRequestDto`, whose `TierId` member serializes to
+      // `tierId`; it never emits `tier`. Reading only `tier` left this null on
+      // every real response, and the tracking header hides the tier row when it
+      // is null — so the row was invisible on device while the gateway had the
+      // value all along. `tier` is retained as the legacy `:4010` mock alias.
+      tier: _str(json['tierId'] ?? json['tier_id'] ?? json['tier']),
       // G1: `description` fallback — the request content the customer typed
       // in compose; delivery rows minted from a request may carry it instead
       // of a dedicated title, and the tracking header should echo it.
