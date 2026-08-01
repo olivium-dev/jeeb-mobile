@@ -65,6 +65,11 @@ class OrderSummaryL10n {
   /// "Tier" label — reuses the existing delivery-details getter.
   String get tierLabel => _l10n.deliveryTierLabel;
 
+  /// Tier placeholder when the row carries no tier — reuses the SAME localized
+  /// key the chat header's tier chip already uses, so the two customer-facing
+  /// renderings of one absent field read identically.
+  String get tierPending => _l10n.orderSummaryValuePending;
+
   /// "Item" label above the one-line order summary.
   String get itemLabel => _pick('Item', 'الطلب');
 

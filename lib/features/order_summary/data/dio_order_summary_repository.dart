@@ -104,7 +104,23 @@ class DioOrderSummaryRepository implements OrderSummaryRepository {
                 request?['jeeberName'],
           ) ??
           (jeeberId ?? ''),
-      tier: _str(delivery['tier'] ?? request?['tier']) ?? '',
+      // WIRE KEY: `tierId` FIRST. Both `GET /v1/deliveries/{id}` and
+      // `GET /v1/requests/{id}` answer with the gateway's `DeliveryRequestDto`,
+      // whose member is `TierId` — serialized camelCase, so the wire key is
+      // `tierId`. This line used to read ONLY `tier`, which those two routes
+      // NEVER emit, so the parse always produced '' and the summary's Tier
+      // field rendered blank no matter what the gateway knew. `tier` is kept
+      // as the trailing alias: it is the legacy `:4010` mock's spelling and
+      // the shape `JeebOrdersListController` uses ([JsonPropertyName("tier")]).
+      tier: _str(
+            delivery['tierId'] ??
+                delivery['tier_id'] ??
+                request?['tierId'] ??
+                request?['tier_id'] ??
+                delivery['tier'] ??
+                request?['tier'],
+          ) ??
+          '',
       jeeberRating: _toDouble(jeeber?['rating']),
       jeeberRatingCount: _toInt(jeeber?['ratingCount'] ?? jeeber?['rating_count']),
       etaMinutes: acceptedEta ??

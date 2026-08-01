@@ -111,7 +111,16 @@ class OrderSummaryPinned extends StatelessWidget {
                     identifier: 'order_summary_tier',
                     icon: Icons.bolt_outlined,
                     label: l10n.tierLabel,
-                    value: l10n.tierName(summary.tier),
+                    // `tierName('')` returns '' (its `default` arm echoes the
+                    // id back), so an absent tier used to render a labelled
+                    // BLANK — an icon and the word "Tier" with nothing after
+                    // it, which reads as a broken field rather than an unknown
+                    // one. The ETA cell beside it already had this placeholder;
+                    // so does the chat header's tier chip. Give the tier cell
+                    // the same honest "Pending" rather than a hole.
+                    value: summary.tier.trim().isEmpty
+                        ? l10n.tierPending
+                        : l10n.tierName(summary.tier),
                   ),
                 ),
               ],
