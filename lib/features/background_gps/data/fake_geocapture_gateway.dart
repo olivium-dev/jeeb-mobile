@@ -34,7 +34,17 @@ class FakeGeocaptureGateway implements GeocaptureGateway {
   LocationPermission _lastPermission;
   final StreamController<GpsSample> _controller =
       StreamController<GpsSample>.broadcast();
+  /// Latches on the FIRST [stop] and never clears. Note that
+  /// `BackgroundGpsCubit.start()` tears down before it subscribes, so this is
+  /// already `true` by the time the pipeline reaches `tracking` — asserting it
+  /// is `true` after a delivery completes proves nothing. Use [stopCount].
   bool stopped = false;
+
+  /// How many times [stop] was called. Unlike [stopped] this can distinguish
+  /// "the stream was torn down again" from "it was torn down once, at start" —
+  /// which is the difference between an uploader that survives the screen and
+  /// one that dies with it (the 2026-08-01 P1).
+  int stopCount = 0;
 
   /// Ordered log of the permission calls the cubit made, by port method name
   /// (`current`, `whileInUse`, `always`). Lets a test assert the SEQUENCE, not
@@ -92,6 +102,7 @@ class FakeGeocaptureGateway implements GeocaptureGateway {
   @override
   Future<void> stop() async {
     stopped = true;
+    stopCount += 1;
   }
 
   /// Pushes a sample through and yields so the cubit's listener runs

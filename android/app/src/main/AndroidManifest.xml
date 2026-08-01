@@ -103,13 +103,40 @@
           `[jeeb-diag]` breadcrumb, and raises the OMDS permission banner on the
           Active Delivery screen with an "Open settings" CTA
           (`GpsPermissionBanner`).
-        - NOT added: FOREGROUND_SERVICE / FOREGROUND_SERVICE_LOCATION. The
-          uploader uses a plain `Geolocator.getPositionStream` with no
-          `AndroidSettings.foregroundNotificationConfig`, so no foreground
-          service is started and declaring those would be dead permissions.
-          Screen-off continuity is a separate change.
     -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+
+    <!--
+        P1 (2026-08-01): the "separate change" the block above deferred. It is
+        no longer separable — a courier who backgrounds the app stops feeding
+        the customer's map, which is the same P1 as one who navigates away.
+
+        Holding `always` is necessary but NOT sufficient. A plain
+        `getPositionStream` is owned by the activity, so once the app leaves the
+        foreground Android's background-location throttling (API 26+) cuts
+        delivery to a couple of fixes an HOUR. The pipeline stays in
+        `phase:"tracking"` throughout — it looks healthy and reports nothing.
+
+        `AndroidSettings.foregroundNotificationConfig` (see
+        `GeolocatorGeocaptureGateway.defaultSettings`) makes geolocator run its
+        own `GeolocatorLocationService` in the foreground. That service is
+        already declared by the plugin with
+        `android:foregroundServiceType="location"`
+        (geolocator_android-5.0.3 AndroidManifest.xml), and it is merged into
+        this app — but the plugin declares NO permissions, so the two below are
+        ours to add:
+          - FOREGROUND_SERVICE: required to call startForeground() at all
+            (API 28+).
+          - FOREGROUND_SERVICE_LOCATION: required ADDITIONALLY from API 34, and
+            this app targets 34 (`android/app/build.gradle`: targetSdk 34).
+            Without it `startForeground()` with a `location` type throws
+            SecurityException at runtime, so the uploader would die the instant
+            it went to background — the exact failure being fixed.
+        These are no longer dead permissions: the config that activates the
+        service ships in the same change.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
 
     <application
         android:label="@string/app_name"

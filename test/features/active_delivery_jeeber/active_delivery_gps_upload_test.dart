@@ -31,8 +31,12 @@ import 'package:jeeb_mobile/features/background_gps/domain/gps_sample.dart';
 const _deliveryId = 'DLV-770001';
 const _dropOff = DropOffAddress(label: 'Verdun', lat: 33.88, lng: 35.49);
 
-JeeberDelivery _delivery(JeeberDeliveryStatus status) => JeeberDelivery(
-      id: _deliveryId,
+JeeberDelivery _delivery(
+  JeeberDeliveryStatus status, {
+  String id = _deliveryId,
+}) =>
+    JeeberDelivery(
+      id: id,
       status: status,
       dropOff: _dropOff,
     );
@@ -49,13 +53,14 @@ GpsSample _sample({double accuracy = 12}) => GpsSample(
 /// Minimal repository stub: hands back a delivery at a fixed status and echoes
 /// transition targets (so markDelivered walks InTransit → AtDoor → Done).
 class _FakeRepo implements ActiveDeliveryRepository {
-  _FakeRepo(this._status);
+  _FakeRepo(this._status, {this.id = _deliveryId});
 
   final JeeberDeliveryStatus _status;
+  final String id;
 
   @override
   Future<JeeberDelivery> fetchDelivery(String deliveryId) async =>
-      _delivery(_status);
+      _delivery(_status, id: id);
 
   @override
   Future<JeeberDeliveryStatus> transition({
@@ -168,18 +173,119 @@ void main() {
       await cubit.close();
     });
 
-    test('tears the uploader down when the screen closes', () async {
+    // ---------------------------------------------------------------------
+    // P1, 2026-08-01: the uploader's lifetime is the DELIVERY, not the SCREEN.
+    //
+    // The suite used to assert the opposite ("tears the uploader down when the
+    // screen closes"), which is precisely the defect: a jeeber who opened chat
+    // or backed out to the feed mid-delivery stopped reporting position, and
+    // the customer's live map froze with no error raised anywhere.
+    // ---------------------------------------------------------------------
+
+    test('KEEPS uploading after the screen closes while the delivery is still '
+        'InTransit', () async {
       final cubit = buildCubit(JeeberDeliveryStatus.inTransit);
       await cubit.loadDelivery();
       await pumpEventQueue();
       expect(gps.state.phase, BackgroundGpsPhase.tracking);
 
+      // `start()` tears down before it subscribes, so the counter is already
+      // non-zero here. What matters is that it does not move again.
+      final teardownsBeforeClose = gateway.stopCount;
+
+      // The jeeber navigates away (chat / feed / back). The route pops and the
+      // screen's cubit is disposed — the delivery, however, is still en route.
       await cubit.close();
       await pumpEventQueue();
 
-      // Stream cancelled + cubit closed — no fixes leak past the screen.
-      expect(gateway.stopped, isTrue);
-      expect(gps.isClosed, isTrue);
+      // The pipeline is untouched: not closed, not torn down again, still
+      // bound to this delivery.
+      expect(gps.isClosed, isFalse);
+      expect(gateway.stopCount, teardownsBeforeClose);
+      expect(gps.state.phase, BackgroundGpsPhase.tracking);
+      expect(gps.state.deliveryId, _deliveryId);
+
+      // The claim that actually matters: a fix captured AFTER the screen is
+      // gone still reaches the gateway. A phase flag alone would not prove the
+      // customer's map keeps moving; an accepted upload does.
+      await gateway.emit(_sample());
+      await pumpEventQueue();
+      expect(uploader.calls, hasLength(1));
+      expect(uploader.calls.single.deliveryId, _deliveryId);
+
+      await gps.close();
+    });
+
+    test('stops the uploader on close once the delivery has LEFT InTransit',
+        () async {
+      final cubit = buildCubit(JeeberDeliveryStatus.inTransit);
+      await cubit.loadDelivery();
+      await pumpEventQueue();
+      expect(gps.state.phase, BackgroundGpsPhase.tracking);
+      final teardownsWhileTracking = gateway.stopCount;
+
+      // Delivery completes, then the screen tears down.
+      await cubit.markDelivered();
+      await pumpEventQueue();
+      await cubit.close();
+      await pumpEventQueue();
+
+      // Battery + privacy: the en-route window closed, so the stream is down.
+      // Surviving the screen must NOT become "runs forever".
+      expect(gps.state.phase, BackgroundGpsPhase.idle);
+      expect(gateway.stopCount, greaterThan(teardownsWhileTracking));
+
+      await gateway.emit(_sample());
+      await pumpEventQueue();
+      expect(uploader.calls, isEmpty);
+
+      await gps.close();
+    });
+
+    test('a second delivery screen does not stop a sibling delivery that is '
+        'still en route', () async {
+      // The uploader is now an app-scoped singleton, so "is it idle?" is no
+      // longer a safe stop condition — every stop must be scoped to the
+      // delivery that owns it. Without that guard, opening a second (not yet
+      // en-route) delivery would kill the first one's live upload.
+      final shared = buildGps();
+
+      final enRoute = ActiveDeliveryCubit(
+        repository: _FakeRepo(JeeberDeliveryStatus.inTransit),
+        deliveryId: _deliveryId,
+        gpsUploader: shared,
+        refreshSignals: const Stream<void>.empty(),
+      );
+      await enRoute.loadDelivery();
+      await pumpEventQueue();
+      expect(shared.state.phase, BackgroundGpsPhase.tracking);
+      expect(shared.state.deliveryId, _deliveryId);
+      final teardownsBeforeSibling = gateway.stopCount;
+
+      const otherId = 'DLV-770002';
+      final other = ActiveDeliveryCubit(
+        repository: _FakeRepo(JeeberDeliveryStatus.picked, id: otherId),
+        deliveryId: otherId,
+        gpsUploader: shared,
+        refreshSignals: const Stream<void>.empty(),
+      );
+      await other.loadDelivery();
+      await pumpEventQueue();
+      await other.close();
+      await pumpEventQueue();
+
+      // Delivery A is untouched and still uploading.
+      expect(shared.state.phase, BackgroundGpsPhase.tracking);
+      expect(shared.state.deliveryId, _deliveryId);
+      expect(gateway.stopCount, teardownsBeforeSibling);
+
+      await gateway.emit(_sample());
+      await pumpEventQueue();
+      expect(uploader.calls, hasLength(1));
+      expect(uploader.calls.single.deliveryId, _deliveryId);
+
+      await enRoute.close();
+      await shared.close();
     });
   });
 }
