@@ -73,43 +73,32 @@ class OrderSummaryPinnedHeader extends StatelessWidget {
                   ),
                 ),
                 if (price != null)
-                  Semantics(
-                    identifier: 'order_summary_price',
-                    child: Text(
-                      _formatPrice(price, info.currency),
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                  // Flexible, not rigid: the name beside it is Expanded, so a
+                  // long price would otherwise starve the name to zero width
+                  // and then overflow the row itself.
+                  Flexible(
+                    child: Semantics(
+                      identifier: 'order_summary_price',
+                      child: Text(
+                        _formatPrice(price, info.currency),
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ),
               ],
             ),
             const SizedBox(height: Spacing.xSmall),
-            // Tier + ETA chips.
-            Row(
-              children: [
-                if (tier != null && tier.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsetsDirectional.only(
-                      end: Spacing.medium,
-                    ),
-                    child: Semantics(
-                      identifier: 'order_summary_tier',
-                      child: Text(
-                        '${l10n.summaryTierLabel}: ${l10n.tierName(tier)}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ),
-                  ),
-                Semantics(
-                  identifier: 'order_summary_eta',
-                  child: Text(
-                    eta == null
-                        ? l10n.summaryEtaPending
-                        : '${l10n.summaryEtaLabel}: ${l10n.summaryEtaMinutes(eta)}',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ),
-              ],
+            // Tier + ETA facts. See [_HeaderFactStrip] for why this is not a Row.
+            _HeaderFactStrip(
+              tier: tier == null || tier.isEmpty
+                  ? null
+                  : '${l10n.summaryTierLabel}: ${l10n.tierName(tier)}',
+              eta: eta == null
+                  ? l10n.summaryEtaPending
+                  : '${l10n.summaryEtaLabel}: ${l10n.summaryEtaMinutes(eta)}',
             ),
             if (info.itemSummary != null) ...[
               const SizedBox(height: Spacing.xSmall),
@@ -172,5 +161,79 @@ class OrderSummaryPinnedHeader extends StatelessWidget {
   String _formatPrice(double price, String? currency) {
     final amount = price.toStringAsFixed(2);
     return currency == null ? amount : '$amount $currency';
+  }
+}
+
+/// The tier + ETA line of the pinned header.
+///
+/// ## Why this is a [Wrap] and not a [Row]
+///
+/// It used to be a `Row` holding two bare `Text` children with no `Expanded`,
+/// no `Flexible`, no `maxLines` and no `overflow`. A `Row` lays non-flex
+/// children out with `maxWidth: infinity`, so each `Text` claimed its full
+/// unwrapped intrinsic width and `RenderFlex` painted the overflow stripe: on a
+/// Samsung A33 (411.4 dp wide, less `Spacing.medium` padding either side =
+/// 379.4 dp of content) the strip reported **RIGHT OVERFLOWED BY 75 PIXELS**.
+/// There was no shrink capacity anywhere in the row, so any excess was a hard
+/// overflow rather than a wrap or a truncation.
+///
+/// Three things stack to produce that excess, and all three are ordinary:
+///   * text scaling — the app clamps at 2.0 and the a11y AC requires 200%
+///     without overflow, which doubles both labels while the box does not;
+///   * Arabic — `summaryEtaPending` is 11 characters in English and 25 in
+///     Arabic ("الوقت المقدّر قيد التحديد"), so RTL is materially worse;
+///   * an unmapped tier id — `LiveTrackingL10n.tierName` echoes the raw id back
+///     for anything outside its five known slugs, and since #208 that id comes
+///     straight off the wire, so it can be arbitrarily long.
+///
+/// A `Wrap` cannot overflow horizontally: when the two facts no longer fit side
+/// by side they stack onto a second run, which keeps both readable at 200%
+/// instead of truncating them. The [ConstrainedBox] is what handles the third
+/// case — `Wrap` hands its children unbounded main-axis constraints, so a
+/// single token longer than the line would still overflow without an explicit
+/// ceiling; bounded to the strip's own width it ellipsises instead.
+///
+/// The durable fix belongs one level down, in `omds-flutter`: `OmdsChip`
+/// centres its capsule with a `Center` (expanding to its constraints) and
+/// renders an un-ellipsisable label, which is why it could not simply be
+/// dropped in here — the same substitution was tried and reverted on the chat
+/// header (`order_chat_pinned_summary.dart`). Until `OmdsChip` shrink-wraps and
+/// ellipsises, this local strip is the fix.
+class _HeaderFactStrip extends StatelessWidget {
+  const _HeaderFactStrip({required this.tier, required this.eta});
+
+  /// Pre-composed tier label, or null when the delivery carries no tier.
+  final String? tier;
+
+  /// Pre-composed ETA label. Always rendered — it has a "pending" form.
+  final String eta;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodySmall;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        Widget fact(String identifier, String text) => ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+              child: Semantics(
+                identifier: identifier,
+                child: Text(
+                  text,
+                  style: style,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            );
+        return Wrap(
+          spacing: Spacing.medium,
+          runSpacing: Spacing.xSmall,
+          children: [
+            if (tier != null) fact('order_summary_tier', tier!),
+            fact('order_summary_eta', eta),
+          ],
+        );
+      },
+    );
   }
 }
