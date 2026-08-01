@@ -16,7 +16,25 @@ import '../../core/di/injection_container.dart';
 /// - `POST /auth/tokens`                 → [mintTokenForUser] (act-as mint)
 /// - `POST /v1/requests/{id}/offers`     → [initiateOffer]
 /// - `POST /v1/offers/{id}/accept`       → [acceptOffer]
-/// - `POST /api/Chat/channels/{id}/messages` → [sendMessage]
+/// - `GET  /v1/conversations?correlationKey={requestId}` → [sendMessage] (resolve)
+/// - `POST /v1/conversations/{id}/messages` → [sendMessage] (append)
+///
+/// ## Why "send message" is keyed on a REQUEST id, not a channel id
+/// The Dev Tool used to `POST /api/Chat/channels/{channelId}/messages`.
+/// `jeeb-gateway` #350 retired that route: it wrote documents under a
+/// superseded `Channels/{id}/Messages/{guid}` Firestore schema that nothing
+/// could read, and it now answers **410 Gone**
+/// (`https://jeeb.dev/errors/legacy-channel-write-retired`).
+///
+/// The live surface, `POST /v1/conversations/{conversationId}/messages`, keys
+/// on a **conversation id** — a different aggregate from a channel id, with no
+/// mapping between them. A channel id therefore cannot be translated, and this
+/// client does not pretend otherwise. What the gateway DOES expose is
+/// `correlation_key == request_id` (see `JeebConversationResponse`), so the
+/// action is re-scoped onto the request id — the handle a reviewer already
+/// holds and already types into "Initiate offer". [sendMessage] resolves
+/// requestId → conversationId over the same route the product chat path uses
+/// (`DioChatGateway.loadPhase`), then appends.
 ///
 /// ## Gating
 /// The `/dev/*` routes carry `[DevOnly]` and are anonymous-by-design: they
@@ -53,6 +71,11 @@ class DevGatewayClient {
   static const String _usersPath = '/dev/data/users';
   static const String _seedUserPath = '/dev/seed/user';
   static const String _mintPath = '/auth/tokens';
+
+  /// Correlation-key resolver: `?correlationKey={requestId}` → the conversation
+  /// row. This is the route `DioChatGateway` uses, so the Dev Tool exercises
+  /// the same surface the product does rather than a tooling-only alias.
+  static const String _conversationsPath = '/v1/conversations';
 
   // ------------------------------------------------------------------------
   // Dev data / seed endpoints.
@@ -214,26 +237,85 @@ class DevGatewayClient {
     }
   }
 
-  /// Send a chat message AS [asUserId] into [channelId].
+  /// Send a chat message AS [asUserId] into the conversation correlated with
+  /// [requestId]. Returns the resolved conversation id so the caller can show
+  /// which aggregate the message actually landed in.
   ///
-  /// Mints an act-as token, then
-  /// `POST /api/Chat/channels/{channelId}/messages` with body
-  /// `{ channelId, text }` (`AddMessageRequest`).
-  Future<void> sendMessage({
+  /// Three hops, all against live product routes:
+  ///  1. mint an act-as token for [asUserId];
+  ///  2. `GET /v1/conversations?correlationKey={requestId}` → `conversation_id`;
+  ///  3. `POST /v1/conversations/{conversationId}/messages` with the FROZEN
+  ///     Contract E text body `{ "kind": "text", "body": … }`.
+  ///
+  /// `author_id` is stamped by the gateway from the bearer sub and is NEVER
+  /// read from the body, so the act-as token is what decides who "sent" it.
+  Future<String> sendMessage({
     required String asUserId,
-    required String channelId,
+    required String requestId,
     required String text,
     String? asRole,
   }) async {
     final token = await mintTokenForUser(asUserId, roles: _roles(asRole));
+    final conversationId = await _resolveConversationId(requestId, token);
     try {
       await _dio.post<Map<String, dynamic>>(
-        '/api/Chat/channels/$channelId/messages',
-        data: <String, dynamic>{'channelId': channelId, 'text': text},
-        options: _bearer(token),
+        '$_conversationsPath/$conversationId/messages',
+        data: <String, dynamic>{'kind': 'text', 'body': text},
+        options: _bearer(
+          token,
+          // Unique per Run: the gateway keys replay suppression off this
+          // header, so a reusable key would make the second "Send message"
+          // silently replay the first instead of posting a new line.
+          extraHeaders: <String, dynamic>{
+            'Idempotency-Key':
+                'devtool-send-${DateTime.now().microsecondsSinceEpoch}',
+          },
+        ),
       );
+      return conversationId;
     } on DioException catch (e) {
       throw DevGatewayException.fromDio(e, action: 'send message');
+    }
+  }
+
+  /// Resolve `requestId` (the conversation's `correlation_key`) to its
+  /// `conversation_id`.
+  ///
+  /// Reads **`conversation_id`** and nothing else. The gateway serializes this
+  /// projection snake_case (`JeebConversationResponse`,
+  /// `[Stj.JsonPropertyName("conversation_id")]`) — a live read confirms the
+  /// body carries neither `id` nor `conversationId`. Accepting those spellings
+  /// "just in case" is how a read path goes quietly blind, so a body without
+  /// the proven key fails loudly here instead.
+  Future<String> _resolveConversationId(String requestId, String token) async {
+    const action = 'resolve the conversation for that request';
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        _conversationsPath,
+        queryParameters: <String, dynamic>{'correlationKey': requestId},
+        options: _bearer(token),
+      );
+      final conversationId = response.data?['conversation_id'] as String?;
+      if (conversationId == null || conversationId.isEmpty) {
+        throw const DevGatewayException(
+          'The gateway returned a conversation row without a '
+          '`conversation_id`.',
+        );
+      }
+      return conversationId;
+    } on DioException catch (e) {
+      throw DevGatewayException.fromDio(
+        e,
+        action: action,
+        // A 404 here is NOT the dev-endpoints flag — it is chat-service saying
+        // this request has no conversation yet. Saying "enable
+        // Features:DevEndpoints" would send the reviewer after the wrong knob.
+        notFoundMessage:
+            'Could not $action: no conversation is correlated with that '
+            'request id (404). A request has no conversation until one is '
+            'provisioned for it — check the ID, or drive the order far enough '
+            'for chat to exist.',
+      );
     }
   }
 
@@ -317,24 +399,43 @@ class DevUser {
 /// A typed, human-readable failure from a dev-gateway call.
 ///
 /// Callers show [message] directly. [statusCode] is the HTTP status when the
-/// gateway responded (e.g. **404** = dev endpoints disabled / flag off,
-/// **401/403** = missing or invalid mint key) and null on a transport error.
+/// gateway responded (**404** = dev endpoints disabled on a `/dev/*` route, or
+/// the resource is absent on a product route; **401/403** = missing or invalid
+/// mint key; **410** = the route is retired) and null on a transport error.
 class DevGatewayException implements Exception {
   const DevGatewayException(this.message, {this.statusCode, this.action});
 
   /// Builds a message from a [DioException], mapping the common dev-flag /
   /// mint-gate statuses to actionable text.
+  ///
+  /// [notFoundMessage] overrides the 404 branch. The default 404 text assumes
+  /// the caller hit a `/dev/*` route, where 404 means the dev-endpoints flag is
+  /// off — but a 404 from a *product* route (e.g. the correlation-key
+  /// conversation read) means the resource does not exist, and blaming the flag
+  /// there points the reviewer at a knob that is not the problem.
+  ///
+  /// **410 is called out by name.** `jeeb-gateway` #350 retired the legacy
+  /// `Channels/` message-write surface with 410 Gone, and the generic
+  /// "the gateway returned 410" reads like a transient fault. It is not: it is
+  /// permanent, and it means the caller is still on a route that no longer
+  /// exists.
   factory DevGatewayException.fromDio(
     DioException e, {
     required String action,
+    String? notFoundMessage,
   }) {
     final status = e.response?.statusCode;
     final String message;
     switch (status) {
       case 404:
-        message =
+        message = notFoundMessage ??
             'Could not $action: the gateway dev endpoints are disabled '
-            '(404). Enable Features:DevEndpoints on the target gateway.';
+                '(404). Enable Features:DevEndpoints on the target gateway.';
+      case 410:
+        message =
+            'Could not $action: that gateway route is RETIRED (410 Gone). '
+            'This is permanent, not a transient fault — the Dev Tool is '
+            'calling a surface the gateway no longer serves.';
       case 401:
         message =
             'Could not $action: unauthorized (401). The token mint needs a '

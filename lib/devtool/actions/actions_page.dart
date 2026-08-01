@@ -50,8 +50,12 @@ class _ActionsPageState extends State<ActionsPage> {
   // Accept offer.
   final TextEditingController _offerIdController = TextEditingController();
 
-  // Send message.
-  final TextEditingController _channelIdController = TextEditingController();
+  // Send message. Keyed on the REQUEST id (the conversation's correlation
+  // key), not a channel id: the legacy channel-write route is retired (410),
+  // and channel ids do not map onto conversation ids. See
+  // [DevGatewayClient.sendMessage].
+  final TextEditingController _chatRequestIdController =
+      TextEditingController();
   final TextEditingController _textController = TextEditingController();
 
   @override
@@ -67,7 +71,7 @@ class _ActionsPageState extends State<ActionsPage> {
     _etaController.dispose();
     _noteController.dispose();
     _offerIdController.dispose();
-    _channelIdController.dispose();
+    _chatRequestIdController.dispose();
     _textController.dispose();
     super.dispose();
   }
@@ -110,6 +114,7 @@ class _ActionsPageState extends State<ActionsPage> {
       _resultIsError = false;
     });
 
+    String? detail;
     try {
       switch (_action) {
         case _ActionKind.initiateOffer:
@@ -142,24 +147,29 @@ class _ActionsPageState extends State<ActionsPage> {
             offerId: offerId,
           );
         case _ActionKind.sendMessage:
-          final channelId = _channelIdController.text.trim();
+          final requestId = _chatRequestIdController.text.trim();
           final text = _textController.text.trim();
-          if (channelId.isEmpty || text.isEmpty) {
-            throw const FormatException('Channel ID and text are required.');
+          if (requestId.isEmpty || text.isEmpty) {
+            throw const FormatException('Request ID and text are required.');
           }
-          await _client.sendMessage(
+          // Reports which conversation the line actually landed in — the
+          // resolution requestId → conversationId is the whole point of this
+          // action, so hiding it would make a wrong-thread send look identical
+          // to a right one.
+          final conversationId = await _client.sendMessage(
             asUserId: user.id,
             asRole: user.role,
-            channelId: channelId,
+            requestId: requestId,
             text: text,
           );
+          detail = ' Conversation $conversationId.';
       }
       if (!mounted) return;
       setState(() {
         _running = false;
         _resultIsError = false;
         _resultMessage =
-            '${_action.label} succeeded as ${user.username.isNotEmpty ? user.username : user.id}.';
+            '${_action.label} succeeded as ${user.username.isNotEmpty ? user.username : user.id}.${detail ?? ''}';
       });
     } on DevGatewayException catch (e) {
       if (!mounted) return;
@@ -282,9 +292,11 @@ class _ActionsPageState extends State<ActionsPage> {
         return Column(
           children: [
             TextField(
-              controller: _channelIdController,
+              controller: _chatRequestIdController,
               decoration: const InputDecoration(
-                labelText: 'Channel ID',
+                labelText: 'Request ID',
+                helperText: 'The conversation is resolved from this '
+                    '(correlation key == request id).',
                 border: OutlineInputBorder(),
               ),
             ),
