@@ -1122,6 +1122,10 @@ class AppLocalizations {
       .replaceFirst('{fee}', fee)
       .replaceFirst('{currency}', currency)
       .replaceFirst('{minutes}', '$minutes');
+  /// JM-029 accept-confirm sheet title. A QUESTION about an action not yet
+  /// taken — never the past-tense chat system message.
+  String offerAcceptTitle(String name) =>
+      _get('offerAcceptTitle').replaceFirst('{name}', name);
   // W6/SW-08 offer identity: honest name + rating fallbacks (never a UUID name
   // or a fabricated "4.5 (0)").
   String get offersCardJeeberFallback => _get('offersCardJeeberFallback');
