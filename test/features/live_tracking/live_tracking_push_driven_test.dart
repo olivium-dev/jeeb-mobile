@@ -17,10 +17,10 @@ import 'package:jeeb_mobile/features/live_tracking/domain/live_tracking_reposito
 ///    `Notifications/DeliveryStatusPushNotifier.cs:211`). That axis is now the
 ///    push bus below, and it retires `GET /v1/deliveries/{id}`.
 ///  * The courier POSITION rides `GET /deliveries/{id}/tracking`, read on the
-///    SAME events. It used to ride an SSE stream at
-///    `GET /v1/geo/jeeb/stream/{id}`; jeeb-gateway #333 (`b6fe888`) deleted that
-///    route, the customer 404ed on it for four days, and the marker never
-///    rendered — the courier-marker P0. → `LivePositionSource`.
+///    SAME events. It used to ride an SSE stream on a `geo` alias route;
+///    jeeb-gateway #333 (`b6fe888`) deleted that route (guard
+///    `Sse_Alias_Route_Is_Gone`), the customer 404ed on it for four days, and
+///    the marker never rendered — the courier-marker P0. → `LivePositionSource`.
 ///
 /// Also preserved: this cubit deliberately NEVER reads `GET /otp` — on the live
 /// gateway that endpoint TRIGGERS AN SMS, so polling it would text the recipient
@@ -199,10 +199,12 @@ void main() {
     test('no event ⇒ no position read after 60 virtual seconds', () {
       // The regression this file's status half already pins, now pinned for the
       // POSITION half too. It is not hypothetical: before this change the dead
-      // SSE stream re-armed itself forever on `kPositionRearmBackoff`, so a
-      // screen sitting untouched issued a request every 30 s — an
-      // "ERROR-RECOVERY" timer that had silently become a permanent poll
-      // because the route it retried could never succeed.
+      // SSE stream re-armed itself forever on a now-deleted backoff constant
+      // (2 / 5 / 15 / 30 s, then saturating), so a screen sitting untouched
+      // issued a request every 30 s — an "ERROR-RECOVERY" timer that had
+      // silently become a permanent poll because the route it retried could
+      // never succeed, and whose only reset site sat inside a frame handler a
+      // dead route could never reach.
       fakeAsync((async) {
         final repo = _FakeTrackingRepository(stages: [TrackingStage.inTransit])
           ..nextPosition = const DeliveryLivePosition(

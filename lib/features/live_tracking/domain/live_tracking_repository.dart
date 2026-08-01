@@ -18,11 +18,11 @@ abstract class LiveTrackingRepository {
 ///
 /// ## This is the ONLY courier-position surface the gateway still serves
 ///
-/// There used to be a second one — `LivePositionStreamSource`, implemented by
-/// `SseLivePositionStream` over `GET /v1/geo/jeeb/stream/{id}`. Both are
-/// **deleted**, because the route they depended on is deleted:
-/// `jeeb-gateway` #333 (`b6fe888`) removed the alias along with the 5 s
-/// server-side re-read loop it existed to open, and pinned the removal with
+/// There used to be a second one: an SSE stream capability, with a client class
+/// implementing it against a `geo` alias route. Both are **deleted**, because
+/// the route they depended on is deleted: `jeeb-gateway` #333 (`b6fe888`)
+/// removed the alias along with the 5 s server-side re-read loop it existed to
+/// open, and pinned the removal with
 /// `tests/JeebGateway.IntegrationTests/Tracking/NoBackendPollOrFirestoreListenerGuardTests.cs:143`
 /// (`Sse_Alias_Route_Is_Gone` — a party to the delivery must get **404**).
 /// That PR's own consumer note says it plainly: *"a client that calls the alias
@@ -30,9 +30,15 @@ abstract class LiveTrackingRepository {
 /// of that migration never happened, which is why the customer's map showed no
 /// courier for four days while the jeeber's uploads were 200-ing.
 ///
-/// The same guard bans the literals `text/event-stream` and `v1/geo/jeeb/stream`
-/// from the shipped gateway assembly, so the alias cannot be restored server-side
-/// without deliberately breaking a merged gate. `GET /deliveries/{id}/tracking`
+/// Neither the alias path nor the two deleted Dart type names is spelled out
+/// anywhere in this repo any more. That is MB1's V-1 contract: it greps the
+/// whole tree, and to `grep` a doc comment and a live call site are the same
+/// thing. `Sse_Alias_Route_Is_Gone` is the durable handle to the full story.
+///
+/// The same guard bans both the event-stream content type and the alias path
+/// from the shipped gateway assembly, so the alias cannot be restored
+/// server-side without deliberately breaking a merged gate.
+/// `GET /deliveries/{id}/tracking`
 /// reads the SAME `ILocationStore` the ingest writes (`LocationController.cs:170`
 /// writes, `:297` reads) — the write and read paths were never disconnected;
 /// only the client's URL was wrong.

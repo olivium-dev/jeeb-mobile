@@ -93,12 +93,12 @@ class DioLiveTrackingRepository
   /// store the jeeber's uploader writes to; parsed via the frozen
   /// `TrackingPolylineDto` shape).
   ///
-  /// This is now the ONLY courier-position read that exists. The SSE alias this
-  /// class also used to call — `GET /v1/geo/jeeb/stream/{id}` — was deleted by
-  /// `jeeb-gateway` #333 (`b6fe888`) and 404s on the deployed gateway; see
-  /// [LivePositionSource] for the full chain. There is no `Accept` branch to
-  /// worry about any more either: the surviving route answers one JSON body and
-  /// closes, whatever the client asks for.
+  /// This is now the ONLY courier-position read that exists. The SSE `geo` alias
+  /// this class also used to call was deleted by `jeeb-gateway` #333
+  /// (`b6fe888`, guard `Sse_Alias_Route_Is_Gone`) and 404s on the deployed
+  /// gateway; see [LivePositionSource] for the full chain. There is no `Accept`
+  /// branch to worry about any more either: the surviving route answers one JSON
+  /// body and closes, whatever the client asks for.
   ///
   /// Deliberately total: ANY failure — 404 (no fix yet / not-a-party 403,
   /// transport error, malformed body) — returns null so the tracking screen
@@ -128,6 +128,21 @@ class DioLiveTrackingRepository
     } on DioException {
       return null;
     } on FormatException {
+      return null;
+    } catch (_) {
+      // "Deliberately total" was a LIE until this fix, and it was a lie in the
+      // one direction the doc comment above explicitly promises to cover: a
+      // MALFORMED BODY. `fromTrackingJson` reaches the wire through unchecked
+      // casts —
+      //   json['position'] as Map<String, dynamic>?     (a list/string 200)
+      //   (posObj['lat'] as num).toDouble()             (a STRING latitude)
+      //   json['status'] as String?                     (a numeric status)
+      // — and every one of those throws `TypeError`, which is neither a
+      // `DioException` nor a `FormatException`.
+      //
+      // Deliberately a bare `catch`, not `on TypeError`: the contract this
+      // implements is "null on ANY failure", and enumerating the throwables of
+      // a parser is how the first two clauses came to be wrong.
       return null;
     }
   }

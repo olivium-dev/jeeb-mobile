@@ -13,9 +13,16 @@ import 'chat_state.dart';
 
 /// Backoff for the COLD-LOAD-FAILURE retry. Not a poll: it is armed only while
 /// [ChatState.historyLoadFailed] is set and it TERMINATES on the first success.
-/// Same shape and same argument as the two backoffs already shipped —
-/// `kPositionRearmBackoff` (`live_tracking_cubit.dart`, #186) and
-/// `kChatResolutionRetryBackoff` (`chat_detail_screen.dart`).
+/// Same shape and same argument as `kChatResolutionRetryBackoff`
+/// (`chat_detail_screen.dart`).
+///
+/// It used to cite a second precedent, the live-tracking SSE re-arm backoff of
+/// #186. That constant is **deleted** (MB1 / PR #204) and citing it by name was
+/// actively misleading — it is the schedule that turned into a permanent poll
+/// against a 404 for four days, because its only reset site sat inside a frame
+/// handler a dead route could never reach. The two backoffs here are the
+/// opposite shape and that is the whole point: both TERMINATE on the first
+/// success.
 ///
 /// It caps rather than exhausts, deliberately: an exhausting schedule leaves a
 /// thread permanently blank with no way back short of a restart.
