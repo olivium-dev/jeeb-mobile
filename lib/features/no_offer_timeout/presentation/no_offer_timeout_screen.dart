@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/formatting/countdown_format.dart';
 import '../../../core/lifecycle/route_resume_refetch.dart';
 import '../../../core/network/single_flight_get.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
@@ -456,7 +457,9 @@ class _BroadcastHeader extends StatelessWidget {
           child: Text(
             remaining == null
                 ? l10n.waitingCountdownPending
-                : l10n.waitingCountdownLabel(_format(remaining!)),
+                : l10n.waitingCountdownLabel(
+                    CountdownFormat.format(remaining!),
+                  ),
             style: theme.textTheme.bodyLarge?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -465,14 +468,6 @@ class _BroadcastHeader extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  static String _format(Duration d) {
-    final minutes = d.inMinutes;
-    final seconds = d.inSeconds % 60;
-    final mm = minutes.toString();
-    final ss = seconds.toString().padLeft(2, '0');
-    return '$mm:$ss';
   }
 }
 
