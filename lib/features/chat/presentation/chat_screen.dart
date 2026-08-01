@@ -138,6 +138,7 @@ class ChatScreen extends StatelessWidget {
     this.pickerService,
     this.pinnedSummary,
     this.onViewSummary,
+    this.onSummaryAttentionRefresh,
     this.onOpenDispute,
     this.isOrderChat = false,
     this.viewerIsJeeber = false,
@@ -204,6 +205,11 @@ class ChatScreen extends StatelessWidget {
   /// `order-summary-pinned` (JM-031). Required for the link to render.
   final VoidCallback? onViewSummary;
 
+  /// Fired when the customer EXPANDS the pinned summary — an explicit,
+  /// user-caused request to look at this data. The host answers it with one
+  /// catch-up read of the delivery row. See [OrderChatPinnedSummary].
+  final VoidCallback? onSummaryAttentionRefresh;
+
   /// JM-025 AC3: tap handler for the dispute affordance → `dispute-open-evidence`
   /// (JM-060). When non-null AND the order is accepted/active, the app bar
   /// shows `order_chat_open_dispute`. Null hides it (e.g. broadcasting/closed).
@@ -232,7 +238,7 @@ class ChatScreen extends StatelessWidget {
   /// resolved a real request and routed onward; `false` lets the composer
   /// re-arm so the user can retry (e.g. a failed create).
   final Future<bool> Function(String requestId, String firstMessage)?
-      onFirstMessageBroadcast;
+  onFirstMessageBroadcast;
 
   /// Server-created delivery id known to the host BEFORE the chat loads — set
   /// when the client accepted the offer from the review-list sheet and was
@@ -270,6 +276,7 @@ class ChatScreen extends StatelessWidget {
           onTrackOrder: onTrackOrder,
           pinnedSummary: pinnedSummary,
           onViewSummary: onViewSummary,
+          onSummaryAttentionRefresh: onSummaryAttentionRefresh,
           onOpenDispute: onOpenDispute,
           isOrderChat: isOrderChat,
           viewerIsJeeber: viewerIsJeeber,
@@ -316,6 +323,7 @@ class ChatScreen extends StatelessWidget {
         onTrackOrder: onTrackOrder,
         pinnedSummary: pinnedSummary,
         onViewSummary: onViewSummary,
+        onSummaryAttentionRefresh: onSummaryAttentionRefresh,
         onOpenDispute: onOpenDispute,
         isOrderChat: isOrderChat,
         viewerIsJeeber: viewerIsJeeber,
@@ -348,6 +356,7 @@ class _ChatScaffold extends StatefulWidget {
     this.onTrackOrder,
     this.pinnedSummary,
     this.onViewSummary,
+    this.onSummaryAttentionRefresh,
     this.onOpenDispute,
     this.isOrderChat = false,
     this.viewerIsJeeber = false,
@@ -364,23 +373,28 @@ class _ChatScaffold extends StatefulWidget {
   final void Function(String deliveryId)? onTrackOrder;
   final OrderChatSummary? pinnedSummary;
   final VoidCallback? onViewSummary;
+
+  /// Fired when the customer EXPANDS the pinned summary — an explicit,
+  /// user-caused request to look at this data. The host answers it with one
+  /// catch-up read of the delivery row. See [OrderChatPinnedSummary].
+  final VoidCallback? onSummaryAttentionRefresh;
   final VoidCallback? onOpenDispute;
   final bool isOrderChat;
   final bool viewerIsJeeber;
+
   /// Invoked with the request/conversation id to broadcast AND the text of the
   /// composed first message (used as the created request's description when no
   /// real request exists yet — JM-024 → JM-025). Returns `true` when the host
   /// resolved a real request and routed onward; `false` lets the composer
   /// re-arm so the user can retry (e.g. a failed create).
   final Future<bool> Function(String requestId, String firstMessage)?
-      onFirstMessageBroadcast;
+  onFirstMessageBroadcast;
 
   @override
   State<_ChatScaffold> createState() => _ChatScaffoldState();
 }
 
-class _ChatScaffoldState extends State<_ChatScaffold>
-    with ResumeRefetchMixin {
+class _ChatScaffoldState extends State<_ChatScaffold> with ResumeRefetchMixin {
   final ScrollController _scrollController = ScrollController();
   bool _bannerDismissed = false;
 
@@ -441,7 +455,8 @@ class _ChatScaffoldState extends State<_ChatScaffold>
     final phase = context.select<ChatCubit, ConversationPhase>(
       (c) => c.state.phase,
     );
-    final showDispute = widget.onOpenDispute != null &&
+    final showDispute =
+        widget.onOpenDispute != null &&
         phase != ConversationPhase.broadcasting &&
         phase != ConversationPhase.closed;
     return Scaffold(
@@ -500,23 +515,24 @@ class _ChatScaffoldState extends State<_ChatScaffold>
       scrollController: _scrollController,
       feeNotice: widget.feeNotice,
       composerHint: widget.composerHint,
-      showAcceptedBanner: state.phase == ConversationPhase.accepted &&
+      showAcceptedBanner:
+          state.phase == ConversationPhase.accepted &&
           !_bannerDismissed &&
           winnerName != null,
       winnerName: winnerName,
       onBannerDismiss: () => setState(() => _bannerDismissed = true),
       onStartActiveDelivery: widget.onStartActiveDelivery,
       onTrackOrder: _trackOrderCallback(state),
-      showRemovedBanner: state.phase == ConversationPhase.closed &&
-          state.messages.any(
-            (m) => m.kind == MessageKind.offerRejected,
-          ),
+      showRemovedBanner:
+          state.phase == ConversationPhase.closed &&
+          state.messages.any((m) => m.kind == MessageKind.offerRejected),
       broadcastExpiresAt: state.broadcastExpiresAt,
       pinnedSummary: showPinnedSummary ? widget.pinnedSummary : null,
       counterpartName: widget.counterpartName,
       // P3: the link gate is now INDEPENDENT of the strip gate — the host
       // decides who gets the (owner-scoped) link.
       onViewSummary: widget.onViewSummary,
+      onSummaryAttentionRefresh: widget.onSummaryAttentionRefresh,
       isOrderChat: widget.isOrderChat,
       viewerIsJeeber: widget.viewerIsJeeber,
     );
@@ -633,6 +649,7 @@ class _ChatBody extends StatelessWidget {
     this.pinnedSummary,
     this.counterpartName = '',
     this.onViewSummary,
+    this.onSummaryAttentionRefresh,
     this.isOrderChat = false,
     this.viewerIsJeeber = false,
   });
@@ -652,6 +669,11 @@ class _ChatBody extends StatelessWidget {
   final OrderChatSummary? pinnedSummary;
   final String counterpartName;
   final VoidCallback? onViewSummary;
+
+  /// Fired when the customer EXPANDS the pinned summary — an explicit,
+  /// user-caused request to look at this data. The host answers it with one
+  /// catch-up read of the delivery row. See [OrderChatPinnedSummary].
+  final VoidCallback? onSummaryAttentionRefresh;
   final bool isOrderChat;
   final bool viewerIsJeeber;
 
@@ -683,6 +705,7 @@ class _ChatBody extends StatelessWidget {
           summary: summary,
           counterpartName: counterpartName,
           onViewSummary: onViewSummary,
+          onSummaryAttentionRefresh: onSummaryAttentionRefresh,
           viewerIsJeeber: viewerIsJeeber,
         ),
       if (showAcceptedBanner && winnerName != null)
@@ -740,7 +763,9 @@ class _ChatBody extends StatelessWidget {
     // enough height to scroll to the CTA, never more than the bound. Degradation
     // stays a scroll, which is reachable, rather than a clip, which is not.
     final hasStartDeliveryCta =
-        showAcceptedBanner && winnerName != null && onStartActiveDelivery != null;
+        showAcceptedBanner &&
+        winnerName != null &&
+        onStartActiveDelivery != null;
 
     return LayoutBuilder(
       builder: (context, constraints) => Column(
@@ -784,24 +809,24 @@ class _ChatBody extends StatelessWidget {
             ),
           Expanded(child: body),
           if (state.isComposerVisible)
-          ChatComposer(
-            hintText: composerHint,
-            // JM-025: the customer order-chat surface exposes the
-            // `order_chat_composer_*` ids the W1 flow drives; every other
-            // caller keeps the default `chat_detail_*` ids.
-            inputIdentifier: isOrderChat
-                ? 'order_chat_composer_input'
-                : 'chat_detail_message_input',
-            sendIdentifier: isOrderChat
-                ? 'order_chat_composer_send'
-                : 'chat_detail_send_button',
-            onVoiceRecordingComplete: (bytes, mime, ms) =>
-                context.read<ChatCubit>().sendVoiceNote(
-                      audioBytes: bytes,
-                      mimeType: mime,
-                      durationMs: ms,
-                    ),
-          ),
+            ChatComposer(
+              hintText: composerHint,
+              // JM-025: the customer order-chat surface exposes the
+              // `order_chat_composer_*` ids the W1 flow drives; every other
+              // caller keeps the default `chat_detail_*` ids.
+              inputIdentifier: isOrderChat
+                  ? 'order_chat_composer_input'
+                  : 'chat_detail_message_input',
+              sendIdentifier: isOrderChat
+                  ? 'order_chat_composer_send'
+                  : 'chat_detail_send_button',
+              onVoiceRecordingComplete: (bytes, mime, ms) =>
+                  context.read<ChatCubit>().sendVoiceNote(
+                    audioBytes: bytes,
+                    mimeType: mime,
+                    durationMs: ms,
+                  ),
+            ),
         ],
       ),
     );
@@ -912,13 +937,13 @@ class _ChatEmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final (title, subtitle) = switch (phase) {
       ConversationPhase.unknown => (
-          l10n.chatNoConversationTitle,
-          l10n.chatNoConversationSubtitle,
-        ),
+        l10n.chatNoConversationTitle,
+        l10n.chatNoConversationSubtitle,
+      ),
       ConversationPhase.broadcasting => (
-          l10n.chatBroadcastingTitle,
-          l10n.chatBroadcastingEmpty,
-        ),
+        l10n.chatBroadcastingTitle,
+        l10n.chatBroadcastingEmpty,
+      ),
       _ => (l10n.chatEmptyThreadTitle, l10n.chatEmptyThreadSubtitle),
     };
     // Run-22 fix ("BOTTOM OVERFLOWED BY 6.6 PIXELS"): the empty-state column
@@ -993,9 +1018,9 @@ class _ChatMessageList extends StatelessWidget {
 class _ChatRowData {
   const _ChatRowData._(this.kind, {this.date, this.message});
   const _ChatRowData.date(DateTime date)
-      : this._(_ChatRowKind.date, date: date);
+    : this._(_ChatRowKind.date, date: date);
   const _ChatRowData.message(DeliveryChatMessage message)
-      : this._(_ChatRowKind.message, message: message);
+    : this._(_ChatRowKind.message, message: message);
   const _ChatRowData.offerNote() : this._(_ChatRowKind.offerNote);
 
   final _ChatRowKind kind;
