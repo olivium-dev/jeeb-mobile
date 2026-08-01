@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, visibleForTesting;
 import 'package:geolocator/geolocator.dart' as geo;
 
 import '../domain/geocapture_gateway.dart';
@@ -56,13 +58,96 @@ import '../domain/location_permission.dart' as domain;
 class GeolocatorGeocaptureGateway implements GeocaptureGateway {
   GeolocatorGeocaptureGateway({
     geo.LocationSettings? locationSettings,
-  }) : _locationSettings = locationSettings ??
-            const geo.LocationSettings(
-              accuracy: geo.LocationAccuracy.high,
-              distanceFilter: 10,
-            );
+    TargetPlatform? platform,
+  }) : _locationSettings =
+            locationSettings ?? defaultSettings(platform ?? defaultTargetPlatform);
+
+  /// Minimum distance, in metres, a jeeber must move before the OS emits a new
+  /// fix. A stationary courier legitimately produces NOTHING — do not read an
+  /// empty upload log as "the pipeline is dead" without first checking they
+  /// actually moved.
+  static const distanceFilterMeters = 10;
+
+  /// The production location settings.
+  ///
+  /// ## P1, 2026-08-01 — why Android gets a foreground service
+  ///
+  /// Keeping the uploader alive across screens (the `BackgroundGpsCubit`
+  /// singleton) fixes only the Dart half of "the courier stopped reporting".
+  /// The OS half is this: a plain `getPositionStream` belongs to the activity,
+  /// and once the app is no longer visible Android applies background location
+  /// throttling (API 26+, tightened every release since) — the app is handed a
+  /// couple of fixes an HOUR instead of one per 10 m. The cubit stays in
+  /// `phase:"tracking"` the whole time, so the failure is invisible from the
+  /// `bg_gps_phase` breadcrumb: it looks alive and reports nothing.
+  ///
+  /// `AndroidSettings.foregroundNotificationConfig` is geolocator's supported
+  /// answer. Supplying it makes the plugin run its own
+  /// `GeolocatorLocationService` in the foreground
+  /// (`geolocator_android-5.0.3` declares it with
+  /// `android:foregroundServiceType="location"`), which exempts the stream from
+  /// background throttling and shows the jeeber a persistent notification — the
+  /// honest disclosure that their location is being shared, which is exactly
+  /// what we want a courier app to display.
+  ///
+  /// **What this does NOT buy** (geolocator documents this on the field, and it
+  /// is the honest answer to "what if the app is killed outright"): the
+  /// foreground service raises the process's priority, it does not resurrect
+  /// it. If the jeeber force-stops the app, or Android kills the process under
+  /// memory pressure, the stream dies with it and NOTHING re-arms it until the
+  /// app is reopened and the active-delivery flow re-mounts. Surviving process
+  /// death needs a background isolate (`flutter_background_service` or
+  /// equivalent) that is not tied to the main engine — a separate change, not
+  /// smuggled in here.
+  ///
+  /// iOS keeps the plain settings: `UIBackgroundModes: location` plus the
+  /// `always` authorization already grant continuous background delivery there,
+  /// with no service object to configure.
+  @visibleForTesting
+  static geo.LocationSettings defaultSettings(TargetPlatform platform) {
+    if (platform != TargetPlatform.android) {
+      return const geo.LocationSettings(
+        accuracy: geo.LocationAccuracy.high,
+        distanceFilter: distanceFilterMeters,
+      );
+    }
+    return geo.AndroidSettings(
+      accuracy: geo.LocationAccuracy.high,
+      distanceFilter: distanceFilterMeters,
+      // Without a wake lock the device sleeps and the OS delivers the whole
+      // backlog at once when it next wakes — a customer map that jumps in
+      // bursts instead of gliding. WAKE_LOCK is already declared.
+      foregroundNotificationConfig: const geo.ForegroundNotificationConfig(
+        notificationTitle: _notificationTitle,
+        notificationText: _notificationText,
+        notificationChannelName: _notificationChannelName,
+        enableWakeLock: true,
+        setOngoing: true,
+      ),
+    );
+  }
+
+  // Deliberately not routed through `AppLocalizations`: these strings are
+  // consumed by the Android platform channel from `configureDependencies`,
+  // which is synchronous, while this app's ARB layer loads from an asset
+  // bundle asynchronously and needs a Locale that only exists once the widget
+  // tree is up. The same trade-off is already taken for the push channel
+  // (`firebase_messaging_transport.dart`'s `jeebDefaultChannel`). Localising
+  // both together belongs in a bootstrap-locale change, not in a P1 fix.
+  static const _notificationTitle = 'Delivery in progress';
+  static const _notificationText =
+      'Sharing your location with the customer until you complete this '
+      'delivery.';
+  static const _notificationChannelName = 'Live delivery location';
 
   final geo.LocationSettings _locationSettings;
+
+  /// The settings this gateway actually hands geolocator. Exposed so the
+  /// foreground-service guard can assert on the wiring rather than re-deriving
+  /// it from [defaultSettings].
+  @visibleForTesting
+  geo.LocationSettings get locationSettings => _locationSettings;
+
   StreamSubscription<geo.Position>? _subscription;
   StreamController<GpsSample>? _controller;
 

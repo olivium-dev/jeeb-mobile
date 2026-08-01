@@ -203,15 +203,21 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
   final ActiveDeliveryRepository _repository;
   final String deliveryId;
 
-  /// JEBV4-269: the jeeber's live-GPS upload pipeline, owned for the lifetime
-  /// of this cubit. While the delivery is en route (`InTransit`) the uploader
-  /// streams the jeeber's position to the gateway so the customer's live map
-  /// has data; it is stopped the moment the delivery leaves InTransit (AtDoor /
-  /// Done / any terminal state) or the screen closes — the gateway only ingests
-  /// during the en-route phase (409 otherwise) and battery is spared the rest
-  /// of the time. Null in tests/devtool that don't exercise GPS; every call
-  /// site is null-guarded via [_syncGpsUpload]. Its own lifecycle (permissions,
+  /// JEBV4-269: the jeeber's live-GPS upload pipeline. While the delivery is en
+  /// route (`InTransit`) the uploader streams the jeeber's position to the
+  /// gateway so the customer's live map has data; it is stopped when the
+  /// delivery leaves InTransit (AtDoor / Done / any terminal state) — the
+  /// gateway only ingests during the en-route phase (409 otherwise) and battery
+  /// is spared the rest of the time. Null in tests/devtool that don't exercise
+  /// GPS; every call site is null-guarded. Its own lifecycle (permissions,
   /// stream teardown) is delegated entirely to [BackgroundGpsCubit].
+  ///
+  /// P1 2026-08-01: this cubit DRIVES the uploader but does not OWN it. The
+  /// instance is an app-scoped singleton shared across screens, because a
+  /// pipeline owned "for the lifetime of this cubit" is a pipeline that dies
+  /// when the jeeber navigates anywhere. Drive it, never close it —
+  /// [_syncGpsUpload] and [close] are the only two places allowed to stop it,
+  /// and both are scoped to [deliveryId] via [_uploaderIsDrivingThisDelivery].
   final BackgroundGpsCubit? _gpsUploader;
 
   /// Captures the proof-of-delivery photo from the device camera (JEBV4-200).
@@ -452,19 +458,31 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
   /// for and the only phase the customer needs a live map) — and is idle every
   /// other stage. [BackgroundGpsCubit.start] is idempotent (a no-op when
   /// already tracking this delivery), so this is safe to call on every poll
-  /// tick and status transition; the `stop` is guarded on the uploader not
-  /// already being idle so a stationary Ordered/Picked delivery doesn't churn
-  /// its state. No-op when no uploader was injected (tests / devtool).
+  /// tick and status transition. No-op when no uploader was injected
+  /// (tests / devtool).
   void _syncGpsUpload() {
     final gps = _gpsUploader;
     if (gps == null) return;
     final enRoute = state.delivery?.status == JeeberDeliveryStatus.inTransit;
     if (enRoute) {
       unawaited(gps.start(deliveryId));
-    } else if (gps.state.phase != BackgroundGpsPhase.idle) {
+    } else if (_uploaderIsDrivingThisDelivery(gps)) {
       unawaited(gps.stop());
     }
   }
+
+  /// True when the shared uploader is currently driving THIS cubit's delivery.
+  ///
+  /// P1 2026-08-01: the uploader became an app-scoped singleton so it can
+  /// outlive the screen, which means "is it idle?" is no longer a safe stop
+  /// condition — it says nothing about WHOSE delivery is being tracked. A
+  /// jeeber holding two rows who opens delivery B (status `Ordered`) while
+  /// delivery A is en route would otherwise fall into the `stop` branch of
+  /// [_syncGpsUpload] and kill A's live upload from B's screen. Every stop
+  /// path is now scoped to the delivery that owns it.
+  bool _uploaderIsDrivingThisDelivery(BackgroundGpsCubit gps) =>
+      gps.state.phase != BackgroundGpsPhase.idle &&
+      gps.state.deliveryId == deliveryId;
 
   /// True when a silent poll may RUN — i.e. we have a live (non-poll-terminal)
   /// row and no user-driven write (transition / proof upload) is mid-flight.
@@ -785,13 +803,33 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     // idle state, and mirroring it would `emit` into an already-closing cubit.
     await _gpsSubscription?.cancel();
     _gpsSubscription = null;
-    // JEBV4-269: the uploader is owned for this cubit's lifetime — tear its GPS
-    // stream down and close it so no fixes leak past the screen (battery + no
-    // stray uploads for a delivery the jeeber has navigated away from).
+    // P1 2026-08-01: the uploader is DELIVERY-scoped, not screen-scoped, and is
+    // deliberately NOT torn down here.
+    //
+    // This used to `stop()` AND `close()` it unconditionally, on the reasoning
+    // that "no fixes leak past the screen". That reasoning is what broke live
+    // tracking: popping the route mid-delivery (opening chat, backing out to
+    // the feed) parked the pipeline and the customer's map froze silently. The
+    // uploader must keep reporting for the life of the DELIVERY.
+    //
+    // `close()` is now wrong outright — the uploader is an app-scoped
+    // singleton, so closing it would brick GPS upload for every later delivery
+    // in this process, not just this one.
+    //
+    // We stop only when we positively know this delivery has left the en-route
+    // window the gateway ingests for. A null status means the load failed and
+    // we do NOT know — stopping on a guess would kill a live upload, so we
+    // leave it running and let the gateway be the authority (a fix posted
+    // outside InTransit is 409'd, and `HttpLocationUploader` walks that to a
+    // teardown after `maxConsecutiveUploadFailures`; 401/403/404 tear down at
+    // once).
     final gps = _gpsUploader;
-    if (gps != null) {
+    final status = state.delivery?.status;
+    if (gps != null &&
+        status != null &&
+        status != JeeberDeliveryStatus.inTransit &&
+        _uploaderIsDrivingThisDelivery(gps)) {
       await gps.stop();
-      await gps.close();
     }
     return super.close();
   }

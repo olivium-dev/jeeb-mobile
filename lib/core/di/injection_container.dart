@@ -666,13 +666,33 @@ void configureDependencies({
     ),
   );
 
-  // JEBV4-269: jeeber live-GPS uploader. A fresh cubit per active-delivery
-  // screen (registerFactory) — it owns a geolocator stream + upload loop scoped
-  // to one delivery and is closed by the ActiveDeliveryCubit on dispose. Posts
-  // the jeeber's fix to the shipped `POST /location/update` ingest while the
-  // delivery is InTransit, which backs the customer's live-tracking map
-  // (`GET /deliveries/{id}/tracking`).
-  sl.registerFactory<BackgroundGpsCubit>(
+  // JEBV4-269: jeeber live-GPS uploader. Posts the jeeber's fix to the shipped
+  // `POST /location/update` ingest while the delivery is InTransit, which backs
+  // the customer's live-tracking map (`GET /deliveries/{id}/tracking`).
+  //
+  // ## P1, 2026-08-01 — was a `registerFactory`, and that made it SCREEN-scoped
+  //
+  // A factory handed a FRESH cubit to every build of the active-delivery route
+  // (`app_router.dart`, `jeeber-active-delivery`), and `ActiveDeliveryCubit`
+  // closed it on dispose. So the pipeline's lifetime was the WIDGET's: the
+  // moment the route popped — the jeeber opens chat, or just backs out to the
+  // feed — `bg_gps_phase` dropped to `{"phase":"idle","deliveryId":null}` and
+  // the courier stopped reporting position for the rest of the delivery. The
+  // customer's map simply froze; nothing logged an error, because from the
+  // pipeline's point of view a clean shutdown had been requested.
+  //
+  // This is NOT the earlier P0 (a missing `ACCESS_BACKGROUND_LOCATION`
+  // declaration, which made `always` unreachable). That fix is intact and the
+  // permission now resolves to `always` — this is a second defect that was
+  // hiding behind the same symptom.
+  //
+  // A lazy SINGLETON is the fix: the uploader must live as long as the
+  // DELIVERY, not as long as whichever widget happens to be on top of it. One
+  // instance per process, outliving every screen. `ActiveDeliveryCubit` still
+  // start/stops it by delivery status, but must no longer `close()` it — a
+  // closed cubit cannot emit, so closing the singleton would brick GPS upload
+  // for the remainder of the process (see its `close()` for the guard).
+  sl.registerLazySingleton<BackgroundGpsCubit>(
     () => BackgroundGpsCubit(
       gateway: GeolocatorGeocaptureGateway(),
       uploader: HttpLocationUploader(dio: sl<Dio>()),

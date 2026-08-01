@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:jeeb_mobile/core/di/injection_container.dart';
 import 'package:jeeb_mobile/core/observability/crash_reporter.dart';
+import 'package:jeeb_mobile/features/background_gps/application/background_gps_cubit.dart';
 import 'package:jeeb_mobile/features/order_history/domain/order_repository.dart';
 
 class _MockSharedPreferences extends Mock implements SharedPreferences {}
@@ -90,6 +91,39 @@ void main() {
         ),
         throwsA(anyOf(isA<StateError>(), isA<ArgumentError>())),
       );
+    },
+  );
+
+  // P1, 2026-08-01 — the jeeber GPS uploader must OUTLIVE the screen.
+  //
+  // It was a `registerFactory`, so the active-delivery route handed a brand new
+  // cubit to every build and `ActiveDeliveryCubit` closed it on dispose. The
+  // pipeline's lifetime was therefore the widget's: pop the route (open chat,
+  // back out to the feed) and the courier silently stopped reporting position
+  // for the rest of the delivery, freezing the customer's map.
+  //
+  // Resolving twice is the whole test. Under a factory these are two different
+  // objects and the assertion fails; under the lazy singleton they are one.
+  test(
+    'BackgroundGpsCubit resolves as ONE shared instance, not a per-screen factory',
+    () {
+      configureDependencies(
+        sharedPreferences: mockPrefs,
+        crashReporter: mockReporter,
+      );
+
+      final first = GetIt.I<BackgroundGpsCubit>();
+      final second = GetIt.I<BackgroundGpsCubit>();
+
+      expect(
+        identical(first, second),
+        isTrue,
+        reason: 'A fresh uploader per screen is the P1: the delivery, not the '
+            'route, owns the upload window.',
+      );
+      // A singleton that has been closed cannot emit again, so the second
+      // delivery of the session would get a dead pipeline. Nothing may close it.
+      expect(first.isClosed, isFalse);
     },
   );
 }
