@@ -1,3 +1,4 @@
+import '../../../core/jeeb_commission.dart';
 import '../domain/wallet_ledger_repository.dart' show WalletLedgerType;
 import '../domain/wallet_transaction_repository.dart';
 
@@ -44,12 +45,16 @@ class StubWalletTransactionRepository implements WalletTransactionRepository {
       sign: -1,
       currency: 'USD',
       timestamp: '2026-06-19T10:00:00Z',
-      title: 'Platform fee (10%)',
+      title: 'Platform fee ($kJeebCommissionPercent%)',
       ref: 'off-stub-$id',
       offerId: 'off-stub-$id',
       orderId: 'req-stub-$id',
       pinnedPrice: 15.0,
-      feeRate: 0.1,
+      // The rate a Jeeber actually READS on a fee row. This repository is still
+      // the DI-bound one (see the class doc on
+      // `DioWalletTransactionRepository`), so this literal was not a fixture —
+      // it shipped. Now the single source, like every other fee figure.
+      feeRate: kJeebCommissionRate,
     );
   }
 }
