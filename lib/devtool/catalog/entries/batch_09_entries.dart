@@ -35,19 +35,6 @@ import '../../../features/registration/presentation/super_login/super_login_pick
 import '../../../features/registration/presentation/super_login/super_login_sheet.dart';
 import '../catalog_models.dart';
 
-// Batch 09 — profile_name, prohibited_acknowledgment, prohibited_item_report,
-// rate_app, rating, registration (DT-04 screen-catalog rework, rebased
-// worktree). `rate_app` is SKIPPED (see bottom of file): JM-064 raises the
-// native OS store-review sheet with NO in-app UI of its own — there is no
-// screen to catalog.
-//
-// Every builder renders the REAL screen/dialog/sheet with an explicit LOCAL
-// fake repository/service — never the DI-resolved production one, since the
-// Dev Tool shares the app's real GetIt graph (`Bootstrap.minimal`, see
-// `devtool_shell.dart`) and would otherwise hit the live gateway. The Dev
-// Tool's root (`DevToolApp`) is a plain `MaterialApp` (no `GoRouter`), so
-// every driven state below deliberately stops short of any transition that
-// would call `context.go(...)` (which has no Router to resolve against here).
 
 List<CatalogEntry> get batch09Entries => <CatalogEntry>[
       _displayNameSetupScreenEntry,
@@ -60,26 +47,8 @@ List<CatalogEntry> get batch09Entries => <CatalogEntry>[
       _superLoginSheetEntry,
       _superLoginPickerEntry,
 
-      // rate_app — SKIPPED. `AppReviewLauncher`/`InAppReviewLauncher` (JM-064)
-      // is a pure side-channel port that raises the platform's native
-      // store-review sheet (`SKStoreReviewController` / Play In-App Review).
-      // There is NO in-app rating UI and no screen under
-      // `lib/features/rate_app/presentation/` (the directory doesn't even
-      // exist — only `domain/` + `data/`) — cataloging it would mean either
-      // inventing a screen that doesn't exist or reaching into the
-      // `customer_profile` feature's "Rate the app" row, which is out of
-      // scope for this batch.
     ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// profile_name — the post-OTP display-name onboarding step. The screen
-// already carries `repository`/`refreshSignals` seams for the idle designed
-// state; a minimal additive `cubit` seam (this batch, default null, no
-// existing call site touched) lets the catalog pre-drive the saving/failure
-// states, which the screen has no other way to reach from outside (the
-// production `build()` always constructs its own cubit from
-// `repository`/`refreshSignals`).
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _FakeDisplayNameRepository implements DisplayNameRepository {
   const _FakeDisplayNameRepository();
@@ -88,8 +57,6 @@ class _FakeDisplayNameRepository implements DisplayNameRepository {
   Future<void> submitDisplayName(String name) async {}
 }
 
-/// Never resolves — keeps the cubit pinned on `saving` for a stable catalog
-/// state (mirrors `_PendingOrderRepository` in batch 08).
 class _PendingDisplayNameRepository implements DisplayNameRepository {
   const _PendingDisplayNameRepository();
 
@@ -106,18 +73,12 @@ class _ThrowingDisplayNameRepository implements DisplayNameRepository {
   }
 }
 
-/// `submit` emits `saving` synchronously (before its first `await`), so
-/// calling it un-awaited against a repository that never resolves leaves the
-/// cubit pinned on the `saving` state by the time this returns.
 DisplayNameCubit _savingDisplayNameCubit() {
   final cubit = DisplayNameCubit(repository: const _PendingDisplayNameRepository());
   cubit.submit('Ahmad Khaled');
   return cubit;
 }
 
-/// Fires the (rejected) submit and lets the cubit settle into `failure`
-/// reactively once the throwing repository's future rejects — the
-/// `BlocConsumer` inside the screen picks up that emission live.
 DisplayNameCubit _failedDisplayNameCubit() {
   final cubit = DisplayNameCubit(repository: const _ThrowingDisplayNameRepository());
   cubit.submit('Ahmad Khaled');
@@ -152,14 +113,6 @@ final CatalogEntry _displayNameSetupScreenEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-// prohibited_acknowledgment — the one-time prohibited-items dialog (T-MOB-021).
-// The only public entry point is the `showProhibitedAcknowledgmentDialog`
-// function (the dialog widget itself is private), so a small host raises it
-// via `showDialog` on the first frame — same "drive on mount" idiom the
-// registration OTP screen already uses for its debug seam
-// (`_maybeAutoSubmitSeamCode`).
-// ─────────────────────────────────────────────────────────────────────────────
 
 const List<ProhibitedItem> _sampleProhibitedItems = [
   ProhibitedItem(
@@ -201,8 +154,6 @@ class _FakeProhibitedAckRepository implements ProhibitedAcknowledgmentRepository
   Future<void> saveLocalAcknowledgment() async {}
 }
 
-/// Never resolves — keeps the dialog on its loading spinner for a stable
-/// catalog state.
 class _PendingProhibitedAckRepository implements ProhibitedAcknowledgmentRepository {
   const _PendingProhibitedAckRepository();
 
@@ -219,10 +170,6 @@ class _PendingProhibitedAckRepository implements ProhibitedAcknowledgmentReposit
   Future<void> saveLocalAcknowledgment() async {}
 }
 
-/// Raises [showProhibitedAcknowledgmentDialog] on the first frame against a
-/// local [repository] — the dialog is the actual designed state; this host is
-/// just the minimal Scaffold underneath it (matching `showDialog`'s real
-/// barrier presentation).
 class _ProhibitedAckDialogHost extends StatefulWidget {
   const _ProhibitedAckDialogHost({required this.repository});
 
@@ -273,13 +220,6 @@ final CatalogEntry _prohibitedAcknowledgmentDialogEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-// prohibited_item_report — the free-form "report a prohibited item" form. No
-// repository/network of any kind (submit is a local `Navigator.pop(true)`).
-// The description field only ever seeds empty in production; the additive
-// `initialDescription` seam (this batch) lets the catalog preview the
-// CTA-enabled designed state too.
-// ─────────────────────────────────────────────────────────────────────────────
 
 final CatalogEntry _prohibitedItemReportScreenEntry = CatalogEntry(
   feature: 'prohibited_item_report',
@@ -300,14 +240,6 @@ final CatalogEntry _prohibitedItemReportScreenEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-// rating — two screens: the canonical mandatory terminal [MutualRatingScreen]
-// (JM-034, `/orders/:id/mutual-rate`) and the legacy `/feedback`
-// [RatingScreen]. Both are mandatory (no skip/dismiss) and route home
-// (`context.go('/')`) on a successful submit — the Dev Tool's root has no
-// `GoRouter`, so every driven state below deliberately stays short of that
-// transition (inputting / error only, never `submitted`).
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _FakeRatingRepository implements RatingRepository {
   const _FakeRatingRepository({this.throwOnSubmit = false});
@@ -336,9 +268,6 @@ class _FakeRatingRepository implements RatingRepository {
   }
 }
 
-/// Sets a star count (sync) then fires (un-awaited) a submit that is bound to
-/// reject — the cubit settles into `MutualRatingPhase.error` reactively,
-/// which renders `_ErrorView` (no navigation, safe under a router-less host).
 MutualRatingCubit _erroredMutualRatingCubit() {
   final cubit = MutualRatingCubit(
     repository: const _FakeRatingRepository(throwOnSubmit: true),
@@ -413,17 +342,6 @@ final CatalogEntry _ratingScreenEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-// registration — phone+OTP sign-up (T-mobile-002 / JM-009). `RegistrationScreen`
-// already carries `cubit`/`socialAuthCubit`/`onVerified` test seams (built for
-// exactly this kind of router-free preview) — no source edits needed.
-// `OtpVerificationScreen` has no such seam of its own, but it only ever reads
-// its `RegistrationCubit` from context, so a private `_SeededRegistrationCubit`
-// subclass (this file only — no production seam) synchronously emits the
-// designed step via the inherited (protected-to-subclasses) `emit`, which lets
-// every OTP-step state render pre-settled instead of only reachable through
-// the async `sendCode`/`verifyCode` round-trip.
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _FakeSocialAuthService implements SocialAuthService {
   const _FakeSocialAuthService();
@@ -454,8 +372,6 @@ SocialAuthCubit _fakeSocialAuthCubit() => SocialAuthCubit(
       tokenStore: const _FakeSocialAuthTokenStore(),
     );
 
-/// Never resolves — keeps `RegistrationCubit.sendCode`/`verifyCode` pinned
-/// in-flight for a stable "Sending…" catalog state.
 class _PendingOtpService implements OtpService {
   const _PendingOtpService();
 
@@ -489,8 +405,6 @@ final CatalogEntry _registrationScreenEntry = CatalogEntry(
       ),
     ),
     CatalogState(
-      // `sendCode` validates and emits `phoneError` synchronously (before any
-      // `await`) when the number doesn't parse, so this settles instantly.
       'Phone Entry — Invalid Number',
       (_) => _registrationScreen(
         RegistrationCubit(otpService: const FakeOtpService())
@@ -498,9 +412,6 @@ final CatalogEntry _registrationScreenEntry = CatalogEntry(
       ),
     ),
     CatalogState(
-      // `sendCode` emits `isSendingCode: true` synchronously before its first
-      // `await`; pairing it with a never-resolving service pins the CTA on
-      // its loading spinner.
       'Phone Entry — Sending Code',
       (_) => _registrationScreen(
         RegistrationCubit(otpService: const _PendingOtpService())
@@ -510,10 +421,6 @@ final CatalogEntry _registrationScreenEntry = CatalogEntry(
   ],
 );
 
-/// Catalog-only subclass: lets the preview seed [RegistrationState.step]
-/// directly (via the inherited, subclass-visible `emit`) instead of only
-/// reaching the OTP step through the async `sendCode` round-trip. No
-/// production file is touched — this class lives in the catalog batch only.
 class _SeededRegistrationCubit extends RegistrationCubit {
   _SeededRegistrationCubit({required super.otpService});
 
@@ -573,14 +480,6 @@ final CatalogEntry _otpVerificationScreenEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
-// registration/super_login — debug-only credential sheet (FR-P0-4) + demo-user
-// picker. Both public entry points already accept an injectable
-// cubit/service (`showSuperLoginSheet(cubit:)`, `showSuperLoginPicker(service:)`),
-// so no source edits are needed — only a small host raises them via
-// `showDialog`-equivalent (`showModalBottomSheet`) on the first frame, mirroring
-// the prohibited-acknowledgment dialog host above.
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _FakeSuperLoginService implements SuperLoginService {
   const _FakeSuperLoginService();
@@ -593,7 +492,6 @@ class _FakeSuperLoginService implements SuperLoginService {
       const SuperLoginFailure(SuperLoginError.invalidCredentials);
 }
 
-/// Never resolves — keeps the sheet's submit CTA on its loading spinner.
 class _PendingSuperLoginService implements SuperLoginService {
   const _PendingSuperLoginService();
 
@@ -605,9 +503,6 @@ class _PendingSuperLoginService implements SuperLoginService {
       Completer<SuperLoginResult>().future;
 }
 
-/// `submit` emits `submitting` synchronously (before its first `await`) once
-/// past its empty-field guard, so pairing it with a never-resolving service
-/// pins the sheet on its loading state.
 SuperLoginCubit _submittingSuperLoginCubit() {
   final cubit = SuperLoginCubit(
     service: const _PendingSuperLoginService(),
@@ -617,8 +512,6 @@ SuperLoginCubit _submittingSuperLoginCubit() {
   return cubit;
 }
 
-/// Empty credentials hit `submit`'s own client-side guard, which emits
-/// `error` synchronously with no service round-trip at all.
 SuperLoginCubit _erroredSuperLoginCubit() {
   final cubit = SuperLoginCubit(
     service: const _FakeSuperLoginService(),
@@ -628,8 +521,6 @@ SuperLoginCubit _erroredSuperLoginCubit() {
   return cubit;
 }
 
-/// Raises [showSuperLoginSheet] on the first frame — the sheet is the actual
-/// designed state; this host is just the minimal Scaffold underneath it.
 class _SuperLoginSheetHost extends StatefulWidget {
   const _SuperLoginSheetHost({this.cubit, this.initialUserId, this.initialPasscode});
 
@@ -667,14 +558,10 @@ final CatalogEntry _superLoginSheetEntry = CatalogEntry(
   screen: 'SuperLoginSheet',
   states: [
     CatalogState(
-      // The sheet's own production defaults already render empty fields —
-      // no fake service/cubit needed for this state.
       'Idle — Empty',
       (_) => const _SuperLoginSheetHost(),
     ),
     CatalogState(
-      // Mirrors the "Super user login plus" picker hand-off (picked user's
-      // id + the dev SuperAdmin passcode arrive pre-filled, submit-ready).
       'Prefilled — Ready to Submit',
       (_) => const _SuperLoginSheetHost(
         initialUserId: 'nour.demo',
@@ -725,7 +612,6 @@ class _FakeSuperLoginDemoUserService implements SuperLoginDemoUserService {
   }
 }
 
-/// Never resolves — keeps the picker on its loading spinner.
 class _PendingSuperLoginDemoUserService implements SuperLoginDemoUserService {
   const _PendingSuperLoginDemoUserService();
 
@@ -733,8 +619,6 @@ class _PendingSuperLoginDemoUserService implements SuperLoginDemoUserService {
   Future<List<SuperLoginDemoUser>> fetchDemoUsers() => Completer<List<SuperLoginDemoUser>>().future;
 }
 
-/// Raises [showSuperLoginPicker] on the first frame against a local
-/// [service].
 class _SuperLoginPickerHost extends StatefulWidget {
   const _SuperLoginPickerHost({required this.service});
 

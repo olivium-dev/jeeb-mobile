@@ -6,12 +6,8 @@ import '../../../../l10n/app_localizations.dart';
 import '../../domain/delivery_snapshot.dart';
 import '../../domain/delivery_stage.dart';
 
-/// Vertical milestone list rendered above the OMDS labeled stepper.
-///
-/// Each row shows the localized stage label, the reached-at timestamp (when
-/// the gateway has emitted one), and a status dot. The active stage gets a
-/// pulsing ring driven by an [AnimationController] so the user can tell at
-/// a glance which milestone is currently in motion.
+/// Vertical milestone list with stepper. Each row shows stage label, reached-at
+/// timestamp, and status dot. Active stage pulses via AnimationController.
 class DeliveryStageIndicator extends StatelessWidget {
   const DeliveryStageIndicator({
     super.key,
@@ -129,9 +125,8 @@ class _StageRow extends StatelessWidget {
     }
   }
 
+  /// 24-hour format; Arabic locale falls back to Latin digits via intl default.
   String _formatTime(BuildContext context, DateTime when) {
-    // 24-hour format. Arabic locale falls back to Latin digits via intl's
-    // default — matches the rest of the app's time formatting (see KYC).
     final tag = Localizations.localeOf(context).toLanguageTag();
     return DateFormat.Hm(tag).format(when.toLocal());
   }

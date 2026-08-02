@@ -4,12 +4,6 @@ import 'package:omds/omds.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/recent_delivery_summary.dart';
 
-/// One-tap "order again" card for the most recent completed delivery.
-///
-/// Composed entirely from OMDS primitives — [OmdsPrimaryButton] for the
-/// reorder CTA, and tokenized layout containers (`Spacing`, `Sizes`,
-/// `OmdsBorderRadius`, `colorScheme.*`) elsewhere. No raw `TextButton`,
-/// no hardcoded colors, no magic dimensions.
 class RecentDeliveryCard extends StatelessWidget {
   const RecentDeliveryCard({
     super.key,

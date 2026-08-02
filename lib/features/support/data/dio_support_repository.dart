@@ -2,17 +2,6 @@ import 'package:dio/dio.dart';
 
 import '../domain/support_repository.dart';
 
-/// Dio-backed [SupportRepository] (JM-063) — the support-ticket service (S1).
-///
-/// NOT the DI default yet: S1 is backend-owned and not yet mounted on `:4010`
-/// (42_GUARDRAILS_MOCK §4), so `injection_container.dart` binds the
-/// [StubSupportRepository] INTEGRATOR-STUB until S1 lands. This impl is the swap
-/// target — repoint the DI registration here (and add a `/v1/support` rewrite
-/// key) without touching the screen when S1 is verified.
-///
-/// Gateway path `/v1/support/tickets` (the expected S1 contract); the rewrite
-/// key is added in the S1 hand-off. DO NOT hardcode the service prefix here
-/// (40_GUARDRAILS_ARCH §4 / DO-NOT).
 class DioSupportRepository implements SupportRepository {
   const DioSupportRepository(this._dio);
 

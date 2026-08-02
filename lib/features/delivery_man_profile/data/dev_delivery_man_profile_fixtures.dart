@@ -1,9 +1,9 @@
 import '../domain/delivery_man_profile_view_data.dart';
 
-/// Deterministic fixture for the Delivery Man profile dev-seam capture path
-/// (`jeeb.route=/profile/delivery-man`). Mirrors the Figma comp (Kamal Hajj,
-/// 4.3 over a large review base, two visible reviews) so a single dev APK
-/// renders screen 27 without a rebuild. Debug-only.
+
+
+
+
 abstract final class DevDeliveryManProfileFixtures {
   static const String _lorem =
       'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed ut leo '

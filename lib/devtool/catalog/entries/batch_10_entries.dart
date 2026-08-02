@@ -37,28 +37,13 @@ import '../../../features/tier_selection/domain/tier.dart';
 import '../catalog_models.dart';
 import '../tier_catalog_fixture.dart';
 
-// Batch 10 — request_summary, request_type, reviews, search, settings,
-// settlement. `live_settings_screen.dart` is SKIPPED (see bottom of file): it
-// resolves `sl<Dio>()` inside a field initializer with no constructor seam, so
-// previewing it locally would either hit the live gateway or require reaching
-// into GetIt registration, out of scope for an additive catalog batch.
 
-// ─────────────────────────────────────────────────────────────────────────────
-// request_summary — the accepted-request review + submit card
-// (RequestSummaryScreen) and its cold-deep-link fallback
-// (RequestSummaryUnavailableScreen). The cubit has no DI default (the caller
-// always supplies a [RequestDraft] via `setDraft`), so every state seeds the
-// draft directly; a real submit success navigates away (`context.go('/')`),
-// which has no "designed" rendered state of its own — only Loaded / Submitting
-// / Error are previewed.
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _FakeRequestSubmissionService implements RequestSubmissionService {
   const _FakeRequestSubmissionService({this.failure, this.pending = false});
 
   final RequestSubmissionFailure? failure;
 
-  /// Never resolves — keeps the screen pinned on the submitting button state.
   final bool pending;
 
   @override
@@ -96,15 +81,7 @@ Widget _requestSummaryScreen(
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// request_type — tier selection (RequestTypeScreen). Both `repository` and
-// `cubit` are existing constructor test seams (§5.4) — no seam addition
-// needed. The loaded previews use the delivery-service's current three-tier
-// contract rather than the wider legacy fake catalog.
-// ─────────────────────────────────────────────────────────────────────────────
 
-/// Never resolves — keeps the screen on its centered spinner for a stable
-/// "Loading" catalog state.
 class _PendingTierRepository implements TierRepository {
   const _PendingTierRepository();
 
@@ -112,23 +89,15 @@ class _PendingTierRepository implements TierRepository {
   Future<List<Tier>> fetchTiers() => Completer<List<Tier>>().future;
 }
 
-/// Drives the cubit to a loaded state with [select] chosen, via the same
-/// "load, then act once it resolves" trick as the `otp_handover` escalate
-/// preview (batch 08) — `selectTier` is a no-op until `load()` has landed.
 TierSelectionCubit _selectedTierCubit(TierId select) {
   final cubit = TierSelectionCubit(repository: const DevtoolTierRepository());
   unawaited(cubit.load().then((_) => cubit.selectTier(select)));
   return cubit;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// reviews — the all-reviews list (ReviewsListScreen, JM-068). `jeeberId` +
-// `repository` are existing constructor test seams (§5.4).
-// ─────────────────────────────────────────────────────────────────────────────
 
 const String _reviewsJeeberId = 'jeeber-042';
 
-/// Never resolves — keeps the screen on the first-load skeletons (D73).
 class _PendingReviewsRepository implements ReviewsRepository {
   const _PendingReviewsRepository();
 
@@ -163,8 +132,6 @@ class _FailingReviewsRepository implements ReviewsRepository {
   Future<void> reportReview(String reviewId) async {}
 }
 
-/// D59 cold-start posture: < 5 ratings hides the aggregate score behind the
-/// "New" badge while the individual row still renders.
 class _ColdStartReviewsRepository implements ReviewsRepository {
   const _ColdStartReviewsRepository();
 
@@ -195,16 +162,6 @@ class _ColdStartReviewsRepository implements ReviewsRepository {
   Future<void> reportReview(String reviewId) async {}
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// settings — SettingsScreen (`cubit` is an existing constructor test seam)
-// always renders a `_LanguageSection` that reads `context.watch<LocaleCubit>()`
-// unconditionally, so every preview needs a real [LocaleCubit] ancestor. That
-// cubit needs a real [SharedPreferences] instance, so this mirrors the
-// `_OnboardingPreview` async-seam pattern (batch 08): resolve prefs once, then
-// provide the cubit. The Active-Role toggle only reads `RoleCubit` from a user
-// GESTURE (`_onChanged`), never from `build`, so no `RoleCubit` ancestor is
-// needed to render it statically.
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _FakeProfileRepository implements ProfileRepository {
   _FakeProfileRepository([this._initial]);
@@ -239,12 +196,6 @@ class _FakeAccountService implements AccountService {
 UserProfile _sampleProfile() =>
     const UserProfile(phoneE164: '+96170123456', name: 'Maya Haddad');
 
-/// Builds + hydrates a [SettingsCubit] from the fakes above. `load()` is
-/// fire-and-forget here (mirrors `_orderHistoryScreen`, batch 08): the
-/// in-memory repository resolves within a microtask so the list settles to
-/// its loaded content immediately after first paint. When [driveDeletion] is
-/// set, `requestAccountDeletion()` is chained onto the SAME load future so the
-/// deletion-pending row is reachable without a live gesture.
 SettingsCubit _settingsCubit({
   UserProfile? profile,
   bool driveDeletion = false,
@@ -260,8 +211,6 @@ SettingsCubit _settingsCubit({
   return cubit;
 }
 
-/// Async-seam host for [SettingsScreen] (see file-header note): resolves a
-/// real [SharedPreferences] instance and builds the [LocaleCubit] it needs.
 class _SettingsPreview extends StatefulWidget {
   const _SettingsPreview({required this.cubit});
 
@@ -313,12 +262,6 @@ class _SettingsPreviewState extends State<_SettingsPreview> {
   }
 }
 
-/// Async-seam host for [ProfileEditScreen] (no `cubit` ctor param of its own —
-/// it reads `SettingsCubit` from context). Awaits the fake profile load to
-/// completion BEFORE first build so the name field's `initState`-seeded
-/// [TextEditingController] starts from the loaded name, not the empty default
-/// (mirrors real usage: the settings list is already loaded before a user
-/// navigates into profile-edit).
 class _ProfileEditPreview extends StatefulWidget {
   const _ProfileEditPreview({this.profile});
 
@@ -387,7 +330,6 @@ class _FakeNotificationPrefsRepository implements NotificationPrefsRepository {
   }
 }
 
-/// Never resolves — keeps the screen on its centered loading state.
 class _PendingNotificationPrefsRepository
     implements NotificationPrefsRepository {
   const _PendingNotificationPrefsRepository();
@@ -411,11 +353,6 @@ class _FakeAccountSessionTerminator implements AccountSessionTerminator {
   Future<void> deleteAccount() async {}
 }
 
-/// Bottom-sheet preview host (mirrors `_sheetHost` in batch 02):
-/// [LogoutDeleteConfirmSheet] is a sheet, not a route — it renders a bare
-/// column, not a `Scaffold`. Pinning it to the bottom of a plain `Scaffold`
-/// mirrors how `showModalBottomSheet` actually presents it without depending
-/// on a live `Navigator`/modal route.
 Widget _logoutDeleteSheetHost(Widget sheet) {
   return Builder(
     builder: (context) => Scaffold(
@@ -425,11 +362,6 @@ Widget _logoutDeleteSheetHost(Widget sheet) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// settlement — the weekly statements list (SettlementScreen, `repository` is
-// an existing constructor test seam) and the per-statement breakdown
-// (SettlementDetailScreen, a plain `statement` value — no repository at all).
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _FakeSettlementRepository implements SettlementRepository {
   const _FakeSettlementRepository({this.statements, this.fetchFailure});
@@ -450,7 +382,6 @@ class _FakeSettlementRepository implements SettlementRepository {
   }
 }
 
-/// Never resolves — keeps the screen on its centered loading state.
 class _PendingSettlementRepository implements SettlementRepository {
   const _PendingSettlementRepository();
 
@@ -511,9 +442,6 @@ List<SettlementStatement> _sampleStatements() => const [
   ),
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Catalog entries
-// ─────────────────────────────────────────────────────────────────────────────
 
 List<CatalogEntry> get batch10Entries => <CatalogEntry>[
   CatalogEntry(
@@ -748,13 +676,4 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
     ],
   ),
 
-  // live_settings_screen.dart — SKIPPED. `LiveSettingsScreen` resolves
-  // `sl<Dio>().get('/v1/users/me')` inside a `late Future` FIELD
-  // INITIALIZER (before `build`, before any constructor seam could
-  // intervene) and has no constructor param of its own — the generic,
-  // seamed `SettingsScreen` it wraps is already cataloged above. Adding a
-  // seam here would mean threading a fake `Dio`/response through a
-  // field-initializer future, which is a bigger surgery than "minimal
-  // additive" for a live-gateway host with no unique designed state beyond
-  // what `SettingsScreen` already renders.
 ];

@@ -1,7 +1,6 @@
 import '../domain/chat_message.dart';
 import '../domain/chat_outbox.dart';
 
-/// Test-only [ChatOutbox]. Holds messages in a list. No persistence.
 class InMemoryChatOutbox extends ChatOutbox {
   InMemoryChatOutbox([List<ChatMessage>? seed]) : _items = [...?seed];
 

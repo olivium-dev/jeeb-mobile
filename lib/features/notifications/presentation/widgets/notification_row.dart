@@ -4,15 +4,6 @@ import 'package:omds/omds.dart';
 import '../../domain/notifications_repository.dart';
 import '../notifications_l10n.dart';
 
-/// A single inbox row for notifications-list (JM-057). Dumb widget
-/// (40_GUARDRAILS_ARCH §1 layer rules): data in via constructor, the tap out
-/// via [onTap] — it never reaches `sl` or `context.go`.
-///
-/// Carries the dynamic Maestro id `notif_row_<id>` (41_GUARDRAILS_TESTING §1.1
-/// per-item row form; JM-057 AC). Renders the typed leading icon (one per D84
-/// class), the category label + payload title/body, a relative timestamp, and
-/// an unread dot. The whole row is the tap target — on tap the screen marks the
-/// row read and dispatches the D84 deep-link.
 class NotificationRow extends StatelessWidget {
   const NotificationRow({
     super.key,
@@ -26,7 +17,6 @@ class NotificationRow extends StatelessWidget {
   final NotificationsL10n copy;
   final VoidCallback onTap;
 
-  /// Injectable clock for the relative timestamp (deterministic in tests).
   final DateTime? now;
 
   @override
@@ -35,9 +25,6 @@ class NotificationRow extends StatelessWidget {
     final colors = theme.colorScheme;
     final textTheme = theme.textTheme;
     final unread = !item.read;
-    // G3: a locally-persisted new_request from a data-only push may carry no
-    // title/body — fall back to localized copy so the row is never blank. Server
-    // rows (which always carry a title) are unaffected.
     final isNewRequest = item.kind == NotificationKind.newRequest;
     final title = item.title.isNotEmpty
         ? item.title
@@ -47,8 +34,6 @@ class NotificationRow extends StatelessWidget {
         : (isNewRequest ? copy.newRequestFallbackBody : '');
 
     return Semantics(
-      // Dynamic per-row id — QA asserts the seeded fixture id (e.g.
-      // notif_row_notif-001). 41_GUARDRAILS_TESTING §1.1.
       identifier: 'notif_row_${item.id}',
       button: true,
       container: true,
@@ -138,8 +123,6 @@ class NotificationRow extends StatelessWidget {
   }
 }
 
-/// Typed leading icon — one glyph per D84 dispatch class so the row reads at a
-/// glance (cosmetic; flows key on the row id, not the icon).
 class _LeadingIcon extends StatelessWidget {
   const _LeadingIcon({required this.kind});
 

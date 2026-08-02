@@ -7,14 +7,6 @@ import 'availability_card.dart';
 import 'inactivity_warning_banner.dart';
 import 'jeeber_home_greeting.dart';
 
-/// State 2 of the Jeeber home: registered, availability card visible, no
-/// active requests on the feed yet.
-///
-/// Composes the state-aware `AvailabilityCard`, an optional compact active-work
-/// disclosure, and `InactivityWarningBanner` with an `OmdsEmptyState` underneath
-/// so the Jeeber always knows the feed is live but empty rather than
-/// broken. The single-line `JeeberHomeGreeting` sits above availability so the
-/// transition into State 3 only changes the band beneath the greeting.
 class JeeberNoRequestsView extends StatelessWidget {
   const JeeberNoRequestsView({
     super.key,
@@ -27,19 +19,14 @@ class JeeberNoRequestsView extends StatelessWidget {
 
   static const Key rootKey = Key('jeeber-no-requests-view-root');
 
-  /// Current availability snapshot from the cubit.
   final AvailabilityViewState view;
 
-  /// Tap handler for the big online/offline toggle.
   final VoidCallback onToggle;
 
-  /// CTA tap handler for the inactivity warning banner.
   final VoidCallback onExtendActivity;
 
-  /// Optional profile display name for the greeting.
   final String? profileName;
 
-  /// Compact disclosure for accepted/active work. It self-hides when empty.
   final Widget? activeDeliveriesBanner;
 
   @override

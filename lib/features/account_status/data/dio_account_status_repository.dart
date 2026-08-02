@@ -3,18 +3,6 @@ import 'package:dio/dio.dart';
 import '../domain/account_status.dart';
 import '../domain/account_status_repository.dart';
 
-/// LIVE [AccountStatusRepository] over the gateway `GET /v1/users/me`
-/// (`MockGatewayClient` rewrites `/v1/users` → `/user-management/users` → :4010).
-/// The mock surfaces the D5 `status` enum (U1 — 42_GUARDRAILS_MOCK W-1 FLOOR).
-///
-/// NOTE (authStub caveat — W-1 FLOOR): the mock's `authStub` resolves *any*
-/// bearer to `user-client-001` for `/v1/users/me`, so against the stock mock this
-/// reads that user's status. The account-status screen is only ever shown
-/// behind the blocked-account gate, and the suspended seam seeds the blocked
-/// flag the gate reads; the per-state reason is best-effort. Distinguishing a
-/// *specific* blocked jeeber would `GET /users/:id` by the persisted userId
-/// (the gate's documented path) — out of scope for this body fill, which reads
-/// the AC-named `GET /users/me`.
 class DioAccountStatusRepository implements AccountStatusRepository {
   const DioAccountStatusRepository(this._dio);
 
@@ -25,8 +13,6 @@ class DioAccountStatusRepository implements AccountStatusRepository {
     try {
       final res = await _dio.get<Map<String, dynamic>>('/v1/users/me');
       final data = res.data ?? const <String, dynamic>{};
-      // Defensive parse (40_GUARDRAILS_ARCH §4): tolerate camel/snake reason
-      // keys, normalise '' → null.
       final rawReason = (data['statusReason'] ??
           data['status_reason'] ??
           data['reason']) as String?;

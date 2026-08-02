@@ -5,12 +5,7 @@ import '../../../l10n/app_localizations.dart';
 import '../application/chat_connection_state.dart';
 import '../domain/connection_status.dart';
 
-/// Slim indicator strip rendered above the chat list. Shows live connection
-/// state + outbox badge so the user understands why their messages may not
-/// have shipped yet.
-///
-/// Built on raw Material colors via `Theme.of(context).colorScheme` to stay
-/// inside the OMDS M3 token system. No raw `Colors.X` references.
+/// Uses raw Material colors (Theme.of(context).colorScheme, not Colors.X) to stay inside OMDS M3 tokens.
 class ChatConnectionBanner extends StatelessWidget {
   const ChatConnectionBanner({super.key, required this.state});
 

@@ -21,16 +21,6 @@ import '../../../features/offline_mode/presentation/offline_banner.dart';
 import '../../../features/wallet/domain/wallet_repository.dart';
 import '../catalog_models.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// notification_prefs — NotificationPrefsScreen
-//
-// The screen has no ctor seam of its own: it reads `NotificationPrefsCubit`
-// via `context.read` (its `initState` calls `.load()`), so every state below
-// wraps it in a `BlocProvider` seeded with a scripted repository. The three
-// states below are exactly the sealed `NotificationPrefsState` variants
-// (Loading / Loaded / Error) — Loading uses a repo whose `fetch()` never
-// resolves so the full-page spinner sticks for the preview.
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _FakeNotificationPrefsRepository implements NotificationPrefsRepository {
   const _FakeNotificationPrefsRepository(this._prefs);
@@ -89,17 +79,6 @@ Widget _notifPrefsScreen(NotificationPrefsRepository repository) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// notifications — NotificationsListScreen
-//
-// The screen already exposes a `repository` ctor seam (falls back to DI, then
-// to an empty in-memory repo when GetIt is unconfigured), so each state below
-// just injects a scripted `NotificationsRepository` — no BlocProvider wrapping
-// needed. States mirror the 4-state machine in notifications_list_state.dart
-// (initial/loading collapse into one "loading" preview; loaded splits into
-// populated vs its `hasItems == false` empty variant; failed uses the typed
-// network failure).
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _FakeNotificationsRepository implements NotificationsRepository {
   const _FakeNotificationsRepository(this._items);
@@ -166,31 +145,11 @@ const List<NotificationItem> _sampleNotifications = <NotificationItem>[
 Widget _notificationsScreen(NotificationsRepository repository) =>
     NotificationsListScreen(repository: repository);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// offer_kyc_gate — OfferKycGateScreen + DeliveryRegisterPromptScreen
-//
-// OfferKycGateScreen exposes a `gateway` ctor seam and self-provides its
-// cubit; [FakeKycGateway] already ships in `kyc/domain/kyc_gateway.dart` for
-// exactly this purpose. DeliveryRegisterPromptScreen is fully static (no
-// cubit/repository at all) so it needs no fake.
-// ─────────────────────────────────────────────────────────────────────────────
 
 Widget _offerKycGate(KycStatus status) => OfferKycGateScreen(
       gateway: FakeKycGateway(initial: KycSubmission(status: status)),
     );
 
-// ─────────────────────────────────────────────────────────────────────────────
-// offers — OfferSubmissionScreen
-//
-// The live composer (wired into the router as `jeeber-offer-submission`;
-// `lib/features/offer_submission/` is an orphaned duplicate — see SKIPPED
-// below). It already takes `repository`/`walletRepository` seams for the idle
-// state. To preview `submitting` and the inline validation-error state (both
-// OfferFormState branches that render straight off `state`, independent of
-// the BlocConsumer *listener* that drives snackbars/sheets) this batch adds a
-// minimal additive `cubit` ctor param to OfferSubmissionScreen (seamsAdded) so
-// a pre-driven OfferFormCubit can be hosted verbatim via BlocProvider.value.
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _NoopOfferRepo implements OfferSubmissionRepository {
   const _NoopOfferRepo();
@@ -205,8 +164,6 @@ class _NoopOfferRepo implements OfferSubmissionRepository {
       const OfferSubmissionResult(offerId: 'offer-1', conversationId: 'conv-1');
 }
 
-/// Never resolves — used so a pre-driven `submitting` mode sticks for the
-/// static catalog preview instead of racing to `success`.
 class _NeverCompletingOfferRepo implements OfferSubmissionRepository {
   const _NeverCompletingOfferRepo();
 
@@ -245,10 +202,6 @@ Widget _offerComposerIdle() => const OfferSubmissionScreen(
       walletRepository: _FakeWalletRepository(_composerWallet),
     );
 
-/// `submit()` validates synchronously and — with valid inputs — emits
-/// `submitting` before hitting its first `await` (the never-completing repo
-/// call), so the cubit's state already reflects `submitting` by the time this
-/// builder returns, with no need to await anything here.
 Widget _offerComposerSubmitting() {
   final cubit = OfferFormCubit(repository: const _NeverCompletingOfferRepo())
     ..submit(requestId: 'req-1', priceUsd: 15.0, etaMinutes: 20);
@@ -261,9 +214,6 @@ Widget _offerComposerSubmitting() {
   );
 }
 
-/// Same synchronous-completion trick: null price/eta fails client-side
-/// validation and returns before any await, leaving `priceError`/`etaError`
-/// set on the cubit's state.
 Widget _offerComposerValidationErrors() {
   final cubit = OfferFormCubit(repository: const _NoopOfferRepo())
     ..submit(requestId: 'req-1', priceUsd: null, etaMinutes: null);
@@ -278,15 +228,6 @@ Widget _offerComposerValidationErrors() {
 
 void _noop() {}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// offline_mode — OfflineBanner
-//
-// `OfflineBanner` reads `OfflineCubit` via `BlocBuilder` off context, with no
-// ctor seam and no BlocProvider of its own, so each state wraps it in a
-// `BlocProvider.value` over a cubit driven synchronously into the desired
-// `ConnectivityStatus` before the widget is returned. Hosted inside a small
-// Scaffold so the MaterialBanner has somewhere to render.
-// ─────────────────────────────────────────────────────────────────────────────
 
 Widget _offlineBannerDemo({required bool offline}) {
   final cubit = OfflineCubit();
@@ -302,16 +243,6 @@ Widget _offlineBannerDemo({required bool offline}) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SKIPPED: offer_submission (lib/features/offer_submission/) — an orphaned
-// duplicate of the `offers` feature's offer-submission screen/cubit. Grepping
-// the whole app (router, DI, tests) for `offer_submission` turns up zero
-// references to this folder's `OfferSubmissionScreen`/`OfferSubmissionCubit`
-// outside itself — it is not routed, not DI-registered, and not exercised by
-// any test. The live, wired screen is `features/offers/presentation/
-// offer_submission_screen.dart`, cataloged above. Cataloging the dead copy
-// would mislead designers into reviewing a screen nobody can ever reach.
-// ─────────────────────────────────────────────────────────────────────────────
 
 List<CatalogEntry> get batch07Entries => <CatalogEntry>[
       CatalogEntry(

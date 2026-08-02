@@ -27,13 +27,6 @@ import '../../../features/customer_profile/domain/customer_profile_view_data.dar
 import '../../../features/customer_profile/presentation/customer_profile_screen.dart';
 import '../catalog_models.dart';
 
-/// Batch 02 — cancel_request, cancellation, chat, client_offers,
-/// client_unreachable, customer_profile (DT-04 screen-catalog rework).
-///
-/// Every builder renders the REAL screen/sheet with an explicit LOCAL fake
-/// repository/gateway — never the DI-resolved production one, since the Dev
-/// Tool shares the app's real GetIt graph (`Bootstrap.minimal`, see
-/// `devtool_shell.dart`) and would otherwise hit the live gateway.
 List<CatalogEntry> get batch02Entries => <CatalogEntry>[
   _cancelRequestSheetEntry,
   _cancellationScreenEntry,
@@ -45,12 +38,6 @@ List<CatalogEntry> get batch02Entries => <CatalogEntry>[
   _customerProfileScreenEntry,
 ];
 
-/// Bottom-sheet previews (`CancelRequestSheet` / `OfferAcceptSheet` /
-/// `CancellationSuccessSheet`) are not routes — they render a bare column, not
-/// a `Scaffold`. Wrapping in a surface-colored `Scaffold` with the sheet
-/// pinned to the bottom mirrors how `showModalBottomSheet` actually presents
-/// them, without depending on a `Navigator`/`showModalBottomSheet` call (the
-/// catalog previews a plain widget, not a modal route).
 Widget _sheetHost(Widget sheet) {
   return Builder(
     builder: (context) => Scaffold(
@@ -60,7 +47,6 @@ Widget _sheetHost(Widget sheet) {
   );
 }
 
-// ─────────────────────────── cancel_request ────────────────────────────
 
 final CatalogEntry _cancelRequestSheetEntry = CatalogEntry(
   feature: 'cancel_request',
@@ -103,12 +89,7 @@ final CatalogEntry _cancelRequestSheetEntry = CatalogEntry(
   ],
 );
 
-// ──────────────────────────── cancellation ─────────────────────────────
 
-/// Never resolves onto the live gateway (constructor test/catalog seam —
-/// same shape as `FakeCancelRequestRepository`). Returns a plausible result if
-/// a reviewer actually taps Confirm in the interactive preview, instead of
-/// throwing, so poking at the live screen doesn't crash the catalog.
 class _CatalogCancellationRepository implements CancellationRepository {
   const _CatalogCancellationRepository();
 
@@ -173,12 +154,7 @@ final CatalogEntry _cancellationSuccessSheetEntry = CatalogEntry(
   ],
 );
 
-// ──────────────────────────────── chat ─────────────────────────────────
 
-/// Reuses the shipped `DevChatPreviewScreen` — the app's own debug-only host
-/// that renders the real `ChatScreen` against `DevChatFixtureGateway` (a
-/// deterministic in-memory gateway, no network) for exactly these designed
-/// states (see its doc comment for the Figma node each selector matches).
 final CatalogEntry _chatScreenEntry = CatalogEntry(
   feature: 'chat',
   screen: 'chat_screen',
@@ -214,10 +190,7 @@ final CatalogEntry _chatScreenEntry = CatalogEntry(
   ],
 );
 
-// ────────────────────────────── client_offers ──────────────────────────
 
-/// Always fails (network) — demonstrates the offer-review-list `failed`
-/// status without depending on the live gateway.
 class _FailingOffersRepository implements OffersRepository {
   const _FailingOffersRepository();
 
@@ -358,11 +331,7 @@ final CatalogEntry _offerAcceptSheetEntry = CatalogEntry(
   ],
 );
 
-// ───────────────────────────── client_unreachable ──────────────────────
 
-/// Static screen — no `*_state.dart`, no repository/cubit, no network. Its
-/// three buttons are inert stubs (`onTap: () {}`) or a local `Navigator.pop`
-/// in the shipped source itself, so there is nothing to fake.
 final CatalogEntry _clientUnreachableScreenEntry = CatalogEntry(
   feature: 'client_unreachable',
   screen: 'client_unreachable_screen',
@@ -374,11 +343,7 @@ final CatalogEntry _clientUnreachableScreenEntry = CatalogEntry(
   ],
 );
 
-// ───────────────────────────── customer_profile ────────────────────────
 
-/// Constructor test/catalog seam — returns the seeded read model unchanged so
-/// the cubit's `load()` refresh is a same-data no-op instead of a live
-/// `GET /user-management/users/me` call.
 class _CatalogCustomerProfileRepository implements CustomerProfileRepository {
   const _CatalogCustomerProfileRepository(this._data);
 

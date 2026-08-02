@@ -3,11 +3,6 @@ import 'package:omds/omds.dart';
 
 import '../data/location_repository.dart';
 
-/// Address search bar + dropdown of result suggestions.
-///
-/// Pure presentation: the cubit owns the debounce, the result list, and the
-/// "selected" semantics. Callers wire [onChanged] / [onResultSelected] to
-/// [LocationPickerCubit.searchAddress] and [selectSearchResult].
 class LocationSearchBar extends StatelessWidget {
   const LocationSearchBar({
     super.key,
@@ -29,9 +24,6 @@ class LocationSearchBar extends StatelessWidget {
   final ValueChanged<LocationPoint> onResultSelected;
   final TextEditingController? controller;
 
-  /// Text shown when the user has typed at least one character but the
-  /// repository returned an empty list. Hidden when [query] is empty so we
-  /// don't shout at the user before they've typed anything.
   final String? emptyResultsLabel;
 
   @override

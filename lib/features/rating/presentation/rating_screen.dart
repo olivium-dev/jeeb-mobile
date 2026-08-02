@@ -11,9 +11,7 @@ import 'widgets/feedback_avatar.dart';
 import 'widgets/feedback_header.dart';
 import 'widgets/feedback_star_input.dart';
 
-/// Immutable bundle of everything the feedback content column renders, so the
-/// state is threaded through one parameter instead of six (keeps every widget
-/// build under the 20-line ceiling).
+/// Bundles all feedback content data into one parameter.
 @immutable
 class FeedbackContentData {
   const FeedbackContentData({
@@ -33,17 +31,7 @@ class FeedbackContentData {
   final ValueChanged<int> onStarsChanged;
 }
 
-/// Legacy feedback/rating screen (`/orders/:id/feedback`, Figma 56614:20132).
-///
-/// JM-034 reconciliation (AC4): the canonical mandatory terminal is
-/// [MutualRatingScreen] (`/orders/:id/mutual-rate`); this `/feedback` variant is
-/// retained but made compliant with the same mandatory contract:
-///   * AC1/D56: NO skip/dismiss control (the close X was removed) and the
-///     system back gesture is suppressed (`PopScope(canPop: false)`).
-///   * AC2/AC3: a successful submit persists via [RatingRepository] and routes
-///     to the role-aware shell (`context.go('/')`) — customer →
-///     customer-orders-home; jeeber → Dashboard tab.
-///   * AC4: `rating_root` is the signature id present on both rating routes.
+/// Mandatory contract: no skip/dismiss, submit persists via RatingRepository, routes to role-aware shell.
 class RatingScreen extends StatefulWidget {
   const RatingScreen({
     super.key,
@@ -54,20 +42,11 @@ class RatingScreen extends StatefulWidget {
     this.repository,
   });
 
-  /// The delivery this feedback is attached to.
   final String deliveryId;
-
-  /// True when a client is rating the delivery man; false when the delivery
-  /// man is rating the client. Drives the subtitle copy and the rater role.
   final bool isClient;
-
-  /// Display name of the person being rated (interpolated into "Rate {name}").
   final String rateeName;
-
-  /// Optional avatar URL for the ratee; falls back to an initial.
   final String? rateeAvatarUrl;
 
-  /// Test seam — defaults to `sl<RatingRepository>()` at runtime.
   final RatingRepository? repository;
 
   @override
@@ -105,13 +84,9 @@ class _RatingScreenState extends State<RatingScreen> {
             : _commentController.text,
       );
     } catch (_) {
-      // Mandatory terminal: the rating is fire-and-forget; even a transient
-      // failure must not strand the user on the un-dismissable screen, so we
-      // still route home. The score-taking submit is idempotent server-side.
+      // Fire-and-forget; transient failure must not strand user.
     }
     if (!mounted) return;
-    // AC2/AC3: route to the role-aware shell (customer → customer-orders-home;
-    // jeeber → Dashboard tab). State `mounted` guards the async gap.
     context.go('/');
   }
 
@@ -127,7 +102,6 @@ class _RatingScreenState extends State<RatingScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // D56: mandatory — suppress system back; no leading/close affordance.
     return PopScope(
       canPop: false,
       child: Scaffold(
@@ -146,9 +120,7 @@ class _RatingScreenState extends State<RatingScreen> {
   }
 }
 
-/// Fallback used only when no [RatingRepository] is registered (e.g. a widget
-/// test that does not boot DI). Keeps the mandatory submit → home flow honest
-/// without a network call; `fetchRatingStatus` is never called on this path.
+/// Fallback for unregistered RatingRepository.
 class _NoopRatingRepository implements RatingRepository {
   @override
   Future<void> submitRating({
@@ -179,8 +151,6 @@ class _FeedbackBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      // `rating_root` is the signature id present on both rating routes
-      // (JM-034 §2.14, AC4).
       child: Semantics(
         identifier: 'rating_root',
         container: true,
@@ -288,10 +258,6 @@ class _FeedbackFooter extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.all(Spacing.large),
-      // `rating_submit_cta` is the W1 contract id (JM-034 §2.14). `container:
-      // true` + `explicitChildNodes: true` make this an explicit Semantics
-      // boundary so the id surfaces as its own queryable node (without it the
-      // wrapper folds into the `rating_root` container, dropping the id).
       child: Semantics(
         identifier: 'rating_submit_cta',
         button: true,

@@ -4,27 +4,6 @@ import 'package:omds/omds.dart';
 import '../../domain/order_summary.dart';
 import '../order_summary_l10n.dart';
 
-/// JM-031 — the pinned order-summary header WIDGET (CTO-D3 primary rendering).
-///
-/// A reusable, self-contained strip that hosts inject into BOTH `order-chat`
-/// (JM-025) and `order-tracking` (JM-032) so the customer always sees the
-/// authoritative, locked snapshot of their accepted order (D71): accepted COD
-/// price, Jeeber name + rating (D6), ETA, tier, item summary, and the
-/// "Pay cash on delivery" reminder (D11 — NO commission/finance line on this
-/// customer-facing surface).
-///
-/// Dumb widget (guardrail §1): data in via [summary], events out via
-/// [onOpenChat] / [onTrack]. It NEVER touches `sl` or `context.go` — the host
-/// route owns navigation. Hosts pass:
-///   * chat host (JM-025): `onTrack` → `/orders/:id/tracking`, `onOpenChat` null
-///     (already on chat) or a no-op/scroll.
-///   * tracking host (JM-032): `onOpenChat` → `/chat/:id`, `onTrack` null
-///     (already on tracking).
-///   * standalone deep-link screen (JM-056 target): both wired.
-/// A null callback hides the corresponding CTA so it is never a dead end.
-///
-/// Every interactive/asserted element carries the EXACT `Semantics(identifier:)`
-/// from `63_W1_TEST_PLAN §2.11`.
 class OrderSummaryPinned extends StatelessWidget {
   const OrderSummaryPinned({
     super.key,
@@ -34,19 +13,12 @@ class OrderSummaryPinned extends StatelessWidget {
     this.dense = false,
   });
 
-  /// The locked accepted-order snapshot to render.
   final OrderSummary summary;
 
-  /// Tapped on `order_summary_open_chat`. Null hides the chat CTA (e.g. when the
-  /// widget is already hosted inside the chat screen).
   final VoidCallback? onOpenChat;
 
-  /// Tapped on `order_summary_track`. Null hides the track CTA (e.g. when the
-  /// widget is already hosted inside the tracking screen).
   final VoidCallback? onTrack;
 
-  /// When true, renders as a compact pinned strip (for the chat/tracking header
-  /// injection) rather than the roomier standalone-screen card.
   final bool dense;
 
   @override
@@ -72,7 +44,6 @@ class OrderSummaryPinned extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Jeeber identity + accepted price ──────────────────────────
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -92,7 +63,6 @@ class OrderSummaryPinned extends StatelessWidget {
               ],
             ),
             const SizedBox(height: Spacing.small),
-            // ── Facts row: ETA + tier ─────────────────────────────────────
             Row(
               children: [
                 Expanded(
@@ -111,13 +81,6 @@ class OrderSummaryPinned extends StatelessWidget {
                     identifier: 'order_summary_tier',
                     icon: Icons.bolt_outlined,
                     label: l10n.tierLabel,
-                    // `tierName('')` returns '' (its `default` arm echoes the
-                    // id back), so an absent tier used to render a labelled
-                    // BLANK — an icon and the word "Tier" with nothing after
-                    // it, which reads as a broken field rather than an unknown
-                    // one. The ETA cell beside it already had this placeholder;
-                    // so does the chat header's tier chip. Give the tier cell
-                    // the same honest "Pending" rather than a hole.
                     value: summary.tier.trim().isEmpty
                         ? l10n.tierPending
                         : l10n.tierName(summary.tier),
@@ -125,7 +88,6 @@ class OrderSummaryPinned extends StatelessWidget {
                 ),
               ],
             ),
-            // ── Item summary ──────────────────────────────────────────────
             if (summary.itemSummary != null) ...[
               const SizedBox(height: Spacing.small),
               _Fact(
@@ -136,7 +98,6 @@ class OrderSummaryPinned extends StatelessWidget {
               ),
             ],
             const SizedBox(height: Spacing.small),
-            // ── Pay-cash-on-delivery reminder (D11) ───────────────────────
             Semantics(
               identifier: 'order_summary_cash_label',
               container: true,
@@ -160,7 +121,6 @@ class OrderSummaryPinned extends StatelessWidget {
                 ],
               ),
             ),
-            // ── CTAs (each hidden when its callback is null) ──────────────
             if (onOpenChat != null || onTrack != null) ...[
               const SizedBox(height: Spacing.medium),
               Row(
@@ -206,8 +166,6 @@ class OrderSummaryPinned extends StatelessWidget {
   }
 }
 
-/// Jeeber name (`order_summary_jeeber_name`) + rating chip (D6: only when a
-/// real score exists — cold-start jeebers show the name alone).
 class _JeeberBlock extends StatelessWidget {
   const _JeeberBlock({required this.summary});
 
@@ -234,13 +192,6 @@ class _JeeberBlock extends StatelessWidget {
         ),
         if (summary.hasRating) ...[
           const SizedBox(height: Spacing.twoXSmall),
-          // JEBV4-285: the stars + rating + review-count row is intrinsically
-          // wider than the Expanded name/rating block can be once the avatar and
-          // price pill claim their share of the header Row — a long review count
-          // (e.g. "(312)") pushed it past the edge and tripped a RenderFlex
-          // overflow stripe. scaleDown keeps the whole rating legible by shrinking
-          // it to the available width instead of clipping; centerStart keeps it
-          // leading-aligned in both LTR and RTL.
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: AlignmentDirectional.centerStart,
@@ -257,7 +208,6 @@ class _JeeberBlock extends StatelessWidget {
   }
 }
 
-/// Accepted COD price (`order_summary_price`) pill.
 class _PriceBlock extends StatelessWidget {
   const _PriceBlock({
     required this.label,
@@ -311,9 +261,6 @@ class _PriceBlock extends StatelessWidget {
   }
 }
 
-/// A labelled fact chip (icon + label + value) used for ETA / tier / item. The
-/// [identifier] is applied to the value-bearing container so Maestro can assert
-/// the field is present regardless of its visible (localized) copy.
 class _Fact extends StatelessWidget {
   const _Fact({
     required this.identifier,

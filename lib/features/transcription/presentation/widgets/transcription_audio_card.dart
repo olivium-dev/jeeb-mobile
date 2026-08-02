@@ -6,9 +6,6 @@ import '../../../../l10n/app_localizations.dart';
 import '../../application/transcription_cubit.dart';
 import '../transcription_screen.dart';
 
-/// Playback control for the original recording shown above the transcription.
-/// A filled play/pause toggle plus a progress bar and `position / total`
-/// read-out, all driven by [TranscriptionCubit].
 class TranscriptionAudioCard extends StatelessWidget {
   const TranscriptionAudioCard({super.key, required this.state});
 

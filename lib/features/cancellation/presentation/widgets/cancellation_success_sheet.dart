@@ -4,11 +4,7 @@ import 'package:omds/omds.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/cancellation_result.dart';
 
-/// Bottom sheet shown after a successful cancellation.
-///
-/// EXEMPT: OmdsBottomSheet lacks a `show` static factory with the required
-/// scroll-safe body layout. Using Flutter's `showModalBottomSheet` directly
-/// with a custom child that uses OMDS design tokens exclusively.
+/// Bottom sheet after success. OmdsBottomSheet lacks scroll-safe body layout.
 class CancellationSuccessSheet extends StatelessWidget {
   const CancellationSuccessSheet({
     super.key,

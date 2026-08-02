@@ -12,14 +12,6 @@ import '../../application/settings_state.dart';
 import '../../data/profile_photo_store.dart';
 import '../widgets/profile_avatar.dart';
 
-/// Profile edit screen (T-mobile-031).
-///
-/// Two editable fields: display name and avatar. Phone number is rendered
-/// read-only because changing it requires re-running phone+OTP registration
-/// (T-mobile-002). Talks to the screen-wide [SettingsCubit] so the same
-/// state powers the parent settings list — there is no separate
-/// `ProfileCubit`.
-// ORPHAN (JEBV4-227, verified 2026-07-12): only reachable via orphaned /settings — see docs/project-understanding/reconciliation/orphans.md
 class ProfileEditScreen extends StatefulWidget {
   const ProfileEditScreen({
     super.key,
@@ -28,9 +20,6 @@ class ProfileEditScreen extends StatefulWidget {
     this.photoCompressor = const HalvingPhotoCompressor(),
   });
 
-  /// JEBV4-13 test seams for the Change-avatar flow. Production resolves the
-  /// picker from DI (falling back to the real `image_picker` adapter) and
-  /// persists via [AppDirProfilePhotoStore].
   final PhotoPickerService? photoPicker;
   final ProfilePhotoStore? photoStore;
   final PhotoCompressor photoCompressor;
@@ -67,9 +56,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     context.read<SettingsCubit>().saveProfile(name: value);
   }
 
-  /// Resolve the picker: injected seam → DI registration → the real
-  /// `image_picker` adapter (the dependency-free default that makes the CTA
-  /// honest — JEBV4-13; previously `onTap: () {}`).
   PhotoPickerService _resolvePicker() {
     final injected = widget.photoPicker;
     if (injected != null) return injected;
@@ -77,15 +63,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     return ImagePickerPhotoPickerService();
   }
 
-  /// JEBV4-13: the Change-avatar flow — camera/gallery source sheet →
-  /// platform pick → compress (2 MB ceiling) → persist locally → save on the
-  /// profile. Cancelling anywhere is silent; real failures surface honestly.
   Future<void> _onChangePhoto(AppLocalizations l10n) async {
     if (_isChangingPhoto) return;
     final cubit = context.read<SettingsCubit>();
-    // Same OMDS sheet + choice-key repurposing as the onboarding photo step
-    // (dm_onboarding_photo_upload_card.dart): 'photo' → camera, 'video' →
-    // gallery; only the localized labels are visible.
     final choice = await OmdsMediaPickerSheet.show(
       context,
       title: l10n.profileAvatarChange,
@@ -213,9 +193,6 @@ class _ProfileAvatarBlock extends StatelessWidget {
             text: l10n.profileAvatarChange,
             variant: OmdsButtonVariant.text,
             isEnabled: !state.isSavingProfile && !isChangingPhoto,
-            // JEBV4-13: was `onTap: () {}` — a dead CTA on a primary profile
-            // affordance. Now opens the camera/gallery source sheet and saves
-            // the picked photo (see _onChangePhoto).
             onTap: onChangePhoto,
           ),
         ),

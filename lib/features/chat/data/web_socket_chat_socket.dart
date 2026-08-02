@@ -5,11 +5,6 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../domain/chat_socket.dart';
 
-/// Default [ChatSocket] backed by `web_socket_channel`.
-///
-/// One-shot: each instance manages a single connection. The cubit constructs
-/// a fresh one on every reconnect attempt so half-open sockets can't leak
-/// past the backoff cycle.
 class WebSocketChatSocket implements ChatSocket {
   WebSocketChatSocket({
     required Uri uri,
@@ -40,8 +35,6 @@ class WebSocketChatSocket implements ChatSocket {
     }
     final channel = _channelFactory(_uri);
     _channel = channel;
-    // `ready` is exposed in newer web_socket_channel; await it so we know
-    // the handshake actually completed before declaring the cubit connected.
     await channel.ready;
     _subscription = channel.stream.listen(
       _onFrame,
@@ -49,8 +42,6 @@ class WebSocketChatSocket implements ChatSocket {
         if (!_errors.isClosed) _errors.add(error);
       },
       onDone: () {
-        // Peer closed: close the events stream so the cubit's onDone
-        // listener fires reconnect logic.
         _shutdown();
       },
       cancelOnError: false,
@@ -90,8 +81,6 @@ class WebSocketChatSocket implements ChatSocket {
     try {
       await _channel?.sink.close();
     } catch (_) {
-      // sink.close on an already-disposed channel can throw; swallow it —
-      // the caller's intent (release the socket) is satisfied either way.
     }
     _channel = null;
     if (!_events.isClosed) await _events.close();
@@ -99,12 +88,8 @@ class WebSocketChatSocket implements ChatSocket {
   }
 
   void _shutdown() {
-    // Called when the peer closes the stream. Close events synchronously so
-    // the cubit can react in the same microtask.
     if (_closed) return;
     _closed = true;
     if (!_events.isClosed) _events.close();
-    // Leave _errors open one tick longer so any trailing decode errors can
-    // still flow; the cubit's done listener doesn't depend on it.
   }
 }

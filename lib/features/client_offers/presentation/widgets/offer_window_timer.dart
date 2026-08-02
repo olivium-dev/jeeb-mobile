@@ -5,8 +5,6 @@ import '../../../../core/formatting/countdown_format.dart';
 import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// Countdown badge above the offer list. Reads `Duration` rather than wall
-/// clock so the cubit owns "now" and tests can drive expiry deterministically.
 class OfferWindowTimer extends StatelessWidget {
   const OfferWindowTimer({
     super.key,
@@ -24,8 +22,6 @@ class OfferWindowTimer extends StatelessWidget {
     final colors = theme.colorScheme;
     final roles = context.jeebRoles;
     final isUrgent = !expired && remaining.inSeconds <= 30;
-    // Semantic roles: expired = error (terminal), urgent = warning (attention),
-    // otherwise neutral surface. Urgent previously misused the error pair.
     final foreground = expired
         ? roles.onErrorContainer
         : isUrgent

@@ -4,14 +4,14 @@ import 'package:omds/omds.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/delivery_man_profile_view_data.dart';
 
-/// Wraps a [DeliveryReviewData] in the shared [OmdsReviewCard] (reuse-table.md:
-/// Ratings/Feedback → feedback-service, use-as-is). Supplies brand-orange stars
-/// ([ColorScheme.primary]) and the verified-client subtitle. Bordered + rounded
-/// to match the Figma card; index drives the Semantics ids QA/Maestro target.
-///
-/// JM-067: read-only. Helpful/Reply actions are suppressed (`showActions:
-/// false`, D57 — immutable reviews); the reviewer is attributed by first name
-/// only (`reviewerFirstName`, D58).
+
+
+
+
+
+
+
+
 class DeliveryReviewCard extends StatelessWidget {
   const DeliveryReviewCard({
     super.key,
@@ -62,9 +62,9 @@ class _ReviewCardBody extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // OmdsReviewCard derives "?" for every non-Latin initial. Using
-              // the OMDS avatar directly lets an Arabic anonymous label remain
-              // visible while its privacy-safe neutral initial stays stable.
+              
+              
+              
               OmdsProfileAvatar(
                 initial: isAnonymous ? 'J' : firstName,
                 profilePicUrl: isAnonymous ? null : review.reviewerAvatarUrl,

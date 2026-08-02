@@ -7,17 +7,6 @@ import '../../application/dm_onboarding_cubit.dart';
 import 'dm_onboarding_address_field.dart';
 import 'dm_onboarding_step_layout.dart';
 
-/// Personal-details / address step of delivery-man onboarding (Figma
-/// 56591:4109).
-///
-/// Four labeled outlined fields (state / country / street / address), each
-/// backed by an [OmdsValidatedTextField], over a bottom-pinned Continue. The
-/// field set is data-driven so order/labels stay in one place (RAIL 4 — no
-/// per-field copy-paste).
-///
-/// **No vehicle-number field — D20** (jeeb is not a vehicle-fleet product). The
-/// field was removed across this widget, [DmOnboardingCubit.setVehicleNumber],
-/// the state, and the `DmOnboardingSubmission` DTO under JM-037.
 class DmOnboardingAddressStep extends StatelessWidget {
   const DmOnboardingAddressStep({super.key});
 

@@ -10,12 +10,6 @@ import '../../../l10n/app_localizations.dart';
 import '../../settings/presentation/screens/settings_screen.dart';
 import '../../settings/presentation/widgets/become_jeeber_card.dart';
 
-/// Profile tab. T-mobile-031 turned the inline settings sub-list (language +
-/// role only) into the full settings screen so QA has a single surface for
-/// profile, language, notifications, addresses, biometric, account, and
-/// version. Role-switching stays here because it is a QA-only affordance
-/// driven by the [RoleCubit] and not part of the user-facing settings AC.
-// ORPHAN (JEBV4-227, verified 2026-07-12): zero refs; legacy role-switch UX, violates the no-role-switch core UX rule — see docs/project-understanding/reconciliation/orphans.md
 class ProfileTab extends StatelessWidget {
   const ProfileTab({super.key});
 
@@ -29,8 +23,6 @@ class ProfileTab extends StatelessWidget {
       key: const Key('profile-tab-root'),
       padding: const EdgeInsets.symmetric(vertical: Spacing.xSmall),
       children: [
-        // T-MOB-027: Become-a-Jeeber card — visible for Client users who
-        // have not yet taken on the Jeeber role.
         BecomeJeeberCard(
           isAlreadyJeeber: role == UserRole.jeeber,
           onTap: () => _openKycFlow(context),
@@ -101,9 +93,6 @@ class ProfileTab extends StatelessWidget {
   }
 }
 
-/// Pairs an [OmdsSettingsRow] with explicit Semantics so screen readers
-/// announce the row as a selectable option with its current state, instead of
-/// reading the trailing check icon as an unlabelled decoration.
 class _SelectableSettingsRow extends StatelessWidget {
   const _SelectableSettingsRow({
     required this.rowKey,

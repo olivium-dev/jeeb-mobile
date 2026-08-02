@@ -6,10 +6,6 @@ import '../../../../l10n/app_localizations.dart';
 import '../../application/transcription_cubit.dart';
 import '../transcription_screen.dart';
 
-/// Inline banner shown above the text panel when the transcription is not the
-/// happy-path `ready` text: either `queued` (audio saved, transcription
-/// pending) or `failed` (the call errored). Both nudge the user to type their
-/// request; the failed banner additionally surfaces a Retry affordance.
 class TranscriptionStatusBanner extends StatelessWidget {
   const TranscriptionStatusBanner({
     super.key,
@@ -19,8 +15,6 @@ class TranscriptionStatusBanner extends StatelessWidget {
 
   final TranscriptionState state;
 
-  /// Optional retry handler (failed state). When null no retry button shows —
-  /// the manual-entry fallback is always available regardless.
   final VoidCallback? onRetry;
 
   @override
@@ -67,8 +61,6 @@ class _BannerSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    // Queued/processing is informational -> semantic info role pair (WCAG-AA
-    // gated), replacing the old navy secondaryContainer + onPrimary contrast
     // workaround. Failed keeps the M3 error pair.
     final roles = context.jeebRoles;
     final container =

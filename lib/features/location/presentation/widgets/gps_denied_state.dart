@@ -3,17 +3,9 @@ import 'package:omds/omds.dart';
 
 import '../../../../l10n/app_localizations.dart';
 
-/// Error state shown when location permission is denied (T-MOB-012 AC4).
-///
-/// Renders an icon + copy and an "Open Settings" CTA. Opening native app
-/// settings requires a platform-level plugin; the CTA is wired through
-/// the [onOpenSettings] callback so the host (screen or test) decides
-/// the exact platform call. The default is a no-op — production hosts
-/// pass `() => AppSettings.openAppSettings()` (once the dependency is added).
 class GpsDeniedState extends StatelessWidget {
   const GpsDeniedState({super.key, this.onOpenSettings});
 
-  /// Callback invoked when the user taps "Open Settings".
   final VoidCallback? onOpenSettings;
 
   @override

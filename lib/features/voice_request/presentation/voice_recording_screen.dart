@@ -14,9 +14,9 @@ import '../domain/voice_player.dart';
 import '../domain/voice_recorder.dart';
 import 'widgets/animated_mic_button.dart';
 
-/// Stable widget keys for the voice-request controls. Exposed so Codex QA /
-/// integration tests can target the interactive elements deterministically
-/// (T-MOB-011 DoD: every interactive widget has a Key / Semantics).
+
+
+
 class VoiceRecordingKeys {
   const VoiceRecordingKeys._();
 
@@ -35,11 +35,11 @@ class VoiceRecordingKeys {
   );
 }
 
-/// Signature of the sent handoff. Carries the gateway upload id, the optional
-/// machine transcript, and (JEBV4-13) the recorder's on-device file path +
-/// clip duration — the upload id is a gateway `audioId`, NOT a locally
-/// playable path, so without [localAudioPath] the transcription review's
-/// replay control had nothing real to play.
+
+
+
+
+
 typedef VoiceSentCallback =
     void Function(
       String id,
@@ -48,28 +48,28 @@ typedef VoiceSentCallback =
       Duration duration,
     });
 
-/// Screen that lets the user record a voice request, preview it, and send it
-/// to the gateway (JEEB-60 / T-mobile-007).
-///
-/// The screen hosts a [VoiceRecordingCubit] and wires the press-and-hold mic
-/// button, recording timer, playback row, discard/send actions, and the
-/// post-send confirmation. Production callers route here via `/voice-request`
-/// (see `lib/core/router/app_router.dart`); tests inject a pre-wired cubit
-/// via the [cubit] parameter so they can drive state transitions without the
-/// real platform recorder.
+
+
+
+
+
+
+
+
+
 class VoiceRecordingScreen extends StatelessWidget {
   const VoiceRecordingScreen({super.key, this.cubit, this.onSent});
 
-  /// Optional injected cubit. Tests pass a pre-wired one; production builds a
-  /// default with the in-memory recorder/player and HTTP repository.
+  
+  
   final VoiceRecordingCubit? cubit;
 
-  /// Callback fired once the cubit transitions to `sent`. Receives the upload
-  /// id and the optional machine [TranscriptionResult.transcript] so the
-  /// downstream transcription-result screen can land on its happy path (it
-  /// reads `clip.transcript`). The transcript is `null` when the gateway
-  /// resolves it asynchronously; callers must tolerate null. Defaults to a
-  /// no-op so the screen can also be used as a standalone surface.
+  
+  
+  
+  
+  
+  
   final VoiceSentCallback? onSent;
 
   @override
@@ -87,11 +87,11 @@ class VoiceRecordingScreen extends StatelessWidget {
     );
   }
 
-  /// Builds the cubit for the real app, resolving the platform recorder, player,
-  /// and upload repository from the DI container (T-MOB-011). Falls back to a
-  /// directly-constructed graph if GetIt has not been configured (e.g. a
-  /// standalone preview), so the screen never hard-crashes on a missing
-  /// registration.
+  
+  
+  
+  
+  
   VoiceRecordingCubit _buildProductionCubit() {
     final GetIt di = sl;
     final VoiceRecorder recorder = di.isRegistered<VoiceRecorder>()
@@ -129,13 +129,13 @@ class _VoiceRecordingView extends StatelessWidget {
           listener: (context, state) {
             if (state.phase == VoiceRecordingPhase.sent &&
                 state.result != null) {
-              // Forward both the upload id AND the machine transcript so the
-              // transcription-result screen lands on the happy path when the
-              // gateway returned the transcript synchronously (T-MOB-011 →
-              // T-MOB-TRANSCRIPT). `transcript` is null when resolved async.
-              // JEBV4-13: also hand over the recorder's on-device file path +
-              // duration — the id is a gateway audioId, not a playable path,
-              // so the review screen's replay control needs the local file.
+              
+              
+              
+              
+              
+              
+              
               onSent?.call(
                 state.result!.id,
                 state.result!.transcript,
@@ -145,9 +145,9 @@ class _VoiceRecordingView extends StatelessWidget {
             }
             final error = state.error;
             if (error != null && _isTransientError(error)) {
-              // Recording errors remain one-shot feedback. Upload errors are
-              // deliberately excluded: the retained clip renders a persistent
-              // OMDS error state with retry-submit and record-again actions.
+              
+              
+              
               ScaffoldMessenger.of(context).clearSnackBars();
               showOmdsErrorSnackbar(context, message: _errorCopy(l10n, error));
               context.read<VoiceRecordingCubit>().acknowledgeError();
@@ -254,8 +254,8 @@ class _PrimarySurface extends StatelessWidget {
   }
 }
 
-/// Mic surface: shows [OmdsRecordingInput] with waveform while recording (AC1)
-/// and [AnimatedMicButton] when idle.
+
+
 class _MicSurface extends StatelessWidget {
   const _MicSurface({required this.state});
 
@@ -268,10 +268,10 @@ class _MicSurface extends StatelessWidget {
     if (state.isRecording) {
       return _buildWaveformBar(context, cubit, l10n);
     }
-    // Blocking pre-condition (mic permission denied / recorder unavailable):
-    // render a recoverable, OMDS-consistent error surface instead of the idle
-    // mic, so the user gets guidance + a retry rather than a silent no-op or a
-    // transient snackbar dead-end.
+    
+    
+    
+    
     final error = state.error;
     if (error != null && _isBlockingError(error)) {
       return _BlockedSurface(error: error, onRetry: cubit.startRecording);
@@ -306,10 +306,10 @@ class _MicSurface extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Semantics(identifier:) surfaces as the Android resource-id so
-        // uiautomator/Maestro can target the mic. The inner AnimatedMicButton
-        // owns the `button:true` + spoken label; container:true keeps this an
-        // addressable, merged node carrying the id (D2 / VoiceRecordingKeys).
+        
+        
+        
+        
         Semantics(
           identifier: 'voice_request_mic_button',
           container: true,
@@ -332,11 +332,11 @@ class _MicSurface extends StatelessWidget {
   }
 }
 
-/// Recoverable blocking state for the mic pre-conditions (permission denied /
-/// recorder unavailable). Uses [OmdsErrorState] for fleet consistency and wires
-/// "Try again" back to [VoiceRecordingCubit.startRecording], which re-requests
-/// the OS permission / re-checks the recorder. Honest: no backend call, no
-/// dead-end — the user can always retry from here once they grant access.
+
+
+
+
+
 class _BlockedSurface extends StatelessWidget {
   const _BlockedSurface({required this.error, required this.onRetry});
 
@@ -443,8 +443,8 @@ class _UploadFailureSurface extends StatelessWidget {
   }
 }
 
-/// Shown after the send ack returns. Per T-MOB-011 AC3 the send button is
-/// disabled and this confirmation surfaces the "Broadcasting" sub-line.
+
+
 class _SentConfirmation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -486,8 +486,8 @@ class _SentConfirmation extends StatelessWidget {
   }
 }
 
-/// Sub-line shown below the sent confirmation, indicating the request is being
-/// broadcast to nearby Jeebers (SM-1 Broadcasting phase, T-MOB-011 AC3).
+
+
 class _BroadcastingBanner extends StatelessWidget {
   const _BroadcastingBanner({required this.l10n, required this.colorScheme});
 
@@ -642,10 +642,10 @@ class _UploadFailureActions extends StatelessWidget {
   }
 }
 
-/// Errors that block recording until the user acts (grants mic permission, or
-/// frees the recorder). These persist on screen as a recoverable
-/// [OmdsErrorState] instead of a transient snackbar so the user is never left
-/// in a dead-end tap-deny-tap loop.
+
+
+
+
 bool _isBlockingError(VoiceRecordingError error) =>
     error == VoiceRecordingError.permissionDenied ||
     error == VoiceRecordingError.recorderUnavailable;

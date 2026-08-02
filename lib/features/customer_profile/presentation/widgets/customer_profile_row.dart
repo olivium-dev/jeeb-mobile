@@ -4,12 +4,6 @@ import 'package:omds/omds.dart';
 import '../../../../core/widgets/directional_icons.dart';
 import 'customer_profile_icon_disc.dart';
 
-/// A single Account/Support row on the customer profile: navy icon disc +
-/// muted label + trailing affordance (chevron by default, or a custom
-/// [trailing] such as the "Register" pill). Built as a tappable [Row] (not a
-/// [ListTile]) so a trailing intrinsic-width widget like [OmdsPrimaryButton]
-/// lays out cleanly; min 48dp touch target enforced via [ConstrainedBox]
-/// (design §5). Its own widget class — no `_buildXxx`.
 class CustomerProfileRow extends StatelessWidget {
   const CustomerProfileRow({
     super.key,
@@ -25,7 +19,6 @@ class CustomerProfileRow extends StatelessWidget {
   final String semanticsId;
   final VoidCallback onTap;
 
-  /// Optional trailing widget; defaults to a directional chevron.
   final Widget? trailing;
 
   @override

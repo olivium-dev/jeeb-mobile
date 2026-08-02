@@ -3,9 +3,9 @@ import 'package:omds/omds.dart';
 
 import '../../l10n/app_localizations.dart';
 
-/// Release-safe fallback rendered when a `/profile/*` route is reached without
-/// the typed view-data it needs. Replaces the debug-only fixture so no
-/// hardcoded PII can render in a release build (see [AppRouter] profile routes).
+
+
+
 class ProfileUnavailableScreen extends StatelessWidget {
   const ProfileUnavailableScreen({super.key});
 

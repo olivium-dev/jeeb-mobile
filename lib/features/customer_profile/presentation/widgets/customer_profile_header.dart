@@ -6,18 +6,6 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../chat/presentation/widgets/auto_direction_text.dart';
 import 'customer_profile_rating.dart';
 
-/// Profile header: circular avatar + (name row with verified badge) +
-/// per-role rating + email (JM-035 AC1).
-///
-/// Composed from OMDS primitives because [OmdsProfileCard] is an
-/// image-background card, not an inline identity row (design §6 anticipates
-/// composing from primitives here). Navy name on muted email matches the
-/// Figma navy-dominant palette via [ColorScheme] roles only.
-///
-/// Exposes the JM-035 AC1 identifiers `customer_profile_avatar`,
-/// `customer_profile_name` and `customer_profile_rating` (the wallet chip + bell
-/// are shell-owned, painted by `ShellHeaderActions` — NOT here, to avoid
-/// duplicate ids).
 class CustomerProfileHeader extends StatelessWidget {
   const CustomerProfileHeader({
     super.key,
@@ -39,12 +27,8 @@ class CustomerProfileHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      // Top inset clears the shell-overlaid header actions (wallet chip + bell)
-      // so the avatar never sits under them.
       padding: const EdgeInsetsDirectional.fromSTEB(
         Spacing.xLarge,
-        // Spacing tops out at fourXLarge; the larger top inset to clear the
-        // shell-overlaid header actions uses the equivalent Sizes token (56.0).
         Sizes.fiveXLarge,
         Spacing.xLarge,
         Spacing.medium,

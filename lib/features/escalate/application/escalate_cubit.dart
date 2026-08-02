@@ -3,12 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../domain/escalate_repository.dart';
 import 'escalate_state.dart';
 
-/// Cubit driving dispute-open-evidence (JM-060, blueprint `dispute-open-evidence`).
-///
-/// Flow: inputting → submitting → success | error.
-/// On cold entry it fetches the auto-attached evidence (D53 chat snapshot +
-/// GPS/status timeline) in the background; that fetch never fails the screen
-/// (degrades to empty). Photos cap at 5; voice is optional (D53).
 class EscalateCubit extends Cubit<EscalateState> {
   EscalateCubit({
     required EscalateRepository repository,
@@ -19,8 +13,6 @@ class EscalateCubit extends Cubit<EscalateState> {
   final EscalateRepository _repository;
   final String deliveryId;
 
-  /// Resolve the auto-attached evidence (D53). Idempotent — safe to call once
-  /// on first build. Never throws: a degraded fetch lands as empty evidence.
   Future<void> loadEvidence() async {
     if (state.evidenceLoaded) return;
     try {
@@ -53,7 +45,6 @@ class EscalateCubit extends Cubit<EscalateState> {
     emit(state.copyWith(photoPaths: updated));
   }
 
-  /// Attach a captured voice clip (D53). [path] is the on-device file path.
   void setVoice(String path) {
     if (path.isEmpty) return;
     emit(state.copyWith(voicePath: path));

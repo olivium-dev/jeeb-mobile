@@ -3,10 +3,6 @@ import 'package:omds/omds.dart';
 
 import '../../../core/widgets/directional_icons.dart';
 
-/// The "Location" section row on the Request type screen (Figma 56535:2392):
-/// a start-aligned "Current Location" label and an end-aligned "Change
-/// Location" text action with a trailing chevron. The action area is the tap
-/// target and navigates to the location picker.
 class RequestLocationRow extends StatelessWidget {
   const RequestLocationRow({
     super.key,
@@ -21,11 +17,7 @@ class RequestLocationRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // `explicitChildNodes` makes this row a Semantics *boundary*: without it the
-    // ambient merge folds the label's `request_type_current_location_label` and
-    // the action's `request_type_change_location_button` into one node and the
-    // button identifier is swallowed (Maestro/screen-reader can't address it).
-    // The boundary keeps both inner identifiers as their own queryable nodes.
+    /// TRAP: explicitChildNodes makes this a Semantics boundary; without it, merge swallows child identifiers.
     return Semantics(
       explicitChildNodes: true,
       child: Row(

@@ -6,9 +6,6 @@ import '../../../../l10n/app_localizations.dart';
 import '../../application/transcription_cubit.dart';
 import '../transcription_screen.dart';
 
-/// The transcription text, in either display (read + Edit affordance) or edit
-/// (text field + Done) mode. RTL is inherited from the ambient [Directionality]
-/// so an Arabic transcription renders right-aligned automatically.
 class TranscriptionTextPanel extends StatelessWidget {
   const TranscriptionTextPanel({super.key, required this.state});
 

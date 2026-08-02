@@ -14,15 +14,6 @@ import '../../domain/profile_repository.dart';
 import '../../domain/user_profile.dart';
 import 'settings_screen.dart';
 
-/// Live-backed settings entry used by the app route.
-///
-/// The generic [SettingsScreen] remains a testable presentation surface with
-/// injectable seams. This host supplies those seams from the real gateway:
-/// `GET /v1/users/me` for profile metadata.
-///
-/// JEBV4-204 (E9): the in-app role SWITCH was removed (the additive 5-tab shell
-/// + auto-activation supersede it), so this host no longer wires a role toggle.
-// ORPHAN (JEBV4-227, verified 2026-07-12): legacy settings hub, no forward-nav entry point (customer-profile is the live surface) — see docs/project-understanding/reconciliation/orphans.md
 class LiveSettingsScreen extends StatefulWidget {
   const LiveSettingsScreen({super.key});
 
@@ -77,14 +68,7 @@ class _LoadedLiveSettings extends StatefulWidget {
 class _LoadedLiveSettingsState extends State<_LoadedLiveSettings> {
   late final SettingsCubit _settingsCubit = SettingsCubit(
     profileRepository: _SnapshotProfileRepository(widget.snapshot.profile),
-    // Real Dio-backed account service (the test-only `FakeAccountService`
-    // lives under `test/support/` and must never be referenced from `lib/`).
-    // Shares the same DI gateway Dio as the profile read above so destructive
-    // settings actions hit the live jeeb-gateway, not an always-success stub.
     accountService: DioAccountService(sl<Dio>(), AuthTokenStore()),
-    // Profile-name lane: a saved name is ALSO mirrored to the gateway via
-    // `PUT /api/User/profile` (`username`) so getMe / receipts / chat headers
-    // carry the real name, and live greetings re-pull on the signal.
     displayNameRepository: DioDisplayNameRepository(sl<Dio>()),
     refreshSignals: sl.isRegistered<ProfileRefreshSignals>()
         ? sl<ProfileRefreshSignals>()

@@ -6,10 +6,10 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../chat/presentation/widgets/auto_direction_text.dart';
 import 'delivery_man_meta_row.dart';
 
-/// Identity header for the delivery-man public profile: large circular avatar +
-/// (name row with verified badge) + rating summary + location/availability.
-/// Composed from OMDS primitives (design §6: [OmdsProfileCard] is an
-/// image-background card, not an inline identity block).
+
+
+
+
 class DeliveryManProfileHeader extends StatelessWidget {
   const DeliveryManProfileHeader({
     super.key,
@@ -31,8 +31,8 @@ class DeliveryManProfileHeader extends StatelessWidget {
   final String location;
   final bool isAvailable;
 
-  /// D59 cold-start: when true (jeeber has < 5 reviews) the aggregate score is
-  /// hidden — only the review count is shown.
+  
+  
   final bool isColdStart;
 
   @override
@@ -171,10 +171,10 @@ class _RatingRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // D59 cold-start (< 5 reviews): HIDE the aggregate score. We still surface
-    // the review count (no star score), so the header stays coherent without an
-    // unverified score. `profile_score` is present ONLY when the score shows,
-    // so QA can assert it is absent during cold-start.
+    
+    
+    
+    
     if (isColdStart) {
       return DeliveryManMetaRow(
         icon: Icons.reviews_outlined,
@@ -203,9 +203,9 @@ class _AvailabilityRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final availability = _availabilityLabel(l10n);
-    // F9: only join location + availability with the separator dot when a
-    // location is actually present; otherwise show availability alone so we
-    // never render a stray leading "· Available".
+    
+    
+    
     final text = location.trim().isEmpty
         ? availability
         : l10n.deliveryManProfileLocationAvailability(location, availability);

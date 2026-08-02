@@ -9,31 +9,10 @@ import '../../../../l10n/app_localizations.dart';
 import 'super_login_picker.dart';
 import 'super_login_sheet.dart';
 
-/// Debug-only super-login entry points, RELOCATED from the registration screen
-/// to the LOGIN screen (P1 owner request: surface super-login on the login
-/// screen as the way in, instead of the OTP/credential funnel).
-///
-/// This file only LIFTS the two link affordances + their open/guard logic out
-/// of `registration_screen.dart` so the login screen (the new home) shares one
-/// implementation. The actual auth is unchanged — [openSuperLogin] /
-/// [openSuperLoginPlus] reuse the existing [showSuperLoginSheet] +
-/// [showSuperLoginPicker] (passcode-gated user list → tap → user-id-login).
-///
-/// SECURITY: every surface here is `kDebugMode`-gated by the host AND by
-/// [SuperLoginEntryPoints] itself, so it is dead-code-eliminated from release
-/// builds (mirrors the original registration placement, FR-P0-4 / defect D2).
-
-/// Fail-loud guard. The dev super-login surfaces are unusable without a
-/// SuperAdmin passcode. With the [AppConfig] debug fallback this is effectively
-/// never empty in a dev build — but if a build somehow ships with neither the
-/// `--dart-define` nor the fallback, surface an EXPLICIT misconfiguration
-/// message instead of letting the user hit a generic gateway "Invalid user id
-/// or passcode". Returns `true` when the action was blocked (caller aborts).
+/// Debug-only entry points; kDebugMode-gated, dead-code-eliminated from release.
 bool superLoginBlockedByMissingPasscode(BuildContext context) {
   if (!kDebugMode || AppConfig.superAdminPassCode.isNotEmpty) return false;
-  // EXEMPT: OMDS exports no standalone snackbar/toast widget; ScaffoldMessenger
-  // is the approved fleet pattern for transient feedback. kDebugMode-only path
-  // (never ships).
+  // EXEMPT: OMDS exports no standalone snackbar; ScaffoldMessenger is approved pattern.
   final colorScheme = Theme.of(context).colorScheme;
   ScaffoldMessenger.of(context)
     ..clearSnackBars()
@@ -51,20 +30,11 @@ bool superLoginBlockedByMissingPasscode(BuildContext context) {
   return true;
 }
 
-/// Opens the FR-P0-4 credential sheet, PRE-FILLED with the dev SuperAdmin
-/// passcode (+ the Nour Demo userId) so the surface is usable without typing.
-/// On a server-validated success the sheet pops `true`; the host's
-/// [onAuthenticated] then runs (onboarding complete → session refresh → home)
-/// using the REAL tokens the sheet persisted, never a client mint.
 Future<void> openSuperLogin(
   BuildContext context, {
   required Future<void> Function() onAuthenticated,
 }) async {
   if (superLoginBlockedByMissingPasscode(context)) return;
-  // Capture the owned SessionCubit from the CALLER's context (the login screen
-  // — a modal sheet can't inherit providers above the navigator) so the sheet
-  // can drive the shared real-login establishment (refresh → session emits
-  // `authenticated` → notifyLogin) on success.
   final session = context.read<SessionCubit?>();
   final signedIn = await showSuperLoginSheet(
     context,
@@ -76,11 +46,6 @@ Future<void> openSuperLogin(
   await onAuthenticated();
 }
 
-/// "Super user login plus": first opens the demo-user picker, then opens the
-/// SAME credential sheet pre-filled with the chosen user's userId + the single
-/// real SuperAdmin passcode. The sheet POSTs this + the tapped userId to the
-/// existing user-id-login path for real server validation; the post-success
-/// path is identical to [openSuperLogin].
 Future<void> openSuperLoginPlus(
   BuildContext context, {
   required Future<void> Function() onAuthenticated,
@@ -99,9 +64,6 @@ Future<void> openSuperLoginPlus(
   await onAuthenticated();
 }
 
-/// The two debug-only super-login affordances, stacked. The host gates with
-/// `if (kDebugMode)`; this widget additionally renders nothing in release so the
-/// surface can never reach a production user.
 class SuperLoginEntryPoints extends StatelessWidget {
   const SuperLoginEntryPoints({
     super.key,
@@ -126,7 +88,6 @@ class SuperLoginEntryPoints extends StatelessWidget {
   }
 }
 
-/// Debug-only "Super User Login" text link that opens the credential sheet.
 class _SuperLoginLink extends StatelessWidget {
   const _SuperLoginLink({required this.onTap});
 
@@ -158,8 +119,6 @@ class _SuperLoginLink extends StatelessWidget {
   }
 }
 
-/// Debug-only "Super user login plus" text link. Opens a demo-user picker that
-/// pre-fills the credential sheet. Rendered next to [_SuperLoginLink].
 class _SuperLoginPlusLink extends StatelessWidget {
   const _SuperLoginPlusLink({required this.onTap});
 

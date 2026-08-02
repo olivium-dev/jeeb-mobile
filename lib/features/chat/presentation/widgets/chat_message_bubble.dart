@@ -38,13 +38,6 @@ class ChatMessageBubble extends StatelessWidget {
     if (message.isSystemNotice) {
       return SystemMessageBubble(message: message);
     }
-    // `container: true` + `explicitChildNodes: true` make the per-message
-    // wrapper a Semantics *boundary*. Without it the outer
-    // `chat_detail_message_<id>` node auto-merges its descendants and swallows
-    // the read double-tick's `chat_detail_message_read` identifier, so neither
-    // Maestro nor a screen reader can address the read-receipt independently.
-    // The boundary keeps the per-message id AND surfaces the inner read id as
-    // its own queryable node.
     return Semantics(
       identifier: 'chat_detail_message_${message.id}',
       container: true,
@@ -75,9 +68,6 @@ class ChatMessageBubble extends StatelessWidget {
       case MessageKind.offerCard:
       case MessageKind.offerAccepted:
       case MessageKind.offerRejected:
-        // System notices flow through the early-return above. Offer cards
-        // are owned by the broadcasting screen and never reach this bubble.
-        // A text fallback keeps the UI rendering if something slips through.
         return _TextBubble(message: message);
     }
   }
@@ -108,14 +98,8 @@ class _DirectionalBubble extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final Widget child;
 
-  /// When true, all corners share the same radius (media/voice/location
-  /// bubbles have no asymmetric tail in the Figma frame).
   final bool symmetricRadius;
 
-  /// Design-spec §4 "~70% of available width max" ceiling. No OMDS
-  /// fractional-width token exists yet (flag F-CHAT-3); kept as the single
-  /// file-scoped source of truth instead of a bare inline literal so the
-  /// value is named, reviewable, and shared across every bubble kind.
   static const double _bubbleMaxWidthFraction = 0.7;
 
   @override
@@ -125,9 +109,6 @@ class _DirectionalBubble extends StatelessWidget {
           ? AlignmentDirectional.centerEnd
           : AlignmentDirectional.centerStart,
       child: ConstrainedBox(
-        // Shrink-to-content with a ~70% ceiling (design-spec §4). OMDS has no
-        // fractional-width token (pilot learning #9 / flag F-CHAT-3), so the
-        // ceiling is derived from the brand bubble-width fraction below.
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * _bubbleMaxWidthFraction,
         ),
@@ -141,10 +122,6 @@ class _DirectionalBubble extends StatelessWidget {
     );
   }
 
-  /// Tail at the bottom-trailing corner for the sender, bottom-leading for the
-  /// counterpart — expressed start/end so it mirrors in RTL. The previous
-  /// non-directional `BorderRadius.only(bottomLeft/Right)` kept the tail on a
-  /// fixed physical side and so failed to mirror.
   BorderRadiusDirectional get _radius {
     const tail = Radius.circular(Spacing.twoXSmall);
     const round = Radius.circular(Spacing.small);
@@ -227,9 +204,6 @@ class _PhotoBubble extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: OmdsBorderRadius.xSmall,
-            // P4/P5: `photoBytes!` crashed on a bytes-less `photo` row, and
-            // `Image.memory` had no `errorBuilder`, so undecodable bytes threw
-            // an `ErrorWidget` into the thread. Both degrade to the placeholder.
             child: (message.photoBytes?.isNotEmpty ?? false)
                 ? Image.memory(
                     message.photoBytes!,
@@ -324,14 +298,7 @@ class _ImageBubble extends StatelessWidget {
     return Semantics(label: l10n.chatImageA11y(authorLabel), child: bubble);
   }
 
-  /// P4/P5 source precedence. Local bytes WIN — the sender's own just-captured
-  /// frame, or a peer image already resolved through the authenticated CDN read
-  /// proxy — so the photo renders with no round trip and no blink.
-  ///
-  /// A bare [DeliveryChatMessage.imageUrl] is a CDN `object_ref`
-  /// (`chat_attachment/<guid>.jpg`), NOT a fetchable URL: handing it to
-  /// [OmdsCachedImage] would issue a doomed unauthenticated GET. Only an
-  /// ABSOLUTE http(s) value (a legacy/external image) is passed through.
+
   Widget _imageContent(DeliveryChatMessage message, Color onBubble) {
     final bytes = message.photoBytes;
     if (bytes != null && bytes.isNotEmpty) {
@@ -539,13 +506,6 @@ class _LocationBubble extends StatelessWidget {
   }
 }
 
-/// Time + read-receipt row pinned to the bottom-trailing corner of the bubble.
-///
-/// Only the **sender's** bubble carries the meta row: Figma node 56560:1605
-/// leaves the incoming (counterpart) bubble's timestamp slot empty, so the
-/// counterpart footer collapses to nothing (D3 fix). The row owns its own top
-/// gap so suppressing it leaves no orphan spacing, and is laid out LTR so the
-/// order is always "time → ticks" regardless of the surrounding locale.
 class _BubbleFooter extends StatelessWidget {
   const _BubbleFooter({
     required this.message,
@@ -586,12 +546,6 @@ class _BubbleFooter extends StatelessWidget {
   }
 }
 
-/// Status tick that mirrors WhatsApp's convention:
-///   sending   → clock
-///   sent      → single gray tick
-///   delivered → double gray ticks
-///   read      → double blue ticks
-///   failed    → red error glyph
 class _StatusIcon extends StatelessWidget {
   const _StatusIcon({super.key, required this.status, required this.color});
 

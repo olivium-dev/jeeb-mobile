@@ -11,35 +11,6 @@ import '../data/empty_dispute_status_repository.dart';
 import '../domain/dispute_status_repository.dart';
 import 'dispute_status_l10n.dart';
 
-/// dispute-status (JM-065). The status screen for a submitted dispute, reached
-/// from dispute-open-evidence (`dispute_submit_cta` → here, JM-060), a
-/// transaction-detail dispute link, or a notification.
-///
-/// Renders the 4-state machine (40_GUARDRAILS_ARCH §3): loading / failed /
-/// loaded. Loaded shows `dispute_status_state` (Open / Resolved), the typed
-/// outcome note when resolved (refund / penalty, D2), and a read-only evidence
-/// summary (reason / comment / photos / voice / chat snapshot / timeline, D53).
-/// `dispute_status_support` → support-ticket (D76); `dispute_status_back` →
-/// order-chat (the originating thread when the dispute carries a ref, else a
-/// safe pop).
-///
-/// Reads the LIVE compliment-service via `sl<DisputeStatusRepository>()`
-/// (DioDisputeStatusRepository; `GET /v1/disputes/:disputeId` mock-ready on
-/// :4010 — 42_GUARDRAILS_MOCK §4). [repository] is a constructor test seam
-/// (40_GUARDRAILS_ARCH §5.4) — production leaves it null; an unconfigured GetIt
-/// (router-resolution widget tests) falls back to [EmptyDisputeStatusRepository]
-/// so the screen renders its error state rather than throwing.
-///
-/// Semantics identifiers exposed (EXACT — 30_BACKLOG JM-065, 41_GUARDRAILS_TESTING):
-///   `dispute_status_root`       — screen host container
-///   `dispute_status_state`      — Open / Resolved indicator
-///   `dispute_status_outcome`    — resolved outcome note (refund / penalty, D2)
-///   `dispute_status_evidence`   — auto-attached evidence summary (D53)
-///   `dispute_status_support`    — → support-ticket (D76)
-///   `dispute_status_back`       — → order-chat
-///   `dispute_status_loading`    — D30 loading
-///   `dispute_status_error`      — D30 error
-///   `dispute_status_retry_cta`  — D30 retry
 class DisputeStatusScreen extends StatelessWidget {
   const DisputeStatusScreen({
     super.key,
@@ -47,15 +18,10 @@ class DisputeStatusScreen extends StatelessWidget {
     this.repository,
   });
 
-  /// The dispute id from the `/disputes/:id` path param.
   final String disputeId;
 
-  /// Constructor test seam (40_GUARDRAILS_ARCH §5.4) — defaults to DI.
   final DisputeStatusRepository? repository;
 
-  /// Resolves the repo: an explicit override (tests) → the registered LIVE
-  /// `DioDisputeStatusRepository` → an empty fallback when GetIt is not
-  /// configured. Mirrors `NotificationsListScreen._resolveRepository()`.
   DisputeStatusRepository _resolveRepository() {
     final explicit = repository;
     if (explicit != null) return explicit;
@@ -90,8 +56,6 @@ class _DisputeStatusView extends StatelessWidget {
         appBar: OMDSAppBar(
           title: copy.title,
           showBackButton: true,
-          // The app-bar leading back honours the same edge as the explicit
-          // `dispute_status_back` CTA (→ order-chat / safe pop).
           onBackPressed: () => _back(context),
         ),
         body: BlocBuilder<DisputeStatusCubit, DisputeStatusState>(
@@ -111,10 +75,6 @@ class _DisputeStatusView extends StatelessWidget {
     );
   }
 
-  /// Back edge → order-chat (JM-065 AC `dispute_status_back`). The dispute's
-  /// chat ref addresses the originating thread; on a cold deep-link with no ref
-  /// it pops, falling back to root so the user is never stranded (AP-9 honesty —
-  /// never fabricate a chat id the dispute can't address).
   static void _back(BuildContext context) {
     final dispute = context.read<DisputeStatusCubit>().state.dispute;
     final ref = dispute?.chatRef;
@@ -221,23 +181,14 @@ class _LoadedBody extends StatelessWidget {
       children: [
         _StateCard(copy: copy, dispute: dispute),
         const SizedBox(height: Spacing.large),
-        // JM-065 AC1: the outcome note ALWAYS renders — a resolved dispute shows
-        // the refund/penalty outcome (D2); an OPEN dispute shows the pending
-        // outcome (the flow asserts `dispute_status_outcome_note` on the open
-        // dispute it seeds). Coined id `dispute_status_outcome_note`.
         _OutcomeCard(copy: copy, dispute: dispute),
         const SizedBox(height: Spacing.large),
-        // JM-065 AC1: the evidence summary ALWAYS renders (D53). Coined id
-        // `dispute_status_evidence_summary`.
         _EvidenceCard(copy: copy, evidence: dispute.evidence),
         const SizedBox(height: Spacing.xLarge),
         Semantics(
           identifier: 'dispute_status_support',
           button: true,
           container: true,
-          // EDGE → support-ticket (JM-063, D76). Seed the order ref via `extra`
-          // so the support form can pre-fill the linked order (the support
-          // screen reads a String `extra`).
           child: OmdsPrimaryButton(
             text: copy.supportCta,
             onTap: () => context.goNamed(
@@ -251,7 +202,6 @@ class _LoadedBody extends StatelessWidget {
           identifier: 'dispute_status_back',
           button: true,
           container: true,
-          // EDGE → order-chat (back).
           child: TextButton(
             onPressed: () => _DisputeStatusView._back(context),
             child: Text(copy.backCta),
@@ -262,8 +212,6 @@ class _LoadedBody extends StatelessWidget {
   }
 }
 
-/// `dispute_status_state` — the Open / Resolved indicator (JM-065 AC). A chip
-/// + label keyed off the dispute lifecycle state.
 class _StateCard extends StatelessWidget {
   const _StateCard({required this.copy, required this.dispute});
 
@@ -274,8 +222,6 @@ class _StateCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final resolved = dispute.isResolved;
-    // Semantic roles: resolved = success, open = warning (attention pending).
-    // Previously primary/tertiary brand hues were doing state duty.
     final roles = context.jeebRoles;
     final color = resolved ? roles.success : roles.warning;
     return Semantics(
@@ -303,7 +249,6 @@ class _StateCard extends StatelessWidget {
   }
 }
 
-/// `dispute_status_outcome` — the resolved outcome note (refund / penalty, D2).
 class _OutcomeCard extends StatelessWidget {
   const _OutcomeCard({required this.copy, required this.dispute});
 
@@ -329,8 +274,6 @@ class _OutcomeCard extends StatelessWidget {
           ),
           const SizedBox(height: Spacing.xSmall),
           Text(
-            // Resolved → the refund/penalty outcome line (D2); open → the
-            // pending-outcome body (the dispute is still under review).
             resolved
                 ? copy.outcomeLine(dispute.outcome, amount: amount)
                 : copy.openBody,
@@ -354,8 +297,6 @@ class _OutcomeCard extends StatelessWidget {
   }
 }
 
-/// `dispute_status_evidence` — the read-only auto-attached evidence summary
-/// (D53). Not editable here (that is dispute-open-evidence, JM-060).
 class _EvidenceCard extends StatelessWidget {
   const _EvidenceCard({required this.copy, required this.evidence});
 

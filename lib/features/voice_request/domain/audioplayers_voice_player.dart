@@ -5,14 +5,14 @@ import 'package:audioplayers/audioplayers.dart';
 import 'voice_clip.dart';
 import 'voice_player.dart';
 
-/// Real [VoicePlayer] built on the `audioplayers` package (T-MOB-011). It is
-/// the production drop-in behind the same port the [FakeVoicePlayer]
-/// implements, so the cubit and screen never touch the platform plugin.
-///
-/// The cubit owns the playback phase; this adapter only translates the plugin's
-/// position / completion streams into the [play] callbacks and tears the
-/// subscriptions down on [pause] / [stop] so a discarded clip can't keep
-/// emitting position ticks into a closed cubit.
+
+
+
+
+
+
+
+
 class AudioPlayersVoicePlayer implements VoicePlayer {
   AudioPlayersVoicePlayer({AudioPlayer? player})
     : _player = player ?? AudioPlayer();
@@ -54,9 +54,9 @@ class AudioPlayersVoicePlayer implements VoicePlayer {
     await _player.stop();
   }
 
-  /// Prefer the on-disk file the recorder wrote (cheaper than holding the PCM
-  /// in RAM); fall back to the in-memory bytes when no path is present (e.g. a
-  /// clip rehydrated from a draft).
+  
+  
+  
   Source _sourceFor(VoiceClip clip) {
     final String? path = clip.sourcePath;
     if (path != null && path.isNotEmpty) {

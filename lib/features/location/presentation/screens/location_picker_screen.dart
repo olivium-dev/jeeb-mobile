@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-/// Placeholder restored under T-MOB-FIX-001 (AC1+AC4+AC5). Real implementation
-/// arrives in the per-feature follow-up ticket. Do NOT add behavior here.
-// ORPHAN (JEBV4-227, verified 2026-07-12): placeholder mounted at /location; zero callsites — see docs/project-understanding/reconciliation/orphans.md
 class LocationPickerScreen extends StatefulWidget {
   const LocationPickerScreen({super.key});
 

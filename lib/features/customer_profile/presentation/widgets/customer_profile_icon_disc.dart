@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-/// 32dp navy circular disc with a centered white glyph — the leading element
-/// of every customer-profile row (design §5). Navy = secondaryContainer,
-/// glyph = onSecondary, both from the theme (no literals).
 class CustomerProfileIconDisc extends StatelessWidget {
   const CustomerProfileIconDisc({super.key, required this.icon});
 

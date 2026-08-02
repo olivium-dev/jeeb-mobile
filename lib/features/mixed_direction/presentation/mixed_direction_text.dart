@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-// ORPHAN (JEBV4-227, verified 2026-07-12): zero refs — see docs/project-understanding/reconciliation/orphans.md
 class MixedDirectionText extends StatelessWidget {
 
   const MixedDirectionText(

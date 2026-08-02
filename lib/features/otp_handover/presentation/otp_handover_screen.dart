@@ -8,14 +8,6 @@ import '../application/otp_handover_cubit.dart';
 import '../application/otp_handover_state.dart';
 import 'widgets/handover_code_display.dart';
 
-/// T-MOB-018: OTP handover screen — client display + Jeeber entry.
-///
-/// AC1: 4-digit code rendered large for the client.
-/// AC2: on success, transitions to celebratory done state + rate-now CTA.
-/// AC3: wrong code → shake animation + inline error + attempt counter.
-/// AC4: 3 wrong codes → escalate dialog (→ dispute).
-/// AC5: client code announced via Semantics liveRegion; OTP input navigable.
-/// AC6: OTP code is never logged (raw string stays in ephemeral widget state).
 class OtpHandoverScreen extends StatelessWidget {
   const OtpHandoverScreen({
     super.key,
@@ -33,7 +25,6 @@ class OtpHandoverScreen extends StatelessWidget {
       identifier: 'otp_handover_root',
       container: true,
       // The root signature must not merge away the code-display and CTA
-      // identifiers that Maestro targets inside this screen.
       explicitChildNodes: true,
       child: Scaffold(
         appBar: OMDSAppBar(
@@ -149,15 +140,6 @@ class _ErrorBody extends StatelessWidget {
   }
 }
 
-/// T-MOB-018 AC2: Celebratory done state shown after successful OTP verify.
-///
-/// JEEBER-LOOP F1: navigation now targets the blind mutual-rating screen
-/// (`/orders/:id/mutual-rate`, T-MOB-020) — not the single-side `/feedback`
-/// placeholder — and threads [isClient] so the Jeeber leg carries
-/// `?mode=jeeber`. The router resolves `isClient = mode != 'jeeber'`, so an
-/// absent `mode` lands the client and `?mode=jeeber` lands the delivery man on
-/// his side of the two-party rating. Without the param the Jeeber would be
-/// mis-routed to the client-facing rating screen.
 class _DoneBody extends StatelessWidget {
   const _DoneBody({required this.deliveryId, required this.isClient});
 
@@ -193,8 +175,6 @@ class _DoneBody extends StatelessWidget {
             ),
             const SizedBox(height: Spacing.xLarge),
             Semantics(
-              // Post-verify success-state rate-now CTA (shared by both legs).
-              // Distinct from the client OTP-display's `client_otp_rate_now`.
               identifier: 'otp_done_rate_now',
               container: true,
               button: true,
@@ -212,8 +192,6 @@ class _DoneBody extends StatelessWidget {
   }
 }
 
-/// Builds the mutual-rate route, appending `?mode=jeeber` for the delivery-man
-/// leg so the router (`isClient = mode != 'jeeber'`) flips audience correctly.
 String _mutualRateRoute(String deliveryId, bool isClient) =>
     '/orders/$deliveryId/mutual-rate${isClient ? '' : '?mode=jeeber'}';
 
@@ -230,11 +208,6 @@ class _ReadyBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // G4 (sprint-009 P0): the code-ENTRY grid is the JEEBER's surface, full
-    // stop. The customer either sees their code (accept-time persisted, or
-    // returned by the gateway) or the honest SMS-fallback ("we've sent your
-    // code by SMS") — never an entry grid for a code they were never shown
-    // (the removed iter6 `allowManualEntry` dead end).
     if (!isClient) {
       return Padding(
         padding: const EdgeInsets.all(Spacing.xLarge),
@@ -251,11 +224,6 @@ class _ReadyBody extends StatelessWidget {
   }
 }
 
-/// G4: honest customer fallback when the app holds no code (e.g. reinstalled
-/// mid-delivery). The `GET /otp` call the cubit just made TRIGGERED an SMS to
-/// the recipient, so the surface says exactly that + offers a resend. There is
-/// deliberately NO code-entry grid here — entering the code is the Jeeber's
-/// job; the customer's job is to receive and share it.
 class _ClientSmsFallback extends StatelessWidget {
   const _ClientSmsFallback({required this.state});
 
@@ -267,7 +235,6 @@ class _ClientSmsFallback extends StatelessWidget {
     final theme = Theme.of(context);
     return Center(
       child: Semantics(
-        // QA: uiautomator-addressable handle for the SMS-fallback surface.
         identifier: 'otp_sms_fallback',
         container: true,
         child: Column(
@@ -312,13 +279,6 @@ class _ClientSmsFallback extends StatelessWidget {
   }
 }
 
-/// T-MOB-018 AC1/AC5: Client sees large 4-digit code; announced via liveRegion.
-///
-/// JEEBER-LOOP F2: the client OTP-display had no forward path — once the
-/// Jeeber verified the code the client sat here indefinitely (there is no
-/// status polling). A manual "Rate now" CTA lets the client advance to the
-/// mutual-rate screen (`/orders/:id/mutual-rate`, client leg) after handover,
-/// closing the client side of the two-party loop without introducing polling.
 class _ClientOtpDisplay extends StatelessWidget {
   const _ClientOtpDisplay({required this.code, required this.deliveryId});
 
@@ -354,9 +314,6 @@ class _ClientOtpDisplay extends StatelessWidget {
   }
 }
 
-/// JEEBER-LOOP F2: post-handover "Rate now" CTA on the client OTP display.
-/// Navigates the client leg to the blind mutual-rating screen (no `mode`
-/// param → router resolves `isClient = true`).
 class _ClientRateNowButton extends StatelessWidget {
   const _ClientRateNowButton({required this.deliveryId});
 
@@ -366,7 +323,6 @@ class _ClientRateNowButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Semantics(
-      // QA: uiautomator-addressable handle for the client's rate-now CTA.
       identifier: 'client_otp_rate_now',
       child: OmdsPrimaryButton(
         key: const Key('otpHandover.clientRateNow'),
@@ -377,7 +333,6 @@ class _ClientRateNowButton extends StatelessWidget {
   }
 }
 
-/// T-MOB-018 AC3/AC5: Jeeber entry with shake on wrong code.
 class _JeeberOtpEntry extends StatefulWidget {
   const _JeeberOtpEntry({required this.state});
 
@@ -500,11 +455,6 @@ class _ShakingOtpInput extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      // QA: uiautomator-addressable handle for the Jeeber OTP entry field.
-      // `container: true` makes the identifier surface as its own queryable
-      // SemanticsNode even though OmdsOtpInput renders multiple cell fields
-      // (CAP-1: a non-boundary id over a multi-child widget can be folded into
-      // an ancestor).
       identifier: 'otp_handover_input',
       container: true,
       child: AnimatedBuilder(
@@ -516,11 +466,7 @@ class _ShakingOtpInput extends StatelessWidget {
         child: OmdsOtpInput(
           key: const Key('otpHandover.input'),
           length: 4,
-          // RC-7: per-cell editable ids (`otp_handover_input_0..3`) so a UI
-          // test driver can tap+inputText each cell of the jeeber at-door entry
-          // (the single container id above cannot distribute a multi-digit
           // string across the N separate fields). Additive — mirrors the
-          // `verify_code_input` / `phone_otp_input` entry surfaces.
           identifier: 'otp_handover_input',
           onChanged: onChanged,
           onCompleted: onCompleted,
@@ -572,9 +518,6 @@ class _SubmitButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Semantics(
-      // QA: uiautomator-addressable handle for the verify/submit CTA. No
-      // `button: true` here — OmdsLoadingButton already exposes the button
-      // role; `container: true` keeps this identifier its own queryable node.
       identifier: 'otp_handover_submit',
       container: true,
       child: OmdsLoadingButton(

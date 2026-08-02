@@ -12,10 +12,7 @@ import 'cubit/cancellation_state.dart';
 import 'widgets/cancellation_reason_group.dart';
 import 'widgets/cancellation_success_sheet.dart';
 
-/// Cancellation reason-picker and submission screen (T-MOB-024).
-///
-/// Accessible from the active delivery menu for both client and Jeeber roles.
-/// Emits [onCancelled] with the result when the gateway returns 200.
+/// Reason-picker screen (T-MOB-024); accessible from active delivery menu.
 class CancellationScreen extends StatelessWidget {
   const CancellationScreen({
     super.key,
@@ -28,21 +25,14 @@ class CancellationScreen extends StatelessWidget {
   final String deliveryId;
   final bool isJeeber;
 
-  /// Injectable for widget tests; production resolves via DI.
+  /// Injectable for tests; production resolves via GetIt.
   final CancellationRepository? repository;
 
-  /// DT-04 screen-catalog / test seam: preset the cubit's initial state (e.g.
-  /// [CancellationLoading]) so the screen can be previewed mid-submit. Null
-  /// (default, production) starts idle exactly as before.
+  /// DT-04 test seam: preset cubit state for screen preview (e.g. mid-submit).
   final CancellationState? initialState;
 
-  /// Resolves the repo: an explicit override (tests) → the GetIt-registered
-  /// [DioCancellationRepository]. The `/orders/:id/cancel` route builder passes
-  /// no `repository` and no `Provider<CancellationRepository>` exists in the
-  /// widget tree (it lives only in GetIt), so reading it from `context`
-  /// threw ProviderNotFoundException on every open (P0-CANCEL-CRASH). Resolve
-  /// via `sl` — the same pattern SearchResultsScreen/NotificationsListScreen
-  /// use for a DI-only repository.
+  /// Resolves via explicit override (tests) or GetIt. Using GetIt because
+  /// the route builder has no Provider<CancellationRepository> (P0-CANCEL-CRASH).
   CancellationRepository _resolveRepository() =>
       repository ?? sl<CancellationRepository>();
 
@@ -273,8 +263,7 @@ class _OtherTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // Identifier on a wrapping node so Maestro can locate the free-text "other"
-    // reason input; the field owns its own editable semantics underneath.
+    // For Maestro test automation.
     return Semantics(
       identifier: 'cancellation_other_field',
       textField: true,

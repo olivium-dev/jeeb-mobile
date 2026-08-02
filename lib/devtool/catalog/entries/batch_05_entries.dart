@@ -25,16 +25,6 @@ import '../../../features/photo_attachment/data/stub_photo_picker_service.dart';
 import '../../../features/wallet/domain/wallet_repository.dart';
 import '../catalog_models.dart';
 
-/// Batch 05 — DT-04 catalog entries for: jeeber_onboarding_funding,
-/// jeeber_pending_offers, jeeber_request_detail, jeeber_request_feed, kyc,
-/// kyc_rejected.
-///
-/// Every builder below renders the REAL screen with a LOCAL fake/stub
-/// injected through that screen's existing constructor test seam — no DI, no
-/// network. Where a screen's data arrives by driving its real cubit through
-/// its own public API (KYC captures, wallet/offer fetches), the seeding calls
-/// are fire-and-forget against a synchronous, no-network fake so the cubit
-/// settles into the target state after a couple of microtasks.
 List<CatalogEntry> get batch05Entries => <CatalogEntry>[
       _onboardingFundingEntry,
       _pendingOffersEntry,
@@ -46,9 +36,6 @@ List<CatalogEntry> get batch05Entries => <CatalogEntry>[
       _kycRejectedEntry,
     ];
 
-// ─────────────────────────────────────────────────────────────────────────
-// jeeber_onboarding_funding
-// ─────────────────────────────────────────────────────────────────────────
 
 final CatalogEntry _onboardingFundingEntry = CatalogEntry(
   feature: 'jeeber_onboarding_funding',
@@ -95,9 +82,6 @@ class _FailingWalletRepository implements WalletRepository {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// jeeber_pending_offers
-// ─────────────────────────────────────────────────────────────────────────
 
 final CatalogEntry _pendingOffersEntry = CatalogEntry(
   feature: 'jeeber_pending_offers',
@@ -196,9 +180,6 @@ class _StaticSubmittedOffersRepository implements SubmittedOffersRepository {
   Future<bool> withdraw(String offerId) async => true;
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// jeeber_request_detail
-// ─────────────────────────────────────────────────────────────────────────
 
 const ProhibitedItemReportService _reportService =
     ProhibitedItemReportService();
@@ -256,8 +237,6 @@ final CatalogEntry _requestDetailLoaderEntry = CatalogEntry(
       (_) => JeeberRequestDetailLoader(
         requestId: 'req-303',
         initial: null,
-        // Never resolves, so the loading scaffold stays on screen for the
-        // designed preview.
         fetch: () => Completer<FeedRequest?>().future,
         reportService: _reportService,
         onDeclined: (_) {},
@@ -294,9 +273,6 @@ final CatalogEntry _requestDetailLoaderEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// jeeber_request_feed
-// ─────────────────────────────────────────────────────────────────────────
 
 final CatalogEntry _requestFeedEntry = CatalogEntry(
   feature: 'jeeber_request_feed',
@@ -345,11 +321,6 @@ final CatalogEntry _requestFeedEntry = CatalogEntry(
   ],
 );
 
-/// Owns the [RequestFeedCubit] for a catalog preview and closes it on
-/// dispose. [RequestFeedScreen] only accepts a pre-built `cubit` (wired
-/// internally via `BlocProvider.value`, which never closes it), and the
-/// cubit runs a real `Timer.periodic` sweep (JEEB-66 G3 expiry sweep) — so
-/// without this host, backing out of a preview would leak that timer.
 class _RequestFeedPreview extends StatefulWidget {
   const _RequestFeedPreview({required this.repositoryBuilder});
 
@@ -456,9 +427,6 @@ class _PollingRequestFeedRepository implements RequestFeedRepository {
   Future<void> dispose() async {}
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// kyc
-// ─────────────────────────────────────────────────────────────────────────
 
 KycWizardCubit _kycWizardCubit({
   KycStatus status = KycStatus.notSubmitted,
@@ -474,11 +442,6 @@ KycWizardCubit _kycWizardCubit({
   return cubit;
 }
 
-/// Drives a fresh [cubit] through both ID sides + selfie + ToS acceptance via
-/// its real public API (each capture is properly awaited so the cubit's
-/// in-flight guard never skips a step), landing on a submit-ready identity
-/// screen — still no network, since [StubPhotoPickerService] and the default
-/// [HalvingPhotoCompressor] are both synchronous in-memory fakes.
 Future<void> _seedKycIdentityReady(KycWizardCubit cubit) async {
   await cubit.captureIdFront();
   await cubit.captureIdBack();
@@ -526,9 +489,6 @@ final CatalogEntry _kycWizardEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// kyc_rejected
-// ─────────────────────────────────────────────────────────────────────────
 
 final CatalogEntry _kycRejectedEntry = CatalogEntry(
   feature: 'kyc_rejected',

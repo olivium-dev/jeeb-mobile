@@ -1,15 +1,3 @@
-// DT-04 / F2 — Screen Catalog entries, batch 06.
-//
-// Features covered: language, live_tracking, location, masked_call,
-// mixed_direction, no_offer_timeout.
-//
-// Every builder below renders the REAL feature screen/widget seeded with a
-// LOCAL fake/stub (or a shipped in-memory double) — no network, no GetIt
-// gateway resolution. Repositories that already ship an injectable seam
-// (constructor `repository:`/`cubit:` params) are used as-is; two features
-// (masked_call, and reusing the existing `repository`/`userId`/`cubitFactory`
-// seams elsewhere) needed no new code at all. `masked_call_button.dart` picked
-// up one minimal additive seam (see `seamsAdded` in the batch manifest).
 
 import 'dart:async';
 
@@ -63,15 +51,7 @@ List<CatalogEntry> get batch06Entries => <CatalogEntry>[
       _noOfferTimeoutEntry,
     ];
 
-// ─────────────────────────────────────────────────────────────────────────
-// language — LanguageSettingsScreen
-// ─────────────────────────────────────────────────────────────────────────
 
-/// Builds a real [LocaleCubit] over the app's actual (already-bootstrapped)
-/// [SharedPreferences] instance — read-only local prefs, no network — with a
-/// [deviceLocaleProvider] override so the two designed rows (English /
-/// Arabic selected) render deterministically regardless of any persisted
-/// choice on this device.
 Widget _languageSettingsPreview(Locale deviceLocale) {
   final cubit = LocaleCubit(
     prefs: sl<SharedPreferences>(),
@@ -98,13 +78,9 @@ final CatalogEntry _languageEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// live_tracking — LiveTrackingScreen
-// ─────────────────────────────────────────────────────────────────────────
 
 const String _trackingDeliveryId = 'DLV-990001';
 
-/// Static repository serving one fixed snapshot (no network, no ticks).
 class _StaticTrackingRepository implements LiveTrackingRepository {
   const _StaticTrackingRepository(this._info);
   final DeliveryTrackingInfo _info;
@@ -116,7 +92,6 @@ class _StaticTrackingRepository implements LiveTrackingRepository {
       _info;
 }
 
-/// Repository that always fails — drives the screen's error state.
 class _FailingTrackingRepository implements LiveTrackingRepository {
   const _FailingTrackingRepository(this._kind);
   final LiveTrackingErrorKind _kind;
@@ -151,8 +126,6 @@ DeliveryTrackingInfo _cancelledInfo() => const DeliveryTrackingInfo(
       requestId: 'REQ-9002',
     );
 
-/// Builds the screen with NO refresh source wired (b02 wave C / N7 removed the
-/// poll entirely), so a catalog preview reads once and leaks no timers.
 Widget _liveTrackingPreview(LiveTrackingRepository repository) {
   final cubit = LiveTrackingCubit(
     repository: repository,
@@ -171,7 +144,6 @@ final CatalogEntry _liveTrackingEntry = CatalogEntry(
   states: [
     CatalogState(
       'In transit',
-      // Reuses the shipped debug-only DemoLiveTrackingRepository double.
       (_) => _liveTrackingPreview(const DemoLiveTrackingRepository()),
     ),
     CatalogState(
@@ -191,15 +163,7 @@ final CatalogEntry _liveTrackingEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// location — LocationPickerScreen (pickup → dropoff → done)
-// ─────────────────────────────────────────────────────────────────────────
 
-/// Drives the REAL [LocationPickerCubit] through its own public methods over
-/// the shipped [InMemoryLocationRepository] (already the DI default until the
-/// gateway endpoints land — no network, fixed in-process catalogue) to reach
-/// each designed step. Fire-and-forget: the short in-memory delays (60-150ms)
-/// settle well before a reviewer looks at the preview.
 LocationPickerCubit _seededLocationPickerCubit({
   required bool advanceToDropoff,
   required bool advanceToDone,
@@ -259,12 +223,7 @@ final CatalogEntry _locationPickerEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// location — SavedLocationsScreen (saved-address manager)
-// ─────────────────────────────────────────────────────────────────────────
 
-/// Local, canned [SavedLocationRepository] — no network. Reused across the
-/// loaded/empty/error designed states via its constructor flags.
 class _StaticSavedLocationRepository implements SavedLocationRepository {
   const _StaticSavedLocationRepository(this._locations, {this.failFetch = false});
 
@@ -363,9 +322,6 @@ final CatalogEntry _savedLocationsEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// location — ClientLocationScreen (location-select create step)
-// ─────────────────────────────────────────────────────────────────────────
 
 const String _clientLocationPreviewUserId = 'preview-user-001';
 
@@ -392,15 +348,7 @@ final CatalogEntry _clientLocationEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// masked_call — MaskedCallButton
-// ─────────────────────────────────────────────────────────────────────────
 
-/// A [MaskedCallCubit] that emits [seed] one microtask after construction
-/// (after `BlocProvider`/`BlocConsumer` have mounted and started listening),
-/// so a "calling" designed state renders the same loading affordance the real
-/// [MaskedCallCubit.initiateCall] produces — without touching the (nonexistent
-/// for this cubit) network path at all.
 class _SeededMaskedCallCubit extends MaskedCallCubit {
   _SeededMaskedCallCubit(MaskedCallState seed) {
     scheduleMicrotask(() {
@@ -441,9 +389,6 @@ final CatalogEntry _maskedCallEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// mixed_direction — MixedDirectionText
-// ─────────────────────────────────────────────────────────────────────────
 
 Widget _mixedDirectionHost(String label, String text) => Scaffold(
       appBar: AppBar(title: const Text('Mixed Direction Text')),
@@ -491,14 +436,9 @@ final CatalogEntry _mixedDirectionEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// no_offer_timeout — NoOfferTimeoutScreen (waiting / no-coverage)
-// ─────────────────────────────────────────────────────────────────────────
 
 const String _waitingPreviewRequestId = 'REQ-WAIT-001';
 
-/// Disables the cubit's poll + clock tick streams (empty streams never emit)
-/// so no runaway timers leak from the catalog preview.
 WaitingCubit _staticWaitingCubit(WaitingRepository repository) => WaitingCubit(
       repository: repository,
       requestId: _waitingPreviewRequestId,
@@ -571,9 +511,6 @@ final CatalogEntry _noOfferTimeoutEntry = CatalogEntry(
         ),
       ),
     ),
-    // P7 — the clean-break failure mode: the gateway answered 200 but omitted
-    // `offerDeadlineInSeconds` on a live row. Seeded here so the distinct
-    // contract-break copy is visually inspectable without a backend.
     CatalogState(
       'Contract violation',
       (_) => _waitingPreview(

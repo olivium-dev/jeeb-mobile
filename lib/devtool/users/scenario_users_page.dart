@@ -2,13 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../gateway/dev_gateway_client.dart';
 
-/// DT-07 — Scenario Users: seed users into a named lifecycle scenario and
-/// browse the roster the gateway already knows about.
-///
-/// Uses the shared [DevGatewayClient] (honours the Dev Tool's Server-URL
-/// override). A gateway with `Features:DevEndpoints` off, or any transport
-/// failure, surfaces as a friendly inline error with a retry action — this
-/// page never crashes on a bad gateway.
 class ScenarioUsersPage extends StatefulWidget {
   const ScenarioUsersPage({super.key});
 
@@ -16,11 +9,6 @@ class ScenarioUsersPage extends StatefulWidget {
   State<ScenarioUsersPage> createState() => _ScenarioUsersPageState();
 }
 
-/// A creatable user scenario: maps a friendly label onto the `role` the
-/// gateway's `/dev/seed/user` accepts, plus an optional `scenario` string
-/// (DT-07) that lets a future gateway extension shape a richer post-seed
-/// lifecycle state (suspended, kyc-pending, funded-wallet, ...). Passing the
-/// scenario through today is harmless even before the server supports it.
 class _UserScenario {
   const _UserScenario(this.label, this.role, this.scenario);
 

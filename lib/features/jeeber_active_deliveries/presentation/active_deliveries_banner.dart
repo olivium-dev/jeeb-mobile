@@ -7,28 +7,6 @@ import '../../active_delivery_jeeber/domain/jeeber_delivery_status.dart';
 import '../application/active_deliveries_cubit.dart';
 import '../domain/active_delivery_summary.dart';
 
-/// The jeeber's "active deliveries" banner — the real-UI entry to an ACCEPTED
-/// order (iter6 real-flow blocker fix).
-///
-/// Mounted at the top of the jeeber Dashboard (above the pending-feed home). It
-/// renders nothing while the jeeber has no active delivery, so it never
-/// disturbs the empty/feed states; the moment a client accepts the jeeber's
-/// offer (`GET /v1/deliveries?role=jeeber` returns the minted delivery) one
-/// card appears. Tapping a card opens that order's chat (`/chat/:id`,
-/// conversation already exists, keyed by the request id) — and the chat surface
-/// is already role-aware for a jeeber: it exposes "Start delivery" →
-/// `/jeeber/deliveries/:id/active`, which drives Ordered→…→AtDoor→Done→rating.
-/// A secondary "Manage delivery" affordance opens the active-delivery screen
-/// directly for a jeeber already past first contact.
-///
-/// [onOpenChat] / [onManageDelivery] are injected by the host (the Dashboard
-/// tab) so this widget owns no navigation — keeping it testable and the route
-/// strings in one place.
-// LIVE (re-verified 2026-07-21): the shell Dashboard renders THIS widget —
-// dashboard_tab.dart builds `ActiveDeliveriesBanner(...)` and injects it via
-// `JeeberHomeScreen(activeDeliveriesBanner:)`. The stale "ORPHAN (JEBV4-227)"
-// note predated that wiring (commit bf99d34); jeeber_home's own
-// JeeberActiveDeliveriesBanner is now only the `??` fallback the shell never hits.
 class ActiveDeliveriesBanner extends StatelessWidget {
   const ActiveDeliveriesBanner({
     super.key,
@@ -36,13 +14,8 @@ class ActiveDeliveriesBanner extends StatelessWidget {
     required this.onManageDelivery,
   });
 
-  /// Open the order chat for the tapped delivery. The argument is the chat
-  /// route id (conversation id when known, else the delivery/request id — the
-  /// `/chat/:id` screen resolves either).
   final void Function(ActiveDeliverySummary delivery) onOpenChat;
 
-  /// Open the active-delivery screen for the tapped delivery (the
-  /// Ordered→…→AtDoor stepper). The argument is the delivery id.
   final void Function(ActiveDeliverySummary delivery) onManageDelivery;
 
   @override
@@ -74,9 +47,6 @@ class ActiveDeliveriesBanner extends StatelessWidget {
   }
 }
 
-/// Keeps active work to one summary row at rest so it cannot bury the incoming
-/// request feed. The full cards are built only after the Jeeber explicitly asks
-/// to view them; "show less" returns to the compact dashboard hierarchy.
 class _ActiveDeliveriesCardList extends StatefulWidget {
   const _ActiveDeliveriesCardList({
     required this.deliveries,
@@ -125,12 +95,8 @@ class _ActiveDeliveriesCardListState extends State<_ActiveDeliveriesCardList> {
   }
 }
 
-/// Max visible lines for the compact active-deliveries summary title before it
-/// ellipsizes.
 const int _kActiveDeliveriesSummaryTitleMaxLines = 2;
 
-/// One-row disclosure that keeps existing work discoverable without giving it
-/// more initial vertical weight than the incoming-request task.
 class _ActiveDeliveriesSummaryRow extends StatelessWidget {
   const _ActiveDeliveriesSummaryRow({
     required this.expanded,
@@ -206,9 +172,6 @@ class _ActiveDeliveryCard extends StatelessWidget {
             width: UIConstants.dividerWidth,
           ),
           child: InkWell(
-            // Tapping the card opens the chat — the primary entry the blocker
-            // stranded the jeeber out of. "Start/Manage delivery" lives in the
-            // chat and on the secondary button.
             onTap: onOpenChat,
             borderRadius: OmdsBorderRadius.large,
             child: Padding(
@@ -269,25 +232,6 @@ class _ActiveDeliveryCard extends StatelessWidget {
   }
 }
 
-/// The card's two action buttons ("Open chat" + "Manage delivery"), laid out
-/// responsively so the OMDS button labels never right-overflow on a narrow
-/// card.
-///
-/// [OmdsPrimaryButton]'s *default* content renders its icon + label in a
-/// `mainAxisSize.min` Row with a plain (non-ellipsizing) `Text`, so an
-/// `Expanded`/stretched box narrower than that intrinsic width lets the
-/// content paint past its edge — the 39px right-overflow observed on
-/// SM-S921B, and the 27px right-overflow observed on S908B (run-26), which
-/// hit a *different* narrow width (S908B's card sits above the side-by-side
-/// threshold below, so the two-Expanded Row is used, but the per-button slot
-/// is still narrower than "Manage delivery"'s intrinsic icon+label width).
-/// Rather than chase a wider width-based threshold (which just moves the
-/// breakpoint to the next device), both buttons use the `child:` override to
-/// supply their own icon+label Row with the label wrapped in [Flexible] +
-/// `overflow: ellipsis` — so the label truncates instead of overflowing at
-/// ANY slot width, side-by-side or stacked, LTR or RTL. Below the side-by-side
-/// threshold we still stack the two buttons full-width (each then has the
-/// whole card width, so the label rarely needs to truncate at all).
 class _ActiveDeliveryCardActions extends StatelessWidget {
   const _ActiveDeliveryCardActions({
     required this.deliveryId,
@@ -296,8 +240,6 @@ class _ActiveDeliveryCardActions extends StatelessWidget {
     required this.onManageDelivery,
   });
 
-  /// The stable backend id of the delivery this card represents — used to make
-  /// each card's action-button Semantics identifiers unique in the list.
   final String deliveryId;
   final AppLocalizations l10n;
   final VoidCallback onOpenChat;
@@ -341,9 +283,6 @@ class _ActiveDeliveryCardActions extends StatelessWidget {
     );
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Two icon+label buttons need ~300+ logical px to sit side by side
-        // without their labels shrinking to an ellipsis; below that (every
-        // standard phone card width) stack them full-width instead.
         final sideBySide = constraints.maxWidth >= Sizes.threeHundredLarge;
         if (sideBySide) {
           return Row(
@@ -367,12 +306,6 @@ class _ActiveDeliveryCardActions extends StatelessWidget {
   }
 }
 
-/// Icon + label content for an [OmdsPrimaryButton], supplied via its `child:`
-/// override so the label can be [Flexible] instead of the package's default
-/// non-ellipsizing `Text` (see [_ActiveDeliveryCardActions] doc for the
-/// overflow this fixes). Mirrors the icon-leading layout + spacing token the
-/// OMDS default content uses, so the button looks identical when it isn't
-/// squeezed — only truncating the label when the slot is too narrow.
 class _ButtonLabel extends StatelessWidget {
   const _ButtonLabel({
     required this.icon,

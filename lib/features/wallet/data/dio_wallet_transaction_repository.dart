@@ -3,24 +3,6 @@ import 'package:dio/dio.dart';
 import '../domain/wallet_ledger_repository.dart' show WalletLedgerType;
 import '../domain/wallet_transaction_repository.dart';
 
-/// Dio-backed [WalletTransactionRepository] (JM-056) — W3m
-/// `GET /v1/jeeb/wallet/ledger/:id` (LIVE on :4010, 42_GUARDRAILS_MOCK "FINAL
-/// WAVE (W3+W4) mock closeout"). The resolved jeeber comes from the bearer token
-/// (no `?jeeberId=` needed — `resolveJeeberId` server-side), same precedence as
-/// W1m/W2m.
-///
-/// Gateway path `/v1/jeeb/wallet/ledger/:id` rewrites under the same
-/// `/v1/jeeb/wallet` rewrite-map key as the W2m ledger list
-/// (`mock_gateway_client.dart`).
-///
-/// NOT the DI default yet: `injection_container.dart` still binds the
-/// [StubWalletTransactionRepository] INTEGRATOR-STUB (CTO-D2). This impl is the
-/// swap target — repoint the DI registration here (REQUESTED in
-/// 50_ROUTE_REQUESTS.md, "JM-056 DI SWAP") without touching the screen.
-///
-/// Wire (42_GUARDRAILS_MOCK §4):
-///   { id, type, category, title, amount, sign, ref, ts, currency,
-///     feeRate?, pinnedPrice?, offerId?, orderId?, disputeId? }
 class DioWalletTransactionRepository implements WalletTransactionRepository {
   const DioWalletTransactionRepository(this._dio);
 
@@ -41,8 +23,6 @@ class DioWalletTransactionRepository implements WalletTransactionRepository {
   WalletTransaction _parse(Map<String, dynamic> json, String fallbackId) {
     return WalletTransaction(
       id: _str(json['id']) ?? fallbackId,
-      // The mock sends both `type` and the stable machine key `category`;
-      // tolerate either (and snake/camel for fee_won).
       type: _type(json['category'] ?? json['type']),
       amount: _num(json['amount']),
       sign: _int(json['sign']) ?? 1,

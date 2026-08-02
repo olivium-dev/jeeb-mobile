@@ -7,21 +7,9 @@ import '../../application/chat_cubit.dart';
 import '../../application/chat_state.dart';
 import 'chat_composer_icon_button.dart';
 
-/// Text + attachment input pinned to the bottom of the chat screen.
-///
-/// Matches the Figma composer (nodes 56535:6659 / 56546:2382): a leading
-/// attach affordance, a rounded "Send message…" field, a voice/mic affordance,
-/// and a navy circular send pill. The send pill is enabled only when the
-/// trimmed composer text is non-empty (Figma "Disabled=True" blank state).
-///
-/// The text field feeds [ChatCubit.composerChanged] so the cubit stays the
-/// single source of truth for the composer value; the controller here is a
-/// thin local mirror that re-syncs whenever the cubit clears the text
-/// post-send.
-///
-/// [onVoiceRecordingComplete] is called when the user finishes recording a
-/// voice note. The callback receives the raw audio bytes, MIME type, and
-/// duration so the caller (ChatScreen) can delegate to the cubit.
+/// Text + attachment input pinned to chat bottom. Matches Figma (56535:6659 / 56546:2382):
+/// leading attach, rounded field, voice affordance (hidden B-04), send pill.
+/// Text field feeds ChatCubit.composerChanged; controller is local mirror re-synced post-send.
 class ChatComposer extends StatefulWidget {
   const ChatComposer({
     super.key,
@@ -31,27 +19,18 @@ class ChatComposer extends StatefulWidget {
     this.sendIdentifier = 'chat_detail_send_button',
   });
 
-  /// Optional composer hint override. The Jeeber (delivery-man) variant passes
-  /// `chatComposerHintPriceTime` ("Price / time"); the client variant leaves
-  /// this null so the default `chatComposerHint` ("Type a message") shows.
+  /// Optional composer hint override. Jeeber variant passes `chatComposerHintPriceTime`.
   final String? hintText;
 
-  /// Reserved seam for voice notes: called with (audioBytes, mimeType,
-  /// durationMs) once real capture lands. B-04: the mic affordance is currently
-  /// hidden (its press-to-record gesture, ChatComposerVoiceControl, was never
-  /// built), so this callback is not yet invoked — kept so callers
-  /// (ChatCubit.sendVoiceNote wiring) survive and re-enabling is a one-liner.
+  /// Voice notes seam (reserved, not yet invoked; B-04: mic hidden, ChatComposerVoiceControl never built).
   final void Function(List<int>, String, int)? onVoiceRecordingComplete;
 
-  /// Semantics identifier for the text field. Defaults to the legacy
-  /// `chat_detail_message_input` (the 1:1 active-delivery chat); the order-chat
-  /// (client compose) surface overrides it to `order_chat_composer_input`
-  /// (JM-025, 63_W1_TEST_PLAN §2.5) so the W1 flow can drive the field.
+  /// Semantics identifier for text field. Defaults to `chat_detail_message_input`
+  /// (active-delivery chat); order-chat overrides to `order_chat_composer_input` (JM-025).
   final String inputIdentifier;
 
-  /// Semantics identifier for the send button. Defaults to the legacy
-  /// `chat_detail_send_button`; the order-chat surface overrides it to
-  /// `order_chat_composer_send` (JM-025) — the first send broadcasts.
+  /// Semantics identifier for send button. Defaults to `chat_detail_send_button`;
+  /// order-chat overrides to `order_chat_composer_send` (JM-025, first send broadcasts).
   final String sendIdentifier;
 
   static const Key textFieldKey = Key('chat-composer-text-field');
@@ -82,13 +61,8 @@ class _ChatComposerState extends State<ChatComposer> {
   Future<void> _openAttachmentSheet() async {
     final l10n = AppLocalizations.of(context);
     // P5 (b01-20260725): OMDS's static `OmdsMediaPickerSheet.show()` DROPS
-    // `photoIcon` / `videoIcon` / `subtitle` (they exist on the widget's
-    // constructor but the helper never forwards them), so the GALLERY row
-    // rendered a CAMCORDER glyph (`Icons.videocam`) above an untranslated
-    // English subtitle. Mount the SAME OMDS component directly to pass them —
-    // still an OMDS component, no OMDS release needed. `'video'` is OMDS's slot
-    // name for the SECOND option; here that slot IS the gallery row, not a
-    // video recorder.
+    // `photoIcon` / `videoIcon` / `subtitle` (they exist on constructor but helper never forwards them).
+    // Mount OMDS component directly to pass them. `'video'` is OMDS's slot for gallery row, not recorder.
     final choice = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -144,8 +118,8 @@ class _ChatComposerState extends State<ChatComposer> {
   }
 }
 
-/// The composer surface: hairline top border, attach + field + send row (the
-/// mic affordance is hidden until real voice-note capture lands — B-04).
+/// Composer surface: hairline top border, attach + field + send row.
+/// B-04: mic affordance hidden until real voice-note capture lands.
 class _ComposerBar extends StatelessWidget {
   const _ComposerBar({
     required this.controller,
@@ -201,13 +175,9 @@ class _ComposerBar extends StatelessWidget {
                   inputIdentifier: inputIdentifier,
                 ),
               ),
-              // B-04: the mic affordance is intentionally NOT rendered. The
-              // press-to-record gesture it needed (ChatComposerVoiceControl,
-              // T-MOB-016) was never built, so the button was a permanent
-              // no-op on the highest-traffic coordination surface. It is
-              // hidden until real voice-note capture lands (the send path,
-              // ChatCubit.sendVoiceNote, and the onVoiceRecordingComplete seam
-              // remain so re-enabling is a one-line render).
+              // B-04: mic affordance NOT rendered. press-to-record (ChatComposerVoiceControl, T-MOB-016)
+              // was never built, so button was permanent no-op on highest-traffic surface. Hidden until real
+              // voice-note capture lands (send path, ChatCubit.sendVoiceNote, onVoiceRecordingComplete seam remain).
               _SendButton(onSend: onSend, sendIdentifier: sendIdentifier),
             ],
           ),
@@ -217,7 +187,7 @@ class _ComposerBar extends StatelessWidget {
   }
 }
 
-/// Leading attach (+) affordance; shows a spinner while a pick is in flight.
+/// Leading attach (+) affordance; shows spinner while pick in flight.
 class _AttachButton extends StatelessWidget {
   const _AttachButton({required this.onAttach});
 
@@ -286,7 +256,7 @@ class _ComposerField extends StatelessWidget {
   }
 }
 
-/// Navy circular send pill; enabled only when the composer text is non-empty.
+/// Navy circular send pill; enabled only when composer text non-empty.
 class _SendButton extends StatelessWidget {
   const _SendButton({required this.onSend, required this.sendIdentifier});
 

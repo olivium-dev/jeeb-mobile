@@ -6,17 +6,11 @@ import '../../../../l10n/app_localizations.dart';
 import '../../application/dm_onboarding_cubit.dart';
 import '../../application/dm_onboarding_state.dart';
 
-/// Thin, fully-rounded wizard progress bar pinned under the app bar across all
-/// onboarding steps (Figma 56591:5325 / 56591:5445). The fill is proportional
-/// to the current step; a localized "Step n of N" value is exposed to screen
-/// readers without rendering visible text (matching Figma).
 class DmOnboardingProgressHeader extends StatelessWidget {
   const DmOnboardingProgressHeader({super.key});
 
   static const Key rootKey = Key('dm-onboarding-progress');
 
-  /// Thin wizard bar; `Spacing.small` (12dp) is the nearest token to the Figma
-  /// 12px bar — no raw literal (RAIL 1).
   static const double barHeight = Spacing.small;
 
   @override

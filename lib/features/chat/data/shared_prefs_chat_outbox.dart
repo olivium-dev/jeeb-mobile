@@ -5,10 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../domain/chat_message.dart';
 import '../domain/chat_outbox.dart';
 
-/// [ChatOutbox] backed by a single SharedPreferences key holding a JSON
-/// array. Good enough for the MVP volume target (per-user low double-digit
-/// pending messages); migrate to sqflite if we ever need to support
-/// thousands of messages.
 class SharedPrefsChatOutbox extends ChatOutbox {
   SharedPrefsChatOutbox({
     required SharedPreferences prefs,
@@ -20,8 +16,6 @@ class SharedPrefsChatOutbox extends ChatOutbox {
   final SharedPreferences _prefs;
   final String storageKey;
 
-  // In-memory mirror so we don't re-decode JSON on every read. Kept in sync
-  // by every write path below.
   List<ChatMessage>? _cache;
 
   @override
@@ -42,9 +36,6 @@ class SharedPrefsChatOutbox extends ChatOutbox {
       _cache = hydrated;
       return List.unmodifiable(hydrated);
     } catch (_) {
-      // Corrupt store — start fresh rather than crash. The data we'd be
-      // protecting is best-effort offline drafts; treating it as ephemeral
-      // is the right failure mode.
       _cache = <ChatMessage>[];
       await _prefs.remove(storageKey);
       return const [];

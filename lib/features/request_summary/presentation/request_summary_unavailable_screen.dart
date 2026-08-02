@@ -3,9 +3,6 @@ import 'package:omds/omds.dart';
 
 import '../../../l10n/app_localizations.dart';
 
-/// Graceful fallback rendered when `/request-summary` is reached without a
-/// `RequestDraft` (e.g. a cold deep-link). Replaces a raw scaffold that carried
-/// hardcoded English copy, so the AR build no longer leaks English here.
 class RequestSummaryUnavailableScreen extends StatelessWidget {
   const RequestSummaryUnavailableScreen({super.key});
 

@@ -3,14 +3,7 @@ import 'package:omds/omds.dart';
 
 import '../../../../l10n/app_localizations.dart';
 
-/// Read-only notice displayed when the local Jeeber's offer was not accepted.
-///
-/// Shown in the `closed` phase when the conversation phase is resolved as
-/// the Jeeber being the loser. The composer is hidden by [ChatState.isComposerVisible]
-/// returning false when phase == closed. This banner provides additional
-/// clarity by naming the reason: another Jeeber was picked.
-///
-/// Rendered above the (frozen) message list as a full-width warning strip.
+/// Read-only notice: another Jeeber was picked (closed phase). Composer hidden by isComposerVisible=false.
 class JeeberRemovedBanner extends StatelessWidget {
   const JeeberRemovedBanner({super.key});
 

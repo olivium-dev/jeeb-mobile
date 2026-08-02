@@ -1,15 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// First-strong-character bidi direction detection.
-///
-/// WhatsApp lays a single conversation out so the bubble alignment is
-/// stable (sender right, receiver left) regardless of the user's UI
-/// language, but the **text inside each bubble** reads in its own script's
-/// natural direction. Flutter's [Text] widget inherits direction from
-/// [Directionality.of] — it does not look at the content — so we need this
-/// helper to pick a per-message direction from the first strong-directional
-/// character. Mirrors the Unicode Bidi Algorithm (UAX #9) "first strong"
-/// rule.
+/// First-strong-character bidi direction detection (UAX #9).
+/// Text reads in its own script's natural direction, not the UI language.
+/// Flutter [Text] inherits direction from [Directionality.of], so we detect
+/// from the first strong-directional character per message.
 class AutoDirectionText extends StatelessWidget {
   const AutoDirectionText(
     this.data, {
@@ -22,11 +16,10 @@ class AutoDirectionText extends StatelessWidget {
   final String data;
   final TextStyle? style;
 
-  /// P3: optional line clamp for the pinned-strip description row. Null (the
-  /// default, and every pre-existing call site) = unclamped, unchanged.
+  /// Optional line clamp; null = unclamped (default for all call sites).
   final int? maxLines;
 
-  /// P3: optional overflow behaviour, paired with [maxLines]. Null = unchanged.
+  /// Optional overflow; paired with [maxLines].
   final TextOverflow? overflow;
 
   @override
@@ -44,10 +37,7 @@ class AutoDirectionText extends StatelessWidget {
     );
   }
 
-  /// Returns the direction of the first strong-directional character in
-  /// [text], or null if the text contains no strong characters (digits,
-  /// punctuation, emoji only). Caller falls back to the ambient direction
-  /// in the null case.
+  /// Direction of first strong char, or null if only neutral (digits, emoji, punctuation).
   static TextDirection? _detectDirection(String text) {
     for (final rune in text.runes) {
       if (_isStrongRtl(rune)) return TextDirection.rtl;
@@ -56,11 +46,8 @@ class AutoDirectionText extends StatelessWidget {
     return null;
   }
 
+  /// Hebrew, Arabic, Syriac, Thaana, NKo, Mandaic, etc (Jeeb primarily uses Arabic).
   static bool _isStrongRtl(int r) {
-    // Hebrew, Arabic, Arabic Supplement, Syriac, Thaana, NKo, Samaritan,
-    // Mandaic, Arabic Extended-A, Hebrew presentation forms, Arabic
-    // presentation forms A and B. Covers all the scripts the Jeeb client
-    // base actually uses (primarily Arabic) plus the major neighbours.
     return (r >= 0x0590 && r <= 0x05FF) ||
         (r >= 0x0600 && r <= 0x06FF) ||
         (r >= 0x0700 && r <= 0x074F) ||
@@ -75,11 +62,9 @@ class AutoDirectionText extends StatelessWidget {
         (r >= 0xFE70 && r <= 0xFEFF);
   }
 
+  /// Basic Latin, Latin-1, Latin Extended, Cyrillic, Greek.
+  /// Anything else not covered here or in _isStrongRtl is neutral.
   static bool _isStrongLtr(int r) {
-    // Basic Latin letters, Latin-1 letters, Latin Extended A/B, plus
-    // common Cyrillic/Greek ranges. We intentionally treat anything not
-    // covered here (or by [_isStrongRtl]) as direction-neutral so digits
-    // and punctuation don't pin the paragraph direction.
     return (r >= 0x0041 && r <= 0x005A) ||
         (r >= 0x0061 && r <= 0x007A) ||
         (r >= 0x00C0 && r <= 0x024F) ||

@@ -5,11 +5,6 @@ import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/settlement_statement.dart';
 
-/// Settlement statement detail screen (T-MOB-032 AC2).
-///
-/// Shows per-delivery breakdown for a single weekly statement.
-/// Route: /jeeber/settlement/:id
-// ORPHAN (JEBV4-227, verified 2026-07-12): dead chain from orphaned SettlementScreen — see docs/project-understanding/reconciliation/orphans.md
 class SettlementDetailScreen extends StatelessWidget {
   const SettlementDetailScreen({
     super.key,
@@ -77,7 +72,6 @@ class _SummaryCard extends StatelessWidget {
                     vertical: Spacing.twoXSmall,
                   ),
                   decoration: BoxDecoration(
-                    // paid = success, pending = warning (semantic roles).
                     color: isPaid
                         ? context.jeebRoles.successContainer
                         : context.jeebRoles.warningContainer,

@@ -5,9 +5,6 @@ import 'package:omds/omds.dart';
 
 import '../obs_overlay_controller.dart';
 
-/// Session lifecycle controls: a Recording on/off switch plus a Clear
-/// action for the live (in-memory only — see `ObsOverlayController.clear`)
-/// list.
 class ObsOverlayControlBar extends StatelessWidget {
   const ObsOverlayControlBar({super.key, required this.controller});
 

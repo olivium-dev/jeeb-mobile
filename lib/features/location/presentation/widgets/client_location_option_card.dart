@@ -3,13 +3,6 @@ import 'package:omds/omds.dart';
 
 import '../../../request_type/presentation/selectable_radio_glyph.dart';
 
-/// Selectable location option card on the Client Location screen
-/// (Figma 56539:1444).
-///
-/// Selected: navy fill (`colorScheme.primary`), white label, filled radio.
-/// Unselected: white surface, navy outline + navy label, empty radio. The
-/// whole card is one tap target with merged radio semantics. The radio glyph
-/// is the shared [SelectableRadioGlyph] (no OMDS radio primitive exists).
 class ClientLocationOptionCard extends StatelessWidget {
   const ClientLocationOptionCard({
     super.key,

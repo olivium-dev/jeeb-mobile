@@ -4,16 +4,6 @@ import 'package:omds/omds.dart';
 import '../../domain/reviews_repository.dart';
 import '../reviews_l10n.dart';
 
-/// One review row in the all-reviews list (JM-068). Reuses [OmdsReviewCard] for
-/// the avatar + stars + body (reuse-table.md Ratings/Feedback), but with
-/// `showActions: false` so NO Helpful/Reply controls render (D57 — reviews are
-/// immutable). The D27 report affordance is a DISTINCT trailing node
-/// (`review_<id>_report_cta`) so QA/Maestro can assert + tap it by id, and a
-/// `review_<id>_reviewer_name` node carries the first-name-only attribution
-/// (D58) for the flow assertion.
-///
-/// A dumb widget (40_GUARDRAILS_ARCH §1): data in via constructor, the report
-/// event out via [onReport] — it never reaches into `sl`/`context.go`.
 class ReviewRow extends StatelessWidget {
   const ReviewRow({
     super.key,
@@ -25,22 +15,18 @@ class ReviewRow extends StatelessWidget {
   final ReviewItem review;
   final ReviewsL10n copy;
 
-  /// Fired when the per-row `review_<id>_report_cta` is tapped (D27). The screen
-  /// owns the confirm dialog + cubit call.
   final VoidCallback onReport;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Semantics(
-      // Per-row container so a flow can scope assertions to one review.
       identifier: 'review_${review.id}',
       container: true,
       explicitChildNodes: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // First-name-only attribution (D58) — its own asserted node.
           Padding(
             padding: const EdgeInsetsDirectional.only(
               start: Spacing.medium,
@@ -59,14 +45,10 @@ class ReviewRow extends StatelessWidget {
             ),
           ),
           OmdsReviewCard(
-            // The card also renders the name internally; we pass it for the
-            // avatar initial + visual parity, but the asserted name node above
-            // is the i18n-safe attribution target. First name ONLY (D58).
             userName: review.reviewerFirstName,
             rating: review.score,
             reviewText: review.body ?? '',
             timeAgo: copy.relativeTime(review.timestamp),
-            // D57: NO Helpful/Reply controls on an immutable review.
             showActions: false,
             starColor: theme.colorScheme.primary,
           ),

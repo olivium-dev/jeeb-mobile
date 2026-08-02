@@ -4,26 +4,6 @@ import 'package:omds/omds.dart';
 
 import '../../../l10n/app_localizations.dart';
 
-/// wallet-charge-info (JM-054). Static, NO-payment instructional screen
-/// (D92/D93): the Jeeber charges the wallet at an authorized store, gives a
-/// phone number / ID, pays cash, the balance auto-updates, and the 10% platform
-/// fee per accepted offer comes from that pre-charged balance — there is NO
-/// in-app payment, NO card input, NO amount field, NO store directory. The
-/// three forbidden affordances (`charge_info_card_input`,
-/// `charge_info_amount_field`, `charge_info_store_directory`) are intentionally
-/// absent and `assertNotVisible` in the JM-054 Maestro flow; do NOT add any
-/// payment/amount widget here.
-///
-/// This screen makes NO network call (JM-054 AC: "No network call. Mock: —").
-///
-/// It is the honest target of every "+ Top up" CTA across the app: wallet-hub
-/// `wallet_topup_cta` (JM-053), onboarding-funding `funding_topup_cta` (JM-041),
-/// kyc-pending `kyc_status_topup_cta` (JM-042), insufficient-balance
-/// `insufficient_topup_cta` (JM-046). When reached standalone the back CTA
-/// returns to wallet-hub; when pushed from one of those callers it pops back to
-/// the caller (canPop) — the JM-054 flow asserts back → `wallet_available_balance`.
-///
-/// Identifier contract: 65_W2_TEST_PLAN §2/§4 JM-054. Every id below is exact.
 class WalletChargeInfoScreen extends StatelessWidget {
   const WalletChargeInfoScreen({super.key});
 
@@ -38,10 +18,6 @@ class WalletChargeInfoScreen extends StatelessWidget {
         appBar: OMDSAppBar(
           title: l10n.chargeInfoTitle,
           showBackButton: true,
-          // Mirror the body `charge_info_back_cta` destination contract: pop to
-          // the caller when pushed (+Top up flows), else go to wallet-hub when
-          // launched standalone. Never pop the last page (empty Navigator →
-          // black surface).
           onBackPressed: () => context.canPop()
               ? context.pop()
               : context.goNamed('wallet'),
@@ -54,7 +30,6 @@ class WalletChargeInfoScreen extends StatelessWidget {
             Spacing.xLarge,
           ),
           children: [
-            // Numbered, ordered instruction steps (D92/D93 charge-at-store flow).
             _Step(
               index: 1,
               id: 'charge_info_store_step',
@@ -74,7 +49,6 @@ class WalletChargeInfoScreen extends StatelessWidget {
             ),
             const SizedBox(height: Spacing.xLarge),
 
-            // Note 1 — balance auto-updates, no in-app payment (D92/D93).
             _Note(
               id: 'charge_info_auto_update_note',
               icon: Icons.sync_outlined,
@@ -82,8 +56,6 @@ class WalletChargeInfoScreen extends StatelessWidget {
             ),
             const SizedBox(height: Spacing.small),
 
-            // Note 2 — 10% platform fee comes from the pre-charged balance
-            // (D1 reserve-per-offer / D41 fee-only economics).
             _Note(
               id: 'charge_info_fee_note',
               icon: Icons.percent_outlined,
@@ -91,10 +63,6 @@ class WalletChargeInfoScreen extends StatelessWidget {
             ),
             const SizedBox(height: Spacing.twoXLarge),
 
-            // EDGE: wallet-charge-info → wallet-hub (21_NAV_PLAN §C JM-054).
-            // Standalone launch has nothing to pop → goNamed('wallet'); when
-            // pushed by a +Top up caller (funding/kyc-pending/insufficient) it
-            // pops back to that caller.
             Semantics(
               identifier: 'charge_info_back_cta',
               button: true,
@@ -113,7 +81,6 @@ class WalletChargeInfoScreen extends StatelessWidget {
   }
 }
 
-/// A single ordered instruction step: a numbered badge + the step copy.
 class _Step extends StatelessWidget {
   const _Step({required this.index, required this.id, required this.text});
 
@@ -131,7 +98,6 @@ class _Step extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Numbered badge.
           Container(
             width: Sizes.xLarge,
             height: Sizes.xLarge,
@@ -161,7 +127,6 @@ class _Step extends StatelessWidget {
   }
 }
 
-/// An informational note row (auto-update / fee), icon + supporting copy.
 class _Note extends StatelessWidget {
   const _Note({required this.id, required this.icon, required this.text});
 

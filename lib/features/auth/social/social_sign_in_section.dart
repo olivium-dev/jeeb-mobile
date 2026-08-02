@@ -10,21 +10,9 @@ import 'social_collision_sheet.dart';
 import 'social_provider.dart';
 import 'social_sign_in_button.dart';
 
-/// Renders the social sign-in row at the top of the registration screen:
-/// [Apple button (iOS-only)] [Google button].
-///
-/// The "— or —" divider is owned by the registration screen layout
-/// (`_PhoneEntryBody._OrDivider`, keyed `registration.orDivider`), NOT here —
-/// rendering one in each place produced the duplicate divider QA flagged (D4).
-///
-/// Reads the [SocialAuthCubit] from the surrounding context. Surfaces
-/// errors as a snackbar; lets the caller decide what to do on success
-/// via [onAuthenticated].
 class SocialSignInSection extends StatelessWidget {
   const SocialSignInSection({super.key, this.onAuthenticated});
 
-  /// Invoked once the cubit reaches [SocialAuthStatus.authenticated]. The
-  /// session is already persisted by the time this fires.
   final ValueChanged<SocialAuthState>? onAuthenticated;
 
   @override
@@ -36,20 +24,12 @@ class SocialSignInSection extends StatelessWidget {
       listener: (context, state) async {
         if (state.status == SocialAuthStatus.failed && state.error != null) {
           final message = _errorCopy(state.error!, l10n);
-          // EXEMPT(omds-snackbar): OMDS ships `showOmdsErrorSnackbar` for
-          // display but does not expose a hide-current helper. We dedupe
-          // back-to-back failures here before delegating to OMDS for the
-          // actual presentation. Tracked under JEEB-58.
+          // EXEMPT: OMDS shows error but no hide-current helper; dedupe back-to-back.
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
           showOmdsErrorSnackbar(context, message: message);
           context.read<SocialAuthCubit>().clearError();
         }
         if (state.status == SocialAuthStatus.collision) {
-          // D22 (JM-019): the gateway returned 409 email_collision — the social
-          // email is already registered another way. Block the second method
-          // with an explicit prompt (identity linking is user-management's,
-          // GR-2), then reset so the buttons are tappable and the sheet does
-          // not re-fire on the next rebuild.
           final cubit = context.read<SocialAuthCubit>();
           await showSocialCollisionSheet(context);
           cubit.acknowledgeCollision();
@@ -67,8 +47,6 @@ class SocialSignInSection extends StatelessWidget {
             if (showApple) ...[
               SocialSignInButton(
                 key: const Key('registration.appleSignIn'),
-                // Maestro/JM-018 selector for the shared social button on the
-                // auth entry screen (60_W0_TEST_PLAN §2.1, jm-018-social-login).
                 identifier: 'login_social_apple',
                 provider: SocialProvider.apple,
                 isBusy: state.isBusyFor(SocialProvider.apple),
@@ -79,8 +57,6 @@ class SocialSignInSection extends StatelessWidget {
             ],
             SocialSignInButton(
               key: const Key('registration.googleSignIn'),
-              // Maestro/JM-018 selector for the shared social button on the
-              // auth entry screen (60_W0_TEST_PLAN §2.1, jm-018-social-login).
               identifier: 'login_social_google',
               provider: SocialProvider.google,
               isBusy: state.isBusyFor(SocialProvider.google),

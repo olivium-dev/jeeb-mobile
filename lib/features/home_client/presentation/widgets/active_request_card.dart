@@ -5,15 +5,6 @@ import '../../../../core/theme/jeeb_tier_colors.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/client_home_request.dart';
 
-/// Active delivery card matching the Figma design (node 56611:18887).
-///
-/// Layout: avatar | (title + tier badge, destination, progress bar,
-/// progress labels, optional "Track my order" CTA). Sits flush in the home
-/// list and is separated from siblings by a hairline [Divider].
-///
-/// The card is composed entirely of OMDS primitives — [OmdsProfileAvatar],
-/// [OmdsPrimaryButton], plus tokenized [LinearProgressIndicator]. No raw
-/// `FilledButton`, no `CircleAvatar`, no hardcoded colors.
 class ActiveOrderCard extends StatelessWidget {
   const ActiveOrderCard({
     super.key,
@@ -25,21 +16,11 @@ class ActiveOrderCard extends StatelessWidget {
   final ClientHomeRequest request;
   final VoidCallback onTap;
 
-  /// Post-accept "Open chat" entry point. When non-null (and the order is
-  /// trackable, i.e. a Jeeber is engaged), the card surfaces an "Open chat"
-  /// CTA that re-opens the accepted order's conversation. Null on surfaces
-  /// without a conversation (and in existing widget tests), where it hides.
   final VoidCallback? onOpenChat;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    // `container: true` + `explicitChildNodes: true` make the card a Semantics
-    // *boundary*. Without it the outer `orders_active_card_<id>` node
-    // auto-merges its descendants and swallows the Track CTA's
-    // `orders_track_order_button_<id>` identifier, so Maestro/screen readers
-    // can't address the Track button. The boundary keeps the card id AND
-    // surfaces the Track-button id as its own queryable node.
     return Semantics(
       identifier: 'orders_active_card_${request.id}',
       container: true,
@@ -175,21 +156,10 @@ class _ActiveOrderBody extends StatelessWidget {
     );
   }
 
-  /// Q-085 (option A, ratified) — the "Track my order" CTA renders on EVERY
-  /// In-Progress card. Even a still-searching order is trackable: opening the
-  /// tracking view shows the pilot straight-line route + locked D18 deadline
-  /// (Q-061), and gracefully handles the "no delivery row yet" 404. Only the
-  /// terminal states — delivered / cancelled — have nothing to track (and are
-  /// filtered out of In Progress upstream anyway; this stays defensive).
   static bool _canTrack(ClientRequestStatus s) =>
       s != ClientRequestStatus.delivered &&
       s != ClientRequestStatus.cancelled;
 
-  /// The "Open chat" re-entry pill is a DISTINCT gate from tracking: it only
-  /// makes sense once a Jeeber is actually engaged (accepted → at pickup → en
-  /// route), because a still-searching / offers-received order has no accepted
-  /// 1:1 conversation to re-open yet. Decoupled from [_canTrack] so widening
-  /// the Track CTA to every card (Q-085) does not surface a phantom chat CTA.
   static bool _hasJeeber(ClientRequestStatus s) =>
       s == ClientRequestStatus.accepted ||
       s == ClientRequestStatus.atPickup ||
@@ -226,9 +196,6 @@ class _ActiveOrderHeader extends StatelessWidget {
   }
 }
 
-/// Tier chip used by every home-tab card (In Progress / Pending / Replies).
-/// Picks its color from [JeebTierColors] so the same theme extension drives
-/// the visual treatment everywhere.
 class ClientHomeTierBadge extends StatelessWidget {
   const ClientHomeTierBadge({super.key, required this.tier});
 
@@ -290,10 +257,6 @@ class _ActiveOrderDestination extends StatelessWidget {
     return Text(
       label,
       style: theme.textTheme.labelSmall?.copyWith(
-        // UX-AUDIT §T3: this label sits on the white `surface`, so it must use
-        // the on-surface muted role (AA-passing 9.35:1), NOT `onSecondaryContainer`
-        // (periwinkle, the ~3.76:1 periwinkle-on-white failure). See
-        // color_role_contrast_test.dart.
         color: theme.colorScheme.onSurfaceVariant,
         letterSpacing: 0.4,
       ),
@@ -306,7 +269,6 @@ class _ActiveOrderDestination extends StatelessWidget {
 class _ActiveOrderProgressBar extends StatelessWidget {
   const _ActiveOrderProgressBar({required this.progressStep});
 
-  /// 0=Ordered, 1=Picked, 2=InTransit, 3=AtDoor/Done.
   final int progressStep;
 
   @override
@@ -318,8 +280,6 @@ class _ActiveOrderProgressBar extends StatelessWidget {
         value: _progressFor(progressStep),
         minHeight: Sizes.twoXSmall,
         backgroundColor: colorScheme.outlineVariant,
-        // Accent PAINT (progress bar), not a container fill — `tertiary` is
-        // the same #D73B00 this bar rendered before the palette fix.
         valueColor: AlwaysStoppedAnimation<Color>(colorScheme.tertiary),
       ),
     );
@@ -360,8 +320,6 @@ class _ProgressStepLabel extends StatelessWidget {
       text,
       style: theme.textTheme.labelSmall?.copyWith(
         fontWeight: FontWeight.w500,
-        // UX-AUDIT §T3: progress labels sit on the white `surface`; use the
-        // on-surface muted role (AA), not periwinkle `onSecondaryContainer`.
         color: theme.colorScheme.onSurfaceVariant,
         letterSpacing: 0.5,
       ),
@@ -369,10 +327,6 @@ class _ProgressStepLabel extends StatelessWidget {
   }
 }
 
-/// End-aligned action row for the accepted/in-progress card: an "Open chat"
-/// re-entry pill (post-accept conversation re-entry — JM-025) alongside the
-/// "Track my order" pill. Either may be absent (null callback) and simply does
-/// not render, so existing surfaces that only pass `onTap` are unchanged.
 class _ActiveOrderActions extends StatelessWidget {
   const _ActiveOrderActions({
     required this.requestId,
@@ -402,12 +356,6 @@ class _ActiveOrderActions extends StatelessWidget {
                 key: Key('active-open-chat-$requestId'),
                 text: AppLocalizations.of(context).orderSummaryOpenChat,
                 onTap: onOpenChat,
-                // UX-AUDIT §T2/T3: `OMDSOutlinedButton` defaults to a navy
-                // `secondaryContainer` fill with periwinkle text (the flagged
-                // low-contrast "Open chat" chip on the white card). Bind it to
-                // an explicit tonal pair — navy ink on the light surface
-                // container (14:1) — so it reads as a clear secondary action
-                // beside the primary Track pill. Both are ColorScheme roles.
                 backgroundColor: theme.colorScheme.surfaceContainerHigh,
                 textColor: theme.colorScheme.onSurface,
               ),
@@ -430,10 +378,6 @@ class _TrackOrderButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Content-hugging trailing pill. `OmdsPrimaryButton` expands to fill bounded
-    // width, so `IntrinsicWidth` feeds it a tight content-width constraint —
-    // otherwise the Track CTA renders full-width instead of a trailing pill.
-    // Alignment + top padding are owned by the parent [_ActiveOrderActions] row.
     return IntrinsicWidth(
       child: Semantics(
         identifier: 'orders_track_order_button_$requestId',

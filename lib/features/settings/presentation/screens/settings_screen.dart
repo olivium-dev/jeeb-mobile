@@ -20,21 +20,6 @@ import '../../domain/account_service.dart';
 import '../../domain/profile_repository.dart';
 import '../widgets/logout_delete_confirm_sheet.dart';
 
-/// Settings screen (T-mobile-031).
-///
-/// Sections:
-///   - Profile — name + avatar editor entry
-///   - Language — EN / AR selector (drives the global [LocaleCubit])
-///   - Notifications — switch-row toggles per category
-///   - About — app name + version row
-///   - Account — delete-account (destructive) + sign-out
-///
-/// Theme follows system: the `MaterialApp.themeMode` is fixed to
-/// [ThemeMode.system] at app root, so this screen has no theme switcher.
-///
-/// Talks to a single [SettingsCubit] hosted at the route. Hosting it here
-/// keeps the dependency on the persistence + account-service seams scoped
-/// to the route and out of the global widget tree.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
     super.key,
@@ -42,14 +27,8 @@ class SettingsScreen extends StatelessWidget {
     this.appVersion = '1.0.0',
   });
 
-  /// Optional injected cubit. Production callers can omit this and let the
-  /// screen build a no-op default; widget tests pass in a pre-wired cubit
-  /// so they don't have to plumb SharedPreferences.
   final SettingsCubit? cubit;
 
-  /// Human-readable app version surfaced in the About section. Defaults to
-  /// the pubspec value; production wiring should pass the build-time
-  /// resolved string.
   final String appVersion;
 
   @override
@@ -58,17 +37,10 @@ class SettingsScreen extends StatelessWidget {
     if (cubit != null) {
       return BlocProvider<SettingsCubit>.value(value: cubit!, child: view);
     }
-    // Production wiring (Sprint 2 Stream F): resolve the real persistence +
-    // account seams from DI instead of self-constructing in-memory fakes. The
-    // fakes now live under test/ and are injected via the [cubit] seam above.
     return BlocProvider<SettingsCubit>(
       create: (_) => SettingsCubit(
         profileRepository: sl<ProfileRepository>(),
         accountService: sl<AccountService>(),
-        // Profile-name lane: mirror a saved name to the gateway
-        // (`PUT /api/User/profile` `{username}`) and broadcast the change so
-        // live greeting surfaces re-pull getMe. Both resolve off the shared DI
-        // graph; a bare test host (no Dio) degrades to local-only saves.
         displayNameRepository: _resolveDisplayNameRepository(),
         refreshSignals: _resolveProfileRefreshSignals(),
       )..load(),
@@ -111,21 +83,11 @@ class _SettingsView extends StatelessWidget {
           appBar: OMDSAppBar(
             title: l10n.settingsTitle,
             showBackButton: true,
-            // The `/settings` route has no current forward-nav entry point
-            // (ORPHAN, JEBV4-227) — it is only reached directly (e.g. deep
-            // link), which can leave an empty Navigator stack. Pop when we
-            // can (pushed entry), else return to the shell — never pop the
-            // last page (which would leave an empty Navigator → black
-            // surface).
             onBackPressed: () =>
                 context.canPop() ? context.pop() : context.go('/'),
           ),
           body: ListView(
             key: const Key('settings-screen-list'),
-            // Preserve the horizontal gutter AND reserve the system nav-bar
-            // inset so the final Account row clears the soft buttons in
-            // edge-to-edge mode (this is a pushed full-screen route with no
-            // bottom nav bar). See [BottomInsetX.scrollBodyBottomInset].
             padding: EdgeInsets.only(
               left: Spacing.medium,
               right: Spacing.medium,
@@ -136,11 +98,6 @@ class _SettingsView extends StatelessWidget {
               _AddressesSection(),
               _LanguageSection(),
               _NotificationsSection(state: state),
-              // JEBV4-204 (E9 / Q-037 / ADR-004): the in-app role SWITCH was
-              // removed. The additive 5-tab shell surfaces both the client and
-              // jeeber bodies, and KYC approval auto-activates the jeeber role
-              // (JeeberRoleActivator, JEBV4-271) — so a manual role toggle here
-              // is redundant.
               _AboutSection(appVersion: appVersion),
               _AccountSection(state: state),
             ],
@@ -388,10 +345,7 @@ class _AboutSection extends StatelessWidget {
           leadingIcon: Icons.info_outline,
           icon: Icons.info_outline,
         ),
-        // Dev-only diagnostics export entry (diag-persistence lane). Gated on
         // Diag.enabled (kDebugMode || JEEB_DIAG dart-define) so it NEVER
-        // renders in release. Literal English strings by design — a dev tool
-        // that never ships, deliberately kept out of the ARB catalogs.
         if (Diag.enabled)
           Semantics(
             identifier: 'settings_open_diagnostics',
@@ -410,19 +364,6 @@ class _AboutSection extends StatelessWidget {
   }
 }
 
-/// Account section — the JM-062 `logout-delete-account` host.
-///
-/// The Delete-account + Sign-out rows each open the [LogoutDeleteConfirmSheet]
-/// (the blueprint `logout-delete-account` confirm surface), whose
-/// `logout_confirm_cta` / `delete_confirm_cta` clear the local session and route
-/// to splash (`/` → first-run gate → `/login`, D5). This is also the screen the
-/// `account-status` (JM-066) `account_status_signout_cta` routes to (`/settings`),
-/// so a suspended/locked user reaches sign-out without a dead end.
-///
-/// Semantics: the section root is tagged `logout_delete_account_root` so the
-/// surface is addressable; the confirm CTAs live inside the sheet (the dialog
-/// path was retired — `OmdsConfirmationDialog` cannot carry the EXACT confirm-CTA
-/// identifiers the JM-062 AC requires).
 class _AccountSection extends StatelessWidget {
   const _AccountSection({required this.state});
 
@@ -476,8 +417,6 @@ class _AccountSection extends StatelessWidget {
     );
   }
 
-  /// Opens the delete-account confirm sheet (`delete_confirm_cta`). On confirm
-  /// the sheet clears the session and routes to splash (D5).
   Future<void> _confirmDeleteAccount(BuildContext context) async {
     await LogoutDeleteConfirmSheet.show(
       context,
@@ -485,8 +424,6 @@ class _AccountSection extends StatelessWidget {
     );
   }
 
-  /// Opens the sign-out confirm sheet (`logout_confirm_cta`). On confirm the
-  /// sheet clears the session and routes to splash (D5).
   Future<void> _confirmSignOut(BuildContext context) async {
     await LogoutDeleteConfirmSheet.show(
       context,

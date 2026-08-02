@@ -3,13 +3,8 @@ import 'package:omds/omds.dart';
 
 import '../../../../l10n/app_localizations.dart';
 
-/// Navy line-art illustration (parcel box + clock + location pin) shown on the
-/// delivery confirmation sheets (Figma nodes 56618:2992 / sheet illustration).
-///
-/// Drawn with a [CustomPainter] rather than a bundled raster so it stays crisp
-/// at any density, recolours automatically for dark mode via the theme stroke
-/// colour, and needs no asset-export step or remote hotlink. The stroke colour
-/// is the brand navy (`colorScheme.secondaryContainer`); width is a UI token.
+/// Navy line-art illustration (parcel + clock + pin). CustomPainter stays crisp at any density,
+/// recolours for dark mode via theme stroke, no asset-export or hotlink.
 class DeliveryConfirmIllustration extends StatelessWidget {
   const DeliveryConfirmIllustration({super.key});
 
@@ -35,8 +30,7 @@ class DeliveryConfirmIllustration extends StatelessWidget {
   }
 }
 
-/// Paints the parcel/clock/pin line-art inside the given canvas, scaling its
-/// reference geometry to fill the available size.
+/// Paints the parcel/clock/pin line-art inside the given canvas, scaling its reference geometry.
 class _ParcelClockPinPainter extends CustomPainter {
   _ParcelClockPinPainter({required this.stroke});
 

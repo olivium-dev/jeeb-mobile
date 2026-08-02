@@ -4,59 +4,19 @@ import '../../../core/network/mock_gateway_client.dart';
 import '../domain/order_summary.dart';
 import '../domain/order_summary_repository.dart';
 
-/// Dio-backed [OrderSummaryRepository] (JM-031).
-///
-/// Speaks the gateway-contract paths; `MockGatewayClient`'s rewrite interceptor
-/// maps the `/v1/...` prefix to the `:4010` service prefix
-/// (`/v1/delivery` → `/delivery-service/v1/delivery`,
-///  `/v1/requests` → `/delivery-service/v1/requests`,
-///  `/v1/offers`   → `/offer-service/v1/offers`,
-///  `/users`       → `/user-management/users`). Never hardcodes a host/prefix.
-///
-/// Hard dependency: `GET /v1/deliveries/:deliveryId` (price, tier, jeeber name,
-/// item summary, requestId). Best-effort enrichment (each swallowed on
-/// failure so the widget still renders the core fields):
-///   * `GET /v1/requests/:requestId`        → conversationId + item-summary/ETA fallback
-///   * `GET /v1/offers?requestId=<id>`      → accepted-offer ETA (delivery row omits it)
-///   * `GET /users/:jeeberId`               → jeeber rating + count (D6) + avatar
-///
-/// BUG-8 (sprint-008 run-7): the standalone order-summary detail (reached from
-/// the delivery-detail hub / chat "view summary" on the customer Core Flow) read
-/// the SINGULAR `GET /v1/delivery/{id}` as its HARD dependency, which the live
-/// origin gateway (`:10090`) answers with 404 — aborting the whole summary. The
-/// materialized aggregate is served ONLY at the PLURAL `GET /v1/deliveries/{id}`
-/// (Contract 8c), the same route the tracking/jeeber sides already read with
-/// 200. This repo now uses that plural route on the origin gateway (base-aware
-/// pattern reused verbatim from `DioActiveDeliveryRepository`, T-MOB-031); the
-/// legacy `:4010` Express mock keeps the singular `/v1/delivery/{id}` alias.
-///
-/// Defensive parsing throughout: accepts snake_case + camelCase, tolerates the
-/// `{ value, minorUnits, currency }` money object the journey seed emits as
-/// well as a bare number, null-coalesces every field, and normalises `''`→null
 /// so a malformed body degrades a field gracefully instead of crashing.
 class DioOrderSummaryRepository implements OrderSummaryRepository {
-  /// [originGateway] selects the wire shape. When `true` (the device/real
-  /// default) the read speaks the FROZEN plural `:10090` route
-  /// `GET /v1/deliveries/{id}` (BUG-8 fix); when `false` it speaks the legacy
-  /// `:4010` mock alias `GET /v1/delivery/{id}`. The default mirrors the base
-  /// selection (`!MockGatewayClient.useMockPrefixes`) so the wire shape always
-  /// tracks the base the same Dio is pointed at.
   const DioOrderSummaryRepository(this._dio, {bool? originGateway})
       : originGateway = originGateway ?? !MockGatewayClient.useMockPrefixes;
 
   final Dio _dio;
 
-  /// Whether to read the frozen origin `:10090` plural delivery route
-  /// (`GET /v1/deliveries/{id}`) instead of the legacy `:4010` mock singular
-  /// alias (`GET /v1/delivery/{id}`). See the constructor doc.
   final bool originGateway;
 
   @override
   Future<OrderSummary> fetchSummary(String deliveryId) async {
     final Map<String, dynamic> delivery;
     try {
-      // Origin `:10090` reads the plural `/v1/deliveries/{id}` (Contract 8c);
-      // the `:4010` mock keeps the legacy singular `/v1/delivery/{id}` alias.
       final res = await _dio.get<Map<String, dynamic>>(
         originGateway
             ? '/v1/deliveries/$deliveryId'
@@ -77,7 +37,6 @@ class DioOrderSummaryRepository implements OrderSummaryRepository {
         deliveryId; // mock convention: deliveryId == accepted-request-id.
     final jeeberId = _str(delivery['jeeberId'] ?? delivery['jeeber_id']);
 
-    // Best-effort enrichment — none of these may fail the whole summary.
     final request = await _tryFetch('/v1/requests/$requestId');
     final acceptedEta = await _tryAcceptedOfferEta(requestId);
     final jeeber =
@@ -104,14 +63,6 @@ class DioOrderSummaryRepository implements OrderSummaryRepository {
                 request?['jeeberName'],
           ) ??
           (jeeberId ?? ''),
-      // WIRE KEY: `tierId` FIRST. Both `GET /v1/deliveries/{id}` and
-      // `GET /v1/requests/{id}` answer with the gateway's `DeliveryRequestDto`,
-      // whose member is `TierId` — serialized camelCase, so the wire key is
-      // `tierId`. This line used to read ONLY `tier`, which those two routes
-      // NEVER emit, so the parse always produced '' and the summary's Tier
-      // field rendered blank no matter what the gateway knew. `tier` is kept
-      // as the trailing alias: it is the legacy `:4010` mock's spelling and
-      // the shape `JeebOrdersListController` uses ([JsonPropertyName("tier")]).
       tier: _str(
             delivery['tierId'] ??
                 delivery['tier_id'] ??
@@ -131,8 +82,6 @@ class DioOrderSummaryRepository implements OrderSummaryRepository {
     );
   }
 
-  /// GETs [path] and returns the body map, or null on ANY failure (the caller
-  /// treats every enrichment field as optional). Never throws.
   Future<Map<String, dynamic>?> _tryFetch(String path) async {
     try {
       final res = await _dio.get<Map<String, dynamic>>(path);
@@ -144,8 +93,6 @@ class DioOrderSummaryRepository implements OrderSummaryRepository {
     }
   }
 
-  /// The accepted offer's ETA for [requestId] (the delivery row omits ETA).
-  /// Returns null on any failure or when no accepted offer is present.
   Future<int?> _tryAcceptedOfferEta(String requestId) async {
     try {
       final res = await _dio.get<dynamic>(
@@ -172,17 +119,13 @@ class DioOrderSummaryRepository implements OrderSummaryRepository {
     }
   }
 
-  // --- defensive parsers ----------------------------------------------------
 
-  /// Trim + normalise `''`/whitespace → null.
   static String? _str(Object? raw) {
     if (raw is! String) return raw?.toString();
     final trimmed = raw.trim();
     return trimmed.isEmpty ? null : trimmed;
   }
 
-  /// Pulls a numeric amount from either a bare number or the
-  /// `{ value, minorUnits, currency }` money object the seed emits.
   static double? _money(Object? raw) {
     if (raw is num) return raw.toDouble();
     if (raw is Map) {

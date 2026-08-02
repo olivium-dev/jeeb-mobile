@@ -11,36 +11,12 @@ import '../application/set_password_state.dart';
 import '../data/dio_auth_repository.dart';
 import '../domain/auth_repository.dart';
 
-/// The exit of the set-password screen (JM-061 password-security, D90).
-///   * [inAppSocial] — reached from password-security for a social-only account;
-///                     on success → customer-profile.
-///
-/// The former `recovery` mode (reached from the hidden email/password recovery
-/// funnel) was removed with that funnel (JEBV4-199, Q-044): the only end-user
-/// auth surfaces are phone-OTP + Apple/Google social, so there is no email
-/// recovery flow to land here anymore. This screen now serves ONLY the
-/// authenticated password-security settings path.
 enum SetPasswordMode {
   inAppSocial;
 
-  /// Parses the `?mode=` query param. Always resolves to [inAppSocial] — the
-  /// single surviving mode — regardless of the (now legacy) value (R-F).
   static SetPasswordMode fromQuery(String? value) => SetPasswordMode.inAppSocial;
 }
 
-/// `auth-set-password` (JM-022, JM-061). In-app-social set-password screen
-/// (`?mode=in-app-social`, D90). New + confirm password fields with
-/// strength/mismatch validation and per-field eye toggles.
-///
-/// Data flows through [AuthRepository.setPassword] → `POST /v1/auth/set-password`
-/// (the VERIFIED W-1 FLOOR contract, 42_GUARDRAILS_MOCK). On success it lands on
-/// customer-profile (`customer-profile` route, customer_profile_wallet_chip)
-/// [D90, JM-035].
-///
-/// Reached ONLY from password-security (a social-only account adding a password
-/// from settings). The former recovery entry (email/password recovery funnel)
-/// was removed in JEBV4-199; `email`/`resetToken` stay as optional inputs the
-/// authenticated caller may forward but are not required in-app-social.
 class SetPasswordScreen extends StatelessWidget {
   const SetPasswordScreen({
     super.key,
@@ -51,24 +27,10 @@ class SetPasswordScreen extends StatelessWidget {
   });
 
   final SetPasswordMode mode;
-
-  /// The account email the password is being set for. Carried from the
-  /// recovery verify step (JM-021); empty for the seam capture path.
   final String email;
-
-  /// The recovery reset token (recovery mode). Optional for in-app-social.
   final String? resetToken;
-
-  /// Test seam: overrides the DI-backed cubit construction
-  /// (40_GUARDRAILS_ARCH §5.4).
   final SetPasswordCubit Function()? cubitFactory;
 
-  /// The production [AuthRepository] from DI. Falls back to a freshly
-  /// constructed Dio-backed impl when GetIt is not configured (e.g. the
-  /// integrator's `w0_routes_resolve_test.dart`, which mounts the route table
-  /// without `configureDependencies()`), mirroring `login_screen.dart`'s
-  /// `_resolveAuthRepository()`. The Dio + token store are cheap to construct
-  /// and never touched until a submit fires.
   AuthRepository _resolveAuthRepository() {
     if (sl.isRegistered<AuthRepository>()) return sl<AuthRepository>();
     return DioAuthRepository(resolveGatewayDio(), AuthTokenStore());
@@ -116,12 +78,7 @@ class _SetPasswordViewState extends State<_SetPasswordView> {
         );
   }
 
-  /// Routes off the screen on a successful set-password. Runs only in the
-  /// `listener` (never the builder), gated by the succeeded edge.
   void _onSucceeded(BuildContext context) {
-    // EDGE: set-password (in-app-social) → customer-profile
-    // (60_W0_TEST_PLAN nav matrix, JM-022 → JM-035, D90). This is the only
-    // surviving exit now that the email recovery funnel is gone (JEBV4-199).
     context.goNamed('customer-profile');
   }
 
@@ -150,7 +107,6 @@ class _SetPasswordViewState extends State<_SetPasswordView> {
                   Spacing.xLarge,
                 ),
                 children: [
-                  // New password field + its eye toggle.
                   Semantics(
                     identifier: 'setpw_new_field',
                     textField: true,
@@ -178,7 +134,6 @@ class _SetPasswordViewState extends State<_SetPasswordView> {
                     ),
                   ),
                   const SizedBox(height: Spacing.medium),
-                  // Confirm password field + its eye toggle.
                   Semantics(
                     identifier: 'setpw_confirm_field',
                     textField: true,
@@ -206,9 +161,6 @@ class _SetPasswordViewState extends State<_SetPasswordView> {
                       ),
                     ),
                   ),
-                  // Validation / submit error node. Mismatch or weak password
-                  // (AC3) and any server failure both surface here so QA has a
-                  // single assertable id (60_W0_TEST_PLAN §2.11).
                   if (state.hasError) ...[
                     const SizedBox(height: Spacing.medium),
                     Semantics(
@@ -223,7 +175,6 @@ class _SetPasswordViewState extends State<_SetPasswordView> {
                     ),
                   ],
                   const SizedBox(height: Spacing.xLarge),
-                  // Primary submit CTA.
                   Semantics(
                     identifier: 'setpw_submit_cta',
                     button: true,

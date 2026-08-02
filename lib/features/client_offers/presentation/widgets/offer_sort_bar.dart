@@ -5,14 +5,6 @@ import '../../../../core/accessibility/accessibility.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/client_offers_state.dart';
 
-/// Sort toggle: price (default) ↔ rating. Two OMDS chips so the active
-/// selection reads as "selected" to screen readers via the underlying
-/// FilterChip semantics.
-///
-/// Semantics identifiers (EXACT, 63_W1_TEST_PLAN §2.8 — the AC's
-/// `offer_review_sort_<key>` pattern, `price` coined as the primary key):
-///   - `offer_review_sort_price`
-///   - `offer_review_sort_rating`
 class OfferSortBar extends StatelessWidget {
   const OfferSortBar({
     super.key,

@@ -21,31 +21,10 @@ import '../../../jeeber_request_feed/presentation/pending_offer_row.dart';
 import 'availability_card.dart';
 import 'jeeber_home_greeting.dart';
 
-/// Tab the Jeeber feed view is currently filtered to, matching the three
-/// filter chips in the Figma `deliveryman-requests` flow:
-///
-/// * [requests] — incoming requests (Ignore/Offer cards, screen 24).
-/// * [pendingResponse] — requests the Jeeber offered on, awaiting the client
-///   (italic "Pending" cards, screen 25).
-/// * [replies] — accepted requests with delivery-status actions (screen 26).
 enum JeeberFeedTab { requests, pendingResponse, replies }
 
-/// T-MOB-029: Tier filter for the Requests tab.
-///
-/// * [all] — show all tiers.
-/// * [flash] — Flash-tier requests only.
-/// * [express] — Express-tier requests only.
-/// * [standard] — Standard-tier requests only.
 enum JeeberTierFilter { all, flash, express, standard }
 
-/// State 3 of the Jeeber home: registered, available, and at least one
-/// live request in the feed.
-///
-/// Renders the single greeting title → state-aware availability → compact
-/// active-work disclosure → OMDS search bar → feed tabs/filters →
-/// [JeeberFeedCard] list. The list reads from [RequestFeedCubit] —
-/// the host (the screen) is responsible for providing the cubit through
-/// the widget tree.
 class JeeberFeedTabView extends StatefulWidget {
   const JeeberFeedTabView({
     super.key,
@@ -68,38 +47,18 @@ class JeeberFeedTabView extends StatefulWidget {
     'jeeber-feed-tab-view-offline-banner',
   );
 
-  /// Profile display name for the shared greeting.
   final String? profileName;
 
-  /// Profile avatar URL for the shared greeting header.
   final String? profileAvatarUrl;
 
-  /// Filter chip selected on first render (dev-seam / deep-link entry point).
   final JeeberFeedTab initialTab;
 
-  /// Optional row-tap forward so the host (the screen) can decide whether
-  /// to route into a request-detail page.
   final ValueChanged<DeliveryRequest>? onOpenRequest;
 
-  /// JM-048: optional override for the make-offer routing. When null the view
-  /// routes itself (KYC gate when unapproved → composer when approved) so the
-  /// shell does not need to wire it; tests pass a stub to assert the branch
-  /// without a router. See [_defaultMakeOffer].
   final ValueChanged<DeliveryRequest>? onMakeOffer;
 
-  /// JM-048 AC3: optional cubit backing the Pending-Response sub-tab with the
-  /// jeeber's submitted offers (`GET /offer-service/v1/offers?jeeberId=`). When
-  /// null the Pending tab falls back to the request-feed-derived pending view
-  /// (dev-seam capture / tests), so this widget stays usable without DI.
   final SubmittedOffersCubit? submittedOffersCubit;
 
-  /// PUSH-UI-REACTION: an optional card (the jeeber's "active deliveries"
-  /// banner) rendered as the FIRST, scrolling item of the feed's request list
-  /// (and above its empty state) so a just-won delivery surfaces the instant the
-  /// `offer_accepted` push refetch returns it — even while the jeeber is still
-  /// browsing a non-empty feed. Rides inside the scroll (not as a fixed header)
-  /// so it never overflows the short-viewport feed. Null for callers/tests that
-  /// do not inject one → the feed is unchanged.
   final Widget? leadingBanner;
 
   @override
@@ -108,8 +67,6 @@ class JeeberFeedTabView extends StatefulWidget {
 
 class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
   late JeeberFeedTab _activeTab = widget.initialTab;
-  // Keep the editing session at screen lifetime: local filtering rebuilds the
-  // feed on every keystroke and must not transfer IME state to a new owner.
   late final TextEditingController _searchController;
   late final FocusNode _searchFocusNode;
   JeeberTierFilter _tierFilter = JeeberTierFilter.all;
@@ -120,8 +77,6 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
     super.initState();
     _searchController = TextEditingController();
     _searchFocusNode = FocusNode();
-    // Lazily warm the pending list if the view opens directly on the Pending
-    // tab (deep-link / dev-seam `initialTab`).
     if (_activeTab == JeeberFeedTab.pendingResponse) {
       _loadPendingOffers();
     }
@@ -149,13 +104,6 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
     }
   }
 
-  /// Self-contained make-offer routing (JM-044/048 D38 invariant) used when the
-  /// host does not supply [JeeberFeedTabView.onMakeOffer]: an UNAPPROVED jeeber
-  /// is routed through `offer-kyc-gate`; an APPROVED jeeber goes straight to the
-  /// composer (`jeeber-offer-submission`). Resolves the gate from DI with a
-  /// seam-backed fallback so a harness without the gate registered never throws
-  /// (mirrors `dashboard_tab.dart`). Guarded by `GoRouter.maybeOf` so it is a
-  /// no-op in a router-less widget test.
   void _defaultMakeOffer(BuildContext context, DeliveryRequest request) {
     if (GoRouter.maybeOf(context) == null) return;
     final gate = sl.isRegistered<JeeberKycStatusGate>()
@@ -182,15 +130,6 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
 
   Widget _buildBody(BuildContext context, AvailabilityViewState avState) {
     final isOffline = avState.status.state != AvailabilityState.online;
-    // JEBV4-284: the fixed header stack (greeting + availability card, plus —
-    // once online — the search bar + tab/tier strips) has enough natural
-    // height that once the on-screen keyboard shows (search field focused)
-    // and eats into the viewport, a plain Column + Expanded still overflows:
-    // Expanded floors at zero, but the *non-flexible* header total alone
-    // already exceeds what is left ("BOTTOM OVERFLOWED BY 100 PIXELS" on
-    // SM-S921B, run-26). A CustomScrollView lets the whole body scroll
-    // instead of overflow when squeezed — the same remedy `_NoRequestsScope`
-    // above already applies for its own tall-content overflow (Fix 6(b)).
     final scrollView = CustomScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
@@ -200,9 +139,6 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
             avatarUrl: widget.profileAvatarUrl,
           ),
         ),
-        // §G2/SW-23: the availability control is persistent across dashboard
-        // states — the state-aware row renders here too, so going busy (feed
-        // non-empty) never hides the online/offline switch.
         SliverToBoxAdapter(
           child: AvailabilityCard(
             view: avState,
@@ -210,9 +146,6 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
           ),
         ),
         if (isOffline) SliverToBoxAdapter(child: _OfflineBanner()),
-        // Existing delivery work stays visible without burying the earning
-        // task: ActiveDeliveriesBanner is collapsed to one disclosure row at
-        // rest and expands only on explicit request.
         if (!isOffline && widget.leadingBanner != null)
           SliverToBoxAdapter(child: widget.leadingBanner!),
         if (!isOffline)
@@ -220,9 +153,6 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
         ..._feedSlivers(isOffline),
       ],
     );
-    // Pull-to-refresh owns the whole page (it used to wrap only the inner feed
-    // list). Offline there is no feed cubit contract to refresh, so the plain
-    // scroll view is returned.
     return SafeArea(
       key: JeeberFeedTabView.rootKey,
       child: isOffline
@@ -247,23 +177,12 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
       _TierFilterStrip(active: _tierFilter, onChanged: _onTierChanged),
   ];
 
-  /// The feed body as SLIVERS of the page's own scroll view.
-  ///
-  /// It used to be one `SliverFillRemaining(hasScrollBody: true)` holding a
-  /// nested `ListView`. That nested viewport was only what the header stack
-  /// left over (~209dp on SM-S908B), so its rows were laid out inside a box far
-  /// too small to show them and the outer scroll view — being exactly viewport
-  /// sized — had nothing to scroll, leaving the rows unreachable. Flattening
-  /// the rows into the page's slivers means one scroll surface for everything.
   List<Widget> _feedSlivers(bool isOffline) {
     if (isOffline) {
       return const [
         SliverFillRemaining(hasScrollBody: false, child: _OfflineEmptyBody()),
       ];
     }
-    // JM-048 AC3: the Pending-Response sub-tab is backed by the jeeber's
-    // submitted offers (real data) when a [SubmittedOffersCubit] is supplied;
-    // otherwise it falls back to the request-feed-derived pending view.
     if (_activeTab == JeeberFeedTab.pendingResponse &&
         widget.submittedOffersCubit != null) {
       return [
@@ -271,10 +190,6 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
           hasScrollBody: true,
           child: _PendingOffersList(
             cubit: widget.submittedOffersCubit!,
-            // JM-047 AC4 (RD-2): the pending sub-tab's back edge →
-            // delivery-requests. Tabs are not routes here (the feed lives
-            // inside the shell), so "back" switches the active sub-tab back to
-            // Requests (jeeber-requests-home).
             onBack: () => _onTabChanged(JeeberFeedTab.requests),
           ),
         ),
@@ -305,14 +220,11 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
   }
 }
 
-/// T-MOB-029: Banner shown when Jeeber goes offline (AC3).
 class _OfflineBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Container(
-      // Offline is an attention state (self-inflicted, recoverable), not a
-      // failure -> semantic warning role instead of the error pair.
       color: context.jeebRoles.warningContainer,
       padding: const EdgeInsets.symmetric(
         horizontal: Spacing.medium,
@@ -369,7 +281,6 @@ class _OfflineBannerText extends StatelessWidget {
   }
 }
 
-/// Empty body shown while the Jeeber is offline (feed cleared per AC3).
 class _OfflineEmptyBody extends StatelessWidget {
   const _OfflineEmptyBody();
 
@@ -384,7 +295,6 @@ class _OfflineEmptyBody extends StatelessWidget {
   }
 }
 
-/// T-MOB-029: Tier filter chips — All / Flash / Express / Standard.
 class _TierFilterStrip extends StatelessWidget {
   const _TierFilterStrip({required this.active, required this.onChanged});
 
@@ -488,13 +398,6 @@ class _FeedSearchBar extends StatelessWidget {
   }
 }
 
-/// Feed sub-tab chips — Requests / Pending / Replies.
-///
-/// Built from individual [OmdsChip]s (not the monolithic [OmdsFilterChips])
-/// because JM-048 needs a per-chip Semantics identifier on the Pending chip
-/// (`jeeber_feed_pending_tab`) so the QA flow can tap it, which the bundled
-/// filter-chips widget does not expose. Each chip carries its own id; all three
-/// are queryable (honest), only `jeeber_feed_pending_tab` is contract-required.
 class _FeedTabStrip extends StatelessWidget {
   const _FeedTabStrip({required this.active, required this.onChanged});
 
@@ -559,12 +462,6 @@ class _FeedTabStrip extends StatelessWidget {
   }
 }
 
-/// The request rows as a SLIVER of the page scroll view.
-///
-/// Sliver (not a nested `ListView`) so the rows share the page's single scroll
-/// surface: a tall active-deliveries banner above them pushes them down the
-/// page instead of squeezing them out of a fixed-height inner viewport, and
-/// they stay reachable by scrolling.
 class _FeedRequestSliver extends StatelessWidget {
   const _FeedRequestSliver({
     required this.activeTab,
@@ -623,9 +520,6 @@ class _FeedRequestSliverBody extends StatelessWidget {
       );
     }
     final cubit = context.read<RequestFeedCubit>();
-    // JM-048: the FIRST incoming row exposes the screen-level
-    // `feed_make_offer_cta` so the QA flow taps an unambiguous make-offer CTA
-    // — never an expired card, whose offer affordance is inert.
     final firstIncomingIndex = visible.indexWhere(
       (r) =>
           r.feedStatus == JeeberFeedItemStatus.incoming &&
@@ -641,13 +535,6 @@ class _FeedRequestSliverBody extends StatelessWidget {
           return JeeberFeedCard(
             request: request,
             isExpired: state.expiredIds.contains(request.id),
-            // JM-048: card tap opens detail; the "Offer" button routes through
-            // the KYC gate / composer (D38), distinct from a plain detail open.
-            // POST-ACCEPT ENTRY POINT: an ACCEPTED (Replies-tab) card is the
-            // jeeber's surface for a delivery whose offer the customer
-            // accepted — tapping it opens the order conversation (chat-detail
-            // keyed on the request id == correlationKey, resolved against the
-            // live gateway), NOT the pre-offer make-offer/decline detail.
             onTap: request.feedStatus == JeeberFeedItemStatus.accepted
                 ? () => GoRouter.of(
                     context,
@@ -665,15 +552,10 @@ class _FeedRequestSliverBody extends StatelessWidget {
     );
   }
 
-  /// Filters the cubit's request set by active tab + tier filter + search
-  /// query.
   List<DeliveryRequest> _visibleRequests(List<DeliveryRequest> source) {
     final lowered = query.trim().toLowerCase();
     return source
         .where((r) {
-          // The request status on the feed item is server-owned action
-          // authority. Never expose a stale terminal row as offerable even if
-          // a repository/cubit seam still supplies it during reconciliation.
           if (!r.requestIsOpen) return false;
           if (lowered.isNotEmpty && !_matchesQuery(r, lowered)) return false;
           if (r.feedStatus != _statusForTab(activeTab)) return false;
@@ -689,9 +571,6 @@ class _FeedRequestSliverBody extends StatelessWidget {
     JeeberFeedTab.replies => JeeberFeedItemStatus.accepted,
   };
 
-  /// Returns true when the request matches the selected tier filter (AC2).
-  ///
-  /// Backend tier mapping: flash→Flash, standard→Express, light+bulk→Standard.
   bool _matchesTier(DeliveryRequest r) {
     return switch (tierFilter) {
       JeeberTierFilter.all => true,
@@ -732,18 +611,11 @@ class _EmptyTabState extends StatelessWidget {
   }
 }
 
-/// JM-048 AC3 + JM-047: the Pending-Response sub-tab body, backed by the
-/// jeeber's submitted offers (`GET /offer-service/v1/offers?jeeberId=`). Renders
-/// `pending_offer_<index>` rows with the per-row withdraw control (D15); empty
-/// and loading states reuse the feed's chrome.
 class _PendingOffersList extends StatelessWidget {
   const _PendingOffersList({required this.cubit, this.onBack});
 
   final SubmittedOffersCubit cubit;
 
-  /// JM-047 AC4: invoked by the pending sub-tab's back control to return to the
-  /// Requests sub-tab (delivery-requests). Optional so the widget stays usable
-  /// in a harness that does not supply it.
   final VoidCallback? onBack;
 
   @override
@@ -791,13 +663,6 @@ class _PendingOffersList extends StatelessWidget {
   }
 }
 
-/// JM-047 AC4 (RD-2): the pending sub-tab's back affordance. The feed lives
-/// inside the shell (no app bar of its own), so this leading row carries the
-/// `pending_offers_back` Semantics id — mirroring the standalone
-/// `jeeber-pending-offers` route's back idiom — and returns to the Requests
-/// sub-tab (delivery-requests / jeeber-requests-home). The asserted contract is
-/// the Semantics id, not visible text (i18n-safe, CTO brief §6.6); the back
-/// glyph's tooltip is framework-localized via [BackButton].
 class _PendingOffersBackBar extends StatelessWidget {
   const _PendingOffersBackBar({this.onBack});
 

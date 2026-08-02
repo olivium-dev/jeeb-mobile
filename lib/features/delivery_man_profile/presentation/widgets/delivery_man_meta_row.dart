@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-/// A small icon + text meta row in the delivery-man profile header
-/// (rating summary, location/availability). The leading glyph is brand orange
-/// ([ColorScheme.primary] per design §4); text uses muted secondary text.
+
+
+
 class DeliveryManMetaRow extends StatelessWidget {
   const DeliveryManMetaRow({
     super.key,
@@ -19,12 +19,12 @@ class DeliveryManMetaRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // Identifier-only + `container: true`, mirroring the proven `_NameText`
-    // pattern in delivery_man_profile_header.dart. The previous explicit
-    // `label: text` competed with the text-emitting `_MetaText` child for the
-    // accessible name, which risks folding the identifier away at the native
-    // layer; `_MetaText` already exposes `text` as the readable label, so the
-    // duplicate wrapper label is dropped and the identifier owns its own node.
+    
+    
+    
+    
+    
+    
     return Semantics(
       identifier: semanticsId,
       container: true,

@@ -5,16 +5,16 @@ import 'package:omds/omds.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/submitted_offer.dart';
 
-/// A single submitted-offer row in the feed's Pending-Response sub-tab
-/// (JM-047/048): the price the jeeber quoted + ETA + an "Awaiting customer
-/// decision" status + a Withdraw control (D15).
-///
-/// The QA flow (`jm-048` AC3, `jm-047`) keys off the ROW INDEX, not the offer
-/// id, so the row carries an index-based `pending_offer_<index>` root plus the
-/// `pending_offer_<index>_price` / `_eta` / `_withdraw_cta` children and the
-/// shared `pending_offer_awaiting_label` (65_W2_TEST_PLAN §2 JM-047/048).
-/// `explicitChildNodes` keeps each child queryable as its own native node
-/// rather than folding into the row.
+
+
+
+
+
+
+
+
+
+
 class PendingOfferRow extends StatelessWidget {
   const PendingOfferRow({
     super.key,
@@ -46,9 +46,9 @@ class PendingOfferRow extends StatelessWidget {
           children: [
             _PriceEtaRow(index: index, offer: offer),
             const SizedBox(height: Spacing.twoXSmall),
-            // sprint-009: a terminal offer (accepted / lost) shows an outcome
-            // badge and NO withdraw control; a still-open offer keeps the
-            // "awaiting" label + Withdraw (unchanged contract).
+            
+            
+            
             if (offer.status.isTerminal)
               _StatusBadge(index: index, status: offer.status)
             else ...[
@@ -144,12 +144,12 @@ class _EtaText extends StatelessWidget {
   }
 }
 
-/// sprint-009 offer-lifecycle outcome badge for a TERMINAL offer. Carries the
-/// stable `pending_offer_<index>_status` id so a Maestro flow can assert the
-/// customer's decision. Reuses the closest existing localized strings
-/// (`requestStatusAccepted` / `requestFeedActionDeclinedSnack`) — the asserted
-/// contract is the Semantics id, not the visible text (i18n-safe, integrator
-/// owns the dedicated ARB keys).
+
+
+
+
+
+
 class _StatusBadge extends StatelessWidget {
   const _StatusBadge({required this.index, required this.status});
 
@@ -204,10 +204,10 @@ class _AwaitingLabel extends StatelessWidget {
     return Semantics(
       identifier: 'pending_offer_awaiting_label',
       child: Text(
-        // No dedicated "Awaiting customer decision" key exists yet (JM-047
-        // owns it; ARB is integrator-owned, 50_ROUTE_REQUESTS). Reuse the
-        // closest existing localized string — the asserted contract is the
-        // Semantics id, not the visible text (i18n-safe, CTO brief §6.6).
+        
+        
+        
+        
         AppLocalizations.of(context).jeeberFeedStatusPending,
         style: theme.textTheme.labelMedium?.copyWith(
           color: theme.colorScheme.onSecondaryContainer,
@@ -238,11 +238,11 @@ class _WithdrawAction extends StatelessWidget {
         child: Semantics(
           identifier: 'pending_offer_${index}_withdraw_cta',
           button: true,
-          // OmdsLoadingButton (not OmdsPrimaryButton) so the row shows a busy
-          // spinner while `DELETE /offer-service/v1/offers/:id` is in flight
-          // (the primary button has no loading state). Destructive tint via
-          // textColor=error + a tinted surface keeps it visually an outline
-          // withdraw control without a magic-pixel border (design-tokens rule).
+          
+          
+          
+          
+          
           child: OmdsLoadingButton(
             key: Key('pending-offer-withdraw-$index'),
             text: AppLocalizations.of(context).offerSubmissionWithdrawButton,

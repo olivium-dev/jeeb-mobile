@@ -17,19 +17,6 @@ import 'widgets/confirm_delivery_action_sheet.dart';
 /// #1) so the Figma chat frames can be captured deterministically on the
 /// emulator. Never reachable in release.
 ///
-/// Selectors:
-///   `sending`               → client's just-sent initial request, pre-offers
-///                             (Figma 56535:6469) — single outgoing bubble, no
-///                             offer cards, composer present
-///   `broadcasting`          → client offers feed (Figma 56535:6659)
-///   `accepted` / *          → client accepted thread (Figma 56546:2382)
-///   `dm`                    → delivery-man chat (Figma 56539:906)
-///   `dm-order-picked`       → delivery-man chat, "Order picked" banner
-///                             (Figma 56560:1605)
-///   `dm-confirm-picking`    → delivery-man chat + confirm-picking sheet
-///                             (Figma 56618:2751)
-///   `dm-confirm-heading-off`→ delivery-man chat + heading-off sheet
-///                             (Figma 56618:2852)
 class DevChatPreviewScreen extends StatelessWidget {
   const DevChatPreviewScreen({super.key, required this.selector});
 
@@ -58,17 +45,10 @@ class DevChatPreviewScreen extends StatelessWidget {
   Widget _clientPreview() {
     final sending = selector == 'sending';
     final broadcasting = selector == 'broadcasting';
-    // `sending` and `broadcasting` share the request-feed header (centered
-    // order id, no counterpart avatar) and the broadcasting phase semantics
-    // (composer visible, no counterpart header). `sending` differs only in the
-    // seeded thread: a single outgoing request with no offer cards yet.
     final requestFeed = sending || broadcasting;
     final phase = requestFeed
         ? ConversationPhase.broadcasting
         : ConversationPhase.accepted;
-    // No bundled avatar bitmap (dev-only assets must not ship): the accepted
-    // header falls back to the OMDS initials avatar, captured deterministically
-    // and offline.
     return ChatScreen(
       deliveryId: 'dev-chat',
       counterpartName: requestFeed ? 'ORD-23748' : 'Kamal Hajj',
@@ -78,9 +58,6 @@ class DevChatPreviewScreen extends StatelessWidget {
   }
 }
 
-/// Delivery-man chat preview: fee banner + price/time composer hint, with an
-/// optional confirmation sheet auto-opened for the picking / heading-off
-/// states so they can be captured without a tap.
 class _DeliveryManPreview extends StatefulWidget {
   const _DeliveryManPreview({required this.host});
 
@@ -93,9 +70,6 @@ class _DeliveryManPreview extends StatefulWidget {
 class _DeliveryManPreviewState extends State<_DeliveryManPreview> {
   static const String _feeAmount = r'$0.5';
 
-  /// Backing delivery for this Jeeber-variant thread. Reused both as the chat
-  /// channel id and as the path id for the active-delivery entry point so the
-  /// "Start delivery" CTA opens the matching delivery.
   static const String _deliveryId = 'dev-chat-dm';
 
   @override
@@ -128,14 +102,6 @@ class _DeliveryManPreviewState extends State<_DeliveryManPreview> {
         onDismiss: () {},
         onOrderPicked: () {},
       ),
-      // ENTRY POINT (jeeber active-delivery): the Jeeber-variant chat is the
-      // only place a jeeber-role [ChatScreen] is constructed (feeNotice !=
-      // null). The production `/chat/:id` route builds the CLIENT variant via
-      // ChatDetailScreen (currentUserId hardcoded to a client, feeNotice null,
-      // and it resolves a conversation id rather than carrying the jeeber role
-      // + delivery id), so it cannot cleanly supply both signals today. We
-      // therefore gate the "Start delivery" CTA on the jeeber variant here,
-      // where the delivery id is in scope, and push the active-delivery route.
       onStartActiveDelivery: () =>
           context.push('/jeeber/deliveries/$_deliveryId/active'),
       gateway: DevChatFixtureGateway(

@@ -4,21 +4,6 @@ import 'package:omds/omds.dart';
 
 import '../../../l10n/app_localizations.dart';
 
-/// delivery-register-prompt (JM-044, route `/jeeber/register-prompt`). The
-/// standalone "register as a delivery person" prompt the offer-KYC gate's
-/// `gate_register_link` navigates to (RD-1 fix). It renders the
-/// `delivery_register_prompt` root UNCONDITIONALLY — unlike the DELIVERY tab
-/// body, whose register-prompt vs feed is gate-state-dependent (a `pending`
-/// jeeber's tab renders `jeeber_feed_root`, which is why `gate_register_link`
-/// must NOT pop back to the tab — 66_W2_QA RD-1).
-///
-/// The "Register now" CTA chains into the delivery-man onboarding wizard
-/// (`jeeber-onboarding`, JM-039); back returns to the gate / shell.
-///
-/// Semantics ids:
-///   `delivery_register_prompt`        — screen root (the id JM-044 AC3 asserts)
-///   `delivery_register_prompt_cta`    — "Register now" → jeeber-onboarding
-///   `delivery_register_prompt_back`   — back → shell
 class DeliveryRegisterPromptScreen extends StatelessWidget {
   const DeliveryRegisterPromptScreen({super.key});
 
@@ -34,10 +19,6 @@ class DeliveryRegisterPromptScreen extends StatelessWidget {
         appBar: OMDSAppBar(
           title: l10n.offerKycGateTitle,
           showBackButton: true,
-          // JEBV4-13 P1-6: without an explicit destination, OMDSAppBar's
-          // default `maybePop()` no-ops when this screen is the stack root
-          // (reached via `go`), leaving the AppBar back arrow dead. Mirror
-          // the screen's own `delivery_register_prompt_back` exit.
           onBackPressed: () =>
               context.canPop() ? context.pop() : context.go('/'),
         ),

@@ -1,5 +1,4 @@
-/// JWT bundle returned by `POST /v1/auth/social` (social shape: `authToken`,
-/// not `accessToken` — 42_GUARDRAILS_MOCK §"W-1 FLOOR").
+/// JWT bundle from POST /v1/auth/social (uses authToken, not accessToken).
 class SocialAuthSession {
   const SocialAuthSession({
     required this.userId,
@@ -13,18 +12,17 @@ class SocialAuthSession {
   final String authToken;
   final String refreshToken;
 
-  /// True when the gateway created the user during this call. The screen
-  /// layer uses this to decide whether to push the "Link your phone" flow.
+  /// True if gateway created user during this call; screen uses to decide
+  /// whether to push "Link your phone" flow.
   final bool recentlyCreated;
 
-  /// The phone on file for this account, if any. The social bundle does NOT
-  /// guarantee a phone — a first-time social sign-in (or the
-  /// `facebook_no_phone` seam) returns no phone. JM-018/G8: when there is no
-  /// phone on file the social flow MUST route to phone-OTP verification before
-  /// landing home, never straight home. Normalised so `''` → `null`.
+  /// Phone on file (null if not provided; social doesn't guarantee phone).
+  /// First-time social sign-in or facebook_no_phone seam returns null.
+  /// When null, must route through phone-OTP verification before home.
+  /// Normalised: '' → null.
   final String? phone;
 
-  /// G8 gate: true only when a usable phone is already on file. When false the
-  /// account still needs the phone-OTP verification step (JM-009).
+  /// G8 gate: true only when usable phone on file (account still needs
+  /// phone-OTP verification when false).
   bool get hasPhone => phone != null && phone!.trim().isNotEmpty;
 }

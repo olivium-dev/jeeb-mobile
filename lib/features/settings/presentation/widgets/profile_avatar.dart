@@ -3,12 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-/// Profile avatar with initial fallback.
-///
-/// Lifted out of [ProfileEditScreen] so the avatar stays inside the
-/// 20-line-function ceiling required by the OMDS lint rules. When [photoUrl]
-/// is null we fall back to the first character of [name] (or `?` if the
-/// user has not set a name yet) rendered on a circular OMDS card.
 class ProfileAvatar extends StatelessWidget {
   const ProfileAvatar({
     super.key,
@@ -38,9 +32,6 @@ class ProfileAvatar extends StatelessWidget {
       child: SizedBox.square(
         dimension: diameter,
         child: _isLocalPath(photoUrl!)
-            // JEBV4-13: a locally-picked avatar (profile-edit "Change avatar")
-            // is stored as an absolute on-device path — render it from the
-            // file; OmdsCachedImage is network-only.
             ? Image.file(
                 File(photoUrl!),
                 fit: BoxFit.cover,

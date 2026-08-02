@@ -4,17 +4,6 @@ import 'package:omds/omds.dart';
 import '../../domain/wallet_ledger_repository.dart';
 import '../wallet_activity_l10n.dart';
 
-/// A single typed ledger row for wallet-activity-list (JM-055). Dumb widget
-/// (40_GUARDRAILS_ARCH §1 layer rules): data in via constructor, the tap out via
-/// [onTap] — it never reaches `sl` or `context.go`.
-///
-/// Carries the dynamic Maestro id `wallet_activity_row_<id>`
-/// (41_GUARDRAILS_TESTING §1.1 per-item row form; JM-055 AC). Renders the typed
-/// leading icon (one per W2m `type`: Reserve / Fee-won / Released / Refund /
-/// Penalty / Top up / Gift, D41), the type label + reference sub-line + relative
-/// time, and the SIGNED amount (`+`/`-`, JM-055 AC "amount + sign + icon + ref")
-/// tinted credit/debit. The whole row is the tap target — on tap the screen
-/// pushes `transaction-detail` (JM-056).
 class WalletActivityRow extends StatelessWidget {
   const WalletActivityRow({
     super.key,
@@ -28,7 +17,6 @@ class WalletActivityRow extends StatelessWidget {
   final WalletActivityL10n copy;
   final VoidCallback onTap;
 
-  /// Injectable clock for the relative timestamp (deterministic in tests).
   final DateTime? now;
 
   @override
@@ -41,8 +29,6 @@ class WalletActivityRow extends StatelessWidget {
     final time = copy.relativeTime(entry.timestamp, now: now);
 
     return Semantics(
-      // Dynamic per-row id — QA asserts the seeded fixture id (e.g.
-      // wallet_activity_row_led-seed-fee_won). 41_GUARDRAILS_TESTING §1.1.
       identifier: 'wallet_activity_row_${entry.id}',
       button: true,
       container: true,
@@ -94,10 +80,6 @@ class WalletActivityRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: Spacing.small),
-              // Signed amount — `+` credit (released / refund / top up / gift),
-              // `-` debit (reserve / fee-won / penalty). The sign comes from the
-              // W2m `sign`, not the type, so a corrected backend row renders
-              // correctly without an enum table here.
               Text(
                 copy.signedAmount(entry.amount, entry.sign, entry.currency),
                 style: textTheme.titleSmall?.copyWith(
@@ -113,8 +95,6 @@ class WalletActivityRow extends StatelessWidget {
   }
 }
 
-/// Typed leading icon — one glyph per W2m ledger `type` so the row reads at a
-/// glance (cosmetic; flows key on the row id, not the icon).
 class _LeadingIcon extends StatelessWidget {
   const _LeadingIcon({required this.type});
 

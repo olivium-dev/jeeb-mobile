@@ -24,20 +24,7 @@ import '../../../features/password_security/application/password_security_cubit.
 import '../../../features/password_security/presentation/password_security_screen.dart';
 import '../catalog_models.dart';
 
-// Batch 08 — onboarding, order_history, order_summary, otp_handover,
-// password_security. `photo_attachment` is SKIPPED (see bottom of file): it is
-// a pure domain/data module (PhotoAttachment value object + PhotoPickerService
-// + PhotoCompressor) with no screen of its own — it is only consumed by the
-// `kyc` and `settings` (profile photo) features, both out of scope here.
 
-// ─────────────────────────────────────────────────────────────────────────────
-// onboarding — the three-slide first-launch carousel. OnboardingCubit and
-// LocaleCubit both need a real SharedPreferences instance, so this preview
-// mirrors the legacy async-seam pattern: build the cubits once
-// `SharedPreferences.getInstance()`
-// resolves, then provide them. `onComplete` is a no-op so Get Started / Skip
-// never attempt a `goNamed('register')` outside a Router.
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _OnboardingPreview extends StatefulWidget {
   const _OnboardingPreview({required this.locale});
@@ -100,12 +87,6 @@ class _OnboardingPreviewState extends State<_OnboardingPreview> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// order_history — the tabbed Active/Completed/Cancelled order list. Local
-// [OrderRepository] fakes drive the populated / empty / error / loading
-// designed states; the screen's own `initState` calls `initialLoad()`, so no
-// extra driving is needed beyond wiring the cubit.
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _FakeOrderRepository implements OrderRepository {
   const _FakeOrderRepository({this.page, this.errorKind});
@@ -128,8 +109,6 @@ class _FakeOrderRepository implements OrderRepository {
   }
 }
 
-/// Never resolves — keeps the screen pinned on its first-page spinner so
-/// "Loading" is a stable, capturable catalog state.
 class _PendingOrderRepository implements OrderRepository {
   const _PendingOrderRepository();
 
@@ -163,7 +142,6 @@ OrderPage _populatedActiveOrders() => OrderPage(
           dropoffAddress: 'Downtown, Beirut',
           status: OrderRequestStatus.matched,
           tier: OrderTier.flash,
-          // No usable amount surfaced yet — renders the em-dash, never $0.00.
           amountMinor: null,
           currency: 'USD',
         ),
@@ -179,15 +157,7 @@ Widget _orderHistoryScreen(OrderRepository repository) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// order_summary — the standalone accepted-order summary screen. It already
-// carries a `repository` constructor seam (production leaves it null and
-// resolves from GetIt), so the catalog just passes a local fake directly —
-// no additive seam needed.
-// ─────────────────────────────────────────────────────────────────────────────
 
-/// Never resolves — keeps the screen on its centered spinner for a stable
-/// "Loading" catalog state.
 class _PendingOrderSummaryRepository implements OrderSummaryRepository {
   const _PendingOrderSummaryRepository();
 
@@ -218,13 +188,6 @@ Widget _orderSummaryScreen(OrderSummaryRepository repository) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// otp_handover — client code display + Jeeber code entry (T-MOB-018). A local
-// [OtpHandoverRepository] + [HandoverCodeStore] fake drives every designed
-// mode; the wrong-code / escalate / success states use the SAME "drive the
-// cubit once in `create:`" trick the production `OrderSummaryScreen` already
-// uses (its `cubitFactory` calls `cubit.load()` before returning).
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _FakeOtpHandoverRepository implements OtpHandoverRepository {
   const _FakeOtpHandoverRepository({
@@ -259,8 +222,6 @@ class _FakeOtpHandoverRepository implements OtpHandoverRepository {
   }
 }
 
-/// In-memory [HandoverCodeStore] test seam — seeded with [_code] (or empty),
-/// mutated in place by the cubit's save/clear calls.
 class _InMemoryHandoverCodeStore implements HandoverCodeStore {
   _InMemoryHandoverCodeStore([this._code]);
 
@@ -280,9 +241,6 @@ class _InMemoryHandoverCodeStore implements HandoverCodeStore {
   }
 }
 
-/// Drives three sequential wrong-code submits (each awaited so the cubit's
-/// re-entry guard sees `ready` again before the next call) to reach the
-/// AC4 escalate state.
 Future<void> _driveEscalate(OtpHandoverCubit cubit) async {
   for (var i = 0; i < 3; i++) {
     await cubit.submitOtp('0000');
@@ -311,12 +269,6 @@ Widget _otpHandoverScreen({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// password_security — change-password form (JM-061). No repository at all
-// (B-33: local validation only) — `PasswordSecurityCubit.submit` is
-// synchronous, so pre-seeding an error state is just calling it once before
-// the cubit is returned from `cubitFactory`.
-// ─────────────────────────────────────────────────────────────────────────────
 
 PasswordSecurityCubit _weakPasswordCubit() => PasswordSecurityCubit()
   ..submit(current: 'OldPass1', newPassword: 'weak', confirm: 'weak');
@@ -328,9 +280,6 @@ PasswordSecurityCubit _mismatchPasswordCubit() => PasswordSecurityCubit()
     confirm: 'Mismatch123',
   );
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Catalog entries
-// ─────────────────────────────────────────────────────────────────────────────
 
 List<CatalogEntry> get batch08Entries => <CatalogEntry>[
       CatalogEntry(
@@ -491,11 +440,4 @@ List<CatalogEntry> get batch08Entries => <CatalogEntry>[
         ],
       ),
 
-      // photo_attachment — SKIPPED. Pure domain/data module (PhotoAttachment,
-      // PhotoPickerService/StubPhotoPickerService, PhotoCompressor); it has no
-      // presentation/ screen of its own. Its only UI consumers are
-      // `kyc` (KycCaptureTile) and `settings` (profile photo edit), both
-      // out of scope for this batch — cataloging it here would mean either
-      // inventing a screen that doesn't exist or reaching into another
-      // feature's screen, which this batch does not own.
     ];

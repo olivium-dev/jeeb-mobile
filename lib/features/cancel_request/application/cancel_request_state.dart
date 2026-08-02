@@ -2,12 +2,6 @@ import 'package:equatable/equatable.dart';
 
 import '../domain/cancel_request_repository.dart';
 
-/// Lifecycle of the JM-030 cancel action.
-///
-/// The sheet starts `idle` (showing the free-before-accept note + the two
-/// CTAs). Tapping confirm → `inFlight` (CTAs disabled) → `succeeded` (the
-/// sheet's host routes to `customer-orders-home`) or `failed` (transient error;
-/// the sheet stays open so the user can retry or keep the request).
 enum CancelRequestStatus { idle, inFlight, succeeded, failed }
 
 class CancelRequestState extends Equatable {

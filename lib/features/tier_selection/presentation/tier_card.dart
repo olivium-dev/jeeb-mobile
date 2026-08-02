@@ -1,13 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-/// OMDS-styled selectable card for a single delivery tier.
-///
-/// Highlights the selected card with the primary container colour + a thicker
-/// outline (matching the KYC vehicle grid pattern) and surfaces the
-/// recommended badge on the tier the back-office flagged. The card is a
-/// full-tap target with `Semantics` so screen readers announce the tier as a
-/// button in a list.
 class TierCard extends StatelessWidget {
   const TierCard({
     super.key,
@@ -25,41 +18,27 @@ class TierCard extends StatelessWidget {
     this.selectedHint,
   });
 
-  /// Stable, screen-scoped accessibility identifier for the whole card tap
-  /// target (e.g. `tier_selection_card_flash`). Applied to the card's own
-  /// [Semantics] node so QA/maestro can target the tier without depending on
-  /// the localized label. Null in generic/preview usages that don't need one.
   final String? identifier;
 
-  /// Localized tier name (Express / Standard / On-the-way).
   final String name;
 
-  /// Localized one-line description shown under the title.
   final String description;
 
-  /// Localized SLA copy (e.g. "≤ 120 min", "≤ 4 hr", "No SLA").
   final String estimatedTime;
 
-  /// Localized price range string (e.g. "45,000 – 70,000 LBP").
   final String priceRange;
 
-  /// Localized vehicle category copy ("Bike / Scooter", "Any vehicle", …).
   final String vehicleLabel;
 
-  /// Icon rendered next to the vehicle label.
   final IconData vehicleIcon;
 
   final bool selected;
   final VoidCallback onTap;
 
-  /// When non-null, renders the recommended pill in the top-right corner.
   final String? recommendedBadgeText;
 
-  /// Accessibility label for the whole card. When omitted falls back to a
-  /// concatenation of the visible strings.
   final String? semanticLabel;
 
-  /// Accessibility hint announced when the card is selected.
   final String? selectedHint;
 
   @override

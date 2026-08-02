@@ -12,29 +12,6 @@ import '../domain/earnings_repository.dart';
 import '../domain/earnings_summary.dart';
 import 'earnings_dashboard_l10n.dart';
 
-/// JM-052 — Earnings & Fees Dashboard.
-///
-/// The Earnings tab body:
-///   * `earnings_total_cash` — the cash the Jeeber collected directly from
-///     customers; this never moves through Jeeb.
-///   * `earnings_fees_paid` — platform fees the Jeeber paid from their
-///     pre-charged wallet on won offers.
-///   * `earnings_net_per_offer` — average cash kept per delivery after the fee
-///     (D44).
-///   * `earnings_member_since` — the Jeeber's join date (only when the wire
-///     surfaces it — never fabricated).
-///   * `earnings_wallet_link` → `wallet` (wallet-hub, JM-053).
-///   * `earnings_activity_link` → `wallet-activity` (wallet-activity-list,
-///     JM-055).
-///
-/// Both cross-feature links target routes that are REGISTERED today (W2.5/W3
-/// integrator batch), so they are real `pushNamed` edges — NOT guarded
-/// coming-soon. The hub's `wallet_earnings_row` lands here.
-///
-/// Data: `GET /v1/jeeb/earnings?jeeberId=&period=` via `sl<EarningsRepository>()`
-/// (→ `DioEarningsRepository`). The gateway rewrites `/v1/jeeb/earnings` →
-/// `/wallet-service/v1/jeeb/earnings` on :4010 — the path fix the JM-052 AC
-/// flagged (the repo previously posted the un-keyed `/v1/wallet/jeeb/earnings`).
 class EarningsDashboardScreen extends StatelessWidget {
   const EarningsDashboardScreen({super.key});
 
@@ -62,8 +39,6 @@ class EarningsDashboardScreen extends StatelessWidget {
     }
     if (state.exportMode == EarningsExportMode.error &&
         state.exportError != null) {
-      // EXEMPT: OMDS exports no standalone toast/snackbar widget; showOmdsSnackbar
-      // is the approved fleet pattern for transient error feedback.
       showOmdsSnackbar(context, message: state.exportError!);
       context.read<EarningsCubit>().resetExport();
     }
@@ -84,9 +59,6 @@ class EarningsDashboardScreen extends StatelessWidget {
         onRetry: () => context.read<EarningsCubit>().loadEarnings(),
       );
     }
-    // T11 / SW-01: no data for the period → honest empty/pending state, never a
-    // wall of confident zeros. Period pills + pull-to-refresh stay so the jeeber
-    // can retry or switch period.
     final summary = state.summary;
     if (summary == null || summary.isEmpty) {
       return _EmptyEarnings(period: state.period, copy: copy);
@@ -95,7 +67,6 @@ class EarningsDashboardScreen extends StatelessWidget {
   }
 }
 
-/// Honest empty/pending body shown when the wire has no earnings for the period.
 class _EmptyEarnings extends StatelessWidget {
   const _EmptyEarnings({required this.period, required this.copy});
   final EarningsPeriod period;
@@ -149,7 +120,6 @@ class _ReadyBody extends StatelessWidget {
         children: [
           _PeriodFilterRow(selectedPeriod: state.period, copy: copy),
           const SizedBox(height: Spacing.medium),
-          // ── Fee-only headline cards (D41/D44). ──────────────────────────────
           _TotalCashCard(summary: summary, copy: copy),
           const SizedBox(height: Spacing.medium),
           _FeesPaidCard(summary: summary, copy: copy),
@@ -162,7 +132,6 @@ class _ReadyBody extends StatelessWidget {
           const SizedBox(height: Spacing.large),
           _DeliveryBreakdownList(summary: summary, copy: copy),
           const SizedBox(height: Spacing.large),
-          // ── Cross-feature links (real edges). ───────────────────────────────
           _WalletLink(copy: copy),
           _ActivityLink(copy: copy),
           const SizedBox(height: Spacing.xLarge),
@@ -233,7 +202,6 @@ class _PeriodPill extends StatelessWidget {
   }
 }
 
-/// `earnings_total_cash` — total cash earned, net, off-wallet (COD, D41).
 class _TotalCashCard extends StatelessWidget {
   const _TotalCashCard({required this.summary, required this.copy});
   final EarningsSummary summary;
@@ -279,7 +247,6 @@ class _TotalCashCard extends StatelessWidget {
   }
 }
 
-/// `earnings_fees_paid` — total captured platform fees.
 class _FeesPaidCard extends StatelessWidget {
   const _FeesPaidCard({required this.summary, required this.copy});
   final EarningsSummary summary;
@@ -423,8 +390,6 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-/// `earnings_member_since` — the Jeeber's join date (D-context; only rendered
-/// when the wire surfaces it).
 class _MemberSinceRow extends StatelessWidget {
   const _MemberSinceRow({required this.memberSince, required this.copy});
   final String memberSince;
@@ -513,8 +478,6 @@ class _DeliveryRow extends StatelessWidget {
   }
 }
 
-/// `earnings_wallet_link` → wallet-hub (JM-053). Pushed so the back stack
-/// returns to the Earnings tab.
 class _WalletLink extends StatelessWidget {
   const _WalletLink({required this.copy});
   final EarningsDashboardL10n copy;
@@ -535,7 +498,6 @@ class _WalletLink extends StatelessWidget {
   }
 }
 
-/// `earnings_activity_link` → wallet-activity-list (JM-055).
 class _ActivityLink extends StatelessWidget {
   const _ActivityLink({required this.copy});
   final EarningsDashboardL10n copy;

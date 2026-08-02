@@ -6,17 +6,6 @@ import '../../../../core/formatting/friendly_reference.dart';
 import '../../../../core/session/greeting_profile_cubit.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// Customer home header with "Hello, **{name}**", a small
-/// [OmdsProfileAvatar] prefix, and a filled circular "+" icon button (themed
-/// via [OmdsButtonStyles.iconButtonFilled]).
-///
-/// P0-X06: the greeting name + avatar are sourced from the signed-in user's
-/// real profile via the ambient [GreetingProfileCubit] when one is provided
-/// above this widget (the HomeTab shell wires it). The cubit's live `getMe`
-/// name takes precedence over the cubit-fed [name]; the avatar renders the real
-/// `avatarUrl` instead of a bare "?" placeholder. With NO ambient cubit (bare
-/// widget tests) the widget falls back to the passed [name] and the initials
-/// avatar — preserving the prior contract.
 class ClientHomeGreeting extends StatelessWidget {
   const ClientHomeGreeting({
     super.key,
@@ -31,17 +20,10 @@ class ClientHomeGreeting extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Read the ambient personalized-greeting profile if the shell provided one.
-    // A bare widget test without the provider falls back to the passed name and
-    // a null avatar (no "?" when a name is known).
     final profile = _readGreetingProfile(context);
     final rawName = (profile?.name?.trim().isNotEmpty ?? false)
         ? profile!.name
         : name;
-    // Suppress synthetic account handles (`jeeb-<hash>`) / internal emails so
-    // the header never greets "Hello, jeeb-e1a35ea8a520" (audit §T5). When the
-    // only name on file is an internal identifier we fall back to the generic
-    // greeting + initials avatar via a null name.
     final resolvedName = displayNameOrNull(rawName);
     final avatarUrl = profile?.avatarUrl;
     return Padding(
@@ -67,8 +49,6 @@ class ClientHomeGreeting extends StatelessWidget {
     );
   }
 
-  /// Reads the ambient [GreetingProfileCubit] state, or `null` when no provider
-  /// is mounted above this widget (e.g. a bare widget test).
   static GreetingProfileState? _readGreetingProfile(BuildContext context) {
     try {
       return context.watch<GreetingProfileCubit>().state;
@@ -92,7 +72,6 @@ class _GreetingLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // Greet with the first name only ("Hello, Sami", not "Hello, Sami Fawaz").
     final firstName = _firstName(name);
     final greeting = (firstName == null || firstName.isEmpty)
         ? l10n.homeGreetingFallback
@@ -110,7 +89,6 @@ class _GreetingLine extends StatelessWidget {
     );
   }
 
-  /// First whitespace-delimited token of [full], or `null` when blank.
   static String? _firstName(String? full) {
     final trimmed = full?.trim();
     if (trimmed == null || trimmed.isEmpty) return null;
@@ -153,8 +131,6 @@ class _GreetingAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final trimmed = initial?.trim();
-    // First initial of the name when known; '?' only as a last resort when the
-    // user has neither a name nor an avatar on file.
     final seed = (trimmed != null && trimmed.isNotEmpty)
         ? trimmed[0].toUpperCase()
         : '?';

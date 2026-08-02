@@ -1,8 +1,6 @@
 import '../domain/delivery_receipt.dart';
 import '../domain/delivery_receipt_repository.dart';
 
-/// In-memory [DeliveryReceiptRepository] for widget tests (NEVER registered in
-/// DI — 40_GUARDRAILS_ARCH §6/DO-NOT). Production always resolves the Dio impl.
 class FakeDeliveryReceiptRepository implements DeliveryReceiptRepository {
   FakeDeliveryReceiptRepository({
     DeliveryReceipt? receipt,

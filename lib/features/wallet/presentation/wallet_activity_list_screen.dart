@@ -11,45 +11,11 @@ import '../domain/wallet_ledger_repository.dart';
 import 'wallet_activity_l10n.dart';
 import 'widgets/wallet_activity_row.dart';
 
-/// wallet-activity-list (JM-055). The typed ledger of wallet movements
-/// (Reserve / Fee-won / Released / Refund / Penalty / Top up / Gift), each row
-/// `wallet_activity_row_<id>` carrying amount + sign + icon + ref, with infinite
-/// scroll + skeletons (D73) and a tap → transaction-detail (JM-056). Reached from
-/// `wallet_see_all_activity` (wallet-hub, JM-053) + `earnings_activity_link`
-/// (earnings, JM-052).
-///
-/// Renders the canonical 4-state machine (40_GUARDRAILS_ARCH §3; the D30
-/// contract, 42_GUARDRAILS_MOCK §5.1): loading (full-screen skeletons, D73) /
-/// failed (inline error + retry) / loaded(+empty). On the loaded list a
-/// scroll-end fetches the next page and appends it (infinite scroll), with an
-/// in-list skeleton footer while the page is on the wire and a soft, retryable
-/// footer when it fails.
-///
-/// Data: reads the Jeeber ledger via `sl<WalletLedgerRepository>()` — the LIVE
-/// `DioWalletLedgerRepository` (W2m `GET /v1/jeeb/wallet/ledger` is mock-ready on
-/// :4010, 42_GUARDRAILS_MOCK "W2 mock closeout"; bound real in
-/// `injection_container.dart` JM-055). [repository] is a constructor test seam
-/// (§5.4) — production leaves it null; an unconfigured GetIt (router-resolution
-/// widget tests) falls back to an empty repo (mirrors JM-057).
-///
-/// Semantics identifiers exposed (EXACT — 30_BACKLOG JM-055, 41_GUARDRAILS_TESTING):
-///   `wallet_activity_root`        — screen host container (nav target)
-///   `wallet_activity_loading`     — first-load skeleton state (D30/D73)
-///   `wallet_activity_error`       — cold-load failure (D30)
-///   `wallet_activity_retry_cta`   — retry the cold load (D30)
-///   `wallet_activity_empty`       — loaded + no rows (D30)
-///   `wallet_activity_row_<id>`    — per-ledger-row (dynamic id), tap → txn-detail
-///   `wallet_activity_load_more`   — in-list next-page skeleton (D73 infinite)
 class WalletActivityListScreen extends StatelessWidget {
   const WalletActivityListScreen({super.key, this.repository});
 
-  /// Constructor test seam (40_GUARDRAILS_ARCH §5.4) — defaults to DI.
   final WalletLedgerRepository? repository;
 
-  /// Resolves the repo: an explicit override (tests) → the registered LIVE
-  /// `DioWalletLedgerRepository` → an empty fallback when GetIt is not configured
-  /// (router-resolution widget tests). Mirrors
-  /// `NotificationsListScreen._resolveRepository()`.
   WalletLedgerRepository _resolveRepository() {
     final explicit = repository;
     if (explicit != null) return explicit;
@@ -81,11 +47,6 @@ class _WalletActivityView extends StatelessWidget {
         appBar: OMDSAppBar(
           title: copy.title,
           showBackButton: true,
-          // Normally pushed from wallet-hub's `wallet_see_all_activity` or
-          // earnings' `earnings_activity_link`, but also reachable via deep
-          // link with an empty Navigator stack. Pop when we can (pushed
-          // entry), else return to the shell — never pop the last page
-          // (which would leave an empty Navigator → black surface).
           onBackPressed: () =>
               context.canPop() ? context.pop() : context.go('/'),
         ),
@@ -127,12 +88,6 @@ class _WalletActivityView extends StatelessWidget {
   }
 }
 
-/// Cold-load failure (D30). Renders the error message in the asserted
-/// `wallet_activity_error` node and the retry as a distinct
-/// `wallet_activity_retry_cta` node (the D30 `<screen>_retry_cta` convention),
-/// so a flow can assert the error AND tap the retry by id — a custom layout is
-/// used (instead of `OmdsErrorState`) precisely because the OMDS widget merges
-/// its internal retry button into one node.
 class _ErrorBody extends StatelessWidget {
   const _ErrorBody({
     required this.message,
@@ -185,8 +140,6 @@ class _ErrorBody extends StatelessWidget {
   }
 }
 
-/// First-load skeletons (D73 — never a bare spinner on a list, 42 §5.1). Hosts
-/// the asserted `wallet_activity_loading` state node.
 class _LoadingSkeletons extends StatelessWidget {
   const _LoadingSkeletons({required this.copy});
 
@@ -217,8 +170,6 @@ class _LoadingSkeletons extends StatelessWidget {
   }
 }
 
-/// Empty = `loaded` + an empty list (NOT a fifth status, §3). Wrapped in a
-/// scrollable so pull-to-refresh still works on an empty ledger.
 class _EmptyBody extends StatelessWidget {
   const _EmptyBody({required this.copy});
 
@@ -244,10 +195,6 @@ class _EmptyBody extends StatelessWidget {
   }
 }
 
-/// The loaded ledger with infinite scroll. A [ScrollController] near-bottom
-/// trigger fetches the next page (the cubit single-flights + de-dupes); the
-/// footer shows a load-more skeleton while a page is in flight, or a soft retry
-/// when it fails (D73 / D30).
 class _LoadedList extends StatefulWidget {
   const _LoadedList({required this.state, required this.copy});
 
@@ -274,9 +221,6 @@ class _LoadedListState extends State<_LoadedList> {
     super.dispose();
   }
 
-  /// Fetch the next page when within ~400px of the end. The cubit no-ops when
-  /// there is no further page or a fetch is already in flight, so it is safe to
-  /// fire repeatedly during a fling.
   void _onScroll() {
     if (!_controller.hasClients) return;
     final position = _controller.position;
@@ -290,7 +234,6 @@ class _LoadedListState extends State<_LoadedList> {
     final state = widget.state;
     final copy = widget.copy;
     final entries = state.entries;
-    // One extra slot for the footer (load-more skeleton / retry) when relevant.
     final showFooter =
         state.loadingMore || state.loadMoreError || state.hasMore;
     final itemCount = entries.length + (showFooter ? 1 : 0);
@@ -301,7 +244,6 @@ class _LoadedListState extends State<_LoadedList> {
       padding: const EdgeInsetsDirectional.symmetric(vertical: Spacing.small),
       itemCount: itemCount,
       separatorBuilder: (_, index) {
-        // No divider above the footer slot.
         if (index >= entries.length - 1) return const SizedBox.shrink();
         return const Divider(
           height: 1,
@@ -323,9 +265,6 @@ class _LoadedListState extends State<_LoadedList> {
     );
   }
 
-  /// Tap → transaction-detail (JM-056), `/wallet/transactions/:id`. Side-effect
-  /// navigation lives in the gesture callback (an explicit user gesture), never
-  /// in a `builder` (40_GUARDRAILS_ARCH §3 nav-in-listener rule).
   void _openDetail(BuildContext context, String id) {
     if (id.isEmpty) return;
     context.pushNamed(
@@ -335,8 +274,6 @@ class _LoadedListState extends State<_LoadedList> {
   }
 }
 
-/// The infinite-scroll footer: a load-more skeleton while the next page is on
-/// the wire (`wallet_activity_load_more`, D73), or a soft retry when it failed.
 class _Footer extends StatelessWidget {
   const _Footer({required this.state, required this.copy});
 
@@ -375,8 +312,6 @@ class _Footer extends StatelessWidget {
         ),
       );
     }
-    // Loading-more (or simply "more exists" — the skeleton doubles as the
-    // bottom affordance that more is coming).
     return Semantics(
       identifier: 'wallet_activity_load_more',
       container: true,

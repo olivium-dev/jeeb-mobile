@@ -2,12 +2,6 @@ import '../domain/client_home_repository.dart';
 import '../domain/client_home_request.dart';
 import '../domain/recent_delivery_summary.dart';
 
-/// Deterministic in-memory stand-in for the jeeb-gateway home endpoint.
-///
-/// MVP-only — wires the home tab into the BLoC pipeline so the screen is
-/// usable in dev / under tests before the gateway endpoint exists. Replace
-/// with a Dio-backed client at `data/http_client_home_repository.dart`
-/// once the gateway side ships.
 class InMemoryClientHomeRepository implements ClientHomeRepository {
   InMemoryClientHomeRepository({
     List<ClientHomeRequest>? seedActive,
@@ -19,10 +13,6 @@ class InMemoryClientHomeRepository implements ClientHomeRepository {
        ),
        _latency = latency;
 
-  /// Builds a repository from a complete [ClientHomeSnapshot] so every tab
-  /// (In Progress / Pending / Replies) can be seeded. Used by the dev-seam
-  /// capture path; the network repository populates the same shape from the
-  /// gateway.
   InMemoryClientHomeRepository.fromSnapshot(
     ClientHomeSnapshot snapshot, {
     Duration latency = const Duration(milliseconds: 150),

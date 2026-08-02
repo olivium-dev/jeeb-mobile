@@ -3,11 +3,6 @@ import 'package:omds/omds.dart';
 
 import '../obs_overlay_controller.dart';
 
-/// The EXPORT/SHARE action: flushes the session file, hands it to the
-/// platform share sheet, and falls back to a clipboard copy of its path if
-/// sharing fails (see `ObsOverlayController.exportAndShare`). Always shows
-/// the resolved path underneath so it stays visible even after a snackbar
-/// dismisses.
 class ObsOverlayExportButton extends StatefulWidget {
   const ObsOverlayExportButton({super.key, required this.controller});
 

@@ -3,11 +3,7 @@ import 'package:omds/omds.dart';
 
 import '../../../../l10n/app_localizations.dart';
 
-/// Centered helper note under the stacked offer cards in the broadcasting
-/// chat (Figma node 56535:6659): "Accept only one offer".
-///
-/// Renders in the brand-accent (tertiary/orange) role to match the Figma
-/// emphasis, with the copy resolved through [AppLocalizations].
+/// Centered helper note under stacked offer cards: "Accept only one offer". Tertiary role.
 class ChatOfferOnlyOneFooter extends StatelessWidget {
   const ChatOfferOnlyOneFooter({super.key});
 

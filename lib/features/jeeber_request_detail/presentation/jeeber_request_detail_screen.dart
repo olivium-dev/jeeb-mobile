@@ -7,13 +7,6 @@ import '../../../l10n/app_localizations.dart';
 import '../../jeeber_home/domain/entities/feed_request.dart';
 import '../domain/services/prohibited_item_report_service.dart';
 
-/// T-mobile-013 / T-MOB-FIX-001: Jeeber request-detail hub.
-///
-/// Reached from the dashboard feed-row tap (in-app `extra` payload) and from a
-/// matching push-notification deep link. This is the ONLY in-app entry to the
-/// offer-composition form (`/jeeber/requests/:id/offer`), so it owns the
-/// "Make offer" CTA. The route already wires the offer form's `onSubmitted`
-/// to `/chat`, so this screen only has to launch it.
 class JeeberRequestDetailScreen extends StatefulWidget {
   const JeeberRequestDetailScreen({
     super.key,
@@ -63,13 +56,6 @@ class _JeeberRequestDetailScreenState extends State<JeeberRequestDetailScreen> {
   }
 }
 
-/// Summary of the [FeedRequest] payload, laid out with the same
-/// `OMDSSectionCard` + detail-row idiom as the client-side delivery-details
-/// card. Surfaces the request content (G1: `description` — what the customer
-/// actually asked for, rendered first and in full), the pickup point, and the
-/// request reference. Richer dropoff/fee/distance rows slot in here unchanged
-/// once the detail route is upgraded to carry the full `DeliveryRequest`
-/// payload (a contract change, out of scope here).
 class _RequestSummary extends StatelessWidget {
   const _RequestSummary({required this.request});
 
@@ -89,11 +75,6 @@ class _RequestSummary extends StatelessWidget {
   }
 }
 
-/// The genuinely-present fields of the [FeedRequest], one detail row each.
-///
-/// G1 (sprint-009 P0): the customer's own "What do you need?" text leads the
-/// card — it is the content the jeeber is agreeing to buy/deliver, so it
-/// renders FIRST, full-length (no truncation), above pickup and reference.
 class _RequestSummaryRows extends StatelessWidget {
   const _RequestSummaryRows({required this.request});
 
@@ -133,8 +114,6 @@ class _RequestSummaryRows extends StatelessWidget {
   }
 }
 
-/// Icon-badge + label + value row, mirroring the client delivery-details card
-/// idiom so jeeber and client detail screens read consistently.
 class _DetailRow extends StatelessWidget {
   const _DetailRow({
     required this.icon,
@@ -217,8 +196,6 @@ class _DetailRowText extends StatelessWidget {
   }
 }
 
-/// Bottom action area: primary "Make offer" (the offer-form entry) and an
-/// outlined "Decline". Each CTA carries a Semantics identifier for Maestro QA.
 class _ActionBar extends StatelessWidget {
   const _ActionBar({required this.onMakeOffer, required this.onDecline});
 

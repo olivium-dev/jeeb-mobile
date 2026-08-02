@@ -3,25 +3,6 @@ import 'package:flutter/widgets.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/dispute_status_repository.dart';
 
-/// JM-065 dispute-status localized copy resolver (R-F; the
-/// `notifications_l10n.dart` / `wallet_hub_l10n.dart` precedent,
-/// 40_GUARDRAILS_ARCH §9 l10n protocol).
-///
-/// The shared ARB files + the hand-authored `AppLocalizations` getter layer are
-/// integrator-owned (50_EXECUTION_PLAN §S4). The W4 integrator batched FIVE
-/// dispute-status keys (title / open-label / body / support-cta / back-cta).
-/// The rest — the Resolved label, the typed outcome lines (refund/penalty/
-/// dismissed, D2), the evidence-summary heading + its per-item labels (D53),
-/// and the load-error/retry copy — is NOT yet present. Per the JM-057/JM-058
-/// precedent this resolver reuses the EXISTING getters where one fits and
-/// supplies the genuinely-missing strings from a feature-local EN/AR map until
-/// the integrator lands the dedicated keys (REQUESTED in `50_ROUTE_REQUESTS.md`,
-/// "JM-065").
-///
-/// Maestro asserts on `Semantics(identifier:)` ONLY (41_GUARDRAILS_TESTING §4),
-/// so the visible copy is cosmetic — this swaps to the real getters with no
-/// call-site change. Delete this file (fold the `_pick` strings into `dispute*`
-/// ARB getters) once the integrator lands the requested keys.
 class DisputeStatusL10n {
   DisputeStatusL10n(this._l10n, this._isArabic);
 
@@ -38,23 +19,17 @@ class DisputeStatusL10n {
 
   String _pick(String en, String ar) => _isArabic ? ar : en;
 
-  // ── Present keys (integrator-landed). ──────────────────────────────────────
   String get title => _l10n.disputeStatusTitle;
   String get openLabel => _l10n.disputeStatusOpenLabel;
   String get openBody => _l10n.disputeStatusBody;
   String get supportCta => _l10n.disputeStatusSupportCta;
   String get backCta => _l10n.disputeStatusBackCta;
 
-  // ── Genuinely-missing copy (feature-local until the integrator lands keys). ─
 
-  /// `dispute_status_state` label when resolved (D2). Open uses [openLabel].
   String get resolvedLabel => _pick('Resolved', 'تم الحل');
 
-  /// Outcome note heading shown above the typed outcome line (D2).
   String get outcomeHeading => _pick('Outcome', 'النتيجة');
 
-  /// Typed outcome line for a [DisputeOutcome] (D2). [amount] is the formatted
-  /// refund/penalty amount when present.
   String outcomeLine(DisputeOutcome outcome, {String? amount}) {
     switch (outcome) {
       case DisputeOutcome.refund:
@@ -88,7 +63,6 @@ class DisputeStatusL10n {
     }
   }
 
-  // ── Evidence summary (D53). ────────────────────────────────────────────────
   String get evidenceHeading => _pick('Evidence summary', 'ملخص الأدلة');
 
   String reasonLabel(String? reason) {
@@ -134,7 +108,6 @@ class DisputeStatusL10n {
         'تم إرفاق مسار التوصيل ($count خطوات)',
       );
 
-  // ── D30 error / loading copy. ──────────────────────────────────────────────
   String get loadError =>
       _pick('Could not load this dispute.', 'تعذّر تحميل هذا النزاع.');
   String get notFoundError => _pick(

@@ -7,15 +7,8 @@ import '../../application/availability_state.dart';
 import '../../domain/entities/availability_status.dart';
 import 'availability_status_block.dart';
 
-/// Max visible lines for the compact online-state copy before it ellipsizes.
 const int _kCompactOnlineTitleMaxLines = 2;
 
-/// Persistent dashboard availability control.
-///
-/// The common ONLINE state is intentionally one compact OMDS switch row: its
-/// only copy is "online — receiving requests", so it consumes at most one or
-/// two wrapped lines on a phone. OFFLINE, auto-offline, and in-flight states use
-/// the full OMDS section because they need more explanation or progress feedback.
 class AvailabilityCard extends StatelessWidget {
   const AvailabilityCard({
     super.key,
@@ -25,7 +18,6 @@ class AvailabilityCard extends StatelessWidget {
 
   static const Key rootKey = Key('availability-card-root');
 
-  /// Preserved from the legacy availability control for existing harnesses.
   static const Key toggleKey = Key('availability-toggle-root');
   static const Key spinnerKey = Key('availability-toggle-spinner');
 

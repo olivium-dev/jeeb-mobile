@@ -4,14 +4,7 @@ import 'package:omds/omds.dart';
 
 import '../../../../l10n/app_localizations.dart';
 
-/// Centered "Today" / "Yesterday" / locale-date separator shown at the top of
-/// a day group in the chat timeline (Figma nodes 56535:6659 + 56546:2382).
-///
-/// Wraps the OMDS [OmdsDateChip] primitive and owns only the relative-date
-/// label logic so the same chip renders in both the broadcasting (02) and
-/// post-approval (03) chat states. The label resolves through
-/// [AppLocalizations] for "today"/"yesterday" and falls back to a locale-aware
-/// medium date via [DateFormat] — never a string-built date.
+/// Centered "Today" / "Yesterday" / locale-date separator. Wraps OmdsDateChip with relative-date logic.
 class ChatDateSeparator extends StatelessWidget {
   const ChatDateSeparator({super.key, required this.date});
 

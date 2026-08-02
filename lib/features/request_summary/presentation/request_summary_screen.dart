@@ -11,11 +11,6 @@ class RequestSummaryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // On a successful submit, return to the Requests tab (`/`). The submit
-    // cubit only flips isSubmitted once, so listenWhen fires exactly on the
-    // false → true edge. A failed submit surfaces an OMDS error snackbar on
-    // the null → non-null `error` edge and leaves the screen in place so the
-    // user can retry.
     return MultiBlocListener(
       listeners: [
         BlocListener<RequestSummaryCubit, RequestSummaryState>(

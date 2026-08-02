@@ -4,14 +4,6 @@ import '../../domain/saved_location.dart';
 import '../../domain/saved_location_repository.dart';
 import 'saved_locations_state.dart';
 
-/// Drives the saved-locations CRUD screen (T-MOB-025).
-///
-/// Lifecycle:
-///   [SavedLocationsLoading] (initial load) →
-///   [SavedLocationsLoaded]  (list ready)
-///   [SavedLocationsMutating] (during create/update/delete) →
-///   [SavedLocationsLoaded] (after success) or
-///   [SavedLocationsMutationError] (after failure)
 class SavedLocationsCubit extends Cubit<SavedLocationsState> {
   SavedLocationsCubit(this._repository)
       : super(const SavedLocationsLoading());
@@ -20,7 +12,6 @@ class SavedLocationsCubit extends Cubit<SavedLocationsState> {
 
   List<SavedLocation> _current = const [];
 
-  /// Fetches the saved-locations list from the gateway.
   Future<void> load() async {
     emit(const SavedLocationsLoading());
     try {
@@ -31,7 +22,6 @@ class SavedLocationsCubit extends Cubit<SavedLocationsState> {
     }
   }
 
-  /// Creates a new saved location.
   Future<void> create({
     required double latitude,
     required double longitude,
@@ -64,7 +54,6 @@ class SavedLocationsCubit extends Cubit<SavedLocationsState> {
     }
   }
 
-  /// Updates an existing saved location.
   Future<void> update({
     required String id,
     required double latitude,
@@ -95,7 +84,6 @@ class SavedLocationsCubit extends Cubit<SavedLocationsState> {
     }
   }
 
-  /// Deletes a saved location by [id].
   Future<void> delete(String id) async {
     emit(SavedLocationsMutating(_current));
     try {
@@ -112,7 +100,6 @@ class SavedLocationsCubit extends Cubit<SavedLocationsState> {
     }
   }
 
-  /// Acknowledges a mutation error — returns to the loaded state.
   void acknowledgeError() {
     emit(SavedLocationsLoaded(_current));
   }

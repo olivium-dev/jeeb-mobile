@@ -3,22 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../domain/reviews_repository.dart';
 import 'reviews_state.dart';
 
-/// Drives reviews-list (JM-068). Imports `domain/` only (40_GUARDRAILS_ARCH
-/// §2.2); the abstract [ReviewsRepository] is constructor-injected (the screen
-/// resolves the DI binding — the INTEGRATOR-STUB today, the LIVE
-/// `DioReviewsRepository` once R1m is verified on :4010, 42_GUARDRAILS_MOCK
-/// "FINAL WAVE … R1m"). The cubit never changes when the binding swaps.
-///
-/// Responsibilities:
-///  - cold-load the first reviews page (newest-first, R1m envelope) + capture the
-///    D59 cold-start gate (coldStart / reviewCount / averageScore),
-///  - pull-to-refresh: re-fetch page 1 without flipping to a full-screen spinner
-///    (the UI shows the pull indicator, §2.2),
-///  - load-more: fetch the next page on scroll-end and APPEND it (infinite
-///    scroll, D73 / JM-068 AC) — de-duped by review id, single-flight, with a
-///    failure held as a soft footer error that leaves the loaded rows intact,
-///  - report a review (D27) as a one-shot action that surfaces a snackbar via
-///    [ReviewsState.reportStatus] without disturbing the list.
 class ReviewsCubit extends Cubit<ReviewsState> {
   ReviewsCubit({
     required ReviewsRepository repository,
@@ -33,8 +17,6 @@ class ReviewsCubit extends Cubit<ReviewsState> {
   final String _jeeberId;
   final int _pageSize;
 
-  /// Cold-entry load (page 1). Guards re-entry so a remount doesn't refetch
-  /// (§2.2).
   Future<void> load() async {
     if (state.status != ReviewsStatus.initial) return;
     emit(state.copyWith(status: ReviewsStatus.loading, clearError: true));
@@ -64,9 +46,6 @@ class ReviewsCubit extends Cubit<ReviewsState> {
     }
   }
 
-  /// Pull-to-refresh — re-fetches page 1 and REPLACES the list (the freshest
-  /// page wins). Does NOT flip `status` to `loading` (§2.2). Resets the paging
-  /// cursor + clears any soft load-more error, and re-reads the D59 gate.
   Future<void> refresh() async {
     try {
       final page = await _repository.fetchReviews(
@@ -94,11 +73,6 @@ class ReviewsCubit extends Cubit<ReviewsState> {
     }
   }
 
-  /// Fetch the next page and APPEND it (infinite scroll, D73). Single-flight: a
-  /// no-op when not loaded, when there is no further page, or when a fetch is
-  /// already in flight. A failure surfaces as the soft
-  /// [ReviewsState.loadMoreError] footer (the loaded rows stay) and can be
-  /// retried by [retryLoadMore].
   Future<void> loadMore() async {
     if (state.status != ReviewsStatus.loaded) return;
     if (!state.hasMore || state.loadingMore) return;
@@ -123,18 +97,12 @@ class ReviewsCubit extends Cubit<ReviewsState> {
     }
   }
 
-  /// Retry the failed next-page fetch (clears the soft footer error, re-runs
-  /// [loadMore]).
   Future<void> retryLoadMore() async {
     if (!state.loadMoreError) return;
     emit(state.copyWith(loadMoreError: false));
     await loadMore();
   }
 
-  /// Report a review for moderation (D27). One-shot: emits `inFlight`, then
-  /// `succeeded`/`failed` so the screen can fire a single snackbar (gated in a
-  /// `listener`, §3). Never tears down the list. A second report while one is in
-  /// flight is a no-op.
   Future<void> reportReview(String reviewId) async {
     if (reviewId.isEmpty) return;
     if (state.reportStatus == ReportStatus.inFlight) return;
@@ -150,8 +118,6 @@ class ReviewsCubit extends Cubit<ReviewsState> {
     }
   }
 
-  /// One-shot acknowledgement of a finished report (after the snackbar fires),
-  /// so a rebuild doesn't replay it (§2.2).
   void acknowledgeReport() {
     if (state.reportStatus == ReportStatus.idle) return;
     emit(state.copyWith(
@@ -160,10 +126,6 @@ class ReviewsCubit extends Cubit<ReviewsState> {
     ));
   }
 
-  /// Append [incoming] to [existing], dropping rows whose id is already present
-  /// (defensive de-dupe — a backend that re-emits a boundary row on the next
-  /// page must never double-render it). Returns an unmodifiable list — the cubit
-  /// owns the order (§2.1).
   List<ReviewItem> _merge(
     List<ReviewItem> existing,
     List<ReviewItem> incoming,

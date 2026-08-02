@@ -1,29 +1,11 @@
 import 'saved_location.dart';
 
-/// JM-050 — address-detail-form persistence contract.
-///
-/// Deliberately SEPARATE from [SavedLocationRepository] (the JM-049 CRUD
-/// manager) so the form can carry the full address-detail field set (building /
-/// floor-apt / delivery-notes / COD phone / default flag) WITHOUT changing the
-/// JM-049 interface — whose existing `saveLocation`/`updateLocation` signatures
-/// are pinned by its widget tests (40_GUARDRAILS_ARCH §1, distinct features).
-///
-/// Pure Dart — no Flutter / Dio / GetIt (40_GUARDRAILS_ARCH §1).
 abstract class AddressFormRepository {
-  /// Creates a new saved address.
-  /// Endpoint: `POST /api/users/me/saved-locations` (201) — the LIVE gateway
-  /// `me`-scoped BFF (identity from the bearer token; iter6 D-ADDRESS-SAVE).
-  /// [userId] is retained as a test seam only and is NOT used in the path.
-  /// Throws [AddressFormException] on failure.
   Future<SavedLocation> create({
     required String userId,
     required AddressFormDraft draft,
   });
 
-  /// Updates an existing saved address.
-  /// Endpoint: `PUT /api/users/me/saved-locations/:id` (the `me`-scoped BFF).
-  /// [userId] is retained as a test seam only and is NOT used in the path.
-  /// Throws [AddressFormException] on failure.
   Future<SavedLocation> update({
     required String userId,
     required String id,
@@ -31,7 +13,6 @@ abstract class AddressFormRepository {
   });
 }
 
-/// The full address-detail-form payload (JM-050 AC fields).
 class AddressFormDraft {
   const AddressFormDraft({
     required this.label,
@@ -58,16 +39,12 @@ class AddressFormDraft {
   final bool isDefault;
 }
 
-/// Typed failure surface for the address form (40_GUARDRAILS_ARCH §4).
 enum AddressFormFailure {
-  /// Connection / timeout transport error.
   network,
 
-  /// Server rejected the save (e.g. 422 cap reached) or any other error.
   unknown,
 }
 
-/// Thrown by [AddressFormRepository] implementations; the cubit maps it to copy.
 class AddressFormException implements Exception {
   const AddressFormException(this.failure, [this.message]);
 

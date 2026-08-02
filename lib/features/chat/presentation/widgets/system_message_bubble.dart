@@ -4,9 +4,7 @@ import 'package:omds/omds.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/delivery_chat_message.dart';
 
-/// Center-aligned system notice — the "Kamal Hajj's offer was accepted"
-/// chip that lands in the chat between the offer cards and the 1:1 timeline
-/// when the accept saga resolves.
+/// Center-aligned system notice: "offer was accepted" chip in chat.
 class SystemMessageBubble extends StatelessWidget {
   const SystemMessageBubble({super.key, required this.message});
 

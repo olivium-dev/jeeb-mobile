@@ -23,22 +23,6 @@ import '../widgets/capture_location_pin.dart';
 import '../widgets/capture_map_viewport.dart';
 import 'address_form_l10n.dart';
 
-/// `address-detail-form` (JM-050). Full-screen saved-address editor — the
-/// promotion of the inline `add_edit_location_sheet.dart` to a routed screen at
-/// `/settings/addresses/edit` (21_NAV_PLAN §B batch W1; backlog JM-050, P2).
-///
-/// Fields (JM-050 AC + 63_W1_TEST_PLAN §2.17): map pin/preview
-/// (`address_form_map_pin`) + label (`address_form_label`) + Building
-/// (`address_form_building`) + Floor/apt (`address_form_floor_apt`) + Delivery
-/// notes (`address_form_delivery_notes`) + COD phone (`address_form_cod_phone`).
-/// `address_form_save_cta` persists via `POST/PUT /users/:userId/saved-locations`
-/// (the rewriteable `/users` path that reaches the mock) and routes back to
-/// `saved-addresses`.
-///
-/// Self-provides its [AddressFormCubit] over `sl<Dio>()` (40_GUARDRAILS_ARCH
-/// §5.4 — screen self-provides), with a `repository` constructor override for
-/// tests and a fixture fallback so the `address-detail` route mounts even with
-/// no Dio registered (`w1_routes_resolve_test`).
 class AddressDetailFormScreen extends StatelessWidget {
   const AddressDetailFormScreen({
     super.key,
@@ -49,37 +33,19 @@ class AddressDetailFormScreen extends StatelessWidget {
     this.mapPickerLauncher,
   });
 
-  /// Optional saved-address id passed as `?id=` for the edit path; absent for
-  /// the add path. When present the cubit issues a PUT.
   final String? addressId;
 
-  /// Optional pre-fill for the edit path. The JM-049 manager can hand the chosen
-  /// [SavedLocation] across via `extra` so the form opens populated; absent for
-  /// the add path (and for a cold deep-link with only `?id=`). See the
-  /// 50_ROUTE_REQUESTS edge note for the router-side `extra` forwarding.
   final SavedLocation? existing;
 
-  /// Owning user id. When null (the live router mount), it is resolved from
-  /// the authenticated session ([AuthTokenStore]) at build time — no mock
-  /// fallback. Injectable for tests / dev seams. The save is `me`-scoped
-  /// (identity from the bearer token), so this id never appears in the path.
   final String? userId;
 
-  /// Constructor test seam (40_GUARDRAILS_ARCH §5/§6). Never the DI default.
   final AddressFormRepository? repository;
 
-  /// Injectable map-picker seam. Tests pass a fake; production defaults to a
-  /// [GoogleMapPickerLauncher] built from the current context when the user
-  /// taps "Edit pin" (JEBV4-110 — previously a dead no-op).
   final MapPickerLauncher? mapPickerLauncher;
 
   @override
   Widget build(BuildContext context) {
     final editId = addressId ?? existing?.id;
-    // DEFECT A: never default to the mock `user-client-001`. Use the injected
-    // id when a test/dev seam provides one, else resolve the authenticated id
-    // from [AuthTokenStore]. The save is `me`-scoped (identity from the bearer
-    // token), so the id is not used in the path — but it must be the REAL user.
     final injected = userId;
     if (injected != null) {
       return BlocProvider<AddressFormCubit>(
@@ -110,16 +76,11 @@ class AddressDetailFormScreen extends StatelessWidget {
     );
   }
 
-  /// Resolves [AuthTokenStore] from DI when registered (so tests can mock it),
-  /// else news one — the same pattern the logout sheet uses. NEVER a mock id.
   AuthTokenStore _authTokenStore() => sl.isRegistered<AuthTokenStore>()
       ? sl<AuthTokenStore>()
       : AuthTokenStore();
 
   AddressFormRepository _resolveRepository() {
-    // Prefer the real Dio impl over the registered Dio (real :4010 gateway);
-    // degrade to the in-memory seam only when GetIt has no Dio (isolated host /
-    // route-resolve test) so the screen still renders (40_GUARDRAILS_ARCH §4).
     if (sl.isRegistered<AddressFormRepository>()) {
       return sl<AddressFormRepository>();
     }
@@ -147,13 +108,6 @@ class _AddressFormViewState extends State<_AddressFormView> {
   late final TextEditingController _notes;
   late final TextEditingController _codPhone;
 
-  // JEBV4-176: coordinates are nullable and NEVER seeded with a fabricated
-  // fallback. The add path starts with no pin (null) — there used to be a
-  // hardcoded Beirut centre (`33.8886, 35.4955`) here, so a customer could
-  // save a "home" address pinned to downtown Beirut WITHOUT ever picking a
-  // point, silently persisting a fabricated coordinate. Now the user must drop
-  // a REAL pin via "Edit pin" before Save enables; an existing address opens
-  // on its own saved (real) point.
   double? _latitude;
   double? _longitude;
   late SavedLocationCategory _category;
@@ -171,9 +125,6 @@ class _AddressFormViewState extends State<_AddressFormView> {
     _latitude = e?.latitude;
     _longitude = e?.longitude;
     _category = e?.category ?? SavedLocationCategory.home;
-    // Editing an existing address opens on its saved point (pin present); the
-    // add path has no pin until the user picks one via "Edit pin" — no
-    // fabricated coordinate is ever assumed (JEBV4-176).
     _hasPin = e != null;
   }
 
@@ -187,10 +138,6 @@ class _AddressFormViewState extends State<_AddressFormView> {
     super.dispose();
   }
 
-  // JEBV4-176: Save is gated on a non-empty label AND a REAL dropped pin. The
-  // add path no longer seeds a fabricated Beirut coordinate, so the customer
-  // must pick a point via "Edit pin" before the address can be saved — no
-  // saved address is ever persisted with an invented coordinate.
   bool get _isValid =>
       _label.text.trim().isNotEmpty &&
       _hasPin &&
@@ -199,14 +146,6 @@ class _AddressFormViewState extends State<_AddressFormView> {
 
   void _onEditPin() => unawaited(_editPin());
 
-  /// Opens the interactive map picker and adopts the point the user parks under
-  /// the centre pin (JEBV4-110). Production builds a [GoogleMapPickerLauncher]
-  /// from the current context; tests inject a fake via [widget.mapPickerLauncher].
-  /// A null result (cancel) leaves the current pin untouched.
-  ///
-  /// JEBV4-176: on the add path there is no seeded coordinate, so `initial` is
-  /// null and the live picker centres on its own neutral camera start; only the
-  /// point the user actually drops is adopted.
   Future<void> _editPin() async {
     final launcher =
         widget.mapPickerLauncher ?? GoogleMapPickerLauncher(context);
@@ -282,7 +221,6 @@ class _AddressFormViewState extends State<_AddressFormView> {
   void _onStateChange(BuildContext context, AddressFormState state) {
     final l10n = AppLocalizations.of(context);
     if (state.status == AddressFormStatus.saved) {
-      // EDGE — JM-050 → JM-049: save returns to the saved-addresses manager.
       context.goNamed('settings-addresses');
     } else if (state.status == AddressFormStatus.failed) {
       showOmdsSnackbar(context, message: l10n.savedLocationsSaveError);
@@ -417,7 +355,6 @@ class _PinPreview extends StatelessWidget {
           ClipRRect(
             borderRadius: OmdsBorderRadius.large,
             child: SizedBox(
-              // ~160pt preview band (8x token doubled — OMDS has no 160 token).
               height: Sizes.eightXLarge * 2,
               child: Stack(
                 fit: StackFit.expand,
@@ -469,8 +406,6 @@ class _SaveBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return SafeArea(
-      // SafeArea.minimum is typed EdgeInsets (not Directional); symmetric
-      // horizontal padding is RTL-safe (left == right).
       minimum: const EdgeInsets.fromLTRB(
         Spacing.medium,
         Spacing.small,

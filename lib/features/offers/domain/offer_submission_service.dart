@@ -1,5 +1,3 @@
-/// Stub created by sanity-build pass (2026-05-17). Real impl is the POST
-/// /api/offers RPC against jeeb-gateway.
 class OfferSubmissionService {
   const OfferSubmissionService();
 

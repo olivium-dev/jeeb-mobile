@@ -13,47 +13,6 @@ import '../domain/reviews_repository.dart';
 import 'reviews_l10n.dart';
 import 'widgets/review_row.dart';
 
-/// reviews-list (JM-068). The full "All reviews" list reached from
-/// `profile_view_all_reviews` on jeeber-profile-reviews (JM-067), at
-/// `/profile/delivery-man/reviews?jeeberId=` (the integrator-registered route).
-///
-/// Renders the canonical 4-state machine (40_GUARDRAILS_ARCH §3; the D30
-/// contract, 42_GUARDRAILS_MOCK §5.1): loading (full-screen skeletons, D73) /
-/// failed (inline error + retry) / loaded(+empty). On the loaded list a
-/// scroll-end fetches the next page and appends it (infinite scroll, D73), with
-/// an in-list skeleton footer while a page is on the wire and a soft, retryable
-/// footer when it fails.
-///
-/// D-decisions wired:
-///  - D58 — reviewer FIRST NAME only (`review_<id>_reviewer_name`).
-///  - D59 — cold-start (< 5 ratings): the aggregate score is HIDDEN, a "New"
-///    badge (`reviews_new_badge`) + hidden-score note (`reviews_hidden_score_note`)
-///    show instead; the individual rows still render.
-///  - D27 — every row carries `review_<id>_report_cta`; a tap confirms then
-///    POSTs the report (one-shot snackbar).
-///  - D57 — NO Helpful/Reply controls on the rows (immutable reviews) — enforced
-///    in [ReviewRow] (`showActions: false`).
-///
-/// Data: reads the jeeber's reviews via `sl<ReviewsRepository>()` — the
-/// INTEGRATOR-STUB today (R1m wired in `DioReviewsRepository`, swapped in DI once
-/// verified on :4010, 42_GUARDRAILS_MOCK "FINAL WAVE … R1m"). [repository] is a
-/// constructor test seam (§5.4); an unconfigured GetIt (router-resolution widget
-/// tests) falls back to an empty repo (mirrors JM-055/JM-057).
-///
-/// Semantics identifiers exposed (EXACT — 30_BACKLOG JM-068, 67_W34_TEST_PLAN
-/// §JM-068, 41_GUARDRAILS_TESTING):
-///   `reviews_root`                 — screen host container (nav target)
-///   `reviews_loading`              — first-load skeleton state (D30/D73)
-///   `reviews_error`                — cold-load failure (D30)
-///   `reviews_retry_cta`            — retry the cold load (D30)
-///   `reviews_empty`                — loaded + no rows (D30)
-///   `reviews_new_badge`            — cold-start New badge (D59)
-///   `reviews_hidden_score_note`    — cold-start <5 hidden-score note (D59)
-///   `review_<id>_reviewer_name`    — per-row first-name attribution (D58)
-///   `review_<id>_report_cta`       — per-row report (dynamic id, D27)
-///   `reviews_load_more`            — in-list next-page skeleton (D73 infinite)
-///   `reviews_back`                 — → jeeber-profile-reviews
-// ORPHAN (JEBV4-227, verified 2026-07-12): path-param route twin, zero callsites (query-param twin is live) — see docs/project-understanding/reconciliation/orphans.md
 class ReviewsListScreen extends StatelessWidget {
   const ReviewsListScreen({
     super.key,
@@ -62,23 +21,12 @@ class ReviewsListScreen extends StatelessWidget {
     this.authTokenStore,
   });
 
-  /// The jeeber whose reviews are listed (from `?jeeberId=` when present). When
-  /// null/empty the screen resolves the REAL authenticated session user's own
-  /// id (the jeeber viewing their own reviews) so a deep-link / cold-start (no
-  /// `extra`) still renders content (R-F) — NEVER a hardcoded `user-jeeber-002`
-  /// fixture id (S0-OAD-03).
   final String? jeeberId;
 
-  /// Constructor test seam (40_GUARDRAILS_ARCH §5.4) — defaults to DI.
   final ReviewsRepository? repository;
 
-  /// Session/auth source for the cold-deep-link id resolution. Test seam —
-  /// defaults to the real [AuthTokenStore].
   final AuthTokenStore? authTokenStore;
 
-  /// Resolves the repo: an explicit override (tests) → the registered DI binding
-  /// → an empty fallback when GetIt is not configured (router-resolution widget
-  /// tests). Mirrors `WalletActivityListScreen._resolveRepository()`.
   ReviewsRepository _resolveRepository() {
     final explicit = repository;
     if (explicit != null) return explicit;
@@ -100,11 +48,8 @@ class ReviewsListScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final explicit = jeeberId?.trim();
     if (explicit != null && explicit.isNotEmpty) {
-      // `?jeeberId=` present — view that jeeber's public reviews directly.
       return _buildFor(explicit);
     }
-    // No `?jeeberId=` (cold deep-link): resolve the REAL authenticated session
-    // user's own reviews from the auth source — never a hardcoded fixture id.
     return FutureBuilder<String?>(
       future: (authTokenStore ?? AuthTokenStore()).userId,
       builder: (context, snapshot) {
@@ -130,10 +75,6 @@ class _ReviewsView extends StatelessWidget {
       child: Scaffold(
         appBar: OMDSAppBar(
           title: copy.title,
-          // EDGE: reviews-list → jeeber-profile-reviews (back). The asserted
-          // `reviews_back` node is the leading affordance (21_NAV_PLAN §C,
-          // JM-068). pop() returns to the profile that pushed us; on a cold
-          // deep-link (no history) fall back to the shell root.
           leading: Semantics(
             identifier: 'reviews_back',
             button: true,
@@ -145,9 +86,6 @@ class _ReviewsView extends StatelessWidget {
           ),
         ),
         body: BlocConsumer<ReviewsCubit, ReviewsState>(
-          // One-shot report side-effect (D27): fire a single snackbar when a
-          // report finishes, then acknowledge so a rebuild doesn't replay it
-          // (40_GUARDRAILS_ARCH §3 nav/side-effects in listener, never builder).
           listenWhen: (p, n) =>
               p.reportStatus != n.reportStatus &&
               (n.reportStatus == ReportStatus.succeeded ||
@@ -204,11 +142,6 @@ class _ReviewsView extends StatelessWidget {
   }
 }
 
-/// Cold-load failure (D30). Renders the error message in the asserted
-/// `reviews_error` node and the retry as a distinct `reviews_retry_cta` node (the
-/// D30 `<screen>_retry_cta` convention) — a custom layout (not `OmdsErrorState`)
-/// so a flow can assert the error AND tap the retry by id (the OMDS widget merges
-/// its internal retry button into one node). Mirrors JM-055.
 class _ErrorBody extends StatelessWidget {
   const _ErrorBody({
     required this.message,
@@ -260,8 +193,6 @@ class _ErrorBody extends StatelessWidget {
   }
 }
 
-/// First-load skeletons (D73 — never a bare spinner on a list, 42 §5.1). Hosts
-/// the asserted `reviews_loading` state node.
 class _LoadingSkeletons extends StatelessWidget {
   const _LoadingSkeletons({required this.copy});
 
@@ -292,8 +223,6 @@ class _LoadingSkeletons extends StatelessWidget {
   }
 }
 
-/// Empty = `loaded` + an empty list (NOT a fifth status, §3). Wrapped in a
-/// scrollable so pull-to-refresh still works on an empty list.
 class _EmptyBody extends StatelessWidget {
   const _EmptyBody({required this.copy});
 
@@ -319,10 +248,6 @@ class _EmptyBody extends StatelessWidget {
   }
 }
 
-/// The aggregate header above the rows. D59: when cold-start (< 5 ratings) the
-/// numeric score is HIDDEN — a "New" badge (`reviews_new_badge`) + the
-/// hidden-score note (`reviews_hidden_score_note`) show instead; otherwise the
-/// rounded average + count render.
 class _AggregateHeader extends StatelessWidget {
   const _AggregateHeader({required this.state, required this.copy});
 
@@ -395,10 +320,6 @@ class _AggregateHeader extends StatelessWidget {
   }
 }
 
-/// The loaded list with infinite scroll. A [ScrollController] near-bottom trigger
-/// fetches the next page (the cubit single-flights + de-dupes); the footer shows
-/// a load-more skeleton while a page is in flight, or a soft retry when it fails
-/// (D73 / D30). The aggregate header is the first sliver via a header slot.
 class _LoadedList extends StatefulWidget {
   const _LoadedList({required this.state, required this.copy});
 
@@ -425,9 +346,6 @@ class _LoadedListState extends State<_LoadedList> {
     super.dispose();
   }
 
-  /// Fetch the next page when within ~400px of the end. The cubit no-ops when
-  /// there is no further page or a fetch is already in flight, so it is safe to
-  /// fire repeatedly during a fling.
   void _onScroll() {
     if (!_controller.hasClients) return;
     final position = _controller.position;
@@ -443,7 +361,6 @@ class _LoadedListState extends State<_LoadedList> {
     final reviews = state.reviews;
     final showFooter =
         state.loadingMore || state.loadMoreError || state.hasMore;
-    // index 0 = aggregate header; then the rows; then an optional footer slot.
     const headerCount = 1;
     final itemCount = headerCount + reviews.length + (showFooter ? 1 : 0);
 
@@ -453,7 +370,6 @@ class _LoadedListState extends State<_LoadedList> {
       padding: const EdgeInsetsDirectional.only(bottom: Spacing.large),
       itemCount: itemCount,
       separatorBuilder: (_, index) {
-        // No divider under the header or above the footer slot.
         if (index < headerCount) return const SizedBox.shrink();
         if (index >= headerCount + reviews.length - 1) {
           return const SizedBox.shrink();
@@ -482,17 +398,10 @@ class _LoadedListState extends State<_LoadedList> {
     );
   }
 
-  /// D27 — confirm, then POST the report. The confirm dialog + cubit call live in
-  /// this gesture callback (an explicit user gesture), never in a `builder`
-  /// (40_GUARDRAILS_ARCH §3). The one-shot result snackbar fires from the
-  /// screen's `BlocConsumer.listener`.
   Future<void> _confirmReport(BuildContext context, String reviewId) async {
     if (reviewId.isEmpty) return;
     final copy = widget.copy;
     final cubit = context.read<ReviewsCubit>();
-    // OmdsConfirmationDialog pops itself with `true`/`false` (its buttons call
-    // `Navigator.pop(<result>)` internally), so we read the result directly and
-    // do NOT pass popping `onConfirm`/`onCancel` (that would double-pop).
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => OmdsConfirmationDialog(
@@ -508,9 +417,6 @@ class _LoadedListState extends State<_LoadedList> {
   }
 }
 
-/// The infinite-scroll footer: a load-more skeleton while the next page is on the
-/// wire (`reviews_load_more`, D73), or a soft retry when it failed. Mirrors
-/// JM-055.
 class _Footer extends StatelessWidget {
   const _Footer({required this.state, required this.copy});
 

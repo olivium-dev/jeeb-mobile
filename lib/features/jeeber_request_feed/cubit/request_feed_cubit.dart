@@ -10,48 +10,48 @@ import '../data/request_feed_models.dart';
 import '../data/request_feed_repository.dart';
 import 'request_feed_state.dart';
 
-/// Optional side-effect hook the host wires up to play a notification sound
-/// every time a new request enters the feed. Kept as a function (not a
-/// service interface) because the only call site is `audioplayers.play()`
-/// — defining a one-method interface would be ceremony for no benefit.
-///
-/// The cubit invokes [SoundNotifier] exactly once per new request id; it's
-/// not called for snapshot rehydration or actions.
+
+
+
+
+
+
+
 typedef SoundNotifier = void Function();
 
 enum RequestFeedRepositoryOwnership {
-  /// The cubit disposes the repository when it closes. This is the default
-  /// because the non-DI construction sites create a repository per widget.
+  
+  
   owned,
 
-  /// Another lifetime owner owns disposal; the cubit only releases interest.
+  
   borrowed,
 }
 
-/// Drives the Jeeber request feed (JEEB-66 / T-mobile-013).
-///
-/// Three live subscriptions:
-///   1. [RequestFeedRepository.requests] — new requests fan into the feed
-///      (deduped by id) and trigger [SoundNotifier].
-///   2. [RequestFeedRepository.transport] — flips the WebSocket vs polling
-///      badge in the screen layer.
-///   3. `refreshSignals` (JEBV4-342, b02) — a foreground `new_request` push
-///      re-pulls the snapshot at once. Optional; absent under a bare harness.
-///
-/// Requests LEAVE the feed via (a) the snapshot-authoritative [refresh]
-/// reconcile — a request the gateway no longer lists is dropped; (b) the
-/// periodic timer that first flips a card whose server `expiresAt` has passed
-/// into a visible EXPIRED state, then removes it once [expiredLinger] elapses;
-/// or (c) a completed accept/decline.
-/// (There is no separate cancellations stream — no backend ever produced one.)
-///
-/// G3 (sprint-009): the server `expiresAt` is the ONLY lifetime authority.
-/// The old client-side `requestTimeout` — `min(expiresAt, addTime + 60s)` —
-/// silently retired cards FOUR MINUTES before the server's 5:00 broadcast
-/// window, so a jeeber who dismissed the push and opened the app 90s later
-/// saw "No requests" for a request that was still live. When the gateway omits
-/// `expiresAt`, no deadline is tracked: snapshot membership remains the only
-/// lifetime signal for that request.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 class RequestFeedCubit extends Cubit<RequestFeedState>
     implements PollingVisibility {
   RequestFeedCubit({
@@ -79,20 +79,20 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
   final RequestFeedRepositoryOwnership _repositoryOwnership;
   bool _pollingVisible = false;
 
-  /// How long an expired card stays on screen (visibly marked "Expired",
-  /// actions disabled) before the sweep collapses it out of the list — the
-  /// graceful exit G3 requires instead of a silent vanish.
+  
+  
+  
   final Duration _expiredLinger;
   final Duration _sweepInterval;
   final SoundNotifier? _onNewRequestSound;
   final DateTime Function() _clock;
 
-  /// JEBV4-342 (b02): push-driven refetch bus. Every event on it means "the
-  /// server's open-request set changed — re-pull it", so the handler is simply
-  /// [refresh]; the stream is payload-less because this cubit already knows it
-  /// renders the whole snapshot. `null` (bare widget test, or a host with no
-  /// `PushRefreshSignals` in the DI container) leaves the existing wall-clock
-  /// poll as the only input, exactly as before.
+  
+  
+  
+  
+  
+  
   final Stream<void>? _refreshSignals;
 
   StreamSubscription<DeliveryRequest>? _requestsSub;
@@ -108,32 +108,32 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     debugLabel: 'RequestFeedCubit expiry sweep',
   );
 
-  /// Per-request expiry deadline — the request's own server `expiresAt`,
-  /// verbatim. Used by [_sweepExpired] to flip cards into the expired state.
-  /// Kept off [RequestFeedState] so each tick doesn't churn the equality
-  /// check across the entire feed.
+  
+  
+  
+  
   final Map<String, DateTime> _deadlines = {};
 
-  /// Per-request removal deadline for cards already expired: `expiredAt +
-  /// [_expiredLinger]`. When it passes, [_sweepExpired] removes the card.
+  
+  
   final Map<String, DateTime> _removals = {};
 
-  /// Boot the live subscriptions and pull an initial snapshot.
+  
   Future<void> start() async {
     _requestsSub ??= _repository.requests.listen(_onIncoming);
     _transportSub ??= _repository.transport.listen(_onTransport);
-    // JEBV4-342 (b02): a foreground `new_request` push re-pulls the snapshot
-    // immediately instead of waiting for the next poll tick. Subscribed here
-    // rather than in the constructor so a cubit that is built but never started
-    // holds no live subscription — the same rule the two subscriptions above
-    // already follow. `??=` keeps a second `start()` from double-subscribing
-    // (which would fire two refetches per push).
-    // b02 READ ECONOMICS — bound through a [DeferredRefreshGate], so a
-    // `new_request`/`offers` push that lands while the feed is behind another
-    // route (request-detail, active-delivery) costs ZERO reads and is paid with
-    // ONE `GET /v1/jeebers/me/feed` on return. `bind` is idempotent for the same
-    // reason `??=` was: a second `start()` must not double-subscribe and turn one
-    // push into two refetches.
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     _refreshGate.bind(_refreshSignals);
     _sweepPoller.start();
     _applyPollInterest();
@@ -142,20 +142,20 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
 
   @override
   void setPollingVisible(bool visible) {
-    // The sweep defaults visible so cubits mounted outside the shell retain
-    // their existing expiry behaviour. Always forward the first hidden value:
-    // [_pollingVisible] also defaults false, but the poller's default is true.
+    
+    
+    
     _sweepPoller.setPollingVisible(visible);
-    // b02 READ ECONOMICS: the push bus is gated by the SAME signal as the poll,
-    // so "the feed is not on screen" now means one thing everywhere.
+    
+    
     _refreshGate.setPollingVisible(visible);
     if (_pollingVisible == visible) return;
     _pollingVisible = visible;
     _applyPollInterest();
   }
 
-  /// Interest is deferred until the transport subscription exists so the
-  /// source's first-interest polling update cannot be dropped.
+  
+  
   void _applyPollInterest() {
     final source = _source;
     if (source == null || _transportSub == null) return;
@@ -166,20 +166,20 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     }
   }
 
-  /// Manual refresh — pulls the latest snapshot from the gateway and merges
-  /// it with the in-memory feed. Surfaces a one-shot loading state on the
-  /// initial fetch so the screen can render a spinner, but stays silent on
-  /// subsequent pulls (the OMDS pull-to-refresh chrome owns the affordance).
-  ///
-  /// Single-flighted (b02 P0). This was the `GET /v1/jeebers/me/feed` leg of the
-  /// measured 60-read storm — twenty reads in 2.08 s, the last of them a 429 —
-  /// and it had no guard at all: four independent triggers reach it (cold
-  /// `start()`, the push bus, `FeedResumeRefetcher`'s resume hook and its
-  /// tab-refocus hook) and none knew about the others. A call arriving while a
-  /// read is in flight is DROPPED, not queued: the running read was issued after
-  /// the event that prompted the dropped one, so it already observes the same
-  /// snapshot. The RATE floor is `AppResumeSignals`; this is the concurrency
-  /// half, and the two are not substitutes — the storm's reads never overlapped.
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   Future<void> refresh() async {
     if (_refreshInFlight) return;
     _refreshInFlight = true;
@@ -202,23 +202,23 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     }
     try {
       final snapshot = await _repository.refresh();
-      // Snapshot-authoritative reconcile: the gateway snapshot is the source of
-      // truth. A request the gateway has since dropped (cancelled by the sender,
-      // taken by another jeeber, or expired) is NOT in the snapshot and must
-      // leave the feed — the old additive merge kept such stale cards forever.
-      // Existing rows we preserve: (a) rows with an action in flight, so a
-      // refresh landing mid-accept/decline doesn't yank the card out from
-      // under the user before its effect resolves; and (b) rows in their
-      // expired-linger window, so the graceful "Expired" exit isn't cut short
-      // by a refresh — the sweep owns their removal.
+      
+      
+      
+      
+      
+      
+      
+      
+      
       final existingById = {for (final r in state.requests) r.id: r};
       final reconciled = <String, DeliveryRequest>{};
       final expiredIds = <String>{...state.expiredIds};
       final serverClosedIds = <String>{};
       for (final r in snapshot) {
-        // Contract B carries the request status on every item. Presence alone
-        // is not action authority: a stale terminal row must immediately
-        // retire instead of recovering Ignore / Offer actions.
+        
+        
+        
         if (!r.requestIsOpen) {
           serverClosedIds.add(r.id);
           expiredIds.remove(r.id);
@@ -226,11 +226,11 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
           _removals.remove(r.id);
           continue;
         }
-        // A row the server still reports OPEN revives a locally expired mark
-        // (for example after device clock skew).
+        
+        
         expiredIds.remove(r.id);
-        // Re-track every authoritative row so a newly supplied deadline is
-        // honoured and a newly omitted deadline clears any older local entry.
+        
+        
         _trackDeadline(r);
         reconciled[r.id] = r;
       }
@@ -262,13 +262,13 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     }
   }
 
-  /// User tapped the accept button on a card. The card stays on screen with
-  /// a pending indicator until the gateway responds; on success it is
-  /// removed (the host routes the Jeeber out of the feed). All non-success
-  /// outcomes also remove the card — there's no point keeping a stale
-  /// already-taken/expired request on screen — but the cubit emits the
-  /// distinct [RequestActionEffect] so the screen layer can flash the right
-  /// snackbar.
+  
+  
+  
+  
+  
+  
+  
   Future<void> accept(String id) =>
       _act(id: id, busy: RequestActionStatus.accepting, call: _repository.accept);
 
@@ -287,8 +287,8 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     if (requestIndex == -1 || !state.requests[requestIndex].requestIsOpen) {
       return;
     }
-    // An expired card is display-only during its linger window — the request
-    // is dead server-side, so accept/decline would only round-trip an error.
+    
+    
     if (state.isExpired(id)) return;
     if (state.actionStatusFor(id) != RequestActionStatus.idle) return;
     emit(state.copyWith(
@@ -304,7 +304,7 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
       state.actionStatuses,
     )..remove(id);
     if (outcome == RequestActionOutcome.networkError) {
-      // Surface the error but keep the card so the Jeeber can retry.
+      
       emit(state.copyWith(
         actionStatuses: pendingRemoved,
         lastEffect: RequestActionEffect(requestId: id, outcome: outcome),
@@ -320,8 +320,8 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     ));
   }
 
-  /// Acknowledged by the screen layer after rendering a snackbar — clears
-  /// the transient effect so [BlocConsumer.listenWhen] doesn't replay it.
+  
+  
   void clearEffect() {
     if (state.lastEffect == null) return;
     emit(state.copyWith(lastEffect: null));
@@ -351,7 +351,7 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     byId[request.id] = request;
     _trackDeadline(request);
     if (!exists) _onNewRequestSound?.call();
-    // A re-pushed id is live again by definition — drop any expired mark.
+    
     final expiredIds = <String>{...state.expiredIds}..remove(request.id);
     emit(state.copyWith(
       status: RequestFeedStatus.ready,
@@ -365,12 +365,12 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     emit(state.copyWith(transport: update.transport));
   }
 
-  /// Two-phase retirement so cards never silently vanish (G3):
-  ///
-  ///  1. A card whose server `expiresAt` has passed is MARKED expired — it
-  ///     stays on screen, visibly flipped to its "Expired" look with actions
-  ///     disabled — and its removal is scheduled at `now + expiredLinger`.
-  ///  2. A card whose linger window has elapsed is removed from the feed.
+  
+  
+  
+  
+  
+  
   void _sweepExpired() {
     final now = _clock();
     final newlyExpired = _deadlines.entries
@@ -405,9 +405,9 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     ));
   }
 
-  /// The server `expiresAt` is the one and only deadline — no client-side
-  /// truncation (G3). Re-tracking an id also clears any scheduled removal,
-  /// so a re-listed/re-pushed request is live again.
+  
+  
+  
   void _trackDeadline(DeliveryRequest request) {
     final expiresAt = request.expiresAt;
     if (expiresAt == null) {

@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../obs_overlay_controller.dart';
 
-/// Title row for the expanded panel: name on the left, a close button (back
-/// to the collapsed bubble) on the right.
 class ObsOverlayPanelHeader extends StatelessWidget {
   const ObsOverlayPanelHeader({super.key, required this.controller});
 

@@ -6,18 +6,11 @@ import '../../../../l10n/app_localizations.dart';
 import '../../application/dm_onboarding_cubit.dart';
 import '../../application/dm_onboarding_state.dart';
 
-/// The large tappable photo drop-area (Figma 56591:5334/5335/5336).
-///
-/// Empty state: near-white card, hairline border, centered plus icon. Filled
-/// state: the chosen photo previews inside the same card geometry. Tapping
-/// opens the camera/gallery sheet. Sized by aspect ratio so it shrinks on
-/// small screens without a fixed height.
 class DmOnboardingPhotoUploadCard extends StatelessWidget {
   const DmOnboardingPhotoUploadCard({super.key});
 
   static const Key rootKey = Key('dm-onboarding-photo-card');
 
-  /// 4:5 portrait card matching the Figma 392x507 drop area.
   static const double _aspectRatio = 4 / 5;
 
   @override
@@ -37,12 +30,6 @@ class DmOnboardingPhotoUploadCard extends StatelessWidget {
 
   Future<void> _openPicker(BuildContext context, AppLocalizations l10n) async {
     final cubit = context.read<DmOnboardingCubit>();
-    // OMDS exposes generic 'photo'/'video' choice keys with camera/videocam
-    // icons; this step repurposes the sheet as a photo-*source* picker, so the
-    // two visible option labels are Camera and Gallery (design-spec.md §6,
-    // Figma 56591:5334). The returned key is OMDS-internal, never shown:
-    //   'photo' (left option, Icons.photo_camera) -> camera capture
-    //   'video' (right option, Icons.videocam)    -> gallery pick
     final choice = await OmdsMediaPickerSheet.show(
       context,
       title: l10n.dmOnboardingPhotoUploadTitle,

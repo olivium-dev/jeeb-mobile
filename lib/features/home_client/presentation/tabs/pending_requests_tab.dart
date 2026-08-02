@@ -11,19 +11,9 @@ import '../../domain/client_home_request.dart';
 import '../widgets/active_request_card.dart' show ClientHomeTierBadge;
 import '../widgets/client_home_empty_view.dart';
 
-/// T-MOB-007: Isolated Pending Requests tab widget.
-///
-/// Renders requests that are broadcast but not yet matched. Each card shows
-/// an order summary and a "Searching for Jeebers…" status derived from its
-/// authoritative server-side `pending` bucket. The live gateway list carries
-/// no expiry timestamp, so this surface deliberately does not manufacture a
-/// client deadline. A server-terminal request is removed on the next snapshot.
-///
-/// Mock endpoint: GET /v1/requests?status=pending  (Mockoon :3055)
 class PendingRequestsTab extends StatelessWidget {
   const PendingRequestsTab({super.key, this.onTap, this.onCreateRequest});
 
-  /// Called when a card row is tapped. If null the tap is a no-op.
   final void Function(ClientHomeRequest request)? onTap;
   final VoidCallback? onCreateRequest;
 
@@ -118,12 +108,6 @@ class _PendingList extends StatelessWidget {
       key: const Key('pending-requests-tab-list'),
       children: [
         for (var i = 0; i < requests.length; i++)
-          // JM-023 AC2: the indexed `orders_home_request_row_<n>` identifier is
-          // the QA tap target for a pending request row on the Requests home.
-          // It wraps (does not replace) the per-id `pending_requests_item_<id>`
-          // identifier the card already exposes, so both contracts stay
-          // targetable; tapping routes to `waiting-no-coverage` (JM-026) via
-          // the screen-supplied [onTap].
           Semantics(
             identifier: 'orders_home_request_row_$i',
             container: true,
@@ -138,9 +122,6 @@ class _PendingList extends StatelessWidget {
   }
 }
 
-/// Backward-compatible public card name retained for callers/tests from the
-/// original countdown implementation. Status is now server-owned: membership
-/// in this list means the repository observed a live pending request.
 class PendingCountdownCard extends StatelessWidget {
   const PendingCountdownCard({super.key, required this.request, this.onTap});
 
@@ -150,9 +131,6 @@ class PendingCountdownCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // The a11y status mirrors what the card shows: the offers count once offers
-    // exist, otherwise the honest server-owned "searching" state. Default
-    // (offerCount == 0) keeps the pre-existing label verbatim.
     final statusLabel = request.offerCount > 0
         ? l10n.pendingCardOffersBadge(request.offerCount)
         : l10n.pendingTabSearchingLabel;
@@ -216,19 +194,11 @@ class _PendingCardRow extends StatelessWidget {
         _PendingCardHeader(request: request),
         const SizedBox(height: Spacing.twoXSmall),
         _PendingCardSummary(text: request.summaryLine),
-        // Age line — shown ONLY when the server row carried a real `createdAt`.
-        // It is a past-fact "created N ago" (grows over time), NOT a countdown
-        // or expiry; the manufactured-deadline lie stays removed.
         if (createdAt != null) ...[
           const SizedBox(height: Spacing.twoXSmall),
           _PendingCreatedAge(createdAt: createdAt),
         ],
         const SizedBox(height: Spacing.xSmall),
-        // Once offers have arrived, surface them prominently instead of the flat
-        // "Searching…" line. NB: on the live client-home path an offer-bearing
-        // request is bucketed into Replies (offerCount>0), so on the Pending tab
-        // this branch lights up for denormalised counts / non-dio repositories;
-        // the searching line remains the default pending state.
         if (request.offerCount > 0)
           _PendingOffersBadge(
             count: request.offerCount,
@@ -255,9 +225,6 @@ class _PendingCardHeader extends StatelessWidget {
         Expanded(
           child: Text(
             request.displayId ?? request.title,
-            // Role fix: `secondaryContainer` is a CONTAINER (fill) role, not
-            // an ink role — as text it went illegible on dark surfaces. Titles
-            // on surface read in `onSurface`.
             style: theme.textTheme.titleLarge?.copyWith(
               color: theme.colorScheme.onSurface,
               fontWeight: FontWeight.w400,
@@ -321,10 +288,6 @@ class _PendingServerStatus extends StatelessWidget {
   }
 }
 
-/// Prominent "N offers" badge shown on a pending card once offers have already
-/// arrived, in place of the flat "Searching…" line. Emphasised (filled) when
-/// [emphasize] — the request's unseen-offers flag — is set, softer (tonal)
-/// otherwise. Display-only: the whole card row stays the single tap target.
 class _PendingOffersBadge extends StatelessWidget {
   const _PendingOffersBadge({required this.count, required this.emphasize});
 
@@ -349,10 +312,6 @@ class _PendingOffersBadge extends StatelessWidget {
   }
 }
 
-/// Age line ("Created 12 minutes ago") derived from the server [createdAt]
-/// instant. Uses the device clock only to age a PAST fact; it never counts
-/// down to a fabricated deadline. Rendered by the caller only when a real
-/// timestamp exists.
 class _PendingCreatedAge extends StatelessWidget {
   const _PendingCreatedAge({required this.createdAt});
 
@@ -372,11 +331,6 @@ class _PendingCreatedAge extends StatelessWidget {
   }
 }
 
-/// Builds the pending-card age label from a server [createdAtUtc] instant and
-/// the current [now]. Pure + deterministic so it can be unit-tested with fixed
-/// times. Only ever renders a PAST "created N ago": a future/negative delta
-/// (clock skew) and anything under a minute both degrade to "just now" — there
-/// is deliberately no future-facing countdown here.
 @visibleForTesting
 String pendingCreatedAgeLabel(
   AppLocalizations l10n,
@@ -398,8 +352,6 @@ String pendingCreatedAgeLabel(
   return l10n.pendingCardCreatedDays(elapsed.inDays);
 }
 
-/// Faint reconnect banner shown at the top of the Pending tab when the
-/// WebSocket is disconnected (AC6 of T-MOB-007).
 class PendingReconnectBanner extends StatelessWidget {
   const PendingReconnectBanner({super.key, required this.visible});
 
@@ -409,8 +361,6 @@ class PendingReconnectBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!visible) return const SizedBox.shrink();
     final l10n = AppLocalizations.of(context);
-    // Reconnecting is a transient attention state → semantic warning role, not
-    // the error pair (kept for terminal failures).
     final roles = context.jeebRoles;
     return Container(
       key: const Key('pending-reconnect-banner'),
@@ -421,7 +371,6 @@ class PendingReconnectBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // OMDS: OmdsLoadingState replaces CircularProgressIndicator (OMDS-only policy).
           OmdsLoadingState(size: Sizes.medium, color: roles.onWarningContainer),
           const SizedBox(width: Spacing.xSmall),
           Text(

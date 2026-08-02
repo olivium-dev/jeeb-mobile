@@ -4,11 +4,6 @@ import 'package:omds/omds.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/jeeber_delivery_status.dart';
 
-/// Horizontal stepper showing the successful delivery stages for the Jeeber.
-///
-/// OMDS owns the stage circles, connectors, and completed/current/upcoming
-/// colors through [OmdsStepIndicator]. This feature layer supplies only the
-/// delivery-specific icons, labels, and accessibility copy.
 class DeliveryStatusStepper extends StatelessWidget {
   const DeliveryStatusStepper({
     super.key,
@@ -27,11 +22,6 @@ class DeliveryStatusStepper extends StatelessWidget {
       return const SizedBox.shrink();
     }
     final l10n = AppLocalizations.of(context);
-    // JM-051: during the delivering phase (InTransit / AtDoor) the journey to
-    // Done is owned by the MarkDeliveredPanel's `mark_delivered_cta` (it needs
-    // the proof photo + the done→rating chain), so the stepper suppresses its
-    // own advance button there. Earlier stages (Ordered → Picked → InTransit)
-    // keep the inline advance button.
     final showAdvance =
         !currentStatus.isTerminal &&
         currentStatus != JeeberDeliveryStatus.inTransit &&
@@ -72,9 +62,6 @@ class _DeliveryProgress extends StatelessWidget {
               currentStep: currentIndex + 1,
               totalSteps: jeeberDeliveryProgressStages.length,
               completedColor: colors.primary,
-              // Accent PAINT, not a container fill — see the tone-pair note in
-                // `app_theme.dart`. `tertiary` is the same #D73B00 this line
-                // rendered before the palette fix.
                 activeColor: colors.tertiary,
               pendingColor: colors.surfaceContainerHighest,
               lineColor: colors.outlineVariant,

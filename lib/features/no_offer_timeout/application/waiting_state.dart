@@ -3,7 +3,6 @@ import 'package:equatable/equatable.dart';
 import '../domain/waiting_repository.dart';
 import '../domain/waiting_request.dart';
 
-/// Cold-load lifecycle of the waiting screen.
 enum WaitingScreenStatus { initial, loading, loaded, failed }
 
 class WaitingState extends Equatable {
@@ -16,11 +15,8 @@ class WaitingState extends Equatable {
 
   final WaitingScreenStatus status;
 
-  /// Latest snapshot; null before the first load resolves.
   final WaitingRequest? request;
 
-  /// The cubit's injected "now", advanced each clock tick so the countdown
-  /// rebuilds deterministically (tests fast-forward via [WaitingCubit.tick]).
   final DateTime? now;
 
   final WaitingFailure? error;
@@ -29,28 +25,16 @@ class WaitingState extends Equatable {
       status == WaitingScreenStatus.loading ||
       status == WaitingScreenStatus.initial;
 
-  /// True once the broadcast window has fully elapsed with zero offers in —
-  /// the ONLY signal that drives the softened "No offers yet" state. Clock-aware
-  /// (uses [remaining], which is derived from the injected [now]) and decoupled
-  /// from [WaitingRequest.notifiedCount], which the gateway never populates
-  /// (jeebers pull `GET /v1/jeebers/me/feed`; there is no push-notify counter).
   bool get isNoOffersYet =>
       request != null &&
       !isTerminal &&
       !hasOffers &&
       remaining == Duration.zero;
 
-  /// True once at least one offer has arrived — drives the review-offers CTA.
   bool get hasOffers => !isTerminal && (request?.hasOffers ?? false);
 
-  /// True when the server says this request has left the waiting flow.
   bool get isTerminal => request?.phase.isTerminal ?? false;
 
-  /// Remaining time until the offer-wait deadline, clamped at zero.
-  /// NULL means NO COUNTDOWN APPLIES — never render a fabricated 0:00 for it.
-  /// (A missing server field is a contract violation that throws in the
-  /// repository and lands in [WaitingScreenStatus.failed]; it never arrives
-  /// here.)
   Duration? get remaining {
     if (isTerminal) return null;
     final deadline = request?.deadline;

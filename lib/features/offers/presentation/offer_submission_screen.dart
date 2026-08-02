@@ -13,32 +13,6 @@ import '../domain/offer_eta_band.dart';
 import '../domain/offer_submission_repository.dart';
 import 'offer_composer_l10n.dart';
 
-/// Structured Offer Composer — JM-045 (blueprint `offer-composer`, economics
-/// layer G3). Route `/jeeber/requests/:id/offer` (name `jeeber-offer-submission`).
-///
-/// Replaces the old plain price/ETA/note form with the D-decided economics
-/// surface (root id `offer_composer_root`):
-///   * `offer_composer_order_ref`   — "Your offer · ORD-…" header (AC3).
-///   * `offer_composer_price_field` — the Jeeber's offer price.
-///   * `offer_composer_fee_line`    — exact 10% platform fee (D37/D44).
-///   * `offer_composer_net_line`    — "You earn (cash)" net-per-offer (D44).
-///   * `offer_composer_reserve_note`— reserve/charge/release copy (D1).
-///   * `offer_composer_eta_dropdown`— pickup ETA bounded by the tier SLA band
-///     (D14), options `offer_composer_eta_option_<i>` — NOT free minutes.
-///   * `offer_composer_send_cta`    — submit.
-///
-/// On send (`POST /v1/offers`, O1):
-///   * 201 (sufficient) → 10% reserved → route to the jeeber feed
-///     (`jeeber_feed_root`, the DELIVERY tab) via `context.go('/')` — NOT chat
-///     (AC4; differs from the legacy T-MOB-030 chat hand-off).
-///   * 402 (insufficient) → `insufficient_balance_sheet` (JM-046, AC5) — the
-///     draft is preserved.
-///   * 409 → request-gone snack + back to feed.
-///
-/// Money lines read the wallet (W1m via [WalletRepository], seam-driven). The
-/// constructor signature is unchanged so the integrator-owned router builder
-/// (`app_router.dart`) compiles untouched; [onSubmitted]/[onRequestGone] are
-/// retained for back-compat but the screen now owns its feed navigation.
 class OfferSubmissionScreen extends StatelessWidget {
   const OfferSubmissionScreen({
     super.key,
@@ -54,40 +28,23 @@ class OfferSubmissionScreen extends StatelessWidget {
 
   final String requestId;
 
-  /// Legacy stub service — kept for router compatibility; ignored in favour
-  /// of [repository].
   // ignore: avoid_annotating_with_dynamic
   final dynamic submissionService;
 
   final VoidCallback onWithdrawn;
 
-  /// Retained for back-compat (legacy chat hand-off). The composer now routes
-  /// to the feed itself on success (AC4), so this is only invoked as a fallback
-  /// when the host wants the conversationId.
   final void Function(String conversationId)? onSubmitted;
 
-  /// Retained for back-compat. The screen handles the 409 snack + feed return.
   final VoidCallback? onRequestGone;
 
-  /// Offer repository. Injectable for tests; resolved from DI when omitted.
   final OfferSubmissionRepository? repository;
 
-  /// Wallet read-model for the money lines (W1m). Injectable for tests;
-  /// resolved from DI when omitted.
   final WalletRepository? walletRepository;
 
-  /// DT-04 catalog/test seam: an already-constructed cubit to host verbatim
-  /// (via `BlocProvider.value`), bypassing [repository]/DI entirely. Lets a
-  /// caller pre-drive [OfferFormCubit.submit] (e.g. into `submitting` or a
-  /// validation-error mode) before the screen ever mounts. Additive-only —
-  /// null in every existing call site, which keeps building their own cubit
-  /// from [repository] exactly as before.
   final OfferFormCubit? cubit;
 
   OfferSubmissionRepository _resolveOfferRepo() {
     if (repository != null) return repository!;
-    // The integrator-owned router builder always passes `repository`; this
-    // resolves it from DI for any host that omits the override.
     return sl<OfferSubmissionRepository>();
   }
 
@@ -141,22 +98,13 @@ class _OfferComposer extends StatefulWidget {
 class _OfferComposerState extends State<_OfferComposer> {
   final _priceController = TextEditingController();
 
-  /// Optional free-text offer description (wire field `note`). The trim /
-  /// empty→null normalization happens at send time ([_onSendTapped]); the raw
-  /// text lives here so the draft survives a 402 "keep editing" round-trip.
   final _noteController = TextEditingController();
 
-  /// The tier SLA band (D14). Without the request's tier on the feed payload we
-  /// use the widest catalog band so the picker is still bounded, not free-form.
   final OfferEtaBand _etaBand = OfferEtaBand.defaultBand();
 
   double? _price;
   int? _selectedEta;
 
-  /// Wallet snapshot for the money lines (W1m). Best-effort: a fetch failure
-  /// degrades the available-balance context to null (the lines still render
-  /// from the entered price); it never blocks the composer (D35 is enforced by
-  /// the cubit's network failure path, not here).
   WalletBalance? _wallet;
   bool _insufficientShown = false;
 
@@ -173,7 +121,6 @@ class _OfferComposerState extends State<_OfferComposer> {
       final balance = await repo.fetchBalance();
       if (mounted) setState(() => _wallet = balance);
     } catch (_) {
-      // Best-effort — leave _wallet null; money lines fall back to price-only.
     }
   }
 
@@ -184,18 +131,9 @@ class _OfferComposerState extends State<_OfferComposer> {
     super.dispose();
   }
 
-  /// Reserve held against this offer = exactly the platform commission on the
-  /// offer price (D1/D37) — flat 10%, per owner ruling Q-001.
-  ///
-  /// The rate is [kJeebCommissionRate], not a literal. This line used to spell
-  /// `0.10` itself, which made it a second copy of a number the gateway is the
-  /// authority on: `CommissionCalculator.FlatRate`. It is the copy that would
-  /// have hurt most, too — it is what a Jeeber reads BEFORE deciding what to
-  /// bid, so a stale rate here misprices the offer at the moment of commitment.
   double? get _reserve =>
       _price == null ? null : (_price! * kJeebCommissionRate);
 
-  /// The currency the money lines render in — the wallet's, else USD (the O1
   /// default; 42_GUARDRAILS_MOCK W1m).
   String get _currency => _wallet?.currency ?? 'USD';
 
@@ -214,9 +152,6 @@ class _OfferComposerState extends State<_OfferComposer> {
     final l10n = OfferComposerL10n.of(context);
     switch (state.mode) {
       case OfferFormMode.success:
-        // AC4: 10% reserved → route to the jeeber feed (jeeber_feed_root, the
-        // DELIVERY tab) — NOT chat. `go('/')` re-roots the role-aware shell; a
-        // jeeber lands on the DELIVERY (Dashboard) tab feed.
         widget.onSubmitted?.call(state.conversationId ?? widget.requestId);
         context.go('/');
       case OfferFormMode.requestGone:
@@ -234,10 +169,6 @@ class _OfferComposerState extends State<_OfferComposer> {
     }
   }
 
-  /// Localized error-snack copy. The offer-cap literal has no localized copy
-  /// yet so it rides [OfferFormState.errorMessage]; everything else localizes
-  /// off [OfferFormState.errorReason] so the ready Arabic copy isn't shadowed
-  /// by a hardcoded English string (JEBV4-246).
   String _errorText(OfferComposerL10n l10n, OfferFormState state) {
     final literal = state.errorMessage;
     if (literal != null) return literal;
@@ -248,7 +179,6 @@ class _OfferComposerState extends State<_OfferComposer> {
   }
 
   void _snack(BuildContext context, String message) {
-    // EXEMPT: OMDS exports no standalone toast/snackbar widget; showOmdsSnackbar
     // is the approved fleet pattern for transient feedback (40_GUARDRAILS §8).
     showOmdsSnackbar(context, message: message);
   }
@@ -312,11 +242,6 @@ class _OfferComposerState extends State<_OfferComposer> {
     );
   }
 
-  /// A human "ORD-…" reference derived from the requestId (the feed payload
-  /// does not carry a separate order ref today — JM-045 route note). When the
-  /// id already looks like an order ref it is shown verbatim; otherwise it is
-  /// shortened to a glanceable `ORD-<6>` tail instead of echoing the full UUID
-  /// (sprint-009 audit §T5: the composer heading leaked a raw `ORD-9C37B6AF-…`).
   String get _displayRef {
     final id = widget.requestId;
     if (id.trim().isEmpty) return 'ORD-—';
@@ -342,8 +267,6 @@ class _OfferComposerState extends State<_OfferComposer> {
     if (_insufficientShown) return;
     _insufficientShown = true;
 
-    // Prefer the 402's figures; fall back to the wallet snapshot / computed
-    // reserve so the sheet always shows a needed-vs-available pair.
     final needed = info?.needed ?? _reserve ?? 0.0;
     final available = info?.available ?? _wallet?.availableBalance ?? 0.0;
     final currency = info?.currency ?? _currency;
@@ -356,15 +279,12 @@ class _OfferComposerState extends State<_OfferComposer> {
       fmt: _fmt,
     );
 
-    // Sheet dismissed (top-up routed away, or keep-editing) — clear the cubit's
-    // sheet mode so a re-send re-opens it. Draft (controllers) is untouched.
     if (!mounted || !context.mounted) return;
     _insufficientShown = false;
     context.read<OfferFormCubit>().acknowledgeInsufficientBalance();
   }
 }
 
-/// `offer_composer_order_ref` — "Your offer · ORD-…" header (AC3).
 class _OrderRefHeader extends StatelessWidget {
   const _OrderRefHeader({required this.reference});
 
@@ -399,21 +319,11 @@ class _OrderRefHeader extends StatelessWidget {
   }
 }
 
-/// Max length of the optional offer note — mirrors the gateway `MaxNoteLength`
-/// (`CreateOfferBody.note`, 500 chars). Enforced client-side so the character
-/// counter stops the Jeeber before the gateway would 400 on note-too-long.
 const int kOfferNoteMaxLength = 500;
 
-/// The note input grows from [_kNoteFieldMinLines] up to [_kNoteFieldMaxLines]
-/// visible lines before it scrolls internally.
 const int _kNoteFieldMinLines = 2;
 const int _kNoteFieldMaxLines = 4;
 
-/// `offer_composer_note_field` — the optional free-text offer description the
-/// Jeeber attaches to the bid (wire field `note`). Multiline OMDS text field,
-/// bounded at [kOfferNoteMaxLength] chars; label/hint are localized (EN/AR,
-/// RTL-safe) via [OfferComposerL10n]. The trim / empty→null normalization
-/// happens at [_OfferComposerState._onSendTapped], so this widget stays dumb.
 class _NoteField extends StatelessWidget {
   const _NoteField({required this.controller});
 
@@ -440,7 +350,6 @@ class _NoteField extends StatelessWidget {
   }
 }
 
-/// `offer_composer_price_field` — the Jeeber's offer price.
 class _PriceField extends StatelessWidget {
   const _PriceField({
     required this.controller,
@@ -472,9 +381,6 @@ class _PriceField extends StatelessWidget {
   }
 }
 
-/// `offer_composer_eta_dropdown` — pickup ETA bounded by the tier SLA band
-/// (D14). Tapping it opens a modal whose options each carry
-/// `offer_composer_eta_option_<i>` (NOT free-form integer minutes).
 class _EtaDropdown extends StatelessWidget {
   const _EtaDropdown({
     required this.band,
@@ -574,8 +480,6 @@ class _EtaDropdown extends StatelessWidget {
   }
 }
 
-/// The economics block: fee (10%), net-per-offer, and the reserve note. Each
-/// line carries its own Semantics identifier (AC1).
 class _EconomicsCard extends StatelessWidget {
   const _EconomicsCard({
     required this.reserve,
@@ -671,7 +575,6 @@ class _EconLine extends StatelessWidget {
   }
 }
 
-/// `offer_composer_send_cta` — submit the offer.
 class _SendButton extends StatelessWidget {
   const _SendButton({required this.isLoading, required this.onTap});
 
@@ -693,8 +596,6 @@ class _SendButton extends StatelessWidget {
   }
 }
 
-/// `insufficient_balance_sheet` — JM-046. Shows needed-vs-available, a top-up
-/// CTA (→ wallet-charge-info, D92/D93) and a keep-editing CTA (dismiss, draft
 /// preserved). A modal bottom sheet, not a route (40_GUARDRAILS §5).
 class _InsufficientBalanceSheet extends StatelessWidget {
   const _InsufficientBalanceSheet({
@@ -783,9 +684,6 @@ class _InsufficientBalanceSheet extends StatelessWidget {
               button: true,
               child: OmdsPrimaryButton(
                 text: l10n.insufficientTopUpCta,
-                // EDGE: insufficient-balance → wallet-charge-info (D92/D93,
-                // JM-046 AC2). Pop the sheet first so a back from charge-info
-                // returns to the composer with the draft intact.
                 onTap: () {
                   Navigator.of(context).pop();
                   context.goNamed('wallet-charge-info');

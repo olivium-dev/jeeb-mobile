@@ -4,12 +4,6 @@ import 'package:omds/omds.dart';
 import '../../domain/client_home_request.dart';
 import 'active_request_card.dart' show ClientHomeTierBadge;
 
-/// Pending-requests row matching the Figma design (node 56535:1783).
-///
-/// The pending list is intentionally leaner than the In-Progress card: there
-/// is no avatar, no progress bar and no CTA — just the order id, an items
-/// summary, the tier badge, and a hairline divider. A request lands here once
-/// the sender has submitted it but before any Jeeber has replied with an offer.
 class PendingRequestCard extends StatelessWidget {
   const PendingRequestCard({
     super.key,

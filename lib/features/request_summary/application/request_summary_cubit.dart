@@ -16,10 +16,8 @@ class RequestSummaryState {
   final bool isSubmitting;
   final bool isSubmitted;
 
-  /// Server-minted id of the created request, set once [isSubmitted] is true.
   final String? requestId;
 
-  /// User-facing failure message, set when a submit attempt fails.
   final String? error;
 }
 
@@ -54,8 +52,6 @@ class RequestSummaryCubit extends Cubit<RequestSummaryState> {
         return 'No connection. Check your network and try again.';
       case RequestSubmissionFailure.invalidInput:
         return 'We could not submit this request. Please review and retry.';
-      // JEBV4-108: a 401 is a session failure — never blame the payload or
-      // the connection for it.
       case RequestSubmissionFailure.unauthorized:
         return 'Your session has expired. Please log in again.';
       case RequestSubmissionFailure.server:

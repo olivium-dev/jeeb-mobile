@@ -3,17 +3,6 @@ import 'package:omds/omds.dart';
 
 import '../../../../l10n/app_localizations.dart';
 
-/// Per-role rating chip on the customer-profile header (JM-035 AC1, D6).
-///
-/// Always rendered (with the `customer_profile_rating` identifier) so the
-/// Maestro presence assertion holds for every account — a rated account shows
-/// "★ 4.9 · 312 Reviews", an unrated account shows a deterministic "No reviews
-/// yet" state. The id is presence-only (i18n-safe); the value is never asserted.
-///
-/// Copy reuses the existing `deliveryManProfile*` rating keys (same rating-row
-/// semantics) — no new ARB keys (l10n is integrator-owned). A dedicated
-/// `customerProfileRating*` set is requested in `50_ROUTE_REQUESTS.md` for a
-/// later copy-polish pass; Maestro keys on the identifier, not the text.
 class CustomerProfileRating extends StatelessWidget {
   const CustomerProfileRating({
     super.key,
@@ -37,13 +26,6 @@ class CustomerProfileRating extends StatelessWidget {
         ? l10n.deliveryManProfileRatingSummary(ratingText, ratingCount)
         : l10n.deliveryManProfileEmptyReviewsTitle;
 
-    // Identifier-only + `container: true`, mirroring the proven
-    // `DeliveryManMetaRow` pattern. A competing explicit `label` on this wrapper
-    // fights the text-emitting child below for the accessible name, which folds
-    // the `customer_profile_rating` identifier away when it merges up into the
-    // header node (the name node then swallows it). `container: true` forces a
-    // first-class node so the identifier survives; the visible `Text` already
-    // exposes the rating summary as the readable label.
     return Semantics(
       identifier: 'customer_profile_rating',
       container: true,

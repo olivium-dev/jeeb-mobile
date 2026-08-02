@@ -12,48 +12,11 @@ import '../application/wallet_hub_state.dart';
 import '../domain/wallet_repository.dart';
 import 'wallet_hub_l10n.dart';
 
-/// wallet-hub (JM-053). REPLACES the `/wallet` "coming soon" stub
-/// (21_NAV_PLAN §A: exists-stub → REPLACE). The Jeeber's money home.
-///
-/// AC surface (30_BACKLOG JM-053 / 65_W2_TEST_PLAN §2):
-///   * `wallet_available_balance` — the available balance amount (D1/D41).
-///   * `wallet_gift_badge` — post-KYC starter credit badge (D42).
-///   * `wallet_affordability_card` — STATE copy ("enough to bid" / "top up to
-///     bid"), NOT a derived capacity number (D43 — fixes S-10 false-green).
-///   * `wallet_reserved_now` — sum of live 10% reserves (D1).
-///   * `wallet_topup_cta` → `wallet-charge-info` (D92/D93) — the one OWNED
-///     money edge; guarded offline (D35).
-///   * `wallet_how_fees_work` → `wallet_how_fees_explainer` (bottom sheet) —
-///     the fee-only economics explainer (D41/D44).
-///   * `wallet_earnings_row` → earnings-fees-dashboard (JM-052, W3).
-///   * `wallet_see_all_activity` → wallet-activity-list (JM-055, W3).
-///   * `wallet_kyc_pending_banner` — shown while KYC is pending (D38/D39): the
-///     Jeeber may top up but cannot yet bid.
-///   * State variants healthy / low / empty / all-reserved (D30) — driven off
-///     [WalletBalance.affordabilityState], copy-only (D43).
-///
-/// Cross-wave honesty (R-4, jm-053): `wallet_earnings_row` (earnings-fees-
-///   dashboard, JM-052) and `wallet_see_all_activity` (wallet-activity-list,
-///   JM-055) now `goNamed('earnings')` / `goNamed('wallet-activity')` — both
-///   routes are registered (app_router.dart), so these are HONEST edges. They
-///   were GUARDED coming-soon during W3 (the W3-era `_comingSoon` notice) until
-///   the JM-052/055 routes landed; this swap closes that residual.
-///
-/// Data: reads the Jeeber wallet snapshot via `sl<WalletRepository>()` — the
-/// INTEGRATOR-STUB until W1m (`GET /v1/jeeb/wallet`) lands + DI repoints to
-/// `DioWalletRepository` (CTO-D2). The screen renders whatever snapshot the repo
-/// returns; the `jeeb.seam.wallet_state` Maestro states surface once DI is on
-/// the live endpoint.
 class WalletHubScreen extends StatelessWidget {
   const WalletHubScreen({super.key, this.repository, this.kycStatusGate});
 
-  /// Constructor test seam (40_GUARDRAILS_ARCH §5.4) — defaults to DI.
   final WalletRepository? repository;
 
-  /// KYC-status source for the pending banner (AC7). Defaults to the shared
-  /// `sl<JeeberKycStatusGate>()` the integrator landed (JM-036) — the same gate
-  /// the DELIVERY tab + offer gate read, so the banner is honest end-to-end and
-  /// the `jeeb.seam.kyc_status=pending` Maestro state drives it. Test seam.
   final JeeberKycStatusGate? kycStatusGate;
 
   @override
@@ -83,10 +46,6 @@ class _WalletHubView extends StatelessWidget {
         appBar: OMDSAppBar(
           title: copy.title,
           showBackButton: true,
-          // The wallet chip reaches this hub via stack-REPLACING `goNamed(
-          // 'wallet')`, so there is usually nothing to pop. Pop when we can
-          // (pushed entry), else return to the shell — never pop the last page
-          // (which would leave an empty Navigator → black surface).
           onBackPressed: () =>
               context.canPop() ? context.pop() : context.go('/'),
         ),
@@ -137,10 +96,6 @@ class _LoadedBody extends StatelessWidget {
         Spacing.xLarge,
       ),
       children: [
-        // ── KYC-pending banner (D38/D39): top-up allowed, bidding not yet. ──
-        // Gated on the shared JeeberKycStatusGate (JM-036) — the same source the
-        // DELIVERY tab + offer gate read, so the banner is honest end-to-end.
-        // `jeeb.seam.kyc_status=pending` drives it in Maestro (AC7).
         if (copy.kycPending)
           Padding(
             padding: const EdgeInsetsDirectional.only(bottom: Spacing.large),
@@ -155,7 +110,6 @@ class _LoadedBody extends StatelessWidget {
             ),
           ),
 
-        // ── Available balance (the screen's signature element). ──────────────
         Semantics(
           identifier: 'wallet_available_balance',
           container: true,
@@ -188,7 +142,6 @@ class _LoadedBody extends StatelessWidget {
                   ],
                 ],
               ),
-              // ── Gift / starter-credit badge (D42, post-KYC). ──────────────
               if (hasGift) ...[
                 const SizedBox(height: Spacing.small),
                 Semantics(
@@ -207,7 +160,6 @@ class _LoadedBody extends StatelessWidget {
 
         const SizedBox(height: Spacing.large),
 
-        // ── Affordability state card (D43 — STATE copy, NOT a number). ───────
         Semantics(
           identifier: 'wallet_affordability_card',
           container: true,
@@ -221,7 +173,6 @@ class _LoadedBody extends StatelessWidget {
 
         const SizedBox(height: Spacing.medium),
 
-        // ── Reserved-now (sum of live 10% reserves, D1). ─────────────────────
         Semantics(
           identifier: 'wallet_reserved_now',
           container: true,
@@ -235,7 +186,6 @@ class _LoadedBody extends StatelessWidget {
 
         const SizedBox(height: Spacing.large),
 
-        // ── Top up → wallet-charge-info (the one OWNED edge; D35 offline). ───
         Semantics(
           identifier: 'wallet_topup_cta',
           button: true,
@@ -248,7 +198,6 @@ class _LoadedBody extends StatelessWidget {
 
         const SizedBox(height: Spacing.small),
 
-        // ── How fees work → explainer sheet (D41/D44). ───────────────────────
         Semantics(
           identifier: 'wallet_how_fees_work',
           button: true,
@@ -262,11 +211,6 @@ class _LoadedBody extends StatelessWidget {
 
         const SizedBox(height: Spacing.large),
 
-        // ── Earnings row → earnings-fees-dashboard (JM-052, W3). ─────────────
-        // R-4 (jm-053): now an HONEST `goNamed('earnings')` — the standalone
-        // `earnings` route is registered (app_router.dart) hosting the same
-        // EarningsDashboardScreen (+ EarningsCubit) the Earnings tab renders.
-        // Replaces the W3-era guarded `_comingSoon` once JM-052 shipped.
         Semantics(
           identifier: 'wallet_earnings_row',
           button: true,
@@ -279,11 +223,6 @@ class _LoadedBody extends StatelessWidget {
           ),
         ),
 
-        // ── See all activity → wallet-activity-list (JM-055, W3). ────────────
-        // R-4 (jm-053): now an HONEST `goNamed('wallet-activity')` — the
-        // `wallet-activity` route is registered (app_router.dart) hosting
-        // WalletActivityListScreen. Replaces the W3-era guarded `_comingSoon`
-        // once JM-055 shipped.
         Semantics(
           identifier: 'wallet_see_all_activity',
           button: true,
@@ -299,10 +238,6 @@ class _LoadedBody extends StatelessWidget {
     );
   }
 
-  // ── Top up: guarded offline (D35). Money actions are blocked while the
-  //    device is offline. We read the OfflineCubit only if an ancestor provides
-  //    it (it is not in the global tree today); absence ⇒ treat as online so
-  //    the screen never throws on a missing provider (40_GUARDRAILS_ARCH §6).
   void _onTopUp(BuildContext context) {
     if (_isOffline(context)) {
       ScaffoldMessenger.of(context)
@@ -318,7 +253,6 @@ class _LoadedBody extends StatelessWidget {
       return context.read<OfflineCubit>().state.status ==
           ConnectivityStatus.offline;
     } catch (_) {
-      // No OfflineCubit in the tree (production default) — treat as online.
       return false;
     }
   }
@@ -345,8 +279,6 @@ class _LoadedBody extends StatelessWidget {
     }
   }
 
-  /// Non-healthy affordability is an attention state ("top up to bid") ->
-  /// semantic warning pair, not the error pair (UX-AUDIT T1 dark-red banner).
   (Color, Color)? _affordabilityTone(WalletAffordability a, JeebRoles roles) {
     switch (a) {
       case WalletAffordability.enough:
@@ -361,9 +293,6 @@ class _LoadedBody extends StatelessWidget {
   String _fmt(double v) => v.toStringAsFixed(2);
 }
 
-/// The fee-only economics explainer (D41/D44). A static, no-payment bottom sheet
-/// — fees are captured (exactly 10%) from the pre-charged wallet balance, never
-/// charged in-app. Hosts the asserted `wallet_how_fees_explainer` root.
 class _HowFeesSheet extends StatelessWidget {
   const _HowFeesSheet({required this.copy});
 
@@ -435,8 +364,6 @@ class _FeeBullet extends StatelessWidget {
   }
 }
 
-/// A compact informational card used for the affordability state (D43) and the
-/// KYC-pending banner (D38/D39). `tone` tints the surface for non-healthy states.
 class _Banner extends StatelessWidget {
   const _Banner({
     required this.icon,
@@ -449,8 +376,6 @@ class _Banner extends StatelessWidget {
   final String title;
   final String body;
 
-  /// Optional (background, foreground) semantic role pair tinting the card
-  /// for non-healthy states; defaults to the neutral surface pair.
   final (Color, Color)? tone;
 
   @override
@@ -492,7 +417,6 @@ class _Banner extends StatelessWidget {
   }
 }
 
-/// A labelled value row with a hint — used for reserved-now (D1).
 class _StatRow extends StatelessWidget {
   const _StatRow({
     required this.icon,

@@ -3,17 +3,6 @@ import 'package:omds/omds.dart';
 
 import '../../../../l10n/app_localizations.dart';
 
-/// T-MOB-027: Entry-point card surfaced on the Profile/Settings screen for
-/// Client users who want to take on the Jeeber role.
-///
-/// Visibility rule: hidden once [isAlreadyJeeber] is true (i.e. the user's
-/// `available_roles` already includes Jeeber).
-///
-/// Tapping the card or its CTA calls [onTap], which the host wires to the
-/// KYC flow (`/profile/kyc`).
-///
-/// AC4: the card is announced as 'Become a Jeeber, double tap to start' via
-/// [l10n.becomeJeeberCardSemantic].
 class BecomeJeeberCard extends StatelessWidget {
   const BecomeJeeberCard({
     super.key,
@@ -24,12 +13,8 @@ class BecomeJeeberCard extends StatelessWidget {
   static const Key rootKey = Key('become-jeeber-card-root');
   static const Key ctaKey = Key('become-jeeber-card-cta');
 
-  /// Whether the user already has the Jeeber role. When true, the card is
-  /// hidden entirely per AC2.
   final bool isAlreadyJeeber;
 
-  /// Invoked when the user taps the card or its CTA. The host navigates to
-  /// the KYC flow (T-MOB-013).
   final VoidCallback onTap;
 
   @override

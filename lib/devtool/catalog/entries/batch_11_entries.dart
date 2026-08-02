@@ -40,18 +40,6 @@ import '../../../features/wallet/presentation/wallet_hub_screen.dart';
 import '../catalog_models.dart';
 import '../tier_catalog_fixture.dart';
 
-/// Batch 11 — DT-04 catalog entries for: shell, support, tier_selection,
-/// transcription, voice_request, wallet.
-///
-/// Every builder below renders the REAL screen with a LOCAL fake/stub injected
-/// through an existing (or minimally, additively widened) constructor test
-/// seam — no DI, no network.
-///
-/// SKIPPED (see the bottom of this file for the full reasoning):
-///   * `shell`'s `DashboardTab` / the jeeber-content branch of `ShellScreen` —
-///     unconditionally resolves multiple `sl<...>()` service locators with no
-///     override seam; the only network-free path is the internal dev-seam
-///     scaffold, which is out of scope for a minimal additive change.
 List<CatalogEntry> get batch11Entries => <CatalogEntry>[
   _jeeberTabEmptyStateEntry,
   _shellHeaderActionsEntry,
@@ -69,14 +57,8 @@ List<CatalogEntry> get batch11Entries => <CatalogEntry>[
   _walletChargeInfoEntry,
 ];
 
-/// Wraps a bare tab body (no Scaffold of its own — it is normally hosted
-/// inside the shell's Scaffold) in a minimal Scaffold so it has a Material
-/// ancestor when previewed standalone in the catalog.
 Widget _tabPreview(Widget child) => Scaffold(body: child);
 
-// ─────────────────────────────────────────────────────────────────────────
-// shell — JeeberTabEmptyState
-// ─────────────────────────────────────────────────────────────────────────
 
 final CatalogEntry _jeeberTabEmptyStateEntry = CatalogEntry(
   feature: 'shell',
@@ -93,9 +75,6 @@ final CatalogEntry _jeeberTabEmptyStateEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// shell — ShellHeaderActions
-// ─────────────────────────────────────────────────────────────────────────
 
 final CatalogEntry _shellHeaderActionsEntry = CatalogEntry(
   feature: 'shell',
@@ -113,9 +92,6 @@ final CatalogEntry _shellHeaderActionsEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// shell — HomeTab (Requests tab body)
-// ─────────────────────────────────────────────────────────────────────────
 
 final CatalogEntry _homeTabEntry = CatalogEntry(
   feature: 'shell',
@@ -144,9 +120,6 @@ final CatalogEntry _homeTabEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// shell — OrdersTab (Delivery tab body)
-// ─────────────────────────────────────────────────────────────────────────
 
 final CatalogEntry _ordersTabEntry = CatalogEntry(
   feature: 'shell',
@@ -252,36 +225,18 @@ class _FailingOrderRepository implements OrderRepository {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// shell — EarningsTab (jeeber Earnings tab body)
-// ─────────────────────────────────────────────────────────────────────────
 
 final CatalogEntry _earningsTabEntry = CatalogEntry(
   feature: 'shell',
   screen: 'EarningsTab',
   states: [
     CatalogState(
-      // No AuthTokenStore is registered in the catalog harness, so the tab's
-      // fail-closed "no session id" branch is the only reachable, network-free
-      // state (S0-OAD-03: never bind another user's earnings on a missing
-      // session).
       'Unavailable — no active session',
       (_) => _tabPreview(const EarningsTab()),
     ),
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// shell — ShellScreen (bottom-nav host)
-// ─────────────────────────────────────────────────────────────────────────
-//
-// Uses the additive `homeRepository` / `ordersRepository` seams added to
-// `ShellScreen` for this batch (see seamsAdded). No `RoleAvailabilityCubit` /
-// `BadgeCountCubit` ancestor is provided — both are nullable `context.watch`
-// reads that default to "no roles known yet" / "no badge", which is exactly
-// the regular (non-jeeber) landing every user sees before a jeeber-role
-// resolution. The jeeber-content branch (Dashboard/Earnings tabs' LIVE
-// bodies) is intentionally not exercised here — see the skip note.
 final CatalogEntry _shellScreenEntry = CatalogEntry(
   feature: 'shell',
   screen: 'ShellScreen',
@@ -305,19 +260,6 @@ final CatalogEntry _shellScreenEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// support — SupportTicketScreen
-// ─────────────────────────────────────────────────────────────────────────
-//
-// Uses the additive `cubit` seam added to `SupportTicketScreen` for this
-// batch (see seamsAdded) to preview the submitting/success/error phases by
-// driving a real [SupportCubit] through its public API against a local fake
-// [SupportRepository] — the same idiom as the KYC wizard catalog entries
-// (batch 05). `setCategory`/`setBody` are synchronous; only `submit()` is
-// async, so those two states use `unawaited` + a repository whose future
-// resolves immediately (success) or throws immediately (error) — no
-// `Future.delayed` needed for the state transition to land before the first
-// preview frame settles.
 
 final CatalogEntry _supportTicketEntry = CatalogEntry(
   feature: 'support',
@@ -395,13 +337,6 @@ class _FailingSupportRepository implements SupportRepository {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// tier_selection — TierSelectionScreen
-// ─────────────────────────────────────────────────────────────────────────
-//
-// The screen already ships a `repository` constructor seam and calls
-// `..load()` itself, so every state below is just a different [TierRepository]
-// — no manual cubit driving needed.
 
 final CatalogEntry _tierSelectionEntry = CatalogEntry(
   feature: 'tier_selection',
@@ -431,13 +366,6 @@ class _PendingTierRepository implements TierRepository {
   Future<List<Tier>> fetchTiers() => Completer<List<Tier>>().future;
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// transcription — TranscriptionScreen
-// ─────────────────────────────────────────────────────────────────────────
-//
-// `seedFromClip` / `markFailed` / `startEditing` are all synchronous cubit
-// methods (plain `emit`, no repository round-trip), so every state below is
-// seeded before the widget is returned — no `unawaited` needed.
 
 final CatalogEntry _transcriptionEntry = CatalogEntry(
   feature: 'transcription',
@@ -485,18 +413,6 @@ final CatalogEntry _transcriptionEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// voice_request — VoiceRecordingScreen
-// ─────────────────────────────────────────────────────────────────────────
-//
-// Drives the real [VoiceRecordingCubit] through its public API against the
-// shipped `Fake*` recorder/player/repository (mirrors the KYC/onboarding
-// seeding idiom). `startRecording`/`stopRecording`/`send` are async, so the
-// "recorded"/"sent" states inject a controllable ticker stream and flush one
-// microtask turn (`Future<void>.delayed(Duration.zero)`) between the tick and
-// the stop so the elapsed duration clears the 1s `minSendableDuration` floor
-// before the clip is finalized — otherwise the cubit treats the (still
-// zero-elapsed) stop as a mis-tap and bounces back to idle.
 
 final CatalogEntry _voiceRecordingEntry = CatalogEntry(
   feature: 'voice_request',
@@ -541,9 +457,6 @@ VoiceRecordingCubit _voiceCubit({VoiceRecorderFailure? startFailure}) {
 
 ({VoiceRecordingCubit cubit, StreamController<Duration> ticker})
 _voiceCubitWithTicker() {
-  // A catalog preview's cubit/controller pair lives for the duration of that
-  // preview screen only (same as every other seeded cubit in this file);
-  // there is no owner to hand a dispose hook to.
   // ignore: close_sinks
   final controller = StreamController<Duration>.broadcast();
   final cubit = VoiceRecordingCubit(
@@ -573,9 +486,6 @@ Future<void> _seedSent(
   await cubit.send();
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// wallet — WalletHubScreen
-// ─────────────────────────────────────────────────────────────────────────
 
 final CatalogEntry _walletHubEntry = CatalogEntry(
   feature: 'wallet',
@@ -693,14 +603,6 @@ class _StaticKycStatusGate implements JeeberKycStatusGate {
   bool get isApproved => status == JeeberKycStatus.approved;
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// wallet — TransactionDetailScreen
-// ─────────────────────────────────────────────────────────────────────────
-//
-// Reuses the shipped [StubWalletTransactionRepository] for the two per-type
-// "loaded" variants (its branch is keyed off the id containing "refund"/
-// "penalty" vs. anything else → fee_won) and a couple of small local fakes for
-// loading/error.
 
 final CatalogEntry _transactionDetailEntry = CatalogEntry(
   feature: 'wallet',
@@ -760,9 +662,6 @@ class _FailingWalletTransactionRepository
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// wallet — WalletActivityListScreen
-// ─────────────────────────────────────────────────────────────────────────
 
 final CatalogEntry _walletActivityListEntry = CatalogEntry(
   feature: 'wallet',
@@ -857,12 +756,6 @@ class _FailingWalletLedgerRepository implements WalletLedgerRepository {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// wallet — WalletChargeInfoScreen
-// ─────────────────────────────────────────────────────────────────────────
-//
-// Static, no-payment instructional screen (D92/D93) — no constructor params,
-// no network call by design (JM-054 AC).
 
 final CatalogEntry _walletChargeInfoEntry = CatalogEntry(
   feature: 'wallet',

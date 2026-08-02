@@ -5,13 +5,13 @@ import '../../../../l10n/app_localizations.dart';
 import '../../domain/delivery_man_profile_view_data.dart';
 import 'delivery_review_card.dart';
 
-/// The list of review cards (or an [OmdsEmptyState] when there are none).
-/// Lazily built ([ListView.separated]) because a Jeeber can have hundreds of
-/// reviews (design §5). Non-scrollable + shrink-wrapped: it lives inside the
-/// page's single scroll view so the whole column scrolls as one.
-///
-/// JM-067/D57: read-only — no Helpful/Reply callbacks (jeeber reviews are
-/// immutable). D58: cards render the reviewer's first name only.
+
+
+
+
+
+
+
 class DeliveryReviewsList extends StatelessWidget {
   const DeliveryReviewsList({super.key, required this.reviews});
 

@@ -6,7 +6,6 @@ import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/offline_cubit.dart';
 
-// ORPHAN (JEBV4-227, verified 2026-07-12): zero refs — see docs/project-understanding/reconciliation/orphans.md
 class OfflineBanner extends StatelessWidget {
   const OfflineBanner({super.key});
 
@@ -14,8 +13,6 @@ class OfflineBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<OfflineCubit, OfflineState>(
       builder: (context, state) {
-        // JEBV4-13: honour the per-episode dismissal — DISMISS used to be a
-        // dead `onTap: () {}`; the cubit re-arms on the next offline episode.
         if (state.status == ConnectivityStatus.online ||
             state.bannerDismissed) {
           return const SizedBox.shrink();
@@ -31,8 +28,6 @@ class _OfflineMaterialBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Offline-with-sync-pending is a warning state (recoverable, data safe),
-    // not an error -> semantic warning role.
     final roles = context.jeebRoles;
     final l10n = AppLocalizations.of(context);
     return MaterialBanner(

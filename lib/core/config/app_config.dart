@@ -1,88 +1,30 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 
-/// Build-time application configuration.
-///
-/// Values are resolved from `--dart-define` constants where possible so a
-/// build can be retargeted without editing source. The single secret here is
-/// the SuperAdmin passcode, which is DEBUG-ONLY (see [superAdminPassCode]).
+/// Build-time app configuration resolved from `--dart-define` constants.
 class AppConfig {
   AppConfig._();
 
-  // ---------------------------------------------------------------------------
-  // Gateway base URL
-  // ---------------------------------------------------------------------------
-
-  /// Base URL of the live jeeb-gateway BFF. The app speaks ONLY to the gateway
-  /// (never a backend service directly). Overridable per build/CI lane via
-  /// `--dart-define=GATEWAY_BASE_URL=https://api.jeeb.app`.
-  ///
-  /// ANTI-DRIFT contract (ARCH-01 / INFRA-01, frozen by
-  /// `test/core/config/base_url_convention_test.dart`): this value is
-  /// ORIGIN-ONLY — scheme + host (+ port), NO `/v1`, no trailing slash. Every
-  /// request path carries exactly one `/v1`; Dio merges `baseUrl + path`, so a
-  /// `/v1` here doubles to `/v1/v1` (the S16 availability NO-GO). (Getter
-  /// restored after an integration merge dropped it while keeping that test.)
+  /// Base URL of the live jeeb-gateway BFF. ORIGIN-ONLY: scheme + host (+ port),
+  /// NO `/v1`, no trailing slash. Every request path carries exactly one `/v1`;
+  /// Dio merges `baseUrl + path`, so a `/v1` here doubles to `/v1/v1`.
   static const String gatewayBaseUrl = String.fromEnvironment(
     'GATEWAY_BASE_URL',
     defaultValue: 'https://api.jeeb.app',
   );
 
-  // ---------------------------------------------------------------------------
-  // Auth funnel feature flags
-  // ---------------------------------------------------------------------------
-
-  /// Whether the email + password auth funnel (login `POST /v1/auth/login` and
-  /// sign-up `POST /v1/auth/signup`) is reachable from the UI.
-  ///
-  /// The LIVE jeeb-gateway (MSI native, `192.168.2.39:10090`) does not serve
-  /// these routes — they `401` in production — so the email login form and the
-  /// sign-up link are dead-ends against the real backend. The phone-OTP funnel
-  /// (`/register`, `POST /v1/auth/otp/request` → `/v1/auth/otp/verify`) is the
-  /// only auth that works there, so when this flag is `false` the email
-  /// surfaces are hidden and the login screen promotes phone-OTP as the primary
-  /// action, keeping the app honest.
-  ///
-  /// Defaults to `false` (the real gateway is the ground-truth backend). A
-  /// build that points at a mock which DOES serve the email routes can flip it
-  /// on with `--dart-define=EMAIL_PASSWORD_AUTH_ENABLED=true`.
+  /// Whether email + password auth is reachable from the UI.
   static const bool emailPasswordAuthEnabled = bool.fromEnvironment(
     'EMAIL_PASSWORD_AUTH_ENABLED',
     defaultValue: false,
   );
 
-  // ---------------------------------------------------------------------------
-  // Continuous courier position (realtime subscription)
-  // ---------------------------------------------------------------------------
-
-  /// Whether the customer's tracking map SUBSCRIBES to the courier's position
-  /// instead of re-reading it on the four events it already has.
-  ///
-  /// OFF by default, matching the gateway half it depends on: jeeb-gateway #339
-  /// (`3c1015d`) ships its publish path behind `Tracking:RealtimePublish:
-  /// Enabled` + `FeatureFlags:UseUpstream:Realtime` + an env-supplied
-  /// `Services:Realtime:GuardianSecret`, and its descriptor endpoint returns a
-  /// `null` `socketUrl` until `Services:Realtime:PublicSocketUrl` is set. A
-  /// mobile default of `true` would therefore mean "attempt a subscription that
-  /// cannot succeed on every deployment that has not opted in" — one wasted GET
-  /// per tracking-screen entry, for nothing.
-  ///
-  /// Flipping it on is safe by construction rather than by promise: with the
-  /// flag on but any part of the gateway side unconfigured, the descriptor read
-  /// answers 503 (or hands back a null socketUrl), `CourierPositionChannel.open`
-  /// returns null, and the screen behaves exactly as it does with the flag off.
-  ///
-  /// `--dart-define=JEEB_REALTIME_TRACKING=true`.
+  /// Whether the customer's tracking map subscribes to realtime courier position.
   static const bool realtimeCourierPositionEnabled = bool.fromEnvironment(
     'JEEB_REALTIME_TRACKING',
     defaultValue: false,
   );
 
-  // ---------------------------------------------------------------------------
-  // SuperAdmin passcode (DEBUG-ONLY dev surface)
-  // ---------------------------------------------------------------------------
-
-  /// Build-time override. Supplied via
-  /// `--dart-define=JEEB_SUPERADMIN_PASSCODE=<value>`. Empty when not passed.
+  /// Build-time override. Supplied via `--dart-define=JEEB_SUPERADMIN_PASSCODE=<value>`.
   static const String _superAdminPassCodeDefine = String.fromEnvironment(
     'JEEB_SUPERADMIN_PASSCODE',
   );
@@ -100,28 +42,14 @@ class AppConfig {
   /// `kDebugMode`/`assert` guard, and NEVER log it.
   static const String _devSuperAdminPassCode = '123768';
 
-  /// The single real SuperAdmin passcode used by the debug-only "Super user
-  /// login" surfaces for BOTH (a) the passcode-gated active-user LIST call
-  /// (`POST /api/User/super-login/users`) and (b) the tap→login
-  /// (`POST /api/User/user-id-login`).
-  ///
-  /// Resolution order:
-  ///   1. `--dart-define=JEEB_SUPERADMIN_PASSCODE` when supplied (any build).
-  ///   2. In `kDebugMode` only: the committed dev fallback so a plain
-  ///      `flutter run`/`flutter build apk --debug` with NO define still has a
-  ///      working passcode (the owner's real scenario — never type it).
-  ///   3. Empty in release (the surface is `kDebugMode`-gated out anyway, so a
-  ///      release build carries no secret).
+  /// Resolution: `--dart-define` > `kDebugMode` fallback > empty in release.
   static String get superAdminPassCode {
     if (_superAdminPassCodeDefine.isNotEmpty) return _superAdminPassCodeDefine;
     if (kDebugMode) return _devSuperAdminPassCode;
     return '';
   }
 
-  /// DEBUG-ONLY convenience userId pre-filled into the PLAIN "Super login"
-  /// sheet so that surface is also usable without typing. Points at the dev
-  /// gateway's "Nour Demo" customer (verified `getMe` →
-  /// `d1000000-0000-4000-8000-000000000001`). Empty in release.
+  /// DEBUG-ONLY convenience userId pre-filled into the PLAIN "Super login" sheet.
   static String get devSuperLoginUserId =>
       kDebugMode ? 'd1000000-0000-4000-8000-000000000001' : '';
 }

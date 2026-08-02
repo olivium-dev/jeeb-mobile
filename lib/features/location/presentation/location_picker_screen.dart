@@ -9,10 +9,6 @@ import '../data/location_repository.dart';
 import '../data/map_picker_launcher.dart';
 import 'location_search_bar.dart';
 
-/// Entry-point for the pickup → dropoff selection flow. The host wires the
-/// cubit through DI; if [cubit] is left null the screen reads it off the
-/// surrounding [BlocProvider] (matches the kyc / registration patterns).
-// ORPHAN (JEBV4-227, verified 2026-07-12): real cubit-based picker, unwired — /location route mounts a placeholder instead — see docs/project-understanding/reconciliation/orphans.md
 class LocationPickerScreen extends StatelessWidget {
   const LocationPickerScreen({
     super.key,
@@ -21,18 +17,10 @@ class LocationPickerScreen extends StatelessWidget {
     this.onCompleted,
   });
 
-  /// Explicit cubit override — used by tests and the request-creation flow
-  /// where the host already owns the lifecycle.
   final LocationPickerCubit? cubit;
 
-  /// Adapter that opens the interactive map picker (production: a thin
-  /// wrapper around `ofl_geo_capture`'s `GeoCaptureScreen`). Optional — when
-  /// null the "Pin on map" button is hidden and the user picks via GPS or
-  /// search alone.
   final MapPickerLauncher? mapPickerLauncher;
 
-  /// Notified once the cubit reaches [LocationPickerStep.done] so the host
-  /// can pop / route. Optional — when null the screen pops itself.
   final ValueChanged<DeliveryLocations>? onCompleted;
 
   @override

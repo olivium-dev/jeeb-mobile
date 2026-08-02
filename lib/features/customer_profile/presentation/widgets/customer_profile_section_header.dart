@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-/// Section header ("Account" / "Support") on the customer profile: navy,
-/// title-medium-emphasized, indented to the screen gutter (design §1, §4).
 class CustomerProfileSectionHeader extends StatelessWidget {
   const CustomerProfileSectionHeader({super.key, required this.title});
 

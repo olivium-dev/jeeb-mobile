@@ -12,24 +12,6 @@ enum _ProbeSource { scheduled, resume }
 
 /// Loading state rendered while [KycWizardCubit.submit] is in flight.
 ///
-/// The bare [CircularProgressIndicator] previously used here gave no signal
-/// that the upload was running, what was being sent, or how long it would
-/// take — users tapped Submit a second time mid-upload. This view restores
-/// design parity with the other capture steps: an icon, a headline, body
-/// copy, and a single in-line spinner row, with a live region semantic so
-/// VoiceOver / TalkBack announce the state change.
-///
-/// JEBV4-259/271 — it also owns the submit-hang SAFETY NET. A healthy submit
-/// (the gateway auto-approves at t+0) leaves this view within a few seconds, so
-/// the net never fires. Only when `submit()` HANGS past [_graceBeforePoll] —
-/// e.g. a stalled CDN upload or a 201 the client never receives — does the
-/// poller start re-reading `GET /v1/kyc/status`; the moment the server shows
-/// the submission recorded it advances the wizard off this spinner (see
-/// [KycWizardCubit.refreshWhileSubmitting]) so an approved jeeber comes online
-/// with NO force-stop+relaunch. Five scheduled probes and three app-resume
-/// probes bound the mounted view to eight automatic requests. After both
-/// budgets, recovery remains with the submit future, the CDN-upload timeout,
-/// and [KycWizardCubit.onJeeberRoleGranted], not additional polling.
 class KycSubmittingView extends StatefulWidget {
   const KycSubmittingView({super.key});
 
@@ -45,14 +27,6 @@ class _KycSubmittingViewState extends State<KycSubmittingView>
     with WidgetsBindingObserver {
   /// Let the normal (fast, auto-approving) submit win before the net probes, so
   /// a healthy in-flight submit is never yanked off the spinner prematurely.
-  ///
-  /// JEBV4-271 (round 3): the reconcile poll is now a SHORT, BOUNDED retry
-  /// (2s × [_maxProbes]) instead of the old 12s-grace + unbounded 3s cadence —
-  /// the on-device rev2 spinner sat for minutes, so recovery must be prompt.
-  /// The bound keeps it from polling forever if the server never records the
-  /// submission (that branch is resolved by the CDN-upload timeout, not this
-  /// poll); the app-root role-arrived listener ([KycWizardCubit.onJeeberRoleGranted])
-  /// remains the timer-independent backstop.
   static const Duration _graceBeforePoll = Duration(seconds: 2);
   static const Duration _pollInterval = Duration(seconds: 2);
   static const int _maxProbes = 5;
@@ -90,7 +64,6 @@ class _KycSubmittingViewState extends State<KycSubmittingView>
     return cubit?.state.step == KycWizardStep.submitting;
   }
 
-  /// Cancel the pending scheduled probe without spending either request budget.
   void _stopPolling() {
     _timer?.cancel();
     _timer = null;
@@ -106,9 +79,6 @@ class _KycSubmittingViewState extends State<KycSubmittingView>
     }
   }
 
-  // ── FM-3 ADOPTION SEAM ────────────────────────────────────────────────────
-  // The ONLY lifecycle entry points. When FM-3's pause/resume contract lands,
-  // delete the WidgetsBindingObserver wiring and point its callbacks here.
   void _onForeground() {
     if (_foreground) return;
     _foreground = true;
@@ -121,10 +91,6 @@ class _KycSubmittingViewState extends State<KycSubmittingView>
     _stopPolling();
   }
 
-  /// Ask the cubit to reconcile against the server while we are still stuck on
-  /// the spinner. Concurrency deliberately lives here: guarding the shared
-  /// cubit would drop a user refresh racing a poll, while this flag covers every
-  /// scheduled and resume request owned by the view.
   Future<void> _probe(_ProbeSource source) async {
     if (!_canIssueProbe(source)) return;
     final cubit = context.read<KycWizardCubit?>();

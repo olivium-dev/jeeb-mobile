@@ -4,16 +4,6 @@ import 'package:omds/omds.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'jeeber_home_greeting.dart';
 
-/// Deliveryman home empty state matching the Figma "Delivery Screen - Empty
-/// State [Delivery Man]" frame (file ZOi3kKtw7sd42ssSVX3Kn4, node 56559:930,
-/// screen 23).
-///
-/// Layout: greeting header (avatar + "Hello, {name}" + tagline) → an inline
-/// "Accept orders" availability switch → a hero illustration → a centered
-/// "No Requests yet" / "All requests will show up here" block. Distinct from
-/// the availability-toggle-heavy [JeeberNoRequestsView]: this is the lean
-/// Figma-parity surface a registered, available Jeeber sees with zero
-/// incoming requests.
 class JeeberFeedEmptyView extends StatelessWidget {
   const JeeberFeedEmptyView({
     super.key,
@@ -25,16 +15,12 @@ class JeeberFeedEmptyView extends StatelessWidget {
 
   static const Key rootKey = Key('jeeber-feed-empty-view-root');
 
-  /// Greeting display name.
   final String? profileName;
 
-  /// Greeting avatar URL (cdn-service).
   final String? profileAvatarUrl;
 
-  /// Whether the "Accept orders" availability switch is ON.
   final bool acceptOrders;
 
-  /// Toggle handler for the availability switch.
   final ValueChanged<bool>? onAcceptOrdersChanged;
 
   @override

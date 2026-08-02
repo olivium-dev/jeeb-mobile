@@ -32,11 +32,6 @@ import '../../../features/earnings/domain/earnings_summary.dart';
 import '../../../features/earnings/presentation/earnings_dashboard_screen.dart';
 import '../catalog_models.dart';
 
-/// DT-04 / F2 batch 3 — deep_link_targets, delivery_man_profile,
-/// delivery_receipt, delivery_status, dispute_status, earnings.
-///
-/// Every builder below mounts the REAL screen against a local, offline
-/// fake/stub — never GetIt's live Dio — per the DT-04 DoD.
 List<CatalogEntry> get batch03Entries => <CatalogEntry>[
       ..._chatDetailEntries,
       ..._deliveryDetailEntries,
@@ -49,13 +44,7 @@ List<CatalogEntry> get batch03Entries => <CatalogEntry>[
       ..._earningsEntries,
     ];
 
-// ─────────────────────────── deep_link_targets ────────────────────────────
 
-/// `ChatDetailScreen` — the `/chat/:id` order-chat deep-link target (JM-025).
-/// Driven through the additive `debugGateway` seam (chat_detail_screen.dart)
-/// so no async GetIt/Dio resolution ever runs; each state pairs a
-/// [DevChatFixtureGateway] (already shipped for the app's own dev-seam
-/// capture path) with the matching phase/winner/summary flags.
 final List<CatalogEntry> _chatDetailEntries = <CatalogEntry>[
   CatalogEntry(
     feature: 'deep_link_targets',
@@ -102,7 +91,6 @@ final List<CatalogEntry> _chatDetailEntries = <CatalogEntry>[
             tierId: 'standard',
             orderRef: 'ORD-4821',
             statusId: 'matched',
-            // P3 (b01-20260725): exercise the initial-requirement row.
             description: '2 kilos apples from Spinneys',
           ),
         ),
@@ -111,10 +99,6 @@ final List<CatalogEntry> _chatDetailEntries = <CatalogEntry>[
   ),
 ];
 
-/// `DeliveryDetailScreen` — the order-detail action hub. No repository/GetIt
-/// dependency at all (every CTA just pushes a route), so the real screen
-/// renders as-is with zero seams. `RoleCubit` is read defensively (catches
-/// `ProviderNotFoundException`), so the plain catalog host is safe.
 final List<CatalogEntry> _deliveryDetailEntries = <CatalogEntry>[
   CatalogEntry(
     feature: 'deep_link_targets',
@@ -128,7 +112,6 @@ final List<CatalogEntry> _deliveryDetailEntries = <CatalogEntry>[
   ),
 ];
 
-/// `KycStatusScreen` — restored placeholder (no behavior, no network).
 final List<CatalogEntry> _kycStatusEntries = <CatalogEntry>[
   CatalogEntry(
     feature: 'deep_link_targets',
@@ -139,8 +122,6 @@ final List<CatalogEntry> _kycStatusEntries = <CatalogEntry>[
   ),
 ];
 
-/// `RatingPromptScreen` — placeholder governed by the Type-A placeholder
-/// discipline script; no behavior/network to fake.
 final List<CatalogEntry> _ratingPromptEntries = <CatalogEntry>[
   CatalogEntry(
     feature: 'deep_link_targets',
@@ -154,10 +135,7 @@ final List<CatalogEntry> _ratingPromptEntries = <CatalogEntry>[
   ),
 ];
 
-// ───────────────────────── delivery_man_profile ───────────────────────────
 
-/// `DeliveryManProfileScreen` — takes a plain [DeliveryManProfileViewData]
-/// value, no GetIt/network involved at all.
 final List<CatalogEntry> _deliveryManProfileEntries = <CatalogEntry>[
   CatalogEntry(
     feature: 'delivery_man_profile',
@@ -208,11 +186,7 @@ final List<CatalogEntry> _deliveryManProfileEntries = <CatalogEntry>[
   ),
 ];
 
-// ───────────────────────────── delivery_receipt ───────────────────────────
 
-/// `DeliveryReceiptScreen` — the shipped `repository` constructor seam
-/// (already production-designed for widget tests) is reused directly with
-/// [FakeDeliveryReceiptRepository].
 final List<CatalogEntry> _deliveryReceiptEntries = <CatalogEntry>[
   CatalogEntry(
     feature: 'delivery_receipt',
@@ -255,7 +229,6 @@ final List<CatalogEntry> _deliveryReceiptEntries = <CatalogEntry>[
   ),
 ];
 
-// ───────────────────────────── delivery_status ────────────────────────────
 
 DeliverySnapshot _statusSnapshot(
   DeliveryStage stage, {
@@ -296,8 +269,6 @@ DeliverySnapshot _statusSnapshot(
   );
 }
 
-/// Local fake gateway for the one state [InMemoryDeliveryStatusGateway] can't
-/// script directly: a stream that fails outright (the D30 error state).
 class _ErroringDeliveryStatusGateway implements DeliveryStatusGateway {
   @override
   Stream<DeliverySnapshot> watch(String deliveryId) =>
@@ -308,10 +279,6 @@ class _ErroringDeliveryStatusGateway implements DeliveryStatusGateway {
       CancellationOutcome.networkError;
 }
 
-/// `DeliveryStatusScreen` — the shipped `gateway` constructor seam
-/// ([InMemoryDeliveryStatusGateway] + `demoDeliverySnapshot`, already used by
-/// the screen's own no-backend fallback) is reused for every in-flight stage;
-/// the terminal/error states are built from plain domain values.
 final List<CatalogEntry> _deliveryStatusEntries = <CatalogEntry>[
   CatalogEntry(
     feature: 'delivery_status',
@@ -358,10 +325,7 @@ final List<CatalogEntry> _deliveryStatusEntries = <CatalogEntry>[
   ),
 ];
 
-// ───────────────────────────── dispute_status ─────────────────────────────
 
-/// Inline fake for [DisputeStatusRepository] — the screen's shipped
-/// `repository` constructor seam takes any implementation directly.
 class _FakeDisputeStatusRepository implements DisputeStatusRepository {
   const _FakeDisputeStatusRepository(this.dispute);
 
@@ -434,12 +398,7 @@ final List<CatalogEntry> _disputeStatusEntries = <CatalogEntry>[
   ),
 ];
 
-// ──────────────────────────────── earnings ────────────────────────────────
 
-/// Inline fake for [EarningsRepository] — the screen has no constructor seam
-/// of its own (it reads `EarningsCubit` off a `BlocProvider` ancestor), so
-/// each state wraps the real [EarningsDashboardScreen] in a locally-created
-/// [BlocProvider] seeded with this fake — no GetIt, no Dio, no live gateway.
 class _FakeEarningsRepository implements EarningsRepository {
   const _FakeEarningsRepository(this._summary);
 

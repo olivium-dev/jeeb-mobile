@@ -4,10 +4,6 @@ import 'package:omds/omds.dart';
 import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// Banner shown 30 minutes before the 8h auto-offline kicks in.
-///
-/// Tapping the CTA fires [onExtend] which resets the idle timer in the
-/// cubit; dismissing it does NOT extend (the warning re-appears next tick).
 class InactivityWarningBanner extends StatelessWidget {
   const InactivityWarningBanner({super.key, required this.onExtend});
 
@@ -18,8 +14,6 @@ class InactivityWarningBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Pre-auto-offline countdown is a warning state -> semantic warning role
-    // (was the brand tertiary orange doing state duty).
     final roles = context.jeebRoles;
     return Container(
       key: rootKey,

@@ -13,36 +13,12 @@ import '../domain/saved_location_repository.dart';
 import 'cubit/saved_locations_cubit.dart';
 import 'cubit/saved_locations_state.dart';
 
-/// `saved-addresses` (JM-049). Saved-address manager at `/settings/addresses`.
-///
-/// Reachable from `customer-profile` (`customer_profile_addresses_row`) and
-/// `location-select` (`location_select_saved_addresses_row`) — both already
-/// `goNamed('settings-addresses')` (integrator-wired); this screen owns only
-/// the manager surface.
-///
-/// Exposes the 63_W1_TEST_PLAN §2.16 ids:
-///   * `saved_address_add_cta`       — Add CTA (also the screen signature id),
-///                                     → `address-detail` (add path).
-///   * `saved_address_default_badge` — marks the default address (the seam
-///                                     seeds `Home` as default).
-///   * `saved_address_<n>_edit`      — per-row edit (index-0 pattern),
-///                                     → `address-detail?id=<addressId>` (JM-050).
-///
-/// Backed by `GET/POST /users/:userId/saved-locations` via
-/// [SavedLocationRepository] (`DioSavedLocationRepository`, repointed to the
-/// journey-honest userId path in JM-049 — see 50_ROUTE_REQUESTS.md). Add/edit
-/// hand off to the JM-050 `address-detail-form` route, which owns persistence;
-/// this screen reloads on return so a newly-saved row appears.
-/// Feature-local label for the default-address badge — the one string with no
-/// dedicated ARB key (see the JM-049 request in 50_ROUTE_REQUESTS.md). Falls
-/// back to English for any non-Arabic locale.
 String _defaultBadgeLabel(Locale locale) =>
     locale.languageCode == 'ar' ? 'الافتراضي' : 'Default';
 
 class SavedLocationsScreen extends StatelessWidget {
   const SavedLocationsScreen({super.key, this.repository});
 
-  /// Injectable for widget tests; production resolves via DI.
   final SavedLocationRepository? repository;
 
   @override
@@ -54,17 +30,6 @@ class SavedLocationsScreen extends StatelessWidget {
     );
   }
 
-  /// Resolves the repository the same way the sibling [ClientLocationScreen]
-  /// does (40_GUARDRAILS_ARCH §5.4 — screen self-provides): prefer a DI-
-  /// registered interface (`injection_container.dart` registers it over the
-  /// app Dio), else self-provide the Dio impl over the registered Dio.
-  ///
-  /// The router builds `const SavedLocationsScreen()` with no `repository`, and
-  /// nothing supplies a `SavedLocationRepository` in the *widget* tree — it
-  /// lives in GetIt (`sl`), not a `RepositoryProvider`. The previous
-  /// `context.read<SavedLocationRepository>()` therefore threw
-  /// `ProviderNotFoundException` on build, so the manager never mounted and
-  /// `saved_address_add_cta` was never visible (jm-024/049/050 root cause).
   SavedLocationRepository _resolveRepository() {
     if (sl.isRegistered<SavedLocationRepository>()) {
       return sl<SavedLocationRepository>();
@@ -83,12 +48,6 @@ class _SavedLocationsView extends StatelessWidget {
       listenWhen: _shouldListen,
       listener: _onStateChange,
       builder: (context, state) {
-        // BACK-nav defect fix: this manager is reached via
-        // `context.goNamed('settings-addresses')` from `customer-profile` (and
-        // the address-form `goNamed` on save), which REPLACES the stack — so as
-        // the stack root, BACK exited the app. The root-aware scope pops to
-        // `/settings` (its route parent) when there is no back stack, and pops
-        // normally when it was `push`ed (settings / location-select entries).
         return RootAwareBackScope(
           fallbackLocation: '/settings',
           child: Scaffold(
@@ -98,9 +57,6 @@ class _SavedLocationsView extends StatelessWidget {
             ),
             body: _buildBody(context, state),
             floatingActionButton: _AddAddressFab(
-              // The Add CTA is the screen's signature id — present in EVERY
-              // non-fatal state (incl. empty), per the jm-049 flow (AC2/AC5
-              // assert it directly after opening the manager).
               enabled: !_isMutating(state) && state is! SavedLocationsLoading,
               onPressed: () => _onAdd(context),
             ),
@@ -143,8 +99,6 @@ class _SavedLocationsView extends StatelessWidget {
     return _LocationList(locations: locations, isMutating: _isMutating(state));
   }
 
-  /// Add path: route to the JM-050 form (no `id` → add). Reload on return so a
-  /// freshly-saved address surfaces. The form owns the POST.
   Future<void> _onAdd(BuildContext context) async {
     final cubit = context.read<SavedLocationsCubit>();
     await context.pushNamed('address-detail');
@@ -166,9 +120,6 @@ class _SavedLocationsView extends StatelessWidget {
   }
 }
 
-/// The Add-address CTA. EXEMPT: no `OmdsFloatingActionButton` exists in the OMDS
-/// component library (the same approved fleet exemption the prior T-MOB-025
-/// screen carried). Carries the `saved_address_add_cta` signature id.
 class _AddAddressFab extends StatelessWidget {
   const _AddAddressFab({required this.enabled, required this.onPressed});
 
@@ -229,8 +180,6 @@ class _LocationTile extends StatelessWidget {
     required this.isMutating,
   });
 
-  /// List position; drives the `saved_address_<index>_edit` id (63 §2.16
-  /// coins index-0 for the seeded fixture; pattern `saved_address_<n>_edit`).
   final int index;
   final SavedLocation location;
   final bool isMutating;
@@ -239,9 +188,6 @@ class _LocationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    // Custom row (not OmdsSettingsRow) so the title/subtitle column is the
-    // flexible part and the trailing edit/overflow controls stay fixed-width —
-    // no overflow when the badge + two affordances coexist on a narrow tile.
     return InkWell(
       onTap: isMutating ? null : () => _onEdit(context),
       child: Padding(
@@ -302,8 +248,6 @@ class _LocationTile extends StatelessWidget {
     );
   }
 
-  /// Edit path: route to the JM-050 form for THIS address (`?id=`). The form
-  /// owns the PUT; the manager reloads on return.
   Future<void> _onEdit(BuildContext context) async {
     final cubit = context.read<SavedLocationsCubit>();
     await context.pushNamed(
@@ -314,7 +258,6 @@ class _LocationTile extends StatelessWidget {
     await cubit.load();
   }
 
-  /// The overflow menu keeps Delete reachable (Edit also offered for parity).
   Future<void> _onMore(BuildContext context) async {
     final l10n = AppLocalizations.of(context);
     final choice = await _showActionsSheet(context, l10n);
@@ -332,7 +275,6 @@ class _LocationTile extends StatelessWidget {
   ) {
     return showModalBottomSheet<_Action>(
       context: context,
-      // EXEMPT: OmdsBottomSheet lacks a typed-return action-list variant.
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(Spacing.large),
@@ -374,14 +316,6 @@ class _LocationTile extends StatelessWidget {
   }
 }
 
-/// The default-address badge carrying `saved_address_default_badge` (JM-049 AC).
-///
-/// No dedicated ARB key exists and the ARB layer is integrator-owned, so the
-/// single word resolves via a feature-local EN/AR helper (the JM-031
-/// `order_summary_l10n.dart` / JM-032 resolver precedent — see
-/// 50_ROUTE_REQUESTS.md). Maestro asserts on the id, never the text, so swapping
-/// to `l10n.savedAddressDefaultBadge` once the integrator lands it is a
-/// no-call-site change.
 class _DefaultBadge extends StatelessWidget {
   const _DefaultBadge({required this.locale});
 
@@ -406,7 +340,6 @@ class _DefaultBadge extends StatelessWidget {
   }
 }
 
-/// Per-row edit affordance carrying `saved_address_<index>_edit` (→ JM-050 form).
 class _EditButton extends StatelessWidget {
   const _EditButton({
     required this.index,
@@ -420,16 +353,6 @@ class _EditButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The enclosing tile is itself an `InkWell` button. A button-flagged
-    // Semantics node with no *action* of its own is treated as decorative
-    // content and gets absorbed (merged) into that parent button — which
-    // destroyed this node's `identifier` whenever the row also carried the
-    // `saved_address_default_badge` (the default row), leaving
-    // `saved_address_<index>_edit` unreachable to Maestro and widget tests.
-    // Giving the Semantics a real `onTap` action makes it a first-class
-    // actionable node (like the sibling `_MoreButton`), so it stays separate
-    // and keeps its identifier. `ExcludeSemantics` still hides the inner
-    // IconButton's duplicate node.
     return Semantics(
       identifier: 'saved_address_${index}_edit',
       button: true,
@@ -454,19 +377,12 @@ class _MoreButton extends StatelessWidget {
     required this.onTap,
   });
 
-  /// List position; drives the `saved_address_<index>_more` id, mirroring the
-  /// sibling `saved_address_<index>_edit` (63 §2.16 index-0 pattern).
   final int index;
   final String label;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    // Same first-class-node treatment as the sibling [_EditButton]: this button
-    // sits inside the tile's InkWell, so a button-flagged Semantics with no
-    // action of its own would be merged into that parent button and lose its
-    // identifier. A real `onTap` action keeps it separate and addressable;
-    // `ExcludeSemantics` hides the inner IconButton's duplicate node.
     return Semantics(
       identifier: 'saved_address_${index}_more',
       button: true,
@@ -555,9 +471,6 @@ class _EmptyView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // OMDS-consistent zero-state (was a hand-rolled Icon+Text column). The Add
-    // CTA stays on the screen FAB, so this surface is guidance-only — honest:
-    // there is genuinely nothing saved yet.
     return Center(
       key: const Key('saved-locations-empty'),
       child: OmdsEmptyState(
@@ -577,9 +490,6 @@ class _ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // OMDS-consistent error state with retry (was a hand-rolled column reusing
-    // the unrelated `earningsLoadRetry` label). [onRetry] re-runs the real
-    // saved-locations load — no fabricated data.
     return Center(
       key: const Key('saved-locations-error'),
       child: OmdsErrorState(

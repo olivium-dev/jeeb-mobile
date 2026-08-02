@@ -6,29 +6,22 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/di/injection_container.dart';
 import '../catalog_models.dart';
 
-// ── account_status ──────────────────────────────────────────────────────────
 import '../../../features/account_status/domain/account_status.dart';
 import '../../../features/account_status/domain/account_status_repository.dart';
 import '../../../features/account_status/presentation/account_status_screen.dart';
 
-// ── active_delivery_jeeber ──────────────────────────────────────────────────
 import '../../../features/active_delivery_jeeber/application/active_delivery_cubit.dart';
 import '../../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
 import '../../../features/active_delivery_jeeber/domain/jeeber_delivery.dart';
 import '../../../features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
 import '../../../features/active_delivery_jeeber/presentation/active_delivery_jeeber_screen.dart';
 
-// ── auth ─────────────────────────────────────────────────────────────────────
-// The hidden email/password funnel entries (login / sign-up / recover /
-// verify-recovery / social-collision) were removed with that funnel in
-// JEBV4-199. Only the set-password screen survives (JM-061 password-security).
 import '../../../features/auth/application/set_password_cubit.dart';
 import '../../../features/auth/application/set_password_state.dart';
 import '../../../features/auth/domain/auth_repository.dart';
 import '../../../features/auth/domain/set_password_policy.dart';
 import '../../../features/auth/presentation/set_password_screen.dart';
 
-// ── biometric_auth ──────────────────────────────────────────────────────────
 import '../../../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../../../features/biometric_auth/application/biometric_lock_state.dart';
 import '../../../features/biometric_auth/data/shared_prefs_pin_repository.dart';
@@ -36,20 +29,9 @@ import '../../../features/biometric_auth/domain/biometric_gateway.dart';
 import '../../../features/biometric_auth/presentation/biometric_lock_screen.dart';
 import '../../../features/settings/data/repositories/biometric_preference_repository_impl.dart';
 
-// ── biometric_login ──────────────────────────────────────────────────────────
 import '../../../features/biometric_login/application/biometric_cubit.dart';
 import '../../../features/biometric_login/presentation/biometric_prompt_screen.dart';
 
-/// Batch 01 — DT-04 screen-catalog entries for: account_status,
-/// active_delivery_jeeber, auth, background_gps (SKIPPED — pure service, no
-/// UI), biometric_auth, biometric_login.
-///
-/// Every entry renders the REAL production screen with NO network: either a
-/// local fake repository (canned data / typed failures) or a cubit SEEDED
-/// directly into the designed state via a private subclass that calls the
-/// (protected, subclass-accessible) `emit` in its constructor. Where a screen
-/// had no injection seam for its cubit, a MINIMAL ADDITIVE optional
-/// constructor param was added (see the batch manifest `seamsAdded`).
 List<CatalogEntry> get batch01Entries => <CatalogEntry>[
       _accountStatusEntry,
       _activeDeliveryJeeberEntry,
@@ -58,9 +40,6 @@ List<CatalogEntry> get batch01Entries => <CatalogEntry>[
       _biometricPromptEntry,
     ];
 
-// ═══════════════════════════════════════════════════════════════════════════
-// account_status
-// ═══════════════════════════════════════════════════════════════════════════
 
 class _FixedAccountStatusRepository implements AccountStatusRepository {
   const _FixedAccountStatusRepository(this._info);
@@ -110,9 +89,6 @@ final CatalogEntry _accountStatusEntry = CatalogEntry(
   ],
 );
 
-// ═══════════════════════════════════════════════════════════════════════════
-// active_delivery_jeeber
-// ═══════════════════════════════════════════════════════════════════════════
 
 class _InertActiveDeliveryRepository implements ActiveDeliveryRepository {
   const _InertActiveDeliveryRepository();
@@ -146,9 +122,6 @@ class _InertActiveDeliveryRepository implements ActiveDeliveryRepository {
       throw const ActiveDeliveryException(ActiveDeliveryFailure.network);
 }
 
-/// Seeds [ActiveDeliveryCubit] directly into a designed state — the screen's
-/// `cubit` constructor seam means `loadDelivery()` is never invoked, so the
-/// (unreachable) [_InertActiveDeliveryRepository] never fires.
 class _SeededActiveDeliveryCubit extends ActiveDeliveryCubit {
   _SeededActiveDeliveryCubit(ActiveDeliveryState seed)
       : super(
@@ -242,10 +215,6 @@ final CatalogEntry _activeDeliveryJeeberEntry = CatalogEntry(
   ],
 );
 
-// ═══════════════════════════════════════════════════════════════════════════
-// auth — shared inert repository (never actually invoked; every entry below
-// seeds its cubit's state directly).
-// ═══════════════════════════════════════════════════════════════════════════
 
 class _InertAuthRepository implements AuthRepository {
   const _InertAuthRepository();
@@ -285,7 +254,6 @@ class _InertAuthRepository implements AuthRepository {
       throw const AuthRepositoryException(AuthFailure.unknown);
 }
 
-// ── set-password ─────────────────────────────────────────────────────────────
 
 class _SeededSetPasswordCubit extends SetPasswordCubit {
   _SeededSetPasswordCubit(SetPasswordState seed)
@@ -330,15 +298,7 @@ final CatalogEntry _setPasswordEntry = CatalogEntry(
   ],
 );
 
-// ═══════════════════════════════════════════════════════════════════════════
-// biometric_auth
-// ═══════════════════════════════════════════════════════════════════════════
 
-/// Seeds [BiometricLockCubit] directly. The gateway/pin-repository
-/// dependencies are never called (the seeded state is emitted immediately in
-/// the constructor); [SharedPreferences] is local device storage already
-/// registered in DI by the time the catalog runs inside the live app — not a
-/// network call.
 class _SeededBiometricLockCubit extends BiometricLockCubit {
   _SeededBiometricLockCubit(BiometricLockState seed)
       : super(
@@ -391,9 +351,6 @@ final CatalogEntry _biometricLockEntry = CatalogEntry(
   ],
 );
 
-// ═══════════════════════════════════════════════════════════════════════════
-// biometric_login
-// ═══════════════════════════════════════════════════════════════════════════
 
 class _SeededBiometricCubit extends BiometricCubit {
   _SeededBiometricCubit(BiometricState seed) {
