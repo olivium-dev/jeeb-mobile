@@ -201,9 +201,6 @@ class _AddRequestButton extends StatelessWidget {
   }
 }
 
-// leak
-const Size kLeak = _clientHomeGreetingHeaderBox;
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its
