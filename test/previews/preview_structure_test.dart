@@ -27,7 +27,14 @@ import '../../tool/preview_inventory.dart';
 /// Maximum number of uncovered widgets allowed. Lower it as previews land —
 /// never raise it. A widget whose previews are dropped or misnamed fails here
 /// immediately, which is the point.
-const int _coverageFloor = 6;
+///
+/// The queue reached ZERO in the wave that previewed `RecentReviewsSection`,
+/// `SuperLoginEntryPoints`, `ReviewRow`, `TierCard`, `AnimatedMicButton` and
+/// `WalletActivityRow` (150/150). From here the ratchet is absolute: a new
+/// widget under `lib/features/**` fails this test until it ships with a preview
+/// section, or is deliberately listed in `tool/preview_exclusions.txt` with a
+/// reason. Raising this number back above zero is not the fix for either.
+const int _coverageFloor = 0;
 
 /// Whole-word identifier match — `_hosted` must not match `_hostedFoo`.
 bool _referencesName(String haystack, String name) => RegExp(
