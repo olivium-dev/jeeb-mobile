@@ -7,6 +7,13 @@
 //
 // Raise these numbers when the catalog genuinely grows; never lower them
 // without saying why in the commit.
+//
+// 282 -> 288 in screens wave 07: `RatingPromptScreen` went from 1 state to 7.
+// It is a placeholder with no data axis, so its designed states are WINDOWS
+// (viewport, safe-area inset, text scale, deep-link id). The other six screens
+// in that wave had their fixtures extracted into
+// `lib/devtool/catalog/fixtures/` and repointed — labels and counts unchanged,
+// which is the point of extracting rather than copying.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/devtool/catalog/screen_catalog.dart';
@@ -18,7 +25,7 @@ void main() {
 
     expect(kScreenCatalog.length, greaterThanOrEqualTo(89),
         reason: 'screens dropped — a designer-facing tool lost coverage');
-    expect(states, greaterThanOrEqualTo(282),
+    expect(states, greaterThanOrEqualTo(288),
         reason: 'states dropped — a designer-facing tool lost coverage');
   });
 }

@@ -62,7 +62,12 @@ import '../../tool/preview_inventory.dart';
 /// `ActiveDeliveryJeeberScreen`, `SetPasswordScreen`, `BiometricLockScreen`,
 /// `BiometricPromptScreen`, `CancellationScreen` and `DevChatPreviewScreen`
 /// (191/231).
-const int _coverageFloor = 39;
+///
+/// 39 → 32: the screens wave that previewed `ClientOffersScreen`,
+/// `ClientUnreachableScreen`, `CustomerProfileScreen`, `RatingPromptScreen`,
+/// `DeliveryManProfileScreen`, `DeliveryReceiptScreen` and
+/// `DeliveryStatusScreen` (198/231).
+const int _coverageFloor = 32;
 
 /// Whole-word identifier match — `_hosted` must not match `_hostedFoo`.
 bool _referencesName(String haystack, String name) => RegExp(

@@ -5,19 +5,8 @@ import '../../../features/deep_link_targets/chat_detail_screen.dart';
 import '../../../features/deep_link_targets/delivery_detail_screen.dart';
 import '../../../features/deep_link_targets/kyc_status_screen.dart';
 import '../../../features/deep_link_targets/rating_prompt_screen.dart';
-import '../../../features/delivery_man_profile/data/dev_delivery_man_profile_fixtures.dart';
-import '../../../features/delivery_man_profile/domain/delivery_man_profile_view_data.dart';
 import '../../../features/delivery_man_profile/presentation/delivery_man_profile_screen.dart';
-import '../../../features/delivery_receipt/data/fake_delivery_receipt_repository.dart';
-import '../../../features/delivery_receipt/domain/delivery_receipt.dart';
-import '../../../features/delivery_receipt/domain/delivery_receipt_repository.dart';
 import '../../../features/delivery_receipt/presentation/delivery_receipt_screen.dart';
-import '../../../features/delivery_status/domain/delivery_address.dart';
-import '../../../features/delivery_status/domain/delivery_snapshot.dart';
-import '../../../features/delivery_status/domain/delivery_stage.dart';
-import '../../../features/delivery_status/domain/delivery_status_gateway.dart';
-import '../../../features/delivery_status/domain/delivery_tier.dart';
-import '../../../features/delivery_status/domain/jeeber_summary.dart';
 import '../../../features/delivery_status/presentation/delivery_status_screen.dart';
 import '../../../features/dispute_status/data/empty_dispute_status_repository.dart';
 import '../../../features/dispute_status/domain/dispute_status_repository.dart';
@@ -29,7 +18,11 @@ import '../../../features/earnings/presentation/earnings_dashboard_screen.dart';
 import '../catalog_models.dart';
 import '../fixtures/chat_detail_screen_fixtures.dart';
 import '../fixtures/delivery_detail_screen_fixtures.dart';
+import '../fixtures/delivery_man_profile_screen_fixtures.dart';
+import '../fixtures/delivery_receipt_screen_fixtures.dart';
+import '../fixtures/delivery_status_screen_fixtures.dart';
 import '../fixtures/kyc_status_screen_fixtures.dart';
+import '../fixtures/rating_prompt_screen_fixtures.dart';
 
 /// DT-04 / F2 batch 3 — deep_link_targets, delivery_man_profile,
 /// delivery_receipt, delivery_status, dispute_status, earnings.
@@ -211,6 +204,19 @@ final List<CatalogEntry> _kycStatusEntries = <CatalogEntry>[
 
 /// `RatingPromptScreen` — placeholder governed by the Type-A placeholder
 /// discipline script; no behavior/network to fake.
+///
+/// The screen has no data axis to seed either, so — as with `KycStatusScreen`
+/// above — its designed states are WINDOWS: how wide, how tall, how much of the
+/// display the system chrome has claimed, how large the user has set their
+/// text, and which deep-link `deliveryId` it was handed (a parameter it accepts
+/// and never renders). Those windows live in
+/// `../fixtures/rating_prompt_screen_fixtures.dart` and are shared verbatim
+/// with the JEEB PREVIEWS section at the bottom of the screen's own file, so
+/// this catalog and the preview canvas cannot drift apart.
+///
+/// `Placeholder` renders at the real device size (the device IS the window);
+/// the rest frame a simulated display inside it, captioned, so a reviewer can
+/// see the small-screen and 200%-text renderings without owning six phones.
 final List<CatalogEntry> _ratingPromptEntries = <CatalogEntry>[
   CatalogEntry(
     feature: 'deep_link_targets',
@@ -218,16 +224,33 @@ final List<CatalogEntry> _ratingPromptEntries = <CatalogEntry>[
     states: [
       CatalogState(
         'Placeholder',
-        (context) => const RatingPromptScreen(deliveryId: 'ORD-4821'),
+        (context) => const RatingPromptScreen(
+          deliveryId: RatingPromptScreenFixtures.deliveryId,
+        ),
       ),
+      for (final RatingPromptScreenWindow window
+          in RatingPromptScreenWindows.all)
+        CatalogState(
+          window.label,
+          (context) => RatingPromptScreenPreviewHost(
+            window: window,
+            screen: RatingPromptScreen(deliveryId: window.deliveryId),
+          ),
+        ),
     ],
   ),
 ];
 
 // ───────────────────────── delivery_man_profile ───────────────────────────
 
-/// `DeliveryManProfileScreen` — takes a plain [DeliveryManProfileViewData]
+/// `DeliveryManProfileScreen` — takes a plain `DeliveryManProfileViewData`
 /// value, no GetIt/network involved at all.
+///
+/// The three states themselves live in
+/// `fixtures/delivery_man_profile_screen_fixtures.dart`, shared with the JEEB
+/// PREVIEWS section at the bottom of the screen's own source file, so the
+/// designer's browser and the engineer's canvas cannot drift into two
+/// different "designed states" under the same label.
 final List<CatalogEntry> _deliveryManProfileEntries = <CatalogEntry>[
   CatalogEntry(
     feature: 'delivery_man_profile',
@@ -236,42 +259,19 @@ final List<CatalogEntry> _deliveryManProfileEntries = <CatalogEntry>[
       CatalogState(
         'Populated — reviews + score (shipped fixture)',
         (context) => const DeliveryManProfileScreen(
-          data: DevDeliveryManProfileFixtures.sample,
+          data: DeliveryManProfileScreenFixtures.populated,
         ),
       ),
       CatalogState(
         'Cold-start — < 5 reviews, score hidden (D59)',
         (context) => const DeliveryManProfileScreen(
-          data: DeliveryManProfileViewData(
-            name: 'Rana Ahmad',
-            rating: 5,
-            reviewCount: 2,
-            location: 'Lebanon',
-            isAvailable: true,
-            jeeberId: 'jeeber-rana',
-            reviews: [
-              DeliveryReviewData(
-                id: 'r1',
-                reviewerName: 'Sami Fares',
-                rating: 5,
-                body: 'Fast and friendly, will request again.',
-                daysAgo: 1,
-              ),
-            ],
-          ),
+          data: DeliveryManProfileScreenFixtures.coldStart,
         ),
       ),
       CatalogState(
         'Empty — no reviews yet',
         (context) => const DeliveryManProfileScreen(
-          data: DeliveryManProfileViewData(
-            name: 'New Jeeber',
-            rating: 0,
-            reviewCount: 0,
-            location: 'Lebanon',
-            isAvailable: false,
-            reviews: [],
-          ),
+          data: DeliveryManProfileScreenFixtures.empty,
         ),
       ),
     ],
@@ -281,8 +281,18 @@ final List<CatalogEntry> _deliveryManProfileEntries = <CatalogEntry>[
 // ───────────────────────────── delivery_receipt ───────────────────────────
 
 /// `DeliveryReceiptScreen` — the shipped `repository` constructor seam
-/// (already production-designed for widget tests) is reused directly with
-/// [FakeDeliveryReceiptRepository].
+/// (already production-designed for widget tests) is the ONLY seam this screen
+/// exposes: it builds its own `DeliveryReceiptCubit` internally, so every state
+/// is reached through a repository that answers, stalls, or throws.
+///
+/// The three states below are unchanged; their fixtures now live in
+/// `../fixtures/delivery_receipt_screen_fixtures.dart`, shared with the JEEB
+/// PREVIEWS section at the bottom of the screen's own source file, so this
+/// browser and that canvas cannot drift into showing two different "designed
+/// states" under the same label. The six states that file adds beyond these
+/// three (loading, zero amount, missing jeeber name, longest content, network
+/// failure, rejected confirm) are engineer-facing and are deliberately not
+/// listed here.
 final List<CatalogEntry> _deliveryReceiptEntries = <CatalogEntry>[
   CatalogEntry(
     feature: 'delivery_receipt',
@@ -291,34 +301,22 @@ final List<CatalogEntry> _deliveryReceiptEntries = <CatalogEntry>[
       CatalogState(
         'Loaded — proof photo + cash-on-delivery amount',
         (context) => DeliveryReceiptScreen(
-          deliveryId: 'ORD-4821',
-          repository: FakeDeliveryReceiptRepository(),
+          deliveryId: DeliveryReceiptScreenFixtures.deliveryId,
+          repository: DeliveryReceiptScreenFixtures.loaded(),
         ),
       ),
       CatalogState(
         'Loaded — amount unknown (run-22 P1-A degrade)',
         (context) => DeliveryReceiptScreen(
-          deliveryId: 'ORD-4821',
-          repository: FakeDeliveryReceiptRepository(
-            receipt: const DeliveryReceipt(
-              deliveryId: 'ORD-4821',
-              jeeberName: 'Kamal Hajj',
-              jeeberId: 'user-jeeber-002',
-              cashAmount: null,
-              currency: 'USD',
-              status: 'Done',
-              proofPhotoUrl: null,
-            ),
-          ),
+          deliveryId: DeliveryReceiptScreenFixtures.deliveryId,
+          repository: DeliveryReceiptScreenFixtures.amountUnknown(),
         ),
       ),
       CatalogState(
         'Error — receipt not found',
         (context) => DeliveryReceiptScreen(
-          deliveryId: 'ORD-4821',
-          repository: FakeDeliveryReceiptRepository(
-            fetchFailure: DeliveryReceiptFailure.notFound,
-          ),
+          deliveryId: DeliveryReceiptScreenFixtures.deliveryId,
+          repository: DeliveryReceiptScreenFixtures.notFound(),
         ),
       ),
     ],
@@ -327,61 +325,25 @@ final List<CatalogEntry> _deliveryReceiptEntries = <CatalogEntry>[
 
 // ───────────────────────────── delivery_status ────────────────────────────
 
-DeliverySnapshot _statusSnapshot(
-  DeliveryStage stage, {
-  DeliveryLifecycle lifecycle = DeliveryLifecycle.active,
-  int? etaMinutes,
-}) {
-  final now = DateTime.now();
-  final timestamps = <DeliveryStage, DateTime>{};
-  for (final s in DeliveryStage.values) {
-    if (!stage.isBefore(s)) {
-      timestamps[s] =
-          now.subtract(Duration(minutes: (stage.order - s.order + 1) * 4));
-    }
-  }
-  return DeliverySnapshot(
-    id: 'ORD-4821',
-    stage: stage,
-    lifecycle: lifecycle,
-    stageTimestamps: timestamps,
-    pickup: const DeliveryAddress(
-      label: 'Hamra Main St, Beirut',
-      detail: 'Apt 4B, Floor 3',
-    ),
-    dropoff: const DeliveryAddress(
-      label: 'Verdun, Beirut',
-      detail: 'Reception desk',
-    ),
-    tier: DeliveryTier.scooter,
-    jeeber: lifecycle == DeliveryLifecycle.active
-        ? const JeeberSummary(
-            displayName: 'Karim H.',
-            vehicleLabel: 'Scooter',
-            phoneE164: '+96171000000',
-            rating: 4.8,
-          )
-        : null,
-    etaMinutes: etaMinutes,
-  );
-}
+/// Mounts the real screen on one designed state.
+///
+/// The `gateway:` argument is the screen's shipped constructor seam — the same
+/// one its own no-backend fallback uses — so nothing here reaches DI.
+Widget _deliveryStatusScreen(DeliveryStatusScreenDesignedState state) =>
+    DeliveryStatusScreen(
+      deliveryId: state.deliveryId,
+      gateway: state.gateway,
+    );
 
-/// Local fake gateway for the one state [InMemoryDeliveryStatusGateway] can't
-/// script directly: a stream that fails outright (the D30 error state).
-class _ErroringDeliveryStatusGateway implements DeliveryStatusGateway {
-  @override
-  Stream<DeliverySnapshot> watch(String deliveryId) =>
-      Stream<DeliverySnapshot>.error(StateError('stream lost'));
-
-  @override
-  Future<CancellationOutcome> cancel(String deliveryId) async =>
-      CancellationOutcome.networkError;
-}
-
-/// `DeliveryStatusScreen` — the shipped `gateway` constructor seam
-/// ([InMemoryDeliveryStatusGateway] + `demoDeliverySnapshot`, already used by
-/// the screen's own no-backend fallback) is reused for every in-flight stage;
-/// the terminal/error states are built from plain domain values.
+/// `DeliveryStatusScreen` — driven through the shipped `gateway` seam.
+///
+/// The states themselves live in
+/// `fixtures/delivery_status_screen_fixtures.dart`, shared with the JEEB
+/// PREVIEWS section at the bottom of the screen's own source file, so the
+/// catalog card and the canvas card cannot drift into two different notions of
+/// the same designed state. That file holds more states than are listed here
+/// (cold load, no courier yet, cancelled, mid-delivery drop, cancel in
+/// flight); they are one line each to add.
 final List<CatalogEntry> _deliveryStatusEntries = <CatalogEntry>[
   CatalogEntry(
     feature: 'delivery_status',
@@ -389,39 +351,26 @@ final List<CatalogEntry> _deliveryStatusEntries = <CatalogEntry>[
     states: [
       CatalogState(
         'Matched — courier assigned',
-        (context) => DeliveryStatusScreen(
-          deliveryId: 'ORD-4821',
-          gateway: InMemoryDeliveryStatusGateway(
-            seed: _statusSnapshot(DeliveryStage.matched),
-          ),
+        (context) => _deliveryStatusScreen(
+          DeliveryStatusScreenFixtures.matched,
         ),
       ),
       CatalogState(
         'In transit — ETA visible',
-        (context) => DeliveryStatusScreen(
-          deliveryId: 'ORD-4821',
-          gateway: InMemoryDeliveryStatusGateway(
-            seed: _statusSnapshot(DeliveryStage.inTransit, etaMinutes: 8),
-          ),
+        (context) => _deliveryStatusScreen(
+          DeliveryStatusScreenFixtures.inTransit,
         ),
       ),
       CatalogState(
         'Delivered — terminal, CTAs hidden',
-        (context) => DeliveryStatusScreen(
-          deliveryId: 'ORD-4821',
-          gateway: InMemoryDeliveryStatusGateway(
-            seed: _statusSnapshot(
-              DeliveryStage.delivered,
-              lifecycle: DeliveryLifecycle.completed,
-            ),
-          ),
+        (context) => _deliveryStatusScreen(
+          DeliveryStatusScreenFixtures.delivered,
         ),
       ),
       CatalogState(
         'Error — stream lost, retry',
-        (context) => DeliveryStatusScreen(
-          deliveryId: 'ORD-4821',
-          gateway: _ErroringDeliveryStatusGateway(),
+        (context) => _deliveryStatusScreen(
+          DeliveryStatusScreenFixtures.streamLostOnOpen,
         ),
       ),
     ],
