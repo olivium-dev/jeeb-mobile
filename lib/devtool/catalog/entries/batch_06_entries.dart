@@ -31,13 +31,11 @@ import 'package:jeeb_mobile/features/live_tracking/presentation/live_tracking_sc
 
 import 'package:jeeb_mobile/features/location/cubit/location_picker_cubit.dart';
 import 'package:jeeb_mobile/features/location/data/location_repository.dart';
-import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
-import 'package:jeeb_mobile/features/location/domain/location_select_repository.dart';
-import 'package:jeeb_mobile/features/location/domain/saved_location.dart';
-import 'package:jeeb_mobile/features/location/domain/saved_location_repository.dart';
 import 'package:jeeb_mobile/features/location/presentation/location_picker_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/client_location_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/saved_locations_screen.dart';
+
+import '../fixtures/client_location_screen_fixtures.dart';
 
 import 'package:jeeb_mobile/features/masked_call/application/masked_call_cubit.dart';
 import 'package:jeeb_mobile/features/masked_call/presentation/masked_call_button.dart';
@@ -51,6 +49,7 @@ import 'package:jeeb_mobile/features/no_offer_timeout/domain/waiting_request.dar
 import 'package:jeeb_mobile/features/no_offer_timeout/presentation/no_offer_timeout_screen.dart';
 
 import '../catalog_models.dart';
+import '../fixtures/saved_locations_screen_fixtures.dart';
 
 List<CatalogEntry> get batch06Entries => <CatalogEntry>[
       _languageEntry,
@@ -262,79 +261,12 @@ final CatalogEntry _locationPickerEntry = CatalogEntry(
 // ─────────────────────────────────────────────────────────────────────────
 // location — SavedLocationsScreen (saved-address manager)
 // ─────────────────────────────────────────────────────────────────────────
-
-/// Local, canned [SavedLocationRepository] — no network. Reused across the
-/// loaded/empty/error designed states via its constructor flags.
-class _StaticSavedLocationRepository implements SavedLocationRepository {
-  const _StaticSavedLocationRepository(this._locations, {this.failFetch = false});
-
-  final List<SavedLocation> _locations;
-  final bool failFetch;
-
-  static const List<SavedLocation> seeded = [
-    SavedLocation(
-      id: 'addr-home',
-      label: 'Home',
-      latitude: 33.8886,
-      longitude: 35.4955,
-      category: SavedLocationCategory.home,
-      address: 'Sassine Square, Ashrafieh',
-      isDefault: true,
-    ),
-    SavedLocation(
-      id: 'addr-office',
-      label: 'Office',
-      latitude: 33.8938,
-      longitude: 35.5018,
-      category: SavedLocationCategory.work,
-      address: 'Beirut Tower, Downtown',
-    ),
-  ];
-
-  @override
-  Future<List<SavedLocation>> fetchSavedLocations() async {
-    if (failFetch) throw const SavedLocationException('fetch_failed');
-    return _locations;
-  }
-
-  @override
-  Future<SavedLocation> saveLocation({
-    required double latitude,
-    required double longitude,
-    required String label,
-    required SavedLocationCategory category,
-    String? address,
-  }) async =>
-      SavedLocation(
-        id: 'new-$label',
-        label: label,
-        latitude: latitude,
-        longitude: longitude,
-        category: category,
-        address: address,
-      );
-
-  @override
-  Future<SavedLocation> updateLocation({
-    required String id,
-    required double latitude,
-    required double longitude,
-    required String label,
-    required SavedLocationCategory category,
-    String? address,
-  }) async =>
-      SavedLocation(
-        id: id,
-        label: label,
-        latitude: latitude,
-        longitude: longitude,
-        category: category,
-        address: address,
-      );
-
-  @override
-  Future<void> deleteLocation(String id) async {}
-}
+//
+// The canned repository and the seeded account moved to
+// `../fixtures/saved_locations_screen_fixtures.dart` so this entry and the
+// widget-preview section at the bottom of `saved_locations_screen.dart` mock
+// the screen from ONE set of fakes. Same three designed states, same data — the
+// only change is where the fixture is declared.
 
 final CatalogEntry _savedLocationsEntry = CatalogEntry(
   feature: 'location',
@@ -343,21 +275,21 @@ final CatalogEntry _savedLocationsEntry = CatalogEntry(
     CatalogState(
       'Loaded (Home + Office)',
       (_) => const SavedLocationsScreen(
-        repository: _StaticSavedLocationRepository(
-          _StaticSavedLocationRepository.seeded,
+        repository: SavedLocationsScreenFakeRepository(
+          savedLocationsScreenHomeAndOffice,
         ),
       ),
     ),
     CatalogState(
       'Empty',
       (_) => const SavedLocationsScreen(
-        repository: _StaticSavedLocationRepository([]),
+        repository: SavedLocationsScreenFakeRepository([]),
       ),
     ),
     CatalogState(
       'Error',
       (_) => const SavedLocationsScreen(
-        repository: _StaticSavedLocationRepository([], failFetch: true),
+        repository: SavedLocationsScreenFakeRepository([], failFetch: true),
       ),
     ),
   ],
@@ -367,8 +299,15 @@ final CatalogEntry _savedLocationsEntry = CatalogEntry(
 // location — ClientLocationScreen (location-select create step)
 // ─────────────────────────────────────────────────────────────────────────
 
-const String _clientLocationPreviewUserId = 'preview-user-001';
-
+// The seeds live in `../fixtures/client_location_screen_fixtures.dart`, shared
+// verbatim with the JEEB PREVIEWS section at the bottom of
+// `client_location_screen.dart`, so the catalog state a designer reviews and
+// the preview an engineer edits cannot drift apart.
+//
+// `currentLocationResolver:` is now scripted here too. Left null the screen
+// builds a real geolocator-backed resolver, so opening this entry on a device
+// raised a live permission prompt and then rendered whichever GPS state that
+// device happened to be in — the opposite of a designed state.
 final CatalogEntry _clientLocationEntry = CatalogEntry(
   feature: 'location',
   screen: 'Location Select (create flow)',
@@ -376,17 +315,17 @@ final CatalogEntry _clientLocationEntry = CatalogEntry(
     CatalogState(
       'Current location + saved addresses',
       (_) => const ClientLocationScreen(
-        userId: _clientLocationPreviewUserId,
-        repository: FakeLocationSelectRepository(),
+        userId: ClientLocationScreenFixtures.userId,
+        repository: ClientLocationScreenFixtures.savedAddresses,
+        currentLocationResolver: ClientLocationScreenFixtures.gpsResolved,
       ),
     ),
     CatalogState(
       'Saved-addresses load error',
       (_) => const ClientLocationScreen(
-        userId: _clientLocationPreviewUserId,
-        repository: FakeLocationSelectRepository(
-          failWith: LocationSelectFailure.network,
-        ),
+        userId: ClientLocationScreenFixtures.userId,
+        repository: ClientLocationScreenFixtures.savedAddressesUnavailable,
+        currentLocationResolver: ClientLocationScreenFixtures.gpsResolved,
       ),
     ),
   ],

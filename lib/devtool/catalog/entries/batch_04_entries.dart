@@ -18,10 +18,9 @@ import '../../../features/goods_cost/presentation/goods_cost_screen.dart';
 // ── home_client ───────────────────────────────────────────────────────────────
 import '../../../features/home_client/application/client_home_cubit.dart';
 import '../../../features/home_client/application/client_home_state.dart';
-import '../../../features/home_client/data/dev_client_home_fixtures.dart';
-import '../../../features/home_client/data/in_memory_client_home_repository.dart';
 import '../../../features/home_client/domain/client_home_repository.dart';
 import '../../../features/home_client/presentation/client_home_screen.dart';
+import '../fixtures/client_home_screen_fixtures.dart';
 
 // ── jeeber_active_deliveries ──────────────────────────────────────────────────
 import '../../../features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
@@ -212,29 +211,25 @@ final CatalogEntry _goodsCostEntry = CatalogEntry(
 // home_client — Client Home (Requests tab: In Progress / Pending / Replies)
 // ═════════════════════════════════════════════════════════════════════════
 
-/// Repository that always fails the load — drives [ClientHomeScreen]'s
-/// `failed` status (retry CTA) with no network involved.
-class _FailingClientHomeRepository implements ClientHomeRepository {
-  @override
-  Future<ClientHomeSnapshot> loadSnapshot() async {
-    throw StateError('catalog: simulated load failure');
-  }
-}
-
 /// Wraps [ClientHomeScreen] in the [BlocProvider] + [Scaffold] it expects
 /// from its host shell. The
 /// screen's own `initState` calls `cubit.load()`, so no manual trigger is
 /// needed here.
+///
+/// The fakes and their canned data live in
+/// [ClientHomeScreenPreviewFixtures] — shared verbatim with the JEEB PREVIEWS
+/// section at the bottom of `client_home_screen.dart`, so the catalog and the
+/// preview canvas cannot drift into showing two different "designed states".
 Widget _clientHome({
   required ClientHomeRepository repository,
   required ClientHomeTab initialTab,
-  String? name = 'Layla',
+  String? name = ClientHomeScreenPreviewFixtures.greetingName,
 }) {
   return Scaffold(
     body: BlocProvider<ClientHomeCubit>(
-      create: (_) => ClientHomeCubit(
-        repository: repository,
-        greetingNameProvider: () => name,
+      create: (_) => ClientHomeScreenPreviewFixtures.cubit(
+        repository,
+        name: name,
       ),
       child: ClientHomeScreen(
         initialTab: initialTab,
@@ -245,12 +240,6 @@ Widget _clientHome({
   );
 }
 
-ClientHomeRepository _populatedClientHomeRepo() =>
-    InMemoryClientHomeRepository.fromSnapshot(
-      DevClientHomeFixtures.snapshot(),
-      latency: Duration.zero,
-    );
-
 final CatalogEntry _clientHomeEntry = CatalogEntry(
   feature: 'home_client',
   screen: 'Client Home (Requests tab)',
@@ -258,35 +247,35 @@ final CatalogEntry _clientHomeEntry = CatalogEntry(
     CatalogState(
       'In Progress (populated)',
       (_) => _clientHome(
-        repository: _populatedClientHomeRepo(),
+        repository: ClientHomeScreenPreviewFixtures.populated(),
         initialTab: ClientHomeTab.inProgress,
       ),
     ),
     CatalogState(
       'Pending Requests (populated)',
       (_) => _clientHome(
-        repository: _populatedClientHomeRepo(),
+        repository: ClientHomeScreenPreviewFixtures.populated(),
         initialTab: ClientHomeTab.pendingRequests,
       ),
     ),
     CatalogState(
       'Replies (populated)',
       (_) => _clientHome(
-        repository: _populatedClientHomeRepo(),
+        repository: ClientHomeScreenPreviewFixtures.populated(),
         initialTab: ClientHomeTab.replies,
       ),
     ),
     CatalogState(
       'Empty (no requests)',
       (_) => _clientHome(
-        repository: InMemoryClientHomeRepository(latency: Duration.zero),
+        repository: ClientHomeScreenPreviewFixtures.empty(),
         initialTab: ClientHomeTab.pendingRequests,
       ),
     ),
     CatalogState(
       'Load failed (retry)',
       (_) => _clientHome(
-        repository: _FailingClientHomeRepository(),
+        repository: ClientHomeScreenPreviewFixtures.failing(),
         initialTab: ClientHomeTab.inProgress,
       ),
     ),

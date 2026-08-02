@@ -11,7 +11,6 @@ import '../../../features/cancellation/domain/cancellation_result.dart';
 import '../../../features/cancellation/presentation/cancellation_screen.dart';
 import '../../../features/cancellation/presentation/cubit/cancellation_state.dart';
 import '../../../features/cancellation/presentation/widgets/cancellation_success_sheet.dart';
-import '../../../features/chat/presentation/dev_chat_preview_screen.dart';
 import '../../../features/client_offers/application/client_offers_cubit.dart';
 import '../../../features/client_offers/application/offer_accept_state.dart';
 import '../../../features/client_offers/data/fake_offers_repository.dart';
@@ -26,6 +25,7 @@ import '../../../features/customer_profile/domain/customer_profile_repository.da
 import '../../../features/customer_profile/domain/customer_profile_view_data.dart';
 import '../../../features/customer_profile/presentation/customer_profile_screen.dart';
 import '../catalog_models.dart';
+import '../fixtures/chat_screen_fixtures.dart';
 
 /// Batch 02 — cancel_request, cancellation, chat, client_offers,
 /// client_unreachable, customer_profile (DT-04 screen-catalog rework).
@@ -179,37 +179,43 @@ final CatalogEntry _cancellationSuccessSheetEntry = CatalogEntry(
 /// that renders the real `ChatScreen` against `DevChatFixtureGateway` (a
 /// deterministic in-memory gateway, no network) for exactly these designed
 /// states (see its doc comment for the Figma node each selector matches).
+///
+/// The selectors are no longer spelled out here: each state is named once in
+/// [ChatScreenPreviewFixtures] and shared verbatim with the JEEB PREVIEWS
+/// section at the bottom of `features/chat/presentation/chat_screen.dart`, so
+/// the designer's in-app browser and the preview canvas cannot drift into
+/// showing two different "designed states" of the same screen.
 final CatalogEntry _chatScreenEntry = CatalogEntry(
   feature: 'chat',
   screen: 'chat_screen',
   states: [
     CatalogState(
       'Client — sending initial request',
-      (_) => const DevChatPreviewScreen(selector: 'sending'),
+      (_) => ChatScreenPreviewFixtures.clientSending(),
     ),
     CatalogState(
       'Client — broadcasting (offer cards)',
-      (_) => const DevChatPreviewScreen(selector: 'broadcasting'),
+      (_) => ChatScreenPreviewFixtures.clientBroadcasting(),
     ),
     CatalogState(
       'Client — accepted 1:1 thread',
-      (_) => const DevChatPreviewScreen(selector: 'accepted'),
+      (_) => ChatScreenPreviewFixtures.clientAccepted(),
     ),
     CatalogState(
       'Jeeber — accepted thread',
-      (_) => const DevChatPreviewScreen(selector: 'dm'),
+      (_) => ChatScreenPreviewFixtures.jeeberAccepted(),
     ),
     CatalogState(
       'Jeeber — order picked banner',
-      (_) => const DevChatPreviewScreen(selector: 'dm-order-picked'),
+      (_) => ChatScreenPreviewFixtures.jeeberOrderPicked(),
     ),
     CatalogState(
       'Jeeber — confirm picking sheet',
-      (_) => const DevChatPreviewScreen(selector: 'dm-confirm-picking'),
+      (_) => ChatScreenPreviewFixtures.jeeberConfirmPicking(),
     ),
     CatalogState(
       'Jeeber — confirm heading-off sheet',
-      (_) => const DevChatPreviewScreen(selector: 'dm-confirm-heading-off'),
+      (_) => ChatScreenPreviewFixtures.jeeberConfirmHeadingOff(),
     ),
   ],
 );
