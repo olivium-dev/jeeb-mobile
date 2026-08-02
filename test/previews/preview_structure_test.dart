@@ -28,13 +28,21 @@ import '../../tool/preview_inventory.dart';
 /// never raise it. A widget whose previews are dropped or misnamed fails here
 /// immediately, which is the point.
 ///
-/// The queue reached ZERO in the wave that previewed `RecentReviewsSection`,
-/// `SuperLoginEntryPoints`, `ReviewRow`, `TierCard`, `AnimatedMicButton` and
-/// `WalletActivityRow` (150/150). From here the ratchet is absolute: a new
-/// widget under `lib/features/**` fails this test until it ships with a preview
-/// section, or is deliberately listed in `tool/preview_exclusions.txt` with a
-/// reason. Raising this number back above zero is not the fix for either.
-const int _coverageFloor = 74;
+/// The WIDGET queue reached ZERO in the wave that previewed
+/// `RecentReviewsSection`, `SuperLoginEntryPoints`, `ReviewRow`, `TierCard`,
+/// `AnimatedMicButton` and `WalletActivityRow` (150/150). The floor then went
+/// back up because the detector stopped excluding `*Screen` — that 100% was 150
+/// of 231 — so what is left in the queue is screens, and each screen wave walks
+/// this number down. The ratchet is unchanged: a new widget or screen under
+/// `lib/features/**` fails this test until it ships with a preview section, or
+/// is deliberately listed in `tool/preview_exclusions.txt` with a reason.
+/// Raising this number is not the fix for either.
+///
+/// 74 → 67: the screens wave that previewed `CustomerWalletStubScreen`,
+/// `TransactionDetailScreen`, `WalletActivityListScreen`,
+/// `WalletChargeInfoScreen`, `WalletHubScreen`, `ChatDetailScreen` and
+/// `DeliveryDetailScreen` (163/231).
+const int _coverageFloor = 67;
 
 /// Whole-word identifier match — `_hosted` must not match `_hostedFoo`.
 bool _referencesName(String haystack, String name) => RegExp(

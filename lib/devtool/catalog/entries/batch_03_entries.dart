@@ -1,10 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../features/chat/data/dev_chat_fixture_gateway.dart';
-import '../../../features/chat/domain/delivery_chat_message.dart'
-    show ConversationPhase;
-import '../../../features/chat/domain/order_chat_summary.dart';
 import '../../../features/deep_link_targets/chat_detail_screen.dart';
 import '../../../features/deep_link_targets/delivery_detail_screen.dart';
 import '../../../features/deep_link_targets/kyc_status_screen.dart';
@@ -31,6 +27,8 @@ import '../../../features/earnings/domain/earnings_repository.dart';
 import '../../../features/earnings/domain/earnings_summary.dart';
 import '../../../features/earnings/presentation/earnings_dashboard_screen.dart';
 import '../catalog_models.dart';
+import '../fixtures/chat_detail_screen_fixtures.dart';
+import '../fixtures/delivery_detail_screen_fixtures.dart';
 
 /// DT-04 / F2 batch 3 — deep_link_targets, delivery_man_profile,
 /// delivery_receipt, delivery_status, dispute_status, earnings.
@@ -56,6 +54,14 @@ List<CatalogEntry> get batch03Entries => <CatalogEntry>[
 /// so no async GetIt/Dio resolution ever runs; each state pairs a
 /// [DevChatFixtureGateway] (already shipped for the app's own dev-seam
 /// capture path) with the matching phase/winner/summary flags.
+///
+/// The states themselves live in `fixtures/chat_detail_screen_fixtures.dart`,
+/// shared with the JEEB PREVIEWS section at the bottom of the screen's own
+/// source file, so this browser and that canvas cannot drift into showing two
+/// different "designed states" under the same label. The six states that file
+/// adds beyond these three (fresh compose, empty, failed, loading, longest
+/// content, unnamed counterpart) are engineer-facing and are deliberately not
+/// listed here.
 final List<CatalogEntry> _chatDetailEntries = <CatalogEntry>[
   CatalogEntry(
     feature: 'deep_link_targets',
@@ -63,66 +69,105 @@ final List<CatalogEntry> _chatDetailEntries = <CatalogEntry>[
     states: [
       CatalogState(
         'Compose — broadcasting, no offers yet',
-        (context) => ChatDetailScreen(
-          chatId: 'chat-sending-1',
-          debugGateway: DevChatFixtureGateway(
-            phase: ConversationPhase.broadcasting,
-            sending: true,
-          ),
-          debugPhase: ConversationPhase.broadcasting,
-        ),
+        (context) => _chatDetail(ChatDetailScreenPreviewFixtures.compose),
       ),
       CatalogState(
         'Broadcasting — offer cards landing',
-        (context) => ChatDetailScreen(
-          chatId: 'chat-broadcasting-1',
-          debugGateway: DevChatFixtureGateway(
-            phase: ConversationPhase.broadcasting,
-          ),
-          debugPhase: ConversationPhase.broadcasting,
-        ),
+        (context) => _chatDetail(ChatDetailScreenPreviewFixtures.broadcasting),
       ),
       CatalogState(
         'Accepted — 1:1 thread + pinned summary',
-        (context) => ChatDetailScreen(
-          chatId: 'chat-accepted-1',
-          debugGateway: DevChatFixtureGateway(
-            phase: ConversationPhase.accepted,
-          ),
-          debugPhase: ConversationPhase.accepted,
-          debugHasWinner: true,
-          debugCounterpartName: 'Kamal Hajj',
-          debugSummary: const OrderChatSummary(
-            deliveryId: 'chat-accepted-1',
-            requestId: 'chat-accepted-1',
-            priceLabel: r'$35.00',
-            jeeberName: 'Kamal Hajj',
-            rating: 4.6,
-            etaMinutes: 120,
-            tierId: 'standard',
-            orderRef: 'ORD-4821',
-            statusId: 'matched',
-            // P3 (b01-20260725): exercise the initial-requirement row.
-            description: '2 kilos apples from Spinneys',
-          ),
-        ),
+        (context) => _chatDetail(ChatDetailScreenPreviewFixtures.accepted),
       ),
     ],
   ),
 ];
 
-/// `DeliveryDetailScreen` — the order-detail action hub. No repository/GetIt
-/// dependency at all (every CTA just pushes a route), so the real screen
-/// renders as-is with zero seams. `RoleCubit` is read defensively (catches
-/// `ProviderNotFoundException`), so the plain catalog host is safe.
+/// Mounts one [ChatDetailScreenPreviewState] through the screen's `debugGateway`
+/// seam. The preview section at the bottom of `chat_detail_screen.dart` has the
+/// same two lines against the same descriptors — see that file's note on why the
+/// construction is not shared.
+Widget _chatDetail(ChatDetailScreenPreviewState state) => ChatDetailScreen(
+      chatId: state.chatId,
+      debugGateway: state.gateway(),
+      debugPhase: state.phase,
+      debugHasWinner: state.hasWinner,
+      debugCounterpartName: state.counterpartName,
+      debugSummary: state.summary,
+    );
+
+/// `DeliveryDetailScreen` — the order-detail action hub. `RoleCubit` is read
+/// defensively (catches `ProviderNotFoundException`), so the plain catalog host
+/// is safe.
+///
+/// This entry USED to mount the screen bare, on the strength of "no
+/// repository/GetIt dependency at all — every CTA just pushes a route". That
+/// stopped being true at JEBV4-309: the hub now reads the delivery's lifecycle
+/// `statusId` on mount, and with `summaryRepository:` null it resolves that read
+/// from GetIt's live `Dio`. The catalog only ever runs inside the app, where DI
+/// IS built, so the bare entry issued a real `GET /v1/deliveries/ORD-4821` —
+/// a GET, so `CatalogNetworkGuard` waves it through — and then rendered
+/// whichever bucket that order happened to be in on the day. Both seams are now
+/// scripted from `../fixtures/delivery_detail_screen_fixtures.dart`, shared with
+/// the JEEB PREVIEWS section at the bottom of the screen's own source file, so
+/// the states below are designed rather than observed and the two dev surfaces
+/// cannot drift apart.
+///
+/// `Action hub` is kept as the first state under its original name — it is the
+/// fail-open list this entry always showed, now reached deliberately (status
+/// unavailable) instead of by whatever the gateway said.
 final List<CatalogEntry> _deliveryDetailEntries = <CatalogEntry>[
   CatalogEntry(
     feature: 'deep_link_targets',
     screen: 'DeliveryDetailScreen',
     states: [
       CatalogState(
-        'Action hub',
-        (context) => const DeliveryDetailScreen(deliveryId: 'ORD-4821'),
+        'Action hub — status unavailable, fails open',
+        (context) => const DeliveryDetailScreen(
+          deliveryId: DeliveryDetailScreenFixtures.deliveryId,
+          summaryRepository: DeliveryDetailScreenFixtures.statusUnavailable,
+          ratingRepository: DeliveryDetailScreenFixtures.notYetRated,
+          refreshSignals: Stream<void>.empty(),
+        ),
+      ),
+      CatalogState(
+        'Active — pre-pickup (free cancel open)',
+        (context) => const DeliveryDetailScreen(
+          deliveryId: DeliveryDetailScreenFixtures.deliveryId,
+          summaryRepository: DeliveryDetailScreenFixtures.ordered,
+          ratingRepository: DeliveryDetailScreenFixtures.notYetRated,
+          refreshSignals: Stream<void>.empty(),
+        ),
+      ),
+      CatalogState(
+        'Active — in transit (cancel closed)',
+        (context) => const DeliveryDetailScreen(
+          deliveryId: DeliveryDetailScreenFixtures.deliveryId,
+          summaryRepository: DeliveryDetailScreenFixtures.inTransit,
+          ratingRepository: DeliveryDetailScreenFixtures.notYetRated,
+          refreshSignals: Stream<void>.empty(),
+        ),
+      ),
+      CatalogState(
+        // `alreadyRated`, so a designer tapping Rate gets the read-only summary
+        // sheet in place rather than being navigated out of the catalog into
+        // the DI-backed mutual-rating terminal.
+        'Delivered — banner + Rate + Receipt',
+        (context) => const DeliveryDetailScreen(
+          deliveryId: DeliveryDetailScreenFixtures.deliveryId,
+          summaryRepository: DeliveryDetailScreenFixtures.delivered,
+          ratingRepository: DeliveryDetailScreenFixtures.alreadyRated,
+          refreshSignals: Stream<void>.empty(),
+        ),
+      ),
+      CatalogState(
+        'Cancelled — banner + Report only',
+        (context) => const DeliveryDetailScreen(
+          deliveryId: DeliveryDetailScreenFixtures.deliveryId,
+          summaryRepository: DeliveryDetailScreenFixtures.cancelled,
+          ratingRepository: DeliveryDetailScreenFixtures.notYetRated,
+          refreshSignals: Stream<void>.empty(),
+        ),
       ),
     ],
   ),

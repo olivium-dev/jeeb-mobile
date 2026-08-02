@@ -187,9 +187,20 @@ just do not score.
 ## Relationship to the Screen Catalog
 
 `lib/devtool/catalog/` is the designer-facing, on-device browser of whole **screens**
-(67 screens / 270 mocked states). Previews are the engineer-facing desktop loop for
-individual **widgets**. Both share `CatalogNetworkGuard`. Screens are deliberately out
-of scope here — `tool/preview_coverage.dart` skips any class ending in `Screen`.
+(89 screens / 274 mocked states). Previews are the engineer-facing desktop loop for
+individual **widgets**. Both share `CatalogNetworkGuard`.
+
+Screens are **in** scope for coverage. `tool/preview_coverage.dart` used to skip any
+class ending in `Screen` on the grounds that the catalog covered them; it covers ~56 of
+82, from inside the app rather than the IDE, and no screen had a preview — so the tool
+reported 100% while 80 screens showed nothing when opened. The exclusion is gone, which
+is why the ratchet in `preview_structure_test.dart` sits above zero: the widget queue
+is empty and the remainder is screens.
+
+When a screen is previewed, extract the catalog entry's fixtures into
+`lib/devtool/catalog/fixtures/<snake>_fixtures.dart` and point BOTH surfaces at it —
+never copy them into the preview section. Two copies of the same "designed state" drift,
+and the catalog is the one a designer signs off against.
 
 ## Known tooling bug (Flutter 3.44.2)
 

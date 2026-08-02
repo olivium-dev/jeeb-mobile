@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../../core/session/jeeber_kyc_status_gate.dart';
 import '../../../features/home_client/data/dev_client_home_fixtures.dart';
 import '../../../features/home_client/data/in_memory_client_home_repository.dart';
 import '../../../features/order_history/domain/order_repository.dart';
@@ -29,15 +28,17 @@ import '../../../features/voice_request/domain/voice_player.dart';
 import '../../../features/voice_request/domain/voice_recorder.dart';
 import '../../../features/voice_request/presentation/voice_recording_screen.dart';
 import '../../../features/wallet/data/empty_wallet_ledger_repository.dart';
-import '../../../features/wallet/data/stub_wallet_transaction_repository.dart';
 import '../../../features/wallet/domain/wallet_ledger_repository.dart';
-import '../../../features/wallet/domain/wallet_repository.dart';
 import '../../../features/wallet/domain/wallet_transaction_repository.dart';
 import '../../../features/wallet/presentation/transaction_detail_screen.dart';
 import '../../../features/wallet/presentation/wallet_activity_list_screen.dart';
 import '../../../features/wallet/presentation/wallet_charge_info_screen.dart';
 import '../../../features/wallet/presentation/wallet_hub_screen.dart';
 import '../catalog_models.dart';
+import '../fixtures/transaction_detail_screen_fixtures.dart';
+import '../fixtures/wallet_activity_list_screen_fixtures.dart';
+import '../fixtures/wallet_charge_info_screen_fixtures.dart';
+import '../fixtures/wallet_hub_screen_fixtures.dart';
 import '../tier_catalog_fixture.dart';
 
 /// Batch 11 — DT-04 catalog entries for: shell, support, tier_selection,
@@ -576,6 +577,12 @@ Future<void> _seedSent(
 // ─────────────────────────────────────────────────────────────────────────
 // wallet — WalletHubScreen
 // ─────────────────────────────────────────────────────────────────────────
+//
+// The three canned repositories, the scripted KYC gate and the four designed
+// wallets moved to `../fixtures/wallet_hub_screen_fixtures.dart` so this entry
+// and the widget-preview section at the bottom of `wallet_hub_screen.dart` mock
+// the screen from ONE set of fakes. Same six designed states, same amounts —
+// the only change is where the fixture is declared.
 
 final CatalogEntry _walletHubEntry = CatalogEntry(
   feature: 'wallet',
@@ -584,123 +591,69 @@ final CatalogEntry _walletHubEntry = CatalogEntry(
     CatalogState(
       'Loading',
       (_) => const WalletHubScreen(
-        repository: _PendingWalletHubRepository(),
-        kycStatusGate: _StaticKycStatusGate(JeeberKycStatus.approved),
+        repository: WalletHubScreenPendingRepository(),
+        kycStatusGate: WalletHubScreenKycGate.approved(),
       ),
     ),
     CatalogState(
       'Healthy — enough to bid',
       (_) => const WalletHubScreen(
-        repository: _StaticWalletHubRepository(
-          WalletBalance(
-            availableBalance: 145.0,
-            affordabilityState: WalletAffordability.enough,
-            reservedNow: 12.5,
-            giftCredit: 0,
-            currency: 'USD',
-          ),
-        ),
-        kycStatusGate: _StaticKycStatusGate(JeeberKycStatus.approved),
+        repository: WalletHubScreenFakeRepository(walletHubScreenHealthy),
+        kycStatusGate: WalletHubScreenKycGate.approved(),
       ),
     ),
     CatalogState(
       'Low balance — gift credit badge shown',
       (_) => const WalletHubScreen(
-        repository: _StaticWalletHubRepository(
-          WalletBalance(
-            availableBalance: 8.0,
-            affordabilityState: WalletAffordability.low,
-            reservedNow: 5.0,
-            giftCredit: 50.0,
-            currency: 'USD',
-          ),
-        ),
-        kycStatusGate: _StaticKycStatusGate(JeeberKycStatus.approved),
+        repository: WalletHubScreenFakeRepository(walletHubScreenLowWithGift),
+        kycStatusGate: WalletHubScreenKycGate.approved(),
       ),
     ),
     CatalogState(
       'Empty + KYC pending banner',
       (_) => const WalletHubScreen(
-        repository: _StaticWalletHubRepository(
-          WalletBalance(
-            availableBalance: 0,
-            affordabilityState: WalletAffordability.empty,
-            reservedNow: 0,
-            giftCredit: 0,
-            currency: 'USD',
-          ),
-        ),
-        kycStatusGate: _StaticKycStatusGate(JeeberKycStatus.pending),
+        repository: WalletHubScreenFakeRepository(walletHubScreenEmpty),
+        kycStatusGate: WalletHubScreenKycGate.pending(),
       ),
     ),
     CatalogState(
       'All reserved',
       (_) => const WalletHubScreen(
-        repository: _StaticWalletHubRepository(
-          WalletBalance(
-            availableBalance: 20.0,
-            affordabilityState: WalletAffordability.allReserved,
-            reservedNow: 20.0,
-            giftCredit: 0,
-            currency: 'USD',
-          ),
-        ),
-        kycStatusGate: _StaticKycStatusGate(JeeberKycStatus.approved),
+        repository: WalletHubScreenFakeRepository(walletHubScreenAllReserved),
+        kycStatusGate: WalletHubScreenKycGate.approved(),
       ),
     ),
     CatalogState(
       'Error — load failed',
       (_) => const WalletHubScreen(
-        repository: _FailingWalletHubRepository(),
-        kycStatusGate: _StaticKycStatusGate(JeeberKycStatus.approved),
+        repository: WalletHubScreenFailingRepository(),
+        kycStatusGate: WalletHubScreenKycGate.approved(),
       ),
     ),
   ],
 );
 
-class _StaticWalletHubRepository implements WalletRepository {
-  const _StaticWalletHubRepository(this._balance);
-
-  final WalletBalance _balance;
-
-  @override
-  Future<WalletBalance> fetchBalance() async => _balance;
-}
-
-class _PendingWalletHubRepository implements WalletRepository {
-  const _PendingWalletHubRepository();
-
-  @override
-  Future<WalletBalance> fetchBalance() => Completer<WalletBalance>().future;
-}
-
-class _FailingWalletHubRepository implements WalletRepository {
-  const _FailingWalletHubRepository();
-
-  @override
-  Future<WalletBalance> fetchBalance() async {
-    throw const WalletRepositoryException(WalletFailure.network);
-  }
-}
-
-class _StaticKycStatusGate implements JeeberKycStatusGate {
-  const _StaticKycStatusGate(this.status);
-
-  @override
-  final JeeberKycStatus status;
-
-  @override
-  bool get isApproved => status == JeeberKycStatus.approved;
-}
-
 // ─────────────────────────────────────────────────────────────────────────
 // wallet — TransactionDetailScreen
 // ─────────────────────────────────────────────────────────────────────────
 //
-// Reuses the shipped [StubWalletTransactionRepository] for the two per-type
-// "loaded" variants (its branch is keyed off the id containing "refund"/
-// "penalty" vs. anything else → fee_won) and a couple of small local fakes for
-// loading/error.
+// The fakes and the per-type rows live in
+// `../fixtures/transaction_detail_screen_fixtures.dart` so this entry and the
+// preview section at the bottom of `transaction_detail_screen.dart` mock the
+// screen from ONE set of rows instead of two copies free to drift.
+//
+// The two "loaded" states used to come from the SHIPPED
+// [StubWalletTransactionRepository] (its branch is keyed off the id containing
+// "refund"/"penalty" vs. anything else → fee_won). Same four designed states,
+// and they no longer disappear the day the DI swap to
+// `DioWalletTransactionRepository` deletes it (CTO-D2).
+//
+// The refund row is byte-for-byte what that stub returned. The fee-won row
+// differs in its three reference fields ONLY: the stub built them as
+// `'off-stub-$id'` / `'req-stub-$id'` and this entry passed it an id that
+// already began `off-stub-`, so the state used to render the doubled
+// `off-stub-off-stub-1001`. The fixture drops the doubling. See the header of
+// `../fixtures/transaction_detail_screen_fixtures.dart`.
 
 final CatalogEntry _transactionDetailEntry = CatalogEntry(
   feature: 'wallet',
@@ -710,28 +663,32 @@ final CatalogEntry _transactionDetailEntry = CatalogEntry(
       'Loading',
       (_) => const TransactionDetailScreen(
         transactionId: 'txn-loading',
-        repository: _PendingWalletTransactionRepository(),
+        repository: TransactionDetailScreenStalledRepository(),
       ),
     ),
     CatalogState(
       'Fee won — exact 10% + pinned price',
       (_) => const TransactionDetailScreen(
         transactionId: 'off-stub-1001',
-        repository: StubWalletTransactionRepository(),
+        repository: TransactionDetailScreenFakeRepository(
+          transactionDetailScreenFeeWonRow,
+        ),
       ),
     ),
     CatalogState(
       'Refund — dispute link',
       (_) => const TransactionDetailScreen(
         transactionId: 'txn-refund-001',
-        repository: StubWalletTransactionRepository(),
+        repository: TransactionDetailScreenFakeRepository(
+          transactionDetailScreenRefundRow,
+        ),
       ),
     ),
     CatalogState(
       'Error — not found',
       (_) => const TransactionDetailScreen(
         transactionId: 'txn-missing',
-        repository: _FailingWalletTransactionRepository(
+        repository: TransactionDetailScreenFailingRepository(
           WalletTransactionFailure.notFound,
         ),
       ),
@@ -739,30 +696,14 @@ final CatalogEntry _transactionDetailEntry = CatalogEntry(
   ],
 );
 
-class _PendingWalletTransactionRepository
-    implements WalletTransactionRepository {
-  const _PendingWalletTransactionRepository();
-
-  @override
-  Future<WalletTransaction> fetchTransaction(String id) =>
-      Completer<WalletTransaction>().future;
-}
-
-class _FailingWalletTransactionRepository
-    implements WalletTransactionRepository {
-  const _FailingWalletTransactionRepository(this.failure);
-
-  final WalletTransactionFailure failure;
-
-  @override
-  Future<WalletTransaction> fetchTransaction(String id) async {
-    throw WalletTransactionRepositoryException(failure);
-  }
-}
-
 // ─────────────────────────────────────────────────────────────────────────
 // wallet — WalletActivityListScreen
 // ─────────────────────────────────────────────────────────────────────────
+//
+// The fakes and the mixed ledger live in
+// `../fixtures/wallet_activity_list_screen_fixtures.dart` so this entry and the
+// preview section at the bottom of `wallet_activity_list_screen.dart` mock the
+// screen with ONE ledger instead of two copies free to drift.
 
 final CatalogEntry _walletActivityListEntry = CatalogEntry(
   feature: 'wallet',
@@ -771,41 +712,15 @@ final CatalogEntry _walletActivityListEntry = CatalogEntry(
     CatalogState(
       'Loading',
       (_) => const WalletActivityListScreen(
-        repository: _PendingWalletLedgerRepository(),
+        repository: WalletActivityListScreenPendingRepository(),
       ),
     ),
     CatalogState(
       'Loaded — mixed ledger rows',
       (_) => const WalletActivityListScreen(
-        repository: _StaticWalletLedgerRepository([
-          WalletLedgerEntry(
-            id: 'ldg-1',
-            type: WalletLedgerType.feeWon,
-            amount: 1.5,
-            sign: -1,
-            ref: 'off-1001',
-            timestamp: '2026-07-01T09:30:00Z',
-            currency: 'USD',
-          ),
-          WalletLedgerEntry(
-            id: 'ldg-2',
-            type: WalletLedgerType.topup,
-            amount: 50.0,
-            sign: 1,
-            ref: 'topup-001',
-            timestamp: '2026-06-28T12:00:00Z',
-            currency: 'USD',
-          ),
-          WalletLedgerEntry(
-            id: 'ldg-3',
-            type: WalletLedgerType.gift,
-            amount: 50.0,
-            sign: 1,
-            ref: 'gift-kyc-001',
-            timestamp: '2026-06-20T08:00:00Z',
-            currency: 'USD',
-          ),
-        ]),
+        repository: WalletActivityListScreenFakeRepository(
+          walletActivityListScreenMixedLedger,
+        ),
       ),
     ),
     CatalogState(
@@ -817,45 +732,14 @@ final CatalogEntry _walletActivityListEntry = CatalogEntry(
     CatalogState(
       'Error — load failed',
       (_) => const WalletActivityListScreen(
-        repository: _FailingWalletLedgerRepository(),
+        repository: WalletActivityListScreenFakeRepository(
+          <WalletLedgerEntry>[],
+          failure: WalletLedgerFailure.network,
+        ),
       ),
     ),
   ],
 );
-
-class _StaticWalletLedgerRepository implements WalletLedgerRepository {
-  const _StaticWalletLedgerRepository(this._entries);
-
-  final List<WalletLedgerEntry> _entries;
-
-  @override
-  Future<WalletLedgerPage> fetchLedger({
-    int page = 1,
-    int pageSize = 20,
-  }) async {
-    return WalletLedgerPage(entries: _entries, page: 1, totalPages: 1);
-  }
-}
-
-class _PendingWalletLedgerRepository implements WalletLedgerRepository {
-  const _PendingWalletLedgerRepository();
-
-  @override
-  Future<WalletLedgerPage> fetchLedger({int page = 1, int pageSize = 20}) =>
-      Completer<WalletLedgerPage>().future;
-}
-
-class _FailingWalletLedgerRepository implements WalletLedgerRepository {
-  const _FailingWalletLedgerRepository();
-
-  @override
-  Future<WalletLedgerPage> fetchLedger({
-    int page = 1,
-    int pageSize = 20,
-  }) async {
-    throw const WalletLedgerRepositoryException(WalletLedgerFailure.network);
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────
 // wallet — WalletChargeInfoScreen
@@ -863,6 +747,15 @@ class _FailingWalletLedgerRepository implements WalletLedgerRepository {
 //
 // Static, no-payment instructional screen (D92/D93) — no constructor params,
 // no network call by design (JM-054 AC).
+//
+// Hosted through the shared fixture
+// (`../fixtures/wallet_charge_info_screen_fixtures.dart`), which the widget
+// previews at the bottom of the screen file use as well, so the catalog and the
+// canvas cannot drift. The host is a local [GoRouter] over two stand-in
+// destinations: without it the screen's back CTA (`charge_info_back_cta`, which
+// falls through to `goNamed('wallet')` when nothing can pop) drives the REAL
+// app router and drops the reviewer out of the catalog into the live wallet
+// hub.
 
 final CatalogEntry _walletChargeInfoEntry = CatalogEntry(
   feature: 'wallet',
@@ -870,7 +763,9 @@ final CatalogEntry _walletChargeInfoEntry = CatalogEntry(
   states: [
     CatalogState(
       'Charge-at-store instructions',
-      (_) => const WalletChargeInfoScreen(),
+      (_) => const WalletChargeInfoScreenHost(
+        screen: WalletChargeInfoScreen(),
+      ),
     ),
   ],
 );
