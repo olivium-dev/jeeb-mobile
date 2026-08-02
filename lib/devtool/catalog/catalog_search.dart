@@ -32,6 +32,28 @@ bool catalogEntryMatches(CatalogEntry entry, List<String> terms) {
   return terms.every((term) => haystack.contains(term));
 }
 
+/// Why an entry matched when its own name does not say so: the state labels
+/// carrying the terms the screen and feature names leave unaccounted for.
+///
+/// Searching "delivery active" turns up JeeberRequestDetailLoader, whose only
+/// claim to either word is a state called "Unavailable — feed miss, no active
+/// delivery either". Without surfacing that label the row looks like a bug, so
+/// the menu prints it under the row. Empty when the name and feature already
+/// explain the hit.
+List<String> catalogMatchExplanation(CatalogEntry entry, List<String> terms) {
+  if (terms.isEmpty) return const <String>[];
+  final named = '${entry.screen} ${entry.feature}'.toLowerCase();
+  final unexplained = terms.where((term) => !named.contains(term));
+  if (unexplained.isEmpty) return const <String>[];
+  return entry.states
+      .where((state) {
+        final label = state.label.toLowerCase();
+        return unexplained.any(label.contains);
+      })
+      .map((state) => state.label)
+      .toList(growable: false);
+}
+
 /// Filters [entries] by [query], preserving the catalog's feature ordering.
 List<CatalogEntry> filterCatalog(List<CatalogEntry> entries, String query) {
   final terms = catalogSearchTerms(query);

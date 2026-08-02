@@ -41,9 +41,10 @@ class _CatalogMenuViewState extends State<CatalogMenuView> {
   @override
   Widget build(BuildContext context) {
     final all = widget.entries;
+    final terms = catalogSearchTerms(_query);
     final matches = filterCatalog(all, _query);
     final coveredFeatures = all.map((e) => e.feature).toSet().length;
-    final searching = catalogSearchTerms(_query).isNotEmpty;
+    final searching = terms.isNotEmpty;
     return Scaffold(
       appBar: AppBar(title: const Text('Screen Catalog')),
       body: Column(
@@ -101,11 +102,31 @@ class _CatalogMenuViewState extends State<CatalogMenuView> {
                     separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (context, i) {
                       final entry = matches[i];
+                      final viaStates = catalogMatchExplanation(entry, terms);
                       return ListTile(
                         title: Text(entry.screen),
-                        subtitle: Text(
-                          '${entry.feature} · ${entry.states.length} state'
-                          '${entry.states.length == 1 ? '' : 's'}',
+                        isThreeLine: viaStates.isNotEmpty,
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${entry.feature} · ${entry.states.length} state'
+                              '${entry.states.length == 1 ? '' : 's'}',
+                            ),
+                            // Say why a row without the words in its own name
+                            // is here, so it does not read as a stray hit.
+                            if (viaStates.isNotEmpty)
+                              Text(
+                                'matched state: ${viaStates.join(' · ')}',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      fontStyle: FontStyle.italic,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                    ),
+                              ),
+                          ],
                         ),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () => widget.onOpen(entry),
