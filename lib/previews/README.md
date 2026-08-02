@@ -100,3 +100,24 @@ dart run tool/preview_coverage.dart --area chat
 The canvas's **search box renders the wrong previews** — it filters the labels but
 renders by unfiltered index, so searching can show a card labelled X containing
 widget Y. Scroll instead of searching until this is fixed upstream.
+
+## Canvas performance — one SDK-level patch
+
+Groups render **collapsed by default**. That is NOT configurable from this repo:
+`initiallyExpanded: true` is hardcoded in Flutter's scaffold template at
+
+```
+$(dirname $(readlink -f $(which flutter)))/../packages/flutter_tools/templates/
+  widget_preview_scaffold/lib/src/widget_preview_rendering.dart.tmpl:283
+```
+
+It has been flipped to `false` on this machine. Consequences worth knowing:
+
+- The change is **global to this Flutter install**, not to this project.
+- **`flutter upgrade` or a channel switch will revert it**, and the canvas will go
+  back to expanding all ~20 groups at once — which is what made scrolling slow.
+- To restore stock behaviour, set that line back to `true`.
+
+With every group expanded the canvas builds every card on the page; collapsed, it
+builds only what you open. Nothing in this repo depends on the patch — it only
+affects how the canvas opens.
