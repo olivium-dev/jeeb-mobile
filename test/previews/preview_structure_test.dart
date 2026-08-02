@@ -52,7 +52,12 @@ import '../../tool/preview_inventory.dart';
 /// `JeeberRequestUnavailableScreen`, `LocationPickerScreen`,
 /// `DeliveryRegisterPromptScreen`, `OfferKycGateScreen`, `MutualRatingScreen`
 /// and `RatingScreen` (177/231).
-const int _coverageFloor = 53;
+///
+/// 53 → 46: the screens wave that previewed `OtpVerificationScreen`,
+/// `RegistrationScreen`, `RequestSummaryScreen`,
+/// `RequestSummaryUnavailableScreen`, `SettlementDetailScreen`,
+/// `SettlementScreen` and `VoiceRecordingScreen` (184/231).
+const int _coverageFloor = 46;
 
 /// Whole-word identifier match — `_hosted` must not match `_hostedFoo`.
 bool _referencesName(String haystack, String name) => RegExp(

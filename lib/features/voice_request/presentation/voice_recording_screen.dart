@@ -14,6 +14,11 @@ import '../domain/voice_player.dart';
 import '../domain/voice_recorder.dart';
 import 'widgets/animated_mic_button.dart';
 
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import 'dart:async';
+import '../../../core/previews/jeeb_preview.dart';
+import '../../../devtool/catalog/fixtures/voice_recording_screen_fixtures.dart';
+
 /// Stable widget keys for the voice-request controls. Exposed so Codex QA /
 /// integration tests can target the interactive elements deterministically
 /// (T-MOB-011 DoD: every interactive widget has a Key / Semantics).
@@ -690,3 +695,319 @@ String _formatDuration(Duration duration) {
   final seconds = clamped.inSeconds.remainder(60).toString().padLeft(2, '0');
   return '$minutes:$seconds';
 }
+
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+// `flutter widget-preview start` — open THIS file in the IDE to see its
+// previews. Preview functions are never called by the app, so the AOT compiler
+// tree-shakes them out of release builds. Nothing ABOVE this banner may
+// reference anything BELOW it. Every fixture below is private to this library
+// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
+// Render tests: test/previews/voice_request/voice_recording_screen_preview_test.dart
+// ===========================================================================
+//
+// This is a SCREEN, and three things follow from that.
+//
+// 1. It owns its own `Scaffold` (OMDSAppBar + body) and [jeebPreviewHost] wraps
+//    every child in one as well, so the canvas shows two nested Scaffolds. The
+//    inner one is the real surface; the outer contributes a background and the
+//    `ScaffoldMessenger` the transient-error snackbar needs. The canvas box is
+//    therefore a real phone ([_voiceRecordingScreenPhoneBox], 390x844) rather
+//    than the harness's 390x200 default — the body is a `Column` with two
+//    `Spacer`s, so in a short box it is nothing but overflow.
+//
+// 2. It needs no `Router`. Every edge off this screen is the `onSent` callback,
+//    which the previews leave null, so there is nothing here that reaches for
+//    GoRouter — unlike `WalletHubScreen`, which needs a local one to be
+//    tappable.
+//
+// 3. Every preview is wrapped in `TickerMode(enabled: false)`. Three things on
+//    this screen animate forever: the `OmdsRecordingInput` waveform + pulsing
+//    dot (`repeat(reverse: true)`), the `AnimatedMicButton` halo, and the
+//    `CircularProgressIndicator` inside the sending button. `pumpAndSettle` —
+//    which the shared render harness calls on every preview — never returns
+//    while any of them is live. Muting freezes each at t=0, so what is
+//    reviewable here is the recording POSE, not the motion. The snackbar in
+//    `Ceiling · 60 second cap` is NOT muted: `ScaffoldMessenger` lives above
+//    the mute in the host, which is why that one preview needs its own group
+//    in the render test.
+//
+// ## How the states are reached
+//
+// [VoiceRecordingCubit] has no `seed:` constructor, so no preview can hand it a
+// designed [VoiceRecordingState]. Each state below is instead SCRIPTED through
+// the cubit's public lifecycle (`startRecording` → tick → `stopRecording` →
+// `send`) against the shipped in-memory fakes, with the recording clock
+// replaced by a controller the fixture drives. Those scripts are shared
+// verbatim with the Screen Catalog entry —
+// `lib/devtool/catalog/fixtures/voice_recording_screen_fixtures.dart` — so the
+// designer's five states and the nine here cannot describe different screens.
+// No preview builds a `HttpVoiceRecordingRepository`, a `RecordVoiceRecorder`
+// or an `AudioPlayersVoicePlayer`, and `_buildProductionCubit` is never
+// reached: network- and platform-free by construction rather than by the guard
+// in [jeebPreviewHost].
+//
+// The scripts run as detached futures against a cubit the screen already
+// holds, so the first frame of a preview can be `idle` and the settled frame
+// `recorded`. That is deliberate — it is the same transition production makes.
+//
+// Every clip length is DISTINCT (3s / 7s / 12s / 25s / 60s) because the timer
+// label is the only text several of these states do not otherwise share, and
+// the render test pins it.
+//
+// ## What these previews surfaced in the screen — see the notes on each
+//
+//  * `Sending · upload in flight` renders NO text at all. The screen passes
+//    `text: l10n.voiceRecordingSending` ("Sending…") to `OmdsLoadingButton`,
+//    but that widget's `AnimatedSwitcher` shows the text ONLY when
+//    `isLoading == false` — with `isLoading: true` the string is replaced by a
+//    20dp spinner and never reaches the tree. The one phase where the user is
+//    waiting on the network is also the one with no words and no semantics
+//    label on the control.
+//  * the timer label reads "00:12 recorded" WHILE the clip is uploading, and
+//    "01:00 recorded" the instant the 60s cap trips. `voiceRecordingTimerLabel`
+//    is past-tense copy used for three different phases.
+//  * `Blocked · mic permission denied` still renders the "00:00" timer above
+//    the error state, and `Upload failed · network` still renders the clip's
+//    duration above an error that says the upload failed. `_TimerLabel` is
+//    outside the `_PrimarySurface` switch, so it survives every error surface.
+//  * `Ceiling · 60 second cap` is the one state that pairs a persistent surface
+//    with a transient one: the review screen appears AND a red snackbar
+//    explains why recording stopped. Read it at 200% text — the snackbar is
+//    floating, so it overlays the Submit/Record-again row it is telling you
+//    about.
+//  * The review surface's action row OVERFLOWS at the declared 390 pt box, at
+//    100% text, in both locales — 14 px in EN and 69 px in AR. It is an
+//    `Expanded` + `Expanded` `Row`, but each button lays its own label out as
+//    the lone non-flex child of an inner `Row`, so the labels are measured
+//    against an unbounded width and neither wraps nor ellipsizes. Every state
+//    that reaches the review surface carries it: `Recorded`, `Upload failed`
+//    and `Ceiling`. It is clean at 800 pt, which is the width the shared render
+//    harness used to pump at — which is exactly why it went unnoticed until
+//    these previews declared a phone-sized box.
+
+/// The canvas box for a whole screen: a real phone, not the harness default.
+const Size _voiceRecordingScreenPhoneBox = Size(390, 844);
+
+/// Elapsed clock the `Recording` preview freezes at — long enough that the
+/// waveform bar's own send button is past `minDurationToSend`, short of the cap.
+const Duration _voiceRecordingScreenRecordingElapsed = Duration(seconds: 7);
+
+/// Clip length the `Sending` preview captures. Distinct from every other
+/// preview's so "00:12 recorded" identifies this state and no other.
+const Duration _voiceRecordingScreenSendingClip = Duration(seconds: 12);
+
+/// Clip length the `Upload failed` preview captures — long enough to read as a
+/// real request the user would be annoyed to lose.
+const Duration _voiceRecordingScreenFailedClip = Duration(seconds: 25);
+
+/// A script run against the cubit the previewed screen is holding.
+typedef _VoiceRecordingScreenScript =
+    Future<void> Function(
+      VoiceRecordingCubit cubit,
+      StreamController<Duration> ticker,
+    );
+
+/// Builds the screen on a scripted cubit, with every ticker on the screen muted.
+///
+/// [startFailure] fails the recorder's `start()` (the mic pre-conditions);
+/// [uploadFailure] fails the repository's `upload()`; [repository] overrides
+/// the upload seam outright (the never-lands fake). All three are the fixture
+/// file's parameters, unchanged — this only wires them to a widget.
+Widget _voiceRecordingScreenAfter(
+  _VoiceRecordingScreenScript script, {
+  VoiceRecorderFailure? startFailure,
+  VoiceUploadFailure? uploadFailure,
+  VoiceRecordingRepository? repository,
+}) {
+  final (:cubit, :ticker) = voiceRecordingScreenCubitWithTicker(
+    startFailure: startFailure,
+    uploadFailure: uploadFailure,
+    repository: repository,
+  );
+  // Detached on purpose: a preview function must return a Widget synchronously.
+  // The screen is handed the cubit now and re-renders as the script advances it.
+  unawaited(script(cubit, ticker));
+  return TickerMode(
+    enabled: false,
+    child: VoiceRecordingScreen(cubit: cubit),
+  );
+}
+
+/// The first frame of every entry into the flow: no clip, no error, a greyed
+/// `00:00` and the 132dp mic.
+///
+/// This is the screen's empty state, and it is worth noticing how little it
+/// says: "Hold to record" under the mic and nothing about the 60-second cap,
+/// the 1-second floor, or what happens after you let go.
+@JeebPreview(
+  group: 'voice_request',
+  name: 'Idle · nothing recorded',
+  size: _voiceRecordingScreenPhoneBox,
+)
+Widget voiceRecordingScreenIdle() =>
+    _voiceRecordingScreenAfter((_, _) async {});
+
+/// Finger down, 7 seconds in: the mic is replaced by `OmdsRecordingInput` — a
+/// pulsing dot, a waveform, its OWN timer, its OWN send button and its OWN
+/// cancel button — with the screen's `Cancel` button below it.
+///
+/// Frozen at t=0 of the pulse (see the section note). Two things to read here:
+/// the elapsed time is now on screen THREE times (the bar's `00:07`, the
+/// display `00:07` and the "00:07 recorded" label), and the surface offers two
+/// different ways to abandon the recording — the bar's ✕ and the full-width
+/// `Cancel` — which are the same `cancelRecording()` call.
+@JeebPreview(
+  group: 'voice_request',
+  name: 'Recording · waveform bar',
+  size: _voiceRecordingScreenPhoneBox,
+)
+Widget voiceRecordingScreenRecording() => _voiceRecordingScreenAfter(
+      (VoiceRecordingCubit cubit, StreamController<Duration> ticker) =>
+          voiceRecordingScreenSeedRecording(
+            cubit,
+            ticker,
+            duration: _voiceRecordingScreenRecordingElapsed,
+          ),
+    );
+
+/// The review surface after a 3-second clip: play/pause, a seek rail, and the
+/// `Record again` / `Submit` pair.
+///
+/// Matrixed because this is the RTL-sensitive layout on the screen. The action
+/// row is an `Expanded` + `Expanded` `Row`, so **AR RTL dark** is where
+/// `Record again` and `Submit` swap sides — and `Submit` is the destructive-
+/// adjacent one — while the seek rail's filled portion has to mirror with them.
+/// The **EN 200% text** card is where a two-word label and a one-word label
+/// stop fitting the same half-width button.
+@JeebPreview(
+  group: 'voice_request',
+  name: 'Recorded · ready to submit',
+  size: _voiceRecordingScreenPhoneBox,
+  matrix: true,
+)
+Widget voiceRecordingScreenRecorded() =>
+    _voiceRecordingScreenAfter(voiceRecordingScreenSeedRecorded);
+
+/// The upload in flight, held open by a repository read that never lands.
+///
+/// The state that surprised this file: the button says nothing. The screen
+/// passes "Sending…" to `OmdsLoadingButton`, whose `AnimatedSwitcher` renders
+/// the text only in the NOT-loading branch, so with `isLoading: true` it draws
+/// a 20dp spinner and drops the string. Above it the review copy and the
+/// playback controls are still on screen, greyed via `isEnabled: false` and an
+/// `IgnorePointer` — but the timer still reads "00:12 recorded", past tense,
+/// while the clip is mid-flight.
+@JeebPreview(
+  group: 'voice_request',
+  name: 'Sending · upload in flight',
+  size: _voiceRecordingScreenPhoneBox,
+)
+Widget voiceRecordingScreenSending() => _voiceRecordingScreenAfter(
+      (VoiceRecordingCubit cubit, StreamController<Duration> ticker) =>
+          voiceRecordingScreenSeedSent(
+            cubit,
+            ticker,
+            duration: _voiceRecordingScreenSendingClip,
+          ),
+      repository: const VoiceRecordingScreenPendingRepository(),
+    );
+
+/// The terminal happy path (T-MOB-011 AC3): the check-circle, "Sent", the
+/// body copy and the "Looking for Jeebers…" broadcasting chip, with `Record
+/// another` as the only action.
+///
+/// Note what disappears: the timer is gone entirely (`_TimerLabel` returns
+/// `SizedBox.shrink()` in `sent`), so the confirmation never tells the user how
+/// long the request they just sent actually was.
+@JeebPreview(
+  group: 'voice_request',
+  name: 'Sent · broadcasting',
+  size: _voiceRecordingScreenPhoneBox,
+)
+Widget voiceRecordingScreenSent() =>
+    _voiceRecordingScreenAfter(voiceRecordingScreenSeedSent);
+
+/// `POST /transcribe` failed on the network. The clip is RETAINED and the
+/// failure is persistent — an `OmdsErrorState` plus `Record again` /
+/// `Retry upload & submit`, never a snackbar.
+///
+/// Matrixed because this carries the longest copy on the screen
+/// ("Couldn't reach the server. Check your connection and try again.") under
+/// the longest button label ("Retry upload & submit") in a two-`Expanded` Row.
+/// The **EN 200% text** card is the one to look at: the error state, the
+/// stranded `00:25` timer above it and the two buttons all compete for a
+/// fixed-height `Column` with two `Spacer`s.
+@JeebPreview(
+  group: 'voice_request',
+  name: 'Upload failed · network',
+  size: _voiceRecordingScreenPhoneBox,
+  matrix: true,
+)
+Widget voiceRecordingScreenUploadFailed() => _voiceRecordingScreenAfter(
+      (VoiceRecordingCubit cubit, StreamController<Duration> ticker) =>
+          voiceRecordingScreenSeedSent(
+            cubit,
+            ticker,
+            duration: _voiceRecordingScreenFailedClip,
+          ),
+      uploadFailure: VoiceUploadFailure.network,
+    );
+
+/// The mic pre-condition failure a real user hits most: permission denied.
+///
+/// Sprint-6 Stream-B replaced a transient snackbar with this recoverable
+/// surface — "Microphone access needed", the settings guidance and a
+/// `Try again` that re-requests the OS permission — so there is no
+/// tap-deny-tap dead-end. `test/voice_recording_blocked_state_test.dart` pins
+/// the behaviour; this is the picture of it.
+///
+/// Look at the top of the card: the greyed `00:00` timer is still there, above
+/// an error state saying recording is impossible.
+@JeebPreview(
+  group: 'voice_request',
+  name: 'Blocked · mic permission denied',
+  size: _voiceRecordingScreenPhoneBox,
+)
+Widget voiceRecordingScreenPermissionDenied() => _voiceRecordingScreenAfter(
+      (VoiceRecordingCubit cubit, _) => cubit.startRecording(),
+      startFailure: VoiceRecorderFailure.permissionDenied,
+    );
+
+/// The other blocking pre-condition: the recorder itself is unavailable
+/// (another app holds the mic, or the platform recorder failed to initialise).
+///
+/// Same surface, different copy — "Microphone unavailable" — and the same
+/// `Try again`. Worth previewing next to the permission card precisely because
+/// they are near-identical: the only thing distinguishing "grant us access" from
+/// "close your other app" is one title and one body line.
+@JeebPreview(
+  group: 'voice_request',
+  name: 'Blocked · recorder unavailable',
+  size: _voiceRecordingScreenPhoneBox,
+)
+Widget voiceRecordingScreenRecorderUnavailable() => _voiceRecordingScreenAfter(
+      (VoiceRecordingCubit cubit, _) => cubit.startRecording(),
+      startFailure: VoiceRecorderFailure.unavailable,
+    );
+
+/// The longest clip the screen can ever hold: the 60-second cap, tripped under
+/// a still-held finger.
+///
+/// Reached the way production reaches it — the ticker crosses
+/// `VoiceRecordingState.maxDuration`, `_onRecordTick` pins the timer at the cap
+/// and `_autoStopAtCap()` finalises the clip WITHOUT the user releasing. The
+/// result is the review surface carrying `01:00` (the only two-field timer this
+/// screen renders) plus a transient `maxDurationReached` error, which the
+/// listener answers with a red snackbar and then clears.
+///
+/// This is the only preview whose snackbar is live — `ScaffoldMessenger` sits
+/// above the `TickerMode` mute — so it is also the only one the shared render
+/// harness cannot settle. See the dedicated group in the render test.
+@JeebPreview(
+  group: 'voice_request',
+  name: 'Ceiling · 60 second cap',
+  size: _voiceRecordingScreenPhoneBox,
+)
+Widget voiceRecordingScreenDurationCeiling() =>
+    _voiceRecordingScreenAfter(voiceRecordingScreenSeedDurationCeiling);

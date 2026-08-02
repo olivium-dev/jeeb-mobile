@@ -1,11 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../features/notification_prefs/domain/notification_prefs_repository.dart';
-import '../../../features/request_summary/application/request_summary_cubit.dart';
-import '../../../features/request_summary/domain/request_draft.dart';
 import '../../../features/request_summary/domain/request_submission_service.dart';
 import '../../../features/request_summary/presentation/request_summary_screen.dart';
 import '../../../features/request_summary/presentation/request_summary_unavailable_screen.dart';
@@ -22,7 +19,6 @@ import '../../../features/settings/presentation/screens/profile_edit_screen.dart
 import '../../../features/settings/presentation/screens/settings_screen.dart';
 import '../../../features/settings/presentation/widgets/logout_delete_confirm_sheet.dart';
 import '../../../features/settlement/domain/settlement_repository.dart';
-import '../../../features/settlement/domain/settlement_statement.dart';
 import '../../../features/settlement/presentation/settlement_detail_screen.dart';
 import '../../../features/settlement/presentation/settlement_screen.dart';
 import '../../../features/tier_selection/cubit/tier_selection_cubit.dart';
@@ -31,7 +27,11 @@ import '../../../features/tier_selection/domain/tier.dart';
 import '../catalog_models.dart';
 import '../fixtures/notification_preferences_screen_fixtures.dart';
 import '../fixtures/profile_edit_screen_fixtures.dart';
+import '../fixtures/request_summary_screen_fixtures.dart';
+import '../fixtures/request_summary_unavailable_screen_fixtures.dart';
 import '../fixtures/saved_addresses_screen_fixtures.dart';
+import '../fixtures/settlement_detail_screen_fixtures.dart';
+import '../fixtures/settlement_screen_fixtures.dart';
 import '../fixtures/settings_screen_fixtures.dart';
 import '../tier_catalog_fixture.dart';
 
@@ -49,48 +49,26 @@ import '../tier_catalog_fixture.dart';
 // draft directly; a real submit success navigates away (`context.go('/')`),
 // which has no "designed" rendered state of its own — only Loaded / Submitting
 // / Error are previewed.
+//
+// The fake service, the sample draft and the seeding host used to live here.
+// They now live in `../fixtures/request_summary_screen_fixtures.dart`, which
+// the JEEB PREVIEWS section of `request_summary_screen.dart` reads too — so
+// these three designed states and the engineer-facing canvas cannot drift
+// apart. The states below are unchanged: same labels, same draft, same three
+// service behaviours. `standInRouter` is left at its default `false` because
+// the catalog runs inside the app, where a real router is already above the
+// screen.
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _FakeRequestSubmissionService implements RequestSubmissionService {
-  const _FakeRequestSubmissionService({this.failure, this.pending = false});
-
-  final RequestSubmissionFailure? failure;
-
-  /// Never resolves — keeps the screen pinned on the submitting button state.
-  final bool pending;
-
-  @override
-  Future<String> submit(RequestDraft draft) {
-    if (pending) return Completer<String>().future;
-    final f = failure;
-    if (f != null) return Future<String>.error(RequestSubmissionException(f));
-    return Future<String>.value('REQ-9001');
-  }
-}
-
-RequestDraft _sampleRequestDraft() => const RequestDraft(
-  description: 'Pick up my prescription from Pharmacie Beshara.',
-  transcription: 'Please pick up my prescription and bring it home.',
-  photoUrls: ['https://example.com/photo1.jpg'],
-  tierId: 'express',
-  tierName: 'Express',
-  pickupAddress: 'Pharmacie Beshara, Hamra, Beirut',
-  dropoffAddress: 'Achrafieh, Beirut',
-  recipientPhone: '+96170123456',
-);
 
 Widget _requestSummaryScreen(
   RequestSubmissionService service, {
   bool drive = false,
 }) {
-  return BlocProvider<RequestSummaryCubit>(
-    create: (_) {
-      final cubit = RequestSummaryCubit(service)
-        ..setDraft(_sampleRequestDraft());
-      if (drive) unawaited(cubit.submit());
-      return cubit;
-    },
-    child: const RequestSummaryScreen(),
+  return RequestSummaryScreenPreviewHost(
+    screen: const RequestSummaryScreen(),
+    service: service,
+    draft: RequestSummaryScreenDrafts.full,
+    drive: drive,
   );
 }
 
@@ -280,85 +258,21 @@ Widget _logoutDeleteSheetHost(Widget sheet) {
 // (SettlementDetailScreen, a plain `statement` value — no repository at all).
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _FakeSettlementRepository implements SettlementRepository {
-  const _FakeSettlementRepository({this.statements, this.fetchFailure});
+// The two fakes this section declared privately
+// (`_FakeSettlementRepository`, `_PendingSettlementRepository`) moved to
+// `../fixtures/settlement_screen_fixtures.dart` as
+// `SettlementScreenFakeRepository` / `SettlementScreenPendingRepository`
+// (behaviour unchanged) so the catalog and the JEEB PREVIEWS section at the
+// bottom of `settlement_screen.dart` drive the four states below through the
+// SAME fake. That file adds three knobs the catalog does not use
+// (`fetchThrowsUnmapped`, `downloadFailure`, `downloadPending`), which is the
+// same arrangement as `transaction_detail_screen_fixtures.dart`.
 
-  final List<SettlementStatement>? statements;
-  final SettlementFailure? fetchFailure;
-
-  @override
-  Future<List<SettlementStatement>> fetchStatements() async {
-    final f = fetchFailure;
-    if (f != null) throw SettlementException(f);
-    return statements ?? const <SettlementStatement>[];
-  }
-
-  @override
-  Future<String> downloadPdf(String statementId) async {
-    return '/tmp/statement-$statementId.pdf';
-  }
-}
-
-/// Never resolves — keeps the screen on its centered loading state.
-class _PendingSettlementRepository implements SettlementRepository {
-  const _PendingSettlementRepository();
-
-  @override
-  Future<List<SettlementStatement>> fetchStatements() {
-    return Completer<List<SettlementStatement>>().future;
-  }
-
-  @override
-  Future<String> downloadPdf(String statementId) => Completer<String>().future;
-}
-
-List<SettlementStatement> _sampleStatements() => const [
-  SettlementStatement(
-    id: 'stmt-1',
-    weekLabel: 'Jun 22 – Jun 28',
-    totalPayout: 184.50,
-    currency: 'USD',
-    status: SettlementStatus.paid,
-    deliveries: [
-      SettlementDeliveryLine(
-        deliveryId: 'REQ-1042',
-        date: '2026-06-24',
-        tier: 'Express',
-        fare: 20.0,
-        commission: 4.0,
-        net: 16.0,
-        currency: 'USD',
-      ),
-      SettlementDeliveryLine(
-        deliveryId: 'REQ-1038',
-        date: '2026-06-25',
-        tier: 'Flash',
-        fare: 15.0,
-        commission: 3.0,
-        net: 12.0,
-        currency: 'USD',
-      ),
-    ],
-  ),
-  SettlementStatement(
-    id: 'stmt-2',
-    weekLabel: 'Jun 29 – Jul 5',
-    totalPayout: 96.00,
-    currency: 'USD',
-    status: SettlementStatus.pending,
-    deliveries: [
-      SettlementDeliveryLine(
-        deliveryId: 'REQ-1055',
-        date: '2026-07-01',
-        tier: 'Standard',
-        fare: 12.0,
-        commission: 2.4,
-        net: 9.6,
-        currency: 'USD',
-      ),
-    ],
-  ),
-];
+// The two designed statements moved to
+// `../fixtures/settlement_detail_screen_fixtures.dart` (values unchanged) so
+// the catalog and the `SettlementDetailScreen` preview section cannot drift.
+// `settlementDetailScreenSampleWeeks` is the list this batch used to build
+// inline as `_sampleStatements()`.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Catalog entries
@@ -371,19 +285,21 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
     states: [
       CatalogState(
         'Loaded',
-        (_) => _requestSummaryScreen(const _FakeRequestSubmissionService()),
+        (_) => _requestSummaryScreen(
+          const RequestSummaryScreenFakeSubmissionService(),
+        ),
       ),
       CatalogState(
         'Submitting',
         (_) => _requestSummaryScreen(
-          const _FakeRequestSubmissionService(pending: true),
+          const RequestSummaryScreenFakeSubmissionService(pending: true),
           drive: true,
         ),
       ),
       CatalogState(
         'Error — Network',
         (_) => _requestSummaryScreen(
-          const _FakeRequestSubmissionService(
+          const RequestSummaryScreenFakeSubmissionService(
             failure: RequestSubmissionFailure.network,
           ),
           drive: true,
@@ -391,13 +307,22 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
       ),
     ],
   ),
+  // The label and the framing come from
+  // `../fixtures/request_summary_unavailable_screen_fixtures.dart`, which the
+  // JEEB PREVIEWS section at the bottom of
+  // `request_summary_unavailable_screen.dart` also reads — so this state and the
+  // canvas cannot drift apart. `window: null` + `parentOnStack: null` is the
+  // host's pass-through form: the screen renders bare on the real device under
+  // the catalog's own route, exactly as this entry did before the extraction.
   CatalogEntry(
     feature: 'request_summary',
     screen: 'RequestSummaryUnavailableScreen',
     states: [
       CatalogState(
-        'Unavailable',
-        (_) => const RequestSummaryUnavailableScreen(),
+        requestSummaryUnavailableScreenCatalogStateLabel,
+        (_) => const RequestSummaryUnavailableScreenPreviewHost(
+          screen: RequestSummaryUnavailableScreen(),
+        ),
       ),
     ],
   ),
@@ -574,24 +499,26 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
       CatalogState(
         'Loading',
         (_) =>
-            const SettlementScreen(repository: _PendingSettlementRepository()),
+            const SettlementScreen(repository: SettlementScreenPendingRepository()),
       ),
       CatalogState(
         'Ready — Mixed',
-        (_) => SettlementScreen(
-          repository: _FakeSettlementRepository(
-            statements: _sampleStatements(),
+        (_) => const SettlementScreen(
+          repository: SettlementScreenFakeRepository(
+            statements: settlementDetailScreenSampleWeeks,
           ),
         ),
       ),
       CatalogState(
         'Empty',
-        (_) => const SettlementScreen(repository: _FakeSettlementRepository()),
+        (_) => const SettlementScreen(
+          repository: SettlementScreenFakeRepository(),
+        ),
       ),
       CatalogState(
         'Error',
         (_) => const SettlementScreen(
-          repository: _FakeSettlementRepository(
+          repository: SettlementScreenFakeRepository(
             fetchFailure: SettlementFailure.network,
           ),
         ),
@@ -604,11 +531,15 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
     states: [
       CatalogState(
         'Paid',
-        (_) => SettlementDetailScreen(statement: _sampleStatements()[0]),
+        (_) => const SettlementDetailScreen(
+          statement: settlementDetailScreenPaidWeek,
+        ),
       ),
       CatalogState(
         'Pending',
-        (_) => SettlementDetailScreen(statement: _sampleStatements()[1]),
+        (_) => const SettlementDetailScreen(
+          statement: settlementDetailScreenPendingWeek,
+        ),
       ),
     ],
   ),

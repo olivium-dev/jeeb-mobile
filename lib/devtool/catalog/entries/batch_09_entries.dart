@@ -4,12 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/network/auth_token_store.dart';
-import '../../../features/auth/social/social_auth_cubit.dart';
-import '../../../features/auth/social/social_auth_error.dart';
-import '../../../features/auth/social/social_auth_service.dart';
-import '../../../features/auth/social/social_auth_token.dart';
-import '../../../features/auth/social/social_auth_token_store.dart';
-import '../../../features/auth/social/social_provider.dart';
 import '../../../features/profile_name/application/display_name_cubit.dart';
 import '../../../features/profile_name/domain/display_name_repository.dart';
 import '../../../features/profile_name/presentation/display_name_setup_screen.dart';
@@ -21,11 +15,8 @@ import '../../../features/rating/application/mutual_rating_cubit.dart';
 import '../../../features/rating/presentation/mutual_rating_screen.dart';
 import '../../../features/rating/presentation/rating_screen.dart';
 import '../../../features/registration/application/registration_cubit.dart';
-import '../../../features/registration/application/registration_state.dart';
-import '../../../features/registration/data/fake_otp_service.dart';
 import '../../../features/registration/data/super_login_demo_user.dart';
 import '../../../features/registration/data/super_login_service.dart';
-import '../../../features/registration/domain/otp_service.dart';
 import '../../../features/registration/presentation/otp_verification_screen.dart';
 import '../../../features/registration/presentation/registration_screen.dart';
 import '../../../features/registration/presentation/super_login/super_login_cubit.dart';
@@ -33,7 +24,9 @@ import '../../../features/registration/presentation/super_login/super_login_pick
 import '../../../features/registration/presentation/super_login/super_login_sheet.dart';
 import '../catalog_models.dart';
 import '../fixtures/mutual_rating_screen_fixtures.dart';
+import '../fixtures/otp_verification_screen_fixtures.dart';
 import '../fixtures/rating_screen_fixtures.dart';
+import '../fixtures/registration_screen_fixtures.dart';
 
 // Batch 09 — profile_name, prohibited_acknowledgment, prohibited_item_report,
 // rate_app, rating, registration (DT-04 screen-catalog rework, rebased
@@ -393,62 +386,29 @@ final CatalogEntry _ratingScreenEntry = CatalogEntry(
 // already carries `cubit`/`socialAuthCubit`/`onVerified` test seams (built for
 // exactly this kind of router-free preview) — no source edits needed.
 // `OtpVerificationScreen` has no such seam of its own, but it only ever reads
-// its `RegistrationCubit` from context, so a private `_SeededRegistrationCubit`
-// subclass (this file only — no production seam) synchronously emits the
-// designed step via the inherited (protected-to-subclasses) `emit`, which lets
-// every OTP-step state render pre-settled instead of only reachable through
-// the async `sendCode`/`verifyCode` round-trip.
+// its `RegistrationCubit` from context, so `OtpVerificationScreenSeededCubit`
+// (in `../fixtures/otp_verification_screen_fixtures.dart` — a dev-only
+// subclass, no production seam) synchronously emits the designed step via the
+// inherited (protected-to-subclasses) `emit`, which lets every OTP-step state
+// render pre-settled instead of only reachable through the async
+// `sendCode`/`verifyCode` round-trip. Those fixtures are shared with the
+// widget-preview section in the screen's own source file.
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _FakeSocialAuthService implements SocialAuthService {
-  const _FakeSocialAuthService();
-
-  @override
-  Future<SocialAuthResult> signIn(SocialProvider provider) async =>
-      const SocialAuthFailure(SocialAuthError.cancelled);
-
-  @override
-  Future<void> signOut() async {}
-}
-
-class _FakeSocialAuthTokenStore implements SocialAuthTokenStore {
-  const _FakeSocialAuthTokenStore();
-
-  @override
-  Future<void> save(SocialAuthSession session) async {}
-
-  @override
-  Future<SocialAuthSession?> read() async => null;
-
-  @override
-  Future<void> clear() async {}
-}
-
-SocialAuthCubit _fakeSocialAuthCubit() => SocialAuthCubit(
-      service: const _FakeSocialAuthService(),
-      tokenStore: const _FakeSocialAuthTokenStore(),
-    );
-
-/// Never resolves — keeps `RegistrationCubit.sendCode`/`verifyCode` pinned
-/// in-flight for a stable "Sending…" catalog state.
-class _PendingOtpService implements OtpService {
-  const _PendingOtpService();
-
-  @override
-  Future<OtpSendOutcome> sendCode(String e164Phone) => Completer<OtpSendOutcome>().future;
-
-  @override
-  Future<OtpVerifyOutcome> verifyCode({
-    required String e164Phone,
-    required String code,
-  }) =>
-      Completer<OtpVerifyOutcome>().future;
-}
-
+/// The three designed states below used to be seeded by four private fixtures
+/// declared in this file (`_FakeSocialAuthService`, `_FakeSocialAuthTokenStore`,
+/// `_fakeSocialAuthCubit`, `_PendingOtpService`) plus three inline phone-number
+/// literals. They now come from
+/// `lib/devtool/catalog/fixtures/registration_screen_fixtures.dart`, shared
+/// verbatim with the preview section at the bottom of
+/// `lib/features/registration/presentation/registration_screen.dart`, so the
+/// catalog and the canvas cannot drift into two different notions of "the
+/// sending state". Nothing about these states changed — same fakes, same
+/// numbers, same seeding technique.
 Widget _registrationScreen(RegistrationCubit cubit) {
   return RegistrationScreen(
     cubit: cubit,
-    socialAuthCubit: _fakeSocialAuthCubit(),
+    socialAuthCubit: registrationScreenFakeSocialAuthCubit(),
     onVerified: () {},
   );
 }
@@ -459,72 +419,31 @@ final CatalogEntry _registrationScreenEntry = CatalogEntry(
   states: [
     CatalogState(
       'Phone Entry — Idle',
-      (_) => _registrationScreen(
-        RegistrationCubit(otpService: const FakeOtpService(latency: Duration.zero)),
-      ),
+      (_) => _registrationScreen(registrationScreenIdleCubit()),
     ),
     CatalogState(
-      // `sendCode` validates and emits `phoneError` synchronously (before any
-      // `await`) when the number doesn't parse, so this settles instantly.
       'Phone Entry — Invalid Number',
-      (_) => _registrationScreen(
-        RegistrationCubit(otpService: const FakeOtpService())
-          ..sendCode(renderedPhone: '123'),
-      ),
+      (_) => _registrationScreen(registrationScreenInvalidNumberCubit()),
     ),
     CatalogState(
-      // `sendCode` emits `isSendingCode: true` synchronously before its first
-      // `await`; pairing it with a never-resolving service pins the CTA on
-      // its loading spinner.
       'Phone Entry — Sending Code',
-      (_) => _registrationScreen(
-        RegistrationCubit(otpService: const _PendingOtpService())
-          ..sendCode(renderedPhone: '71234567'),
-      ),
+      (_) => _registrationScreen(registrationScreenSendingCubit()),
     ),
   ],
 );
 
-/// Catalog-only subclass: lets the preview seed [RegistrationState.step]
-/// directly (via the inherited, subclass-visible `emit`) instead of only
-/// reaching the OTP step through the async `sendCode` round-trip. No
-/// production file is touched — this class lives in the catalog batch only.
-class _SeededRegistrationCubit extends RegistrationCubit {
-  _SeededRegistrationCubit({required super.otpService});
-
-  void seedOtpReady() {
-    emit(state.copyWith(
-      step: RegistrationStep.otp,
-      phoneInput: '71234567',
-      resendSecondsRemaining: 60,
-    ));
-  }
-
-  void seedWrongCode() {
-    emit(state.copyWith(
-      step: RegistrationStep.otp,
-      phoneInput: '71234567',
-      resendSecondsRemaining: 0,
-      failedAttempts: 1,
-      otpError: RegistrationOtpError.invalid,
-    ));
-  }
-
-  void seedLockedOut() {
-    emit(state.copyWith(
-      step: RegistrationStep.lockedOut,
-      phoneInput: '71234567',
-      failedAttempts: 3,
-      lockoutSecondsRemaining: 45,
-    ));
-  }
-}
-
-Widget _otpVerificationScreen(void Function(_SeededRegistrationCubit cubit) seed) {
-  final cubit = _SeededRegistrationCubit(otpService: const FakeOtpService());
-  seed(cubit);
-  return BlocProvider<RegistrationCubit>.value(
-    value: cubit,
+/// The three designed states below used to be seeded by a private
+/// `_SeededRegistrationCubit` declared in this file. They now come from
+/// `lib/devtool/catalog/fixtures/otp_verification_screen_fixtures.dart`, shared
+/// verbatim with the preview section at the bottom of
+/// `lib/features/registration/presentation/otp_verification_screen.dart`, so
+/// the catalog and the canvas cannot drift into two different notions of "the
+/// wrong-code state". The seeding technique is unchanged — a dev-only
+/// `RegistrationCubit` subclass that emits the designed state at construction,
+/// no production seam — and so is every number these three states render.
+Widget _otpVerificationScreen(RegistrationCubit Function() createCubit) {
+  return BlocProvider<RegistrationCubit>(
+    create: (_) => createCubit(),
     child: OtpVerificationScreen(onVerified: () {}),
   );
 }
@@ -535,15 +454,15 @@ final CatalogEntry _otpVerificationScreenEntry = CatalogEntry(
   states: [
     CatalogState(
       'Code Entry — Ready',
-      (_) => _otpVerificationScreen((c) => c.seedOtpReady()),
+      (_) => _otpVerificationScreen(otpVerificationScreenCountingDownCubit),
     ),
     CatalogState(
       'Code Entry — Wrong Code',
-      (_) => _otpVerificationScreen((c) => c.seedWrongCode()),
+      (_) => _otpVerificationScreen(otpVerificationScreenWrongCodeCubit),
     ),
     CatalogState(
       'Locked Out',
-      (_) => _otpVerificationScreen((c) => c.seedLockedOut()),
+      (_) => _otpVerificationScreen(otpVerificationScreenLockedOutCubit),
     ),
   ],
 );

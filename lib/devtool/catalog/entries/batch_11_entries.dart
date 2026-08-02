@@ -22,9 +22,6 @@ import '../../../features/transcription/application/transcription_cubit.dart';
 import '../../../features/transcription/domain/transcript_audio_player.dart';
 import '../../../features/transcription/domain/voice_clip.dart';
 import '../../../features/transcription/presentation/transcription_screen.dart';
-import '../../../features/voice_request/cubit/voice_recording_cubit.dart';
-import '../../../features/voice_request/data/voice_recording_repository.dart';
-import '../../../features/voice_request/domain/voice_player.dart';
 import '../../../features/voice_request/domain/voice_recorder.dart';
 import '../../../features/voice_request/presentation/voice_recording_screen.dart';
 import '../../../features/wallet/data/empty_wallet_ledger_repository.dart';
@@ -36,6 +33,7 @@ import '../../../features/wallet/presentation/wallet_charge_info_screen.dart';
 import '../../../features/wallet/presentation/wallet_hub_screen.dart';
 import '../catalog_models.dart';
 import '../fixtures/transaction_detail_screen_fixtures.dart';
+import '../fixtures/voice_recording_screen_fixtures.dart';
 import '../fixtures/wallet_activity_list_screen_fixtures.dart';
 import '../fixtures/wallet_charge_info_screen_fixtures.dart';
 import '../fixtures/wallet_hub_screen_fixtures.dart';
@@ -490,6 +488,12 @@ final CatalogEntry _transcriptionEntry = CatalogEntry(
 // voice_request — VoiceRecordingScreen
 // ─────────────────────────────────────────────────────────────────────────
 //
+// The fakes and the seeding scripts moved to
+// `../fixtures/voice_recording_screen_fixtures.dart` so this entry and the
+// widget-preview section at the bottom of `voice_recording_screen.dart` drive
+// the screen from ONE set of scripts. Same five designed states, same 3-second
+// clip — the only change is where the fixture is declared.
+//
 // Drives the real [VoiceRecordingCubit] through its public API against the
 // shipped `Fake*` recorder/player/repository (mirrors the KYC/onboarding
 // seeding idiom). `startRecording`/`stopRecording`/`send` are async, so the
@@ -497,7 +501,9 @@ final CatalogEntry _transcriptionEntry = CatalogEntry(
 // microtask turn (`Future<void>.delayed(Duration.zero)`) between the tick and
 // the stop so the elapsed duration clears the 1s `minSendableDuration` floor
 // before the clip is finalized — otherwise the cubit treats the (still
-// zero-elapsed) stop as a mis-tap and bounces back to idle.
+// zero-elapsed) stop as a mis-tap and bounces back to idle. The idle,
+// recording and blocked states keep the cubit's LIVE ticker on purpose: a
+// designer looking at the recording bar wants the timer to run.
 
 final CatalogEntry _voiceRecordingEntry = CatalogEntry(
   feature: 'voice_request',
@@ -505,25 +511,25 @@ final CatalogEntry _voiceRecordingEntry = CatalogEntry(
   states: [
     CatalogState(
       'Idle — ready to record',
-      (_) => VoiceRecordingScreen(cubit: _voiceCubit()),
+      (_) => VoiceRecordingScreen(cubit: voiceRecordingScreenCubit()),
     ),
     CatalogState('Recording — press-and-hold in progress', (_) {
-      final cubit = _voiceCubit();
+      final cubit = voiceRecordingScreenCubit();
       unawaited(cubit.startRecording());
       return VoiceRecordingScreen(cubit: cubit);
     }),
     CatalogState('Recorded — playback preview, ready to send', (_) {
-      final (:cubit, :ticker) = _voiceCubitWithTicker();
-      unawaited(_seedRecorded(cubit, ticker));
+      final (:cubit, :ticker) = voiceRecordingScreenCubitWithTicker();
+      unawaited(voiceRecordingScreenSeedRecorded(cubit, ticker));
       return VoiceRecordingScreen(cubit: cubit);
     }),
     CatalogState('Sent — broadcasting confirmation', (_) {
-      final (:cubit, :ticker) = _voiceCubitWithTicker();
-      unawaited(_seedSent(cubit, ticker));
+      final (:cubit, :ticker) = voiceRecordingScreenCubitWithTicker();
+      unawaited(voiceRecordingScreenSeedSent(cubit, ticker));
       return VoiceRecordingScreen(cubit: cubit);
     }),
     CatalogState('Blocked — microphone permission denied', (_) {
-      final cubit = _voiceCubit(
+      final cubit = voiceRecordingScreenCubit(
         startFailure: VoiceRecorderFailure.permissionDenied,
       );
       unawaited(cubit.startRecording());
@@ -531,48 +537,6 @@ final CatalogEntry _voiceRecordingEntry = CatalogEntry(
     }),
   ],
 );
-
-VoiceRecordingCubit _voiceCubit({VoiceRecorderFailure? startFailure}) {
-  return VoiceRecordingCubit(
-    recorder: FakeVoiceRecorder(startFailure: startFailure),
-    player: FakeVoicePlayer(),
-    repository: FakeVoiceRecordingRepository(),
-  );
-}
-
-({VoiceRecordingCubit cubit, StreamController<Duration> ticker})
-_voiceCubitWithTicker() {
-  // A catalog preview's cubit/controller pair lives for the duration of that
-  // preview screen only (same as every other seeded cubit in this file);
-  // there is no owner to hand a dispose hook to.
-  // ignore: close_sinks
-  final controller = StreamController<Duration>.broadcast();
-  final cubit = VoiceRecordingCubit(
-    recorder: FakeVoiceRecorder(),
-    player: FakeVoicePlayer(),
-    repository: FakeVoiceRecordingRepository(),
-    tickerFactory: (_) => controller.stream,
-  );
-  return (cubit: cubit, ticker: controller);
-}
-
-Future<void> _seedRecorded(
-  VoiceRecordingCubit cubit,
-  StreamController<Duration> ticker,
-) async {
-  await cubit.startRecording();
-  ticker.add(const Duration(seconds: 3));
-  await Future<void>.delayed(Duration.zero);
-  await cubit.stopRecording();
-}
-
-Future<void> _seedSent(
-  VoiceRecordingCubit cubit,
-  StreamController<Duration> ticker,
-) async {
-  await _seedRecorded(cubit, ticker);
-  await cubit.send();
-}
 
 // ─────────────────────────────────────────────────────────────────────────
 // wallet — WalletHubScreen
