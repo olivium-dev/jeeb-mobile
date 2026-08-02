@@ -20,11 +20,22 @@
 import 'dart:convert';
 import 'dart:io';
 
-/// Directories that hold no previewable production widgets.
+/// Directories that hold no previewable PRODUCT widgets.
+///
+/// These are scope decisions about what the rollout is for — product UI — not
+/// judgements about difficulty. A widget inside one of these paths is out of
+/// scope however easy it would be to preview.
 const List<String> _excludedPrefixes = <String>[
   'lib/previews/', // the previews themselves
   'lib/devtool/', // dev-only catalog + shell
   'lib/l10n/', // generated localizations
+  // Dev-only session-trace overlay. `kObsCompiledIn` is
+  // `kDevToolEnabled && bool.fromEnvironment('JEEB_OBS_OVERLAY')`
+  // (observability_config.dart:32), so this whole tree is compiled OUT of every
+  // non-devtool build — the same category as `lib/devtool/` above, and excluded
+  // for the same reason. See docs/previews/WAVE03_FINDINGS.md for the seams that
+  // would have to be added if it is ever brought back into scope.
+  'lib/core/observability/',
 ];
 
 final RegExp _widgetClass = RegExp(
