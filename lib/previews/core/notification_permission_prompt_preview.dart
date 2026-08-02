@@ -106,7 +106,7 @@ Widget _hosted(Widget prompt) => Padding(
 /// Worth a second look in **EN 200% text**: the action row already overflows
 /// there with these labels — see
 /// [notificationPermissionPromptLongActionLabels] for why.
-@JeebPreview(name: 'Shipped defaults (390pt)', size: _phoneCard)
+@JeebPreview(group: 'core', name: 'Shipped defaults (390pt)', size: _phoneCard)
 Widget notificationPermissionPromptDefault() => _hosted(
       const NotificationPermissionPrompt(
         onEnable: _onEnable,
@@ -122,7 +122,7 @@ Widget notificationPermissionPromptDefault() => _hosted(
 /// instead. The copy has to change with it, and this state says whether the
 /// card still reads sensibly when it does: a blunter title, a body that names
 /// where the user is being sent, and a longer primary label than the default.
-@JeebPreview(name: 'After a denial (settings deep-link)', size: _phoneCard)
+@JeebPreview(group: 'core', name: 'After a denial (settings deep-link)', size: _phoneCard)
 Widget notificationPermissionPromptAfterDenial() => _hosted(
       const NotificationPermissionPrompt(
         onEnable: _onEnable,
@@ -145,7 +145,7 @@ Widget notificationPermissionPromptAfterDenial() => _hosted(
 ///
 /// Deliberately on the 320pt box — the Arabic wording runs longer than the
 /// English, and the compact device is where that first costs a line.
-@JeebPreview(name: 'Arabic copy (320pt)', size: _compactCard)
+@JeebPreview(group: 'core', name: 'Arabic copy (320pt)', size: _compactCard)
 Widget notificationPermissionPromptArabicCopy() => _hosted(
       const NotificationPermissionPrompt(
         onEnable: _onEnable,
@@ -171,7 +171,7 @@ Widget notificationPermissionPromptArabicCopy() => _hosted(
 /// does not follow the text scaler, so as the title wraps to two lines here —
 /// and four in the `EN 200% text` rendering — the icon stays pinned beside the
 /// first line and the row stops reading as one unit.
-@JeebPreview(name: 'Long copy (wraps, card grows)', size: _phoneCardTall)
+@JeebPreview(group: 'core', name: 'Long copy (wraps, card grows)', size: _phoneCardTall)
 Widget notificationPermissionPromptLongCopy() => _hosted(
       const NotificationPermissionPrompt(
         onEnable: _onEnable,
@@ -202,7 +202,7 @@ Widget notificationPermissionPromptLongCopy() => _hosted(
 /// grow with the text scaler and the card does not. The fix belongs to the
 /// widget — let the actions flex, or stack them when they do not fit — not to
 /// this preview.
-@JeebPreview(name: 'Long action labels (row overflows)', size: _compactCard)
+@JeebPreview(group: 'core', name: 'Long action labels (row overflows)', size: _compactCard)
 Widget notificationPermissionPromptLongActionLabels() => _hosted(
       const NotificationPermissionPrompt(
         onEnable: _onEnable,

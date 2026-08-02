@@ -105,7 +105,7 @@ Widget _withAccepted(List<AcceptedConversation> accepted) =>
 /// 28 px font that needs ~32 px of line box — is measured into a 16 px-high
 /// slot and paints outside its own rounded background instead of growing it.
 /// Compare the EN light and EN 200% renderings of this preview side by side.
-@JeebPreview(name: 'One accepted order', size: Size(_phoneWidth, 120))
+@JeebPreview(group: 'jeeber_home', name: 'One accepted order', size: Size(_phoneWidth, 120))
 Widget jeeberActiveDeliveriesBannerSingle() =>
     _withAccepted(const <AcceptedConversation>[
       AcceptedConversation(
@@ -126,7 +126,7 @@ Widget jeeberActiveDeliveriesBannerSingle() =>
 /// would render a plausible-looking banner. Stacking three also shows what the
 /// rows look like with no separator between them (they are bare `Row`s with
 /// 8 px of trailing padding), and puts the plural header under load.
-@JeebPreview(name: 'Three accepted orders', size: Size(_phoneWidth, 220))
+@JeebPreview(group: 'jeeber_home', name: 'Three accepted orders', size: Size(_phoneWidth, 220))
 Widget jeeberActiveDeliveriesBannerThree() =>
     _withAccepted(const <AcceptedConversation>[
       AcceptedConversation(
@@ -171,7 +171,7 @@ Widget jeeberActiveDeliveriesBannerThree() =>
 /// this widget never received that fix. The EN 100% rendering stays plausible
 /// long after the other two have broken, which is exactly why the matrix
 /// renders all three.
-@JeebPreview(name: 'Longest counterpart name', size: Size(_phoneWidth, 120))
+@JeebPreview(group: 'jeeber_home', name: 'Longest counterpart name', size: Size(_phoneWidth, 120))
 Widget jeeberActiveDeliveriesBannerLongName() =>
     _withAccepted(const <AcceptedConversation>[
       AcceptedConversation(
@@ -191,7 +191,7 @@ Widget jeeberActiveDeliveriesBannerLongName() =>
 /// banner that is NOT localized: the method takes an `AppLocalizations` and
 /// never uses it. Switch this preview to AR RTL and the row still reads
 /// "Order f2244baa-…" in English.
-@JeebPreview(name: 'Untitled order · id fallback', size: Size(_phoneWidth, 120))
+@JeebPreview(group: 'jeeber_home', name: 'Untitled order · id fallback', size: Size(_phoneWidth, 120))
 Widget jeeberActiveDeliveriesBannerUntitled() =>
     _withAccepted(const <AcceptedConversation>[
       AcceptedConversation(
@@ -207,7 +207,7 @@ Widget jeeberActiveDeliveriesBannerUntitled() =>
 /// when there is nothing to re-enter. An empty canvas here is the pass
 /// condition, not a broken preview — which is also why its render test pins the
 /// ABSENCE of the header and the CTA rather than a string.
-@JeebPreview(name: 'Empty · self-hidden', size: Size(_phoneWidth, 80))
+@JeebPreview(group: 'jeeber_home', name: 'Empty · self-hidden', size: Size(_phoneWidth, 80))
 Widget jeeberActiveDeliveriesBannerEmpty() =>
     _withAccepted(const <AcceptedConversation>[]);
 
@@ -220,6 +220,6 @@ Widget jeeberActiveDeliveriesBannerEmpty() =>
 /// does not fade in, it POPS in and shoves the availability card down the
 /// screen — the jump is only visible by flipping between this preview and
 /// `One accepted order`.
-@JeebPreview(name: 'Loading · self-hidden', size: Size(_phoneWidth, 80))
+@JeebPreview(group: 'jeeber_home', name: 'Loading · self-hidden', size: Size(_phoneWidth, 80))
 Widget jeeberActiveDeliveriesBannerLoading() =>
     _hosted(const _StalledAcceptedConversationsRepository());

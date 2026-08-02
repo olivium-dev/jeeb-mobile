@@ -215,7 +215,7 @@ Widget _hosted(
 /// wanted, but there is no "required" marker, no helper text under the CTA and
 /// no error until the user taps a button that cannot respond. All the dimmed
 /// button carries is `primary` at 60% alpha; see the library doc.
-@JeebPreview(name: 'Empty (no photo)', size: _phoneBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Empty (no photo)', size: _phoneBox)
 Widget dmOnboardingPhotoStepEmpty() =>
     _hosted('Empty: no photo yet — Continue inert', const DmOnboardingState());
 
@@ -227,7 +227,7 @@ Widget dmOnboardingPhotoStepEmpty() =>
 /// label is still "Tap to add a photo" (library doc), and there is no "replace"
 /// or "remove" affordance — tapping the image silently reopens the source
 /// sheet.
-@JeebPreview(name: 'Photo chosen', size: _phoneBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Photo chosen', size: _phoneBox)
 Widget dmOnboardingPhotoStepWithPhoto() => _hosted(
   'Photo chosen: Continue enabled',
   DmOnboardingState(photo: _attachment(portraitPhotoBytes)),
@@ -240,7 +240,7 @@ Widget dmOnboardingPhotoStepWithPhoto() => _hosted(
 /// bottom — here it keeps roughly the middle third of the six bands. On a real
 /// phone held sideways that is the difference between a face and a shoulder,
 /// and the step offers no crop, no rotate and no zoom to recover from it.
-@JeebPreview(name: 'Wide photo (cropped)', size: _phoneBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Wide photo (cropped)', size: _phoneBox)
 Widget dmOnboardingPhotoStepWidePhoto() => _hosted(
   'Wide photo: 3:1 cropped to 4:5',
   DmOnboardingState(photo: _attachment(widePhotoBytes)),
@@ -251,7 +251,7 @@ Widget dmOnboardingPhotoStepWidePhoto() => _hosted(
 /// The card is width-driven (`AspectRatio` 4:5 inside 24pt gutters), so it
 /// shrinks from 342 × 427.5 to 272 × 340 — the header and CTA do not, which is
 /// what makes this the tightest EN 200% text rendering of the set.
-@JeebPreview(name: 'Compact 320', size: _compactBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Compact 320', size: _compactBox)
 Widget dmOnboardingPhotoStepCompact() => _hosted(
   'Compact 320pt device',
   const DmOnboardingState(),
@@ -266,7 +266,7 @@ Widget dmOnboardingPhotoStepCompact() => _hosted(
 /// `SingleChildScrollView`, so the overflow becomes scroll rather than a
 /// `RenderFlex` stripe, and Continue stays reachable without scrolling to it.
 /// Reachable on a small phone at large text, or in landscape.
-@JeebPreview(name: 'Short viewport (scrolls)', size: _shortBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Short viewport (scrolls)', size: _shortBox)
 Widget dmOnboardingPhotoStepShortViewport() => _hosted(
   'Short viewport: content scrolls, CTA pinned',
   const DmOnboardingState(),
@@ -283,7 +283,7 @@ Widget dmOnboardingPhotoStepShortViewport() => _hosted(
 /// retry, and cannot explain why the last tap produced nothing. If a future
 /// change gives the card an inline error state, this preview is where it shows
 /// up.
-@JeebPreview(name: 'Photo pick failed', size: _phoneBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Photo pick failed', size: _phoneBox)
 Widget dmOnboardingPhotoStepPickFailed() => _hosted(
   'Pick failed: step shows nothing',
   const DmOnboardingState(error: DmOnboardingError.photoPickFailed),

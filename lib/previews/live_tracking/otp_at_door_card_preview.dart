@@ -97,7 +97,7 @@ Widget _card({String? handoverCode}) => OtpAtDoorCard(
 /// rendered inline (`Key('tracking.atDoorCode')`), and "Show OTP" is still
 /// present as the secondary route. Fixture `1234` is the same code
 /// `test/live_tracking_handover_code_test.dart` pins.
-@JeebPreview(name: 'Code known · 1234', size: _cardBox)
+@JeebPreview(group: 'live_tracking', name: 'Code known · 1234', size: _cardBox)
 Widget otpAtDoorCardWithCode() => _card(handoverCode: '1234');
 
 /// No code on this device — the branch that dead-ended live deliveries.
@@ -113,7 +113,7 @@ Widget otpAtDoorCardWithCode() => _card(handoverCode: '1234');
 /// to the code — the OTP screen owns the SMS fallback from there. If this ever
 /// renders an empty code pill, the `code != null` gate has been loosened to a
 /// truthiness check.
-@JeebPreview(name: 'Code unknown', size: Size(390, 400))
+@JeebPreview(group: 'live_tracking', name: 'Code unknown', size: Size(390, 400))
 Widget otpAtDoorCardWithoutCode() => _card();
 
 /// Bidi guard, made visible: a code whose reading is destroyed by reordering.
@@ -125,7 +125,7 @@ Widget otpAtDoorCardWithoutCode() => _card();
 /// thing stopping them is the [Directionality] pin inside
 /// [HandoverCodeDisplay]. It is also the state that proves the code is treated
 /// as an opaque string, not a number — a number would drop the leading zero.
-@JeebPreview(name: 'Bidi guard · 0450', size: _cardBox)
+@JeebPreview(group: 'live_tracking', name: 'Bidi guard · 0450', size: _cardBox)
 Widget otpAtDoorCardLeadingZeroCode() => _card(handoverCode: '0450');
 
 /// The narrowest phone the app supports (320 pt), pinned to that width by the
@@ -140,7 +140,7 @@ Widget otpAtDoorCardLeadingZeroCode() => _card(handoverCode: '0450');
 /// 272 pt of available width, and the card wants 812 pt of height against the
 /// ~568 pt such a phone actually has — the 200% rendering overflows in BOTH
 /// locales at this width, where at 390 pt only EN does.
-@JeebPreview(name: 'Narrow phone · 320 pt', size: Size(320, 520))
+@JeebPreview(group: 'live_tracking', name: 'Narrow phone · 320 pt', size: Size(320, 520))
 Widget otpAtDoorCardNarrowPhone() => Align(
       alignment: Alignment.topCenter,
       child: SizedBox(width: 320, child: _card(handoverCode: '9061')),
@@ -158,7 +158,7 @@ Widget otpAtDoorCardNarrowPhone() => Align(
 ///
 /// The backdrop is a text-free stand-in for [TrackingMapSurface], so any string
 /// the render test pins can only have come from the card.
-@JeebPreview(name: 'Bottom-anchored over map', size: Size(390, 560))
+@JeebPreview(group: 'live_tracking', name: 'Bottom-anchored over map', size: Size(390, 560))
 Widget otpAtDoorCardOverMap() => Column(
       children: <Widget>[
         const Expanded(child: _MapBackdrop()),

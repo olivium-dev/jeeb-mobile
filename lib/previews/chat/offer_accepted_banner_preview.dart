@@ -111,7 +111,7 @@ Widget _hosted({
 /// Measured with the real bundled Inter at 390 dp: the band is 64 dp on one
 /// line and 120 dp at the 200% rendering, where the sentence takes its full
 /// two-line clamp. The box below fits the whole stack (banner + notice) at 2x.
-@JeebPreview(name: 'Client · no CTA yet', size: Size(390, 220))
+@JeebPreview(group: 'chat', name: 'Client · no CTA yet', size: Size(390, 220))
 Widget offerAcceptedBannerClientNoCta() => _hosted(jeeberName: 'Kamal Hajj');
 
 /// The Jeeber leg, in its real chrome: the balance-deduction band sits directly
@@ -126,7 +126,7 @@ Widget offerAcceptedBannerClientNoCta() => _hosted(jeeberName: 'Kamal Hajj');
 ///
 /// The tallest state of the five: measured 156 dp of chrome at 1x and 316 dp at
 /// the 200% rendering, because both bands grow independently.
-@JeebPreview(name: 'Jeeber · start delivery', size: Size(390, 340))
+@JeebPreview(group: 'chat', name: 'Jeeber · start delivery', size: Size(390, 340))
 Widget offerAcceptedBannerJeeberStartDelivery() => _hosted(
       jeeberName: 'Rana',
       startDelivery: true,
@@ -143,7 +143,7 @@ Widget offerAcceptedBannerJeeberStartDelivery() => _hosted(
 /// is also the longest of the two CTA labels — 262 dp at 200%, against 239 dp
 /// for "Start delivery" — which is why the small-phone state below is this CTA
 /// and not the Jeeber's.
-@JeebPreview(name: 'Client · track order', size: Size(390, 200))
+@JeebPreview(group: 'chat', name: 'Client · track order', size: Size(390, 200))
 Widget offerAcceptedBannerClientTrackOrder() =>
     _hosted(jeeberName: 'Nour', trackOrder: true);
 
@@ -161,7 +161,7 @@ Widget offerAcceptedBannerClientTrackOrder() =>
 /// It is also where the 200% rendering bites: the padding leaves each Wrap
 /// child at most 320 − 16 − 4 − 48 = 252 dp, and this CTA wants 262 dp at 200%,
 /// so the label ellipsises. That is the one thing to look at in this card.
-@JeebPreview(name: 'Small phone 320dp', size: Size(320, 220))
+@JeebPreview(group: 'chat', name: 'Small phone 320dp', size: Size(320, 220))
 Widget offerAcceptedBannerSmallPhone() => _hosted(
       jeeberName: 'Ziad',
       trackOrder: true,
@@ -181,7 +181,7 @@ Widget offerAcceptedBannerSmallPhone() => _hosted(
 /// Measured at 390 dp: 116 dp at 1x and 160 dp at the 200% rendering — the CTAs
 /// take a run of their own and the band roughly doubles, which is the correct
 /// degradation, not an overflow.
-@JeebPreview(name: 'Both CTAs', size: Size(390, 240))
+@JeebPreview(group: 'chat', name: 'Both CTAs', size: Size(390, 240))
 Widget offerAcceptedBannerBothCtas() => _hosted(
       jeeberName: 'Layla',
       startDelivery: true,

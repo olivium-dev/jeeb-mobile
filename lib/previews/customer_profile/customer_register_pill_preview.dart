@@ -81,7 +81,7 @@ Widget _hosted({
 /// Note the host: a `mainAxisSize.min` [Row], not a bare [Align]. That is not
 /// decoration — see [customerRegisterPillInBoundedParent] for what the same
 /// widget does when its parent hands it a bounded width instead.
-@JeebPreview(name: 'Pill alone', size: _rowBox)
+@JeebPreview(group: 'customer_profile', name: 'Pill alone', size: _rowBox)
 Widget customerRegisterPillAlone() => _hosted(
       caption: 'Pill alone · hugs its label, 40 dp tall',
       child: const Padding(
@@ -101,7 +101,7 @@ Widget customerRegisterPillAlone() => _hosted(
 /// (`Sizes.fiveXLarge`) minimum. **AR RTL** is the half worth staring at: the
 /// row's padding is [EdgeInsetsDirectional], so disc and pill should swap sides
 /// as a unit and the pill should end up on the leading (left) edge.
-@JeebPreview(name: 'In profile row', size: _rowBox)
+@JeebPreview(group: 'customer_profile', name: 'In profile row', size: _rowBox)
 Widget customerRegisterPillInRow() => _hosted(
       caption: 'In profile row · 390 dp',
       child: const _RegisterRow(),
@@ -114,7 +114,7 @@ Widget customerRegisterPillInRow() => _hosted(
 /// come out of the label alone. This is where "Register as a delivery"
 /// ellipsizes first, and the state that answers whether the truncated label
 /// still says enough for the row to be tappable with meaning.
-@JeebPreview(name: 'Narrow phone', size: _narrowRowBox)
+@JeebPreview(group: 'customer_profile', name: 'Narrow phone', size: _narrowRowBox)
 Widget customerRegisterPillNarrowRow() => _hosted(
       caption: 'Narrow phone · 320 dp',
       width: _narrowWidth,
@@ -131,7 +131,7 @@ Widget customerRegisterPillNarrowRow() => _hosted(
 /// must not push its row taller than its neighbour. In **dark** (the AR RTL
 /// rendering) the filled navy pill is also the only saturated block in the
 /// list; this is where to judge whether it is emphasis or noise.
-@JeebPreview(name: 'Beside chevron rows', size: _twoRowBox)
+@JeebPreview(group: 'customer_profile', name: 'Beside chevron rows', size: _twoRowBox)
 Widget customerRegisterPillBesideChevronRows() => _hosted(
       caption: 'Beside chevron rows · alignment + weight',
       child: const Column(
@@ -166,7 +166,7 @@ Widget customerRegisterPillBesideChevronRows() => _hosted(
 /// rendering, by design. 250% is deliberately NOT a preview — it throws a
 /// layout exception, which would fail every render test in the file rather than
 /// reporting the one defect.
-@JeebPreview(name: 'Row at 200% text', size: _rowBox)
+@JeebPreview(group: 'customer_profile', name: 'Row at 200% text', size: _rowBox)
 Widget customerRegisterPillRowAtLargeText() => _hosted(
       caption: 'Row at 200% text · pill stays 40 dp',
       child: MediaQuery.withClampedTextScaling(
@@ -193,7 +193,7 @@ Widget customerRegisterPillRowAtLargeText() => _hosted(
 /// `mainAxisSize.min` wrapper, no `width`), and nothing warns about it, so the
 /// second caller to reuse it is the one who finds out. This state is here so
 /// that discovery happens in the canvas.
-@JeebPreview(name: 'Bounded parent', size: _rowBox)
+@JeebPreview(group: 'customer_profile', name: 'Bounded parent', size: _rowBox)
 Widget customerRegisterPillInBoundedParent() => _hosted(
       caption: 'Bounded parent · stretches, no longer a pill',
       child: const Padding(

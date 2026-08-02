@@ -93,7 +93,7 @@ Widget _hosted({
 /// the band has no fixed height, so the sentence must be allowed to wrap and
 /// push the band taller instead of clipping. Measured: 44 dp on one line,
 /// growing several times that once the sentence wraps — hence the tall box.
-@JeebPreview(name: 'Strip alone', size: Size(390, 200))
+@JeebPreview(group: 'chat', name: 'Strip alone', size: Size(390, 200))
 Widget jeeberRemovedBannerStrip() => _hosted();
 
 /// Small-phone width (320 dp), the narrowest width the app ships to and the
@@ -106,7 +106,7 @@ Widget jeeberRemovedBannerStrip() => _hosted();
 /// also the width at which the AR RTL rendering has to prove the icon and the
 /// padding really mirror; they do — the icon keeps the LEADING edge, which is
 /// the right-hand side in AR, and the text flows away from it.
-@JeebPreview(name: 'Small phone 320dp', size: Size(320, 320))
+@JeebPreview(group: 'chat', name: 'Small phone 320dp', size: Size(320, 320))
 Widget jeeberRemovedBannerSmallPhone() => _hosted(
       width: 320,
       thread: <DeliveryChatMessage>[_rejectedNotice('Rana')],
@@ -118,7 +118,7 @@ Widget jeeberRemovedBannerSmallPhone() => _hosted(
 /// the band has to read as an explanation of the silence below it, not as a
 /// transient error toast. Mixed-script content is deliberate — the bubbles pick
 /// their own direction from the first strong character, the band does not.
-@JeebPreview(name: 'Above frozen thread', size: Size(390, 560))
+@JeebPreview(group: 'chat', name: 'Above frozen thread', size: Size(390, 560))
 Widget jeeberRemovedBannerAboveFrozenThread() => _hosted(
       thread: <DeliveryChatMessage>[
         _text('m-1', ChatAuthor.them, 'Can you pick it up from Hamra before 6?'),
@@ -134,7 +134,7 @@ Widget jeeberRemovedBannerAboveFrozenThread() => _hosted(
 /// Worth looking at because the two bands share an edge with no divider and no
 /// gap — the seam is the only thing separating a neutral notice from an error
 /// notice, and both bands wrap independently at 200%.
-@JeebPreview(name: 'Under fee notice', size: Size(390, 360))
+@JeebPreview(group: 'chat', name: 'Under fee notice', size: Size(390, 360))
 Widget jeeberRemovedBannerUnderFeeNotice() => _hosted(
       chrome: const <Widget>[ChatFeeBanner(amount: r'$0.50')],
       thread: <DeliveryChatMessage>[_rejectedNotice('Nour')],
@@ -151,7 +151,7 @@ Widget jeeberRemovedBannerUnderFeeNotice() => _hosted(
 /// exceed the slot, and the correct degradation is a SCROLL. If the canvas ever
 /// shows a clipped band or an overflow stripe here instead, the bound has
 /// regressed.
-@JeebPreview(name: 'Bounded header slot', size: Size(390, 340))
+@JeebPreview(group: 'chat', name: 'Bounded header slot', size: Size(390, 340))
 Widget jeeberRemovedBannerBoundedHeaderSlot() => SizedBox(
       height: 300,
       child: Column(

@@ -85,7 +85,7 @@ Widget _hosted({
 /// surprise: a 15-character title on the widest supported phone is *already*
 /// truncated. "Mini-market run" wants 211.5 pt and gets 165.2 pt in English,
 /// 124.0 pt in Arabic. Nothing about this fixture is long; the column is short.
-@JeebPreview(name: 'Typical', size: _cardBox)
+@JeebPreview(group: 'home_client', name: 'Typical', size: _cardBox)
 Widget recentDeliveryCardTypical() => _hosted(
       id: 'rd-2f1c',
       title: 'Mini-market run',
@@ -102,7 +102,7 @@ Widget recentDeliveryCardTypical() => _hosted(
 ///
 /// It is also the tightest realistic pairing: the Arabic CTA leaves 124.0 pt,
 /// and "طلبية سوبرماركت" wants 210.0 pt.
-@JeebPreview(name: 'Arabic content', size: _cardBox)
+@JeebPreview(group: 'home_client', name: 'Arabic content', size: _cardBox)
 Widget recentDeliveryCardArabicContent() => _hosted(
       id: 'rd-9b30',
       title: 'طلبية سوبرماركت',
@@ -120,7 +120,7 @@ Widget recentDeliveryCardArabicContent() => _hosted(
 /// address would. The card does not shrink and does not say "destination
 /// unknown" — it just shows a gap. Put this next to `Typical` in the canvas:
 /// same height, one line of information missing with nothing marking it.
-@JeebPreview(name: 'Degraded payload', size: _cardBox)
+@JeebPreview(group: 'home_client', name: 'Degraded payload', size: _cardBox)
 Widget recentDeliveryCardDegradedPayload() => _hosted(
       id: '9acb579d-1c2e-4f3a-b8d1-77aa10cc42e6',
       title: 'Delivery #CC42E6',
@@ -136,7 +136,7 @@ Widget recentDeliveryCardDegradedPayload() => _hosted(
 /// two words. Because the card is the *"order again"* affordance, a client
 /// re-ordering from a truncated title is tapping a button whose subject they
 /// cannot fully read.
-@JeebPreview(name: 'Long title + long destination', size: _cardBox)
+@JeebPreview(group: 'home_client', name: 'Long title + long destination', size: _cardBox)
 Widget recentDeliveryCardLongContent() => _hosted(
       id: 'rd-7d41',
       title: 'Pharmacy pickup for Mrs. Haddad on Rue Sursock and the bakery '
@@ -153,7 +153,7 @@ Widget recentDeliveryCardLongContent() => _hosted(
 /// characters before the ellipsis, which is the state to weigh when deciding
 /// whether this row should become two lines (text above, CTA below) rather than
 /// one.
-@JeebPreview(name: 'Small phone (320 pt)', size: _smallPhoneBox)
+@JeebPreview(group: 'home_client', name: 'Small phone (320 pt)', size: _smallPhoneBox)
 Widget recentDeliveryCardSmallPhone() => _hosted(
       id: 'rd-4e88',
       title: 'Bakery order',

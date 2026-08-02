@@ -112,7 +112,7 @@ Widget _hosted(
 /// on the wrong circle. Measured: the `ordered` icon's centre is 60 dp from the
 /// LEADING edge in both directions, so today they mirror together — the render
 /// test pins that equality.
-@JeebPreview(name: 'Ordered · step 1 + CTA', size: _withCtaBox)
+@JeebPreview(group: 'active_delivery_jeeber', name: 'Ordered · step 1 + CTA', size: _withCtaBox)
 Widget deliveryStatusStepperOrdered() =>
     _hosted(JeeberDeliveryStatus.ordered);
 
@@ -130,7 +130,7 @@ Widget deliveryStatusStepperOrdered() =>
 /// It also shows the first completed connector, which is the only place
 /// `completedColor` (primary) and `activeColor` (tertiary #D73B00) are visible
 /// side by side — the tone pair the widget's own comment warns about.
-@JeebPreview(name: 'Picked · longest CTA', size: _withCtaBox)
+@JeebPreview(group: 'active_delivery_jeeber', name: 'Picked · longest CTA', size: _withCtaBox)
 Widget deliveryStatusStepperPicked() => _hosted(JeeberDeliveryStatus.picked);
 
 /// The in-flight state: `isTransitioning`, i.e. the transition POST is on the
@@ -150,7 +150,7 @@ Widget deliveryStatusStepperPicked() => _hosted(JeeberDeliveryStatus.picked);
 /// double-tapping. Pinned by the render test, with the idle card as the
 /// control. What survives is `isButton: true` on a node with nothing to do: a
 /// screen reader still announces "button" for the duration of the request.
-@JeebPreview(name: 'Picked · transitioning', size: _withCtaBox)
+@JeebPreview(group: 'active_delivery_jeeber', name: 'Picked · transitioning', size: _withCtaBox)
 Widget deliveryStatusStepperPickedTransitioning() =>
     _hosted(JeeberDeliveryStatus.picked, isTransitioning: true);
 
@@ -173,7 +173,7 @@ Widget deliveryStatusStepperPickedTransitioning() =>
 /// word at 200%, so the label breaks MID-WORD and the label row grows from 32
 /// to 160 dp. Arabic hits the same wall one step earlier — "تم الاستلام" is
 /// already on three lines at 1x in the render test's font.
-@JeebPreview(name: 'In transit · no CTA (JM-051)', size: _stepperOnlyBox)
+@JeebPreview(group: 'active_delivery_jeeber', name: 'In transit · no CTA (JM-051)', size: _stepperOnlyBox)
 Widget deliveryStatusStepperInTransit() =>
     _hosted(JeeberDeliveryStatus.inTransit);
 
@@ -189,7 +189,7 @@ Widget deliveryStatusStepperInTransit() =>
 /// phase will find `ordered`, `picked` and `inTransit` all fine and this card
 /// throwing — which is exactly why it gets its own preview instead of being
 /// folded into the one above.
-@JeebPreview(name: 'At door · next is null', size: _stepperOnlyBox)
+@JeebPreview(group: 'active_delivery_jeeber', name: 'At door · next is null', size: _stepperOnlyBox)
 Widget deliveryStatusStepperAtDoor() => _hosted(JeeberDeliveryStatus.atDoor);
 
 /// The successful terminal, and the state that reads wrong.
@@ -202,7 +202,7 @@ Widget deliveryStatusStepperAtDoor() => _hosted(JeeberDeliveryStatus.atDoor);
 /// stepper: it shows four completed stages and a fifth that still looks like
 /// work in progress. Read this card next to the `atDoor` one above — the only
 /// difference is which circle is accented, not "in progress" versus "done".
-@JeebPreview(name: 'Done · last step still accented', size: _stepperOnlyBox)
+@JeebPreview(group: 'active_delivery_jeeber', name: 'Done · last step still accented', size: _stepperOnlyBox)
 Widget deliveryStatusStepperDone() => _hosted(JeeberDeliveryStatus.done);
 
 /// The unsuccessful terminal: `cancelled` must paint NOTHING.
@@ -220,6 +220,6 @@ Widget deliveryStatusStepperDone() => _hosted(JeeberDeliveryStatus.done);
 /// means the shrink has been lost. (The empty titled card is what a future
 /// caller that forgets the early return would ship; that is a screen-level
 /// question, not this widget's.)
-@JeebPreview(name: 'Cancelled · paints nothing', size: _collapsedBox)
+@JeebPreview(group: 'active_delivery_jeeber', name: 'Cancelled · paints nothing', size: _collapsedBox)
 Widget deliveryStatusStepperCancelled() =>
     _hosted(JeeberDeliveryStatus.cancelled);

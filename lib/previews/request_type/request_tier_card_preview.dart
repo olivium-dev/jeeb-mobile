@@ -156,7 +156,7 @@ Widget _tier(
 /// AA floor that `bodySmall` (12 sp) is held to. The selected sibling below is
 /// white-on-navy and measures 17.1:1, so the legibility of the tier copy a
 /// customer is comparing depends on whether they have already chosen it.
-@JeebPreview(name: 'Unselected · Standard', size: _shortCopyBox)
+@JeebPreview(group: 'request_type', name: 'Unselected · Standard', size: _shortCopyBox)
 Widget requestTierCardUnselected() => _localized(
       (AppLocalizations l10n) => _tier(
         l10n,
@@ -175,7 +175,7 @@ Widget requestTierCardUnselected() => _localized(
 /// changes FOUR things at once — `Material.color`, the border colour, the title
 /// colour and the description colour — and the only signal that survives a
 /// grayscale or colour-blind reading is the 8 dp dot inside the ring.
-@JeebPreview(name: 'Selected · Flash', size: _shortCopyBox)
+@JeebPreview(group: 'request_type', name: 'Selected · Flash', size: _shortCopyBox)
 Widget requestTierCardSelected() => _localized(
       (AppLocalizations l10n) => _tier(
         l10n,
@@ -195,7 +195,7 @@ Widget requestTierCardSelected() => _localized(
 /// `value` are plain children of the copy column with no `maxLines` and no
 /// `overflow`, so they wrap and the card grows. At 200% that is where most of
 /// the canvas box below goes.
-@JeebPreview(name: 'Longest shipping copy · On-the-Way',
+@JeebPreview(group: 'request_type', name: 'Longest shipping copy · On-the-Way',
     size: _longestShippingCopyBox)
 Widget requestTierCardLongestShippingCopy() => _localized(
       (AppLocalizations l10n) => _tier(
@@ -217,7 +217,7 @@ Widget requestTierCardLongestShippingCopy() => _localized(
 /// reordering, not layout, decides whether the number a customer reads is the
 /// number ops wrote. Selected so the range is reviewed as white-on-navy, which
 /// is how the card looks the moment it becomes the answer to "how long?".
-@JeebPreview(name: 'Selected · Eco (digit range)', size: _shortCopyBox)
+@JeebPreview(group: 'request_type', name: 'Selected · Eco (digit range)', size: _shortCopyBox)
 Widget requestTierCardDigitRange() => _localized(
       (AppLocalizations l10n) => _tier(
         l10n,
@@ -245,7 +245,7 @@ Widget requestTierCardDigitRange() => _localized(
 /// UNDER the glyph rather than beside it (the icon is a fixed 20 dp pinned to
 /// the row's centre), and the radio glyph, which re-centres against a card three
 /// times the height of the shipping one.
-@JeebPreview(name: 'Longest plausible copy · unreleased tier',
+@JeebPreview(group: 'request_type', name: 'Longest plausible copy · unreleased tier',
     size: _longCopyBox)
 Widget requestTierCardLongCopy() => _hosted(
       icon: Icons.local_shipping_outlined,

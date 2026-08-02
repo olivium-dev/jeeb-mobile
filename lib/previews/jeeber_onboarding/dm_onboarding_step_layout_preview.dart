@@ -298,7 +298,7 @@ class _ServiceAreaBody extends StatelessWidget {
 ///
 /// Check the 60% fill survives the AR RTL **dark** rendering, where the dimmed
 /// primary sits on a dark surface rather than on white.
-@JeebPreview(name: 'Photo step · Continue gated', size: _photoBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Photo step · Continue gated', size: _photoBox)
 Widget dmOnboardingStepLayoutPhotoGated() =>
     _hosted(const _PhotoBody(), enabled: false);
 
@@ -316,7 +316,7 @@ Widget dmOnboardingStepLayoutPhotoGated() =>
 /// phone shorter than an iPhone 15 that contact point is what a Jeeber sees
 /// while typing the last line of their address, with the keyboard eating the
 /// viewport on top of it.
-@JeebPreview(name: 'Address step · Continue live', size: _formBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Address step · Continue live', size: _formBox)
 Widget dmOnboardingStepLayoutAddressForm() => _hosted(const _AddressBody());
 
 /// Step 3 before a home base is pinned — the JM-038 AC2 gate, in a SHORT box.
@@ -345,7 +345,7 @@ Widget dmOnboardingStepLayoutAddressForm() => _hosted(const _AddressBody());
 /// [dmOnboardingStepLayoutServiceAreaPinned] is the same body with a base
 /// pinned, and it does NOT overflow — the short place label fits where the long
 /// hint does not.
-@JeebPreview(name: 'Service area · gated, short viewport', size: _squeezedBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Service area · gated, short viewport', size: _squeezedBox)
 Widget dmOnboardingStepLayoutServiceAreaGated() =>
     _hosted(const _ServiceAreaBody(), enabled: false);
 
@@ -359,7 +359,7 @@ Widget dmOnboardingStepLayoutServiceAreaGated() =>
 /// Because that label is short, the 100 px map box survives 200% text here —
 /// the overflow described on the gated preview is a property of the long
 /// placeholder line, not of the pinned state.
-@JeebPreview(name: 'Service area · home base pinned', size: _serviceAreaBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Service area · home base pinned', size: _serviceAreaBox)
 Widget dmOnboardingStepLayoutServiceAreaPinned() => _hosted(
       const _ServiceAreaBody(homeBaseLabel: 'Beirut'),
       seed: const DmOnboardingState(
@@ -393,7 +393,7 @@ Widget dmOnboardingStepLayoutServiceAreaPinned() => _hosted(
 ///
 /// This is the one preview here that never settles — see the dedicated group in
 /// the preview test.
-@JeebPreview(name: 'Coverage check in flight', size: _serviceAreaBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Coverage check in flight', size: _serviceAreaBox)
 Widget dmOnboardingStepLayoutSubmitting() => _hosted(
       const _ServiceAreaBody(homeBaseLabel: 'Beirut'),
       seed: const DmOnboardingState(

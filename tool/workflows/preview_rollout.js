@@ -80,9 +80,17 @@ Write test:    test/previews/${w.area}/${snake(w.widget)}_preview_test.dart
   no repository) or a local fake class implementing the repository interface with
   canned data. Never construct a Dio-backed repository.
 - **Import the harness** as \`import '../harness/jeeb_preview.dart';\` and annotate
-  with \`@JeebPreview(name: '<state>', size: Size(w, h))\`. Pick a \`size\` that
-  actually fits the widget — a row wants something short and wide, a card wants
-  near phone width (390 logical px).
+  with \`@JeebPreview(group: '${w.area}', name: '<state>', size: Size(w, h))\`.
+  \`group\` is REQUIRED and must be exactly \`'${w.area}'\` — the canvas renders one
+  collapsible section per group, and that is what keeps ~700 previews navigable.
+  Pick a \`size\` that actually fits the widget — a row wants something short and
+  wide, a card wants near phone width (390 logical px).
+- **Add \`matrix: true\`** to the ONE OR TWO states where seeing EN light, AR RTL
+  dark and EN 200% side by side is the point (a Row of text + actions, an
+  RTL-sensitive layout, copy whose length swings by locale). Leave it off
+  elsewhere: all three for every state is a slow, unreadable canvas. AR is still
+  asserted on every state by \`testPreviewsRender()\` regardless, so this changes
+  what a reviewer LOOKS at, not what is checked.
 - **Cover the states that BREAK**, not just the happy path. Aim for 3–6:
   empty / loading / error / longest-plausible-content / any state a existing test
   or code comment flags as a past bug. One preview of the default state is not

@@ -88,7 +88,7 @@ Widget _hosted({
 /// This is also the control for the truncation the other states hit: at 200%
 /// text the label is 209pt of the 226pt the 250pt column leaves it, so English
 /// survives the accessibility ceiling on a 390pt phone with about 17pt to spare.
-@JeebPreview(name: 'Rated (production)', size: _chipBox)
+@JeebPreview(group: 'customer_profile', name: 'Rated (production)', size: _chipBox)
 Widget customerProfileRatingRated() => _hosted(rating: 4.9, ratingCount: 312);
 
 /// The state most accounts are actually in: the seeded customer carries no
@@ -104,7 +104,7 @@ Widget customerProfileRatingRated() => _hosted(rating: 4.9, ratingCount: 312);
 /// again as wide as "No reviews yet", and at 200% it is the one string in this
 /// file that runs out of column on a full-size phone — the empty state, in the
 /// locale half the users read, is where the chip truncates first.
-@JeebPreview(name: 'Unrated (cold start)', size: _chipBox)
+@JeebPreview(group: 'customer_profile', name: 'Unrated (cold start)', size: _chipBox)
 Widget customerProfileRatingUnrated() => _hosted(rating: null, ratingCount: 0);
 
 /// Reviews on file, no average computed — and the header denies both.
@@ -120,7 +120,7 @@ Widget customerProfileRatingUnrated() => _hosted(rating: null, ratingCount: 0);
 /// The mirror payload (`rating: 4.8, ratingCount: 0`) collapses the same way,
 /// silently discarding a score the server sent. Only one of the two is previewed
 /// because they are pixel-identical — which is itself the finding.
-@JeebPreview(name: 'Reviews, no average', size: _chipBox)
+@JeebPreview(group: 'customer_profile', name: 'Reviews, no average', size: _chipBox)
 Widget customerProfileRatingCountWithoutAverage() =>
     _hosted(rating: null, ratingCount: 42);
 
@@ -140,7 +140,7 @@ Widget customerProfileRatingCountWithoutAverage() =>
 ///    substitution with no ICU plural support — so this cannot be fixed by
 ///    writing a plural form into the ARB. Arabic has the same hole from the
 ///    other side: `{rating} . {count} تقييم` is the singular for every count.
-@JeebPreview(name: 'Single review', size: _chipBox)
+@JeebPreview(group: 'customer_profile', name: 'Single review', size: _chipBox)
 Widget customerProfileRatingSingleReview() =>
     _hosted(rating: 5.0, ratingCount: 1);
 
@@ -152,7 +152,7 @@ Widget customerProfileRatingSingleReview() =>
 /// zero", and at a glance the first reads louder than the second. Worth putting
 /// beside [customerProfileRatingRated] in the canvas: nothing but the digits
 /// distinguishes the best-rated account in the app from the worst.
-@JeebPreview(name: 'Zero score, rated', size: _chipBox)
+@JeebPreview(group: 'customer_profile', name: 'Zero score, rated', size: _chipBox)
 Widget customerProfileRatingZeroScore() =>
     _hosted(rating: 0.0, ratingCount: 3);
 
@@ -173,7 +173,7 @@ Widget customerProfileRatingZeroScore() =>
 ///    idea how many ratings back it. The same string clears the 390pt column
 ///    with 2pt to spare, so this failure is invisible on a test device that
 ///    happens to be big.
-@JeebPreview(name: 'Longest plausible (small phone)', size: _chipBox)
+@JeebPreview(group: 'customer_profile', name: 'Longest plausible (small phone)', size: _chipBox)
 Widget customerProfileRatingLongest() => _hosted(
       rating: 4.96,
       ratingCount: 1284,

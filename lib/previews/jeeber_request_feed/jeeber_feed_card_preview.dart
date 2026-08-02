@@ -167,7 +167,7 @@ DeliveryRequest _request({
 /// `exposeMakeOfferId` is true because the feed sets it on the FIRST incoming
 /// card (JM-048); it adds a wrapping Semantics node and no pixels, so this
 /// preview doubles as the check that it stays invisible.
-@JeebPreview(name: 'Incoming · full metadata', size: _cardBox)
+@JeebPreview(group: 'jeeber_request_feed', name: 'Incoming · full metadata', size: _cardBox)
 Widget jeeberFeedCardIncoming() =>
     _hosted(_request(id: 'req-1'), exposeMakeOfferId: true);
 
@@ -185,7 +185,7 @@ Widget jeeberFeedCardIncoming() =>
 /// A fabricated "Standard" chip would be worse than no chip: the jeeber prices
 /// off the tier. Dropping it is also the only configuration in which the footer
 /// is a single row, because the tier chip is what forces the second one.
-@JeebPreview(name: 'Identity + tier omitted', size: _cardBox)
+@JeebPreview(group: 'jeeber_request_feed', name: 'Identity + tier omitted', size: _cardBox)
 Widget jeeberFeedCardAnonymous() => _hosted(
       _request(
         id: 'req-anon',
@@ -206,7 +206,7 @@ Widget jeeberFeedCardAnonymous() => _hosted(
 /// not a button, and it is painted in `onSecondaryContainer` on a
 /// `surfaceContainerLow` card: a foreground/background pair that is not defined
 /// against each other in either theme.
-@JeebPreview(name: 'Offer pending', size: _cardBox)
+@JeebPreview(group: 'jeeber_request_feed', name: 'Offer pending', size: _cardBox)
 Widget jeeberFeedCardPending() => _hosted(
       _request(
         id: 'req-pending',
@@ -226,7 +226,7 @@ Widget jeeberFeedCardPending() => _hosted(
 /// clamps to the constraint and the pill renders gutter-to-gutter. The
 /// content-hugging pill Figma 56560:1523 asks for only survives on a surface
 /// wider than any phone.
-@JeebPreview(name: 'Accepted · advance action', size: _cardBox)
+@JeebPreview(group: 'jeeber_request_feed', name: 'Accepted · advance action', size: _cardBox)
 Widget jeeberFeedCardAccepted() => _hosted(
       _request(
         id: 'req-accepted',
@@ -250,7 +250,7 @@ Widget jeeberFeedCardAccepted() => _hosted(
 /// where this state has the least contrast left to give. At 200% the Arabic
 /// "منتهي الصلاحية" plus its hourglass glyph overflows that row too (90 pt),
 /// which the English rendering never shows.
-@JeebPreview(name: 'Expired · G3 linger', size: _cardBox)
+@JeebPreview(group: 'jeeber_request_feed', name: 'Expired · G3 linger', size: _cardBox)
 Widget jeeberFeedCardExpired() => _hosted(
       _request(id: 'req-expired', senderName: 'Nadia Chami'),
       isExpired: true,
@@ -274,7 +274,7 @@ Widget jeeberFeedCardExpired() => _hosted(
 /// Offer row overflows by 32 pt in Arabic at default text size, and by 145 pt
 /// (EN) / 228 pt (AR) at 200%. This is the state, and the width, where a jeeber
 /// loses the "Offer" button off the edge of the screen.
-@JeebPreview(name: 'Longest content · 360 pt device', size: _narrowBox)
+@JeebPreview(group: 'jeeber_request_feed', name: 'Longest content · 360 pt device', size: _narrowBox)
 Widget jeeberFeedCardLongContent() => _hosted(
       _request(
         id: 'req-long',

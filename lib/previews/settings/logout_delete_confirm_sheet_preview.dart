@@ -158,7 +158,7 @@ Widget _hosted(
 /// vs `Icons.delete_outline` at a glance, and the title underneath it. In the
 /// **AR RTL dark** rendering `Icons.logout` is the one glyph here with a
 /// direction: it keeps its LTR arrow while every other element mirrors.
-@JeebPreview(name: 'Sign out', size: _sheetBox)
+@JeebPreview(group: 'settings', name: 'Sign out', size: _sheetBox)
 Widget logoutDeleteConfirmSheetLogout() => _hosted(LogoutDeleteMode.logout);
 
 /// `LogoutDeleteMode.delete` — the irreversible half, and the longest copy the
@@ -170,7 +170,7 @@ Widget logoutDeleteConfirmSheetLogout() => _hosted(LogoutDeleteMode.logout);
 /// Three sentences, 176 characters, and the reason the delete column of the
 /// table above is the one that overflows. If the grace window ever drifts from
 /// the gateway purge-worker SLA, this is where a reviewer sees the wrong number.
-@JeebPreview(name: 'Delete account', size: _deleteBox)
+@JeebPreview(group: 'settings', name: 'Delete account', size: _deleteBox)
 Widget logoutDeleteConfirmSheetDelete() => _hosted(LogoutDeleteMode.delete);
 
 /// `LogoutDeleteMode.both` — the JM-062 profile-row entry, which puts both
@@ -184,7 +184,7 @@ Widget logoutDeleteConfirmSheetDelete() => _hosted(LogoutDeleteMode.delete);
 /// edge (measured 342 × 48 in a 48 pt button), while the copy above it still
 /// says "You'll need to sign in again", because `both` shows the *sign-out*
 /// title and body over a delete button.
-@JeebPreview(name: 'Sign out + delete', size: _bothBox)
+@JeebPreview(group: 'settings', name: 'Sign out + delete', size: _bothBox)
 Widget logoutDeleteConfirmSheetBoth() => _hosted(LogoutDeleteMode.both);
 
 /// The clear in flight — the double-fire guard, made visible, and the one state
@@ -205,7 +205,7 @@ Widget logoutDeleteConfirmSheetBoth() => _hosted(LogoutDeleteMode.both);
 /// Reached by [_AutoConfirm] firing the real `logout-confirm-cta` on the first
 /// frame against [_HangingTerminator]; no production code is touched to get
 /// here.
-@JeebPreview(name: 'Clearing session', size: _bothBox)
+@JeebPreview(group: 'settings', name: 'Clearing session', size: _bothBox)
 Widget logoutDeleteConfirmSheetInFlight() => _hosted(
       LogoutDeleteMode.both,
       terminator: const _HangingTerminator(),
@@ -223,7 +223,7 @@ Widget logoutDeleteConfirmSheetInFlight() => _hosted(
 /// Height is the other half: 472 pt at 100% of a 568 pt phone leaves 96 pt of
 /// scrim, and 740 pt EN / 876 pt AR at 200% is past the whole screen with no
 /// scroll fallback under it.
-@JeebPreview(name: 'Narrow phone · 320 pt', size: _narrowBox)
+@JeebPreview(group: 'settings', name: 'Narrow phone · 320 pt', size: _narrowBox)
 Widget logoutDeleteConfirmSheetNarrowPhone() => _hosted(
       LogoutDeleteMode.both,
       width: _smallPhoneWidth,

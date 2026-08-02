@@ -101,7 +101,7 @@ Widget _withCopy({
 /// This is the single most-seen state of the widget: every client account in
 /// the app renders it on two of its five tabs. Fits comfortably at 390×680 in
 /// both locales, and still fits at 200% text (568pt of 680pt).
-@JeebPreview(name: 'Dashboard tab · non-jeeber', size: _phoneBody)
+@JeebPreview(group: 'shell', name: 'Dashboard tab · non-jeeber', size: _phoneBody)
 Widget jeeberTabEmptyStateDashboard() =>
     _hosted(const JeeberTabEmptyState.dashboard());
 
@@ -116,7 +116,7 @@ Widget jeeberTabEmptyStateDashboard() =>
 /// off those ids to prove which tab a non-jeeber actually landed on, so a
 /// copy-paste that gave both tabs the same id would make the two flows
 /// indistinguishable while looking perfect on screen.
-@JeebPreview(name: 'Earnings tab · non-jeeber', size: _phoneBody)
+@JeebPreview(group: 'shell', name: 'Earnings tab · non-jeeber', size: _phoneBody)
 Widget jeeberTabEmptyStateEarnings() =>
     _hosted(const JeeberTabEmptyState.earnings());
 
@@ -140,7 +140,7 @@ Widget jeeberTabEmptyStateEarnings() =>
 /// 320pt is the app's stated floor; the Galaxy S22 the team tests on is 360pt
 /// wide, where the same copy needs 568pt and survives an ordinary body. That is
 /// exactly why this needs a preview — the test device does not show it.
-@JeebPreview(name: 'Compact 320pt phone', size: _compactPhone)
+@JeebPreview(group: 'shell', name: 'Compact 320pt phone', size: _compactPhone)
 Widget jeeberTabEmptyStateCompactPhone() => _hosted(
       const JeeberTabEmptyState.dashboard(),
       width: 320,
@@ -161,7 +161,7 @@ Widget jeeberTabEmptyStateCompactPhone() => _hosted(
 /// 680pt) but **872pt at 200%**, so the `EN 200% text` pane **overflows by
 /// 192pt** on an ordinary phone body — no narrow device required. Arabic
 /// overflows by 112pt. Whoever wires this up needs the scroll view first.
-@JeebPreview(name: 'KYC resubmit copy', size: _phoneBody)
+@JeebPreview(group: 'shell', name: 'KYC resubmit copy', size: _phoneBody)
 Widget jeeberTabEmptyStateKycResubmit() => _withCopy(
       identifier: JeeberTabEmptyState.earningsIdentifier,
       icon: Icons.upload_file_outlined,
@@ -185,7 +185,7 @@ Widget jeeberTabEmptyStateKycResubmit() => _withCopy(
 /// Note that the height is declared to the canvas only and never baked, so the
 /// render suite (which pumps at 800×600) sees a widget that fits and stays
 /// green — the overflow shows up where a human is looking at it.
-@JeebPreview(name: 'KYC pending · short body', size: _shortBody)
+@JeebPreview(group: 'shell', name: 'KYC pending · short body', size: _shortBody)
 Widget jeeberTabEmptyStateKycPendingShortBody() => _withCopy(
       identifier: JeeberTabEmptyState.dashboardIdentifier,
       icon: Icons.hourglass_top_outlined,

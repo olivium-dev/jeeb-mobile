@@ -136,7 +136,7 @@ Widget _hosted(
 /// `JeebColorRoles`, not the theme primary — in the AR RTL **dark** rendering
 /// especially, where an on-track that reads as primary means the role lookup
 /// fell back.
-@JeebPreview(name: 'Online · compact row', size: _restingBox)
+@JeebPreview(group: 'jeeber_home', name: 'Online · compact row', size: _restingBox)
 Widget availabilityCardOnline() => _hosted(AvailabilityState.online);
 
 /// Offline by the Jeeber's own choice — the full section, switch OFF.
@@ -155,7 +155,7 @@ Widget availabilityCardOnline() => _hosted(AvailabilityState.online);
 ///
 /// No auto-offline hint here on purpose: a Jeeber who turned themselves off is
 /// not being warned about an idle timer.
-@JeebPreview(name: 'Offline · full section', size: _restingBox)
+@JeebPreview(group: 'jeeber_home', name: 'Offline · full section', size: _restingBox)
 Widget availabilityCardOffline() => _hosted(AvailabilityState.offline);
 
 /// The system took them offline — §G2's non-dismissible explanation.
@@ -172,7 +172,7 @@ Widget availabilityCardOffline() => _hosted(AvailabilityState.offline);
 /// Check in the canvas: the subtitle is `bodySmall` on `onSurfaceVariant`, and
 /// in the AR RTL **dark** rendering it has to stay readable against the dark
 /// surface rather than going grey-on-grey.
-@JeebPreview(name: 'Auto-offline · with idle hint', size: _hintBox)
+@JeebPreview(group: 'jeeber_home', name: 'Auto-offline · with idle hint', size: _hintBox)
 Widget availabilityCardAutoOffline() => _hosted(AvailabilityState.autoOffline);
 
 /// Mid-toggle: the `PUT /api/availability/toggle` is in flight.
@@ -189,7 +189,7 @@ Widget availabilityCardAutoOffline() => _hosted(AvailabilityState.autoOffline);
 /// semantics node entirely, and the spinner carries no label or live region of
 /// its own, so for the duration of the request a screen-reader user has no
 /// toggle and no announcement that anything is happening.
-@JeebPreview(name: 'Toggling · offline → online', size: _progressBox)
+@JeebPreview(group: 'jeeber_home', name: 'Toggling · offline → online', size: _progressBox)
 Widget availabilityCardToggling() =>
     _hosted(AvailabilityState.offline, inFlight: true);
 
@@ -205,6 +205,6 @@ Widget availabilityCardToggling() =>
 /// The layout ceiling of the whole widget, and the only preview that exercises
 /// the AR `few` plural (`3 توصيلات نشطة`); the other counts route to different
 /// ARB keys entirely.
-@JeebPreview(name: 'Toggling · online, 3 deliveries', size: Size(390, 230))
+@JeebPreview(group: 'jeeber_home', name: 'Toggling · online, 3 deliveries', size: Size(390, 230))
 Widget availabilityCardTogglingWithDeliveries() =>
     _hosted(AvailabilityState.online, deliveries: 3, inFlight: true);

@@ -111,7 +111,7 @@ Widget _hosted({
 /// fee is a single `MoneyFormat` token (`$42.50`, never a bare "42.50" beside a
 /// separate "USD"), and the "Pay … cash on delivery" line (D11) repeats that
 /// same token so the client cannot read this as an in-app charge.
-@JeebPreview(name: 'Rated jeeber', size: _cardBox)
+@JeebPreview(group: 'client_offers', name: 'Rated jeeber', size: _cardBox)
 Widget offerCardRated() => _hosted(
       id: 'preview-rated',
       jeeberName: 'Hadi',
@@ -135,7 +135,7 @@ Widget offerCardRated() => _hosted(
 ///
 /// This is also the cheapest place to see the 200% name clip: "Nadine Khoury"
 /// is thirteen characters and still ellipsizes at 390 pt.
-@JeebPreview(name: 'New jeeber, no ratings', size: _cardBox)
+@JeebPreview(group: 'client_offers', name: 'New jeeber, no ratings', size: _cardBox)
 Widget offerCardNoRatings() => _hosted(
       id: 'preview-unrated',
       jeeberName: 'Nadine Khoury',
@@ -158,7 +158,7 @@ Widget offerCardNoRatings() => _hosted(
 /// identifier must appear NOWHERE on the card, and the avatar initial must be
 /// derived from the *resolved* name ("N" for New Jeeber) — taking it from the
 /// raw value once put a "9" in the circle beside the words "New Jeeber".
-@JeebPreview(name: 'UUID name suppressed', size: _cardBox)
+@JeebPreview(group: 'client_offers', name: 'UUID name suppressed', size: _cardBox)
 Widget offerCardIdentitySuppressed() => _hosted(
       id: 'preview-uuid-name',
       jeeberName: '9acb579d-1c2e-4f3a-b8d1-77aa10cc42e6',
@@ -184,7 +184,7 @@ Widget offerCardIdentitySuppressed() => _hosted(
 /// spinner is an indefinite animation, so the harness's settle would time out.
 /// See the dedicated pump-once test in
 /// `test/previews/client_offers/offer_card_preview_test.dart`.
-@JeebPreview(name: 'Accept in flight', size: _cardBox)
+@JeebPreview(group: 'client_offers', name: 'Accept in flight', size: _cardBox)
 Widget offerCardAccepting() => _hosted(
       id: 'preview-accepting',
       jeeberName: 'Rami Aoun',
@@ -209,7 +209,7 @@ Widget offerCardAccepting() => _hosted(
 /// The CTA stays *mounted* rather than being removed: the card must not change
 /// height while a rival accept resolves, because a list that reflows under the
 /// finger is how a client taps the wrong Jeeber.
-@JeebPreview(name: 'Accept locked (rival winning)', size: _cardBox)
+@JeebPreview(group: 'client_offers', name: 'Accept locked (rival winning)', size: _cardBox)
 Widget offerCardAcceptLocked() => _hosted(
       id: 'preview-locked',
       jeeberName: 'Nour Haddad',
@@ -238,7 +238,7 @@ Widget offerCardAcceptLocked() => _hosted(
 /// 2026 peg — is already clipped at 130% text on a 390 pt phone). The
 /// cash-on-delivery line below has no `maxLines` and keeps the full amount, so
 /// the card can show a truncated price above an untruncated one.
-@JeebPreview(name: 'Long name, note, LBP ceiling', size: Size(390, 430))
+@JeebPreview(group: 'client_offers', name: 'Long name, note, LBP ceiling', size: Size(390, 430))
 Widget offerCardLongContent() => _hosted(
       id: 'preview-long',
       jeeberName: 'Alexander Bartholomew Montgomery the Third',

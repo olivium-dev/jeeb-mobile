@@ -117,7 +117,7 @@ Widget _specimen({
 /// This is the low-emphasis end of the widget's range, and the rendering that
 /// matters is **AR RTL dark**: a borderless glyph on a dark surface at 0.87
 /// alpha is where "muted" turns into "invisible".
-@JeebPreview(name: 'Attach · enabled', size: _specimenBox)
+@JeebPreview(group: 'chat', name: 'Attach · enabled', size: _specimenBox)
 Widget chatComposerIconButtonAttach() => _specimen(
       caption: 'Attach · enabled',
       icon: Icons.add,
@@ -132,7 +132,7 @@ Widget chatComposerIconButtonAttach() => _specimen(
 /// point *left* in the AR rendering. If it still points right there, the icon
 /// has been swapped for a non-directional glyph and the pill now says
 /// "backwards" to every Arabic user.
-@JeebPreview(name: 'Send · enabled', size: _specimenBox)
+@JeebPreview(group: 'chat', name: 'Send · enabled', size: _specimenBox)
 Widget chatComposerIconButtonSendEnabled() => _specimen(
       caption: 'Send · enabled',
       icon: Icons.send,
@@ -150,7 +150,7 @@ Widget chatComposerIconButtonSendEnabled() => _specimen(
 /// beside [chatComposerIconButtonSendEnabled] — if the two are hard to tell
 /// apart, users will keep tapping a dead pill and conclude the app is broken,
 /// because opacity is the only channel carrying the difference.
-@JeebPreview(name: 'Send · disabled', size: _specimenBox)
+@JeebPreview(group: 'chat', name: 'Send · disabled', size: _specimenBox)
 Widget chatComposerIconButtonSendDisabled() => _specimen(
       caption: 'Send · disabled',
       icon: Icons.send,
@@ -167,7 +167,7 @@ Widget chatComposerIconButtonSendDisabled() => _specimen(
 /// preview precisely because no existing test or screen reaches it: the first
 /// caller to pass `onPressed: null` without `filled: true` will ship this, and
 /// this is where you find out whether it is legible.
-@JeebPreview(name: 'Attach · disabled', size: _specimenBox)
+@JeebPreview(group: 'chat', name: 'Attach · disabled', size: _specimenBox)
 Widget chatComposerIconButtonAttachDisabled() => _specimen(
       caption: 'Attach · disabled',
       icon: Icons.add,
@@ -183,7 +183,7 @@ Widget chatComposerIconButtonAttachDisabled() => _specimen(
 /// re-enabling it: a mic sits in the same borderless treatment as attach, so
 /// the row would carry two identical-weight glyphs on either side of the
 /// field. That balance is the thing to review before the mic comes back.
-@JeebPreview(name: 'Voice · B-04 hidden role', size: _specimenBox)
+@JeebPreview(group: 'chat', name: 'Voice · B-04 hidden role', size: _specimenBox)
 Widget chatComposerIconButtonVoice() => _specimen(
       caption: 'Voice · B-04 hidden role',
       icon: Icons.mic,
@@ -206,7 +206,7 @@ Widget chatComposerIconButtonVoice() => _specimen(
 /// fixed tokens, so the **EN 200% text** rendering shows the caption doubling
 /// while the target stays 44dp. Users who need 200% text are the same users
 /// who need a larger target.
-@JeebPreview(name: 'Tap target · 44dp in 48dp', size: _specimenBox)
+@JeebPreview(group: 'chat', name: 'Tap target · 44dp in 48dp', size: _specimenBox)
 Widget chatComposerIconButtonTapTarget() => _specimen(
       caption: 'Tap target · 44dp in 48dp',
       icon: Icons.send,

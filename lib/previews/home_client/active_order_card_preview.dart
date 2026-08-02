@@ -102,7 +102,7 @@ Widget _hosted({
 /// of column, so the trailing edge of "Track my order" is cut off on a 390 pt
 /// phone. The AR rendering mirrors the overflow to the left edge, which clips
 /// the *secondary* pill instead; at 200% text both pills are unreachable.
-@JeebPreview(name: 'En route · chat + track', size: _cardBox)
+@JeebPreview(group: 'home_client', name: 'En route · chat + track', size: _cardBox)
 Widget activeOrderCardEnRoute() => _hosted(
       id: 'preview-en-route',
       title: 'Pharmacy run',
@@ -123,7 +123,7 @@ Widget activeOrderCardEnRoute() => _hosted(
 /// It is also the only *fitting* action row: alone, the Track pill is 229 pt
 /// and clears 314 pt comfortably. Everything the two-pill card suffers from is
 /// the second pill.
-@JeebPreview(name: 'Searching · track only', size: _cardBox)
+@JeebPreview(group: 'home_client', name: 'Searching · track only', size: _cardBox)
 Widget activeOrderCardSearching() => _hosted(
       id: 'preview-searching',
       title: 'Grocery run',
@@ -145,7 +145,7 @@ Widget activeOrderCardSearching() => _hosted(
 /// Note also what the bar says here: `progressStep: 3` is documented as
 /// "AtDoor/Done" and fills the bar completely, while the legend underneath
 /// stops at "In Transit". The indicator tops out one stage past its own labels.
-@JeebPreview(name: 'Delivered · no actions', size: _shortCardBox)
+@JeebPreview(group: 'home_client', name: 'Delivered · no actions', size: _shortCardBox)
 Widget activeOrderCardDelivered() => _hosted(
       id: 'preview-delivered',
       title: 'Bakery order',
@@ -165,7 +165,7 @@ Widget activeOrderCardDelivered() => _hosted(
 /// wraps, so a real 6-item order shows the client "1 kilo potato, water gallon,
 /// coff…" and no way to see the rest — the card cannot grow, only clip. In the
 /// AR RTL rendering both ellipses have to land on the *left*.
-@JeebPreview(name: 'Long title + long summary', size: _cardBox)
+@JeebPreview(group: 'home_client', name: 'Long title + long summary', size: _cardBox)
 Widget activeOrderCardLongContent() => _hosted(
       id: 'preview-long',
       title: 'Pharmacy pickup for Mrs. Haddad on Rue Sursock',
@@ -186,7 +186,7 @@ Widget activeOrderCardLongContent() => _hosted(
 /// adds mid-deploy lands here, so it must degrade rather than crash — but an
 /// unlabelled card with live CTAs is worth a design decision, not just a
 /// null-safety one.
-@JeebPreview(name: 'Untitled · unknown tier', size: _cardBox)
+@JeebPreview(group: 'home_client', name: 'Untitled · unknown tier', size: _cardBox)
 Widget activeOrderCardUntitledUnknownTier() => _hosted(
       id: 'preview-untitled',
       title: '',

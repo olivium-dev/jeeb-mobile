@@ -115,7 +115,7 @@ Widget _hosted(
 /// This is the rendering a reviewer signs off, and the one to compare against
 /// its own **AR RTL dark** variant: the copy translates and the tick boxes
 /// swap sides, but the brackets they paint do not — see the library doc.
-@JeebPreview(name: 'National ID · production copy', size: _phoneBox)
+@JeebPreview(group: 'kyc', name: 'National ID · production copy', size: _phoneBox)
 Widget kycIdAlignmentGuideProduction() =>
     _hosted((AppLocalizations l10n) => l10n.kycIdAlignmentGuideCaption);
 
@@ -131,7 +131,7 @@ Widget kycIdAlignmentGuideProduction() =>
 /// the frame is a fixed `maxFrameWidth` at a fixed aspect ratio and scales with
 /// nothing. It wraps rather than clipping only because [Text] here sets no
 /// `maxLines` and no `overflow` — nothing in the widget enforces that.
-@JeebPreview(name: 'Longest caption · 320 pt phone', size: _compactBox)
+@JeebPreview(group: 'kyc', name: 'Longest caption · 320 pt phone', size: _compactBox)
 Widget kycIdAlignmentGuideLongestCaptionCompact() => _hosted(
       (AppLocalizations l10n) => l10n.kycIdStepSubtitle,
       width: _compactContentWidth,
@@ -145,7 +145,7 @@ Widget kycIdAlignmentGuideLongestCaptionCompact() => _hosted(
 /// the user is bounced into this step — so it is the most plausible caption
 /// this guide will be asked to carry after the first attempt fails. Two lines
 /// at 100% text, six at 200%.
-@JeebPreview(name: 'Resubmit · rejection reason', size: _rejectionBox)
+@JeebPreview(group: 'kyc', name: 'Resubmit · rejection reason', size: _rejectionBox)
 Widget kycIdAlignmentGuideRejectionReason() =>
     _hosted((AppLocalizations l10n) => l10n.kycRejectionReasonIdUnreadable);
 
@@ -160,7 +160,7 @@ Widget kycIdAlignmentGuideRejectionReason() =>
 /// Not reachable from today's single caller, and worth a picture precisely
 /// because the next one — a key that fell out of the ARB during a merge, a
 /// server-supplied instruction — would reach it silently.
-@JeebPreview(name: 'Empty caption', size: _emptyBox)
+@JeebPreview(group: 'kyc', name: 'Empty caption', size: _emptyBox)
 Widget kycIdAlignmentGuideEmptyCaption() =>
     _hosted((AppLocalizations _) => '');
 
@@ -176,7 +176,7 @@ Widget kycIdAlignmentGuideEmptyCaption() =>
 /// Deliberately the same strings as [kycIdAlignmentGuideProduction]: this is a
 /// WIDTH state, so the render test tells the two apart by geometry rather than
 /// by copy.
-@JeebPreview(name: 'Tablet · full-width step body', size: _tabletBox)
+@JeebPreview(group: 'kyc', name: 'Tablet · full-width step body', size: _tabletBox)
 Widget kycIdAlignmentGuideTabletWidth() => _hosted(
       (AppLocalizations l10n) => l10n.kycIdAlignmentGuideCaption,
       width: _tabletContentWidth,

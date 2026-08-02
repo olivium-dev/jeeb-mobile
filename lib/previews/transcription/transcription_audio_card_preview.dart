@@ -132,7 +132,7 @@ TranscriptionState _clip({
 /// renderings: in both, the scrubber the layout reserves 8 pt for is not
 /// visible at all until something has played. The icon and the `00:00 / 00:42`
 /// read-out are the only affordances that survive.
-@JeebPreview(name: 'Idle at start', size: _cardBox)
+@JeebPreview(group: 'transcription', name: 'Idle at start', size: _cardBox)
 Widget transcriptionAudioCardIdle() => _hosted(_clip(total: _clipLength));
 
 /// Mid-playback — the only state where elapsed and total differ, and therefore
@@ -146,7 +146,7 @@ Widget transcriptionAudioCardIdle() => _hosted(_clip(total: _clipLength));
 ///
 /// It is also the only state with a partially-filled bar (17/42 ≈ 40%), i.e.
 /// the only one where the fill colour is reviewable against its own track.
-@JeebPreview(name: 'Playing mid-clip', size: _cardBox)
+@JeebPreview(group: 'transcription', name: 'Playing mid-clip', size: _cardBox)
 Widget transcriptionAudioCardPlaying() => _hosted(
       _clip(
         total: _clipLength,
@@ -163,7 +163,7 @@ Widget transcriptionAudioCardPlaying() => _hosted(
 /// ambiguous: the card offers no replay affordance distinct from play, so the
 /// only cue that this clip is spent is a bar the idle state has already shown
 /// is hard to see.
-@JeebPreview(name: 'Finished', size: _cardBox)
+@JeebPreview(group: 'transcription', name: 'Finished', size: _cardBox)
 Widget transcriptionAudioCardFinished() => _hosted(
       _clip(total: _clipLength, position: _clipLength),
     );
@@ -180,7 +180,7 @@ Widget transcriptionAudioCardFinished() => _hosted(
 /// one-em-per-glyph font: the wrap is a worst case (292.5 pt wanted against 278
 /// available), and with the shipping Inter face the 13-character read-out fits
 /// on one line at both scales.
-@JeebPreview(name: 'Recorder cap', size: _cardBox)
+@JeebPreview(group: 'transcription', name: 'Recorder cap', size: _cardBox)
 Widget transcriptionAudioCardRecorderCap() => _hosted(
       _clip(
         total: _recorderCap,
@@ -206,7 +206,7 @@ Widget transcriptionAudioCardRecorderCap() => _hosted(
 /// — to the player and silently swallow the failure. The
 /// `total.inMilliseconds == 0` branch in `_PlaybackProgress` keeps this from
 /// dividing by zero; it is a guard, not a design.
-@JeebPreview(name: 'Unknown duration', size: _cardBox)
+@JeebPreview(group: 'transcription', name: 'Unknown duration', size: _cardBox)
 Widget transcriptionAudioCardUnknownDuration() => _hosted(
       _clip(total: Duration.zero, localAudioPath: null),
     );
@@ -222,7 +222,7 @@ Widget transcriptionAudioCardUnknownDuration() => _hosted(
 /// Today the only call site is a ListView child, so this cannot bite users; the
 /// day someone drops this card into a fixed-height header, a bottom sheet row
 /// or a [Row], it will, and silently.
-@JeebPreview(name: 'Bounded slot', size: _cardBox)
+@JeebPreview(group: 'transcription', name: 'Bounded slot', size: _cardBox)
 Widget transcriptionAudioCardBoundedSlot() => _hosted(
       _clip(
         total: _clipLength,

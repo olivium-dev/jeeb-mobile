@@ -166,7 +166,7 @@ Widget _hosted(Widget child, {double width = _phoneWidth, String? caption}) =>
 /// that is actually under AA) and the `AR RTL dark` variant for the title,
 /// which nearly dissolves into the page at 1.98:1. Both are palette defects,
 /// not preview artefacts; the preview test pins the numbers.
-@JeebPreview(name: 'Client rates the jeeber', size: _phoneBox)
+@JeebPreview(group: 'rating', name: 'Client rates the jeeber', size: _phoneBox)
 Widget feedbackHeaderClientAudience() =>
     _hosted(const FeedbackHeader(isClient: true));
 
@@ -178,7 +178,7 @@ Widget feedbackHeaderClientAudience() =>
 /// that has to be right, because showing "evaluate the delivery man" to a
 /// delivery man asking him to rate a client is a wrong-audience bug that
 /// `test/feedback_screen_test.dart` already guards on the screen.
-@JeebPreview(name: 'Jeeber rates the client', size: _phoneBox)
+@JeebPreview(group: 'rating', name: 'Jeeber rates the client', size: _phoneBox)
 Widget feedbackHeaderJeeberAudience() =>
     _hosted(const FeedbackHeader(isClient: false));
 
@@ -193,7 +193,7 @@ Widget feedbackHeaderJeeberAudience() =>
 /// neither [Text] sets `maxLines` or `overflow`. Nothing enforces that; add
 /// either and this state starts truncating the instruction that tells the user
 /// what the screen is for.
-@JeebPreview(name: 'Compact 320pt device', size: _compactBox)
+@JeebPreview(group: 'rating', name: 'Compact 320pt device', size: _compactBox)
 Widget feedbackHeaderCompact() => _hosted(
       const FeedbackHeader(isClient: true),
       width: _compactPhoneWidth,
@@ -219,7 +219,7 @@ Widget feedbackHeaderCompact() => _hosted(
 /// (`_FeedbackRateName` is private), so this stays a preview of the header and
 /// not of the screen. Both are inert: [FeedbackAvatar] falls back to the
 /// ratee's initial when `avatarUrl` is null, so nothing here fetches.
-@JeebPreview(name: 'In screen context', size: _contextBox)
+@JeebPreview(group: 'rating', name: 'In screen context', size: _contextBox)
 Widget feedbackHeaderInScreenContext() => _hosted(
       Builder(
         builder: (BuildContext context) {
@@ -265,7 +265,7 @@ Widget feedbackHeaderInScreenContext() => _hosted(
 /// bottom-sheet header — and it would land as "the title block sticks to the
 /// top of its slot", which reads as a padding bug rather than as a missing
 /// `mainAxisSize: MainAxisSize.min` three files away.
-@JeebPreview(name: 'Bounded 240pt band (greedy column)', size: _bandBox)
+@JeebPreview(group: 'rating', name: 'Bounded 240pt band (greedy column)', size: _bandBox)
 Widget feedbackHeaderBoundedBand() => _hosted(
       Builder(
         builder: (BuildContext context) => SizedBox(

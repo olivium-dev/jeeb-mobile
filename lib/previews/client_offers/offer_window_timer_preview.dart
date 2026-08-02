@@ -92,7 +92,7 @@ Widget _hosted(
 ///    to rely on. If a future format adds a letter ("2m 05s"), that stops being
 ///    true and this rendering is where it shows.
 ///  * **EN 200% text** — the label scales, the 16pt glyph does not.
-@JeebPreview(name: 'Fresh window · 2:05', size: _bandBox)
+@JeebPreview(group: 'client_offers', name: 'Fresh window · 2:05', size: _bandBox)
 Widget offerWindowTimerFreshWindow() =>
     _hosted(const Duration(minutes: 2, seconds: 5));
 
@@ -103,7 +103,7 @@ Widget offerWindowTimerFreshWindow() =>
 /// previews are one second apart and must not look alike. If this one ever
 /// renders amber, the comparison was widened and the band starts shouting half
 /// a minute early, every time.
-@JeebPreview(name: 'Threshold · 0:31', size: _bandBox)
+@JeebPreview(group: 'client_offers', name: 'Threshold · 0:31', size: _bandBox)
 Widget offerWindowTimerJustAboveUrgent() => _hosted(const Duration(seconds: 31));
 
 /// The exact second the band escalates: `inSeconds <= 30` turns the neutral
@@ -130,7 +130,7 @@ Widget offerWindowTimerJustAboveUrgent() => _hosted(const Duration(seconds: 31))
 /// amber pairs (`#FEF3C7`/`#713F12` vs `#78350F`/`#FDE68A`), so it is the only
 /// rendering that shows whether the urgent band still reads as urgent — rather
 /// than as brown — on a dark surface.
-@JeebPreview(name: 'Urgent · 0:30', size: _bandBox)
+@JeebPreview(group: 'client_offers', name: 'Urgent · 0:30', size: _bandBox)
 Widget offerWindowTimerUrgent() => _hosted(const Duration(seconds: 30));
 
 /// The bottom of the window: single-digit seconds, which must be zero-padded.
@@ -140,7 +140,7 @@ Widget offerWindowTimerUrgent() => _hosted(const Duration(seconds: 30));
 /// label earns its place — without it the band twitches horizontally on every
 /// tick as proportional digits change width, which on a once-per-second timer
 /// is the most-watched second of the whole screen.
-@JeebPreview(name: 'Final seconds · 0:04', size: _bandBox)
+@JeebPreview(group: 'client_offers', name: 'Final seconds · 0:04', size: _bandBox)
 Widget offerWindowTimerFinalSeconds() => _hosted(const Duration(seconds: 4));
 
 /// The terminal state — and deliberately NOT a zero countdown.
@@ -166,7 +166,7 @@ Widget offerWindowTimerFinalSeconds() => _hosted(const Duration(seconds: 4));
 /// where neutral and urgent sit at 1.29:1 and 1.11:1. `AppTheme.dark()` is
 /// restrained by comparison (1.98:1). One state, two very different volumes:
 /// an alarm in light, a quiet tint in dark.
-@JeebPreview(name: 'Expired · stale 1:12 suppressed', size: _bandBox)
+@JeebPreview(group: 'client_offers', name: 'Expired · stale 1:12 suppressed', size: _bandBox)
 Widget offerWindowTimerExpired() =>
     _hosted(const Duration(minutes: 1, seconds: 12), expired: true);
 
@@ -187,6 +187,6 @@ Widget offerWindowTimerExpired() =>
 /// longest label the widget can emit, which makes it the state the AR RTL and
 /// 200%-text renderings really exist for: the EN light rendering still looks
 /// fine long after the other two have stopped fitting on one line.
-@JeebPreview(name: 'Safe-window fallback · 23:53:18', size: _tallBandBox)
+@JeebPreview(group: 'client_offers', name: 'Safe-window fallback · 23:53:18', size: _tallBandBox)
 Widget offerWindowTimerSafeWindowFallback() =>
     _hosted(const Duration(hours: 23, minutes: 53, seconds: 18));

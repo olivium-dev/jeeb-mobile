@@ -105,7 +105,7 @@ Widget _hosted({
 /// quoted in this file comes from the render test, which runs on the test
 /// fallback font — its glyphs are wider than the bundled Inter, so the line
 /// counts are an upper bound, not a promise about the shipped font.)
-@JeebPreview(name: 'Completed', size: Size(390, 240))
+@JeebPreview(group: 'delivery_status', name: 'Completed', size: Size(390, 240))
 Widget deliveryLifecycleBannerCompleted() => _hosted(
       lifecycles: const <DeliveryLifecycle>[DeliveryLifecycle.completed],
       deliveryId: 'd-2481',
@@ -120,7 +120,7 @@ Widget deliveryLifecycleBannerCompleted() => _hosted(
 ///
 /// Its sentence ("Delivery cancelled", 18 chars) is shorter than the completed
 /// one, so it is NOT the layout ceiling; the small-phone card below is.
-@JeebPreview(name: 'Cancelled', size: Size(390, 240))
+@JeebPreview(group: 'delivery_status', name: 'Cancelled', size: Size(390, 240))
 Widget deliveryLifecycleBannerCancelled() => _hosted(
       lifecycles: const <DeliveryLifecycle>[DeliveryLifecycle.cancelled],
       deliveryId: 'd-3067',
@@ -140,7 +140,7 @@ Widget deliveryLifecycleBannerCancelled() => _hosted(
 /// which hands the shrunk box a TIGHT width — a `SizedBox.shrink` under tight
 /// width constraints is full-width and 0 dp tall, which is the correct
 /// degradation and what this card proves. Measured: 350 x 0 dp.
-@JeebPreview(name: 'Active · collapsed', size: Size(390, 120))
+@JeebPreview(group: 'delivery_status', name: 'Active · collapsed', size: Size(390, 120))
 Widget deliveryLifecycleBannerActive() => _hosted(
       lifecycles: const <DeliveryLifecycle>[DeliveryLifecycle.active],
       deliveryId: 'd-4192',
@@ -167,7 +167,7 @@ Widget deliveryLifecycleBannerActive() => _hosted(
 ///     sentence wraps the icon drifts to the vertical middle of the text block
 ///     — measured 68 dp below the first line it is supposed to mark. Compare
 ///     against the 1x card above before deciding that is fine.
-@JeebPreview(name: 'Small phone 320dp', size: Size(320, 260))
+@JeebPreview(group: 'delivery_status', name: 'Small phone 320dp', size: Size(320, 260))
 Widget deliveryLifecycleBannerSmallPhone() => _hosted(
       lifecycles: const <DeliveryLifecycle>[DeliveryLifecycle.completed],
       deliveryId: 'd-5510',
@@ -187,7 +187,7 @@ Widget deliveryLifecycleBannerSmallPhone() => _hosted(
 /// which is exactly the kind of meaning-by-colour-alone that a side-by-side
 /// reading catches. The AR RTL DARK rendering is the one to check: dark
 /// `successContainer` (#14532D) is the darkest of the four fills.
-@JeebPreview(name: 'Terminal pair · contrast', size: Size(390, 300))
+@JeebPreview(group: 'delivery_status', name: 'Terminal pair · contrast', size: Size(390, 300))
 Widget deliveryLifecycleBannerTerminalPair() => _hosted(
       lifecycles: const <DeliveryLifecycle>[
         DeliveryLifecycle.completed,

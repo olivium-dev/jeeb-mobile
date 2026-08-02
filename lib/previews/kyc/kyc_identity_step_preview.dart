@@ -183,7 +183,7 @@ Widget _hosted(String state, KycWizardState seed) {
 /// of what is still missing. The two error strings this widget can render are
 /// both submit-scoped, so at this point the screen states the requirement only
 /// in the field label and the section titles.
-@JeebPreview(name: 'Cold entry · nothing captured', size: _formBox)
+@JeebPreview(group: 'kyc', name: 'Cold entry · nothing captured', size: _formBox)
 Widget kycIdentityStepFresh() => _hosted('fresh', _identity());
 
 /// The JEBV4-295 state: gov-ID done, number valid, ToS ticked — selfie missing.
@@ -196,7 +196,7 @@ Widget kycIdentityStepFresh() => _hosted('fresh', _identity());
 ///
 /// It is also the state where the scroll hint matters most, so it is the one to
 /// read the AR RTL and 200% renderings against.
-@JeebPreview(name: 'Selfie still missing · CTA dead', size: _formBox)
+@JeebPreview(group: 'kyc', name: 'Selfie still missing · CTA dead', size: _formBox)
 Widget kycIdentityStepSelfieMissing() => _hosted(
       'selfie-missing',
       _identity(
@@ -212,7 +212,7 @@ Widget kycIdentityStepSelfieMissing() => _hosted(
 /// The scroll hint is gone (it is tied to `!hasSelfie`, not to scroll position),
 /// so this is also the layout where the fold boundary disappears and the selfie
 /// section runs straight on from the ID number field.
-@JeebPreview(name: 'Ready to submit', size: _formBox)
+@JeebPreview(group: 'kyc', name: 'Ready to submit', size: _formBox)
 Widget kycIdentityStepReadyToSubmit() => _hosted(
       'ready',
       _identity(
@@ -230,7 +230,7 @@ Widget kycIdentityStepReadyToSubmit() => _hosted(
 /// accepted. Check it and try again." — is only reachable this way, and it is
 /// the longest of the three id-number errors, so it is what decides whether the
 /// error line wraps under the field or collides with the ToS card below it.
-@JeebPreview(name: 'Server rejected the ID number', size: _formBox)
+@JeebPreview(group: 'kyc', name: 'Server rejected the ID number', size: _formBox)
 Widget kycIdentityStepIdNumberRejected() => _hosted(
       'id-number-rejected',
       _identity(
@@ -251,7 +251,7 @@ Widget kycIdentityStepIdNumberRejected() => _hosted(
 /// inline "Select a supported ID type" line under the picker is the ONLY thing
 /// the jeeber is told, on a picker where all three options look equally
 /// selectable — which is the state to review, in both locales.
-@JeebPreview(name: 'Residency rejected on id_type', size: _formBox)
+@JeebPreview(group: 'kyc', name: 'Residency rejected on id_type', size: _formBox)
 Widget kycIdentityStepResidencyRejected() => _hosted(
       'residency-rejected',
       _identity(
@@ -272,7 +272,7 @@ Widget kycIdentityStepResidencyRejected() => _hosted(
 /// and 24 characters is the longest value the field will hold. That makes this
 /// the widest single line of user content the step can produce, and the state
 /// where the label, the value and the `24/24` counter all compete for one row.
-@JeebPreview(name: 'Passport · 24-char number', size: _formBox)
+@JeebPreview(group: 'kyc', name: 'Passport · 24-char number', size: _formBox)
 Widget kycIdentityStepPassportLongNumber() => _hosted(
       'passport-long',
       _identity(

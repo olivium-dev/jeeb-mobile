@@ -70,7 +70,7 @@ DateTime _inSeconds(int seconds) => DateTime.now().toUtc().add(
 ///
 /// This is the band as most clients first see it, and the reading to compare
 /// the others against.
-@JeebPreview(name: 'Fresh 5-minute window', size: _stripBox)
+@JeebPreview(group: 'chat', name: 'Fresh 5-minute window', size: _stripBox)
 Widget broadcastTtlIndicatorFreshWindow() =>
     BroadcastTtlIndicator(expiresAt: _inSeconds(300));
 
@@ -82,7 +82,7 @@ Widget broadcastTtlIndicatorFreshWindow() =>
 /// Check that in the AR RTL **dark** rendering especially: if the
 /// `onTertiaryContainer` label is weak there, the last five seconds of a
 /// broadcast are the least legible moment of the whole flow.
-@JeebPreview(name: 'Final seconds', size: _stripBox)
+@JeebPreview(group: 'chat', name: 'Final seconds', size: _stripBox)
 Widget broadcastTtlIndicatorFinalSeconds() =>
     BroadcastTtlIndicator(expiresAt: _inSeconds(5));
 
@@ -93,7 +93,7 @@ Widget broadcastTtlIndicatorFinalSeconds() =>
 /// rendering is the one to look at: this app supplies six CLDR plural forms for
 /// comparable counters (`pendingCardCreatedMinutes*`,
 /// `dashboardNearbyRequests*`) and none for this one.
-@JeebPreview(name: 'One second left', size: _stripBox)
+@JeebPreview(group: 'chat', name: 'One second left', size: _stripBox)
 Widget broadcastTtlIndicatorOneSecond() =>
     BroadcastTtlIndicator(expiresAt: _inSeconds(1));
 
@@ -107,7 +107,7 @@ Widget broadcastTtlIndicatorOneSecond() =>
 /// longest label the widget can emit and the state the AR RTL and 200%-text
 /// renderings of the matrix exist for — the EN light rendering still looks fine
 /// well after the other two have stopped fitting on one line.
-@JeebPreview(name: 'Clock-skewed long count', size: _tallStripBox)
+@JeebPreview(group: 'chat', name: 'Clock-skewed long count', size: _tallStripBox)
 Widget broadcastTtlIndicatorClockSkew() =>
     BroadcastTtlIndicator(expiresAt: _inSeconds(3900));
 
@@ -117,7 +117,7 @@ Widget broadcastTtlIndicatorClockSkew() =>
 /// negative count. The widget keeps ticking behind this empty box (the timer is
 /// only cancelled in `dispose`), so what is under review is that no pixel of
 /// the strip survives the moment the clock crosses the expiry.
-@JeebPreview(name: 'Expired window', size: _hiddenBox)
+@JeebPreview(group: 'chat', name: 'Expired window', size: _hiddenBox)
 Widget broadcastTtlIndicatorExpired() =>
     BroadcastTtlIndicator(expiresAt: _inSeconds(-30));
 
@@ -129,6 +129,6 @@ Widget broadcastTtlIndicatorExpired() =>
 /// state's own comment describes as refusing to "claim the broadcast expired in
 /// 1970". The strip is a zero-height `SizedBox.shrink`, so the chat header
 /// should show no gap, no divider and no stray padding where it used to be.
-@JeebPreview(name: 'No window', size: _hiddenBox)
+@JeebPreview(group: 'chat', name: 'No window', size: _hiddenBox)
 Widget broadcastTtlIndicatorNoWindow() =>
     const BroadcastTtlIndicator(expiresAt: null);

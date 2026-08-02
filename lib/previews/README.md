@@ -45,14 +45,29 @@ enforces the "nothing imports previews" half of that promise.
 ```dart
 import '../harness/jeeb_preview.dart';
 
-@JeebPreview(name: 'Empty', size: Size(390, 200))
+@JeebPreview(group: 'home_client', name: 'Empty', size: Size(390, 200))
 Widget myWidgetEmpty() => const MyWidget(items: []);
 ```
 
-`@JeebPreview` expands **one** annotation into three renderings —
-**EN light**, **AR RTL dark**, and **EN 200% text**. Arabic is not opt-in: the app
-ships 1534 keys in both locales and RTL is where row layouts break first. Large text
-is the accessibility ceiling the screen goldens already assert.
+**Always pass `group:`** — the feature area the widget lives in. The canvas renders
+one collapsible section per group, which is what keeps ~700 previews navigable
+instead of one undifferentiated wall. It is also the only reliable way to navigate:
+the canvas's own search box is broken (see below).
+
+By default each annotation renders **one** card: EN light. Pass `matrix: true` to get
+the full **EN light / AR RTL dark / EN 200% text** set side by side:
+
+```dart
+@JeebPreview(group: 'chat', name: 'Long note', matrix: true)
+```
+
+Use it where seeing them together is the point — a Row of text and actions, an
+RTL-sensitive layout, copy whose length swings by locale. It is off by default
+because all three for every widget is ~750 cards and a slow first paint.
+
+**This does not weaken the guarantee.** `testPreviewsRender()` pumps every preview in
+**both** locales on every CI run, so AR stays asserted whether or not the canvas
+draws it. The matrix flag controls what you *look at*, not what is *checked*.
 
 Rules that keep previews honest:
 

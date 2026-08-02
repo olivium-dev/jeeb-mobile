@@ -129,7 +129,7 @@ Widget _hosted(AvailabilityViewState view) {
 /// This is the shortest shape it renders, and the baseline every other preview
 /// is taller than. Note what is NOT here: no idle hint, because the 8-hour
 /// auto-offline rule only applies to an online Jeeber, and no delivery count.
-@JeebPreview(name: 'Offline · headline only', size: _headlineBox)
+@JeebPreview(group: 'jeeber_home', name: 'Offline · headline only', size: _headlineBox)
 Widget availabilityStatusBlockOffline() =>
     _hosted(_view(AvailabilityState.offline));
 
@@ -147,7 +147,7 @@ Widget availabilityStatusBlockOffline() =>
 ///
 /// The render test pins the current behaviour so a fix is a deliberate,
 /// visible change rather than a silent one.
-@JeebPreview(name: 'Auto-offline · 2 deliveries dropped', size: _headlineBox)
+@JeebPreview(group: 'jeeber_home', name: 'Auto-offline · 2 deliveries dropped', size: _headlineBox)
 Widget availabilityStatusBlockAutoOfflineHoldingWork() =>
     _hosted(_view(AvailabilityState.autoOffline, activeDeliveryCount: 2));
 
@@ -157,7 +157,7 @@ Widget availabilityStatusBlockAutoOfflineHoldingWork() =>
 /// count that is not a number at all: it resolves to the `…Zero` ARB form ("No
 /// active deliveries" / "لا توجد توصيلات نشطة"), so a plural table that lost
 /// its zero case shows "0 active deliveries" here and nowhere else.
-@JeebPreview(name: 'Online · empty queue', size: _fullStackBox)
+@JeebPreview(group: 'jeeber_home', name: 'Online · empty queue', size: _fullStackBox)
 Widget availabilityStatusBlockOnlineEmpty() =>
     _hosted(_view(AvailabilityState.online));
 
@@ -167,7 +167,7 @@ Widget availabilityStatusBlockOnlineEmpty() =>
 /// with, and in Arabic it is the DUAL — `availabilityActiveDeliveriesTwo`
 /// ("توصيلتان نشطتان"), a form with no `{count}` placeholder at all. The AR RTL
 /// rendering is the only place that distinction is visible.
-@JeebPreview(name: 'Online · 2 deliveries', size: _fullStackBox)
+@JeebPreview(group: 'jeeber_home', name: 'Online · 2 deliveries', size: _fullStackBox)
 Widget availabilityStatusBlockOnlineTwo() =>
     _hosted(_view(AvailabilityState.online, activeDeliveryCount: 2));
 
@@ -178,7 +178,7 @@ Widget availabilityStatusBlockOnlineTwo() =>
 /// (`AvailabilityCard._AvailabilityProgress`), and it is the asymmetric one —
 /// the headline switches to "Updating…" but nothing else appears, so the block
 /// is a single line beside a 56pt spinner box.
-@JeebPreview(name: 'Going online · in flight', size: _headlineBox)
+@JeebPreview(group: 'jeeber_home', name: 'Going online · in flight', size: _headlineBox)
 Widget availabilityStatusBlockGoingOnline() =>
     _hosted(_view(AvailabilityState.offline, isToggleInFlight: true));
 
@@ -192,7 +192,7 @@ Widget availabilityStatusBlockGoingOnline() =>
 /// who is in the middle of going offline by hand. Three is also the Arabic
 /// `few` plural branch ("3 توصيلات نشطة"), which neither the zero, one nor two
 /// forms exercise.
-@JeebPreview(name: 'Going offline · in flight, 3 deliveries', size: _fullStackBox)
+@JeebPreview(group: 'jeeber_home', name: 'Going offline · in flight, 3 deliveries', size: _fullStackBox)
 Widget availabilityStatusBlockGoingOffline() => _hosted(
       _view(
         AvailabilityState.online,

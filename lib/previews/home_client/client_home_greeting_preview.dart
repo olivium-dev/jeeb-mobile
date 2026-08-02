@@ -38,7 +38,7 @@ Widget _hosted(GreetingProfileState? profile, {String? name}) {
 /// The happy path: a live profile with a name and an avatar on file.
 ///
 /// Greets the FIRST name only ("Hello, Sami", never "Hello, Sami Fawaz").
-@JeebPreview(name: 'Named + avatar', size: _headerBox)
+@JeebPreview(group: 'home_client', name: 'Named + avatar', size: _headerBox)
 Widget clientHomeGreetingNamed() => _hosted(
       const GreetingProfileState(
         name: 'Sami Fawaz',
@@ -49,14 +49,14 @@ Widget clientHomeGreetingNamed() => _hosted(
 /// Cold start: `GET /users/me` has not resolved yet, so there is no name and no
 /// avatar. Degrades to the localized generic greeting + the "?" avatar — this
 /// is the state most users see for the first few hundred milliseconds.
-@JeebPreview(name: 'Generic fallback', size: _headerBox)
+@JeebPreview(group: 'home_client', name: 'Generic fallback', size: _headerBox)
 Widget clientHomeGreetingFallback() => _hosted(null);
 
 /// A name on file but no avatar — the initials avatar, not "?".
 ///
 /// The distinction matters: "?" is reserved for "we know nothing about you",
 /// and showing it to a named user reads as a broken profile.
-@JeebPreview(name: 'Name, no avatar', size: _headerBox)
+@JeebPreview(group: 'home_client', name: 'Name, no avatar', size: _headerBox)
 Widget clientHomeGreetingInitialsOnly() =>
     _hosted(const GreetingProfileState(name: 'Layla'));
 
@@ -66,7 +66,7 @@ Widget clientHomeGreetingInitialsOnly() =>
 /// address (`…@jeeb.internal`) as their only "name". The header must NEVER
 /// greet those — it falls back to the generic greeting. If this preview ever
 /// renders "Hello, jeeb-…", the suppression in `displayNameOrNull` has broken.
-@JeebPreview(name: 'Synthetic handle suppressed', size: _headerBox)
+@JeebPreview(group: 'home_client', name: 'Synthetic handle suppressed', size: _headerBox)
 Widget clientHomeGreetingSyntheticHandle() =>
     _hosted(const GreetingProfileState(name: 'jeeb-e1a35ea8a520'));
 
@@ -76,7 +76,7 @@ Widget clientHomeGreetingSyntheticHandle() =>
 /// This is the state the AR RTL and 200%-text renderings of the matrix are
 /// really for — the English light rendering looks fine long after the other two
 /// have broken.
-@JeebPreview(name: 'Long name overflow', size: _headerBox)
+@JeebPreview(group: 'home_client', name: 'Long name overflow', size: _headerBox)
 Widget clientHomeGreetingLongName() => _hosted(
       const GreetingProfileState(name: 'Abdulrahman Al-Muhandis Al-Trabulsi'),
     );

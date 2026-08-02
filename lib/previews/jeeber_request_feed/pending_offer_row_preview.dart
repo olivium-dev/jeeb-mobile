@@ -128,7 +128,7 @@ Widget _hosted(
 /// edge and the ETA to its left, because the row is built from
 /// [EdgeInsetsDirectional] and [AlignmentDirectional] and nothing here should
 /// stay pinned left.
-@JeebPreview(name: 'Awaiting decision', size: _openRowBox)
+@JeebPreview(group: 'jeeber_request_feed', name: 'Awaiting decision', size: _openRowBox)
 Widget pendingOfferRowAwaiting() => _hosted(
       const SubmittedOffer(
         id: 'pending-offer-jeeber-001',
@@ -153,7 +153,7 @@ Widget pendingOfferRowAwaiting() => _hosted(
 /// is in flight is a 20 dp spinner at the bottom of one row. In a list of ten
 /// that is easy to miss, and there is no other affordance to say which offer is
 /// busy.
-@JeebPreview(name: 'Withdraw in flight', size: _openRowBox)
+@JeebPreview(group: 'jeeber_request_feed', name: 'Withdraw in flight', size: _openRowBox)
 Widget pendingOfferRowWithdrawing() => _hosted(
       const SubmittedOffer(
         id: 'pending-offer-jeeber-002',
@@ -172,7 +172,7 @@ Widget pendingOfferRowWithdrawing() => _hosted(
 /// gone the [Expanded] price owns the full 358 dp and the row's top line is a
 /// lone money string. Worth confirming the price does not stretch or re-align
 /// when its neighbour vanishes, in LTR and in RTL.
-@JeebPreview(name: 'No ETA', size: _openRowBox)
+@JeebPreview(group: 'jeeber_request_feed', name: 'No ETA', size: _openRowBox)
 Widget pendingOfferRowNoEta() => _hosted(
       const SubmittedOffer(
         id: 'pending-offer-jeeber-003',
@@ -190,7 +190,7 @@ Widget pendingOfferRowNoEta() => _hosted(
 /// height with [pendingOfferRowAwaiting]: 89 dp against 141 dp (129 against 181
 /// at 200% text), so a list mixing open and terminal offers has two row
 /// heights and a ragged vertical rhythm.
-@JeebPreview(name: 'Accepted · terminal', size: _terminalRowBox)
+@JeebPreview(group: 'jeeber_request_feed', name: 'Accepted · terminal', size: _terminalRowBox)
 Widget pendingOfferRowAccepted() => _hosted(
       const SubmittedOffer(
         id: 'accepted-1',
@@ -219,7 +219,7 @@ Widget pendingOfferRowAccepted() => _hosted(
 /// It is also the state that clips first at 200% text: [Text] with
 /// `maxLines: 1` and no `overflow`, so the 392 dp label is cut to the 334 dp
 /// the pill allows with no ellipsis to mark the loss.
-@JeebPreview(name: 'Not selected · terminal', size: _terminalRowBox)
+@JeebPreview(group: 'jeeber_request_feed', name: 'Not selected · terminal', size: _terminalRowBox)
 Widget pendingOfferRowLost() => _hosted(
       const SubmittedOffer(
         id: 'lost-1',
@@ -247,7 +247,7 @@ Widget pendingOfferRowLost() => _hosted(
 /// EN, and in AR — where "1440 دقيقة" costs 242 dp against "1440 min"'s 196 —
 /// it wants 385.9 dp and is given **104 dp**. The jeeber ends up looking at
 /// "L£2,7…".
-@JeebPreview(name: 'Long price + ETA', size: _openRowBox)
+@JeebPreview(group: 'jeeber_request_feed', name: 'Long price + ETA', size: _openRowBox)
 Widget pendingOfferRowLongContent() => _hosted(
       const SubmittedOffer(
         id: 'pending-offer-jeeber-004',

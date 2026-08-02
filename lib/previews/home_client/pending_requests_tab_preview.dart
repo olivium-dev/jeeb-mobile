@@ -121,7 +121,7 @@ ClientHomeRequest _pending({
 /// as a stray underline. Each row must render ITS OWN server-derived status —
 /// the regression `pending_requests_tab_test.dart` pins with
 /// `findsNWidgets(2)`.
-@JeebPreview(name: 'Searching · two requests', size: Size(_phoneWidth, 300))
+@JeebPreview(group: 'home_client', name: 'Searching · two requests', size: Size(_phoneWidth, 300))
 Widget pendingRequestsTabSearching() => _withPending(<ClientHomeRequest>[
   _pending(),
   _pending(
@@ -142,7 +142,7 @@ Widget pendingRequestsTabSearching() => _withPending(<ClientHomeRequest>[
 /// vs. tonal fill, and the tonal pair (`primaryContainer` on
 /// `onPrimaryContainer`) is exactly the kind of contrast the AR-dark rendering
 /// of the matrix exists to check.
-@JeebPreview(name: 'Offers arrived · 3 unseen', size: Size(_phoneWidth, 220))
+@JeebPreview(group: 'home_client', name: 'Offers arrived · 3 unseen', size: Size(_phoneWidth, 220))
 Widget pendingRequestsTabOffers() => _withPending(<ClientHomeRequest>[
   _pending(offerCount: 3, hasNewOffers: true),
 ]);
@@ -157,7 +157,7 @@ Widget pendingRequestsTabOffers() => _withPending(<ClientHomeRequest>[
 /// this is where a long title meets an untruncatable tier label. Read the AR
 /// RTL and 200%-text renderings of this preview, not the EN one: the English
 /// rendering stays plausible long after the other two have broken.
-@JeebPreview(name: 'Longest content · no order id', size: Size(_phoneWidth, 260))
+@JeebPreview(group: 'home_client', name: 'Longest content · no order id', size: Size(_phoneWidth, 260))
 Widget pendingRequestsTabLongContent() => _withPending(<ClientHomeRequest>[
   _pending(
     id: 'pen-long',
@@ -182,7 +182,7 @@ Widget pendingRequestsTabLongContent() => _withPending(<ClientHomeRequest>[
 /// `hourglass_empty` icon. It is also the branch that reaches for
 /// `GoRouter.of(context)` when `onCreateRequest` is null, which is why
 /// [_hosted] always supplies one.
-@JeebPreview(name: 'Empty · no pending requests', size: Size(_phoneWidth, 480))
+@JeebPreview(group: 'home_client', name: 'Empty · no pending requests', size: Size(_phoneWidth, 480))
 Widget pendingRequestsTabEmpty() => _withPending(const <ClientHomeRequest>[]);
 
 /// Cold load, still in flight — a centred spinner and nothing else.
@@ -191,7 +191,7 @@ Widget pendingRequestsTabEmpty() => _withPending(const <ClientHomeRequest>[]);
 /// branches grow and this one does not move, so a reviewer can see that the tab
 /// gives no hint of WHAT is loading. It is also the state that cannot settle,
 /// so its render test drives fixed pumps instead of `pumpAndSettle`.
-@JeebPreview(name: 'Loading · cold', size: Size(_phoneWidth, 200))
+@JeebPreview(group: 'home_client', name: 'Loading · cold', size: Size(_phoneWidth, 200))
 Widget pendingRequestsTabLoading() => _hosted(const _StalledClientHomeRepository());
 
 /// Cold load failed: the full-screen error with a Retry CTA.
@@ -201,5 +201,5 @@ Widget pendingRequestsTabLoading() => _hosted(const _StalledClientHomeRepository
 /// `context.read<ClientHomeCubit>().load()`, so in the canvas it puts the tab
 /// back into the loading state above and stays there; the fake repository has
 /// nothing else to say.
-@JeebPreview(name: 'Failed · cold load', size: Size(_phoneWidth, 320))
+@JeebPreview(group: 'home_client', name: 'Failed · cold load', size: Size(_phoneWidth, 320))
 Widget pendingRequestsTabFailed() => _hosted(const _FailingClientHomeRepository());

@@ -50,7 +50,7 @@ const Size _specimenBox = Size(390, 280);
 /// back (`PopScope(canPop: false)`) and carries no skip control (D56). Five
 /// empty outlines are the entire instruction the user gets — there is no "tap
 /// to rate" copy anywhere on the row.
-@JeebPreview(name: 'Unrated', size: _specimenBox)
+@JeebPreview(group: 'rating', name: 'Unrated', size: _specimenBox)
 Widget feedbackStarInputUnrated() => const _Specimen(
       title: 'Unrated',
       note: 'Where every rater starts. Submit is inert until a star is picked.',
@@ -65,7 +65,7 @@ Widget feedbackStarInputUnrated() => const _Specimen(
 /// and no colour change anywhere else on the screen to confirm the tap landed.
 /// If the empty and filled colours ever converge in a theme, this is the state
 /// where it becomes a bug report and `All five` is the state where it does not.
-@JeebPreview(name: 'One star', size: _specimenBox)
+@JeebPreview(group: 'rating', name: 'One star', size: _specimenBox)
 Widget feedbackStarInputOneStar() => const _Specimen(
       title: 'One star',
       note: 'The minimum valid rating. One glyph separates it from unrated.',
@@ -80,7 +80,7 @@ Widget feedbackStarInputOneStar() => const _Specimen(
 /// two empty the row is asymmetric, so a mirroring mistake shows up as the fill
 /// starting from the wrong edge — invisible in `Unrated` and `All five`, both
 /// of which look identical mirrored or not.
-@JeebPreview(name: 'Three of five', size: _specimenBox)
+@JeebPreview(group: 'rating', name: 'Three of five', size: _specimenBox)
 Widget feedbackStarInputThreeOfFive() => const _Specimen(
       title: 'Three of five',
       note: 'Both branches of the fill test in one row. Mirrors visibly.',
@@ -93,7 +93,7 @@ Widget feedbackStarInputThreeOfFive() => const _Specimen(
 /// `starRatingColor` token against the empty `starInactiveColor`, and this is
 /// the state where the two are furthest apart. The AR RTL rendering doubles as
 /// the dark-theme contrast check for both tokens at once.
-@JeebPreview(name: 'All five', size: _specimenBox)
+@JeebPreview(group: 'rating', name: 'All five', size: _specimenBox)
 Widget feedbackStarInputAllFive() => const _Specimen(
       title: 'All five',
       note: 'Upper bound. Filled = brand terracotta, empty = cool neutral.',
@@ -114,7 +114,7 @@ Widget feedbackStarInputAllFive() => const _Specimen(
 /// key and clamping neither. Any upstream drift to a 0–10 scale arrives here
 /// silently, and the readout below is the only thing in this preview that can
 /// tell you it happened.
-@JeebPreview(name: 'Out of range', size: _specimenBox)
+@JeebPreview(group: 'rating', name: 'Out of range', size: _specimenBox)
 Widget feedbackStarInputOutOfRange() => const _Specimen(
       title: 'Out of range',
       note: 'stars: 9, unclamped. Pixel-identical to a genuine five-star row.',

@@ -90,7 +90,7 @@ Widget _hosted(ChatAppBar appBar) => Scaffold(
 /// 56535:6659 — and `showAvatar: false` drops the whole leading cluster back to
 /// `OMDSAppBar`'s own back button. The avatar slot must NOT appear here: a
 /// circle with a "O" in it would assert a counterpart that does not exist yet.
-@JeebPreview(name: 'Broadcasting (order id, no avatar)', size: _headerBox)
+@JeebPreview(group: 'chat', name: 'Broadcasting (order id, no avatar)', size: _headerBox)
 Widget chatAppBarBroadcasting() => _hosted(
       const ChatAppBar(title: 'ORD-23748'),
     );
@@ -100,7 +100,7 @@ Widget chatAppBarBroadcasting() => _hosted(
 ///
 /// This is the D1 pin made visible — the photo must render as a CIRCLE, never a
 /// square crop and never a bare glyph floating in the bar.
-@JeebPreview(name: 'Matched (photo avatar)', size: _headerBox)
+@JeebPreview(group: 'chat', name: 'Matched (photo avatar)', size: _headerBox)
 Widget chatAppBarMatchedWithPhoto() => _hosted(
       ChatAppBar(
         title: 'Sami Fawaz',
@@ -116,7 +116,7 @@ Widget chatAppBarMatchedWithPhoto() => _hosted(
 /// The D1 fix says the fallback is an INITIAL INSIDE A VISIBLE CIRCLE, so the
 /// leading cluster keeps the same shape and width whether or not a photo
 /// resolved. A bare "L" with no disc behind it is the regression.
-@JeebPreview(name: 'Matched (initial fallback)', size: _headerBox)
+@JeebPreview(group: 'chat', name: 'Matched (initial fallback)', size: _headerBox)
 Widget chatAppBarMatchedInitialFallback() => _hosted(
       const ChatAppBar(
         title: 'Layla Haddad',
@@ -132,7 +132,7 @@ Widget chatAppBarMatchedInitialFallback() => _hosted(
 /// the bar are occupied — 104 dp of leading cluster on one side, an icon button
 /// plus `OMDSAppBar`'s hardcoded 16 dp trailing spacer on the other — leaving
 /// the title the narrowest box it ever gets.
-@JeebPreview(name: 'Order chat (dispute action)', size: _headerBox)
+@JeebPreview(group: 'chat', name: 'Order chat (dispute action)', size: _headerBox)
 Widget chatAppBarWithDisputeAction() => _hosted(
       ChatAppBar(
         title: 'Kamal Hajj',
@@ -150,7 +150,7 @@ Widget chatAppBarWithDisputeAction() => _hosted(
 /// trailing edge or wrap the bar into an overflow stripe. The AR RTL and
 /// 200%-text renderings are the ones that matter here — the EN light rendering
 /// keeps looking fine long after the other two have broken.
-@JeebPreview(name: 'Longest name + action', size: _headerBox)
+@JeebPreview(group: 'chat', name: 'Longest name + action', size: _headerBox)
 Widget chatAppBarLongName() => _hosted(
       ChatAppBar(
         title: 'Abdulrahman Al-Muhandis Al-Trabulsi',
@@ -168,7 +168,7 @@ Widget chatAppBarLongName() => _hosted(
 /// The guard in `_UrlOrInitialAvatar` covers it — an empty title yields the
 /// house "J" initial rather than an `initial[0]` range error or an empty disc.
 /// If this preview ever throws instead of rendering, that guard is gone.
-@JeebPreview(name: 'Unresolved counterpart (empty title)', size: _headerBox)
+@JeebPreview(group: 'chat', name: 'Unresolved counterpart (empty title)', size: _headerBox)
 Widget chatAppBarEmptyTitle() => _hosted(
       const ChatAppBar(title: '', showAvatar: true),
     );

@@ -56,14 +56,14 @@ Widget _hosted({String? currentLabel, String? changeLabel}) => Builder(
 ///
 /// The 200% rendering is not decoration either: the label needs ~233pt at that
 /// scale and the row hands it 106, so even the static ARB pair truncates.
-@JeebPreview(name: 'Localized default', size: _rowBox)
+@JeebPreview(group: 'request_type', name: 'Localized default', size: _rowBox)
 Widget requestLocationRowDefault() => _hosted();
 
 /// The label slot holding a real place instead of the static placeholder.
 ///
 /// Short enough to still fit beside the action on a 390pt phone — this is the
 /// baseline the long-content previews below are measured against.
-@JeebPreview(name: 'Resolved address', size: _rowBox)
+@JeebPreview(group: 'request_type', name: 'Resolved address', size: _rowBox)
 Widget requestLocationRowResolvedAddress() =>
     _hosted(currentLabel: 'Hamra St, Beirut');
 
@@ -74,7 +74,7 @@ Widget requestLocationRowResolvedAddress() =>
 /// the row must stay 44pt tall here — same as 'Localized default'. If this
 /// preview ever renders two lines, the row has started pushing the rest of the
 /// Request-type screen down, and `maxLines: 1` is the missing guard.
-@JeebPreview(name: 'Long address', size: _rowBox)
+@JeebPreview(group: 'request_type', name: 'Long address', size: _rowBox)
 Widget requestLocationRowLongAddress() => _hosted(
       currentLabel:
           'Beirut Central District, Bloc B, Building 27, Floor 4, Apartment 12',
@@ -89,7 +89,7 @@ Widget requestLocationRowLongAddress() => _hosted(
 /// current-location text vanishes while the action keeps every pixel it asked
 /// for. The 200% rendering of THIS preview is the one to look at; the 1x
 /// rendering still looks fine.
-@JeebPreview(name: 'Long action label', size: _rowBox)
+@JeebPreview(group: 'request_type', name: 'Long action label', size: _rowBox)
 Widget requestLocationRowLongAction() =>
     _hosted(changeLabel: 'Change pickup location');
 
@@ -99,6 +99,6 @@ Widget requestLocationRowLongAction() =>
 /// Wrapping cannot help here, so this is the one long-content state that must
 /// genuinely ellipsize. If it paints past the trailing edge instead, the row
 /// has no horizontal guard at all.
-@JeebPreview(name: 'Unbreakable token', size: _rowBox)
+@JeebPreview(group: 'request_type', name: 'Unbreakable token', size: _rowBox)
 Widget requestLocationRowUnbreakableToken() =>
     _hosted(currentLabel: '8G4Q+X9R,BeirutCentralDistrict,Lebanon');

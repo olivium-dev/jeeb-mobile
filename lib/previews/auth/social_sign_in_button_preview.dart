@@ -79,7 +79,7 @@ Widget _hosted({
 /// `flutter_svg` is not wired up for brand marks yet (JEEB-57). At 200 % text
 /// the disc is a fixed 20 dp `Sizes.large` box while the "G" inside it scales,
 /// which is where that shortcut shows.
-@JeebPreview(name: 'Google idle', size: _specimenBox)
+@JeebPreview(group: 'auth', name: 'Google idle', size: _specimenBox)
 Widget socialSignInButtonGoogleIdle() => _hosted(
       title: 'Google idle',
       note: 'The default reading. Blue G disc, navy label, white OMDS pill.',
@@ -104,7 +104,7 @@ Widget socialSignInButtonGoogleIdle() => _hosted(
 ///
 /// The tap readout under the button is the proof of the last point — the pill
 /// still swallows taps through a live `onTap`, it just drops them.
-@JeebPreview(name: 'Google busy', size: _specimenBox)
+@JeebPreview(group: 'auth', name: 'Google busy', size: _specimenBox)
 Widget socialSignInButtonGoogleBusy() => _hosted(
       title: 'Google busy',
       note: 'Native sheet is up. Label collapses to a hardcoded ellipsis.',
@@ -121,7 +121,7 @@ Widget socialSignInButtonGoogleBusy() => _hosted(
 /// border and the navy label are byte-identical, because
 /// `OmdsSocialButtons._branded` drops `isEnabled` on the floor. A user who taps
 /// here gets no press feedback and no explanation.
-@JeebPreview(name: 'Google disabled', size: _specimenBox)
+@JeebPreview(group: 'auth', name: 'Google disabled', size: _specimenBox)
 Widget socialSignInButtonGoogleDisabled() => _hosted(
       title: 'Google disabled',
       note: 'Another provider is in flight. Only the glyph disc greys out.',
@@ -142,7 +142,7 @@ Widget socialSignInButtonGoogleDisabled() => _hosted(
 /// Apple is iOS/macOS-only in production ([SocialSignInButton.isAppleAvailable]
 /// gates it at the section), which is why this went unnoticed on the Android
 /// screenshots.
-@JeebPreview(name: 'Apple idle', size: _specimenBox)
+@JeebPreview(group: 'auth', name: 'Apple idle', size: _specimenBox)
 Widget socialSignInButtonAppleIdle() => _hosted(
       title: 'Apple idle',
       note: 'Light theme paints a white Apple mark on the white pill.',
@@ -159,7 +159,7 @@ Widget socialSignInButtonAppleIdle() => _hosted(
 ///
 /// The AR RTL rendering is the one to look at: mirrored, the disc moves to the
 /// right and the label — already provider-less — sits centred in the pill.
-@JeebPreview(name: 'Facebook generic label', size: _specimenBox)
+@JeebPreview(group: 'auth', name: 'Facebook generic label', size: _specimenBox)
 Widget socialSignInButtonFacebookGenericLabel() => _hosted(
       title: 'Facebook generic label',
       note: 'No dedicated key: the label is the generic Continue string.',

@@ -100,7 +100,7 @@ Widget _thread({required List<Widget> offers, double? width}) {
 /// With a single card the copy is at its least justified — it is a promise
 /// about offers that have not arrived yet — so this is the rendering to check
 /// the note reads as guidance and not as an error under the card.
-@JeebPreview(name: 'One offer', size: Size(390, 300))
+@JeebPreview(group: 'chat', name: 'One offer', size: Size(390, 300))
 Widget chatOfferOnlyOneFooterSingleOffer() => _thread(
       offers: <Widget>[
         _offerCard(offerId: 'offer-preview-1', jeeberName: 'Kamal Hajj'),
@@ -112,7 +112,7 @@ Widget chatOfferOnlyOneFooterSingleOffer() => _thread(
 /// The note must read as belonging to the whole stack rather than to the last
 /// card above it — it is centered while every card is start-aligned, which is
 /// the only visual cue carrying that distinction.
-@JeebPreview(name: 'Offer stack', size: Size(390, 560))
+@JeebPreview(group: 'chat', name: 'Offer stack', size: Size(390, 560))
 Widget chatOfferOnlyOneFooterOfferStack() => _thread(
       offers: <Widget>[
         _offerCard(
@@ -141,7 +141,7 @@ Widget chatOfferOnlyOneFooterOfferStack() => _thread(
 /// width without tripping the [OfferCardBubble] overflow described above, and
 /// an overflow assertion in a neighbour would drown out the thing under review.
 /// The note is what tells the client the thread is still open after a decline.
-@JeebPreview(name: 'Narrow phone · declined offer', size: Size(360, 360))
+@JeebPreview(group: 'chat', name: 'Narrow phone · declined offer', size: Size(360, 360))
 Widget chatOfferOnlyOneFooterNarrowPhone() => _thread(
       width: 360,
       offers: <Widget>[
@@ -161,7 +161,7 @@ Widget chatOfferOnlyOneFooterNarrowPhone() => _thread(
 /// screen explanation for why the other Accept button just went dead. If the
 /// note is ever hidden while `acceptingOfferId != null`, the disabled cards
 /// read as a bug.
-@JeebPreview(name: 'Accept in flight', size: Size(390, 560))
+@JeebPreview(group: 'chat', name: 'Accept in flight', size: Size(390, 560))
 Widget chatOfferOnlyOneFooterAcceptInFlight() => _thread(
       offers: <Widget>[
         _offerCard(
@@ -183,7 +183,7 @@ Widget chatOfferOnlyOneFooterAcceptInFlight() => _thread(
 /// The card grows; the footer must not. If the note ends up visually swallowed
 /// by the card above at 200% text — or if the tall card pushes it out of the
 /// viewport entirely — that is the failure this preview is here to surface.
-@JeebPreview(name: 'Long neighbour content', size: Size(390, 420))
+@JeebPreview(group: 'chat', name: 'Long neighbour content', size: Size(390, 420))
 Widget chatOfferOnlyOneFooterLongContent() => _thread(
       offers: <Widget>[
         _offerCard(

@@ -114,7 +114,7 @@ Widget _hosted({
 /// This is also the control for the truncation the other states hit, and the
 /// clearest frame for the contrast defect: 14sp periwinkle `#777FC0` on white
 /// is the whole label, not an accent on it.
-@JeebPreview(name: 'Rating summary', size: _rowBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Rating summary', size: _rowBox)
 Widget deliveryManMetaRowRatingSummary() => _hosted(
       icon: Icons.star,
       text: (AppLocalizations l10n) =>
@@ -131,7 +131,7 @@ Widget deliveryManMetaRowRatingSummary() => _hosted(
 /// two states are the same row with the same geometry, and nothing but the
 /// glyph tells a reviewer that one of them is deliberately withholding a score
 /// the payload contains.
-@JeebPreview(name: 'Cold start (D59)', size: _rowBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Cold start (D59)', size: _rowBox)
 Widget deliveryManMetaRowColdStart() => _hosted(
       icon: Icons.reviews_outlined,
       text: (AppLocalizations l10n) => l10n.deliveryManProfileReviewsCount(3),
@@ -148,7 +148,7 @@ Widget deliveryManMetaRowColdStart() => _hosted(
 /// payload and switches to `deliveryManProfileEmptyReviewsTitle` ("No reviews
 /// yet"), a key this widget's own feature owns. Two surfaces, one payload, two
 /// different answers.
-@JeebPreview(name: 'No reviews yet', size: _rowBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'No reviews yet', size: _rowBox)
 Widget deliveryManMetaRowNoReviews() => _hosted(
       icon: Icons.reviews_outlined,
       text: (AppLocalizations l10n) => l10n.deliveryManProfileReviewsCount(0),
@@ -165,7 +165,7 @@ Widget deliveryManMetaRowNoReviews() => _hosted(
 /// because user-supplied strings need per-string direction. The bidi
 /// reordering of `Lebanon . متاح` under an RTL paragraph is what this state
 /// puts on screen.
-@JeebPreview(name: 'Location + availability', size: _rowBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Location + availability', size: _rowBox)
 Widget deliveryManMetaRowLocationAvailability() => _hosted(
       icon: Icons.location_on,
       text: (AppLocalizations l10n) =>
@@ -188,7 +188,7 @@ Widget deliveryManMetaRowLocationAvailability() => _hosted(
 /// unlocated, offline jeeber actually renders, and because it is the shortest
 /// string the row can hold — the floor against which the truncating states are
 /// read.
-@JeebPreview(name: 'Availability only (F9)', size: _rowBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Availability only (F9)', size: _rowBox)
 Widget deliveryManMetaRowAvailabilityOnly() => _hosted(
       icon: Icons.location_on,
       text: (AppLocalizations l10n) => l10n.deliveryManProfileUnavailable,
@@ -204,7 +204,7 @@ Widget deliveryManMetaRowAvailabilityOnly() => _hosted(
 /// on it a client acts on ("can this jeeber take my request right now?")
 /// silently disappears on a small phone, while the same string clears the 390pt
 /// column and looks fine on the reviewer's device.
-@JeebPreview(name: 'Longest location (small phone)', size: _rowBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Longest location (small phone)', size: _rowBox)
 Widget deliveryManMetaRowLongestLocation() => _hosted(
       icon: Icons.location_on,
       text: (AppLocalizations l10n) =>

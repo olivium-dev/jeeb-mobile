@@ -209,7 +209,7 @@ Widget _hosted({
 /// The card is also 204 pt tall here, not the ~80 pt its design implies: its
 /// single `Row` gives the CTA and the avatar priority, leaving the
 /// `Expanded` text column ~111 pt, so the title wraps to three lines.
-@JeebPreview(name: 'Client', size: _tabBox)
+@JeebPreview(group: 'shell', name: 'Client', size: _tabBox)
 Widget profileTabClient() => _hosted(
       role: UserRole.client,
       locale: const Locale('en'),
@@ -222,7 +222,7 @@ Widget profileTabClient() => _hosted(
 /// Worth a preview of its own because the card collapses to a
 /// `SizedBox.shrink()`, so the failure mode is a silent 100 pt of the tab
 /// vanishing rather than an error. The check also moves to the Jeeber role row.
-@JeebPreview(name: 'Jeeber', size: _tabBox)
+@JeebPreview(group: 'shell', name: 'Jeeber', size: _tabBox)
 Widget profileTabJeeber() => _hosted(
       role: UserRole.jeeber,
       locale: const Locale('en'),
@@ -235,7 +235,7 @@ Widget profileTabJeeber() => _hosted(
 /// app the same cubit drives both the check and `MaterialApp.locale`); the EN
 /// rendering exists so the check can be seen moving without the labels
 /// changing script at the same time.
-@JeebPreview(name: 'Arabic selected', size: _tabBox)
+@JeebPreview(group: 'shell', name: 'Arabic selected', size: _tabBox)
 Widget profileTabArabicSelected() => _hosted(
       role: UserRole.client,
       locale: const Locale('ar'),
@@ -254,7 +254,7 @@ Widget profileTabArabicSelected() => _hosted(
 /// overflows by 85 pt there (15 pt at 390). The jeeber states, which differ
 /// only in that the card is absent, are clean at 200% — the card is the whole
 /// problem.
-@JeebPreview(name: 'Narrow 320', size: _narrowTabBox)
+@JeebPreview(group: 'shell', name: 'Narrow 320', size: _narrowTabBox)
 Widget profileTabNarrowPhone() => _hosted(
       role: UserRole.client,
       locale: const Locale('en'),
@@ -270,7 +270,7 @@ Widget profileTabNarrowPhone() => _hosted(
 /// to the left edge, and nothing overflows even at 200% text. The two language
 /// rows stay "English" / "العربية" in both locales on purpose — a language is
 /// named in its own script.
-@JeebPreview(name: 'Jeeber narrow · Arabic', size: _narrowTabBox)
+@JeebPreview(group: 'shell', name: 'Jeeber narrow · Arabic', size: _narrowTabBox)
 Widget profileTabJeeberNarrowArabic() => _hosted(
       role: UserRole.jeeber,
       locale: const Locale('ar'),

@@ -101,7 +101,7 @@ Widget _hosted({
 /// `colorScheme.onSurface`, so they read at deliberately different weights; and
 /// in **AR RTL** the pair mirrors as a unit — the bell stays on the screen-edge
 /// side, the wallet stays inboard.
-@JeebPreview(name: 'Actions only', size: _rowBox)
+@JeebPreview(group: 'shell', name: 'Actions only', size: _rowBox)
 Widget shellHeaderActionsBareRow() => _hosted(
       caption: 'Actions only · 96 × 48 dp',
       idPrefix: 'orders_home',
@@ -122,7 +122,7 @@ Widget shellHeaderActionsBareRow() => _hosted(
 ///
 /// The two glyphs also share space with the greeting line, whose ellipsized box
 /// ends at x 314 — under the wallet chip's 298-322 glyph.
-@JeebPreview(name: 'Requests tab', size: _tabBox)
+@JeebPreview(group: 'shell', name: 'Requests tab', size: _tabBox)
 Widget shellHeaderActionsRequestsTab() => _hosted(
       caption: 'Requests tab · orders_home',
       idPrefix: 'orders_home',
@@ -143,7 +143,7 @@ Widget shellHeaderActionsRequestsTab() => _hosted(
 /// the wallet chip. This is the rendering to check first in **AR RTL** — the
 /// whole arrangement mirrors, so the failure moves to the leading edge rather
 /// than disappearing.
-@JeebPreview(name: 'Requests tab · narrow + long name', size: _narrowTabBox)
+@JeebPreview(group: 'shell', name: 'Requests tab · narrow + long name', size: _narrowTabBox)
 Widget shellHeaderActionsRequestsNarrowLongName() => _hosted(
       caption: 'Requests tab · long name at 320 dp',
       idPrefix: 'orders_home',
@@ -164,7 +164,7 @@ Widget shellHeaderActionsRequestsNarrowLongName() => _hosted(
 /// name the glyphs run under both icons, and because the shell wraps the
 /// actions in `Material(color: Colors.transparent)` there is no scrim to
 /// separate them — text and icon simply overlap.
-@JeebPreview(name: 'Jeeber dashboard', size: _tabBox)
+@JeebPreview(group: 'shell', name: 'Jeeber dashboard', size: _tabBox)
 Widget shellHeaderActionsJeeberDashboard() => _hosted(
       caption: 'Jeeber dashboard · delivery_tab',
       idPrefix: 'delivery_tab',
@@ -187,7 +187,7 @@ Widget shellHeaderActionsJeeberDashboard() => _hosted(
 /// and `orders_home_*` above, so the two headers never emit duplicate ids —
 /// the regression `test/customer_profile_screen_test.dart` guards from the
 /// screen's side.
-@JeebPreview(name: 'Profile tab', size: _tabBox)
+@JeebPreview(group: 'shell', name: 'Profile tab', size: _tabBox)
 Widget shellHeaderActionsProfileTab() => _hosted(
       caption: 'Profile tab · customer_profile',
       idPrefix: 'customer_profile',

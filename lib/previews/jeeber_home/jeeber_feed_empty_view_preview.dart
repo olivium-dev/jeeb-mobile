@@ -102,7 +102,7 @@ Widget _hosted({
 /// ends at y≈48, the hero is a 358×358 square, and the copy block closes at
 /// y≈602 of the 720 pt slot. Nothing here is tight — which is exactly why the
 /// `EN 200% text` rendering (see [jeeberFeedEmptyViewLongName]) is surprising.
-@JeebPreview(name: 'Online · nothing in range', size: _phoneBody)
+@JeebPreview(group: 'jeeber_home', name: 'Online · nothing in range', size: _phoneBody)
 Widget jeeberFeedEmptyViewAccepting() =>
     _hosted(name: 'Kamal', avatarUrl: _avatarUrl);
 
@@ -114,7 +114,7 @@ Widget jeeberFeedEmptyViewAccepting() =>
 /// `jeeberFeedOfflineBannerTitle` ("You are offline" / "Go online to see
 /// available requests"), which the sibling feed surface shows for exactly this
 /// case: the string exists in both ARBs and this view never reaches for it.
-@JeebPreview(name: 'Offline · switch off', size: _phoneBody)
+@JeebPreview(group: 'jeeber_home', name: 'Offline · switch off', size: _phoneBody)
 Widget jeeberFeedEmptyViewPaused() =>
     _hosted(name: 'Layla', avatarUrl: _avatarUrl, acceptOrders: false);
 
@@ -130,7 +130,7 @@ Widget jeeberFeedEmptyViewPaused() =>
 /// No avatar either, which is the second half of this state: with `avatarUrl`
 /// null [JeeberHomeGreeting] drops the whole avatar row and the header collapses
 /// to a bare line of text.
-@JeebPreview(name: 'Toggle not wired · no avatar', size: _phoneBody)
+@JeebPreview(group: 'jeeber_home', name: 'Toggle not wired · no avatar', size: _phoneBody)
 Widget jeeberFeedEmptyViewDeadToggle() => _hosted(name: 'Nadia', wired: false);
 
 /// Cold start: no name, no avatar, no ambient profile — `GET /users/me` has not
@@ -139,7 +139,7 @@ Widget jeeberFeedEmptyViewDeadToggle() => _hosted(name: 'Nadia', wired: false);
 /// The greeting degrades to the localized "Welcome back" rather than greeting a
 /// blank, which is the state most jeebers see for the first few hundred
 /// milliseconds of the Dashboard tab.
-@JeebPreview(name: 'Cold start · generic greeting', size: _phoneBody)
+@JeebPreview(group: 'jeeber_home', name: 'Cold start · generic greeting', size: _phoneBody)
 Widget jeeberFeedEmptyViewColdStart() => _hosted();
 
 /// P0-X06 regression guard, made visible.
@@ -151,7 +151,7 @@ Widget jeeberFeedEmptyViewColdStart() => _hosted();
 /// real profile, so this preview must render "Hello, Rami" with the real avatar.
 /// If it ever shows "Hello, Kamal", the precedence in `JeeberHomeGreeting.build`
 /// has inverted and every jeeber is being greeted by a placeholder again.
-@JeebPreview(name: 'Ambient profile wins (P0-X06)', size: _phoneBody)
+@JeebPreview(group: 'jeeber_home', name: 'Ambient profile wins (P0-X06)', size: _phoneBody)
 Widget jeeberFeedEmptyViewAmbientProfile() => _hosted(
       name: 'Kamal',
       profile: const GreetingProfileState(
@@ -178,7 +178,7 @@ Widget jeeberFeedEmptyViewAmbientProfile() => _hosted(
 /// exception (the [SingleChildScrollView] absorbs it) and that is the problem:
 /// at 200% the screen silently opens on an illustration, with the only two
 /// strings that explain the emptiness parked below the fold.
-@JeebPreview(name: 'Long name · short viewport', size: _shortBody)
+@JeebPreview(group: 'jeeber_home', name: 'Long name · short viewport', size: _shortBody)
 Widget jeeberFeedEmptyViewLongName() => _hosted(
       name: 'Abdulrahman Al-Muhandis Al-Trabulsi',
       avatarUrl: _avatarUrl,

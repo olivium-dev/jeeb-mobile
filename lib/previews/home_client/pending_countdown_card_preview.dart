@@ -101,7 +101,7 @@ Widget _hosted({
 /// searching line stays localized in AR (`البحث عن جِيبرين…`, never English);
 /// no age line appears at all, because a missing `createdAt` is UNKNOWN rather
 /// than zero-age; and the word "Expired" appears nowhere.
-@JeebPreview(name: 'Searching (no offers)', size: _cardBox)
+@JeebPreview(group: 'home_client', name: 'Searching (no offers)', size: _cardBox)
 Widget pendingCountdownCardSearching() => _hosted(id: 'preview-searching');
 
 /// The same state on the 320 pt narrow-phone floor the app still supports.
@@ -112,7 +112,7 @@ Widget pendingCountdownCardSearching() => _hosted(id: 'preview-searching');
 /// any accessibility setting is touched, so this is not an a11y-ceiling
 /// curiosity: it ships to every small-phone user on the default surface of the
 /// client home.
-@JeebPreview(name: 'Searching · 320 pt phone', size: Size(320, 180))
+@JeebPreview(group: 'home_client', name: 'Searching · 320 pt phone', size: Size(320, 180))
 Widget pendingCountdownCardSearchingNarrow() => _hosted(
       id: 'preview-narrow',
       displayId: 'ORD-31882',
@@ -128,7 +128,7 @@ Widget pendingCountdownCardSearchingNarrow() => _hosted(
 /// Note this state is unreachable through the live client-home path — an
 /// offer-bearing request is bucketed into Replies — so the canvas is the only
 /// place most engineers will ever see it.
-@JeebPreview(name: 'New offers (3, unseen)', size: _chipBox)
+@JeebPreview(group: 'home_client', name: 'New offers (3, unseen)', size: _chipBox)
 Widget pendingCountdownCardNewOffers() => _hosted(
       id: 'preview-offers-new',
       displayId: 'ORD-23480',
@@ -144,7 +144,7 @@ Widget pendingCountdownCardNewOffers() => _hosted(
 /// that the unselected `primaryContainer` fill is still distinguishable from
 /// the card surface — if it is not, the unseen/seen distinction is invisible.
 /// It also exercises the singular plural form (`1 offer` / `عرض واحد`).
-@JeebPreview(name: 'Seen offers (1, tonal)', size: _chipBox)
+@JeebPreview(group: 'home_client', name: 'Seen offers (1, tonal)', size: _chipBox)
 Widget pendingCountdownCardSeenOffers() => _hosted(
       id: 'preview-offers-seen',
       displayId: 'ORD-23481',
@@ -158,7 +158,7 @@ Widget pendingCountdownCardSeenOffers() => _hosted(
 /// instead of going negative. It is also the tallest state: the label has no
 /// `maxLines`, so at 200% text it wraps to a second line and the card grows
 /// from 129 px to 237 px, which is why this box is the deepest one here.
-@JeebPreview(name: 'With created-age line', size: Size(390, 250))
+@JeebPreview(group: 'home_client', name: 'With created-age line', size: Size(390, 250))
 Widget pendingCountdownCardCreatedAge() => _hosted(
       id: 'preview-age',
       displayId: 'ORD-23482',
@@ -182,7 +182,7 @@ Widget pendingCountdownCardCreatedAge() => _hosted(
 ///
 /// The searching row overflows in this state too — same root cause, and worth
 /// seeing that a long header does nothing to relieve it.
-@JeebPreview(name: 'Long content · no id · unknown tier', size: Size(390, 220))
+@JeebPreview(group: 'home_client', name: 'Long content · no id · unknown tier', size: Size(390, 220))
 Widget pendingCountdownCardLongContent() => _hosted(
       id: 'preview-long',
       displayId: null,

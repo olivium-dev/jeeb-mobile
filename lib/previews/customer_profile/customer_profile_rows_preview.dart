@@ -134,7 +134,7 @@ Widget _hosted({
 /// the only one that can break horizontally. Everything is legible at 1×; open
 /// the AR RTL dark rendering to see the "Account"/"Support" headers and the
 /// glyphs inside the navy discs drop to ~2:1 and ~1.4:1.
-@JeebPreview(name: 'Client · 390', size: _phoneBox)
+@JeebPreview(group: 'customer_profile', name: 'Client · 390', size: _phoneBox)
 Widget customerProfileRowsClient() => _hosted(showRegister: true);
 
 /// JM-035 AC2 / design §8.2, made visible: once the account is already a
@@ -147,7 +147,7 @@ Widget customerProfileRowsClient() => _hosted(showRegister: true);
 /// column drops from 552 pt to 496 pt and from 8 rows to 7; the
 /// `customer_profile_register_delivery_row` semantics node must be gone with
 /// it, since Maestro keys on the identifier rather than on the text.
-@JeebPreview(name: 'Jeeber · register hidden', size: _jeeberBox)
+@JeebPreview(group: 'customer_profile', name: 'Jeeber · register hidden', size: _jeeberBox)
 Widget customerProfileRowsJeeber() => _hosted(showRegister: false);
 
 /// Layout ceiling, part 1: the same client rows on a 320 pt phone.
@@ -165,7 +165,7 @@ Widget customerProfileRowsJeeber() => _hosted(showRegister: false);
 /// defect; the sibling [customerProfileRowsJeeberNarrowLargeText] shows the
 /// same width and scale staying clean once the pill is gone, which is what
 /// identifies the pill as the cause.
-@JeebPreview(name: 'Narrow 320', size: _narrowBox)
+@JeebPreview(group: 'customer_profile', name: 'Narrow 320', size: _narrowBox)
 Widget customerProfileRowsNarrowPhone() =>
     _hosted(showRegister: true, width: _narrowPhoneWidth);
 
@@ -181,7 +181,7 @@ Widget customerProfileRowsNarrowPhone() =>
 /// The seven chevron rows survive the same scale intact — an [Expanded] label
 /// against a 16 pt chevron has room to shrink — so the register row is the only
 /// one whose meaning depends on text scale.
-@JeebPreview(name: '200% text · 390', size: _largeTextBox)
+@JeebPreview(group: 'customer_profile', name: '200% text · 390', size: _largeTextBox)
 Widget customerProfileRowsLargeText() =>
     _hosted(showRegister: true, textScale: 2.0);
 
@@ -192,7 +192,7 @@ Widget customerProfileRowsLargeText() =>
 /// remaining label ellipsized instead of overflowing. That contrast is the
 /// finding: the trailing pill, not the width, the scale, or `CustomerProfileRow`
 /// itself, is what breaks the layout.
-@JeebPreview(name: 'Jeeber narrow · 200% text', size: _narrowLargeTextBox)
+@JeebPreview(group: 'customer_profile', name: 'Jeeber narrow · 200% text', size: _narrowLargeTextBox)
 Widget customerProfileRowsJeeberNarrowLargeText() => _hosted(
       showRegister: false,
       width: _narrowPhoneWidth,

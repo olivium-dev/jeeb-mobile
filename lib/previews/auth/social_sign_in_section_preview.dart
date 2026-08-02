@@ -112,7 +112,7 @@ Widget _seeded(SocialAuthState state) => BlocProvider<SocialAuthCubit>(
 /// AR RTL rendering matters most, because each pill is
 /// `[glyph][centred label][fixed 24dp spacer]` and only the mirrored pass shows
 /// whether that trailing spacer swaps sides with the glyph.
-@JeebPreview(name: 'Idle · both providers', size: _rowBox)
+@JeebPreview(group: 'auth', name: 'Idle · both providers', size: _rowBox)
 Widget socialSignInSectionIdle() => _seeded(const SocialAuthState());
 
 /// Google tapped: its native sheet is open / the `/v1/auth/social` exchange is
@@ -123,7 +123,7 @@ Widget socialSignInSectionIdle() => _seeded(const SocialAuthState());
 /// And the Apple pill next to it is passed `isEnabled: false`, which the
 /// section honours by swapping in a no-op `onTap`: the only *visible* evidence
 /// that the second provider is blocked is… none. It renders at full contrast.
-@JeebPreview(name: 'Google in flight', size: _rowBox)
+@JeebPreview(group: 'auth', name: 'Google in flight', size: _rowBox)
 Widget socialSignInSectionGoogleInFlight() => _seeded(
       const SocialAuthState(
         status: SocialAuthStatus.inProgress,
@@ -137,7 +137,7 @@ Widget socialSignInSectionGoogleInFlight() => _seeded(
 /// Worth its own preview because the two pills are NOT symmetric — Apple's
 /// glyph is a 22dp `Icons.apple` while Google's is a 20dp coloured disc, so
 /// the busy swap moves a different amount of ink on each row.
-@JeebPreview(name: 'Apple in flight', size: _rowBox)
+@JeebPreview(group: 'auth', name: 'Apple in flight', size: _rowBox)
 Widget socialSignInSectionAppleInFlight() => _seeded(
       const SocialAuthState(
         status: SocialAuthStatus.inProgress,
@@ -217,7 +217,7 @@ class _SignInOnMountState extends State<_SignInOnMount> {
 /// `acknowledgeCollision`, which drops the cubit back to idle so the buttons
 /// are tappable again and the sheet does not re-fire on the next rebuild. Tap
 /// the dismiss CTA in the canvas and the row underneath must come back live.
-@JeebPreview(name: 'Collision · block sheet', size: Size(390, 640))
+@JeebPreview(group: 'auth', name: 'Collision · block sheet', size: Size(390, 640))
 Widget socialSignInSectionCollisionSheet() => _liveOutcome(
       const SocialAuthFailure(SocialAuthError.collision),
     );
@@ -232,7 +232,7 @@ Widget socialSignInSectionCollisionSheet() => _liveOutcome(
 /// The row itself is back to idle by the time the snackbar lands (the listener
 /// calls `clearError()`), which is the point: there is nothing persistent left
 /// behind once the snackbar times out.
-@JeebPreview(name: 'Network error · snackbar', size: Size(390, 320))
+@JeebPreview(group: 'auth', name: 'Network error · snackbar', size: Size(390, 320))
 Widget socialSignInSectionNetworkErrorSnackbar() => _liveOutcome(
       const SocialAuthFailure(SocialAuthError.network),
     );

@@ -112,7 +112,7 @@ Widget _hosted(
 /// shortest the surface ever gets — greeting, one row, then the empty state.
 /// Read the 200% rendering: the compact row's title is capped at two lines with
 /// an ellipsis, and this is the state where that cap is doing the work.
-@JeebPreview(name: 'Online · quiet feed', size: Size(_phoneWidth, 460))
+@JeebPreview(group: 'jeeber_home', name: 'Online · quiet feed', size: Size(_phoneWidth, 460))
 Widget jeeberNoRequestsOnline() =>
     _hosted(_view(AvailabilityState.online), profileName: 'Karim Haddad');
 
@@ -123,7 +123,7 @@ Widget jeeberNoRequestsOnline() =>
 /// beneath the greeting grows while the empty state below it stays put. This is
 /// also the only state with no name on file, which drops the greeting to the
 /// generic "Welcome back" fallback.
-@JeebPreview(name: 'Offline · full section', size: Size(_phoneWidth, 520))
+@JeebPreview(group: 'jeeber_home', name: 'Offline · full section', size: Size(_phoneWidth, 520))
 Widget jeeberNoRequestsOffline() =>
     _hosted(_view(AvailabilityState.offline), profileName: null);
 
@@ -134,7 +134,7 @@ Widget jeeberNoRequestsOffline() =>
 /// reads as "you turned yourself off". Two stacked lines inside a switch tile
 /// is the densest the card gets, which makes this the state most likely to
 /// clip at 200% text.
-@JeebPreview(
+@JeebPreview(group: 'jeeber_home', 
   name: 'Auto-offline · system flipped',
   size: Size(_phoneWidth, 540),
 )
@@ -148,7 +148,7 @@ Widget jeeberNoRequestsAutoOffline() =>
 /// state. Three things to check in the matrix — that the CTA stays on the
 /// trailing edge when mirrored to Arabic, that the warning container keeps its
 /// contrast in dark mode, and that the body does not swallow the CTA at 200%.
-@JeebPreview(
+@JeebPreview(group: 'jeeber_home', 
   name: 'Idle warning · 30 min to auto-offline',
   size: Size(_phoneWidth, 700),
 )
@@ -170,7 +170,7 @@ Widget jeeberNoRequestsIdleWarning() =>
 /// both: the first carries a counterpart name, the second carries NOTHING the
 /// row can label itself with, which is what makes its untranslated
 /// `Order <id>` fallback visible in the Arabic rendering.
-@JeebPreview(
+@JeebPreview(group: 'jeeber_home', 
   name: 'Active work · longest content',
   size: Size(_phoneWidth, 640),
 )
@@ -197,6 +197,6 @@ Widget jeeberNoRequestsActiveWork() => _hosted(
 /// This preview never settles — the spinner is an indeterminate
 /// `CircularProgressIndicator` — so its render test drives fixed pumps instead
 /// of `pumpAndSettle`.
-@JeebPreview(name: 'Toggle in flight', size: Size(_phoneWidth, 520))
+@JeebPreview(group: 'jeeber_home', name: 'Toggle in flight', size: Size(_phoneWidth, 520))
 Widget jeeberNoRequestsToggleInFlight() =>
     _hosted(_view(AvailabilityState.offline, inFlight: true));

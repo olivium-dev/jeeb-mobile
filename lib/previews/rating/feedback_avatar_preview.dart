@@ -77,7 +77,7 @@ Widget _hosted(String name, {String? avatarUrl}) =>
 /// the only state that looks the way the Figma frame (56614:20132) does. It is
 /// also the cleanest place to see the 1.29:1 white-on-#FFDBD1 problem described
 /// in the library doc: a full-height letter that is barely there.
-@JeebPreview(name: 'Named ratee', size: _avatarBox)
+@JeebPreview(group: 'rating', name: 'Named ratee', size: _avatarBox)
 Widget feedbackAvatarNamed() => _hosted('Rami Chidiac');
 
 /// The route default, not an edge case.
@@ -94,7 +94,7 @@ Widget feedbackAvatarNamed() => _hosted('Rami Chidiac');
 /// VoiceOver announces "We appreciate your feedback" / "نقدّر ملاحظاتك" for the
 /// image. Check it in **AR RTL dark**: it is the one string in this widget that
 /// has to be translated at all.
-@JeebPreview(name: 'No name (route default)', size: _avatarBox)
+@JeebPreview(group: 'rating', name: 'No name (route default)', size: _avatarBox)
 Widget feedbackAvatarNoName() => _hosted('');
 
 /// An Arabic ratee name — the majority case for this app.
@@ -106,7 +106,7 @@ Widget feedbackAvatarNoName() => _hosted('');
 /// the kind of thing a Latin-only fixture cannot catch. The circle itself is
 /// symmetric, so if anything in the **AR RTL dark** rendering moves off centre
 /// it is the ambient [Directionality] leaking through `Center`, not the avatar.
-@JeebPreview(name: 'Arabic name', size: _avatarBox)
+@JeebPreview(group: 'rating', name: 'Arabic name', size: _avatarBox)
 Widget feedbackAvatarArabicName() => _hosted('ليلى حداد');
 
 /// A phone-only account, as `getMe` returns it (sprint-009 §T5).
@@ -119,7 +119,7 @@ Widget feedbackAvatarArabicName() => _hosted('ليلى حداد');
 /// rather than as "we do not know this user's name". The `?` fallback exists
 /// for exactly this case and never fires, because the synthetic handle is a
 /// non-empty string.
-@JeebPreview(name: 'Phone-only synthetic handle', size: _avatarBox)
+@JeebPreview(group: 'rating', name: 'Phone-only synthetic handle', size: _avatarBox)
 Widget feedbackAvatarSyntheticHandle() => _hosted('jeeb-e1a35ea8a520');
 
 /// TRIPWIRE: a name whose first letter is a multi-code-unit grapheme — here the
@@ -144,7 +144,7 @@ Widget feedbackAvatarSyntheticHandle() => _hosted('jeeb-e1a35ea8a520');
 /// The fixture spells its first letter as U+0627 + U+0653 instead of pasting
 /// the precomposed U+0622, because the whole point of the state is that the
 /// grapheme is two code units.
-@JeebPreview(name: 'Decomposed first letter', size: _avatarBox)
+@JeebPreview(group: 'rating', name: 'Decomposed first letter', size: _avatarBox)
 Widget feedbackAvatarDecomposedName() => _hosted('ا\u0653منة');
 
 /// `avatarUrl: ''` — what the gateway sends for "no photo", as distinct from
@@ -156,5 +156,5 @@ Widget feedbackAvatarDecomposedName() => _hosted('ا\u0653منة');
 /// short-circuit is load-bearing here: without it the feedback screen would put
 /// a shimmer and a failed fetch where a perfectly good initial belongs, and
 /// this preview would be the one that reaches the network.
-@JeebPreview(name: 'Empty avatar URL', size: _avatarBox)
+@JeebPreview(group: 'rating', name: 'Empty avatar URL', size: _avatarBox)
 Widget feedbackAvatarEmptyUrl() => _hosted('Zeina Karam', avatarUrl: '');

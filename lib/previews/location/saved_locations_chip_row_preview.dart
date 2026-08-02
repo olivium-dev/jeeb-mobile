@@ -194,7 +194,7 @@ Widget _withLocations(List<SavedLocation> locations, {required String fixture}) 
 /// not `Home` and `Office`. For the `home`/`work` categories the widget
 /// discards `SavedLocation.label` and renders the localized category name, so
 /// the address the manage screen lists as "Office" appears here as "Work".
-@JeebPreview(name: 'Home + Work', size: _rowBox)
+@JeebPreview(group: 'location', name: 'Home + Work', size: _rowBox)
 Widget savedLocationsChipRowHomeAndWork() => _withLocations(
       const <SavedLocation>[_home, _office],
       fixture: 'home + work',
@@ -210,7 +210,7 @@ Widget savedLocationsChipRowHomeAndWork() => _withLocations(
 /// has an EMPTY label, which is the only path to the `savedLocationsChipOther`
 /// fallback string; if that fallback ever breaks, this preview renders a chip
 /// with an icon and no text at all.
-@JeebPreview(name: 'Other · long + unnamed', size: _rowBox)
+@JeebPreview(group: 'location', name: 'Other · long + unnamed', size: _rowBox)
 Widget savedLocationsChipRowOtherLabels() => _withLocations(
       const <SavedLocation>[
         SavedLocation(
@@ -241,7 +241,7 @@ Widget savedLocationsChipRowOtherLabels() => _withLocations(
 /// the correct edge. There is no scroll affordance of any kind: no fade, no
 /// count, no "manage" chip, so a user with ten addresses sees the same first
 /// two as a user with two.
-@JeebPreview(name: 'Ten saved · at the cap', size: _rowBox)
+@JeebPreview(group: 'location', name: 'Ten saved · at the cap', size: _rowBox)
 Widget savedLocationsChipRowAtCap() => _withLocations(
       <SavedLocation>[
         _home,
@@ -264,7 +264,7 @@ Widget savedLocationsChipRowAtCap() => _withLocations(
 ///
 /// The map stand-in starts at the top of the canvas — that flush top edge is
 /// what "the map is not pushed down" looks like.
-@JeebPreview(name: 'Empty · row hidden', size: _rowBox)
+@JeebPreview(group: 'location', name: 'Empty · row hidden', size: _rowBox)
 Widget savedLocationsChipRowEmpty() =>
     _withLocations(const <SavedLocation>[], fixture: 'empty list');
 
@@ -274,7 +274,7 @@ Widget savedLocationsChipRowEmpty() =>
 /// it lands, with no skeleton and no reserved height. On a slow connection the
 /// chips therefore appear late and shove the map down under the user's finger
 /// mid-drag. This preview holds that window open by never completing the read.
-@JeebPreview(name: 'Loading · row hidden', size: _rowBox)
+@JeebPreview(group: 'location', name: 'Loading · row hidden', size: _rowBox)
 Widget savedLocationsChipRowLoading() =>
     _hosted(const _PendingSavedLocationRepository(), fixture: 'fetch never lands');
 
@@ -288,6 +288,6 @@ Widget savedLocationsChipRowLoading() =>
 /// nothing and has no way to ask again short of leaving the screen. If this
 /// preview ever stops looking identical to `Empty · row hidden`, that gap has
 /// been closed.
-@JeebPreview(name: 'Fetch failed · row hidden', size: _rowBox)
+@JeebPreview(group: 'location', name: 'Fetch failed · row hidden', size: _rowBox)
 Widget savedLocationsChipRowFetchFailed() =>
     _hosted(const _FailingSavedLocationRepository(), fixture: 'fetch throws');

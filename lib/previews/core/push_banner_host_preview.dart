@@ -108,7 +108,7 @@ Widget _hosted({
 /// builder, above the Navigator), so any stray padding, tint or intercepted
 /// pointer it adds while idle is paid on every screen of the product. What you
 /// should see here is the fixture screen, edge to edge, unaltered.
-@JeebPreview(name: 'Idle · no banner', size: _bannerBox)
+@JeebPreview(group: 'core', name: 'Idle · no banner', size: _bannerBox)
 Widget pushBannerHostIdle() => _hosted(screenLabel: 'Idle, no banner');
 
 /// The happy path, with the fixture from `test/push_banner_host_test.dart`: a
@@ -119,7 +119,7 @@ Widget pushBannerHostIdle() => _hosted(screenLabel: 'Idle, no banner');
 /// whatever is behind it in BOTH themes, and the leading icon is tinted
 /// `colorScheme.primary` against that fill rather than the theme's `onSurface`
 /// pair.
-@JeebPreview(name: 'Delivery banner', size: _bannerBox)
+@JeebPreview(group: 'core', name: 'Delivery banner', size: _bannerBox)
 Widget pushBannerHostDelivery() => _hosted(
       banner: _message(
         id: 'a',
@@ -139,7 +139,7 @@ Widget pushBannerHostDelivery() => _hosted(
 /// whole reason this state has a preview. The payload is reachable: the gateway
 /// flattens data-only pushes into the FCM `data` map, and a message that carries
 /// no `notification` block parses to an empty title.
-@JeebPreview(name: 'Empty title fallback', size: _bannerBox)
+@JeebPreview(group: 'core', name: 'Empty title fallback', size: _bannerBox)
 Widget pushBannerHostEmptyTitle() => _hosted(
       banner: _message(
         id: 'kyc-empty-title',
@@ -156,7 +156,7 @@ Widget pushBannerHostEmptyTitle() => _hosted(
 /// 24px icon and a 48px [IconButton]. It is the shortest card the widget can
 /// produce, and therefore the one where the fixed-size trailing control most
 /// visibly out-measures the content it sits beside at 200% text.
-@JeebPreview(name: 'Title only', size: _bannerBox)
+@JeebPreview(group: 'core', name: 'Title only', size: _bannerBox)
 Widget pushBannerHostTitleOnly() => _hosted(
       banner: _message(
         id: 'settings-1',
@@ -175,7 +175,7 @@ Widget pushBannerHostTitleOnly() => _hosted(
 /// proves the clamp holds once the 200% rendering has doubled the type and the
 /// AR rendering has swapped the reading direction under a `Positioned` that is
 /// pinned with `left`/`right` rather than `start`/`end`.
-@JeebPreview(name: 'Long title and body', size: _tallBannerBox)
+@JeebPreview(group: 'core', name: 'Long title and body', size: _tallBannerBox)
 Widget pushBannerHostLongCopy() => _hosted(
       banner: _message(
         id: 'chat-long',
@@ -206,7 +206,7 @@ Widget pushBannerHostLongCopy() => _hosted(
 /// review sees it; [_StatusBarInset] restores the inset BELOW that wrapper so the
 /// canvas models the real mount point. The render test pins the doubled offset
 /// rather than these previews hiding it.
-@JeebPreview(name: 'Under a status bar', size: _tallBannerBox)
+@JeebPreview(group: 'core', name: 'Under a status bar', size: _tallBannerBox)
 Widget pushBannerHostUnderStatusBar() => _hosted(
       banner: _message(
         id: 'accept-1',

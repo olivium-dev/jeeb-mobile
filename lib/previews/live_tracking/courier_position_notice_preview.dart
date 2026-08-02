@@ -120,7 +120,7 @@ Widget _hosted(Map<String, dynamic> snapshot) => Padding(
 /// **dark** rendering in particular — `secondaryContainer` and `errorContainer`
 /// sit much closer together in the dark scheme than in the light one, and this
 /// row is the only thing distinguishing "wait" from "call them".
-@JeebPreview(name: 'Stale · 3 min old', size: _noticeBox)
+@JeebPreview(group: 'live_tracking', name: 'Stale · 3 min old', size: _noticeBox)
 Widget courierPositionNoticeStale() => _hosted(
       _snapshot(positionStatus: 'stale', ageSeconds: 187.0),
     );
@@ -134,7 +134,7 @@ Widget courierPositionNoticeStale() => _hosted(
 /// phantom-pin defect. The map has just REMOVED a pin the customer was
 /// watching; this pill is the only thing on screen that explains why. If it is
 /// hard to find here, it is invisible over a real map.
-@JeebPreview(name: 'Lost · 5 min ago', size: _noticeBox)
+@JeebPreview(group: 'live_tracking', name: 'Lost · 5 min ago', size: _noticeBox)
 Widget courierPositionNoticeLost() => _hosted(
       _snapshot(
         positionStatus: 'lost',
@@ -150,7 +150,7 @@ Widget courierPositionNoticeLost() => _hosted(
 /// than 0 precisely so the copy falls back to the ageless wording. "0 min ago"
 /// reads as a glitch, and this is the one row on the screen the customer has to
 /// trust. If this preview ever shows a number, that fallback has broken.
-@JeebPreview(name: 'Lost · under a minute', size: _noticeBox)
+@JeebPreview(group: 'live_tracking', name: 'Lost · under a minute', size: _noticeBox)
 Widget courierPositionNoticeLostSubMinute() => _hosted(
       _snapshot(
         positionStatus: 'lost',
@@ -170,7 +170,7 @@ Widget courierPositionNoticeLostSubMinute() => _hosted(
 /// location is 0 min old"** — the very sentence the ageless fallback one rung
 /// over exists to prevent. Kept as a preview because it is the state a reviewer
 /// would otherwise never think to open.
-@JeebPreview(name: 'Stale · no age reported', size: _noticeBox)
+@JeebPreview(group: 'live_tracking', name: 'Stale · no age reported', size: _noticeBox)
 Widget courierPositionNoticeStaleNoAge() => _hosted(
       _snapshot(positionStatus: 'stale'),
     );
@@ -185,7 +185,7 @@ Widget courierPositionNoticeStaleNoAge() => _hosted(
 /// alone wants 625 px at 1.0× and 1225 px at 2.0×, against the 358 px the map
 /// surface gives it, and because the chip's `Row` neither wraps nor ellipsizes
 /// there is nowhere for that to go but over the edge.
-@JeebPreview(name: 'Lost · overnight', size: _noticeBox)
+@JeebPreview(group: 'live_tracking', name: 'Lost · overnight', size: _noticeBox)
 Widget courierPositionNoticeLostOvernight() => _hosted(
       _snapshot(
         positionStatus: 'lost',
@@ -204,7 +204,7 @@ Widget courierPositionNoticeLostOvernight() => _hosted(
 /// inset where the pill would be. That silence is what makes the notice worth
 /// reading when it does appear — a row that were always present would be
 /// trained away by the time it started to matter.
-@JeebPreview(name: 'Live · nothing to say', size: _collapsedBox)
+@JeebPreview(group: 'live_tracking', name: 'Live · nothing to say', size: _collapsedBox)
 Widget courierPositionNoticeLive() => _hosted(
       _snapshot(positionStatus: 'live', ageSeconds: 4.0, stale: false),
     );

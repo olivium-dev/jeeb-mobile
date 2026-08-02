@@ -225,7 +225,7 @@ Widget _hosted({KycGateway? gateway, Duration runFor = _firstProbe}) {
 /// spinner, centred in the wizard body. It is also an honest state — the poller
 /// reads `context.read<KycWizardCubit?>()` nullably, so with no cubit in scope
 /// the safety net silently does nothing at all and the spinner is terminal.
-@JeebPreview(name: 'Spinner only · no wizard cubit', size: _wizardBody)
+@JeebPreview(group: 'kyc', name: 'Spinner only · no wizard cubit', size: _wizardBody)
 Widget kycSubmittingViewDetached() => _hosted();
 
 /// The normal few seconds: the submit is in flight and the server has no record
@@ -238,7 +238,7 @@ Widget kycSubmittingViewDetached() => _hosted();
 /// at t=0. From here the only recoveries left are the submit future itself, the
 /// CDN-upload timeout, and `KycWizardCubit.onJeeberRoleGranted` — none of which
 /// the user can trigger, because this screen has no control on it.
-@JeebPreview(name: 'Probe budget spent · nothing recorded', size: _wizardBody)
+@JeebPreview(group: 'kyc', name: 'Probe budget spent · nothing recorded', size: _wizardBody)
 Widget kycSubmittingViewBudgetSpent() => _hosted(
       gateway: _PreviewKycGateway(
         const KycSubmission(status: KycStatus.notSubmitted),
@@ -253,7 +253,7 @@ Widget kycSubmittingViewBudgetSpent() => _hosted(
 /// parks mid-request with no timer armed and no budget spent. On rev2 this is
 /// the spinner that "sat for minutes". Rendered, it is indistinguishable from
 /// [kycSubmittingViewDetached] and from every other state here.
-@JeebPreview(name: 'Submit HUNG · status read never answers', size: _wizardBody)
+@JeebPreview(group: 'kyc', name: 'Submit HUNG · status read never answers', size: _wizardBody)
 Widget kycSubmittingViewHung() => _hosted(
       gateway: _PreviewKycGateway(
         const KycSubmission(status: KycStatus.notSubmitted),
@@ -271,7 +271,7 @@ Widget kycSubmittingViewHung() => _hosted(
 /// `submitting`) but this widget has no way to show it. Worth knowing before
 /// debugging a device that "stayed on the spinner" — the step may already have
 /// moved on underneath.
-@JeebPreview(name: 'Safety net fires · server recorded it', size: _wizardBody)
+@JeebPreview(group: 'kyc', name: 'Safety net fires · server recorded it', size: _wizardBody)
 Widget kycSubmittingViewSelfHeal() => _hosted(
       gateway: _PreviewKycGateway(
         const KycSubmission(status: KycStatus.pending),
@@ -284,5 +284,5 @@ Widget kycSubmittingViewSelfHeal() => _hosted(
 /// narrower the box, the more lines the body copy takes and the sooner the
 /// column outgrows the viewport. This is the box where the 200% rendering of
 /// the matrix stops fitting; the exact overflow is pinned in the render test.
-@JeebPreview(name: 'Small phone body (320x480)', size: _smallBody)
+@JeebPreview(group: 'kyc', name: 'Small phone body (320x480)', size: _smallBody)
 Widget kycSubmittingViewSmallPhone() => _hosted();

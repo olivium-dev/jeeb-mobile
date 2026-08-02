@@ -214,7 +214,7 @@ Widget _hosted(Dio? dio) =>
 ///
 /// The third row deliberately arrives WITHOUT a `title`: the tab substitutes the
 /// hardcoded literal `'Delivery'`, which stays English in the AR rendering.
-@JeebPreview(name: 'Three conversations', size: _listBox)
+@JeebPreview(group: 'shell', name: 'Three conversations', size: _listBox)
 Widget chatTabThreeConversations() => _hosted(
       _envelopeDio(<Map<String, dynamic>>[
         _row(
@@ -248,7 +248,7 @@ Widget chatTabThreeConversations() => _hosted(
 /// What to check in the canvas: the indicator is centred in the tab rather than
 /// pinned top-left, and it survives the AR RTL dark rendering (a spinner tinted
 /// `colorScheme.primary` against the dark surface is easy to lose).
-@JeebPreview(name: 'Loading · request in flight', size: Size(_phoneWidth, 200))
+@JeebPreview(group: 'shell', name: 'Loading · request in flight', size: Size(_phoneWidth, 200))
 Widget chatTabLoading() => _hosted(_stalledDio());
 
 /// The honest empty inbox: 200 with `{items: []}`.
@@ -256,7 +256,7 @@ Widget chatTabLoading() => _hosted(_stalledDio());
 /// `OmdsEmptyState` is the tab's whole surface here — 80 pt icon, headline,
 /// subtitle, and no CTA — which makes it the state most exposed to the 200%
 /// rendering: three stacked elements, centred, with no scroll of their own.
-@JeebPreview(name: 'Empty · gateway returned none', size: _placeholderBox)
+@JeebPreview(group: 'shell', name: 'Empty · gateway returned none', size: _placeholderBox)
 Widget chatTabEmpty() => _hosted(_envelopeDio(const <Map<String, dynamic>>[]));
 
 /// The gateway is down — and the tab cannot say so.
@@ -267,7 +267,7 @@ Widget chatTabEmpty() => _hosted(_envelopeDio(const <Map<String, dynamic>>[]));
 /// no pull-to-refresh (the body is a bare `ListView`/`Center`, never a
 /// `RefreshIndicator`). Compare this rendering side by side with
 /// `Empty · gateway returned none` — they are identical, which is the point.
-@JeebPreview(name: 'Gateway 503 · reads as empty', size: _placeholderBox)
+@JeebPreview(group: 'shell', name: 'Gateway 503 · reads as empty', size: _placeholderBox)
 Widget chatTabGatewayError() => _hosted(
       _envelopeDio(
         <Map<String, dynamic>>[
@@ -286,7 +286,7 @@ Widget chatTabGatewayError() => _hosted(
 /// no counter and no diagnostic, so those two rows vanish. The one row that does
 /// carry a conversation id has no title either, so it renders as the hardcoded
 /// English `'Delivery'` — in Arabic too.
-@JeebPreview(name: 'Real row shape · 1 of 3 survives', size: _oneRowBox)
+@JeebPreview(group: 'shell', name: 'Real row shape · 1 of 3 survives', size: _oneRowBox)
 Widget chatTabRealRowShape() => _hosted(
       _envelopeDio(<Map<String, dynamic>>[
         _row(id: 'req-9001', status: 'Ordered'),
@@ -311,7 +311,7 @@ Widget chatTabRealRowShape() => _hosted(
 /// AR rendering mirrors properly — the avatar moves to the trailing (right)
 /// edge and `DirectionalIcons.disclosure` really does flip to `chevron_left`.
 /// What breaks in Arabic is the CONTENT, not the layout.
-@JeebPreview(name: 'Long title + raw status', size: _oneRowBox)
+@JeebPreview(group: 'shell', name: 'Long title + raw status', size: _oneRowBox)
 Widget chatTabLongContent() => _hosted(
       _envelopeDio(<Map<String, dynamic>>[
         _row(

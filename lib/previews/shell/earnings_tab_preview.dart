@@ -213,7 +213,7 @@ Widget _signedIn(EarningsSummary summary) => _hosted(
 /// reason this screen was reframed. The AR RTL rendering is where the
 /// `member since` row gives itself away: the label translates, the month does
 /// not.
-@JeebPreview(name: 'Ready · cash, fees and breakdown', size: earningsTabBox)
+@JeebPreview(group: 'shell', name: 'Ready · cash, fees and breakdown', size: earningsTabBox)
 Widget earningsTabReady() => _signedIn(
       const EarningsSummary(
         totalCashEarned: 245,
@@ -246,7 +246,7 @@ Widget earningsTabReady() => _signedIn(
 /// never "0.00 USD earned · 0 Deliveries · 0.00 fees", which reads as a
 /// betrayal ten minutes after a completed cash delivery. If this preview ever
 /// shows a headline card, `EarningsSummary.isEmpty` has broken.
-@JeebPreview(name: 'Empty period · honest zero', size: earningsTabEmptyBox)
+@JeebPreview(group: 'shell', name: 'Empty period · honest zero', size: earningsTabEmptyBox)
 Widget earningsTabEmptyPeriod() => _signedIn(
       const EarningsSummary(
         totalCashEarned: 0,
@@ -264,7 +264,7 @@ Widget earningsTabEmptyPeriod() => _signedIn(
 /// body then ignores it and renders the localized `earningsLoadFailed`. The
 /// English string in state is dead copy; the AR rendering here is the one that
 /// is actually shown.
-@JeebPreview(name: 'Load failed · retry', size: earningsTabErrorBox)
+@JeebPreview(group: 'shell', name: 'Load failed · retry', size: earningsTabErrorBox)
 Widget earningsTabLoadFailed() => _hosted(
       repository: const _FailingEarningsRepository(),
       sessionUserId: Future<String?>.value(_previewJeeberId),
@@ -277,7 +277,7 @@ Widget earningsTabLoadFailed() => _hosted(
 /// no cubit. Nothing is registered under [EarningsRepository] for this preview,
 /// so "no earnings account was bound" is structurally true here, not just
 /// visually plausible.
-@JeebPreview(name: 'No session · fail closed', size: earningsTabGateBox)
+@JeebPreview(group: 'shell', name: 'No session · fail closed', size: earningsTabGateBox)
 Widget earningsTabNoSession() => _hosted();
 
 /// The session read has not resolved yet — the first frame after opening the
@@ -287,7 +287,7 @@ Widget earningsTabNoSession() => _hosted();
 /// one, and the dashboard's own in-flight read. Neither carries a message, so a
 /// screen reader is told nothing at all while the tab decides whether the user
 /// even has an earnings account.
-@JeebPreview(name: 'Session resolving', size: earningsTabGateBox)
+@JeebPreview(group: 'shell', name: 'Session resolving', size: earningsTabGateBox)
 Widget earningsTabSessionResolving() => _hosted(
       repository: const _SeededEarningsRepository(
         EarningsSummary(
@@ -315,7 +315,7 @@ Widget earningsTabSessionResolving() => _hosted(
 /// height, labels reduced to a vertical thread of single glyphs. No exception
 /// is thrown, so only looking at it (or the geometry assertions in the render
 /// test) catches it.
-@JeebPreview(name: 'Long content · LBP millions', size: earningsTabBox)
+@JeebPreview(group: 'shell', name: 'Long content · LBP millions', size: earningsTabBox)
 Widget earningsTabLongContent() => _signedIn(
       const EarningsSummary(
         totalCashEarned: 18750000,

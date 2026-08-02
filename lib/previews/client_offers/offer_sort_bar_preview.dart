@@ -133,7 +133,7 @@ Widget _hosted({
 /// whether "selected" is legible *as a selection*: `OmdsChip` carries it on
 /// fill alone — `colorScheme.primary` versus `surfaceContainerHigh` with a 30%
 /// outline — with no checkmark and no weight change beyond `w600`.
-@JeebPreview(name: 'Price selected · default', size: _rowBox)
+@JeebPreview(group: 'client_offers', name: 'Price selected · default', size: _rowBox)
 Widget offerSortBarPriceSelected() => _hosted(
       caption: 'Price selected · default',
       child: OfferSortBar(mode: OfferSortMode.byPrice, onChanged: (_) {}),
@@ -147,7 +147,7 @@ Widget offerSortBarPriceSelected() => _hosted(
 /// the **AR RTL dark** rendering is where that gets decided: an unselected chip
 /// is `surfaceContainerHigh` behind a `outline @ 30%` border, which is the
 /// lowest-contrast edge in the widget.
-@JeebPreview(name: 'Rating selected', size: _rowBox)
+@JeebPreview(group: 'client_offers', name: 'Rating selected', size: _rowBox)
 Widget offerSortBarRatingSelected() => _hosted(
       caption: 'Rating selected',
       child: OfferSortBar(mode: OfferSortMode.byRating, onChanged: (_) {}),
@@ -165,7 +165,7 @@ Widget offerSortBarRatingSelected() => _hosted(
 ///
 /// Stateful only for that readout: no controller, no ticker, nothing to settle
 /// beyond `OmdsChip`'s 200 ms fill animation.
-@JeebPreview(name: 'Live toggle', size: _liveBox)
+@JeebPreview(group: 'client_offers', name: 'Live toggle', size: _liveBox)
 Widget offerSortBarLiveToggle() => _hosted(
       caption: 'Live toggle · tap a chip',
       child: const _LiveToggle(),
@@ -177,7 +177,7 @@ Widget offerSortBarLiveToggle() => _hosted(
 /// headroom reading — 238 dp of content in a 358 dp slot, measured with the
 /// bundled Inter face — which is why nothing has ever been reported here and
 /// why the state below is a surprise when it lands.
-@JeebPreview(name: 'Production slot · 358 dp', size: _slotBox)
+@JeebPreview(group: 'client_offers', name: 'Production slot · 358 dp', size: _slotBox)
 Widget offerSortBarProductionSlot() => _hosted(
       caption: 'Production slot · 358 dp',
       note: 'Outline = the width the offers ListView hands the bar.',
@@ -202,7 +202,7 @@ Widget offerSortBarProductionSlot() => _hosted(
 /// same layout paints the yellow overflow stripe across the offers panel and
 /// logs `A RenderFlex overflowed by … pixels on the right`. The numbers above
 /// are asserted in `offer_sort_bar_preview_test.dart`.
-@JeebPreview(name: 'Production slot · 200% text', size: _slotBox)
+@JeebPreview(group: 'client_offers', name: 'Production slot · 200% text', size: _slotBox)
 Widget offerSortBarLargeTextInSlot() => _hosted(
       caption: 'Production slot · 200% text',
       note: 'Cut at the slot edge. In-app this is a RenderFlex overflow.',

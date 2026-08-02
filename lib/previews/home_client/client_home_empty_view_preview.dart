@@ -149,7 +149,7 @@ Widget _hosted({
 /// inside the 547 pt slot with room to spare. Compare it with every other state
 /// here: this is the only one in which the user can see what to do without
 /// scrolling.
-@JeebPreview(name: 'Requests slot · 390', size: _phoneBox)
+@JeebPreview(group: 'home_client', name: 'Requests slot · 390', size: _phoneBox)
 Widget clientHomeEmptyViewRequestsSlot() =>
     _hosted(caption: 'Requests slot: 390 x 547');
 
@@ -163,7 +163,7 @@ Widget clientHomeEmptyViewRequestsSlot() =>
 /// sits 72 pt past the bottom of the slot. The first thing a small-phone user
 /// sees on an empty Requests screen is an illustration with no visible way to
 /// act on it.
-@JeebPreview(name: 'Compact phone · 320', size: _compactBox)
+@JeebPreview(group: 'home_client', name: 'Compact phone · 320', size: _compactBox)
 Widget clientHomeEmptyViewCompactPhone() => _hosted(
       caption: 'Compact phone: 320 x 332',
       width: _compactPhoneWidth,
@@ -188,7 +188,7 @@ Widget clientHomeEmptyViewCompactPhone() => _hosted(
 /// edge lands ~125 pt past the bottom of the 547 pt slot. A user at the
 /// accessibility ceiling gets an illustration and a title, and must scroll to
 /// discover there is a button at all.
-@JeebPreview(name: '200% text · 390', size: _phoneBox)
+@JeebPreview(group: 'home_client', name: '200% text · 390', size: _phoneBox)
 Widget clientHomeEmptyViewLargeText() =>
     _hosted(caption: '200% text: 390 x 547', textScale: 2);
 
@@ -204,7 +204,7 @@ Widget clientHomeEmptyViewLargeText() =>
 /// It is a real combination (320 pt phones ship with the same accessibility
 /// settings as any other), and it is the state that makes the case for the
 /// illustration shrinking, rather than the copy, when space runs out.
-@JeebPreview(name: '200% text · 320', size: _compactBox)
+@JeebPreview(group: 'home_client', name: '200% text · 320', size: _compactBox)
 Widget clientHomeEmptyViewCompactLargeText() => _hosted(
       caption: '200% text: 320 x 332',
       width: _compactPhoneWidth,
@@ -226,7 +226,7 @@ Widget clientHomeEmptyViewCompactLargeText() => _hosted(
 ///
 /// The live caller (`PendingRequestsTab`) always passes a callback, so this is
 /// a preview of what the *next* caller gets for free.
-@JeebPreview(name: 'CTA not wired', size: _phoneBox)
+@JeebPreview(group: 'home_client', name: 'CTA not wired', size: _phoneBox)
 Widget clientHomeEmptyViewUnwiredCta() =>
     _hosted(caption: 'CTA not wired: onNewOrder null', wired: false);
 

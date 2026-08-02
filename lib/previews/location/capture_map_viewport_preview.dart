@@ -122,7 +122,7 @@ Widget _measured(String caption, Widget constrained) => Center(
 ///    Harmless full-bleed (nothing else is on screen), which is exactly why the
 ///    address-form band below draws its own `outlineVariant` hairline. All
 ///    three numbers are asserted in the render test.
-@JeebPreview(
+@JeebPreview(group: 'location', 
   name: 'Capture screen (production, full bleed)',
   size: Size(_phoneWidth, 560),
 )
@@ -149,7 +149,7 @@ Widget captureMapViewportCaptureScreen() => _measured(
 /// spare. The render test pins that, so a future designer trimming the band —
 /// or an OMDS bump moving `Sizes.eightXLarge` — fails here instead of on a
 /// user's phone.
-@JeebPreview(
+@JeebPreview(group: 'location', 
   name: 'Address form band (production, 160pt)',
   size: Size(_phoneWidth, 220),
 )
@@ -178,7 +178,7 @@ Widget captureMapViewportAddressFormBand() => _measured(
 /// **overflows by 28 pt, in Arabic as well as English**. Same square, same
 /// widget, no warning at 1×. A caller sizing a thumbnail off the 1× rendering
 /// ships an overflow stripe to every user who has enlarged their type.
-@JeebPreview(name: 'Square thumbnail (160pt)', size: Size(_phoneWidth, 220))
+@JeebPreview(group: 'location', name: 'Square thumbnail (160pt)', size: Size(_phoneWidth, 220))
 Widget captureMapViewportThumbnail() => _measured(
       'Thumbnail: 160x160 square',
       const SizedBox(
@@ -205,7 +205,7 @@ Widget captureMapViewportThumbnail() => _measured(
 /// pins both halves — it fits at 1×, it overflows at 2× — so the day someone
 /// gives the widget a minimum height or a `FittedBox`, this preview is where it
 /// gets checked.
-@JeebPreview(
+@JeebPreview(group: 'location', 
   name: 'Short strip 96pt (breaks at 200%)',
   size: Size(_phoneWidth, 160),
 )
@@ -232,7 +232,7 @@ Widget captureMapViewportShortStrip() => _measured(
 /// a `SizedBox(height: Sizes.eightXLarge * 2)`. Any caller that forgets that
 /// [SizedBox] gets this, and nothing in the widget's API hints that the height
 /// is the caller's problem.
-@JeebPreview(name: 'Unbounded height (collapses)', size: Size(_phoneWidth, 260))
+@JeebPreview(group: 'location', name: 'Unbounded height (collapses)', size: Size(_phoneWidth, 260))
 Widget captureMapViewportUnboundedHeight() => _measured(
       'Unbounded: inside a scroll view',
       const SizedBox(

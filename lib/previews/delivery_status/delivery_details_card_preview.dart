@@ -107,7 +107,7 @@ Widget _hosted({
 /// and the third (tier) never has a sub-line at all. Compare the row rhythm here
 /// against 'Sub-lines on both legs': the icon discs must stay on the same
 /// baseline as the label in both.
-@JeebPreview(name: 'Minimal (no sub-lines)', size: _shortCardBox)
+@JeebPreview(group: 'delivery_status', name: 'Minimal (no sub-lines)', size: _shortCardBox)
 Widget deliveryDetailsCardMinimal() => _hosted(
       pickup: const DeliveryAddress(label: 'Hamra'),
       dropoff: const DeliveryAddress(label: 'Verdun'),
@@ -121,7 +121,7 @@ Widget deliveryDetailsCardMinimal() => _hosted(
 /// the request-creation flow prompts for the apartment detail. Check that the
 /// sub-line reads as secondary (`onSurfaceVariant`, `bodySmall`) and not as a
 /// second address; in dark mode that contrast step is the one that collapses.
-@JeebPreview(name: 'Sub-lines on both legs', size: _cardBox)
+@JeebPreview(group: 'delivery_status', name: 'Sub-lines on both legs', size: _cardBox)
 Widget deliveryDetailsCardWithDetails() => _hosted(
       pickup: const DeliveryAddress(
         label: 'Hamra Main St, Beirut',
@@ -144,7 +144,7 @@ Widget deliveryDetailsCardWithDetails() => _hosted(
 ///
 /// The icon is the other half of the check: `Icons.local_shipping`, not the
 /// `Icons.adjust` target that marks the pickup POINT.
-@JeebPreview(name: 'Pickup-truck tier', size: _cardBox)
+@JeebPreview(group: 'delivery_status', name: 'Pickup-truck tier', size: _cardBox)
 Widget deliveryDetailsCardPickupTruckTier() => _hosted(
       pickup: const DeliveryAddress(label: 'Achrafieh, Sassine Square'),
       dropoff: const DeliveryAddress(label: 'Jounieh, Old Souk'),
@@ -160,7 +160,7 @@ Widget deliveryDetailsCardPickupTruckTier() => _hosted(
 /// blank value under it. This preview exists to make that blank visible: it is
 /// the difference between "we're still looking" and "this row is broken", and
 /// the card currently says neither.
-@JeebPreview(name: 'Unresolved pickup', size: _cardBox)
+@JeebPreview(group: 'delivery_status', name: 'Unresolved pickup', size: _cardBox)
 Widget deliveryDetailsCardUnresolvedPickup() => _hosted(
       pickup: const DeliveryAddress(label: '', detail: 'Awaiting geocode'),
       dropoff: const DeliveryAddress(label: 'Mar Mikhael, Beirut', detail: ''),
@@ -182,7 +182,7 @@ Widget deliveryDetailsCardUnresolvedPickup() => _hosted(
 /// The AR RTL and 200%-text renderings are the ones that matter here: the EN
 /// light rendering keeps looking reasonable long after the other two have run
 /// off the bottom.
-@JeebPreview(name: 'Longest content', size: _tallCardBox)
+@JeebPreview(group: 'delivery_status', name: 'Longest content', size: _tallCardBox)
 Widget deliveryDetailsCardLongContent() => _hosted(
       pickup: const DeliveryAddress(
         label: _longPickupLabel,
@@ -204,7 +204,7 @@ Widget deliveryDetailsCardLongContent() => _hosted(
 /// in the EN rendering these lines are laid out LTR: watch the trailing comma
 /// and the numeral run, which is where a first-strong (UAX#9) treatment would
 /// differ visibly from what this card does today.
-@JeebPreview(name: 'Arabic addresses in EN UI', size: _cardBox)
+@JeebPreview(group: 'delivery_status', name: 'Arabic addresses in EN UI', size: _cardBox)
 Widget deliveryDetailsCardArabicAddresses() => _hosted(
       pickup: const DeliveryAddress(
         label: 'شارع الحمرا، بيروت',

@@ -144,7 +144,7 @@ const SavedLocation _arabicLabel = SavedLocation(
 ///
 /// This state also shows the duplicated CTA copy at its most confusing: the
 /// heading and the disabled button both read "Add new location".
-@JeebPreview(name: 'Add · empty', size: _sheetBox)
+@JeebPreview(group: 'location', name: 'Add · empty', size: _sheetBox)
 Widget addEditLocationSheetAddEmpty() => _sheet(null);
 
 /// Edit mode on the seeded default address.
@@ -154,7 +154,7 @@ Widget addEditLocationSheetAddEmpty() => _sheet(null);
 /// rather than the default, and all four fields carry wire values. If the
 /// address ever renders in the label field (or vice versa) the controller
 /// wiring in `initState` has crossed.
-@JeebPreview(name: 'Edit · seeded home', size: _sheetBox)
+@JeebPreview(group: 'location', name: 'Edit · seeded home', size: _sheetBox)
 Widget addEditLocationSheetEditHome() => _sheet(_seedHome);
 
 /// Edit mode with no address on file.
@@ -164,7 +164,7 @@ Widget addEditLocationSheetEditHome() => _sheet(_seedHome);
 /// as a normal empty input with its label resting inside it — not as an error,
 /// and not with the literal string "null", which is what a `'${e.address}'`
 /// interpolation would produce.
-@JeebPreview(name: 'Edit · no address', size: _sheetBox)
+@JeebPreview(group: 'location', name: 'Edit · no address', size: _sheetBox)
 Widget addEditLocationSheetNoAddress() => _sheet(_officeNoAddress);
 
 /// Layout ceiling: a label longer than the field and a full postal address.
@@ -175,7 +175,7 @@ Widget addEditLocationSheetNoAddress() => _sheet(_officeNoAddress);
 /// the one the EN 200% rendering pushes off the end of the category row; the
 /// AR 200% rendering keeps "أخرى" and drops the leading chip instead. Neither
 /// clip is visible at 1.0, which is exactly why the matrix renders all three.
-@JeebPreview(name: 'Edit · long label', size: _sheetBox)
+@JeebPreview(group: 'location', name: 'Edit · long label', size: _sheetBox)
 Widget addEditLocationSheetLongLabel() => _sheet(_longLabel);
 
 /// The coordinate row fed the precision a map picker really produces.
@@ -186,7 +186,7 @@ Widget addEditLocationSheetLongLabel() => _sheet(_longLabel);
 /// this is where the row is tightest — the number must not visually merge with
 /// the "Longitude" field beside it, and at 200% text it must not clip the
 /// leading digits, which are the only ones that identify the city.
-@JeebPreview(name: 'Edit · raw GPS precision', size: _sheetBox)
+@JeebPreview(group: 'location', name: 'Edit · raw GPS precision', size: _sheetBox)
 Widget addEditLocationSheetRawGpsPrecision() => _sheet(_rawGpsPrecision);
 
 /// The sheet as the client actually meets it: pushed by
@@ -202,7 +202,7 @@ Widget addEditLocationSheetRawGpsPrecision() => _sheet(_rawGpsPrecision);
 /// for this app: the field's own text direction should follow the text, while
 /// the form around it stays LTR. Tapping Cancel dismisses the sheet — hot
 /// restart to bring it back.
-@JeebPreview(name: 'Modal presentation · Arabic label', size: _modalBox)
+@JeebPreview(group: 'location', name: 'Modal presentation · Arabic label', size: _modalBox)
 Widget addEditLocationSheetInModalRoute() => Navigator(
       onGenerateRoute: (RouteSettings settings) => MaterialPageRoute<void>(
         settings: settings,

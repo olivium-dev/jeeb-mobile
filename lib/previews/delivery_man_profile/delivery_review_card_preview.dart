@@ -84,7 +84,7 @@ Widget _hosted(DeliveryReviewData review, {int index = 0}) =>
 ///
 /// Attribution is FIRST NAME ONLY (D58) — this must read "Karl", never
 /// "Karl Assaf".
-@JeebPreview(name: 'Verified, 4 stars', size: _cardBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Verified, 4 stars', size: _cardBox)
 Widget deliveryReviewCardVerified() => _hosted(
       const DeliveryReviewData(
         id: 'r1',
@@ -105,7 +105,7 @@ Widget deliveryReviewCardVerified() => _hosted(
 /// stored avatar URL is dropped on purpose: an anonymous review must not leak a
 /// recognizable face. Guarded by `delivery_review_card_a11y_test.dart`; the AR
 /// rendering is the half that test cannot show you.
-@JeebPreview(name: 'Anonymous reviewer', size: _cardBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Anonymous reviewer', size: _cardBox)
 Widget deliveryReviewCardAnonymous() => _hosted(
       const DeliveryReviewData(
         id: 'anonymous',
@@ -127,7 +127,7 @@ Widget deliveryReviewCardAnonymous() => _hosted(
 ///
 /// Also seeded with `daysAgo: 1` to surface defect 2 above: this card renders
 /// the ungrammatical "1 days ago".
-@JeebPreview(name: 'Rating only, no body', size: _compactBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Rating only, no body', size: _compactBox)
 Widget deliveryReviewCardNoBody() => _hosted(
       const DeliveryReviewData(
         id: 'r-no-body',
@@ -147,7 +147,7 @@ Widget deliveryReviewCardNoBody() => _hosted(
 /// "4.5000000 of 5 stars". The visual stars are wrapped in `ExcludeSemantics`,
 /// which means this label is the ONLY thing a screen reader gets from the
 /// score.
-@JeebPreview(name: 'Half star', size: _cardBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Half star', size: _cardBox)
 Widget deliveryReviewCardHalfStar() => _hosted(
       const DeliveryReviewData(
         id: 'r-half',
@@ -165,7 +165,7 @@ Widget deliveryReviewCardHalfStar() => _hosted(
 /// The badge is the card's only two-line header element, so this is the state
 /// that proves the header still aligns when it is gone — and the state that
 /// proves the badge is not being drawn unconditionally.
-@JeebPreview(name: 'Unverified reviewer', size: _cardBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Unverified reviewer', size: _cardBox)
 Widget deliveryReviewCardUnverified() => _hosted(
       const DeliveryReviewData(
         id: 'r-unverified',
@@ -191,7 +191,7 @@ Widget deliveryReviewCardUnverified() => _hosted(
 /// measures 293 px of a 318 px content row and is drawn past the card's right
 /// border (right edge 382 vs a card ending at 370), clipped by the container's
 /// `Clip.antiAlias`.
-@JeebPreview(name: 'Long name and body', size: _tallBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Long name and body', size: _tallBox)
 Widget deliveryReviewCardLongContent() => _hosted(
       const DeliveryReviewData(
         id: 'r-long',

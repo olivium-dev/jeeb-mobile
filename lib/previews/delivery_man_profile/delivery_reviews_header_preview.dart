@@ -127,7 +127,7 @@ Widget _hosted(
 /// moves to the left edge and the count to the right — and the "Reviews"
 /// heading above it is still barely legible, because its ink resolves to a
 /// container tone at under 3:1 against the dark surface (see the library doc).
-@JeebPreview(name: '113 reviews (production)', size: _headerBox)
+@JeebPreview(group: 'delivery_man_profile', name: '113 reviews (production)', size: _headerBox)
 Widget deliveryReviewsHeaderProduction() => _hosted(113);
 
 /// Cold start: a jeeber nobody has reviewed yet.
@@ -140,7 +140,7 @@ Widget deliveryReviewsHeaderProduction() => _hosted(113);
 /// Nothing here is broken; it is a copy decision that has never been looked at
 /// in a picture. See [deliveryReviewsHeaderAboveEmptyList] for what sits under
 /// it.
-@JeebPreview(name: 'Cold start · 0 reviews', size: _headerBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Cold start · 0 reviews', size: _headerBox)
 Widget deliveryReviewsHeaderColdStart() => _hosted(0);
 
 /// The pluralization defect, made visible.
@@ -156,7 +156,7 @@ Widget deliveryReviewsHeaderColdStart() => _hosted(0);
 /// (`تقييمات`) and the 11+ band are both wrong there too. Fixing it is an ARB
 /// change plus a regenerate, which is out of scope for a preview — this state
 /// exists so the bug is on screen instead of in a backlog.
-@JeebPreview(name: 'Single review · "1 Reviews"', size: _headerBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Single review · "1 Reviews"', size: _headerBox)
 Widget deliveryReviewsHeaderSingleReview() => _hosted(1);
 
 /// The count ceiling on the narrowest phone: a six-figure aggregate.
@@ -170,7 +170,7 @@ Widget deliveryReviewsHeaderSingleReview() => _hosted(1);
 /// 128 450 is far past any real jeeber, and that is the point of a ceiling: it
 /// is the widest the label can plausibly get before the layout has to be
 /// redesigned rather than tweaked.
-@JeebPreview(name: 'Six figures · 320 pt', size: _headerBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Six figures · 320 pt', size: _headerBox)
 Widget deliveryReviewsHeaderSixFigures() =>
     _hosted(128450, width: _narrowPhoneWidth);
 
@@ -189,7 +189,7 @@ Widget deliveryReviewsHeaderSixFigures() =>
 /// nor `overflow` to fall back on — it degrades by wrapping only because
 /// nothing stops it. The scale is pinned into the tree so a widget test
 /// reproduces it; see the render test.
-@JeebPreview(name: 'Narrow · 200% text', size: _largeTextBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Narrow · 200% text', size: _largeTextBox)
 Widget deliveryReviewsHeaderNarrowLargeText() =>
     _hosted(47, width: _narrowPhoneWidth, textScale: 2.0);
 
@@ -210,7 +210,7 @@ Widget deliveryReviewsHeaderNarrowLargeText() =>
 /// cards. The gutters have to agree too: the header indents to `Spacing.large`
 /// (20) and so does the list. Change either in isolation and this state goes
 /// crooked while every other preview here stays perfect.
-@JeebPreview(name: 'Above the empty list', size: _withListBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Above the empty list', size: _withListBox)
 Widget deliveryReviewsHeaderAboveEmptyList() => _hosted(
   0,
   below: const DeliveryReviewsList(reviews: <DeliveryReviewData>[]),

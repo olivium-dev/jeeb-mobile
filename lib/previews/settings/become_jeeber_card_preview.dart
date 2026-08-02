@@ -131,7 +131,7 @@ Widget _hosted({
 /// subtitle are not just cropped, they are gone, and the [Row] still overflows
 /// by 15 pt. A card whose entire message vanishes at the accessibility ceiling
 /// is the finding this file was written to make visible.
-@JeebPreview(name: 'Client · 390', size: _phoneBox)
+@JeebPreview(group: 'settings', name: 'Client · 390', size: _phoneBox)
 Widget becomeJeeberCardPhone() => _hosted(width: _phoneWidth);
 
 /// The squeeze point: the same card at 320 pt.
@@ -140,7 +140,7 @@ Widget becomeJeeberCardPhone() => _hosted(width: _phoneWidth);
 /// is taken from the text: the column collapses to 41 pt, "Become a Jeeber"
 /// wraps to SEVEN lines, and the card grows to 412 pt tall — taller than it is
 /// wide. At 200% text this state overflows by 85 pt.
-@JeebPreview(name: 'Narrow 320', size: _narrowBox)
+@JeebPreview(group: 'settings', name: 'Narrow 320', size: _narrowBox)
 Widget becomeJeeberCardNarrowPhone() => _hosted(width: _narrowPhoneWidth);
 
 /// The control: the same widget, same copy, at tablet width.
@@ -150,7 +150,7 @@ Widget becomeJeeberCardNarrowPhone() => _hosted(width: _narrowPhoneWidth);
 /// diagnosis: the copy is not too long, the [Row] simply has no wrap or
 /// [Wrap]/[Column] fallback, so the fix belongs in the layout and not in the
 /// ARB.
-@JeebPreview(name: 'Wide 700', size: _wideBox)
+@JeebPreview(group: 'settings', name: 'Wide 700', size: _wideBox)
 Widget becomeJeeberCardWide() => _hosted(width: _wideWidth);
 
 /// T-MOB-027 AC2, made visible: once the user's `available_roles` already
@@ -162,7 +162,7 @@ Widget becomeJeeberCardWide() => _hosted(width: _wideWidth);
 /// correctly hid itself look identical. The neighbour rows are the control —
 /// they must still be there, and the gap between them must close completely
 /// (no leftover padding, no 8 pt ghost).
-@JeebPreview(name: 'Already a Jeeber · hidden', size: _hiddenBox)
+@JeebPreview(group: 'settings', name: 'Already a Jeeber · hidden', size: _hiddenBox)
 Widget becomeJeeberCardAlreadyJeeber() => _Viewport(
       width: _phoneWidth,
       child: Column(

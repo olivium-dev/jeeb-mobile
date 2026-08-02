@@ -86,7 +86,7 @@ Widget _hosted({
 /// It is also the cleanest read of the DARK rendering: the band is
 /// `colorScheme.secondaryContainer` and the copy is `colorScheme.onPrimary`,
 /// which is white in the light theme but a dark navy in the dark theme.
-@JeebPreview(name: 'Plain notice', size: Size(_phoneWidth, 220))
+@JeebPreview(group: 'chat', name: 'Plain notice', size: Size(_phoneWidth, 220))
 Widget chatFeeBannerPlainNotice() => _hosted(amount: r'$0.5');
 
 /// The production default: `ChatFeeNotice.trailing` is
@@ -101,7 +101,7 @@ Widget chatFeeBannerPlainNotice() => _hosted(amount: r'$0.5');
 ///
 /// 92 dp at 1.0, 232 dp at the 200% rendering: the notice reflows and the band
 /// grows, which is the correct degradation.
-@JeebPreview(name: 'Dismissible', size: Size(_phoneWidth, 260))
+@JeebPreview(group: 'chat', name: 'Dismissible', size: Size(_phoneWidth, 260))
 Widget chatFeeBannerDismissible() => _hosted(
       amount: r'$0.75',
       trailing: ChatFeeBannerTrailing.dismiss,
@@ -123,7 +123,7 @@ Widget chatFeeBannerDismissible() => _hosted(
 ///
 /// The 200% rendering of this preview cannot fit any sane canvas box; that it
 /// does not fit is the finding, not a sizing mistake here.
-@JeebPreview(name: 'Order picked pill', size: Size(_phoneWidth, 360))
+@JeebPreview(group: 'chat', name: 'Order picked pill', size: Size(_phoneWidth, 360))
 Widget chatFeeBannerOrderPickedPill() => _hosted(
       amount: r'$1.25',
       trailing: ChatFeeBannerTrailing.orderPicked,
@@ -141,7 +141,7 @@ Widget chatFeeBannerOrderPickedPill() => _hosted(
 /// Worth reading in AR too: the Arabic label "تم استلام الطلب" makes the pill
 /// WIDER than the English one (242.0 dp at 1.0, 452.0 dp at 200%), so Arabic
 /// hits the starvation earlier than English at every width.
-@JeebPreview(name: 'Small phone 320dp', size: Size(_smallPhoneWidth, 320))
+@JeebPreview(group: 'chat', name: 'Small phone 320dp', size: Size(_smallPhoneWidth, 320))
 Widget chatFeeBannerSmallPhoneOrderPicked() => _hosted(
       amount: r'$2.50',
       trailing: ChatFeeBannerTrailing.orderPicked,
@@ -161,7 +161,7 @@ Widget chatFeeBannerSmallPhoneOrderPicked() => _hosted(
 /// And it is the honest test of the claim in [ChatFeeBanner]'s own docs that
 /// the copy "wraps and scales without clipping": with a flexible trailing slot
 /// it does — 92 dp at 1.0, 272 dp at 200%, reflowing the whole way.
-@JeebPreview(name: 'Long LBP amount', size: Size(_phoneWidth, 300))
+@JeebPreview(group: 'chat', name: 'Long LBP amount', size: Size(_phoneWidth, 300))
 Widget chatFeeBannerLongAmount() => _hosted(
       amount: MoneyFormat.format(1250000, currency: 'LBP'),
       trailing: ChatFeeBannerTrailing.dismiss,
@@ -181,7 +181,7 @@ Widget chatFeeBannerLongAmount() => _hosted(
 /// exceeds the slot and the correct degradation is a SCROLL. If the canvas ever
 /// shows a clipped band or an overflow stripe here instead, the bound has
 /// regressed.
-@JeebPreview(name: 'Bounded header slot', size: Size(_phoneWidth, 340))
+@JeebPreview(group: 'chat', name: 'Bounded header slot', size: Size(_phoneWidth, 340))
 Widget chatFeeBannerBoundedHeaderSlot() => Align(
       alignment: AlignmentDirectional.topStart,
       child: SizedBox(

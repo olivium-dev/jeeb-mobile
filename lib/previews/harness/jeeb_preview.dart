@@ -81,25 +81,67 @@ Widget jeebPreviewHost(Widget child) => CatalogNetworkGuard(
 ///
 /// Pass [size] to give the canvas a sensible box for the widget under review —
 /// a header wants a short wide box, a card wants something near phone width.
+///
+/// ## Why the matrix is OFF by default
+///
+/// Rendering all three variants for every widget put ~750 cards in one flat
+/// canvas, which is both slow to first paint and hard to navigate. The AR and
+/// 200% renderings are still asserted on every CI run — see
+/// `test/previews/preview_test_harness.dart`, which pumps each preview in BOTH
+/// locales — so the canvas does not have to carry them to keep them honest.
+///
+/// Pass `matrix: true` on the previews where seeing them side by side is the
+/// point: anything with a Row of text and actions, any RTL-sensitive layout,
+/// anything whose copy length varies by locale.
 final class JeebPreview extends MultiPreview {
-  const JeebPreview({this.name, this.size});
+  const JeebPreview({
+    this.name,
+    this.size,
+    this.group = 'Other',
+    this.matrix = false,
+  });
 
-  /// Label for this preview in the canvas. The matrix suffixes each rendering
-  /// with its own variant name.
+  /// Label for this preview in the canvas. When [matrix] is on, each rendering
+  /// is suffixed with its own variant name.
   final String? name;
 
   /// Canvas size. Defaults to a phone-width box when omitted.
   final Size? size;
+
+  /// Collapsible section this preview lands in — use the feature area, so the
+  /// canvas groups by `chat`, `core`, `live_tracking` … instead of presenting
+  /// one undifferentiated wall. This is also the reliable way to navigate:
+  /// the canvas's own search box renders the wrong previews (it filters labels
+  /// but paints by unfiltered index) in Flutter 3.44.2.
+  final String group;
+
+  /// Render the full EN-light / AR-RTL-dark / EN-200%-text matrix instead of
+  /// the default single EN-light card.
+  final bool matrix;
 
   static const Size _defaultSize = Size(390, 200);
 
   @override
   List<Preview> get previews {
     final Size box = size ?? _defaultSize;
+    if (!matrix) {
+      return <Preview>[
+        Preview(
+          name: name,
+          group: group,
+          size: box,
+          brightness: Brightness.light,
+          theme: jeebPreviewTheme,
+          localizations: jeebPreviewEnglish,
+          wrapper: jeebPreviewHost,
+        ),
+      ];
+    }
     final String prefix = name == null ? '' : '$name · ';
     return <Preview>[
       Preview(
         name: '${prefix}EN light',
+        group: group,
         size: box,
         brightness: Brightness.light,
         theme: jeebPreviewTheme,
@@ -108,6 +150,7 @@ final class JeebPreview extends MultiPreview {
       ),
       Preview(
         name: '${prefix}AR RTL dark',
+        group: group,
         size: box,
         brightness: Brightness.dark,
         theme: jeebPreviewTheme,
@@ -116,6 +159,7 @@ final class JeebPreview extends MultiPreview {
       ),
       Preview(
         name: '${prefix}EN 200% text',
+        group: group,
         size: box,
         textScaleFactor: 2.0,
         brightness: Brightness.light,

@@ -129,7 +129,7 @@ Widget _onCard({
 /// A 2dp `primary` ring and nothing inside it, on the white `surface` fill both
 /// callers use for an unselected card — 17.13:1 light, 10.85:1 dark. This is the
 /// baseline reading; everything else in this file is a departure from it.
-@JeebPreview(name: 'Unselected on its card', size: _specimenBox)
+@JeebPreview(group: 'request_type', name: 'Unselected on its card', size: _specimenBox)
 Widget selectableRadioGlyphUnselected() => _hosted(
   caption: 'Unselected on its card',
   sample: _onCard(
@@ -144,7 +144,7 @@ Widget selectableRadioGlyphUnselected() => _hosted(
 /// `selected: true` resolves ring and dot to `onPrimary`, and the card under it
 /// has flipped to `primary` — 17.13:1 light, 7.70:1 dark. Read this against the
 /// next specimen: the widget is identical in both, and only the fill changed.
-@JeebPreview(name: 'Selected on its navy card', size: _specimenBox)
+@JeebPreview(group: 'request_type', name: 'Selected on its navy card', size: _specimenBox)
 Widget selectableRadioGlyphSelected() => _hosted(
   caption: 'Selected on its navy card',
   sample: _onCard(
@@ -166,7 +166,7 @@ Widget selectableRadioGlyphSelected() => _hosted(
 /// default: a selected radio on a card that did not also change colour — a
 /// checklist, a settings row, a filter sheet. The `outlineVariant` hairline is
 /// preview chrome; it is the only thing marking where the glyph should be.
-@JeebPreview(name: 'Selected on surface · vanishes', size: _specimenBox)
+@JeebPreview(group: 'request_type', name: 'Selected on surface · vanishes', size: _specimenBox)
 Widget selectableRadioGlyphSelectedOnSurface() => _hosted(
   caption: 'Selected on surface · vanishes',
   sample: _onCard(
@@ -187,7 +187,7 @@ Widget selectableRadioGlyphSelectedOnSurface() => _hosted(
 ///
 /// Nothing here changes production: `ring` is an existing public parameter, and
 /// `ClientLocationOptionCard` already routes its own `foreground` through it.
-@JeebPreview(name: 'Selected on surface · ring override', size: _specimenBox)
+@JeebPreview(group: 'request_type', name: 'Selected on surface · ring override', size: _specimenBox)
 Widget selectableRadioGlyphRingOverride() => _hosted(
   caption: 'Selected on surface · ring override',
   sample: _onCard(
@@ -209,7 +209,7 @@ Widget selectableRadioGlyphRingOverride() => _hosted(
 /// 12dp inside a 20dp inner circle, so the gap between them is 4dp. At a glance
 /// on a small screen the selected glyph reads closer to a filled disc than to a
 /// ring-plus-dot.
-@JeebPreview(name: 'Both states, real fills', size: _stripBox)
+@JeebPreview(group: 'request_type', name: 'Both states, real fills', size: _stripBox)
 Widget selectableRadioGlyphBothStates() => _hosted(
   caption: 'Both states, real fills',
   sample: Row(
@@ -242,7 +242,7 @@ Widget selectableRadioGlyphBothStates() => _hosted(
 /// doubles while the glyph stays exactly 24dp. Nothing clips — the card grows —
 /// but the trailing column stops reading as a control and becomes a dot beside
 /// the text, which is the state a low-vision user has to hit accurately.
-@JeebPreview(name: 'In a real tier card', size: _cardBox)
+@JeebPreview(group: 'request_type', name: 'In a real tier card', size: _cardBox)
 Widget selectableRadioGlyphInTierCard() => _hosted(
   caption: 'In a real tier card',
   sample: Builder(

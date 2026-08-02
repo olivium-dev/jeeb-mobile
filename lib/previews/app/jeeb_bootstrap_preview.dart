@@ -114,7 +114,7 @@ final Object jeebBootstrapArabicError =
 /// brightness do not reach the inner `MaterialApp`, only the host machine's
 /// locale and theme do. To see the mirrored splash, change the device/desktop
 /// locale (or use the `holdSplash` + `forcedLocale` dev seams on a debug build).
-@JeebPreview(name: 'Cold start (splash)', size: jeebBootstrapPreviewBox)
+@JeebPreview(group: 'app', name: 'Cold start (splash)', size: jeebBootstrapPreviewBox)
 Widget jeebBootstrapColdStart() => _bootstrapping();
 
 /// Shortest plausible failure: something threw a bare `Exception`.
@@ -122,7 +122,7 @@ Widget jeebBootstrapColdStart() => _bootstrapping();
 /// Renders "App failed to start: Exception" — a dead end with no cause, no
 /// retry, no support path, in hardcoded English. This is the floor of the error
 /// host's design and the reason it is worth reviewing at all.
-@JeebPreview(name: 'Boot failed · opaque', size: jeebBootstrapPreviewBox)
+@JeebPreview(group: 'app', name: 'Boot failed · opaque', size: jeebBootstrapPreviewBox)
 Widget jeebBootstrapFailedOpaque() => _failed(jeebBootstrapOpaqueError);
 
 /// The documented failure mode: the `SharedPreferences` platform channel is
@@ -133,7 +133,7 @@ Widget jeebBootstrapFailedOpaque() => _failed(jeebBootstrapOpaqueError);
 /// realistic middle of the range: ~110 characters of channel plumbing, which
 /// still fits at 200% text (measured 480 dp in the 796 dp box) but reads as raw
 /// internals rather than as anything a user can act on.
-@JeebPreview(name: 'Boot failed · plugin missing', size: jeebBootstrapPreviewBox)
+@JeebPreview(group: 'app', name: 'Boot failed · plugin missing', size: jeebBootstrapPreviewBox)
 Widget jeebBootstrapFailedMissingPlugin() =>
     _failed(jeebBootstrapMissingPluginError);
 
@@ -149,7 +149,7 @@ Widget jeebBootstrapFailedMissingPlugin() =>
 /// with no ellipsis to say so and no way to scroll to it. Nothing throws, which
 /// is why only a rendering at large text (or the measurement in
 /// `test/previews/app/jeeb_bootstrap_preview_test.dart`) catches it.
-@JeebPreview(name: 'Boot failed · verbose', size: jeebBootstrapPreviewBox)
+@JeebPreview(group: 'app', name: 'Boot failed · verbose', size: jeebBootstrapPreviewBox)
 Widget jeebBootstrapFailedVerbose() => _failed(jeebBootstrapVerboseError);
 
 /// A failure whose message is not Latin script.
@@ -160,5 +160,5 @@ Widget jeebBootstrapFailedVerbose() => _failed(jeebBootstrapVerboseError);
 /// hardcoded English label and the Arabic message end up in one bidi run,
 /// centred as if they read the same way. This is the state that shows the error
 /// host is not merely unlocalized but actively wrong on an Arabic device.
-@JeebPreview(name: 'Boot failed · Arabic payload', size: jeebBootstrapPreviewBox)
+@JeebPreview(group: 'app', name: 'Boot failed · Arabic payload', size: jeebBootstrapPreviewBox)
 Widget jeebBootstrapFailedArabicPayload() => _failed(jeebBootstrapArabicError);

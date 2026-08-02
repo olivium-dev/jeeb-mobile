@@ -166,7 +166,7 @@ ClientHomeRequest _reply({required String orderId, required int offerCount}) =>
 /// screen it overflows by 266 dp (278 dp under AR, whose chip labels are
 /// longer). Every READY state below inherits that; only the loading and failed
 /// layouts escape it, because they drop the chip row entirely.
-@JeebPreview(name: 'Pending · two requests', size: _tabBox)
+@JeebPreview(group: 'shell', name: 'Pending · two requests', size: _tabBox)
 Widget homeTabPending() => _hosted(
   _SeededHomeRepository(
     pending: <ClientHomeRequest>[
@@ -185,7 +185,7 @@ Widget homeTabPending() => _hosted(
 /// still there. Worth reading next to `Failed · cold load` below, which drops
 /// the chip row entirely — the two are the same physical space used two
 /// different ways.
-@JeebPreview(name: 'Empty · new account', size: _tabBox)
+@JeebPreview(group: 'shell', name: 'Empty · new account', size: _tabBox)
 Widget homeTabEmpty() => _hosted(const _SeededHomeRepository());
 
 /// Pending is empty but Replies is not, so the tab MOVES the selection.
@@ -197,7 +197,7 @@ Widget homeTabEmpty() => _hosted(const _SeededHomeRepository());
 /// `test/client_home_screen_test.dart` — it must advance to Replies and never to
 /// the relocated In-Progress surface. Read the chip row here: the selected chip
 /// is `Replies`, not the one the tab was built with.
-@JeebPreview(name: 'Auto-advance to Replies', size: _tabBox)
+@JeebPreview(group: 'shell', name: 'Auto-advance to Replies', size: _tabBox)
 Widget homeTabAdvancesToReplies() => _hosted(
   _SeededHomeRepository(
     replies: <ClientHomeRequest>[_reply(orderId: 'ORD-23480', offerCount: 9)],
@@ -216,7 +216,7 @@ Widget homeTabAdvancesToReplies() => _hosted(
 /// back", not "Hello, Layla", even though the name was passed in and the cubit
 /// already emitted it. `_LoadingLayout` hardcodes `name: null` while
 /// `_FailedLayout` two lines below passes `state.greetingName`.
-@JeebPreview(name: 'Loading · cold', size: _stateBox)
+@JeebPreview(group: 'shell', name: 'Loading · cold', size: _stateBox)
 Widget homeTabLoading() =>
     _hosted(const _StalledHomeRepository(), greetingName: 'Layla');
 
@@ -228,7 +228,7 @@ Widget homeTabLoading() =>
 /// canvas it puts the tab into the loading state above and stays there; the fake
 /// has nothing else to say. Unlike the loading layout, this one DOES carry the
 /// greeting name through.
-@JeebPreview(name: 'Failed · cold load', size: _stateBox)
+@JeebPreview(group: 'shell', name: 'Failed · cold load', size: _stateBox)
 Widget homeTabFailed() =>
     _hosted(const _FailingHomeRepository(), greetingName: 'Layla');
 
@@ -244,7 +244,7 @@ Widget homeTabFailed() =>
 /// survive at 200% is everything below it — the chip row overflows by 266 dp
 /// and the card's own `pending-server-status` row by a further 201 dp. Neither
 /// is caused by this fixture; a two-word title reproduces both.
-@JeebPreview(name: 'Longest content', size: _tabBox)
+@JeebPreview(group: 'shell', name: 'Longest content', size: _tabBox)
 Widget homeTabLongContent() => _hosted(
   const _SeededHomeRepository(
     pending: <ClientHomeRequest>[

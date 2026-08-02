@@ -145,7 +145,7 @@ ClientHomeRequest _reply({
 /// is the state to read the AR RTL rendering of: the stack is built from
 /// `PositionedDirectional`, so if the overlap ever stops mirroring, it stops
 /// here first.
-@JeebPreview(name: 'Nine offers · +6', size: repliesTabCardBox)
+@JeebPreview(group: 'home_client', name: 'Nine offers · +6', size: repliesTabCardBox)
 Widget repliesTabWithOverflowCount() => _hosted(
       _SeededHomeRepository(<ClientHomeRequest>[
         _reply(displayId: 'ORD-23470', offerCount: 9),
@@ -163,7 +163,7 @@ Widget repliesTabWithOverflowCount() => _hosted(
 /// `Check Offers` are `IntrinsicWidth` pills in an end-aligned [Row] with no
 /// `Wrap`, `Flexible` or `FittedBox` anywhere, so their combined width scales
 /// with the text scale while the 390 dp box does not.
-@JeebPreview(name: 'Long content · +117', size: repliesTabCardBox)
+@JeebPreview(group: 'home_client', name: 'Long content · +117', size: repliesTabCardBox)
 Widget repliesTabLongContent() => _hosted(
       _SeededHomeRepository(<ClientHomeRequest>[
         _reply(
@@ -185,7 +185,7 @@ Widget repliesTabLongContent() => _hosted(
 /// [ListView]. It cannot scroll and it does not lazily build, so its height is
 /// entirely the host's problem — fine under the home `ListView`, and the reason
 /// this preview needs a 620 dp box while every other one fits in 200.
-@JeebPreview(name: 'Three replies', size: repliesTabListBox)
+@JeebPreview(group: 'home_client', name: 'Three replies', size: repliesTabListBox)
 Widget repliesTabMultipleReplies() => _hosted(
       _SeededHomeRepository(<ClientHomeRequest>[
         _reply(displayId: 'ORD-23471', offerCount: 1, avatarCount: 1),
@@ -201,7 +201,7 @@ Widget repliesTabMultipleReplies() => _hosted(
 /// NEW-ORDER prompt, over a subtitle that explains there are no replies. It
 /// reads as a call to action on a tab that has no action, and it is identical
 /// to the frame rendered before `load()` has returned.
-@JeebPreview(name: 'Empty', size: repliesTabStateBox)
+@JeebPreview(group: 'home_client', name: 'Empty', size: repliesTabStateBox)
 Widget repliesTabEmpty() =>
     _hosted(const _SeededHomeRepository(<ClientHomeRequest>[]));
 
@@ -211,7 +211,7 @@ Widget repliesTabEmpty() =>
 /// Worth reviewing next to `Empty` — both are icon + title + copy centred in
 /// the tab, and at a glance the only difference is the icon and the ink colour,
 /// so the error has to carry its meaning in the copy alone.
-@JeebPreview(name: 'Load failed', size: repliesTabStateBox)
+@JeebPreview(group: 'home_client', name: 'Load failed', size: repliesTabStateBox)
 Widget repliesTabFailed() => _hosted(const _FailingHomeRepository());
 
 /// The read is in flight and nothing is cached.
@@ -219,5 +219,5 @@ Widget repliesTabFailed() => _hosted(const _FailingHomeRepository());
 /// This is a spinner with no text of any kind — no skeleton row, no "loading
 /// your replies". It is the only state of the four that tells a screen-reader
 /// user nothing at all, and on a slow connection it is what fills the tab.
-@JeebPreview(name: 'Loading', size: repliesTabStateBox)
+@JeebPreview(group: 'home_client', name: 'Loading', size: repliesTabStateBox)
 Widget repliesTabLoading() => _hosted(const _StalledHomeRepository());

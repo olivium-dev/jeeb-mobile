@@ -92,7 +92,7 @@ Widget _hostedLocalized({
 /// hairline is doing all the work of saying "this is a control", at 1.29:1
 /// (light) and 1.98:1 (dark). Look at the AR RTL **dark** rendering: that is
 /// where the card reads as loose text rather than a tappable option.
-@JeebPreview(name: 'Unselected', size: _cardBox)
+@JeebPreview(group: 'location', name: 'Unselected', size: _cardBox)
 Widget clientLocationOptionCardUnselected() => _hostedLocalized(
       label: (AppLocalizations l10n) => l10n.clientLocationNewOption,
       selected: false,
@@ -104,7 +104,7 @@ Widget clientLocationOptionCardUnselected() => _hostedLocalized(
 /// also what gates the Confirm CTA, so "did my tap register" is answered by
 /// this rendering alone. Contrast is comfortable in both themes (17.1:1 light,
 /// 7.7:1 dark), and the label survives 200% text without truncating.
-@JeebPreview(name: 'Selected', size: _cardBox)
+@JeebPreview(group: 'location', name: 'Selected', size: _cardBox)
 Widget clientLocationOptionCardSelected() => _hostedLocalized(
       label: (AppLocalizations l10n) => l10n.clientLocationCurrentOption,
       selected: true,
@@ -119,7 +119,7 @@ Widget clientLocationOptionCardSelected() => _hostedLocalized(
 /// and the tail of the label is replaced by an ellipsis — it never wraps, so
 /// there is no second line and no growth. Whether truncating is the right
 /// answer for an address is a design question this preview makes askable.
-@JeebPreview(name: 'Long label truncates', size: _cardBox)
+@JeebPreview(group: 'location', name: 'Long label truncates', size: _cardBox)
 Widget clientLocationOptionCardLongLabel() => _hosted(
       label: 'Sassine Square, Ashrafieh — Building 12, 3rd floor, blue door',
       selected: false,
@@ -132,7 +132,7 @@ Widget clientLocationOptionCardLongLabel() => _hosted(
 /// stays a single ellipsized line no matter what. Selected on purpose: the
 /// ellipsis is at its lowest contrast in `onPrimary` on navy, and this is the
 /// state where a customer can end up unable to tell two saved pins apart.
-@JeebPreview(name: 'Unbreakable label', size: _cardBox)
+@JeebPreview(group: 'location', name: 'Unbreakable label', size: _cardBox)
 Widget clientLocationOptionCardUnbreakableLabel() => _hosted(
       label: 'W2CH+8XBeirutGovernorateLebanonPlusCodeIdentifier',
       selected: true,
@@ -147,7 +147,7 @@ Widget clientLocationOptionCardUnbreakableLabel() => _hosted(
 /// direction: the Arabic itself is shaped correctly, but the bracketed Latin
 /// digits resolve against the wrong base. Read this preview against its own AR
 /// RTL rendering, where the base direction is right and the whole card mirrors.
-@JeebPreview(name: 'RTL label under EN locale', size: _cardBox)
+@JeebPreview(group: 'location', name: 'RTL label under EN locale', size: _cardBox)
 Widget clientLocationOptionCardRtlLabel() => _hosted(
       label: 'ساسين، الأشرفية (مبنى 12)',
       selected: false,
@@ -165,7 +165,7 @@ Widget clientLocationOptionCardRtlLabel() => _hosted(
 /// is hardcoded inside the widget, so BOTH cards here publish the same
 /// semantics identifier — the one `test/delivery_create_screens_test.dart`
 /// asserts `findsOneWidget` on.
-@JeebPreview(name: 'Pair in one group', size: _groupBox)
+@JeebPreview(group: 'location', name: 'Pair in one group', size: _groupBox)
 Widget clientLocationOptionCardPair() => const Padding(
       padding: EdgeInsetsDirectional.symmetric(
         horizontal: Spacing.large,

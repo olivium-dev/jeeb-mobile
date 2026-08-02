@@ -49,7 +49,7 @@ Widget _hosted({
 /// Greets the FIRST name only ("Hello, Sami", never "Hello, Sami Fawaz"), and
 /// this is the only shape where the header is a Row — avatar, gap, then a
 /// [Flexible] greeting line.
-@JeebPreview(name: 'Named + avatar', size: _headerBox)
+@JeebPreview(group: 'jeeber_home', name: 'Named + avatar', size: _headerBox)
 Widget jeeberHomeGreetingNamedWithAvatar() => _hosted(
       profile: const GreetingProfileState(
         name: 'Sami Fawaz',
@@ -63,7 +63,7 @@ Widget jeeberHomeGreetingNamedWithAvatar() => _hosted(
 /// This is what a jeeber sees for the first few hundred milliseconds of every
 /// dashboard mount, and it is worth reviewing beside the state above: when
 /// getMe lands, an avatar appears and the title reflows sideways.
-@JeebPreview(name: 'Generic fallback', size: _headerBox)
+@JeebPreview(group: 'jeeber_home', name: 'Generic fallback', size: _headerBox)
 Widget jeeberHomeGreetingFallback() => _hosted();
 
 /// The unregistered upsell path (`JeeberUnregisteredView` /
@@ -71,7 +71,7 @@ Widget jeeberHomeGreetingFallback() => _hosted();
 ///
 /// 'Kamal' is the literal placeholder `DashboardTab` threads on this path, so
 /// this preview is the real screen-19 header, not an invented one.
-@JeebPreview(name: 'Threaded name, no avatar', size: _headerBox)
+@JeebPreview(group: 'jeeber_home', name: 'Threaded name, no avatar', size: _headerBox)
 Widget jeeberHomeGreetingThreadedNameOnly() => _hosted(name: 'Kamal');
 
 /// P0-X06 precedence, made visible: the ambient profile must WIN over a stale
@@ -81,7 +81,7 @@ Widget jeeberHomeGreetingThreadedNameOnly() => _hosted(name: 'Kamal');
 /// value can be older than the cubit's. If this preview ever renders
 /// "Hello, Kamal", the ambient read in `build` has stopped taking precedence
 /// and every jeeber would be greeted by the placeholder after a profile edit.
-@JeebPreview(name: 'Ambient profile wins', size: _headerBox)
+@JeebPreview(group: 'jeeber_home', name: 'Ambient profile wins', size: _headerBox)
 Widget jeeberHomeGreetingAmbientWins() => _hosted(
       name: 'Kamal',
       profile: const GreetingProfileState(name: 'Layla'),
@@ -104,7 +104,7 @@ Widget jeeberHomeGreetingAmbientWins() => _hosted(
 ///   * the suppressed name also drops the avatar INITIAL to "?" while the real
 ///     profile picture still loads behind it, because the avatar is built from
 ///     the suppressed name and only the URL survives.
-@JeebPreview(name: 'Synthetic handle suppressed', size: _headerBox)
+@JeebPreview(group: 'jeeber_home', name: 'Synthetic handle suppressed', size: _headerBox)
 Widget jeeberHomeGreetingSyntheticHandle() => _hosted(
       name: 'Rami',
       profile: const GreetingProfileState(
@@ -119,7 +119,7 @@ Widget jeeberHomeGreetingSyntheticHandle() => _hosted(
 /// This is the state the AR RTL and 200%-text renderings of the matrix are
 /// really for — the English light rendering looks fine long after the other two
 /// have broken.
-@JeebPreview(name: 'Long name ellipsis', size: _headerBox)
+@JeebPreview(group: 'jeeber_home', name: 'Long name ellipsis', size: _headerBox)
 Widget jeeberHomeGreetingLongName() => _hosted(
       profile: const GreetingProfileState(
         name: 'Abdulrahman Al-Muhandis Al-Trabulsi',

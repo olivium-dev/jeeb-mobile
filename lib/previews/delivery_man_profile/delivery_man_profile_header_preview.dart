@@ -161,7 +161,7 @@ Widget _hosted({
 /// not the "·" the design writes — so it parses as a sentence break and a
 /// screen reader announces it as one. `deliveryManProfileLocationAvailability`
 /// has the same body.
-@JeebPreview(name: 'Populated (shipped fixture)', size: _headerBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Populated (shipped fixture)', size: _headerBox)
 Widget deliveryManProfileHeaderPopulated() => _hosted(
       name: 'Kamal Hajj',
       rating: 4.3,
@@ -183,7 +183,7 @@ Widget deliveryManProfileHeaderPopulated() => _hosted(
 /// `AppLocalizations` resolves this key by literal `{count}` substitution with
 /// no ICU plural support, so it cannot be fixed in the ARB, and the Arabic
 /// value `{count} تقييم` is the singular for every count from the other side.
-@JeebPreview(name: 'Cold start · score hidden (D59)', size: _headerBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Cold start · score hidden (D59)', size: _headerBox)
 Widget deliveryManProfileHeaderColdStart() => _hosted(
       name: 'Rana Ahmad',
       rating: 5,
@@ -211,7 +211,7 @@ Widget deliveryManProfileHeaderColdStart() => _hosted(
 /// defaults `isVerified` to **true** and the offer-card call site never passes
 /// it, so an account with zero reviews and no name of its own is shown a
 /// SealCheck — the strongest trust signal on the screen, granted by a default.
-@JeebPreview(name: 'From offer card · no location (F9)', size: _headerBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'From offer card · no location (F9)', size: _headerBox)
 Widget deliveryManProfileHeaderNoLocation() => _hosted(
       name: 'New Jeeber',
       rating: 0,
@@ -234,7 +234,7 @@ Widget deliveryManProfileHeaderNoLocation() => _hosted(
 /// no dot, no chip — so at a glance an offline jeeber and an online one are the
 /// same card. In **AR RTL** the pair reads "الرياض . غير متاح", where the
 /// negation is a separate leading word.
-@JeebPreview(name: 'Unavailable + unverified', size: _headerBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Unavailable + unverified', size: _headerBox)
 Widget deliveryManProfileHeaderUnavailable() => _hosted(
       name: 'Sami',
       rating: 4.8,
@@ -262,7 +262,7 @@ Widget deliveryManProfileHeaderUnavailable() => _hosted(
 /// 222 × 64 dp — two lines — at 1x, taking the header to 140 dp before anyone
 /// touches the text-size slider. A four-word Arabic name is ordinary, so the
 /// wrap is the common case, not the ceiling.
-@JeebPreview(name: 'Arabic name, Latin location', size: _wrappingBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Arabic name, Latin location', size: _wrappingBox)
 Widget deliveryManProfileHeaderArabicName() => _hosted(
       name: 'كمال حاج الطرابلسي',
       rating: 4.9,
@@ -297,7 +297,7 @@ Widget deliveryManProfileHeaderArabicName() => _hosted(
 ///    not perfect is presented as perfect — and the count beside it is
 ///    interpolated as `'$count'`, so it reads "1284" ungrouped in English and
 ///    in Western digits in Arabic, where the rest of the label is Arabic script.
-@JeebPreview(name: 'Longest plausible content', size: _phoneScreenBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Longest plausible content', size: _phoneScreenBox)
 Widget deliveryManProfileHeaderLongest() => _hosted(
       name: 'Abdulrahman Al-Muhandis Al-Trabulsi',
       rating: 4.96,

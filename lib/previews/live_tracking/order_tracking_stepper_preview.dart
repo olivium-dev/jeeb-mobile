@@ -91,7 +91,7 @@ Widget _hosted(
 /// complete and the bar is a quarter full before the jeeber has touched the
 /// parcel. That is the convention the whole component is built on — see it once
 /// here and the other five states read correctly.
-@JeebPreview(name: 'Ordered', size: _stepperBox)
+@JeebPreview(group: 'live_tracking', name: 'Ordered', size: _stepperBox)
 Widget orderTrackingStepperOrdered() =>
     _hosted('Ordered · step 1 of 4', currentStep: 0);
 
@@ -107,13 +107,13 @@ Widget orderTrackingStepperOrdered() =>
 /// filled half of the bar sits under "قيد التوصيل / تم التسليم" — the two steps
 /// that have NOT happened — and the two that have are over bare track. Pinned
 /// in the render test.
-@JeebPreview(name: 'Picked', size: _stepperBox)
+@JeebPreview(group: 'live_tracking', name: 'Picked', size: _stepperBox)
 Widget orderTrackingStepperPicked() =>
     _hosted('Picked · step 2 of 4', currentStep: 1);
 
 /// En route. The steady state of a live delivery and the one a customer stares
 /// at longest.
-@JeebPreview(name: 'In transit', size: _stepperBox)
+@JeebPreview(group: 'live_tracking', name: 'In transit', size: _stepperBox)
 Widget orderTrackingStepperInTransit() =>
     _hosted('In transit · step 3 of 4', currentStep: 2);
 
@@ -129,7 +129,7 @@ Widget orderTrackingStepperInTransit() =>
 /// The regression this guards is asserted from the screen in
 /// `test/features/live_tracking/tracking_lifecycle_bodies_test.dart` (case d);
 /// this is the same contract with a picture attached.
-@JeebPreview(name: 'At Door', size: _stepperBox)
+@JeebPreview(group: 'live_tracking', name: 'At Door', size: _stepperBox)
 Widget orderTrackingStepperAtDoor() =>
     _hosted('At Door · step 3 of 4, relabelled', currentStep: 2, atDoor: true);
 
@@ -141,7 +141,7 @@ Widget orderTrackingStepperAtDoor() =>
 /// stepper never shows itself as finished even though the progress bar
 /// underneath is 100% full. Compare this rendering with [orderTrackingStepperInTransit]
 /// side by side in the canvas: the last column looks the same in both.
-@JeebPreview(name: 'Delivered', size: _stepperBox)
+@JeebPreview(group: 'live_tracking', name: 'Delivered', size: _stepperBox)
 Widget orderTrackingStepperDelivered() =>
     _hosted('Delivered · step 4 of 4', currentStep: 3);
 
@@ -154,7 +154,7 @@ Widget orderTrackingStepperDelivered() =>
 /// thing happens one notch less severely at 390pt, where the columns are 97.5pt
 /// and every label still overflows — this preview is the narrow end of a
 /// problem the phone-width states share, not a device-specific curiosity.
-@JeebPreview(name: 'Delivered on 320pt', size: _compactBox)
+@JeebPreview(group: 'live_tracking', name: 'Delivered on 320pt', size: _compactBox)
 Widget orderTrackingStepperCompactPhone() => _hosted(
       'Delivered · step 4 of 4 on a 320pt phone',
       currentStep: 3,

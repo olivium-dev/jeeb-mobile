@@ -93,7 +93,7 @@ Widget _hosted({double width = 390}) => Align(
 /// the **AR RTL dark** rendering, where the outlined variant's 1.5 pt
 /// `colorScheme.primary` border is the only thing separating "Send request
 /// again" from the text-only "Keep waiting" below it.
-@JeebPreview(name: 'Bare sheet · 390 pt', size: _sheetBox)
+@JeebPreview(group: 'live_tracking', name: 'Bare sheet · 390 pt', size: _sheetBox)
 Widget trackingNoShowSheetDefault() => _hosted();
 
 /// 320 pt — where the CTA labels stop fitting on one line.
@@ -107,7 +107,7 @@ Widget trackingNoShowSheetDefault() => _hosted();
 ///
 /// The body copy is the other casualty: one 84-character sentence, five lines
 /// here at 200%, and the only reason the sheet still fits its box at 100%.
-@JeebPreview(name: 'Narrow phone · 320 pt', size: _narrowBox)
+@JeebPreview(group: 'live_tracking', name: 'Narrow phone · 320 pt', size: _narrowBox)
 Widget trackingNoShowSheetNarrowPhone() => _hosted(width: _smallPhone.width);
 
 /// The sheet with a gesture-navigation home indicator under it.
@@ -122,7 +122,7 @@ Widget trackingNoShowSheetNarrowPhone() => _hosted(width: _smallPhone.width);
 /// 48 pt row, and with no [SafeArea] it would sit directly under the home
 /// indicator — the one place a tap is swallowed by the system. Measured: 20 pt
 /// of padding below the pill without the inset, 54 pt with it.
-@JeebPreview(name: 'Gesture-bar inset', size: _sheetBox)
+@JeebPreview(group: 'live_tracking', name: 'Gesture-bar inset', size: _sheetBox)
 Widget trackingNoShowSheetGestureBar() => const _SimulatedSystemInset(
       bottomDp: _kHomeIndicatorDp,
       child: _BareSheet(),
@@ -138,7 +138,7 @@ Widget trackingNoShowSheetGestureBar() => const _SimulatedSystemInset(
 ///
 /// Tapping any of the three CTAs dismisses the sheet, because `show()` pops
 /// before it calls back — hot-restart the preview to bring it back.
-@JeebPreview(name: 'Modal presentation', size: _phoneBox)
+@JeebPreview(group: 'live_tracking', name: 'Modal presentation', size: _phoneBox)
 Widget trackingNoShowSheetInModalRoute() => const _ModalPresentation();
 
 /// The same modal route inside the smallest phone the app supports, 320 × 568.
@@ -151,7 +151,7 @@ Widget trackingNoShowSheetInModalRoute() => const _ModalPresentation();
 /// rendering of this state overflows INSIDE the simulated phone. That overflow
 /// belongs to the widget, not to the canvas box: `isScrollControlled: true`
 /// caps the sheet at the screen height and there is nothing below it to give.
-@JeebPreview(name: 'Small phone · modal', size: Size(360, 620))
+@JeebPreview(group: 'live_tracking', name: 'Small phone · modal', size: Size(360, 620))
 Widget trackingNoShowSheetSmallPhone() => Center(
       child: SizedBox(
         width: _smallPhone.width,

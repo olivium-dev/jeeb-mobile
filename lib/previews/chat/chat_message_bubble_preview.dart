@@ -71,7 +71,7 @@ DeliveryChatMessage _text(
 /// 2. Only the sender's bubble carries the "time → ticks" meta row (D3 fix,
 ///    Figma node 56560:1605 leaves the incoming timestamp slot empty). If the
 ///    incoming bubble here ever grows a clock, that suppression has broken.
-@JeebPreview(name: 'Incoming + reply', size: Size(390, 200))
+@JeebPreview(group: 'chat', name: 'Incoming + reply', size: Size(390, 200))
 Widget chatMessageBubblePair() => _hosted(<DeliveryChatMessage>[
       _text('them-1', ChatAuthor.them, "I'm at the pharmacy now — which brand?"),
       _text('me-1', ChatAuthor.me, 'The blue box, please'),
@@ -94,7 +94,7 @@ Widget chatMessageBubblePair() => _hosted(<DeliveryChatMessage>[
 ///     floor for non-text contrast.
 ///
 /// Both are widget defects, not preview defects; this card is where they show.
-@JeebPreview(name: 'Status ladder', size: Size(390, 540))
+@JeebPreview(group: 'chat', name: 'Status ladder', size: Size(390, 540))
 Widget chatMessageBubbleStatusLadder() => _hosted(<DeliveryChatMessage>[
       _text('st-1', ChatAuthor.me, 'sending — still on this phone',
           status: MessageStatus.sending),
@@ -115,7 +115,7 @@ Widget chatMessageBubbleStatusLadder() => _hosted(<DeliveryChatMessage>[
 /// state that proves the cap actually wraps instead of overflowing — and the
 /// EN 200% rendering is the real test, since the light EN rendering looks fine
 /// long after the accessible one has stopped fitting.
-@JeebPreview(name: 'Longest plausible message', size: Size(390, 470))
+@JeebPreview(group: 'chat', name: 'Longest plausible message', size: Size(390, 470))
 Widget chatMessageBubbleLongText() => _hosted(<DeliveryChatMessage>[
       _text(
         'long-1',
@@ -136,7 +136,7 @@ Widget chatMessageBubbleLongText() => _hosted(<DeliveryChatMessage>[
 /// That is the WhatsApp behaviour the ticket asks for. If the Arabic line ever
 /// renders left-aligned-with-trailing-punctuation, the first-strong detection
 /// has stopped running and the ambient direction is leaking through.
-@JeebPreview(name: 'Arabic message in an EN thread', size: Size(390, 230))
+@JeebPreview(group: 'chat', name: 'Arabic message in an EN thread', size: Size(390, 230))
 Widget chatMessageBubbleMixedScript() => _hosted(<DeliveryChatMessage>[
       _text('bidi-1', ChatAuthor.me, 'وصلت للبناية، أنا عند المصعد'),
       _text('bidi-2', ChatAuthor.me, 'Coming down now, one minute'),
@@ -158,7 +158,7 @@ Widget chatMessageBubbleMixedScript() => _hosted(<DeliveryChatMessage>[
 /// feeds it to the localized template, so an Arabic screen reader announces
 /// "صورة من You". The visible bubble is fully localized; only the spoken label
 /// is not.
-@JeebPreview(name: 'Image with no local bytes', size: Size(390, 210))
+@JeebPreview(group: 'chat', name: 'Image with no local bytes', size: Size(390, 210))
 Widget chatMessageBubbleImageNoBytes() => _hosted(<DeliveryChatMessage>[
       DeliveryChatMessage.image(
         id: 'img-1',
@@ -179,7 +179,7 @@ Widget chatMessageBubbleImageNoBytes() => _hosted(<DeliveryChatMessage>[
 /// in the thread around it), the `hasServerTimestamp` check in
 /// [ChatBubbleTimestamp] has been bypassed and the whole class of 56-years-ago
 /// bugs is back.
-@JeebPreview(name: 'Undated history row', size: Size(390, 250))
+@JeebPreview(group: 'chat', name: 'Undated history row', size: Size(390, 250))
 Widget chatMessageBubbleUndated() => _hosted(<DeliveryChatMessage>[
       _text('undated-1', ChatAuthor.me, 'No created_at came back for this row',
           hasServerTimestamp: false),

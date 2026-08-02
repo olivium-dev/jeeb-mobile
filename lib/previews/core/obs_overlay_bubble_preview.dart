@@ -347,7 +347,7 @@ class _FakeGestureBand extends StatelessWidget {
 /// corner in reading order. Whether that is right for a devtool is a judgement
 /// call (testers arguably want it in a fixed place), but it is currently an
 /// accident of `Positioned` rather than a decision anyone wrote down.
-@JeebPreview(name: 'Docked (production geometry)', size: _phoneCanvas)
+@JeebPreview(group: 'core', name: 'Docked (production geometry)', size: _phoneCanvas)
 Widget obsOverlayBubbleDocked() => const _Stage(
       caption: 'Docked · 16/24pt bottom-right',
       viewport: _phoneViewport,
@@ -370,7 +370,7 @@ Widget obsOverlayBubbleDocked() => const _Stage(
 /// the bubble does not: **Profile** in English, **Home** in Arabic. A tester
 /// who cannot reach their profile tab is the concrete form of the "dev red
 /// button" complaint that made this overlay opt-in.
-@JeebPreview(name: 'Over the bottom nav bar', size: _phoneCanvas)
+@JeebPreview(group: 'core', name: 'Over the bottom nav bar', size: _phoneCanvas)
 Widget obsOverlayBubbleOverBottomNav() => const _Stage(
       caption: 'Bottom nav · covers a tab',
       viewport: _phoneViewport,
@@ -387,7 +387,7 @@ Widget obsOverlayBubbleOverBottomNav() => const _Stage(
 /// the bubble covers its trailing 48pt entirely. Tapping "Place order" near
 /// its trailing end opens the devtool overlay instead — and unlike the nav bar
 /// above, there is no second way to reach the action.
-@JeebPreview(name: 'Over a docked primary CTA', size: _phoneCanvas)
+@JeebPreview(group: 'core', name: 'Over a docked primary CTA', size: _phoneCanvas)
 Widget obsOverlayBubbleOverPrimaryCta() => const _Stage(
       caption: 'Primary CTA · covers 48pt',
       viewport: _phoneViewport,
@@ -416,7 +416,7 @@ Widget obsOverlayBubbleOverPrimaryCta() => const _Stage(
 /// defines set sees the dot here and only here. The test asserts the contract
 /// — dot present iff `Observability.instance.recording` — which holds in both
 /// kinds of build.
-@JeebPreview(name: 'Recording requested (dot is gated)', size: _phoneCanvas)
+@JeebPreview(group: 'core', name: 'Recording requested (dot is gated)', size: _phoneCanvas)
 Widget obsOverlayBubbleRecordingRequested() => const _Stage(
       caption: 'Recording on · dot is gated',
       viewport: _phoneViewport,
@@ -436,7 +436,7 @@ Widget obsOverlayBubbleRecordingRequested() => const _Stage(
 /// bottom of the display, not against the safe area. On a device with a 34pt
 /// home indicator the bubble's lower 10pt sits inside the system gesture
 /// region, where a drag is the OS's before it is the app's.
-@JeebPreview(name: 'Over the home indicator', size: _bottomEdgeCanvas)
+@JeebPreview(group: 'core', name: 'Over the home indicator', size: _bottomEdgeCanvas)
 Widget obsOverlayBubbleOverGestureInset() => const _Stage(
       caption: 'Home indicator · 24pt vs 34pt',
       viewport: _bottomEdgeViewport,

@@ -88,7 +88,7 @@ Widget _localized(
 /// This is the only preview whose every string is production copy, so it is the
 /// one whose AR rendering is a real review of the Arabic — the other four carry
 /// fixture text for shapes the ARB has no string for.
-@JeebPreview(name: 'Wizard default · blink + smile', size: _twoCueBox)
+@JeebPreview(group: 'kyc', name: 'Wizard default · blink + smile', size: _twoCueBox)
 Widget kycLivenessPromptCardDefault() => _localized(
       (AppLocalizations l10n) => _hosted(
         title: l10n.kycSelfieLivenessPrompt,
@@ -116,7 +116,7 @@ Widget kycLivenessPromptCardDefault() => _localized(
 /// at phone width and longer still in Arabic, so this doubles as the shortest
 /// state where `CrossAxisAlignment.start` has a multi-line paragraph to align
 /// its icon against.
-@JeebPreview(name: 'Single cue · no inter-row gap', size: _oneCueBox)
+@JeebPreview(group: 'kyc', name: 'Single cue · no inter-row gap', size: _oneCueBox)
 Widget kycLivenessPromptCardSingleCue() => _localized(
       (AppLocalizations l10n) => _hosted(
         title: l10n.kycSelfieLivenessPrompt,
@@ -141,7 +141,7 @@ Widget kycLivenessPromptCardSingleCue() => _localized(
 /// two localized states use, purely so the render test can pin a string unique
 /// to this preview; a title-only card otherwise renders nothing that tells it
 /// apart from its siblings.
-@JeebPreview(name: 'No cues · title only', size: _emptyBox)
+@JeebPreview(group: 'kyc', name: 'No cues · title only', size: _emptyBox)
 Widget kycLivenessPromptCardEmpty() => _localized(
       (AppLocalizations l10n) => _hosted(
         title: l10n.kycSelfieStepTitle,
@@ -161,7 +161,7 @@ Widget kycLivenessPromptCardEmpty() => _localized(
 ///
 /// Fixture copy, not ARB — the shipping cues are one line each. The length is
 /// the plausible ceiling for a reviewer-authored liveness instruction.
-@JeebPreview(name: 'Longest plausible copy · multi-line cue', size: _wrappingBox)
+@JeebPreview(group: 'kyc', name: 'Longest plausible copy · multi-line cue', size: _wrappingBox)
 Widget kycLivenessPromptCardLongCopy() => _hosted(
       title: 'Quick liveness check before your selfie is uploaded for review',
       prompts: const <KycLivenessPrompt>[
@@ -184,7 +184,7 @@ Widget kycLivenessPromptCardLongCopy() => _hosted(
 /// capture tile and a ToS block below it.
 ///
 /// Fixture copy: today's spec is two cues, hardcoded at the call site.
-@JeebPreview(name: 'Extended checklist · five cues', size: _checklistBox)
+@JeebPreview(group: 'kyc', name: 'Extended checklist · five cues', size: _checklistBox)
 Widget kycLivenessPromptCardChecklist() => _hosted(
       title: 'Liveness checklist',
       prompts: const <KycLivenessPrompt>[

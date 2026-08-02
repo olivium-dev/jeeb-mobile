@@ -155,14 +155,14 @@ Widget _hosted({
 /// The send pill is DISABLED here (`canSendText` is false on empty/whitespace
 /// text, matching the Figma "Disabled=True" blank state). If this ever renders
 /// a navy, tappable send button, the empty-send guard has broken.
-@JeebPreview(name: 'Empty · send disabled', size: _composerBox)
+@JeebPreview(group: 'chat', name: 'Empty · send disabled', size: _composerBox)
 Widget chatComposerEmpty() => _hosted();
 
 /// A draft ready to go: the send pill lights up only once trimmed text exists.
 ///
 /// Same string the JM-025 order-chat test sends, so this is literally the
 /// message that broadcasts a request on first send.
-@JeebPreview(name: 'Draft · send enabled', size: _composerBox)
+@JeebPreview(group: 'chat', name: 'Draft · send enabled', size: _composerBox)
 Widget chatComposerDraft() => _hosted(typed: _kOrderDraft);
 
 /// The Jeeber (delivery-man) variant, which overrides the hint to
@@ -171,7 +171,7 @@ Widget chatComposerDraft() => _hosted(typed: _kOrderDraft);
 /// Worth its own preview because the override is the one string on this widget
 /// a caller can get wrong: pass a raw literal instead of an l10n key and the AR
 /// rendering silently stays English.
-@JeebPreview(name: 'Jeeber hint · Price / time', size: _composerBox)
+@JeebPreview(group: 'chat', name: 'Jeeber hint · Price / time', size: _composerBox)
 Widget chatComposerJeeberHint() =>
     _hosted(hint: (AppLocalizations l10n) => l10n.chatComposerHintPriceTime);
 
@@ -182,7 +182,7 @@ Widget chatComposerJeeberHint() =>
 /// different padding box than [ChatComposerIconButton], so this is where the
 /// row jumps if the two ever stop agreeing on size. A draft is left in the
 /// field because that is the real sequence: people type, then attach.
-@JeebPreview(name: 'Attaching · spinner', size: _composerBox)
+@JeebPreview(group: 'chat', name: 'Attaching · spinner', size: _composerBox)
 Widget chatComposerAttaching() => _hosted(
       seed: const ChatState(isAttaching: true),
       typed: 'Photo of the gate coming now',
@@ -195,7 +195,7 @@ Widget chatComposerAttaching() => _hosted(
 /// field resolves comes from the LOCALE, so the same string renders with its
 /// two runs in opposite order in the EN and AR renderings of this matrix.
 /// Check the cursor and the trailing punctuation, not just the glyphs.
-@JeebPreview(name: 'Bidi draft', size: _composerBox)
+@JeebPreview(group: 'chat', name: 'Bidi draft', size: _composerBox)
 Widget chatComposerBidiDraft() => _hosted(typed: _kBidiDraft);
 
 /// Layout ceiling: a long drop-off instruction against the `maxLines: 5` cap.
@@ -203,5 +203,5 @@ Widget chatComposerBidiDraft() => _hosted(typed: _kBidiDraft);
 /// The field must grow and then scroll internally — it must never push the
 /// attach or send affordance out of the row, and at 200% text this is the
 /// rendering that shows whether the bar still fits above a keyboard.
-@JeebPreview(name: 'Long draft · maxLines cap', size: _tallComposerBox)
+@JeebPreview(group: 'chat', name: 'Long draft · maxLines cap', size: _tallComposerBox)
 Widget chatComposerLongDraft() => _hosted(typed: _kLongDraft);

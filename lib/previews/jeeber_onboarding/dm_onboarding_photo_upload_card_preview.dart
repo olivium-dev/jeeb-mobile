@@ -233,7 +233,7 @@ Widget _hosted(
 ///
 /// Note also that the localized hint ("Tap to add a photo") is a
 /// [Semantics] label only. A sighted user is never told what the box is for.
-@JeebPreview(name: 'Empty · phone (390pt)', size: _phoneBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Empty · phone (390pt)', size: _phoneBox)
 Widget dmOnboardingPhotoUploadCardEmpty() =>
     _hosted('Empty · 342pt content column');
 
@@ -244,7 +244,7 @@ Widget dmOnboardingPhotoUploadCardEmpty() =>
 /// *relatively* stronger as the screen gets smaller, which is the harmless
 /// direction; the harmful direction is the 200% rendering of the matrix, where
 /// the icon still measures 32pt while every label around it has doubled.
-@JeebPreview(name: 'Empty · compact device (320pt)', size: _compactBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Empty · compact device (320pt)', size: _compactBox)
 Widget dmOnboardingPhotoUploadCardCompactDevice() => _hosted(
       'Empty · 272pt content column',
       deviceWidth: _compactPhoneWidth,
@@ -256,7 +256,7 @@ Widget dmOnboardingPhotoUploadCardCompactDevice() => _hosted(
 /// for. The fixture carries a full-bleed frame precisely so it is obvious that
 /// all four edges survive; compare with the landscape state below, where the
 /// frame's left and right sides are gone.
-@JeebPreview(name: 'Filled · portrait 4:5', size: _phoneBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Filled · portrait 4:5', size: _phoneBox)
 Widget dmOnboardingPhotoUploadCardPortraitPhoto() => _hosted(
       'Filled · 80x100 source, no crop',
       photo: _capture(
@@ -276,7 +276,7 @@ Widget dmOnboardingPhotoUploadCardPortraitPhoto() => _hosted(
 /// For a "clear photo of you" that is not a cosmetic loss — a Jeeber standing
 /// off-centre in a sideways shot is cropped out of their own identity photo,
 /// with no crop UI and no way to tell from the card that anything was removed.
-@JeebPreview(name: 'Filled · landscape 16:9', size: _phoneBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Filled · landscape 16:9', size: _phoneBox)
 Widget dmOnboardingPhotoUploadCardLandscapePhoto() => _hosted(
       'Filled · 160x90 source, 55% cropped',
       photo: _capture(
@@ -295,7 +295,7 @@ Widget dmOnboardingPhotoUploadCardLandscapePhoto() => _hosted(
 /// Worth a preview because the card is the only place a Jeeber could notice,
 /// and it says nothing: no resolution warning, no "retake", just a blurry
 /// block. The reviewer on the far end sees the same 24 × 30 of detail.
-@JeebPreview(name: 'Filled · low-resolution capture', size: _phoneBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Filled · low-resolution capture', size: _phoneBox)
 Widget dmOnboardingPhotoUploadCardLowResPhoto() => _hosted(
       'Filled · 24x30 source, upscaled 14x',
       photo: _capture(
@@ -318,7 +318,7 @@ Widget dmOnboardingPhotoUploadCardLowResPhoto() => _hosted(
 /// a drop area, and nothing about it says so — no overflow stripe, no
 /// exception. Included because it is the cheapest possible mistake for the next
 /// person to embed this card, and a picture of it costs one preview.
-@JeebPreview(name: 'Filled · height-bounded host', size: _boundedBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Filled · height-bounded host', size: _boundedBox)
 Widget dmOnboardingPhotoUploadCardBoundedHeight() => _hosted(
       'Bounded 180pt height · card collapses',
       photo: _capture(

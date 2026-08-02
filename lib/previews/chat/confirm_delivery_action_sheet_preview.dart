@@ -73,7 +73,7 @@ Widget _sheet(DeliveryConfirmKind kind, {bool isConfirming = false}) =>
 /// title and subtitle still read as one block and have not run into the
 /// illustration. The sentence-case "Picking the order" is copy as shipped, not
 /// a typo to fix here.
-@JeebPreview(name: 'Picking · idle', size: _sheetBox)
+@JeebPreview(group: 'chat', name: 'Picking · idle', size: _sheetBox)
 Widget confirmDeliveryActionSheetPicking() =>
     _sheet(DeliveryConfirmKind.picking);
 
@@ -83,7 +83,7 @@ Widget confirmDeliveryActionSheetPicking() =>
 /// pixels that may differ are the title. If this ever renders "Confirm Picking
 /// the order", the `switch` on [DeliveryConfirmKind] has collapsed and the
 /// jeeber is being asked to confirm the wrong transition.
-@JeebPreview(name: 'Heading off · idle', size: _sheetBox)
+@JeebPreview(group: 'chat', name: 'Heading off · idle', size: _sheetBox)
 Widget confirmDeliveryActionSheetHeadingOff() =>
     _sheet(DeliveryConfirmKind.headingOff);
 
@@ -97,7 +97,7 @@ Widget confirmDeliveryActionSheetHeadingOff() =>
 /// RTL dark rendering it very nearly is not — the indicator inherits the CTA's
 /// text colour against the fill dimmed to 60%, which is **1.03:1** there. See
 /// the contrast note in the library doc above.
-@JeebPreview(name: 'Confirming · spinner', size: _sheetBox)
+@JeebPreview(group: 'chat', name: 'Confirming · spinner', size: _sheetBox)
 Widget confirmDeliveryActionSheetConfirming() =>
     _sheet(DeliveryConfirmKind.picking, isConfirming: true);
 
@@ -116,7 +116,7 @@ Widget confirmDeliveryActionSheetConfirming() =>
 /// phone this width belongs to, i.e. 15 pt of scrim left. `_SheetContent` is a
 /// plain [Column] with no scroll fallback, so anything that adds a bottom inset
 /// from there is a hard overflow.
-@JeebPreview(name: 'Narrow phone · 320 pt', size: Size(320, 560))
+@JeebPreview(group: 'chat', name: 'Narrow phone · 320 pt', size: Size(320, 560))
 Widget confirmDeliveryActionSheetNarrowPhone() => Align(
       alignment: Alignment.topCenter,
       child: SizedBox(
@@ -136,7 +136,7 @@ Widget confirmDeliveryActionSheetNarrowPhone() => Align(
 ///
 /// Tapping Confirm dismisses the sheet, because the host pops as soon as the
 /// supplied future resolves — hot-restart the preview to bring it back.
-@JeebPreview(name: 'Modal presentation · heading off', size: Size(390, 700))
+@JeebPreview(group: 'chat', name: 'Modal presentation · heading off', size: Size(390, 700))
 Widget confirmDeliveryActionSheetInModalRoute() =>
     _modalPresentation(DeliveryConfirmKind.headingOff);
 

@@ -191,7 +191,7 @@ class _FixtureCaption extends StatelessWidget {
 /// "Tap Location to set your home base". At 1.0× that is ~62 pt and fits; at
 /// 200 % it overflows by 28 pt (68 pt in Arabic) and the hint is cut — the one
 /// string that tells the user how to get past the gate.
-@JeebPreview(name: 'No base pinned · Continue disabled', size: _stepBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'No base pinned · Continue disabled', size: _stepBox)
 Widget dmOnboardingServiceAreaUnpinned() => _hosted(
       _cubit,
       fixture: 'fixture: no home base',
@@ -215,7 +215,7 @@ Widget dmOnboardingServiceAreaUnpinned() => _hosted(
 /// one to check the row's colour split in: label on `onSecondaryContainer`,
 /// value on `onSurface`, two roles on one line, which in the AR RTL **dark**
 /// rendering must still read as one row rather than two greys.
-@JeebPreview(name: 'Base pinned · geocoded label', size: _stepBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Base pinned · geocoded label', size: _stepBox)
 Widget dmOnboardingServiceAreaPinned() => _hosted(
       () => _cubit(base: _geocodedBase),
       fixture: 'fixture: geocoded label',
@@ -238,7 +238,7 @@ Widget dmOnboardingServiceAreaPinned() => _hosted(
 /// Seeded through [AppLocalizations] rather than a hardcoded 'Location' so the
 /// AR RTL rendering shows what an Arabic Jeeber actually gets — "الموقع" beside
 /// "الموقع" — instead of an English string that would hide the repetition.
-@JeebPreview(name: 'Pinned by the map screen · stub label', size: _stepBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Pinned by the map screen · stub label', size: _stepBox)
 Widget dmOnboardingServiceAreaStubLabel() => Builder(
       builder: (BuildContext context) {
         final String label = AppLocalizations.of(context)
@@ -266,7 +266,7 @@ Widget dmOnboardingServiceAreaStubLabel() => Builder(
 ///
 /// The 800 pt harness viewport lays this out clean, which is why the render
 /// test measures it at a phone width instead.
-@JeebPreview(name: 'Long geocoded label · row overflow', size: _stepBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Long geocoded label · row overflow', size: _stepBox)
 Widget dmOnboardingServiceAreaLongLabel() => _hosted(
       () => _cubit(base: _longLabelBase),
       fixture: 'fixture: long geocoded label',
@@ -285,7 +285,7 @@ Widget dmOnboardingServiceAreaLongLabel() => _hosted(
 /// Note what does NOT change: the map, the row and the chevron stay live and
 /// tappable throughout, so a Jeeber can re-pin the base while the check for the
 /// previous one is still running.
-@JeebPreview(name: 'Checking coverage · CTA spinner', size: _stepBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Checking coverage · CTA spinner', size: _stepBox)
 Widget dmOnboardingServiceAreaCheckingCoverage() => _hosted(
       () => _cubit(
         base: _geocodedBase,
@@ -307,7 +307,7 @@ Widget dmOnboardingServiceAreaCheckingCoverage() => _hosted(
 /// That is the state to hold in mind when reviewing this step in isolation: it
 /// is not self-sufficient, and lifting it out of the wizard screen — into a
 /// sheet, into a different host — silently loses its only failure feedback.
-@JeebPreview(name: 'Coverage check failed · no in-step surface', size: _stepBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Coverage check failed · no in-step surface', size: _stepBox)
 Widget dmOnboardingServiceAreaCoverageFailed() => _hosted(
       () => _cubit(
         base: _geocodedBase,

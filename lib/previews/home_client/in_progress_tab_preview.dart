@@ -142,7 +142,7 @@ ClientHomeRequest _row({
 ///
 /// The second row is `accepted` (progress step 0, Express) so both the empty end
 /// of the progress bar and a second tier colour are on screen at once.
-@JeebPreview(name: 'Two active rows', size: _twoCardBox)
+@JeebPreview(group: 'home_client', name: 'Two active rows', size: _twoCardBox)
 Widget inProgressTabTwoRows() => _hosted(
       _SeededHomeRepository(<ClientHomeRequest>[
         _row(
@@ -166,7 +166,7 @@ Widget inProgressTabTwoRows() => _hosted(
 /// subtitle and a primary CTA — so it is the state most sensitive to the 200%
 /// rendering: four stacked elements with no scroll of their own inside the card
 /// area, and the CTA is the one thing that must stay reachable.
-@JeebPreview(name: 'Empty · no active deliveries', size: _placeholderBox)
+@JeebPreview(group: 'home_client', name: 'Empty · no active deliveries', size: _placeholderBox)
 Widget inProgressTabEmpty() =>
     _hosted(const _SeededHomeRepository(<ClientHomeRequest>[]));
 
@@ -178,7 +178,7 @@ Widget inProgressTabEmpty() =>
 /// `_FailedLayout` in `client_home_screen.dart` pairs the same title with
 /// `homeLoadFailedBody`. Two different bodies under one title is exactly the
 /// kind of drift only a side-by-side rendering catches.
-@JeebPreview(name: 'Failed · cold load', size: _placeholderBox)
+@JeebPreview(group: 'home_client', name: 'Failed · cold load', size: _placeholderBox)
 Widget inProgressTabFailed() => _hosted(const _FailingHomeRepository());
 
 /// The load is still in flight — an indeterminate spinner, centred.
@@ -188,7 +188,7 @@ Widget inProgressTabFailed() => _hosted(const _FailingHomeRepository());
 /// What to check in the canvas: the spinner is *centred in the tab*, not pinned
 /// to the top-left, and it survives the AR RTL dark rendering (an indicator
 /// tinted `colorScheme.primary` against the dark surface is easy to lose).
-@JeebPreview(name: 'Loading · spinner', size: Size(_phoneWidth, 200))
+@JeebPreview(group: 'home_client', name: 'Loading · spinner', size: Size(_phoneWidth, 200))
 Widget inProgressTabLoading() =>
     _hosted(const _NeverResolvingHomeRepository());
 
@@ -200,7 +200,7 @@ Widget inProgressTabLoading() =>
 /// `_hasJeeber` would be widened with it and surface a phantom chat pill on an
 /// order that has no conversation yet. Rendering the state is how that stays
 /// visible: one CTA, end-aligned, alone in the action row.
-@JeebPreview(name: 'Searching · track without chat', size: _oneCardBox)
+@JeebPreview(group: 'home_client', name: 'Searching · track without chat', size: _oneCardBox)
 Widget inProgressTabSearching() => _hosted(
       _SeededHomeRepository(<ClientHomeRequest>[
         _row(
@@ -228,7 +228,7 @@ Widget inProgressTabSearching() => _hosted(
 ///   pair most likely to run out of width.
 ///
 /// `enRoute` (not `accepted`) so both pills render.
-@JeebPreview(name: 'Long title + both CTAs', size: _oneCardBox)
+@JeebPreview(group: 'home_client', name: 'Long title + both CTAs', size: _oneCardBox)
 Widget inProgressTabLongContent() => _hosted(
       _SeededHomeRepository(<ClientHomeRequest>[
         _row(

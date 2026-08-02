@@ -121,7 +121,7 @@ Widget _hosted({
 ///
 /// The AR RTL dark rendering does NOT share the defect: `onSecondaryContainer`
 /// in the seeded dark scheme is a light tone on a dark surface.
-@JeebPreview(name: 'Photo step (production copy)', size: _shortCopyBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Photo step (production copy)', size: _shortCopyBox)
 Widget dmOnboardingStepHeaderPhotoStep() => _hosted(
       title: (AppLocalizations l10n) => l10n.dmOnboardingPhotoUploadTitle,
       subtitle: (AppLocalizations l10n) => l10n.dmOnboardingPhotoUploadSubtitle,
@@ -142,7 +142,7 @@ Widget dmOnboardingStepHeaderPhotoStep() => _hosted(
 /// [Text] sets `header: true` (nor does any ancestor), so assistive tech
 /// announces two anonymous runs of text and heading-by-heading navigation
 /// skips the only thing on the step that says which step it is.
-@JeebPreview(name: 'Service area (production copy)', size: _shortCopyBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Service area (production copy)', size: _shortCopyBox)
 Widget dmOnboardingStepHeaderServiceArea() => _hosted(
       title: (AppLocalizations l10n) => l10n.dmOnboardingServiceAreaHeading,
       subtitle: (AppLocalizations l10n) => l10n.dmOnboardingServiceAreaSubtitle,
@@ -169,7 +169,7 @@ Widget dmOnboardingStepHeaderServiceArea() => _hosted(
 /// The `Spacing.twoXSmall` gap between the two lines is a raw logical 4 and
 /// does NOT follow the text scaler, so at 200% a 48 px headline and a 28 px
 /// subtitle still sit 4 pt apart and read as one clump.
-@JeebPreview(name: 'Longest copy (KYC identity)', size: _longCopyBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Longest copy (KYC identity)', size: _longCopyBox)
 Widget dmOnboardingStepHeaderLongestCopy() => _hosted(
       title: (AppLocalizations l10n) => l10n.kycIdStepTitle,
       subtitle: (AppLocalizations l10n) => l10n.kycIdStepSubtitle,
@@ -189,7 +189,7 @@ Widget dmOnboardingStepHeaderLongestCopy() => _hosted(
 /// `maxLines` and no `overflow` on either [Text] — so the failure mode of a
 /// narrow device is a header that pushes the step's real content off screen,
 /// not a truncated one.
-@JeebPreview(name: 'Compact device (320pt)', size: _compactBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Compact device (320pt)', size: _compactBox)
 Widget dmOnboardingStepHeaderCompactDevice() => _hosted(
       title: (AppLocalizations l10n) => l10n.kycSelfieStepTitle,
       subtitle: (AppLocalizations l10n) => l10n.kycSelfieStepSubtitle,
@@ -210,7 +210,7 @@ Widget dmOnboardingStepHeaderCompactDevice() => _hosted(
 /// line box beneath it, and the semantics tree gains an empty node. Small, and
 /// the only reason to look at it is that the fix (`if (subtitle.isEmpty)`) is
 /// smaller still.
-@JeebPreview(name: 'Blank subtitle', size: _shortCopyBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Blank subtitle', size: _shortCopyBox)
 Widget dmOnboardingStepHeaderBlankSubtitle() => _hosted(
       title: (AppLocalizations l10n) => l10n.dmOnboardingPersonalDetailsTitle,
       subtitle: (AppLocalizations l10n) => '',

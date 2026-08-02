@@ -150,7 +150,7 @@ Widget _hosted(String caption, DeliveryTrackingInfo? info) => Column(
 /// takes the no-[Stack] branch, so nothing is layered over the mark at all. It
 /// is also the state every caller gets by default, and the reason the surface
 /// has a placeholder in the first place.
-@JeebPreview(name: 'No snapshot yet', size: _mapBox)
+@JeebPreview(group: 'live_tracking', name: 'No snapshot yet', size: _mapBox)
 Widget trackingMapSurfaceAwaitingSnapshot() =>
     _hosted('No snapshot yet: placeholder only, no overlay', null);
 
@@ -162,7 +162,7 @@ Widget trackingMapSurfaceAwaitingSnapshot() =>
 /// "the courier is fine", and a chip here would train the customer to ignore the
 /// row exactly when it starts to matter. If this preview ever grows a chip, the
 /// `shows()` predicate has inverted.
-@JeebPreview(name: 'Live fix, no notice', size: _mapBox)
+@JeebPreview(group: 'live_tracking', name: 'Live fix, no notice', size: _mapBox)
 Widget trackingMapSurfaceLiveFix() => _hosted(
       'Live fix: notice mounted and silent',
       _info(_liveWire()),
@@ -179,7 +179,7 @@ Widget trackingMapSurfaceLiveFix() => _hosted(
 ///
 /// This is also the state that makes the overflow finding hard to dismiss: it
 /// is the ordinary one, and it overflows at 390 pt in both locales.
-@JeebPreview(name: 'Position stale (3 min)', size: _mapBox)
+@JeebPreview(group: 'live_tracking', name: 'Position stale (3 min)', size: _mapBox)
 Widget trackingMapSurfaceStale() => _hosted(
       'Stale rung: quiet chip, coordinates still published',
       _info(<String, Object?>{
@@ -200,7 +200,7 @@ Widget trackingMapSurfaceStale() => _hosted(
 ///
 /// **This state overflows its band at phone width in both locales** — see the
 /// library doc.
-@JeebPreview(name: 'Signal lost (5 min)', size: _mapBox)
+@JeebPreview(group: 'live_tracking', name: 'Signal lost (5 min)', size: _mapBox)
 Widget trackingMapSurfaceLost() => _hosted(
       'Lost rung: loud chip, no coordinates at all',
       _info(_lostWire(312.5)),
@@ -212,7 +212,7 @@ Widget trackingMapSurfaceLost() => _hosted(
 /// undercuts the one row the customer has to trust, so the copy drops the number
 /// entirely. Pinned by `tracking_position_status_test.dart`; this is what it
 /// looks like.
-@JeebPreview(name: 'Signal lost, under a minute', size: _mapBox)
+@JeebPreview(group: 'live_tracking', name: 'Signal lost, under a minute', size: _mapBox)
 Widget trackingMapSurfaceLostNoAge() => _hosted(
       'Lost, age under a minute: number dropped',
       _info(_lostWire(41.0)),
@@ -229,7 +229,7 @@ Widget trackingMapSurfaceLostNoAge() => _hosted(
 /// The same widget on the 800 pt surface the existing widget tests pump looks
 /// perfectly healthy, which is the whole reason a preview declared at the real
 /// phone width was worth writing.
-@JeebPreview(name: 'Signal lost, longest copy', size: _mapBox)
+@JeebPreview(group: 'live_tracking', name: 'Signal lost, longest copy', size: _mapBox)
 Widget trackingMapSurfaceLostLongAge() => _hosted(
       'Lost, 100 min: longest plausible chip',
       _info(_lostWire(6000.0)),

@@ -76,7 +76,7 @@ Widget _hosted(TranscriptionState state, {VoidCallback? onRetry}) => Padding(
 ///
 /// No Retry here by design — the job is already queued, so retrying it would
 /// duplicate work rather than unblock the user; the nudge is to type instead.
-@JeebPreview(name: 'Queued', size: _bannerBox)
+@JeebPreview(group: 'transcription', name: 'Queued', size: _bannerBox)
 Widget transcriptionStatusBannerQueued() => _hosted(_queued);
 
 /// Contract guard, made visible: a retry handler on a QUEUED state must not
@@ -87,7 +87,7 @@ Widget transcriptionStatusBannerQueued() => _hosted(_queued);
 /// still render this card identically to `Queued`. If a Retry button ever
 /// appears here, the gate has been loosened to `onRetry != null` and users can
 /// re-fire a transcription that is already running.
-@JeebPreview(name: 'Queued · retry ignored', size: _bannerBox)
+@JeebPreview(group: 'transcription', name: 'Queued · retry ignored', size: _bannerBox)
 Widget transcriptionStatusBannerQueuedRetryIgnored() =>
     _hosted(_queued, onRetry: () {});
 
@@ -99,7 +99,7 @@ Widget transcriptionStatusBannerQueuedRetryIgnored() =>
 /// body and the outlined Retry button under it. This is the tallest thing the
 /// banner can be at 1x text, and the state to review when judging whether the
 /// button still has a 48dp tap target after the body wraps.
-@JeebPreview(name: 'Failed · network', size: _bannerWithRetryBox)
+@JeebPreview(group: 'transcription', name: 'Failed · network', size: _bannerWithRetryBox)
 Widget transcriptionStatusBannerFailedNetwork() =>
     _hosted(_failed(TranscriptionFailure.network), onRetry: () {});
 
@@ -115,7 +115,7 @@ Widget transcriptionStatusBannerFailedNetwork() =>
 /// `test/previews/transcription/transcription_status_banner_preview_test.dart`.
 /// This is exactly what the AR RTL and 200%-text renderings of the matrix are
 /// for — the EN light rendering looks fine long after those two have broken.
-@JeebPreview(name: 'Failed · payload too large', size: _bannerWithRetryBox)
+@JeebPreview(group: 'transcription', name: 'Failed · payload too large', size: _bannerWithRetryBox)
 Widget transcriptionStatusBannerFailedPayloadTooLarge() =>
     _hosted(_failed(TranscriptionFailure.payloadTooLarge), onRetry: () {});
 
@@ -126,7 +126,7 @@ Widget transcriptionStatusBannerFailedPayloadTooLarge() =>
 /// Kept as its own preview because the generic copy still ends "…or retry",
 /// and this card is where that mismatch is visible: an error banner that tells
 /// the user to retry while offering nothing to tap.
-@JeebPreview(name: 'Failed · generic, no retry', size: _bannerBox)
+@JeebPreview(group: 'transcription', name: 'Failed · generic, no retry', size: _bannerBox)
 Widget transcriptionStatusBannerFailedGenericNoRetry() =>
     _hosted(_failed(TranscriptionFailure.generic));
 
@@ -138,6 +138,6 @@ Widget transcriptionStatusBannerFailedGenericNoRetry() =>
 /// than throwing. This preview is the proof that such a state renders a real
 /// message rather than an empty body — an unlabelled error card is worse than a
 /// vague one.
-@JeebPreview(name: 'Failed · unclassified', size: _bannerWithRetryBox)
+@JeebPreview(group: 'transcription', name: 'Failed · unclassified', size: _bannerWithRetryBox)
 Widget transcriptionStatusBannerFailedUnclassified() =>
     _hosted(_failed(TranscriptionFailure.none), onRetry: () {});

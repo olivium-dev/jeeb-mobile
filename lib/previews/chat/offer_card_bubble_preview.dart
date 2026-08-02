@@ -98,7 +98,7 @@ Widget _hosted({
 ///
 /// This is the reference rendering every other state is read against — and the
 /// one that shows the footer overflow at its most ordinary (97 px, EN, 390 pt).
-@JeebPreview(name: 'Live offer', size: _cardBox)
+@JeebPreview(group: 'chat', name: 'Live offer', size: _cardBox)
 Widget offerCardBubbleLiveOffer() => _hosted(
       offerId: 'offer-preview-live',
       jeeberName: 'Kamal Hajj',
@@ -111,7 +111,7 @@ Widget offerCardBubbleLiveOffer() => _hosted(
 /// twitches narrower mid-flight. And that label is the ONLY progress affordance
 /// on the card: there is no spinner and the pill stays fully saturated, so on a
 /// slow accept the card looks idle rather than busy.
-@JeebPreview(name: 'Accept in flight', size: _cardBox)
+@JeebPreview(group: 'chat', name: 'Accept in flight', size: _cardBox)
 Widget offerCardBubbleAccepting() => _hosted(
       offerId: 'offer-preview-accepting',
       jeeberName: 'Rami Aoun',
@@ -127,7 +127,7 @@ Widget offerCardBubbleAccepting() => _hosted(
 /// keeps the full-strength navy fill, the full-contrast label, and a
 /// `Semantics(button: true)` node with no disabled flag. The only feedback for
 /// a tap here is nothing happening.
-@JeebPreview(name: 'Accept locked (rival winning)', size: _cardBox)
+@JeebPreview(group: 'chat', name: 'Accept locked (rival winning)', size: _cardBox)
 Widget offerCardBubbleAcceptLocked() => _hosted(
       offerId: 'offer-preview-locked',
       jeeberName: 'Nour Haddad',
@@ -144,7 +144,7 @@ Widget offerCardBubbleAcceptLocked() => _hosted(
 /// opacity over `surfaceContainerHigh` still reads as *dimmed*, not as
 /// *disabled chrome*, in the AR RTL **dark** rendering — that is where a
 /// low-contrast card disappears into its own background.
-@JeebPreview(name: 'Declined', size: _cardBox)
+@JeebPreview(group: 'chat', name: 'Declined', size: _cardBox)
 Widget offerCardBubbleDeclined() => _hosted(
       offerId: 'offer-preview-declined',
       jeeberName: 'Layla Nasr',
@@ -169,7 +169,7 @@ Widget offerCardBubbleDeclined() => _hosted(
 /// the price into the free-text note, so an offer with no note shows the client
 /// no price at all — while the Accept button's screen-reader label still
 /// announces "$12". A sighted user has less information than a blind one here.
-@JeebPreview(name: 'No note, no rating', size: _cardBox)
+@JeebPreview(group: 'chat', name: 'No note, no rating', size: _cardBox)
 Widget offerCardBubbleBarePayload() => _hosted(
       offerId: 'offer-preview-bare',
       jeeberName: 'Nadine Khoury',
@@ -187,7 +187,7 @@ Widget offerCardBubbleBarePayload() => _hosted(
 /// `maxLines`, so it must wrap and grow the card. In the AR RTL rendering the
 /// ellipsis has to land on the *left*. This is also the state where the 200%
 /// rendering pushes the CTA row furthest out of the card (363 px).
-@JeebPreview(name: 'Long name + long note', size: Size(390, 320))
+@JeebPreview(group: 'chat', name: 'Long name + long note', size: Size(390, 320))
 Widget offerCardBubbleLongContent() => _hosted(
       offerId: 'offer-preview-long',
       jeeberName: 'Abdulrahman Al-Muhandis Al-Trabulsi',
@@ -209,7 +209,7 @@ Widget offerCardBubbleLongContent() => _hosted(
 /// Visually it is also the tightest card: dropping the clock removes a whole
 /// line, so the CTA row sits directly under the note with only `Spacing.small`
 /// between them.
-@JeebPreview(name: 'Undated row (no clock)', size: Size(390, 200))
+@JeebPreview(group: 'chat', name: 'Undated row (no clock)', size: Size(390, 200))
 Widget offerCardBubbleUndated() => _hosted(
       offerId: 'offer-preview-undated',
       jeeberName: 'Ziad Sfeir',

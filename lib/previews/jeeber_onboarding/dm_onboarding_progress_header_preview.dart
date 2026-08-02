@@ -127,7 +127,7 @@ Widget _hosted(String caption, DmOnboardingState seed) {
 /// progress at all reads as broken rather than as "not started"; the doc on
 /// [DmOnboardingStep] promises `index + 1 / values.length`, which would be a
 /// third of a bar. This preview is the state that disagreement produces.
-@JeebPreview(name: 'Step 1 · photo', size: _headerBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Step 1 · photo', size: _headerBox)
 Widget dmOnboardingProgressStepPhoto() => _hosted(
       'Step 1 of 3 — bar empty',
       const DmOnboardingState(),
@@ -138,7 +138,7 @@ Widget dmOnboardingProgressStepPhoto() => _hosted(
 /// The first state where anything is painted at all, so it is also the first
 /// place the RTL finding is visible — in Arabic this third sits against the
 /// LEFT edge, on the wrong end of a mirrored layout.
-@JeebPreview(name: 'Step 2 · address', size: _headerBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Step 2 · address', size: _headerBox)
 Widget dmOnboardingProgressStepAddress() => _hosted(
       'Step 2 of 3 — one third',
       const DmOnboardingState(step: DmOnboardingStep.address),
@@ -147,7 +147,7 @@ Widget dmOnboardingProgressStepAddress() => _hosted(
 /// The last step: service area. 2/3 filled — and this is as far as the bar
 /// ever gets in the shipping app, because the wizard hands off to KYC rather
 /// than marking itself submitted.
-@JeebPreview(name: 'Step 3 · service area', size: _headerBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Step 3 · service area', size: _headerBox)
 Widget dmOnboardingProgressStepServiceArea() => _hosted(
       'Step 3 of 3 — two thirds',
       const DmOnboardingState(
@@ -168,7 +168,7 @@ Widget dmOnboardingProgressStepServiceArea() => _hosted(
 /// `isSubmitting` flip does not even rebuild the header. If this preview ever
 /// diverges from the one above, something started reacting to in-flight work
 /// and the bar has begun advancing on an outcome that has not happened yet.
-@JeebPreview(name: 'Submitting on step 3', size: _headerBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Submitting on step 3', size: _headerBox)
 Widget dmOnboardingProgressSubmitting() => _hosted(
       'Submitting — bar unchanged',
       const DmOnboardingState(
@@ -190,7 +190,7 @@ Widget dmOnboardingProgressSubmitting() => _hosted(
 /// [DmOnboardingCubit] emits the flag — see the library doc), and it is the one
 /// state where the fill spans the whole track, which is where the missing RTL
 /// mirroring stops being visible at all and the bug would go quiet.
-@JeebPreview(name: 'Submitted · full bar', size: _headerBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Submitted · full bar', size: _headerBox)
 Widget dmOnboardingProgressSubmitted() => _hosted(
       'Submitted — bar full',
       const DmOnboardingState(

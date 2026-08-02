@@ -98,7 +98,7 @@ Widget _hosted({
 /// Third step lit, a real distance and a real ETA. This is the state the panel
 /// spends most of a delivery in, and the baseline the four below are read
 /// against.
-@JeebPreview(name: 'In transit · live fix', size: deliveryTrackingPanelBox)
+@JeebPreview(group: 'live_tracking', name: 'In transit · live fix', size: deliveryTrackingPanelBox)
 Widget deliveryTrackingPanelInTransit() => _hosted(
       distanceLabel: '3 km',
       etaMinutes: 20,
@@ -115,7 +115,7 @@ Widget deliveryTrackingPanelInTransit() => _hosted(
 /// It is also the state that proves the placeholders are ARB strings: the em
 /// dash in "Estimated time: —" survives into Arabic, where the whole line
 /// mirrors to `الوقت المقدّر: —`.
-@JeebPreview(name: 'Ordered · awaiting first fix', size: deliveryTrackingPanelBox)
+@JeebPreview(group: 'live_tracking', name: 'Ordered · awaiting first fix', size: deliveryTrackingPanelBox)
 Widget deliveryTrackingPanelAwaitingFix() => _hosted(
       stage: TrackingStage.ordered,
     );
@@ -133,7 +133,7 @@ Widget deliveryTrackingPanelAwaitingFix() => _hosted(
 /// which is what makes it agree with the ETA line above it — the render test
 /// pins that, because it is a property of intl's `ar` symbols rather than of
 /// anything in this repo.
-@JeebPreview(name: 'Locked deadline (Q-061/D18)', size: deliveryTrackingPanelTallBox)
+@JeebPreview(group: 'live_tracking', name: 'Locked deadline (Q-061/D18)', size: deliveryTrackingPanelTallBox)
 Widget deliveryTrackingPanelDeadlineLine() => _hosted(
       distanceLabel: '2 km',
       etaMinutes: 12,
@@ -153,7 +153,7 @@ Widget deliveryTrackingPanelDeadlineLine() => _hosted(
 ///    step 2, so a courier standing at the door still reads "In transit" —
 ///    a recorded product decision (P6/A5), and one that only looks deliberate
 ///    when you can see it.
-@JeebPreview(name: 'At the door · 0.0 km', size: deliveryTrackingPanelBox)
+@JeebPreview(group: 'live_tracking', name: 'At the door · 0.0 km', size: deliveryTrackingPanelBox)
 Widget deliveryTrackingPanelAtDoor() => _hosted(
       stage: TrackingStage.atDoor,
       distanceLabel: '0.0 km',
@@ -168,7 +168,7 @@ Widget deliveryTrackingPanelAtDoor() => _hosted(
 /// panel. This is the state the **AR RTL** and **EN 200% text** renderings are
 /// really for: at 1x English it is unremarkable, at 2x the ETA and distance
 /// lines wrap and the stepper's label row runs past the panel edge.
-@JeebPreview(name: 'Long haul · widest lines', size: deliveryTrackingPanelTallBox)
+@JeebPreview(group: 'live_tracking', name: 'Long haul · widest lines', size: deliveryTrackingPanelTallBox)
 Widget deliveryTrackingPanelLongHaul() => _hosted(
       distanceLabel: '128.6 km',
       etaMinutes: 195,

@@ -166,7 +166,7 @@ Widget _live(KycGateway gateway) => _hosted(
 /// Its "Register now" CTA chains into the onboarding wizard (JM-039), which is
 /// why every other status reaching this destination is a bug rather than a
 /// cosmetic slip — see the `pending` and `Live · fetch in flight` previews.
-@JeebPreview(name: 'none · register prompt', size: _tabBox)
+@JeebPreview(group: 'core', name: 'none · register prompt', size: _tabBox)
 Widget jeeberKycGateNotOnboarded() => _sync(JeeberKycStatus.none);
 
 /// The W2-closer regression, made visible.
@@ -177,14 +177,14 @@ Widget jeeberKycGateNotOnboarded() => _sync(JeeberKycStatus.none);
 /// `delivery_register_prompt`, which made the offer-KYC gate unreachable and
 /// invited an already-registered jeeber to register again. If this preview ever
 /// renders the register headline, that collapse is back.
-@JeebPreview(name: 'pending · feed, offering gated', size: _tabBox)
+@JeebPreview(group: 'core', name: 'pending · feed, offering gated', size: _tabBox)
 Widget jeeberKycGatePending() => _sync(JeeberKycStatus.pending);
 
 /// The happy path: verified, feed reachable, composer unlocked.
 ///
 /// Renders the same destination as `pending` — the ONLY visible difference is
 /// the offering line, which is the D38 invariant the offer flow gates on.
-@JeebPreview(name: 'approved · offering unlocked', size: _tabBox)
+@JeebPreview(group: 'core', name: 'approved · offering unlocked', size: _tabBox)
 Widget jeeberKycGateApproved() => _sync(JeeberKycStatus.approved);
 
 /// Terminal rejection (D52/D87): neither the feed nor the register prompt.
@@ -195,7 +195,7 @@ Widget jeeberKycGateApproved() => _sync(JeeberKycStatus.approved);
 /// a register CTA. This preview renders the destination the gate actually
 /// resolved, which is the decision under review; the frame-long prompt is
 /// `_GateScoped`'s to fix, not this widget's.
-@JeebPreview(name: 'rejected · terminal', size: _tabBox)
+@JeebPreview(group: 'core', name: 'rejected · terminal', size: _tabBox)
 Widget jeeberKycGateRejected() => _sync(JeeberKycStatus.rejected);
 
 /// JEBV4-267, and the state this whole widget exists for: the release gate
@@ -209,7 +209,7 @@ Widget jeeberKycGateRejected() => _sync(JeeberKycStatus.rejected);
 /// it is visible. The gateway here never completes, which is also what a failed
 /// read looks like: `refresh()` swallows the error and nothing calls it again,
 /// so this frame is the rest of the session.
-@JeebPreview(name: 'live · fetch in flight', size: _tabBox)
+@JeebPreview(group: 'core', name: 'live · fetch in flight', size: _tabBox)
 Widget jeeberKycGateLiveFetchInFlight() => _live(_StalledKycGateway());
 
 /// The reactive contract: a live `approved` read landing AFTER the first build.
@@ -221,7 +221,7 @@ Widget jeeberKycGateLiveFetchInFlight() => _live(_StalledKycGateway());
 /// preview renders the register prompt instead. In the canvas the fake resolves
 /// on a microtask, so the `none` frame is not visible here; look at
 /// `live · fetch in flight` for what that frame contains.
-@JeebPreview(name: 'live · approved lands late', size: _tabBox)
+@JeebPreview(group: 'core', name: 'live · approved lands late', size: _tabBox)
 Widget jeeberKycGateLiveApprovedLandsLate() => _live(
       FakeKycGateway(
         initial: const KycSubmission(status: KycStatus.approved),

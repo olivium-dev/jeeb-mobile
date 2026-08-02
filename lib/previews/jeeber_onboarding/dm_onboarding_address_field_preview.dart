@@ -91,7 +91,7 @@ Widget _hosted({
 ///
 /// The baseline reading — this is the first of the four rows the address step
 /// renders, and the only one whose hint comes close to fitting at 32 sp.
-@JeebPreview(name: 'State · shortest field', size: _fieldBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'State · shortest field', size: _fieldBox)
 Widget dmOnboardingAddressFieldState() => _hosted(
       identifier: 'dm_onboarding_address_state_field',
       label: (AppLocalizations l10n) => l10n.dmOnboardingAddressStateLabel,
@@ -109,7 +109,7 @@ Widget dmOnboardingAddressFieldState() => _hosted(
 ///
 /// If a fix lands — a smaller hint style, or `hintMaxLines` — this preview is
 /// where it shows up.
-@JeebPreview(name: 'Address · longest shipped hint', size: _fieldBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Address · longest shipped hint', size: _fieldBox)
 Widget dmOnboardingAddressFieldLongestShippedHint() => _hosted(
       identifier: 'dm_onboarding_address_field',
       label: (AppLocalizations l10n) => l10n.dmOnboardingAddressAddressLabel,
@@ -125,7 +125,7 @@ Widget dmOnboardingAddressFieldLongestShippedHint() => _hosted(
 /// rendering, where the label wraps and the pair outgrows the 160 pt box.
 ///
 /// Synthetic copy, not an ARB key: no shipped label is this long *yet*.
-@JeebPreview(name: 'Long label wraps', size: _fieldBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Long label wraps', size: _fieldBox)
 Widget dmOnboardingAddressFieldLongLabel() => _hosted(
       identifier: 'dm_onboarding_address_field',
       label: (AppLocalizations _) =>
@@ -141,7 +141,7 @@ Widget dmOnboardingAddressFieldLongLabel() => _hosted(
 /// first 17 characters — "e.g. Jasmine Towe…" — and the rest is ellipsis. Worth
 /// having on the canvas so the constraint is visible before the copy is
 /// written, not after.
-@JeebPreview(name: 'Verbose hint clipped', size: _fieldBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Verbose hint clipped', size: _fieldBox)
 Widget dmOnboardingAddressFieldVerboseHint() => _hosted(
       identifier: 'dm_onboarding_address_field',
       label: (AppLocalizations l10n) => l10n.dmOnboardingAddressAddressLabel,
@@ -159,7 +159,7 @@ Widget dmOnboardingAddressFieldVerboseHint() => _hosted(
 ///
 /// Also the guard that an empty hint neither collapses the field's height nor
 /// throws.
-@JeebPreview(name: 'Hint missing', size: _fieldBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Hint missing', size: _fieldBox)
 Widget dmOnboardingAddressFieldNoHint() => _hosted(
       identifier: 'dm_onboarding_address_street_field',
       label: (AppLocalizations l10n) => l10n.dmOnboardingAddressStreetLabel,

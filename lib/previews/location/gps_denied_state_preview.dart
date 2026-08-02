@@ -71,7 +71,7 @@ Widget _hosted(String scenario, {bool wired = true, double? width}) =>
 /// Worth comparing against [gpsDeniedStateNoCallback]: on this phone-height
 /// slot the two look nearly identical, and the difference — a dead CTA — is a
 /// 45% fill you have to be looking for.
-@JeebPreview(name: 'Full phone slot · CTA wired', size: _phoneSlot)
+@JeebPreview(group: 'location', name: 'Full phone slot · CTA wired', size: _phoneSlot)
 Widget gpsDeniedStateWiredCta() => _hosted('Full phone slot · CTA wired');
 
 /// What `const GpsDeniedState()` ships today — literally the default
@@ -88,7 +88,7 @@ Widget gpsDeniedStateWiredCta() => _hosted('Full phone slot · CTA wired');
 /// This is not a hypothetical: `CaptureLocationScreen` does not render this
 /// widget at all yet, so the first host to wire it up is the one that decides
 /// whether AC4 works.
-@JeebPreview(name: 'Default constructor · CTA dead', size: _phoneSlot)
+@JeebPreview(group: 'location', name: 'Default constructor · CTA dead', size: _phoneSlot)
 Widget gpsDeniedStateNoCallback() =>
     _hosted('Default constructor · CTA dead', wired: false);
 
@@ -104,7 +104,7 @@ Widget gpsDeniedStateNoCallback() =>
 ///
 /// The 320 pt width is baked into the tree, not just declared to the canvas, so
 /// the state is genuinely compact in the render test too.
-@JeebPreview(name: 'Compact 320pt phone', size: _compactSlot)
+@JeebPreview(group: 'location', name: 'Compact 320pt phone', size: _compactSlot)
 Widget gpsDeniedStateCompactPhone() =>
     _hosted('Compact 320pt phone', width: 320);
 
@@ -122,7 +122,7 @@ Widget gpsDeniedStateCompactPhone() =>
 /// the only control on the surface. The fix belongs to the widget (wrap the
 /// column in a scroll view, or drop the icon under a height threshold), not to
 /// its hosts.
-@JeebPreview(name: 'Short map card (200pt)', size: _cardSlot)
+@JeebPreview(group: 'location', name: 'Short map card (200pt)', size: _cardSlot)
 Widget gpsDeniedStateShortCard() => _hosted('Short map card (200pt)');
 
 /// A phone rotated to landscape: 740 pt wide, ~360 pt tall.
@@ -138,7 +138,7 @@ Widget gpsDeniedStateShortCard() => _hosted('Short map card (200pt)');
 /// where the type doubles and the 56 pt icon does not, runs out of the 360 pt
 /// it has. Same defect as [gpsDeniedStateShortCard], reached from the
 /// accessibility side.
-@JeebPreview(name: 'Landscape phone (740×360)', size: _landscapeSlot)
+@JeebPreview(group: 'location', name: 'Landscape phone (740×360)', size: _landscapeSlot)
 Widget gpsDeniedStateLandscape() =>
     _hosted('Landscape phone (740×360)', width: 740);
 

@@ -42,7 +42,7 @@ Widget _hosted(DateTime date) => ChatDateSeparator(date: date);
 /// Renders the localized "today" string (`chatDateChipToday`), never a
 /// formatted date — this is the branch that proves the relative labels are
 /// preferred over DateFormat.
-@JeebPreview(name: 'Today', size: _separatorBox)
+@JeebPreview(group: 'chat', name: 'Today', size: _separatorBox)
 Widget chatDateSeparatorToday() => _hosted(DateTime.now());
 
 /// The second relative branch: a thread whose first message is one day old.
@@ -50,7 +50,7 @@ Widget chatDateSeparatorToday() => _hosted(DateTime.now());
 /// Built with the same `now.subtract(const Duration(days: 1))` expression the
 /// widget uses internally, so the preview reproduces the widget's own notion of
 /// "yesterday" rather than a competing one.
-@JeebPreview(name: 'Yesterday', size: _separatorBox)
+@JeebPreview(group: 'chat', name: 'Yesterday', size: _separatorBox)
 Widget chatDateSeparatorYesterday() =>
     _hosted(DateTime.now().subtract(const Duration(days: 1)));
 
@@ -60,7 +60,7 @@ Widget chatDateSeparatorYesterday() =>
 /// one that can silently stay English while the rest of the screen is Arabic.
 /// The AR RTL rendering of this preview is the check that matters: it must show
 /// Arabic month names and Arabic-Indic digits, not "March 8, 2026".
-@JeebPreview(name: 'Older date', size: _separatorBox)
+@JeebPreview(group: 'chat', name: 'Older date', size: _separatorBox)
 Widget chatDateSeparatorOlderDate() => _hosted(DateTime(2026, 3, 8));
 
 /// The layout ceiling: the longest label the formatter can produce.
@@ -76,7 +76,7 @@ Widget chatDateSeparatorOlderDate() => _hosted(DateTime(2026, 3, 8));
 /// the chip's default margin is vertical-only and this widget passes no
 /// horizontal margin of its own (`OmdsDateChip` defaults `margin` to
 /// `EdgeInsets.symmetric(vertical: 16)`).
-@JeebPreview(name: 'Longest date label', size: _tallSeparatorBox)
+@JeebPreview(group: 'chat', name: 'Longest date label', size: _tallSeparatorBox)
 Widget chatDateSeparatorLongestLabel() => _hosted(DateTime(2025, 9, 28));
 
 /// The 1970 ordering anchor, made visible.
@@ -87,7 +87,7 @@ Widget chatDateSeparatorLongestLabel() => _hosted(DateTime(2025, 9, 28));
 /// fabrication". That guard lives entirely in the caller: hand this widget an
 /// epoch date and it renders it without complaint. This preview is what that
 /// regression would look like if the caller-side guard is ever dropped.
-@JeebPreview(name: 'Epoch anchor (1970)', size: _separatorBox)
+@JeebPreview(group: 'chat', name: 'Epoch anchor (1970)', size: _separatorBox)
 Widget chatDateSeparatorEpochAnchor() => _hosted(DateTime(1970));
 
 /// A send time that reached the widget as UTC instead of local time.
@@ -98,6 +98,6 @@ Widget chatDateSeparatorEpochAnchor() => _hosted(DateTime(1970));
 /// paths; a new caller that forgets to would shift every late-evening message
 /// back a day. 22:00 UTC on 31 Dec is 00:00 on 1 Jan in Beirut, and this
 /// preview must render "December 31, 2024" — the wrong day — to show it.
-@JeebPreview(name: 'UTC instant, not localized', size: _tallSeparatorBox)
+@JeebPreview(group: 'chat', name: 'UTC instant, not localized', size: _tallSeparatorBox)
 Widget chatDateSeparatorUtcInstant() =>
     _hosted(DateTime.utc(2024, 12, 31, 22));

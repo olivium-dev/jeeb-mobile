@@ -84,7 +84,7 @@ Widget _hosted({String? profileName, String? ctaIdentifier, double? width}) {
 /// so `profileName` is null and the greeting degrades to the localized generic
 /// line. Every other state below is what the same screen looks like a few
 /// hundred milliseconds later.
-@JeebPreview(name: 'Cold start · no name', size: _phoneBody)
+@JeebPreview(group: 'jeeber_home', name: 'Cold start · no name', size: _phoneBody)
 Widget jeeberUnregisteredViewColdStart() => _hosted();
 
 /// The settled happy path: a named user who has not registered yet.
@@ -103,7 +103,7 @@ Widget jeeberUnregisteredViewColdStart() => _hosted();
 /// harder than the canvas does. The `AR RTL dark` rendering does not reproduce
 /// it, because "سجّل كموصِّل" still fits on one line — this is an English-only
 /// accessibility break that an Arabic-first spot check would miss.
-@JeebPreview(name: 'Named jeeber', size: _phoneBody)
+@JeebPreview(group: 'jeeber_home', name: 'Named jeeber', size: _phoneBody)
 Widget jeeberUnregisteredViewNamed() => _hosted(profileName: 'Kamal');
 
 /// How `dashboard_tab.dart` really builds it: the CTA additionally wrapped in
@@ -116,7 +116,7 @@ Widget jeeberUnregisteredViewNamed() => _hosted(profileName: 'Kamal');
 /// commit 8b81dc1; both ids must stay individually queryable, because Maestro
 /// flow 19 taps the inner one and the JM-036 gate flow taps the outer one. The
 /// render suite asserts both survive.
-@JeebPreview(name: 'JM-036 gate CTA id', size: _phoneBody)
+@JeebPreview(group: 'jeeber_home', name: 'JM-036 gate CTA id', size: _phoneBody)
 Widget jeeberUnregisteredViewGateCta() => _hosted(
       profileName: 'Zeina',
       ctaIdentifier: 'delivery_register_now_cta',
@@ -136,7 +136,7 @@ Widget jeeberUnregisteredViewGateCta() => _hosted(
 /// 200pt illustration above it does not give back. Compare against
 /// [jeeberUnregisteredViewShortBody]: this is the same squeeze arriving from
 /// the width axis.
-@JeebPreview(name: 'Long name · 320pt phone', size: _compactPhone)
+@JeebPreview(group: 'jeeber_home', name: 'Long name · 320pt phone', size: _compactPhone)
 Widget jeeberUnregisteredViewLongNameCompact() => _hosted(
       profileName: 'Abdulrahman Al-Muhandis Al-Trabulsi',
       width: 320,
@@ -160,5 +160,5 @@ Widget jeeberUnregisteredViewLongNameCompact() => _hosted(
 /// The short height is declared to the canvas only, so the render suite (which
 /// pumps at 800×600) sees a view that fits and stays green, and the overflow
 /// shows up where a human is looking at it.
-@JeebPreview(name: 'Short body (420pt)', size: _shortBody)
+@JeebPreview(group: 'jeeber_home', name: 'Short body (420pt)', size: _shortBody)
 Widget jeeberUnregisteredViewShortBody() => _hosted(profileName: 'Nour');

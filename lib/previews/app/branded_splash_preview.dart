@@ -164,7 +164,7 @@ Widget _hosted({
 /// wordmark is 45.5 % of the 440 pt width, and the tagline sits the designed
 /// 48 pt (`Spacing.fourXLarge`) off the bottom edge. Read the four states below
 /// against this one.
-@JeebPreview(name: 'Figma frame 440 × 956', size: Size(452, 1000))
+@JeebPreview(group: 'app', name: 'Figma frame 440 × 956', size: Size(452, 1000))
 Widget brandedSplashFigmaFrame() => _hosted(
       label: 'Figma frame · 440 × 956 · no insets',
       frame: _figmaFrame,
@@ -183,7 +183,7 @@ Widget brandedSplashFigmaFrame() => _hosted(
 /// full 360 pt of the frame with a ZERO side gutter (measured: 360 pt wide at
 /// left = 0). At 1.0 the tagline is short enough that nobody notices; the moment
 /// a string is long enough to wrap, it wraps against the glass.
-@JeebPreview(name: 'Compact 360 × 640', size: Size(372, 684))
+@JeebPreview(group: 'app', name: 'Compact 360 × 640', size: Size(372, 684))
 Widget brandedSplashCompactPhone() => _hosted(
       label: 'Compact phone · 360 × 640 · no insets',
       frame: _compactFrame,
@@ -202,7 +202,7 @@ Widget brandedSplashCompactPhone() => _hosted(
 /// by-product of spare height rather than a fixed offset: measured 14.9 pt
 /// above true centre on the Figma frame and 7.5 pt here. A device whose bottom
 /// inset exceeded its top one would land the wordmark *below* true centre.
-@JeebPreview(name: 'Notched 393 × 852 · inset 59/34', size: Size(405, 896))
+@JeebPreview(group: 'app', name: 'Notched 393 × 852 · inset 59/34', size: Size(405, 896))
 Widget brandedSplashNotchedPhone() => _hosted(
       label: 'Notched phone · 393 × 852 · inset 59/34',
       frame: _notchedFrame,
@@ -225,7 +225,7 @@ Widget brandedSplashNotchedPhone() => _hosted(
 /// What it does show is the wordmark stranded: 200 pt of mark centred in 852 pt
 /// of navy, with the 59 pt side insets doing nothing, because the composition
 /// has no horizontal structure for `SafeArea` to inset.
-@JeebPreview(name: 'Landscape 852 × 393', size: Size(864, 438))
+@JeebPreview(group: 'app', name: 'Landscape 852 × 393', size: Size(864, 438))
 Widget brandedSplashLandscape() => _hosted(
       label: 'Landscape · 852 × 393 · inset 59/59/21',
       frame: _landscapeFrame,
@@ -240,7 +240,7 @@ Widget brandedSplashLandscape() => _hosted(
 /// The tagline is likewise still `titleMedium`, unscaled, 1194 pt down.
 /// Nothing breaks; it simply stops being the brand composition that was signed
 /// off.
-@JeebPreview(name: 'Tablet 834 × 1194', size: Size(846, 1238))
+@JeebPreview(group: 'app', name: 'Tablet 834 × 1194', size: Size(846, 1238))
 Widget brandedSplashTablet() => _hosted(
       label: 'Tablet portrait · 834 × 1194 · no insets',
       frame: _tabletFrame,

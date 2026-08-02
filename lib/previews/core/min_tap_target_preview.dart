@@ -61,7 +61,7 @@ const double _kGlyph = 16;
 /// A 16 dp glyph is nowhere near tappable on its own. Given room, the floor does
 /// all the work: the tinted box should be a 48 dp square exactly covering the
 /// gauge's footprint, with the glyph centred inside it.
-@JeebPreview(name: 'Tiny icon child', size: _specimenBox)
+@JeebPreview(group: 'core', name: 'Tiny icon child', size: _specimenBox)
 Widget minTapTargetTinyIcon() => const _Specimen(
       title: 'Tiny icon child',
       note: 'A 16 dp glyph with room to grow. The floor does all the work.',
@@ -75,7 +75,7 @@ Widget minTapTargetTinyIcon() => const _Specimen(
 /// horizontally, but its 8 dp vertical padding leaves it about 32 dp tall and
 /// the floor lifts it to 48. The tinted box should overshoot the gauge to the
 /// trailing side and match it exactly in height.
-@JeebPreview(name: 'Chip child', size: _specimenBox)
+@JeebPreview(group: 'core', name: 'Chip child', size: _specimenBox)
 Widget minTapTargetChip() => const _Specimen(
       title: 'Chip child',
       note: 'Production shape. Width is already over the floor; height is not.',
@@ -101,7 +101,7 @@ Widget minTapTargetChip() => const _Specimen(
 /// overflow stripe from inside [OmdsChip] on top of the undersized target. An
 /// [Icon] absorbs the squeeze quietly, which is the more dangerous case and the
 /// one worth staring at.
-@JeebPreview(name: 'Narrow parent', size: _specimenBox)
+@JeebPreview(group: 'core', name: 'Narrow parent', size: _specimenBox)
 Widget minTapTargetNarrowParent() => const _Specimen(
       title: 'Narrow parent',
       note: 'Slot is 32 dp. The 48 dp minimum is clamped away, silently.',
@@ -125,7 +125,7 @@ Widget minTapTargetNarrowParent() => const _Specimen(
 /// and the tinted bounds in this preview are the only way to see that a tap two
 /// thirds of the way across the row still fires this target's `onTap`. Put a
 /// second control on that line and one of them will not be reachable.
-@JeebPreview(name: 'Stretched parent', size: _stackedBox)
+@JeebPreview(group: 'core', name: 'Stretched parent', size: _stackedBox)
 Widget minTapTargetStretchedParent() => const _Specimen(
       title: 'Stretched parent',
       note: 'A stretching Column makes the 48 dp square a full-width tap strip.',
@@ -143,7 +143,7 @@ Widget minTapTargetStretchedParent() => const _Specimen(
 /// The same [IgnorePointer] is why every production call site wraps this widget
 /// in `Semantics(button: true, label: …) → ExcludeSemantics(…)` — see the test
 /// for what a bare [MinTapTarget] exposes to a screen reader on its own.
-@JeebPreview(name: 'Child owns its own onTap', size: _specimenBox)
+@JeebPreview(group: 'core', name: 'Child owns its own onTap', size: _specimenBox)
 Widget minTapTargetChildOnTapSwallowed() => const _Specimen(
       title: 'Child owns its own onTap',
       note: 'IgnorePointer eats it. Tap the chip and watch the counters.',

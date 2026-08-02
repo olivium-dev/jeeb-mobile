@@ -92,7 +92,7 @@ Widget _hosted(
 /// row must stay inside 48 dp. This is the state to check when a status label
 /// gets longer in translation: Arabic "قيد التوصيل" and a 200% text scale both
 /// push this row, and the row's answer is to WRAP, not to squeeze or clip.
-@JeebPreview(name: 'Collapsed (default)', size: _collapsedBox)
+@JeebPreview(group: 'chat', name: 'Collapsed (default)', size: _collapsedBox)
 Widget orderChatPinnedSummaryCollapsed() => _hosted(
       const OrderChatSummary(
         deliveryId: '9acb579d-1c2e-4f3a-b8d1-77aa10cc42e6',
@@ -115,7 +115,7 @@ Widget orderChatPinnedSummaryCollapsed() => _hosted(
 /// coloured capsules, the M3 hierarchy fix has regressed. The cash reminder is
 /// also the contrast canary: it used to be `onPrimaryContainer` faded to 3.85:1
 /// over a saturated fill, which is what made it unreadable.
-@JeebPreview(name: 'Expanded (all fields)', size: _expandedBox)
+@JeebPreview(group: 'chat', name: 'Expanded (all fields)', size: _expandedBox)
 Widget orderChatPinnedSummaryExpanded() => _hosted(
       const OrderChatSummary(
         deliveryId: 'c1f0e2b4-8d55-4a17-9e30-5b6c7d8e9f01',
@@ -141,7 +141,7 @@ Widget orderChatPinnedSummaryExpanded() => _hosted(
 /// derived reference (`#7719D4`, never a raw UUID), a localized "Pending" per
 /// unresolved chip, and "Matched" as the honest status floor. Any "Order
 /// summary" text in this preview is that bug returning.
-@JeebPreview(name: 'Pending (nothing resolved)', size: _expandedBox)
+@JeebPreview(group: 'chat', name: 'Pending (nothing resolved)', size: _expandedBox)
 Widget orderChatPinnedSummaryPending() => _hosted(
       const OrderChatSummary(
         deliveryId: '5b2e8c14-77af-4a63-9c05-6d90ab7719d4',
@@ -159,7 +159,7 @@ Widget orderChatPinnedSummaryPending() => _hosted(
 /// generic. Second, there is no view-summary link at all: `order-summary` is
 /// owner-scoped, so the whole node is removed rather than left as a dead
 /// affordance.
-@JeebPreview(name: 'Jeeber viewer (no link)', size: _expandedBox)
+@JeebPreview(group: 'chat', name: 'Jeeber viewer (no link)', size: _expandedBox)
 Widget orderChatPinnedSummaryJeeberViewer() => _hosted(
       const OrderChatSummary(
         deliveryId: '2ab41d67-0c98-4f52-b7e1-3d5a9e0f4c88',
@@ -187,7 +187,7 @@ Widget orderChatPinnedSummaryJeeberViewer() => _hosted(
 /// OVERFLOWED" class). The AR RTL and 200%-text renderings are the ones that
 /// matter: the EN light rendering keeps looking fine long after both have
 /// broken.
-@JeebPreview(name: 'Longest content', size: _expandedBox)
+@JeebPreview(group: 'chat', name: 'Longest content', size: _expandedBox)
 Widget orderChatPinnedSummaryLongContent() => _hosted(
       const OrderChatSummary(
         deliveryId: '7c0a4e21-93b6-4f18-a5d2-8e1f6b40aa31',
@@ -212,7 +212,7 @@ Widget orderChatPinnedSummaryLongContent() => _hosted(
 /// right-aligned and RTL while the surrounding English chrome stays LTR — and
 /// must do the mirror of that in the AR RTL rendering of this same preview.
 /// A description that reads left-aligned here is the bug.
-@JeebPreview(name: 'Arabic requirement in EN UI', size: _expandedBox)
+@JeebPreview(group: 'chat', name: 'Arabic requirement in EN UI', size: _expandedBox)
 Widget orderChatPinnedSummaryArabicDescription() => _hosted(
       const OrderChatSummary(
         deliveryId: '8d3c95f2-41ab-4c07-9e6b-2f5081bc7a19',

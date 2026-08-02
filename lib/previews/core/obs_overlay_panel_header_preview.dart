@@ -166,7 +166,7 @@ Widget _inPrivateOverlay(Widget child, {required double width}) => SizedBox(
 /// also its only screen-reader label. That is defensible for a devtool that
 /// only exists in a `--dart-define JEEB_OBS_OVERLAY=true` build, and
 /// indefensible the day anything here is reused outside one.
-@JeebPreview(name: 'Panel (production, 390pt)', size: _headerBox)
+@JeebPreview(group: 'core', name: 'Panel (production, 390pt)', size: _headerBox)
 Widget obsOverlayPanelHeaderInPanel() => _captioned(
       'Panel host: 340pt card on a 390pt phone',
       _inPrivateOverlay(
@@ -185,7 +185,7 @@ Widget obsOverlayPanelHeaderInPanel() => _captioned(
 /// label wraps beside a button that has not grown by a pixel, and the row
 /// goes from 48pt to 144pt (measured in the render test) inside a panel that
 /// is only `0.62` of the screen tall.
-@JeebPreview(name: 'Compact device (320pt)', size: _headerBox)
+@JeebPreview(group: 'core', name: 'Compact device (320pt)', size: _headerBox)
 Widget obsOverlayPanelHeaderCompactDevice() => _captioned(
       'Compact host: 296pt card on a 320pt phone',
       _panelContent(_panelWidth(_compactPhoneWidth)),
@@ -202,7 +202,7 @@ Widget obsOverlayPanelHeaderCompactDevice() => _captioned(
 /// yellow overflow stripe. Everything narrower than this — including every
 /// real device once the text scale is raised — renders like this rather than
 /// clipping the title or pushing the close button off the trailing edge.
-@JeebPreview(name: 'Wrapping title (160pt)', size: _wrappingBox)
+@JeebPreview(group: 'core', name: 'Wrapping title (160pt)', size: _wrappingBox)
 Widget obsOverlayPanelHeaderWrappingTitle() => _captioned(
       'Wrap threshold: 160pt host',
       _panelContent(_wrappingPanelWidth),
@@ -216,7 +216,7 @@ Widget obsOverlayPanelHeaderWrappingTitle() => _captioned(
 /// opposite edges of the screen with ~330pt of nothing between them. Nothing
 /// breaks; it just stops reading as one control. Included because it is the
 /// obvious next call site and the header offers no way to cap its own width.
-@JeebPreview(name: 'Bare full-width host', size: _headerBox)
+@JeebPreview(group: 'core', name: 'Bare full-width host', size: _headerBox)
 Widget obsOverlayPanelHeaderFullWidthHost() => _captioned(
       'Bare host: full 390pt width, no padding',
       SizedBox(
@@ -237,7 +237,7 @@ Widget obsOverlayPanelHeaderFullWidthHost() => _captioned(
 /// (the panel's [Column] leaves the header's height free), which is exactly
 /// why it is worth having a picture of before someone slots the header into a
 /// fixed-height toolbar.
-@JeebPreview(name: 'Fixed 40pt slot (tap target shrinks)', size: _headerBox)
+@JeebPreview(group: 'core', name: 'Fixed 40pt slot (tap target shrinks)', size: _headerBox)
 Widget obsOverlayPanelHeaderFixedHeightSlot() => _captioned(
       'Fixed slot: 40pt tall, tap target clipped',
       SizedBox(

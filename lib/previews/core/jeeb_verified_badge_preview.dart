@@ -194,7 +194,7 @@ class _SwatchCell extends StatelessWidget {
 ///    `colorScheme.secondaryContainer` on `colorScheme.surface`: 17.13:1 in
 ///    light and 1.98:1 in dark, against the 3:1 WCAG 1.4.11 asks of a graphical
 ///    object.
-@JeebPreview(name: 'Customer row (production)', size: _rowBox)
+@JeebPreview(group: 'core', name: 'Customer row (production)', size: _rowBox)
 Widget jeebVerifiedBadgeCustomerRow() => _hosted(
       'Customer profile row',
       _NameRow(
@@ -214,7 +214,7 @@ Widget jeebVerifiedBadgeCustomerRow() => _hosted(
 /// badge across the app; a screen-reader user hears two different ones. Nothing
 /// in the widget prevents that, and nothing in the canvas shows it — the render
 /// test reads the semantics node back so the divergence is at least pinned.
-@JeebPreview(name: 'Jeeber row (production)', size: _rowBox)
+@JeebPreview(group: 'core', name: 'Jeeber row (production)', size: _rowBox)
 Widget jeebVerifiedBadgeJeeberRow() => _hosted(
       'Jeeber profile row',
       _NameRow(
@@ -238,7 +238,7 @@ Widget jeebVerifiedBadgeJeeberRow() => _hosted(
 /// The badge is never pushed off the trailing edge, which is the failure this
 /// preview was written to look for: [Flexible] gives the text the leftovers, so
 /// the 20dp seal and its 8pt gap are always reserved. That half is fine.
-@JeebPreview(name: 'Long name (wraps)', size: _wrappedRowBox)
+@JeebPreview(group: 'core', name: 'Long name (wraps)', size: _wrappedRowBox)
 Widget jeebVerifiedBadgeLongName() => _hosted(
       'Long name wraps; badge centres on the block',
       _NameRow(
@@ -261,7 +261,7 @@ Widget jeebVerifiedBadgeLongName() => _hosted(
 /// it before reaching for a compact variant in a list row — nothing ships one
 /// today, and the whole strip is the one input to this widget that no other
 /// preview or test exercises.
-@JeebPreview(name: 'Size scale 12-40dp', size: _glyphBox)
+@JeebPreview(group: 'core', name: 'Size scale 12-40dp', size: _glyphBox)
 Widget jeebVerifiedBadgeSizeScale() => _hosted(
       'Size scale: 12 / 20 / 32 / 40 dp',
       const SizedBox(
@@ -292,7 +292,7 @@ Widget jeebVerifiedBadgeSizeScale() => _hosted(
 /// This is not hypothetical for a badge whose entire output is a glyph: the
 /// label IS the widget for a screen-reader user, and the widget accepts its own
 /// absence silently.
-@JeebPreview(name: 'Empty label (silent)', size: _glyphBox)
+@JeebPreview(group: 'core', name: 'Empty label (silent)', size: _glyphBox)
 Widget jeebVerifiedBadgeUnlabelled() => _hosted(
       'Empty semanticsLabel: announced as nothing',
       const _Badge(label: ''),
@@ -309,7 +309,7 @@ Widget jeebVerifiedBadgeUnlabelled() => _hosted(
 /// `ColorScheme.fromSeed(_jeebNavy, dark)`, where the same role is exactly what
 /// M3 means by a container — a dark fill meant to sit *behind* ink, here used as
 /// the ink, on a surface of nearly the same tone.
-@JeebPreview(name: 'Bare glyph on surface', size: _glyphBox)
+@JeebPreview(group: 'core', name: 'Bare glyph on surface', size: _glyphBox)
 Widget jeebVerifiedBadgeBare() => _hosted(
       'Bare 20dp glyph on surface',
       const _Badge(),

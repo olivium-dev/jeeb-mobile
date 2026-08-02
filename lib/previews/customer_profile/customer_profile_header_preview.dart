@@ -91,7 +91,7 @@ Widget _hosted({
 /// `ColorScheme.fromSeed`, where the same role is #44455A — 1.98:1 against the
 /// #131318 surface, under the 3:1 WCAG floor for large text. The rating and
 /// email lines beside it use `onSurfaceVariant` and stay at 10.9:1.
-@JeebPreview(name: 'Rated + verified', size: _headerBox)
+@JeebPreview(group: 'customer_profile', name: 'Rated + verified', size: _headerBox)
 Widget customerProfileHeaderRated() => _hosted(
       name: 'Sami Fawaz',
       email: 'kamalhaaj@gmail.com',
@@ -111,7 +111,7 @@ Widget customerProfileHeaderRated() => _hosted(
 /// (`if (email != null)`), so the column loses a line and the 80 dp avatar
 /// becomes the tallest thing in the row. This is what most real accounts look
 /// like on first open.
-@JeebPreview(name: 'Unrated, no email', size: _headerBox)
+@JeebPreview(group: 'customer_profile', name: 'Unrated, no email', size: _headerBox)
 Widget customerProfileHeaderUnrated() => _hosted(
       name: 'Nadia Client',
       isVerified: true,
@@ -128,7 +128,7 @@ Widget customerProfileHeaderUnrated() => _hosted(
 /// the name will appear, and the `customer_profile_name` Semantics node is
 /// left with `label: ''`, so a screen reader lands on a node that announces
 /// nothing.
-@JeebPreview(name: 'Cold start (nothing loaded)', size: _headerBox)
+@JeebPreview(group: 'customer_profile', name: 'Cold start (nothing loaded)', size: _headerBox)
 Widget customerProfileHeaderColdStart() => _hosted();
 
 /// A phone-only account, exactly as `getMe` returns it.
@@ -143,7 +143,7 @@ Widget customerProfileHeaderColdStart() => _hosted();
 /// the sprint-009 §T5 leak the greeting surfaces were fixed for, still live on
 /// the one screen a customer opens to check who they are: a machine handle
 /// where their name goes, an internal routing address where their email goes.
-@JeebPreview(name: 'Phone-only synthetic identity', size: _wrappingBox)
+@JeebPreview(group: 'customer_profile', name: 'Phone-only synthetic identity', size: _wrappingBox)
 Widget customerProfileHeaderSyntheticIdentity() => _hosted(
       name: 'jeeb-e1a35ea8a520',
       email: 'phone-only+cb39e21caa82@jeeb.internal',
@@ -162,7 +162,7 @@ Widget customerProfileHeaderSyntheticIdentity() => _hosted(
 /// lines runs against the ambient direction, and `CrossAxisAlignment.start`
 /// aligns the *boxes*, not the glyphs — so this is the state where a
 /// half-mirrored column would show up.
-@JeebPreview(name: 'Arabic name, Latin email', size: _wrappingBox)
+@JeebPreview(group: 'customer_profile', name: 'Arabic name, Latin email', size: _wrappingBox)
 Widget customerProfileHeaderArabicName() => _hosted(
       name: 'كمال حاج الطرابلسي',
       email: 'kamalhaaj@gmail.com',
@@ -187,7 +187,7 @@ Widget customerProfileHeaderArabicName() => _hosted(
 /// 3-line name it floats beside the middle line — measured at y 94–114 against
 /// a name block spanning y 56–152 — reading as an orphaned glyph rather than as
 /// a mark on the name.
-@JeebPreview(name: 'Long name + long email', size: _phoneScreenBox)
+@JeebPreview(group: 'customer_profile', name: 'Long name + long email', size: _phoneScreenBox)
 Widget customerProfileHeaderLongName() => _hosted(
       name: 'Abdulrahman Al-Muhandis Al-Trabulsi',
       email: 'abdulrahman.almuhandis@student-mail.university.edu.lb',

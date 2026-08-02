@@ -134,7 +134,7 @@ Widget _hosted(
 /// `ClientLocationOptionCard`'s label is a single ellipsized line inside an
 /// `Expanded`, so it cannot wrap and cannot grow the row — past a certain scale
 /// the option just reads "Current Locat…".
-@JeebPreview(name: 'Idle · no detail', size: _optionOnlyBox)
+@JeebPreview(group: 'location', name: 'Idle · no detail', size: _optionOnlyBox)
 Widget currentLocationStatusCardIdle() => _hosted(CurrentGpsStatus.idle);
 
 /// Acquiring a fix: the permission prompt is up, or the sensor is being read.
@@ -150,7 +150,7 @@ Widget currentLocationStatusCardIdle() => _hosted(CurrentGpsStatus.idle);
 /// `end`, so the label runs flush to the card's trailing edge while the option
 /// row above it keeps 16pt of internal padding on both sides. Both edges are
 /// visible on the canvas because [_hosted] gives the card its real 350pt width.
-@JeebPreview(name: 'Resolving · spinner', size: _statusRowBox)
+@JeebPreview(group: 'location', name: 'Resolving · spinner', size: _statusRowBox)
 Widget currentLocationStatusCardResolving() =>
     _hosted(CurrentGpsStatus.resolving);
 
@@ -160,7 +160,7 @@ Widget currentLocationStatusCardResolving() =>
 /// (`LocationSelectState.hasCurrentGps`), which is why the confirmation line
 /// exists at all — before JEBV4-176 the card looked like this unconditionally
 /// and lied about a Beirut fallback.
-@JeebPreview(name: 'Resolved · real fix', size: _statusRowBox)
+@JeebPreview(group: 'location', name: 'Resolved · real fix', size: _statusRowBox)
 Widget currentLocationStatusCardResolved() =>
     _hosted(CurrentGpsStatus.resolved);
 
@@ -181,7 +181,7 @@ Widget currentLocationStatusCardResolved() =>
 /// the wrap threshold there is pessimistic (the `FlutterTest` font is wider than
 /// the shipped one) but the ceiling is structural — a 48pt box cannot hold two
 /// scaled lines in any font.
-@JeebPreview(name: 'Permission denied · recovery', size: _recoveryBox)
+@JeebPreview(group: 'location', name: 'Permission denied · recovery', size: _recoveryBox)
 Widget currentLocationStatusCardPermissionDenied() =>
     _hosted(CurrentGpsStatus.permissionDenied);
 
@@ -196,7 +196,7 @@ Widget currentLocationStatusCardPermissionDenied() =>
 /// unselected option they have already worked around. This preview is the
 /// unselected option chrome (white surface, navy outline) and that defect in
 /// one frame.
-@JeebPreview(
+@JeebPreview(group: 'location', 
   name: 'Services off · unselected (panel persists)',
   size: _recoveryBox,
 )
@@ -210,5 +210,5 @@ Widget currentLocationStatusCardServiceDisabledUnselected() =>
 /// the secondary text button to the primary pill and the second row disappears.
 /// That makes this the shortest panel, and the state to check when a layout
 /// assumption about "the panel has two buttons" creeps in.
-@JeebPreview(name: 'Failed · retry only', size: _recoverySingleBox)
+@JeebPreview(group: 'location', name: 'Failed · retry only', size: _recoverySingleBox)
 Widget currentLocationStatusCardFailed() => _hosted(CurrentGpsStatus.failed);

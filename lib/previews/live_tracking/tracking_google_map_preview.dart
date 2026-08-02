@@ -152,7 +152,7 @@ Widget _hosted(String label, DeliveryTrackingInfo info) => Builder(
 /// One marker, the two-point straight-line route, and the camera framing the
 /// courier rather than the route — [trackingCamera] prefers the fix, because a
 /// customer watching this screen is watching the jeeber, not the geometry.
-@JeebPreview(name: 'Live fix on route', size: _mapBox)
+@JeebPreview(group: 'live_tracking', name: 'Live fix on route', size: _mapBox)
 Widget trackingGoogleMapLiveFix() => _hosted(
       'Live fix on route',
       _info(
@@ -171,7 +171,7 @@ Widget trackingGoogleMapLiveFix() => _hosted(
 /// reason — the Beirut constant rather than the pickup — the two are
 /// numerically identical here; the `route 2 pts` half of the readout is what
 /// tells them apart.
-@JeebPreview(name: 'Awaiting first fix', size: _mapBox)
+@JeebPreview(group: 'live_tracking', name: 'Awaiting first fix', size: _mapBox)
 Widget trackingGoogleMapAwaitingFirstFix() => _hosted(
       'Awaiting first fix',
       _info(
@@ -195,7 +195,7 @@ Widget trackingGoogleMapAwaitingFirstFix() => _hosted(
 ///
 /// This is the preview to look at first after any change to the marker
 /// pipeline. `markers 1` here is the regression.
-@JeebPreview(name: 'Stale fix — no marker', size: _mapBox)
+@JeebPreview(group: 'live_tracking', name: 'Stale fix — no marker', size: _mapBox)
 Widget trackingGoogleMapStaleFix() => _hosted(
       'Stale fix — no marker',
       _info(
@@ -220,7 +220,7 @@ Widget trackingGoogleMapStaleFix() => _hosted(
 /// explanation. The "we lost them, it has been 5 min" copy lives one layer up,
 /// in `CourierPositionNotice`, which `TrackingMapSurface` stacks over this
 /// widget — so on its own this map is indistinguishable from a cold start.
-@JeebPreview(name: 'Position lost', size: _mapBox)
+@JeebPreview(group: 'live_tracking', name: 'Position lost', size: _mapBox)
 Widget trackingGoogleMapPositionLost() => _hosted(
       'Position lost',
       _info(
@@ -238,7 +238,7 @@ Widget trackingGoogleMapPositionLost() => _hosted(
 /// point. The result is a map centred on a spot with nothing on it, which is
 /// the honest rendering and worth having seen once: the camera and the route
 /// disagree about whether the polyline is usable, by design.
-@JeebPreview(name: 'Single waypoint — no route', size: _mapBox)
+@JeebPreview(group: 'live_tracking', name: 'Single waypoint — no route', size: _mapBox)
 Widget trackingGoogleMapSingleWaypoint() => _hosted(
       'Single waypoint — no route',
       _info(
@@ -257,5 +257,5 @@ Widget trackingGoogleMapSingleWaypoint() => _hosted(
 /// Worth its own preview because it is the one state where the widget shows a
 /// confidently-framed city centre that has no relationship to this delivery,
 /// and nothing on the map says so.
-@JeebPreview(name: 'Nothing known', size: _mapBox)
+@JeebPreview(group: 'live_tracking', name: 'Nothing known', size: _mapBox)
 Widget trackingGoogleMapNothingKnown() => _hosted('Nothing known', _info());

@@ -164,7 +164,7 @@ Widget _hosted({
 /// pad its own child or its text sits against the display edge. The widget
 /// removes no `MediaQuery` padding either — a `SafeArea` has to come from the
 /// caller. Measured at 390 pt: content 390 pt wide at left = 0.
-@JeebPreview(name: 'Phone 390 · untouched', size: Size(_phoneWidth, _boxHeight))
+@JeebPreview(group: 'core', name: 'Phone 390 · untouched', size: Size(_phoneWidth, _boxHeight))
 Widget responsiveBodyPhone() => _hosted(
       width: _phoneWidth,
       label: 'Phone · 390 pt viewport',
@@ -175,7 +175,7 @@ Widget responsiveBodyPhone() => _hosted(
 /// 20 pt of `Spacing.large` on each side, from an `EdgeInsets.symmetric`, which
 /// is why this branch mirrors correctly in Arabic — the AR RTL rendering is the
 /// check that it stays symmetric if anyone ever tunes one side.
-@JeebPreview(
+@JeebPreview(group: 'core', 
   name: 'Tablet 700 · padded',
   size: Size(_tabletWidth, _boxHeight),
 )
@@ -192,7 +192,7 @@ Widget responsiveBodyTabletPortrait() => _hosted(
 /// The ceiling only applies above 840 pt, so the widest line length the app
 /// ever renders is produced by the branch that was supposed to prevent it.
 /// Read this preview next to the one below.
-@JeebPreview(
+@JeebPreview(group: 'core', 
   name: '839 · widest line the app renders',
   size: Size(_justUnderWide, _boxHeight),
 )
@@ -206,7 +206,7 @@ Widget responsiveBodyJustUnderWide() => _hosted(
 /// One pixel wider than the preview above, and the content column SHRINKS from
 /// 799 pt to 600 pt while 120 pt of empty gutter appears on each side. Dragging
 /// a window across 840 pt reflows every line of body text on the screen.
-@JeebPreview(
+@JeebPreview(group: 'core', 
   name: '840 · snaps back to 600',
   size: Size(_atWide, _boxHeight),
 )
@@ -228,7 +228,7 @@ Widget responsiveBodyAtWideBreakpoint() => _hosted(
 /// identical block in the phone preview sits at (0, 0). A screen body that
 /// starts under the app bar on a phone floats in the middle of the window on a
 /// tablet.
-@JeebPreview(
+@JeebPreview(group: 'core', 
   name: 'Desktop 1280 · centred at 600',
   size: Size(_desktopWidth, _boxHeight),
 )
@@ -250,7 +250,7 @@ Widget responsiveBodyDesktop() => _hosted(
 /// wide against 600 pt for the identical child one preview up. Nothing warns
 /// about it — the widget silently changes the contract it offers its child
 /// halfway up the breakpoint scale.
-@JeebPreview(
+@JeebPreview(group: 'core', 
   name: 'Intrinsic child · shrink-wraps on wide',
   size: Size(_desktopWidth, _boxHeight),
 )

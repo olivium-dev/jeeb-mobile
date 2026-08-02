@@ -99,7 +99,7 @@ Widget _hosted({required String caption, required Widget sample}) {
 /// 17.1:1 in the light scheme. Compare it against
 /// [customerProfileIconDiscOnDarkSurface] — same widget, same code path, and
 /// the only thing that changed is the ambient scheme.
-@JeebPreview(name: 'Password row · lock', size: _discBox)
+@JeebPreview(group: 'customer_profile', name: 'Password row · lock', size: _discBox)
 Widget customerProfileIconDiscLock() => _hosted(
   caption: 'Password row · lock',
   sample: const CustomerProfileIconDisc(icon: Icons.lock_outline),
@@ -112,7 +112,7 @@ Widget customerProfileIconDiscLock() => _hosted(
 /// at this size where `lock_outline` still reads as a lock. It is also the only
 /// disc a *new* customer sees at the top of the list (the row is hidden once the
 /// account is a Jeeber), so it is the first impression of the whole pattern.
-@JeebPreview(name: 'Widest glyph · scooter', size: _discBox)
+@JeebPreview(group: 'customer_profile', name: 'Widest glyph · scooter', size: _discBox)
 Widget customerProfileIconDiscScooter() => _hosted(
   caption: 'Widest glyph · scooter',
   sample: const CustomerProfileIconDisc(icon: Icons.delivery_dining_outlined),
@@ -126,7 +126,7 @@ Widget customerProfileIconDiscScooter() => _hosted(
 /// thing to watch: `notifications_none` is a hairline bell next to the much
 /// heavier `delivery_dining_outlined`, and at 20dp that weight difference is
 /// the only signal distinguishing the rows apart from the label.
-@JeebPreview(name: 'All 8 production glyphs', size: _stripBox)
+@JeebPreview(group: 'customer_profile', name: 'All 8 production glyphs', size: _stripBox)
 Widget customerProfileIconDiscProductionSet() => _hosted(
   caption: 'All 8 production glyphs',
   sample: Padding(
@@ -155,7 +155,7 @@ Widget customerProfileIconDiscProductionSet() => _hosted(
 /// `DirectionalIcons` as the fix; the sign-out glyph never went through it.
 /// Read the **AR RTL dark** rendering of this specimen next to its EN one: the
 /// arrow does not move, so in Arabic the user exits the door backwards.
-@JeebPreview(name: 'Sign-out glyph · no mirroring', size: _discBox)
+@JeebPreview(group: 'customer_profile', name: 'Sign-out glyph · no mirroring', size: _discBox)
 Widget customerProfileIconDiscLogout() => _hosted(
   caption: 'Sign-out glyph · no mirroring',
   sample: const CustomerProfileIconDisc(icon: Icons.logout_outlined),
@@ -177,7 +177,7 @@ Widget customerProfileIconDiscLogout() => _hosted(
 /// This specimen forces the dark scheme so the defect shows in *every* cell of
 /// the matrix rather than only in the AR RTL dark one, and puts the two
 /// candidate inks side by side: left is what ships, right is the M3 pair.
-@JeebPreview(name: 'Dark scheme · glyph vanishes', size: _stripBox)
+@JeebPreview(group: 'customer_profile', name: 'Dark scheme · glyph vanishes', size: _stripBox)
 Widget customerProfileIconDiscOnDarkSurface() {
   final ThemeData dark = AppTheme.dark();
   return _hosted(
@@ -250,7 +250,7 @@ class _OnSecondaryContainerReference extends StatelessWidget {
 /// reading as an icon at all. The 48dp row height is enforced by
 /// `CustomerProfileRow`, not here, so nothing clips — the disc just shrinks in
 /// relative terms until it is decoration.
-@JeebPreview(name: 'Beside its row label', size: _stripBox)
+@JeebPreview(group: 'customer_profile', name: 'Beside its row label', size: _stripBox)
 Widget customerProfileIconDiscBesideLabel() => _hosted(
   caption: 'Beside its row label',
   sample: Builder(

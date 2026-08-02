@@ -90,7 +90,7 @@ Widget _hosted({
 /// catch a caller regressing to a hardcoded English literal. The AR rendering
 /// is also the mirroring check: the label must sit at the start edge (the right
 /// in Arabic) with the navy `+` circle at the far left.
-@JeebPreview(name: 'Localized default', size: _rowBox)
+@JeebPreview(group: 'location', name: 'Localized default', size: _rowBox)
 Widget clientLocationAddRowDefault() =>
     _hosted(label: (AppLocalizations l10n) => l10n.clientLocationNewOption);
 
@@ -107,7 +107,7 @@ Widget clientLocationAddRowDefault() =>
 /// Pinned to phone width for the same reason as the narrow state: a widget test
 /// pumps an 800dp surface, where this label fits outright and the truncation
 /// disappears.
-@JeebPreview(name: 'Long label truncates', size: _rowBox)
+@JeebPreview(group: 'location', name: 'Long label truncates', size: _rowBox)
 Widget clientLocationAddRowLongLabel() => _hosted(
       label: (AppLocalizations _) => kLongLabel,
       width: 390,
@@ -126,7 +126,7 @@ const String kLongLabel =
 /// a verbose Arabic label so the AR RTL rendering truncates *Arabic*, and so
 /// the EN light rendering shows what an RTL string does inside an LTR row (it
 /// must still hug the left edge and leave the `+` at the right).
-@JeebPreview(name: 'Long Arabic label truncates', size: _rowBox)
+@JeebPreview(group: 'location', name: 'Long Arabic label truncates', size: _rowBox)
 Widget clientLocationAddRowLongArabicLabel() => _hosted(
       label: (AppLocalizations _) => kLongArabicLabel,
       width: 390,
@@ -147,7 +147,7 @@ const String kLongArabicLabel =
 /// affordance text that gets cut. Pinned with an explicit [SizedBox] so the
 /// state reproduces in a widget test (which pumps an 800dp surface) and not
 /// just on the canvas.
-@JeebPreview(name: 'Narrow phone · 320dp', size: _narrowBox)
+@JeebPreview(group: 'location', name: 'Narrow phone · 320dp', size: _narrowBox)
 Widget clientLocationAddRowNarrowPhone() => _hosted(
       label: (AppLocalizations _) => 'Add another delivery location',
       width: 288,
@@ -164,7 +164,7 @@ Widget clientLocationAddRowNarrowPhone() => _hosted(
 ///
 /// The caption is what distinguishes this preview from the default one in the
 /// render test — dimmed or not, the row still says "New Location".
-@JeebPreview(name: 'Locked · create in flight', size: _tallRowBox)
+@JeebPreview(group: 'location', name: 'Locked · create in flight', size: _tallRowBox)
 Widget clientLocationAddRowLocked() => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,

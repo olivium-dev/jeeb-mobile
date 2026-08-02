@@ -57,7 +57,7 @@ Widget _hosted(String data, {int? maxLines, TextOverflow? overflow}) =>
 /// left-anchored and reads left-to-right, because the message is English no
 /// matter what language the app is set to. If it ever right-anchors here, the
 /// `Directionality` override has stopped being applied.
-@JeebPreview(name: 'English message', size: _messageBox)
+@JeebPreview(group: 'chat', name: 'English message', size: _messageBox)
 Widget autoDirectionTextEnglish() => _hosted('On my way, five minutes out');
 
 /// Pure Arabic content — the majority case for the Jeeb client base, and the
@@ -67,7 +67,7 @@ Widget autoDirectionTextEnglish() => _hosted('On my way, five minutes out');
 /// right-to-left in BOTH renderings, including the English one. An Arabic
 /// message that reads left-anchored inside an English UI is the original bug
 /// this widget was written to fix.
-@JeebPreview(name: 'Arabic message', size: _messageBox)
+@JeebPreview(group: 'chat', name: 'Arabic message', size: _messageBox)
 Widget autoDirectionTextArabic() => _hosted('انا في الطريق اليك خمس دقائق');
 
 /// The first-strong rule, RTL branch: Arabic opening, Latin brand name inside.
@@ -77,7 +77,7 @@ Widget autoDirectionTextArabic() => _hosted('انا في الطريق اليك �
 /// from the FIRST strong character (Arabic → RTL) and leave the embedded Latin
 /// run reading left-to-right in place. Getting this wrong does not throw; it
 /// just puts the shop name at the wrong end of the sentence.
-@JeebPreview(name: 'Mixed: Arabic first', size: _messageBox)
+@JeebPreview(group: 'chat', name: 'Mixed: Arabic first', size: _messageBox)
 Widget autoDirectionTextMixedArabicFirst() =>
     _hosted('مرحبا الطلب جاهز عند Spinneys');
 
@@ -88,7 +88,7 @@ Widget autoDirectionTextMixedArabicFirst() =>
 /// direction really is read off the content — a widget that hardcoded either
 /// direction, or that fell through to the ambient one, would still make one of
 /// these two look correct.
-@JeebPreview(name: 'Mixed: English first', size: _messageBox)
+@JeebPreview(group: 'chat', name: 'Mixed: English first', size: _messageBox)
 Widget autoDirectionTextMixedEnglishFirst() =>
     _hosted('Pickup from مخبز الرحمة, Hamra');
 
@@ -108,7 +108,7 @@ Widget autoDirectionTextMixedEnglishFirst() =>
 /// `test/chat_auto_direction_text_test.dart` already documents this branch with
 /// `'123 !@#'`; this preview is what it looks like with content someone
 /// actually sends.
-@JeebPreview(name: 'Digits only, no strong character', size: _shortBox)
+@JeebPreview(group: 'chat', name: 'Digits only, no strong character', size: _shortBox)
 Widget autoDirectionTextNeutralOnly() => _hosted('+961 3 000 077');
 
 /// A strong-LTR script the detector does not know about.
@@ -123,7 +123,7 @@ Widget autoDirectionTextNeutralOnly() => _hosted('+961 3 000 077');
 /// The class doc says neutrality is intentional "so digits and punctuation
 /// don't pin the paragraph direction"; unlisted alphabets landing in the same
 /// bucket looks like a side effect of the range list rather than that intent.
-@JeebPreview(name: 'Unlisted LTR script (Amharic)', size: _messageBox)
+@JeebPreview(group: 'chat', name: 'Unlisted LTR script (Amharic)', size: _messageBox)
 Widget autoDirectionTextUnlistedScript() => _hosted('ሰላም በመንገድ ላይ ነኝ');
 
 /// The longest plausible content, on the one call site that clamps it.
@@ -134,7 +134,7 @@ Widget autoDirectionTextUnlistedScript() => _hosted('ሰላም በመንገድ �
 /// ellipsis has to land on the correct (left) end of the line, and at 200% text
 /// two lines hold roughly a third of what they hold at 1x — worth seeing before
 /// deciding two lines is enough of a preview of the request.
-@JeebPreview(name: 'Long Arabic, clamped to 2 lines', size: _clampedBox)
+@JeebPreview(group: 'chat', name: 'Long Arabic, clamped to 2 lines', size: _clampedBox)
 Widget autoDirectionTextClampedLongArabic() => _hosted(
       'ارجو احضار كيسين من الخبز العربي وعلبة لبن كبيرة وزجاجة زيت زيتون من '
       'دكان ابو خليل في شارع الحمرا والدفع عند الاستلام نقدا',

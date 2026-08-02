@@ -161,7 +161,7 @@ Widget _hosted({
 /// and the timer to the left (a chip that stays left is an unmirrored row, not
 /// a translation gap), and that the stripe is on the *left* edge, because that
 /// is where "the trailing edge" is in RTL.
-@JeebPreview(name: 'Standard · live countdown', size: _cardBox)
+@JeebPreview(group: 'jeeber_request_feed', name: 'Standard · live countdown', size: _cardBox)
 Widget requestCardLive() => _hosted(
       id: 'preview-live',
       pickup: 'Hamra, Beirut',
@@ -183,7 +183,7 @@ Widget requestCardLive() => _hosted(
 /// ceiling. The Arabic label ("جارٍ القبول…") does the same. Nothing warns:
 /// `Center` does not report overflow, so compare this card's accept button
 /// against [requestCardLive]'s single-line "Accept" to see it.
-@JeebPreview(name: 'Accepting · both locked', size: _cardBox)
+@JeebPreview(group: 'jeeber_request_feed', name: 'Accepting · both locked', size: _cardBox)
 Widget requestCardAccepting() => _hosted(
       id: 'preview-accepting',
       pickup: 'Verdun, Beirut',
@@ -202,7 +202,7 @@ Widget requestCardAccepting() => _hosted(
 /// button is dead" is a much weaker signal on the outlined one, and weaker
 /// still in the dark AR rendering. That contrast question is a design decision,
 /// not something the widget can fix on its own.
-@JeebPreview(name: 'Declining · outlined disabled', size: _cardBox)
+@JeebPreview(group: 'jeeber_request_feed', name: 'Declining · outlined disabled', size: _cardBox)
 Widget requestCardDeclining() => _hosted(
       id: 'preview-declining',
       pickup: 'Mar Mikhael, Beirut',
@@ -227,7 +227,7 @@ Widget requestCardDeclining() => _hosted(
 /// card is identical to the live one — same surface, same border, same tier
 /// chip at full saturation. Whether that is enough of a signal at a glance,
 /// mid-scroll, is worth a design decision.
-@JeebPreview(name: 'Expired · 0s linger', size: _cardBox)
+@JeebPreview(group: 'jeeber_request_feed', name: 'Expired · 0s linger', size: _cardBox)
 Widget requestCardExpired() => _hosted(
       id: 'preview-expired',
       pickup: 'Ras Beirut',
@@ -251,7 +251,7 @@ Widget requestCardExpired() => _hosted(
 /// one state where the 200% rendering stripes on the metadata row *alone*
 /// (212 pt) — proof that the metadata overflow is independent of the header,
 /// not a knock-on effect of it.
-@JeebPreview(name: 'No tier, no countdown', size: _headerlessCardBox)
+@JeebPreview(group: 'jeeber_request_feed', name: 'No tier, no countdown', size: _headerlessCardBox)
 Widget requestCardNoHeader() => _hosted(
       id: 'preview-bare',
       pickup: 'Dbayeh Highway',
@@ -278,7 +278,7 @@ Widget requestCardNoHeader() => _hosted(
 /// * `currency` is rendered as the raw ISO code the gateway sent, never
 ///   localized and never mapped to a symbol, so the Arabic rendering shows
 ///   Latin "LBP" spliced into RTL text.
-@JeebPreview(name: 'Long addresses · LBP earnings', size: _tallCardBox)
+@JeebPreview(group: 'jeeber_request_feed', name: 'Long addresses · LBP earnings', size: _tallCardBox)
 Widget requestCardLongContent() => _hosted(
       id: 'preview-long',
       pickup: 'Pharmacie Centrale, Rue Sursock, near the Sursock Museum '

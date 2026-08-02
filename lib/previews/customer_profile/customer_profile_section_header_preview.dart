@@ -96,7 +96,7 @@ Widget _hosted(String Function(AppLocalizations) title) => _stretched(
 /// first: the Arabic is correct and the paragraph mirrors, and the title is
 /// still barely legible, because the ink role resolves to a container tone at
 /// 1.98:1 against the dark surface (see the library doc).
-@JeebPreview(name: 'Account (production)', size: _headerBox)
+@JeebPreview(group: 'customer_profile', name: 'Account (production)', size: _headerBox)
 Widget customerProfileSectionHeaderAccount() =>
     _hosted((AppLocalizations l10n) => l10n.customerProfileSectionAccount);
 
@@ -106,7 +106,7 @@ Widget customerProfileSectionHeaderAccount() =>
 /// Arabic `الدعم` is shorter than `الحساب` and sits on a different baseline mix
 /// of ascenders, which is exactly the kind of difference a single-state preview
 /// hides.
-@JeebPreview(name: 'Support (production)', size: _headerBox)
+@JeebPreview(group: 'customer_profile', name: 'Support (production)', size: _headerBox)
 Widget customerProfileSectionHeaderSupport() =>
     _hosted((AppLocalizations l10n) => l10n.customerProfileSectionSupport);
 
@@ -125,7 +125,7 @@ Widget customerProfileSectionHeaderSupport() =>
 ///   the header binds to the section *beneath* it rather than floating between
 ///   two groups. At 200% text that asymmetry does not scale with the type, so
 ///   the visual grouping weakens exactly where the rows get taller.
-@JeebPreview(name: 'Account → Support boundary', size: _boundaryBox)
+@JeebPreview(group: 'customer_profile', name: 'Account → Support boundary', size: _boundaryBox)
 Widget customerProfileSectionHeaderBoundary() => Builder(
       builder: (BuildContext context) {
         final AppLocalizations l10n = AppLocalizations.of(context);
@@ -171,7 +171,7 @@ Widget customerProfileSectionHeaderBoundary() => Builder(
 /// starts clipping instead. (The render test asserts only that the line count
 /// GROWS with text scale — `flutter_test` substitutes its own metrics for
 /// Inter, so the exact wrap point there is a property of the test font.)
-@JeebPreview(name: 'Longest ARB title, 320pt device', size: _tallBox)
+@JeebPreview(group: 'customer_profile', name: 'Longest ARB title, 320pt device', size: _tallBox)
 Widget customerProfileSectionHeaderLongestTitleCompact() => Align(
       alignment: AlignmentDirectional.topStart,
       child: SizedBox(
@@ -193,6 +193,6 @@ Widget customerProfileSectionHeaderLongestTitleCompact() => Align(
 /// Not reachable from today's two callers (both pass ARB constants), and worth
 /// a picture precisely because the next caller — a server-named section, a key
 /// that fell out of the ARB during a merge — would reach it silently.
-@JeebPreview(name: 'Empty title (invisible, still spaced)', size: _headerBox)
+@JeebPreview(group: 'customer_profile', name: 'Empty title (invisible, still spaced)', size: _headerBox)
 Widget customerProfileSectionHeaderEmptyTitle() =>
     _stretched(const CustomerProfileSectionHeader(title: ''));

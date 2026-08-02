@@ -195,7 +195,7 @@ class _TierSwatch extends StatelessWidget {
 ///    `Spacing.xSmall` between them does not: even this short name has to
 ///    ellipsize at 200%, and 8 unscaled points are then all that separate it
 ///    from the tier label.
-@JeebPreview(name: 'Flash · in-progress header', size: _headerBox)
+@JeebPreview(group: 'home_client', name: 'Flash · in-progress header', size: _headerBox)
 Widget clientHomeTierBadgeFlash() => _hosted(
       const _ActiveHeader(title: 'Kamal Hajj', tier: ClientRequestTier.flash),
     );
@@ -215,7 +215,7 @@ Widget clientHomeTierBadgeFlash() => _hosted(
 /// ship on: `#FB8C00` on white is 2.37:1, barely half of AA. Flip to the AR RTL
 /// dark rendering and the same hex is 7.81:1 — the best of the three. One token
 /// serving two surfaces cannot be tuned for either.
-@JeebPreview(name: 'Express · pending header', size: _headerBox)
+@JeebPreview(group: 'home_client', name: 'Express · pending header', size: _headerBox)
 Widget clientHomeTierBadgeExpressPending() => _hosted(
       const _PendingHeader(
         title: 'ORD-23470',
@@ -232,7 +232,7 @@ Widget clientHomeTierBadgeExpressPending() => _hosted(
 /// 11pt, with no fill, no border and no icon, so a red/green-blind reader (and
 /// anyone on a sun-washed screen) is distinguishing Flash from Standard by two
 /// mid-tone colours of near-identical lightness.
-@JeebPreview(name: 'Standard · in-progress header', size: _headerBox)
+@JeebPreview(group: 'home_client', name: 'Standard · in-progress header', size: _headerBox)
 Widget clientHomeTierBadgeStandard() => _hosted(
       const _ActiveHeader(
         title: 'Pharmacy run',
@@ -253,7 +253,7 @@ Widget clientHomeTierBadgeStandard() => _hosted(
 ///
 /// Nothing in the canvas can distinguish this from a correct render, which is
 /// why the render test measures the badge box instead of looking at it.
-@JeebPreview(name: 'Unknown tier · nothing renders', size: _headerBox)
+@JeebPreview(group: 'home_client', name: 'Unknown tier · nothing renders', size: _headerBox)
 Widget clientHomeTierBadgeUnknown() => _hosted(
       const _ActiveHeader(
         title: 'ORD-88213',
@@ -275,7 +275,7 @@ Widget clientHomeTierBadgeUnknown() => _hosted(
 /// title and the badge sit 8 unscaled points apart, and the badge's
 /// `letterSpacing: 0.5` is applied to the Arabic label too, where letter
 /// spacing pulls apart a cursive script that is meant to join.
-@JeebPreview(name: 'Long title · badge holds its place', size: _headerBox)
+@JeebPreview(group: 'home_client', name: 'Long title · badge holds its place', size: _headerBox)
 Widget clientHomeTierBadgeLongTitle() => _hosted(
       const _ActiveHeader(
         title: 'Pharmacy run — Ashrafieh to Hamra, ring the second bell',
@@ -296,7 +296,7 @@ Widget clientHomeTierBadgeLongTitle() => _hosted(
 ///
 /// A [Wrap] rather than a [Row] so the 200% rendering reflows instead of
 /// reporting a fixture overflow that says nothing about the badge.
-@JeebPreview(name: 'All four tiers · strip', size: _stripBox)
+@JeebPreview(group: 'home_client', name: 'All four tiers · strip', size: _stripBox)
 Widget clientHomeTierBadgeStrip() => _hosted(
       const Column(
         mainAxisSize: MainAxisSize.min,

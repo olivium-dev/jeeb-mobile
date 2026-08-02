@@ -170,7 +170,7 @@ Widget _hosted(
 /// already happened, so the sheet reported a decision the customer had not made
 /// yet while the button below it was still asking them to make it. If this ever
 /// renders past tense again, the copy has regressed.
-@JeebPreview(name: 'Idle · named Jeeber', size: _sheetBox)
+@JeebPreview(group: 'client_offers', name: 'Idle · named Jeeber', size: _sheetBox)
 Widget offerAcceptSheetIdle() => _hosted(_offer());
 
 /// The accept POST is in flight — the B-01 accept-exactly-ONE lock, made
@@ -196,7 +196,7 @@ Widget offerAcceptSheetIdle() => _hosted(_offer());
 /// across label→spinner reads as a jump. The indicator itself is `onPrimary`
 /// over `primary` dimmed to 60% — 3.26:1 dark / 4.70:1 light, i.e. it clears
 /// WCAG 1.4.11's 3:1 non-text floor but not by much in dark.
-@JeebPreview(name: 'Submitting · B-01 lock', size: _sheetBox)
+@JeebPreview(group: 'client_offers', name: 'Submitting · B-01 lock', size: _sheetBox)
 Widget offerAcceptSheetSubmitting() => _hosted(
       _offer(),
       initialState: const OfferAcceptState(
@@ -212,7 +212,7 @@ Widget offerAcceptSheetSubmitting() => _hosted(
 /// surface whose whole job is comprehension. The inline banner is the fix, and
 /// the CTAs stay live underneath it: Confirm is retryable, Cancel returns to the
 /// review list, which reloads and shows the closed banner.
-@JeebPreview(name: 'Failed · request closed (409)', size: _sheetWithErrorBox)
+@JeebPreview(group: 'client_offers', name: 'Failed · request closed (409)', size: _sheetWithErrorBox)
 Widget offerAcceptSheetFailedRequestClosed() => _hosted(
       _offer(),
       failure: OffersFailure.requestNotOpen,
@@ -240,7 +240,7 @@ Widget offerAcceptSheetFailedRequestClosed() => _hosted(
 /// clipped is the bottom of the stack — **both CTAs**. A customer at large text
 /// who loses the accept race is shown an error they can neither retry nor
 /// dismiss.
-@JeebPreview(name: 'Failed · Jeeber at capacity', size: _sheetWithErrorBox)
+@JeebPreview(group: 'client_offers', name: 'Failed · Jeeber at capacity', size: _sheetWithErrorBox)
 Widget offerAcceptSheetFailedAtCapacity() => _hosted(
       _offer(),
       failure: OffersFailure.jeeberAtCapacity,
@@ -258,7 +258,7 @@ Widget offerAcceptSheetFailedAtCapacity() => _hosted(
 /// renders "Accept jeeb-e1a35ea8a520's offer?", the suppression has broken on
 /// the one screen where the customer is being asked to trust a stranger with
 /// their money.
-@JeebPreview(name: 'Synthetic handle suppressed', size: _sheetBox)
+@JeebPreview(group: 'client_offers', name: 'Synthetic handle suppressed', size: _sheetBox)
 Widget offerAcceptSheetSyntheticHandle() =>
     _hosted(_offer(jeeberName: 'jeeb-e1a35ea8a520'));
 
@@ -275,7 +275,7 @@ Widget offerAcceptSheetSyntheticHandle() =>
 /// The AR RTL rendering is the load-bearing one: the fee carries a U+2066 LTR
 /// isolate precisely so the amount does not reorder under RTL, and a long Latin
 /// name inside an Arabic question sentence is the classic bidi-reorder case.
-@JeebPreview(name: 'Long name · LBP fee', size: _sheetWithErrorBox)
+@JeebPreview(group: 'client_offers', name: 'Long name · LBP fee', size: _sheetWithErrorBox)
 Widget offerAcceptSheetLongContent() => _hosted(
       _offer(
         jeeberName: 'Abdulrahman Al-Muhandis Al-Trabulsi',

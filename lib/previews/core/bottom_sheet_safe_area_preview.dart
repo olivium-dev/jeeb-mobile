@@ -108,7 +108,7 @@ Widget _hosted({
 /// doc), so what you are checking here is the shape the CTA takes when it sits
 /// flush against the bottom edge: that is exactly the pixel row a 48 dp
 /// 3-button nav bar covers.
-@JeebPreview(name: 'Keyboard closed', size: _sheetBox)
+@JeebPreview(group: 'core', name: 'Keyboard closed', size: _sheetBox)
 Widget bottomSheetSafeAreaKeyboardClosed() =>
     _hosted(title: 'Sheet CTA, keyboard closed');
 
@@ -136,7 +136,7 @@ Widget bottomSheetSafeAreaKeyboardClosed() =>
 /// `_SuperLoginFormColumn` — and it is a two-field form, so the keyboard is up
 /// by definition, i.e. it is this preview's shape in production. Nothing in
 /// [BottomSheetSafeArea] or its docs asks a caller to add the scroll view.
-@JeebPreview(name: 'Keyboard open', size: _keyboardBox)
+@JeebPreview(group: 'core', name: 'Keyboard open', size: _keyboardBox)
 Widget bottomSheetSafeAreaKeyboardOpen() => _hosted(
       title: 'Sheet CTA, keyboard open',
       keyboardDp: _kKeyboardDp,
@@ -155,7 +155,7 @@ Widget bottomSheetSafeAreaKeyboardOpen() => _hosted(
 /// `Keyboard open` — measured 356 pt at 1.0 and 492 pt at 200% text, i.e. this
 /// body alone still fits its 620 pt box at the accessibility ceiling, and it is
 /// the 300 pt keyboard inset stacked on top that does not.
-@JeebPreview(name: 'Tall body', size: _keyboardBox)
+@JeebPreview(group: 'core', name: 'Tall body', size: _keyboardBox)
 Widget bottomSheetSafeAreaTallBody() =>
     _hosted(title: 'Tall sheet body', tallBody: true);
 
@@ -177,7 +177,7 @@ Widget bottomSheetSafeAreaTallBody() =>
 /// the sheet's own [Material] paints behind the padding, so what you check is
 /// the gap between the CTA and the bottom edge of the sheet — not a change of
 /// colour.
-@JeebPreview(name: 'Modal route', size: _phoneBox)
+@JeebPreview(group: 'core', name: 'Modal route', size: _phoneBox)
 Widget bottomSheetSafeAreaInModalRoute() =>
     _modalPresentation(title: 'Inside a modal sheet');
 
@@ -188,7 +188,7 @@ Widget bottomSheetSafeAreaInModalRoute() =>
 /// propagated into the sheet even though the padding is not. If this renders
 /// identically to `Modal route`, the propagation has broken and every sheet
 /// with a text field will hide its CTA behind the keyboard.
-@JeebPreview(name: 'Modal route · keyboard open', size: _phoneBox)
+@JeebPreview(group: 'core', name: 'Modal route · keyboard open', size: _phoneBox)
 Widget bottomSheetSafeAreaInModalRouteWithKeyboard() => _modalPresentation(
       title: 'Modal sheet, keyboard open',
       keyboardDp: _kKeyboardDp,

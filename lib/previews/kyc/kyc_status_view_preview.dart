@@ -180,7 +180,7 @@ Widget _hosted(
 /// `_ApprovedBody` never built, so [JeeberRoleActivator] never fired and the
 /// jeeber only came online after a force-restart. If this rendering is what a
 /// device shows after a submit, that regression is back.
-@JeebPreview(name: 'Status read in flight', size: _statusBox)
+@JeebPreview(group: 'kyc', name: 'Status read in flight', size: _statusBox)
 Widget kycStatusViewLoading() => _hosted(
       const KycSubmission(status: KycStatus.pending),
       resolvedReads: 0,
@@ -196,7 +196,7 @@ Widget kycStatusViewLoading() => _hosted(
 /// Note the CTA order against [kycStatusViewPendingAutoCheckStopped]: while the
 /// automatic poller still has budget, "Top up" is the primary and the re-check
 /// sits under it (FM5-F11-W4).
-@JeebPreview(name: 'Pending · re-check in flight', size: _statusBox)
+@JeebPreview(group: 'kyc', name: 'Pending · re-check in flight', size: _statusBox)
 Widget kycStatusViewPendingChecking() =>
     _hosted(const KycSubmission(status: KycStatus.pending));
 
@@ -209,7 +209,7 @@ Widget kycStatusViewPendingChecking() =>
 /// ([kycStatusViewPendingChecking]) fits a 390x700 phone, and this one overflows
 /// it by 40 dp at the DEFAULT text size, so "Back to profile" is already partly
 /// clipped before accessibility settings enter the picture.
-@JeebPreview(name: 'Pending · auto-check stopped', size: _statusBox)
+@JeebPreview(group: 'kyc', name: 'Pending · auto-check stopped', size: _statusBox)
 Widget kycStatusViewPendingAutoCheckStopped() => _hosted(
       const KycSubmission(status: KycStatus.pending),
       resolvedReads: 2,
@@ -227,7 +227,7 @@ Widget kycStatusViewPendingAutoCheckStopped() => _hosted(
 /// role cubits and no DI registration in a preview, so activation degrades to a
 /// no-op exactly as it does in a bare widget test — nothing here touches the
 /// network.
-@JeebPreview(name: 'Approved', size: _statusBox)
+@JeebPreview(group: 'kyc', name: 'Approved', size: _statusBox)
 Widget kycStatusViewApproved() =>
     _hosted(const KycSubmission(status: KycStatus.approved));
 
@@ -237,7 +237,7 @@ Widget kycStatusViewApproved() =>
 /// Same borrowed-copy problem as the approved body: the primary is supposed to
 /// read "View rejection details" and instead ships `profileKycViewCta` —
 /// **"View status"** — on a screen that IS the status.
-@JeebPreview(name: 'Rejected · selfie mismatch', size: _statusBox)
+@JeebPreview(group: 'kyc', name: 'Rejected · selfie mismatch', size: _statusBox)
 Widget kycStatusViewRejected() => _hosted(
       const KycSubmission(
         status: KycStatus.rejected,
@@ -255,7 +255,7 @@ Widget kycStatusViewRejected() => _hosted(
 /// 100 dp at the DEFAULT text size (60 dp in Arabic, which sets shorter here)
 /// and by over 1200 dp at 200% text. There is no scroll view, so the jeeber
 /// cannot reach the resubmit CTA that is the entire point of this state.
-@JeebPreview(name: 'Resubmit requested · all slots', size: _statusBox)
+@JeebPreview(group: 'kyc', name: 'Resubmit requested · all slots', size: _statusBox)
 Widget kycStatusViewResubmitRequested() => _hosted(
       const KycSubmission(
         status: KycStatus.resubmitRequested,

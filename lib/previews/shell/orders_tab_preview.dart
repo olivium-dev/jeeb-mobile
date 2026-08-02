@@ -173,7 +173,7 @@ OrderSummary _row({
 /// both the `matched` and `enRoute` chip labels — and the identical
 /// `primaryContainer` palette they share as Active-tab statuses — are on screen
 /// at once.
-@JeebPreview(name: 'Active · two live deliveries', size: _listBox)
+@JeebPreview(group: 'shell', name: 'Active · two live deliveries', size: _listBox)
 Widget ordersTabActiveRows() => _hosted(
       _SeededOrderRepository(<OrderSummary>[
         _row(
@@ -202,7 +202,7 @@ Widget ordersTabActiveRows() => _hosted(
 ///
 /// The subtitle is per-tab (`orderHistoryEmptyActive` here), so this is also
 /// where a copy drift between the three tabs' subtitles would show up.
-@JeebPreview(name: 'Empty · no orders yet', size: _emptyBox)
+@JeebPreview(group: 'shell', name: 'Empty · no orders yet', size: _emptyBox)
 Widget ordersTabEmpty() =>
     _hosted(const _SeededOrderRepository(<OrderSummary>[]));
 
@@ -228,7 +228,7 @@ Widget ordersTabEmpty() =>
 /// The server branch (`orderHistoryErrorServer`, "Something went wrong on our
 /// end.") pairs the SAME title with different body copy; it is not a separate
 /// preview because the layout is identical — only the sentence changes.
-@JeebPreview(name: 'Error · offline, retry', size: _errorBox)
+@JeebPreview(group: 'shell', name: 'Error · offline, retry', size: _errorBox)
 Widget ordersTabErrorNetwork() =>
     _hosted(const _FailingOrderRepository(OrderRepositoryErrorKind.network));
 
@@ -240,7 +240,7 @@ Widget ordersTabErrorNetwork() =>
 /// BELOW the filter chip and tab bar (those stay up — only the list area
 /// swaps), and it survives the AR RTL dark rendering, where an indicator tinted
 /// `colorScheme.primary` on a dark surface is easy to lose.
-@JeebPreview(name: 'Loading · first page', size: _loadingBox)
+@JeebPreview(group: 'shell', name: 'Loading · first page', size: _loadingBox)
 Widget ordersTabLoading() =>
     _hosted(const _NeverResolvingOrderRepository());
 
@@ -257,7 +257,7 @@ Widget ordersTabLoading() =>
 ///   third line of address is silently lost rather than wrapped;
 /// * the footer `Row` — tier label in an `Expanded` beside the amount, with
 ///   `onTheWay` ("On the way") as the longest of the five tier labels.
-@JeebPreview(name: 'Long addresses · layout ceiling', size: _listBox)
+@JeebPreview(group: 'shell', name: 'Long addresses · layout ceiling', size: _listBox)
 Widget ordersTabLongAddresses() => _hosted(
       _SeededOrderRepository(<OrderSummary>[
         _row(
@@ -287,7 +287,7 @@ Widget ordersTabLongAddresses() => _hosted(
 /// of the same defensive contract: [OrderRequestStatus.unknown] buckets into
 /// Active and renders "In progress" rather than crashing or vanishing, so a
 /// state added on the gateway stays visible to the user and to QA.
-@JeebPreview(name: 'Unknown amount + unknown status', size: _listBox)
+@JeebPreview(group: 'shell', name: 'Unknown amount + unknown status', size: _listBox)
 Widget ordersTabUnknownAmount() => _hosted(
       _SeededOrderRepository(<OrderSummary>[
         _row(

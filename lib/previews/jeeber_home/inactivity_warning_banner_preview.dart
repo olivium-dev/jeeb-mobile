@@ -114,7 +114,7 @@ Widget _dashboard({
 ///   full content width, 0 dp offset from the card centre in BOTH locales) and
 ///   at 200% the label needs 80 dp inside that 48 dp pill. Nothing throws — a
 ///   clamped paragraph is not an overflow — the second line is just cut off.
-@JeebPreview(name: 'Banner alone', size: Size(390, 320))
+@JeebPreview(group: 'jeeber_home', name: 'Banner alone', size: Size(390, 320))
 Widget inactivityWarningBannerAlone() =>
     InactivityWarningBanner(onExtend: () {});
 
@@ -126,7 +126,7 @@ Widget inactivityWarningBannerAlone() =>
 /// instead of leaving it on the first line. It is also where the AR RTL
 /// rendering has to prove the icon and the 16 dp margins really mirror — the
 /// icon must keep the LEADING edge, which is the right-hand side in Arabic.
-@JeebPreview(name: 'Small phone 320dp', size: Size(320, 560))
+@JeebPreview(group: 'jeeber_home', name: 'Small phone 320dp', size: Size(320, 560))
 Widget inactivityWarningBannerSmallPhone() =>
     _dashboard(profileName: 'Nadia', width: 320);
 
@@ -140,7 +140,7 @@ Widget inactivityWarningBannerSmallPhone() =>
 /// semantic `warning` role (it used to borrow the brand tertiary orange), so
 /// this is the preview that shows whether that role still reads as urgent
 /// against the surface in BOTH brightnesses of the matrix.
-@JeebPreview(name: 'Online dashboard', size: Size(390, 620))
+@JeebPreview(group: 'jeeber_home', name: 'Online dashboard', size: Size(390, 620))
 Widget inactivityWarningBannerOnlineDashboard() =>
     _dashboard(profileName: 'Sami');
 
@@ -153,7 +153,7 @@ Widget inactivityWarningBannerOnlineDashboard() =>
 /// matters more here than anywhere else: ignoring this warning takes a Jeeber
 /// with LIVE work offline. The second name is deliberately over-long so the
 /// row's `maxLines: 1` ellipsis is exercised next to the "Open chat" button.
-@JeebPreview(name: 'Under active deliveries', size: Size(390, 760))
+@JeebPreview(group: 'jeeber_home', name: 'Under active deliveries', size: Size(390, 760))
 Widget inactivityWarningBannerUnderActiveDeliveries() => _dashboard(
       profileName: 'Rana',
       activeDeliveriesBanner: JeeberActiveDeliveriesBanner(
@@ -190,6 +190,6 @@ Widget inactivityWarningBannerUnderActiveDeliveries() => _dashboard(
 /// viewport — entirely below the fold. "I'm still here" is only tappable if the
 /// Jeeber scrolls, and nothing above the fold hints that there is anything to
 /// scroll to.
-@JeebPreview(name: 'Short viewport 260dp', size: Size(390, 320))
+@JeebPreview(group: 'jeeber_home', name: 'Short viewport 260dp', size: Size(390, 320))
 Widget inactivityWarningBannerShortViewport() =>
     _dashboard(profileName: 'Layla', width: 390, height: 260);

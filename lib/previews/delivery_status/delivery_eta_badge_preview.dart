@@ -136,7 +136,7 @@ class _StatusHeaderRow extends StatelessWidget {
 ///    `textScaler`) and the pill grows from 44 to 64pt tall with them, which is
 ///    right. The `Icon` does not: `size: 16` with `applyTextScaling` unset
 ///    leaves a 16pt glyph beside a 28pt value.
-@JeebPreview(name: 'In transit · 7 min', size: _rowBox)
+@JeebPreview(group: 'delivery_status', name: 'In transit · 7 min', size: _rowBox)
 Widget deliveryEtaBadgeTypical() => _hosted(
       const _StatusHeaderRow(deliveryId: 'd-1', minutes: 7),
     );
@@ -150,7 +150,7 @@ Widget deliveryEtaBadgeTypical() => _hosted(
 /// "الوصول" is wider than "ETA" while "يصل الآن" is narrower than "Arriving
 /// now", and the two differences cancel), so unusually for this app the RTL
 /// rendering is under the same pressure rather than less.
-@JeebPreview(name: 'Arriving now · 1 min', size: _rowBox)
+@JeebPreview(group: 'delivery_status', name: 'Arriving now · 1 min', size: _rowBox)
 Widget deliveryEtaBadgeArriving() => _hosted(
       const _StatusHeaderRow(deliveryId: 'd-2', minutes: 1),
     );
@@ -161,7 +161,7 @@ Widget deliveryEtaBadgeArriving() => _hosted(
 /// accident. Beside [deliveryEtaBadgeArriving] this pins the threshold
 /// visually: if this ever renders "Arriving now" the comparison was loosened to
 /// `<= 2` and every courier silently gained a minute of grace.
-@JeebPreview(name: 'Threshold · 2 min', size: _rowBox)
+@JeebPreview(group: 'delivery_status', name: 'Threshold · 2 min', size: _rowBox)
 Widget deliveryEtaBadgeThreshold() => _hosted(
       const _StatusHeaderRow(deliveryId: 'd-3', minutes: 2),
     );
@@ -175,7 +175,7 @@ Widget deliveryEtaBadgeThreshold() => _hosted(
 /// still narrower than [deliveryEtaBadgeArriving]: a third digit costs the pill
 /// ~16pt, a twelve-character phrase costs it ~52pt. Worth knowing which state
 /// is really the layout ceiling before tuning anything for the other.
-@JeebPreview(name: 'Ceiling · 120 min', size: _rowBox)
+@JeebPreview(group: 'delivery_status', name: 'Ceiling · 120 min', size: _rowBox)
 Widget deliveryEtaBadgeCeiling() => _hosted(
       const _StatusHeaderRow(deliveryId: 'd-4', minutes: 120),
     );
@@ -194,7 +194,7 @@ Widget deliveryEtaBadgeCeiling() => _hosted(
 /// precisely because that is invisible in the canvas — the bug and the
 /// non-bug look identical — which is why the render test asserts the raw number
 /// is ABSENT instead of looking at the pill.
-@JeebPreview(name: 'Past due · negative ETA', size: _rowBox)
+@JeebPreview(group: 'delivery_status', name: 'Past due · negative ETA', size: _rowBox)
 Widget deliveryEtaBadgePastDue() => _hosted(
       const _StatusHeaderRow(deliveryId: 'PAST-DUE-9', minutes: -6),
     );
@@ -214,7 +214,7 @@ Widget deliveryEtaBadgePastDue() => _hosted(
 /// Worth comparing against [deliveryEtaBadgeCeiling], which is the same pill on
 /// a 350pt row: 70pt more width is the difference between a two-line caption
 /// and a six-line one.
-@JeebPreview(name: 'Narrow phone · 120 min', size: _rowBox)
+@JeebPreview(group: 'delivery_status', name: 'Narrow phone · 120 min', size: _rowBox)
 Widget deliveryEtaBadgeNarrowCeiling() => _hosted(
       const _StatusHeaderRow(deliveryId: 'NARROW-320', minutes: 120),
       width: _narrowRowWidth,

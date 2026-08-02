@@ -112,7 +112,7 @@ Widget _hosted({
 /// [Icon] does not auto-mirror. The 200% rendering is the truncation check:
 /// this label wants 307dp of the 286dp it is given, so the accessibility
 /// ceiling clips the longest Account label rather than wrapping it.
-@JeebPreview(name: 'Chevron row · localized', size: _rowBox)
+@JeebPreview(group: 'customer_profile', name: 'Chevron row · localized', size: _rowBox)
 Widget customerProfileRowDefault() => _hosted(
       icon: Icons.lock_outline,
       label: (AppLocalizations l10n) => l10n.customerProfilePasswordSecurity,
@@ -132,7 +132,7 @@ Widget customerProfileRowDefault() => _hosted(
 /// Worth eyeballing in the AR RTL dark rendering: the 40dp navy pill sits on a
 /// dark surface next to a disc whose glyph has vanished (see the library note),
 /// which leaves the row reading as one navy blob.
-@JeebPreview(name: 'Register pill trailing', size: _rowBox)
+@JeebPreview(group: 'customer_profile', name: 'Register pill trailing', size: _rowBox)
 Widget customerProfileRowRegisterPill() => _hosted(
       icon: Icons.delivery_dining_outlined,
       label: (AppLocalizations l10n) => l10n.customerProfileRegisterAsDelivery,
@@ -150,7 +150,7 @@ Widget customerProfileRowRegisterPill() => _hosted(
 /// wider than that budget silently loses its end instead of reflowing — and the
 /// budget shrinks with screen width and with the trailing widget, and does not
 /// grow with text scale.
-@JeebPreview(name: 'Long label truncates', size: _rowBox)
+@JeebPreview(group: 'customer_profile', name: 'Long label truncates', size: _rowBox)
 Widget customerProfileRowLongLabel() => _hosted(
       icon: Icons.lock_outline,
       label: (AppLocalizations _) => kLongLabel,
@@ -166,7 +166,7 @@ Widget customerProfileRowLongLabel() => _hosted(
 /// RTL string does inside an LTR row: it must still hug the left edge and leave
 /// the chevron at the right. Arabic is not a cosmetic variant here; the app
 /// ships 1534 keys in both locales.
-@JeebPreview(name: 'Long Arabic label truncates', size: _rowBox)
+@JeebPreview(group: 'customer_profile', name: 'Long Arabic label truncates', size: _rowBox)
 Widget customerProfileRowLongArabicLabel() => _hosted(
       icon: Icons.lock_outline,
       label: (AppLocalizations _) => kLongArabicLabel,
@@ -183,7 +183,7 @@ Widget customerProfileRowLongArabicLabel() => _hosted(
 /// pill leave it — 143dp at 1x and **87dp at 200% text**, at which point the
 /// row's own affordance text is what gets cut while the pill keeps its full
 /// intrinsic width. The pill is the only thing here that never yields.
-@JeebPreview(name: 'Narrow phone · pill squeeze', size: _narrowBox)
+@JeebPreview(group: 'customer_profile', name: 'Narrow phone · pill squeeze', size: _narrowBox)
 Widget customerProfileRowNarrowPhone() => Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -224,7 +224,7 @@ Widget customerProfileRowNarrowPhone() => Column(
 /// It doubles as the control case: at 111dp of a 286dp budget this label fits
 /// even at 200% text, which proves the clipping in the states above is
 /// content-driven and not a broken [Expanded].
-@JeebPreview(name: 'Sign out · destructive', size: _rowBox)
+@JeebPreview(group: 'customer_profile', name: 'Sign out · destructive', size: _rowBox)
 Widget customerProfileRowSignOut() => _hosted(
       icon: Icons.logout_outlined,
       label: (AppLocalizations l10n) => l10n.appBarSignOut,

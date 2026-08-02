@@ -97,7 +97,7 @@ DeliveryTrackingInfo _info({
 /// ETA, item, and "Pay cash on delivery". What must NOT be here is any
 /// commission or finance line: the header is customer-facing, and a fee figure
 /// appearing on it is the D11 violation.
-@JeebPreview(name: 'Tracking surface', size: _headerBox)
+@JeebPreview(group: 'live_tracking', name: 'Tracking surface', size: _headerBox)
 Widget orderSummaryPinnedHeaderTracking() =>
     _hosted(_info(deliveryId: 'd-32-tracking'));
 
@@ -108,7 +108,7 @@ Widget orderSummaryPinnedHeaderTracking() =>
 /// chat" are short in English and longer in Arabic, and the 200%-text rendering
 /// halves the room again. If either label truncates or the row overflows, it
 /// shows up here and nowhere else.
-@JeebPreview(name: 'Chat parity (both CTAs)', size: _headerBox)
+@JeebPreview(group: 'live_tracking', name: 'Chat parity (both CTAs)', size: _headerBox)
 Widget orderSummaryPinnedHeaderBothCtas() =>
     _hosted(_info(deliveryId: 'd-32-chat'), trackCta: true);
 
@@ -119,7 +119,7 @@ Widget orderSummaryPinnedHeaderBothCtas() =>
 /// window between accept and the first GPS fix — i.e. the longest string in the
 /// strip is also the one shown the most. It doubles as the negative control for
 /// the tier row: `order_summary_tier` must be absent, not blank.
-@JeebPreview(name: 'ETA pending, no tier', size: _headerBox)
+@JeebPreview(group: 'live_tracking', name: 'ETA pending, no tier', size: _headerBox)
 Widget orderSummaryPinnedHeaderEtaPending() => _hosted(
       _info(deliveryId: 'd-32-pending', tier: null, etaMinutes: null),
     );
@@ -133,7 +133,7 @@ Widget orderSummaryPinnedHeaderEtaPending() => _hosted(
 /// `_HeaderFactStrip` exists for: `Wrap` hands its children unbounded main-axis
 /// constraints, so without that ceiling this state paints the overflow stripe
 /// again. It should ellipsize.
-@JeebPreview(name: 'Unmapped tier id', size: _headerBox)
+@JeebPreview(group: 'live_tracking', name: 'Unmapped tier id', size: _headerBox)
 Widget orderSummaryPinnedHeaderUnmappedTier() => _hosted(
       _info(
         deliveryId: 'd-32-tier',
@@ -157,7 +157,7 @@ Widget orderSummaryPinnedHeaderUnmappedTier() => _hosted(
 ///
 /// The price also renders as a bare `1234567.89` in both locales: no thousands
 /// separator, no Arabic-Indic digits, and the ISO code rather than a symbol.
-@JeebPreview(name: 'Long name + huge price', size: _longNameBox)
+@JeebPreview(group: 'live_tracking', name: 'Long name + huge price', size: _longNameBox)
 Widget orderSummaryPinnedHeaderHugePrice() => _hosted(
       _info(
         deliveryId: 'd-32-price',
@@ -176,7 +176,7 @@ Widget orderSummaryPinnedHeaderHugePrice() => _hosted(
 /// `AutoDirectionText` (UAX#9 first-strong, per string); this header uses a bare
 /// `Text`, so compare the two renderings of this preview before assuming they
 /// agree.
-@JeebPreview(name: 'Arabic item in EN UI', size: _headerBox)
+@JeebPreview(group: 'live_tracking', name: 'Arabic item in EN UI', size: _headerBox)
 Widget orderSummaryPinnedHeaderArabicItem() => _hosted(
       _info(
         deliveryId: 'd-32-bidi',

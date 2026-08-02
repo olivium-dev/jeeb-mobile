@@ -226,7 +226,7 @@ Widget _hosted(DmOnboardingState seed, {double? viewportHeight}) {
 /// It is also where the hint typography reads worst: each placeholder is
 /// `headlineLarge` bold (32 pt) under a 16 pt label, and "Jasmine Tower,
 /// Apartment 12B" does not fit the field at 390 pt even at 1.0 text scale.
-@JeebPreview(name: 'Fresh entry · empty', size: _stepBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Fresh entry · empty', size: _stepBox)
 Widget dmOnboardingAddressStepEmpty() => _hosted(_emptyDraft);
 
 /// The re-entry bug, made visible: the cubit holds a full address and the four
@@ -241,7 +241,7 @@ Widget dmOnboardingAddressStepEmpty() => _hosted(_emptyDraft);
 ///
 /// If the fields ever render "Rue Hamra" here, restoration has been wired and
 /// this preview has become the happy path.
-@JeebPreview(name: 'Returned via Back · draft not restored', size: _stepBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Returned via Back · draft not restored', size: _stepBox)
 Widget dmOnboardingAddressStepDraftNotRestored() => _hosted(_typedDraft);
 
 /// Back-pressed while the service-area coverage probe is still running.
@@ -251,7 +251,7 @@ Widget dmOnboardingAddressStepDraftNotRestored() => _hosted(_typedDraft);
 /// spinner lands on THIS step's Continue: the address step shows a spinner it is
 /// not responsible for, blocks its own CTA, and offers no explanation. When the
 /// probe resolves, the wizard jumps to KYC from under the jeeber.
-@JeebPreview(name: 'Coverage probe in flight · CTA spins', size: _stepBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Coverage probe in flight · CTA spins', size: _stepBox)
 Widget dmOnboardingAddressStepCoverageInFlight() =>
     _hosted(_typedDraftSubmitting);
 
@@ -266,7 +266,7 @@ Widget dmOnboardingAddressStepCoverageInFlight() =>
 /// 200% text, the stack scrolls and the CTA keeps its 48 pt with no overflow.
 /// What it does NOT do is tell the jeeber there is more below — there is no
 /// scroll affordance, and at 200% only the first field and a half are visible.
-@JeebPreview(name: 'Compact viewport · CTA pinned', size: _compactBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'Compact viewport · CTA pinned', size: _compactBox)
 Widget dmOnboardingAddressStepCompact() =>
     _hosted(_emptyDraft, viewportHeight: 320);
 
@@ -278,7 +278,7 @@ Widget dmOnboardingAddressStepCompact() =>
 /// the only way to judge whether the field stack sits right under the progress
 /// bar. The injected cubit means the screen never touches DI or Dio (that
 /// fallback only runs when no cubit is passed).
-@JeebPreview(name: 'In the wizard · app bar + progress', size: _wizardBox)
+@JeebPreview(group: 'jeeber_onboarding', name: 'In the wizard · app bar + progress', size: _wizardBox)
 Widget dmOnboardingAddressStepInWizard() => DmOnboardingScreen(
       cubit: _PreviewDmOnboardingCubit(_typedDraft),
       initialStep: DmOnboardingStep.address,

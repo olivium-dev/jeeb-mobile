@@ -123,7 +123,7 @@ Widget _sheetGeometry(double deviceWidth) => SizedBox(
 ///    tone sitting on an equally dark `surface` — 1.98:1, against the 3:1 WCAG
 ///    1.4.11 asks of a graphical object. The art is very nearly invisible in
 ///    dark mode, and no amount of stroke width fixes a palette choice.
-@JeebPreview(name: 'Sheet geometry (production)', size: _sheetBox)
+@JeebPreview(group: 'chat', name: 'Sheet geometry (production)', size: _sheetBox)
 Widget deliveryConfirmIllustrationSheetGeometry() => _measured(
       'Sheet geometry: 62% of 390pt',
       _sheetGeometry(_phoneWidth),
@@ -138,7 +138,7 @@ Widget deliveryConfirmIllustrationSheetGeometry() => _measured(
 /// rendering to check for the strokes going hairline — especially in the dark
 /// rendering, where a thinner line has less area to carry an already weak
 /// contrast.
-@JeebPreview(name: 'Compact device (320pt)', size: _compactBox)
+@JeebPreview(group: 'chat', name: 'Compact device (320pt)', size: _compactBox)
 Widget deliveryConfirmIllustrationCompactDevice() => _measured(
       'Compact device: 320pt sheet',
       _sheetGeometry(_compactPhoneWidth),
@@ -152,7 +152,7 @@ Widget deliveryConfirmIllustrationCompactDevice() => _measured(
 /// (an empty state, an onboarding panel), and it is the upper end of the range
 /// the geometry has to survive. Included because the scale factor is the one
 /// input to this widget nothing else exercises above 1.0.
-@JeebPreview(name: 'Full bleed (390pt)', size: _fullBleedBox)
+@JeebPreview(group: 'chat', name: 'Full bleed (390pt)', size: _fullBleedBox)
 Widget deliveryConfirmIllustrationFullBleed() => _measured(
       'Full bleed: 390pt wide',
       const SizedBox(width: _phoneWidth, child: DeliveryConfirmIllustration()),
@@ -167,7 +167,7 @@ Widget deliveryConfirmIllustrationFullBleed() => _measured(
 /// *throw* if the widget were ever given both axes unbounded (a `Row` inside a
 /// horizontally scrolling list), and because it is how anyone placing the art
 /// beside a block of copy will constrain it.
-@JeebPreview(name: 'Height-driven in a row', size: _sheetBox)
+@JeebPreview(group: 'chat', name: 'Height-driven in a row', size: _sheetBox)
 Widget deliveryConfirmIllustrationHeightDriven() => _measured(
       'Height-driven: 100pt tall row',
       const SizedBox(
@@ -197,7 +197,7 @@ Widget deliveryConfirmIllustrationHeightDriven() => _measured(
 /// `FractionallySizedBox` leaves the height unbounded), which is exactly why it
 /// is worth having a picture of before someone drops the illustration into a
 /// fixed-height slot.
-@JeebPreview(name: 'Squashed box (spills, unclipped)', size: _spillBox)
+@JeebPreview(group: 'chat', name: 'Squashed box (spills, unclipped)', size: _spillBox)
 Widget deliveryConfirmIllustrationSquashedBox() => _measured(
       'Squashed: tight 300x60 box',
       const SizedBox(

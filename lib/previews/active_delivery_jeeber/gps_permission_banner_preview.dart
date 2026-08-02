@@ -103,7 +103,7 @@ Widget _hosted({required bool needsSystemSettings, double width = _phoneWidth}) 
 /// (AR) at the 200% rendering. The band has no fixed height, so the body
 /// reflows and pushes it taller rather than clipping — that half degrades
 /// correctly. The CTA does not: see the library note.
-@JeebPreview(name: 'Recoverable denial', size: Size(_phoneWidth, 240))
+@JeebPreview(group: 'active_delivery_jeeber', name: 'Recoverable denial', size: Size(_phoneWidth, 240))
 Widget gpsPermissionBannerRecoverable() => _hosted(needsSystemSettings: false);
 
 /// The state the whole live-tracking wave was built for: a permanent denial, or
@@ -120,7 +120,7 @@ Widget gpsPermissionBannerRecoverable() => _hosted(needsSystemSettings: false);
 /// Measured at 390 dp: 256 dp (EN) / 236 dp (AR) at 1.0, and 836 dp / 716 dp at
 /// the 200% rendering — 40 dp taller than the recoverable state at 1.0, because
 /// the longer body wraps two extra lines.
-@JeebPreview(name: 'Needs system settings', size: Size(_phoneWidth, 280))
+@JeebPreview(group: 'active_delivery_jeeber', name: 'Needs system settings', size: Size(_phoneWidth, 280))
 Widget gpsPermissionBannerNeedsSystemSettings() =>
     _hosted(needsSystemSettings: true);
 
@@ -138,7 +138,7 @@ Widget gpsPermissionBannerNeedsSystemSettings() =>
 /// overflows by 117 px. Arabic ("فتح الإعدادات") hits the same wall 1 px
 /// earlier. Every other part of the band survives this width; the button is the
 /// piece that does not.
-@JeebPreview(name: 'Small phone 320dp', size: Size(_smallPhoneWidth, 340))
+@JeebPreview(group: 'active_delivery_jeeber', name: 'Small phone 320dp', size: Size(_smallPhoneWidth, 340))
 Widget gpsPermissionBannerSmallPhone() => _hosted(
       needsSystemSettings: true,
       width: _smallPhoneWidth,
@@ -159,7 +159,7 @@ Widget gpsPermissionBannerSmallPhone() => _hosted(
 /// padding takes 16 dp off each edge, so it is 358 dp of a 390 dp screen —
 /// 236 dp tall (EN) / 216 dp (AR) at 1.0, and 756 dp / 596 dp at 200%, at which
 /// point the stepper it is warning about has been pushed entirely off-screen.
-@JeebPreview(name: 'First item in delivery list', size: Size(_phoneWidth, 560))
+@JeebPreview(group: 'active_delivery_jeeber', name: 'First item in delivery list', size: Size(_phoneWidth, 560))
 Widget gpsPermissionBannerInDeliveryList() => Align(
       alignment: AlignmentDirectional.topStart,
       child: SizedBox(

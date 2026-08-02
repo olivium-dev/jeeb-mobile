@@ -76,13 +76,13 @@ Widget _hosted(
 /// Worth reviewing in the AR RTL **dark** rendering specifically: this is the
 /// only status whose foreground is not the `on*` partner of its background —
 /// it fills with `secondaryContainer` and inks with `onPrimary`.
-@JeebPreview(name: 'Connected', size: _stripBox)
+@JeebPreview(group: 'chat', name: 'Connected', size: _stripBox)
 Widget chatConnectionBannerConnected() => _hosted(ConnectionStatus.connected);
 
 /// Cold start: the first `connect()` is in flight and nothing has been queued
 /// yet. Distinct copy from `reconnecting` on purpose (see the doc comment on
 /// [ConnectionStatus]) — this is the first-time spinner, not a retry.
-@JeebPreview(name: 'Connecting', size: _stripBox)
+@JeebPreview(group: 'chat', name: 'Connecting', size: _stripBox)
 Widget chatConnectionBannerConnecting() => _hosted(ConnectionStatus.connecting);
 
 /// Connected, but two sends are still awaiting their ack.
@@ -92,7 +92,7 @@ Widget chatConnectionBannerConnecting() => _hosted(ConnectionStatus.connecting);
 /// only way the badge is ever seen on the connected fill. If the badge is
 /// illegible here, users see "Connected" with an invisible badge beside it
 /// every time they type.
-@JeebPreview(name: 'Connected + in-flight', size: _stripBox)
+@JeebPreview(group: 'chat', name: 'Connected + in-flight', size: _stripBox)
 Widget chatConnectionBannerConnectedPending() =>
     _hosted(ConnectionStatus.connected, pending: 2);
 
@@ -100,7 +100,7 @@ Widget chatConnectionBannerConnectedPending() =>
 ///
 /// `reconnectAttempt` is carried in the state but never rendered — the strip
 /// shows the same copy on attempt 1 and attempt 9, which is deliberate.
-@JeebPreview(name: 'Reconnecting + outbox', size: _stripBox)
+@JeebPreview(group: 'chat', name: 'Reconnecting + outbox', size: _stripBox)
 Widget chatConnectionBannerReconnecting() => _hosted(
       ConnectionStatus.reconnecting,
       pending: 3,
@@ -116,7 +116,7 @@ Widget chatConnectionBannerReconnecting() => _hosted(
 /// 390px row. This is the state the AR RTL and 200%-text renderings of the
 /// matrix exist for — the EN light rendering looks fine long after the other
 /// two have broken.
-@JeebPreview(name: 'Offline + full outbox', size: _tallStripBox)
+@JeebPreview(group: 'chat', name: 'Offline + full outbox', size: _tallStripBox)
 Widget chatConnectionBannerOfflineFullOutbox() => _hosted(
       ConnectionStatus.disconnected,
       pending: 12,
@@ -129,6 +129,6 @@ Widget chatConnectionBannerOfflineFullOutbox() => _hosted(
 /// (`رسالة معلّقة واحدة`) with no digit at all, and 2 uses a *dual* form. A
 /// badge built by interpolating a count into one template would look correct
 /// here in English and wrong in Arabic, so both locales are worth a look.
-@JeebPreview(name: 'Offline + one pending', size: _tallStripBox)
+@JeebPreview(group: 'chat', name: 'Offline + one pending', size: _tallStripBox)
 Widget chatConnectionBannerOfflineOnePending() =>
     _hosted(ConnectionStatus.disconnected, pending: 1);

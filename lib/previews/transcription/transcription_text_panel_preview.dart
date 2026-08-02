@@ -92,7 +92,7 @@ Widget _hosted(TranscriptionState state) {
 /// it is the reference for the label-row layout — a title on the leading edge
 /// and a `TextButton.icon` on the trailing edge, which is the arrangement the
 /// AR RTL rendering has to mirror.
-@JeebPreview(name: 'Ready · machine transcript', size: _panelBox)
+@JeebPreview(group: 'transcription', name: 'Ready · machine transcript', size: _panelBox)
 Widget transcriptionTextPanelReady() =>
     _hosted(const TranscriptionState(text: _kReadyTranscript));
 
@@ -103,7 +103,7 @@ Widget transcriptionTextPanelReady() =>
 /// screen's own CTA is what moves the user forward; an Edit affordance next to
 /// an empty card reads as a dead control. If this preview ever grows one, the
 /// `showEdit` guard has broken.
-@JeebPreview(name: 'Empty · queued placeholder', size: _shortPanelBox)
+@JeebPreview(group: 'transcription', name: 'Empty · queued placeholder', size: _shortPanelBox)
 Widget transcriptionTextPanelEmpty() => _hosted(const TranscriptionState());
 
 /// Whitespace-only transcript — the state a silent or unintelligible clip
@@ -113,7 +113,7 @@ Widget transcriptionTextPanelEmpty() => _hosted(const TranscriptionState());
 /// Visually identical to the empty state on purpose: the panel `trim()`s before
 /// deciding. If this preview ever renders a tall, blank grey card with an Edit
 /// button above it, the widget has started treating "\n  " as content.
-@JeebPreview(name: 'Whitespace · treated as empty', size: _shortPanelBox)
+@JeebPreview(group: 'transcription', name: 'Whitespace · treated as empty', size: _shortPanelBox)
 Widget transcriptionTextPanelWhitespace() =>
     _hosted(const TranscriptionState(text: '   \n  '));
 
@@ -123,7 +123,7 @@ Widget transcriptionTextPanelWhitespace() =>
 /// [Directionality]. So in the EN renderings of this matrix the Arabic sits
 /// LEFT-aligned in an LTR card, and only the AR rendering right-aligns it. Both
 /// are worth looking at side by side before deciding the widget is fine.
-@JeebPreview(name: 'Arabic transcript · English UI', size: _panelBox)
+@JeebPreview(group: 'transcription', name: 'Arabic transcript · English UI', size: _panelBox)
 Widget transcriptionTextPanelArabicContent() =>
     _hosted(const TranscriptionState(text: _kArabicTranscript));
 
@@ -134,7 +134,7 @@ Widget transcriptionTextPanelArabicContent() =>
 /// `SingleChildScrollView`. This is the preview to open at 200% text: the card
 /// there is roughly twice as tall again, which is where a caller that forgets
 /// to make its column scrollable gets a yellow-and-black overflow bar.
-@JeebPreview(name: 'Long transcript · overflow ceiling', size: _tallPanelBox)
+@JeebPreview(group: 'transcription', name: 'Long transcript · overflow ceiling', size: _tallPanelBox)
 Widget transcriptionTextPanelLongTranscript() =>
     _hosted(const TranscriptionState(text: _kLongTranscript));
 
@@ -144,6 +144,6 @@ Widget transcriptionTextPanelLongTranscript() =>
 /// field and a full-width primary button — so it is the state where the panel's
 /// height changes most, and the one that cannot render at all without the
 /// ambient cubit ([_hosted]).
-@JeebPreview(name: 'Editing · field + Done', size: _editorBox)
+@JeebPreview(group: 'transcription', name: 'Editing · field + Done', size: _editorBox)
 Widget transcriptionTextPanelEditing() =>
     _hosted(const TranscriptionState(text: _kEditDraft, isEditing: true));

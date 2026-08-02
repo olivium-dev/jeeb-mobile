@@ -136,7 +136,7 @@ Widget _hosted({
 ///
 /// This is the state a jeeber lands on three times in a row, and the only one
 /// where the tile is a call to action rather than a receipt.
-@JeebPreview(name: 'Empty · ID front', size: _tileBox)
+@JeebPreview(group: 'kyc', name: 'Empty · ID front', size: _tileBox)
 Widget kycCaptureTileEmpty() => _hosted(
       label: _frontLabel,
       captureCtaSemantic: 'Take photo',
@@ -150,7 +150,7 @@ Widget kycCaptureTileEmpty() => _hosted(
 /// width constraints — the label cannot wrap and cannot ellipsize; it can only
 /// run past the tile edge and be clipped by the Stack. At the ARB's real label
 /// lengths it fits; the test pins how much headroom is actually left.
-@JeebPreview(name: 'Captured · ID back', size: _tileBox)
+@JeebPreview(group: 'kyc', name: 'Captured · ID back', size: _tileBox)
 Widget kycCaptureTileCaptured() => _hosted(
       label: _backLabel,
       photo: _attachment('kyc-id-back', _decodablePng),
@@ -169,7 +169,7 @@ Widget kycCaptureTileCaptured() => _hosted(
 /// Worth reviewing as a real-device state too — a corrupt or truncated camera
 /// payload lands here, and the fallback gives the user no hint that anything
 /// went wrong or that they should retake.
-@JeebPreview(name: 'Captured · undecodable bytes', size: _tileBox)
+@JeebPreview(group: 'kyc', name: 'Captured · undecodable bytes', size: _tileBox)
 Widget kycCaptureTileUndecodableBytes() => _hosted(
       label: _selfieLabel,
       photo: _attachment('kyc-selfie', _stubCameraBytes),
@@ -183,7 +183,7 @@ Widget kycCaptureTileUndecodableBytes() => _hosted(
 /// box with no visible indication of which slot is busy. The `Semantics` label
 /// is still attached, so this reads worse for a sighted user than for a screen
 /// reader.
-@JeebPreview(name: 'Capturing · first capture', size: _tileBox)
+@JeebPreview(group: 'kyc', name: 'Capturing · first capture', size: _tileBox)
 Widget kycCaptureTileCapturing() => _hosted(
       label: _frontLabel,
       isProcessing: true,
@@ -199,7 +199,7 @@ Widget kycCaptureTileCapturing() => _hosted(
 /// [kycCaptureTileCapturing]: the two differ only in the container's border
 /// (1 dp `outline` here, 1.5 dp `outlineVariant` there), which is the entire
 /// visual difference between "replacing a photo" and "taking your first one".
-@JeebPreview(name: 'Retake in flight · photo hidden', size: _tileBox)
+@JeebPreview(group: 'kyc', name: 'Retake in flight · photo hidden', size: _tileBox)
 Widget kycCaptureTileRetakeInFlight() => _hosted(
       label: _backLabel,
       photo: _attachment('kyc-id-back', _decodablePng),
@@ -223,7 +223,7 @@ Widget kycCaptureTileRetakeInFlight() => _hosted(
 /// 30 dp of text slack — about 20 dp once the pill's own trailing padding is
 /// counted — which is why only the Arabic reading shows the defect, and why the
 /// English one is a near miss rather than a clean pass.
-@JeebPreview(name: 'Captured · Arabic label', size: _tileBox)
+@JeebPreview(group: 'kyc', name: 'Captured · Arabic label', size: _tileBox)
 Widget kycCaptureTileArabicLabel() => _hosted(
       label: _selfieLabelArabic,
       photo: _attachment('kyc-selfie', _decodablePng),

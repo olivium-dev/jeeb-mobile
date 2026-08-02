@@ -97,7 +97,7 @@ Widget _hosted(ClientHomeRequest request) => RepliesCard(
 /// `_RepliesHeader` renders no badge of any kind, so Flash, Express and
 /// Standard replies are pixel-identical here while the sibling
 /// `PendingRequestCard` distinguishes them.
-@JeebPreview(name: 'Nine offers · +6', size: repliesCardBox)
+@JeebPreview(group: 'home_client', name: 'Nine offers · +6', size: repliesCardBox)
 Widget repliesCardWithOverflowCount() => _hosted(
       _reply(
         id: 'rep-1',
@@ -113,7 +113,7 @@ Widget repliesCardWithOverflowCount() => _hosted(
 /// The boundary the counter is gated on — `if (extra > 0)` — is what keeps this
 /// row from reading "+0". It is also the first row a sender sees the moment
 /// bidding opens, so it is the most common shape of this card, not an edge.
-@JeebPreview(name: 'Single offer · no counter', size: repliesCardBox)
+@JeebPreview(group: 'home_client', name: 'Single offer · no counter', size: repliesCardBox)
 Widget repliesCardSingleOffer() => _hosted(
       _reply(
         id: 'rep-2',
@@ -130,7 +130,7 @@ Widget repliesCardSingleOffer() => _hosted(
 /// the cluster degrades to a bare `+4` floating at the end of the header, with
 /// nothing to anchor it. Worth looking at next to `Nine offers · +6`: the same
 /// widget, a very different-looking header.
-@JeebPreview(name: 'Counted, no avatars', size: repliesCardBox)
+@JeebPreview(group: 'home_client', name: 'Counted, no avatars', size: repliesCardBox)
 Widget repliesCardCountWithoutAvatars() => _hosted(
       _reply(
         id: 'rep-3',
@@ -149,7 +149,7 @@ Widget repliesCardCountWithoutAvatars() => _hosted(
 /// evidence at all still showing **Accept** and **Check Offers** — two CTAs
 /// pointing at an empty offer list. The card has no empty branch of its own,
 /// so this is what that looks like.
-@JeebPreview(name: 'Zero offers · CTAs still shown', size: repliesCardBox)
+@JeebPreview(group: 'home_client', name: 'Zero offers · CTAs still shown', size: repliesCardBox)
 Widget repliesCardZeroOffers() => _hosted(
       _reply(
         id: 'rep-4',
@@ -166,7 +166,7 @@ Widget repliesCardZeroOffers() => _hosted(
 /// [ClientHomeRequest.summaryLine] must drop to the destination instead of
 /// printing the same sentence twice. If this preview ever shows "Pharmacy run
 /// for Mom" on both lines, that guard has regressed.
-@JeebPreview(name: 'No display id · echo guard', size: repliesCardBox)
+@JeebPreview(group: 'home_client', name: 'No display id · echo guard', size: repliesCardBox)
 Widget repliesCardTitleFallback() => _hosted(
       _reply(
         id: 'rep-5',
@@ -188,7 +188,7 @@ Widget repliesCardTitleFallback() => _hosted(
 /// `Check Offers` are `IntrinsicWidth` pills inside an end-aligned [Row] with
 /// no `Wrap`, `Flexible` or `FittedBox` anywhere, so their combined width
 /// scales with the text scale while the 390 dp card does not.
-@JeebPreview(name: 'Long content · +117', size: repliesCardTallBox)
+@JeebPreview(group: 'home_client', name: 'Long content · +117', size: repliesCardTallBox)
 Widget repliesCardLongContent() => _hosted(
       _reply(
         id: 'rep-6',

@@ -94,7 +94,7 @@ Widget _hosted({
 /// Worth a preview precisely because it should be invisible: if this ever
 /// reserves space, every pending list on every phone starts 64pt lower for no
 /// reason. Compare against [pendingReconnectBannerHeightCost].
-@JeebPreview(name: 'Connected (collapsed)', size: _phoneBox)
+@JeebPreview(group: 'home_client', name: 'Connected (collapsed)', size: _phoneBox)
 Widget pendingReconnectBannerHidden() => _hosted(
       visible: false,
       listTopLabel: 'Connected · list top',
@@ -106,7 +106,7 @@ Widget pendingReconnectBannerHidden() => _hosted(
 /// `OmdsLoadingState` keeps its default `EdgeInsets.all(Spacing.large)`, so a
 /// 16pt spinner claims a 56pt box and drives the whole banner to 64pt tall for
 /// one 16pt line of text.
-@JeebPreview(name: 'Reconnecting · 390 pt', size: _phoneBox)
+@JeebPreview(group: 'home_client', name: 'Reconnecting · 390 pt', size: _phoneBox)
 Widget pendingReconnectBannerReconnecting() => _hosted(
       visible: true,
       listTopLabel: 'Reconnecting · 390 pt',
@@ -119,7 +119,7 @@ Widget pendingReconnectBannerReconnecting() => _hosted(
 /// width where that margin gets thin, and it is the AR RTL rendering of this
 /// preview — Arabic sets slightly wider here, and the matrix never renders
 /// Arabic AND 200% together — that is worth actually looking at.
-@JeebPreview(name: 'Reconnecting · 320 pt', size: _smallPhoneBox)
+@JeebPreview(group: 'home_client', name: 'Reconnecting · 320 pt', size: _smallPhoneBox)
 Widget pendingReconnectBannerNarrow() => _hosted(
       visible: true,
       listTopLabel: 'Reconnecting · 320 pt',
@@ -132,7 +132,7 @@ Widget pendingReconnectBannerNarrow() => _hosted(
 /// the list, so every row jumps down by four times the height of the line of
 /// text that caused it, and jumps back on reconnect. On a flaky connection that
 /// is a list that will not hold still under the user's thumb.
-@JeebPreview(name: 'Height cost (connected vs reconnecting)', size: _comparisonBox)
+@JeebPreview(group: 'home_client', name: 'Height cost (connected vs reconnecting)', size: _comparisonBox)
 Widget pendingReconnectBannerHeightCost() => _frozen(
       Align(
         alignment: AlignmentDirectional.topStart,

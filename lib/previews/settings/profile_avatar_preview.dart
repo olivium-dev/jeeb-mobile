@@ -85,7 +85,7 @@ Widget _hosted(String? name, {String? photoUrl}) =>
 /// measuring 13.28:1 light and 7.23:1 dark, where its sibling `FeedbackAvatar`
 /// hardcodes white ink on the same fill and measures 1.29:1. Same fill, same
 /// glyph, one of them legible.
-@JeebPreview(name: 'Named, no photo', size: _avatarBox)
+@JeebPreview(group: 'settings', name: 'Named, no photo', size: _avatarBox)
 Widget profileAvatarNamed() => _hosted('Sami');
 
 /// Cold start for an OTP-only signup: no name, no photo.
@@ -99,7 +99,7 @@ Widget profileAvatarNamed() => _hosted('Sami');
 /// Also covers `name: '   '`: `_initial` trims before testing for empty, so a
 /// whitespace-only name lands on this identical rendering rather than on a
 /// space-shaped hole.
-@JeebPreview(name: 'No name yet', size: _avatarBox)
+@JeebPreview(group: 'settings', name: 'No name yet', size: _avatarBox)
 Widget profileAvatarNoName() => _hosted(null);
 
 /// An Arabic name — the majority case for this app.
@@ -115,7 +115,7 @@ Widget profileAvatarNoName() => _hosted(null);
 /// `initial[0]`, a UTF-16 code-unit index, and drops the second half of any
 /// decomposed letter. Check **AR RTL dark**: the circle is symmetric, so
 /// anything that shifts there is the ambient [Directionality], not the avatar.
-@JeebPreview(name: 'Arabic name', size: _avatarBox)
+@JeebPreview(group: 'settings', name: 'Arabic name', size: _avatarBox)
 Widget profileAvatarArabicName() => _hosted('ليلى حداد');
 
 /// A phone-only account as `getMe` returns it (sprint-009 §T5).
@@ -127,7 +127,7 @@ Widget profileAvatarArabicName() => _hosted('ليلى حداد');
 /// whose name starts with J rather than as "we do not know this user's name".
 /// The `?` fallback never fires, because a synthetic handle is a non-empty
 /// string.
-@JeebPreview(name: 'Phone-only synthetic handle', size: _avatarBox)
+@JeebPreview(group: 'settings', name: 'Phone-only synthetic handle', size: _avatarBox)
 Widget profileAvatarSyntheticHandle() => _hosted('jeeb-e1a35ea8a520');
 
 /// `photoUrl: ''` — what a JSON payload sends for "no photo", as distinct from
@@ -138,7 +138,7 @@ Widget profileAvatarSyntheticHandle() => _hosted('jeeb-e1a35ea8a520');
 /// That check is load-bearing: without it an empty string is neither a local
 /// path nor a valid URL, so it would fall through to `OmdsCachedImage` and make
 /// this the one preview that reaches the network.
-@JeebPreview(name: 'Empty photo URL', size: _avatarBox)
+@JeebPreview(group: 'settings', name: 'Empty photo URL', size: _avatarBox)
 Widget profileAvatarEmptyPhotoUrl() => _hosted('Zeina Karam', photoUrl: '');
 
 /// JEBV4-13, one reinstall later: a stored local path whose file is gone.
@@ -162,7 +162,7 @@ Widget profileAvatarEmptyPhotoUrl() => _hosted('Zeina Karam', photoUrl: '');
 /// 96 dp hole until the read resolves one way or the other. In the canvas the
 /// read fails within a frame or two and you will normally see the settled
 /// bubble; the empty frame is pinned in the test, where it is the whole state.
-@JeebPreview(name: 'Stale local photo path', size: _avatarBox)
+@JeebPreview(group: 'settings', name: 'Stale local photo path', size: _avatarBox)
 Widget profileAvatarStaleLocalPath() => _hosted(
       'Karim Aoun',
       photoUrl: '/var/mobile/Containers/Data/Application/'

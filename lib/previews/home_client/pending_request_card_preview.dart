@@ -60,7 +60,7 @@ Widget _hosted(ClientHomeRequest request) => PendingRequestCard(
 ///
 /// This is what a sender sees in the seconds after submitting, before any
 /// Jeeber replies.
-@JeebPreview(name: 'Searching', size: _rowBox)
+@JeebPreview(group: 'home_client', name: 'Searching', size: _rowBox)
 Widget pendingRequestCardSearching() => _hosted(_pending());
 
 /// No `displayId` on the row — the header falls back to [title].
@@ -70,7 +70,7 @@ Widget pendingRequestCardSearching() => _hosted(_pending());
 /// [ClientHomeRequest.summaryLine] must drop to the destination instead of
 /// printing the same sentence twice. If this preview ever shows
 /// "Pharmacy run for Mom" on both lines, that guard has regressed.
-@JeebPreview(name: 'No display id (title fallback)', size: _rowBox)
+@JeebPreview(group: 'home_client', name: 'No display id (title fallback)', size: _rowBox)
 Widget pendingRequestCardTitleFallback() => _hosted(
       _pending(
         id: 'pen-2',
@@ -89,7 +89,7 @@ Widget pendingRequestCardTitleFallback() => _hosted(
 /// `PendingCountdownCard` substitutes the localized "Searching for Jeebers…"
 /// for exactly this case; this card does not. Kept as a preview because the
 /// blank line is invisible in code review and obvious on the canvas.
-@JeebPreview(name: 'Empty summary line', size: _rowBox)
+@JeebPreview(group: 'home_client', name: 'Empty summary line', size: _rowBox)
 Widget pendingRequestCardEmptySummary() => _hosted(
       _pending(
         id: 'pen-3',
@@ -108,7 +108,7 @@ Widget pendingRequestCardEmptySummary() => _hosted(
 /// actually renders is an EMPTY label: the badge silently disappears and the
 /// header claims its space. Nothing crashes, but the row loses its only
 /// classifier.
-@JeebPreview(name: 'Unknown tier badge', size: _rowBox)
+@JeebPreview(group: 'home_client', name: 'Unknown tier badge', size: _rowBox)
 Widget pendingRequestCardUnknownTier() => _hosted(
       _pending(
         id: 'pen-4',
@@ -127,7 +127,7 @@ Widget pendingRequestCardUnknownTier() => _hosted(
 /// trailing edge. This is the state the AR RTL and 200%-text renderings of the
 /// matrix exist for: the EN light rendering still looks fine long after the
 /// other two have broken.
-@JeebPreview(name: 'Long content overflow', size: _tallRowBox)
+@JeebPreview(group: 'home_client', name: 'Long content overflow', size: _tallRowBox)
 Widget pendingRequestCardLongContent() => _hosted(
       _pending(
         id: 'pen-5',

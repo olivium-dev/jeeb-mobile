@@ -124,7 +124,7 @@ Widget _hosted(List<DeliveryReviewData> reviews) {
 /// [ListView.separated] separator and the D58 first-name rule side by side —
 /// "Karl Assaf" and "Nour Haddad" must render as "Karl" and "Nour", never with
 /// their family names attached.
-@JeebPreview(name: 'Two reviews', size: _twoCardBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Two reviews', size: _twoCardBox)
 Widget deliveryReviewsListTwoReviews() => _hosted(<DeliveryReviewData>[
   _review(
     id: 'r1',
@@ -147,7 +147,7 @@ Widget deliveryReviewsListTwoReviews() => _hosted(<DeliveryReviewData>[
 /// D59 cold-start means the profile above it is also hiding its aggregate score
 /// — and the one most likely to be broken silently, because it is the branch a
 /// happy-path-only preview never renders.
-@JeebPreview(name: 'Empty', size: _emptyBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Empty', size: _emptyBox)
 Widget deliveryReviewsListEmpty() => _hosted(const <DeliveryReviewData>[]);
 
 /// Longest plausible content: the Figma seed body on a single card.
@@ -158,7 +158,7 @@ Widget deliveryReviewsListEmpty() => _hosted(const <DeliveryReviewData>[]);
 /// and the 1.5 line-height stay reviewable without booting the app. Contrast it
 /// with [deliveryReviewsListYearOld], where growth in the *header* is not
 /// absorbed by anything.
-@JeebPreview(name: 'Long body', size: _longBodyBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Long body', size: _longBodyBox)
 Widget deliveryReviewsListLongBody() => _hosted(<DeliveryReviewData>[
   _review(id: 'r1', reviewerName: 'Maroun Khoury', body: _lorem),
 ]);
@@ -172,7 +172,7 @@ Widget deliveryReviewsListLongBody() => _hosted(<DeliveryReviewData>[
 /// exactly this case, which is why passing a URL here is still network-free: if
 /// this preview ever renders an image, the suppression has broken and a private
 /// photo is being shown next to an anonymised name.
-@JeebPreview(name: 'Anonymous reviewer', size: _oneCardBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Anonymous reviewer', size: _oneCardBox)
 Widget deliveryReviewsListAnonymous() => _hosted(<DeliveryReviewData>[
   _review(
     id: 'anonymous',
@@ -190,7 +190,7 @@ Widget deliveryReviewsListAnonymous() => _hosted(<DeliveryReviewData>[
 /// space and where the card is at its least tall against a fixed 40 pt avatar.
 /// The 3.5 rating also drives the `star_half` branch of `_ReviewStars`, which no
 /// other preview reaches.
-@JeebPreview(name: 'Stars only', size: _starsOnlyBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Stars only', size: _starsOnlyBox)
 Widget deliveryReviewsListStarsOnly() => _hosted(<DeliveryReviewData>[
   _review(
     id: 'r1',
@@ -217,7 +217,7 @@ Widget deliveryReviewsListStarsOnly() => _hosted(<DeliveryReviewData>[
 ///
 /// Pinned as a defect in this preview's render test — delete that test when the
 /// timestamp learns to yield.
-@JeebPreview(name: 'Year-old review', size: _oneCardBox)
+@JeebPreview(group: 'delivery_man_profile', name: 'Year-old review', size: _oneCardBox)
 Widget deliveryReviewsListYearOld() => _hosted(<DeliveryReviewData>[
   _review(
     id: 'r1',

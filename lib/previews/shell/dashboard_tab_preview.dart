@@ -250,7 +250,7 @@ Widget _hosted({
 /// one line — so this is an English-only accessibility break. The defect is
 /// `JeeberUnregisteredView`'s (see its own preview), reproduced here because
 /// this is the box the DELIVERY tab actually hands it.
-@JeebPreview(name: 'KYC none · register prompt', size: _tabBody)
+@JeebPreview(group: 'shell', name: 'KYC none · register prompt', size: _tabBody)
 Widget dashboardTabRegisterPrompt() =>
     _hosted(kycStatus: JeeberKycStatus.none);
 
@@ -287,7 +287,7 @@ Widget dashboardTabRegisterPrompt() =>
 /// The AR 100% row is the one that matters: it is not an accessibility ceiling,
 /// it is every Arabic jeeber on a 360 px phone, today. At 390 px it shrinks to
 /// 2 px, which is why this preview is declared at 360 (see [_tabBody]).
-@JeebPreview(name: 'KYC pending · feed reachable', size: _tabBody)
+@JeebPreview(group: 'shell', name: 'KYC pending · feed reachable', size: _tabBody)
 Widget dashboardTabPendingKycFeed() => _hosted(
       kycStatus: JeeberKycStatus.pending,
       profileName: 'Layla',
@@ -307,7 +307,7 @@ Widget dashboardTabPendingKycFeed() => _hosted(
 /// renderings without clipping (the other is the load error) — because it is
 /// the only content-bearing one that both scrolls and has no non-flexible
 /// button in a `Row`.
-@JeebPreview(name: 'KYC approved · quiet feed', size: _tabBody)
+@JeebPreview(group: 'shell', name: 'KYC approved · quiet feed', size: _tabBody)
 Widget dashboardTabApprovedQuietFeed() => _hosted(
       kycStatus: JeeberKycStatus.approved,
       profileName: 'Nadia',
@@ -334,7 +334,7 @@ Widget dashboardTabApprovedQuietFeed() => _hosted(
 /// neither flexible nor ellipsizing, so at 200% text it claims its intrinsic
 /// width and the row **overflows by 85 px** (84 px in AR) at 360 px. Same shape
 /// and same fix as JEBV4-286 applied to the sibling banner.
-@JeebPreview(name: 'Won delivery · banner over feed', size: _tabBody)
+@JeebPreview(group: 'shell', name: 'Won delivery · banner over feed', size: _tabBody)
 Widget dashboardTabWonDeliveryBanner() => _hosted(
       kycStatus: JeeberKycStatus.approved,
       profileName: 'Zeina',
@@ -355,7 +355,7 @@ Widget dashboardTabWonDeliveryBanner() => _hosted(
 /// `RoleSwitchRepository`, none of which a preview provides, so the tab
 /// degrades to exactly the manual-retry frame a jeeber sees when the activator
 /// is not wired.
-@JeebPreview(name: 'Availability load failed', size: _tabBody)
+@JeebPreview(group: 'shell', name: 'Availability load failed', size: _tabBody)
 Widget dashboardTabAvailabilityLoadError() => _hosted(
       kycStatus: JeeberKycStatus.approved,
       profileName: 'Karim',
@@ -378,7 +378,7 @@ Widget dashboardTabAvailabilityLoadError() => _hosted(
 /// a real getMe name on file, so the ambient profile wins over the tab's
 /// hardcoded `'Kamal'`. It clips at `EN 200% text` for the same reason and by
 /// the same 180 px — it is the same view.
-@JeebPreview(name: 'KYC rejected · pre-redirect frame', size: _tabBody)
+@JeebPreview(group: 'shell', name: 'KYC rejected · pre-redirect frame', size: _tabBody)
 Widget dashboardTabRejectedFrame() => _hosted(
       kycStatus: JeeberKycStatus.rejected,
       profileName: 'Nour',
