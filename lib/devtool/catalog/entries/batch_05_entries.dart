@@ -22,10 +22,10 @@ import '../../../features/kyc/domain/kyc_submission.dart';
 import '../../../features/kyc/presentation/kyc_wizard_screen.dart';
 import '../../../features/kyc_rejected/presentation/kyc_rejected_screen.dart';
 import '../../../features/photo_attachment/data/stub_photo_picker_service.dart';
-import '../../../features/wallet/domain/wallet_repository.dart';
 import '../catalog_models.dart';
 import '../fixtures/jeeber_request_unavailable_screen_fixtures.dart';
 import '../fixtures/jeeber_request_detail_screen_fixtures.dart';
+import '../fixtures/onboarding_funding_screen_fixtures.dart';
 
 /// Batch 05 — DT-04 catalog entries for: jeeber_onboarding_funding,
 /// jeeber_pending_offers, jeeber_request_detail, jeeber_request_feed, kyc,
@@ -52,50 +52,42 @@ List<CatalogEntry> get batch05Entries => <CatalogEntry>[
 // jeeber_onboarding_funding
 // ─────────────────────────────────────────────────────────────────────────
 
+// Hosted through the shared fixture
+// (`../fixtures/onboarding_funding_screen_fixtures.dart`), which the widget
+// previews at the bottom of the screen file use as well, so the catalog and the
+// canvas cannot drift. The host is a local [GoRouter] over stand-in
+// destinations: without it every affordance on this screen
+// (`funding_topup_cta` → `goNamed('wallet-charge-info')`,
+// `funding_continue_cta` → `goNamed('kyc-status')`, and the app-bar arrow's
+// `context.go('/')` fallback) drives the REAL app router and drops the reviewer
+// out of the catalog into the live app.
+//
+// The two states and their labels are unchanged; only the fakes moved.
+
 final CatalogEntry _onboardingFundingEntry = CatalogEntry(
   feature: 'jeeber_onboarding_funding',
   screen: 'OnboardingFundingScreen',
   states: [
     CatalogState(
       'Enriched — starter credit + reserve amounts loaded',
-      (_) => const OnboardingFundingScreen(
-        repository: _StaticWalletRepository(
-          WalletBalance(
-            availableBalance: 150,
-            affordabilityState: WalletAffordability.enough,
-            reservedNow: 20,
-            giftCredit: 50,
-            currency: 'USD',
+      (_) => const OnboardingFundingScreenHost(
+        screen: OnboardingFundingScreen(
+          repository: OnboardingFundingScreenStaticWallet(
+            onboardingFundingScreenEnrichedBalance,
           ),
         ),
       ),
     ),
     CatalogState(
       'Fail-safe — wallet fetch failed, static explainer only',
-      (_) => const OnboardingFundingScreen(
-        repository: _FailingWalletRepository(),
+      (_) => const OnboardingFundingScreenHost(
+        screen: OnboardingFundingScreen(
+          repository: OnboardingFundingScreenFailingWallet(),
+        ),
       ),
     ),
   ],
 );
-
-class _StaticWalletRepository implements WalletRepository {
-  const _StaticWalletRepository(this._balance);
-
-  final WalletBalance _balance;
-
-  @override
-  Future<WalletBalance> fetchBalance() async => _balance;
-}
-
-class _FailingWalletRepository implements WalletRepository {
-  const _FailingWalletRepository();
-
-  @override
-  Future<WalletBalance> fetchBalance() async {
-    throw const WalletRepositoryException(WalletFailure.network);
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────
 // jeeber_pending_offers

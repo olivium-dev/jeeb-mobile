@@ -67,7 +67,14 @@ import '../../tool/preview_inventory.dart';
 /// `ClientUnreachableScreen`, `CustomerProfileScreen`, `RatingPromptScreen`,
 /// `DeliveryManProfileScreen`, `DeliveryReceiptScreen` and
 /// `DeliveryStatusScreen` (198/231).
-const int _coverageFloor = 32;
+///
+/// 32 → 25: the screens wave that previewed `DisputeStatusScreen`,
+/// `EarningsDashboardScreen`, `EscalateScreen`, `GoodsCostScreen`,
+/// `JeeberHomeScreen`, `DmOnboardingScreen` and `OnboardingFundingScreen`
+/// (205/231). The remaining 25 are all screens; `LiveSettingsScreen` is the
+/// one BLOCKED entry and does not count here — it needs a production seam
+/// first, recorded in `tool/preview_blocked.txt`.
+const int _coverageFloor = 25;
 
 /// Whole-word identifier match — `_hosted` must not match `_hostedFoo`.
 bool _referencesName(String haystack, String name) => RegExp(

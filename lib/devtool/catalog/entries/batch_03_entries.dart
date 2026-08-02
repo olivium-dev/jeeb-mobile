@@ -8,12 +8,9 @@ import '../../../features/deep_link_targets/rating_prompt_screen.dart';
 import '../../../features/delivery_man_profile/presentation/delivery_man_profile_screen.dart';
 import '../../../features/delivery_receipt/presentation/delivery_receipt_screen.dart';
 import '../../../features/delivery_status/presentation/delivery_status_screen.dart';
-import '../../../features/dispute_status/data/empty_dispute_status_repository.dart';
-import '../../../features/dispute_status/domain/dispute_status_repository.dart';
 import '../../../features/dispute_status/presentation/dispute_status_screen.dart';
 import '../../../features/earnings/application/earnings_cubit.dart';
 import '../../../features/earnings/domain/earnings_repository.dart';
-import '../../../features/earnings/domain/earnings_summary.dart';
 import '../../../features/earnings/presentation/earnings_dashboard_screen.dart';
 import '../catalog_models.dart';
 import '../fixtures/chat_detail_screen_fixtures.dart';
@@ -21,6 +18,8 @@ import '../fixtures/delivery_detail_screen_fixtures.dart';
 import '../fixtures/delivery_man_profile_screen_fixtures.dart';
 import '../fixtures/delivery_receipt_screen_fixtures.dart';
 import '../fixtures/delivery_status_screen_fixtures.dart';
+import '../fixtures/dispute_status_screen_fixtures.dart';
+import '../fixtures/earnings_dashboard_screen_fixtures.dart';
 import '../fixtures/kyc_status_screen_fixtures.dart';
 import '../fixtures/rating_prompt_screen_fixtures.dart';
 
@@ -379,17 +378,18 @@ final List<CatalogEntry> _deliveryStatusEntries = <CatalogEntry>[
 
 // ───────────────────────────── dispute_status ─────────────────────────────
 
-/// Inline fake for [DisputeStatusRepository] — the screen's shipped
-/// `repository` constructor seam takes any implementation directly.
-class _FakeDisputeStatusRepository implements DisputeStatusRepository {
-  const _FakeDisputeStatusRepository(this.dispute);
-
-  final DisputeStatus dispute;
-
-  @override
-  Future<DisputeStatus> fetchDispute(String disputeId) async => dispute;
-}
-
+/// `DisputeStatusScreen` — the JM-065 dispute-status surface, driven through
+/// its shipped `repository:` constructor seam (40_GUARDRAILS_ARCH §5.4), so no
+/// GetIt/Dio resolution ever runs.
+///
+/// The states themselves live in
+/// `fixtures/dispute_status_screen_fixtures.dart`, shared with the JEEB
+/// PREVIEWS section at the bottom of the screen's own source file, so this
+/// browser and that canvas cannot drift into showing two different "designed
+/// states" under the same label. That file holds more states than are listed
+/// here (cold read, empty evidence, penalty outcome, network / session-expired
+/// failures, an unrecognized wire status, the longest-content ceiling); they
+/// are one line each to add.
 final List<CatalogEntry> _disputeStatusEntries = <CatalogEntry>[
   CatalogEntry(
     feature: 'dispute_status',
@@ -397,91 +397,52 @@ final List<CatalogEntry> _disputeStatusEntries = <CatalogEntry>[
     states: [
       CatalogState(
         'Open — under review',
-        (context) => const DisputeStatusScreen(
-          disputeId: 'dsp-1',
-          repository: _FakeDisputeStatusRepository(
-            DisputeStatus(
-              id: 'dsp-1',
-              state: DisputeState.open,
-              orderRef: 'ORD-4821',
-              createdAt: '2026-07-01T10:00:00Z',
-              evidence: DisputeEvidenceSummary(
-                reason: 'damaged',
-                comment: 'Box arrived crushed.',
-                photoCount: 2,
-                hasChatSnapshot: true,
-                chatMessageCount: 6,
-                timelineCount: 4,
-              ),
-            ),
-          ),
+        (context) => _disputeStatusScreen(
+          DisputeStatusScreenFixtures.openUnderReview,
         ),
       ),
       CatalogState(
         'Resolved — refund issued (D2)',
-        (context) => const DisputeStatusScreen(
-          disputeId: 'dsp-2',
-          repository: _FakeDisputeStatusRepository(
-            DisputeStatus(
-              id: 'dsp-2',
-              state: DisputeState.resolved,
-              outcome: DisputeOutcome.refund,
-              resolution: 'refund',
-              refundAmount: 35,
-              currency: 'USD',
-              orderRef: 'ORD-4790',
-              createdAt: '2026-06-28T09:00:00Z',
-              resolvedAt: '2026-06-29T14:00:00Z',
-              evidence: DisputeEvidenceSummary(
-                reason: 'no_show',
-                photoCount: 1,
-                hasVoice: true,
-                timelineCount: 3,
-              ),
-            ),
-          ),
+        (context) => _disputeStatusScreen(
+          DisputeStatusScreenFixtures.resolvedRefund,
         ),
       ),
       CatalogState(
         'Error — not found (shipped fallback repository)',
-        (context) => const DisputeStatusScreen(
-          disputeId: '',
-          repository: EmptyDisputeStatusRepository(),
+        (context) => _disputeStatusScreen(
+          DisputeStatusScreenFixtures.notFoundFallback,
         ),
       ),
     ],
   ),
 ];
 
+/// Mounts the real screen on one shared designed state.
+Widget _disputeStatusScreen(DisputeStatusScreenDesignedState state) =>
+    DisputeStatusScreen(
+      disputeId: state.disputeId,
+      repository: state.repository,
+    );
+
 // ──────────────────────────────── earnings ────────────────────────────────
 
-/// Inline fake for [EarningsRepository] — the screen has no constructor seam
-/// of its own (it reads `EarningsCubit` off a `BlocProvider` ancestor), so
-/// each state wraps the real [EarningsDashboardScreen] in a locally-created
-/// [BlocProvider] seeded with this fake — no GetIt, no Dio, no live gateway.
-class _FakeEarningsRepository implements EarningsRepository {
-  const _FakeEarningsRepository(this._summary);
-
-  final EarningsSummary _summary;
-
-  @override
-  Future<EarningsSummary> fetchEarnings({
-    String jeeberId = '',
-    EarningsPeriod period = EarningsPeriod.week,
-  }) async =>
-      _summary;
-
-  @override
-  Future<String> exportEarningsPdf({
-    String jeeberId = '',
-    EarningsPeriod period = EarningsPeriod.week,
-  }) async =>
-      '/tmp/dev-earnings.pdf';
-}
-
-Widget _earningsHost(EarningsSummary summary) => BlocProvider<EarningsCubit>(
-      create: (_) =>
-          EarningsCubit(repository: _FakeEarningsRepository(summary)),
+/// Mounts the real [EarningsDashboardScreen] over a local, offline repository.
+///
+/// The screen has no constructor seam of its own (it reads `EarningsCubit` off
+/// a `BlocProvider` ancestor), so each state wraps it in a locally-created
+/// [BlocProvider] seeded with a fixture repository — no GetIt, no Dio, no live
+/// gateway.
+///
+/// The repositories and the summaries they answer with live in
+/// `fixtures/earnings_dashboard_screen_fixtures.dart`, shared with the JEEB
+/// PREVIEWS section at the bottom of the screen's own source file, so this
+/// browser and that canvas cannot drift into showing two different "designed
+/// states" under the same label. The four states that file adds beyond these
+/// two (loading, load-failed, totals-without-rows, longest content) are
+/// engineer-facing and are deliberately not listed here.
+Widget _earningsHost(EarningsRepository repository) =>
+    BlocProvider<EarningsCubit>(
+      create: (_) => EarningsCubit(repository: repository),
       child: const EarningsDashboardScreen(),
     );
 
@@ -492,42 +453,13 @@ final List<CatalogEntry> _earningsEntries = <CatalogEntry>[
     states: [
       CatalogState(
         'Populated — cash + fees + breakdown',
-        (context) => _earningsHost(
-          const EarningsSummary(
-            totalCashEarned: 245.0,
-            feesPaid: 24.5,
-            currency: 'USD',
-            deliveryCount: 7,
-            memberSince: '2025-11-03T00:00:00Z',
-            deliveries: [
-              EarningsDeliveryItem(
-                deliveryId: 'ORD-4821',
-                date: '2026-07-04T18:20:00Z',
-                cashCollected: 35.0,
-                feePaid: 3.5,
-                currency: 'USD',
-              ),
-              EarningsDeliveryItem(
-                deliveryId: 'ORD-4790',
-                date: '2026-07-02T12:05:00Z',
-                cashCollected: 50.0,
-                feePaid: 5.0,
-                currency: 'USD',
-              ),
-            ],
-          ),
-        ),
+        (context) =>
+            _earningsHost(EarningsDashboardScreenPreviewFixtures.populated()),
       ),
       CatalogState(
         'Empty — no earnings this period (T11/SW-01 honest empty)',
-        (context) => _earningsHost(
-          const EarningsSummary(
-            totalCashEarned: 0,
-            feesPaid: 0,
-            currency: 'USD',
-            deliveryCount: 0,
-          ),
-        ),
+        (context) =>
+            _earningsHost(EarningsDashboardScreenPreviewFixtures.empty()),
       ),
     ],
   ),
