@@ -20,7 +20,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// Maximum number of uncovered widgets allowed. Lower this as waves land —
 /// never raise it.
-const int _coverageFloor = 119;
+const int _coverageFloor = 111;
 
 final RegExp _widgetClass = RegExp(
   r'^class ([A-Z][A-Za-z0-9_]*) extends (?:StatelessWidget|StatefulWidget)',
