@@ -15,7 +15,6 @@ import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
 import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/availability_card.dart';
-import 'package:jeeb_mobile/previews/jeeber_home/availability_card_preview.dart';
 
 import '../preview_test_harness.dart';
 

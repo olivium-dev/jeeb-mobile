@@ -19,7 +19,6 @@ import 'package:omds/omds.dart';
 import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/availability_card.dart';
 import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/inactivity_warning_banner.dart';
 import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/jeeber_no_requests_view.dart';
-import 'package:jeeb_mobile/previews/jeeber_home/jeeber_no_requests_view_preview.dart';
 
 import '../preview_test_harness.dart';
 
@@ -40,11 +39,11 @@ void main() {
   testPreviewsRender(
     'JeeberNoRequestsView',
     const <String, Widget Function()>{
-      'Online · quiet feed': jeeberNoRequestsOnline,
-      'Offline · full section': jeeberNoRequestsOffline,
-      'Auto-offline · system flipped': jeeberNoRequestsAutoOffline,
-      'Idle warning · 30 min to auto-offline': jeeberNoRequestsIdleWarning,
-      'Active work · longest content': jeeberNoRequestsActiveWork,
+      'Online · quiet feed': jeeberNoRequestsViewOnline,
+      'Offline · full section': jeeberNoRequestsViewOffline,
+      'Auto-offline · system flipped': jeeberNoRequestsViewAutoOffline,
+      'Idle warning · 30 min to auto-offline': jeeberNoRequestsViewIdleWarning,
+      'Active work · longest content': jeeberNoRequestsViewActiveWork,
     },
     expectedText: const <String, String>{
       // The only state with this name on file; the other online states share a
@@ -68,7 +67,7 @@ void main() {
       Locale locale = const Locale('en'),
     }) async {
       await tester.pumpWidget(
-        previewCanvas(jeeberNoRequestsToggleInFlight, locale),
+        previewCanvas(jeeberNoRequestsViewToggleInFlight, locale),
       );
       await tester.pump(); // the banner's canned fetch resolves
       await tester.pump(const Duration(milliseconds: 16)); // one spinner frame
@@ -109,11 +108,11 @@ void main() {
       WidgetTester tester,
     ) async {
       for (final Widget Function() preview in <Widget Function()>[
-        jeeberNoRequestsOnline,
-        jeeberNoRequestsOffline,
-        jeeberNoRequestsAutoOffline,
-        jeeberNoRequestsIdleWarning,
-        jeeberNoRequestsActiveWork,
+        jeeberNoRequestsViewOnline,
+        jeeberNoRequestsViewOffline,
+        jeeberNoRequestsViewAutoOffline,
+        jeeberNoRequestsViewIdleWarning,
+        jeeberNoRequestsViewActiveWork,
       ]) {
         await tester.pumpWidget(previewCanvas(preview, const Locale('en')));
         await tester.pumpAndSettle();
@@ -127,7 +126,7 @@ void main() {
     testWidgets('online collapses availability to ONE compact row', (
       WidgetTester tester,
     ) async {
-      await pumpPreview(tester, jeeberNoRequestsOnline);
+      await pumpPreview(tester, jeeberNoRequestsViewOnline);
 
       expect(find.byKey(AvailabilityCard.toggleKey), findsOneWidget);
       expect(
@@ -143,7 +142,7 @@ void main() {
     testWidgets('offline uses the full section and NO auto-offline hint', (
       WidgetTester tester,
     ) async {
-      await pumpPreview(tester, jeeberNoRequestsOffline);
+      await pumpPreview(tester, jeeberNoRequestsViewOffline);
 
       expect(find.byType(OMDSSectionCard), findsOneWidget);
       expect(
@@ -158,7 +157,7 @@ void main() {
     testWidgets('auto-offline explains itself with the idle hint', (
       WidgetTester tester,
     ) async {
-      await pumpPreview(tester, jeeberNoRequestsAutoOffline);
+      await pumpPreview(tester, jeeberNoRequestsViewAutoOffline);
 
       expect(find.byType(OMDSSectionCard), findsOneWidget);
       expect(find.text('Auto-offline after 8 h idle'), findsOneWidget);
@@ -172,7 +171,7 @@ void main() {
     testWidgets('the idle warning carries its extend CTA', (
       WidgetTester tester,
     ) async {
-      await pumpPreview(tester, jeeberNoRequestsIdleWarning);
+      await pumpPreview(tester, jeeberNoRequestsViewIdleWarning);
 
       expect(find.byKey(InactivityWarningBanner.rootKey), findsOneWidget);
       expect(find.byKey(InactivityWarningBanner.ctaKey), findsOneWidget);
@@ -182,7 +181,7 @@ void main() {
     testWidgets('won work stays reachable: one row + CTA per accepted order', (
       WidgetTester tester,
     ) async {
-      await pumpPreview(tester, jeeberNoRequestsActiveWork);
+      await pumpPreview(tester, jeeberNoRequestsViewActiveWork);
 
       expect(find.text(_kLongCounterpart), findsOneWidget);
       // Two CTAs, not one: the second won order carries no counterpart name,

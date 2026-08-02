@@ -31,7 +31,6 @@ import 'package:jeeb_mobile/features/jeeber_home/application/availability_state.
 import 'package:jeeb_mobile/features/jeeber_home/domain/entities/availability_status.dart';
 import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/availability_card.dart';
 import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/availability_status_block.dart';
-import 'package:jeeb_mobile/previews/jeeber_home/availability_status_block_preview.dart';
 
 import '../preview_test_harness.dart';
 

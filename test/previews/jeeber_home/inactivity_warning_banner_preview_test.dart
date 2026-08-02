@@ -14,7 +14,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/inactivity_warning_banner.dart';
-import 'package:jeeb_mobile/previews/jeeber_home/inactivity_warning_banner_preview.dart';
 
 import '../preview_test_harness.dart';
 
