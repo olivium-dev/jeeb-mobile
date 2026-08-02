@@ -324,7 +324,12 @@ class PreviewInventory {
       // in-scope one.
       final List<String> candidates = file.widgetClasses;
       for (final String name in candidates) {
-        if (name.endsWith('Screen')) continue; // owned by the Screen Catalog
+        // Screens WERE excluded here on the grounds that the on-device Screen
+        // Catalog covered them. It covers ~56 of 82, it is an in-app browser
+        // rather than an IDE surface, and 0 screens had a preview — so the
+        // tool reported 100% while 80 screens showed nothing when opened.
+        // A coverage number that excludes the gap is the failure the
+        // MALFORMED check exists to prevent, so the exclusion is gone.
         if (exclusions.contains(name)) continue;
 
         final owned = <String>[
