@@ -24,7 +24,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../l10n/app_localizations.dart';
-import '../catalog/catalog_network_guard.dart';
+import '../../devtool/catalog/catalog_network_guard.dart';
 
 /// Both real app themes, so previews render the true tier colors and semantic
 /// color roles rather than a stock Material palette.

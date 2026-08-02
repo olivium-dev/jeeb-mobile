@@ -16,9 +16,9 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../core/session/greeting_profile_cubit.dart';
-import '../../../../devtool/previews/jeeb_preview.dart';
-import 'client_home_greeting.dart';
+import '../../core/session/greeting_profile_cubit.dart';
+import '../harness/jeeb_preview.dart';
+import '../../features/home_client/presentation/widgets/client_home_greeting.dart';
 
 /// The canvas box for a home header: phone width, header height.
 const Size _headerBox = Size(390, 120);
