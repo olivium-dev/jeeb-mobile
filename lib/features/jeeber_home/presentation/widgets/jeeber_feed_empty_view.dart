@@ -174,7 +174,7 @@ class _EmptyTitle extends StatelessWidget {
       text,
       textAlign: TextAlign.center,
       style: theme.textTheme.headlineSmall?.copyWith(
-        color: theme.colorScheme.secondaryContainer,
+        color: theme.colorScheme.primary,
         fontWeight: FontWeight.w800,
       ),
     );

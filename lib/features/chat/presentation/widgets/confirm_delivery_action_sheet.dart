@@ -230,7 +230,7 @@ class _SheetTextBlock extends StatelessWidget {
             title,
             textAlign: TextAlign.center,
             style: theme.textTheme.headlineSmall?.copyWith(
-              color: theme.colorScheme.secondaryContainer,
+              color: theme.colorScheme.primary,
               fontWeight: FontWeight.w800,
             ),
           ),

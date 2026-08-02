@@ -51,7 +51,7 @@ class _ReviewsTitle extends StatelessWidget {
     return Text(
       l10n.deliveryManProfileReviewsTitle,
       style: theme.textTheme.titleMedium?.copyWith(
-        color: theme.colorScheme.secondaryContainer,
+        color: theme.colorScheme.primary,
         fontWeight: FontWeight.w700,
       ),
     );

@@ -44,7 +44,7 @@ class _FeedbackTitle extends StatelessWidget {
       text,
       textAlign: TextAlign.center,
       style: theme.textTheme.headlineSmall?.copyWith(
-        color: theme.colorScheme.secondaryContainer,
+        color: theme.colorScheme.primary,
         fontWeight: FontWeight.w800,
       ),
     );
@@ -328,7 +328,7 @@ Widget feedbackHeaderInScreenContext() => _feedbackHeaderHosted(
                 ).feedbackRateName(_feedbackHeaderRateeName),
                 textAlign: TextAlign.center,
                 style: theme.textTheme.titleLarge?.copyWith(
-                  color: theme.colorScheme.secondaryContainer,
+                  color: theme.colorScheme.primary,
                   fontWeight: FontWeight.w800,
                 ),
               ),

@@ -270,7 +270,7 @@ class _FeedbackRateName extends StatelessWidget {
       AppLocalizations.of(context).feedbackRateName(name),
       textAlign: TextAlign.center,
       style: theme.textTheme.titleLarge?.copyWith(
-        color: theme.colorScheme.secondaryContainer,
+        color: theme.colorScheme.primary,
         fontWeight: FontWeight.w800,
       ),
     );

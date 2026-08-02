@@ -26,7 +26,7 @@ class CustomerProfileSectionHeader extends StatelessWidget {
       child: Text(
         title,
         style: theme.textTheme.titleMedium?.copyWith(
-          color: theme.colorScheme.secondaryContainer,
+          color: theme.colorScheme.primary,
           fontWeight: FontWeight.w700,
         ),
       ),

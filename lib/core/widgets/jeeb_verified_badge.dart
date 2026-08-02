@@ -167,7 +167,7 @@ class _JeebVerifiedBadgeNameRow extends StatelessWidget {
             child: Text(
               name,
               style: theme.textTheme.headlineSmall?.copyWith(
-                color: theme.colorScheme.secondaryContainer,
+                color: theme.colorScheme.primary,
                 fontWeight: FontWeight.w700,
               ),
             ),

@@ -161,7 +161,7 @@ class _NameText extends StatelessWidget {
       child: AutoDirectionText(
         name ?? '',
         style: theme.textTheme.headlineSmall?.copyWith(
-          color: theme.colorScheme.secondaryContainer,
+          color: theme.colorScheme.primary,
           fontWeight: FontWeight.w700,
         ),
       ),

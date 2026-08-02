@@ -114,7 +114,7 @@ class _PriceText extends StatelessWidget {
       child: Text(
         formatted,
         style: theme.textTheme.titleMedium?.copyWith(
-          color: theme.colorScheme.secondaryContainer,
+          color: theme.colorScheme.primary,
           fontWeight: FontWeight.w600,
         ),
         maxLines: 1,

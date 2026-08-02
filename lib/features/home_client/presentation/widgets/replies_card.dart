@@ -93,7 +93,7 @@ class _RepliesHeader extends StatelessWidget {
           child: Text(
             request.displayId ?? request.title,
             style: theme.textTheme.titleLarge?.copyWith(
-              color: theme.colorScheme.secondaryContainer,
+              color: theme.colorScheme.primary,
               fontWeight: FontWeight.w400,
             ),
             maxLines: 1,
