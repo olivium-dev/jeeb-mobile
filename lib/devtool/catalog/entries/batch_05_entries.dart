@@ -24,6 +24,8 @@ import '../../../features/kyc_rejected/presentation/kyc_rejected_screen.dart';
 import '../../../features/photo_attachment/data/stub_photo_picker_service.dart';
 import '../../../features/wallet/domain/wallet_repository.dart';
 import '../catalog_models.dart';
+import '../fixtures/jeeber_request_unavailable_screen_fixtures.dart';
+import '../fixtures/jeeber_request_detail_screen_fixtures.dart';
 
 /// Batch 05 — DT-04 catalog entries for: jeeber_onboarding_funding,
 /// jeeber_pending_offers, jeeber_request_detail, jeeber_request_feed, kyc,
@@ -200,9 +202,17 @@ class _StaticSubmittedOffersRepository implements SubmittedOffersRepository {
 // jeeber_request_detail
 // ─────────────────────────────────────────────────────────────────────────
 
+/// The inert reporting stub every state in this section passes in. Now an alias
+/// for the shared fixture so the catalog and the preview section cannot end up
+/// injecting different seams.
 const ProhibitedItemReportService _reportService =
-    ProhibitedItemReportService();
+    jeeberRequestDetailScreenReportService;
 
+/// The two designed states are unchanged — their payloads simply moved to
+/// `../fixtures/jeeber_request_detail_screen_fixtures.dart`, shared verbatim
+/// with the preview section at the bottom of
+/// `jeeber_request_detail_screen.dart`, so the surface a designer signs off
+/// against and the one an engineer edits cannot drift.
 final CatalogEntry _requestDetailEntry = CatalogEntry(
   feature: 'jeeber_request_detail',
   screen: 'JeeberRequestDetailScreen',
@@ -210,11 +220,7 @@ final CatalogEntry _requestDetailEntry = CatalogEntry(
     CatalogState(
       'With request description (G1)',
       (_) => JeeberRequestDetailScreen(
-        request: const FeedRequest(
-          id: 'req-101',
-          shortLabel: 'Hamra, Beirut',
-          description: '1 kilo potato, water gallon, coffee blend',
-        ),
+        request: JeeberRequestDetailScreenRequests.described,
         reportService: _reportService,
         onDeclined: (_) {},
       ),
@@ -222,10 +228,7 @@ final CatalogEntry _requestDetailEntry = CatalogEntry(
     CatalogState(
       'Without description (legacy/edge payload)',
       (_) => JeeberRequestDetailScreen(
-        request: const FeedRequest(
-          id: 'req-102',
-          shortLabel: 'Achrafieh, Beirut',
-        ),
+        request: JeeberRequestDetailScreenRequests.withoutDescription,
         reportService: _reportService,
         onDeclined: (_) {},
       ),
@@ -233,15 +236,26 @@ final CatalogEntry _requestDetailEntry = CatalogEntry(
   ],
 );
 
+// The id and the framing come from
+// `../fixtures/jeeber_request_unavailable_screen_fixtures.dart`, which the
+// JEEB PREVIEWS section at the bottom of `jeeber_request_unavailable_screen.dart`
+// also reads — so this state and the canvas cannot drift onto different ids.
+// `catalogDefault` carries `window: null` and `parentOnStack: null`, i.e. the
+// host renders the screen bare on the real device under the catalog's own
+// route, exactly as this entry did before the extraction.
 final CatalogEntry _requestUnavailableEntry = CatalogEntry(
   feature: 'jeeber_request_detail',
   screen: 'JeeberRequestUnavailableScreen',
   states: [
     CatalogState(
-      'Request no longer available',
-      (_) => JeeberRequestUnavailableScreen(
-        requestId: 'req-404',
-        onBack: () {},
+      JeeberRequestUnavailableScreenFixtures.catalogDefault.label,
+      (_) => JeeberRequestUnavailableScreenPreviewHost(
+        fixture: JeeberRequestUnavailableScreenFixtures.catalogDefault,
+        screen: JeeberRequestUnavailableScreen(
+          requestId:
+              JeeberRequestUnavailableScreenFixtures.catalogDefault.requestId,
+          onBack: () {},
+        ),
       ),
     ),
   ],

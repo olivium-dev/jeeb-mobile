@@ -18,8 +18,6 @@ import '../../../features/prohibited_acknowledgment/domain/prohibited_item.dart'
 import '../../../features/prohibited_acknowledgment/presentation/prohibited_acknowledgment_dialog.dart';
 import '../../../features/prohibited_item_report/presentation/prohibited_item_report_screen.dart';
 import '../../../features/rating/application/mutual_rating_cubit.dart';
-import '../../../features/rating/domain/entities/rating_status.dart';
-import '../../../features/rating/domain/rating_repository.dart';
 import '../../../features/rating/presentation/mutual_rating_screen.dart';
 import '../../../features/rating/presentation/rating_screen.dart';
 import '../../../features/registration/application/registration_cubit.dart';
@@ -34,6 +32,8 @@ import '../../../features/registration/presentation/super_login/super_login_cubi
 import '../../../features/registration/presentation/super_login/super_login_picker.dart';
 import '../../../features/registration/presentation/super_login/super_login_sheet.dart';
 import '../catalog_models.dart';
+import '../fixtures/mutual_rating_screen_fixtures.dart';
+import '../fixtures/rating_screen_fixtures.dart';
 
 // Batch 09 — profile_name, prohibited_acknowledgment, prohibited_item_report,
 // rate_app, rating, registration (DT-04 screen-catalog rework, rebased
@@ -309,59 +309,35 @@ final CatalogEntry _prohibitedItemReportScreenEntry = CatalogEntry(
 // transition (inputting / error only, never `submitted`).
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _FakeRatingRepository implements RatingRepository {
-  const _FakeRatingRepository({this.throwOnSubmit = false});
+// Each rating screen owns its own extracted fixture file, shared verbatim with
+// the preview section at the bottom of that screen's source, so the states a
+// designer signs off here and the states an engineer sees in the canvas cannot
+// drift apart:
+//
+//   * `../fixtures/rating_screen_fixtures.dart` — the legacy `/feedback`
+//     `RatingScreen`, which takes a `repository:` seam directly.
+//   * `../fixtures/mutual_rating_screen_fixtures.dart` — the mandatory
+//     terminal, whose only axis is the cubit handed to it.
+//
+// Both stand on the same `RatingRepository` contract; they are kept separate
+// because the two screens seed through different seams and neither should be
+// able to move the other's designed states.
 
-  final bool throwOnSubmit;
-
-  @override
-  Future<void> submitRating({
-    required String deliveryId,
-    required int stars,
-    required bool isClient,
-    String? comment,
-    List<String>? tags,
-  }) async {
-    if (throwOnSubmit) {
-      throw const RatingRepositoryException(RatingFailure.network);
-    }
-  }
-
-  @override
-  Future<RatingStatus> fetchRatingStatus({required String deliveryId}) async {
-    return RatingStatus(
-      deliveryId: deliveryId,
-      revealState: RatingRevealState.pendingMine,
-    );
-  }
-}
-
-/// Sets a star count (sync) then fires (un-awaited) a submit that is bound to
-/// reject — the cubit settles into `MutualRatingPhase.error` reactively,
-/// which renders `_ErrorView` (no navigation, safe under a router-less host).
-MutualRatingCubit _erroredMutualRatingCubit() {
-  final cubit = MutualRatingCubit(
-    repository: const _FakeRatingRepository(throwOnSubmit: true),
-    deliveryId: 'DEL-4021',
-    isClient: true,
-  );
-  cubit.setStars(4);
-  cubit.submit();
-  return cubit;
-}
-
-Widget _mutualRatingScreen({
-  required bool isClient,
-  MutualRatingCubit? cubit,
-}) {
+/// [MutualRatingScreen] is driven by its own fixture set,
+/// `../fixtures/mutual_rating_screen_fixtures.dart`, shared verbatim with the
+/// preview section at the bottom of
+/// `lib/features/rating/presentation/mutual_rating_screen.dart`. Each state
+/// names a cubit factory there; the screen itself is constructed here, because
+/// the cubit is the only axis this screen has.
+///
+/// The errored state used to be reached by firing an UN-AWAITED `submit()`
+/// against a repository bound to reject and letting the cubit settle into
+/// `MutualRatingPhase.error` a microtask later. It is now SEEDED into that
+/// phase, so the state is on screen from the first frame and does not depend on
+/// when the surface happens to sample it. What renders is unchanged.
+Widget _mutualRatingScreen(MutualRatingCubit Function() cubit) {
   return BlocProvider<MutualRatingCubit>(
-    create: (_) =>
-        cubit ??
-        MutualRatingCubit(
-          repository: const _FakeRatingRepository(),
-          deliveryId: 'DEL-4021',
-          isClient: isClient,
-        ),
+    create: (_) => cubit(),
     child: const MutualRatingScreen(),
   );
 }
@@ -372,18 +348,17 @@ final CatalogEntry _mutualRatingScreenEntry = CatalogEntry(
   states: [
     CatalogState(
       'Rate — Client Rates Jeeber',
-      (_) => _mutualRatingScreen(isClient: true),
+      (_) => _mutualRatingScreen(mutualRatingScreenFreshCubit),
     ),
     CatalogState(
       'Rate — Jeeber Rates Client',
-      (_) => _mutualRatingScreen(isClient: false),
+      (_) => _mutualRatingScreen(
+        () => mutualRatingScreenFreshCubit(isClient: false),
+      ),
     ),
     CatalogState(
       'Error — Submit Failed',
-      (_) => _mutualRatingScreen(
-        isClient: true,
-        cubit: _erroredMutualRatingCubit(),
-      ),
+      (_) => _mutualRatingScreen(mutualRatingScreenErrorCubit),
     ),
   ],
 );
@@ -395,19 +370,19 @@ final CatalogEntry _ratingScreenEntry = CatalogEntry(
     CatalogState(
       'Feedback — Client Rates Jeeber',
       (_) => const RatingScreen(
-        deliveryId: 'DEL-3390',
+        deliveryId: ratingScreenDeliveryId,
         isClient: true,
-        rateeName: 'Rami Chidiac',
-        repository: _FakeRatingRepository(),
+        rateeName: ratingScreenJeeberRatee,
+        repository: RatingScreenFakeRepository(),
       ),
     ),
     CatalogState(
       'Feedback — Jeeber Rates Client',
       (_) => const RatingScreen(
-        deliveryId: 'DEL-3390',
+        deliveryId: ratingScreenDeliveryId,
         isClient: false,
-        rateeName: 'Layla Haddad',
-        repository: _FakeRatingRepository(),
+        rateeName: ratingScreenClientRatee,
+        repository: RatingScreenFakeRepository(),
       ),
     ),
   ],

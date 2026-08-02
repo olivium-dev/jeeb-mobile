@@ -20,6 +20,8 @@ import '../../../features/offline_mode/application/offline_cubit.dart';
 import '../../../features/offline_mode/presentation/offline_banner.dart';
 import '../../../features/wallet/domain/wallet_repository.dart';
 import '../catalog_models.dart';
+import '../fixtures/delivery_register_prompt_screen_fixtures.dart';
+import '../fixtures/offer_kyc_gate_screen_fixtures.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // notification_prefs — NotificationPrefsScreen
@@ -169,14 +171,38 @@ Widget _notificationsScreen(NotificationsRepository repository) =>
 // ─────────────────────────────────────────────────────────────────────────────
 // offer_kyc_gate — OfferKycGateScreen + DeliveryRegisterPromptScreen
 //
-// OfferKycGateScreen exposes a `gateway` ctor seam and self-provides its
-// cubit; [FakeKycGateway] already ships in `kyc/domain/kyc_gateway.dart` for
-// exactly this purpose. DeliveryRegisterPromptScreen is fully static (no
-// cubit/repository at all) so it needs no fake.
+// OfferKycGateScreen exposes a `gateway` ctor seam and self-provides its cubit.
+// The canned gateways live in `../fixtures/offer_kyc_gate_screen_fixtures.dart`
+// (`OfferKycGateScreenFakeGateway` / `…PendingGateway` / `…FailingGateway`),
+// shared with the preview section at the bottom of the screen's own file, so
+// the catalog state a designer signs off against and the canvas an engineer
+// edits against are one set of fixtures rather than two copies free to drift.
+// They replaced a local `FakeKycGateway(initial: …)`, which could only ever
+// resolve — the LOADING and ERROR phases and the `resubmitRequested` branch of
+// `_GateStatusLine` were unreachable from this entry and are now states below.
+// Hosting goes through `OfferKycGateScreenPreviewHost` for the same reason the
+// register prompt does: all three exits call into go_router, so without a local
+// router the state paints and then throws on the first tap. `window: null`
+// keeps the real device as the frame.
+//
+// DeliveryRegisterPromptScreen is fully static in its DATA — no cubit, no
+// repository, four fixed ARB strings — but not in its ENVIRONMENT: all three of
+// its exits call into go_router (`canPop`/`pop`/`go`/`goNamed`), so this entry
+// hosts it through `DeliveryRegisterPromptScreenPreviewHost`, which supplies a
+// local router seeded the way production seeds it (stack root, nothing to pop).
+// `window: null` keeps the real device as the frame. The same host backs the
+// preview section at the bottom of the screen's own file, so the catalog state a
+// designer signs off against and the canvas an engineer edits against are one
+// set of fixtures rather than two copies free to drift.
 // ─────────────────────────────────────────────────────────────────────────────
 
-Widget _offerKycGate(KycStatus status) => OfferKycGateScreen(
-      gateway: FakeKycGateway(initial: KycSubmission(status: status)),
+Widget _offerKycGate(KycGateway gateway) => OfferKycGateScreenPreviewHost(
+      screen: OfferKycGateScreen(gateway: gateway),
+    );
+
+Widget _deliveryRegisterPrompt() =>
+    const DeliveryRegisterPromptScreenPreviewHost(
+      screen: DeliveryRegisterPromptScreen(),
     );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -374,17 +400,52 @@ List<CatalogEntry> get batch07Entries => <CatalogEntry>[
         states: <CatalogState>[
           CatalogState(
             'Not Submitted',
-            (_) => _offerKycGate(KycStatus.notSubmitted),
+            (_) => _offerKycGate(const OfferKycGateScreenFakeGateway()),
           ),
-          CatalogState('Pending', (_) => _offerKycGate(KycStatus.pending)),
-          CatalogState('Rejected', (_) => _offerKycGate(KycStatus.rejected)),
+          CatalogState(
+            'Pending',
+            (_) => _offerKycGate(
+              const OfferKycGateScreenFakeGateway(status: KycStatus.pending),
+            ),
+          ),
+          CatalogState(
+            'Rejected',
+            (_) => _offerKycGate(
+              const OfferKycGateScreenFakeGateway(status: KycStatus.rejected),
+            ),
+          ),
+          // The E19 tri-state. `_GateStatusLine` has always had a branch for it
+          // ("Resubmit your documents"); nothing on any dev surface reached it
+          // until the fixtures moved out of this file.
+          CatalogState(
+            'Resubmit Requested',
+            (_) => _offerKycGate(
+              const OfferKycGateScreenFakeGateway(
+                status: KycStatus.resubmitRequested,
+              ),
+            ),
+          ),
+          // Cold start, held open. Not a spinner: the R-F invariant means the
+          // exits and the top-up note are already up and only the optional
+          // status line is missing.
+          CatalogState(
+            'Loading',
+            (_) => _offerKycGate(const OfferKycGateScreenPendingGateway()),
+          ),
+          // `GET /v1/kyc/status` threw. The cubit degrades to "no status line",
+          // so this is byte-identical to Not Submitted — which is the point of
+          // carrying it as its own state.
+          CatalogState(
+            'Status Read Failed',
+            (_) => _offerKycGate(const OfferKycGateScreenFailingGateway()),
+          ),
         ],
       ),
       CatalogEntry(
         feature: 'offer_kyc_gate',
         screen: 'DeliveryRegisterPromptScreen',
         states: <CatalogState>[
-          CatalogState('Default', (_) => const DeliveryRegisterPromptScreen()),
+          CatalogState('Default', (_) => _deliveryRegisterPrompt()),
         ],
       ),
       CatalogEntry(

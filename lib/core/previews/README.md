@@ -187,7 +187,7 @@ just do not score.
 ## Relationship to the Screen Catalog
 
 `lib/devtool/catalog/` is the designer-facing, on-device browser of whole **screens**
-(89 screens / 274 mocked states). Previews are the engineer-facing desktop loop for
+(89 screens / 282 mocked states). Previews are the engineer-facing desktop loop for
 individual **widgets**. Both share `CatalogNetworkGuard`.
 
 Screens are **in** scope for coverage. `tool/preview_coverage.dart` used to skip any

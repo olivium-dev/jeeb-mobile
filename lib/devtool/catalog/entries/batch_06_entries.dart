@@ -30,12 +30,12 @@ import 'package:jeeb_mobile/features/live_tracking/domain/live_tracking_reposito
 import 'package:jeeb_mobile/features/live_tracking/presentation/live_tracking_screen.dart';
 
 import 'package:jeeb_mobile/features/location/cubit/location_picker_cubit.dart';
-import 'package:jeeb_mobile/features/location/data/location_repository.dart';
 import 'package:jeeb_mobile/features/location/presentation/location_picker_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/client_location_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/saved_locations_screen.dart';
 
 import '../fixtures/client_location_screen_fixtures.dart';
+import '../fixtures/location_picker_screen_fixtures.dart';
 
 import 'package:jeeb_mobile/features/masked_call/application/masked_call_cubit.dart';
 import 'package:jeeb_mobile/features/masked_call/presentation/masked_call_button.dart';
@@ -194,38 +194,28 @@ final CatalogEntry _liveTrackingEntry = CatalogEntry(
 // location — LocationPickerScreen (pickup → dropoff → done)
 // ─────────────────────────────────────────────────────────────────────────
 
-/// Drives the REAL [LocationPickerCubit] through its own public methods over
-/// the shipped [InMemoryLocationRepository] (already the DI default until the
-/// gateway endpoints land — no network, fixed in-process catalogue) to reach
-/// each designed step. Fire-and-forget: the short in-memory delays (60-150ms)
-/// settle well before a reviewer looks at the preview.
-LocationPickerCubit _seededLocationPickerCubit({
-  required bool advanceToDropoff,
-  required bool advanceToDone,
-}) {
-  final cubit = LocationPickerCubit(repository: InMemoryLocationRepository());
-  if (advanceToDropoff || advanceToDone) {
-    unawaited(() async {
-      await cubit.detectCurrentLocation();
-      await cubit.confirmAndContinue(); // pickup -> dropoff
-      if (advanceToDone) {
-        await cubit.detectCurrentLocation();
-        await cubit.confirmAndContinue(); // dropoff -> done (saved)
-      }
-    }());
-  }
-  return cubit;
-}
+// The seeds moved to `../fixtures/location_picker_screen_fixtures.dart`, shared
+// verbatim with the JEEB PREVIEWS section at the bottom of
+// `location_picker_screen.dart`, so the catalog state a designer signs off and
+// the canvas state an engineer edits cannot drift apart.
+//
+// One thing changed with the move: the seed no longer runs on
+// `InMemoryLocationRepository`. That repository answers every call after a
+// 60-150 ms delay, so each state used to be "whatever the cubit had reached by
+// the time you opened it"; the fixtures drive the cubit through the calls that
+// emit SYNCHRONOUSLY, so the screen is in its designed state on the first frame.
+// Same three states, same Beirut addresses, same rendering.
+//
+// `mapPickerLauncher:` stays null here, which is what hides the "Pin on map"
+// button and gives "Use current GPS" the full width. That is deliberate and
+// shared with the preview section: the two-button Row overflows a 390 pt phone
+// by 100 + 29 pt in English and 154 + 168 pt in Arabic, so exactly one surface
+// installs [LocationPickerScreenFixtures.mapPicker] — the preview that exists to
+// show that overflow (`locationPickerScreenMapPinRow`).
 
-Widget _locationPickerPreview({
-  required bool advanceToDropoff,
-  required bool advanceToDone,
-}) {
+Widget _locationPickerPreview(LocationPickerCubit cubit) {
   return LocationPickerScreen(
-    cubit: _seededLocationPickerCubit(
-      advanceToDropoff: advanceToDropoff,
-      advanceToDone: advanceToDone,
-    ),
+    cubit: cubit,
     onCompleted: (_) {}, // safe no-op — never pops the catalog preview route.
   );
 }
@@ -237,22 +227,19 @@ final CatalogEntry _locationPickerEntry = CatalogEntry(
     CatalogState(
       'Pickup — no selection',
       (_) => _locationPickerPreview(
-        advanceToDropoff: false,
-        advanceToDone: false,
+        LocationPickerScreenFixtures.pickupNoSelection(),
       ),
     ),
     CatalogState(
       'Dropoff — pickup confirmed',
       (_) => _locationPickerPreview(
-        advanceToDropoff: true,
-        advanceToDone: false,
+        LocationPickerScreenFixtures.dropoffPickupConfirmed(),
       ),
     ),
     CatalogState(
       'Confirmed (done)',
       (_) => _locationPickerPreview(
-        advanceToDropoff: true,
-        advanceToDone: true,
+        LocationPickerScreenFixtures.confirmedPair(),
       ),
     ),
   ],
