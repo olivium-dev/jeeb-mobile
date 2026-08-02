@@ -94,7 +94,18 @@ import '../../tool/preview_inventory.dart';
 /// Screen Catalog is unchanged at 89 screens / 288 states, entry-for-entry and
 /// label-for-label. The remaining 11 are all screens; `LiveSettingsScreen` is
 /// still the one BLOCKED entry and does not count here.
-const int _coverageFloor = 11;
+///
+/// 11 → 4: the screens wave that previewed `OtpHandoverScreen`,
+/// `PasswordSecurityScreen`, `DisplayNameSetupScreen`,
+/// `ProhibitedItemReportScreen`, `RequestTypeScreen`, `ReviewsListScreen` and
+/// `ShellScreen` (226/231). All seven extracted their catalog fixtures into
+/// `lib/devtool/catalog/fixtures/` and repointed both surfaces; the Screen
+/// Catalog is unchanged at 89 screens / 288 states, entry-for-entry and
+/// label-for-label. The remaining 4 are all screens — `SupportTicketScreen`,
+/// `TierSelectionScreen`, `TranscriptionScreen`, `VoiceRequestScreen` — and
+/// `LiveSettingsScreen` is still the one BLOCKED entry, which does not count
+/// here.
+const int _coverageFloor = 4;
 
 /// Whole-word identifier match — `_hosted` must not match `_hostedFoo`.
 bool _referencesName(String haystack, String name) => RegExp(

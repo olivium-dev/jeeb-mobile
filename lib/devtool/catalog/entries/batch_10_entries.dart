@@ -21,19 +21,17 @@ import '../../../features/settings/presentation/widgets/logout_delete_confirm_sh
 import '../../../features/settlement/domain/settlement_repository.dart';
 import '../../../features/settlement/presentation/settlement_detail_screen.dart';
 import '../../../features/settlement/presentation/settlement_screen.dart';
-import '../../../features/tier_selection/cubit/tier_selection_cubit.dart';
-import '../../../features/tier_selection/data/tier_repository.dart';
-import '../../../features/tier_selection/domain/tier.dart';
 import '../catalog_models.dart';
 import '../fixtures/notification_preferences_screen_fixtures.dart';
 import '../fixtures/profile_edit_screen_fixtures.dart';
 import '../fixtures/request_summary_screen_fixtures.dart';
 import '../fixtures/request_summary_unavailable_screen_fixtures.dart';
+import '../fixtures/request_type_screen_fixtures.dart';
+import '../fixtures/reviews_list_screen_fixtures.dart';
 import '../fixtures/saved_addresses_screen_fixtures.dart';
 import '../fixtures/settlement_detail_screen_fixtures.dart';
 import '../fixtures/settlement_screen_fixtures.dart';
 import '../fixtures/settings_screen_fixtures.dart';
-import '../tier_catalog_fixture.dart';
 
 // Batch 10 — request_summary, request_type, reviews, search, settings,
 // settlement. `live_settings_screen.dart` is SKIPPED (see bottom of file): it
@@ -77,99 +75,30 @@ Widget _requestSummaryScreen(
 // `cubit` are existing constructor test seams (§5.4) — no seam addition
 // needed. The loaded previews use the delivery-service's current three-tier
 // contract rather than the wider legacy fake catalog.
+//
+// The stalled repository and the pre-selected cubit used to live here. They now
+// live in `../fixtures/request_type_screen_fixtures.dart`, which the JEEB
+// PREVIEWS section of `request_type_screen.dart` reads too — so these three
+// designed states and the engineer-facing canvas cannot drift apart. The states
+// below are unchanged: same labels, same catalogue, same selected tier.
 // ─────────────────────────────────────────────────────────────────────────────
-
-/// Never resolves — keeps the screen on its centered spinner for a stable
-/// "Loading" catalog state.
-class _PendingTierRepository implements TierRepository {
-  const _PendingTierRepository();
-
-  @override
-  Future<List<Tier>> fetchTiers() => Completer<List<Tier>>().future;
-}
-
-/// Drives the cubit to a loaded state with [select] chosen, via the same
-/// "load, then act once it resolves" trick as the `otp_handover` escalate
-/// preview (batch 08) — `selectTier` is a no-op until `load()` has landed.
-TierSelectionCubit _selectedTierCubit(TierId select) {
-  final cubit = TierSelectionCubit(repository: const DevtoolTierRepository());
-  unawaited(cubit.load().then((_) => cubit.selectTier(select)));
-  return cubit;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // reviews — the all-reviews list (ReviewsListScreen, JM-068). `jeeberId` +
 // `repository` are existing constructor test seams (§5.4).
+//
+// The three fakes these states used to declare here — never-resolves, throws a
+// typed failure, D59 cold start — now live in
+// `../fixtures/reviews_list_screen_fixtures.dart`, which the JEEB PREVIEWS
+// section at the bottom of `reviews_list_screen.dart` reads too, so the
+// designer's in-app browser and the engineer's canvas cannot drift into showing
+// two different "designed states". The states below are unchanged: same labels,
+// same jeeber id, same three behaviours, same cold-start row.
+//
+// `StubReviewsRepository` and `EmptyReviewsRepository` stayed where they are —
+// they are shipping app code, not fixtures, so there is nothing to extract and
+// nothing that can drift.
 // ─────────────────────────────────────────────────────────────────────────────
-
-const String _reviewsJeeberId = 'jeeber-042';
-
-/// Never resolves — keeps the screen on the first-load skeletons (D73).
-class _PendingReviewsRepository implements ReviewsRepository {
-  const _PendingReviewsRepository();
-
-  @override
-  Future<ReviewsPage> fetchReviews({
-    required String jeeberId,
-    int page = 1,
-    int pageSize = 20,
-  }) {
-    return Completer<ReviewsPage>().future;
-  }
-
-  @override
-  Future<void> reportReview(String reviewId) => Completer<void>().future;
-}
-
-class _FailingReviewsRepository implements ReviewsRepository {
-  const _FailingReviewsRepository(this.failure);
-
-  final ReviewsFailure failure;
-
-  @override
-  Future<ReviewsPage> fetchReviews({
-    required String jeeberId,
-    int page = 1,
-    int pageSize = 20,
-  }) async {
-    throw ReviewsRepositoryException(failure);
-  }
-
-  @override
-  Future<void> reportReview(String reviewId) async {}
-}
-
-/// D59 cold-start posture: < 5 ratings hides the aggregate score behind the
-/// "New" badge while the individual row still renders.
-class _ColdStartReviewsRepository implements ReviewsRepository {
-  const _ColdStartReviewsRepository();
-
-  @override
-  Future<ReviewsPage> fetchReviews({
-    required String jeeberId,
-    int page = 1,
-    int pageSize = 20,
-  }) async {
-    return const ReviewsPage(
-      reviews: [
-        ReviewItem(
-          id: 'review-101',
-          reviewerFirstName: 'Nour',
-          score: 5,
-          timestamp: '2026-06-30T10:00:00.000Z',
-          body: 'Great first delivery!',
-        ),
-      ],
-      page: 1,
-      totalPages: 1,
-      coldStart: true,
-      reviewCount: 1,
-    );
-  }
-
-  @override
-  Future<void> reportReview(String reviewId) async {}
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // settings — SettingsScreen. `cubit` is an existing constructor test seam, and
@@ -332,15 +261,23 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
     states: [
       CatalogState(
         'Loading',
-        (_) => const RequestTypeScreen(repository: _PendingTierRepository()),
+        (_) => RequestTypeScreen(
+          repository: RequestTypeScreenPreviewFixtures.stalled(),
+        ),
       ),
       CatalogState(
         'Loaded — no selection',
-        (_) => const RequestTypeScreen(repository: DevtoolTierRepository()),
+        (_) => RequestTypeScreen(
+          repository: RequestTypeScreenPreviewFixtures.servedCatalogue(),
+        ),
       ),
       CatalogState(
         'Selected — Standard',
-        (_) => RequestTypeScreen(cubit: _selectedTierCubit(TierId.standard)),
+        (_) => RequestTypeScreen(
+          cubit: RequestTypeScreenPreviewFixtures.selectedTierCubit(
+            RequestTypeScreenPreviewFixtures.selectedTier,
+          ),
+        ),
       ),
     ],
   ),
@@ -351,36 +288,38 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
       CatalogState(
         'Loading',
         (_) => const ReviewsListScreen(
-          jeeberId: _reviewsJeeberId,
-          repository: _PendingReviewsRepository(),
+          jeeberId: reviewsListScreenJeeberId,
+          repository: ReviewsListScreenPendingRepository(),
         ),
       ),
       CatalogState(
         'Populated',
         (_) => const ReviewsListScreen(
-          jeeberId: _reviewsJeeberId,
+          jeeberId: reviewsListScreenJeeberId,
           repository: StubReviewsRepository(),
         ),
       ),
       CatalogState(
         'Cold-start — New Jeeber',
         (_) => const ReviewsListScreen(
-          jeeberId: _reviewsJeeberId,
-          repository: _ColdStartReviewsRepository(),
+          jeeberId: reviewsListScreenJeeberId,
+          repository: ReviewsListScreenColdStartRepository(),
         ),
       ),
       CatalogState(
         'Empty',
         (_) => const ReviewsListScreen(
-          jeeberId: _reviewsJeeberId,
+          jeeberId: reviewsListScreenJeeberId,
           repository: EmptyReviewsRepository(),
         ),
       ),
       CatalogState(
         'Error — Network',
         (_) => const ReviewsListScreen(
-          jeeberId: _reviewsJeeberId,
-          repository: _FailingReviewsRepository(ReviewsFailure.network),
+          jeeberId: reviewsListScreenJeeberId,
+          repository: ReviewsListScreenFailingRepository(
+            ReviewsFailure.network,
+          ),
         ),
       ),
     ],

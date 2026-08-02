@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -11,14 +9,14 @@ import '../../../features/order_summary/presentation/order_summary_screen.dart';
 import '../../../features/otp_handover/application/otp_handover_cubit.dart';
 import '../../../features/otp_handover/domain/handover_code_store.dart';
 import '../../../features/otp_handover/domain/otp_handover_repository.dart';
-import '../../../features/otp_handover/domain/otp_handover_result.dart';
 import '../../../features/otp_handover/presentation/otp_handover_screen.dart';
-import '../../../features/password_security/application/password_security_cubit.dart';
 import '../../../features/password_security/presentation/password_security_screen.dart';
 import '../catalog_models.dart';
 import '../fixtures/onboarding_screen_fixtures.dart';
 import '../fixtures/order_history_screen_fixtures.dart';
 import '../fixtures/order_summary_screen_fixtures.dart';
+import '../fixtures/otp_handover_screen_fixtures.dart';
+import '../fixtures/password_security_screen_fixtures.dart';
 
 // Batch 08 — onboarding, order_history, order_summary, otp_handover,
 // password_security. `photo_attachment` is SKIPPED (see bottom of file): it is
@@ -103,90 +101,32 @@ Widget _orderSummaryScreen(OrderSummaryScreenDesignedState state) {
 // mode; the wrong-code / escalate / success states use the SAME "drive the
 // cubit once in `create:`" trick the production `OrderSummaryScreen` already
 // uses (its `cubitFactory` calls `cubit.load()` before returning).
+//
+// The fakes, the delivery id and the drives moved to
+// `../fixtures/otp_handover_screen_fixtures.dart`, shared verbatim with the JEEB
+// PREVIEWS section at the bottom of `otp_handover_screen.dart`. Same seven
+// states, same labels, same behaviour — one copy, so the designer's in-app
+// browser and the engineer's canvas cannot drift into showing two different
+// "Jeeber — Wrong Code".
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _FakeOtpHandoverRepository implements OtpHandoverRepository {
-  const _FakeOtpHandoverRepository({
-    this.fetchResult,
-    this.fetchErrorKind,
-    this.submitErrorKind,
-  });
-
-  final OtpFetchResult? fetchResult;
-  final OtpHandoverErrorKind? fetchErrorKind;
-  final OtpHandoverErrorKind? submitErrorKind;
-
-  @override
-  Future<OtpFetchResult> fetchHandoverCode({required String deliveryId}) async {
-    final kind = fetchErrorKind;
-    if (kind != null) {
-      throw OtpHandoverException(kind);
-    }
-    return fetchResult ?? const OtpFetchResult(smsTriggered: true);
-  }
-
-  @override
-  Future<OtpHandoverResult> submitOtp({
-    required String deliveryId,
-    required String otp,
-  }) async {
-    final kind = submitErrorKind;
-    if (kind != null) {
-      throw OtpHandoverException(kind);
-    }
-    return const OtpHandoverResult(success: true);
-  }
-}
-
-/// In-memory [HandoverCodeStore] test seam — seeded with [_code] (or empty),
-/// mutated in place by the cubit's save/clear calls.
-class _InMemoryHandoverCodeStore implements HandoverCodeStore {
-  _InMemoryHandoverCodeStore([this._code]);
-
-  String? _code;
-
-  @override
-  Future<void> save({required String deliveryId, required String code}) async {
-    _code = code;
-  }
-
-  @override
-  Future<String?> read({required String deliveryId}) async => _code;
-
-  @override
-  Future<void> clear({required String deliveryId}) async {
-    _code = null;
-  }
-}
-
-/// Drives three sequential wrong-code submits (each awaited so the cubit's
-/// re-entry guard sees `ready` again before the next call) to reach the
-/// AC4 escalate state.
-Future<void> _driveEscalate(OtpHandoverCubit cubit) async {
-  for (var i = 0; i < 3; i++) {
-    await cubit.submitOtp('0000');
-  }
-}
 
 Widget _otpHandoverScreen({
   required bool isClient,
   required OtpHandoverRepository repository,
   HandoverCodeStore? codeStore,
-  void Function(OtpHandoverCubit cubit)? drive,
+  Future<void> Function(OtpHandoverCubit cubit)? drive,
 }) {
-  const deliveryId = 'DEL-3091';
   return BlocProvider<OtpHandoverCubit>(
-    create: (_) {
-      final cubit = OtpHandoverCubit(
-        repository: repository,
-        deliveryId: deliveryId,
-        isClient: isClient,
-        codeStore: codeStore,
-      );
-      drive?.call(cubit);
-      return cubit;
-    },
-    child: OtpHandoverScreen(deliveryId: deliveryId, isClient: isClient),
+    create: (_) => OtpHandoverScreenPreviewFixtures.cubit(
+      isClient: isClient,
+      repository: repository,
+      codeStore: codeStore,
+      drive: drive,
+    ),
+    child: OtpHandoverScreen(
+      deliveryId: OtpHandoverScreenPreviewFixtures.deliveryId,
+      isClient: isClient,
+    ),
   );
 }
 
@@ -195,17 +135,15 @@ Widget _otpHandoverScreen({
 // (B-33: local validation only) — `PasswordSecurityCubit.submit` is
 // synchronous, so pre-seeding an error state is just calling it once before
 // the cubit is returned from `cubitFactory`.
+//
+// The two seeded cubits moved to
+// `../fixtures/password_security_screen_fixtures.dart`, shared verbatim with
+// the preview section at the bottom of `password_security_screen.dart`, so the
+// designer's browser and the engineer's canvas cannot show two different
+// "Mismatch Error". Same states, same labels, same strings fed to `submit` —
+// `_weakPasswordCubit` is now `passwordSecurityScreenWeakCubit` and
+// `_mismatchPasswordCubit` is `passwordSecurityScreenMismatchCubit`.
 // ─────────────────────────────────────────────────────────────────────────────
-
-PasswordSecurityCubit _weakPasswordCubit() => PasswordSecurityCubit()
-  ..submit(current: 'OldPass1', newPassword: 'weak', confirm: 'weak');
-
-PasswordSecurityCubit _mismatchPasswordCubit() => PasswordSecurityCubit()
-  ..submit(
-    current: 'OldPass1',
-    newPassword: 'NewPass123',
-    confirm: 'Mismatch123',
-  );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Catalog entries
@@ -286,61 +224,53 @@ List<CatalogEntry> get batch08Entries => <CatalogEntry>[
             'Client — Code Ready',
             (_) => _otpHandoverScreen(
               isClient: true,
-              repository: const _FakeOtpHandoverRepository(),
-              codeStore: _InMemoryHandoverCodeStore('4821'),
+              repository: OtpHandoverScreenPreviewFixtures.accepting(),
+              codeStore: OtpHandoverScreenPreviewFixtures.codeStore(),
             ),
           ),
           CatalogState(
             'Client — SMS Fallback',
             (_) => _otpHandoverScreen(
               isClient: true,
-              repository: const _FakeOtpHandoverRepository(
-                fetchResult: OtpFetchResult(smsTriggered: true),
-              ),
+              repository: OtpHandoverScreenPreviewFixtures.accepting(),
             ),
           ),
           CatalogState(
             'Client — Load Error',
             (_) => _otpHandoverScreen(
               isClient: true,
-              repository: const _FakeOtpHandoverRepository(
-                fetchErrorKind: OtpHandoverErrorKind.network,
-              ),
+              repository: OtpHandoverScreenPreviewFixtures.failingFetch(),
             ),
           ),
           CatalogState(
             'Jeeber — Code Entry',
             (_) => _otpHandoverScreen(
               isClient: false,
-              repository: const _FakeOtpHandoverRepository(),
+              repository: OtpHandoverScreenPreviewFixtures.accepting(),
             ),
           ),
           CatalogState(
             'Jeeber — Wrong Code',
             (_) => _otpHandoverScreen(
               isClient: false,
-              repository: const _FakeOtpHandoverRepository(
-                submitErrorKind: OtpHandoverErrorKind.invalidOtp,
-              ),
-              drive: (cubit) => cubit.submitOtp('0000'),
+              repository: OtpHandoverScreenPreviewFixtures.rejectingSubmit(),
+              drive: OtpHandoverScreenPreviewFixtures.driveWrongCode,
             ),
           ),
           CatalogState(
             'Jeeber — Escalated (Locked)',
             (_) => _otpHandoverScreen(
               isClient: false,
-              repository: const _FakeOtpHandoverRepository(
-                submitErrorKind: OtpHandoverErrorKind.invalidOtp,
-              ),
-              drive: (cubit) => unawaited(_driveEscalate(cubit)),
+              repository: OtpHandoverScreenPreviewFixtures.rejectingSubmit(),
+              drive: OtpHandoverScreenPreviewFixtures.driveToEscalation,
             ),
           ),
           CatalogState(
             'Jeeber — Success',
             (_) => _otpHandoverScreen(
               isClient: false,
-              repository: const _FakeOtpHandoverRepository(),
-              drive: (cubit) => cubit.submitOtp('1234'),
+              repository: OtpHandoverScreenPreviewFixtures.accepting(),
+              drive: OtpHandoverScreenPreviewFixtures.driveSuccessfulSubmit,
             ),
           ),
         ],
@@ -359,11 +289,15 @@ List<CatalogEntry> get batch08Entries => <CatalogEntry>[
           ),
           CatalogState(
             'Strength Error',
-            (_) => const PasswordSecurityScreen(cubitFactory: _weakPasswordCubit),
+            (_) => const PasswordSecurityScreen(
+              cubitFactory: passwordSecurityScreenWeakCubit,
+            ),
           ),
           CatalogState(
             'Mismatch Error',
-            (_) => const PasswordSecurityScreen(cubitFactory: _mismatchPasswordCubit),
+            (_) => const PasswordSecurityScreen(
+              cubitFactory: passwordSecurityScreenMismatchCubit,
+            ),
           ),
         ],
       ),

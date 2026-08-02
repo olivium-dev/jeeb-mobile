@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/network/auth_token_store.dart';
-import '../../../features/profile_name/application/display_name_cubit.dart';
-import '../../../features/profile_name/domain/display_name_repository.dart';
 import '../../../features/profile_name/presentation/display_name_setup_screen.dart';
 import '../../../features/prohibited_acknowledgment/domain/prohibited_acknowledgment_repository.dart';
 import '../../../features/prohibited_acknowledgment/domain/prohibited_item.dart';
@@ -23,8 +21,10 @@ import '../../../features/registration/presentation/super_login/super_login_cubi
 import '../../../features/registration/presentation/super_login/super_login_picker.dart';
 import '../../../features/registration/presentation/super_login/super_login_sheet.dart';
 import '../catalog_models.dart';
+import '../fixtures/display_name_setup_screen_fixtures.dart';
 import '../fixtures/mutual_rating_screen_fixtures.dart';
 import '../fixtures/otp_verification_screen_fixtures.dart';
+import '../fixtures/prohibited_item_report_screen_fixtures.dart';
 import '../fixtures/rating_screen_fixtures.dart';
 import '../fixtures/registration_screen_fixtures.dart';
 
@@ -74,47 +74,28 @@ List<CatalogEntry> get batch09Entries => <CatalogEntry>[
 // `repository`/`refreshSignals`).
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _FakeDisplayNameRepository implements DisplayNameRepository {
-  const _FakeDisplayNameRepository();
+// The fakes and the driven cubits moved to
+// `../fixtures/display_name_setup_screen_fixtures.dart`, shared verbatim with
+// the JEEB PREVIEWS section at the bottom of `display_name_setup_screen.dart`,
+// so the catalog state a designer signs off and the canvas state an engineer
+// edits cannot drift apart. Same three states, same labels, same rendering.
+//
+// One thing DID change with the extraction: the failure state used to call
+// `submit()` on the cubit before the screen was built and rely on the rejected
+// future landing after the mount. That holds inside a synchronous `build()`
+// (here) and not under `WidgetTester.pumpWidget`, where the error snackbar
+// silently never appeared. `DisplayNameSetupScreenPreviewDriver` fires the
+// submit from a post-frame callback instead, so the `saving → failure`
+// transition the screen's listener needs is deterministic on both surfaces.
 
-  @override
-  Future<void> submitDisplayName(String name) async {}
-}
-
-/// Never resolves — keeps the cubit pinned on `saving` for a stable catalog
-/// state (mirrors `_PendingOrderRepository` in batch 08).
-class _PendingDisplayNameRepository implements DisplayNameRepository {
-  const _PendingDisplayNameRepository();
-
-  @override
-  Future<void> submitDisplayName(String name) => Completer<void>().future;
-}
-
-class _ThrowingDisplayNameRepository implements DisplayNameRepository {
-  const _ThrowingDisplayNameRepository();
-
-  @override
-  Future<void> submitDisplayName(String name) async {
-    throw const DisplayNameRepositoryException(DisplayNameFailure.network);
-  }
-}
-
-/// `submit` emits `saving` synchronously (before its first `await`), so
-/// calling it un-awaited against a repository that never resolves leaves the
-/// cubit pinned on the `saving` state by the time this returns.
-DisplayNameCubit _savingDisplayNameCubit() {
-  final cubit = DisplayNameCubit(repository: const _PendingDisplayNameRepository());
-  cubit.submit('Ahmad Khaled');
-  return cubit;
-}
-
-/// Fires the (rejected) submit and lets the cubit settle into `failure`
-/// reactively once the throwing repository's future rejects — the
-/// `BlocConsumer` inside the screen picks up that emission live.
-DisplayNameCubit _failedDisplayNameCubit() {
-  final cubit = DisplayNameCubit(repository: const _ThrowingDisplayNameRepository());
-  cubit.submit('Ahmad Khaled');
-  return cubit;
+/// The failure state: the screen over a cubit whose PUT is fired one frame
+/// after mount and rejects.
+Widget _displayNameSetupFailurePreview() {
+  final cubit = DisplayNameSetupScreenPreviewFixtures.rejecting();
+  return DisplayNameSetupScreenPreviewDriver(
+    cubit: cubit,
+    child: DisplayNameSetupScreen(onDone: () {}, cubit: cubit),
+  );
 }
 
 final CatalogEntry _displayNameSetupScreenEntry = CatalogEntry(
@@ -125,22 +106,19 @@ final CatalogEntry _displayNameSetupScreenEntry = CatalogEntry(
       'Idle — Empty',
       (_) => DisplayNameSetupScreen(
         onDone: () {},
-        repository: const _FakeDisplayNameRepository(),
+        repository: DisplayNameSetupScreenPreviewFixtures.accepting,
       ),
     ),
     CatalogState(
       'Saving',
       (_) => DisplayNameSetupScreen(
         onDone: () {},
-        cubit: _savingDisplayNameCubit(),
+        cubit: DisplayNameSetupScreenPreviewFixtures.saving(),
       ),
     ),
     CatalogState(
       'Error — Save Failed',
-      (_) => DisplayNameSetupScreen(
-        onDone: () {},
-        cubit: _failedDisplayNameCubit(),
-      ),
+      (_) => _displayNameSetupFailurePreview(),
     ),
   ],
 );
@@ -272,6 +250,12 @@ final CatalogEntry _prohibitedAcknowledgmentDialogEntry = CatalogEntry(
 // The description field only ever seeds empty in production; the additive
 // `initialDescription` seam (this batch) lets the catalog preview the
 // CTA-enabled designed state too.
+//
+// The two designed states below now come from
+// `../fixtures/prohibited_item_report_screen_fixtures.dart`, shared verbatim
+// with the preview section at the bottom of the screen's own source, so the
+// states a designer signs off here and the states an engineer sees in the
+// canvas cannot drift apart. Labels and count are unchanged.
 // ─────────────────────────────────────────────────────────────────────────────
 
 final CatalogEntry _prohibitedItemReportScreenEntry = CatalogEntry(
@@ -280,14 +264,18 @@ final CatalogEntry _prohibitedItemReportScreenEntry = CatalogEntry(
   states: [
     CatalogState(
       'Empty — Report CTA Disabled',
-      (_) => const ProhibitedItemReportScreen(requestId: 'REQ-7742'),
+      (_) => ProhibitedItemReportScreen(
+        requestId: ProhibitedItemReportScreenPreviewFixtures.requestId,
+        initialDescription:
+            ProhibitedItemReportScreenPreviewFixtures.empty.description,
+      ),
     ),
     CatalogState(
       'Filled — Ready to Report',
-      (_) => const ProhibitedItemReportScreen(
-        requestId: 'REQ-7742',
+      (_) => ProhibitedItemReportScreen(
+        requestId: ProhibitedItemReportScreenPreviewFixtures.requestId,
         initialDescription:
-            'Client asked me to carry an unsealed bottle of liquor.',
+            ProhibitedItemReportScreenPreviewFixtures.filled.description,
       ),
     ),
   ],

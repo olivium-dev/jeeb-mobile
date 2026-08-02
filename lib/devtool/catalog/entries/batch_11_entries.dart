@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../../../features/home_client/data/dev_client_home_fixtures.dart';
 import '../../../features/home_client/data/in_memory_client_home_repository.dart';
-import '../../../features/order_history/domain/order_repository.dart';
-import '../../../features/order_history/domain/order_summary.dart';
 import '../../../features/shell/shell_screen.dart';
 import '../../../features/shell/tabs/earnings_tab.dart';
 import '../../../features/shell/tabs/home_tab.dart';
@@ -32,6 +30,7 @@ import '../../../features/wallet/presentation/wallet_activity_list_screen.dart';
 import '../../../features/wallet/presentation/wallet_charge_info_screen.dart';
 import '../../../features/wallet/presentation/wallet_hub_screen.dart';
 import '../catalog_models.dart';
+import '../fixtures/shell_screen_fixtures.dart';
 import '../fixtures/transaction_detail_screen_fixtures.dart';
 import '../fixtures/voice_recording_screen_fixtures.dart';
 import '../fixtures/wallet_activity_list_screen_fixtures.dart';
@@ -154,102 +153,23 @@ final CatalogEntry _ordersTabEntry = CatalogEntry(
     CatalogState(
       'Populated — active / completed / cancelled orders',
       (_) => _tabPreview(
-        OrdersTab(repository: _StaticOrderRepository(_sampleOrderPages())),
+        OrdersTab(repository: ShellScreenPreviewFixtures.populatedOrders()),
       ),
     ),
     CatalogState(
       'Empty — no orders yet',
-      (_) => _tabPreview(const OrdersTab(repository: _EmptyOrderRepository())),
+      (_) => _tabPreview(
+        const OrdersTab(repository: ShellScreenEmptyOrderRepository()),
+      ),
     ),
     CatalogState(
       'Error — load failed',
-      (_) =>
-          _tabPreview(const OrdersTab(repository: _FailingOrderRepository())),
+      (_) => _tabPreview(
+        const OrdersTab(repository: ShellScreenFailingOrderRepository()),
+      ),
     ),
   ],
 );
-
-Map<OrderHistoryTab, OrderPage> _sampleOrderPages() => {
-  OrderHistoryTab.active: OrderPage(
-    items: [
-      OrderSummary(
-        id: 'req-9001',
-        createdAt: DateTime.utc(2026, 7, 1, 9, 30),
-        pickupAddress: 'Hamra, Beirut',
-        dropoffAddress: 'Achrafieh, Beirut',
-        status: OrderRequestStatus.enRoute,
-        tier: OrderTier.flash,
-        amountMinor: 1500,
-        currency: 'USD',
-      ),
-    ],
-    page: 1,
-    hasMore: false,
-  ),
-  OrderHistoryTab.completed: OrderPage(
-    items: [
-      OrderSummary(
-        id: 'req-8890',
-        createdAt: DateTime.utc(2026, 6, 20, 14, 0),
-        pickupAddress: 'Verdun, Beirut',
-        dropoffAddress: 'Mar Mikhael, Beirut',
-        status: OrderRequestStatus.delivered,
-        tier: OrderTier.standard,
-        amountMinor: 900,
-        currency: 'USD',
-      ),
-    ],
-    page: 1,
-    hasMore: false,
-  ),
-  OrderHistoryTab.cancelled: const OrderPage(
-    items: [],
-    page: 1,
-    hasMore: false,
-  ),
-};
-
-class _StaticOrderRepository implements OrderRepository {
-  const _StaticOrderRepository(this._pages);
-
-  final Map<OrderHistoryTab, OrderPage> _pages;
-
-  @override
-  Future<OrderPage> fetchPage({
-    required OrderHistoryTab tab,
-    required int page,
-    required int pageSize,
-    OrderDateRange range = const OrderDateRange(),
-  }) async {
-    return _pages[tab] ?? const OrderPage(items: [], page: 1, hasMore: false);
-  }
-}
-
-class _EmptyOrderRepository implements OrderRepository {
-  const _EmptyOrderRepository();
-
-  @override
-  Future<OrderPage> fetchPage({
-    required OrderHistoryTab tab,
-    required int page,
-    required int pageSize,
-    OrderDateRange range = const OrderDateRange(),
-  }) async => const OrderPage(items: [], page: 1, hasMore: false);
-}
-
-class _FailingOrderRepository implements OrderRepository {
-  const _FailingOrderRepository();
-
-  @override
-  Future<OrderPage> fetchPage({
-    required OrderHistoryTab tab,
-    required int page,
-    required int pageSize,
-    OrderDateRange range = const OrderDateRange(),
-  }) async {
-    throw const OrderRepositoryException(OrderRepositoryErrorKind.network);
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────
 // shell — EarningsTab (jeeber Earnings tab body)
@@ -281,6 +201,11 @@ final CatalogEntry _earningsTabEntry = CatalogEntry(
 // the regular (non-jeeber) landing every user sees before a jeeber-role
 // resolution. The jeeber-content branch (Dashboard/Earnings tabs' LIVE
 // bodies) is intentionally not exercised here — see the skip note.
+//
+// Both fakes come from
+// `lib/devtool/catalog/fixtures/shell_screen_fixtures.dart`, shared with the
+// JEEB PREVIEWS section at the bottom of `lib/features/shell/shell_screen.dart`
+// so the catalog and the preview canvas cannot show two different `req-9001`.
 final CatalogEntry _shellScreenEntry = CatalogEntry(
   feature: 'shell',
   screen: 'ShellScreen',
@@ -288,17 +213,15 @@ final CatalogEntry _shellScreenEntry = CatalogEntry(
     CatalogState(
       'Client landing — populated Requests + Delivery',
       (_) => ShellScreen(
-        homeRepository: InMemoryClientHomeRepository.fromSnapshot(
-          DevClientHomeFixtures.snapshot(),
-        ),
-        ordersRepository: _StaticOrderRepository(_sampleOrderPages()),
+        homeRepository: ShellScreenPreviewFixtures.populatedHome(),
+        ordersRepository: ShellScreenPreviewFixtures.populatedOrders(),
       ),
     ),
     CatalogState(
       'Client landing — empty everywhere',
       (_) => ShellScreen(
-        homeRepository: InMemoryClientHomeRepository(),
-        ordersRepository: const _EmptyOrderRepository(),
+        homeRepository: ShellScreenPreviewFixtures.emptyHome(),
+        ordersRepository: const ShellScreenEmptyOrderRepository(),
       ),
     ),
   ],
