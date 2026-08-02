@@ -29,6 +29,7 @@ import '../../../features/earnings/presentation/earnings_dashboard_screen.dart';
 import '../catalog_models.dart';
 import '../fixtures/chat_detail_screen_fixtures.dart';
 import '../fixtures/delivery_detail_screen_fixtures.dart';
+import '../fixtures/kyc_status_screen_fixtures.dart';
 
 /// DT-04 / F2 batch 3 — deep_link_targets, delivery_man_profile,
 /// delivery_receipt, delivery_status, dispute_status, earnings.
@@ -174,12 +175,36 @@ final List<CatalogEntry> _deliveryDetailEntries = <CatalogEntry>[
 ];
 
 /// `KycStatusScreen` — restored placeholder (no behavior, no network).
+///
+/// The screen has no data axis to seed, so its designed states are WINDOWS:
+/// how wide, how tall, how much of the display the system chrome has claimed,
+/// and how large the user has set their text. Those windows live in
+/// `../fixtures/kyc_status_screen_fixtures.dart` and are shared verbatim with
+/// the JEEB PREVIEWS section at the bottom of the screen's own file, so this
+/// catalog and the preview canvas cannot drift apart.
+///
+/// `Placeholder` renders at the real device size (the device IS the window);
+/// the rest frame a simulated display inside it, captioned, so a reviewer can
+/// see the small-screen and 200%-text renderings without owning six phones.
 final List<CatalogEntry> _kycStatusEntries = <CatalogEntry>[
   CatalogEntry(
     feature: 'deep_link_targets',
     screen: 'KycStatusScreen',
     states: [
-      CatalogState('Placeholder', (context) => const KycStatusScreen()),
+      CatalogState(
+        'Placeholder',
+        (context) => const KycStatusScreenPreviewHost(
+          screen: KycStatusScreen(),
+        ),
+      ),
+      for (final KycStatusScreenWindow window in KycStatusScreenWindows.all)
+        CatalogState(
+          window.label,
+          (context) => KycStatusScreenPreviewHost(
+            window: window,
+            screen: const KycStatusScreen(),
+          ),
+        ),
     ],
   ),
 ];

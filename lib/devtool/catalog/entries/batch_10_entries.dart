@@ -2,10 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../core/locale/locale_cubit.dart';
-import '../../../features/notification_prefs/domain/notification_prefs_model.dart';
 import '../../../features/notification_prefs/domain/notification_prefs_repository.dart';
 import '../../../features/request_summary/application/request_summary_cubit.dart';
 import '../../../features/request_summary/domain/request_draft.dart';
@@ -18,13 +15,10 @@ import '../../../features/reviews/data/stub_reviews_repository.dart';
 import '../../../features/reviews/domain/reviews_repository.dart';
 import '../../../features/reviews/presentation/reviews_list_screen.dart';
 import '../../../features/settings/application/settings_cubit.dart';
-import '../../../features/settings/domain/account_service.dart';
-import '../../../features/settings/domain/profile_repository.dart';
 import '../../../features/settings/domain/account_session_terminator.dart';
 import '../../../features/settings/domain/user_profile.dart';
 import '../../../features/settings/presentation/screens/notification_preferences_screen.dart';
 import '../../../features/settings/presentation/screens/profile_edit_screen.dart';
-import '../../../features/settings/presentation/screens/saved_addresses_screen.dart';
 import '../../../features/settings/presentation/screens/settings_screen.dart';
 import '../../../features/settings/presentation/widgets/logout_delete_confirm_sheet.dart';
 import '../../../features/settlement/domain/settlement_repository.dart';
@@ -35,6 +29,10 @@ import '../../../features/tier_selection/cubit/tier_selection_cubit.dart';
 import '../../../features/tier_selection/data/tier_repository.dart';
 import '../../../features/tier_selection/domain/tier.dart';
 import '../catalog_models.dart';
+import '../fixtures/notification_preferences_screen_fixtures.dart';
+import '../fixtures/profile_edit_screen_fixtures.dart';
+import '../fixtures/saved_addresses_screen_fixtures.dart';
+import '../fixtures/settings_screen_fixtures.dart';
 import '../tier_catalog_fixture.dart';
 
 // Batch 10 — request_summary, request_type, reviews, search, settings,
@@ -196,210 +194,61 @@ class _ColdStartReviewsRepository implements ReviewsRepository {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// settings — SettingsScreen (`cubit` is an existing constructor test seam)
-// always renders a `_LanguageSection` that reads `context.watch<LocaleCubit>()`
-// unconditionally, so every preview needs a real [LocaleCubit] ancestor. That
-// cubit needs a real [SharedPreferences] instance, so this mirrors the
-// `_OnboardingPreview` async-seam pattern (batch 08): resolve prefs once, then
-// provide the cubit. The Active-Role toggle only reads `RoleCubit` from a user
-// GESTURE (`_onChanged`), never from `build`, so no `RoleCubit` ancestor is
-// needed to render it statically.
+// settings — SettingsScreen. `cubit` is an existing constructor test seam, and
+// the screen's `_LanguageSection` reads `context.watch<LocaleCubit>()`
+// unconditionally, so every state ALSO needs a real [LocaleCubit] ancestor over
+// a `SharedPreferences`.
+//
+// Both halves — the seeded cubits and that seating — moved to
+// `../fixtures/settings_screen_fixtures.dart`, shared verbatim with the preview
+// section at the bottom of `settings_screen.dart`, so the designer's browser
+// and the engineer's canvas cannot show two different "designed states". The
+// prefs there are in-memory, so the async `SharedPreferences.getInstance()`
+// seam this entry used to carry — and the blank first frame it produced — is
+// gone; the deletion-pending state is seeded rather than driven through
+// `requestAccountDeletion()`, so it no longer pops a four-second SnackBar over
+// the surface. Same pixels, minus the transients.
+//
+// The Active-Role toggle only reads `RoleCubit` from a user GESTURE
+// (`_onChanged`), never from `build`, so no `RoleCubit` ancestor is needed to
+// render these statically.
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _FakeProfileRepository implements ProfileRepository {
-  _FakeProfileRepository([this._initial]);
-
-  UserProfile? _initial;
-
-  @override
-  Future<UserProfile?> load() async => _initial;
-
-  @override
-  Future<void> save(UserProfile profile) async {
-    _initial = profile;
-  }
-
-  @override
-  Future<void> clear() async {
-    _initial = const UserProfile.empty();
-  }
-}
-
-class _FakeAccountService implements AccountService {
-  const _FakeAccountService();
-
-  @override
-  Future<AccountActionOutcome> requestAccountDeletion() async =>
-      AccountActionOutcome.success;
-
-  @override
-  Future<AccountActionOutcome> signOut() async => AccountActionOutcome.success;
-}
-
-UserProfile _sampleProfile() =>
-    const UserProfile(phoneE164: '+96170123456', name: 'Maya Haddad');
-
-/// Builds + hydrates a [SettingsCubit] from the fakes above. `load()` is
-/// fire-and-forget here (mirrors `_orderHistoryScreen`, batch 08): the
-/// in-memory repository resolves within a microtask so the list settles to
-/// its loaded content immediately after first paint. When [driveDeletion] is
-/// set, `requestAccountDeletion()` is chained onto the SAME load future so the
-/// deletion-pending row is reachable without a live gesture.
-SettingsCubit _settingsCubit({
-  UserProfile? profile,
-  bool driveDeletion = false,
-}) {
-  final cubit = SettingsCubit(
-    profileRepository: _FakeProfileRepository(profile ?? _sampleProfile()),
-    accountService: const _FakeAccountService(),
-  );
-  final loaded = cubit.load();
-  if (driveDeletion) {
-    unawaited(loaded.then((_) => cubit.requestAccountDeletion()));
-  }
-  return cubit;
-}
-
-/// Async-seam host for [SettingsScreen] (see file-header note): resolves a
-/// real [SharedPreferences] instance and builds the [LocaleCubit] it needs.
-class _SettingsPreview extends StatefulWidget {
-  const _SettingsPreview({required this.cubit});
-
-  final SettingsCubit cubit;
-
-  @override
-  State<_SettingsPreview> createState() => _SettingsPreviewState();
-}
-
-class _SettingsPreviewState extends State<_SettingsPreview> {
-  LocaleCubit? _locale;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final locale = LocaleCubit(
-      prefs: prefs,
-      deviceLocaleProvider: () => const Locale('en'),
-    );
-    if (!mounted) {
-      await locale.close();
-      return;
-    }
-    setState(() {
-      _locale = locale;
-    });
-  }
-
-  @override
-  void dispose() {
-    _locale?.close();
-    widget.cubit.close();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final locale = _locale;
-    if (locale == null) return const SizedBox.shrink();
-    return BlocProvider<LocaleCubit>.value(
-      value: locale,
-      child: SettingsScreen(cubit: widget.cubit),
-    );
-  }
-}
+// The profile-edit fakes and the sample profiles live in
+// `../fixtures/profile_edit_screen_fixtures.dart` so that entry and the preview
+// section at the bottom of `profile_edit_screen.dart` mock the screen from ONE
+// set of fixtures — including WHEN the host mounts the screen relative to
+// `load()`, which is the only thing that decides what the name field contains.
 
 /// Async-seam host for [ProfileEditScreen] (no `cubit` ctor param of its own —
-/// it reads `SettingsCubit` from context). Awaits the fake profile load to
-/// completion BEFORE first build so the name field's `initState`-seeded
-/// [TextEditingController] starts from the loaded name, not the empty default
-/// (mirrors real usage: the settings list is already loaded before a user
-/// navigates into profile-edit).
-class _ProfileEditPreview extends StatefulWidget {
-  const _ProfileEditPreview({this.profile});
-
-  final UserProfile? profile;
-
-  @override
-  State<_ProfileEditPreview> createState() => _ProfileEditPreviewState();
-}
-
-class _ProfileEditPreviewState extends State<_ProfileEditPreview> {
-  SettingsCubit? _cubit;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final cubit = SettingsCubit(
-      profileRepository: _FakeProfileRepository(
-        widget.profile ?? _sampleProfile(),
+/// it reads `SettingsCubit` from context), shared verbatim with the preview
+/// section at the bottom of `profile_edit_screen.dart`:
+/// [ProfileEditScreenPreviewHost] with `awaitLoad: true`.
+///
+/// `awaitLoad: true` waits for the fake profile load to complete BEFORE first
+/// build, so the name field's `initState`-seeded [TextEditingController]
+/// starts from the loaded name rather than the empty default. Note that this
+/// is NOT what `app_router.dart` does — the live route builds
+/// `SettingsCubit(...)..load()` and mounts the screen in the same frame, so a
+/// real user's name field starts empty. The preview section carries that state
+/// (`Loads after mount · the name field stays blank`); this entry keeps
+/// showing the designed one.
+Widget _profileEditPreview([UserProfile? profile]) =>
+    ProfileEditScreenPreviewHost(
+      repository: ProfileEditScreenFakeProfileRepository(
+        profile ?? profileEditScreenSavedProfile,
       ),
-      accountService: const _FakeAccountService(),
-    );
-    await cubit.load();
-    if (!mounted) {
-      await cubit.close();
-      return;
-    }
-    setState(() => _cubit = cubit);
-  }
-
-  @override
-  void dispose() {
-    _cubit?.close();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cubit = _cubit;
-    if (cubit == null) return const SizedBox.shrink();
-    return BlocProvider<SettingsCubit>.value(
-      value: cubit,
       child: const ProfileEditScreen(),
     );
-  }
-}
 
-class _FakeNotificationPrefsRepository implements NotificationPrefsRepository {
-  const _FakeNotificationPrefsRepository({this.fetchFailure});
-
-  final NotificationPrefsFailure? fetchFailure;
-
-  @override
-  Future<NotificationPrefs> fetch() async {
-    final f = fetchFailure;
-    if (f != null) throw NotificationPrefsRepositoryException(f);
-    return const NotificationPrefs();
-  }
-
-  @override
-  Future<NotificationPrefs> save(NotificationCategoryPrefs categories) async {
-    return const NotificationPrefs().copyWith(categories: categories);
-  }
-}
-
-/// Never resolves — keeps the screen on its centered loading state.
-class _PendingNotificationPrefsRepository
-    implements NotificationPrefsRepository {
-  const _PendingNotificationPrefsRepository();
-
-  @override
-  Future<NotificationPrefs> fetch() => Completer<NotificationPrefs>().future;
-
-  @override
-  Future<NotificationPrefs> save(NotificationCategoryPrefs categories) {
-    return Completer<NotificationPrefs>().future;
-  }
-}
+// The two notification-prefs fakes used to live here as private classes. They
+// now live in `../fixtures/notification_preferences_screen_fixtures.dart`
+// (`NotificationPreferencesScreenFakeRepository` /
+// `NotificationPreferencesScreenPendingRepository`) so that this entry and the
+// preview section at the bottom of
+// `lib/features/settings/presentation/screens/notification_preferences_screen.dart`
+// mock the screen from ONE set of designed states instead of two copies free
+// to drift.
 
 class _FakeAccountSessionTerminator implements AccountSessionTerminator {
   const _FakeAccountSessionTerminator();
@@ -617,11 +466,17 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
     states: [
       CatalogState(
         'Loaded — Profile',
-        (_) => _SettingsPreview(cubit: _settingsCubit()),
+        (_) => SettingsScreenPreviewHost(
+          create: SettingsScreenPreviewFixtures.loadedProfile,
+          builder: (SettingsCubit cubit) => SettingsScreen(cubit: cubit),
+        ),
       ),
       CatalogState(
         'Loaded — Deletion Pending',
-        (_) => _SettingsPreview(cubit: _settingsCubit(driveDeletion: true)),
+        (_) => SettingsScreenPreviewHost(
+          create: SettingsScreenPreviewFixtures.deletionPending,
+          builder: (SettingsCubit cubit) => SettingsScreen(cubit: cubit),
+        ),
       ),
     ],
   ),
@@ -629,12 +484,10 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
     feature: 'settings',
     screen: 'ProfileEditScreen',
     states: [
-      CatalogState('Loaded', (_) => const _ProfileEditPreview()),
+      CatalogState('Loaded', (_) => _profileEditPreview()),
       CatalogState(
         'Empty — No Name Yet',
-        (_) => const _ProfileEditPreview(
-          profile: UserProfile(phoneE164: '+96170123456'),
-        ),
+        (_) => _profileEditPreview(profileEditScreenNoNameProfile),
       ),
     ],
   ),
@@ -645,19 +498,21 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
       CatalogState(
         'Loading',
         (_) => const NotificationPreferencesScreen(
-          repository: _PendingNotificationPrefsRepository(),
+          repository: NotificationPreferencesScreenPendingRepository(),
         ),
       ),
       CatalogState(
         'Loaded',
         (_) => const NotificationPreferencesScreen(
-          repository: _FakeNotificationPrefsRepository(),
+          repository: NotificationPreferencesScreenFakeRepository(
+            prefs: notificationPreferencesScreenDefaultPrefs,
+          ),
         ),
       ),
       CatalogState(
         'Error',
         (_) => const NotificationPreferencesScreen(
-          repository: _FakeNotificationPrefsRepository(
+          repository: NotificationPreferencesScreenFakeRepository(
             fetchFailure: NotificationPrefsFailure.network,
           ),
         ),
@@ -667,7 +522,17 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
   CatalogEntry(
     feature: 'settings',
     screen: 'SavedAddressesScreen',
-    states: [CatalogState('Placeholder', (_) => const SavedAddressesScreen())],
+    // One state, because the screen has one — see
+    // `../fixtures/saved_addresses_screen_fixtures.dart`, shared verbatim with
+    // the JEEB PREVIEWS section at the bottom of the screen's own file so the
+    // designer's on-device state and the engineer's canvas state stay the same
+    // state.
+    states: [
+      CatalogState(
+        SavedAddressesScreenFixtures.placeholderLabel,
+        (_) => SavedAddressesScreenFixtures.placeholder(),
+      ),
+    ],
   ),
   CatalogEntry(
     feature: 'settings',

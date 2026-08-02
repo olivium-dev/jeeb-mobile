@@ -12,6 +12,12 @@ import '../../application/settings_state.dart';
 import '../../data/profile_photo_store.dart';
 import '../widgets/profile_avatar.dart';
 
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../../core/previews/jeeb_preview.dart';
+import '../../../../devtool/catalog/fixtures/profile_edit_screen_fixtures.dart';
+import '../../../photo_attachment/data/stub_photo_picker_service.dart';
+import '../../domain/profile_repository.dart';
+
 /// Profile edit screen (T-mobile-031).
 ///
 /// Two editable fields: display name and avatar. Phone number is rendered
@@ -291,3 +297,268 @@ class _PhoneRow extends StatelessWidget {
     );
   }
 }
+
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+// `flutter widget-preview start` — open THIS file in the IDE to see its
+// previews. Preview functions are never called by the app, so the AOT compiler
+// tree-shakes them out of release builds. Nothing ABOVE this banner may
+// reference anything BELOW it. Every fixture below is private to this library
+// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
+// Render tests: test/previews/settings/profile_edit_screen_preview_test.dart
+// ===========================================================================
+//
+// This is a SCREEN, so two things differ from a widget preview.
+//
+// 1. It owns its own `Scaffold` (OMDSAppBar + body) and [jeebPreviewHost] wraps
+//    every child in one as well, so the canvas shows two nested Scaffolds. The
+//    inner one is the real surface; the outer contributes only a background.
+//    The canvas box is therefore a real device
+//    ([_profileEditScreenPhoneBox], 390x844) rather than the harness's default
+//    390x200 — a form with an avatar, a field, a row and three CTAs cannot be
+//    judged in a 200 pt strip.
+//
+// 2. It builds without a `Router`. `OMDSAppBar`'s back arrow falls back to
+//    `Navigator.maybePop`, which the canvas's own `MaterialApp` satisfies, and
+//    nothing else on the screen navigates. No local `GoRouter` is needed.
+//
+// **There is no `cubit:` seam, and that is the whole story of this screen.**
+// `_ProfileEditScreenState.initState` reaches for `context.read<SettingsCubit>()`
+// and seeds its `TextEditingController` from `state.profile.name` AT THAT
+// MOMENT — after which nothing re-syncs it. So what this screen shows is
+// decided not by a state object but by WHEN it is mounted relative to
+// `SettingsCubit.load()`. Both orderings are previewed, from the same shared
+// host (`lib/devtool/catalog/fixtures/profile_edit_screen_fixtures.dart`,
+// `awaitLoad:`) as the Screen Catalog entry. Every fixture is a local fake
+// over `ProfileRepository`; `SharedPrefsProfileRepository`, `DioAccountService`
+// and `DioDisplayNameRepository` — the three collaborators `app_router.dart`
+// hands the real cubit — are never constructed, so these are network-free by
+// construction rather than by the guard in [jeebPreviewHost].
+//
+// What these previews surfaced in the screen:
+//
+//  * **The name field is blank for every real user.** `app_router.dart` builds
+//    `SettingsCubit(...)..load()` in the route builder with `ProfileEditScreen`
+//    as its direct child, so `initState` runs while the profile is still
+//    `UserProfile.empty()` and seeds the controller with `''`. When the read
+//    lands a frame later the avatar and the phone row update — they read
+//    `state` in `build` — and the name field does not, because a
+//    `TextEditingController` is not part of the rebuilt tree. `Loads after
+//    mount · the name field stays blank` is that frame. A user whose name is
+//    on file opens "Edit profile", sees an empty Name, and either retypes it or
+//    taps Save and is told "Please enter your name."
+//  * **There is no loading state and no error state.** `SettingsState.isLoading`
+//    is never read by this screen, so a profile read that is slow (`Never
+//    loads · the screen has no loading state`) presents a fully interactive,
+//    empty, *savable* form with `—` where the phone belongs. And
+//    `SettingsCubit.load()` does not catch: a repository that throws leaves the
+//    screen on that identical picture forever, with the exception surfacing as
+//    an unhandled async error rather than as anything the user can see or
+//    retry. There is no third picture to preview for the failure — that IS the
+//    finding.
+//  * **Save silently deletes the avatar.** `_onSave` calls
+//    `saveProfile(name: value)` with no `photoUrl`, which defaults to `null`,
+//    and `UserProfile.copyWith` distinguishes "omitted" from `null` by a
+//    sentinel — so an explicit `null` CLEARS the field. Open `Photo on file ·
+//    remove offered`, tap Save, and `profile_edit_remove_avatar_cta` vanishes
+//    with the photo. `removePhoto()` and `_onChangePhoto` both pass the name
+//    through explicitly; the name-only path is the one that does not, and it is
+//    pinned in the render test.
+//  * **`isRequired: true` gives the field a SECOND, unlocalized error.**
+//    `OmdsTextField` auto-validates on change and emits a hardcoded English
+//    "This field is required" when it is cleared, which is not the screen's own
+//    localized `profileNameRequired` and does not translate in the AR
+//    rendering. Both can be produced within two taps of each other.
+
+/// The canvas box for a whole screen: a real phone, not the harness default.
+const Size _profileEditScreenPhoneBox = Size(390, 844);
+
+/// One specimen, built with the JEBV4-13 photo seams filled so the Change-
+/// avatar CTA is honest in the canvas.
+///
+/// Without them `_resolvePicker()` falls through DI to
+/// `ImagePickerPhotoPickerService` and a tap would reach for the real
+/// `image_picker` platform channel; with them the tap runs the whole flow —
+/// source sheet, canned bytes, compress, persist — against in-memory doubles
+/// that already ship in `lib/` for exactly this purpose.
+Widget _profileEditScreenHosted(
+  ProfileRepository repository, {
+  bool awaitLoad = true,
+  String? saveOnMount,
+}) {
+  return ProfileEditScreenPreviewHost(
+    repository: repository,
+    awaitLoad: awaitLoad,
+    saveOnMount: saveOnMount,
+    child: ProfileEditScreen(
+      photoPicker: StubPhotoPickerService(),
+      photoStore: FakeProfilePhotoStore(),
+    ),
+  );
+}
+
+/// The designed state: a saved profile, mounted after the read landed.
+///
+/// This is the screen as it was drawn — name in the field, phone in the
+/// read-only row under a padlock, one primary CTA. It is what the Screen
+/// Catalog has always shown and it is NOT what a user gets (see `Loads after
+/// mount`); keeping both is the point.
+///
+/// Matrixed because this is the reference rendering. The AR pass is where the
+/// padlock/phone row mirrors while the E.164 number stays LTR, and where the
+/// field label and the three stacked CTAs are re-measured against longer copy.
+///
+/// The 200% pass is where the two halves of the form disagree. Measured off
+/// the render tree on the 390x844 box this preview declares: the name field
+/// grows 48 → 72 dp with the type, and `OmdsPrimaryButton` stays 358x48 at
+/// both scales — its height is `height ?? Sizes.fourXLarge`, a constant no
+/// `TextScaler` touches. Nothing overflows today (a 32 dp label clears a 48 dp
+/// pill by about 4 dp, the same arithmetic that saves `ProfileAvatar`), so
+/// this is headroom rather than a defect — but it is arithmetic headroom, and
+/// one step up the type ramp or one longer localized label spends it.
+@JeebPreview(
+  group: 'settings',
+  name: 'Saved profile · name and phone',
+  size: _profileEditScreenPhoneBox,
+  matrix: true,
+)
+Widget profileEditScreenSaved() => _profileEditScreenHosted(
+      ProfileEditScreenFakeProfileRepository(profileEditScreenSavedProfile),
+    );
+
+/// A phone-only signup that never finished the profile-name step.
+///
+/// The catalog's `Empty — No Name Yet`. `name == null` puts `?` in the avatar
+/// and leaves the field empty, so this is the one state where both
+/// `profileNameLabel` ("Name") and `profileNameHint` ("How should we address
+/// you?") are painted at once — the hint being the longest single string on
+/// the screen, and the only one that has to share a 358 dp box with a floating
+/// label.
+///
+/// Also the state that proves the remove-avatar CTA is conditional: with no
+/// `photoUrl` there is no `profile_edit_remove_avatar_cta`, which is what
+/// `test/profile_edit_screen_test.dart` asserts.
+@JeebPreview(
+  group: 'settings',
+  name: 'No name yet',
+  size: _profileEditScreenPhoneBox,
+)
+Widget profileEditScreenNoNameYet() => _profileEditScreenHosted(
+      ProfileEditScreenFakeProfileRepository(profileEditScreenNoNameProfile),
+    );
+
+/// The only state with a `photoUrl`, and so the only one that renders the
+/// third CTA — `profile_edit_remove_avatar_cta`.
+///
+/// The stored path is the shape `AppDirProfilePhotoStore` writes and its file
+/// is gone (a reinstall regenerates the iOS container UUID), so `ProfileAvatar`
+/// degrades through `Image.file`'s `errorBuilder` to the same initial bubble as
+/// "no photo at all" — the avatar block cannot tell you that the photo is
+/// missing, only the presence of the Remove CTA can. Until that read lands
+/// there is no glyph either: the `Image.file` branch has an `errorBuilder` but
+/// no `frameBuilder`, where the network branch beside it has a `placeholder`,
+/// so a set avatar is a bare 96 dp hole for the duration of the read.
+///
+/// This is the state the Save-wipes-the-photo defect lives in: tapping the
+/// primary CTA here clears `photoUrl` and takes the Remove CTA with it, and
+/// nothing on screen says so.
+@JeebPreview(
+  group: 'settings',
+  name: 'Photo on file · remove offered',
+  size: _profileEditScreenPhoneBox,
+)
+Widget profileEditScreenWithPhoto() => _profileEditScreenHosted(
+      ProfileEditScreenFakeProfileRepository(profileEditScreenPhotoProfile),
+    );
+
+/// **The state every real user opens the screen in.**
+///
+/// `app_router.dart` mounts `ProfileEditScreen` in the same frame it builds
+/// `SettingsCubit(...)..load()`, so this preview mounts first and lets the read
+/// land underneath (`awaitLoad: false`). Once it settles the avatar shows `R`
+/// and the phone row shows `+96181234567` — both are read from `state` in
+/// `build` — while the Name field, seeded once in `initState` from the empty
+/// profile, is still blank.
+///
+/// Compare it side by side with `Saved profile`: same fixture data, one frame
+/// of difference in when the screen was mounted, and the only editable field on
+/// the screen is empty in one and populated in the other.
+@JeebPreview(
+  group: 'settings',
+  name: 'Loads after mount · the name field stays blank',
+  size: _profileEditScreenPhoneBox,
+)
+Widget profileEditScreenLoadsAfterMount() => _profileEditScreenHosted(
+      ProfileEditScreenFakeProfileRepository(profileEditScreenLateProfile),
+      awaitLoad: false,
+    );
+
+/// A profile read that never lands — a cold start on a bad connection.
+///
+/// `SettingsState.isLoading` is true for the whole life of this preview and the
+/// screen never reads it: no spinner, no skeleton, no disabled CTA. What it
+/// draws instead is a complete, interactive form over a profile that does not
+/// exist yet — `?` avatar, empty name, `—` for the phone, and a live Save
+/// button that would write that empty profile back.
+///
+/// The failure branch has no picture of its own. `SettingsCubit.load()` awaits
+/// the repository without a try/catch, so a read that THROWS leaves the screen
+/// on exactly this frame, permanently, with the exception escaping as an
+/// unhandled async error.
+@JeebPreview(
+  group: 'settings',
+  name: 'Never loads · the screen has no loading state',
+  size: _profileEditScreenPhoneBox,
+)
+Widget profileEditScreenNeverLoads() => _profileEditScreenHosted(
+      const ProfileEditScreenPendingLoadRepository(),
+      awaitLoad: false,
+    );
+
+/// A save in flight, held open by a write that never returns.
+///
+/// `isSavingProfile` is the one flag this screen does read, and it drives three
+/// things: the CTA label flips to "Saving…", the CTA is disabled, and Change/
+/// Remove avatar are disabled with it. Worth looking at rather than trusting:
+/// `OmdsPrimaryButton` renders a disabled FILLED button as its own colour at
+/// 45% alpha, so "Saving…" is a slightly paler pill and nothing else — there is
+/// no progress indicator anywhere on this screen, and the text field stays
+/// fully editable while the write is in flight.
+@JeebPreview(
+  group: 'settings',
+  name: 'Saving · write in flight',
+  size: _profileEditScreenPhoneBox,
+)
+Widget profileEditScreenSaving() => _profileEditScreenHosted(
+      const ProfileEditScreenPendingSaveRepository(
+        profileEditScreenSavingProfile,
+      ),
+      saveOnMount: 'Nour Chamoun',
+    );
+
+/// The layout ceiling: a full Arabic name (given + patronymic + family + nisba,
+/// 36 characters) against the longest E.164 number Jeeb issues.
+///
+/// Not a synthetic stress test — Arabic names are the majority case for this
+/// app. What it shows, measured on the 390x844 box this preview declares:
+///
+///   * EN light — the name lays out at 576 dp inside 318 dp of editable width,
+///     so nearly half of it is off-screen at any moment. `maxLines: 1` is the
+///     OMDS default and this screen does not override it, so the field scrolls
+///     instead of wrapping and there is no ellipsis or any other mark saying
+///     the name continues. A user cannot see their own name whole on the one
+///     screen that exists to edit it.
+///   * AR RTL dark — the field, the padlocked phone row and the CTAs all
+///     mirror; the phone number itself stays LTR inside a mirrored row.
+///   * EN 200% — the body is a `ListView`, so height is free. Nothing
+///     overflows in either locale at either scale; the ceiling here is
+///     legibility, not clipping.
+@JeebPreview(
+  group: 'settings',
+  name: 'Ceiling · long Arabic name',
+  size: _profileEditScreenPhoneBox,
+  matrix: true,
+)
+Widget profileEditScreenLongName() => _profileEditScreenHosted(
+      ProfileEditScreenFakeProfileRepository(profileEditScreenLongProfile),
+    );
