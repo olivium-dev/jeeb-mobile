@@ -20,7 +20,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// Maximum number of uncovered widgets allowed. Lower this as waves land —
 /// never raise it.
-const int _coverageFloor = 151;
+const int _coverageFloor = 146;
 
 final RegExp _widgetClass = RegExp(
   r'^class ([A-Z][A-Za-z0-9_]*) extends (?:StatelessWidget|StatefulWidget)',
@@ -32,6 +32,18 @@ const List<String> _excludedPrefixes = <String>[
   'lib/devtool/',
   'lib/l10n/',
 ];
+
+/// Widgets deliberately excluded from coverage — see
+/// `tool/preview_exclusions.txt` for the rule and the reasons.
+Set<String> _exclusions() {
+  final file = File('tool/preview_exclusions.txt');
+  if (!file.existsSync()) return <String>{};
+  return file
+      .readAsLinesSync()
+      .map((String l) => l.split('#').first.trim())
+      .where((String l) => l.isNotEmpty)
+      .toSet();
+}
 
 List<File> _dartFilesUnder(String dir) {
   final root = Directory(dir);
@@ -78,6 +90,7 @@ void main() {
   });
 
   test('preview coverage does not regress', () {
+    final excluded = _exclusions();
     final all = <String>[];
     for (final file in _dartFilesUnder('lib')) {
       final path = _rel(file.path);
@@ -85,6 +98,7 @@ void main() {
       for (final m in _widgetClass.allMatches(file.readAsStringSync())) {
         final name = m.group(1)!;
         if (name.endsWith('Screen')) continue;
+        if (excluded.contains(name)) continue;
         all.add(name);
       }
     }

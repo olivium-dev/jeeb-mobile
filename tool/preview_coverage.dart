@@ -65,6 +65,18 @@ String _snake(String pascal) => pascal
     )
     .toLowerCase();
 
+/// Widgets deliberately excluded from coverage — see
+/// `tool/preview_exclusions.txt` for the rule and the reasons.
+Set<String> _exclusions() {
+  final file = File('tool/preview_exclusions.txt');
+  if (!file.existsSync()) return <String>{};
+  return file
+      .readAsLinesSync()
+      .map((String l) => l.split('#').first.trim())
+      .where((String l) => l.isNotEmpty)
+      .toSet();
+}
+
 List<File> _dartFilesUnder(String dir) {
   final root = Directory(dir);
   if (!root.existsSync()) return <File>[];
@@ -85,6 +97,7 @@ void main(List<String> args) {
       areaIndex >= 0 && areaIndex + 1 < args.length ? args[areaIndex + 1] : null;
 
   // 1. Every public, non-screen widget in production code.
+  final excluded = _exclusions();
   final all = <WidgetRef>[];
   for (final file in _dartFilesUnder('lib')) {
     final path = _rel(file.path);
@@ -92,6 +105,7 @@ void main(List<String> args) {
     for (final m in _widgetClass.allMatches(file.readAsStringSync())) {
       final name = m.group(1)!;
       if (name.endsWith('Screen')) continue; // owned by the Screen Catalog
+      if (excluded.contains(name)) continue;
       all.add(WidgetRef(name, path));
     }
   }

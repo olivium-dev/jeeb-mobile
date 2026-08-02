@@ -1,0 +1,21 @@
+# Widgets deliberately excluded from preview coverage.
+#
+# Format: <WidgetClassName>  # reason
+#
+# Only for widgets with NO visual output of their own — behavioural wrappers
+# that render `child` unchanged and exist for lifecycle, logging, or routing.
+# A preview of one shows the child, not the widget, so it would be theatre.
+#
+# This is NOT an escape hatch for "hard to preview". A widget that renders
+# anything, or that changes how its child renders, belongs in the queue — if it
+# lacks an injectable seam, that is a real finding to fix, not to exclude.
+#
+# Both `tool/preview_coverage.dart` and
+# `test/previews/preview_structure_test.dart` honour this file, so an entry
+# lowers the denominator rather than hiding debt in the floor.
+
+RouteResumeRefetch      # re-fetches on route resume; renders child verbatim
+RouteVisibilityScope    # publishes route visibility; renders child verbatim
+PollingVisibilityGate   # gates a poll on visibility; renders child verbatim
+GestureLogListener      # diagnostics-only pointer listener; no visual output
+RootAwareBackScope      # back-navigation policy wrapper; renders child verbatim
