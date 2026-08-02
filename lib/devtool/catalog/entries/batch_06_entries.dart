@@ -15,19 +15,16 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:jeeb_mobile/core/di/injection_container.dart';
-import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
 
 import 'package:jeeb_mobile/features/language/presentation/screens/language_settings_screen.dart';
 
-import 'package:jeeb_mobile/features/delivery_status/domain/jeeber_summary.dart';
+import '../fixtures/language_settings_screen_fixtures.dart';
+
 import 'package:jeeb_mobile/features/live_tracking/application/live_tracking_cubit.dart';
-import 'package:jeeb_mobile/features/live_tracking/data/demo_live_tracking_repository.dart';
-import 'package:jeeb_mobile/features/live_tracking/domain/delivery_tracking_info.dart';
 import 'package:jeeb_mobile/features/live_tracking/domain/live_tracking_repository.dart';
 import 'package:jeeb_mobile/features/live_tracking/presentation/live_tracking_screen.dart';
+
+import '../fixtures/live_tracking_screen_fixtures.dart';
 
 import 'package:jeeb_mobile/features/location/cubit/location_picker_cubit.dart';
 import 'package:jeeb_mobile/features/location/presentation/location_picker_screen.dart';
@@ -66,21 +63,24 @@ List<CatalogEntry> get batch06Entries => <CatalogEntry>[
 // language — LanguageSettingsScreen
 // ─────────────────────────────────────────────────────────────────────────
 
-/// Builds a real [LocaleCubit] over the app's actual (already-bootstrapped)
-/// [SharedPreferences] instance — read-only local prefs, no network — with a
-/// [deviceLocaleProvider] override so the two designed rows (English /
-/// Arabic selected) render deterministically regardless of any persisted
-/// choice on this device.
-Widget _languageSettingsPreview(Locale deviceLocale) {
-  final cubit = LocaleCubit(
-    prefs: sl<SharedPreferences>(),
-    deviceLocaleProvider: () => deviceLocale,
-  );
-  return BlocProvider<LocaleCubit>.value(
-    value: cubit,
-    child: const LanguageSettingsScreen(),
-  );
-}
+/// Seats the real screen on a `LocaleCubit` built over IN-MEMORY prefs seeded
+/// with a saved choice, so the two designed rows (English / Arabic selected)
+/// render deterministically.
+///
+/// This used to build the cubit over the app's real, already-bootstrapped
+/// `sl<SharedPreferences>()`, which did not deliver that: `_resolveInitial`
+/// reads the persisted `app.locale.languageCode` BEFORE it consults
+/// `deviceLocaleProvider`, so on a device where anyone had ever picked Arabic
+/// both states rendered Arabic — and because every row here is tappable and
+/// `setLocale` persists, browsing this entry could rewrite the real user's
+/// language for the next cold start. Both are gone with the prefs; see
+/// `../fixtures/language_settings_screen_fixtures.dart`, which the preview
+/// section at the bottom of the screen file shares with this entry.
+Widget _languageSettingsPreview(LanguageSettingsScreenCubitFactory create) =>
+    LanguageSettingsScreenPreviewHost(
+      create: create,
+      child: const LanguageSettingsScreen(),
+    );
 
 final CatalogEntry _languageEntry = CatalogEntry(
   feature: 'language',
@@ -88,11 +88,15 @@ final CatalogEntry _languageEntry = CatalogEntry(
   states: [
     CatalogState(
       'English selected',
-      (_) => _languageSettingsPreview(const Locale('en')),
+      (_) => _languageSettingsPreview(
+        LanguageSettingsScreenPreviewFixtures.englishSaved,
+      ),
     ),
     CatalogState(
       'Arabic selected',
-      (_) => _languageSettingsPreview(const Locale('ar')),
+      (_) => _languageSettingsPreview(
+        LanguageSettingsScreenPreviewFixtures.arabicSaved,
+      ),
     ),
   ],
 );
@@ -101,66 +105,29 @@ final CatalogEntry _languageEntry = CatalogEntry(
 // live_tracking — LiveTrackingScreen
 // ─────────────────────────────────────────────────────────────────────────
 
-const String _trackingDeliveryId = 'DLV-990001';
-
-/// Static repository serving one fixed snapshot (no network, no ticks).
-class _StaticTrackingRepository implements LiveTrackingRepository {
-  const _StaticTrackingRepository(this._info);
-  final DeliveryTrackingInfo _info;
-
-  @override
-  Future<DeliveryTrackingInfo> fetchDeliveryStatus({
-    required String deliveryId,
-  }) async =>
-      _info;
-}
-
-/// Repository that always fails — drives the screen's error state.
-class _FailingTrackingRepository implements LiveTrackingRepository {
-  const _FailingTrackingRepository(this._kind);
-  final LiveTrackingErrorKind _kind;
-
-  @override
-  Future<DeliveryTrackingInfo> fetchDeliveryStatus({
-    required String deliveryId,
-  }) async =>
-      throw LiveTrackingException(_kind);
-}
-
-DeliveryTrackingInfo _atDoorInfo() => const DeliveryTrackingInfo(
-      deliveryId: _trackingDeliveryId,
-      currentStage: TrackingStage.atDoor,
-      stageTimestamps: {},
-      distanceLabel: '0.0 km',
-      etaMinutes: 0,
-      jeeber: JeeberSummary(displayName: 'Rami K.', vehicleLabel: 'Scooter'),
-      requestId: 'REQ-9001',
-      price: 8.5,
-      currency: 'USD',
-      jeeberName: 'Rami K.',
-      tier: 'standard',
-      itemSummary: 'Pharmacy pickup',
-    );
-
-DeliveryTrackingInfo _cancelledInfo() => const DeliveryTrackingInfo(
-      deliveryId: _trackingDeliveryId,
-      currentStage: TrackingStage.ordered,
-      stageTimestamps: {},
-      lifecycle: TrackingLifecycle.cancelled,
-      requestId: 'REQ-9002',
-    );
+// The seeds moved to `../fixtures/live_tracking_screen_fixtures.dart`, shared
+// verbatim with the JEEB PREVIEWS section at the bottom of
+// `live_tracking_screen.dart`, so the catalog state a designer signs off and the
+// canvas state an engineer edits cannot drift apart. The private
+// `_StaticTrackingRepository` / `_FailingTrackingRepository` doubles and the two
+// inline `DeliveryTrackingInfo` literals that used to live here are the same
+// objects under new, public names.
+//
+// One thing changed with the move: `In transit` no longer runs on
+// `DemoLiveTrackingRepository`. That double stamps `DateTime.now()` offsets into
+// `stageTimestamps`, so the state was a function of the wall clock; the fixture
+// carries the SAME rendered fields (3 km, 20 min, Kamal Hajj, express,
+// "Groceries from Spinneys", $9.00 COD) with an empty timestamp map, which
+// nothing on this screen reads. Same four states, same labels, same rendering.
 
 /// Builds the screen with NO refresh source wired (b02 wave C / N7 removed the
 /// poll entirely), so a catalog preview reads once and leaks no timers.
 Widget _liveTrackingPreview(LiveTrackingRepository repository) {
-  final cubit = LiveTrackingCubit(
-    repository: repository,
-    deliveryId: _trackingDeliveryId,
-    refreshSignals: const Stream<void>.empty(),
-  );
   return BlocProvider<LiveTrackingCubit>.value(
-    value: cubit,
-    child: const LiveTrackingScreen(deliveryId: _trackingDeliveryId),
+    value: LiveTrackingScreenFixtures.cubit(repository),
+    child: const LiveTrackingScreen(
+      deliveryId: LiveTrackingScreenFixtures.deliveryId,
+    ),
   );
 }
 
@@ -170,21 +137,34 @@ final CatalogEntry _liveTrackingEntry = CatalogEntry(
   states: [
     CatalogState(
       'In transit',
-      // Reuses the shipped debug-only DemoLiveTrackingRepository double.
-      (_) => _liveTrackingPreview(const DemoLiveTrackingRepository()),
+      (_) => _liveTrackingPreview(
+        const LiveTrackingScreenStaticRepository(
+          LiveTrackingScreenFixtures.inTransitInfo,
+        ),
+      ),
     ),
     CatalogState(
       'At the door (OTP)',
-      (_) => _liveTrackingPreview(_StaticTrackingRepository(_atDoorInfo())),
+      (_) => _liveTrackingPreview(
+        const LiveTrackingScreenStaticRepository(
+          LiveTrackingScreenFixtures.atDoorInfo,
+        ),
+      ),
     ),
     CatalogState(
       'Cancelled (terminal)',
-      (_) => _liveTrackingPreview(_StaticTrackingRepository(_cancelledInfo())),
+      (_) => _liveTrackingPreview(
+        const LiveTrackingScreenStaticRepository(
+          LiveTrackingScreenFixtures.cancelledInfo,
+        ),
+      ),
     ),
     CatalogState(
       'Error (not found)',
       (_) => _liveTrackingPreview(
-        const _FailingTrackingRepository(LiveTrackingErrorKind.notFound),
+        const LiveTrackingScreenFailingRepository(
+          LiveTrackingErrorKind.notFound,
+        ),
       ),
     ),
   ],

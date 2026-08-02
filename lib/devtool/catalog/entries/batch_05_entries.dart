@@ -10,22 +10,19 @@ import '../../../features/jeeber_request_detail/presentation/jeeber_request_deta
 import '../../../features/jeeber_request_detail/presentation/jeeber_request_detail_screen.dart';
 import '../../../features/jeeber_request_detail/presentation/jeeber_request_unavailable_screen.dart';
 import '../../../features/jeeber_request_feed/cubit/request_feed_cubit.dart';
-import '../../../features/jeeber_request_feed/data/dev_jeeber_feed_fixtures.dart';
-import '../../../features/jeeber_request_feed/data/request_feed_models.dart';
 import '../../../features/jeeber_request_feed/data/request_feed_repository.dart';
-import '../../../features/jeeber_request_feed/domain/submitted_offer.dart';
-import '../../../features/jeeber_request_feed/domain/submitted_offers_repository.dart';
 import '../../../features/jeeber_request_feed/presentation/request_feed_screen.dart';
-import '../../../features/kyc/application/kyc_wizard_cubit.dart';
-import '../../../features/kyc/domain/kyc_gateway.dart';
 import '../../../features/kyc/domain/kyc_submission.dart';
 import '../../../features/kyc/presentation/kyc_wizard_screen.dart';
 import '../../../features/kyc_rejected/presentation/kyc_rejected_screen.dart';
-import '../../../features/photo_attachment/data/stub_photo_picker_service.dart';
 import '../catalog_models.dart';
+import '../fixtures/kyc_rejected_screen_fixtures.dart';
+import '../fixtures/kyc_wizard_screen_fixtures.dart';
+import '../fixtures/jeeber_pending_offers_screen_fixtures.dart';
 import '../fixtures/jeeber_request_unavailable_screen_fixtures.dart';
 import '../fixtures/jeeber_request_detail_screen_fixtures.dart';
 import '../fixtures/onboarding_funding_screen_fixtures.dart';
+import '../fixtures/request_feed_screen_fixtures.dart';
 
 /// Batch 05 — DT-04 catalog entries for: jeeber_onboarding_funding,
 /// jeeber_pending_offers, jeeber_request_detail, jeeber_request_feed, kyc,
@@ -93,6 +90,15 @@ final CatalogEntry _onboardingFundingEntry = CatalogEntry(
 // jeeber_pending_offers
 // ─────────────────────────────────────────────────────────────────────────
 
+// The four states and their labels are unchanged; only the fakes moved. They
+// now come from `../fixtures/jeeber_pending_offers_screen_fixtures.dart`, which
+// the JEEB PREVIEWS section at the bottom of `jeeber_pending_offers_screen.dart`
+// reads as well — so the surface a designer signs off against and the one an
+// engineer edits cannot drift onto different offers.
+//
+// The old private `_StaticSubmittedOffersRepository(…, throwOnList: true)`
+// became two named fakes, because "static repository with a boolean" read as
+// the happy path when it was really the error branch.
 final CatalogEntry _pendingOffersEntry = CatalogEntry(
   feature: 'jeeber_pending_offers',
   screen: 'JeeberPendingOffersScreen',
@@ -100,95 +106,39 @@ final CatalogEntry _pendingOffersEntry = CatalogEntry(
     CatalogState(
       'Awaiting customer decision',
       (_) => const JeeberPendingOffersScreen(
-        jeeberId: 'user-jeeber-002',
-        repository: _StaticSubmittedOffersRepository([
-          SubmittedOffer(
-            id: 'offer-1',
-            requestId: 'req-101',
-            price: 12.5,
-            currency: 'USD',
-            etaMinutes: 25,
-            note: 'Can drop off at the lobby',
-          ),
-          SubmittedOffer(
-            id: 'offer-2',
-            requestId: 'req-102',
-            price: 8,
-            currency: 'USD',
-          ),
-        ]),
+        jeeberId: jeeberPendingOffersScreenJeeberId,
+        repository: JeeberPendingOffersScreenStaticOffers(
+          JeeberPendingOffersScreenOffers.awaitingDecision,
+        ),
       ),
     ),
     CatalogState(
       'Mixed outcomes — accepted / not selected badges',
       (_) => const JeeberPendingOffersScreen(
-        jeeberId: 'user-jeeber-002',
-        repository: _StaticSubmittedOffersRepository([
-          SubmittedOffer(
-            id: 'offer-3',
-            requestId: 'req-103',
-            price: 15,
-            currency: 'USD',
-            etaMinutes: 18,
-            status: OfferStatus.accepted,
-          ),
-          SubmittedOffer(
-            id: 'offer-4',
-            requestId: 'req-104',
-            price: 9.75,
-            currency: 'USD',
-            etaMinutes: 40,
-            status: OfferStatus.lost,
-          ),
-          SubmittedOffer(
-            id: 'offer-5',
-            requestId: 'req-105',
-            price: 11,
-            currency: 'USD',
-          ),
-        ]),
+        jeeberId: jeeberPendingOffersScreenJeeberId,
+        repository: JeeberPendingOffersScreenStaticOffers(
+          JeeberPendingOffersScreenOffers.mixedOutcomes,
+        ),
       ),
     ),
     CatalogState(
       'Empty — nothing submitted yet',
       (_) => const JeeberPendingOffersScreen(
-        jeeberId: 'user-jeeber-002',
-        repository: _StaticSubmittedOffersRepository([]),
+        jeeberId: jeeberPendingOffersScreenJeeberId,
+        repository: JeeberPendingOffersScreenStaticOffers(
+          JeeberPendingOffersScreenOffers.none,
+        ),
       ),
     ),
     CatalogState(
       'Error — load failed',
       (_) => const JeeberPendingOffersScreen(
-        jeeberId: 'user-jeeber-002',
-        repository: _StaticSubmittedOffersRepository(
-          [],
-          throwOnList: true,
-        ),
+        jeeberId: jeeberPendingOffersScreenJeeberId,
+        repository: JeeberPendingOffersScreenFailingOffers(),
       ),
     ),
   ],
 );
-
-class _StaticSubmittedOffersRepository implements SubmittedOffersRepository {
-  const _StaticSubmittedOffersRepository(
-    this._offers, {
-    this.throwOnList = false,
-  });
-
-  final List<SubmittedOffer> _offers;
-  final bool throwOnList;
-
-  @override
-  Future<List<SubmittedOffer>> listSubmitted() async {
-    if (throwOnList) {
-      throw Exception('catalog: designed error state');
-    }
-    return _offers;
-  }
-
-  @override
-  Future<bool> withdraw(String offerId) async => true;
-}
 
 // ─────────────────────────────────────────────────────────────────────────
 // jeeber_request_detail
@@ -304,6 +254,15 @@ final CatalogEntry _requestDetailLoaderEntry = CatalogEntry(
 // jeeber_request_feed
 // ─────────────────────────────────────────────────────────────────────────
 
+// The six states and their labels are unchanged; only the fakes moved. Every
+// repository and every feed below now comes from
+// `../fixtures/request_feed_screen_fixtures.dart`, shared with the JEEB PREVIEWS
+// section at the bottom of `request_feed_screen.dart`, so the designer's in-app
+// browser and the engineer's canvas cannot drift into showing two different
+// "designed states". The stateful host stays here: it is catalog chrome, and it
+// is what drives a REAL `RequestFeedCubit.start()` so a designer can pull the
+// list and tap the actions.
+
 final CatalogEntry _requestFeedEntry = CatalogEntry(
   feature: 'jeeber_request_feed',
   screen: 'RequestFeedScreen',
@@ -311,41 +270,45 @@ final CatalogEntry _requestFeedEntry = CatalogEntry(
     CatalogState(
       'Incoming — Ignore / Offer card',
       (_) => _RequestFeedPreview(
-        repositoryBuilder: () =>
-            SeededRequestFeedRepository(DevJeeberFeedFixtures.incoming()),
+        repositoryBuilder: () => SeededRequestFeedRepository(
+          RequestFeedScreenPreviewFixtures.incomingFeed(),
+        ),
       ),
     ),
     CatalogState(
       'Pending response — awaiting client reply',
       (_) => _RequestFeedPreview(
-        repositoryBuilder: () =>
-            SeededRequestFeedRepository(DevJeeberFeedFixtures.pending()),
+        repositoryBuilder: () => SeededRequestFeedRepository(
+          RequestFeedScreenPreviewFixtures.pendingFeed(),
+        ),
       ),
     ),
     CatalogState(
       'Accepted — delivery-action cards',
       (_) => _RequestFeedPreview(
-        repositoryBuilder: () =>
-            SeededRequestFeedRepository(DevJeeberFeedFixtures.replies()),
+        repositoryBuilder: () => SeededRequestFeedRepository(
+          RequestFeedScreenPreviewFixtures.acceptedFeed(),
+        ),
       ),
     ),
     CatalogState(
       'Empty — no requests right now',
       (_) => _RequestFeedPreview(
-        repositoryBuilder: () => const _EmptyRequestFeedRepository(),
+        repositoryBuilder: () => const EmptyRequestFeedRepository(),
       ),
     ),
     CatalogState(
       'Error — load failed',
       (_) => _RequestFeedPreview(
-        repositoryBuilder: () => const _ErrorRequestFeedRepository(),
+        repositoryBuilder: () => const ErrorRequestFeedRepository(),
       ),
     ),
     CatalogState(
       'Reconnecting — degraded polling transport',
       (_) => _RequestFeedPreview(
-        repositoryBuilder: () =>
-            _PollingRequestFeedRepository(DevJeeberFeedFixtures.incoming()),
+        repositoryBuilder: () => PollingRequestFeedRepository(
+          RequestFeedScreenPreviewFixtures.incomingFeed(),
+        ),
       ),
     ),
   ],
@@ -379,118 +342,16 @@ class _RequestFeedPreviewState extends State<_RequestFeedPreview> {
   Widget build(BuildContext context) => RequestFeedScreen(cubit: _cubit);
 }
 
-class _EmptyRequestFeedRepository implements RequestFeedRepository {
-  const _EmptyRequestFeedRepository();
-
-  @override
-  Stream<DeliveryRequest> get requests => const Stream<DeliveryRequest>.empty();
-
-  @override
-  Stream<FeedTransportUpdate> get transport async* {
-    yield const FeedTransportUpdate(FeedTransport.webSocket);
-  }
-
-  @override
-  Future<List<DeliveryRequest>> refresh() async => const <DeliveryRequest>[];
-
-  @override
-  Future<RequestActionOutcome> accept(String id) async =>
-      RequestActionOutcome.accepted;
-
-  @override
-  Future<RequestActionOutcome> decline(String id) async =>
-      RequestActionOutcome.declined;
-
-  @override
-  Future<void> dispose() async {}
-}
-
-class _ErrorRequestFeedRepository implements RequestFeedRepository {
-  const _ErrorRequestFeedRepository();
-
-  @override
-  Stream<DeliveryRequest> get requests => const Stream<DeliveryRequest>.empty();
-
-  @override
-  Stream<FeedTransportUpdate> get transport async* {
-    yield const FeedTransportUpdate(FeedTransport.webSocket);
-  }
-
-  @override
-  Future<List<DeliveryRequest>> refresh() async {
-    throw Exception('catalog: designed error state');
-  }
-
-  @override
-  Future<RequestActionOutcome> accept(String id) async =>
-      RequestActionOutcome.networkError;
-
-  @override
-  Future<RequestActionOutcome> decline(String id) async =>
-      RequestActionOutcome.networkError;
-
-  @override
-  Future<void> dispose() async {}
-}
-
-class _PollingRequestFeedRepository implements RequestFeedRepository {
-  _PollingRequestFeedRepository(this._snapshot);
-
-  final List<DeliveryRequest> _snapshot;
-
-  @override
-  Stream<DeliveryRequest> get requests => const Stream<DeliveryRequest>.empty();
-
-  @override
-  Stream<FeedTransportUpdate> get transport async* {
-    yield const FeedTransportUpdate(FeedTransport.polling);
-  }
-
-  @override
-  Future<List<DeliveryRequest>> refresh() async =>
-      List<DeliveryRequest>.unmodifiable(_snapshot);
-
-  @override
-  Future<RequestActionOutcome> accept(String id) async =>
-      RequestActionOutcome.accepted;
-
-  @override
-  Future<RequestActionOutcome> decline(String id) async =>
-      RequestActionOutcome.declined;
-
-  @override
-  Future<void> dispose() async {}
-}
-
 // ─────────────────────────────────────────────────────────────────────────
 // kyc
 // ─────────────────────────────────────────────────────────────────────────
 
-KycWizardCubit _kycWizardCubit({
-  KycStatus status = KycStatus.notSubmitted,
-  KycRejectionReason? rejectionReason,
-}) {
-  final cubit = KycWizardCubit(
-    pickerService: StubPhotoPickerService(),
-    gateway: FakeKycGateway(
-      initial: KycSubmission(status: status, rejectionReason: rejectionReason),
-    ),
-  );
-  cubit.loadStatus();
-  return cubit;
-}
-
-/// Drives a fresh [cubit] through both ID sides + selfie + ToS acceptance via
-/// its real public API (each capture is properly awaited so the cubit's
-/// in-flight guard never skips a step), landing on a submit-ready identity
-/// screen — still no network, since [StubPhotoPickerService] and the default
-/// [HalvingPhotoCompressor] are both synchronous in-memory fakes.
-Future<void> _seedKycIdentityReady(KycWizardCubit cubit) async {
-  await cubit.captureIdFront();
-  await cubit.captureIdBack();
-  await cubit.captureSelfie();
-  cubit.setTosAccepted(true);
-}
+// Hosted through the shared fixture
+// (`../fixtures/kyc_wizard_screen_fixtures.dart`), which the widget previews at
+// the bottom of the screen file use as well, so the catalog and the canvas
+// cannot drift. The five state labels are unchanged; only the fakes moved —
+// see that file's header for the two things the move fixed (decodable capture
+// bytes, and a "ready to submit" state whose submit CTA is actually live).
 
 final CatalogEntry _kycWizardEntry = CatalogEntry(
   feature: 'kyc',
@@ -498,32 +359,45 @@ final CatalogEntry _kycWizardEntry = CatalogEntry(
   states: [
     CatalogState(
       'Identity — fresh start, nothing captured',
-      (_) => KycWizardScreen(cubit: _kycWizardCubit()),
+      (_) => KycWizardScreen(
+        cubit: KycWizardScreenPreviewFixtures.seededCubit(
+          KycWizardScreenPreviewFixtures.identityState(),
+        ),
+      ),
     ),
     CatalogState(
       'Identity — ready to submit (captures + ToS done)',
-      (_) {
-        final cubit = _kycWizardCubit();
-        unawaited(_seedKycIdentityReady(cubit));
-        return KycWizardScreen(cubit: cubit);
-      },
+      (_) => KycWizardScreen(
+        cubit: KycWizardScreenPreviewFixtures.seededCubit(
+          KycWizardScreenPreviewFixtures.identityState(
+            idNumber: KycWizardScreenPreviewFixtures.nationalIdNumber,
+            govIdCaptured: true,
+            selfieCaptured: true,
+            tosAccepted: true,
+          ),
+        ),
+      ),
     ),
     CatalogState(
       'Status — pending review',
       (_) => KycWizardScreen(
-        cubit: _kycWizardCubit(status: KycStatus.pending),
+        cubit: KycWizardScreenPreviewFixtures.statusCubit(
+          status: KycStatus.pending,
+        ),
       ),
     ),
     CatalogState(
       'Status — approved',
       (_) => KycWizardScreen(
-        cubit: _kycWizardCubit(status: KycStatus.approved),
+        cubit: KycWizardScreenPreviewFixtures.statusCubit(
+          status: KycStatus.approved,
+        ),
       ),
     ),
     CatalogState(
       'Status — rejected',
       (_) => KycWizardScreen(
-        cubit: _kycWizardCubit(
+        cubit: KycWizardScreenPreviewFixtures.statusCubit(
           status: KycStatus.rejected,
           rejectionReason: KycRejectionReason.idUnreadable,
         ),
@@ -536,53 +410,32 @@ final CatalogEntry _kycWizardEntry = CatalogEntry(
 // kyc_rejected
 // ─────────────────────────────────────────────────────────────────────────
 
+// Hosted through the shared fixture
+// (`../fixtures/kyc_rejected_screen_fixtures.dart`), which the widget previews
+// at the bottom of the screen file use as well, so the catalog and the canvas
+// cannot drift. The four states below are the four the catalog has always
+// carried — the inline `FakeKycGateway(initial: KycSubmission(...))` literals
+// moved into the fixture value for value, labels unchanged.
 final CatalogEntry _kycRejectedEntry = CatalogEntry(
   feature: 'kyc_rejected',
   screen: 'KycRejectedScreen',
   states: [
     CatalogState(
       'Reason — ID unreadable',
-      (_) => KycRejectedScreen(
-        gateway: FakeKycGateway(
-          initial: const KycSubmission(
-            status: KycStatus.rejected,
-            rejectionReason: KycRejectionReason.idUnreadable,
-          ),
-        ),
-      ),
+      (_) => KycRejectedScreen(gateway: KycRejectedScreenFixtures.idUnreadable()),
     ),
     CatalogState(
       'Reason — selfie mismatch',
-      (_) => KycRejectedScreen(
-        gateway: FakeKycGateway(
-          initial: const KycSubmission(
-            status: KycStatus.rejected,
-            rejectionReason: KycRejectionReason.selfieMismatch,
-          ),
-        ),
-      ),
+      (_) =>
+          KycRejectedScreen(gateway: KycRejectedScreenFixtures.selfieMismatch()),
     ),
     CatalogState(
       'Reason — document expired',
-      (_) => KycRejectedScreen(
-        gateway: FakeKycGateway(
-          initial: const KycSubmission(
-            status: KycStatus.rejected,
-            rejectionReason: KycRejectionReason.expired,
-          ),
-        ),
-      ),
+      (_) => KycRejectedScreen(gateway: KycRejectedScreenFixtures.expired()),
     ),
     CatalogState(
       'Reason — other/generic',
-      (_) => KycRejectedScreen(
-        gateway: FakeKycGateway(
-          initial: const KycSubmission(
-            status: KycStatus.rejected,
-            rejectionReason: KycRejectionReason.other,
-          ),
-        ),
-      ),
+      (_) => KycRejectedScreen(gateway: KycRejectedScreenFixtures.other()),
     ),
   ],
 );

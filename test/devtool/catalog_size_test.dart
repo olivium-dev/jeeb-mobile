@@ -14,6 +14,10 @@
 // in that wave had their fixtures extracted into
 // `lib/devtool/catalog/fixtures/` and repointed — labels and counts unchanged,
 // which is the point of extracting rather than copying.
+//
+// Screens wave 09 (pending offers, request feed, kyc wizard, kyc rejected,
+// language settings, live tracking) extracted six more the same way: 89 / 288
+// before and after, entry-for-entry and label-for-label identical.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/devtool/catalog/screen_catalog.dart';

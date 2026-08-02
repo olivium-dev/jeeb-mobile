@@ -1,4 +1,12 @@
-// Shared dev-only fixtures for `LocationPickerScreen`.
+// Shared dev-only fixtures for `LocationPickerScreen` — the 461-line
+// cubit-driven implementation.
+//
+// NOT the one the app serves. Two classes carry this name, and `app_router.dart`
+// imports the OTHER one — a 36-line "coming soon" placeholder — and mounts it at
+// `/location`. Its fixtures are in
+// `location_picker_placeholder_screen_fixtures.dart`; see
+// `docs/previews/FINDING_location_picker_placeholder.md`. Everything below
+// describes a screen no user can currently reach.
 //
 // ONE source of truth for the two dev surfaces that mock this screen:
 //

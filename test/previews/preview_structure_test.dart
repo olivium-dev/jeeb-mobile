@@ -74,7 +74,18 @@ import '../../tool/preview_inventory.dart';
 /// (205/231). The remaining 25 are all screens; `LiveSettingsScreen` is the
 /// one BLOCKED entry and does not count here — it needs a production seam
 /// first, recorded in `tool/preview_blocked.txt`.
-const int _coverageFloor = 25;
+///
+/// 25 → 18: the screens wave that previewed `JeeberPendingOffersScreen`,
+/// `RequestFeedScreen`, `KycWizardScreen`, `KycRejectedScreen`,
+/// `LanguageSettingsScreen`, `LiveTrackingScreen` and the `/location`
+/// `LocationPickerScreen` (212/231). Note the last one is the SECOND class of
+/// that name: the wave at 60 → 53 previewed
+/// `features/location/presentation/location_picker_screen.dart`, the 461-line
+/// implementation the Screen Catalog renders, while the router serves the
+/// 36-line placeholder at `presentation/screens/` — so both files count, and
+/// only now does opening the one the app actually mounts show the truth. See
+/// `docs/previews/FINDING_location_picker_placeholder.md`.
+const int _coverageFloor = 18;
 
 /// Whole-word identifier match — `_hosted` must not match `_hostedFoo`.
 bool _referencesName(String haystack, String name) => RegExp(
