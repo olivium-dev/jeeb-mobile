@@ -160,7 +160,9 @@ everything and a false pass just wastes a round trip.
 Do NOT change any widget's behaviour. This is a code MOVE. If a preview only compiles
 after you alter the widget, that is a finding to report, not a change to make.
 
-Leave no scratch files.`,
+Leave no scratch files. Do NOT run `git commit` or `git push` — leave your work
+staged in the tree. The orchestrator commits once, after the integration gate; agents
+committing independently interleaves four unreviewed commits into the history.`,
       { label: `migrate:${group.join('+')}`, phase: 'Migrate', schema: RESULT }
     )
   )
@@ -215,7 +217,7 @@ to repair, and any widget still not migrated.`,
 )
 
 return {
-  totalWidgets: widgets.length,
+  areas: areas.length,
   migrated: migrated.length,
   failed,
   agentErrors: results.length - done.length,
