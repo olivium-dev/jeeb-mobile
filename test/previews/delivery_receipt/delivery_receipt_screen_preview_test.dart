@@ -61,7 +61,7 @@ void main() {
     'DeliveryReceiptScreen',
     const <String, Widget Function()>{
       'Amount unknown · gateway dropped it': deliveryReceiptScreenAmountUnknown,
-      'Amount zero · never fabricate \$0.00': deliveryReceiptScreenAmountZero,
+      'Amount zero · never fabricate 0.00 USD': deliveryReceiptScreenAmountZero,
       'No jeeber name · generic fallback': deliveryReceiptScreenNoJeeberName,
       'Long jeeber name · LBP amount': deliveryReceiptScreenLongContent,
       'Error · 404 receipt not found': deliveryReceiptScreenNotFound,
@@ -70,7 +70,7 @@ void main() {
     },
     expectedText: const <String, String>{
       'Amount unknown · gateway dropped it': _cashNoAmountKamal,
-      'Amount zero · never fabricate \$0.00': _cashNoAmountNour,
+      'Amount zero · never fabricate 0.00 USD': _cashNoAmountNour,
       'No jeeber name · generic fallback': _cashFallbackNoun,
       'Long jeeber name · LBP amount': _cashLongLbp,
       'Error · 404 receipt not found': 'We couldn\'t find this delivery.',

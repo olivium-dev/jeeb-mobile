@@ -390,7 +390,7 @@ Widget goodsCostScreenCurrencyUsd() => _goodsCostScreenHosted(
 /// — beside `Icons.attach_money`.
 @JeebPreview(
   group: 'goods_cost',
-  name: 'Currency LBP · hardcoded \$ icon',
+  name: 'Currency LBP · hardcoded USD icon',
   size: _goodsCostScreenPhoneBox,
   matrix: true,
 )

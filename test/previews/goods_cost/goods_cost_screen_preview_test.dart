@@ -55,7 +55,7 @@ void main() {
     'GoodsCostScreen',
     const <String, Widget Function()>{
       'Currency USD · records and pops': goodsCostScreenCurrencyUsd,
-      'Currency LBP · hardcoded \$ icon': goodsCostScreenCurrencyLbp,
+      'Currency LBP · hardcoded USD icon': goodsCostScreenCurrencyLbp,
       'Currency read in flight': goodsCostScreenCurrencyPending,
       'Currency read failed · neutral label': goodsCostScreenCurrencyUnavailable,
       'Record rejected · 422 validation': goodsCostScreenRecordRejected,
@@ -65,7 +65,7 @@ void main() {
     },
     expectedText: const <String, String>{
       'Currency USD · records and pops': GoodsCostScreenCaptions.usd,
-      'Currency LBP · hardcoded \$ icon': GoodsCostScreenCaptions.lbp,
+      'Currency LBP · hardcoded USD icon': GoodsCostScreenCaptions.lbp,
       'Currency read in flight': GoodsCostScreenCaptions.currencyPending,
       'Currency read failed · neutral label':
           GoodsCostScreenCaptions.currencyUnavailable,

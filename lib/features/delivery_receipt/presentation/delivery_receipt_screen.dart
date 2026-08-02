@@ -466,7 +466,7 @@ Widget _deliveryReceiptScreenHosted(
 /// The happy path: `$9.00` owed to Kamal Hajj, with the proof-of-delivery photo
 @JeebPreview(
   group: 'delivery_receipt',
-  name: 'Loaded · proof photo + \$9.00 cash',
+  name: 'Loaded · proof photo + 9.00 USD cash',
   size: _deliveryReceiptScreenPhoneBox,
 )
 Widget deliveryReceiptScreenLoaded() => _deliveryReceiptScreenHosted(
@@ -500,7 +500,7 @@ Widget deliveryReceiptScreenAmountUnknown() => _deliveryReceiptScreenHosted(
 /// The other half of the same guard: the amount arrived as `0`.
 @JeebPreview(
   group: 'delivery_receipt',
-  name: 'Amount zero · never fabricate \$0.00',
+  name: 'Amount zero · never fabricate 0.00 USD',
   size: _deliveryReceiptScreenPhoneBox,
 )
 Widget deliveryReceiptScreenAmountZero() => _deliveryReceiptScreenHosted(
