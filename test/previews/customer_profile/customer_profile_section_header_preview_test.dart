@@ -20,7 +20,6 @@ import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/customer_profile/presentation/widgets/customer_profile_icon_disc.dart';
 import 'package:jeeb_mobile/features/customer_profile/presentation/widgets/customer_profile_row.dart';
 import 'package:jeeb_mobile/features/customer_profile/presentation/widgets/customer_profile_section_header.dart';
-import 'package:jeeb_mobile/previews/customer_profile/customer_profile_section_header_preview.dart';
 
 import '../preview_test_harness.dart';
 

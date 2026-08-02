@@ -20,7 +20,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/customer_profile/presentation/widgets/customer_profile_rating.dart';
-import 'package:jeeb_mobile/previews/customer_profile/customer_profile_rating_preview.dart';
 
 import '../../support/load_test_fonts.dart';
 import '../preview_test_harness.dart';

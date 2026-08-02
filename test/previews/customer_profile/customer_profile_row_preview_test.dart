@@ -15,9 +15,18 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/customer_profile/presentation/widgets/customer_profile_row.dart';
-import 'package:jeeb_mobile/previews/customer_profile/customer_profile_row_preview.dart';
 
 import '../preview_test_harness.dart';
+
+// The three preview fixture strings, restated here. They are library-private in
+// `customer_profile_row.dart` (nothing below a JEEB PREVIEWS banner is exported)
+// so this file pins the same literals; a drift in either place fails the
+// `expectedText` assertions below rather than passing silently.
+const String kNarrowPhoneCaption = 'Narrow phone · 320dp';
+const String kLongLabel =
+    'Password, security and two-factor authentication settings';
+const String kLongArabicLabel =
+    'إعدادات كلمة المرور والأمان والمصادقة الثنائية للحساب';
 
 /// Width the [Expanded] label was actually given, and the width it wanted.
 ({double given, double wanted}) _labelBudget(WidgetTester tester, String text) {

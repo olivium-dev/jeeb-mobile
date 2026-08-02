@@ -18,7 +18,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/customer_profile/presentation/widgets/customer_profile_icon_disc.dart';
-import 'package:jeeb_mobile/previews/customer_profile/customer_profile_icon_disc_preview.dart';
 
 import '../preview_test_harness.dart';
 
