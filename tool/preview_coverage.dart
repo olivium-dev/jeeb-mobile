@@ -122,7 +122,10 @@ void main(List<String> args) {
   }
 
   // 2. Every preview file that exists, by basename.
+  // NB: skip `harness/` — `jeeb_preview.dart` ends in `_preview.dart` and
+  // would falsely cover a widget named `Jeeb`.
   final previewFiles = _dartFilesUnder('lib/previews')
+      .where((File f) => !_rel(f.path).startsWith('lib/previews/harness/'))
       .map((File f) => f.uri.pathSegments.last)
       .where((String n) => n.endsWith('_preview.dart'))
       .toSet();

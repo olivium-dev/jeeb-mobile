@@ -19,3 +19,4 @@ RouteVisibilityScope    # publishes route visibility; renders child verbatim
 PollingVisibilityGate   # gates a poll on visibility; renders child verbatim
 GestureLogListener      # diagnostics-only pointer listener; no visual output
 RootAwareBackScope      # back-navigation policy wrapper; renders child verbatim
+CaptureLocationRoute    # /capture-location route host; renders CaptureLocationScreen verbatim (Screens are Screen-Catalog scope), sole behaviour is a GoRouter pop

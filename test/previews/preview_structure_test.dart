@@ -20,7 +20,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// Maximum number of uncovered widgets allowed. Lower this as waves land —
 /// never raise it.
-const int _coverageFloor = 135;
+const int _coverageFloor = 127;
 
 final RegExp _widgetClass = RegExp(
   r'^class ([A-Z][A-Za-z0-9_]*) extends (?:StatelessWidget|StatefulWidget)',
@@ -109,7 +109,10 @@ void main() {
     // Covered == owns `lib/previews/<area>/<snake>_preview.dart`. A mere mention
     // inside a sibling's preview does NOT count — that once inflated coverage by
     // five widgets that had no preview of their own.
+    // Skip `harness/`: `jeeb_preview.dart` ends in `_preview.dart` and would
+    // falsely cover a widget named `Jeeb`.
     final previewFiles = _dartFilesUnder('lib/previews')
+        .where((File f) => !_rel(f.path).startsWith('lib/previews/harness/'))
         .map((File f) => f.uri.pathSegments.last)
         .where((String n) => n.endsWith('_preview.dart'))
         .toSet();
