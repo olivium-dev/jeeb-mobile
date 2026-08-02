@@ -1,0 +1,195 @@
+// Render tests for the JeeberNoRequestsView previews.
+//
+// Nothing in CI opens the preview canvas, so an untested preview rots silently
+// until someone runs it by hand. This follows the template in
+// `test/previews/preview_test_harness.dart`.
+//
+// This view is composition, so five of its six states differ ONLY by which
+// bands are present — every one of them renders the same greeting and the same
+// "No requests right now" empty state. A render-only check would therefore pass
+// with all six previews wired to the same view state, so each pins a string
+// only IT can produce, and the specifics group pins the band-exclusive
+// contracts (compact row vs. full section, warning banner, active-work rows) on
+// top of that.
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:omds/omds.dart';
+
+import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/availability_card.dart';
+import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/inactivity_warning_banner.dart';
+import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/jeeber_no_requests_view.dart';
+import 'package:jeeb_mobile/previews/jeeber_home/jeeber_no_requests_view_preview.dart';
+
+import '../preview_test_harness.dart';
+
+/// The empty state is the one band present in EVERY state of this view — it is
+/// what tells the Jeeber the feed is live but quiet rather than broken.
+const Key _kEmptyStateKey = Key('jeeber-no-requests-empty-state');
+
+/// The longest-content preview's first row. Declared here so a preview quietly
+/// rewired to a short name fails instead of silently losing the one state that
+/// pushes a long label against the non-flexible "Open chat" CTA.
+const String _kLongCounterpart = 'Marie-Christine Abou Jaoudé';
+
+void main() {
+  setUpAll(loadPreviewArbs);
+
+  // Every preview except `Toggle in flight`, which cannot settle — see the
+  // dedicated group below.
+  testPreviewsRender(
+    'JeeberNoRequestsView',
+    const <String, Widget Function()>{
+      'Online · quiet feed': jeeberNoRequestsOnline,
+      'Offline · full section': jeeberNoRequestsOffline,
+      'Auto-offline · system flipped': jeeberNoRequestsAutoOffline,
+      'Idle warning · 30 min to auto-offline': jeeberNoRequestsIdleWarning,
+      'Active work · longest content': jeeberNoRequestsActiveWork,
+    },
+    expectedText: const <String, String>{
+      // The only state with this name on file; the other online states share a
+      // different one, so this pin cannot be satisfied by a neighbour.
+      'Online · quiet feed': 'Hello, Karim',
+      'Offline · full section': "You're offline",
+      'Auto-offline · system flipped': 'Automatically taken offline',
+      'Idle warning · 30 min to auto-offline': 'Still there?',
+      'Active work · longest content': '2 active deliveries',
+    },
+  );
+
+  group('JeeberNoRequestsView previews · Toggle in flight', () {
+    // The in-flight card swaps the switch for an indeterminate
+    // `CircularProgressIndicator`, and `pumpAndSettle` (which `pumpPreview`
+    // calls) never returns while one is on screen. Same three assertions the
+    // shared suite makes — builds in EN, builds in AR, renders its OWN state —
+    // driven by fixed pumps instead.
+    Future<void> pumpInFlight(
+      WidgetTester tester, {
+      Locale locale = const Locale('en'),
+    }) async {
+      await tester.pumpWidget(
+        previewCanvas(jeeberNoRequestsToggleInFlight, locale),
+      );
+      await tester.pump(); // the banner's canned fetch resolves
+      await tester.pump(const Duration(milliseconds: 16)); // one spinner frame
+    }
+
+    for (final Locale locale in const <Locale>[Locale('en'), Locale('ar')]) {
+      testWidgets('Toggle in flight · ${locale.languageCode}', (
+        WidgetTester tester,
+      ) async {
+        await pumpInFlight(tester, locale: locale);
+
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('Toggle in flight renders its own state', (
+      WidgetTester tester,
+    ) async {
+      await pumpInFlight(tester);
+
+      expect(find.text('Updating…'), findsOneWidget);
+      expect(find.byKey(AvailabilityCard.spinnerKey), findsOneWidget);
+      expect(
+        find.byKey(AvailabilityCard.toggleKey),
+        findsNothing,
+        reason: 'Nothing may be tappable while the toggle PUT is out.',
+      );
+      // The write being in flight must not blank the rest of the surface.
+      expect(find.byKey(_kEmptyStateKey), findsOneWidget);
+    });
+  });
+
+  group('JeeberNoRequestsView preview specifics', () {
+    // NB: one preview per test. Pumping a second preview into the same tester
+    // does not necessarily rebuild every child — `previewCanvas` produces the
+    // same widget types, so elements are UPDATED rather than replaced.
+    testWidgets('every settleable state keeps the empty state on screen', (
+      WidgetTester tester,
+    ) async {
+      for (final Widget Function() preview in <Widget Function()>[
+        jeeberNoRequestsOnline,
+        jeeberNoRequestsOffline,
+        jeeberNoRequestsAutoOffline,
+        jeeberNoRequestsIdleWarning,
+        jeeberNoRequestsActiveWork,
+      ]) {
+        await tester.pumpWidget(previewCanvas(preview, const Locale('en')));
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(JeeberNoRequestsView.rootKey), findsOneWidget);
+        expect(find.byKey(_kEmptyStateKey), findsOneWidget);
+        expect(find.text('No requests right now'), findsOneWidget);
+      }
+    });
+
+    testWidgets('online collapses availability to ONE compact row', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(tester, jeeberNoRequestsOnline);
+
+      expect(find.byKey(AvailabilityCard.toggleKey), findsOneWidget);
+      expect(
+        find.byType(OMDSSectionCard),
+        findsNothing,
+        reason: 'The full section is reserved for offline/toggling states.',
+      );
+      // Nothing else is competing for the band: no warning, no won work.
+      expect(find.byKey(InactivityWarningBanner.rootKey), findsNothing);
+      expect(find.text('Open chat'), findsNothing);
+    });
+
+    testWidgets('offline uses the full section and NO auto-offline hint', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(tester, jeeberNoRequestsOffline);
+
+      expect(find.byType(OMDSSectionCard), findsOneWidget);
+      expect(
+        find.text('Auto-offline after 8 h idle'),
+        findsNothing,
+        reason: 'The idle hint belongs to the auto-offline state only.',
+      );
+      // No name on file → the generic greeting, never a blank line.
+      expect(find.text('Welcome back'), findsOneWidget);
+    });
+
+    testWidgets('auto-offline explains itself with the idle hint', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(tester, jeeberNoRequestsAutoOffline);
+
+      expect(find.byType(OMDSSectionCard), findsOneWidget);
+      expect(find.text('Auto-offline after 8 h idle'), findsOneWidget);
+      expect(
+        find.text("You're offline"),
+        findsNothing,
+        reason: 'A system-initiated offline must not read as a self-toggle.',
+      );
+    });
+
+    testWidgets('the idle warning carries its extend CTA', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(tester, jeeberNoRequestsIdleWarning);
+
+      expect(find.byKey(InactivityWarningBanner.rootKey), findsOneWidget);
+      expect(find.byKey(InactivityWarningBanner.ctaKey), findsOneWidget);
+      expect(find.text("I'm still here"), findsOneWidget);
+    });
+
+    testWidgets('won work stays reachable: one row + CTA per accepted order', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(tester, jeeberNoRequestsActiveWork);
+
+      expect(find.text(_kLongCounterpart), findsOneWidget);
+      // Two CTAs, not one: the second won order carries no counterpart name,
+      // and a row that cannot label itself must still be reachable.
+      expect(find.text('Open chat'), findsNWidgets(2));
+      // The band is additive — it must not displace the empty state.
+      expect(find.byKey(_kEmptyStateKey), findsOneWidget);
+    });
+  });
+}
