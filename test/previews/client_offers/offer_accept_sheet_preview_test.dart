@@ -10,7 +10,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:jeeb_mobile/previews/client_offers/offer_accept_sheet_preview.dart';
+import 'package:jeeb_mobile/features/client_offers/presentation/widgets/offer_accept_sheet.dart';
 
 import '../preview_test_harness.dart';
 

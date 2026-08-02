@@ -16,7 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/transcription/presentation/transcription_screen.dart';
-import 'package:jeeb_mobile/previews/transcription/transcription_text_panel_preview.dart';
+import 'package:jeeb_mobile/features/transcription/presentation/widgets/transcription_text_panel.dart';
 
 import '../preview_test_harness.dart';
 

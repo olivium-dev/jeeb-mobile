@@ -21,16 +21,15 @@ import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/jeeber_onboarding/application/dm_onboarding_state.dart';
 import 'package:jeeb_mobile/features/jeeber_onboarding/presentation/widgets/dm_onboarding_progress_header.dart';
-import 'package:jeeb_mobile/previews/jeeber_onboarding/dm_onboarding_progress_header_preview.dart';
 
 import '../preview_test_harness.dart';
 
 const Map<String, Widget Function()> _previews = <String, Widget Function()>{
-  'Step 1 · photo': dmOnboardingProgressStepPhoto,
-  'Step 2 · address': dmOnboardingProgressStepAddress,
-  'Step 3 · service area': dmOnboardingProgressStepServiceArea,
-  'Submitting on step 3': dmOnboardingProgressSubmitting,
-  'Submitted · full bar': dmOnboardingProgressSubmitted,
+  'Step 1 · photo': dmOnboardingProgressHeaderStepPhoto,
+  'Step 2 · address': dmOnboardingProgressHeaderStepAddress,
+  'Step 3 · service area': dmOnboardingProgressHeaderStepServiceArea,
+  'Submitting on step 3': dmOnboardingProgressHeaderSubmitting,
+  'Submitted · full bar': dmOnboardingProgressHeaderSubmitted,
 };
 
 /// The phone the wizard ships on, and the width the previews declare. The
@@ -180,7 +179,7 @@ void main() {
     ) async {
       await pumpPreview(
         tester,
-        dmOnboardingProgressStepServiceArea,
+        dmOnboardingProgressHeaderStepServiceArea,
         locale: const Locale('ar'),
       );
 
@@ -194,7 +193,7 @@ void main() {
     testWidgets('step 1 paints the track and NO fill at all', (
       WidgetTester tester,
     ) async {
-      await _pumpOnPhone(tester, dmOnboardingProgressStepPhoto);
+      await _pumpOnPhone(tester, dmOnboardingProgressHeaderStepPhoto);
 
       // `completedSteps` is `step.index`, so the first step is 0/3 and
       // `_StepperPainter` takes its `if (progress > 0)` early-out. The Jeeber
@@ -232,10 +231,10 @@ void main() {
       // The contract behind the deliberately identical-looking preview: the
       // header's `buildWhen` watches only `step` and `isSubmitted`, so tapping
       // Continue must not advance the bar on an outcome that has not happened.
-      await _pumpOnPhone(tester, dmOnboardingProgressSubmitting);
+      await _pumpOnPhone(tester, dmOnboardingProgressHeaderSubmitting);
       final double submitting = _paintedLines(tester).last.to.dx;
 
-      await _pumpOnPhone(tester, dmOnboardingProgressStepServiceArea);
+      await _pumpOnPhone(tester, dmOnboardingProgressHeaderStepServiceArea);
       final double idle = _paintedLines(tester).last.to.dx;
 
       expect(submitting, idle);
@@ -247,7 +246,7 @@ void main() {
       // The bar carries no text of its own, so the accessibility ceiling should
       // be a non-event. Pinned so a later label added inside the header cannot
       // silently start overflowing the 32 pt strip.
-      expect(await _pumpAtDoubleText(tester, dmOnboardingProgressSubmitted),
+      expect(await _pumpAtDoubleText(tester, dmOnboardingProgressHeaderSubmitted),
           isNull);
     });
 
@@ -264,7 +263,7 @@ void main() {
       // this is the pessimistic end — a real proportional font wraps the
       // caption in fewer lines, never more.
       expect(
-        await _pumpAtDoubleText(tester, dmOnboardingProgressSubmitting),
+        await _pumpAtDoubleText(tester, dmOnboardingProgressHeaderSubmitting),
         isNull,
       );
 
@@ -299,12 +298,12 @@ void main() {
     testWidgets('the padding DOES mirror', (WidgetTester tester) async {
       // The control. Without it, "the fill does not mirror" could be read as
       // "nothing in this header is direction-aware"; the padding is.
-      await _pumpOnPhone(tester, dmOnboardingProgressStepAddress);
+      await _pumpOnPhone(tester, dmOnboardingProgressHeaderStepAddress);
       final Rect ltr = tester.getRect(_bar);
 
       await _pumpOnPhone(
         tester,
-        dmOnboardingProgressStepAddress,
+        dmOnboardingProgressHeaderStepAddress,
         locale: const Locale('ar'),
       );
       final Rect rtl = tester.getRect(_bar);
@@ -318,7 +317,7 @@ void main() {
     testWidgets('the FILL does not mirror', (WidgetTester tester) async {
       await _pumpOnPhone(
         tester,
-        dmOnboardingProgressStepAddress,
+        dmOnboardingProgressHeaderStepAddress,
         locale: const Locale('ar'),
       );
 

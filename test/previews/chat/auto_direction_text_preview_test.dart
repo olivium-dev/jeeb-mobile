@@ -14,7 +14,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/chat/presentation/widgets/auto_direction_text.dart';
-import 'package:jeeb_mobile/previews/chat/auto_direction_text_preview.dart';
 
 import '../preview_test_harness.dart';
 

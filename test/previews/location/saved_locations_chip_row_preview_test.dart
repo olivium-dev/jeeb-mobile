@@ -18,7 +18,6 @@ import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/location/cubit/location_picker_cubit.dart';
 import 'package:jeeb_mobile/features/location/presentation/widgets/saved_locations_chip_row.dart';
-import 'package:jeeb_mobile/previews/location/saved_locations_chip_row_preview.dart';
 
 import '../preview_test_harness.dart';
 

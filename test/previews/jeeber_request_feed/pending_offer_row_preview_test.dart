@@ -17,7 +17,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/presentation/pending_offer_row.dart';
-import 'package:jeeb_mobile/previews/jeeber_request_feed/pending_offer_row_preview.dart';
 
 import '../preview_test_harness.dart';
 

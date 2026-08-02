@@ -3,47 +3,79 @@
 **Goal:** every public, non-screen widget in `lib/` has at least one `@JeebPreview`,
 so any of them can be seen in EN / AR-RTL / 200%-text without booting the app.
 
-**Scope:** 168 widgets (tier A — public, non-screen). Screens are excluded: the
+**Scope:** 150 widgets (tier A — public, non-screen). Screens are excluded: the
 on-device Screen Catalog already covers them with 270 mocked states. Private
 `_`-prefixed widgets are exercised through their parent's preview.
 
-**Status:** run `dart run tool/preview_coverage.dart`.
+**Status:** 128/150 covered · 726 preview functions · 22 remaining. Run
+`dart run tool/preview_coverage.dart`.
 
 ---
 
 ## 1. Where things live
 
+Previews live at the **bottom of the widget's own source file**, below a
+`// ===== JEEB PREVIEWS =====` banner.
+
 ```
-lib/previews/               ← ALL preview code. Nothing outside imports it.
-├── README.md               ← conventions (read before writing one)
-├── harness/jeeb_preview.dart
-├── fixtures/
-├── core/
-└── <feature>/
+lib/<anywhere>/some_widget.dart
+├── production code
+└── // ===== JEEB PREVIEWS =====   ← fixtures + @JeebPreview functions
+
+lib/core/previews/
+├── README.md                      ← conventions (read before writing one)
+└── jeeb_preview.dart              ← the shared annotation + host wrapper
 
 test/previews/
 ├── preview_test_harness.dart      ← testPreviewsRender()
-├── preview_structure_test.dart    ← the two ratchets
-└── <feature>/
+├── preview_structure_test.dart    ← the seven invariants
+└── <feature>/                     ← one render test per widget (unchanged)
 
+tool/preview_inventory.dart        ← the detector, shared by the two below
 tool/preview_coverage.dart         ← the work queue
 tool/workflows/preview_rollout.js  ← one wave, fanned out
 ```
 
-Previews **must** be under `lib/` — the generated preview scaffold imports them as
-`package:` URIs. Collecting them in `lib/previews/` rather than beside each widget
-is what keeps `lib/features/**` free of dev-only code.
+### Why they moved out of `lib/previews/`
+
+`flutter widget-preview start` records a `scriptUri` per preview — **the file the
+function is declared in** — and the IDE panel filters the canvas to the file you have
+open. With previews in a parallel tree, opening `chat_message_bubble.dart` showed you
+nothing; its previews were attributed to
+`lib/previews/chat/chat_message_bubble_preview.dart`, a file nobody was editing. You
+had to know the mirror path and open it by hand, which is exactly the friction previews
+exist to remove.
+
+Two other things went with it. The mirror layout could drift (rename the widget, orphan
+the preview), and the coverage rule had to infer the mapping from a file name — already
+wrong for `ActiveOrderCard` and `ClientHomeTierBadge`, both of which live in
+`active_request_card.dart`.
+
+Previews still **must** be under `lib/`: the generated preview scaffold imports them as
+`package:` URIs, so a file in `test/` is invisible to the tool.
+
+The old layout existed to keep `lib/features/**` free of dev-only code. The banner does
+that job better — it is a hard, greppable line, and §5 asserts that nothing above it
+references anything below it, which is a stronger statement than any import rule.
 
 ## 2. The unit of work
 
-One widget → two new files, never a production edit:
+One widget → one file edited, one file written:
 
 | | |
 |---|---|
-| `lib/previews/<area>/<widget>_preview.dart` | 3–6 `@JeebPreview` functions |
+| a `JEEB PREVIEWS` section at the bottom of the widget's own source file | 3–6 `@JeebPreview` functions |
 | `test/previews/<area>/<widget>_preview_test.dart` | `testPreviewsRender(...)` with `expectedText` |
 
+Render tests stay in `test/previews/<area>/`. With `lib/previews/` gone that tree is
+the only remaining index of what has previews, and `test/` root is already a flat pile
+of ~200 widget tests.
+
 `@JeebPreview` expands each function into **EN light / AR RTL dark / EN 200% text**.
+
+Every top-level name in the section is prefixed with the widget's name
+(`_clientHomeGreetingHosted`, not `_hosted`) so that a file holding previews for two or
+three widgets cannot collide. See `lib/core/previews/README.md`.
 
 A widget is **done** when `flutter analyze` and its render test are both clean.
 
@@ -52,15 +84,21 @@ A widget is **done** when `flutter analyze` and its render test are both clean.
 Three pieces, composed:
 
 **`tool/preview_coverage.dart`** is the queue. It lists every uncovered widget with
-its target paths, grouped by area, `--json` for automation. A widget counts as
-covered when its class name appears anywhere under `lib/previews/`.
+its source file, grouped by area, `--json` for automation. A widget counts as covered
+when its **own source file** declares a `@JeebPreview` function named after it AND the
+section actually constructs it. Both, not either: construction alone lets a sibling's
+fixture take the credit; the name alone lets a mis-typed fixture pass. One signal
+without the other is reported as **MALFORMED** and fails CI. The detector itself lives
+in `tool/preview_inventory.dart` and is shared with the structure test.
 
 **`tool/workflows/preview_rollout.js`** is one wave. Given a batch of ~8 widgets it
-runs one agent per widget in parallel — each reads the widget and its existing
-tests, writes both files, and **runs analyze + test itself** before reporting.
-Agents never share a file, so there is no write contention. A final integration
-agent re-runs the whole preview suite, lowers the coverage floor, and spot-checks
-two files against the README.
+runs one agent per widget in parallel — each reads the widget and its existing tests,
+appends the preview section, writes the render test, and **runs analyze + test itself**
+before reporting. Agents never share a file, so there is no write contention — but note
+that co-location means the file an agent edits is now production code, so a half-written
+section breaks the library and everything downstream of it. A final integration agent
+re-runs the whole preview suite, lowers the coverage floor, and spot-checks two sections
+against the README.
 
 **The loop** repeats waves until the queue is empty:
 
@@ -74,7 +112,9 @@ two files against the README.
   5. if the queue is empty, stop the loop
 ```
 
-At 8 per wave, 167 remaining is ~21 waves.
+At 8 per wave, the 22 remaining is ~3 waves. The 22 are listed by
+`dart run tool/preview_coverage.dart`; they are the long tail — one or two widgets
+each across 20 small areas.
 
 ## 4. Order of areas
 
@@ -94,14 +134,30 @@ the long tail.
 `chat` and `core` lead because July's push/Firestore migration churned chat hardest,
 and `lib/core/widgets` is used by every other area.
 
+**All seven wave groups have landed** (waves 01–17, then the co-location migration).
+What remains is the group-7 long tail — see the queue, not this table.
+
 ## 5. What stops this from rotting
 
-`test/previews/preview_structure_test.dart` holds two invariants on every CI run:
+Co-location removed the directory boundary that used to keep previews out of shipping
+code, so `test/previews/preview_structure_test.dart` replaces it with seven invariants
+that work on **references** rather than on file paths — strictly stronger, because a
+fixture that leaks is caught even though it is one scroll away from the widget:
 
-1. **Nothing outside `lib/previews/` imports it.** This is what makes "previews are
-   tree-shaken out of release builds" true rather than aspirational.
-2. **The uncovered count only goes down.** Each wave lowers `_coverageFloor`. A
-   deleted or renamed preview fails CI instead of silently reducing coverage.
+1. **`lib/previews/` does not exist.** The migration's completeness gate.
+2. **The harness is imported only by files that have a preview section** — catches an
+   import left behind after someone deletes previews.
+3. **No `@JeebPreview` above a banner**, and at most one banner per file.
+4. **Nothing above a banner references anything below it.** This is what makes
+   "previews are tree-shaken out of release builds" true rather than aspirational.
+5. **Nothing below a banner is referenced from another library under `lib/`.** Preview
+   functions are public because the SDK requires it, so privacy does not protect them.
+   `test/` is exempt — that is where they are legitimately called.
+6. **Every name below a banner is widget-prefixed**, and public only when a test
+   actually uses it.
+7. **The uncovered count only goes down**, and no widget is MALFORMED. Each wave lowers
+   `_coverageFloor`. A deleted or renamed preview fails CI instead of silently reducing
+   coverage.
 
 Neither the canvas nor `flutter widget-preview start` runs in CI, which is exactly
 why every preview also carries a render test.

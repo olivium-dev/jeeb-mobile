@@ -13,7 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/formatting/money_format.dart';
-import 'package:jeeb_mobile/previews/shell/orders_tab_preview.dart';
+import 'package:jeeb_mobile/features/shell/tabs/orders_tab.dart';
 
 import '../preview_test_harness.dart';
 

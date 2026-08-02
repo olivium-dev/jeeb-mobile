@@ -14,7 +14,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/otp_handover/presentation/widgets/handover_code_display.dart';
-import 'package:jeeb_mobile/previews/live_tracking/otp_at_door_card_preview.dart';
+import 'package:jeeb_mobile/features/live_tracking/presentation/widgets/otp_at_door_card.dart';
 
 import '../preview_test_harness.dart';
 

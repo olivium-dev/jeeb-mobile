@@ -15,7 +15,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/shell/widgets/jeeber_tab_empty_state.dart';
-import 'package:jeeb_mobile/previews/shell/jeeber_tab_empty_state_preview.dart';
 
 import '../preview_test_harness.dart';
 

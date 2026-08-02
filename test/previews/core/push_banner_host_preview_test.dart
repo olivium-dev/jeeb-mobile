@@ -14,7 +14,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:jeeb_mobile/previews/core/push_banner_host_preview.dart';
+import 'package:jeeb_mobile/core/notifications/presentation/push_banner_host.dart';
 
 import '../preview_test_harness.dart';
 

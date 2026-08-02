@@ -12,7 +12,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/active_delivery_jeeber/presentation/widgets/gps_permission_banner.dart';
-import 'package:jeeb_mobile/previews/active_delivery_jeeber/gps_permission_banner_preview.dart';
 
 import '../preview_test_harness.dart';
 
@@ -116,7 +115,7 @@ void main() {
         // This test pins the CURRENT behaviour so the canvas note stays honest.
         // If it starts failing because nothing overflowed, the button has been
         // fixed — delete this test and the CTA note in
-        // `lib/previews/active_delivery_jeeber/gps_permission_banner_preview.dart`.
+        // `lib/features/active_delivery_jeeber/presentation/widgets/gps_permission_banner.dart`.
         final Object? error = tester.takeException();
         expect(
           error,

@@ -22,7 +22,6 @@ import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/request_type/presentation/request_tier_card.dart';
 import 'package:jeeb_mobile/features/request_type/presentation/selectable_radio_glyph.dart';
-import 'package:jeeb_mobile/previews/request_type/request_tier_card_preview.dart';
 
 import '../preview_test_harness.dart';
 

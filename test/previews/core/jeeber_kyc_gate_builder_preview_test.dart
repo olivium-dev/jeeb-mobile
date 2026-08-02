@@ -20,7 +20,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/session/jeeber_kyc_status_gate.dart';
 import 'package:jeeb_mobile/features/kyc/domain/kyc_gateway.dart';
 import 'package:jeeb_mobile/features/kyc/domain/kyc_submission.dart';
-import 'package:jeeb_mobile/previews/core/jeeber_kyc_gate_builder_preview.dart';
 
 import '../preview_test_harness.dart';
 
@@ -30,12 +29,12 @@ void main() {
   testPreviewsRender(
     'JeeberKycGateBuilder',
     const <String, Widget Function()>{
-      'none · register prompt': jeeberKycGateNotOnboarded,
-      'pending · feed, offering gated': jeeberKycGatePending,
-      'approved · offering unlocked': jeeberKycGateApproved,
-      'rejected · terminal': jeeberKycGateRejected,
-      'live · fetch in flight': jeeberKycGateLiveFetchInFlight,
-      'live · approved lands late': jeeberKycGateLiveApprovedLandsLate,
+      'none · register prompt': jeeberKycGateBuilderNotOnboarded,
+      'pending · feed, offering gated': jeeberKycGateBuilderPending,
+      'approved · offering unlocked': jeeberKycGateBuilderApproved,
+      'rejected · terminal': jeeberKycGateBuilderRejected,
+      'live · fetch in flight': jeeberKycGateBuilderLiveFetchInFlight,
+      'live · approved lands late': jeeberKycGateBuilderLiveApprovedLandsLate,
     },
     // Each state names the gate it came from AND the destination it resolved,
     // so a preview wired to the wrong status — or six previews accidentally
@@ -57,7 +56,7 @@ void main() {
     testWidgets('a pending jeeber browses the feed with offering gated (D38)', (
       WidgetTester tester,
     ) async {
-      await pumpPreview(tester, jeeberKycGatePending);
+      await pumpPreview(tester, jeeberKycGateBuilderPending);
 
       // The W2-closer fix: `pending` must NOT collapse to the register prompt,
       // or `feed_make_offer_cta` → `offer_kyc_gate` becomes unreachable.
@@ -69,7 +68,7 @@ void main() {
     testWidgets('only approved unlocks offering, on the same destination', (
       WidgetTester tester,
     ) async {
-      await pumpPreview(tester, jeeberKycGateApproved);
+      await pumpPreview(tester, jeeberKycGateBuilderApproved);
 
       // Same headline as the pending preview — the offering line is the only
       // thing that separates the two states.
@@ -80,7 +79,7 @@ void main() {
     testWidgets('rejected resolves to the terminal destination, not the feed', (
       WidgetTester tester,
     ) async {
-      await pumpPreview(tester, jeeberKycGateRejected);
+      await pumpPreview(tester, jeeberKycGateBuilderRejected);
 
       expect(find.text("We couldn't verify your identity"), findsOneWidget);
       expect(find.text('Available requests'), findsNothing);
@@ -89,7 +88,7 @@ void main() {
     testWidgets('the release gate never default-approves before its first read', (
       WidgetTester tester,
     ) async {
-      await pumpPreview(tester, jeeberKycGateLiveFetchInFlight);
+      await pumpPreview(tester, jeeberKycGateBuilderLiveFetchInFlight);
 
       // JEBV4-267. The conservative half is right; the part this preview
       // exposes is that the pre-fetch window is rendered as the register prompt
@@ -159,7 +158,7 @@ void main() {
     testWidgets('a non-Listenable gate is built without a ListenableBuilder', (
       WidgetTester tester,
     ) async {
-      await pumpPreview(tester, jeeberKycGateApproved);
+      await pumpPreview(tester, jeeberKycGateBuilderApproved);
       expect(
         find.descendant(
           of: find.byType(JeeberKycGateBuilder),
@@ -170,7 +169,7 @@ void main() {
             'subscribing to them would be a listener that can never fire',
       );
 
-      await pumpPreview(tester, jeeberKycGateLiveFetchInFlight);
+      await pumpPreview(tester, jeeberKycGateBuilderLiveFetchInFlight);
       expect(
         find.descendant(
           of: find.byType(JeeberKycGateBuilder),
@@ -187,20 +186,20 @@ void main() {
       // and nothing else in this suite exercises that. The rejected state
       // carries the longest headline of the three destinations, so it is the
       // one that decides whether the declared box is honest.
-      await pumpPreview(tester, jeeberKycGateRejected);
+      await pumpPreview(tester, jeeberKycGateBuilderRejected);
       final double atOneX = tester
-          .getRect(find.byKey(jeeberKycGatePreviewBodyKey))
+          .getRect(find.byKey(jeeberKycGateBuilderPreviewBodyKey))
           .height;
 
       await tester.pumpWidget(
         MediaQuery(
           data: const MediaQueryData(textScaler: TextScaler.linear(2)),
-          child: previewCanvas(jeeberKycGateRejected, const Locale('en')),
+          child: previewCanvas(jeeberKycGateBuilderRejected, const Locale('en')),
         ),
       );
       await tester.pumpAndSettle();
       final double atTwoX = tester
-          .getRect(find.byKey(jeeberKycGatePreviewBodyKey))
+          .getRect(find.byKey(jeeberKycGateBuilderPreviewBodyKey))
           .height;
 
       expect(

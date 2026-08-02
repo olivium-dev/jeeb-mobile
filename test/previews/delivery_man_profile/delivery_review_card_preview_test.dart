@@ -9,7 +9,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/delivery_man_profile/presentation/widgets/delivery_review_card.dart';
-import 'package:jeeb_mobile/previews/delivery_man_profile/delivery_review_card_preview.dart';
 
 import '../preview_test_harness.dart';
 

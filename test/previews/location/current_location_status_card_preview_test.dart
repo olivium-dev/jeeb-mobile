@@ -30,7 +30,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/location/presentation/widgets/current_location_status_card.dart';
-import 'package:jeeb_mobile/previews/location/current_location_status_card_preview.dart';
 
 import '../preview_test_harness.dart';
 
@@ -78,7 +77,7 @@ RenderParagraph _paragraph(WidgetTester tester, String text) =>
 
 void main() {
   setUpAll(loadPreviewArbs);
-  setUp(resetCurrentLocationStatusCardTaps);
+  setUp(currentLocationStatusCardResetTaps);
 
   testPreviewsRender(
     'CurrentLocationStatusCard',

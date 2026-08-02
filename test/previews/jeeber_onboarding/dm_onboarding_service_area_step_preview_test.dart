@@ -21,7 +21,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:jeeb_mobile/previews/jeeber_onboarding/dm_onboarding_service_area_step_preview.dart';
+import 'package:jeeb_mobile/features/jeeber_onboarding/presentation/widgets/dm_onboarding_service_area_step.dart';
 
 import '../../support/load_test_fonts.dart';
 import '../preview_test_harness.dart';
@@ -87,12 +87,12 @@ void main() {
   testPreviewsRender(
     'DmOnboardingServiceAreaStep',
     const <String, Widget Function()>{
-      'No base pinned · Continue disabled': dmOnboardingServiceAreaUnpinned,
-      'Base pinned · geocoded label': dmOnboardingServiceAreaPinned,
-      'Pinned by the map screen · stub label': dmOnboardingServiceAreaStubLabel,
-      'Long geocoded label · row overflow': dmOnboardingServiceAreaLongLabel,
+      'No base pinned · Continue disabled': dmOnboardingServiceAreaStepUnpinned,
+      'Base pinned · geocoded label': dmOnboardingServiceAreaStepPinned,
+      'Pinned by the map screen · stub label': dmOnboardingServiceAreaStepStubLabel,
+      'Long geocoded label · row overflow': dmOnboardingServiceAreaStepLongLabel,
       'Coverage check failed · no in-step surface':
-          dmOnboardingServiceAreaCoverageFailed,
+          dmOnboardingServiceAreaStepCoverageFailed,
     },
     // The fixture caption, because the place label is never unique in the tree
     // (map caption + row value) and three of these five states differ by
@@ -119,7 +119,7 @@ void main() {
       Locale locale = const Locale('en'),
     }) async {
       await tester.pumpWidget(
-        previewCanvas(dmOnboardingServiceAreaCheckingCoverage, locale),
+        previewCanvas(dmOnboardingServiceAreaStepCheckingCoverage, locale),
       );
       await tester.pump(); // resolve localizations
       await tester.pump(const Duration(milliseconds: 16)); // one spinner frame
@@ -154,7 +154,7 @@ void main() {
     testWidgets('the entry state gates Continue and never says why', (
       WidgetTester tester,
     ) async {
-      await pumpPreview(tester, dmOnboardingServiceAreaUnpinned);
+      await pumpPreview(tester, dmOnboardingServiceAreaStepUnpinned);
 
       // The empty map reads as an intentional empty map, not a broken pin.
       expect(find.byIcon(Icons.map_outlined), findsOneWidget);
@@ -170,7 +170,7 @@ void main() {
       WidgetTester tester,
     ) async {
       final SemanticsHandle handle = tester.ensureSemantics();
-      await pumpPreview(tester, dmOnboardingServiceAreaUnpinned);
+      await pumpPreview(tester, dmOnboardingServiceAreaStepUnpinned);
 
       expect(
         tester.getSemantics(
@@ -197,7 +197,7 @@ void main() {
     testWidgets('a pinned base prints the same label twice', (
       WidgetTester tester,
     ) async {
-      await pumpPreview(tester, dmOnboardingServiceAreaPinned);
+      await pumpPreview(tester, dmOnboardingServiceAreaStepPinned);
 
       expect(find.text('Sassine Square, Ashrafieh'), findsNWidgets(2));
       expect(find.byIcon(Icons.location_on), findsNWidgets(2));
@@ -209,7 +209,7 @@ void main() {
       WidgetTester tester,
     ) async {
       final SemanticsHandle handle = tester.ensureSemantics();
-      await pumpPreview(tester, dmOnboardingServiceAreaPinned);
+      await pumpPreview(tester, dmOnboardingServiceAreaStepPinned);
 
       expect(
         tester.getSemantics(
@@ -232,7 +232,7 @@ void main() {
       // No `GoRouter` above a preview, so this takes `_pickHomeBase`'s fallback
       // branch — the same stub base the real branch records after the
       // `capture-location` screen pops, because no reverse geocode is wired.
-      await pumpPreview(tester, dmOnboardingServiceAreaUnpinned);
+      await pumpPreview(tester, dmOnboardingServiceAreaStepUnpinned);
       expect(find.text('Location'), findsOneWidget);
 
       await tester.tap(
@@ -254,7 +254,7 @@ void main() {
     testWidgets('the stub-label preview is that same state, seeded', (
       WidgetTester tester,
     ) async {
-      await pumpPreview(tester, dmOnboardingServiceAreaStubLabel);
+      await pumpPreview(tester, dmOnboardingServiceAreaStepStubLabel);
 
       expect(find.text('Location'), findsNWidgets(3));
     });
@@ -264,7 +264,7 @@ void main() {
     ) async {
       await pumpPreview(
         tester,
-        dmOnboardingServiceAreaStubLabel,
+        dmOnboardingServiceAreaStepStubLabel,
         locale: const Locale('ar'),
       );
 
@@ -275,7 +275,7 @@ void main() {
     testWidgets('a failed coverage probe is indistinguishable from success', (
       WidgetTester tester,
     ) async {
-      await pumpPreview(tester, dmOnboardingServiceAreaCoverageFailed);
+      await pumpPreview(tester, dmOnboardingServiceAreaStepCoverageFailed);
 
       // The cubit emitted `submitFailed`; the step's only listener for it is
       // `DmOnboardingScreen`, which is not in this tree. Nothing here says so.
@@ -298,7 +298,7 @@ void main() {
     ) async {
       final String? errors = await _layoutErrorsAt(
         tester,
-        dmOnboardingServiceAreaLongLabel,
+        dmOnboardingServiceAreaStepLongLabel,
       );
 
       expect(errors, contains('on the right'));
@@ -321,7 +321,7 @@ void main() {
       // first, or it asserts nothing.
       final String? errors = await _layoutErrorsAt(
         tester,
-        dmOnboardingServiceAreaLongLabel,
+        dmOnboardingServiceAreaStepLongLabel,
         size: const Size(800, 640),
       );
 
@@ -334,14 +334,14 @@ void main() {
       // 'Sassine Square, Ashrafieh' is 25 characters — nothing exotic, and the
       // exact address the saved-address seam seeds.
       expect(
-        await _layoutErrorsAt(tester, dmOnboardingServiceAreaPinned),
+        await _layoutErrorsAt(tester, dmOnboardingServiceAreaStepPinned),
         isNull,
         reason: 'the 390 pt box is where this state looks fine',
       );
 
       final String? narrow = await _layoutErrorsAt(
         tester,
-        dmOnboardingServiceAreaPinned,
+        dmOnboardingServiceAreaStepPinned,
         size: const Size(320, 640),
       );
 
@@ -359,7 +359,7 @@ void main() {
     ) async {
       final String? errors = await _layoutErrorsAt(
         tester,
-        dmOnboardingServiceAreaUnpinned,
+        dmOnboardingServiceAreaStepUnpinned,
         textScale: 2.0,
       );
 
@@ -384,7 +384,7 @@ void main() {
       expect(
         await _layoutErrorsAt(
           tester,
-          dmOnboardingServiceAreaStubLabel,
+          dmOnboardingServiceAreaStepStubLabel,
           textScale: 2.0,
         ),
         isNull,
@@ -392,7 +392,7 @@ void main() {
 
       final String? geocoded = await _layoutErrorsAt(
         tester,
-        dmOnboardingServiceAreaPinned,
+        dmOnboardingServiceAreaStepPinned,
         textScale: 2.0,
       );
 

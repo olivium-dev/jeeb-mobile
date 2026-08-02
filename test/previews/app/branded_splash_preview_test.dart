@@ -21,7 +21,6 @@ import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/app/branded_splash.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
-import 'package:jeeb_mobile/previews/app/branded_splash_preview.dart';
 
 import '../preview_test_harness.dart';
 

@@ -25,7 +25,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/notifications/presentation/notification_permission_prompt.dart';
-import 'package:jeeb_mobile/previews/core/notification_permission_prompt_preview.dart';
 
 import '../preview_test_harness.dart';
 
@@ -68,7 +67,7 @@ Future<void> _pumpOnPhone(
 
 void main() {
   setUpAll(loadPreviewArbs);
-  setUp(resetNotificationPermissionPromptTaps);
+  setUp(notificationPermissionPromptResetTaps);
 
   testPreviewsRender(
     'NotificationPermissionPrompt',

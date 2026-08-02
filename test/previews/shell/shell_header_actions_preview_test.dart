@@ -12,7 +12,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:jeeb_mobile/previews/shell/shell_header_actions_preview.dart';
+import 'package:jeeb_mobile/features/shell/widgets/shell_header_actions.dart';
 
 import '../preview_test_harness.dart';
 

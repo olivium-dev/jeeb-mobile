@@ -27,7 +27,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/settings/presentation/widgets/profile_avatar.dart';
-import 'package:jeeb_mobile/previews/settings/profile_avatar_preview.dart';
 
 import '../preview_test_harness.dart';
 

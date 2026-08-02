@@ -19,7 +19,6 @@ import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_bubble_timestamp.dart';
-import 'package:jeeb_mobile/previews/chat/chat_bubble_timestamp_preview.dart';
 
 import '../preview_test_harness.dart';
 

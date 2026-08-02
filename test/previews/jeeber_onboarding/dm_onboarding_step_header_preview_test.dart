@@ -29,7 +29,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/jeeber_onboarding/presentation/widgets/dm_onboarding_step_header.dart';
-import 'package:jeeb_mobile/previews/jeeber_onboarding/dm_onboarding_step_header_preview.dart';
 
 import '../preview_test_harness.dart';
 

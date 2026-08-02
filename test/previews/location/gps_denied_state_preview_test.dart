@@ -35,7 +35,6 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/location/presentation/widgets/gps_denied_state.dart';
-import 'package:jeeb_mobile/previews/location/gps_denied_state_preview.dart';
 
 import '../preview_test_harness.dart';
 

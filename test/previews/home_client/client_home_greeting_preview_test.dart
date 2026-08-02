@@ -7,7 +7,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:jeeb_mobile/previews/home_client/client_home_greeting_preview.dart';
+import 'package:jeeb_mobile/features/home_client/presentation/widgets/client_home_greeting.dart';
 
 import '../preview_test_harness.dart';
 

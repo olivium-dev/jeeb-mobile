@@ -21,7 +21,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/client_offers/presentation/widgets/offer_sort_bar.dart';
-import 'package:jeeb_mobile/previews/client_offers/offer_sort_bar_preview.dart';
 
 import '../../support/load_test_fonts.dart';
 import '../preview_test_harness.dart';

@@ -22,7 +22,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb_verified_badge.dart';
-import 'package:jeeb_mobile/previews/core/jeeb_verified_badge_preview.dart';
 
 import '../preview_test_harness.dart';
 

@@ -22,7 +22,6 @@ import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/jeeber_onboarding/presentation/widgets/dm_onboarding_photo_upload_card.dart';
-import 'package:jeeb_mobile/previews/jeeber_onboarding/dm_onboarding_photo_upload_card_preview.dart';
 
 import '../preview_test_harness.dart';
 
@@ -59,10 +58,10 @@ Size _widthDriven(double deviceWidth) {
 final Map<String, Uint8List?> _expectedPhoto = <String, Uint8List?>{
   'Empty · phone (390pt)': null,
   'Empty · compact device (320pt)': null,
-  'Filled · portrait 4:5': dmOnboardingPhotoUploadPortraitBytes,
-  'Filled · landscape 16:9': dmOnboardingPhotoUploadLandscapeBytes,
-  'Filled · low-resolution capture': dmOnboardingPhotoUploadLowResBytes,
-  'Filled · height-bounded host': dmOnboardingPhotoUploadPortraitBytes,
+  'Filled · portrait 4:5': dmOnboardingPhotoUploadCardPortraitBytes,
+  'Filled · landscape 16:9': dmOnboardingPhotoUploadCardLandscapeBytes,
+  'Filled · low-resolution capture': dmOnboardingPhotoUploadCardLowResBytes,
+  'Filled · height-bounded host': dmOnboardingPhotoUploadCardPortraitBytes,
 };
 
 /// Decodes a fixture for its intrinsic dimensions. Real decode work, so it has
@@ -142,15 +141,15 @@ void main() {
       // If these ever decode to the same shape the crop states below stop
       // meaning anything, so they are asserted rather than assumed.
       expect(
-        await _intrinsicSize(tester, dmOnboardingPhotoUploadPortraitBytes),
+        await _intrinsicSize(tester, dmOnboardingPhotoUploadCardPortraitBytes),
         const Size(80, 100),
       );
       expect(
-        await _intrinsicSize(tester, dmOnboardingPhotoUploadLandscapeBytes),
+        await _intrinsicSize(tester, dmOnboardingPhotoUploadCardLandscapeBytes),
         const Size(160, 90),
       );
       expect(
-        await _intrinsicSize(tester, dmOnboardingPhotoUploadLowResBytes),
+        await _intrinsicSize(tester, dmOnboardingPhotoUploadCardLowResBytes),
         const Size(24, 30),
       );
     });
@@ -164,7 +163,7 @@ void main() {
       );
       final Size source = await _intrinsicSize(
         tester,
-        dmOnboardingPhotoUploadLandscapeBytes,
+        dmOnboardingPhotoUploadCardLandscapeBytes,
       );
 
       // BoxFit.cover takes the larger scale; for a 16:9 source in a 4:5 box
@@ -188,7 +187,7 @@ void main() {
       );
       final Size source = await _intrinsicSize(
         tester,
-        dmOnboardingPhotoUploadPortraitBytes,
+        dmOnboardingPhotoUploadCardPortraitBytes,
       );
 
       expect(
@@ -208,7 +207,7 @@ void main() {
       );
       final Size source = await _intrinsicSize(
         tester,
-        dmOnboardingPhotoUploadLowResBytes,
+        dmOnboardingPhotoUploadCardLowResBytes,
       );
 
       expect(

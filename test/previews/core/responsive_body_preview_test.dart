@@ -15,7 +15,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/layout/responsive_scaffold.dart';
-import 'package:jeeb_mobile/previews/core/responsive_body_preview.dart';
 
 import '../preview_test_harness.dart';
 

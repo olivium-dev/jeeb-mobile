@@ -12,7 +12,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:jeeb_mobile/previews/chat/chat_date_separator_preview.dart';
+import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_date_separator.dart';
 
 import '../preview_test_harness.dart';
 

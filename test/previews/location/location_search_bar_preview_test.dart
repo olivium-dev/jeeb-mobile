@@ -19,7 +19,6 @@ import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/location/data/location_repository.dart';
 import 'package:jeeb_mobile/features/location/presentation/location_search_bar.dart';
-import 'package:jeeb_mobile/previews/location/location_search_bar_preview.dart';
 
 import '../preview_test_harness.dart';
 

@@ -17,7 +17,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
-import 'package:jeeb_mobile/previews/client_offers/offer_window_timer_preview.dart';
+import 'package:jeeb_mobile/features/client_offers/presentation/widgets/offer_window_timer.dart';
 
 import '../../support/load_test_fonts.dart';
 import '../preview_test_harness.dart';

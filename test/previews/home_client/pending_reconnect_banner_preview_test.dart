@@ -15,7 +15,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/home_client/presentation/tabs/pending_requests_tab.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
-import 'package:jeeb_mobile/previews/home_client/pending_reconnect_banner_preview.dart';
 
 import '../preview_test_harness.dart';
 

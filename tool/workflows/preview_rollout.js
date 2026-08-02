@@ -8,7 +8,7 @@ export const meta = {
   ],
 }
 
-// args: { batch: [{widget, source, area, previewPath}], repoRoot: string }
+// args: { batch: [{widget, source, area}], repoRoot: string }
 // Tolerate args arriving as a JSON string — some callers stringify it, and a
 // silently-empty batch looks identical to "nothing left to do".
 const input = typeof args === 'string' ? JSON.parse(args) : args || {}
@@ -49,17 +49,17 @@ function writePrompt(w) {
 
 Working directory: ${repoRoot}
 Widget class:  ${w.widget}
-Source file:   ${w.source}
-Write preview: ${w.previewPath}
+Source file:   ${w.source}      <- previews go at the BOTTOM of this file
 Write test:    test/previews/${w.area}/${snake(w.widget)}_preview_test.dart
 
 ## Read these first, in this order
 
-1. \`lib/previews/README.md\` — the conventions you must follow.
-2. \`lib/previews/home_client/client_home_greeting_preview.dart\` — the reference
-   preview. Copy its shape: a private \`_hosted(...)\` helper, then one annotated
-   top-level function per state, each with a doc comment saying WHY that state
-   matters.
+1. \`lib/core/previews/README.md\` — the conventions you must follow, including
+   the banner bytes and the widget-name prefix rule.
+2. \`lib/features/home_client/presentation/widgets/client_home_greeting.dart\` —
+   the reference. Read its JEEB PREVIEWS section and copy its shape: a private
+   \`_clientHomeGreetingHosted(...)\` helper, then one annotated top-level function
+   per state, each with a doc comment saying WHY that state matters.
 3. \`test/previews/home_client/client_home_greeting_preview_test.dart\` — the
    reference test. It is short because \`testPreviewsRender()\` does the work.
 4. \`${w.source}\` — the widget itself, and any existing test for it under
@@ -68,10 +68,16 @@ Write test:    test/previews/${w.area}/${snake(w.widget)}_preview_test.dart
 
 ## Rules
 
-- **Two new files only.** Do NOT modify \`${w.source}\` or any other production
-  code. If the widget genuinely cannot be previewed without a production change
-  (e.g. it has no injectable seam for its dependency), return
-  status \`failed\` and explain exactly what seam is missing. Do not add the seam.
+- **One file edited, one file written.** You APPEND a preview section to
+  \`${w.source}\` and write the render test. Nothing above the banner may change,
+  and no other production file may change at all. If the widget genuinely cannot
+  be previewed without a production change (e.g. it has no injectable seam for
+  its dependency), return status \`failed\` and explain exactly what seam is
+  missing. Do not add the seam.
+- **Never leave the file half-edited.** A broken fixture below the banner marks
+  the whole library — and everything that imports it — as errored, in the canvas,
+  in \`flutter analyze\` and in \`flutter build\`. This is the one real cost of
+  co-location; a half-written section is worse than none.
 - **Leave no debris.** If you write a throwaway probe/scratch test to measure a
   layout, DELETE it before you finish. The last wave left five \`*_probe_test.dart\`
   files behind for the integration agent to sweep up. \`git status\` must show only
@@ -79,7 +85,9 @@ Write test:    test/previews/${w.area}/${snake(w.widget)}_preview_test.dart
 - **No network, ever.** Seed state with an inert cubit (\`SomeCubit(seed: ...)\`,
   no repository) or a local fake class implementing the repository interface with
   canned data. Never construct a Dio-backed repository.
-- **Import the harness** as \`import '../harness/jeeb_preview.dart';\` and annotate
+- **Import the harness** with the correct relative path to
+  \`lib/core/previews/jeeb_preview.dart\`, appended to the END of the file's
+  existing import block under a \`// Preview-only —\` marker, and annotate
   with \`@JeebPreview(group: '${w.area}', name: '<state>', size: Size(w, h))\`.
   \`group\` is REQUIRED and must be exactly \`'${w.area}'\` — the canvas renders one
   collapsible section per group, and that is what keeps ~700 previews navigable.
@@ -104,7 +112,7 @@ Write test:    test/previews/${w.area}/${snake(w.widget)}_preview_test.dart
 
 Run both, from ${repoRoot}, and fix anything they surface:
 
-    flutter analyze --no-pub ${w.previewPath} test/previews/${w.area}/${snake(w.widget)}_preview_test.dart
+    flutter analyze --no-pub ${w.source} test/previews/${w.area}/${snake(w.widget)}_preview_test.dart
     flutter test test/previews/${w.area}/${snake(w.widget)}_preview_test.dart
 
 Report status \`written\` ONLY if both are clean. If you cannot make them pass,
@@ -161,9 +169,10 @@ Then:
 2. Lower \`_coverageFloor\` in \`test/previews/preview_structure_test.dart\` to the
    uncovered count that \`preview_coverage.dart\` now reports, so the ratchet holds
    the new ground. Re-run \`flutter test test/previews/preview_structure_test.dart\`.
-3. Spot-check TWO of the preview files written this wave against
-   \`lib/previews/README.md\`. Reject-and-fix any that: preview only a happy path,
-   construct a real repository, or pass no \`expectedText\` in its test.
+3. Spot-check TWO of the preview sections written this wave against
+   \`lib/core/previews/README.md\`. Reject-and-fix any that: preview only a happy
+   path, construct a real repository, pass no \`expectedText\` in its test, or
+   declare a name below the banner that is not prefixed with the widget name.
 
 Widgets attempted this wave: ${batch.map((w) => w.widget).join(', ')}.
 

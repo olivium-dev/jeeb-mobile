@@ -19,7 +19,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_fee_banner.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/offer_accepted_banner.dart';
-import 'package:jeeb_mobile/previews/chat/offer_accepted_banner_preview.dart';
 
 import '../preview_test_harness.dart';
 

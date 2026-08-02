@@ -17,7 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_header_expansion_store.dart';
-import 'package:jeeb_mobile/previews/chat/order_chat_pinned_summary_preview.dart';
+import 'package:jeeb_mobile/features/chat/presentation/widgets/order_chat_pinned_summary.dart';
 
 import '../preview_test_harness.dart';
 

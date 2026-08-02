@@ -26,7 +26,7 @@ import 'package:omds/omds.dart';
 import 'package:jeeb_mobile/core/di/injection_container.dart';
 import 'package:jeeb_mobile/core/network/auth_token_store.dart';
 import 'package:jeeb_mobile/features/earnings/domain/earnings_repository.dart';
-import 'package:jeeb_mobile/previews/shell/earnings_tab_preview.dart';
+import 'package:jeeb_mobile/features/shell/tabs/earnings_tab.dart';
 
 import '../preview_test_harness.dart';
 

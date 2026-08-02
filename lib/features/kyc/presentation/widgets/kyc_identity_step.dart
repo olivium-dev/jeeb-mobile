@@ -15,7 +15,7 @@ import 'kyc_liveness_prompt_card.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 // `Uint8List` already arrives with `package:flutter/services.dart` above.
 import 'dart:convert';
-import '../../../../previews/harness/jeeb_preview.dart';
+import '../../../../core/previews/jeeb_preview.dart';
 import '../../../photo_attachment/data/stub_photo_picker_service.dart';
 import '../../../photo_attachment/domain/photo_attachment.dart';
 import '../../domain/kyc_gateway.dart';

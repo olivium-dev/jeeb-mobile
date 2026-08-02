@@ -6,7 +6,7 @@ import '../../../photo_attachment/domain/photo_attachment.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import 'dart:convert';
 import 'dart:typed_data';
-import '../../../../previews/harness/jeeb_preview.dart';
+import '../../../../core/previews/jeeb_preview.dart';
 
 /// Square tile used by the ID and selfie steps to preview a captured photo
 /// or prompt the user to take one.

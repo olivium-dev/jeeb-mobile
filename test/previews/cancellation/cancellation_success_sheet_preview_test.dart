@@ -23,7 +23,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/cancellation/presentation/widgets/cancellation_success_sheet.dart';
-import 'package:jeeb_mobile/previews/cancellation/cancellation_success_sheet_preview.dart';
 
 import '../preview_test_harness.dart';
 

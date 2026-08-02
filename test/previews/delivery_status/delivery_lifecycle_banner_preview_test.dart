@@ -13,7 +13,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
 import 'package:jeeb_mobile/features/delivery_status/presentation/widgets/delivery_lifecycle_banner.dart';
-import 'package:jeeb_mobile/previews/delivery_status/delivery_lifecycle_banner_preview.dart';
 
 import '../preview_test_harness.dart';
 

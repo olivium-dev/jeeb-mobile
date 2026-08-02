@@ -11,7 +11,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/chat/presentation/widgets/confirm_delivery_action_sheet.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/delivery_confirm_illustration.dart';
-import 'package:jeeb_mobile/previews/chat/confirm_delivery_action_sheet_preview.dart';
 
 import '../preview_test_harness.dart';
 

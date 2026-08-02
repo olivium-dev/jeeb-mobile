@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:jeeb_mobile/previews/delivery_man_profile/delivery_man_profile_header_preview.dart';
+import 'package:jeeb_mobile/features/delivery_man_profile/presentation/widgets/delivery_man_profile_header.dart';
 
 import '../preview_test_harness.dart';
 

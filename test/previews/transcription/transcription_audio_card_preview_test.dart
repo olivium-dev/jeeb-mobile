@@ -22,7 +22,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/transcription/presentation/transcription_screen.dart';
 import 'package:jeeb_mobile/features/transcription/presentation/widgets/transcription_audio_card.dart';
-import 'package:jeeb_mobile/previews/transcription/transcription_audio_card_preview.dart';
 
 import '../preview_test_harness.dart';
 

@@ -16,7 +16,6 @@ import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/delivery_man_profile/presentation/widgets/delivery_review_card.dart';
 import 'package:jeeb_mobile/features/delivery_man_profile/presentation/widgets/delivery_reviews_list.dart';
-import 'package:jeeb_mobile/previews/delivery_man_profile/delivery_reviews_list_preview.dart';
 
 import '../preview_test_harness.dart';
 

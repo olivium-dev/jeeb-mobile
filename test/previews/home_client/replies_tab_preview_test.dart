@@ -24,7 +24,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
-import 'package:jeeb_mobile/previews/home_client/replies_tab_preview.dart';
+import 'package:jeeb_mobile/features/home_client/presentation/tabs/replies_tab.dart';
 
 import '../preview_test_harness.dart';
 

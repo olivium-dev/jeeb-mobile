@@ -16,7 +16,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/location/presentation/widgets/client_location_add_row.dart';
-import 'package:jeeb_mobile/previews/location/client_location_add_row_preview.dart';
 
 import '../preview_test_harness.dart';
 
@@ -34,8 +33,8 @@ void main() {
     },
     expectedText: const <String, String>{
       'Localized default': 'New Location',
-      'Long label truncates': kLongLabel,
-      'Long Arabic label truncates': kLongArabicLabel,
+      'Long label truncates': clientLocationAddRowLongLabelText,
+      'Long Arabic label truncates': clientLocationAddRowLongArabicLabelText,
       'Narrow phone · 320dp': 'Add another delivery location',
       'Locked · create in flight': 'Locked · create in flight',
     },
@@ -127,12 +126,12 @@ void main() {
       final double oneLine = tester.getSize(find.text('New Location')).height;
 
       await pumpPreview(tester, clientLocationAddRowLongLabel);
-      final Text label = tester.widget<Text>(find.text(kLongLabel));
+      final Text label = tester.widget<Text>(find.text(clientLocationAddRowLongLabelText));
       expect(label.overflow, TextOverflow.ellipsis);
       expect(label.maxLines, isNull, reason: 'ellipsis without maxLines');
 
       final RenderParagraph paragraph =
-          tester.renderObject<RenderParagraph>(find.text(kLongLabel));
+          tester.renderObject<RenderParagraph>(find.text(clientLocationAddRowLongLabelText));
       expect(
         paragraph.size.height,
         oneLine,
@@ -163,7 +162,7 @@ void main() {
         locale: const Locale('ar'),
       );
       final RenderParagraph paragraph =
-          tester.renderObject<RenderParagraph>(find.text(kLongArabicLabel));
+          tester.renderObject<RenderParagraph>(find.text(clientLocationAddRowLongArabicLabelText));
       expect(paragraph.size.height, oneLine);
       expect(
         paragraph.getMaxIntrinsicWidth(double.infinity),

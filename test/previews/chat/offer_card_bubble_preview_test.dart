@@ -21,7 +21,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_bubble_timestamp.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/offer_card_bubble.dart';
-import 'package:jeeb_mobile/previews/chat/offer_card_bubble_preview.dart';
 
 import '../preview_test_harness.dart';
 

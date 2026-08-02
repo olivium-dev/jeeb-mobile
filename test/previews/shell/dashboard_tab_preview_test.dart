@@ -18,7 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/di/injection_container.dart';
-import 'package:jeeb_mobile/previews/shell/dashboard_tab_preview.dart';
+import 'package:jeeb_mobile/features/shell/tabs/dashboard_tab.dart';
 
 import '../preview_test_harness.dart';
 

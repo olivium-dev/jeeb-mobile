@@ -13,7 +13,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/home_client/presentation/tabs/in_progress_tab.dart';
-import 'package:jeeb_mobile/previews/home_client/in_progress_tab_preview.dart';
 
 import '../preview_test_harness.dart';
 

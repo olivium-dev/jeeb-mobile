@@ -31,7 +31,6 @@ import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/location/presentation/widgets/capture_location_pin.dart';
-import 'package:jeeb_mobile/previews/location/capture_location_pin_preview.dart';
 
 import '../preview_test_harness.dart';
 
@@ -69,7 +68,7 @@ Rect _glyph(WidgetTester tester) =>
     tester.getRect(find.byIcon(Icons.location_on));
 
 /// The box the preview centres the pin in.
-Rect _host(WidgetTester tester) => tester.getRect(find.byKey(hostKey));
+Rect _host(WidgetTester tester) => tester.getRect(find.byKey(captureLocationPinHostKey));
 
 /// WCAG relative-contrast ratio between two opaque colours.
 double _contrast(Color a, Color b) {
@@ -275,7 +274,7 @@ void main() {
     ) async {
       await pumpPreview(tester, captureLocationPinInlineOverdraw);
 
-      final Rect row = tester.getRect(find.byKey(rowAboveKey));
+      final Rect row = tester.getRect(find.byKey(captureLocationPinRowAboveKey));
       final Rect box = _box(tester);
       final Rect glyph = _glyph(tester);
 

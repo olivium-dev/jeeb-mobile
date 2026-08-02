@@ -21,7 +21,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/live_tracking/presentation/widgets/courier_position_notice.dart';
 import 'package:jeeb_mobile/features/live_tracking/presentation/widgets/tracking_google_map.dart';
 import 'package:jeeb_mobile/features/live_tracking/presentation/widgets/tracking_map_surface.dart';
-import 'package:jeeb_mobile/previews/live_tracking/tracking_map_surface_preview.dart';
 
 import '../preview_test_harness.dart';
 

@@ -9,7 +9,7 @@ import '../../application/kyc_wizard_cubit.dart';
 import '../../application/kyc_wizard_state.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
-import '../../../../previews/harness/jeeb_preview.dart';
+import '../../../../core/previews/jeeb_preview.dart';
 import '../../../photo_attachment/data/stub_photo_picker_service.dart';
 import '../../domain/kyc_contract_template.dart';
 import '../../domain/kyc_form_schema.dart';

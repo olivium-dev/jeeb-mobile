@@ -3,7 +3,7 @@ import 'package:omds/omds.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../l10n/app_localizations.dart';
-import '../../../../previews/harness/jeeb_preview.dart';
+import '../../../../core/previews/jeeb_preview.dart';
 
 /// Single coaching cue inside a [KycLivenessPromptCard].
 class KycLivenessPrompt {

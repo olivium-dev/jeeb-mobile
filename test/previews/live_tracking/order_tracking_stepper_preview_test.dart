@@ -23,7 +23,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
 
-import 'package:jeeb_mobile/previews/live_tracking/order_tracking_stepper_preview.dart';
+import 'package:jeeb_mobile/features/live_tracking/presentation/widgets/order_tracking_stepper.dart';
 
 import '../preview_test_harness.dart';
 

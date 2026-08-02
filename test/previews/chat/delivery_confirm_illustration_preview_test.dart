@@ -20,7 +20,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/delivery_confirm_illustration.dart';
-import 'package:jeeb_mobile/previews/chat/delivery_confirm_illustration_preview.dart';
 
 import '../preview_test_harness.dart';
 

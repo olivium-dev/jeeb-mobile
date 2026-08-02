@@ -15,7 +15,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/jeeber_request_feed/presentation/jeeber_feed_card.dart';
-import 'package:jeeb_mobile/previews/jeeber_request_feed/jeeber_feed_card_preview.dart';
 
 import '../preview_test_harness.dart';
 

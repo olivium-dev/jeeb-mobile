@@ -13,7 +13,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/settings/domain/account_deletion_policy.dart';
 import 'package:jeeb_mobile/features/settings/presentation/widgets/logout_delete_confirm_sheet.dart';
-import 'package:jeeb_mobile/previews/settings/logout_delete_confirm_sheet_preview.dart';
 
 import '../preview_test_harness.dart';
 

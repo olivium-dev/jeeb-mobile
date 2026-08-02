@@ -17,7 +17,6 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/accessibility/accessibility.dart';
-import 'package:jeeb_mobile/previews/core/min_tap_target_preview.dart';
 
 import '../preview_test_harness.dart';
 

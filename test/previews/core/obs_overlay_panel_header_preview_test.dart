@@ -19,7 +19,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/observability/session_trace/presentation/widgets/obs_overlay_panel_header.dart';
-import 'package:jeeb_mobile/previews/core/obs_overlay_panel_header_preview.dart';
 
 import '../preview_test_harness.dart';
 

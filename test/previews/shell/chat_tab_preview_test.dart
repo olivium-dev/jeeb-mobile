@@ -22,7 +22,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/shell/tabs/chat_tab.dart';
-import 'package:jeeb_mobile/previews/shell/chat_tab_preview.dart';
 
 import '../preview_test_harness.dart';
 

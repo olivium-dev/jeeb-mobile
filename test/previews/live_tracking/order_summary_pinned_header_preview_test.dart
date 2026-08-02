@@ -12,7 +12,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:jeeb_mobile/previews/live_tracking/order_summary_pinned_header_preview.dart';
+import 'package:jeeb_mobile/features/live_tracking/presentation/widgets/order_summary_pinned_header.dart';
 
 import '../preview_test_harness.dart';
 

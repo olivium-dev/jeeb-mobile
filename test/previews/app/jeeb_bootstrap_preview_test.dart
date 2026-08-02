@@ -25,7 +25,7 @@ import 'package:jeeb_mobile/app/app.dart';
 import 'package:jeeb_mobile/app/branded_splash.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
-import 'package:jeeb_mobile/previews/app/jeeb_bootstrap_preview.dart';
+import 'package:jeeb_mobile/app/jeeb_bootstrap.dart';
 
 import '../preview_test_harness.dart';
 

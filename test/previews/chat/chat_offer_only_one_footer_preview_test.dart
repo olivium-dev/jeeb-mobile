@@ -12,7 +12,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_offer_only_one_footer.dart';
-import 'package:jeeb_mobile/previews/chat/chat_offer_only_one_footer_preview.dart';
 
 import '../preview_test_harness.dart';
 

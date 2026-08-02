@@ -26,7 +26,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
-import 'package:jeeb_mobile/previews/harness/jeeb_preview.dart';
+import 'package:jeeb_mobile/core/previews/jeeb_preview.dart';
 
 /// The real `AppLocalizations.delegate` reads its ARB from the asset bundle,
 /// which never settles under `pumpWidget`. This reads the same files from disk

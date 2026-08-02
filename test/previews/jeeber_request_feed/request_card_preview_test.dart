@@ -7,7 +7,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:jeeb_mobile/previews/jeeber_request_feed/request_card_preview.dart';
+import 'package:jeeb_mobile/features/jeeber_request_feed/presentation/request_card.dart';
 
 import '../preview_test_harness.dart';
 

@@ -12,7 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/settings/presentation/widgets/become_jeeber_card.dart';
-import 'package:jeeb_mobile/previews/shell/profile_tab_preview.dart';
+import 'package:jeeb_mobile/features/shell/tabs/profile_tab.dart';
 
 import '../preview_test_harness.dart';
 

@@ -21,7 +21,6 @@ import 'package:intl/intl.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/live_tracking/presentation/widgets/delivery_tracking_panel.dart';
-import 'package:jeeb_mobile/previews/live_tracking/delivery_tracking_panel_preview.dart';
 
 import '../preview_test_harness.dart';
 

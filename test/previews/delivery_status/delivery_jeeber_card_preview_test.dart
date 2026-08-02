@@ -16,7 +16,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/delivery_status/presentation/widgets/delivery_jeeber_card.dart';
-import 'package:jeeb_mobile/previews/delivery_status/delivery_jeeber_card_preview.dart';
 
 import '../preview_test_harness.dart';
 

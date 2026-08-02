@@ -11,7 +11,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:jeeb_mobile/previews/request_type/request_location_row_preview.dart';
+import 'package:jeeb_mobile/features/request_type/presentation/request_location_row.dart';
 
 import '../preview_test_harness.dart';
 

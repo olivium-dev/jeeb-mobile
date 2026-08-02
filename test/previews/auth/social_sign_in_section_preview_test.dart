@@ -9,7 +9,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:jeeb_mobile/previews/auth/social_sign_in_section_preview.dart';
+import 'package:jeeb_mobile/features/auth/social/social_sign_in_section.dart';
 
 import '../preview_test_harness.dart';
 

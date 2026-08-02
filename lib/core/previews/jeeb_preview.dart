@@ -22,7 +22,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
-import '../../core/theme/app_theme.dart';
+import '../theme/app_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../../devtool/catalog/catalog_network_guard.dart';
 

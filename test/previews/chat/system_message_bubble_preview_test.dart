@@ -21,7 +21,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/chat/presentation/widgets/system_message_bubble.dart';
-import 'package:jeeb_mobile/previews/chat/system_message_bubble_preview.dart';
 
 import '../preview_test_harness.dart';
 

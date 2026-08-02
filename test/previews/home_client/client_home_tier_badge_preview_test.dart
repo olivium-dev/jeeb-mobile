@@ -20,7 +20,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_tier_colors.dart';
 import 'package:jeeb_mobile/features/home_client/presentation/widgets/active_request_card.dart';
-import 'package:jeeb_mobile/previews/home_client/client_home_tier_badge_preview.dart';
 
 import '../preview_test_harness.dart';
 

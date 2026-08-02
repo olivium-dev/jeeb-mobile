@@ -9,7 +9,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:jeeb_mobile/previews/chat/chat_connection_banner_preview.dart';
+import 'package:jeeb_mobile/features/chat/presentation/chat_connection_banner.dart';
 
 import '../preview_test_harness.dart';
 

@@ -20,7 +20,6 @@ import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/accessibility/accessibility.dart';
 import 'package:jeeb_mobile/features/rating/presentation/widgets/feedback_star_input.dart';
-import 'package:jeeb_mobile/previews/rating/feedback_star_input_preview.dart';
 
 import '../preview_test_harness.dart';
 

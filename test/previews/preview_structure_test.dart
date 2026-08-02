@@ -1,132 +1,239 @@
-// Structural guardrails for the widget-preview rollout.
+// Structural guardrails for widget previews.
 //
-// Two invariants, both cheap enough to run on every CI job:
+// Previews live at the BOTTOM of the widget's own source file, below a banner,
+// because `flutter widget-preview start` filters the canvas by the file the
+// preview is DECLARED in — see `lib/core/previews/README.md`. That buys the IDE
+// panel, and it costs a boundary: preview code and shipping code are now in the
+// same file, so "previews never leak into production" can no longer be enforced
+// by a directory rule.
 //
-//   1. PREVIEWS NEVER LEAK INTO PRODUCTION. Nothing outside `lib/previews/`
-//      may import from it. Previews exist to be compiled by the preview
-//      scaffold and tree-shaken out of the app; the moment production code
-//      imports one, that stops being true and a dev-only fixture is shipping
-//      to users.
+// These seven invariants are the replacement. They are strictly stronger than
+// the import check they replace, because they work on REFERENCES rather than on
+// file paths: a fixture that leaks is caught even though it is one scroll away
+// from the widget that would use it.
 //
-//   2. COVERAGE ONLY GOES UP. The rollout adds previews area by area over many
-//      PRs. Without a ratchet, a deleted or renamed preview silently reduces
-//      coverage and nobody notices until someone opens the canvas.
-//
-// Update `_coverageFloor` DOWNWARD as areas land. It is never raised.
+// The detector is shared verbatim with `tool/preview_coverage.dart` — see
+// `tool/preview_inventory.dart`. Two copies of this parsing drifted once
+// already; one implementation, two callers.
 
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// Maximum number of uncovered widgets allowed. Lower this as waves land —
-/// never raise it.
+// ignore: avoid_relative_lib_imports — `tool/` is not a package; this relative
+// import is what keeps the detector single-sourced with the CLI.
+import '../../tool/preview_inventory.dart';
+
+/// Maximum number of uncovered widgets allowed. Lower it as previews land —
+/// never raise it. A widget whose previews are dropped or misnamed fails here
+/// immediately, which is the point.
 const int _coverageFloor = 22;
 
-final RegExp _widgetClass = RegExp(
-  r'^class ([A-Z][A-Za-z0-9_]*) extends (?:StatelessWidget|StatefulWidget)',
-  multiLine: true,
-);
-
-/// Must stay in sync with `tool/preview_coverage.dart`. Scope decisions about
-/// what the rollout is for (product UI), not judgements about difficulty.
-const List<String> _excludedPrefixes = <String>[
-  'lib/previews/',
-  'lib/devtool/',
-  'lib/l10n/',
-  'lib/core/observability/', // dev-only overlay, compiled out via kObsCompiledIn
-];
-
-/// Widgets deliberately excluded from coverage — see
-/// `tool/preview_exclusions.txt` for the rule and the reasons.
-Set<String> _exclusions() {
-  final file = File('tool/preview_exclusions.txt');
-  if (!file.existsSync()) return <String>{};
-  return file
-      .readAsLinesSync()
-      .map((String l) => l.split('#').first.trim())
-      .where((String l) => l.isNotEmpty)
-      .toSet();
-}
-
-List<File> _dartFilesUnder(String dir) {
-  final root = Directory(dir);
-  if (!root.existsSync()) return <File>[];
-  return root
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((File f) => f.path.endsWith('.dart'))
-      .toList();
-}
-
-String _rel(String path) =>
-    path.replaceFirst('${Directory.current.path}${Platform.pathSeparator}', '');
-
-/// `ChatMessageBubble` -> `chat_message_bubble`. Must match the same helper in
-/// `tool/preview_coverage.dart`.
-String _snake(String pascal) => pascal
-    .replaceAllMapped(
-      RegExp(r'(?<=[a-z0-9])([A-Z])'),
-      (Match m) => '_${m.group(1)}',
-    )
-    .toLowerCase();
+/// Whole-word identifier match — `_hosted` must not match `_hostedFoo`.
+bool _referencesName(String haystack, String name) => RegExp(
+      r'(?<![A-Za-z0-9_$])' + RegExp.escape(name) + r'(?![A-Za-z0-9_$])',
+    ).hasMatch(haystack);
 
 void main() {
-  test('no production code imports lib/previews/', () {
+  final PreviewInventory inventory = PreviewInventory.scan();
+
+  test('INV-1 · lib/previews/ does not exist', () {
+    final dir = Directory('lib/previews');
+    final List<String> leftovers = dir.existsSync()
+        ? dir.listSync(recursive: true).map((FileSystemEntity e) => e.path).toList()
+        : const <String>[];
+
+    expect(
+      dir.existsSync(),
+      isFalse,
+      reason: 'Previews now live in the widget file they belong to, and the '
+          'harness lives at $harnessPath. Nothing may remain under '
+          'lib/previews/:\n${leftovers.join('\n')}',
+    );
+  });
+
+  test('INV-2 · the harness is imported only by files with a preview section', () {
     final offenders = <String>[];
-    for (final file in _dartFilesUnder('lib')) {
-      final path = _rel(file.path);
-      if (path.startsWith('lib/previews/')) continue;
-      final source = file.readAsStringSync();
+    final stale = <String>[];
+
+    for (final SourceFile file in inventory.files) {
+      if (file.path.startsWith('lib/core/previews/')) continue;
+      final String source = file.rawLines.join('\n');
+
+      // Nothing may reach for the retired tree, at any path spelling.
       if (source.contains('previews/harness/') ||
-          source.contains("package:jeeb_mobile/previews/") ||
-          RegExp(r"import '[^']*\/previews\/").hasMatch(source)) {
-        offenders.add(path);
+          source.contains('package:jeeb_mobile/previews/')) {
+        stale.add(file.path);
+      }
+
+      final bool importsHarness =
+          source.contains('core/previews/jeeb_preview.dart') ||
+              source.contains('package:jeeb_mobile/core/previews/');
+      if (importsHarness && !file.hasPreviewSection) offenders.add(file.path);
+    }
+
+    expect(
+      stale,
+      isEmpty,
+      reason: 'These files import the retired lib/previews/ tree, which no '
+          'longer exists:\n${stale.join('\n')}',
+    );
+    expect(
+      offenders,
+      isEmpty,
+      reason: 'These files import the preview harness but have no JEEB PREVIEWS '
+          'section — an import left behind after the previews were deleted. '
+          'Remove it:\n${offenders.join('\n')}',
+    );
+  });
+
+  test('INV-3 · no @JeebPreview above a banner, and one banner per file', () {
+    final offenders = <String>[];
+
+    for (final SourceFile file in inventory.files) {
+      if (file.bannerLines.length > 1) {
+        offenders.add('${file.path}: ${file.bannerLines.length} banners — a '
+            'file gets ONE section even when it previews several widgets');
+      }
+      final List<int> annotations = file.previewAnnotationLines;
+      if (annotations.isEmpty) continue;
+      if (!file.hasPreviewSection) {
+        offenders.add('${file.path}: has @JeebPreview but no banner');
+        continue;
+      }
+      for (final int line in annotations) {
+        if (line < file.bannerIndex) {
+          offenders.add('${file.path}:${line + 1}: @JeebPreview above the banner');
+        }
+      }
+    }
+
+    expect(offenders, isEmpty, reason: offenders.join('\n'));
+  });
+
+  test('INV-4 · nothing above a banner references anything below it', () {
+    final offenders = <String>[];
+
+    for (final SourceFile file in inventory.previewSections) {
+      final String shipping = file.codeAboveBanner;
+      for (final SectionDeclaration decl in file.sectionDeclarations) {
+        if (_referencesName(shipping, decl.name)) {
+          offenders.add('${file.path}: production code above the banner '
+              'references `${decl.name}`, declared at line ${decl.line + 1}');
+        }
       }
     }
 
     expect(
       offenders,
       isEmpty,
-      reason: 'These production files import preview-only code, which would '
-          'ship dev fixtures to users:\n${offenders.join('\n')}',
+      reason: 'A preview fixture is now reachable from shipping code, so it is '
+          'no longer tree-shaken and a dev-only fixture ships to users:\n'
+          '${offenders.join('\n')}',
     );
   });
 
-  test('preview coverage does not regress', () {
-    final excluded = _exclusions();
-    final all = <String>[];
-    for (final file in _dartFilesUnder('lib')) {
-      final path = _rel(file.path);
-      if (_excludedPrefixes.any(path.startsWith)) continue;
-      for (final m in _widgetClass.allMatches(file.readAsStringSync())) {
-        final name = m.group(1)!;
-        if (name.endsWith('Screen')) continue;
-        if (excluded.contains(name)) continue;
-        all.add(name);
+  test('INV-5 · nothing below a banner is referenced from another library', () {
+    // Preview functions are public because the SDK requires it
+    // (`_PreviewVisitor.visitFunctionDeclaration` drops private ones), so
+    // privacy does not protect them. `test/` is exempt — that is where they are
+    // legitimately called.
+    final offenders = <String>[];
+
+    for (final SourceFile file in inventory.previewSections) {
+      for (final SectionDeclaration decl in file.sectionDeclarations) {
+        final RegExp reference = RegExp(
+          r'(?<![A-Za-z0-9_$])' + RegExp.escape(decl.name) + r'(?![A-Za-z0-9_$])',
+        );
+        for (final SourceFile other in inventory.files) {
+          if (identical(other, file)) continue;
+          if (reference.hasMatch(other.codeText)) {
+            offenders.add('${other.path} references `${decl.name}`, which is '
+                'preview-only code in ${file.path}');
+          }
+        }
       }
     }
 
-    // Covered == owns `lib/previews/<area>/<snake>_preview.dart`. A mere mention
-    // inside a sibling's preview does NOT count — that once inflated coverage by
-    // five widgets that had no preview of their own.
-    // Skip `harness/`: `jeeb_preview.dart` ends in `_preview.dart` and would
-    // falsely cover a widget named `Jeeb`.
-    final previewFiles = _dartFilesUnder('lib/previews')
-        .where((File f) => !_rel(f.path).startsWith('lib/previews/harness/'))
-        .map((File f) => f.uri.pathSegments.last)
-        .where((String n) => n.endsWith('_preview.dart'))
-        .toSet();
-    final uncovered = all
-        .where((String n) => !previewFiles.contains('${_snake(n)}_preview.dart'))
-        .toList();
+    expect(offenders, isEmpty, reason: offenders.join('\n'));
+  });
+
+  test('INV-6 · every name below a banner is widget-prefixed, and public only '
+      'when a test needs it', () {
+    final String testSources = Directory('test')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((File f) => f.path.endsWith('.dart'))
+        .map((File f) => f.readAsStringSync())
+        .join('\n');
+
+    final unprefixed = <String>[];
+    final gratuitouslyPublic = <String>[];
+
+    for (final SourceFile file in inventory.previewSections) {
+      final Set<String> previewNames =
+          file.previewFunctions.map((PreviewFunction p) => p.name).toSet();
+
+      for (final SectionDeclaration decl in file.sectionDeclarations) {
+        // §3.4: `_clientHomeGreetingHosted`, `_ClientHomeTierBadgeActiveHeader`,
+        // `clientHomeGreetingNamed`. Strip the privacy underscore, then match
+        // either spelling of a widget name declared in THIS file. This is what
+        // lets one file merge previews for three widgets without collisions —
+        // 232 preview files each used to declare a bare `_hosted`.
+        final String bare =
+            decl.name.startsWith('_') ? decl.name.substring(1) : decl.name;
+        final bool prefixed = file.widgetClasses.any(
+          (String w) =>
+              hasNamePrefix(bare, lowerCamel(w)) || hasNamePrefix(bare, w),
+        );
+        if (!prefixed) {
+          unprefixed.add('${file.path}:${decl.line + 1}: `${decl.name}` is not '
+              'prefixed with a widget name from this file '
+              '(${file.widgetClasses.where((String w) => !w.startsWith('_')).join(', ')})');
+        }
+
+        if (decl.isPrivate || previewNames.contains(decl.name)) continue;
+        if (!_referencesName(testSources, decl.name)) {
+          gratuitouslyPublic.add('${file.path}:${decl.line + 1}: '
+              '`${decl.name}` is public but no test uses it — make it private');
+        }
+      }
+    }
+
+    expect(unprefixed, isEmpty, reason: unprefixed.join('\n'));
+    expect(gratuitouslyPublic, isEmpty, reason: gratuitouslyPublic.join('\n'));
+  });
+
+  test('INV-7 · preview coverage does not regress', () {
+    final List<WidgetCoverage> results = inventory.coverage();
+
+    List<WidgetCoverage> of(CoverageVerdict v) =>
+        results.where((WidgetCoverage r) => r.verdict == v).toList();
+
+    final List<WidgetCoverage> malformed = of(CoverageVerdict.malformed);
+    final List<WidgetCoverage> uncovered = of(CoverageVerdict.uncovered);
+
+    // MALFORMED is a widget with one half of a preview section and not the
+    // other — a section that builds it but has no preview named after it, or
+    // previews named after it that never build it. Almost always a half-applied
+    // edit, and it must not be able to hide inside the floor.
+    expect(
+      malformed.map((WidgetCoverage r) => '${r.widget.name} '
+          '(${r.widget.path}): ${r.reason}'),
+      isEmpty,
+      reason: 'Half-finished preview sections. Run: '
+          'dart run tool/preview_coverage.dart',
+    );
 
     expect(
       uncovered.length,
       lessThanOrEqualTo(_coverageFloor),
       reason: 'Preview coverage regressed: ${uncovered.length} widgets have no '
           'preview but the floor is $_coverageFloor. Either add the missing '
-          'preview or lower the floor if widgets were deleted.\n'
-          'Run: dart run tool/preview_coverage.dart',
+          'previews or lower the floor if widgets were deleted.\n'
+          'Run: dart run tool/preview_coverage.dart\n'
+          '${uncovered.map((WidgetCoverage r) => '  ${r.widget.name} '
+              '(${r.widget.path})').join('\n')}',
     );
   });
 }

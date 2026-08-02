@@ -19,7 +19,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/observability.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/observability_config.dart';
 import 'package:jeeb_mobile/core/observability/session_trace/presentation/widgets/obs_overlay_bubble.dart';
-import 'package:jeeb_mobile/previews/core/obs_overlay_bubble_preview.dart';
 
 import '../preview_test_harness.dart';
 

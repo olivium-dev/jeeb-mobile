@@ -22,7 +22,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/active_delivery_jeeber/presentation/widgets/delivery_status_stepper.dart';
-import 'package:jeeb_mobile/previews/active_delivery_jeeber/delivery_status_stepper_preview.dart';
 
 import '../preview_test_harness.dart';
 

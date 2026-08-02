@@ -23,7 +23,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/auth/social/social_sign_in_button.dart';
-import 'package:jeeb_mobile/previews/auth/social_sign_in_button_preview.dart';
 
 import '../preview_test_harness.dart';
 
